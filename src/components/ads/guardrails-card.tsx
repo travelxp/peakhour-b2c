@@ -65,6 +65,7 @@ import {
   approvedAssetsOffer,
   approvedAssetsWarning,
   approvedByChannelLine,
+  nothingToApproveLine,
 } from "@/lib/creative-review-copy";
 import { useCreativesSummary } from "@/components/ads/creatives-review-entry";
 
@@ -347,9 +348,7 @@ export function GuardrailsCard() {
                 </p>
               ) : assetsOffer === "nothing_to_approve" ? (
                 <p className="text-xs text-muted-foreground">
-                  {creatives.data?.total === 0
-                    ? "Not available yet: Peakhour hasn’t written any ad creatives for you, so there is nothing to approve. Turning this on now would stop every ad Peakhour creates."
-                    : "Not available now: you have no creative that an ad could use once approved \u2014 each is running, retired, still being written, or missing a landing page or headline \u2014 so turning this on would stop every ad Peakhour creates."}{" "}
+                  {creatives.data ? nothingToApproveLine(creatives.data) : null}{" "}
                   <Link href={CREATIVE_REVIEW_PATH} className="underline underline-offset-2">
                     See your creatives
                   </Link>

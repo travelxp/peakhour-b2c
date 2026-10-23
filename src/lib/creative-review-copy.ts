@@ -48,6 +48,13 @@ const FORMAT_LABELS: Readonly<Record<string, string>> = {
   banner: "Banner",
 };
 
+/** An angle key as words, first letter capitalised: "social_proof" → "Social proof". */
+export function angleLabel(angle: string | null): string | null {
+  if (!angle) return null;
+  const words = angle.replace(/_/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 export function formatLabel(format: string | null): string | null {
   if (!format) return null;
   return FORMAT_LABELS[format] ?? format.replace(/_/g, " ");
@@ -128,7 +135,12 @@ export function approvalDetail(
  * approved-only switch would stop every ad Peakhour creates. With creatives
  * that this view filters out, say that instead.
  */
-export function emptyState(summary: CreativesSummary, filter: CreativeFilterKey): { title: string; body: string } {
+export function emptyState(
+  summary: CreativesSummary,
+  filter: CreativeFilterKey,
+  /** The channel filter, when one is set: the summary is business-wide, so claim nothing about other channels (review R3). */
+  platform?: string,
+): { title: string; body: string } {
   if (summary.total === 0) {
     return {
       title: "No ad creatives yet",
@@ -139,6 +151,13 @@ export function emptyState(summary: CreativesSummary, filter: CreativeFilterKey)
   }
   const n = summary.total;
   const all = `You have ${n} creative${n === 1 ? "" : "s"} in all.`;
+  if (platform) {
+    const tab = filterFor(filter).label;
+    return {
+      title: `None on ${platformLabel(platform)}`,
+      body: `No creative on ${platformLabel(platform)} is in \u201c${tab}\u201d. ${all} Choose \u201cAll channels\u201d to see the others.`,
+    };
+  }
   switch (filter) {
     case "to_review": {
       // ★An approved creative edited since waits on the Approved tab (review R1).
@@ -207,6 +226,22 @@ export function approvedByChannelLine(summary: CreativesSummary | undefined): st
   if (entries.length === 0) return null;
   const list = entries.map(([k, n]) => `${platformLabel(k)} (${n})`).join(", ");
   return `Approved creatives Peakhour can use: ${list}. An ad on any other channel needs a creative approved for that channel.`;
+}
+
+/**
+ * Why the switch is not offered (`nothing_to_approve`), in one sentence that
+ * agrees with `approvedAssetsWarning` (review R3): approved creatives that
+ * need a landing page or headline are named as such.
+ */
+export function nothingToApproveLine(summary: CreativesSummary): string {
+  if (summary.total === 0) {
+    return "Not available yet: Peakhour hasn\u2019t written any ad creatives for you, so there is nothing to approve. Turning this on now would stop every ad Peakhour creates.";
+  }
+  if (summary.approvedUnusable > 0) {
+    const n = summary.approvedUnusable;
+    return `Not available now: ${n === 1 ? "your approved creative is" : `your ${n} approved creatives are`} missing a landing page or a headline, and nothing else could be used once approved \u2014 so turning this on would stop every ad Peakhour creates.`;
+  }
+  return "Not available now: you have no creative that an ad could use once approved \u2014 each is running, retired, still being written, or missing a landing page or headline \u2014 so turning this on would stop every ad Peakhour creates.";
 }
 
 /** A short line for the Ads page's entry, from the summary. */

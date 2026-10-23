@@ -17,7 +17,7 @@
  * Not under /dashboard/ads: the ads hub is one surface (ads-hub-single-surface);
  * the hub and the guardrails card link here.
  */
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -35,6 +35,7 @@ import { GUARDRAIL_CHANNELS } from "@/lib/guardrails-copy";
 import { CREATIVES_SUMMARY_KEY } from "@/components/ads/creatives-review-entry";
 import {
   CREATIVE_FILTERS,
+  angleLabel,
   approvalBadge,
   approvalDetail,
   creativeActionError,
@@ -96,10 +97,15 @@ function CreativeReview() {
   //  guardrails card rather than asking the api again (review R1).
   //  ★Never over a NEWER one (review R2): a tab's cached list mounting again
   //  carries the summary from when it was fetched.
+  //  ★Only when the FIRST PAGE itself changed (review R3): "Show more" moves
+  //  dataUpdatedAt without refetching page one, and would stamp its old
+  //  summary as new.
   const firstSummary = page.data?.pages[0]?.summary;
   const fetchedAt = page.dataUpdatedAt;
+  const seeded = useRef<unknown>(null);
   useEffect(() => {
-    if (!firstSummary) return;
+    if (!firstSummary || seeded.current === firstSummary) return;
+    seeded.current = firstSummary;
     const held = queryClient.getQueryState(CREATIVES_SUMMARY_KEY)?.dataUpdatedAt ?? 0;
     if (fetchedAt > held) queryClient.setQueryData(CREATIVES_SUMMARY_KEY, firstSummary, { updatedAt: fetchedAt });
   }, [firstSummary, fetchedAt, queryClient]);
@@ -160,6 +166,7 @@ function CreativeReview() {
           items={page.data.pages.flatMap((p) => p.creatives)}
           summary={page.data.pages[0]!.summary}
           filterKey={filter.key}
+          platform={platform}
           onChanged={() => queryClient.invalidateQueries({ queryKey: ["growth-creatives"] })}
           more={
             page.hasNextPage ? (
@@ -181,16 +188,18 @@ function CreativeList({
   filterKey,
   onChanged,
   more,
+  platform,
 }: {
   items: CreativeReviewItem[];
   summary: Parameters<typeof emptyState>[0] | null;
   filterKey: Parameters<typeof emptyState>[1];
-  onChanged: () => void;
+  platform: string;
+  onChanged: () => Promise<unknown>;
   more: React.ReactNode;
 }) {
   if (items.length === 0) {
     // The first page always carries the summary; without one, claim nothing more than this view.
-    const e = summary ? emptyState(summary, filterKey) : { title: "No creatives", body: "No creative is in this view." };
+    const e = summary ? emptyState(summary, filterKey, platform || undefined) : { title: "No creatives", body: "No creative is in this view." };
     return (
       <Card>
         <CardContent className="space-y-2 p-6">
@@ -216,13 +225,15 @@ function formatDay(iso: string | null): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
 
-function CreativeCard({ item, onChanged }: { item: CreativeReviewItem; onChanged: () => void }) {
+function CreativeCard({ item, onChanged }: { item: CreativeReviewItem; onChanged: () => Promise<unknown> }) {
   const act = useMutation({
     mutationFn: (action: "approve" | "withdraw"): Promise<{ status: string }> =>
       action === "approve" ? growthApi.approveCreative(item.id, item.assetsHash) : growthApi.withdrawCreativeApproval(item.id),
     onSuccess: (_res, action) => {
       toast.success(action === "approve" ? "Creative approved." : "Approval taken back.");
-      onChanged();
+      // ★Returned (review R3): the buttons stay disabled until the list shows
+      //  the new state, so a second click cannot send a refused repeat.
+      return onChanged();
     },
     onError: (err, action) => {
       toast.error(creativeActionError(err instanceof ApiError ? err : null, action));
@@ -244,7 +255,7 @@ function CreativeCard({ item, onChanged }: { item: CreativeReviewItem; onChanged
           </Badge>
           <span className="text-sm font-medium">{platformLabel(item.platform)}</span>
           {fmt && <span className="text-sm text-muted-foreground">· {fmt}</span>}
-          {item.angle && <span className="text-sm text-muted-foreground">· {item.angle.replace(/_/g, " ")}</span>}
+          {item.angle && <span className="text-sm text-muted-foreground">· {angleLabel(item.angle)}</span>}
         </div>
 
         <p className="text-sm text-muted-foreground">{approvalDetail(item, formatDay(item.approval?.at ?? null))}</p>

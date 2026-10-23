@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import type { CreativeReviewItem, CreativesSummary } from "@/lib/api/growth";
 import {
   CREATIVE_FILTERS,
+  angleLabel,
+  nothingToApproveLine,
   approvalBadge,
   approvalDetail,
   approvedAssetsOffer,
@@ -184,6 +186,27 @@ describe("approvedByChannelLine — an approval covers its own channel only (api
     expect(approvedByChannelLine(S())).toBeNull();
     expect(approvedByChannelLine(S({ inForceByPlatform: { linkedin: 0 } }))).toBeNull();
     expect(approvedByChannelLine(undefined)).toBeNull();
+  });
+});
+
+describe("review R3", () => {
+  it("★★a channel-filtered empty view claims nothing about other channels", () => {
+    expect(emptyState(S({ total: 4 }), "approved", "google_ads")).toEqual({
+      title: "None on Google Ads",
+      body: "No creative on Google Ads is in \u201cApproved\u201d. You have 4 creatives in all. Choose \u201cAll channels\u201d to see the others.",
+    });
+    // No creative at all is still said plainly, filter or not.
+    expect(emptyState(S(), "approved", "google_ads").title).toBe("No ad creatives yet");
+  });
+  it("★★why the switch is not offered agrees with the warning", () => {
+    expect(nothingToApproveLine(S())).toContain("hasn\u2019t written any ad creatives");
+    expect(nothingToApproveLine(S({ total: 2, approvedUnusable: 2 }))).toContain("your 2 approved creatives are missing a landing page or a headline");
+    expect(nothingToApproveLine(S({ total: 1, approvedUnusable: 1 }))).toContain("your approved creative is missing");
+    expect(nothingToApproveLine(S({ total: 3 }))).toContain("each is running, retired, still being written");
+  });
+  it("angle as words", () => {
+    expect(angleLabel("social_proof")).toBe("Social proof");
+    expect(angleLabel(null)).toBeNull();
   });
 });
 
