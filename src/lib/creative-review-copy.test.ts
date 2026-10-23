@@ -127,7 +127,7 @@ describe("emptyState — ★an empty list is never \"all fine\"", () => {
     });
     // ★An approved creative edited since waits on the Approved tab (review R1).
     expect(emptyState(S({ total: 3, changedSinceApproved: 1 }), "to_review").body).toBe(
-      "No new creative is waiting for your review. 1 approved creative has changed since you approved it — see Approved. You have 3 creatives in all.",
+      "No new creative is waiting for your review. 1 approved creative has changed since you approved it — see Approved, or Running or ran. You have 3 creatives in all.",
     );
     expect(emptyState(S({ total: 3, changedSinceApproved: 2 }), "to_review").body).toContain("2 approved creatives have changed since you approved them");
     expect(emptyState(S({ total: 1 }), "approved").body).toContain("You have 1 creative in all.");

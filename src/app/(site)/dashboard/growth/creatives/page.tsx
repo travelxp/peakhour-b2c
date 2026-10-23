@@ -94,10 +94,15 @@ function CreativeReview() {
 
   // ★The first page carries the business summary; hand it to the hub and the
   //  guardrails card rather than asking the api again (review R1).
+  //  ★Never over a NEWER one (review R2): a tab's cached list mounting again
+  //  carries the summary from when it was fetched.
   const firstSummary = page.data?.pages[0]?.summary;
+  const fetchedAt = page.dataUpdatedAt;
   useEffect(() => {
-    if (firstSummary) queryClient.setQueryData(CREATIVES_SUMMARY_KEY, firstSummary);
-  }, [firstSummary, queryClient]);
+    if (!firstSummary) return;
+    const held = queryClient.getQueryState(CREATIVES_SUMMARY_KEY)?.dataUpdatedAt ?? 0;
+    if (fetchedAt > held) queryClient.setQueryData(CREATIVES_SUMMARY_KEY, firstSummary, { updatedAt: fetchedAt });
+  }, [firstSummary, fetchedAt, queryClient]);
 
   return (
     <div className="space-y-6">
@@ -221,8 +226,9 @@ function CreativeCard({ item, onChanged }: { item: CreativeReviewItem; onChanged
     },
     onError: (err, action) => {
       toast.error(creativeActionError(err instanceof ApiError ? err : null, action));
-      // A refusal means the creative is not what this card shows: reload it.
-      if (err instanceof ApiError) onChanged();
+      // ★A REFUSAL (404/409) means the creative is not what this card shows:
+      //  reload it. A 401, a 500 or no network says nothing about it (review R2).
+      if (err instanceof ApiError && (err.status === 404 || err.status === 409)) onChanged();
     },
   });
   const pending = act.isPending ? act.variables : null;
@@ -300,8 +306,9 @@ function CreativeCard({ item, onChanged }: { item: CreativeReviewItem; onChanged
             {item.preflight.summary}
           </p>
         )}
-        {/* ★Unless the policy note above already says why (review R1: an "allow" note is not shown). */}
-        {item.retiredReason && item.status === "retired" && !(item.preflight?.decision === "block" && item.preflight.summary) && (
+        {/* ★Always (review R2): a creative the policy check blocked may have
+            been retired later for another reason. */}
+        {item.retiredReason && item.status === "retired" && (
           <p className="text-sm text-muted-foreground">Retired: {item.retiredReason}</p>
         )}
         {item.rationale && <p className="text-sm text-muted-foreground">Why this ad: {item.rationale}</p>}

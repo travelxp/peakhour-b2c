@@ -143,7 +143,11 @@ export function emptyState(summary: CreativesSummary, filter: CreativeFilterKey)
     case "to_review": {
       // ★An approved creative edited since waits on the Approved tab (review R1).
       const c = summary.changedSinceApproved;
-      const changed = c > 0 ? ` ${c} approved creative${c === 1 ? " has" : "s have"} changed since you approved ${c === 1 ? "it" : "them"} — see Approved.` : "";
+      // ★Not "see Approved" alone (review R2): one that is running or has run is on Running or ran.
+      const changed =
+        c > 0
+          ? ` ${c} approved creative${c === 1 ? " has" : "s have"} changed since you approved ${c === 1 ? "it" : "them"} — see Approved, or Running or ran.`
+          : "";
       return { title: "Nothing new waiting for you", body: `No new creative is waiting for your review.${changed} ${all}` };
     }
     case "approved":

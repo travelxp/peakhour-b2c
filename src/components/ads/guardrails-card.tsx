@@ -356,9 +356,18 @@ export function GuardrailsCard() {
                 </p>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  {creatives.isError
-                    ? "We couldn’t check whether you have creatives to approve, so this can’t be turned on right now."
-                    : "Checking your creatives…"}
+                  {creatives.isError ? (
+                    <>
+                      We couldn&rsquo;t check whether you have creatives to approve, so this can&rsquo;t be turned on
+                      right now.{" "}
+                      {/* ★A way back from a failed check (review R2): it does not refetch on focus. */}
+                      <button type="button" className="underline underline-offset-2" onClick={() => creatives.refetch()}>
+                        Try again
+                      </button>
+                    </>
+                  ) : (
+                    "Checking your creatives…"
+                  )}
                 </p>
               )}
             </div>
