@@ -1029,6 +1029,26 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     summarize: (data) => summarizeGoogleAdsOps(data),
   },
 
+  // ── Reconnect alerts (D-04b) and the Portfolio Allocator (C-05) ─────
+
+  "connection-reauth-alerts": {
+    label: "Send reconnect alerts",
+    frequency: "Runs hourly at :40",
+    description:
+      "Tells a business once each time one of its connections needs reconnecting (connection_needs_reauth), " +
+      "oldest first. It reads only connections whose entry into needs-reauth has not been alerted, claims each " +
+      "before sending, and stops starting new sends after three minutes.",
+  },
+
+  "portfolio-allocator": {
+    label: "Propose a weekly budget split",
+    frequency: "Runs hourly on Mondays, 04:00–23:00 UTC",
+    description:
+      "Once per business per week, proposes how to split the unchanged ad budget across channels — proposals " +
+      "only, nothing is applied. It refuses to rank channels whose conversions are measured differently, and " +
+      "records why when it makes no proposal.",
+  },
+
   // ── Billing + money ────────────────────────────────────────────────
   // Undocumented until now because none of them could be triggered at all
   // (peakhour-api#1017). Which of these need an explicit confirmation is NOT
