@@ -1076,7 +1076,7 @@ export interface CreativeReviewItem {
   /** The hash of the copy shown; approving sends it back so unseen edits are refused. */
   assetsHash: string;
   /** Why no ad can use this creative, approved or not (api `creativeCoverageGap`). */
-  coverageGap: "no_landing_page" | "no_headline" | null;
+  coverageGap: "platform_unused" | "no_landing_page" | "no_headline" | null;
   approval: { at: string | null; byYou: boolean } | null;
   /** The api's own rule for what its approval writer accepts now. */
   canApprove: boolean;
@@ -1092,7 +1092,7 @@ export interface CreativesSummary {
   inForce: number;
   /** `inForce` by platform: an approved creative covers ads on its own platform only. */
   inForceByPlatform: Record<string, number>;
-  /** Approved as they read now, but missing a landing page or a headline. */
+  /** Approved as they read now, but no engine ad can carry them (their channel, or no landing page or headline). */
   approvedUnusable: number;
   /** A person could approve now, and an ad could then use. */
   approvable: number;

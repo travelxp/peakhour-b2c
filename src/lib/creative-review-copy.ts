@@ -87,6 +87,8 @@ export function approvalBadge(
 }
 
 const GAP_REASON: Readonly<Record<NonNullable<CreativeReviewItem["coverageGap"]>, string>> = {
+  // api review R3: today only Google Ads engine ads carry creative copy.
+  platform_unused: "Peakhour doesn\u2019t create ads from creatives on this channel yet",
   no_landing_page: "it has no landing page",
   no_headline: "it has no headline",
 };
@@ -211,7 +213,7 @@ export function approvedAssetsWarning(summary: CreativesSummary | undefined, on:
   // ★Approved but unusable is not "none approved" (review R1): say what to fix.
   if (summary.approvedUnusable > 0) {
     const n = summary.approvedUnusable;
-    return `${n === 1 ? "Your approved creative is" : `All ${n} approved creatives are`} missing a landing page or a headline, so no ad can use ${n === 1 ? "it" : "them"} and Peakhour creates no ads of its own.`;
+    return `No ad can use ${n === 1 ? "your approved creative" : `any of your ${n} approved creatives`} \u2014 each is on a channel Peakhour doesn\u2019t create creative ads for yet, or is missing a landing page or a headline \u2014 so Peakhour creates no ads of its own.`;
   }
   return "No creative is approved, and there is none to approve, so Peakhour creates no ads of its own.";
 }
@@ -239,9 +241,9 @@ export function nothingToApproveLine(summary: CreativesSummary): string {
   }
   if (summary.approvedUnusable > 0) {
     const n = summary.approvedUnusable;
-    return `Not available now: ${n === 1 ? "your approved creative is" : `your ${n} approved creatives are`} missing a landing page or a headline, and nothing else could be used once approved \u2014 so turning this on would stop every ad Peakhour creates.`;
+    return `Not available now: no ad can use ${n === 1 ? "your approved creative" : `your ${n} approved creatives`} (a channel Peakhour doesn\u2019t create creative ads for yet, or no landing page or headline), and nothing else could be used once approved \u2014 so turning this on would stop every ad Peakhour creates.`;
   }
-  return "Not available now: you have no creative that an ad could use once approved \u2014 each is running, retired, still being written, or missing a landing page or headline \u2014 so turning this on would stop every ad Peakhour creates.";
+  return "Not available now: you have no creative that an ad could use once approved \u2014 each is running, retired, still being written, on a channel Peakhour doesn\u2019t create creative ads for yet, or missing a landing page or headline \u2014 so turning this on would stop every ad Peakhour creates.";
 }
 
 /** A short line for the Ads page's entry, from the summary. */

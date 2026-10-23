@@ -63,7 +63,7 @@ describe("approvalBadge — ★the api's state, never the status", () => {
 
 describe("★★approved, but no ad can use it (api review R1)", () => {
   it("★★never the green badge, and says why", () => {
-    for (const coverageGap of ["no_landing_page", "no_headline"] as const) {
+    for (const coverageGap of ["platform_unused", "no_landing_page", "no_headline"] as const) {
       expect(approvalBadge(item({ approvalState: "approved", status: "approved", coverageGap }))).toEqual({
         label: "Approved — can't be used",
         tone: "changed",
@@ -75,6 +75,11 @@ describe("★★approved, but no ad can use it (api review R1)", () => {
     expect(
       approvalDetail(item({ approvalState: "approved", status: "approved", coverageGap: "no_headline", approval: { at: "x", byYou: true } }), null),
     ).toBe("Approved by you, but no ad can use it: it has no headline.");
+  });
+  it("★★a creative on a channel whose engine ads carry no copy says so (api review R3)", () => {
+    expect(approvalDetail(item({ approvalState: "approved", status: "approved", coverageGap: "platform_unused", approval: { at: "x", byYou: true } }), null)).toBe(
+      "Approved by you, but no ad can use it: Peakhour doesn\u2019t create ads from creatives on this channel yet.",
+    );
   });
   it("the hub line counts them apart", () => {
     expect(reviewEntryLine(S({ total: 2, inForce: 1, approvedUnusable: 1 }))).toBe("1 approved · 1 approved but unusable.");
@@ -165,9 +170,9 @@ describe("approvedAssetsWarning — on, with nothing in force", () => {
     expect(approvedAssetsWarning(S({ total: 2, approvable: 2 }), true)).toContain("You could approve 2.");
     // ★Approved but unusable is not "none approved" (review R1).
     expect(approvedAssetsWarning(S({ total: 2, approvedUnusable: 2 }), true)).toBe(
-      "All 2 approved creatives are missing a landing page or a headline, so no ad can use them and Peakhour creates no ads of its own.",
+      "No ad can use any of your 2 approved creatives \u2014 each is on a channel Peakhour doesn\u2019t create creative ads for yet, or is missing a landing page or a headline \u2014 so Peakhour creates no ads of its own.",
     );
-    expect(approvedAssetsWarning(S({ total: 1, approvedUnusable: 1 }), true)).toContain("Your approved creative is missing");
+    expect(approvedAssetsWarning(S({ total: 1, approvedUnusable: 1 }), true)).toContain("No ad can use your approved creative");
   });
   it("silent when off, when one is in force, or when unknown", () => {
     expect(approvedAssetsWarning(S(), false)).toBeNull();
@@ -200,8 +205,8 @@ describe("review R3", () => {
   });
   it("★★why the switch is not offered agrees with the warning", () => {
     expect(nothingToApproveLine(S())).toContain("hasn\u2019t written any ad creatives");
-    expect(nothingToApproveLine(S({ total: 2, approvedUnusable: 2 }))).toContain("your 2 approved creatives are missing a landing page or a headline");
-    expect(nothingToApproveLine(S({ total: 1, approvedUnusable: 1 }))).toContain("your approved creative is missing");
+    expect(nothingToApproveLine(S({ total: 2, approvedUnusable: 2 }))).toContain("no ad can use your 2 approved creatives (a channel Peakhour doesn\u2019t create creative ads for yet");
+    expect(nothingToApproveLine(S({ total: 1, approvedUnusable: 1 }))).toContain("no ad can use your approved creative (");
     expect(nothingToApproveLine(S({ total: 3 }))).toContain("each is running, retired, still being written");
   });
   it("angle as words", () => {
