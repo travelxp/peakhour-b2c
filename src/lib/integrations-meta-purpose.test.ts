@@ -154,6 +154,17 @@ describe("★★Disconnect names exactly what goes", () => {
     );
   });
 
+  it("★a Growth row beside a BROKEN shared row takes Meta Ads — there is no working login to fall back to", () => {
+    const info: MetaLoginInfo = {
+      metaConnections: [
+        { purpose: null, status: "needs_reauth" },
+        { purpose: "ads", status: "active" },
+      ],
+    };
+    expect(metaCardsDisconnectedBy(info, "meta_ads")).toEqual(["meta_ads"]);
+    expect(metaDisconnectCopy(info, "meta_ads", ["meta_ads"])).toBe("This disconnects Meta Ads.");
+  });
+
   it("★an older api (no metaConnections) is one shared row behind every card, as before", () => {
     expect(metaCardsDisconnectedBy({}, "meta_ads").sort()).toEqual(["facebook_pages", "instagram", "meta_ads"]);
     expect(metaActionPurpose({}, "meta_ads")).toBe("ads");

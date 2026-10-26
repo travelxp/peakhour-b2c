@@ -210,6 +210,7 @@ import {
   resolveProvider,
   isMetaVirtual,
   metaActionPurpose,
+  metaCardServedBy,
   metaCardStatus,
   metaCardsDisconnectedBy,
   metaDisconnectCopy,
@@ -233,11 +234,18 @@ function flattenMetaIntegration(integrations: Integration[]): Integration[] {
     // working shared row would otherwise show Meta Ads as connected.
     const rowStatus = card.loginPurpose ? metaCardStatus(info, card.virtualProvider) : undefined;
     const ownRowBroken = rowStatus !== undefined && rowStatus !== "active";
+    // And a card NO row serves (the api said so) is not connected, whatever
+    // the merged extras of another purpose's row contain.
+    const unserved =
+      card.loginPurpose !== undefined &&
+      item.metaConnections !== undefined &&
+      metaCardServedBy(info, card.virtualProvider) === "none";
     return {
       name: card.name,
       description: card.description,
       grantNote: metaGrantNote(card.virtualProvider, item.metaLogin, metaActionPurpose(info, card.virtualProvider)),
       ...(ownRowBroken ? { connected: false, status: rowStatus } : {}),
+      ...(unserved ? { connected: false } : {}),
       category: card.category,
       account: item.connected
         ? {

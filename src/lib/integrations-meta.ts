@@ -228,9 +228,11 @@ export function metaGrantNote(
     : "Connecting asks Meta only for Pages and Instagram access — not your ad accounts.";
 }
 
-/** Whether a shared all-purpose row exists (always assumed for an older api). */
+/** Whether a WORKING shared all-purpose row exists (always assumed for an
+ *  older api). A broken one does not keep a card connected after its purpose
+ *  row goes — the card would fall back to a row that needs reconnecting. */
 function hasSharedRow(info: MetaLoginInfo): boolean {
-  return !info.metaConnections || info.metaConnections.some((r) => r.purpose === null);
+  return !info.metaConnections || info.metaConnections.some((r) => r.purpose === null && r.status === "active");
 }
 
 /**
