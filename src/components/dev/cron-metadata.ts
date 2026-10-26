@@ -1038,6 +1038,24 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       "has not chosen a conversion action, and it charges nothing.",
   },
 
+  "attribute-outcome-sweep": {
+    label: "Credit orders to an ad channel",
+    frequency: "Runs daily at 16:00 UTC",
+    description:
+      "For each settled order, decides from its stored click ids and the business's campaigns whether Meta, " +
+      "Google or neither is credited, and records one verdict per order. An order with no click id, or with " +
+      "click ids from both channels, is left uncredited. It tells no platform anything and charges nothing.",
+  },
+
+  "rails-copurchase": {
+    label: "Build bought-together rails",
+    frequency: "Runs daily at 02:45 UTC",
+    description:
+      "For each Shopify store whose orders PeakHour can read, works out which products are bought together, " +
+      "saves one rail per product and syncs it to the product's metafield, removing rails that no longer " +
+      "qualify. A store whose orders cannot be read is skipped, never cleared. It reads no customer field.",
+  },
+
   // ── Reconnect alerts (D-04b) and the Portfolio Allocator (C-05) ─────
 
   "connection-reauth-alerts": {
