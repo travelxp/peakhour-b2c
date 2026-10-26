@@ -1029,6 +1029,15 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     summarize: (data) => summarizeGoogleAdsOps(data),
   },
 
+  "google-conversion-sweep": {
+    label: "Send sales to Google Ads",
+    frequency: "Runs daily at 15:30 UTC",
+    description:
+      "Sends orders that came from a Google ad click to the conversion action the merchant chose, through " +
+      "Google's Data Manager API, and records a receipt on each order. It sends nothing for a business that " +
+      "has not chosen a conversion action, and it charges nothing.",
+  },
+
   // ── Reconnect alerts (D-04b) and the Portfolio Allocator (C-05) ─────
 
   "connection-reauth-alerts": {
