@@ -72,15 +72,31 @@ describe("★★G-15 — no b2c file names a Google ads path but the client", ()
     expect(paths.length).toBeGreaterThanOrEqual(3);
     for (const p of paths) expect(isManagedGoogleAdsPath(p), p).toBe(true);
     // Each `api.<verb>(` call's first argument is a googleAdsUrl(...) call.
-    const calls = [...client.matchAll(/api\.(get|post|patch|delete)<[^>]*>\(\s*([^,)]+)/g)].map((m) => m[2]!.trim());
-    expect(calls.length).toBe(4);
+    const calls = [...client.matchAll(/api\.(get|post|put|patch|delete)<[^>]*>\(\s*([^,)]+)/g)].map((m) => m[2]!.trim());
+    expect(calls.length).toBe(6);
     for (const arg of calls) expect(arg.startsWith("googleAdsUrl("), arg).toBe(true);
   });
 
   it("★and that check SAYS SO when there is something to find", () => {
     const bad = 'api.get<X>("/v1/google/ads/campaigns")';
-    const arg = [...bad.matchAll(/api\.(get|post|patch|delete)<[^>]*>\(\s*([^,)]+)/g)].map((m) => m[2]!.trim())[0];
+    const arg = [...bad.matchAll(/api\.(get|post|put|patch|delete)<[^>]*>\(\s*([^,)]+)/g)].map((m) => m[2]!.trim())[0];
     expect(arg!.startsWith("googleAdsUrl(")).toBe(false);
+  });
+});
+
+describe("★★G-17b — the conversion-action route is managed, and the client calls it by both verbs", () => {
+  it("is on the list, and every path the client names is on it", () => {
+    expect(GOOGLE_ADS_MANAGED_ROUTES).toContain(`${GOOGLE_ADS_PREFIX}/conversion-action`);
+    for (const p of findGoogleAdsPaths(read(CLIENT))) {
+      expect((GOOGLE_ADS_MANAGED_ROUTES as readonly string[]).some((r) => r === p || isManagedGoogleAdsPath(p)), p).toBe(true);
+    }
+    expect(googleAdsUrl("/v1/google/ads/conversion-action")).toBe("/v1/google/ads/conversion-action");
+  });
+  it("the client reads with GET (with the account) and chooses with PUT", () => {
+    const client = read(CLIENT);
+    expect(client).toMatch(/api\.get<GoogleConversionActionState>\(googleAdsUrl\("\/v1\/google\/ads\/conversion-action"\)/);
+    expect(client).toMatch(/api\.put<GoogleConversionActionChosen>\(googleAdsUrl\("\/v1\/google\/ads\/conversion-action"\)/);
+    expect(client).toContain("?adAccountId=${encodeURIComponent(adAccountId)}");
   });
 });
 
@@ -173,13 +189,13 @@ describe("★★G-15 — the prefix and the routes are peakhour-api's", () => {
 
   it.skipIf(!present)("★★every managed route is one the api's Google router declares, with the verb the client uses", () => {
     const file = readSibling(ROUTE_FILE);
-    const declared = new Set([...file.matchAll(/app\.(get|post|patch|delete)\("([^"]+)"/g)].map((m) => `${m[1]} ${m[2]}`));
+    const declared = new Set([...file.matchAll(/app\.(get|post|put|patch|delete)\("([^"]+)"/g)].map((m) => `${m[1]} ${m[2]}`));
     expect(declared.size).toBeGreaterThanOrEqual(4);
     const client = read(CLIENT);
-    const used = [...client.matchAll(/api\.(get|post|patch|delete)<[^>]*>\(\s*googleAdsUrl\("([^"]+)"/g)].map(
+    const used = [...client.matchAll(/api\.(get|post|put|patch|delete)<[^>]*>\(\s*googleAdsUrl\("([^"]+)"/g)].map(
       (m) => `${m[1]} ${m[2]!.slice(GOOGLE_ADS_PREFIX.length)}`,
     );
-    expect(used.length).toBe(4);
+    expect(used.length).toBe(6);
     for (const u of used) expect(declared.has(u), u).toBe(true);
     for (const r of GOOGLE_ADS_MANAGED_ROUTES) {
       const sub = r.slice(GOOGLE_ADS_PREFIX.length);
