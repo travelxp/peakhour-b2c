@@ -33,7 +33,13 @@ export function useSignalReadiness() {
 export function useSignalActions() {
   const qc = useQueryClient();
   const { business } = useAuth();
-  const done = () => qc.invalidateQueries({ queryKey: key(business?._id) });
+  // The Ads dashboard's cards read the same facts under their own keys: refresh them too, or they offer to create what exists.
+  const done = () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: key(business?._id) }),
+      qc.invalidateQueries({ queryKey: ["google-conversion-action"] }),
+      qc.invalidateQueries({ queryKey: ["meta-ads-dataset"] }),
+    ]);
   return {
     setUpMeta: useMutation({ mutationFn: (adAccountId: string) => metaAdsApi.createDataset(adAccountId), onSettled: done }),
     setUpGoogle: useMutation({

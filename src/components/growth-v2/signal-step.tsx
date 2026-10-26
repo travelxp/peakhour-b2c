@@ -21,6 +21,7 @@ import {
   type SignalReadiness,
 } from "@/lib/growth-v2-signal";
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/providers/auth-provider";
 import { MeasurementBadge } from "./measurement-badge";
 import { ToneBadge } from "./tone";
 
@@ -156,11 +157,16 @@ export function SignalStep({
   focusLabel?: string;
   onContinue: () => void;
 }) {
+  const { business } = useAuth();
   const readiness = useSignalReadiness();
   const actions = useSignalActions();
-  const meta = useQuery({ queryKey: ["growth-v2", "signal", "meta-accounts"], queryFn: () => metaAdsApi.listAdAccounts(), retry: false });
-  const google = useQuery({ queryKey: ["growth-v2", "signal", "google-accounts"], queryFn: () => googleAdsApi.listAdAccounts(), retry: false });
-  const [chosen, setChosen] = useState<Record<SignalPlatform, string | undefined>>({ meta: undefined, google_ads: undefined });
+  // ★BUSINESS-SCOPED, like the readiness: another business's ad accounts must never be offered, or defaulted to.
+  const scope = business?._id ?? "none";
+  const meta = useQuery({ queryKey: ["growth-v2", "signal", scope, "meta-accounts"], queryFn: () => metaAdsApi.listAdAccounts(), enabled: !!business, retry: false });
+  const google = useQuery({ queryKey: ["growth-v2", "signal", scope, "google-accounts"], queryFn: () => googleAdsApi.listAdAccounts(), enabled: !!business, retry: false });
+  // an account picked for one business is not a pick for the next
+  const [pick, setPick] = useState<{ scope: string; chosen: Record<SignalPlatform, string | undefined> }>({ scope, chosen: { meta: undefined, google_ads: undefined } });
+  const chosen = pick.scope === scope ? pick.chosen : { meta: undefined, google_ads: undefined };
   const [error, setError] = useState<string | undefined>(undefined);
   const accounts: Record<SignalPlatform, AdAccountChoice[]> = {
     meta: (meta.data?.accounts ?? []).map((a) => ({ id: a.id, name: a.name })),
@@ -179,7 +185,7 @@ export function SignalStep({
       focusLabel={focusLabel}
       accounts={accounts}
       chosenAccount={chosen}
-      onChooseAccount={(platform, id) => setChosen((c) => ({ ...c, [platform]: id }))}
+      onChooseAccount={(platform, id) => setPick({ scope, chosen: { ...chosen, [platform]: id } })}
       busy={busy}
       error={error ?? (readiness.isError ? "We couldn't read your connections. Try again in a moment." : undefined)}
       onSetUp={(platform) => {
