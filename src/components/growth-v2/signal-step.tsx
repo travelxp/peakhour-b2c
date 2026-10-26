@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ApiError } from "@/lib/api";
+import { adsErrorMessage } from "@/lib/ads-error-message";
+import { googleConversionErrorMessage } from "@/lib/google-conversion-view";
 import { googleAdsApi } from "@/lib/api/google-ads";
 import { metaAdsApi } from "@/lib/api/meta-ads";
 import { useSignalActions, useSignalReadiness } from "@/lib/api/growth-v2-signal";
@@ -16,6 +18,7 @@ import {
   UNTRACKED_EXPLANATION,
   canContinue,
   continueBlockedReason,
+  needsAChoice,
   signalStateSentence,
   type PlatformSignal,
   type SignalPlatform,
@@ -41,6 +44,8 @@ import { ToneBadge } from "./tone";
 export interface AdAccountChoice {
   id: string;
   name: string;
+  /** The account's billing currency, when known. Google's conversion action takes it. */
+  currency?: string;
 }
 
 export interface SignalStepViewProps {
@@ -49,6 +54,8 @@ export interface SignalStepViewProps {
   focusLabel?: string;
   accounts: Record<SignalPlatform, AdAccountChoice[]>;
   chosenAccount: Record<SignalPlatform, string | undefined>;
+  /** A platform whose ad-account list could not be read: said on its row, not blamed on the merchant. */
+  accountsFailed?: Partial<Record<SignalPlatform, boolean>>;
   onChooseAccount: (platform: SignalPlatform, id: string) => void;
   onSetUp: (platform: SignalPlatform) => void;
   onAcceptUntracked: (platform: SignalPlatform) => void;
@@ -100,7 +107,7 @@ function PlatformRow({ row, ...p }: { row: PlatformSignal } & SignalStepViewProp
   const label = SIGNAL_PLATFORM_LABEL[row.platform];
   const accounts = p.accounts[row.platform];
   const chosen = p.chosenAccount[row.platform] ?? accounts[0]?.id;
-  const open = row.state === "needed" || row.state === "needs_primary_goal";
+  const open = needsAChoice(row.state);
   return (
     <div className="grid gap-2 py-3" data-platform={row.platform} data-state={row.state}>
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -115,6 +122,11 @@ function PlatformRow({ row, ...p }: { row: PlatformSignal } & SignalStepViewProp
       {open ? (
         <div className="grid gap-2">
           <p className="text-xs text-muted-foreground">{SIGNAL_WHAT_IT_DOES[row.platform]}</p>
+          {p.accountsFailed?.[row.platform] ? (
+            <p role="alert" className="text-xs text-destructive-on-tint">
+              We couldn&apos;t load your {label} ad accounts. Reload the page to try again.
+            </p>
+          ) : null}
           <div className="flex flex-wrap items-center gap-2">
             {accounts.length > 1 ? (
               <select
@@ -146,27 +158,41 @@ function PlatformRow({ row, ...p }: { row: PlatformSignal } & SignalStepViewProp
   );
 }
 
+/** The account to use: the pick if it is still offered, else the first. What the select shows is what is sent. */
+export function effectiveAccount(list: readonly AdAccountChoice[], picked: string | undefined): string | undefined {
+  return list.some((a) => a.id === picked) ? picked : list[0]?.id;
+}
+
+/** Codes the Meta dataset routes write for the merchant (`routes/meta-ads`). */
+const META_MERCHANT_FACING: ReadonlySet<string> = new Set([
+  "DATASET_NOT_FOUND",
+  "DATASET_UNAVAILABLE",
+  "DATASET_ID_UNSUPPORTED",
+  "AD_ACCOUNT_NOT_ALLOWED",
+  "CONNECTION_GONE",
+  "NO_BUSINESS",
+]);
+const UNTRACKED_MERCHANT_FACING: ReadonlySet<string> = new Set(["NOT_CONNECTED", "NO_BUSINESS"]);
+
 /**
- * What a failure says. An api refusal below 500 is written for the merchant (a dataset that is unavailable, an
- * ad account that is not theirs), so it is shown; a server failure or anything else is the fallback with the
- * request reference, never a raw message. A plain Error here is one this app threw (a missing currency) and is ours to show.
+ * What a failure says, never a raw message: an api code written for the merchant shows its sentence (Google's through
+ * the panel's own table), anything else is the fallback with the request reference. A plain Error is one this app
+ * threw itself (a currency it does not know), and is ours to show.
  */
-export function signalErrorMessage(err: unknown, fallback: string): string {
+export function signalErrorMessage(platform: SignalPlatform | "untracked", err: unknown, fallback: string): string {
   if (err instanceof ApiError) {
-    if (err.status < 500) return err.message;
-    return err.requestId ? `${fallback} (reference ${err.requestId})` : fallback;
+    if (platform === "google_ads") return googleConversionErrorMessage(err, fallback);
+    return adsErrorMessage(err, fallback, platform === "meta" ? META_MERCHANT_FACING : UNTRACKED_MERCHANT_FACING);
   }
   return err instanceof Error && err.message ? err.message : fallback;
 }
 
 /** The step, wired to the api. */
 export function SignalStep({
-  currency,
   optimizeFor,
   focusLabel,
   onContinue,
 }: {
-  currency: string;
   optimizeFor: "count" | "value";
   focusLabel?: string;
   onContinue: () => void;
@@ -174,24 +200,31 @@ export function SignalStep({
   const { business } = useAuth();
   const readiness = useSignalReadiness();
   const actions = useSignalActions();
-  // ★BUSINESS-SCOPED, like the readiness: another business's ad accounts must never be offered, or defaulted to.
+  // BUSINESS-SCOPED, like the readiness: another business's ad accounts must never be offered, or defaulted to.
   const scope = business?._id ?? "none";
   const meta = useQuery({ queryKey: ["growth-v2", "signal", scope, "meta-accounts"], queryFn: () => metaAdsApi.listAdAccounts(), enabled: !!business, retry: false });
   const google = useQuery({ queryKey: ["growth-v2", "signal", scope, "google-accounts"], queryFn: () => googleAdsApi.listAdAccounts(), enabled: !!business, retry: false });
-  // an account picked for one business is not a pick for the next
+  // an account picked, or an error shown, for one business is not for the next
   const [pick, setPick] = useState<{ scope: string; chosen: Record<SignalPlatform, string | undefined> }>({ scope, chosen: { meta: undefined, google_ads: undefined } });
-  const chosen = pick.scope === scope ? pick.chosen : { meta: undefined, google_ads: undefined };
-  const [error, setError] = useState<string | undefined>(undefined);
+  const [failure, setFailure] = useState<{ scope: string; message: string } | undefined>(undefined);
+  const picked = pick.scope === scope ? pick.chosen : { meta: undefined, google_ads: undefined };
+  const error = failure?.scope === scope ? failure.message : undefined;
   const accounts: Record<SignalPlatform, AdAccountChoice[]> = {
-    meta: (meta.data?.accounts ?? []).map((a) => ({ id: a.id, name: a.name })),
-    google_ads: (google.data?.adAccounts ?? []).map((a) => ({ id: a.id, name: a.name })),
+    meta: (meta.data?.accounts ?? []).map((a) => ({ id: a.id, name: a.name, currency: a.currency })),
+    google_ads: (google.data?.adAccounts ?? []).map((a) => ({ id: a.id, name: a.name, currency: a.currencyCode })),
+  };
+  // THE ACCOUNT THAT IS SHOWN IS THE ACCOUNT THAT IS USED: a pick that is no longer in the list falls back to the first.
+  const chosen: Record<SignalPlatform, string | undefined> = {
+    meta: effectiveAccount(accounts.meta, picked.meta),
+    google_ads: effectiveAccount(accounts.google_ads, picked.google_ads),
   };
   const busy = actions.setUpMeta.isPending || actions.setUpGoogle.isPending || actions.acceptUntracked.isPending;
-  const fail = (what: string) => (e: unknown) => {
-    const message = signalErrorMessage(e, `We couldn't ${what}. Try again in a moment.`);
-    setError(message);
+  const fail = (platform: SignalPlatform | "untracked", what: string) => (e: unknown) => {
+    const message = signalErrorMessage(platform, e, `We couldn't ${what}. Try again in a moment.`);
+    setFailure({ scope, message });
     toast.error(message);
   };
+  const clear = () => setFailure(undefined);
 
   return (
     <SignalStepView
@@ -199,19 +232,26 @@ export function SignalStep({
       focusLabel={focusLabel}
       accounts={accounts}
       chosenAccount={chosen}
-      onChooseAccount={(platform, id) => setPick({ scope, chosen: { ...chosen, [platform]: id } })}
+      accountsFailed={{ meta: meta.isError, google_ads: google.isError }}
+      onChooseAccount={(platform, id) => setPick({ scope, chosen: { ...picked, [platform]: id } })}
       busy={busy}
       error={error ?? (readiness.isError ? "We couldn't read your connections. Try again in a moment." : undefined)}
       onSetUp={(platform) => {
-        setError(undefined);
-        const id = chosen[platform] ?? accounts[platform][0]?.id;
-        if (!id) return setError("There is no ad account to set this up on.");
-        if (platform === "meta") actions.setUpMeta.mutate(id, { onError: fail("set up the dataset") });
-        else actions.setUpGoogle.mutate({ adAccountId: id, signal: { currency, optimizeFor } }, { onError: fail("set up the conversion action") });
+        clear();
+        const id = chosen[platform];
+        if (!id) return setFailure({ scope, message: "There is no ad account to set this up on." });
+        if (platform === "meta") {
+          actions.setUpMeta.mutate(id, { onSuccess: clear, onError: fail("meta", "set up the dataset") });
+          return;
+        }
+        // THE ACCOUNT'S OWN CURRENCY, never the mandate's and never a guess: it becomes the default-value currency in their account.
+        const currency = accounts.google_ads.find((a) => a.id === id)?.currency;
+        if (!currency) return setFailure({ scope, message: "We don't know this Google Ads account's currency yet. Reconnect Google Ads and try again." });
+        actions.setUpGoogle.mutate({ adAccountId: id, signal: { currency, optimizeFor } }, { onSuccess: clear, onError: fail("google_ads", "set up the conversion action") });
       }}
       onAcceptUntracked={(platform) => {
-        setError(undefined);
-        actions.acceptUntracked.mutate(platform, { onError: fail("save that") });
+        clear();
+        actions.acceptUntracked.mutate(platform, { onSuccess: clear, onError: fail("untracked", "save that") });
       }}
       onContinue={onContinue}
     />

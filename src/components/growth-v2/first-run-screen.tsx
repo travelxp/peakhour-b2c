@@ -116,7 +116,6 @@ export function FirstRunScreen() {
       </Card>
 
       <SignalStep
-        currency={m.currency}
         optimizeFor={m.outcome.optimizeFor}
         focusLabel={m.outcome.focus?.label}
         onContinue={() => document.getElementById("first-run-plan")?.scrollIntoView({ behavior: "smooth", block: "start" })}

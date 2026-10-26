@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ApiError } from "@/lib/api";
-import { SignalStepView, signalErrorMessage, type SignalStepViewProps } from "./signal-step";
+import { SignalStepView, effectiveAccount, signalErrorMessage, type SignalStepViewProps } from "./signal-step";
 import {
   UNTRACKED_BADGE_LABEL,
   UNTRACKED_EXPLANATION,
   canContinue,
   continueBlockedReason,
+  needsAChoice,
   platformsNeedingAChoice,
   signalStateSentence,
   type SignalReadiness,
@@ -92,6 +93,8 @@ describe("the signal step", () => {
     expect(out).toContain("Set up my conversion action");
     expect(isOff(continueButton(out))).toBe(true);
     expect(platformsNeedingAChoice(r)).toEqual(["google_ads"]);
+    expect(["needed", "needs_primary_goal"].map((x) => needsAChoice(x as never))).toEqual([true, true]);
+    expect(["ready", "untracked_accepted", "not_connected"].map((x) => needsAChoice(x as never))).toEqual([false, false, false]);
   });
 
   it("with several ad accounts it offers a picker; with one it does not", () => {
@@ -129,11 +132,44 @@ describe("growth-v2-signal copy", () => {
 });
 
 describe("signalErrorMessage", () => {
-  it("★a refusal below 500 is the api's own sentence; a server failure is the fallback with its reference, never the raw text", () => {
-    expect(signalErrorMessage(new ApiError("DATASET_NOT_FOUND", "That Meta ad account has no datasets.", 400), "We couldn't.")).toBe("That Meta ad account has no datasets.");
-    expect(signalErrorMessage(new ApiError("INTERNAL", "mongo: E11000 duplicate key at host-3", 500, "req-9"), "We couldn't.")).toBe("We couldn't. (reference req-9)");
-    expect(signalErrorMessage(new ApiError("INTERNAL", "raw", 502), "We couldn't.")).toBe("We couldn't.");
-    expect(signalErrorMessage(new Error("We don't know this account's currency."), "We couldn't.")).toBe("We don't know this account's currency.");
-    expect(signalErrorMessage("boom", "We couldn't.")).toBe("We couldn't.");
+  it("★an api code written for the merchant shows its sentence; anything else is the fallback with its reference, never raw text", () => {
+    expect(signalErrorMessage("meta", new ApiError("DATASET_NOT_FOUND", "That Meta ad account has no datasets.", 400), "We couldn't.")).toBe("That Meta ad account has no datasets.");
+    expect(signalErrorMessage("meta", new ApiError("INTERNAL", "mongo: E11000 duplicate key at host-3", 500, "req-9"), "We couldn't.")).toBe("We couldn't. (reference req-9)");
+    expect(signalErrorMessage("meta", new ApiError("INTERNAL", "raw", 502), "We couldn't.")).toBe("We couldn't.");
+    expect(signalErrorMessage("untracked", new ApiError("NOT_CONNECTED", "That platform is not connected for this business.", 409), "We couldn't.")).toBe("That platform is not connected for this business.");
+  });
+
+  it("★a transport or auth failure is never shown raw, even though it is below 500", () => {
+    expect(signalErrorMessage("meta", new ApiError("NETWORK_ERROR", "Failed to fetch", 0), "We couldn't.")).toBe("We couldn't.");
+    expect(signalErrorMessage("meta", new ApiError("UNAUTHORIZED", "jwt expired at 2026-10-26", 401, "req-2"), "We couldn't.")).toBe("We couldn't. (reference req-2)");
+    expect(signalErrorMessage("untracked", new ApiError("RATE_LIMITED", "429 Too Many Requests", 429), "We couldn't.")).toBe("We couldn't.");
+  });
+
+  it("Google goes through the Ads panel's own table", () => {
+    expect(signalErrorMessage("google_ads", new ApiError("CONVERSION_ACTION_UNCONFIRMED", "x", 409), "We couldn't.")).toContain("may have added the conversion action");
+    expect(signalErrorMessage("google_ads", new ApiError("INTERNAL", "raw", 500), "We couldn't.")).not.toContain("raw");
+  });
+
+  it("an error this app threw is ours to show; anything else is the fallback", () => {
+    expect(signalErrorMessage("google_ads", new Error("We don't know this account's currency."), "We couldn't.")).toBe("We don't know this account's currency.");
+    expect(signalErrorMessage("meta", "boom", "We couldn't.")).toBe("We couldn't.");
+  });
+});
+
+describe("effectiveAccount", () => {
+  const list = [{ id: "a", name: "A" }, { id: "b", name: "B" }];
+  it("★what is shown is what is used: a pick that left the list falls back to the first", () => {
+    expect(effectiveAccount(list, "b")).toBe("b");
+    expect(effectiveAccount(list, "gone")).toBe("a");
+    expect(effectiveAccount(list, undefined)).toBe("a");
+    expect(effectiveAccount([], "b")).toBeUndefined();
+  });
+});
+
+describe("a failed ad-account list", () => {
+  it("★is said on the row, not blamed on the merchant", () => {
+    const out = html(props(readiness("needed", "not_connected", false), { accounts: { meta: [], google_ads: [] }, accountsFailed: { meta: true } }));
+    expect(out).toContain("We couldn&#x27;t load your Meta ad accounts.");
+    expect(html(props(readiness("needed", "not_connected", false), { accounts: { meta: [], google_ads: [] } }))).not.toContain("load your Meta ad accounts");
   });
 });
