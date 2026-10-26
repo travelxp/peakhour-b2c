@@ -99,6 +99,71 @@ export const META_VIRTUAL_CARDS: MetaVirtualCard[] = [
 
 const META_VIRTUAL_PROVIDERS = new Set(META_VIRTUAL_CARDS.map((c) => c.virtualProvider));
 
+// ── Purpose-specific Meta logins ─────────────────────────────────────────
+//
+// The api runs one Facebook Login for Business configuration per product
+// (api `helpers/meta-login-purpose.ts`): Content for Pages + Instagram, Growth
+// for Meta Ads, and WhatsApp's own Embedded Signup. Each connect, disconnect and
+// refresh from a Meta card says which product it is for with `?purpose=`, so
+// the merchant grants only what that product needs and "Disconnect" on the
+// Meta Ads card leaves their Pages connected.
+
+/** Which Meta login a card's actions run under. WhatsApp has none: it uses
+ *  Embedded Signup on its own routes. */
+export type MetaLoginPurpose = "content" | "ads";
+
+const PURPOSE_BY_VIRTUAL: Record<string, MetaLoginPurpose> = {
+  facebook_pages: "content",
+  instagram: "content",
+  meta_ads: "ads",
+};
+
+export function metaLoginPurposeFor(provider: string): MetaLoginPurpose | undefined {
+  return PURPOSE_BY_VIRTUAL[provider];
+}
+
+/** Append `purpose=` to an api path for a Meta card; any other card's path is
+ *  returned unchanged. */
+export function withMetaLoginPurpose(path: string, provider: string): string {
+  const purpose = metaLoginPurposeFor(provider);
+  if (!purpose) return path;
+  return `${path}${path.includes("?") ? "&" : "?"}purpose=${purpose}`;
+}
+
+/**
+ * What a connect from this card will ask Meta for — or null for a card with
+ * nothing to say. `dedicated` is the api's `metaLogin` flag for the card's
+ * purpose: whether that purpose has its own Login for Business configuration
+ * in this environment. Without one, the connect is the combined dialog, and
+ * the sentence says so rather than promising a narrower grant.
+ */
+export function metaGrantNote(provider: string, dedicated: boolean | undefined): string | null {
+  const purpose = metaLoginPurposeFor(provider);
+  if (!purpose) return null;
+  if (!dedicated) return "Connecting asks Meta for Pages, Instagram and Ads access together.";
+  return purpose === "ads"
+    ? "Connecting asks Meta only for ad account and Business Manager access, and to list your Pages — not to post to them."
+    : "Connecting asks Meta only for Pages and Instagram access — not your ad accounts.";
+}
+
+/**
+ * The Disconnect confirmation for a Meta card. ★Conditional on purpose, because
+ * the card cannot see which row serves it: a merchant who connected before
+ * purposes existed (or while a configuration id was unset) holds ONE
+ * connection for Pages, Instagram and Ads, and disconnecting it from any of
+ * those cards takes all three. WhatsApp is never part of it.
+ */
+export function metaDisconnectCopy(provider: string): string {
+  const purpose = metaLoginPurposeFor(provider);
+  if (purpose === "ads") {
+    return "This disconnects Meta Ads. If you connected Meta Ads together with Facebook Pages and Instagram in one login, those disconnect too. WhatsApp stays connected.";
+  }
+  if (purpose === "content") {
+    return "This disconnects Facebook Pages and Instagram. If you connected them together with Meta Ads in one login, Meta Ads disconnects too. WhatsApp stays connected.";
+  }
+  return "This disconnects this Meta service. You'll need to reconnect to sync data again.";
+}
+
 /** Resolve a virtual Meta provider back to "facebook" for API calls. */
 export function resolveProvider(provider: string): string {
   return META_VIRTUAL_PROVIDERS.has(provider) ? "facebook" : provider;

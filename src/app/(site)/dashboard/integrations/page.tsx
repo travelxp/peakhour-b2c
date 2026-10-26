@@ -83,6 +83,11 @@ interface Integration {
   authType: string;
   availability: string;
   description?: string;
+  /** Meta cards only: what a connect from this card asks Meta for. */
+  grantNote?: string | null;
+  /** api: on the `facebook` row, which Meta purposes have their own Login for
+   *  Business configuration in this environment. Absent from an older api. */
+  metaLogin?: { content?: boolean; ads?: boolean };
   group?: string | null;
   groupDisplayName?: string | null;
   subLabel?: string | null;
@@ -199,6 +204,10 @@ import {
   flattenMetaIntegration as flattenMetaIntegrationBase,
   resolveProvider,
   isMetaVirtual,
+  metaDisconnectCopy,
+  metaGrantNote,
+  metaLoginPurposeFor,
+  withMetaLoginPurpose,
   type MetaVirtualCard,
 } from "@/lib/integrations-meta";
 import {
@@ -209,9 +218,11 @@ import {
 function flattenMetaIntegration(integrations: Integration[]): Integration[] {
   return flattenMetaIntegrationBase<Integration>(integrations, (item, card) => {
     const extra = item.account?.extra || {};
+    const purpose = metaLoginPurposeFor(card.virtualProvider);
     return {
       name: card.name,
       description: card.description,
+      grantNote: metaGrantNote(card.virtualProvider, purpose ? item.metaLogin?.[purpose] : undefined),
       category: card.category,
       account: item.connected
         ? {
@@ -420,9 +431,13 @@ export default function IntegrationsPage() {
         !returnFor || returnFor === realProvider || returnFor === provider
           ? returnTo
           : DEFAULT_RETURN_TO;
-      window.location.href =
+      // A Meta card names its product (`purpose=content|ads`), so the api
+      // opens that product's own Login for Business configuration.
+      window.location.href = withMetaLoginPurpose(
         `${API_BASE_URL}/v1/integrations/${realProvider}/authorize` +
-        `?returnTo=${encodeURIComponent(landing)}`;
+          `?returnTo=${encodeURIComponent(landing)}`,
+        provider,
+      );
     } else if (authType === "api_key") {
       setConnectModal(realProvider);
     }
@@ -445,7 +460,7 @@ export default function IntegrationsPage() {
     setError("");
     try {
       await api.post<{ account: Integration["account"] }>(
-        `/v1/integrations/${realProvider}/refresh`,
+        withMetaLoginPurpose(`/v1/integrations/${realProvider}/refresh`, provider),
         {}
       );
       // Reload all integrations so virtual Meta cards update correctly
@@ -583,15 +598,21 @@ export default function IntegrationsPage() {
     const realProvider = resolveProvider(provider);
     setDisconnecting(provider);
     try {
-      await api.delete(`/v1/integrations/${realProvider}`);
-      // Disconnecting facebook removes all virtual Meta cards too
-      setIntegrations((prev) =>
-        prev.map((i) =>
-          resolveProvider(i.provider) === realProvider
-            ? { ...i, connected: false, status: "disconnected", account: undefined }
-            : i
-        )
-      );
+      await api.delete(withMetaLoginPurpose(`/v1/integrations/${realProvider}`, provider));
+      if (metaLoginPurposeFor(provider)) {
+        // ★A Meta card disconnects ITS purpose's connection only — the
+        // Meta Ads card leaves Pages and Instagram connected, and the reverse.
+        // Which cards are still connected is the api's answer, not a guess.
+        await loadIntegrations();
+      } else {
+        setIntegrations((prev) =>
+          prev.map((i) =>
+            resolveProvider(i.provider) === realProvider
+              ? { ...i, connected: false, status: "disconnected", account: undefined }
+              : i
+          )
+        );
+      }
       // ★★AND THE HEALTH PANEL ABOVE HAS TO BE TOLD. It caches for half an hour,
       // so without this a merchant who disconnects Google Analytics keeps
       // reading green analytics verdicts directly above the card that now says
@@ -1286,7 +1307,7 @@ function IntegrationCard({
                 integration.provider === "whatsapp"
                   ? "This disconnects only WhatsApp Business. Your Facebook Pages, Instagram and Meta Ads stay connected."
                   : isMetaVirtual(integration.provider)
-                    ? "This will disconnect all Meta services (Facebook Pages, Instagram, Meta Ads, WhatsApp). You'll need to reconnect to sync data again."
+                    ? metaDisconnectCopy(integration.provider)
                     : `Are you sure you want to disconnect ${integration.name}? You'll need to reconnect to sync data again.`
               }
               confirmLabel="Disconnect"
@@ -1355,9 +1376,13 @@ function IntegrationCard({
                 {isMetaVirtual(integration.provider) ? "Connect with Meta" : "Connect"}
               </Button>
             )}
-            {isMetaVirtual(integration.provider) && (
+            {isMetaVirtual(integration.provider) && integration.provider !== "whatsapp" && (
+              // ★What THIS card's connect asks Meta for. "One login connects
+              // all Meta services" stopped being true when each product got
+              // its own Login for Business configuration — and was never true
+              // of WhatsApp, which connects through Embedded Signup.
               <p className="text-[10px] text-center text-muted-foreground">
-                One login connects all Meta services
+                {integration.grantNote ?? metaGrantNote(integration.provider, undefined)}
               </p>
             )}
           </div>
