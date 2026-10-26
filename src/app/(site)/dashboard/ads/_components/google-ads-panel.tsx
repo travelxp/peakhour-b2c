@@ -273,9 +273,13 @@ function ConversionTrackingSection({ account }: { account: GoogleAdAccount }) {
 
   const choose = useMutation({
     mutationFn: (id: string | undefined) => {
+      // Choosing an existing action reads it and changes nothing, so it needs no currency.
+      if (id !== undefined) return googleAdsApi.setConversionAction(account.id, undefined, id);
       // ★NEVER A GUESSED CURRENCY: it becomes the action's default-value currency in the merchant's account.
       if (!account.currencyCode) throw new Error("We don't know this Google Ads account's currency yet. Reconnect Google Ads and try again.");
-      return googleAdsApi.setConversionAction(account.id, { currency: account.currencyCode, optimizeFor: "value" }, id);
+      // "value": uploads carry the order's value either way, so a count mandate's bidding is unaffected; First-run
+      // (which knows the mandate) sets "count" where it applies.
+      return googleAdsApi.setConversionAction(account.id, { currency: account.currencyCode, optimizeFor: "value" });
     },
     onSuccess: (res) => {
       setPicked(undefined);

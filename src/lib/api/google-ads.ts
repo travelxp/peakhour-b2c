@@ -129,13 +129,13 @@ export const googleAdsApi = {
   getConversionAction: (adAccountId: string) =>
     api.get<GoogleConversionActionState>(googleAdsUrl("/v1/google/ads/conversion-action") + `?adAccountId=${encodeURIComponent(adAccountId)}`),
   /**
-   * With an id: choose that action (read, never changed). Without: find or CREATE "Peakhour offline purchases"
-   * as a primary goal with value settings (a write to the merchant's Google Ads account).
+   * With an id: choose that action (read, never changed; no signal needed). Without: find or CREATE "Peakhour offline
+   * purchases" as a primary goal with value settings (a write to the merchant's Google Ads account; the signal is required).
    */
-  setConversionAction: (adAccountId: string, signal: GoogleConversionSignal, conversionActionId?: string) =>
+  setConversionAction: (adAccountId: string, signal: GoogleConversionSignal | undefined, conversionActionId?: string) =>
     api.put<GoogleConversionActionChosen>(googleAdsUrl("/v1/google/ads/conversion-action"), {
       adAccountId,
-      signal,
+      ...(signal ? { signal } : {}),
       ...(conversionActionId !== undefined ? { conversionActionId } : {}),
     }),
 };
