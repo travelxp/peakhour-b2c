@@ -137,14 +137,39 @@ export interface MetaLoginInfo {
   metaConnections?: Array<{ purpose: MetaLoginPurpose | null; status?: string }>;
 }
 
-/** Which kind of row serves a card: its own purpose row, the shared
- *  all-purpose row, or nothing. A purpose row wins, as in the api's resolver. */
-export function metaCardServedBy(info: MetaLoginInfo, provider: string): "purpose" | "shared" | "none" {
+/** The row that serves a card — its own purpose row first, as in the api's
+ *  resolver, then the shared all-purpose row — with that row's status. An
+ *  ACTIVE row of a kind wins over a broken one of the same kind. An older api
+ *  that sends no `metaConnections` has one shared row behind every card. */
+function servingRow(
+  info: MetaLoginInfo,
+  provider: string,
+): { kind: "purpose" | "shared" | "none"; status?: string } {
+  if (!info.metaConnections) return { kind: "shared" };
   const purpose = metaLoginPurposeFor(provider);
-  const rows = info.metaConnections ?? [];
-  if (purpose && rows.some((r) => r.purpose === purpose)) return "purpose";
-  if (rows.some((r) => r.purpose === null)) return "shared";
-  return "none";
+  const pick = (rows: MetaLoginInfo["metaConnections"] & object) =>
+    rows.find((r) => r.status === "active") ?? rows[0];
+  const own = purpose ? info.metaConnections.filter((r) => r.purpose === purpose) : [];
+  if (own.length) return { kind: "purpose", status: pick(own).status };
+  const shared = info.metaConnections.filter((r) => r.purpose === null);
+  if (shared.length) return { kind: "shared", status: pick(shared).status };
+  return { kind: "none" };
+}
+
+/** Which kind of row serves a card: its own purpose row, the shared
+ *  all-purpose row, or nothing. */
+export function metaCardServedBy(info: MetaLoginInfo, provider: string): "purpose" | "shared" | "none" {
+  return servingRow(info, provider).kind;
+}
+
+/**
+ * The status of the row that serves this card, or undefined when the api did
+ * not say. ★A card's Reconnect belongs to ITS row: with an active shared row
+ * and a broken Growth row, Meta Ads needs reconnecting and Pages does not —
+ * the merged facebook row has one status for both and cannot say so.
+ */
+export function metaCardStatus(info: MetaLoginInfo, provider: string): string | undefined {
+  return servingRow(info, provider).status;
 }
 
 /**
@@ -159,9 +184,8 @@ export function metaCardServedBy(info: MetaLoginInfo, provider: string): "purpos
 export function metaActionPurpose(info: MetaLoginInfo, provider: string): MetaLoginPurpose | undefined {
   const purpose = metaLoginPurposeFor(provider);
   if (!purpose) return undefined;
-  const rows = info.metaConnections ?? [];
-  const brokenShared = rows.some((r) => r.purpose === null && r.status !== undefined && r.status !== "active");
-  if (metaCardServedBy(info, provider) === "shared" && brokenShared) return undefined;
+  const row = servingRow(info, provider);
+  if (row.kind === "shared" && row.status !== undefined && row.status !== "active") return undefined;
   return purpose;
 }
 
@@ -185,40 +209,83 @@ export function withMetaLoginPurpose(path: string, purpose: MetaLoginPurpose | u
  * the card's purpose has its own Login for Business configuration here;
  * otherwise the connect is the combined dialog and the sentence says so.
  */
-export function metaGrantNote(provider: string, metaLogin: MetaLoginInfo["metaLogin"]): string | null {
+export function metaGrantNote(
+  provider: string,
+  metaLogin: MetaLoginInfo["metaLogin"],
+  /** The purpose the card's button will actually send (`metaActionPurpose`).
+   *  Undefined means the combined dialog, whatever is configured. Required,
+   *  not defaulted: a default would turn that `undefined` back into the card's
+   *  purpose. */
+  actionPurpose: MetaLoginPurpose | undefined,
+): string | null {
   const purpose = metaLoginPurposeFor(provider);
   if (!purpose) return null;
-  if (!metaLogin?.[purpose]) return "Connecting asks Meta for Pages, Instagram and Ads access together.";
+  if (!actionPurpose || !metaLogin?.[actionPurpose]) {
+    return "Connecting asks Meta for Pages, Instagram and Ads access together.";
+  }
   return purpose === "ads"
     ? "Connecting asks Meta only for ad account and Business Manager access, and to list your Pages — not to post to them."
     : "Connecting asks Meta only for Pages and Instagram access — not your ad accounts.";
 }
 
+/** Whether a shared all-purpose row exists (always assumed for an older api). */
+function hasSharedRow(info: MetaLoginInfo): boolean {
+  return !info.metaConnections || info.metaConnections.some((r) => r.purpose === null);
+}
+
 /**
- * The Meta cards a Disconnect from `provider` takes down. A card served by its
- * own purpose row takes only the cards of that purpose. A card served by the
- * shared all-purpose row takes every card the shared row serves, which is
- * each card whose purpose has no row of its own. WhatsApp is never included.
+ * The Meta cards a Disconnect from `provider` takes down.
+ *
+ *  - Served by the shared row: every card the shared row serves (each card
+ *    whose purpose has no row of its own).
+ *  - Served by its own purpose row: that purpose's cards — ★unless a shared
+ *    row also exists, which the api falls back to: then the cards stay
+ *    connected through it, and NOTHING goes.
+ *  - Served by nothing: the card itself (there is nothing to take).
+ *
+ * WhatsApp is never included.
  */
 export function metaCardsDisconnectedBy(info: MetaLoginInfo, provider: string): string[] {
   const served = metaCardServedBy(info, provider);
   const purpose = metaLoginPurposeFor(provider);
   const cards = META_VIRTUAL_CARDS.filter((c) => c.loginPurpose);
-  if (served === "purpose") return cards.filter((c) => c.loginPurpose === purpose).map((c) => c.virtualProvider);
+  if (served === "purpose") {
+    if (hasSharedRow(info)) return [];
+    return cards.filter((c) => c.loginPurpose === purpose).map((c) => c.virtualProvider);
+  }
   if (served === "shared") {
     return cards.filter((c) => metaCardServedBy(info, c.virtualProvider) === "shared").map((c) => c.virtualProvider);
   }
   return [provider];
 }
 
-/** The Disconnect confirmation for a Meta card: names exactly what goes. */
-export function metaDisconnectCopy(info: MetaLoginInfo, provider: string): string {
-  const going = metaCardsDisconnectedBy(info, provider);
-  const names = META_VIRTUAL_CARDS.filter((c) => going.includes(c.virtualProvider)).map((c) => c.name);
-  const staying = META_VIRTUAL_CARDS.filter((c) => !going.includes(c.virtualProvider)).map((c) => c.name);
+/**
+ * The Disconnect confirmation for a Meta card: names exactly what goes, and
+ * what stays only among the cards that are connected now (`connected`; all
+ * Meta cards when omitted).
+ */
+export function metaDisconnectCopy(
+  info: MetaLoginInfo,
+  provider: string,
+  connected: readonly string[] = META_VIRTUAL_CARDS.map((c) => c.virtualProvider),
+): string {
   const list = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+  const nameOf = (keys: string[]) =>
+    META_VIRTUAL_CARDS.filter((c) => keys.includes(c.virtualProvider)).map((c) => c.name);
+  const purpose = metaLoginPurposeFor(provider);
+  if (metaCardServedBy(info, provider) === "purpose" && hasSharedRow(info)) {
+    const own = nameOf(META_VIRTUAL_CARDS.filter((c) => c.loginPurpose === purpose).map((c) => c.virtualProvider));
+    return (
+      `This disconnects the separate Meta login for ${list(own)}. ` +
+      `${list(own)} ${own.length === 1 ? "stays" : "stay"} connected through the combined Meta login you connected earlier.`
+    );
+  }
+  const going = metaCardsDisconnectedBy(info, provider);
+  const names = nameOf(going);
+  const staying = nameOf(META_VIRTUAL_CARDS.map((c) => c.virtualProvider).filter((k) => !going.includes(k) && connected.includes(k)));
   const shared = metaCardServedBy(info, provider) === "shared" && going.length > 1 ? ", which share one Meta login" : "";
-  return `This disconnects ${list(names)}${shared}. ${list(staying)} ${staying.length === 1 ? "stays" : "stay"} connected.`;
+  const rest = staying.length ? ` ${list(staying)} ${staying.length === 1 ? "stays" : "stay"} connected.` : "";
+  return `This disconnects ${list(names)}${shared}.${rest}`;
 }
 
 /** Resolve a virtual Meta provider back to "facebook" for API calls. */

@@ -8,6 +8,7 @@ import {
   META_VIRTUAL_CARDS,
   metaActionPurpose,
   metaCardServedBy,
+  metaCardStatus,
   metaCardsDisconnectedBy,
   metaDisconnectCopy,
   metaGrantNote,
@@ -85,6 +86,25 @@ describe("★which row serves a card, and what an action sends", () => {
     expect(metaActionPurpose(brokenSharedLiveAds, "meta_ads")).toBe("ads");
   });
 
+  it("★★each card's status is its OWN row's: a broken Growth row beside a working shared row", () => {
+    const info: MetaLoginInfo = {
+      metaConnections: [
+        { purpose: null, status: "active" },
+        { purpose: "ads", status: "needs_reauth" },
+      ],
+    };
+    expect(metaCardStatus(info, "meta_ads")).toBe("needs_reauth");
+    expect(metaCardStatus(info, "facebook_pages")).toBe("active");
+    // …and its Reconnect fixes that row, under its purpose.
+    expect(metaActionPurpose(info, "meta_ads")).toBe("ads");
+  });
+
+  it("★the grant note follows what the button will actually send", () => {
+    const brokenShared: MetaLoginInfo = { metaConnections: [{ purpose: null, status: "needs_reauth" }] };
+    const action = metaActionPurpose(brokenShared, "facebook_pages");
+    expect(metaGrantNote("facebook_pages", { content: true }, action)).toMatch(/together/);
+  });
+
   it("WhatsApp never sends a purpose", () => {
     expect(metaActionPurpose(SHARED_ONLY, "whatsapp")).toBeUndefined();
   });
@@ -93,21 +113,22 @@ describe("★which row serves a card, and what an action sends", () => {
 describe("★the grant note says only what is true in this environment", () => {
   it("without a dedicated configuration it says the login is combined", () => {
     for (const p of ["facebook_pages", "instagram", "meta_ads"]) {
-      expect(metaGrantNote(p, { content: false, ads: false })).toMatch(/together/);
-      expect(metaGrantNote(p, undefined)).toMatch(/together/);
+      const own = metaLoginPurposeFor(p);
+      expect(metaGrantNote(p, { content: false, ads: false }, own)).toMatch(/together/);
+      expect(metaGrantNote(p, undefined, own)).toMatch(/together/);
     }
-    expect(metaGrantNote("facebook_pages", { ads: true })).toMatch(/together/);
+    expect(metaGrantNote("facebook_pages", { ads: true }, "content")).toMatch(/together/);
   });
 
   it("with one, Meta Ads promises no Page posting and Content promises no ad accounts", () => {
-    expect(metaGrantNote("meta_ads", { ads: true })).toMatch(/only for ad account/);
-    expect(metaGrantNote("meta_ads", { ads: true })).toMatch(/not to post/);
-    expect(metaGrantNote("facebook_pages", { content: true })).toMatch(/not your ad accounts/);
+    expect(metaGrantNote("meta_ads", { ads: true }, "ads")).toMatch(/only for ad account/);
+    expect(metaGrantNote("meta_ads", { ads: true }, "ads")).toMatch(/not to post/);
+    expect(metaGrantNote("facebook_pages", { content: true }, "content")).toMatch(/not your ad accounts/);
   });
 
   it("WhatsApp and non-Meta cards have nothing to say", () => {
-    expect(metaGrantNote("whatsapp", { content: true, ads: true })).toBeNull();
-    expect(metaGrantNote("x", { ads: true })).toBeNull();
+    expect(metaGrantNote("whatsapp", { content: true, ads: true }, undefined)).toBeNull();
+    expect(metaGrantNote("x", { ads: true }, "ads")).toBeNull();
   });
 });
 
@@ -119,11 +140,23 @@ describe("★★Disconnect names exactly what goes", () => {
     );
   });
 
-  it("a Growth row takes only Meta Ads", () => {
-    expect(metaCardsDisconnectedBy(SHARED_AND_ADS, "meta_ads")).toEqual(["meta_ads"]);
-    expect(metaDisconnectCopy(SHARED_AND_ADS, "meta_ads")).toBe(
-      "This disconnects Meta Ads. Facebook Pages, Instagram and WhatsApp Business stay connected.",
+  it("a Growth row alone takes only Meta Ads", () => {
+    expect(metaCardsDisconnectedBy(ADS_ONLY, "meta_ads")).toEqual(["meta_ads"]);
+    expect(metaDisconnectCopy(ADS_ONLY, "meta_ads", ["meta_ads", "whatsapp"])).toBe(
+      "This disconnects Meta Ads. WhatsApp Business stays connected.",
     );
+  });
+
+  it("★★a Growth row beside the shared row takes NOTHING off the card — the api falls back to the shared row", () => {
+    expect(metaCardsDisconnectedBy(SHARED_AND_ADS, "meta_ads")).toEqual([]);
+    expect(metaDisconnectCopy(SHARED_AND_ADS, "meta_ads")).toBe(
+      "This disconnects the separate Meta login for Meta Ads. Meta Ads stays connected through the combined Meta login you connected earlier.",
+    );
+  });
+
+  it("★an older api (no metaConnections) is one shared row behind every card, as before", () => {
+    expect(metaCardsDisconnectedBy({}, "meta_ads").sort()).toEqual(["facebook_pages", "instagram", "meta_ads"]);
+    expect(metaActionPurpose({}, "meta_ads")).toBe("ads");
   });
 
   it("the shared row beside a Growth row takes only the cards it still serves", () => {
@@ -133,10 +166,11 @@ describe("★★Disconnect names exactly what goes", () => {
     );
   });
 
-  it("never claims WhatsApp goes with it", () => {
+  it("never names WhatsApp as going, and names as staying only what is connected now", () => {
     for (const info of [SHARED_ONLY, SHARED_AND_ADS, ADS_ONLY, {}]) {
       for (const p of ["facebook_pages", "instagram", "meta_ads"]) {
-        expect(metaDisconnectCopy(info, p)).toMatch(/WhatsApp Business (stay|stays) connected/);
+        expect(metaCardsDisconnectedBy(info, p)).not.toContain("whatsapp");
+        expect(metaDisconnectCopy(info, p, [p])).not.toMatch(/WhatsApp/);
       }
     }
   });

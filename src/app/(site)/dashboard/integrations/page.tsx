@@ -91,6 +91,8 @@ interface Integration {
   /** api: on the `facebook` row, the live web rows that serve the Meta cards
    *  (`purpose: null` is the shared all-purpose row). */
   metaConnections?: MetaLoginInfo["metaConnections"];
+  /** Meta cards only: which Meta cards are connected right now. */
+  metaConnectedCards?: string[];
   group?: string | null;
   groupDisplayName?: string | null;
   subLabel?: string | null;
@@ -208,6 +210,7 @@ import {
   resolveProvider,
   isMetaVirtual,
   metaActionPurpose,
+  metaCardStatus,
   metaCardsDisconnectedBy,
   metaDisconnectCopy,
   metaGrantNote,
@@ -222,12 +225,19 @@ import {
 } from "@/lib/integration-card-state";
 
 function flattenMetaIntegration(integrations: Integration[]): Integration[] {
-  return flattenMetaIntegrationBase<Integration>(integrations, (item, card) => {
+  const flat = flattenMetaIntegrationBase<Integration>(integrations, (item, card) => {
     const extra = item.account?.extra || {};
+    const info: MetaLoginInfo = { metaLogin: item.metaLogin, metaConnections: item.metaConnections };
+    // ★The card's OWN row decides whether it needs reconnecting: the merged
+    // facebook row prefers an active row, so a broken Growth row beside a
+    // working shared row would otherwise show Meta Ads as connected.
+    const rowStatus = card.loginPurpose ? metaCardStatus(info, card.virtualProvider) : undefined;
+    const ownRowBroken = rowStatus !== undefined && rowStatus !== "active";
     return {
       name: card.name,
       description: card.description,
-      grantNote: metaGrantNote(card.virtualProvider, item.metaLogin),
+      grantNote: metaGrantNote(card.virtualProvider, item.metaLogin, metaActionPurpose(info, card.virtualProvider)),
+      ...(ownRowBroken ? { connected: false, status: rowStatus } : {}),
       category: card.category,
       account: item.connected
         ? {
@@ -240,6 +250,10 @@ function flattenMetaIntegration(integrations: Integration[]): Integration[] {
       subLabel: null,
     } as Partial<Integration>;
   });
+  // Each Meta card's Disconnect copy names what STAYS connected, so it needs
+  // the other Meta cards' state — known only once all four are flattened.
+  const connectedMeta = flat.filter((i) => isMetaVirtual(i.provider) && i.connected).map((i) => i.provider);
+  return flat.map((i) => (isMetaVirtual(i.provider) ? { ...i, metaConnectedCards: connectedMeta } : i));
 }
 
 type ConnectionTab = "all" | "connected" | "disconnected";
@@ -1331,6 +1345,7 @@ function IntegrationCard({
                     ? metaDisconnectCopy(
                         { metaLogin: integration.metaLogin, metaConnections: integration.metaConnections },
                         integration.provider,
+                        integration.metaConnectedCards,
                       )
                     : `Are you sure you want to disconnect ${integration.name}? You'll need to reconnect to sync data again.`
               }
@@ -1400,8 +1415,9 @@ function IntegrationCard({
                 {isMetaVirtual(integration.provider) ? "Connect with Meta" : "Connect"}
               </Button>
             )}
-            {integration.grantNote && (
-              // ★What THIS card's connect asks Meta for. "One login connects
+            {integration.grantNote && (offerReconnect || !isRecoverable) && (
+              // ★What THIS card's connect asks Meta for — only under a button
+              // that connects (not beside "isn't open for new connections"). "One login connects
               // all Meta services" stopped being true when each product got
               // its own Login for Business configuration — and was never true
               // of WhatsApp, which connects through Embedded Signup.
