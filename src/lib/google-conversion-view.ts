@@ -25,10 +25,10 @@ export const GOOGLE_CONVERSION_CONSENT_NOTE =
   "Conversions for shoppers in the EEA or UK may not be used by Google until consent is set: " +
   "in Google Ads, open Tools → Data Manager → Consent settings.";
 
-/** Said beside Create, and again in its confirmation: it is secondary, so bidding is untouched. */
-export const GOOGLE_CONVERSION_SECONDARY_NOTE =
-  "It is created as a secondary conversion action, so it does not change how Smart Bidding optimises. " +
-  "Making it primary is your choice, in Google Ads.";
+/** Said beside Create, and again in its confirmation: it is a primary goal, so Smart Bidding uses it. */
+export const GOOGLE_CONVERSION_PRIMARY_NOTE =
+  "It is created as a primary conversion action with a value, so Smart Bidding can bid on it. " +
+  "Campaigns Peakhour runs for you use it; you can change it in Google Ads at any time.";
 
 /** The confirmation before a create — a write to the merchant's live Google Ads account. */
 export function googleConversionCreateConfirmation(accountName: string): { title: string; body: string } {
@@ -36,7 +36,7 @@ export function googleConversionCreateConfirmation(accountName: string): { title
     title: `Add a conversion action to ${accountName}?`,
     body:
       `Peakhour will add a conversion action named “${PEAKHOUR_CONVERSION_ACTION_LABEL}” to your Google Ads account ` +
-      `${accountName}. This changes your Google Ads account, and it spends nothing. ${GOOGLE_CONVERSION_SECONDARY_NOTE}`,
+      `${accountName}. This changes your Google Ads account, and it spends nothing. ${GOOGLE_CONVERSION_PRIMARY_NOTE}`,
   };
 }
 

@@ -47,7 +47,7 @@ import {
 } from "@/lib/google-ads-view";
 import {
   GOOGLE_CONVERSION_CONSENT_NOTE,
-  GOOGLE_CONVERSION_SECONDARY_NOTE,
+  GOOGLE_CONVERSION_PRIMARY_NOTE,
   PEAKHOUR_CONVERSION_ACTION_LABEL,
   googleConversionCanUse,
   googleConversionCardState,
@@ -272,7 +272,11 @@ function ConversionTrackingSection({ account }: { account: GoogleAdAccount }) {
   const confirmation = googleConversionCreateConfirmation(account.name);
 
   const choose = useMutation({
-    mutationFn: (id: string | undefined) => googleAdsApi.setConversionAction(account.id, id),
+    mutationFn: (id: string | undefined) => {
+      // ★NEVER A GUESSED CURRENCY: it becomes the action's default-value currency in the merchant's account.
+      if (!account.currencyCode) throw new Error("We don't know this Google Ads account's currency yet. Reconnect Google Ads and try again.");
+      return googleAdsApi.setConversionAction(account.id, { currency: account.currencyCode, optimizeFor: "value" }, id);
+    },
     onSuccess: (res) => {
       setPicked(undefined);
       // ★Show the result now, so the card never contradicts the toast while the re-read is in flight or fails.
@@ -372,7 +376,7 @@ function ConversionTrackingSection({ account }: { account: GoogleAdAccount }) {
               <Button variant="outline" disabled={busy} onClick={() => setConfirmingCreate(true)}>
                 Create &ldquo;{PEAKHOUR_CONVERSION_ACTION_LABEL}&rdquo;
               </Button>
-              <p className="text-xs text-muted-foreground">{GOOGLE_CONVERSION_SECONDARY_NOTE}</p>
+              <p className="text-xs text-muted-foreground">{GOOGLE_CONVERSION_PRIMARY_NOTE}</p>
             </div>
           </div>
         ) : null}

@@ -9,6 +9,7 @@ import { OUTCOME_UNIT, PLATFORM_COLOR, PLATFORM_LABEL, figureValue, formatMoney 
 import { cn } from "@/lib/utils";
 import { PageHead } from "./page-head";
 import { PreviewBanner } from "./preview-banner";
+import { SignalStep } from "./signal-step";
 import { ToneBadge } from "./tone";
 
 /**
@@ -42,6 +43,8 @@ export function FirstRunScreen() {
   const max = Math.ceil((base * 5) / step) * step;
   const snap = (v: number) => Math.min(max, Math.max(min, Math.round(v / step) * step));
   const [ceiling, setCeiling] = useState(() => snap(m.monthlyCeiling));
+  // C3: the signal step is finished when the api says every connected platform has a signal or an accepted "untracked".
+  const [signalDone, setSignalDone] = useState(false);
   const targetText = m.target.kind === "roas" ? `${m.target.value.toFixed(1)}x return` : formatMoney(m.target.value, m.currency);
 
   return (
@@ -109,6 +112,13 @@ export function FirstRunScreen() {
         </CardContent>
       </Card>
 
+      <SignalStep
+        currency={m.currency}
+        optimizeFor={m.outcome.optimizeFor}
+        focusLabel={m.outcome.focus?.label}
+        onContinue={() => setSignalDone(true)}
+      />
+
       <Card>
         <CardHeader>
           <CardTitle>Your first plan</CardTitle>
@@ -149,7 +159,10 @@ export function FirstRunScreen() {
           <Button variant="outline" disabled>
             Edit plan
           </Button>
-          <Button disabled title="Confirming the plan arrives with the Rules release">
+          <Button
+            disabled
+            title={signalDone ? "Confirming the plan arrives with the Rules release" : "Finish step 4 first: switch on your signal, or accept running without one"}
+          >
             Send to WhatsApp to confirm
           </Button>
         </div>
