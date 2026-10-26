@@ -47,6 +47,8 @@ import { AskContextProvider } from "@/providers/ask-context-provider";
 import { AskLauncher } from "@/components/ask/ask-launcher";
 import { ASK_ENABLED } from "@/lib/flags";
 import { HOME_ROUTE, OUTCOMES_HOME, funnelNav } from "@/lib/nav-home";
+import { GROWTH_HOME, activeSubHref, growthNav, mandateStateOf } from "@/lib/growth-v2-nav";
+import { useGrowthV2Rules } from "@/lib/api/growth-v2";
 import {
   Gauge,
   LayoutDashboard,
@@ -94,7 +96,7 @@ interface NavItem {
    * ungated items. See LockedNavItem.
    */
   upsellTagline?: string;
-  subItems?: { href: string; label: string; badge?: () => React.ReactNode }[];
+  subItems?: { href: string; label: string; matches?: string[]; badge?: () => React.ReactNode }[];
 }
 
 interface NavGroup {
@@ -171,32 +173,17 @@ const PILLAR_NAV: NavGroup[] = [
         ],
       },
       {
-        href: "/dashboard/ads",
+        // ★GROWTH IS FIVE SCREENS AND A FIRST RUN, NOT A LIST OF TOOLS. The
+        // sub-items depend on whether a mandate exists (First run shows only
+        // without one), so they are filled in by DashboardShell from
+        // `growthNav` rather than written out here. Audiences, Your Business,
+        // Ad creatives and Signals are tabs inside Rules and Learning;
+        // campaign management stays at /dashboard/ads, reached from Channels &
+        // money.
+        href: GROWTH_HOME,
         label: "Growth",
         icon: TrendingUp,
-        subItems: [
-          // Your Business leads, and Audiences follows it, because that is the
-          // order the engine actually works in: what we understand about the
-          // customer produces the audiences, and the audiences are what the
-          // campaigns spend against. Ads is where the money goes; these two are
-          // what it goes on.
-          { href: "/dashboard/growth/business", label: "Your Business" },
-          { href: "/dashboard/growth/audiences", label: "Audiences" },
-          // ★SIGNALS SITS UNDER AUDIENCES BECAUSE IT IS WHAT MAKES ONE OF THEM
-          // POSSIBLE. A retargeting audience IS website visitors, and without a
-          // tag on the site there is nobody to retarget — so this is a
-          // prerequisite of the list above it, not a settings page. It is under
-          // Growth rather than Integrations deliberately: Integrations is where
-          // a CONNECTION to somebody else's account lives, and this is code on
-          // the customer's own site.
-          { href: "/dashboard/growth/signals", label: "Signals" },
-          { href: "/dashboard/ads", label: "Ads" },
-          // D-05c: the ads Peakhour writes, approved here before "only use
-          // creatives I have approved" lets the engine use them.
-          { href: "/dashboard/growth/creatives", label: "Ad creatives" },
-          { href: "/dashboard/outcomes", label: "Outcomes" },
-          { href: "/dashboard/optimizer", label: "Optimizer" },
-        ],
+        subItems: growthNav("unknown"),
       },
       // Commerce — the third pillar. Gated on `commerce.nav` (granted to every
       // plan bundling a Commerce product; migration 144), so only Commerce
@@ -281,17 +268,15 @@ const PILLAR_NAV: NavGroup[] = [
  * nobody has switched on to notice. The grouping itself, and why there is no
  * "Bought" heading, are argued in lib/nav-home.ts.
  *
- * ★OUTCOMES IS PROMOTED OUT OF GROWTH'S SUBITEMS to lead the list — removed
- * from there rather than copied, so the route has one place in the sidebar
- * rather than two that both light up on it.
+ * ★GROWTH HOME LEADS THE LIST. The Outcomes page it used to promote is gone;
+ * Growth home answers the same question ("is it working?") and the real Growth
+ * pillar wins over this stub, so it keeps its sub-items.
  */
-const OUTCOMES_ITEM: NavItem = {
-  href: "/dashboard/outcomes",
-  label: "Outcomes",
-  // ★NOT `TrendingUp`, WHICH IS GROWTH'S ICON. In the collapsed rail an item
-  // IS its icon, and two entries wearing the same one are indistinguishable —
-  // which is precisely the confusion promoting this route out of Growth was
-  // meant to remove.
+const GROWTH_HOME_ITEM: NavItem = {
+  href: GROWTH_HOME,
+  label: "Growth",
+  // ★NOT `TrendingUp`, WHICH IS GROWTH'S ICON IN THE PILLAR LIST. The stub only
+  // matters if the pillar is missing, and then it must not be mistaken for it.
   icon: Gauge,
 };
 
@@ -301,7 +286,7 @@ const OUTCOMES_ITEM: NavItem = {
  * PILLAR_NAV and no merchant sees a changed sidebar.
  */
 const NAV_GROUPS: NavGroup[] = OUTCOMES_HOME
-  ? funnelNav(PILLAR_NAV, OUTCOMES_ITEM)
+  ? funnelNav(PILLAR_NAV, GROWTH_HOME_ITEM)
   : PILLAR_NAV;
 
 /**
@@ -371,6 +356,14 @@ export default function DashboardLayout({
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, org, logout, isLoading, isAuthenticated, entitlements } = useAuth();
+  // Whether a mandate exists decides whether Growth shows First run. The same
+  // query feeds the Rules screen, so this is one request, not two.
+  const rules = useGrowthV2Rules();
+  const mandateState = mandateStateOf(rules.data);
+  const navGroups = NAV_GROUPS.map((g) => ({
+    ...g,
+    items: g.items.map((i) => (i.href === GROWTH_HOME ? { ...i, subItems: growthNav(mandateState) } : i)),
+  }));
 
   if (isLoading) {
     return (
@@ -511,7 +504,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
         {/* ── Navigation ────────────────────────────────────── */}
         <SidebarContent>
-          {NAV_GROUPS.map((group, idx) => (
+          {navGroups.map((group, idx) => (
             <SidebarGroup key={group.label || `group-${idx}`}>
               {group.label && (
                 <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
@@ -539,7 +532,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                     }
                     const Icon = item.icon;
                     const isActive = item.subItems
-                      ? item.subItems.some((s) => pathname === s.href || pathname?.startsWith(s.href + "/"))
+                      ? activeSubHref(pathname ?? "", item.subItems) !== undefined
                       : pathname === item.href || pathname?.startsWith(item.href + "/");
 
                     if (item.subItems) {
@@ -556,23 +549,13 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                             <CollapsibleContent>
                               <SidebarMenuSub>
                                 {item.subItems.map((sub) => {
-                                  // Active when URL exactly matches OR is
-                                  // nested under sub.href, but only when no
-                                  // sibling sub-item has a more-specific
-                                  // match. Example: on /dashboard/settings/team
-                                  // we want only "Team" lit, not "General"
-                                  // (which has href /dashboard/settings).
-                                  const matches =
-                                    pathname === sub.href ||
-                                    pathname.startsWith(sub.href + "/");
-                                  const hasMoreSpecificSibling = item.subItems!.some(
-                                    (other) =>
-                                      other.href !== sub.href &&
-                                      other.href.length > sub.href.length &&
-                                      (pathname === other.href ||
-                                        pathname.startsWith(other.href + "/")),
-                                  );
-                                  const subActive = matches && !hasMoreSpecificSibling;
+                                  // Exactly one sub-item is lit: the one with the
+                                  // longest matching prefix (its href or its
+                                  // `matches`). On /dashboard/settings/team that is
+                                  // "Team", not "General" (href /dashboard/settings),
+                                  // and on /dashboard/growth/rules/audiences it is
+                                  // "Rules", not "Growth home".
+                                  const subActive = activeSubHref(pathname ?? "", item.subItems!) === sub.href;
                                   return (
                                     <SidebarMenuSubItem key={sub.href}>
                                       <SidebarMenuSubButton asChild isActive={subActive}>

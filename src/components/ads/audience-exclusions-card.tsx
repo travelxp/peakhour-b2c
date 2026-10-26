@@ -80,7 +80,7 @@ export function AudienceExclusionsCard() {
         {summary.audiences === 0 ? (
           <p className="text-sm text-muted-foreground">
             No audiences yet.{" "}
-            <Link href="/dashboard/growth/audiences" className="underline underline-offset-2">
+            <Link href="/dashboard/growth/rules/audiences" className="underline underline-offset-2">
               Plan some in Audiences
             </Link>{" "}
             and Peakhour will check them for overlap and suggest who to leave out.
@@ -91,7 +91,7 @@ export function AudienceExclusionsCard() {
                 by hand or planned before this check carry no reading at all. */}
             Peakhour hasn&rsquo;t checked your audiences yet &mdash; it works out exclusions and overlaps when it plans
             a portfolio in{" "}
-            <Link href="/dashboard/growth/audiences" className="underline underline-offset-2">
+            <Link href="/dashboard/growth/rules/audiences" className="underline underline-offset-2">
               Audiences
             </Link>
             .
@@ -133,7 +133,7 @@ export function AudienceExclusionsCard() {
                 <p className="text-xs text-muted-foreground">
                   Figures are the platform&rsquo;s own rounded estimates. To act on an overlap, keep one of the two
                   audiences in{" "}
-                  <Link href="/dashboard/growth/audiences" className="underline underline-offset-2">
+                  <Link href="/dashboard/growth/rules/audiences" className="underline underline-offset-2">
                     Audiences
                   </Link>
                   .

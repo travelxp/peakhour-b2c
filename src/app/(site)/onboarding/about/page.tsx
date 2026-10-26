@@ -382,7 +382,7 @@ function AddBusinessLauncher({ name }: { name: string }) {
         onOpenChange={setOpen}
         defaultName={name}
         description={`${name || "This business"} is created as soon as its plan is paid for. You'll fill in its profile next.`}
-        nextFor={() => "/dashboard/growth/business"}
+        nextFor={() => "/dashboard/growth/rules/business"}
       />
     </>
   );

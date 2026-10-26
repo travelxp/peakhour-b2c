@@ -185,7 +185,7 @@ const MUTANTS = [
   {
     name: "★point the home route at Overview even with the flag on",
     anchor:
-      'export const HOME_ROUTE = OUTCOMES_HOME ? "/dashboard/outcomes" : "/dashboard/overview";',
+      'export const HOME_ROUTE = OUTCOMES_HOME ? "/dashboard/growth" : "/dashboard/overview";',
     mutated: 'export const HOME_ROUTE = "/dashboard/overview";',
     killer: "★the home route follows the flag, in one place",
   },

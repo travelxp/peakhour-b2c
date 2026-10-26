@@ -3,187 +3,12 @@ import type { AdvertisingDeclaration } from "@/lib/ads-copy";
 import type { PageScopeMeta } from "@/lib/api/linkedin-ads";
 
 /**
- * Growth-engine client (G3) — the channel-common /v1/growth surface.
- *
- * Weekly optimizer runs land as `opt_adjustments` rows: at most 3
- * SMALL, CONSERVATIVE proposals per week, each with evidence, expected
- * effect, and a rollback condition. Humans decide here (autonomy
- * L0/L1); only an approved budget_resplit ever touches the platform,
- * behind the api's no-increase-without-envelope guard. Nothing on this
- * surface can create campaigns or start spend.
+ * Growth-engine client (G3) — the channel-common /v1/growth surface that
+ * survives Growth Engine v2: settings, win definition, guardrails, asks,
+ * creatives review, the content ledger and measurement health. The v2 screens
+ * (home, decisions, channels, learning, rules) are in `growth-v2.ts`.
  */
 
-export type ProposalType =
-  | "hook_weighting"
-  | "posting_cadence"
-  | "budget_resplit"
-  | "boost_threshold"
-  | "audience_emphasis";
-
-export type ProposalStatus =
-  "proposed" | "approved" | "dismissed" | "applied" | "failed";
-
-/** Decision outcomes the decide endpoint reports. `retryable` = the
- *  apply failed for a FIXABLE reason and the proposal was reverted to
- *  `proposed` — fix the cause (reconnect / envelope) and decide again. */
-export type DecisionStatus =
-  "approved" | "dismissed" | "applied" | "failed" | "retryable";
-
-/** D-02: how far a channel's conversion count can be believed. untracked —
- *  the platform reports none; partial — no receipt shows Peakhour's upload
- *  reaching it; tracked — the latest upload reached it in full. */
-export type ChannelMeasurement = "tracked" | "partial" | "untracked";
-
-/** One ad platform's figures over the outcomes window (api `rollupPaid`). */
-export interface PaidChannel {
-  platform: string;
-  /** Sent by /outcomes only — /visibility reads every measured channel
-   *  `partial`, so a badge must never be read from there (D-02). */
-  measurement?: ChannelMeasurement;
-  impressions: number;
-  clicks: number;
-  spend: number | null;
-  currency?: string;
-  /** Null where the platform does not report conversions — absent, not zero. */
-  conversions: number | null;
-  campaigns: number;
-  stale: boolean;
-  /** Whether this channel counts toward a total (api `rollupPaid`). Absent
-   *  from an api that predates it. */
-  moved?: boolean;
-  lastReadAt: string | null;
-}
-
-/**
- * Outcomes (v1).
- *
- * ★THE ABSENCES ARE TYPED, WHICH IS THE WHOLE POINT OF THIS SHAPE. `paid: null`
- * is "this business has no paid channel", not "zero"; `conversions.configured:
- * false` carries a REASON and no count, so no client can render a business
- * nobody has ever counted a win for as one that had none. Those are different
- * facts and only one of them is a verdict on the customer's marketing.
- */
-export interface OutcomesResponse {
-  period: { days: number; since: string; until: string };
-  reach: {
-    organic: {
-      impressions: number;
-      posts: number;
-      byPlatform: Array<{
-        platform: string;
-        impressions: number;
-        posts: number;
-      }>;
-    };
-    paid: {
-      impressions: number;
-      campaigns: number;
-      /** ★NULL when the channels disagree on a currency (D-01) — `currency`
-       *  is present exactly when this is a number. */
-      spend: number | null;
-      currency?: string;
-      /** One entry per ad platform that served, spent or went stale inside the
-       *  window. ★OPTIONAL because this build merges BEFORE the api that sends
-       *  it (D-01) — every reader must treat it as possibly absent. */
-      byChannel?: PaidChannel[];
-    } | null;
-    site: {
-      sessions: number;
-      users: number;
-      /** Null on a first period AND on stale data — a comparison computed
-       *  across a sync that stopped is the most confident wrong number a
-       *  dashboard can produce. */
-      sessionsDeltaPct: number | null;
-      dataThrough: string | null;
-      stale: boolean;
-    } | null;
-  };
-  attention: {
-    organic: { engagements: number; clicks: number; ratePct: number | null };
-    paid: { clicks: number; ctrPct: number | null } | null;
-  };
-  conversions:
-    | {
-        configured: true;
-        count: number;
-        source: "analytics" | "inbox";
-        /** What the customer calls it. Present only once they've chosen — the
-         *  page says "wins" until then, because naming it for them is how a
-         *  headline ends up reading "23 generate_lead this week". */
-        label?: string;
-        costPer: number | null;
-        currency?: string;
-      }
-    | {
-        configured: false;
-        reason: "not_connected" | "no_key_event";
-        message: string;
-      };
-  /**
-   * What the period was worth — the same honest-absence shape as `conversions`,
-   * and NOT a figure this page is allowed to reason about.
-   *
-   * ★OPTIONAL ON THE WIRE, DELIBERATELY. The two repos deploy separately, so
-   * this build can ship ahead of the api that sends the field. Typed as
-   * required, one `value.available` would throw and take the WHOLE Outcomes
-   * route down — headline, next actions, the numbers — over a card that had not
-   * arrived yet. Optional, the card simply does not render until it has.
-   *
-   * ★★EVERY JUDGEMENT IS ALREADY MADE. Whether an amount may be shown at all,
-   * which source it came from, how much of the period it covers and why it is
-   * missing are settled in the api, once, so the web app and the Shopify app
-   * cannot answer them differently. This page renders `message` when
-   * `available` is false and the amount when it is true — it must never invent
-   * a zero, a fallback, or a period of its own.
-   */
-  value?:
-    | {
-        available: true;
-        /** The merchant's own orders, or a measurement of their website.
-         *  Rendered, because a figure nobody can argue with is magic. */
-        source: "commerce" | "analytics";
-        /** ★MAY BE NEGATIVE — both sources are refund-net. */
-        amount: number;
-        currency: string;
-        transactions?: number;
-        transactionDays?: number;
-        /** ★THE SPAN THE AMOUNT ACTUALLY COVERS. Not the same as `period` even
-         *  when complete: `period` is a rolling now-minus-N-days and these are
-         *  the money's own window. Render these when `partial`. */
-        coveredSince: string;
-        coveredUntil: string;
-        daysMeasured: number;
-        daysInWindow: number;
-        partial: boolean;
-      }
-    | {
-        available: false;
-        reason: "not_reported" | "mixed_currency" | "unconfirmed_zero";
-        message: string;
-        transactions?: number;
-        transactionDays?: number;
-        daysInWindow?: number;
-      };
-  headline: string;
-  movements: Array<{ direction: "up" | "down" | "flat"; text: string }>;
-  nextActions: Array<{
-    id: string;
-    severity: "critical" | "attention" | "opportunity";
-    title: string;
-    detail: string;
-    href?: string;
-    cta?: string;
-    /** The ad channel it is about (D-03, api#1450) — one per action; absent
-     *  for an action about the business. ★Since D-03b this list IS Needs
-     *  You: reconnect cards, open optimizer proposals (only with
-     *  `growth.optimizer`), Health Sentinel findings, unmeasured campaigns and
-     *  guardrail blocks arrive here, de-duplicated by the api. */
-    channel?: string;
-  }>;
-  /** Needs You sources the api could not read this time (D-03b) — left out
-   *  of `nextActions` rather than failing the page. Absent from an older api. */
-  needsYouUnchecked?: Array<"connections" | "proposals" | "guardrail_blocks">;
-}
 
 /** What a business counts as a win. Absent until they've chosen — and absence
  *  is never rendered as a zero. */
@@ -259,9 +84,6 @@ export interface GrowthSettings {
    *  is set — this comes off a Mongo projection, while `winOptions()` refreshes
    *  an OAuth token and calls Google's Admin API. */
   winDefinition?: WinDefinition;
-  optimizerEnabled?: boolean;
-  autonomyLevel?: number;
-  weeklyBudgetEnvelope?: number;
   /** The business's one-time political-advertising declaration, with
    *  provenance. Absent means nobody has declared — the single reading of
    *  absence, which is why withdrawing UNSETS it rather than storing
@@ -366,39 +188,6 @@ export interface GrowthSettingsResponse {
   politicalAdsRefused?: { banned: string[]; uncertain: string[] };
   declaredByName?: string;
 }
-
-export interface OptimizerProposal {
-  id: string;
-  type: ProposalType;
-  summary: string;
-  evidence: string[];
-  expectedEffect: string;
-  rollbackCondition: string;
-  autoApplicable: boolean;
-  params?: Record<string, unknown>;
-  status: ProposalStatus;
-  decidedAt?: string;
-  appliedAt?: string;
-  failReason?: string;
-}
-
-export interface OptimizerRun {
-  _id: string;
-  platform: string;
-  weekStart: string;
-  proposals: OptimizerProposal[];
-  noAdjustmentReason?: string;
-  inputsDigest?: {
-    organicPosts: number;
-    campaignsAnalysed: number;
-    windowDays: number;
-  };
-  createdAt: string;
-}
-
-export type RunNowResult =
-  | { created: false; reason: "already_ran" | "optimizer_disabled" | "no_data" }
-  | { created: true; runId: string; proposalCount: number };
 
 // ── The Ask — lead capture, channel-neutral ───────────────────────────────
 
@@ -529,96 +318,6 @@ export interface Ask {
 export type LeadDelivery =
   | { status: "created" | "existing"; subscriptionId: string }
   | { status: "blocked" | "unknown"; reason: string };
-
-/**
- * Why one source in the funnel contributed nothing.
- *
- * ★★THE FIRST IS NOT LIKE THE OTHERS, AND THE STAGE TOTAL TURNS ON IT.
- * `not_connected` is a fact about the merchant — no Business Profile means no
- * map views to miss — so a total over the channels they DO have is a complete
- * answer. Every other reason is a fact about US, and the api withholds the
- * total rather than publishing an undercount that reads as a collapse.
- *
- * This client never re-derives that decision: it renders `total` when the api
- * sends one and `incomplete` when it does not.
- */
-export type VisibilityAbsence =
-  | "not_connected"
-  | "not_configured"
-  | "pending"
-  | "stale"
-  | "needs_reconnect"
-  | "unavailable";
-
-/**
- * ★NO `"value"` MEMBER, AND NO `"bought"` STAGE, BECAUSE THE api SENDS
- * NEITHER. Money is not one of `stages`: the three stages are sums of
- * comparable integers, while the amount has its own currency, its own covered
- * window and its own three refusals, and arrives as the sibling `value` block
- * decided by `buildValueBlock`. Typing a stage key nobody sends invites a
- * surface to look for a fourth card in the wrong place — which is exactly what
- * happened here once.
- */
-export type VisibilitySource =
-  | "google_search"
-  | "google_business_profile"
-  | "google_analytics"
-  /** One figure PER AD PLATFORM (D-01), the platform carried as data — so a
-   *  stage can hold several of these, and `source` alone is not a key. */
-  | "paid_ads";
-
-export type VisibilityFigure =
-  | {
-      source: VisibilitySource;
-      /** `ad_campaigns.platform`, on a `paid_ads` figure. Absent on the one
-       *  that says the paid read itself failed. */
-      platform?: string;
-      available: true;
-      value: number;
-      /** Days inside the window this source actually reported. Short of
-       *  `period.days` means the stage is `partial`. */
-      days: number;
-    }
-  | { source: VisibilitySource; platform?: string; available: false; reason: VisibilityAbsence };
-
-export interface VisibilityStage {
-  key: "found" | "chosen" | "convinced";
-  question: string;
-  /** Absent when the api refused to total — `incomplete` says why. */
-  total?: number;
-  incomplete?: "nothing_connected" | "awaiting_data";
-  /** True when a contributing source covered fewer days than were asked for.
-   *  The number is real; it is only a short answer to the window. */
-  partial?: boolean;
-  figures: VisibilityFigure[];
-}
-
-export interface VisibilityResponse {
-  period: { days: number; since: string; until: string };
-  stages: VisibilityStage[];
-  /** ★ABSENT MEANS THE RECONCILIATION COULD NOT BE READ — which is not any of
-   *  its refusals, each of which is a claim about the merchant's own data. */
-  value?: OutcomesResponse["value"];
-  /** ★THE SPLIT'S OWN WINDOW IS NOT `period.days`: it classifies the newest
-   *  Search Console slice, written over a fixed trailing window. A share
-   *  computed against a stage total from a SHORTER period can exceed 100%. */
-  brandSplit?: {
-    windowDays: number;
-    split:
-      | {
-          assertable: true;
-          brand: { clicks: number; impressions: number; queries: number };
-          nonBrand: { clicks: number; impressions: number; queries: number };
-          terms: string[];
-          termsSource: "owner" | "seeded";
-        }
-      | {
-          assertable: false;
-          reason: "no_brand_terms" | "unusable_brand_terms";
-          message: string;
-        };
-  };
-}
 
 // ── Content ledger ──────────────────────────────────────────────────────────
 //
@@ -789,63 +488,6 @@ export interface MeasurementHealthResponse {
 }
 
 export const growthApi = {
-  /** Recent weekly optimizer runs (newest first, up to 12). */
-  adjustments: () =>
-    api.get<{ runs: OptimizerRun[] }>("/v1/growth/adjustments"),
-
-  /** Run the optimizer now for the active business. Idempotent per ISO
-   *  week; typed no-op reasons (already_ran / optimizer_disabled /
-   *  no_data) come back as 200s, not errors. */
-  runNow: () => api.post<RunNowResult>("/v1/growth/adjustments/run"),
-
-  /** Human decision on one proposal. Approving a budget_resplit also
-   *  attempts the guarded platform apply — the response's status says
-   *  what ACTUALLY happened (approved / applied / failed / retryable).
-   *  Reauth failures arrive as 409 NEEDS_REAUTH instead, and a platform
-   *  refusing OUR APP on the ad account as 403 AD_ACCOUNT_NOT_AUTHORIZED.
-   *
-   *  `notAuthorized` is the same condition arriving on a 200 `retryable`
-   *  from an api deployment that predates that code — the board uses it to
-   *  suppress its "fix that and approve again" copy, which is wrong for a
-   *  refusal no user action can clear. */
-  decide: (
-    runId: string,
-    proposalId: string,
-    decision: "approve" | "dismiss",
-  ) =>
-    api.post<{
-      ok: true;
-      status: DecisionStatus;
-      failReason?: string;
-      notAuthorized?: boolean;
-    }>(`/v1/growth/adjustments/${runId}/proposals/${proposalId}/${decision}`),
-
-  /**
-   * What happened, what it means, and what to do next (Outcomes v1).
-   *
-   * ★DETERMINISTIC AND FREE. Every figure is read off rows the platform already
-   * holds — no model call in the path, so no per-view cost and no chance of a
-   * sentence that disagrees with the number beside it.
-   *
-   * ★AND IT SPEAKS BEFORE ANY MONEY IS SPENT. `reach.paid` is null rather than
-   * a block of zeros until a campaign has actually served; organic reach and
-   * site traffic carry the page until then, which is the state a business is in
-   * for its first months.
-   */
-  outcomes: (days = 28) =>
-    api.get<OutcomesResponse>(`/v1/growth/outcomes?days=${days}`),
-
-  /**
-   * Found → chosen → convinced → bought, over ONE window.
-   *
-   * ★THE WINDOW IS THE POINT. Every reader behind this endpoint has a different
-   * default (90 / 30 / 28 days), and a funnel assembled client-side from three
-   * of them shows a collapse between its stages that is an artefact of the
-   * windows. One request, one window, four comparable answers.
-   */
-  visibility: (days = 28) =>
-    api.get<VisibilityResponse>(`/v1/growth/visibility?days=${days}`),
-
   /**
    * What we published, and what each page earned.
    *
@@ -873,13 +515,14 @@ export const growthApi = {
   /** What this business could count as a win, and what it currently does. */
   winOptions: () => api.get<WinOptionsResponse>("/v1/growth/win-options"),
 
-  /** Per-business growth settings (the optimizer opt-in and the advertising
-   *  declaration live here), plus the notice version in force. */
+  /** Per-business growth settings (the advertising declaration, win
+   *  definition and guardrails live here), plus the notice version in force. */
   settings: () => api.get<GrowthSettingsResponse>("/v1/growth/settings"),
 
   /**
-   * Self-serve optimizer opt-in / weekly budget envelope / advertising
-   * declaration.
+   * Self-serve advertising declaration / win definition / guardrails. The
+   * mandate (ceiling, autonomy, target) is v2's and is not written here: the api
+   * answers 400 to the four fields it replaced.
    *
    * ⚠️★WAS A BOOLEAN `notPolitical`, AND THE BOOLEAN COULD NOT SAY THE THING
    * M-03 EXISTS FOR: that a merchant IS a political advertiser. `true` meant
@@ -898,8 +541,6 @@ export const growthApi = {
    * category answer, for the same reason in reverse.
    */
   updateSettings: (patch: {
-    optimizerEnabled?: boolean;
-    weeklyBudgetEnvelope?: number | null;
     /**
      * ⚠️WAS `notPolitical?: boolean` (M-03). The boolean could only ever say
      * NOT_POLITICAL or withdraw, so nothing could record a business that IS a
