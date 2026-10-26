@@ -45,9 +45,14 @@ export function canContinue(readiness: SignalReadiness | undefined): boolean {
   return readiness?.complete === true;
 }
 
+/** Whether a platform in this state still needs the merchant to choose. One predicate for the row's buttons and the blocked reason. */
+export function needsAChoice(state: SignalState): boolean {
+  return state === "needed" || state === "needs_primary_goal";
+}
+
 /** The platforms that still need a choice, in display order. */
 export function platformsNeedingAChoice(readiness: SignalReadiness): SignalPlatform[] {
-  return readiness.platforms.filter((p) => p.state === "needed" || p.state === "needs_primary_goal").map((p) => p.platform);
+  return readiness.platforms.filter((p) => needsAChoice(p.state)).map((p) => p.platform);
 }
 
 /** The one sentence a platform's row says about its state. */
