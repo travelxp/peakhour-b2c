@@ -103,7 +103,7 @@ export interface GoogleConversionActionChosen {
   created: boolean;
   selected: GoogleConversionActionSelection | null;
   /** Whether the action can carry the bidding signal. `primaryForGoal: false` only for an action the merchant chose that is not a primary goal. */
-  setup: { primaryForGoal: boolean | null; hasValueSettings: boolean };
+  setup: { primaryForGoal: boolean; hasValueSettings: boolean };
 }
 
 /** What the conversion action is for (C3): a value mandate uses the uploaded value; a count mandate counts. */
