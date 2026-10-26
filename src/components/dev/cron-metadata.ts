@@ -1084,6 +1084,15 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       "or pause can no longer be approved. It changes only the decision and the engine's own working record.",
   },
 
+  "decision-steps": {
+    label: "Apply the later steps of a budget move",
+    frequency: "Runs hourly, at twenty past",
+    description:
+      "A big budget raise is made in steps of at most 20%, three days apart. This applies the next step of any " +
+      "move that is still in force, after checking the ceiling and your guardrails again. It stops for a move " +
+      "that was undone, and it changes real ad budgets.",
+  },
+
   // ── Billing + money ────────────────────────────────────────────────
   // Undocumented until now because none of them could be triggered at all
   // (peakhour-api#1017). Which of these need an explicit confirmation is NOT
