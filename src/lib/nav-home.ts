@@ -40,7 +40,7 @@ export { OUTCOMES_HOME };
  * copies of this decision is how the logo and the redirect come to disagree —
  * a click on the mark landing somewhere other than where the app opened.
  */
-export const HOME_ROUTE = OUTCOMES_HOME ? "/dashboard/outcomes" : "/dashboard/overview";
+export const HOME_ROUTE = OUTCOMES_HOME ? "/dashboard/growth" : "/dashboard/overview";
 
 /**
  * Which funnel question a navigation destination serves.
@@ -56,7 +56,7 @@ export const HOME_ROUTE = OUTCOMES_HOME ? "/dashboard/outcomes" : "/dashboard/ov
 const FUNNEL_GROUP: Record<string, "Found" | "Chosen" | "Convinced"> = {
   "/dashboard/presence": "Found",
   "/dashboard/content": "Chosen",
-  "/dashboard/ads": "Chosen",
+  "/dashboard/growth": "Chosen",
   "/dashboard/insights/analytics": "Convinced",
   "/dashboard/commerce": "Convinced",
 };

@@ -216,7 +216,7 @@ function AdsHub() {
           ADS thing either: Content, Support and Commerce all want to read it,
           and burying the one correctable surface in the engine under Ads is
           why nobody has ever corrected one. It moved to
-          /dashboard/growth/business.
+          /dashboard/growth/rules/business.
 
           Still above the channel tabs, for the original reason — inside a
           channel panel it would read as a LinkedIn setting and would need

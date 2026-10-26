@@ -173,7 +173,7 @@ export function BusinessProfileSummary() {
           size="sm"
           className="shrink-0"
         >
-          <Link href="/dashboard/growth/business">
+          <Link href="/dashboard/growth/rules/business">
             {cta}
             <ArrowRight className="ml-1.5 size-3.5" aria-hidden="true" />
           </Link>

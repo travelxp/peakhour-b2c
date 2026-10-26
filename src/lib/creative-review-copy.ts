@@ -13,7 +13,7 @@ import type { CreativeReviewItem, CreativeStatus, CreativesSummary } from "@/lib
 import { GUARDRAIL_CHANNELS } from "@/lib/guardrails-copy";
 
 /** Where the screen lives (not under /dashboard/ads: the hub is one surface). */
-export const CREATIVE_REVIEW_PATH = "/dashboard/growth/creatives";
+export const CREATIVE_REVIEW_PATH = "/dashboard/growth/learning/creatives";
 
 export type CreativeFilterKey = "to_review" | "approved" | "running" | "retired" | "all";
 

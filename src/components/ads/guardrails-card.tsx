@@ -82,7 +82,7 @@ const BUSINESS_ZONE = "__business__";
 
 export function GuardrailsCard() {
   const queryClient = useQueryClient();
-  // Shares the cache key with the declaration card and the optimizer board.
+  // Shares the cache key with the declaration card.
   const settings = useQuery({
     queryKey: ["growth-settings"],
     queryFn: () => growthApi.settings(),

@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
  * NEW business" while its own label said "tell us about YOURS".
  *
  * ★The fix is the destination, not the copy. Step one now opens
- * `/dashboard/growth/business` — the surface that reads and CORRECTS the
+ * `/dashboard/growth/rules/business` — the surface that reads and CORRECTS the
  * profile for the business already in the session. That is the screen that
  * actually sets `valueProposition` and the taxonomy this step is measuring, so
  * following the step now changes the thing the step is checking.

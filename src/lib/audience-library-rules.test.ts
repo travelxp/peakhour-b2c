@@ -31,7 +31,7 @@ const STATUS_VALUES = Object.keys({
   discarded: true,
   superseded: true,
 } satisfies Record<AudienceSetStatus, true>) as AudienceSetStatus[];
-import { SOURCES, STATUSES, SEARCH_MAX } from "@/app/(site)/dashboard/growth/audiences/filters";
+import { SOURCES, STATUSES, SEARCH_MAX } from "@/app/(site)/dashboard/growth/rules/audiences/filters";
 import {
   audienceShape,
   channelNotes,

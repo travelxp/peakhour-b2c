@@ -8,7 +8,7 @@ import { audienceClaim, reachLine } from "@/lib/audience-card-rules";
 // ★THE LIBRARY'S MAP, NOT A NINE-KEY COPY. This card carried its own, and it
 // covered nine of the vocabulary's thirty-one attributes — so a campaign
 // targeting `purchase_intent` rendered the raw identifier here and "Purchase
-// intent" on /dashboard/growth/audiences, in the same session, for the same
+// intent" on /dashboard/growth/rules/audiences, in the same session, for the same
 // audience.
 import { attributeLabel } from "@/lib/audience-library-rules";
 import { Badge } from "@/components/ui/badge";

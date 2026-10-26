@@ -249,7 +249,7 @@ export default function OverviewPage() {
           series={4}
           value={null}
           action="See what gets tracked"
-          href="/dashboard/outcomes"
+          href="/dashboard/growth"
           emptyAction="Connect ads to start tracking"
           loading={isLoading}
         />
@@ -384,7 +384,7 @@ export default function OverviewPage() {
  * answers 402 BUSINESS_LIMIT_REACHED for any org that already has its one
  * business — i.e. every org that can see this banner. The dashboard asked the
  * owner to finish telling us about their business and the product replied that
- * they had to upgrade to add another one. `/dashboard/growth/business` is the
+ * they had to upgrade to add another one. `/dashboard/growth/rules/business` is the
  * screen that reads and writes the profile for the business already in the
  * session, which is the thing this step measures.
  *
@@ -403,7 +403,7 @@ function setupSteps(
       label: "Tell us about your business",
       detail: "What you sell and who for — everything we write is grounded in this.",
       done: Boolean(stats.hasTaxonomy),
-      href: "/dashboard/growth/business",
+      href: "/dashboard/growth/rules/business",
     },
     {
       label: "Connect a channel",

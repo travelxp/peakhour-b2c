@@ -25,6 +25,9 @@ import {
   Search,
   Building2,
   Users,
+  Coins,
+  Lightbulb,
+  ShieldCheck,
 } from "lucide-react";
 
 const PAGES = [
@@ -34,11 +37,14 @@ const PAGES = [
   { label: "Calendar", href: "/dashboard/calendar", icon: Calendar, group: "Navigation" },
   // ★THE SECOND NAVIGATION SURFACE, AND IT WAS MISSED BY BOTH G1 AND G2 — on a
   // pair of pages whose entire thesis is that nobody could find them.
-  { label: "Your Business", href: "/dashboard/growth/business", icon: Building2, group: "Navigation" },
-  { label: "Audiences", href: "/dashboard/growth/audiences", icon: Users, group: "Navigation" },
+  { label: "Your Business", href: "/dashboard/growth/rules/business", icon: Building2, group: "Navigation" },
+  { label: "Audiences", href: "/dashboard/growth/rules/audiences", icon: Users, group: "Navigation" },
   { label: "Ads", href: "/dashboard/ads", icon: Megaphone, group: "Navigation" },
-  { label: "Outcomes", href: "/dashboard/outcomes", icon: TrendingUp, group: "Navigation" },
-  { label: "Optimizer", href: "/dashboard/optimizer", icon: Sparkles, group: "Navigation" },
+  { label: "Growth home", href: "/dashboard/growth", icon: TrendingUp, group: "Navigation" },
+  { label: "Decisions", href: "/dashboard/growth/decisions", icon: Sparkles, group: "Navigation" },
+  { label: "Channels & money", href: "/dashboard/growth/channels", icon: Coins, group: "Navigation" },
+  { label: "Learning", href: "/dashboard/growth/learning", icon: Lightbulb, group: "Navigation" },
+  { label: "Rules", href: "/dashboard/growth/rules", icon: ShieldCheck, group: "Navigation" },
   { label: "Web Analytics", href: "/dashboard/insights/analytics", icon: LineChart, group: "Navigation" },
   { label: "Search Console", href: "/dashboard/insights/search-console", icon: Search, group: "Navigation" },
   { label: "Integrations", href: "/dashboard/integrations", icon: Plug, group: "Settings" },

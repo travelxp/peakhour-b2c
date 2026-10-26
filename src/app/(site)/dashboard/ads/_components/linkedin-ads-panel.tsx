@@ -136,10 +136,9 @@ export function LinkedInAdsPanel() {
       <FlightEndBanner canUseRowControls={isConnected} />
       {/* Above the gate for the same reason, plus one of its own: the
           declaration governs every campaign create including the autonomous
-          ones, and a business can make it before it connects. Not on
-          /dashboard/optimizer — that page is FeatureGate'd on
-          growth.optimizer, so a business entitled to ads but not the
-          optimizer could boost campaigns and never be able to declare. */}
+          ones, and a business can make it before it connects. It lives
+          here and not on a Growth screen, so a business entitled to ads
+          but not the engine could boost campaigns and still declare. */}
       <AdvertisingDeclarationCard />
       {integrations.isLoading ? (
         <Card>

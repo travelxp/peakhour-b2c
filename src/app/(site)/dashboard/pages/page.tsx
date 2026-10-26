@@ -50,7 +50,7 @@ function summarize(r: GenerateResult): {
     return {
       kind: "info",
       msg: "Peakhour doesn't know what your business offers yet — pages are only written from things we can point to.",
-      action: { label: "Add it on Your business", href: "/dashboard/growth/business" },
+      action: { label: "Add it on Your business", href: "/dashboard/growth/rules/business" },
     };
   }
 
@@ -202,7 +202,7 @@ export default function PagesDashboard() {
           owner has no other way to learn that until a generate run tells them. */}
       <p className="text-xs text-muted-foreground">
         Pages are written only from what we know about your business — no invented claims.{" "}
-        <Link href="/dashboard/growth/business" className="font-medium text-brand-label hover:underline">
+        <Link href="/dashboard/growth/rules/business" className="font-medium text-brand-label hover:underline">
           Check what we know
         </Link>
         .

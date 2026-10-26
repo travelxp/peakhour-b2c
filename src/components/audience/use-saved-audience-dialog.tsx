@@ -23,7 +23,7 @@ import {
   toastUnhandledApiError,
 } from "@/lib/toast-errors";
 import { classifyApplyError } from "@/lib/audience-apply-errors";
-import { SEARCH_MAX } from "@/app/(site)/dashboard/growth/audiences/filters";
+import { SEARCH_MAX } from "@/app/(site)/dashboard/growth/rules/audiences/filters";
 import {
   audienceLibraryApi,
   AUDIENCE_OBJECTIVES,
