@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useGrowthV2Decisions, useGrowthV2Home, type HomeResponse, type HomeScreenData } from "@/lib/api/growth-v2";
 import { GROWTH_HOME } from "@/lib/growth-v2-nav";
-import { OUTCOME_UNIT, currencyOf, figureValue, formatCount, formatMoney, homeHeadline } from "@/lib/growth-v2-figure";
+import { unitFor, currencyOf, figureValue, formatCount, formatMoney, homeHeadline } from "@/lib/growth-v2-figure";
 import { tabCounts } from "@/lib/growth-v2-decisions";
 import { ActivityFeed } from "./activity-feed";
 import { EfficiencyBullet } from "./efficiency-bullet";
@@ -32,7 +32,7 @@ const LOWER_IS_BETTER = new Set(["cost_per_outcome"]);
 export function HomeBody({ result, openDecisions }: { result: HomeScreenData; openDecisions: number | undefined }) {
   const home: HomeResponse = result.data;
   const currency = currencyOf(home.pacing.monthlyCeiling, home.pacing.spentThisMonth);
-  const unit = OUTCOME_UNIT[home.outcome.kind];
+  const unit = unitFor(home.outcome.kind);
   const goal = home.goal;
   const soFar = figureValue(goal?.soFar);
   const pace = figureValue(goal?.paceVsGoal);

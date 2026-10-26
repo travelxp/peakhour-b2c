@@ -400,7 +400,7 @@ export function mandateFor(rules: V2Result<RulesResponse> | undefined, screenPre
  * First-run has no read route: `onboarding/draft` is a POST that H5 builds. Until
  * then the screen shows the prototype's plan, as a preview.
  */
-export function useGrowthV2FirstRun() {
+export function firstRunPlanPreview() {
   return { data: FIXTURE_FIRST_RUN, preview: true as const };
 }
 

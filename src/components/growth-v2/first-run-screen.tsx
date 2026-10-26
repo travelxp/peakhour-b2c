@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Building2, MapPin, MessageSquare, Phone, ShoppingCart, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useGrowthV2FirstRun, type OutcomeKind } from "@/lib/api/growth-v2";
+import { firstRunPlanPreview, type OutcomeKind } from "@/lib/api/growth-v2";
 import { OUTCOME_UNIT, PLATFORM_COLOR, PLATFORM_LABEL, figureValue, formatMoney } from "@/lib/growth-v2-figure";
 import { cn } from "@/lib/utils";
 import { PageHead } from "./page-head";
@@ -31,14 +31,17 @@ const OPTIONS: Array<{ kind: OutcomeKind; title: string; hint: string; icon: Luc
 const ROLE_LABEL = { lead: "Lead channel", test: "Test", not_now: "Not now" } as const;
 
 export function FirstRunScreen() {
-  const { data: plan } = useGrowthV2FirstRun();
+  const { data: plan } = firstRunPlanPreview();
   const m = plan.mandate;
   const [kind, setKind] = useState<OutcomeKind>(m.outcome.kind);
-  const [ceiling, setCeiling] = useState(m.monthlyCeiling);
   const unit = OUTCOME_UNIT[kind];
-  const step = 10 ** Math.max(Math.floor(Math.log10(m.monthlyCeiling)) - 1, 0);
+  // A slider grid built from the starting ceiling; a zero or odd ceiling falls back to a sane one, and the start is snapped onto the grid.
+  const base = m.monthlyCeiling > 0 ? m.monthlyCeiling : 10_000;
+  const step = 10 ** Math.max(Math.floor(Math.log10(base)) - 1, 0);
   const min = step * 5;
-  const max = m.monthlyCeiling * 5;
+  const max = Math.ceil((base * 5) / step) * step;
+  const snap = (v: number) => Math.min(max, Math.max(min, Math.round(v / step) * step));
+  const [ceiling, setCeiling] = useState(() => snap(m.monthlyCeiling));
   const targetText = m.target.kind === "roas" ? `${m.target.value.toFixed(1)}x return` : formatMoney(m.target.value, m.currency);
 
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Send } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -33,7 +33,7 @@ export function DecisionsScreen() {
             decisions={r.data.decisions}
             preview={r.preview}
             currency={mandateFor(rules.data, r.preview)?.currency ?? ""}
-            unitPlural={unitFor(mandateFor(rules.data, r.preview)?.outcome.kind).many}
+            unit={unitFor(mandateFor(rules.data, r.preview)?.outcome.kind)}
             businessName={r.preview ? PREVIEW_BUSINESS_NAME : (business?.name ?? "your business")}
           />
         )}
@@ -54,19 +54,23 @@ export function Inbox({
   decisions,
   preview,
   currency,
-  unitPlural,
+  unit,
   businessName,
 }: {
   decisions: DecisionView[];
   preview: boolean;
   currency: string;
-  unitPlural: string;
+  unit: { one: string; many: string };
   businessName: string;
 }) {
   const [tab, setTab] = useState<QueueTab>("needs_you");
   const [pickedId, setPickedId] = useState<string | null>(null);
-  // A lazy initial value, so the clock is read once and is not an impure render.
-  const [liveNow] = useState(() => Date.now());
+  // A lazy initial value, so the clock is not read during render, then a tick so "expires in" does not freeze on an open page.
+  const [liveNow, setLiveNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setLiveNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
   const now = preview ? PREVIEW_NOW : liveNow;
   const decide = useDecideV2();
 
@@ -143,7 +147,7 @@ export function Inbox({
             <DecisionCard
               decision={selected}
               currency={currency}
-              unitPlural={unitPlural}
+              unit={unit}
               now={now}
               onAction={preview ? undefined : act}
               actionsDisabled={preview ? "Preview data: nothing is sent." : undefined}

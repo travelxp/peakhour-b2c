@@ -78,8 +78,8 @@ const OP_VERB: Record<EngineOpView["op"], string> = {
 
 const showMoney = (n: number, currency: string) => (currency ? formatMoney(n, currency) : formatCount(n));
 
-const show = (v: unknown, currency: string): string => {
-  if (typeof v === "number") return showMoney(v, currency);
+const show = (v: unknown, currency: string, isMoney: boolean): string => {
+  if (typeof v === "number") return isMoney ? showMoney(v, currency) : formatCount(v);
   if (typeof v === "string") return v.replace(/_/g, " ");
   if (v === undefined || v === null) return "";
   return JSON.stringify(v);
@@ -88,9 +88,11 @@ const show = (v: unknown, currency: string): string => {
 /** One line per operation: "Meta Ads, trip videos: daily budget 590 to 653". */
 export function describeOp(op: EngineOpView, currency: string): string {
   const where = `${PLATFORM_LABEL[op.platform]}, ${op.campaignRef}`;
-  const to = show(op.to, currency);
+  // Only a budget is an amount of money. A target may be a cost or a multiplier and its unit is not in the op.
+  const money = op.op === "set_daily_budget";
+  const to = show(op.to, currency, money);
   if (op.op === "attach_creative" || op.op === "detach_creative") return `${where}: ${OP_VERB[op.op]} ${to}`;
-  const from = op.from === undefined ? "" : `${show(op.from, currency)} to `;
+  const from = op.from === undefined ? "" : `${show(op.from, currency, money)} to `;
   return `${where}: ${OP_VERB[op.op]} ${from}${to}`;
 }
 
@@ -101,14 +103,18 @@ export function describeOp(op: EngineOpView, currency: string): string {
  * `cost_per_outcome` is the change in what one outcome costs, in the mandate's
  * currency, so a negative range is an improvement.
  */
-export function describeImpact(impact: NonNullable<DecisionView["impact"]>, currency: string, unitPlural: string): { range: string; caption: string } {
+export function describeImpact(
+  impact: NonNullable<DecisionView["impact"]>,
+  currency: string,
+  unit: { one: string; many: string },
+): { range: string; caption: string } {
   const sign = (n: number) => (n > 0 ? `+${formatCount(n)}` : n < 0 ? `−${formatCount(Math.abs(n))}` : "0");
   const confidence = `${Math.round(impact.confidence * 100)}% range`;
   if (impact.metric === "outcomes") {
-    return { range: `${sign(impact.low)} to ${sign(impact.high)}`, caption: `extra ${unitPlural} over ${impact.horizonDays} days (${confidence})` };
+    return { range: `${sign(impact.low)} to ${sign(impact.high)}`, caption: `extra ${unit.many} over ${impact.horizonDays} days (${confidence})` };
   }
-  const money = (n: number) => `${n < 0 ? "−" : "+"}${formatMoney(Math.abs(n), currency)}`;
-  return { range: `${money(impact.low)} to ${money(impact.high)}`, caption: `cost per ${unitPlural.replace(/s$/, "")} after ${impact.horizonDays} days (${confidence})` };
+  const money = (n: number) => (n === 0 ? formatMoney(0, currency) : `${n < 0 ? "−" : "+"}${formatMoney(Math.abs(n), currency)}`);
+  return { range: `${money(impact.low)} to ${money(impact.high)}`, caption: `cost per ${unit.one} after ${impact.horizonDays} days (${confidence})` };
 }
 
 // -- WhatsApp ----------------------------------------------------------------------------------

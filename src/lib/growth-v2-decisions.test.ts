@@ -53,14 +53,14 @@ describe("describeOp", () => {
 
 describe("describeImpact", () => {
   it("reads an outcome range with signs", () => {
-    expect(describeImpact({ metric: "outcomes", low: 2, high: 5, confidence: 0.8, horizonDays: 30 }, "INR", "bookings")).toEqual({
+    expect(describeImpact({ metric: "outcomes", low: 2, high: 5, confidence: 0.8, horizonDays: 30 }, "INR", { one: "booking", many: "bookings" })).toEqual({
       range: "+2 to +5",
       caption: "extra bookings over 30 days (80% range)",
     });
   });
 
   it("reads a cost change in the currency, negative being an improvement", () => {
-    const d = describeImpact({ metric: "cost_per_outcome", low: -68, high: -36, confidence: 0.7, horizonDays: 21 }, "INR", "bookings");
+    const d = describeImpact({ metric: "cost_per_outcome", low: -68, high: -36, confidence: 0.7, horizonDays: 21 }, "INR", { one: "booking", many: "bookings" });
     expect(d.range).toBe("−₹68 to −₹36");
     expect(d.caption).toBe("cost per booking after 21 days (70% range)");
   });
@@ -86,5 +86,15 @@ describe("whatsappPreview", () => {
     expect(wa.header).toBe("Decision for Acme");
     expect(wa.body).toContain(byId("preview-d1").title);
     expect(wa.buttons).toEqual(["Approve", "Hold", "Details"]);
+  });
+});
+
+describe("describeOp units", () => {
+  it("does not print a target as money, since it may be a multiplier", () => {
+    expect(describeOp({ platform: "google_ads", campaignRef: "c", op: "set_target", from: 3.5, to: 4 }, "INR")).toBe("Google Ads, c: target 3.5 to 4");
+  });
+
+  it("prints a zero bound of a cost change without a plus sign", () => {
+    expect(describeImpact({ metric: "cost_per_outcome", low: 0, high: 40, confidence: 0.5, horizonDays: 7 }, "INR", { one: "lead", many: "leads" }).range).toBe("\u20B90 to +\u20B940");
   });
 });

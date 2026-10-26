@@ -10,6 +10,7 @@ import { LearningBody } from "./learning-screen";
 import { QueryBoundary } from "./query-boundary";
 import { RulesBody } from "./rules-screen";
 import { Inbox } from "./decisions-screen";
+import { DecisionCard } from "./decision-card";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/dashboard/growth", useRouter: () => ({ push: vi.fn() }) }));
 // The Decisions inbox reads the auth context only through its caller; the body itself takes plain props.
@@ -122,7 +123,7 @@ describe("the screens render their preview sample", () => {
   });
 
   it("Decisions lists the queue, shows the council and keeps the preview's buttons off", () => {
-    const out = html(withClient(<Inbox decisions={FIXTURE_DECISIONS.decisions} preview currency="INR" unitPlural="bookings" businessName="Himalayan Trails" />));
+    const out = html(withClient(<Inbox decisions={FIXTURE_DECISIONS.decisions} preview currency="INR" unit={{ one: "booking", many: "bookings" }} businessName="Himalayan Trails" />));
     expect(out).toContain("Needs you");
     expect(out).toContain("Move ₹700 a week from X to Meta Advantage+ Leads");
     expect(out).toContain("Strategist");
@@ -131,7 +132,7 @@ describe("the screens render their preview sample", () => {
     expect(out).toContain("Decision for Himalayan Trails");
     expect(out).toContain("reply CONFIRM");
     expect(out).toContain("Preview data: nothing is sent.");
-    expect(out).toMatch(/<button[^>]*disabled[^>]*>Approve/);
+    expect(out).toMatch(/<button[^>]* disabled=""[^>]*>Approve/);
   });
 
   it("First run is a preview with its confirm button off", () => {
@@ -139,6 +140,31 @@ describe("the screens render their preview sample", () => {
     expect(out).toContain("Preview data");
     expect(out).toContain("What do you want more of?");
     expect(out).toContain("Your first plan");
-    expect(out).toMatch(/<button[^>]*disabled[^>]*>Send to WhatsApp to confirm/);
+    expect(out).toMatch(/<button[^>]* disabled=""[^>]*>Send to WhatsApp to confirm/);
+  });
+});
+
+describe("DecisionCard time rules", () => {
+  const unit = { one: "booking", many: "bookings" };
+  const proposed = FIXTURE_DECISIONS.decisions[0];
+  const noop = () => {};
+
+  it("turns Approve off and says so once the decision has expired", () => {
+    const out = html(<DecisionCard decision={proposed} currency="INR" unit={unit} now={Date.parse(proposed.expiresAt!) + 3_600_000} onAction={noop} />);
+    expect(out).toContain("This expired and nothing changed.");
+    expect(out).toMatch(/<button[^>]* disabled=""[^>]*>Approve/);
+  });
+
+  it("keeps Approve on while it has time left", () => {
+    const out = html(<DecisionCard decision={proposed} currency="INR" unit={unit} now={Date.parse(proposed.createdAt)} onAction={noop} />);
+    expect(out).not.toMatch(/<button[^>]* disabled=""[^>]*>Approve/);
+  });
+
+  it("closes Undo after 24 hours", () => {
+    const applied = { ...proposed, status: "applied" as const, decidedBy: { via: "inapp" as const, at: "2026-10-20T10:00:00Z" } };
+    const late = html(<DecisionCard decision={applied} currency="INR" unit={unit} now={Date.parse("2026-10-23T10:00:00Z")} onAction={noop} />);
+    expect(late).toContain("undo window has passed");
+    const soon = html(<DecisionCard decision={applied} currency="INR" unit={unit} now={Date.parse("2026-10-20T20:00:00Z")} onAction={noop} />);
+    expect(soon).toContain("Undo works for 24 hours");
   });
 });

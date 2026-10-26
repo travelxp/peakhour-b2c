@@ -21,8 +21,8 @@ import { ToneBadge, type Tone } from "./tone";
 interface DecisionCardProps {
   decision: DecisionView;
   currency: string;
-  /** What one outcome is called, plural. */
-  unitPlural: string;
+  /** What one outcome is called. */
+  unit: { one: string; many: string };
   /** The clock for "expires in". Passed in so a preview can freeze it. */
   now: number;
   onAction?: (action: DecisionAction) => void;
@@ -41,11 +41,15 @@ const STATUS_TONE: Partial<Record<DecisionView["status"], Tone>> = {
   reverted: "neutral",
 };
 
-export function DecisionCard({ decision: d, currency, unitPlural, now, onAction, actionsDisabled, pending, className }: DecisionCardProps) {
-  const impact = d.impact ? describeImpact(d.impact, currency, unitPlural) : undefined;
+export function DecisionCard({ decision: d, currency, unit, now, onAction, actionsDisabled, pending, className }: DecisionCardProps) {
+  const impact = d.impact ? describeImpact(d.impact, currency, unit) : undefined;
   const canAct = d.status === "proposed" && d.needsPerson;
-  const off = pending || actionsDisabled !== undefined || !onAction;
   const left = d.expiresAt ? hoursUntil(d.expiresAt, now) : undefined;
+  const expired = d.expiresAt !== undefined && left === 0 && new Date(d.expiresAt).getTime() <= now;
+  const off = pending || actionsDisabled !== undefined || !onAction || expired;
+  // Undo lasts 24 hours from when it was applied (plan 2.4). Without a time we cannot say it has passed.
+  const appliedAt = d.decidedBy?.at ? new Date(d.decidedBy.at).getTime() : Number.NaN;
+  const undoOpen = Number.isNaN(appliedAt) || now - appliedAt < 24 * 3_600_000;
 
   return (
     <article className={cn("grid min-w-0 content-start gap-4", className)}>
@@ -140,15 +144,19 @@ export function DecisionCard({ decision: d, currency, unitPlural, now, onAction,
           </Button>
           <span className="text-xs text-muted-foreground">
             {actionsDisabled ??
-              (left === undefined ? "If you don't answer, nothing changes." : `Expires in ${left}h. If you don't answer, nothing changes.`)}
+              (expired
+                ? "This expired and nothing changed."
+                : left === undefined
+                  ? "If you don't answer, nothing changes."
+                  : `Expires in ${left}h. If you don't answer, nothing changes.`)}
           </span>
         </div>
       ) : d.status === "applied" && d.ops.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" disabled={off} onClick={() => onAction?.("undo")}>
+          <Button variant="outline" disabled={off || !undoOpen} onClick={() => onAction?.("undo")}>
             <Undo2 aria-hidden /> Undo
           </Button>
-          <span className="text-xs text-muted-foreground">{actionsDisabled ?? "Undo works for 24 hours after it was applied."}</span>
+          <span className="text-xs text-muted-foreground">{actionsDisabled ?? (undoOpen ? "Undo works for 24 hours after it was applied." : "The 24-hour undo window has passed.")}</span>
         </div>
       ) : null}
     </article>
