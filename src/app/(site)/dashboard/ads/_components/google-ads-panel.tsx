@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Megaphone, Plus, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/providers/auth-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,7 +30,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { useCreditsRateCard } from "@/hooks/use-credits";
-import { googleAdsApi, type GoogleAdAccount, type GoogleCampaign, type GoogleSettableStatus } from "@/lib/api/google-ads";
+import { googleAdsApi, type GoogleAdAccount, type GoogleCampaign, type GoogleConversionActionState, type GoogleSettableStatus } from "@/lib/api/google-ads";
 import {
   GOOGLE_LAUNCH_USE_CASE,
   formatGoogleMoney,
@@ -44,6 +45,21 @@ import {
   googleStatusLabel,
   linesOf,
 } from "@/lib/google-ads-view";
+import {
+  GOOGLE_CONVERSION_CONSENT_NOTE,
+  GOOGLE_CONVERSION_SECONDARY_NOTE,
+  PEAKHOUR_CONVERSION_ACTION_LABEL,
+  googleConversionCanUse,
+  googleConversionCardState,
+  googleConversionCreateConfirmation,
+  googleConversionDefaultChoice,
+  googleConversionErrorMessage,
+  googleConversionErrorSelection,
+  googleConversionMayHaveBeenCreated,
+  googleConversionNeedsReconnect,
+  googleConversionSavedSentence,
+  googleConversionStateSentence,
+} from "@/lib/google-conversion-view";
 import { ADS_CHANNEL_PARAM, getAdsChannel, panelConnection, type AdsChannelKey } from "../ads-channels";
 
 /**
@@ -222,12 +238,167 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
       </div>
       {account ? (
         <>
+          {/* Keyed by account: a pick made for one account never carries to another. */}
+          <ConversionTrackingSection key={`conv-${account.id}`} account={account} />
           <CampaignsSection account={account} />
           {/* Keyed by account: switching accounts starts a fresh, empty form. */}
           <CreateCampaignCard key={account.id} account={account} />
         </>
       ) : null}
     </div>
+  );
+}
+
+// ── Conversion tracking (G-17b) ──────────────────────────────────────────
+
+function ConversionTrackingSection({ account }: { account: GoogleAdAccount }) {
+  const queryClient = useQueryClient();
+  const { business } = useAuth();
+  // ★BUSINESS-SCOPED: a session that switches business must not see the last one's choice.
+  const queryKey = ["google-conversion-action", business?._id ?? "none", account.id];
+  const query = useQuery({
+    queryKey,
+    queryFn: () => googleAdsApi.getConversionAction(account.id),
+    // Not before the business is known: the "none" key would cache a NO_BUSINESS refusal.
+    enabled: !!business,
+    retry: false,
+    staleTime: LIST_STALE_MS,
+  });
+  const state = googleConversionCardState({ data: query.data, isError: query.isError, fetchStatus: query.fetchStatus });
+  const [picked, setPicked] = useState<string | undefined>(undefined);
+  const [confirmingCreate, setConfirmingCreate] = useState(false);
+  // ★A pick that is no longer offered (disabled in Google Ads since) falls back to the stored default.
+  const choice = picked && query.data?.actions.some((a) => a.id === picked) ? picked : googleConversionDefaultChoice(query.data);
+  const confirmation = googleConversionCreateConfirmation(account.name);
+
+  const choose = useMutation({
+    mutationFn: (id: string | undefined) => googleAdsApi.setConversionAction(account.id, id),
+    onSuccess: (res) => {
+      setPicked(undefined);
+      // ★Show the result now, so the card never contradicts the toast while the re-read is in flight or fails.
+      //  The api validated the choice against a live read, so it is live.
+      if (res.selected) {
+        queryClient.setQueryData<GoogleConversionActionState>(queryKey, (old) =>
+          old
+            ? {
+                ...old,
+                selected: res.selected,
+                selectedIsLive: true,
+                // A created action is not in the list read before it existed; offer it, or the select reads empty.
+                actions: old.actions.some((a) => a.id === res.selected!.conversionActionId)
+                  ? old.actions
+                  : [...old.actions, { id: res.selected!.conversionActionId, name: res.selected!.name ?? `Conversion action ${res.selected!.conversionActionId}` }],
+              }
+            : old,
+        );
+      }
+      toast.success(googleConversionSavedSentence(res.created, res.selected?.name));
+    },
+    onError: (err) => {
+      const message = googleConversionErrorMessage(err, "We couldn't save that. Try again in a moment.");
+      // A create that may have landed is not a failure to retry blindly.
+      if (googleConversionMayHaveBeenCreated(err)) toast.warning(message);
+      else toast.error(message);
+    },
+    // Whatever happened, re-read: a create may have landed even when the answer was lost.
+    onSettled: () => void queryClient.invalidateQueries({ queryKey }),
+  });
+
+  const errorSelection = googleConversionErrorSelection(query.error);
+  const busy = choose.isPending;
+  const actions = query.data?.actions ?? [];
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Conversion tracking</CardTitle>
+        <CardDescription>
+          Tell Google which of your sales came from its ads, so it can learn what works. Peakhour reports them to the
+          conversion action you choose here, once a day.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {state.kind === "loading" ? (
+          <Skeleton className="h-10 w-full" />
+        ) : (
+          <p className={state.kind === "error" || state.kind === "chosen_not_live" ? "text-sm text-destructive-on-tint" : "text-sm"}>
+            {googleConversionStateSentence(state)}
+          </p>
+        )}
+        {/* Only when there is nothing read to show: a failed background refetch keeps the last good read, and the two must not contradict. */}
+        {query.isError && !query.data ? (
+          <p className="text-sm text-muted-foreground">
+            {googleConversionErrorMessage(query.error, "Google Ads didn't answer. Try again in a moment.")}
+            {errorSelection ? ` Chosen so far: “${errorSelection}” — we can't check it right now.` : ""}{" "}
+            {googleConversionNeedsReconnect(query.error) ? (
+              <Link href="/dashboard/integrations" className="font-medium underline underline-offset-4">
+                Check connection
+              </Link>
+            ) : (
+              <Button variant="link" className="h-auto p-0 text-sm" onClick={() => void query.refetch()} disabled={query.isFetching}>
+                Try again
+              </Button>
+            )}
+          </p>
+        ) : null}
+        {query.data ? (
+          <div className="space-y-3">
+            {actions.length > 0 ? (
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Use an existing import-from-clicks action</Label>
+                  <Select value={choice ?? ""} onValueChange={setPicked} disabled={busy}>
+                    <SelectTrigger className="w-80">
+                      <SelectValue placeholder="Choose a conversion action" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {actions.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button disabled={busy || !googleConversionCanUse(query.data, choice)} onClick={() => choose.mutate(choice)}>
+                  Use this one
+                </Button>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                This Google Ads account has no enabled import-from-clicks conversion action yet.
+              </p>
+            )}
+            <div className="space-y-1">
+              <Button variant="outline" disabled={busy} onClick={() => setConfirmingCreate(true)}>
+                Create &ldquo;{PEAKHOUR_CONVERSION_ACTION_LABEL}&rdquo;
+              </Button>
+              <p className="text-xs text-muted-foreground">{GOOGLE_CONVERSION_SECONDARY_NOTE}</p>
+            </div>
+          </div>
+        ) : null}
+        <p className="text-xs text-muted-foreground">{GOOGLE_CONVERSION_CONSENT_NOTE}</p>
+      </CardContent>
+
+      <AlertDialog open={confirmingCreate} onOpenChange={setConfirmingCreate}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmation.title}</AlertDialogTitle>
+            <AlertDialogDescription>{confirmation.body}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Not now</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmingCreate(false);
+                choose.mutate(undefined);
+              }}
+            >
+              Add it
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
   );
 }
 

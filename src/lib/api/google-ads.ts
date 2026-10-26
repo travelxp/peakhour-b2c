@@ -75,6 +75,35 @@ export interface GoogleCreateCampaignResult {
   message?: string;
 }
 
+/** One enabled import-from-clicks conversion action the account's conversion customer owns. */
+export interface GoogleConversionActionOption {
+  id: string;
+  name: string;
+  category?: string;
+}
+
+/** What was chosen for one advertiser account (api `googleConversionAction`). */
+export interface GoogleConversionActionSelection {
+  adAccountId: string;
+  conversionActionId: string;
+  conversionCustomerId: string;
+  name?: string;
+}
+
+/** GET /conversion-action. `selectedIsLive` is null when nothing is selected. */
+export interface GoogleConversionActionState {
+  conversionCustomerId: string;
+  actions: GoogleConversionActionOption[];
+  selected: GoogleConversionActionSelection | null;
+  selectedIsLive: boolean | null;
+}
+
+/** PUT /conversion-action: `created` is true when Peakhour made the action in the merchant's Google Ads account. */
+export interface GoogleConversionActionChosen {
+  created: boolean;
+  selected: GoogleConversionActionSelection | null;
+}
+
 export type GoogleSettableStatus = "ACTIVE" | "PAUSED";
 
 export const googleAdsApi = {
@@ -87,4 +116,12 @@ export const googleAdsApi = {
       googleAdsUrl("/v1/google/ads/campaigns/:id/status", { id }),
       { status },
     ),
+  getConversionAction: (adAccountId: string) =>
+    api.get<GoogleConversionActionState>(googleAdsUrl("/v1/google/ads/conversion-action") + `?adAccountId=${encodeURIComponent(adAccountId)}`),
+  /** With an id: choose that action. Without: find or CREATE "Peakhour offline purchases" (a write to the merchant's Google Ads account). */
+  setConversionAction: (adAccountId: string, conversionActionId?: string) =>
+    api.put<GoogleConversionActionChosen>(googleAdsUrl("/v1/google/ads/conversion-action"), {
+      adAccountId,
+      ...(conversionActionId !== undefined ? { conversionActionId } : {}),
+    }),
 };
