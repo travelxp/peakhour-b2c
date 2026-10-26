@@ -34,8 +34,15 @@ const R = 10;
 const T = 12;
 const B = 28;
 
+function daysInCurrentMonth(): number {
+  const d = new Date();
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+}
+
 export function PacingBadge({ spent, ceiling, daysLeft, daysInMonth }: { spent: Money; ceiling: Money; daysLeft: number; daysInMonth: number }) {
-  const s = STATE[pacingState(spent, ceiling, daysLeft, daysInMonth)];
+  // With no series the month length is the current month, and "over the ceiling" never needs it.
+  const dim = daysInMonth > 0 ? daysInMonth : daysInCurrentMonth();
+  const s = STATE[pacingState(spent, ceiling, daysLeft, dim)];
   return (
     <ToneBadge tone={s.tone} dot>
       {s.label}

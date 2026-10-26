@@ -28,6 +28,8 @@ const OPTIONS: Array<{ kind: OutcomeKind; title: string; hint: string; icon: Luc
   { kind: "store_visits", title: "Store visits", hint: "Walk-ins", icon: MapPin },
 ];
 
+const ROLE_LABEL = { lead: "Lead channel", test: "Test", not_now: "Not now" } as const;
+
 export function FirstRunScreen() {
   const { data: plan } = useGrowthV2FirstRun();
   const m = plan.mandate;
@@ -127,7 +129,7 @@ export function FirstRunScreen() {
                 {share !== undefined ? (
                   <b className="text-sm tabular-nums">{formatMoney(Math.round(ceiling * share), m.currency)}</b>
                 ) : (
-                  <ToneBadge>{c.role === "not_now" ? "Not now" : "Test"}</ToneBadge>
+                  <ToneBadge>{ROLE_LABEL[c.role]}</ToneBadge>
                 )}
               </div>
             );

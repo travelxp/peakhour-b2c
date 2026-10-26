@@ -196,3 +196,13 @@ describe("splitFeedText", () => {
   });
 });
 
+
+describe("lift header wording", () => {
+  it("does not claim a share was caused when the lift is zero or negative", () => {
+    for (const v of [0, -0.05]) {
+      const out = html(<LiftBand weeks={undefined} lift={{ liftPct: { value: v }, confidence: { value: 0.8 }, windowDays: 28 }} unitPlural="bookings" />);
+      expect(out).toContain("no extra bookings");
+      expect(out).not.toContain("would not have happened");
+    }
+  });
+});

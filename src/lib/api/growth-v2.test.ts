@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api";
 import { FIXTURE_HOME, FIXTURE_RULES } from "@/lib/growth-v2-fixtures";
-import { NOT_BUILT, isNotBuilt, loadOrPreview, notBuiltRow, type HomeResponse, type RulesResponse } from "./growth-v2";
+import { NOT_BUILT, isNotBuilt, mandateFor, loadOrPreview, notBuiltRow, type HomeResponse, type RulesResponse } from "./growth-v2";
 
 const notBuilt = (row = "H1") => new ApiError(NOT_BUILT, `This route is built by plan row ${row}.`, 501, "req-1", { row });
 
@@ -49,5 +49,17 @@ describe("isNotBuilt / notBuiltRow", () => {
     expect(notBuiltRow(notBuilt("C5"))).toBe("C5");
     expect(notBuiltRow(new ApiError(NOT_BUILT, "x", 501, undefined, "nope"))).toBeUndefined();
     expect(notBuiltRow(new ApiError(NOT_BUILT, "x", 501))).toBeUndefined();
+  });
+});
+
+describe("mandateFor", () => {
+  it("lends a mandate only to a screen of the same kind of data", () => {
+    const sample = { data: FIXTURE_RULES, preview: true };
+    const live = { data: { ...FIXTURE_RULES, mandate: { ...FIXTURE_RULES.mandate!, currency: "USD" } }, preview: false };
+    expect(mandateFor(sample, true)?.currency).toBe("INR");
+    expect(mandateFor(sample, false)).toBeUndefined();
+    expect(mandateFor(live, false)?.currency).toBe("USD");
+    expect(mandateFor(live, true)).toBeUndefined();
+    expect(mandateFor(undefined, false)).toBeUndefined();
   });
 });

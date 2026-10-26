@@ -6,10 +6,10 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/providers/auth-provider";
-import { useDecideV2, useGrowthV2Decisions, useGrowthV2Rules, type DecisionAction, type DecisionView } from "@/lib/api/growth-v2";
+import { useDecideV2, useGrowthV2Decisions, mandateFor, useGrowthV2Rules, type DecisionAction, type DecisionView } from "@/lib/api/growth-v2";
 import { PREVIEW_BUSINESS_NAME, PREVIEW_NOW } from "@/lib/growth-v2-fixtures";
 import { KIND_LABEL, QUEUE_TABS, queueTab, tabCounts, whatsappPreview, type QueueTab } from "@/lib/growth-v2-decisions";
-import { OUTCOME_UNIT, formatDay } from "@/lib/growth-v2-figure";
+import { formatDay, unitFor } from "@/lib/growth-v2-figure";
 import { cn } from "@/lib/utils";
 import { DecisionCard } from "./decision-card";
 import { PageHead } from "./page-head";
@@ -21,9 +21,6 @@ export function DecisionsScreen() {
   const query = useGrowthV2Decisions();
   const rules = useGrowthV2Rules();
   const { business } = useAuth();
-  const mandate = rules.data?.data.mandate;
-  const currency = mandate?.currency ?? "";
-  const kind = mandate?.outcome.kind ?? "bookings";
   return (
     <div className="grid gap-4">
       <PageHead
@@ -35,8 +32,8 @@ export function DecisionsScreen() {
           <Inbox
             decisions={r.data.decisions}
             preview={r.preview}
-            currency={currency}
-            unitPlural={OUTCOME_UNIT[kind].many}
+            currency={mandateFor(rules.data, r.preview)?.currency ?? ""}
+            unitPlural={unitFor(mandateFor(rules.data, r.preview)?.outcome.kind).many}
             businessName={r.preview ? PREVIEW_BUSINESS_NAME : (business?.name ?? "your business")}
           />
         )}

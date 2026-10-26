@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FIXTURE_HOME } from "./growth-v2-fixtures";
 import type { HomeResponse } from "./api/growth-v2";
-import { absentReason, currencyOf, figureText, figureValue, formatChange, formatDate, formatDay, formatMoney, homeHeadline, hoursUntil, isAbsent } from "./growth-v2-figure";
+import { absentReason, currencyOf, figureText, figureValue, formatChange, formatDate, formatDay, formatMoney, homeHeadline, hoursUntil, isAbsent, unitFor } from "./growth-v2-figure";
 
 describe("figure helpers keep absent apart from zero", () => {
   it("figureValue is undefined for absent, 0 for a real zero", () => {
@@ -91,5 +91,35 @@ describe("homeHeadline", () => {
   it("speaks of return on ad spend for a roas mandate", () => {
     const home: HomeResponse = { ...FIXTURE_HOME, efficiency: { metric: "roas", you: { value: 3.24 }, target: { value: 3 }, industry: { value: 2.8 } }, kpis: FIXTURE_HOME.kpis.filter((k) => k.key !== "cost_per_outcome") };
     expect(homeHeadline(home, "INR")).toContain("3.2x return on ad spend");
+  });
+});
+
+describe("review fixes", () => {
+  it("keeps the cents of a small fractional cost", () => {
+    expect(formatMoney(3.4, "USD")).toBe("$3.4");
+    expect(formatMoney(3.456, "USD")).toBe("$3.46");
+    expect(formatMoney(410, "USD")).toBe("$410");
+  });
+
+  it("has no hours for an expiry that does not parse, instead of NaN", () => {
+    expect(hoursUntil("garbage", 0)).toBeUndefined();
+  });
+
+  it("drops the 'cheaper than last month' clause when the change rounds to 0%", () => {
+    const home: HomeResponse = { ...FIXTURE_HOME, kpis: FIXTURE_HOME.kpis.map((k) => (k.key === "cost_per_outcome" ? { ...k, change: { value: -0.004 } } : k)) };
+    expect(homeHeadline(home, "INR")).not.toContain("cheaper");
+    expect(homeHeadline(home, "INR")).not.toContain("0%");
+  });
+
+  it("does not say zero outcomes would not have happened", () => {
+    const home: HomeResponse = { ...FIXTURE_HOME, kpis: FIXTURE_HOME.kpis.map((k) => (k.key === "incremental" ? { ...k, figure: { value: 0 } } : k)) };
+    const text = homeHeadline(home, "INR");
+    expect(text).not.toContain("0 of them");
+    expect(text).toContain("none of them can be credited");
+  });
+
+  it("uses a neutral unit when the mandate is unknown", () => {
+    expect(unitFor(undefined)).toEqual({ one: "outcome", many: "outcomes" });
+    expect(unitFor("bookings").many).toBe("bookings");
   });
 });

@@ -40,9 +40,11 @@ export function LiftBand({ weeks, weeklyGoal, lift, unitPlural }: LiftBandProps)
       <p className="text-sm text-muted-foreground">
         {liftPct === undefined
           ? `Too early to say how many ${unitPlural} your ads caused. ${absentReason(lift.liftPct) ?? ""}`.trim()
-          : `${formatPercent(liftPct)} of ${unitPlural} would not have happened without your ads${
-              confidence !== undefined ? ` (${formatPercent(confidence)} confidence)` : ""
-            }, over the last ${lift.windowDays} days.`}
+          : liftPct <= 0
+            ? `The holdout shows no extra ${unitPlural} from your ads over the last ${lift.windowDays} days.`
+            : `${formatPercent(liftPct)} of ${unitPlural} would not have happened without your ads${
+                confidence !== undefined ? ` (${formatPercent(confidence)} confidence)` : ""
+              }, over the last ${lift.windowDays} days.`}
       </p>
       <MeasurementBadge state={liftPct === undefined ? "low_power" : "measured"} />
     </div>

@@ -81,3 +81,10 @@ describe("idealSpend / uncoveredShare", () => {
     expect(uncoveredShare([{ share: { value: 1.2 } }])).toBe(0);
   });
 });
+
+describe("pacingState without a known month length", () => {
+  const m = (value: number) => ({ value, currency: "INR" });
+  it("still says over the ceiling, which needs no month", () => {
+    expect(pacingState(m(21000), m(20000), 9, 0)).toBe("over");
+  });
+});

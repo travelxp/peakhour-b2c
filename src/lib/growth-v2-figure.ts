@@ -38,7 +38,9 @@ export function formatMoney(value: number, currency: string): string {
     return new Intl.NumberFormat(currency === "INR" ? "en-IN" : "en-US", {
       style: "currency",
       currency,
-      maximumFractionDigits: 0,
+      // Whole units for amounts that are whole or large; two places for a small fractional cost, which would lose real precision.
+      maximumFractionDigits: Math.abs(value) < 100 && !Number.isInteger(value) ? 2 : 0,
+      minimumFractionDigits: 0,
     }).format(value);
   } catch {
     // An unknown currency code throws RangeError; show the code rather than a wrong symbol.
@@ -101,9 +103,10 @@ export function formatDate(iso: string): string {
   return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(d);
 }
 
-/** Whole hours from `now` to `iso`, never negative. */
-export function hoursUntil(iso: string, now: number): number {
-  return Math.max(0, Math.floor((new Date(iso).getTime() - now) / 3_600_000));
+/** Whole hours from `now` to `iso`, never negative; `undefined` for a time that does not parse. */
+export function hoursUntil(iso: string, now: number): number | undefined {
+  const t = new Date(iso).getTime();
+  return Number.isNaN(t) ? undefined : Math.max(0, Math.floor((t - now) / 3_600_000));
 }
 
 // -- The home headline ----------------------------------------------------------
@@ -127,7 +130,7 @@ export function homeHeadline(home: HomeResponse, currency: string): string {
   let s = `You got ${formatCount(count)} ${label}`;
   if (home.efficiency.metric === "cost_per_outcome" && cost !== undefined) {
     s += ` at ${formatMoney(cost, currency)} each`;
-    if (costChange !== undefined && costChange !== 0) {
+    if (costChange !== undefined && Math.round(Math.abs(costChange) * 100) > 0) {
       s += `, ${formatPercent(Math.abs(costChange))} ${costChange < 0 ? "cheaper" : "dearer"} than last month`;
     }
   } else if (home.efficiency.metric === "roas" && cost !== undefined) {
@@ -135,7 +138,10 @@ export function homeHeadline(home: HomeResponse, currency: string): string {
   }
   s += ".";
   if (extra !== undefined) {
-    s += ` ${formatCount(extra)} of them would not have happened without your ads, measured against a holdout.`;
+    s +=
+      extra > 0
+        ? ` ${formatCount(extra)} of them would not have happened without your ads, measured against a holdout.`
+        : " The holdout shows none of them can be credited to your ads yet.";
   }
   return s;
 }
@@ -150,6 +156,11 @@ export const OUTCOME_UNIT: Record<OutcomeKind, { one: string; many: string }> = 
   calls: { one: "call", many: "calls" },
   store_visits: { one: "store visit", many: "store visits" },
 };
+
+/** The unit for a kind, or a neutral one when the mandate is not known. */
+export function unitFor(kind: OutcomeKind | undefined): { one: string; many: string } {
+  return kind ? OUTCOME_UNIT[kind] : { one: "outcome", many: "outcomes" };
+}
 
 /** The currency of the first present money figure, or "" when none is. */
 export function currencyOf(...monies: Array<Money | undefined>): string {

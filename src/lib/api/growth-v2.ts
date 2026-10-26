@@ -381,7 +381,19 @@ export function useGrowthV2Rules() {
     queryFn: () => loadOrPreview(growthV2Api.rules, () => FIXTURE_RULES),
     enabled: !!business?._id,
     staleTime: 60_000,
+    // The nav asks on every dashboard page; a 403 for a business without Growth is an answer, not a blip.
+    retry: false,
   });
+}
+
+/**
+ * The mandate a screen may take its currency and outcome unit from: the rules
+ * result, but only when it is the same kind of data as the screen. A live
+ * decisions list must not be formatted with the sample mandate, and a preview must
+ * not borrow a live one.
+ */
+export function mandateFor(rules: V2Result<RulesResponse> | undefined, screenPreview: boolean): MandateView | undefined {
+  return rules && rules.preview === screenPreview ? rules.data.mandate : undefined;
 }
 
 /**

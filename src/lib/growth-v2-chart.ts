@@ -84,13 +84,14 @@ export type PacingState = "healthy" | "ahead" | "over" | "unknown";
  * - `over`: spend has passed the ceiling.
  * - `ahead`: spend is more than 10% above the even pace for today.
  * - `healthy`: at or under that pace, or within 10% above it.
- * - `unknown`: either money figure is absent, or the month is unknown.
+ * - `unknown`: either money figure is absent, or the month length is unknown and spend is under the ceiling.
  */
 export function pacingState(spent: Money, ceiling: Money, daysLeft: number, daysInMonth: number): PacingState {
   const s = figureValue(spent);
   const c = figureValue(ceiling);
-  if (s === undefined || c === undefined || !(c > 0) || !(daysInMonth > 0)) return "unknown";
+  if (s === undefined || c === undefined || !(c > 0)) return "unknown";
   if (s > c) return "over";
+  if (!(daysInMonth > 0)) return "unknown";
   const elapsed = Math.min(Math.max(daysInMonth - daysLeft, 0), daysInMonth);
   const ideal = (c * elapsed) / daysInMonth;
   return s > ideal * 1.1 ? "ahead" : "healthy";

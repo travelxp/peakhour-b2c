@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useGrowthV2Channels, useGrowthV2Rules, type ChannelsResponse } from "@/lib/api/growth-v2";
+import { mandateFor, useGrowthV2Channels, useGrowthV2Rules, type ChannelsResponse } from "@/lib/api/growth-v2";
 import type { PacingSeries } from "@/lib/growth-v2-series";
-import { OUTCOME_UNIT, PLATFORM_COLOR, PLATFORM_LABEL, currencyOf, figureText, formatMoney } from "@/lib/growth-v2-figure";
+import { PLATFORM_COLOR, PLATFORM_LABEL, currencyOf, figureText, formatMoney, unitFor } from "@/lib/growth-v2-figure";
 import { ChannelBubbles } from "./channel-bubbles";
 import { FigureValue, MoneyValue } from "./figure-value";
 import { PacingBadge, PacingChart } from "./pacing-chart";
@@ -18,19 +18,21 @@ import { ToneBadge, type Tone } from "./tone";
 export function ChannelsScreen() {
   const query = useGrowthV2Channels();
   const rules = useGrowthV2Rules();
-  const kind = rules.data?.data.mandate?.outcome.kind ?? "bookings";
   return (
     <div className="grid gap-4">
       <PageHead
         title="Where is the money going?"
-        description={`Each channel is judged on extra ${OUTCOME_UNIT[kind].many} per rupee, not on the credit the platform gives itself.`}
+        description="Each channel is judged on the extra outcomes it causes per unit of spend, not on the credit the platform gives itself."
         actions={
           <Button asChild variant="outline" size="sm">
             <Link href="/dashboard/ads">Manage campaigns</Link>
           </Button>
         }
       />
-      <QueryBoundary query={query}>{(r) => <ChannelsBody channels={r.data} pacingSeries={r.pacingSeries} unitPlural={OUTCOME_UNIT[kind].many} unitOne={OUTCOME_UNIT[kind].one} />}</QueryBoundary>
+      <QueryBoundary query={query}>{(r) => {
+          const unit = unitFor(mandateFor(rules.data, r.preview)?.outcome.kind);
+          return <ChannelsBody channels={r.data} pacingSeries={r.pacingSeries} unitPlural={unit.many} unitOne={unit.one} />;
+        }}</QueryBoundary>
     </div>
   );
 }

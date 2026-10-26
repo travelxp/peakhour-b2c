@@ -1,8 +1,8 @@
 "use client";
 
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useGrowthV2Learning, useGrowthV2Rules, type LearningResponse } from "@/lib/api/growth-v2";
-import { OUTCOME_UNIT } from "@/lib/growth-v2-figure";
+import { mandateFor, useGrowthV2Learning, useGrowthV2Rules, type LearningResponse } from "@/lib/api/growth-v2";
+import { unitFor } from "@/lib/growth-v2-figure";
 import { BenchmarkRows } from "./benchmark-rows";
 import { CreativeLeaderboard } from "./creative-leaderboard";
 import { EnquiryHeatmap } from "./enquiry-heatmap";
@@ -15,12 +15,13 @@ import { ToneBadge } from "./tone";
 export function LearningScreen() {
   const query = useGrowthV2Learning();
   const rules = useGrowthV2Rules();
-  const mandate = rules.data?.data.mandate;
-  const unitPlural = OUTCOME_UNIT[mandate?.outcome.kind ?? "bookings"].many;
   return (
     <div className="grid gap-4">
       <PageHead title="What did we learn?" description="Every bet the engine made, how it was judged, and what changed because of it." />
-      <QueryBoundary query={query}>{(r) => <LearningBody learning={r.data} unitPlural={unitPlural} currency={mandate?.currency ?? ""} />}</QueryBoundary>
+      <QueryBoundary query={query}>{(r) => {
+          const mandate = mandateFor(rules.data, r.preview);
+          return <LearningBody learning={r.data} unitPlural={unitFor(mandate?.outcome.kind).many} currency={mandate?.currency ?? ""} />;
+        }}</QueryBoundary>
     </div>
   );
 }
