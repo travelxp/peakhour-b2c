@@ -9,6 +9,9 @@ import { OUTCOME_UNIT, PLATFORM_COLOR, PLATFORM_LABEL, figureValue, formatMoney 
 import { cn } from "@/lib/utils";
 import { PageHead } from "./page-head";
 import { PreviewBanner } from "./preview-banner";
+import { SignalStep } from "./signal-step";
+import { useSignalReadiness } from "@/lib/api/growth-v2-signal";
+import { canContinue } from "@/lib/growth-v2-signal";
 import { ToneBadge } from "./tone";
 
 /**
@@ -42,6 +45,9 @@ export function FirstRunScreen() {
   const max = Math.ceil((base * 5) / step) * step;
   const snap = (v: number) => Math.min(max, Math.max(min, Math.round(v / step) * step));
   const [ceiling, setCeiling] = useState(() => snap(m.monthlyCeiling));
+  // C3: the signal step is finished when the api says so (every connected platform has a signal or an accepted "untracked").
+  // Read from the api's own answer, not remembered: a reload, or a platform that stops being ready, moves it.
+  const signalDone = canContinue(useSignalReadiness().data);
   const targetText = m.target.kind === "roas" ? `${m.target.value.toFixed(1)}x return` : formatMoney(m.target.value, m.currency);
 
   return (
@@ -109,7 +115,13 @@ export function FirstRunScreen() {
         </CardContent>
       </Card>
 
-      <Card>
+      <SignalStep
+        optimizeFor={m.outcome.optimizeFor}
+        focusLabel={m.outcome.focus?.label}
+        onContinue={() => document.getElementById("first-run-plan")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+      />
+
+      <Card id="first-run-plan">
         <CardHeader>
           <CardTitle>Your first plan</CardTitle>
           <CardDescription>
@@ -149,7 +161,10 @@ export function FirstRunScreen() {
           <Button variant="outline" disabled>
             Edit plan
           </Button>
-          <Button disabled title="Confirming the plan arrives with the Rules release">
+          <Button
+            disabled
+            title={signalDone ? "Confirming the plan arrives with the Rules release" : "Finish step 4 first: switch on your signal, or accept running without one"}
+          >
             Send to WhatsApp to confirm
           </Button>
         </div>

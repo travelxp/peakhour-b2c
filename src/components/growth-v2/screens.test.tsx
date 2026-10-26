@@ -12,6 +12,7 @@ import { RulesBody } from "./rules-screen";
 import { Inbox } from "./decisions-screen";
 import { DecisionCard } from "./decision-card";
 
+vi.mock("@/providers/auth-provider", () => ({ useAuth: () => ({ business: { _id: "biz-1" } }) }));
 vi.mock("next/navigation", () => ({ usePathname: () => "/dashboard/growth", useRouter: () => ({ push: vi.fn() }) }));
 // The Decisions inbox reads the auth context only through its caller; the body itself takes plain props.
 
@@ -136,7 +137,7 @@ describe("the screens render their preview sample", () => {
   });
 
   it("First run is a preview with its confirm button off", () => {
-    const out = html(<FirstRunScreen />);
+    const out = html(withClient(<FirstRunScreen />));
     expect(out).toContain("Preview data");
     expect(out).toContain("What do you want more of?");
     expect(out).toContain("Your first plan");

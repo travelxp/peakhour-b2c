@@ -6,7 +6,7 @@ import type { GoogleConversionActionState } from "@/lib/api/google-ads";
 import {
   GOOGLE_CONVERSION_CONSENT_NOTE,
   GOOGLE_CONVERSION_NOT_SET_UP,
-  GOOGLE_CONVERSION_SECONDARY_NOTE,
+  GOOGLE_CONVERSION_PRIMARY_NOTE,
   googleConversionCanUse,
   googleConversionCardState,
   googleConversionCreateConfirmation,
@@ -104,11 +104,11 @@ describe("the words", () => {
     expect(c.body).toContain("changes your Google Ads account");
     expect(c.body).toContain("spends nothing");
   });
-  it("★secondary: it does not change Smart Bidding, and making it primary is theirs", () => {
-    expect(GOOGLE_CONVERSION_SECONDARY_NOTE).toContain("secondary");
-    expect(GOOGLE_CONVERSION_SECONDARY_NOTE).toContain("does not change how Smart Bidding optimises");
-    expect(GOOGLE_CONVERSION_SECONDARY_NOTE).toContain("your choice, in Google Ads");
-    expect(googleConversionCreateConfirmation("A").body).toContain(GOOGLE_CONVERSION_SECONDARY_NOTE);
+  it("★primary: it is a bidding goal with a value, and the merchant is told so before it is created", () => {
+    expect(GOOGLE_CONVERSION_PRIMARY_NOTE).toContain("primary conversion action with a value");
+    expect(GOOGLE_CONVERSION_PRIMARY_NOTE).not.toContain("secondary");
+    expect(GOOGLE_CONVERSION_PRIMARY_NOTE).toContain("Smart Bidding can bid on it");
+    expect(googleConversionCreateConfirmation("A").body).toContain(GOOGLE_CONVERSION_PRIMARY_NOTE);
   });
   it("★the consent note names the audience and the path", () => {
     expect(GOOGLE_CONVERSION_CONSENT_NOTE).toContain("EEA");
@@ -219,6 +219,6 @@ describe("the panel", () => {
   });
   it("the consent and secondary notes are shown", () => {
     expect(section).toContain("GOOGLE_CONVERSION_CONSENT_NOTE");
-    expect(section).toContain("GOOGLE_CONVERSION_SECONDARY_NOTE");
+    expect(section).toContain("GOOGLE_CONVERSION_PRIMARY_NOTE");
   });
 });

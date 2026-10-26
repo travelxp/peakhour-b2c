@@ -102,6 +102,16 @@ export interface GoogleConversionActionState {
 export interface GoogleConversionActionChosen {
   created: boolean;
   selected: GoogleConversionActionSelection | null;
+  /** Whether the action can carry the bidding signal. `primaryForGoal: false` only for an action the merchant chose that is not a primary goal. */
+  setup: { primaryForGoal: boolean; hasValueSettings: boolean };
+}
+
+/** What the conversion action is for (C3): a value mandate uses the uploaded value; a count mandate counts. */
+export interface GoogleConversionSignal {
+  /** ISO 4217. */
+  currency: string;
+  optimizeFor: "count" | "value";
+  defaultValue?: number;
 }
 
 export type GoogleSettableStatus = "ACTIVE" | "PAUSED";
@@ -118,10 +128,10 @@ export const googleAdsApi = {
     ),
   getConversionAction: (adAccountId: string) =>
     api.get<GoogleConversionActionState>(googleAdsUrl("/v1/google/ads/conversion-action") + `?adAccountId=${encodeURIComponent(adAccountId)}`),
-  /** With an id: choose that action. Without: find or CREATE "Peakhour offline purchases" (a write to the merchant's Google Ads account). */
-  setConversionAction: (adAccountId: string, conversionActionId?: string) =>
-    api.put<GoogleConversionActionChosen>(googleAdsUrl("/v1/google/ads/conversion-action"), {
-      adAccountId,
-      ...(conversionActionId !== undefined ? { conversionActionId } : {}),
-    }),
+  /**
+   * With an id: choose that action (read, never changed; no signal needed). Without: find or CREATE "Peakhour offline
+   * purchases" as a primary goal with value settings (a write to the merchant's Google Ads account; the signal is required).
+   */
+  setConversionAction: (adAccountId: string, choice: { signal: GoogleConversionSignal } | { conversionActionId: string }) =>
+    api.put<GoogleConversionActionChosen>(googleAdsUrl("/v1/google/ads/conversion-action"), { adAccountId, ...choice }),
 };
