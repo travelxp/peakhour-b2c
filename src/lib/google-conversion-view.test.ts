@@ -168,6 +168,7 @@ describe("refusals, each with its reason", () => {
     expect(googleConversionNeedsReconnect(apiErr("NEEDS_REAUTH"))).toBe(true);
     expect(googleConversionNeedsReconnect(apiErr("AD_ACCOUNT_NOT_AUTHORIZED"))).toBe(true);
     expect(googleConversionNeedsReconnect(apiErr("AD_ACCOUNT_FORBIDDEN"))).toBe(false);
+    expect(googleConversionNeedsReconnect(apiErr("CONNECTION_GONE"))).toBe(true);
     expect(googleConversionNeedsReconnect(apiErr("CONVERSION_ACTION_REFUSED"))).toBe(false);
     expect(googleConversionNeedsReconnect(new Error("x"))).toBe(false);
   });
@@ -204,7 +205,14 @@ describe("the panel", () => {
     expect(section).toContain('value={choice ?? ""}');
   });
   it("a saved choice is shown at once, as live", () => {
-    expect(section).toMatch(/setQueryData<GoogleConversionActionState>\(queryKey[\s\S]*selected: res\.selected, selectedIsLive: true/);
+    expect(section).toMatch(/setQueryData<GoogleConversionActionState>\(queryKey[\s\S]*selected: res\.selected,\s*selectedIsLive: true/);
+  });
+  it("a created action is offered at once, and the query waits for the business", () => {
+    expect(section).toContain("actions: old.actions.some((a) => a.id === res.selected!.conversionActionId)");
+    expect(section).toContain("enabled: !!business,");
+  });
+  it("a failed background refetch does not print an error over the last good read", () => {
+    expect(section).toContain("query.isError && !query.data ? (");
   });
   it("the section is mounted per account", () => {
     expect(panel).toMatch(/<ConversionTrackingSection key=\{`conv-\$\{account\.id\}`\} account=\{account\} \/>/);

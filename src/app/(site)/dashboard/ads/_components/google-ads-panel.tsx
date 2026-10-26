@@ -259,6 +259,8 @@ function ConversionTrackingSection({ account }: { account: GoogleAdAccount }) {
   const query = useQuery({
     queryKey,
     queryFn: () => googleAdsApi.getConversionAction(account.id),
+    // Not before the business is known: the "none" key would cache a NO_BUSINESS refusal.
+    enabled: !!business,
     retry: false,
     staleTime: LIST_STALE_MS,
   });
@@ -277,7 +279,17 @@ function ConversionTrackingSection({ account }: { account: GoogleAdAccount }) {
       //  The api validated the choice against a live read, so it is live.
       if (res.selected) {
         queryClient.setQueryData<GoogleConversionActionState>(queryKey, (old) =>
-          old ? { ...old, selected: res.selected, selectedIsLive: true } : old,
+          old
+            ? {
+                ...old,
+                selected: res.selected,
+                selectedIsLive: true,
+                // A created action is not in the list read before it existed; offer it, or the select reads empty.
+                actions: old.actions.some((a) => a.id === res.selected!.conversionActionId)
+                  ? old.actions
+                  : [...old.actions, { id: res.selected!.conversionActionId, name: res.selected!.name ?? `Conversion action ${res.selected!.conversionActionId}` }],
+              }
+            : old,
         );
       }
       toast.success(googleConversionSavedSentence(res.created, res.selected?.name));
@@ -292,6 +304,7 @@ function ConversionTrackingSection({ account }: { account: GoogleAdAccount }) {
     onSettled: () => void queryClient.invalidateQueries({ queryKey }),
   });
 
+  const errorSelection = googleConversionErrorSelection(query.error);
   const busy = choose.isPending;
   const actions = query.data?.actions ?? [];
   return (
@@ -311,12 +324,11 @@ function ConversionTrackingSection({ account }: { account: GoogleAdAccount }) {
             {googleConversionStateSentence(state)}
           </p>
         )}
-        {query.isError ? (
+        {/* Only when there is nothing read to show: a failed background refetch keeps the last good read, and the two must not contradict. */}
+        {query.isError && !query.data ? (
           <p className="text-sm text-muted-foreground">
             {googleConversionErrorMessage(query.error, "Google Ads didn't answer. Try again in a moment.")}
-            {googleConversionErrorSelection(query.error)
-              ? ` Chosen so far: “${googleConversionErrorSelection(query.error)}” — we can't check it right now.`
-              : ""}{" "}
+            {errorSelection ? ` Chosen so far: “${errorSelection}” — we can't check it right now.` : ""}{" "}
             {googleConversionNeedsReconnect(query.error) ? (
               <Link href="/dashboard/integrations" className="font-medium underline underline-offset-4">
                 Check connection

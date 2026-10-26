@@ -163,7 +163,7 @@ export function googleConversionErrorMessage(err: unknown, fallback: string): st
         );
       case "CONVERSION_ACTION_REFUSED": {
         const reason = detailsOf(err).reason;
-        if (typeof reason === "string" && Object.hasOwn(REFUSAL_REASONS, reason)) return REFUSAL_REASONS[reason]!;
+        if (typeof reason === "string" && Object.prototype.hasOwnProperty.call(REFUSAL_REASONS, reason)) return REFUSAL_REASONS[reason]!;
         // ★An unlisted reason is not trusted to carry words for a merchant (review round 1).
         break;
       }
@@ -179,7 +179,7 @@ export function googleConversionMayHaveBeenCreated(err: unknown): boolean {
 
 /** Whether the failure means the connection itself needs attention. */
 export function googleConversionNeedsReconnect(err: unknown): boolean {
-  return err instanceof ApiError && ["NEEDS_REAUTH", "NOT_CONNECTED", "TOKEN_FAILED", "AD_ACCOUNT_NOT_ALLOWED", "AD_ACCOUNT_NOT_AUTHORIZED"].includes(err.code);
+  return err instanceof ApiError && ["NEEDS_REAUTH", "NOT_CONNECTED", "TOKEN_FAILED", "AD_ACCOUNT_NOT_ALLOWED", "AD_ACCOUNT_NOT_AUTHORIZED", "CONNECTION_GONE"].includes(err.code);
 }
 
 /**
