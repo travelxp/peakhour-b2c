@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ApiError } from "@/lib/api";
 import { googleAdsApi } from "@/lib/api/google-ads";
 import { metaAdsApi } from "@/lib/api/meta-ads";
 import { useSignalActions, useSignalReadiness } from "@/lib/api/growth-v2-signal";
@@ -145,6 +146,19 @@ function PlatformRow({ row, ...p }: { row: PlatformSignal } & SignalStepViewProp
   );
 }
 
+/**
+ * What a failure says. An api refusal below 500 is written for the merchant (a dataset that is unavailable, an
+ * ad account that is not theirs), so it is shown; a server failure or anything else is the fallback with the
+ * request reference, never a raw message. A plain Error here is one this app threw (a missing currency) and is ours to show.
+ */
+export function signalErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) {
+    if (err.status < 500) return err.message;
+    return err.requestId ? `${fallback} (reference ${err.requestId})` : fallback;
+  }
+  return err instanceof Error && err.message ? err.message : fallback;
+}
+
 /** The step, wired to the api. */
 export function SignalStep({
   currency,
@@ -174,7 +188,7 @@ export function SignalStep({
   };
   const busy = actions.setUpMeta.isPending || actions.setUpGoogle.isPending || actions.acceptUntracked.isPending;
   const fail = (what: string) => (e: unknown) => {
-    const message = e instanceof Error && e.message ? e.message : `We couldn't ${what}. Try again in a moment.`;
+    const message = signalErrorMessage(e, `We couldn't ${what}. Try again in a moment.`);
     setError(message);
     toast.error(message);
   };

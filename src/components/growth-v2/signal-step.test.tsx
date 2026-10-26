@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { SignalStepView, type SignalStepViewProps } from "./signal-step";
+import { ApiError } from "@/lib/api";
+import { SignalStepView, signalErrorMessage, type SignalStepViewProps } from "./signal-step";
 import {
   UNTRACKED_BADGE_LABEL,
   UNTRACKED_EXPLANATION,
@@ -124,5 +125,15 @@ describe("growth-v2-signal copy", () => {
     expect(continueBlockedReason(readiness("ready", "not_connected", false))).toBe("Your signal is not ready yet.");
     expect(continueBlockedReason({ platforms: [], complete: false })).toBe("Connect Meta or Google Ads first.");
     expect(continueBlockedReason(readiness("needed", "needed", false))).toBe("Choose a signal for Meta and Google Ads, or accept running without one.");
+  });
+});
+
+describe("signalErrorMessage", () => {
+  it("★a refusal below 500 is the api's own sentence; a server failure is the fallback with its reference, never the raw text", () => {
+    expect(signalErrorMessage(new ApiError("DATASET_NOT_FOUND", "That Meta ad account has no datasets.", 400), "We couldn't.")).toBe("That Meta ad account has no datasets.");
+    expect(signalErrorMessage(new ApiError("INTERNAL", "mongo: E11000 duplicate key at host-3", 500, "req-9"), "We couldn't.")).toBe("We couldn't. (reference req-9)");
+    expect(signalErrorMessage(new ApiError("INTERNAL", "raw", 502), "We couldn't.")).toBe("We couldn't.");
+    expect(signalErrorMessage(new Error("We don't know this account's currency."), "We couldn't.")).toBe("We don't know this account's currency.");
+    expect(signalErrorMessage("boom", "We couldn't.")).toBe("We couldn't.");
   });
 });
