@@ -46,6 +46,18 @@ export interface CronMetadata {
   summarize?: (data: unknown) => CronSummary | null;
 }
 
+/** `growth-optimizer` and `growth-optimizer-drain` run one handler (peakhour-api
+ *  `cron/growth-optimizer.ts` `sweep`), so they share one summary. */
+function summarizeOptimizerSweep(data: unknown): CronSummary | null {
+  const d = data as {
+    businesses?: number; created?: number; skipped?: number; failed?: number; truncated?: boolean;
+  } | null;
+  if (!d || typeof d.businesses !== "number") return null;
+  let msg = `${d.created ?? 0} review${(d.created ?? 0) === 1 ? "" : "s"} created across ${d.businesses} business${d.businesses === 1 ? "" : "es"} (${d.skipped ?? 0} already done, ${d.failed ?? 0} failed).`;
+  if (d.truncated) msg += " More businesses pending — trigger again to continue.";
+  return (d.failed ?? 0) > 0 || d.truncated ? { message: msg, level: "warning" } : msg;
+}
+
 /** The approval-expiry cron's sweeps (peakhour-api `cron/approval-expiry.ts`), by label. */
 const APPROVAL_EXPIRY_SWEEPS = {
   expired: "newsletter expiry",
@@ -850,15 +862,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     frequency: "Runs Mondays 03:00 UTC",
     description:
       "Reviews each opted-in business's week of posts and campaigns and proposes up to three small, evidence-backed adjustments for approval.",
-    summarize: (data) => {
-      const d = data as {
-        businesses?: number; created?: number; skipped?: number; failed?: number; truncated?: boolean;
-      } | null;
-      if (!d || typeof d.businesses !== "number") return null;
-      let msg = `${d.created ?? 0} review${(d.created ?? 0) === 1 ? "" : "s"} created across ${d.businesses} business${d.businesses === 1 ? "" : "es"} (${d.skipped ?? 0} already done, ${d.failed ?? 0} failed).`;
-      if (d.truncated) msg += " More businesses pending — trigger again to continue.";
-      return (d.failed ?? 0) > 0 || d.truncated ? { message: msg, level: "warning" } : msg;
-    },
+    summarize: summarizeOptimizerSweep,
   },
   "outcome-backfill": {
     label: "Backfill post outcomes",
@@ -1058,20 +1062,34 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
 
   "rails-refresh": {
     label: "Refresh due product rails",
-    frequency: "Runs hourly at :55",
+    frequency: "Runs hourly (at :55 past)",
     description:
       "Refills each automatic rail that is due on its own 24-hour clock, keeping the strategy the merchant " +
       "approved. A refresh that would change strategy keeps the old products and leaves a note for the " +
-      "daily improvement job to propose.",
+      "improvement job, which proposes it on that merchant's weekly day (sooner for a time-windowed rail).",
+    summarize: (data) => {
+      const d = data as { due?: number; changed?: number; kept?: number; errors?: number; truncated?: boolean } | null;
+      if (!d || typeof d.due !== "number") return null;
+      let msg = `${d.due} rail${d.due === 1 ? "" : "s"} due: ${d.changed ?? 0} refreshed, ${d.kept ?? 0} kept with a note, ${d.errors ?? 0} failed.`;
+      if (d.truncated) msg += " More rails pending — trigger again to continue.";
+      return (d.errors ?? 0) > 0 || d.truncated ? { message: msg, level: "warning" } : msg;
+    },
   },
 
   "rails-improve": {
     label: "Propose rail improvements",
-    frequency: "Runs daily at 03:30 UTC",
+    frequency: "Runs daily at 3:30 AM UTC",
     description:
       "Reads each merchant's live rails and stores at most one change proposal per rail, for the merchant to " +
       "approve on the card or in chat. Rails whose time window emptied are handled every day; other rules " +
       "run for each merchant once a week.",
+    summarize: (data) => {
+      const d = data as { merchants?: number; rails?: number; errors?: number; truncated?: boolean } | null;
+      if (!d || typeof d.merchants !== "number") return null;
+      let msg = `${d.rails ?? 0} rail${(d.rails ?? 0) === 1 ? "" : "s"} read across ${d.merchants} merchant${d.merchants === 1 ? "" : "s"}, ${d.errors ?? 0} failed.`;
+      if (d.truncated) msg += " More merchants pending — trigger again to continue.";
+      return (d.errors ?? 0) > 0 || d.truncated ? { message: msg, level: "warning" } : msg;
+    },
   },
 
   // ── Growth Engine v2 (R2) ────────────────────────────────────────────
@@ -1080,17 +1098,27 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     label: "Finish the weekly growth review",
     frequency: "Runs hourly on Mondays, 04:00–23:00 UTC",
     description:
-      "Picks up any business the Monday 03:00 growth review did not reach, so no business with the engine " +
-      "on is silently skipped. It does nothing once every review for the week exists.",
+      "Continues the Monday 03:00 growth review for businesses it did not reach, one review per business " +
+      "and connected ad channel. A large backlog can still be left after the last tick; the result says so.",
+    summarize: summarizeOptimizerSweep,
   },
 
   "growth-watchdog": {
     label: "Check growth signals for sudden drops",
-    frequency: "Runs daily at 07:00 UTC",
+    frequency: "Runs daily at 7:00 AM UTC",
     description:
-      "For each business with the growth engine on and Analytics or Search Console connected, compares the " +
-      "last week with the weeks before and alerts the owner once when visits or search demand fall sharply. " +
-      "It emails real owners.",
+      "For each business with the growth engine on and Analytics or Search Console connected, compares recent " +
+      "visits and search demand with earlier periods and alerts the owner when one falls sharply — at most once " +
+      "per business every seven days.",
+    summarize: (data) => {
+      const d = data as {
+        processed?: number; alerted?: number; unmeasurable?: number; undelivered?: number; failed?: number; truncated?: boolean;
+      } | null;
+      if (!d || typeof d.processed !== "number") return null;
+      let msg = `${d.processed} business${d.processed === 1 ? "" : "es"} checked: ${d.alerted ?? 0} alerted, ${d.unmeasurable ?? 0} unmeasurable, ${d.undelivered ?? 0} undelivered, ${d.failed ?? 0} failed.`;
+      if (d.truncated) msg += " More businesses pending.";
+      return (d.failed ?? 0) > 0 || (d.undelivered ?? 0) > 0 || d.truncated ? { message: msg, level: "warning" } : msg;
+    },
   },
 
   // ── Reconnect alerts (D-04b) and the Portfolio Allocator (C-05) ─────
