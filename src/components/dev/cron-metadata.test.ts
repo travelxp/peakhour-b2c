@@ -1063,6 +1063,57 @@ describe("mandate-debits summary", () => {
     });
   });
 
+  // The four crons added with Smart Rails v2 and Growth Engine v2. Each fixture is the api's REAL
+  // response shape, because a summarizer keyed on a field the api does not send is dead code.
+  it("★both optimizer crons summarise the sweep's `runs`, and a failure or backlog warns", () => {
+    for (const cron of ["growth-optimizer", "growth-optimizer-drain"]) {
+      const body = JSON.stringify({ ok: true, data: { runs: 3, created: 2, skipped: 0, failed: 1, truncated: true } });
+      const s = summarizeCronBody(cron, body);
+      expect(s?.message, cron).toContain("3 business-channel runs");
+      expect(s?.message, cron).toContain("More runs pending");
+      expect(s?.level, cron).toBe("warning");
+    }
+    const clean = summarizeCronBody(
+      "growth-optimizer-drain",
+      JSON.stringify({ ok: true, data: { runs: 1, created: 1, skipped: 0, failed: 0, truncated: false } }),
+    );
+    expect(clean?.level).toBe("success");
+  });
+
+  it("★rails-refresh warns when every due rail was skipped, and when the tick hit its cap", () => {
+    const base = { changed: 0, kept: 0, unchanged: 0, skipped_merchant: 0, skipped_orders: 0, raced: 0, errors: 0, truncated: false };
+    const allSkipped = JSON.stringify({ ok: true, data: { ...base, due: 40, skipped_merchant: 40 } });
+    expect(summarizeCronBody("rails-refresh", allSkipped)?.level).toBe("warning");
+    const capped = summarizeCronBody("rails-refresh", JSON.stringify({ ok: true, data: { ...base, due: 300, changed: 300 } }));
+    expect(capped?.message).toContain("More rails pending");
+    expect(capped?.level).toBe("warning");
+    const clean = JSON.stringify({ ok: true, data: { ...base, due: 5, changed: 2, kept: 1, unchanged: 2 } });
+    expect(summarizeCronBody("rails-refresh", clean)?.level).toBe("success");
+  });
+
+  it("★rails-improve counts the proposals it stored and the merchants it did not judge", () => {
+    const body = JSON.stringify({
+      ok: true,
+      data: {
+        merchants: 5, rails: 40, skipped_merchant: 4, busy: 1, errors: 0, truncated: false,
+        proposed_retire: 1, proposed_switch: 2, proposed_switch_urgent: 0, proposed_title: 0, proposed_add_rail: 0,
+      },
+    });
+    const s = summarizeCronBody("rails-improve", body);
+    expect(s?.message).toContain("3 proposals");
+    expect(s?.message).toContain("5 not judged");
+  });
+
+  it("★growth-watchdog warns on an undelivered alert", () => {
+    const body = JSON.stringify({
+      ok: true,
+      data: { businesses: 10, engineOff: 2, processed: 8, alerted: 1, quiet: 5, unmeasurable: 1, suppressed: 0, undelivered: 1, failed: 0, truncated: false },
+    });
+    const s = summarizeCronBody("growth-watchdog", body);
+    expect(s?.message).toContain("8 businesses checked");
+    expect(s?.level).toBe("warning");
+  });
+
   it("★an unexpected shape defers to the generic toast", () => {
     expect(summarizeCronBody("mandate-debits", JSON.stringify({ ok: true }))).toBeNull();
   });
