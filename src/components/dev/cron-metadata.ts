@@ -1076,6 +1076,14 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       "records why when it makes no proposal.",
   },
 
+  "decisions-expiry": {
+    label: "Close unanswered decisions",
+    frequency: "Runs hourly, at ten past",
+    description:
+      "Marks any growth decision that nobody answered within its 72 hours as expired, so a stale budget move " +
+      "or pause can no longer be approved. It changes only the decision and the engine's own working record.",
+  },
+
   // ── Billing + money ────────────────────────────────────────────────
   // Undocumented until now because none of them could be triggered at all
   // (peakhour-api#1017). Which of these need an explicit confirmation is NOT
