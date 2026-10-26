@@ -71,7 +71,10 @@ export function signalStateSentence(p: PlatformSignal): string {
 export function continueBlockedReason(readiness: SignalReadiness | undefined): string | null {
   if (!readiness) return "Checking your signal.";
   if (readiness.complete) return null;
+  // `[].every` is true, so an empty list is "nothing connected" too
   if (readiness.platforms.every((p) => p.state === "not_connected")) return "Connect Meta or Google Ads first.";
   const needing = platformsNeedingAChoice(readiness);
+  // the api said incomplete and no row needs a choice: say so rather than name nobody
+  if (needing.length === 0) return "Your signal is not ready yet.";
   return `Choose a signal for ${needing.map((p) => SIGNAL_PLATFORM_LABEL[p]).join(" and ")}, or accept running without one.`;
 }

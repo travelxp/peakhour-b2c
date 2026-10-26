@@ -120,6 +120,9 @@ describe("growth-v2-signal copy", () => {
       expect(signalStateSentence({ platform: "meta", state: s }).length).toBeGreaterThan(10);
     }
     expect(continueBlockedReason(readiness("ready", "ready", true))).toBeNull();
+    // the api says incomplete, but no row needs a choice (or there are no rows): never "Choose a signal for ."
+    expect(continueBlockedReason(readiness("ready", "not_connected", false))).toBe("Your signal is not ready yet.");
+    expect(continueBlockedReason({ platforms: [], complete: false })).toBe("Connect Meta or Google Ads first.");
     expect(continueBlockedReason(readiness("needed", "needed", false))).toBe("Choose a signal for Meta and Google Ads, or accept running without one.");
   });
 });
