@@ -1056,6 +1056,43 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       "qualify. A store whose orders cannot be read is skipped, never cleared. It reads no customer field.",
   },
 
+  "rails-refresh": {
+    label: "Refresh due product rails",
+    frequency: "Runs hourly at :55",
+    description:
+      "Refills each automatic rail that is due on its own 24-hour clock, keeping the strategy the merchant " +
+      "approved. A refresh that would change strategy keeps the old products and leaves a note for the " +
+      "daily improvement job to propose.",
+  },
+
+  "rails-improve": {
+    label: "Propose rail improvements",
+    frequency: "Runs daily at 03:30 UTC",
+    description:
+      "Reads each merchant's live rails and stores at most one change proposal per rail, for the merchant to " +
+      "approve on the card or in chat. Rails whose time window emptied are handled every day; other rules " +
+      "run for each merchant once a week.",
+  },
+
+  // ── Growth Engine v2 (R2) ────────────────────────────────────────────
+
+  "growth-optimizer-drain": {
+    label: "Finish the weekly growth review",
+    frequency: "Runs hourly on Mondays, 04:00–23:00 UTC",
+    description:
+      "Picks up any business the Monday 03:00 growth review did not reach, so no business with the engine " +
+      "on is silently skipped. It does nothing once every review for the week exists.",
+  },
+
+  "growth-watchdog": {
+    label: "Check growth signals for sudden drops",
+    frequency: "Runs daily at 07:00 UTC",
+    description:
+      "For each business with the growth engine on and Analytics or Search Console connected, compares the " +
+      "last week with the weeks before and alerts the owner once when visits or search demand fall sharply. " +
+      "It emails real owners.",
+  },
+
   // ── Reconnect alerts (D-04b) and the Portfolio Allocator (C-05) ─────
 
   "connection-reauth-alerts": {
