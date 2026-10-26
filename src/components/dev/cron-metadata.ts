@@ -47,16 +47,21 @@ export interface CronMetadata {
 }
 
 /** `growth-optimizer` and `growth-optimizer-drain` run one handler (peakhour-api
- *  `cron/growth-optimizer.ts` `sweep`), so they share one summary. */
+ *  `cron/growth-optimizer.ts` `sweep`), so they share one summary. Its unit is a
+ *  RUN — one business on one channel — not a business, which is why the api
+ *  names the field `runs`. */
 function summarizeOptimizerSweep(data: unknown): CronSummary | null {
   const d = data as {
-    businesses?: number; created?: number; skipped?: number; failed?: number; truncated?: boolean;
+    runs?: number; created?: number; skipped?: number; failed?: number; truncated?: boolean;
   } | null;
-  if (!d || typeof d.businesses !== "number") return null;
-  let msg = `${d.created ?? 0} review${(d.created ?? 0) === 1 ? "" : "s"} created across ${d.businesses} business${d.businesses === 1 ? "" : "es"} (${d.skipped ?? 0} already done, ${d.failed ?? 0} failed).`;
-  if (d.truncated) msg += " More businesses pending — trigger again to continue.";
+  if (!d || typeof d.runs !== "number") return null;
+  let msg = `${d.created ?? 0} review${(d.created ?? 0) === 1 ? "" : "s"} created from ${d.runs} business-channel run${d.runs === 1 ? "" : "s"} (${d.skipped ?? 0} already done, ${d.failed ?? 0} failed).`;
+  if (d.truncated) msg += " More runs pending — trigger again to continue.";
   return (d.failed ?? 0) > 0 || d.truncated ? { message: msg, level: "warning" } : msg;
 }
+
+/** peakhour-api `cron/rails-refresh.ts` reads at most this many due rails a tick. */
+const RAILS_REFRESH_DUE_LIMIT = 300;
 
 /** The approval-expiry cron's sweeps (peakhour-api `cron/approval-expiry.ts`), by label. */
 const APPROVAL_EXPIRY_SWEEPS = {
@@ -1064,15 +1069,25 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     label: "Refresh due product rails",
     frequency: "Runs hourly (at :55 past)",
     description:
-      "Refills each automatic rail that is due on its own 24-hour clock, keeping the strategy the merchant " +
-      "approved. A refresh that would change strategy keeps the old products and leaves a note for the " +
-      "improvement job, which proposes it on that merchant's weekly day (sooner for a time-windowed rail).",
+      "Refills each due storefront rail that is set to refresh automatically, on its own 24-hour clock, " +
+      "keeping the strategy the merchant approved. Product-page, bought-together and campaign rails, and " +
+      "manual rails, are not touched. A refresh that would change strategy keeps the old products and leaves " +
+      "a note for the improvement job, which proposes it on that merchant's weekly day (sooner for a " +
+      "time-windowed rail).",
     summarize: (data) => {
-      const d = data as { due?: number; changed?: number; kept?: number; errors?: number; truncated?: boolean } | null;
+      const d = data as {
+        due?: number; changed?: number; kept?: number; unchanged?: number; skipped_merchant?: number;
+        skipped_orders?: number; raced?: number; errors?: number; truncated?: boolean;
+      } | null;
       if (!d || typeof d.due !== "number") return null;
-      let msg = `${d.due} rail${d.due === 1 ? "" : "s"} due: ${d.changed ?? 0} refreshed, ${d.kept ?? 0} kept with a note, ${d.errors ?? 0} failed.`;
-      if (d.truncated) msg += " More rails pending — trigger again to continue.";
-      return (d.errors ?? 0) > 0 || d.truncated ? { message: msg, level: "warning" } : msg;
+      const skipped = (d.skipped_merchant ?? 0) + (d.skipped_orders ?? 0);
+      let msg =
+        `${d.due} rail${d.due === 1 ? "" : "s"} due: ${d.changed ?? 0} refreshed, ${d.unchanged ?? 0} unchanged, ` +
+        `${d.kept ?? 0} kept with a note, ${skipped} skipped, ${d.raced ?? 0} stood down, ${d.errors ?? 0} failed.`;
+      const capped = d.due >= RAILS_REFRESH_DUE_LIMIT;
+      if (d.truncated || capped) msg += " More rails pending — trigger again to continue.";
+      const nothingDone = d.due > 0 && skipped === d.due;
+      return (d.errors ?? 0) > 0 || d.truncated || capped || nothingDone ? { message: msg, level: "warning" } : msg;
     },
   },
 
@@ -1084,9 +1099,19 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       "approve on the card or in chat. Rails whose time window emptied are handled every day; other rules " +
       "run for each merchant once a week.",
     summarize: (data) => {
-      const d = data as { merchants?: number; rails?: number; errors?: number; truncated?: boolean } | null;
+      const d = data as {
+        merchants?: number; rails?: number; skipped_merchant?: number; busy?: number; errors?: number; truncated?: boolean;
+        proposed_retire?: number; proposed_switch?: number; proposed_switch_urgent?: number;
+        proposed_title?: number; proposed_add_rail?: number;
+      } | null;
       if (!d || typeof d.merchants !== "number") return null;
-      let msg = `${d.rails ?? 0} rail${(d.rails ?? 0) === 1 ? "" : "s"} read across ${d.merchants} merchant${d.merchants === 1 ? "" : "s"}, ${d.errors ?? 0} failed.`;
+      const proposed =
+        (d.proposed_retire ?? 0) + (d.proposed_switch ?? 0) + (d.proposed_switch_urgent ?? 0) +
+        (d.proposed_title ?? 0) + (d.proposed_add_rail ?? 0);
+      const notJudged = (d.skipped_merchant ?? 0) + (d.busy ?? 0);
+      let msg =
+        `${proposed} proposal${proposed === 1 ? "" : "s"} stored from ${d.rails ?? 0} rail${(d.rails ?? 0) === 1 ? "" : "s"} ` +
+        `across ${d.merchants} judged merchant${d.merchants === 1 ? "" : "s"} (${notJudged} not judged, ${d.errors ?? 0} failed).`;
       if (d.truncated) msg += " More merchants pending — trigger again to continue.";
       return (d.errors ?? 0) > 0 || d.truncated ? { message: msg, level: "warning" } : msg;
     },
@@ -1098,8 +1123,8 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     label: "Finish the weekly growth review",
     frequency: "Runs hourly on Mondays, 04:00–23:00 UTC",
     description:
-      "Continues the Monday 03:00 growth review for businesses it did not reach, one review per business " +
-      "and connected ad channel. A large backlog can still be left after the last tick; the result says so.",
+      "Continues the Monday 03:00 growth review for the runs it did not reach — one per business and " +
+      "connected channel. A large backlog can still be left after the last tick; the result says so.",
     summarize: summarizeOptimizerSweep,
   },
 
@@ -1116,7 +1141,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       } | null;
       if (!d || typeof d.processed !== "number") return null;
       let msg = `${d.processed} business${d.processed === 1 ? "" : "es"} checked: ${d.alerted ?? 0} alerted, ${d.unmeasurable ?? 0} unmeasurable, ${d.undelivered ?? 0} undelivered, ${d.failed ?? 0} failed.`;
-      if (d.truncated) msg += " More businesses pending.";
+      if (d.truncated) msg += " More businesses pending — they wait for tomorrow's run unless you trigger it again.";
       return (d.failed ?? 0) > 0 || (d.undelivered ?? 0) > 0 || d.truncated ? { message: msg, level: "warning" } : msg;
     },
   },
