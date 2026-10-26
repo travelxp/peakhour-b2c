@@ -43,7 +43,7 @@ export function useSignalActions() {
   return {
     setUpMeta: useMutation({ mutationFn: (adAccountId: string) => metaAdsApi.createDataset(adAccountId), onSettled: done }),
     setUpGoogle: useMutation({
-      mutationFn: (v: { adAccountId: string; signal: GoogleConversionSignal }) => googleAdsApi.setConversionAction(v.adAccountId, v.signal),
+      mutationFn: (v: { adAccountId: string; signal: GoogleConversionSignal }) => googleAdsApi.setConversionAction(v.adAccountId, { signal: v.signal }),
       onSettled: done,
     }),
     acceptUntracked: useMutation({ mutationFn: (platform: SignalPlatform) => growthV2SignalApi.acceptUntracked(platform), onSettled: done }),
