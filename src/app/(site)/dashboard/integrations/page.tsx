@@ -87,7 +87,10 @@ interface Integration {
   grantNote?: string | null;
   /** api: on the `facebook` row, which Meta purposes have their own Login for
    *  Business configuration in this environment. Absent from an older api. */
-  metaLogin?: { content?: boolean; ads?: boolean };
+  metaLogin?: MetaLoginInfo["metaLogin"];
+  /** api: on the `facebook` row, the live web rows that serve the Meta cards
+   *  (`purpose: null` is the shared all-purpose row). */
+  metaConnections?: MetaLoginInfo["metaConnections"];
   group?: string | null;
   groupDisplayName?: string | null;
   subLabel?: string | null;
@@ -204,10 +207,13 @@ import {
   flattenMetaIntegration as flattenMetaIntegrationBase,
   resolveProvider,
   isMetaVirtual,
+  metaActionPurpose,
+  metaCardsDisconnectedBy,
   metaDisconnectCopy,
   metaGrantNote,
   metaLoginPurposeFor,
   withMetaLoginPurpose,
+  type MetaLoginInfo,
   type MetaVirtualCard,
 } from "@/lib/integrations-meta";
 import {
@@ -218,11 +224,10 @@ import {
 function flattenMetaIntegration(integrations: Integration[]): Integration[] {
   return flattenMetaIntegrationBase<Integration>(integrations, (item, card) => {
     const extra = item.account?.extra || {};
-    const purpose = metaLoginPurposeFor(card.virtualProvider);
     return {
       name: card.name,
       description: card.description,
-      grantNote: metaGrantNote(card.virtualProvider, purpose ? item.metaLogin?.[purpose] : undefined),
+      grantNote: metaGrantNote(card.virtualProvider, item.metaLogin),
       category: card.category,
       account: item.connected
         ? {
@@ -394,6 +399,12 @@ export default function IntegrationsPage() {
     }
   }
 
+  /** The api's Meta login facts, as carried on a flattened Meta card. */
+  function metaInfoFor(provider: string): MetaLoginInfo {
+    const row = integrations.find((i) => i.provider === provider);
+    return { metaLogin: row?.metaLogin, metaConnections: row?.metaConnections };
+  }
+
   async function handleConnect(provider: string, authType: string) {
     const realProvider = resolveProvider(provider);
     // WhatsApp can ONLY be connected via Meta's Embedded Signup (the v4 flow
@@ -432,11 +443,13 @@ export default function IntegrationsPage() {
           ? returnTo
           : DEFAULT_RETURN_TO;
       // A Meta card names its product (`purpose=content|ads`), so the api
-      // opens that product's own Login for Business configuration.
+      // opens that product's own Login for Business configuration — except a
+      // reconnect of a broken shared row, which must replace that row's
+      // token (metaActionPurpose).
       window.location.href = withMetaLoginPurpose(
         `${API_BASE_URL}/v1/integrations/${realProvider}/authorize` +
           `?returnTo=${encodeURIComponent(landing)}`,
-        provider,
+        metaActionPurpose(metaInfoFor(provider), provider),
       );
     } else if (authType === "api_key") {
       setConnectModal(realProvider);
@@ -460,7 +473,7 @@ export default function IntegrationsPage() {
     setError("");
     try {
       await api.post<{ account: Integration["account"] }>(
-        withMetaLoginPurpose(`/v1/integrations/${realProvider}/refresh`, provider),
+        withMetaLoginPurpose(`/v1/integrations/${realProvider}/refresh`, metaLoginPurposeFor(provider)),
         {}
       );
       // Reload all integrations so virtual Meta cards update correctly
@@ -598,11 +611,19 @@ export default function IntegrationsPage() {
     const realProvider = resolveProvider(provider);
     setDisconnecting(provider);
     try {
-      await api.delete(withMetaLoginPurpose(`/v1/integrations/${realProvider}`, provider));
+      await api.delete(withMetaLoginPurpose(`/v1/integrations/${realProvider}`, metaLoginPurposeFor(provider)));
       if (metaLoginPurposeFor(provider)) {
-        // ★A Meta card disconnects ITS purpose's connection only — the
-        // Meta Ads card leaves Pages and Instagram connected, and the reverse.
-        // Which cards are still connected is the api's answer, not a guess.
+        // ★A Meta card disconnects the row that serves it, and only the cards
+        // that row serves go with it — the Meta Ads card leaves a separately
+        // connected Pages alone. Flipped at once, then confirmed by the api.
+        const going = new Set(metaCardsDisconnectedBy(metaInfoFor(provider), provider));
+        setIntegrations((prev) =>
+          prev.map((i) =>
+            going.has(i.provider)
+              ? { ...i, connected: false, status: "disconnected", account: undefined }
+              : i
+          )
+        );
         await loadIntegrations();
       } else {
         setIntegrations((prev) =>
@@ -1307,7 +1328,10 @@ function IntegrationCard({
                 integration.provider === "whatsapp"
                   ? "This disconnects only WhatsApp Business. Your Facebook Pages, Instagram and Meta Ads stay connected."
                   : isMetaVirtual(integration.provider)
-                    ? metaDisconnectCopy(integration.provider)
+                    ? metaDisconnectCopy(
+                        { metaLogin: integration.metaLogin, metaConnections: integration.metaConnections },
+                        integration.provider,
+                      )
                     : `Are you sure you want to disconnect ${integration.name}? You'll need to reconnect to sync data again.`
               }
               confirmLabel="Disconnect"
@@ -1376,13 +1400,13 @@ function IntegrationCard({
                 {isMetaVirtual(integration.provider) ? "Connect with Meta" : "Connect"}
               </Button>
             )}
-            {isMetaVirtual(integration.provider) && integration.provider !== "whatsapp" && (
+            {integration.grantNote && (
               // ★What THIS card's connect asks Meta for. "One login connects
               // all Meta services" stopped being true when each product got
               // its own Login for Business configuration — and was never true
               // of WhatsApp, which connects through Embedded Signup.
               <p className="text-[10px] text-center text-muted-foreground">
-                {integration.grantNote ?? metaGrantNote(integration.provider, undefined)}
+                {integration.grantNote}
               </p>
             )}
           </div>

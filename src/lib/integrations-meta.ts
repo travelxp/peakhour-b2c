@@ -36,7 +36,13 @@ export interface MetaVirtualCard {
   hasResources: (extra: Record<string, any>) => boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getResourceSummary: (extra: Record<string, any>) => string | null;
+  /** The Meta login this card's actions run under (see "Purpose-specific Meta
+   *  logins" below). Absent for WhatsApp, which uses Embedded Signup. */
+  loginPurpose?: MetaLoginPurpose;
 }
+
+/** Which Meta login a card's actions run under. */
+export type MetaLoginPurpose = "content" | "ads";
 
 export const META_VIRTUAL_CARDS: MetaVirtualCard[] = [
   {
@@ -45,6 +51,7 @@ export const META_VIRTUAL_CARDS: MetaVirtualCard[] = [
     description: "Publish posts, manage engagement, and track page insights",
     category: "social",
     capabilityKey: "pages",
+    loginPurpose: "content",
     hasResources: (extra) => (extra?.pages || []).length > 0,
     getResourceSummary: (extra) => {
       const pages = extra?.pages || [];
@@ -58,6 +65,7 @@ export const META_VIRTUAL_CARDS: MetaVirtualCard[] = [
     description: "Business account, content publishing, and audience insights",
     category: "social",
     capabilityKey: "instagram",
+    loginPurpose: "content",
     hasResources: (extra) =>
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (extra?.pages || []).some((p: any) => p.instagramAccountId),
@@ -73,6 +81,7 @@ export const META_VIRTUAL_CARDS: MetaVirtualCard[] = [
     description: "Facebook & Instagram ad campaigns, audiences, and reporting",
     category: "advertising",
     capabilityKey: "ads",
+    loginPurpose: "ads",
     hasResources: (extra) => (extra?.adAccounts || []).length > 0,
     getResourceSummary: (extra) => {
       const accs = extra?.adAccounts || [];
@@ -108,60 +117,108 @@ const META_VIRTUAL_PROVIDERS = new Set(META_VIRTUAL_CARDS.map((c) => c.virtualPr
 // the merchant grants only what that product needs and "Disconnect" on the
 // Meta Ads card leaves their Pages connected.
 
-/** Which Meta login a card's actions run under. WhatsApp has none: it uses
- *  Embedded Signup on its own routes. */
-export type MetaLoginPurpose = "content" | "ads";
-
-const PURPOSE_BY_VIRTUAL: Record<string, MetaLoginPurpose> = {
-  facebook_pages: "content",
-  instagram: "content",
-  meta_ads: "ads",
-};
-
-export function metaLoginPurposeFor(provider: string): MetaLoginPurpose | undefined {
-  return PURPOSE_BY_VIRTUAL[provider];
+/** The Meta card whose `virtualProvider` is `provider`, if any. */
+function metaCard(provider: string): MetaVirtualCard | undefined {
+  return META_VIRTUAL_CARDS.find((c) => c.virtualProvider === provider);
 }
 
-/** Append `purpose=` to an api path for a Meta card; any other card's path is
- *  returned unchanged. */
-export function withMetaLoginPurpose(path: string, provider: string): string {
+export function metaLoginPurposeFor(provider: string): MetaLoginPurpose | undefined {
+  return metaCard(provider)?.loginPurpose;
+}
+
+/**
+ * What the api's `facebook` row says about the Meta logins: which purposes have
+ * their own configuration in this environment (`metaLogin`), and which live
+ * rows serve the cards (`metaConnections`; `purpose: null` is an all-purpose
+ * row shared by Pages, Instagram and Ads). Both absent from an older api.
+ */
+export interface MetaLoginInfo {
+  metaLogin?: { content?: boolean; ads?: boolean };
+  metaConnections?: Array<{ purpose: MetaLoginPurpose | null; status?: string }>;
+}
+
+/** Which kind of row serves a card: its own purpose row, the shared
+ *  all-purpose row, or nothing. A purpose row wins, as in the api's resolver. */
+export function metaCardServedBy(info: MetaLoginInfo, provider: string): "purpose" | "shared" | "none" {
   const purpose = metaLoginPurposeFor(provider);
+  const rows = info.metaConnections ?? [];
+  if (purpose && rows.some((r) => r.purpose === purpose)) return "purpose";
+  if (rows.some((r) => r.purpose === null)) return "shared";
+  return "none";
+}
+
+/**
+ * The `?purpose=` a Meta card's action should send, or undefined for none.
+ *
+ * ★ONE EXCEPTION: reconnecting a card served by a BROKEN shared row. A
+ * purpose-scoped connect writes a NEW purpose row and leaves the shared row's
+ * dead token where it is — Pages would stay broken behind a "Reconnect" that
+ * appeared to work. So that reconnect runs all-purpose and replaces the shared
+ * row's token in place, as it always did.
+ */
+export function metaActionPurpose(info: MetaLoginInfo, provider: string): MetaLoginPurpose | undefined {
+  const purpose = metaLoginPurposeFor(provider);
+  if (!purpose) return undefined;
+  const rows = info.metaConnections ?? [];
+  const brokenShared = rows.some((r) => r.purpose === null && r.status !== undefined && r.status !== "active");
+  if (metaCardServedBy(info, provider) === "shared" && brokenShared) return undefined;
+  return purpose;
+}
+
+/** Set `purpose=` on an api path (relative or absolute), keeping its query and
+ *  fragment. Unchanged when `purpose` is undefined. */
+export function withMetaLoginPurpose(path: string, purpose: MetaLoginPurpose | undefined): string {
   if (!purpose) return path;
-  return `${path}${path.includes("?") ? "&" : "?"}purpose=${purpose}`;
+  const hashAt = path.indexOf("#");
+  const hash = hashAt >= 0 ? path.slice(hashAt) : "";
+  const beforeHash = hashAt >= 0 ? path.slice(0, hashAt) : path;
+  const queryAt = beforeHash.indexOf("?");
+  const base = queryAt >= 0 ? beforeHash.slice(0, queryAt) : beforeHash;
+  const params = new URLSearchParams(queryAt >= 0 ? beforeHash.slice(queryAt + 1) : "");
+  params.set("purpose", purpose);
+  return `${base}?${params.toString()}${hash}`;
 }
 
 /**
  * What a connect from this card will ask Meta for — or null for a card with
- * nothing to say. `dedicated` is the api's `metaLogin` flag for the card's
- * purpose: whether that purpose has its own Login for Business configuration
- * in this environment. Without one, the connect is the combined dialog, and
- * the sentence says so rather than promising a narrower grant.
+ * nothing to say. A narrower grant is promised only when the api reports that
+ * the card's purpose has its own Login for Business configuration here;
+ * otherwise the connect is the combined dialog and the sentence says so.
  */
-export function metaGrantNote(provider: string, dedicated: boolean | undefined): string | null {
+export function metaGrantNote(provider: string, metaLogin: MetaLoginInfo["metaLogin"]): string | null {
   const purpose = metaLoginPurposeFor(provider);
   if (!purpose) return null;
-  if (!dedicated) return "Connecting asks Meta for Pages, Instagram and Ads access together.";
+  if (!metaLogin?.[purpose]) return "Connecting asks Meta for Pages, Instagram and Ads access together.";
   return purpose === "ads"
     ? "Connecting asks Meta only for ad account and Business Manager access, and to list your Pages — not to post to them."
     : "Connecting asks Meta only for Pages and Instagram access — not your ad accounts.";
 }
 
 /**
- * The Disconnect confirmation for a Meta card. ★Conditional on purpose, because
- * the card cannot see which row serves it: a merchant who connected before
- * purposes existed (or while a configuration id was unset) holds ONE
- * connection for Pages, Instagram and Ads, and disconnecting it from any of
- * those cards takes all three. WhatsApp is never part of it.
+ * The Meta cards a Disconnect from `provider` takes down. A card served by its
+ * own purpose row takes only the cards of that purpose. A card served by the
+ * shared all-purpose row takes every card the shared row serves, which is
+ * each card whose purpose has no row of its own. WhatsApp is never included.
  */
-export function metaDisconnectCopy(provider: string): string {
+export function metaCardsDisconnectedBy(info: MetaLoginInfo, provider: string): string[] {
+  const served = metaCardServedBy(info, provider);
   const purpose = metaLoginPurposeFor(provider);
-  if (purpose === "ads") {
-    return "This disconnects Meta Ads. If you connected Meta Ads together with Facebook Pages and Instagram in one login, those disconnect too. WhatsApp stays connected.";
+  const cards = META_VIRTUAL_CARDS.filter((c) => c.loginPurpose);
+  if (served === "purpose") return cards.filter((c) => c.loginPurpose === purpose).map((c) => c.virtualProvider);
+  if (served === "shared") {
+    return cards.filter((c) => metaCardServedBy(info, c.virtualProvider) === "shared").map((c) => c.virtualProvider);
   }
-  if (purpose === "content") {
-    return "This disconnects Facebook Pages and Instagram. If you connected them together with Meta Ads in one login, Meta Ads disconnects too. WhatsApp stays connected.";
-  }
-  return "This disconnects this Meta service. You'll need to reconnect to sync data again.";
+  return [provider];
+}
+
+/** The Disconnect confirmation for a Meta card: names exactly what goes. */
+export function metaDisconnectCopy(info: MetaLoginInfo, provider: string): string {
+  const going = metaCardsDisconnectedBy(info, provider);
+  const names = META_VIRTUAL_CARDS.filter((c) => going.includes(c.virtualProvider)).map((c) => c.name);
+  const staying = META_VIRTUAL_CARDS.filter((c) => !going.includes(c.virtualProvider)).map((c) => c.name);
+  const list = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+  const shared = metaCardServedBy(info, provider) === "shared" && going.length > 1 ? ", which share one Meta login" : "";
+  return `This disconnects ${list(names)}${shared}. ${list(staying)} ${staying.length === 1 ? "stays" : "stay"} connected.`;
 }
 
 /** Resolve a virtual Meta provider back to "facebook" for API calls. */
