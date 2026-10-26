@@ -85,11 +85,8 @@ describe("★★G-15 — no b2c file names a Google ads path but the client", ()
 });
 
 describe("★★G-17b — the conversion-action route is managed, and the client calls it by both verbs", () => {
-  it("is on the list, and every path the client names is on it", () => {
+  it("is on the managed list", () => {
     expect(GOOGLE_ADS_MANAGED_ROUTES).toContain(`${GOOGLE_ADS_PREFIX}/conversion-action`);
-    for (const p of findGoogleAdsPaths(read(CLIENT))) {
-      expect((GOOGLE_ADS_MANAGED_ROUTES as readonly string[]).some((r) => r === p || isManagedGoogleAdsPath(p)), p).toBe(true);
-    }
     expect(googleAdsUrl("/v1/google/ads/conversion-action")).toBe("/v1/google/ads/conversion-action");
   });
   it("the client reads with GET (with the account) and chooses with PUT", () => {

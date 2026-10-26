@@ -135,8 +135,8 @@ const REFUSAL_REASONS: Readonly<Record<string, string>> = {
     "Google Ads didn't clearly say which account manages conversions here, so Peakhour won't guess. " +
     "Try again in a moment.",
   validation_conversion_action_name_taken:
-    "Every name Peakhour uses for its conversion action is already taken in this Google Ads account. " +
-    "Choose an existing import-from-clicks action instead.",
+    "Every name Peakhour uses for its conversion action is already taken in this Google Ads account, " +
+    "or one was taken just now. Try again, or choose an existing import-from-clicks action instead.",
 };
 
 const detailsOf = (err: unknown): Record<string, unknown> => {
@@ -164,8 +164,8 @@ export function googleConversionErrorMessage(err: unknown, fallback: string): st
       case "CONVERSION_ACTION_REFUSED": {
         const reason = detailsOf(err).reason;
         if (typeof reason === "string" && Object.hasOwn(REFUSAL_REASONS, reason)) return REFUSAL_REASONS[reason]!;
-        // A refusal the api authored itself (`validation`): its message is for the merchant.
-        return err.message;
+        // ★An unlisted reason is not trusted to carry words for a merchant (review round 1).
+        break;
       }
     }
   }
@@ -179,7 +179,7 @@ export function googleConversionMayHaveBeenCreated(err: unknown): boolean {
 
 /** Whether the failure means the connection itself needs attention. */
 export function googleConversionNeedsReconnect(err: unknown): boolean {
-  return err instanceof ApiError && ["NEEDS_REAUTH", "NOT_CONNECTED", "TOKEN_FAILED", "AD_ACCOUNT_NOT_ALLOWED"].includes(err.code);
+  return err instanceof ApiError && ["NEEDS_REAUTH", "NOT_CONNECTED", "TOKEN_FAILED", "AD_ACCOUNT_NOT_ALLOWED", "AD_ACCOUNT_NOT_AUTHORIZED"].includes(err.code);
 }
 
 /**

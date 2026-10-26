@@ -133,7 +133,7 @@ describe("refusals, each with its reason", () => {
     expect(googleConversionErrorMessage(refused("validation_conversion_customer"), "fb")).toContain("won't guess");
   });
   it("★every Peakhour name is taken", () => {
-    expect(googleConversionErrorMessage(refused("validation_conversion_action_name_taken"), "fb")).toContain("Choose an existing import-from-clicks action");
+    expect(googleConversionErrorMessage(refused("validation_conversion_action_name_taken"), "fb")).toContain("choose an existing import-from-clicks action");
   });
   it("★account not on the connection", () => {
     const m = googleConversionErrorMessage(apiErr("AD_ACCOUNT_NOT_ALLOWED"), "fb");
@@ -150,11 +150,13 @@ describe("refusals, each with its reason", () => {
     expect(googleConversionMayHaveBeenCreated(apiErr("CONVERSION_ACTION_REFUSED"))).toBe(false);
     expect(googleConversionMayHaveBeenCreated(new Error("x"))).toBe(false);
   });
-  it("PASS: an unlisted refusal reason shows the api's own authored sentence", () => {
-    expect(googleConversionErrorMessage(refused("validation_something_new", "Account 1 is closed."), "fb")).toBe("Account 1 is closed.");
+  it("★an unlisted refusal reason shows the fallback with the reference, never the api's text", () => {
+    const e = new ApiError("CONVERSION_ACTION_REFUSED", "raw provider words", 409, "req-4", { reason: "validation_something_new" });
+    expect(googleConversionErrorMessage(e, "fb")).toBe("fb (reference req-4)");
   });
-  it("PASS: a prototype key is not a reason", () => {
-    expect(googleConversionErrorMessage(refused("toString", "authored"), "fb")).toBe("authored");
+  it("a prototype key is not a reason", () => {
+    const e = new ApiError("CONVERSION_ACTION_REFUSED", "raw", 409, undefined, { reason: "toString" });
+    expect(googleConversionErrorMessage(e, "fb")).toBe("fb");
   });
   it("api messages for the connection and the rail are shown; unknown codes and non-api errors are not", () => {
     expect(googleConversionErrorMessage(apiErr("NEEDS_REAUTH", "Google Ads needs to be reconnected."), "fb")).toBe("Google Ads needs to be reconnected.");
@@ -164,6 +166,8 @@ describe("refusals, each with its reason", () => {
   });
   it("only connection-level codes ask for a reconnect", () => {
     expect(googleConversionNeedsReconnect(apiErr("NEEDS_REAUTH"))).toBe(true);
+    expect(googleConversionNeedsReconnect(apiErr("AD_ACCOUNT_NOT_AUTHORIZED"))).toBe(true);
+    expect(googleConversionNeedsReconnect(apiErr("AD_ACCOUNT_FORBIDDEN"))).toBe(false);
     expect(googleConversionNeedsReconnect(apiErr("CONVERSION_ACTION_REFUSED"))).toBe(false);
     expect(googleConversionNeedsReconnect(new Error("x"))).toBe(false);
   });
@@ -194,6 +198,13 @@ describe("the panel", () => {
   });
   it("the query key carries the business and the account", () => {
     expect(section).toMatch(/queryKey = \["google-conversion-action", business\?\._id \?\? "none", account\.id\]/);
+  });
+  it("a stale pick falls back to the stored default, and the select is always controlled", () => {
+    expect(section).toContain("picked && query.data?.actions.some((a) => a.id === picked) ? picked : googleConversionDefaultChoice(query.data)");
+    expect(section).toContain('value={choice ?? ""}');
+  });
+  it("a saved choice is shown at once, as live", () => {
+    expect(section).toMatch(/setQueryData<GoogleConversionActionState>\(queryKey[\s\S]*selected: res\.selected, selectedIsLive: true/);
   });
   it("the section is mounted per account", () => {
     expect(panel).toMatch(/<ConversionTrackingSection key=\{`conv-\$\{account\.id\}`\} account=\{account\} \/>/);

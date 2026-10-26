@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { useCreditsRateCard } from "@/hooks/use-credits";
-import { googleAdsApi, type GoogleAdAccount, type GoogleCampaign, type GoogleSettableStatus } from "@/lib/api/google-ads";
+import { googleAdsApi, type GoogleAdAccount, type GoogleCampaign, type GoogleConversionActionState, type GoogleSettableStatus } from "@/lib/api/google-ads";
 import {
   GOOGLE_LAUNCH_USE_CASE,
   formatGoogleMoney,
@@ -265,13 +265,21 @@ function ConversionTrackingSection({ account }: { account: GoogleAdAccount }) {
   const state = googleConversionCardState({ data: query.data, isError: query.isError, fetchStatus: query.fetchStatus });
   const [picked, setPicked] = useState<string | undefined>(undefined);
   const [confirmingCreate, setConfirmingCreate] = useState(false);
-  const choice = picked ?? googleConversionDefaultChoice(query.data);
+  // ★A pick that is no longer offered (disabled in Google Ads since) falls back to the stored default.
+  const choice = picked && query.data?.actions.some((a) => a.id === picked) ? picked : googleConversionDefaultChoice(query.data);
   const confirmation = googleConversionCreateConfirmation(account.name);
 
   const choose = useMutation({
     mutationFn: (id: string | undefined) => googleAdsApi.setConversionAction(account.id, id),
     onSuccess: (res) => {
       setPicked(undefined);
+      // ★Show the result now, so the card never contradicts the toast while the re-read is in flight or fails.
+      //  The api validated the choice against a live read, so it is live.
+      if (res.selected) {
+        queryClient.setQueryData<GoogleConversionActionState>(queryKey, (old) =>
+          old ? { ...old, selected: res.selected, selectedIsLive: true } : old,
+        );
+      }
       toast.success(googleConversionSavedSentence(res.created, res.selected?.name));
     },
     onError: (err) => {
@@ -326,7 +334,7 @@ function ConversionTrackingSection({ account }: { account: GoogleAdAccount }) {
               <div className="flex flex-wrap items-end gap-2">
                 <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground">Use an existing import-from-clicks action</Label>
-                  <Select value={choice} onValueChange={setPicked} disabled={busy}>
+                  <Select value={choice ?? ""} onValueChange={setPicked} disabled={busy}>
                     <SelectTrigger className="w-80">
                       <SelectValue placeholder="Choose a conversion action" />
                     </SelectTrigger>
