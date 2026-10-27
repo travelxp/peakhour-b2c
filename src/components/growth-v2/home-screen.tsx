@@ -5,12 +5,13 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { ApiError } from "@/lib/api";
+import type { UseQueryResult } from "@tanstack/react-query";
 import {
   useGrowthV2Decisions,
   useGrowthV2Home,
   type Figure,
   type HomeCompare,
+  type HomeRefusalCode,
   type HomeResponse,
   type HomeScreenData,
   type HomeWindowKey,
@@ -40,8 +41,7 @@ export function HomeScreen() {
   const query = useGrowthV2Home(window, compare);
   const decisions = useGrowthV2Decisions();
   const open = decisions.data ? tabCounts(decisions.data.data.decisions).needs_you : undefined;
-  const code = query.error instanceof ApiError ? query.error.code : undefined;
-  if (code === "NO_MANDATE" || code === "NO_BUSINESS_CLOCK") return <NotSetUp code={code} />;
+  if (query.data && "refusal" in query.data) return <NotSetUp code={query.data.refusal} />;
   // The prototype's sample is one fixed window: controls that cannot change it would only contradict the page.
   const preview = query.data?.preview === true;
   return (
@@ -53,7 +53,8 @@ export function HomeScreen() {
         </div>
       )}
       <div aria-busy={query.isPlaceholderData} className={cn("transition-opacity", query.isPlaceholderData && "opacity-60")}>
-        <QueryBoundary query={query}>{(r) => <HomeBody result={r} openDecisions={open} />}</QueryBoundary>
+        {/* A refusal returned above, so what the boundary hands on is a page. */}
+        <QueryBoundary query={query as UseQueryResult<HomeScreenData>}>{(r) => <HomeBody result={r} openDecisions={open} />}</QueryBoundary>
       </div>
     </div>
   );
@@ -72,7 +73,7 @@ function Choice<K extends string, O>({ label, value, options, onChange, text }: 
 }
 
 /** The two refusals the api gives instead of a page: no mandate, or no business clock. */
-function NotSetUp({ code }: { code: "NO_MANDATE" | "NO_BUSINESS_CLOCK" }) {
+function NotSetUp({ code }: { code: HomeRefusalCode }) {
   const noMandate = code === "NO_MANDATE";
   return (
     <Card>
@@ -147,6 +148,7 @@ export function HomeBody({ result, openDecisions }: { result: HomeScreenData; op
             <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Your outcome &middot; {home.outcome.label}</p>
             <p className="mt-2 text-4xl font-semibold leading-none tracking-tight sm:text-5xl">
               <FigureValue figure={outcomes} showReason />
+              <small className="ml-2 text-lg font-medium text-muted-foreground">in {words.title}</small>
             </p>
             <p className="mt-3 max-w-prose text-[15px]">{headline}</p>
             {goal ? (

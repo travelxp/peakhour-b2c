@@ -1,9 +1,35 @@
 import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api";
 import { FIXTURE_HOME, FIXTURE_RULES } from "@/lib/growth-v2-fixtures";
-import { NOT_BUILT, isNotBuilt, mandateFor, loadOrPreview, notBuiltRow, type HomeResponse, type RulesResponse } from "./growth-v2";
+import { NOT_BUILT, isNotBuilt, loadHome, loadOrPreview, mandateFor, notBuiltRow, sameBusiness, type HomeResponse, type RulesResponse } from "./growth-v2";
 
 const notBuilt = (row = "H1") => new ApiError(NOT_BUILT, `This route is built by plan row ${row}.`, 501, "req-1", { row });
+
+describe("loadHome: a refusal is data, a failure is an error", () => {
+  it.each(["NO_MANDATE", "NO_BUSINESS_CLOCK"] as const)("returns %s as an answer to show, not a preview and not a throw", async (code) => {
+    const r = await loadHome(async () => { throw new ApiError(code, "refused", 409); });
+    expect(r).toEqual({ refusal: code, preview: false });
+  });
+  it("reads the series out of a live response, and still falls back to the sample only on 501", async () => {
+    const live = (await loadHome(async () => FIXTURE_HOME)) as { preview: boolean; series?: unknown; pacingSeries?: unknown };
+    expect(live.preview).toBe(false);
+    expect(live.series).toBeDefined();
+    expect(live.pacingSeries).toBeDefined();
+    expect(await loadHome(async () => { throw notBuilt("H1"); })).toMatchObject({ preview: true, row: "H1" });
+  });
+  it.each([["500", new ApiError("INTERNAL", "boom", 500)], ["another 409", new ApiError("ALREADY_DECIDED", "no", 409)]])("rethrows a %s", async (_n, err) => {
+    await expect(loadHome(async () => { throw err; })).rejects.toBe(err);
+  });
+});
+
+describe("sameBusiness: the last window is carried over only within one business", () => {
+  const prev = { marker: "A's figures" };
+  it("keeps the previous data for the same business and drops it for another", () => {
+    expect(sameBusiness("biz-A")(prev, { queryKey: ["growth-v2", "biz-A", "home", "7d", "last_period"] })).toBe(prev);
+    expect(sameBusiness("biz-B")(prev, { queryKey: ["growth-v2", "biz-A", "home", "7d", "last_period"] })).toBeUndefined();
+    expect(sameBusiness("biz-B")(undefined, undefined)).toBeUndefined();
+  });
+});
 
 describe("loadOrPreview: the 501 NOT_BUILT fallback", () => {
   it("returns the fixture, flagged as a preview with the row that will replace it", async () => {

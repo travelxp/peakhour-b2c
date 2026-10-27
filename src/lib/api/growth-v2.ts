@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import {
@@ -364,20 +364,43 @@ export interface HomeScreenData extends V2Result<HomeResponse> {
   pacingSeries?: PacingSeries;
 }
 
+/** The two answers the api gives instead of a page: the engine is off, or there is no business clock. */
+export type HomeRefusalCode = "NO_MANDATE" | "NO_BUSINESS_CLOCK";
+export interface HomeRefusal {
+  refusal: HomeRefusalCode;
+  preview: false;
+}
+
+/**
+ * Fetch Growth home, or its refusal as DATA. ★A refusal is an answer, not an error: as data it stays on screen through
+ * refetches (an error clears the moment one starts) and is never retried.
+ */
+export async function loadHome(fetcher: () => Promise<HomeResponse>): Promise<HomeScreenData | HomeRefusal> {
+  try {
+    const r = await loadOrPreview(fetcher, () => FIXTURE_HOME);
+    return { ...r, ...seriesFromHome(r.data) };
+  } catch (err) {
+    if (err instanceof ApiError && (err.code === "NO_MANDATE" || err.code === "NO_BUSINESS_CLOCK")) return { refusal: err.code, preview: false };
+    throw err;
+  }
+}
+
+/** `placeholderData` that carries the last window over only while the business is the same one. */
+export function sameBusiness(businessId: string | undefined) {
+  return <T,>(previous: T | undefined, previousQuery: { queryKey: readonly unknown[] } | undefined): T | undefined =>
+    previousQuery?.queryKey[1] === (businessId ?? "none") ? previous : undefined;
+}
+
 export function useGrowthV2Home(window: HomeWindowKey = "7d", compare: HomeCompare = "last_period") {
   const { business } = useAuth();
-  return useQuery<HomeScreenData>({
+  return useQuery<HomeScreenData | HomeRefusal>({
     queryKey: key(business?._id, "home", window, compare),
-    queryFn: async () => {
-      const r = await loadOrPreview(() => growthV2Api.home(window, compare), () => FIXTURE_HOME);
-      return { ...r, ...seriesFromHome(r.data) };
-    },
+    queryFn: () => loadHome(() => growthV2Api.home(window, compare)),
     enabled: !!business?._id,
     staleTime: 30_000,
     // Changing the window keeps the last one on screen until the next arrives, instead of collapsing to a skeleton.
-    placeholderData: keepPreviousData,
-    // The engine being off, or having no business clock, is an answer the screen explains, not a blip.
-    retry: (count, err) => !(err instanceof ApiError && (err.code === "NO_MANDATE" || err.code === "NO_BUSINESS_CLOCK")) && count < 3,
+    // ★Only for the same business: another business's figures must never stand in for this one's.
+    placeholderData: sameBusiness(business?._id),
   });
 }
 

@@ -7,7 +7,7 @@ import { EfficiencyBullet } from "./efficiency-bullet";
 import { EnquiryHeatmap } from "./enquiry-heatmap";
 import { LiftBand } from "./lift-band";
 import { OutcomeFunnel } from "./outcome-funnel";
-import { PacingChart } from "./pacing-chart";
+import { missingDaysText, PacingChart } from "./pacing-chart";
 import { ShareByWeek } from "./share-by-week";
 import { WhyWaterfall } from "./why-waterfall";
 import { ActivityFeed } from "./activity-feed";
@@ -202,6 +202,15 @@ describe("ActivityFeed", () => {
     expect(out).toContain("See the decision");
     expect(out).not.toContain("undefined");
     expect(html(<ActivityFeed events={[]} />)).toContain("Nothing yet");
+  });
+});
+
+describe("missingDaysText", () => {
+  it("names one or a few days, and keeps a long list short", () => {
+    expect(missingDaysText([5])).toBe("day 5");
+    expect(missingDaysText([5, 6])).toBe("days 5, 6");
+    expect(missingDaysText([1, 2, 3, 4, 5, 6])).toBe("days 1, 2, 3, 4, 5, 6");
+    expect(missingDaysText([1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13])).toBe("12 days (1, 2, 3, 4, 5 and 7 more)");
   });
 });
 

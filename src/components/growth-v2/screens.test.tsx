@@ -57,6 +57,8 @@ describe("the screens render their preview sample", () => {
     const out = html(<HomeBody result={homeData} openDecisions={3} />);
     expect(out).toContain("Is it working?");
     expect(out).toContain("of 50 goal");
+    // the big number says which window it counts, above a goal that is always the month
+    expect(out).toContain("in this month");
     expect(out).toContain("3 decisions need you");
     expect(out).toContain("What the engine did");
     expect(out.match(/<svg/g)!.length).toBeGreaterThanOrEqual(2);

@@ -10,6 +10,14 @@ describe("figure helpers keep absent apart from zero", () => {
     expect(figureValue(undefined)).toBeUndefined();
   });
 
+  it("reads a reason code as words, one-word codes too, and leaves a sentence alone", () => {
+    expect(absentReason({ absent: "no_order_source" })).toBe("No order source");
+    expect(absentReason({ absent: "stale" })).toBe("stale");
+    expect(absentReason({ absent: "Meta Ads had no spend." })).toBe("Meta Ads had no spend.");
+    expect(absentReason({ absent: "n/a" })).toBe("n/a");
+    expect(absentReason({ absent: "holdout too small" })).toBe("holdout too small");
+  });
+
   it("isAbsent and absentReason agree", () => {
     expect(isAbsent({ absent: "why" })).toBe(true);
     expect(isAbsent({ value: 0 })).toBe(false);

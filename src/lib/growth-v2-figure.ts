@@ -26,6 +26,7 @@ export function figureValue(f: Figure | Money | undefined): number | undefined {
 export function absentReason(f: Figure | Money | undefined): string | undefined {
   if (f === undefined || !("absent" in f)) return undefined;
   const r = f.absent;
+  // A code is lower-case words joined by underscores. One bare word is left as sent: it cannot be told from a fragment.
   if (!/^[a-z0-9]+(_[a-z0-9]+)+$/.test(r)) return r;
   const words = r.replace(/_/g, " ");
   return words.charAt(0).toUpperCase() + words.slice(1);
