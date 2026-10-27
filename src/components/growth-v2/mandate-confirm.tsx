@@ -24,7 +24,10 @@ export function MandateConfirm({ token }: { token: string }) {
   const confirm = useMutation({ mutationFn: (c: string) => growthLinkApi.confirm(token, cleanCode(c)) });
 
   const link = described.data;
-  const dead = (described.isError && linkIsDead(described.error)) || (confirm.isError && linkIsDead(confirm.error));
+  const dead = (described.isError && linkIsDead(described.error)) || (confirm.isError && linkIsDead(confirm.error)) || (send.isError && linkIsDead(send.error));
+  // Asking for a new code clears the last wrong one (below), so what is shown is always the newest answer: a stale "not right"
+  // never masks a cooldown, a failed send or a dead link.
+  const lastError = confirm.isError ? confirm.error : send.isError ? send.error : undefined;
   return (
     <div className="mx-auto grid min-h-[70vh] w-full max-w-lg content-center gap-4 px-4 py-10">
       <MandateConfirmView
@@ -37,9 +40,13 @@ export function MandateConfirm({ token }: { token: string }) {
         done={confirm.data}
         code={code}
         dead={dead}
-        error={confirm.isError ? linkErrorMessage(confirm.error) : send.isError ? linkErrorMessage(send.error) : undefined}
+        error={lastError !== undefined ? linkErrorMessage(lastError) : undefined}
         onCode={(v) => setCode(cleanCode(v))}
-        onSend={() => send.mutate()}
+        onSend={() => {
+          confirm.reset();
+          setCode("");
+          send.mutate();
+        }}
         onConfirm={() => confirm.mutate(code)}
       />
     </div>

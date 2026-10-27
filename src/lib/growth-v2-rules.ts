@@ -73,6 +73,13 @@ export function editFrom(m: MandateView): MandateEdit {
 /**
  * What changed between the mandate and the form, as the api's `mandate` patch, or a sentence when the form cannot be sent,
  * or undefined when nothing changed. Only changed fields are named.
+ *
+ * ★A SAVED FOCUS IS NOT LOOKED UP IN THE SUGGESTIONS. The suggestions are re-ranked from the last 90 days, so the focus the
+ * mandate already has may not be among them (or the list may not have loaded); an unchanged focus is not a change, and a
+ * ceiling-only edit never touches the outcome.
+ * ★A TARGET OF THE OTHER KIND IS NEVER CARRIED ACROSS: when the outcome flips between a cost and a return the form clears the
+ * box (see `editAfterOutcome`), so an empty box then means "the playbook's default, or tell me", and a retyped number is the
+ * merchant's own.
  */
 export function mandatePatchFor(m: MandateView, edit: MandateEdit, offers: readonly DraftOffer[]): MandatePatch | { error: string } | undefined {
   const patch: MandatePatch = {};
@@ -81,10 +88,11 @@ export function mandatePatchFor(m: MandateView, edit: MandateEdit, offers: reado
   if (ceiling !== m.monthlyCeiling) patch.monthlyCeiling = ceiling;
 
   const offer = offers.find((o) => offerKey(o) === edit.offer);
-  const focus = offer?.source === "orders" ? offer.focusSuggestions.find((f) => f.label === edit.focus) : undefined;
-  const outcomeChanged = offerKey(m.outcome) !== edit.offer || (m.outcome.focus?.label ?? "") !== (focus?.label ?? "");
+  const outcomeChanged = offerKey(m.outcome) !== edit.offer || (m.outcome.focus?.label ?? "") !== edit.focus;
   if (outcomeChanged) {
     if (!offer) return { error: "Choose one of the outcomes your business can be measured on." };
+    const focus = offer.source === "orders" ? offer.focusSuggestions.find((f) => f.label === edit.focus) : undefined;
+    if (edit.focus !== "" && !focus) return { error: "Choose a focus from the list, or Everything." };
     patch.outcome = {
       kind: offer.kind,
       source: offer.source,
@@ -93,18 +101,29 @@ export function mandatePatchFor(m: MandateView, edit: MandateEdit, offers: reado
     };
   }
 
-  const typed = parseAmount(edit.target);
-  if (edit.target.trim() !== "" && typed === undefined) return { error: "Enter a target above zero." };
   // The target's kind follows the outcome it measures: a return for value, a cost for a count.
   const kind: MandateTarget["kind"] = outcomeChanged && offer ? targetKindOf(offer) : m.target.kind;
-  // An outcome measured the other way with the old target still in the box: that number is a cost, not a return (or the
-  // reverse), so it is not a target of the new kind. The merchant must retype it.
-  if (outcomeChanged && kind !== m.target.kind && typed === m.target.value) {
-    return { error: "This outcome is measured differently, so enter a target for it." };
-  }
+  const typed = parseAmount(edit.target);
+  if (edit.target.trim() !== "" && typed === undefined) return { error: "Enter a target above zero." };
+  if (typed === undefined && !(outcomeChanged && kind !== m.target.kind)) return { error: "Enter a target above zero." };
   if (typed !== undefined && (typed !== m.target.value || kind !== m.target.kind)) patch.target = { kind, value: typed };
 
   return Object.keys(patch).length === 0 ? undefined : patch;
+}
+
+/**
+ * The form after the outcome select moves: the focus follows the outcome (the saved one comes back with the saved outcome, none
+ * with any other), and the target box is cleared when the outcome is measured the other way, because a cost is not a return.
+ */
+export function editAfterOutcome(m: MandateView, edit: MandateEdit, offerKeyChosen: string, offers: readonly DraftOffer[]): MandateEdit {
+  const chosen = offers.find((o) => offerKey(o) === offerKeyChosen);
+  const sameKind = chosen === undefined || targetKindOf(chosen) === m.target.kind;
+  return {
+    ...edit,
+    offer: offerKeyChosen,
+    focus: offerKeyChosen === offerKey(m.outcome) ? (m.outcome.focus?.label ?? "") : "",
+    target: sameKind ? String(m.target.value) : "",
+  };
 }
 
 /** The words for a change request that came back refused. Codes the api writes for the merchant show their sentence. */

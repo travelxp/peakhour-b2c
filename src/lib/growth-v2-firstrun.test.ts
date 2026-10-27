@@ -83,7 +83,9 @@ describe("a typed number is text until it is read", () => {
     ["60,000", 60000],
     [" 2.5 ", 2.5],
   ])("%s is %s", (typed, n) => expect(parseAmount(typed)).toBe(n));
-  it.each([[""], ["   "], ["0"], ["-5"], ["abc"], ["1e999"], ["NaN"]])("%j is no answer, never 0", (typed) => expect(parseAmount(typed)).toBeUndefined());
+  it.each([[""], ["   "], ["0"], ["-5"], ["abc"], ["1e999"], ["NaN"], ["1e6"], ["0x1F"], ["1_000"], ["1.2.3"], ["Infinity"]])("%j is no answer, never 0 and never a number in disguise", (typed) =>
+    expect(parseAmount(typed)).toBeUndefined(),
+  );
 });
 
 describe("the target", () => {
@@ -92,9 +94,14 @@ describe("the target", () => {
     expect(resolveTarget(SALES, answers({ target: "3.2" }))).toEqual({ target: { kind: "roas", value: 3.2 }, source: "merchant" });
     expect(resolveTarget(LEADS, answers({ target: "400" }))).toEqual({ target: { kind: "cost_per_outcome", value: 400 }, source: "merchant" });
   });
-  it("is nothing when the playbook has no default and nothing was typed; an unreadable box falls back, it is not 0", () => {
+  it("is nothing when the playbook has no default and nothing was typed", () => {
     expect(resolveTarget(CALLS, answers())).toBeUndefined();
-    expect(resolveTarget(SALES, answers({ target: "abc" }))?.source).toBe("playbook");
+  });
+  it("a CLEARED or unreadable box is not an untouched one: it resolves to nothing, never to the default the merchant cannot see", () => {
+    expect(resolveTarget(SALES, answers({ target: "" }))).toBeUndefined();
+    expect(resolveTarget(SALES, answers({ target: "abc" }))).toBeUndefined();
+    expect(buildPlanBody(draft(), answers({ target: "" }))).toBeUndefined();
+    expect(planBlockedReason(draft(), answers({ target: "" }), true)).toMatch(/target box is empty/);
   });
   it("never takes a default of the other kind", () => {
     const wrong: DraftOffer = { ...SALES, defaultTarget: { kind: "cost_per_outcome", value: 90, low: 1, high: 2, currency: "INR" } };

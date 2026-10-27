@@ -24,6 +24,7 @@ import {
   type FirstRunAnswers,
 } from "@/lib/growth-v2-firstrun";
 import { GROWTH_HOME } from "@/lib/growth-v2-nav";
+import { patchErrorMessage } from "@/lib/growth-v2-rules";
 import { PageHead } from "./page-head";
 import { SignalStep } from "./signal-step";
 import { ToneBadge } from "./tone";
@@ -70,7 +71,7 @@ export function FirstRunScreen() {
     ...(offer ? { offer } : {}),
     ...(focus ? { focus } : {}),
     ceiling: typedCeiling ?? defaultCeiling,
-    target: typedTarget ?? "",
+    ...(typedTarget !== undefined ? { target: typedTarget } : {}),
   };
   const body = draft ? buildPlanBody(draft, answers) : undefined;
   const suggestedZone = draft && "absent" in draft.timeZone ? (draft.timeZone.suggested ?? "") : "";
@@ -85,7 +86,7 @@ export function FirstRunScreen() {
         inPerson={inPerson}
         zone={zone ?? suggestedZone}
         zoneSaving={saveZone.isPending}
-        zoneError={saveZone.isError ? "We could not save that time zone." : undefined}
+        zoneError={saveZone.isError ? patchErrorMessage(saveZone.error) : undefined}
         signalStep={
           <SignalStep
             optimizeFor={(draft && selectedOffer(draft, answers)?.optimizeFor) ?? "count"}

@@ -288,10 +288,6 @@ export interface FirstRunDraftRequest {
   playbookId?: string;
   /** The merchant's yes to "Do customers visit you in person?". */
   customersVisitInPerson?: boolean;
-  /** The outcome the channel split and ceiling bands are drafted for; the first offer when absent. */
-  outcome?: { kind: OutcomeKind; source: OutcomeSource };
-  /** The ceiling the split is drafted within, in the plan's currency. */
-  monthlyCeiling?: number;
 }
 
 export interface DraftOffer {
@@ -309,10 +305,8 @@ export interface DraftOffer {
 export interface DraftChannel {
   platform: AdPlatform;
   role: "lead" | "test";
-  /** Of the ceiling; the shares of a plan add up to 1. */
+  /** A fraction of the ceiling; the shares of a plan add up to 1. */
   monthlyShare: number;
-  /** In the ceiling's currency; absent when no ceiling was sent. */
-  monthlyAmount?: Money;
   reason: string;
   connected: boolean;
 }
@@ -328,10 +322,8 @@ export interface FirstRunDraftResponse {
   playbook?: { id: string; version: number; title: string };
   /** More than one playbook fits equally: ask "Which best describes you?" and send the answer back as `playbookId`. */
   tie?: { candidates: Array<{ playbookId: string; version: number; title: string }> };
-  selected?: { kind: OutcomeKind; source: OutcomeSource };
   channels: DraftChannel[];
   ceilingBands: { currency: string; bands: Array<{ key: "starter" | "steady" | "growth"; amount: number }> } | { absent: string };
-  ceilingBelowMinimum?: boolean;
   excludedByGuardrails: AdPlatform[];
 }
 

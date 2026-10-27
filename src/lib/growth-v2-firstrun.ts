@@ -19,11 +19,14 @@ export interface FirstRunAnswers {
   focus?: string;
   /** The monthly ceiling as typed. */
   ceiling: string;
-  /** The target as typed; empty = take the playbook's. */
-  target: string;
+  /**
+   * The target as typed. ABSENT = the merchant has not touched the box, so the playbook's default stands. An empty or unreadable
+   * box is NOT absent: it is a cleared answer, and the plan is not sent until a target is entered.
+   */
+  target?: string;
 }
 
-export const EMPTY_ANSWERS: FirstRunAnswers = { ceiling: "", target: "" };
+export const EMPTY_ANSWERS: FirstRunAnswers = { ceiling: "" };
 
 export const offerKey = (o: { kind: string; source: string }) => `${o.kind}:${o.source}`;
 
@@ -37,10 +40,13 @@ export function selectedFocus(offer: DraftOffer | undefined, answers: FirstRunAn
   return offer.focusSuggestions.find((f) => f.label === answers.focus);
 }
 
-/** A positive number from what was typed (commas allowed), or undefined. Never 0 for "nothing typed". */
+/**
+ * A positive number from what was typed (commas allowed), or undefined. Never 0 for "nothing typed".
+ * ★DECIMAL DIGITS ONLY: `Number()` would read "1e6" as a million and "0x1F" as 31, in a box the merchant types a budget into.
+ */
 export function parseAmount(text: string): number | undefined {
   const t = text.replace(/,/g, "").trim();
-  if (t === "") return undefined;
+  if (!/^\d+(\.\d+)?$/.test(t)) return undefined;
   const n = Number(t);
   return Number.isFinite(n) && n > 0 ? n : undefined;
 }
@@ -53,12 +59,18 @@ export interface ResolvedTarget {
   source: "playbook" | "merchant";
 }
 
-/** The merchant's own number wins; else the playbook's default of the right kind; else none (the merchant must name one). */
+/**
+ * The merchant's own number wins; an untouched box takes the playbook's default of the right kind; else none (the merchant
+ * must name one). ★A CLEARED OR UNREADABLE BOX IS NOT AN UNTOUCHED ONE: it resolves to nothing, so the plan is never sent with
+ * a target the merchant cannot see.
+ */
 export function resolveTarget(offer: DraftOffer | undefined, answers: FirstRunAnswers): ResolvedTarget | undefined {
   if (!offer) return undefined;
   const kind = targetKindOf(offer);
-  const typed = parseAmount(answers.target);
-  if (typed !== undefined) return { target: { kind, value: typed }, source: "merchant" };
+  if (answers.target !== undefined) {
+    const typed = parseAmount(answers.target);
+    return typed === undefined ? undefined : { target: { kind, value: typed }, source: "merchant" };
+  }
   const d = offer.defaultTarget;
   if (d && d.kind === kind) return { target: { kind, value: d.value }, source: "playbook" };
   return undefined;
@@ -82,7 +94,11 @@ export function planBlockedReason(draft: FirstRunDraftResponse | undefined, answ
   if (!draft.currency) return "We could not tell which currency your plan is in. Connect an ad account first.";
   if ("absent" in draft.timeZone) return "Set your time zone first: your ceiling is counted by the month on that clock.";
   if (parseAmount(answers.ceiling) === undefined) return "Enter your monthly ceiling.";
-  if (!resolveTarget(offer, answers)) return `Enter what you can pay per ${offer.optimizeFor === "value" ? "return" : "outcome"}: this outcome has no playbook default.`;
+  if (!resolveTarget(offer, answers)) {
+    return answers.target !== undefined
+      ? `Enter ${offer.optimizeFor === "value" ? "the return you need" : "what you can pay per outcome"}: the target box is empty.`
+      : `Enter ${offer.optimizeFor === "value" ? "the return you need" : "what you can pay per outcome"}: this outcome has no playbook default.`;
+  }
   if (!signalDone) return "Finish step 4 first: switch on your signal, or accept running without one.";
   return undefined;
 }

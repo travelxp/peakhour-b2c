@@ -17,6 +17,7 @@ import {
   DEFAULT_QUIET_HOURS,
   SENT_FOR_CONFIRMATION,
   channelAllowed,
+  editAfterOutcome,
   editFrom,
   guardrailPatchFor,
   mandatePatchFor,
@@ -259,6 +260,8 @@ function MandateEditDialog({ mandate: m, onClose }: { mandate: MandateView; onCl
   const offers = useFirstRunDraft({}).data?.offers ?? [];
   const offer = offers.find((o) => offerKey(o) === edit.offer);
   const sent = patch.isSuccess && patch.data.mandateChange !== undefined;
+  // A 200 that started no change leaves nothing to wait for: say so rather than sit there looking dead.
+  const notSent = patch.isSuccess && !sent;
 
   function submit() {
     const p = mandatePatchFor(m, edit, offers);
@@ -289,7 +292,7 @@ function MandateEditDialog({ mandate: m, onClose }: { mandate: MandateView; onCl
                 id="rules-outcome"
                 className="h-9 rounded-md border bg-background px-2 text-sm"
                 value={edit.offer}
-                onChange={(e) => setEdit({ ...edit, offer: e.target.value, focus: "" })}
+                onChange={(e) => setEdit(editAfterOutcome(m, edit, e.target.value, offers))}
               >
                 {offers.length === 0 ? <option value={edit.offer}>{outcomeLabel(m.outcome)}</option> : null}
                 {offers.map((o) => (
@@ -298,7 +301,7 @@ function MandateEditDialog({ mandate: m, onClose }: { mandate: MandateView; onCl
                   </option>
                 ))}
               </select>
-              {offer && offer.source === "orders" && offer.focusSuggestions.length > 0 ? (
+              {offer && offer.source === "orders" && (offer.focusSuggestions.length > 0 || (offerKey(offer) === offerKey(m.outcome) && m.outcome.focus)) ? (
                 <select
                   aria-label="Focus"
                   className="h-9 rounded-md border bg-background px-2 text-sm"
@@ -306,6 +309,10 @@ function MandateEditDialog({ mandate: m, onClose }: { mandate: MandateView; onCl
                   onChange={(e) => setEdit({ ...edit, focus: e.target.value })}
                 >
                   <option value="">Everything</option>
+                  {/* The saved focus stays choosable when this week's suggestions no longer rank it. */}
+                  {offerKey(offer) === offerKey(m.outcome) && m.outcome.focus && !offer.focusSuggestions.some((f) => f.label === m.outcome.focus!.label) ? (
+                    <option value={m.outcome.focus.label}>{m.outcome.focus.label} (current)</option>
+                  ) : null}
                   {offer.focusSuggestions.map((f) => (
                     <option key={`${f.by}:${f.label}`} value={f.label}>
                       {f.label}
@@ -326,9 +333,9 @@ function MandateEditDialog({ mandate: m, onClose }: { mandate: MandateView; onCl
               </label>
               <Input id="rules-target" inputMode="decimal" className="tabular-nums" value={edit.target} onChange={(e) => setEdit({ ...edit, target: e.target.value })} />
             </div>
-            {error || patch.isError ? (
+            {error || patch.isError || notSent ? (
               <p role="alert" className="text-sm text-destructive-on-tint">
-                {error ?? patchErrorMessage(patch.error)}
+                {error ?? (notSent ? "The change was not sent. Check your WhatsApp number in Settings and try again." : patchErrorMessage(patch.error))}
               </p>
             ) : null}
           </div>
@@ -441,6 +448,8 @@ function GuardrailsCard({ rules, preview }: { rules: RulesResponse; preview: boo
               e.preventDefault();
               const t = term.trim();
               if (t === "") return;
+              // The api stores one normalised form, so "Free" beside "free" is one rule: nothing to send.
+              if (g.blockedTerms.some((x) => x.toLowerCase() === t.toLowerCase())) return setTerm("");
               apply({ kind: "blocked_terms", terms: [...g.blockedTerms, t] });
               setTerm("");
             }}
