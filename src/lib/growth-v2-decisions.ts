@@ -211,6 +211,10 @@ export function decisionNotice(err: unknown, action: DecisionAction): DecisionNo
       return { tone: "warn", text: "Part of the change was applied. Approve again to finish it." };
     case "NOT_UNDOABLE":
       return { tone: "warn", text: "Only a change that was applied can be undone." };
+    case "NOT_AN_APPROVER":
+      return { tone: "warn", text: "Only the approvers named for this business can approve or undo this" };
+    case "UNDO_IN_PROGRESS":
+      return { tone: "warn", text: "This change is already being undone" };
     case "UNDO_WINDOW_CLOSED":
       return { tone: "warn", text: "The 24-hour undo window has passed." };
     default:
