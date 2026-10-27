@@ -166,12 +166,16 @@ export function describeImpact(
 export interface DecisionNotice {
   tone: "warn" | "bad";
   text: string;
-  /** What the merchant can do about it, when there is somewhere to go. */
-  link?: { label: string; href: string };
+  /**
+   * What the merchant can do about it, when there is somewhere to go. The href is one of our own routes, never a
+   * string from the api, so the card's link cannot carry a `javascript:` URI.
+   */
+  link?: { label: string; href: NoticeRoute };
 }
 
 const INTEGRATIONS = "/dashboard/integrations";
 const RULES = "/dashboard/growth/rules";
+type NoticeRoute = typeof INTEGRATIONS | typeof RULES;
 const NOTHING_CHANGED = "That didn't go through. Nothing changed.";
 
 /**
