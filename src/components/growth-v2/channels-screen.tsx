@@ -10,7 +10,8 @@ import { PLATFORM_COLOR, PLATFORM_LABEL, WINDOWS, currencyOf, figureText, figure
 import { cn } from "@/lib/utils";
 import { ChannelBubbles } from "./channel-bubbles";
 import { FigureValue, MoneyValue } from "./figure-value";
-import { Choice, NotSetUp } from "./home-screen";
+import { Choice } from "./home-screen";
+import { NotSetUp } from "./not-set-up";
 import { PacingBadge, PacingChart } from "./pacing-chart";
 import { PageHead } from "./page-head";
 import { QueryBoundary } from "./query-boundary";
