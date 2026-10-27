@@ -28,6 +28,8 @@ export const metricLabel = (metric: string) =>
 
 export function metricFormat(metric: string, currency: string): (n: number) => string {
   if (metric === "cost_per_outcome") return (n) => formatMoney(n, currency);
+  // As Growth home says it: 3.4x.
+  if (metric === "roas") return (n) => `${n.toFixed(1)}x`;
   if (/(_rate|_share)$/.test(metric)) return formatPercent;
   return formatCount;
 }
