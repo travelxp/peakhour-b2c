@@ -42,7 +42,7 @@ export function LearningBody({ learning, unitPlural, currency }: { learning: Lea
             <CardDescription>{learning.basis.experiments}</CardDescription>
             <CardAction>
               <ToneBadge>
-                {learning.experiments.length} {learning.experiments.length === 1 ? "experiment" : "experiments"} &middot; {won} won
+                {learning.experiments.length} {learning.experiments.length === 1 ? "experiment" : "experiments"} &middot; {judged.length} judged &middot; {won} won
               </ToneBadge>
             </CardAction>
           </CardHeader>

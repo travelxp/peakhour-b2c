@@ -64,6 +64,7 @@ describe("Learning, live", () => {
     expect(out).toContain("Ended, not enough data to judge");
     // Two verdicts in five experiments.
     expect(out).toContain("5 experiments");
+    expect(out).toContain("2 judged");
     expect(out).toContain("1 won");
   });
 
@@ -113,6 +114,24 @@ describe("Learning, live", () => {
     expect(o).toContain("No experiments yet");
     expect(o).toContain("No comparison yet");
     expect(o).toContain("0 experiments");
+    expect(o).toContain("0 judged");
+  });
+
+  it("a roas benchmark reads as a multiple, an unknown status is not given a reason, a negative share is said plainly", () => {
+    const l: LearningResponse = {
+      ...LIVE,
+      experiments: [
+        { id: "x1", kind: "holdout", title: "Future status", status: "paused_by_ops", lift: { absent: "no_holdout_reading_yet" } },
+        { id: "x2", kind: "holdout", title: "Worse with ads", status: "running", lift: { value: -0.08 }, liftLow: { value: -0.2 }, liftHigh: { value: -0.01 } },
+      ],
+      benchmarks: [{ metric: "roas", you: { value: 3.4 }, p25: { value: 2 }, p50: { value: 2.9 }, p75: { value: 4 }, n: { value: 80 }, source: "pin", asOf: "2026-09-30" }],
+    };
+    const o = html(<LearningBody learning={l} unitPlural="bookings" currency="INR" />);
+    expect(o).toContain("3.4x");
+    expect(o).toContain("Paused by ops");
+    expect(o).not.toContain("not enough data to judge");
+    expect(o).toContain("worse than the held-out areas");
+    expect(o).not.toContain("Ads caused");
   });
 
   it("the sample still renders for the 501 preview", () => {
