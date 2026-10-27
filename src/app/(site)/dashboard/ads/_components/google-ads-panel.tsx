@@ -84,7 +84,7 @@ import { ADS_CHANNEL_PARAM, getAdsChannel, panelConnection, type AdsChannelKey }
  * campaign on Google.
  *
  * ★STARTING IS THE LAUNCH, and is confirmed first (round 1, as LinkedIn's):
- * it is charged once and starts spend. Google refuses a campaign with no
+ * it starts spend (and costs nothing itself: N2, PeakHour charges for verified outcomes). Google refuses a campaign with no
  * location or keyword, which the audience step (G-06) writes; the api says so.
  *
  * ⏸SEARCH ONLY. The api creates Search campaigns and nothing else, so this
@@ -412,7 +412,6 @@ function ConversionTrackingSection({ account }: { account: GoogleAdAccount }) {
 
 function CampaignsSection({ account }: { account: GoogleAdAccount }) {
   const queryClient = useQueryClient();
-  const chargeSentence = GOOGLE_LAUNCH_NOTE;
   const [confirming, setConfirming] = useState<GoogleCampaign | null>(null);
 
   const campaigns = useQuery({
@@ -450,7 +449,7 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
     <Card>
       <CardHeader>
         <CardTitle>Search campaigns</CardTitle>
-        <CardDescription>{chargeSentence}</CardDescription>
+        <CardDescription>{GOOGLE_LAUNCH_NOTE}</CardDescription>
       </CardHeader>
       <CardContent>
         {campaigns.isLoading ? (
@@ -519,7 +518,7 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
               <span className="font-medium">
                 {formatGoogleMoney(confirming?.budget?.daily, confirming?.currency ?? account.currencyCode)}/day
               </span>
-              . {chargeSentence} Google will refuse it if it has no location or keywords yet — set them with the
+              . {GOOGLE_LAUNCH_NOTE} Google will refuse it if it has no location or keywords yet — set them with the
               Audience step first.
             </AlertDialogDescription>
           </AlertDialogHeader>
