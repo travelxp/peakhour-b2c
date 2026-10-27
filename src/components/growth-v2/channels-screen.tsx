@@ -125,7 +125,7 @@ export function ChannelsBody({ channels, pacingSeries, unitPlural, unitOne }: { 
             <CardDescription>Up and to the left is better: more for less. Target {figureText(channels.efficiency.target, eff)}.</CardDescription>
           </CardHeader>
           <CardContent>
-            <ChannelBubbles bubbles={channels.bubbles} unitPlural={unitPlural} />
+            <ChannelBubbles bubbles={channels.bubbles} unitPlural={unitPlural} metric={metric} />
           </CardContent>
         </Card>
         <Card>

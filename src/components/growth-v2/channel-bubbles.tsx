@@ -14,6 +14,8 @@ interface ChannelBubblesProps {
   bubbles: ChannelsResponse["bubbles"];
   /** What one outcome is called, plural, e.g. "bookings". */
   unitPlural: string;
+  /** How the target is measured: a cost per outcome is money, a return is a multiple. Defaults to a cost. */
+  metric?: "cost_per_outcome" | "roas";
 }
 
 const W = 520;
@@ -23,7 +25,7 @@ const R = 16;
 const T = 18;
 const B = 36;
 
-export function ChannelBubbles({ bubbles, unitPlural }: ChannelBubblesProps) {
+export function ChannelBubbles({ bubbles, unitPlural, metric = "cost_per_outcome" }: ChannelBubblesProps) {
   const plotted = bubbles.flatMap((b) => {
     const spend = figureValue(b.spend);
     const outcomes = figureValue(b.outcomes);
@@ -79,7 +81,7 @@ export function ChannelBubbles({ bubbles, unitPlural }: ChannelBubblesProps) {
               </circle>
               <text x={x(spend)} y={y(outcomes) - 20} textAnchor="middle" className="fill-foreground text-[11px] font-semibold">
                 {PLATFORM_LABEL[b.platform]}
-                {eff !== undefined ? ` · ${currency ? formatMoney(eff, currency) : formatCount(eff)}/each` : ""}
+                {eff !== undefined ? ` · ${metric === "roas" ? `${eff.toFixed(1)}x` : `${currency ? formatMoney(eff, currency) : formatCount(eff)}/each`}` : ""}
               </text>
             </g>
           );

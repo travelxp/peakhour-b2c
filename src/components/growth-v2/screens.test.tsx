@@ -251,10 +251,13 @@ describe("the screens render their preview sample", () => {
     });
 
     it("a return target is shown as a multiple", () => {
-      const roas: ChannelsResponse = { ...live, efficiency: { metric: "roas", target: { value: 4 } }, health: [{ ...live.health[0]!, efficiency: { value: 4.5 } }] };
+      const roas: ChannelsResponse = { ...live, efficiency: { metric: "roas", target: { value: 4 } }, health: [{ ...live.health[0]!, efficiency: { value: 4.5 } }], bubbles: [{ ...live.bubbles[0]!, efficiency: { value: 4.5 } }] };
       const out = body(roas, "sales", "sale");
       expect(out).toContain("4.5x");
       expect(out).toContain("Return on ad spend");
+      // The bubble's label reads the same as the card: a multiple, not money per outcome.
+      expect(out).toContain("Meta Ads · 4.5x");
+      expect(out).not.toContain("/each");
     });
   });
 
