@@ -73,7 +73,7 @@ function Choice<K extends string, O>({ label, value, options, onChange, text }: 
 }
 
 /** The two refusals the api gives instead of a page: no mandate, or no business clock. */
-function NotSetUp({ code }: { code: HomeRefusalCode }) {
+export function NotSetUp({ code }: { code: HomeRefusalCode }) {
   const noMandate = code === "NO_MANDATE";
   return (
     <Card>

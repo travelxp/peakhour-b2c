@@ -304,14 +304,37 @@ export interface LearningResponse {
   experiments: Array<{
     id: string;
     title: string;
+    /** A holdout: `rolling_out`, `running`, `ended` or `abandoned`. A council bet: `running` (acted on) or `ended` (judged). */
     status: string;
+    /** Only where the lift reader (a holdout) or the tripwire judge (a council bet) issued a judgement. */
     verdict?: "winner" | "loser" | "inconclusive";
     startedAt?: string;
+    /** A holdout's lift: the share of outcomes the ads caused (newest reading). A council bet has none; it is judged by its tripwire. */
     lift: Figure;
+    kind: "holdout" | "council_bet";
+    /** The range around `lift`; both present only when the reading has power. */
+    liftLow?: Figure;
+    liftHigh?: Figure;
+    /** Why it stopped, for an abandoned holdout. */
+    note?: string;
   }>;
+  /** Empty, with `basis.creativePatterns` saying why, when nothing records a pattern's lift with a sample size. */
   creativePatterns: Array<{ key: string; label: string; hookFormat: string; liftPer1k: Figure; n: Figure }>;
-  benchmarks: Array<{ metric: string; you: Figure; p25: Figure; p50: Figure; p75: Figure; n: Figure }>;
+  benchmarks: Array<{
+    metric: string;
+    you: Figure;
+    p25: Figure;
+    p50: Figure;
+    p75: Figure;
+    n: Figure;
+    source: "seed" | "pin";
+    /** When the playbook's benchmark was struck, `YYYY-MM-DD`. */
+    asOf: string;
+  }>;
+  /** Weekday (rows, Monday first) by part of day (columns) of credited orders, on the business clock. A cell below the data floor is absent. */
   heatmap: { rows: string[]; columns: string[]; cells: Array<{ row: string; column: string; figure: Figure }> };
+  /** What each section is made of, in words (H4). */
+  basis: { experiments: string; creativePatterns: string; benchmarks: string; heatmap: string };
 }
 
 // -- Rules (H5) --------------------------------------------------------------------------
@@ -622,11 +645,21 @@ export function useGrowthV2Channels() {
   });
 }
 
+/** Learning, or the refusal the api gives instead of one (the same two as Growth home). */
+export async function loadLearning(fetcher: () => Promise<LearningResponse>): Promise<V2Result<LearningResponse> | HomeRefusal> {
+  try {
+    return await loadOrPreview(fetcher, () => FIXTURE_LEARNING);
+  } catch (err) {
+    if (err instanceof ApiError && (err.code === "NO_MANDATE" || err.code === "NO_BUSINESS_CLOCK")) return { refusal: err.code, preview: false };
+    throw err;
+  }
+}
+
 export function useGrowthV2Learning() {
   const { business } = useAuth();
-  return useQuery<V2Result<LearningResponse>>({
+  return useQuery<V2Result<LearningResponse> | HomeRefusal>({
     queryKey: key(business?._id, "learning"),
-    queryFn: () => loadOrPreview(growthV2Api.learning, () => FIXTURE_LEARNING),
+    queryFn: () => loadLearning(growthV2Api.learning),
     enabled: !!business?._id,
     staleTime: 60_000,
   });

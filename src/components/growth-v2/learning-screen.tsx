@@ -1,12 +1,14 @@
 "use client";
 
+import type { UseQueryResult } from "@tanstack/react-query";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { mandateFor, useGrowthV2Learning, useGrowthV2Rules, type LearningResponse } from "@/lib/api/growth-v2";
+import { mandateFor, useGrowthV2Learning, useGrowthV2Rules, type LearningResponse, type V2Result } from "@/lib/api/growth-v2";
 import { unitFor } from "@/lib/growth-v2-figure";
 import { BenchmarkRows } from "./benchmark-rows";
 import { CreativeLeaderboard } from "./creative-leaderboard";
 import { EnquiryHeatmap } from "./enquiry-heatmap";
 import { ExperimentTimeline } from "./experiment-timeline";
+import { NotSetUp } from "./home-screen";
 import { PageHead } from "./page-head";
 import { QueryBoundary } from "./query-boundary";
 import { ToneBadge } from "./tone";
@@ -15,10 +17,12 @@ import { ToneBadge } from "./tone";
 export function LearningScreen() {
   const query = useGrowthV2Learning();
   const rules = useGrowthV2Rules();
+  // The api's own refusals, the same two as Growth home: shown as an answer, not an error.
+  if (query.data && "refusal" in query.data) return <NotSetUp code={query.data.refusal} />;
   return (
     <div className="grid gap-4">
       <PageHead title="What did we learn?" description="Every bet the engine made, how it was judged, and what changed because of it." />
-      <QueryBoundary query={query}>{(r) => {
+      <QueryBoundary query={query as UseQueryResult<V2Result<LearningResponse>>}>{(r) => {
           const mandate = mandateFor(rules.data, r.preview);
           return <LearningBody learning={r.data} unitPlural={unitFor(mandate?.outcome.kind).many} currency={mandate?.currency ?? ""} />;
         }}</QueryBoundary>
@@ -35,10 +39,10 @@ export function LearningBody({ learning, unitPlural, currency }: { learning: Lea
         <Card>
           <CardHeader>
             <CardTitle>Experiment ledger</CardTitle>
-            <CardDescription>Each experiment has a hypothesis and a tripwire, and is judged automatically on its date.</CardDescription>
+            <CardDescription>{learning.basis.experiments}</CardDescription>
             <CardAction>
               <ToneBadge>
-                {learning.experiments.length} experiments &middot; {won} won
+                {learning.experiments.length} {learning.experiments.length === 1 ? "experiment" : "experiments"} &middot; {won} won
               </ToneBadge>
             </CardAction>
           </CardHeader>
@@ -50,16 +54,16 @@ export function LearningBody({ learning, unitPlural, currency }: { learning: Lea
           <Card>
             <CardHeader>
               <CardTitle>Creative patterns that win</CardTitle>
-              <CardDescription>Your extra {unitPlural} per 1,000 views, by hook.</CardDescription>
+              <CardDescription>Your extra {unitPlural} per 1,000 views, by hook, once something measures it.</CardDescription>
             </CardHeader>
             <CardContent>
-              <CreativeLeaderboard patterns={learning.creativePatterns} unitPlural={unitPlural} />
+              <CreativeLeaderboard patterns={learning.creativePatterns} unitPlural={unitPlural} emptyReason={learning.basis.creativePatterns} />
             </CardContent>
           </Card>
           <Card>
             <CardHeader>
               <CardTitle>You vs businesses like you</CardTitle>
-              <CardDescription>From opted-in businesses via PIN, shown only when at least 20 report.</CardDescription>
+              <CardDescription>{learning.basis.benchmarks}</CardDescription>
             </CardHeader>
             <CardContent>
               <BenchmarkRows benchmarks={learning.benchmarks} currency={currency} />
@@ -70,10 +74,10 @@ export function LearningBody({ learning, unitPlural, currency }: { learning: Lea
       <Card>
         <CardHeader>
           <CardTitle>When people convert</CardTitle>
-          <CardDescription>The engine shifts ad delivery toward these hours. Darker means more {unitPlural}.</CardDescription>
+          <CardDescription>{learning.basis.heatmap} Darker means more.</CardDescription>
         </CardHeader>
         <CardContent>
-          <EnquiryHeatmap heatmap={learning.heatmap} unitPlural={unitPlural} />
+          <EnquiryHeatmap heatmap={learning.heatmap} unitPlural="credited orders" />
         </CardContent>
       </Card>
     </div>

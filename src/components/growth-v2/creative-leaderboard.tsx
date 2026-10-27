@@ -17,9 +17,9 @@ export function rankPatterns(patterns: Pattern[]): Pattern[] {
   return [...measured.sort((a, b) => (figureValue(b.liftPer1k) as number) - (figureValue(a.liftPer1k) as number)), ...unmeasured];
 }
 
-export function CreativeLeaderboard({ patterns, unitPlural }: { patterns: Pattern[]; unitPlural: string }) {
+export function CreativeLeaderboard({ patterns, unitPlural, emptyReason }: { patterns: Pattern[]; unitPlural: string; emptyReason?: string }) {
   if (patterns.length === 0) {
-    return <p className="py-6 text-center text-sm text-muted-foreground">No creative has run long enough to rank yet.</p>;
+    return <p data-absent="" className="py-6 text-center text-sm text-muted-foreground">{emptyReason ?? "No creative has run long enough to rank yet."}</p>;
   }
   const ranked = rankPatterns(patterns);
   const max = Math.max(...ranked.map((p) => figureValue(p.liftPer1k) ?? 0), 0);
