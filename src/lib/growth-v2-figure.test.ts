@@ -10,6 +10,14 @@ describe("figure helpers keep absent apart from zero", () => {
     expect(figureValue(undefined)).toBeUndefined();
   });
 
+  it("reads a reason code as words, one-word codes too, and leaves a sentence alone", () => {
+    expect(absentReason({ absent: "no_order_source" })).toBe("No order source");
+    expect(absentReason({ absent: "stale" })).toBe("stale");
+    expect(absentReason({ absent: "Meta Ads had no spend." })).toBe("Meta Ads had no spend.");
+    expect(absentReason({ absent: "n/a" })).toBe("n/a");
+    expect(absentReason({ absent: "holdout too small" })).toBe("holdout too small");
+  });
+
   it("isAbsent and absentReason agree", () => {
     expect(isAbsent({ absent: "why" })).toBe(true);
     expect(isAbsent({ value: 0 })).toBe(false);
@@ -86,10 +94,19 @@ describe("homeHeadline", () => {
       kpis: FIXTURE_HOME.kpis.filter((k) => k.key !== "outcomes"),
     };
     expect(homeHeadline(home, "INR")).toBe("We don't have a count of your trip bookings for this month yet.");
+    const week: HomeResponse = { ...home, window: { ...home.window, key: "7d" } };
+    expect(homeHeadline(week, "INR")).toBe("We don't have a count of your trip bookings for the last 7 days yet.");
+  });
+
+  it("never words the month's goal figure as the window's count", () => {
+    const week: HomeResponse = { ...FIXTURE_HOME, window: { ...FIXTURE_HOME.window, key: "7d" }, kpis: FIXTURE_HOME.kpis.filter((k) => k.key !== "outcomes") };
+    // The goal still says 34 this month; the headline must not say it for the last 7 days.
+    expect(week.goal!.soFar).toEqual({ value: 34 });
+    expect(homeHeadline(week, "INR")).toBe("We don't have a count of your trip bookings for the last 7 days yet.");
   });
 
   it("speaks of return on ad spend for a roas mandate", () => {
-    const home: HomeResponse = { ...FIXTURE_HOME, efficiency: { metric: "roas", you: { value: 3.24 }, target: { value: 3 }, industry: { value: 2.8 } }, kpis: FIXTURE_HOME.kpis.filter((k) => k.key !== "cost_per_outcome") };
+    const home: HomeResponse = { ...FIXTURE_HOME, efficiency: { metric: "roas", you: { value: 3.24 }, target: { value: 3 }, industry: { value: 2.8 }, basis: "" }, kpis: FIXTURE_HOME.kpis.filter((k) => k.key !== "cost_per_outcome") };
     expect(homeHeadline(home, "INR")).toContain("3.2x return on ad spend");
   });
 });

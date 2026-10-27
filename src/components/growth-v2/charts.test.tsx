@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { FIXTURE_CHANNELS, FIXTURE_HOME, FIXTURE_HOME_SERIES, FIXTURE_PACING_SERIES } from "@/lib/growth-v2-fixtures";
+import { FIXTURE_CHANNELS, FIXTURE_HOME, FIXTURE_PACING_SERIES } from "@/lib/growth-v2-fixtures";
 import { ChannelBubbles } from "./channel-bubbles";
 import { CreativeLeaderboard, rankPatterns } from "./creative-leaderboard";
 import { EfficiencyBullet } from "./efficiency-bullet";
 import { EnquiryHeatmap } from "./enquiry-heatmap";
 import { LiftBand } from "./lift-band";
 import { OutcomeFunnel } from "./outcome-funnel";
-import { PacingChart } from "./pacing-chart";
+import { missingDaysText, PacingChart } from "./pacing-chart";
 import { ShareByWeek } from "./share-by-week";
 import { WhyWaterfall } from "./why-waterfall";
-import { splitFeedText } from "./activity-feed";
+import { ActivityFeed } from "./activity-feed";
 import { standing } from "./benchmark-rows";
 
 const html = (node: React.ReactElement) => renderToStaticMarkup(node);
@@ -48,7 +48,7 @@ describe("LiftBand", () => {
   });
 
   it("breaks the band at a week with no range instead of inventing one", () => {
-    const weeks = FIXTURE_HOME_SERIES.liftWeeks.map((w, i) => (i === 3 ? { weekStart: w.weekStart, withAds: w.withAds, holdout: w.holdout } : w));
+    const weeks = FIXTURE_HOME.lift.weeks!.map((w, i) => (i === 3 ? { weekStart: w.weekStart, withAds: w.withAds, holdout: w.holdout } : w));
     const out = html(<LiftBand weeks={weeks} lift={FIXTURE_HOME.lift} unitPlural="bookings" />);
     // Two runs of consecutive ranged weeks (0-2 and 4-7) means two band polygons.
     expect(out.match(/fill-opacity="0.18"/g)).toHaveLength(2);
@@ -64,7 +64,7 @@ describe("WhyWaterfall", () => {
   });
 
   it("marks an absent cause n/a and does not move the running total", () => {
-    const items = FIXTURE_HOME.waterfall.map((i) => (i.key === "season" ? { ...i, figure: { absent: "No seasonality data" } } : i));
+    const items = FIXTURE_HOME.waterfall.map((i) => (i.key === "other" ? { ...i, figure: { absent: "No seasonality data" } } : i));
     const out = html(<WhyWaterfall items={items} currency="INR" />);
     expect(out).toContain("n/a");
     expect(out).toContain("No seasonality data");
@@ -73,7 +73,7 @@ describe("WhyWaterfall", () => {
 
 describe("OutcomeFunnel", () => {
   it("shows an untracked stage as a labelled gap and the funnel as partly tracked", () => {
-    const stages = FIXTURE_HOME.funnel.stages.map((s) => (s.key === "enquired" ? { ...s, figure: { absent: "LinkedIn not tracked" } } : s));
+    const stages = FIXTURE_HOME.funnel.stages.map((s) => (s.key === "convinced" ? { ...s, figure: { absent: "LinkedIn not tracked" } } : s));
     const out = html(<OutcomeFunnel stages={stages} />);
     expect(out).toContain("Partly tracked");
     expect(out).toContain("LinkedIn not tracked");
@@ -189,13 +189,30 @@ describe("benchmark standing", () => {
   });
 });
 
-describe("splitFeedText", () => {
-  it("splits the first sentence from the reason without breaking on decimals", () => {
-    expect(splitFeedText("Paused the ad. Cost was 2.4 times the others.")).toEqual({ title: "Paused the ad.", reason: "Cost was 2.4 times the others." });
-    expect(splitFeedText("One sentence only")).toEqual({ title: "One sentence only", reason: "" });
+describe("ActivityFeed", () => {
+  it("prints each event's title and detail, with an icon for its kind", () => {
+    const out = html(<ActivityFeed events={FIXTURE_HOME.feed} decisionsHref="/dashboard/growth/decisions" />);
+    expect(out).toContain("Paused “Spiti generic photo”.");
+    expect(out).toContain("Cost per booking was 2.4 times the others after 600 views.");
+    expect(out.match(/<svg/g)!.length).toBe(FIXTURE_HOME.feed.length);
+  });
+
+  it("links an event to its decision, and says nothing yet when there are no events", () => {
+    const out = html(<ActivityFeed events={[{ at: "2026-10-26T09:10:00Z", kind: "budget", title: "Raised Meta.", decisionId: "d1" }]} decisionsHref="/dashboard/growth/decisions" />);
+    expect(out).toContain("See the decision");
+    expect(out).not.toContain("undefined");
+    expect(html(<ActivityFeed events={[]} />)).toContain("Nothing yet");
   });
 });
 
+describe("missingDaysText", () => {
+  it("names one or a few days, and keeps a long list short", () => {
+    expect(missingDaysText([5])).toBe("day 5");
+    expect(missingDaysText([5, 6])).toBe("days 5, 6");
+    expect(missingDaysText([1, 2, 3, 4, 5, 6])).toBe("days 1, 2, 3, 4, 5, 6");
+    expect(missingDaysText([1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13])).toBe("12 days (1, 2, 3, 4, 5 and 7 more)");
+  });
+});
 
 describe("lift header wording", () => {
   it("does not claim a share was caused when the lift is zero or negative", () => {

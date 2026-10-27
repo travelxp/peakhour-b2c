@@ -113,8 +113,20 @@ export function PacingChart({ spent, ceiling, daysLeft, series }: PacingChartPro
           ceiling {formatMoney(c, currency)}
         </text>
       </svg>
+      {series.missingDays && series.missingDays.length > 0 ? (
+        <p data-absent="" className="text-xs text-muted-foreground">
+          No spend figures for {missingDaysText(series.missingDays)} of the month, so the line adds nothing for {series.missingDays.length === 1 ? "it" : "them"}: unknown, not free.
+        </p>
+      ) : null}
     </div>
   );
+}
+
+/** "day 5", "days 5, 6" or "12 days (1, 2, 3, 4, 5 and 7 more)": short enough for a narrow card. */
+export function missingDaysText(days: number[]): string {
+  if (days.length === 1) return `day ${days[0]}`;
+  if (days.length <= 6) return `days ${days.join(", ")}`;
+  return `${days.length} days (${days.slice(0, 5).join(", ")} and ${days.length - 5} more)`;
 }
 
 /** The month's spend as a plain meter against the ceiling. Needs both figures. */
