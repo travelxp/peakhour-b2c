@@ -110,8 +110,13 @@ export function FirstRunScreen() {
           setPlaybookId(id);
           setOffer(undefined);
           setFocus(undefined);
+          setTypedTarget(undefined);
         })}
-        onInPerson={edited(setInPerson)}
+        onInPerson={edited((v: boolean) => {
+          setInPerson(v);
+          // The answer changes which outcomes are offered, so the first one, and the target it defaults to, may be another one.
+          setTypedTarget(undefined);
+        })}
         onOffer={edited((key: string) => {
           setOffer(key);
           setFocus(undefined);

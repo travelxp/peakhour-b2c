@@ -357,12 +357,25 @@ function MandateEditDialog({ mandate: m, onClose }: { mandate: MandateView; onCl
 
 // -- Guardrails -------------------------------------------------------------------
 
+export function QuietHoursForm({ saved, busy, onSave }: { saved: { start: string; end: string }; busy: boolean; onSave: (v: { start: string; end: string }) => void }) {
+  const [times, setTimes] = useState(saved);
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-sm">
+      <Input aria-label="Quiet hours start" type="time" className="w-28" value={times.start} onChange={(e) => setTimes({ ...times, start: e.target.value })} />
+      <span>to</span>
+      <Input aria-label="Quiet hours end" type="time" className="w-28" value={times.end} onChange={(e) => setTimes({ ...times, end: e.target.value })} />
+      <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => onSave(times)}>
+        Save times
+      </Button>
+    </div>
+  );
+}
+
 function GuardrailsCard({ rules, preview }: { rules: RulesResponse; preview: boolean }) {
   const g = rules.guardrails;
   const patch = usePatchRules();
   const [error, setError] = useState<string>();
   const [term, setTerm] = useState("");
-  const [times, setTimes] = useState<{ start: string; end: string }>(g.quietHours ?? DEFAULT_QUIET_HOURS);
   const busy = preview || patch.isPending;
 
   function apply(change: GuardrailChange) {
@@ -413,14 +426,8 @@ function GuardrailsCard({ rules, preview }: { rules: RulesResponse; preview: boo
           </Row>
         </dl>
         {g.quietHours ? (
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <Input aria-label="Quiet hours start" type="time" className="w-28" value={times.start} onChange={(e) => setTimes({ ...times, start: e.target.value })} />
-            <span>to</span>
-            <Input aria-label="Quiet hours end" type="time" className="w-28" value={times.end} onChange={(e) => setTimes({ ...times, end: e.target.value })} />
-            <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => apply({ kind: "quiet_hours", value: times })}>
-              Save times
-            </Button>
-          </div>
+          // Keyed by the saved times: a save, a refetch or another tab's change remounts the form on what is stored.
+          <QuietHoursForm key={`${g.quietHours.start}-${g.quietHours.end}`} saved={g.quietHours} busy={busy} onSave={(value) => apply({ kind: "quiet_hours", value })} />
         ) : null}
 
         <div className="grid gap-1.5">
