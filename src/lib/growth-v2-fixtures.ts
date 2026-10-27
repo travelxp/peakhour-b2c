@@ -321,11 +321,11 @@ const HEAT_VALUES = [
 
 export const FIXTURE_LEARNING: LearningResponse = {
   experiments: [
-    { id: "preview-e1", title: "Google: add “family trek” searches", status: "running", startedAt: "2026-10-12T00:00:00Z", kind: "council_bet", lift: { absent: "3 bookings so far, not enough to judge" } },
-    { id: "preview-e2", title: "Reels-first creative on Meta", status: "ended", verdict: "winner", startedAt: "2026-10-08T00:00:00Z", kind: "council_bet", lift: fig(0.07) },
-    { id: "preview-e3", title: "X: promote the Spiti thread", status: "ended", verdict: "loser", startedAt: "2026-10-07T00:00:00Z", kind: "council_bet", lift: fig(-0.4) },
-    { id: "preview-e4", title: "Shift delivery to Sunday evenings", status: "ended", verdict: "winner", startedAt: "2026-09-24T00:00:00Z", kind: "council_bet", lift: fig(0.19) },
-    { id: "preview-e5", title: "Holdout: 10% of areas held back", status: "running", startedAt: "2026-09-23T00:00:00Z", kind: "holdout", lift: { absent: "A holdout is the measurement, not a test with its own lift" } },
+    { id: "preview-e1", title: "Google: add “family trek” searches", status: "running", startedAt: "2026-10-12T00:00:00Z", kind: "council_bet", lift: { absent: "judged_by_its_tripwire_not_by_lift" } },
+    { id: "preview-e2", title: "Reels-first creative on Meta", status: "ended", verdict: "winner", startedAt: "2026-10-08T00:00:00Z", kind: "council_bet", lift: { absent: "judged_by_its_tripwire_not_by_lift" } },
+    { id: "preview-e3", title: "X: promote the Spiti thread", status: "ended", verdict: "loser", startedAt: "2026-10-07T00:00:00Z", kind: "council_bet", lift: { absent: "judged_by_its_tripwire_not_by_lift" } },
+    { id: "preview-e4", title: "Shift delivery to Sunday evenings", status: "ended", verdict: "winner", startedAt: "2026-09-24T00:00:00Z", kind: "council_bet", lift: { absent: "judged_by_its_tripwire_not_by_lift" } },
+    { id: "preview-e5", title: "Holdout: 10% of areas held back", status: "running", startedAt: "2026-09-23T00:00:00Z", kind: "holdout", lift: fig(0.31), liftLow: fig(0.12), liftHigh: fig(0.5) },
   ],
   creativePatterns: [
     { key: "price_first_carousel", label: "Price-first carousel", hookFormat: "carousel", liftPer1k: fig(2.9), n: fig(14) },
