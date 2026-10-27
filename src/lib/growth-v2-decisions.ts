@@ -17,12 +17,13 @@ export const TAB_QUEUE: Record<QueueTab, DecisionQueue> = { needs_you: "open", d
 
 /**
  * The server's split (plan 2.10), which the preview sample follows:
- * - Needs you: proposed, or held (parked, or sent back by a refusal the person can clear).
+ * - Needs you: proposed, or held (parked, or sent back by a refusal the person can clear), or approved (claimed and not yet
+ *   settled, so it is somewhere a person can see it).
  * - Done: everything with an end state, including what failed, what you rejected and what ran out.
  * - Blocked: not a status at all. It is the guardrail blocks, read from their own collection.
  */
 export function queueTab(status: DecisionStatus): QueueTab {
-  return status === "proposed" || status === "held" ? "needs_you" : "done";
+  return status === "proposed" || status === "held" || status === "approved" ? "needs_you" : "done";
 }
 
 export const QUEUE_TABS: Array<{ id: QueueTab; label: string }> = [

@@ -20,7 +20,7 @@ describe("queueTab", () => {
     ["proposed", "needs_you"],
     ["held", "needs_you"],
     ["failed", "done"],
-    ["approved", "done"],
+    ["approved", "needs_you"],
     ["applied", "done"],
     ["rejected", "done"],
     ["expired", "done"],
