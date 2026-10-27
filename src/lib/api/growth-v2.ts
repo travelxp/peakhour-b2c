@@ -226,6 +226,13 @@ export interface DecisionAskResponse {
 
 export type DecisionAction = "approve" | "hold" | "reject" | "undo";
 
+/** What C5's answer routes send back on success (approve, hold, reject: `status`, `scheduled`; undo: `status`, `reverted`). */
+export interface DecideResponse {
+  status: DecisionStatus;
+  /** The later steps of a move over 20%: not applied yet. */
+  scheduled?: unknown[];
+}
+
 // -- Channels (H3) -----------------------------------------------------------------------
 
 export interface ChannelsResponse {
@@ -322,7 +329,7 @@ export const growthV2Api = {
     return api.get<DecisionsResponse>(`${BASE}/decisions?${q.toString()}`);
   },
   decide: (id: string, action: DecisionAction) =>
-    api.post<unknown>(`${BASE}/decisions/${encodeURIComponent(id)}/${action}`),
+    api.post<DecideResponse>(`${BASE}/decisions/${encodeURIComponent(id)}/${action}`),
   ask: (id: string, question: string) =>
     api.post<DecisionAskResponse>(`${BASE}/decisions/${encodeURIComponent(id)}/ask`, { question }),
   channels: () => api.get<ChannelsResponse>(`${BASE}/channels`),
@@ -401,6 +408,19 @@ export interface DecisionsScreenData extends V2Result<DecisionsResponse> {
  * A PREVIEW ONLY ON 501: the sample comes back for `NOT_BUILT` and for nothing else; a 500 or a 403 reaches the
  * merchant as an error. A preview is one page, so it never has another.
  */
+/** Every page so far as one result. A stable function, so the query does not re-select on each render. */
+export function mergeDecisionPages(d: { pages: Array<V2Result<DecisionsResponse>> }): DecisionsScreenData {
+  const first = d.pages[0]!;
+  const last = d.pages[d.pages.length - 1]!;
+  return {
+    // The counts of the newest page: the freshest the screen has.
+    data: { ...last.data, decisions: d.pages.flatMap((p) => p.data.decisions), blocks: d.pages.flatMap((p) => p.data.blocks) },
+    preview: first.preview,
+    ...(first.row !== undefined ? { row: first.row } : {}),
+    hasMore: last.data.nextCursor !== undefined,
+  };
+}
+
 export function useGrowthV2Decisions(queue: DecisionQueue = "open") {
   const { business } = useAuth();
   return useInfiniteQuery({
@@ -412,17 +432,7 @@ export function useGrowthV2Decisions(queue: DecisionQueue = "open") {
         () => previewDecisions(queue),
       ),
     getNextPageParam: (last) => last.data.nextCursor,
-    select: (d): DecisionsScreenData => {
-      const first = d.pages[0]!;
-      const last = d.pages[d.pages.length - 1]!;
-      return {
-        // The counts of the newest page: the freshest the screen has.
-        data: { ...last.data, decisions: d.pages.flatMap((p) => p.data.decisions) },
-        preview: first.preview,
-        ...(first.row !== undefined ? { row: first.row } : {}),
-        hasMore: last.data.nextCursor !== undefined,
-      };
-    },
+    select: mergeDecisionPages,
     enabled: !!business?._id,
     staleTime: 15_000,
   });

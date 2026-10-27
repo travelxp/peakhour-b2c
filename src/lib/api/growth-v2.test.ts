@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api, ApiError } from "@/lib/api";
 import { FIXTURE_HOME, FIXTURE_RULES, previewDecisions } from "@/lib/growth-v2-fixtures";
-import { NOT_BUILT, growthV2Api, isNotBuilt, mandateFor, loadOrPreview, notBuiltRow, type HomeResponse, type RulesResponse } from "./growth-v2";
+import { NOT_BUILT, growthV2Api, isNotBuilt, mergeDecisionPages, mandateFor, loadOrPreview, notBuiltRow, type HomeResponse, type RulesResponse } from "./growth-v2";
 
 const notBuilt = (row = "H1") => new ApiError(NOT_BUILT, `This route is built by plan row ${row}.`, 501, "req-1", { row });
 
@@ -61,6 +61,28 @@ describe("mandateFor", () => {
     expect(mandateFor(live, false)?.currency).toBe("USD");
     expect(mandateFor(live, true)).toBeUndefined();
     expect(mandateFor(undefined, false)).toBeUndefined();
+  });
+});
+
+describe("mergeDecisionPages", () => {
+  const page = (queue: "open" | "blocked", ids: string[], blockIds: string[], nextCursor?: string) => ({
+    preview: false,
+    data: {
+      queue,
+      decisions: ids.map((id) => ({ id }) as never),
+      blocks: blockIds.map((id) => ({ id }) as never),
+      counts: { open: ids.length, done: 0, blocked: blockIds.length },
+      ...(nextCursor ? { nextCursor } : {}),
+    },
+  });
+
+  it("★keeps every page's decisions AND blocks, in order, and the newest page's counts and cursor", () => {
+    const m = mergeDecisionPages({ pages: [page("open", ["a", "b"], [], "c1"), page("open", ["c"], [], undefined)] });
+    expect(m.data.decisions.map((d) => d.id)).toEqual(["a", "b", "c"]);
+    expect(m.data.counts.open).toBe(1);
+    expect(m.hasMore).toBe(false);
+    const b = mergeDecisionPages({ pages: [page("blocked", [], ["x"], "c1"), page("blocked", [], ["y"])] });
+    expect(b.data.blocks.map((x) => x.id)).toEqual(["x", "y"]);
   });
 });
 
