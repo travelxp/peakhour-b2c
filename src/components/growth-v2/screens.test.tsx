@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider, type UseQueryResult } from "@tanstack/react-query";
-import { FIXTURE_CHANNELS, FIXTURE_DECISIONS, FIXTURE_HOME, FIXTURE_LEARNING, FIXTURE_PACING_SERIES, FIXTURE_RULES } from "@/lib/growth-v2-fixtures";
-import type { HomeResponse, HomeScreenData } from "@/lib/api/growth-v2";
+import { FIXTURE_CHANNELS, FIXTURE_DECISIONS, FIXTURE_HOME, FIXTURE_LEARNING, FIXTURE_PACING_SERIES, FIXTURE_RULES, previewDecisions } from "@/lib/growth-v2-fixtures";
+import type { DecisionsScreenData, HomeResponse, HomeScreenData } from "@/lib/api/growth-v2";
 import { seriesFromHome } from "@/lib/growth-v2-series";
 import { ChannelsBody } from "./channels-screen";
 import { FirstRunScreen } from "./first-run-screen";
@@ -41,6 +41,12 @@ describe("QueryBoundary", () => {
     expect(out).not.toContain("SCREEN-BODY");
     expect(out).not.toContain("Preview data");
     expect(out).toContain("Couldn&#x27;t load this screen");
+  });
+
+  it("★keeps the screen when a refetch or a next page failed but there is data to show", () => {
+    const out = html(<QueryBoundary query={q({ preview: false }, true)}>{() => <p>SCREEN-BODY</p>}</QueryBoundary>);
+    expect(out).toContain("SCREEN-BODY");
+    expect(out).not.toContain("Couldn&#x27;t load this screen");
   });
 
   it("shows a loading state before any data", () => {
@@ -198,13 +204,14 @@ describe("the screens render their preview sample", () => {
   });
 
   it("Decisions lists the queue, shows the council and keeps the preview's buttons off", () => {
-    const out = html(withClient(<Inbox decisions={FIXTURE_DECISIONS.decisions} preview currency="INR" unit={{ one: "booking", many: "bookings" }} businessName="Himalayan Trails" />));
-    expect(out).toContain("Needs you");
+    const result: DecisionsScreenData = { data: previewDecisions("open"), preview: true, hasMore: false };
+    const out = html(withClient(<Inbox tab="needs_you" result={result} currency="INR" unit={{ one: "booking", many: "bookings" }} businessName="Himalayan Trails" />));
     expect(out).toContain("Move ₹700 a week from X to Meta Advantage+ Leads");
     expect(out).toContain("Strategist");
     expect(out).toContain("Critic");
     expect(out).toContain("Risk check");
     expect(out).toContain("Decision for Himalayan Trails");
+    expect(out).toContain("Also sent to WhatsApp on 26 Oct");
     expect(out).toContain("reply CONFIRM");
     expect(out).toContain("Preview data: nothing is sent.");
     expect(out).toMatch(/<button[^>]* disabled=""[^>]*>Approve/);
@@ -235,11 +242,29 @@ describe("DecisionCard time rules", () => {
     expect(out).not.toMatch(/<button[^>]* disabled=""[^>]*>Approve/);
   });
 
-  it("closes Undo after 24 hours", () => {
-    const applied = { ...proposed, status: "applied" as const, decidedBy: { via: "inapp" as const, at: "2026-10-20T10:00:00Z" } };
+  it("offers Undo until the api's window ends, and closes it after", () => {
+    const applied = { ...proposed, status: "applied" as const, undoUntil: "2026-10-21T10:00:00Z", decidedBy: { via: "inapp" as const, at: "2026-10-20T10:00:00Z" } };
     const late = html(<DecisionCard decision={applied} currency="INR" unit={unit} now={Date.parse("2026-10-23T10:00:00Z")} onAction={noop} />);
     expect(late).toContain("undo window has passed");
+    expect(late).not.toMatch(/Undo<\/button>/);
     const soon = html(<DecisionCard decision={applied} currency="INR" unit={unit} now={Date.parse("2026-10-20T20:00:00Z")} onAction={noop} />);
-    expect(soon).toContain("Undo works for 24 hours");
+    expect(soon).toContain("You can undo this for another 14 hours.");
+    expect(soon).toMatch(/Undo<\/button>/);
+  });
+
+  it("an applied decision with no undo window left offers no Undo at all", () => {
+    const applied = { ...proposed, status: "applied" as const };
+    const out = html(<DecisionCard decision={applied} currency="INR" unit={unit} now={Date.parse("2026-10-20T20:00:00Z")} onAction={noop} />);
+    expect(out).toContain("undo window has passed");
+    expect(out).not.toMatch(/Undo<\/button>/);
+  });
+
+  it("a held decision keeps Approve and Reject but not Hold", () => {
+    const held = { ...proposed, status: "held" as const };
+    const out = html(<DecisionCard decision={held} currency="INR" unit={unit} now={Date.parse(proposed.createdAt)} onAction={noop} />);
+    expect(out).toContain("On hold");
+    expect(out).toMatch(/>Approve<\/button>/);
+    expect(out).toMatch(/>Reject<\/button>/);
+    expect(out).not.toMatch(/>Hold<\/button>/);
   });
 });

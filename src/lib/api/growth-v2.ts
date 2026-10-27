@@ -1,14 +1,14 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import {
   FIXTURE_CHANNELS,
-  FIXTURE_DECISIONS,
   FIXTURE_FIRST_RUN,
   FIXTURE_HOME,
   FIXTURE_LEARNING,
   FIXTURE_PACING_SERIES,
   FIXTURE_RULES,
+  previewDecisions,
 } from "@/lib/growth-v2-fixtures";
 import { seriesFromHome, type HomeSeries, type PacingSeries } from "@/lib/growth-v2-series";
 
@@ -162,7 +162,9 @@ export type DecisionKind =
   | "playbook_upgrade"
   | "autonomy_change"
   | "mandate_change"
-  | "channel_add";
+  | "channel_add"
+  /** An optimizer proposal that changes no platform setting: never spends. */
+  | "content_adjustment";
 
 export type DecisionStatus =
   | "proposed"
@@ -185,9 +187,25 @@ export interface EngineOpView {
     | "set_target"
     | "attach_creative"
     | "detach_creative"
-    | "set_geo_exclusions";
+    | "set_geo_exclusions"
+    | "set_geo_inclusions";
   from?: unknown;
   to: unknown;
+}
+
+/** An op with the sentence the api wrote for it: the campaign by name, the change in words. */
+export interface DescribedOpView extends EngineOpView {
+  description: string;
+}
+
+export type DecisionMetric = "outcomes" | "value" | "cost_per_outcome" | "roas";
+
+/** One later step of a governed move: scheduled, applied (with when) or cancelled. */
+export interface DecisionStepView {
+  op: DescribedOpView;
+  dueAt: string;
+  status: "scheduled" | "applied" | "cancelled";
+  appliedAt?: string;
 }
 
 export interface DecisionView {
@@ -196,27 +214,63 @@ export interface DecisionView {
   source: { engine: string; refId?: string };
   title: string;
   summary: string;
-  ops: EngineOpView[];
-  impact?: { metric: "outcomes" | "cost_per_outcome"; low: number; high: number; confidence: number; horizonDays: number };
+  ops: DescribedOpView[];
+  impact?: { metric: DecisionMetric; low: number; high: number; confidence: number; horizonDays: number };
   council?: {
     strategist: { model: string; text: string };
     critic: { model: string; text: string };
     chair: { text: string };
     risk: { checks: Array<{ key: string; pass: boolean; detail: string }> };
   };
-  tripwire?: { metric: string; op: "gt" | "lt"; threshold: number; checkBy: string; onTrip: "reverse" | "notify" };
+  tripwire?: { metric: DecisionMetric; op: "gt" | "lt"; threshold: number; checkBy: string; onTrip: "reverse" | "notify" };
   needsPerson: boolean;
   status: DecisionStatus;
   expiresAt?: string;
   decidedBy?: { via: "inapp" | "whatsapp"; at: string };
+  /** The end of the undo window; absent unless the decision is applied with an action still undoable. */
+  undoUntil?: string;
+  /** `whatsapp` is set only when a message went out. */
+  delivery: { inAppAt?: string; whatsapp?: { template: string; sentAt: string } };
+  steps?: DecisionStepView[];
   createdAt: string;
 }
 
+/** A guardrail block, one per (guardrail, channel): something the engine was stopped from doing. */
+export interface GuardrailBlockView {
+  id: string;
+  code: string;
+  platform: AdPlatform;
+  title: string;
+  message: string;
+  count: number;
+  lastAt: string;
+}
+
+export type DecisionQueue = "open" | "done" | "blocked";
+
 export interface DecisionsResponse {
+  queue: DecisionQueue;
+  /** Newest first. Empty for `blocked`. */
   decisions: DecisionView[];
+  /** Only for `blocked`. */
+  blocks: GuardrailBlockView[];
+  counts: Record<DecisionQueue, number>;
+  /** Pass it back as `cursor` for the next page; absent on the last. */
+  nextCursor?: string;
+}
+
+export interface DecisionAskResponse {
+  answer: string;
 }
 
 export type DecisionAction = "approve" | "hold" | "reject" | "undo";
+
+/** What C5's answer routes send back on success (approve, hold, reject: `status`, `scheduled`; undo: `status`, `reverted`). */
+export interface DecideResponse {
+  status: DecisionStatus;
+  /** The later steps of a move over 20%: not applied yet. */
+  scheduled?: unknown[];
+}
 
 // -- Channels (H3) -----------------------------------------------------------------------
 
@@ -308,10 +362,16 @@ const BASE = "/v1/growth/v2";
 export const growthV2Api = {
   home: (window: HomeWindowKey = "7d", compare: HomeCompare = "last_period") =>
     api.get<HomeResponse>(`${BASE}/home?window=${window}&compare=${compare}`),
-  decisions: (status?: DecisionStatus) =>
-    api.get<DecisionsResponse>(`${BASE}/decisions${status ? `?status=${status}` : ""}`),
+  decisions: (queue: DecisionQueue, opts: { cursor?: string; limit?: number } = {}) => {
+    const q = new URLSearchParams({ status: queue });
+    if (opts.cursor) q.set("cursor", opts.cursor);
+    if (opts.limit) q.set("limit", String(opts.limit));
+    return api.get<DecisionsResponse>(`${BASE}/decisions?${q.toString()}`);
+  },
   decide: (id: string, action: DecisionAction) =>
-    api.post<unknown>(`${BASE}/decisions/${encodeURIComponent(id)}/${action}`),
+    api.post<DecideResponse>(`${BASE}/decisions/${encodeURIComponent(id)}/${action}`),
+  ask: (id: string, question: string) =>
+    api.post<DecisionAskResponse>(`${BASE}/decisions/${encodeURIComponent(id)}/ask`, { question }),
   channels: () => api.get<ChannelsResponse>(`${BASE}/channels`),
   learning: () => api.get<LearningResponse>(`${BASE}/learning`),
   rules: () => api.get<RulesResponse>(`${BASE}/rules`),
@@ -404,11 +464,56 @@ export function useGrowthV2Home(window: HomeWindowKey = "7d", compare: HomeCompa
   });
 }
 
-export function useGrowthV2Decisions() {
+/** The decisions a screen reads: every page so far, merged, and whether there is another. */
+export interface DecisionsScreenData extends V2Result<DecisionsResponse> {
+  hasMore: boolean;
+}
+
+/**
+ * One queue of the Decisions screen, a page at a time (`fetchNextPage`).
+ *
+ * A PREVIEW ONLY ON 501: the sample comes back for `NOT_BUILT` and for nothing else; a 500 or a 403 reaches the
+ * merchant as an error. A preview is one page, so it never has another.
+ */
+/** Every page so far as one result. A stable function, so the query does not re-select on each render. */
+export function mergeDecisionPages(d: { pages: Array<V2Result<DecisionsResponse>> }): DecisionsScreenData {
+  const first = d.pages[0]!;
+  const last = d.pages[d.pages.length - 1]!;
+  return {
+    // The counts of the newest page: the freshest the screen has.
+    data: { ...last.data, decisions: d.pages.flatMap((p) => p.data.decisions), blocks: d.pages.flatMap((p) => p.data.blocks) },
+    preview: first.preview,
+    ...(first.row !== undefined ? { row: first.row } : {}),
+    hasMore: last.data.nextCursor !== undefined,
+  };
+}
+
+export function useGrowthV2Decisions(queue: DecisionQueue = "open") {
   const { business } = useAuth();
-  return useQuery<V2Result<DecisionsResponse>>({
-    queryKey: key(business?._id, "decisions"),
-    queryFn: () => loadOrPreview(() => growthV2Api.decisions(), () => FIXTURE_DECISIONS),
+  return useInfiniteQuery({
+    queryKey: key(business?._id, "decisions", queue),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      loadOrPreview(
+        () => growthV2Api.decisions(queue, pageParam ? { cursor: pageParam } : {}),
+        () => previewDecisions(queue),
+      ),
+    getNextPageParam: (last) => last.data.nextCursor,
+    select: mergeDecisionPages,
+    enabled: !!business?._id,
+    staleTime: 15_000,
+  });
+}
+
+/** The three tabs' counts, from the cheapest page there is. They do not move when the person changes tab. */
+export function useGrowthV2DecisionCounts() {
+  const { business } = useAuth();
+  return useQuery<V2Result<DecisionsResponse["counts"]>>({
+    queryKey: key(business?._id, "decision-counts"),
+    queryFn: async () => {
+      const r = await loadOrPreview(() => growthV2Api.decisions("open", { limit: 1 }), () => previewDecisions("open"));
+      return { data: r.data.counts, preview: r.preview, ...(r.row !== undefined ? { row: r.row } : {}) };
+    },
     enabled: !!business?._id,
     staleTime: 15_000,
   });
@@ -472,8 +577,8 @@ export function firstRunPlanPreview() {
 }
 
 /**
- * Approve, hold, reject or undo a decision. C5 builds the route; until then it
- * answers 501 and the mutation fails with that error, which the screen shows.
+ * Approve, hold, reject or undo a decision (C5's routes). It settles by refetching: a 409 can still have moved the
+ * decision (an approve the platform refused goes back to `held`), so the queues are read again whatever the answer was.
  * The Decisions screen never calls this on a preview sample.
  */
 export function useDecideV2() {
@@ -481,6 +586,11 @@ export function useDecideV2() {
   return useMutation({
     mutationFn: (v: { id: string; action: DecisionAction }) => growthV2Api.decide(v.id, v.action),
     // Every Growth v2 screen reads the decision queue's effects, so refetch them all.
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["growth-v2"] }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["growth-v2"] }),
   });
+}
+
+/** Ask a question about one decision. Free, and moves nothing: no refetch. */
+export function useAskDecisionV2() {
+  return useMutation({ mutationFn: (v: { id: string; question: string }) => growthV2Api.ask(v.id, v.question) });
 }
