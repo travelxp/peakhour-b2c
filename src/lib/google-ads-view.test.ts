@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { ApiError } from "@/lib/api";
 import { formatMoneyOrNumber } from "@/lib/outcome-value";
 import {
-  GOOGLE_LAUNCH_USE_CASE,
+  GOOGLE_LAUNCH_NOTE,
   GOOGLE_MERCHANT_FACING_CODES,
   GOOGLE_RSA,
   formatGoogleMoney,
@@ -14,7 +14,6 @@ import {
   googleAdsNeedsReconnect,
   googleCopyProblem,
   googleCreateNote,
-  googleLaunchChargeSentence,
   googleStatusAction,
   googleStatusLabel,
   googleTextWidth,
@@ -29,16 +28,11 @@ const apiError = (code: string, message = `msg for ${code}`, requestId?: string)
   return e;
 };
 
-describe("the launch charge", () => {
-  it("★names mig 470's seed", () => expect(GOOGLE_LAUNCH_USE_CASE).toBe("google.campaign_launched"));
-  it("★says the rate card's price, once, on the first start", () => {
-    const s = googleLaunchChargeSentence({ free: false, creditMultiplier: 30 });
-    expect(s).toContain("30 Peaks, once, the first time it goes live");
-    expect(s).toContain("Pausing and resuming it costs nothing");
-  });
-  it("PASS: an unloaded card guesses no number; a free row says free", () => {
-    expect(googleLaunchChargeSentence(undefined)).not.toMatch(/\d/);
-    expect(googleLaunchChargeSentence({ free: true, creditMultiplier: 30 })).toContain("free");
+describe("what starting a campaign costs (N2)", () => {
+  it("★says starting costs nothing and names no price, so there is nothing to drift from the rate card", () => {
+    expect(GOOGLE_LAUNCH_NOTE).toContain("costs nothing");
+    expect(GOOGLE_LAUNCH_NOTE).not.toMatch(/\d/);
+    expect(GOOGLE_LAUNCH_NOTE).not.toMatch(/campaign_launched/);
   });
 });
 

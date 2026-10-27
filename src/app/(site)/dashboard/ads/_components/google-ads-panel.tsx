@@ -29,10 +29,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { EmptyState } from "@/components/molecules/empty-state";
-import { useCreditsRateCard } from "@/hooks/use-credits";
 import { googleAdsApi, type GoogleAdAccount, type GoogleCampaign, type GoogleConversionActionState, type GoogleSettableStatus } from "@/lib/api/google-ads";
 import {
-  GOOGLE_LAUNCH_USE_CASE,
+  GOOGLE_LAUNCH_NOTE,
   formatGoogleMoney,
   googleAdsErrorMessage,
   googleAdsNeedsReconnect,
@@ -40,7 +39,6 @@ import {
   googleCreateProblem,
   localIsoDay,
   googleCreateNote,
-  googleLaunchChargeSentence,
   googleStatusAction,
   googleStatusLabel,
   linesOf,
@@ -414,9 +412,7 @@ function ConversionTrackingSection({ account }: { account: GoogleAdAccount }) {
 
 function CampaignsSection({ account }: { account: GoogleAdAccount }) {
   const queryClient = useQueryClient();
-  const rateCard = useCreditsRateCard();
-  const launchRow = rateCard.data?.useCases.find((u) => u.useCase === GOOGLE_LAUNCH_USE_CASE);
-  const chargeSentence = googleLaunchChargeSentence(launchRow);
+  const chargeSentence = GOOGLE_LAUNCH_NOTE;
   const [confirming, setConfirming] = useState<GoogleCampaign | null>(null);
 
   const campaigns = useQuery({

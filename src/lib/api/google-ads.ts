@@ -9,8 +9,8 @@ import { googleAdsUrl } from "@/lib/google-ads-surface";
  * Types mirror peakhour-api `src/v1/routes/google-ads/index.ts` (G-09):
  *   - a campaign is OUR row (`id` is `ad_campaigns._id`), listed locally like
  *     LinkedIn's, not read live from Google;
- *   - it is created PAUSED, and activation is the launch (charged once,
- *     `google.campaign_launched`);
+ *   - it is created PAUSED, and activation is the launch (nothing is charged
+ *     for it: the engine bills a verified outcome);
  *   - a create Google did not confirm answers 202 `pending` — "don't create
  *     it again" — and is read back by the hourly re-drive.
  *

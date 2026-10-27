@@ -1,7 +1,5 @@
 import { ApiError } from "@/lib/api";
-import { formatPeaks } from "@/lib/pricing";
 import { adsErrorMessage } from "@/lib/ads-error-message";
-import type { RateCardUseCase } from "@/hooks/use-credits";
 
 /**
  * ★★M-16 — every decision the Meta ads panel makes, outside the component.
@@ -185,37 +183,14 @@ function metaStatusWord(status: string): string {
   }
 }
 
-// ── The price before the ask (§7.0.1 requirement 4) ──────────────────────
-
-/** The outcome row a first activation can bill. Seeded by mongodb mig 342. */
-export const META_LAUNCH_USE_CASE = "meta.campaign_launched";
+// ── What activating a campaign costs ─────────────────────────────────────
 
 /**
- * The sentence beside Activate.
- *
- * ★THE PRICE IS THE ROW'S `creditMultiplier`, which is what the rollup charges
- * per event — not `minCreditsPerCall`, which no priced row sets.
- *
- * ⚠️★AND IT SAYS WHICH CAMPAIGNS IT APPLIES TO, because the api is precise and
- * a vaguer sentence would be false in both directions: the charge is raised
- * only for a campaign that has an `ad_campaigns` row — one created through
- * PeakHour — only the FIRST time it goes live, and only when something under it
- * can actually serve. A campaign built in Meta Ads Manager is never charged.
- * `undefined` (the card has not loaded) says so, rather than guessing a number.
+ * The sentence beside Activate. Activating, pausing and resuming a campaign costs nothing (N2): PeakHour charges for
+ * outcomes it verifies for your goal, not for launching. There is no price to look up, so there is no rate-card read here.
  */
-export function metaLaunchChargeSentence(
-  row: Pick<RateCardUseCase, "free" | "creditMultiplier"> | undefined,
-): string {
-  const scope = "Campaigns you created in Meta Ads Manager are never charged.";
-  if (!row) {
-    return `A campaign PeakHour created may be charged Peaks the first time it goes live. ${scope}`;
-  }
-  if (row.free) return `Activating a campaign is free. ${scope}`;
-  return (
-    `A campaign PeakHour created is charged ${formatPeaks(row.creditMultiplier)} Peaks, once, ` +
-    `the first time it goes live and can serve. Pausing and resuming it costs nothing. ${scope}`
-  );
-}
+export const META_LAUNCH_NOTE =
+  "Starting, pausing and resuming a campaign costs nothing. Peaks are charged for outcomes PeakHour verifies for your goal, not for launching.";
 
 // ── Errors ───────────────────────────────────────────────────────────────
 

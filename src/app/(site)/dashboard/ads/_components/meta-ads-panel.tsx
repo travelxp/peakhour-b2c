@@ -29,7 +29,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/molecules/empty-state";
-import { useCreditsRateCard } from "@/hooks/use-credits";
 import {
   metaAdsApi,
   type MetaAdAccount,
@@ -39,13 +38,12 @@ import {
   type MetaSettableStatus,
 } from "@/lib/api/meta-ads";
 import {
-  META_LAUNCH_USE_CASE,
+  META_LAUNCH_NOTE,
   formatMetaMoney,
   metaAdsErrorMessage,
   metaAdsNeedsReconnect,
   metaBudgetLabel,
   metaInsightsRange,
-  metaLaunchChargeSentence,
   metaNotServingBecause,
   metaStatusToggle,
   metaKpiState,
@@ -283,7 +281,6 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
 function CampaignsSection({ account }: { account: MetaAdAccount }) {
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
-  const rateCard = useCreditsRateCard();
 
   const campaigns = useQuery({
     queryKey: ["meta-ads-campaigns", account.id],
@@ -340,7 +337,6 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
     setStatus.mutate({ accountId: account.id, level, id, status });
   const pendingId = setStatus.isPending ? setStatus.variables?.id : undefined;
 
-  const launchRow = rateCard.data?.useCases.find((u) => u.useCase === META_LAUNCH_USE_CASE);
   // ⚠️Review R1.3 — the campaign read is consulted before the insights one; see
   //  `metaKpiState` for why `insights.isLoading` alone claimed Meta had reported nothing.
   const kpiState = metaKpiState({
@@ -462,7 +458,7 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
 
       {/* ★§7.0.1 requirement 4 — the price is on screen BEFORE any switch is
           pressed, from the rate card's own row, never a number typed here. */}
-      <p className="text-xs text-muted-foreground">{metaLaunchChargeSentence(launchRow)}</p>
+      <p className="text-xs text-muted-foreground">{META_LAUNCH_NOTE}</p>
     </div>
   );
 }

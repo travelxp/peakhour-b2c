@@ -1,8 +1,6 @@
 import { ApiError } from "@/lib/api";
-import { formatPeaks } from "@/lib/pricing";
 import { adsErrorMessage } from "@/lib/ads-error-message";
 import { formatMoneyOrNumber } from "@/lib/outcome-value";
-import type { RateCardUseCase } from "@/hooks/use-credits";
 import type { GoogleCampaign, GoogleSearchAdInput, GoogleSettableStatus } from "@/lib/api/google-ads";
 
 /**
@@ -15,26 +13,14 @@ import type { GoogleCampaign, GoogleSearchAdInput, GoogleSettableStatus } from "
  * fewer (the plan's G-15 row).
  */
 
-// ── The launch charge ────────────────────────────────────────────────────
-
-/** Seeded by peakhour-mongodb mig 470 at 30 Peaks; charged on first activation. */
-export const GOOGLE_LAUNCH_USE_CASE = "google.campaign_launched";
+// ── What starting a campaign costs ───────────────────────────────────────
 
 /**
- * The sentence beside Activate — Meta's rule (`metaLaunchChargeSentence`):
- * the price is the rate card's `creditMultiplier`, charged once, the first
- * time a campaign PeakHour created goes live. `undefined` (the card has not
- * loaded) says so rather than guessing a number.
+ * The sentence beside Activate. Starting, pausing and resuming a campaign costs nothing (N2): PeakHour charges for outcomes
+ * it verifies for your goal, not for launching. There is no price to look up, so there is no rate-card read here.
  */
-export function googleLaunchChargeSentence(row: Pick<RateCardUseCase, "free" | "creditMultiplier"> | undefined): string {
-  const scope = "Campaigns you made in Google Ads itself are never charged.";
-  if (!row) return `A campaign PeakHour created may be charged Peaks the first time it goes live. ${scope}`;
-  if (row.free) return `Starting a campaign is free. ${scope}`;
-  return (
-    `A campaign PeakHour created is charged ${formatPeaks(row.creditMultiplier)} Peaks, once, the first time it goes live. ` +
-    `Pausing and resuming it costs nothing. ${scope}`
-  );
-}
+export const GOOGLE_LAUNCH_NOTE =
+  "Starting, pausing and resuming a campaign costs nothing. Peaks are charged for outcomes PeakHour verifies for your goal, not for launching.";
 
 // ── Errors ───────────────────────────────────────────────────────────────
 
