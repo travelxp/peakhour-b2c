@@ -6,7 +6,7 @@ import type {
   LearningResponse,
   RulesResponse,
 } from "@/lib/api/growth-v2";
-import type { HomeSeries, PacingSeries } from "@/lib/growth-v2-series";
+import type { PacingSeries } from "@/lib/growth-v2-series";
 
 /**
  * The Growth v2 prototype's sample data (Himalayan Trails, a travel business),
@@ -28,60 +28,85 @@ export const PREVIEW_BUSINESS_NAME = "Himalayan Trails";
 const fig = (value: number) => ({ value });
 const inr = (value: number) => ({ value, currency: "INR" });
 
+const sparkOf = (values: number[]) => values.map(fig);
+
 export const FIXTURE_HOME: HomeResponse = {
+  window: { key: "month", from: "2026-10-01", to: "2026-10-26", days: 25, compare: "last_period" },
   outcome: { kind: "bookings", label: "Trip bookings", optimizeFor: "count" },
-  goal: { perMonth: 50, soFar: fig(34), paceVsGoal: fig(0.96) },
-  efficiency: { metric: "cost_per_outcome", you: fig(410), target: fig(450), industry: fig(520) },
-  lift: { liftPct: fig(0.65), confidence: fig(0.8), windowDays: 56 },
+  goal: { perMonth: 50, soFar: fig(34), projected: fig(47.9), paceVsGoal: fig(0.96) },
+  efficiency: {
+    metric: "cost_per_outcome",
+    you: fig(410),
+    target: fig(450),
+    industry: fig(520),
+    basis: "Ad spend divided by all paid orders in the period (Trip bookings). It counts every one of them, not only those your ads caused; the measured effect of the ads is the holdout figure.",
+  },
+  lift: {
+    liftPct: fig(0.65),
+    confidence: fig(0.8),
+    windowDays: 56,
+    weeklyGoal: 12,
+    weeks: [
+      { weekStart: "2026-09-07", withAds: 4, holdout: 3, low: 2.8, high: 5.2 },
+      { weekStart: "2026-09-14", withAds: 5, holdout: 3, low: 3.75, high: 6.25 },
+      { weekStart: "2026-09-21", withAds: 5, holdout: 4, low: 3.7, high: 6.3 },
+      { weekStart: "2026-09-28", withAds: 6, holdout: 3, low: 4.65, high: 7.35 },
+      { weekStart: "2026-10-05", withAds: 7, holdout: 3, low: 5.6, high: 8.4 },
+      { weekStart: "2026-10-12", withAds: 8, holdout: 3, low: 6.55, high: 9.45 },
+      { weekStart: "2026-10-19", withAds: 9, holdout: 3, low: 7.5, high: 10.5 },
+      { weekStart: "2026-10-26", withAds: 10, holdout: 3, low: 8.45, high: 11.55 },
+    ],
+  },
   kpis: [
-    { key: "outcomes", label: "Bookings", figure: fig(34), change: fig(0.18) },
-    { key: "cost_per_outcome", label: "Cost per booking", figure: fig(410), change: fig(-0.093) },
-    { key: "incremental", label: "Extra bookings caused", figure: fig(22), change: { absent: "No last-month holdout reading" } },
+    { key: "outcomes", label: "Bookings", figure: fig(34), change: fig(0.18), spark: sparkOf([4, 5, 5, 6, 7, 8, 9, 10]) },
+    { key: "cost_per_outcome", label: "Cost per booking", figure: fig(410), change: fig(-0.093), spark: sparkOf([470, 462, 455, 452, 440, 431, 418, 410]) },
+    { key: "incremental", label: "Extra bookings caused", figure: fig(22), change: { absent: "No last-month holdout reading" }, spark: sparkOf([1, 2, 1, 3, 4, 5, 6, 7]) },
   ],
-  pacing: { spentThisMonth: inr(13940), monthlyCeiling: inr(20000), daysLeft: 9 },
+  pacing: {
+    spentThisMonth: inr(13940),
+    monthlyCeiling: inr(20000),
+    daysLeft: 9,
+    series: {
+      daysInMonth: 31,
+      points: Array.from({ length: 22 }, (_, i) => {
+        const day = i + 1;
+        // A slightly uneven climb that lands exactly on the month-to-date spend.
+        const wobble = 1 + 0.06 * Math.sin(day * 1.7);
+        return { day, spend: day === 22 ? 13940 : Math.round((13940 * day * wobble) / 22) };
+      }),
+      ideal: Array.from({ length: 31 }, (_, i) => ({ day: i + 1, spend: Math.round((20000 * (i + 1)) / 31) })),
+      missingDays: [],
+    },
+  },
   waterfall: [
     { key: "start", label: "Sept", figure: fig(452) },
-    { key: "creative", label: "New creative", figure: fig(-28) },
-    { key: "allocation", label: "Moved to Meta", figure: fig(-19) },
-    { key: "auction", label: "Google clicks cost more", figure: fig(9) },
-    { key: "season", label: "Season", figure: fig(-4) },
+    { key: "mix", label: "Moving spend between channels", figure: fig(-19) },
+    { key: "results:meta", label: "Meta Ads results", figure: fig(-28) },
+    { key: "results:google_ads", label: "Google Ads results", figure: fig(9) },
+    { key: "other", label: "Not credited to your ads", figure: fig(-4) },
     { key: "end", label: "Now", figure: fig(410) },
   ],
+  waterfallBasis: {
+    basis:
+      "The change in cost per outcome from the previous period, split into what we can compute: spend moving between channels, each channel's own results, and outcomes that no spending channel was credited with. Credit follows each order's attribution verdict at channel level, and a channel's results include any effect of spending more or less on it.",
+  },
   funnel: {
     stages: [
       { key: "found", label: "Found you", figure: fig(48200) },
-      { key: "looked", label: "Chose to look", figure: fig(3140) },
-      { key: "enquired", label: "Enquired", figure: fig(412) },
-      { key: "booked", label: "Booked", figure: fig(34) },
+      { key: "chosen", label: "Chose to look", figure: fig(3140) },
+      { key: "convinced", label: "Took a step on your site", figure: fig(412) },
+      { key: "outcome", label: "Trip bookings", figure: fig(34) },
     ],
+    basis: "Found, chosen and taken-a-step are counted from your connected sources over the last 25 days, organic and paid together. Trip bookings are all paid orders in the period (Trip bookings).",
   },
   feed: [
-    { at: "2026-10-26T11:48:00Z", kind: "check", text: "Checked Meta, Google and X. Nothing broken. Meta's learning finished on 24 Oct." },
-    { at: "2026-10-26T09:10:00Z", kind: "budget", text: "Raised Meta by ₹440 a week (step 1 of 2). Approved by you on WhatsApp. Kept to 20% so Meta's learning doesn't restart." },
-    { at: "2026-10-25T14:20:00Z", kind: "blocked", text: "Refused a headline with “TrekIndia”. It's on your blocked words, so a new headline was drafted instead." },
-    { at: "2026-10-24T08:05:00Z", kind: "pause", text: "Paused “Spiti generic photo”. Cost per booking was 2.4 times the others after 600 views. This was a protective action, so you were told afterwards." },
-    { at: "2026-10-23T10:30:00Z", kind: "creative", text: "Generated 6 new creatives. Price-first and founder-video hooks won last month. Waiting for your approval." },
-    { at: "2026-10-22T16:00:00Z", kind: "tripwire", text: "Tripwire cleared: Reels-first creative. Cost per booking fell ₹28 and stayed down for 14 days." },
+    { at: "2026-10-26T11:48:00Z", kind: "check", title: "Checked Meta, Google and X. Nothing broken.", detail: "Meta's learning finished on 24 Oct." },
+    { at: "2026-10-26T09:10:00Z", kind: "budget", title: "Raised Meta by ₹440 a week (step 1 of 2).", detail: "Approved by you on WhatsApp. Kept to 20% so Meta's learning doesn't restart." },
+    { at: "2026-10-25T14:20:00Z", kind: "blocked", title: "Refused a headline with “TrekIndia”.", detail: "It's on your blocked words, so a new headline was drafted instead." },
+    { at: "2026-10-24T08:05:00Z", kind: "pause", title: "Paused “Spiti generic photo”.", detail: "Cost per booking was 2.4 times the others after 600 views. This was a protective action, so you were told afterwards." },
+    { at: "2026-10-23T10:30:00Z", kind: "creative", title: "Generated 6 new creatives.", detail: "Price-first and founder-video hooks won last month. Waiting for your approval." },
+    { at: "2026-10-22T16:00:00Z", kind: "change", title: "Tripwire cleared: Reels-first creative.", detail: "Cost per booking fell ₹28 and stayed down for 14 days." },
   ],
-};
-
-export const FIXTURE_HOME_SERIES: HomeSeries = {
-  liftWeeks: [
-    { weekStart: "2026-09-07", withAds: 4, holdout: 3, low: 2.8, high: 5.2 },
-    { weekStart: "2026-09-14", withAds: 5, holdout: 3, low: 3.75, high: 6.25 },
-    { weekStart: "2026-09-21", withAds: 5, holdout: 4, low: 3.7, high: 6.3 },
-    { weekStart: "2026-09-28", withAds: 6, holdout: 3, low: 4.65, high: 7.35 },
-    { weekStart: "2026-10-05", withAds: 7, holdout: 3, low: 5.6, high: 8.4 },
-    { weekStart: "2026-10-12", withAds: 8, holdout: 3, low: 6.55, high: 9.45 },
-    { weekStart: "2026-10-19", withAds: 9, holdout: 3, low: 7.5, high: 10.5 },
-    { weekStart: "2026-10-26", withAds: 10, holdout: 3, low: 8.45, high: 11.55 },
-  ],
-  weeklyGoal: 12,
-  sparks: {
-    outcomes: [4, 5, 5, 6, 7, 8, 9, 10],
-    cost_per_outcome: [470, 462, 455, 452, 440, 431, 418, 410],
-    incremental: [1, 2, 1, 3, 4, 5, 6, 7],
-  },
 };
 
 export const FIXTURE_PACING_SERIES: PacingSeries = {

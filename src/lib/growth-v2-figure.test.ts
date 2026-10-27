@@ -86,10 +86,12 @@ describe("homeHeadline", () => {
       kpis: FIXTURE_HOME.kpis.filter((k) => k.key !== "outcomes"),
     };
     expect(homeHeadline(home, "INR")).toBe("We don't have a count of your trip bookings for this month yet.");
+    const week: HomeResponse = { ...home, window: { ...home.window, key: "7d" } };
+    expect(homeHeadline(week, "INR")).toBe("We don't have a count of your trip bookings for the last 7 days yet.");
   });
 
   it("speaks of return on ad spend for a roas mandate", () => {
-    const home: HomeResponse = { ...FIXTURE_HOME, efficiency: { metric: "roas", you: { value: 3.24 }, target: { value: 3 }, industry: { value: 2.8 } }, kpis: FIXTURE_HOME.kpis.filter((k) => k.key !== "cost_per_outcome") };
+    const home: HomeResponse = { ...FIXTURE_HOME, efficiency: { metric: "roas", you: { value: 3.24 }, target: { value: 3 }, industry: { value: 2.8 }, basis: "" }, kpis: FIXTURE_HOME.kpis.filter((k) => k.key !== "cost_per_outcome") };
     expect(homeHeadline(home, "INR")).toContain("3.2x return on ad spend");
   });
 });

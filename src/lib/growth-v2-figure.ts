@@ -1,4 +1,4 @@
-import type { AdPlatform, Figure, HomeResponse, Money, OutcomeKind } from "@/lib/api/growth-v2";
+import type { AdPlatform, Figure, HomeResponse, HomeWindowKey, Money, OutcomeKind } from "@/lib/api/growth-v2";
 
 /**
  * Reading and formatting plan 2.10 figures.
@@ -19,9 +19,16 @@ export function figureValue(f: Figure | Money | undefined): number | undefined {
   return f !== undefined && "value" in f ? f.value : undefined;
 }
 
-/** Why a figure is absent, when it is. */
+/**
+ * Why a figure is absent, when it is, in words. The api names a reason with a code (`no_order_source`); a code is
+ * read as a sentence ("No order source"), and a reason that is already a sentence is left as it is.
+ */
 export function absentReason(f: Figure | Money | undefined): string | undefined {
-  return f !== undefined && "absent" in f ? f.absent : undefined;
+  if (f === undefined || !("absent" in f)) return undefined;
+  const r = f.absent;
+  if (!/^[a-z0-9]+(_[a-z0-9]+)+$/.test(r)) return r;
+  const words = r.replace(/_/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 /** What a screen prints for a figure it does not have. */
@@ -109,6 +116,15 @@ export function hoursUntil(iso: string, now: number): number | undefined {
   return Number.isNaN(t) ? undefined : Math.max(0, Math.floor((t - now) / 3_600_000));
 }
 
+// -- The home windows -------------------------------------------------------------
+
+/** The words each Growth home window uses for itself and for what it is compared with. */
+export const WINDOWS: Record<HomeWindowKey, { choice: string; title: string; before: string }> = {
+  "7d": { choice: "Last 7 days", title: "the last 7 days", before: "the week before" },
+  month: { choice: "This month", title: "this month", before: "last month" },
+  "90d": { choice: "Last 90 days", title: "the last 90 days", before: "the 90 days before" },
+};
+
 // -- The home headline ----------------------------------------------------------
 
 /**
@@ -122,16 +138,18 @@ export function homeHeadline(home: HomeResponse, currency: string): string {
   const label = home.outcome.label.toLowerCase();
   const count = figureValue(home.kpis.find((k) => k.key === "outcomes")?.figure) ?? figureValue(home.goal?.soFar);
   const cost = figureValue(home.efficiency.you);
-  const costKpi = home.kpis.find((k) => k.key === "cost_per_outcome");
-  const costChange = figureValue(costKpi?.change);
+  const costKpi = home.kpis.find((k) => k.key === home.efficiency.metric);
+  // Against the holdout there is no cost change to quote.
+  const costChange = home.window.compare === "holdout" ? undefined : figureValue(costKpi?.change);
   const extra = figureValue(home.kpis.find((k) => k.key === "incremental")?.figure);
 
-  if (count === undefined) return `We don't have a count of your ${label} for this month yet.`;
+  const words = WINDOWS[home.window.key];
+  if (count === undefined) return `We don't have a count of your ${label} for ${words.title} yet.`;
   let s = `You got ${formatCount(count)} ${label}`;
   if (home.efficiency.metric === "cost_per_outcome" && cost !== undefined) {
     s += ` at ${formatMoney(cost, currency)} each`;
     if (costChange !== undefined && Math.round(Math.abs(costChange) * 100) > 0) {
-      s += `, ${formatPercent(Math.abs(costChange))} ${costChange < 0 ? "cheaper" : "dearer"} than last month`;
+      s += `, ${formatPercent(Math.abs(costChange))} ${costChange < 0 ? "cheaper" : "dearer"} than ${words.before}`;
     }
   } else if (home.efficiency.metric === "roas" && cost !== undefined) {
     s += ` at ${cost.toFixed(1)}x return on ad spend`;

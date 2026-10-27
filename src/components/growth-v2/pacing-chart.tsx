@@ -113,6 +113,11 @@ export function PacingChart({ spent, ceiling, daysLeft, series }: PacingChartPro
           ceiling {formatMoney(c, currency)}
         </text>
       </svg>
+      {series.missingDays && series.missingDays.length > 0 ? (
+        <p data-absent="" className="text-xs text-muted-foreground">
+          No spend figures for day{series.missingDays.length === 1 ? "" : "s"} {series.missingDays.join(", ")}, so the line adds nothing for {series.missingDays.length === 1 ? "it" : "them"}: unknown, not free.
+        </p>
+      ) : null}
     </div>
   );
 }

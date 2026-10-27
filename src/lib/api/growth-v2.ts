@@ -6,12 +6,11 @@ import {
   FIXTURE_DECISIONS,
   FIXTURE_FIRST_RUN,
   FIXTURE_HOME,
-  FIXTURE_HOME_SERIES,
   FIXTURE_LEARNING,
   FIXTURE_PACING_SERIES,
   FIXTURE_RULES,
 } from "@/lib/growth-v2-fixtures";
-import type { HomeSeries, PacingSeries } from "@/lib/growth-v2-series";
+import { seriesFromHome, type HomeSeries, type PacingSeries } from "@/lib/growth-v2-series";
 
 /**
  * Growth Engine v2 client (plan 2.10): the six screens' read APIs.
@@ -83,32 +82,72 @@ export interface MandateView {
 
 // -- Home (H1) ---------------------------------------------------------------------
 
+export type HomeWindowKey = "7d" | "month" | "90d";
+export type HomeCompare = "holdout" | "last_period";
+
 export interface HomeKpi {
   key: string;
   label: string;
   figure: Figure;
-  /** Change against the prior period, as a fraction; absent when there is no prior. */
+  /**
+   * Change against the prior period, as a fraction; absent when there is no prior. With `compare=holdout` only the
+   * outcomes KPI carries one (the ads' effect over the scaled holdout).
+   */
   change?: Figure;
+  /** Eight weekly points ending at the window's close, oldest first. A week that could not be read is absent. */
+  spark?: Figure[];
 }
 
+/** One week of the lift chart. */
+export interface HomeLiftWeek {
+  weekStart: string;
+  withAds: number;
+  holdout: number;
+  low?: number;
+  high?: number;
+}
+
+export interface HomeSpendPoint {
+  day: number;
+  spend: number;
+}
+
+export type HomeFeedKind = "budget" | "pause" | "creative" | "blocked" | "change" | "check";
+
 export interface HomeResponse {
+  /** The window the figures cover, on the business clock; `to` is exclusive. */
+  window: { key: HomeWindowKey; from: string; to: string; days: number; compare: HomeCompare };
   outcome: { kind: OutcomeKind; label: string; optimizeFor: "count" | "value" };
-  /** Absent when the merchant set no goal. */
-  /** `paceVsGoal` is read as projected month-end outcomes over `perMonth` (1 = exactly on pace). The types file does not say; H1 settles it. */
-  goal?: { perMonth: number; soFar: Figure; paceVsGoal: Figure };
+  /** Absent when the merchant set no goal. Always the calendar month; `paceVsGoal` is projected month-end over `perMonth` (1 = on pace). */
+  goal?: { perMonth: number; soFar: Figure; projected: Figure; paceVsGoal: Figure };
   efficiency: {
     metric: "cost_per_outcome" | "roas";
     you: Figure;
     target: Figure;
     industry: Figure;
+    /** What `you` is made of: spend over ALL the outcomes counted, not only those the ads caused. */
+    basis: string;
   };
-  /** Holdout lift (plan 2.6). */
-  lift: { liftPct: Figure; confidence: Figure; windowDays: number };
+  /** Holdout lift (plan 2.6): the latest reading. */
+  lift: {
+    liftPct: Figure;
+    confidence: Figure;
+    windowDays: number;
+    weeks?: HomeLiftWeek[];
+    weeklyGoal?: number;
+  };
   kpis: HomeKpi[];
-  pacing: { spentThisMonth: Money; monthlyCeiling: Money; daysLeft: number };
+  pacing: {
+    spentThisMonth: Money;
+    monthlyCeiling: Money;
+    daysLeft: number;
+    series?: { daysInMonth: number; points: HomeSpendPoint[]; ideal: HomeSpendPoint[]; missingDays: number[] };
+  };
   waterfall: Array<{ key: string; label: string; figure: Figure }>;
-  funnel: { stages: Array<{ key: string; label: string; figure: Figure }> };
-  feed: Array<{ at: string; kind: string; text: string; decisionId?: string }>;
+  /** What the drivers are, or why there are none. */
+  waterfallBasis: { basis: string } | { absent: string };
+  funnel: { stages: Array<{ key: string; label: string; figure: Figure }>; basis: string };
+  feed: Array<{ at: string; kind: HomeFeedKind; title: string; detail?: string; decisionId?: string }>;
 }
 
 // -- Decisions (H2 reads, C5 acts) ------------------------------------------------------
@@ -267,7 +306,8 @@ export interface OnboardingConfirmResponse {
 const BASE = "/v1/growth/v2";
 
 export const growthV2Api = {
-  home: () => api.get<HomeResponse>(`${BASE}/home`),
+  home: (window: HomeWindowKey = "7d", compare: HomeCompare = "last_period") =>
+    api.get<HomeResponse>(`${BASE}/home?window=${window}&compare=${compare}`),
   decisions: (status?: DecisionStatus) =>
     api.get<DecisionsResponse>(`${BASE}/decisions${status ? `?status=${status}` : ""}`),
   decide: (id: string, action: DecisionAction) =>
@@ -318,22 +358,24 @@ export async function loadOrPreview<T>(fetcher: () => Promise<T>, fixture: () =>
 const key = (businessId: string | undefined, screen: string, ...rest: unknown[]) =>
   ["growth-v2", businessId ?? "none", screen, ...rest] as const;
 
-/** Sample series the home charts draw. The api's `HomeResponse` carries none, so live data has none. */
+/** What the Growth home draws: the response, and the chart series read out of it. */
 export interface HomeScreenData extends V2Result<HomeResponse> {
   series?: HomeSeries;
   pacingSeries?: PacingSeries;
 }
 
-export function useGrowthV2Home() {
+export function useGrowthV2Home(window: HomeWindowKey = "7d", compare: HomeCompare = "last_period") {
   const { business } = useAuth();
   return useQuery<HomeScreenData>({
-    queryKey: key(business?._id, "home"),
+    queryKey: key(business?._id, "home", window, compare),
     queryFn: async () => {
-      const r = await loadOrPreview(growthV2Api.home, () => FIXTURE_HOME);
-      return r.preview ? { ...r, series: FIXTURE_HOME_SERIES, pacingSeries: FIXTURE_PACING_SERIES } : r;
+      const r = await loadOrPreview(() => growthV2Api.home(window, compare), () => FIXTURE_HOME);
+      return { ...r, ...seriesFromHome(r.data) };
     },
     enabled: !!business?._id,
     staleTime: 30_000,
+    // The engine being off, or having no business clock, is an answer the screen explains, not a blip.
+    retry: (count, err) => !(err instanceof ApiError && (err.code === "NO_MANDATE" || err.code === "NO_BUSINESS_CLOCK")) && count < 3,
   });
 }
 
