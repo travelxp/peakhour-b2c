@@ -27,7 +27,8 @@ export function QueryBoundary<T extends { preview: boolean; row?: string }>({
   query: BoundaryQuery<T>;
   children: (result: T) => React.ReactNode;
 }) {
-  if (query.isError) {
+  // ★ONLY WHEN THERE IS NOTHING TO SHOW: a refetch (or a next page) that fails leaves the loaded data on screen.
+  if (query.isError && !query.data) {
     return (
       <ErrorFallback
         error={query.error}

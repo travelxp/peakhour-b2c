@@ -42,6 +42,12 @@ describe("QueryBoundary", () => {
     expect(out).toContain("Couldn&#x27;t load this screen");
   });
 
+  it("★keeps the screen when a refetch or a next page failed but there is data to show", () => {
+    const out = html(<QueryBoundary query={q({ preview: false }, true)}>{() => <p>SCREEN-BODY</p>}</QueryBoundary>);
+    expect(out).toContain("SCREEN-BODY");
+    expect(out).not.toContain("Couldn&#x27;t load this screen");
+  });
+
   it("shows a loading state before any data", () => {
     const out = html(<QueryBoundary query={q(undefined)}>{() => <p>SCREEN-BODY</p>}</QueryBoundary>);
     expect(out).toContain("aria-busy");
