@@ -20,21 +20,24 @@ import { CODE_LENGTH, cleanCode, codeIsComplete, linkErrorMessage, linkIsDead } 
 export function MandateConfirm({ token }: { token: string }) {
   const described = useQuery<LinkDescription>({ queryKey: ["growth-link", token], queryFn: () => growthLinkApi.describe(token), retry: false });
   const [code, setCode] = useState("");
-  const send = useMutation({ mutationFn: () => growthLinkApi.sendCode(token) });
+  // ★ONCE A CODE HAS BEEN ASKED FOR, THE BOX STAYS: a failed resend (a cooldown, a delivery failure) must not take the box away
+  // from someone who holds a valid code in WhatsApp.
+  const [asked, setAsked] = useState(false);
+  const send = useMutation({ mutationFn: () => growthLinkApi.sendCode(token), onSuccess: () => setAsked(true) });
   const confirm = useMutation({ mutationFn: (c: string) => growthLinkApi.confirm(token, cleanCode(c)) });
 
   const link = described.data;
-  const dead = (described.isError && linkIsDead(described.error)) || (confirm.isError && linkIsDead(confirm.error)) || (send.isError && linkIsDead(send.error));
   // Asking for a new code clears the last wrong one (below), so what is shown is always the newest answer: a stale "not right"
-  // never masks a cooldown, a failed send or a dead link.
+  // never masks a cooldown, a failed send or a dead link. The link is dead only by the answer that is shown.
   const lastError = confirm.isError ? confirm.error : send.isError ? send.error : undefined;
+  const dead = lastError !== undefined && linkIsDead(lastError);
   return (
     <div className="mx-auto grid min-h-[70vh] w-full max-w-lg content-center gap-4 px-4 py-10">
       <MandateConfirmView
         link={link}
         loading={described.isPending}
         loadError={described.isError ? linkErrorMessage(described.error) : undefined}
-        codeAsked={send.isSuccess || link?.otpSent === true}
+        codeAsked={asked || link?.otpSent === true}
         sending={send.isPending}
         confirming={confirm.isPending}
         done={confirm.data}

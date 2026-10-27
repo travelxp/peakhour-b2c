@@ -74,6 +74,14 @@ export function FirstRunScreen() {
     ...(typedTarget !== undefined ? { target: typedTarget } : {}),
   };
   const body = draft ? buildPlanBody(draft, answers) : undefined;
+  // ★A DRAFT THAT IS NOT THE ANSWER TO THE LATEST ANSWERS IS NOT SENT: while the next one loads (the old one stays on screen so the
+  // page does not blink), and when it failed, the plan on screen was drafted for different answers than the ones given.
+  const stale = query.isPlaceholderData ? "Updating your plan for that answer." : query.isError && draft ? "We could not update your plan for that answer. Reload the page to try again." : undefined;
+  // Any answer changed after the send is a new plan: the sent state, and its Check WhatsApp, no longer describe what is on screen.
+  const edited = <A extends unknown[]>(fn: (...a: A) => void) => (...a: A) => {
+    if (confirm.isSuccess || confirm.isError) confirm.reset();
+    fn(...a);
+  };
   const suggestedZone = draft && "absent" in draft.timeZone ? (draft.timeZone.suggested ?? "") : "";
 
   return (
@@ -94,24 +102,24 @@ export function FirstRunScreen() {
             onContinue={() => document.getElementById("first-run-plan")?.scrollIntoView({ behavior: "smooth", block: "start" })}
           />
         }
-        blockedReason={planBlockedReason(draft, answers, signalDone)}
+        blockedReason={stale ?? planBlockedReason(draft, answers, signalDone)}
         sending={confirm.isPending}
         sent={confirm.isSuccess}
         sendError={confirm.isError ? sendErrorMessage(confirm.error) : undefined}
-        onChooseTie={(id) => {
+        onChooseTie={edited((id: string) => {
           setPlaybookId(id);
           setOffer(undefined);
           setFocus(undefined);
-        }}
-        onInPerson={setInPerson}
-        onOffer={(key) => {
+        })}
+        onInPerson={edited(setInPerson)}
+        onOffer={edited((key: string) => {
           setOffer(key);
           setFocus(undefined);
           setTypedTarget(undefined);
-        }}
-        onFocus={setFocus}
-        onCeiling={setTypedCeiling}
-        onTarget={setTypedTarget}
+        })}
+        onFocus={edited(setFocus)}
+        onCeiling={edited(setTypedCeiling)}
+        onTarget={edited(setTypedTarget)}
         onZone={setZone}
         onSaveZone={() => {
           const tz = (zone ?? suggestedZone).trim();
