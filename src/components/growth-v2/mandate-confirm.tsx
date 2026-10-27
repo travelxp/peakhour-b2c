@@ -154,7 +154,8 @@ export function MandateConfirmView(p: MandateConfirmViewProps) {
             className="grid gap-3"
             onSubmit={(e) => {
               e.preventDefault();
-              if (codeIsComplete(p.code)) p.onConfirm();
+              // Enter on a box already confirming would send the single-use code twice, and the second answer ("used") would replace the first.
+              if (codeIsComplete(p.code) && !p.confirming) p.onConfirm();
             }}
           >
             <label htmlFor="mandate-code" className="text-sm font-medium">
