@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import {
@@ -374,6 +374,8 @@ export function useGrowthV2Home(window: HomeWindowKey = "7d", compare: HomeCompa
     },
     enabled: !!business?._id,
     staleTime: 30_000,
+    // Changing the window keeps the last one on screen until the next arrives, instead of collapsing to a skeleton.
+    placeholderData: keepPreviousData,
     // The engine being off, or having no business clock, is an answer the screen explains, not a blip.
     retry: (count, err) => !(err instanceof ApiError && (err.code === "NO_MANDATE" || err.code === "NO_BUSINESS_CLOCK")) && count < 3,
   });

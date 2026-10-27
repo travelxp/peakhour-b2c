@@ -82,7 +82,7 @@ describe("the screens render their preview sample", () => {
     expect(out).toContain("Not available");
     expect(out).toContain("Too early to say");
     // The waterfall says why it has no bars, in words.
-    expect(out).toContain("Not available: channel credit needs orders");
+    expect(out).toContain("Not available: Channel credit needs orders. We only show causes we can compute.");
     expect(out).toContain("We don&#x27;t have a count");
     // No stray zero standing in for an unknown figure.
     expect(out).not.toMatch(/>0</);
@@ -123,6 +123,32 @@ describe("the screens render their preview sample", () => {
     const out = html(<HomeBody result={{ preview: false, data: live, ...seriesFromHome(live) }} openDecisions={undefined} />);
     expect(out).toContain("The day-by-day line is not available yet.");
     expect(out).toContain("The week-by-week chart is not available yet.");
+  });
+
+  it("Growth home says why the waterfall is empty in one clean sentence, whatever shape the reason has", () => {
+    const empty = (reason: string): string => {
+      const live: HomeResponse = { ...FIXTURE_HOME, waterfall: [], waterfallBasis: { absent: reason } };
+      return html(<HomeBody result={{ preview: false, data: live, ...seriesFromHome(live) }} openDecisions={undefined} />);
+    };
+    expect(empty("no_spend_in_a_period")).toContain("Not available: No spend in a period. We only show causes we can compute.");
+    // A reason that is already a sentence keeps its capitals and loses its full stop to the card's own.
+    const sentence = empty("Meta Ads had no spend last week.");
+    expect(sentence).toContain("Not available: Meta Ads had no spend last week. We only show");
+    expect(sentence).not.toContain("..");
+  });
+
+  it("Growth home says when weeks it could not read cut a trend short, and keeps the holdout note to the outcomes card", () => {
+    const gap = [{ value: 1 }, { value: 2 }, { value: 3 }, { value: 4 }, { value: 5 }, { value: 6 }, { absent: "window_predates_store" }, { value: 8 }];
+    const live: HomeResponse = {
+      ...FIXTURE_HOME,
+      window: { ...FIXTURE_HOME.window, compare: "holdout" },
+      kpis: FIXTURE_HOME.kpis.map((k) => ({ ...k, spark: gap, change: { value: 0.1 } })),
+    };
+    const out = html(<HomeBody result={{ preview: false, data: live, ...seriesFromHome(live) }} openDecisions={undefined} />);
+    expect(out).toContain("Not enough recent weeks to draw a trend.");
+    // Only the outcomes card is measured against the holdout.
+    expect(out.match(/vs the holdout/g)).toHaveLength(1);
+    expect(out).toContain("vs last month");
   });
 
   it("Growth home names the days with no spend figure rather than drawing them as free", () => {

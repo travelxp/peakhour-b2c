@@ -9,6 +9,7 @@ import { ApiError } from "@/lib/api";
 import {
   useGrowthV2Decisions,
   useGrowthV2Home,
+  type Figure,
   type HomeCompare,
   type HomeResponse,
   type HomeScreenData,
@@ -41,13 +42,19 @@ export function HomeScreen() {
   const open = decisions.data ? tabCounts(decisions.data.data.decisions).needs_you : undefined;
   const code = query.error instanceof ApiError ? query.error.code : undefined;
   if (code === "NO_MANDATE" || code === "NO_BUSINESS_CLOCK") return <NotSetUp code={code} />;
+  // The prototype's sample is one fixed window: controls that cannot change it would only contradict the page.
+  const preview = query.data?.preview === true;
   return (
     <div className="grid gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Choice label="Window" value={window} options={WINDOWS} onChange={setWindow} text={(o) => o.choice} />
-        <Choice label="Compare" value={compare} options={COMPARES} onChange={setCompare} text={(o) => o} />
+      {preview ? null : (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Choice label="Window" value={window} options={WINDOWS} onChange={setWindow} text={(o) => o.choice} />
+          <Choice label="Compare" value={compare} options={COMPARES} onChange={setCompare} text={(o) => o} />
+        </div>
+      )}
+      <div aria-busy={query.isPlaceholderData} className={cn("transition-opacity", query.isPlaceholderData && "opacity-60")}>
+        <QueryBoundary query={query}>{(r) => <HomeBody result={r} openDecisions={open} />}</QueryBoundary>
       </div>
-      <QueryBoundary query={query}>{(r) => <HomeBody result={r} openDecisions={open} />}</QueryBoundary>
     </div>
   );
 }
@@ -88,6 +95,15 @@ function NotSetUp({ code }: { code: "NO_MANDATE" | "NO_BUSINESS_CLOCK" }) {
 
 const LOWER_IS_BETTER = new Set(["cost_per_outcome"]);
 
+/** Says so when weeks we could not read cut a trend short, or hide it. */
+function sparkNote(spark: Figure[] | undefined): string | undefined {
+  if (!spark) return undefined;
+  const read = spark.filter((f) => figureValue(f) !== undefined).length;
+  if (read === 0 || read === spark.length) return undefined;
+  const run = sparkValues(spark);
+  return run ? `Trend covers the last ${run.length} weeks we could read in a row.` : "Not enough recent weeks to draw a trend.";
+}
+
 export function HomeBody({ result, openDecisions }: { result: HomeScreenData; openDecisions: number | undefined }) {
   const home: HomeResponse = result.data;
   const currency = currencyOf(home.pacing.monthlyCeiling, home.pacing.spentThisMonth);
@@ -105,6 +121,8 @@ export function HomeBody({ result, openDecisions }: { result: HomeScreenData; op
     key === "cost_per_outcome" || key === "spend" ? formatMoney(n, currency) : key === "roas" ? `${n.toFixed(1)}x` : formatCount(n);
   const waterfallAbsent = "absent" in home.waterfallBasis ? home.waterfallBasis.absent : undefined;
   const waterfallBasis = "basis" in home.waterfallBasis ? home.waterfallBasis.basis : undefined;
+  // A reason is a sentence or a code read as one; the full stop is this card's own.
+  const waterfallReason = waterfallAbsent ? (absentReason({ absent: waterfallAbsent }) ?? "").replace(/[.\s]+$/, "") : "";
 
   return (
     <div className="grid gap-4">
@@ -142,7 +160,11 @@ export function HomeBody({ result, openDecisions }: { result: HomeScreenData; op
                     <p className="text-xs text-muted-foreground">
                       {goalPct}% of goal
                       {pace !== undefined ? (
-                        <> &middot; heading for {Math.round(pace * 100)}% of goal by month end</>
+                        <>
+                          {" "}
+                          &middot; heading for {Math.round(pace * 100)}% of goal by month end
+                          {figureValue(goal.projected) !== undefined ? ` (about ${formatCount(figureValue(goal.projected) as number)})` : ""}
+                        </>
                       ) : (
                         <> &middot; pace not available yet{absentReason(goal.paceVsGoal) ? ` (${absentReason(goal.paceVsGoal)})` : ""}</>
                       )}
@@ -179,8 +201,9 @@ export function HomeBody({ result, openDecisions }: { result: HomeScreenData; op
             format={kpiFormat(k.key)}
             change={k.change}
             lowerIsBetter={LOWER_IS_BETTER.has(k.key)}
-            changeNote={holdout ? "vs the holdout" : `vs ${words.before}`}
+            changeNote={holdout && k.key === "outcomes" ? "vs the holdout" : `vs ${words.before}`}
             spark={sparkValues(k.spark)}
+            note={sparkNote(k.spark)}
           />
         ))}
       </div>
@@ -215,7 +238,7 @@ export function HomeBody({ result, openDecisions }: { result: HomeScreenData; op
           <CardContent className="space-y-3">
             {home.waterfall.length === 0 ? (
               <p data-absent="" className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-                Not available: {(absentReason({ absent: waterfallAbsent ?? "no_drivers" }) ?? "").toLowerCase()}. We only show causes we can compute.
+                Not available{waterfallReason ? `: ${waterfallReason}` : ""}. We only show causes we can compute.
               </p>
             ) : (
               <WhyWaterfall items={home.waterfall} currency={home.efficiency.metric === "roas" ? undefined : currency} higherIsBetter={home.efficiency.metric === "roas"} />

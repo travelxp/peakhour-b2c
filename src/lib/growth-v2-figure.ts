@@ -136,7 +136,8 @@ export const WINDOWS: Record<HomeWindowKey, { choice: string; title: string; bef
  */
 export function homeHeadline(home: HomeResponse, currency: string): string {
   const label = home.outcome.label.toLowerCase();
-  const count = figureValue(home.kpis.find((k) => k.key === "outcomes")?.figure) ?? figureValue(home.goal?.soFar);
+  // ★THE WINDOW'S COUNT ONLY. The goal's `soFar` is the calendar month, and would be worded as the window's.
+  const count = figureValue(home.kpis.find((k) => k.key === "outcomes")?.figure);
   const cost = figureValue(home.efficiency.you);
   const costKpi = home.kpis.find((k) => k.key === home.efficiency.metric);
   // Against the holdout there is no cost change to quote.
