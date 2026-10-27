@@ -197,7 +197,6 @@ export function ChannelsBody({ channels, pacingSeries, unitPlural, unitOne }: { 
                   </tr>
                 ) : (
                   channels.campaigns.map((c) => {
-                    const own = currencyOf(c.dailyBudget) || currency;
                     return (
                       <tr key={c.id} className="border-b last:border-0">
                         <td className="px-2 py-2.5">
@@ -216,7 +215,7 @@ export function ChannelsBody({ channels, pacingSeries, unitPlural, unitOne }: { 
                           <MoneyValue money={c.dailyBudget} />
                           {c.engineChange ? (
                             <span className="block text-xs text-muted-foreground" data-engine-change="">
-                              Engine changed it from {formatMoney(c.engineChange.from, own)} to {formatMoney(c.engineChange.to, own)}
+                              Engine changed it from {formatMoney(c.engineChange.from, c.engineChange.currency)} to {formatMoney(c.engineChange.to, c.engineChange.currency)}
                             </span>
                           ) : null}
                         </td>

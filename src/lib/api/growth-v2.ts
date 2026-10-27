@@ -313,8 +313,8 @@ export interface ChannelsResponse {
     name: string;
     status: string;
     dailyBudget: Money;
-    /** The engine's latest accepted change of the daily budget in the last 30 days. */
-    engineChange?: { at: string; from: number; to: number };
+    /** The engine's latest accepted change of the daily budget in the last 30 days, in the campaign's own `currency`. */
+    engineChange?: { at: string; from: number; to: number; currency: string };
     spend: Money;
     outcomes: Figure;
     efficiency: Figure;

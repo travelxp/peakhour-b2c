@@ -195,7 +195,7 @@ describe("the screens render their preview sample", () => {
       campaigns: [
         {
           id: "c1", platform: "meta", name: "Alpha videos", status: "active",
-          dailyBudget: { value: 600, currency: "INR" }, engineChange: { at: "2026-10-25T10:00:00Z", from: 500, to: 600 },
+          dailyBudget: { value: 600, currency: "INR" }, engineChange: { at: "2026-10-25T10:00:00Z", from: 500, to: 600, currency: "INR" },
           spend: { value: 900, currency: "INR" }, outcomes: { absent: "credit_is_per_channel" }, efficiency: { absent: "credit_is_per_channel" },
         },
         {
@@ -232,7 +232,7 @@ describe("the screens render their preview sample", () => {
       const out = body(live);
       expect(out).toContain("Alpha videos");
       expect(out).toContain("Active");
-      expect(out).toContain("Engine changed it from ");
+      expect(out).toContain("Engine changed it from ₹500 to ₹600");
       expect(out).toContain("Daily budget");
       expect(out).not.toContain("Credit is per channel");
     });
