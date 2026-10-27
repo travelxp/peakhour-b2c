@@ -4,10 +4,9 @@ import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { useGrowthV2Decisions, useGrowthV2Home, type HomeResponse, type HomeScreenData } from "@/lib/api/growth-v2";
+import { useGrowthV2DecisionCounts, useGrowthV2Home, type HomeResponse, type HomeScreenData } from "@/lib/api/growth-v2";
 import { GROWTH_HOME } from "@/lib/growth-v2-nav";
 import { unitFor, currencyOf, figureValue, formatCount, formatMoney, homeHeadline } from "@/lib/growth-v2-figure";
-import { tabCounts } from "@/lib/growth-v2-decisions";
 import { ActivityFeed } from "./activity-feed";
 import { EfficiencyBullet } from "./efficiency-bullet";
 import { FigureValue } from "./figure-value";
@@ -22,8 +21,9 @@ import { WhyWaterfall } from "./why-waterfall";
 /** Growth home: "Is it working?" (plan 1, H1). */
 export function HomeScreen() {
   const query = useGrowthV2Home();
-  const decisions = useGrowthV2Decisions();
-  const open = decisions.data ? tabCounts(decisions.data.data.decisions).needs_you : undefined;
+  // The api's own count of open decisions, not a count of one loaded page.
+  const counts = useGrowthV2DecisionCounts();
+  const open = counts.data?.data.open;
   return <QueryBoundary query={query}>{(r) => <HomeBody result={r} openDecisions={open} />}</QueryBoundary>;
 }
 
