@@ -151,7 +151,12 @@ export function Inbox({
       {
         onSuccess: (r) => toast.success(doneToast(action, r)),
         // The refusal stays on the card as something to do; the queues refetch (the decision may have moved to held).
-        onError: (e) => setNotice({ id, action, notice: decisionNotice(e, action) }),
+        onError: (e) => {
+          const n = decisionNotice(e, action);
+          setNotice({ id, action, notice: n });
+          // The card can be gone by the time the refetch lands (answered elsewhere, expired): say it here too.
+          toast.error(n.text);
+        },
       },
     );
   };

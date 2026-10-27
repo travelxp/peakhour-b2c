@@ -210,7 +210,9 @@ export function decisionNotice(err: unknown, action: DecisionAction): DecisionNo
     case "UNDO_WINDOW_CLOSED":
       return { tone: "warn", text: "The 24-hour undo window has passed." };
     default:
-      return { tone: "bad", text: err.message || (action === "undo" ? "That couldn't be undone. Check your campaigns." : NOTHING_CHANGED) };
+      // The api's own sentence only for a refusal it wrote for the merchant (a 4xx); a server error says nothing of its insides.
+      if (err.status < 500 && err.message) return { tone: "bad", text: err.message };
+      return { tone: "bad", text: action === "undo" ? "That couldn't be undone. Check your campaigns." : NOTHING_CHANGED };
   }
 }
 

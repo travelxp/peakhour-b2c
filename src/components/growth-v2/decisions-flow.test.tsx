@@ -276,7 +276,8 @@ describe("answering", () => {
     } else {
       expect(link).toBeNull();
     }
-    expect(h.toast).not.toHaveBeenCalled();
+    // Said as a toast too: the card may be gone by the time the queues are read again.
+    expect(h.toast).toHaveBeenCalledWith(expect.stringContaining(sentence));
     // The queues are read again: a refused approve can have sent the decision back to held.
     const opens = h.get.mock.calls.filter((c) => c[0].includes("status=open")).length;
     expect(opens).toBeGreaterThanOrEqual(2);
@@ -292,6 +293,7 @@ describe("answering", () => {
     routes.open = page("open", [{ ...d, status: "applied" }]);
     await click("Approve");
     expect(document.body.querySelector("[role=alert]")).toBeNull();
+    expect(h.toast).toHaveBeenCalledWith("This was already answered. The list has been refreshed.");
   });
 
   it("a held decision can be approved again, and offers no Hold", async () => {

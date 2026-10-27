@@ -57,7 +57,7 @@ export function DecisionAsk({ decisionId, disabled }: { decisionId: string; disa
           {ask.data.answer}
         </p>
       ) : null}
-      {ask.isError ? (
+      {ask.isError && ask.variables?.question === trimmed ? (
         <p role="alert" className="text-sm text-muted-foreground">
           {askErrorText(ask.error)}
         </p>

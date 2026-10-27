@@ -127,9 +127,13 @@ describe("decisionNotice: a refusal as something to do", () => {
   it("UNDO_WINDOW_CLOSED names the 24-hour window", () => {
     expect(notice("UNDO_WINDOW_CLOSED", "undo").text).toBe("The 24-hour undo window has passed.");
   });
-  it("any other code says what the api said", () => {
+  it("any other 4xx code says what the api said", () => {
     expect(notice("CAMPAIGN_CHANGED_SINCE").text).toBe("the api's sentence");
-    expect(decisionNotice(new ApiError("X", "", 500), "undo").text).toMatch(/couldn't be undone/);
+    expect(decisionNotice(new ApiError("X", "", 409), "undo").text).toMatch(/couldn't be undone/);
+  });
+  it("★a server error never shows its message", () => {
+    expect(decisionNotice(new ApiError("INTERNAL", "MongoServerError: connection 7 refused", 500), "approve").text).toBe("That didn't go through. Nothing changed.");
+    expect(decisionNotice(new ApiError("UNDO_FAILED", "internal", 500), "undo").text).toMatch(/couldn't be undone/);
   });
   it("a failure that is not the api's says nothing changed", () => {
     expect(decisionNotice(new TypeError("Failed to fetch"), "approve")).toEqual({ tone: "bad", text: "That didn't go through. Nothing changed." });

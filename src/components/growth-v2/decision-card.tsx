@@ -21,6 +21,7 @@ import {
   describeImpact,
   isAnswerable,
   isExpired,
+  isSpendDecision,
   KIND_LABEL,
   STATUS_LABEL,
   undoOpenUntil,
@@ -247,7 +248,8 @@ export function DecisionCard({ decision: d, currency, unit, now, onAction, actio
           <AlertDialogHeader>
             <AlertDialogTitle>Approve and apply this now?</AlertDialogTitle>
             <AlertDialogDescription>
-              This changes spend on your ad accounts as soon as you confirm. You can undo it for 24 hours afterwards.
+              {isSpendDecision(d.kind) ? "This changes spend on your ad accounts" : "This changes your campaigns"} as soon as you confirm. You can undo it for
+              24 hours afterwards.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <ul className="space-y-1 text-sm">
