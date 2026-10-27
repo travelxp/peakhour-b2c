@@ -1,11 +1,16 @@
 import type {
   ChannelsResponse,
+  DecisionQueue,
+  DecisionView,
   DecisionsResponse,
+  EngineOpView,
+  GuardrailBlockView,
   FirstRunPlanResponse,
   HomeResponse,
   LearningResponse,
   RulesResponse,
 } from "@/lib/api/growth-v2";
+import { describeOp, queueTab, tabCounts, type QueueTab } from "@/lib/growth-v2-decisions";
 import type { HomeSeries, PacingSeries } from "@/lib/growth-v2-series";
 
 /**
@@ -94,8 +99,10 @@ export const FIXTURE_PACING_SERIES: PacingSeries = {
   }),
 };
 
-export const FIXTURE_DECISIONS: DecisionsResponse = {
-  decisions: [
+/** A sample decision as the prototype wrote it: ops without the api's sentence, and no delivery unless it has one. */
+type SampleDecision = Omit<DecisionView, "ops" | "delivery"> & { ops: EngineOpView[]; delivery?: DecisionView["delivery"] };
+
+const SAMPLE_DECISIONS: SampleDecision[] = [
     {
       id: "preview-d1",
       kind: "budget_move",
@@ -134,6 +141,7 @@ export const FIXTURE_DECISIONS: DecisionsResponse = {
       needsPerson: true,
       status: "proposed",
       expiresAt: "2026-10-28T09:00:00Z",
+      delivery: { inAppAt: "2026-10-26T09:00:00Z", whatsapp: { template: "growth_decision", sentAt: "2026-10-26T09:05:00Z" } },
       createdAt: "2026-10-26T09:00:00Z",
     },
     {
@@ -193,7 +201,47 @@ export const FIXTURE_DECISIONS: DecisionsResponse = {
       status: "failed",
       createdAt: "2026-10-21T14:20:00Z",
     },
-  ],
+];
+
+const describedDecisions = (): DecisionView[] =>
+  SAMPLE_DECISIONS.map((d) => ({
+    ...d,
+    ops: d.ops.map((o) => ({ ...o, description: describeOp(o, "INR") })),
+    delivery: d.delivery ?? {},
+  }));
+
+/** What the Blocked tab shows on a preview: one guardrail stop, in the api's words. */
+export const FIXTURE_BLOCKS: GuardrailBlockView[] = [
+  {
+    id: "CEILING_EXCEEDED:meta",
+    code: "CEILING_EXCEEDED",
+    platform: "meta",
+    title: "A budget increase on Meta Ads was refused: it would take you over your monthly ceiling",
+    message: "Raising Trip videos to ₹800 a day would take October's spend over your ₹20,000 ceiling. Nothing was changed.",
+    count: 1,
+    lastAt: "2026-10-25T14:00:00Z",
+  },
+];
+
+/** The preview as the api would answer for one queue: the same sample, split the way the server splits it. */
+export function previewDecisions(queue: DecisionQueue): DecisionsResponse {
+  const all = describedDecisions();
+  const counts = tabCounts(all);
+  const tab: QueueTab = queue === "open" ? "needs_you" : queue;
+  return {
+    queue,
+    decisions: queue === "blocked" ? [] : all.filter((d) => queueTab(d.status) === tab),
+    blocks: queue === "blocked" ? FIXTURE_BLOCKS : [],
+    counts: { open: counts.needs_you, done: counts.done, blocked: FIXTURE_BLOCKS.length },
+  };
+}
+
+/** Every sample decision across the queues, for the specs that read the whole set. */
+export const FIXTURE_DECISIONS: DecisionsResponse = {
+  queue: "open",
+  decisions: describedDecisions(),
+  blocks: FIXTURE_BLOCKS,
+  counts: { open: 3, done: 2, blocked: FIXTURE_BLOCKS.length },
 };
 
 export const FIXTURE_CHANNELS: ChannelsResponse = {
