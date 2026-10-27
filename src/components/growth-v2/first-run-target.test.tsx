@@ -69,4 +69,20 @@ describe("first run: the typed target", () => {
     await act(async () => yes.click());
     expect(target().value).toBe("90");
   });
+
+  it("keeps the typed target when the same in-person answer is given again", async () => {
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => root.render(<FirstRunScreen />));
+    const target = () => document.getElementById("first-run-target") as HTMLInputElement;
+    const no = () => [...document.body.querySelectorAll("button")].find((b) => b.textContent?.trim() === "No")!;
+    await act(async () => no().click());
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(target(), "77");
+      target().dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => no().click());
+    expect(target().value).toBe("77");
+  });
 });
