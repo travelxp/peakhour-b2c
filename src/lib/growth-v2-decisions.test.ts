@@ -127,6 +127,15 @@ describe("decisionNotice: a refusal as something to do", () => {
   it("UNDO_WINDOW_CLOSED names the 24-hour window", () => {
     expect(notice("UNDO_WINDOW_CLOSED", "undo").text).toBe("The 24-hour undo window has passed.");
   });
+  it.each<DecisionAction>(["approve", "undo"])("NOT_AN_APPROVER (403) names the approvers, on %s, whatever the api's sentence", (action) => {
+    expect(decisionNotice(new ApiError("NOT_AN_APPROVER", "the api's sentence", 403), action)).toEqual({
+      tone: "warn",
+      text: "Only the approvers named for this business can approve or undo this",
+    });
+  });
+  it("UNDO_IN_PROGRESS (409) says it is already being undone, not the api's retry sentence", () => {
+    expect(notice("UNDO_IN_PROGRESS", "undo")).toEqual({ tone: "warn", text: "This change is already being undone" });
+  });
   it("any other 4xx code says what the api said", () => {
     expect(notice("CAMPAIGN_CHANGED_SINCE").text).toBe("the api's sentence");
     expect(decisionNotice(new ApiError("X", "", 409), "undo").text).toMatch(/couldn't be undone/);
