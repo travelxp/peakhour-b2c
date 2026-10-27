@@ -269,6 +269,11 @@ export const FIXTURE_DECISIONS: DecisionsResponse = {
 };
 
 export const FIXTURE_CHANNELS: ChannelsResponse = {
+  window: { key: "month", from: "2026-10-01", to: "2026-10-23", days: 22 },
+  outcome: { kind: "bookings", label: "bookings", optimizeFor: "count" },
+  basis: "Outcomes per channel are the orders our attribution credited to that channel, not the extra outcomes the ads caused. The measured effect of the ads is the holdout figure on Home, and it exists for the business as a whole.",
+  totals: { spend: inr(13940), outcomes: fig(22), efficiency: fig(634) },
+  efficiency: { metric: "cost_per_outcome", target: fig(600) },
   health: [
     { platform: "meta", state: "healthy", reason: "Serving, signal tracked", spend: inr(6900), outcomes: fig(13), efficiency: fig(531) },
     { platform: "google_ads", state: "healthy", reason: "Serving, signal tracked", spend: inr(3960), outcomes: fig(8), efficiency: fig(495) },
@@ -298,6 +303,7 @@ export const FIXTURE_CHANNELS: ChannelsResponse = {
     ],
   })),
   pacing: { spentThisMonth: inr(13940), monthlyCeiling: inr(20000), daysLeft: 9 },
+  campaignsBasis: "The campaigns Peakhour runs for you, whose daily budget the engine can change within your rules. Campaigns you run directly on an ad platform are not listed.",
   campaigns: [
     { id: "preview-c1", platform: "meta", name: "Trip videos (Advantage+ Leads)", status: "Serving", dailyBudget: inr(590), spend: inr(4120), outcomes: fig(9), efficiency: fig(458) },
     { id: "preview-c2", platform: "meta", name: "Price-first carousel", status: "Serving", dailyBudget: inr(400), spend: inr(2780), outcomes: fig(4), efficiency: fig(695) },

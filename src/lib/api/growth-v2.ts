@@ -273,10 +273,21 @@ export interface DecideResponse {
 
 // -- Channels (H3) -----------------------------------------------------------------------
 
+export type ChannelHealthState = "healthy" | "watch" | "problem" | "not_connected";
+
 export interface ChannelsResponse {
+  /** The window the figures cover, on the business clock (as Home's); `to` is exclusive. */
+  window: { key: HomeWindowKey; from: string; to: string; days: number };
+  outcome: { kind: OutcomeKind; label: string; optimizeFor: "count" | "value" };
+  /** What a channel's `outcomes` are: attributed to the channel, not the extra outcomes the ads caused. */
+  basis: string;
+  /** The same window's whole-business figures, read as Home reads them. */
+  totals: { spend: Money; outcomes: Figure; efficiency: Figure };
+  efficiency: { metric: "cost_per_outcome" | "roas"; target: Figure };
+  /** One row per ad platform the business can use. `reason` names the fact the state comes from. */
   health: Array<{
     platform: AdPlatform;
-    state: "healthy" | "watch" | "problem" | "not_connected";
+    state: ChannelHealthState;
     reason?: string;
     spend: Money;
     outcomes: Figure;
@@ -284,14 +295,26 @@ export interface ChannelsResponse {
   }>;
   /** Spend against outcomes per channel, for the bubble chart. */
   bubbles: Array<{ platform: AdPlatform; spend: Money; outcomes: Figure; efficiency: Figure }>;
+  /** Eight buckets of 7 days ending where the window ends (Home's spark buckets), oldest first; `weekStart` is the local day a bucket opens, not a Monday. */
   shareByWeek: Array<{ weekStart: string; shares: Array<{ platform: AdPlatform; share: Figure }> }>;
-  pacing: { spentThisMonth: Money; monthlyCeiling: Money; daysLeft: number };
+  /** Where the allocator's latest decision would leave each platform's share of daily budget; absent when it has made none. */
+  allocatorTarget?: { decisionId: string; status: string; at: string; shares: Array<{ platform: AdPlatform; share: Figure }> };
+  pacing: {
+    spentThisMonth: Money;
+    monthlyCeiling: Money;
+    daysLeft: number;
+    series?: { daysInMonth: number; points: Array<{ day: number; spend: number }>; ideal: Array<{ day: number; spend: number }>; missingDays: number[] };
+  };
+  /** Which campaigns are listed, and what is said of their results. */
+  campaignsBasis: string;
   campaigns: Array<{
     id: string;
     platform: AdPlatform;
     name: string;
     status: string;
     dailyBudget: Money;
+    /** The engine's latest accepted change of the daily budget in the last 30 days, in the campaign's own `currency`. */
+    engineChange?: { at: string; from: number; to: number; currency: string };
     spend: Money;
     outcomes: Figure;
     efficiency: Figure;
@@ -478,7 +501,7 @@ export const growthV2Api = {
     api.post<DecideResponse>(`${BASE}/decisions/${encodeURIComponent(id)}/${action}`),
   ask: (id: string, question: string) =>
     api.post<DecisionAskResponse>(`${BASE}/decisions/${encodeURIComponent(id)}/ask`, { question }),
-  channels: () => api.get<ChannelsResponse>(`${BASE}/channels`),
+  channels: (window: HomeWindowKey = "7d") => api.get<ChannelsResponse>(`${BASE}/channels?window=${window}`),
   learning: () => api.get<LearningResponse>(`${BASE}/learning`),
   rules: () => api.get<RulesResponse>(`${BASE}/rules`),
   patchRules: (body: RulesPatchBody) => api.patch<RulesPatchResponse>(`${BASE}/rules`, body),
@@ -638,16 +661,40 @@ export interface ChannelsScreenData extends V2Result<ChannelsResponse> {
   pacingSeries?: PacingSeries;
 }
 
-export function useGrowthV2Channels() {
+/** The two answers the api gives instead of the page (as Home's): the engine is off, or there is no business clock. */
+export interface ChannelsRefusal {
+  refusal: HomeRefusalCode;
+  preview: false;
+}
+
+/** The pacing chart's series, from the response (the preview sample carries its own). */
+export function pacingSeriesFrom(c: ChannelsResponse): PacingSeries | undefined {
+  const s = c.pacing.series;
+  return s ? { points: s.points, daysInMonth: s.daysInMonth, missingDays: s.missingDays } : undefined;
+}
+
+/**
+ * Fetch Channels & money, or its refusal as DATA (see `loadHome`). A preview only on 501.
+ */
+export async function loadChannels(fetcher: () => Promise<ChannelsResponse>): Promise<ChannelsScreenData | ChannelsRefusal> {
+  try {
+    const r = await loadOrPreview(fetcher, () => FIXTURE_CHANNELS);
+    const series = r.preview ? FIXTURE_PACING_SERIES : pacingSeriesFrom(r.data);
+    return series ? { ...r, pacingSeries: series } : r;
+  } catch (err) {
+    if (err instanceof ApiError && (err.code === "NO_MANDATE" || err.code === "NO_BUSINESS_CLOCK")) return { refusal: err.code, preview: false };
+    throw err;
+  }
+}
+
+export function useGrowthV2Channels(window: HomeWindowKey = "7d") {
   const { business } = useAuth();
-  return useQuery<ChannelsScreenData>({
-    queryKey: key(business?._id, "channels"),
-    queryFn: async () => {
-      const r = await loadOrPreview(growthV2Api.channels, () => FIXTURE_CHANNELS);
-      return r.preview ? { ...r, pacingSeries: FIXTURE_PACING_SERIES } : r;
-    },
+  return useQuery<ChannelsScreenData | ChannelsRefusal>({
+    queryKey: key(business?._id, "channels", window),
+    queryFn: () => loadChannels(() => growthV2Api.channels(window)),
     enabled: !!business?._id,
     staleTime: 30_000,
+    placeholderData: sameBusiness(business?._id),
   });
 }
 

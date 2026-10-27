@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api, ApiError } from "@/lib/api";
-import { FIXTURE_HOME, FIXTURE_RULES, previewDecisions } from "@/lib/growth-v2-fixtures";
-import { NOT_BUILT, growthV2Api, isNotBuilt, loadHome, loadOrPreview, mandateFor, mergeDecisionPages, notBuiltRow, sameBusiness, type HomeResponse, type RulesResponse } from "./growth-v2";
+import { FIXTURE_CHANNELS, FIXTURE_HOME, FIXTURE_RULES, previewDecisions } from "@/lib/growth-v2-fixtures";
+import { NOT_BUILT, growthV2Api, isNotBuilt, loadChannels, loadHome, loadOrPreview, mandateFor, mergeDecisionPages, notBuiltRow, sameBusiness, type HomeResponse, type RulesResponse } from "./growth-v2";
 
 const notBuilt = (row = "H1") => new ApiError(NOT_BUILT, `This route is built by plan row ${row}.`, 501, "req-1", { row });
 
@@ -19,6 +19,35 @@ describe("loadHome: a refusal is data, a failure is an error", () => {
   });
   it.each([["500", new ApiError("INTERNAL", "boom", 500)], ["another 409", new ApiError("ALREADY_DECIDED", "no", 409)]])("rethrows a %s", async (_n, err) => {
     await expect(loadHome(async () => { throw err; })).rejects.toBe(err);
+  });
+});
+
+describe("loadChannels: a refusal is data, a failure is an error, the sample only on 501", () => {
+  it.each(["NO_MANDATE", "NO_BUSINESS_CLOCK"] as const)("returns %s as an answer to show", async (code) => {
+    expect(await loadChannels(async () => { throw new ApiError(code, "refused", 409); })).toEqual({ refusal: code, preview: false });
+  });
+  it("takes the pacing series from a live response, and the sample's own only on a preview", async () => {
+    const series = { daysInMonth: 31, points: [{ day: 1, spend: 100 }], ideal: [{ day: 1, spend: 10 }], missingDays: [2] };
+    const live = (await loadChannels(async () => ({ ...FIXTURE_CHANNELS, pacing: { ...FIXTURE_CHANNELS.pacing, series } }))) as { preview: boolean; pacingSeries?: { points: unknown[]; missingDays?: number[] } };
+    expect(live.preview).toBe(false);
+    expect(live.pacingSeries).toMatchObject({ daysInMonth: 31, points: [{ day: 1, spend: 100 }], missingDays: [2] });
+    // A live response with no series has none: the sample's line is never lent to it.
+    const none = (await loadChannels(async () => FIXTURE_CHANNELS)) as { preview: boolean; pacingSeries?: unknown };
+    expect(none.preview).toBe(false);
+    expect(none.pacingSeries).toBeUndefined();
+    const prev = (await loadChannels(async () => { throw notBuilt("H3"); })) as { preview: boolean; row?: string; pacingSeries?: unknown };
+    expect(prev).toMatchObject({ preview: true, row: "H3" });
+    expect(prev.pacingSeries).toBeDefined();
+  });
+  it("rethrows a 500", async () => {
+    const err = new ApiError("CHANNELS_FAILED", "boom", 500);
+    await expect(loadChannels(async () => { throw err; })).rejects.toBe(err);
+  });
+  it("asks the api for the window", async () => {
+    const get = vi.spyOn(api, "get").mockResolvedValue(FIXTURE_CHANNELS);
+    await growthV2Api.channels("90d");
+    expect(get).toHaveBeenCalledWith("/v1/growth/v2/channels?window=90d");
+    get.mockRestore();
   });
 });
 

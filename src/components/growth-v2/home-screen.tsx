@@ -60,7 +60,7 @@ export function HomeScreen() {
   );
 }
 
-function Choice<K extends string, O>({ label, value, options, onChange, text }: { label: string; value: K; options: Record<K, O>; onChange: (k: K) => void; text: (o: O) => string }) {
+export function Choice<K extends string, O>({ label, value, options, onChange, text }: { label: string; value: K; options: Record<K, O>; onChange: (k: K) => void; text: (o: O) => string }) {
   return (
     <div role="group" aria-label={label} className="inline-flex rounded-lg border p-0.5">
       {(Object.keys(options) as K[]).map((k) => (
