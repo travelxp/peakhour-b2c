@@ -23,7 +23,8 @@ const LOOK: Record<string, { tone: Tone; pin: string; label: string }> = {
 };
 
 export function experimentLook(e: Pick<Experiment, "verdict" | "status">) {
-  return LOOK[e.verdict ?? e.status] ?? LOOK.ended!;
+  // A status we do not know is shown as it came, neutral, and never as a reason the api did not give.
+  return LOOK[e.verdict ?? e.status] ?? { tone: "neutral" as Tone, pin: "border-muted-foreground bg-card", label: e.status.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase()) };
 }
 
 /** The lift sentence for one experiment: the share the ads caused with its range, or why there is none. */
@@ -41,6 +42,15 @@ export function LiftLine({ e }: { e: Experiment }) {
   }
   const low = figureValue(e.liftLow);
   const high = figureValue(e.liftHigh);
+  // A negative share means the held-out areas did better than the areas with ads: said so, not as "ads caused -8%".
+  if (e.kind === "holdout" && lift < 0) {
+    return (
+      <>
+        Areas with ads did <b className="font-medium tabular-nums text-foreground">{formatPercent(-lift)}</b> worse than the held-out areas
+        {low !== undefined && high !== undefined ? <span className="tabular-nums"> (range {formatPercent(low)} to {formatPercent(high)})</span> : null}
+      </>
+    );
+  }
   return (
     <>
       {e.kind === "holdout" ? "Ads caused " : "Lift "}
