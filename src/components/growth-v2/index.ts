@@ -1,4 +1,4 @@
-export { ActivityFeed, splitFeedText } from "./activity-feed";
+export { ActivityFeed } from "./activity-feed";
 export { AutonomyLadder, PROMOTE_TO_L2_AFTER, PROMOTE_TO_L3_WEEKS, weeksAtLevel } from "./autonomy-ladder";
 export { BenchmarkRows } from "./benchmark-rows";
 export { ChannelBubbles } from "./channel-bubbles";

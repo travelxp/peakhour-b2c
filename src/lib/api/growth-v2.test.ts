@@ -1,9 +1,35 @@
-import { describe, expect, it, vi } from "vitest";
-import { ApiError } from "@/lib/api";
-import { FIXTURE_HOME, FIXTURE_RULES } from "@/lib/growth-v2-fixtures";
-import { NOT_BUILT, isNotBuilt, mandateFor, loadOrPreview, notBuiltRow, type HomeResponse, type RulesResponse } from "./growth-v2";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { api, ApiError } from "@/lib/api";
+import { FIXTURE_HOME, FIXTURE_RULES, previewDecisions } from "@/lib/growth-v2-fixtures";
+import { NOT_BUILT, growthV2Api, isNotBuilt, loadHome, loadOrPreview, mandateFor, mergeDecisionPages, notBuiltRow, sameBusiness, type HomeResponse, type RulesResponse } from "./growth-v2";
 
 const notBuilt = (row = "H1") => new ApiError(NOT_BUILT, `This route is built by plan row ${row}.`, 501, "req-1", { row });
+
+describe("loadHome: a refusal is data, a failure is an error", () => {
+  it.each(["NO_MANDATE", "NO_BUSINESS_CLOCK"] as const)("returns %s as an answer to show, not a preview and not a throw", async (code) => {
+    const r = await loadHome(async () => { throw new ApiError(code, "refused", 409); });
+    expect(r).toEqual({ refusal: code, preview: false });
+  });
+  it("reads the series out of a live response, and still falls back to the sample only on 501", async () => {
+    const live = (await loadHome(async () => FIXTURE_HOME)) as { preview: boolean; series?: unknown; pacingSeries?: unknown };
+    expect(live.preview).toBe(false);
+    expect(live.series).toBeDefined();
+    expect(live.pacingSeries).toBeDefined();
+    expect(await loadHome(async () => { throw notBuilt("H1"); })).toMatchObject({ preview: true, row: "H1" });
+  });
+  it.each([["500", new ApiError("INTERNAL", "boom", 500)], ["another 409", new ApiError("ALREADY_DECIDED", "no", 409)]])("rethrows a %s", async (_n, err) => {
+    await expect(loadHome(async () => { throw err; })).rejects.toBe(err);
+  });
+});
+
+describe("sameBusiness: the last window is carried over only within one business", () => {
+  const prev = { marker: "A's figures" };
+  it("keeps the previous data for the same business and drops it for another", () => {
+    expect(sameBusiness("biz-A")(prev, { queryKey: ["growth-v2", "biz-A", "home", "7d", "last_period"] })).toBe(prev);
+    expect(sameBusiness("biz-B")(prev, { queryKey: ["growth-v2", "biz-A", "home", "7d", "last_period"] })).toBeUndefined();
+    expect(sameBusiness("biz-B")(undefined, undefined)).toBeUndefined();
+  });
+});
 
 describe("loadOrPreview: the 501 NOT_BUILT fallback", () => {
   it("returns the fixture, flagged as a preview with the row that will replace it", async () => {
@@ -61,5 +87,58 @@ describe("mandateFor", () => {
     expect(mandateFor(live, false)?.currency).toBe("USD");
     expect(mandateFor(live, true)).toBeUndefined();
     expect(mandateFor(undefined, false)).toBeUndefined();
+  });
+});
+
+describe("mergeDecisionPages", () => {
+  const page = (queue: "open" | "blocked", ids: string[], blockIds: string[], nextCursor?: string) => ({
+    preview: false,
+    data: {
+      queue,
+      decisions: ids.map((id) => ({ id }) as never),
+      blocks: blockIds.map((id) => ({ id }) as never),
+      counts: { open: ids.length, done: 0, blocked: blockIds.length },
+      ...(nextCursor ? { nextCursor } : {}),
+    },
+  });
+
+  it("★keeps every page's decisions AND blocks, in order, and the newest page's counts and cursor", () => {
+    const m = mergeDecisionPages({ pages: [page("open", ["a", "b"], [], "c1"), page("open", ["c"], [], undefined)] });
+    expect(m.data.decisions.map((d) => d.id)).toEqual(["a", "b", "c"]);
+    expect(m.data.counts.open).toBe(1);
+    expect(m.hasMore).toBe(false);
+    const b = mergeDecisionPages({ pages: [page("blocked", [], ["x"], "c1"), page("blocked", [], ["y"])] });
+    expect(b.data.blocks.map((x) => x.id)).toEqual(["x", "y"]);
+  });
+});
+
+describe("the decisions client", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("asks for a queue, with the cursor and limit only when given", async () => {
+    const get = vi.spyOn(api, "get").mockResolvedValue({});
+    await growthV2Api.decisions("open");
+    await growthV2Api.decisions("done", { cursor: "abc_1", limit: 5 });
+    await growthV2Api.decisions("blocked");
+    expect(get.mock.calls.map((c) => c[0])).toEqual([
+      "/v1/growth/v2/decisions?status=open",
+      "/v1/growth/v2/decisions?status=done&cursor=abc_1&limit=5",
+      "/v1/growth/v2/decisions?status=blocked",
+    ]);
+  });
+
+  it("answers a decision at its own route, and asks about it at /ask with the question", async () => {
+    const post = vi.spyOn(api, "post").mockResolvedValue({});
+    await growthV2Api.decide("d 1", "undo");
+    await growthV2Api.ask("d1", "Why?");
+    expect(post.mock.calls).toEqual([["/v1/growth/v2/decisions/d%201/undo"], ["/v1/growth/v2/decisions/d1/ask", { question: "Why?" }]]);
+  });
+
+  it("★a preview only on 501 NOT_BUILT: the sample for that queue, and a 500 reaches the caller", async () => {
+    const preview = await loadOrPreview(async () => Promise.reject(notBuilt("H2")), () => previewDecisions("done"));
+    expect(preview.preview).toBe(true);
+    expect(preview.data.queue).toBe("done");
+    const boom = new ApiError("INTERNAL", "boom", 500);
+    await expect(loadOrPreview(async () => Promise.reject(boom), () => previewDecisions("open"))).rejects.toBe(boom);
   });
 });

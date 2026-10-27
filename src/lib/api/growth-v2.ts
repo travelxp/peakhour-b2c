@@ -1,16 +1,15 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import {
   FIXTURE_CHANNELS,
-  FIXTURE_DECISIONS,
   FIXTURE_HOME,
-  FIXTURE_HOME_SERIES,
   FIXTURE_LEARNING,
   FIXTURE_PACING_SERIES,
   FIXTURE_RULES,
+  previewDecisions,
 } from "@/lib/growth-v2-fixtures";
-import type { HomeSeries, PacingSeries } from "@/lib/growth-v2-series";
+import { seriesFromHome, type HomeSeries, type PacingSeries } from "@/lib/growth-v2-series";
 
 /**
  * Growth Engine v2 client (plan 2.10): the six screens' read APIs.
@@ -82,32 +81,72 @@ export interface MandateView {
 
 // -- Home (H1) ---------------------------------------------------------------------
 
+export type HomeWindowKey = "7d" | "month" | "90d";
+export type HomeCompare = "holdout" | "last_period";
+
 export interface HomeKpi {
   key: string;
   label: string;
   figure: Figure;
-  /** Change against the prior period, as a fraction; absent when there is no prior. */
+  /**
+   * Change against the prior period, as a fraction; absent when there is no prior. With `compare=holdout` only the
+   * outcomes KPI carries one (the ads' effect over the scaled holdout).
+   */
   change?: Figure;
+  /** Eight weekly points ending at the window's close, oldest first. A week that could not be read is absent. */
+  spark?: Figure[];
 }
 
+/** One week of the lift chart. */
+export interface HomeLiftWeek {
+  weekStart: string;
+  withAds: number;
+  holdout: number;
+  low?: number;
+  high?: number;
+}
+
+export interface HomeSpendPoint {
+  day: number;
+  spend: number;
+}
+
+export type HomeFeedKind = "budget" | "pause" | "creative" | "blocked" | "change" | "check";
+
 export interface HomeResponse {
+  /** The window the figures cover, on the business clock; `to` is exclusive. */
+  window: { key: HomeWindowKey; from: string; to: string; days: number; compare: HomeCompare };
   outcome: { kind: OutcomeKind; label: string; optimizeFor: "count" | "value" };
-  /** Absent when the merchant set no goal. */
-  /** `paceVsGoal` is read as projected month-end outcomes over `perMonth` (1 = exactly on pace). The types file does not say; H1 settles it. */
-  goal?: { perMonth: number; soFar: Figure; paceVsGoal: Figure };
+  /** Absent when the merchant set no goal. Always the calendar month; `paceVsGoal` is projected month-end over `perMonth` (1 = on pace). */
+  goal?: { perMonth: number; soFar: Figure; projected: Figure; paceVsGoal: Figure };
   efficiency: {
     metric: "cost_per_outcome" | "roas";
     you: Figure;
     target: Figure;
     industry: Figure;
+    /** What `you` is made of: spend over ALL the outcomes counted, not only those the ads caused. */
+    basis: string;
   };
-  /** Holdout lift (plan 2.6). */
-  lift: { liftPct: Figure; confidence: Figure; windowDays: number };
+  /** Holdout lift (plan 2.6): the latest reading. */
+  lift: {
+    liftPct: Figure;
+    confidence: Figure;
+    windowDays: number;
+    weeks?: HomeLiftWeek[];
+    weeklyGoal?: number;
+  };
   kpis: HomeKpi[];
-  pacing: { spentThisMonth: Money; monthlyCeiling: Money; daysLeft: number };
+  pacing: {
+    spentThisMonth: Money;
+    monthlyCeiling: Money;
+    daysLeft: number;
+    series?: { daysInMonth: number; points: HomeSpendPoint[]; ideal: HomeSpendPoint[]; missingDays: number[] };
+  };
   waterfall: Array<{ key: string; label: string; figure: Figure }>;
-  funnel: { stages: Array<{ key: string; label: string; figure: Figure }> };
-  feed: Array<{ at: string; kind: string; text: string; decisionId?: string }>;
+  /** What the drivers are, or why there are none. */
+  waterfallBasis: { basis: string } | { absent: string };
+  funnel: { stages: Array<{ key: string; label: string; figure: Figure }>; basis: string };
+  feed: Array<{ at: string; kind: HomeFeedKind; title: string; detail?: string; decisionId?: string }>;
 }
 
 // -- Decisions (H2 reads, C5 acts) ------------------------------------------------------
@@ -122,7 +161,9 @@ export type DecisionKind =
   | "playbook_upgrade"
   | "autonomy_change"
   | "mandate_change"
-  | "channel_add";
+  | "channel_add"
+  /** An optimizer proposal that changes no platform setting: never spends. */
+  | "content_adjustment";
 
 export type DecisionStatus =
   | "proposed"
@@ -145,9 +186,25 @@ export interface EngineOpView {
     | "set_target"
     | "attach_creative"
     | "detach_creative"
-    | "set_geo_exclusions";
+    | "set_geo_exclusions"
+    | "set_geo_inclusions";
   from?: unknown;
   to: unknown;
+}
+
+/** An op with the sentence the api wrote for it: the campaign by name, the change in words. */
+export interface DescribedOpView extends EngineOpView {
+  description: string;
+}
+
+export type DecisionMetric = "outcomes" | "value" | "cost_per_outcome" | "roas";
+
+/** One later step of a governed move: scheduled, applied (with when) or cancelled. */
+export interface DecisionStepView {
+  op: DescribedOpView;
+  dueAt: string;
+  status: "scheduled" | "applied" | "cancelled";
+  appliedAt?: string;
 }
 
 export interface DecisionView {
@@ -156,27 +213,63 @@ export interface DecisionView {
   source: { engine: string; refId?: string };
   title: string;
   summary: string;
-  ops: EngineOpView[];
-  impact?: { metric: "outcomes" | "cost_per_outcome"; low: number; high: number; confidence: number; horizonDays: number };
+  ops: DescribedOpView[];
+  impact?: { metric: DecisionMetric; low: number; high: number; confidence: number; horizonDays: number };
   council?: {
     strategist: { model: string; text: string };
     critic: { model: string; text: string };
     chair: { text: string };
     risk: { checks: Array<{ key: string; pass: boolean; detail: string }> };
   };
-  tripwire?: { metric: string; op: "gt" | "lt"; threshold: number; checkBy: string; onTrip: "reverse" | "notify" };
+  tripwire?: { metric: DecisionMetric; op: "gt" | "lt"; threshold: number; checkBy: string; onTrip: "reverse" | "notify" };
   needsPerson: boolean;
   status: DecisionStatus;
   expiresAt?: string;
   decidedBy?: { via: "inapp" | "whatsapp"; at: string };
+  /** The end of the undo window; absent unless the decision is applied with an action still undoable. */
+  undoUntil?: string;
+  /** `whatsapp` is set only when a message went out. */
+  delivery: { inAppAt?: string; whatsapp?: { template: string; sentAt: string } };
+  steps?: DecisionStepView[];
   createdAt: string;
 }
 
+/** A guardrail block, one per (guardrail, channel): something the engine was stopped from doing. */
+export interface GuardrailBlockView {
+  id: string;
+  code: string;
+  platform: AdPlatform;
+  title: string;
+  message: string;
+  count: number;
+  lastAt: string;
+}
+
+export type DecisionQueue = "open" | "done" | "blocked";
+
 export interface DecisionsResponse {
+  queue: DecisionQueue;
+  /** Newest first. Empty for `blocked`. */
   decisions: DecisionView[];
+  /** Only for `blocked`. */
+  blocks: GuardrailBlockView[];
+  counts: Record<DecisionQueue, number>;
+  /** Pass it back as `cursor` for the next page; absent on the last. */
+  nextCursor?: string;
+}
+
+export interface DecisionAskResponse {
+  answer: string;
 }
 
 export type DecisionAction = "approve" | "hold" | "reject" | "undo";
+
+/** What C5's answer routes send back on success (approve, hold, reject: `status`, `scheduled`; undo: `status`, `reverted`). */
+export interface DecideResponse {
+  status: DecisionStatus;
+  /** The later steps of a move over 20%: not applied yet. */
+  scheduled?: unknown[];
+}
 
 // -- Channels (H3) -----------------------------------------------------------------------
 
@@ -350,11 +443,18 @@ export interface OnboardingConfirmResponse {
 const BASE = "/v1/growth/v2";
 
 export const growthV2Api = {
-  home: () => api.get<HomeResponse>(`${BASE}/home`),
-  decisions: (status?: DecisionStatus) =>
-    api.get<DecisionsResponse>(`${BASE}/decisions${status ? `?status=${status}` : ""}`),
+  home: (window: HomeWindowKey = "7d", compare: HomeCompare = "last_period") =>
+    api.get<HomeResponse>(`${BASE}/home?window=${window}&compare=${compare}`),
+  decisions: (queue: DecisionQueue, opts: { cursor?: string; limit?: number } = {}) => {
+    const q = new URLSearchParams({ status: queue });
+    if (opts.cursor) q.set("cursor", opts.cursor);
+    if (opts.limit) q.set("limit", String(opts.limit));
+    return api.get<DecisionsResponse>(`${BASE}/decisions?${q.toString()}`);
+  },
   decide: (id: string, action: DecisionAction) =>
-    api.post<unknown>(`${BASE}/decisions/${encodeURIComponent(id)}/${action}`),
+    api.post<DecideResponse>(`${BASE}/decisions/${encodeURIComponent(id)}/${action}`),
+  ask: (id: string, question: string) =>
+    api.post<DecisionAskResponse>(`${BASE}/decisions/${encodeURIComponent(id)}/ask`, { question }),
   channels: () => api.get<ChannelsResponse>(`${BASE}/channels`),
   learning: () => api.get<LearningResponse>(`${BASE}/learning`),
   rules: () => api.get<RulesResponse>(`${BASE}/rules`),
@@ -404,30 +504,102 @@ export async function loadOrPreview<T>(fetcher: () => Promise<T>, fixture: () =>
 const key = (businessId: string | undefined, screen: string, ...rest: unknown[]) =>
   ["growth-v2", businessId ?? "none", screen, ...rest] as const;
 
-/** Sample series the home charts draw. The api's `HomeResponse` carries none, so live data has none. */
+/** What the Growth home draws: the response, and the chart series read out of it. */
 export interface HomeScreenData extends V2Result<HomeResponse> {
   series?: HomeSeries;
   pacingSeries?: PacingSeries;
 }
 
-export function useGrowthV2Home() {
+/** The two answers the api gives instead of a page: the engine is off, or there is no business clock. */
+export type HomeRefusalCode = "NO_MANDATE" | "NO_BUSINESS_CLOCK";
+export interface HomeRefusal {
+  refusal: HomeRefusalCode;
+  preview: false;
+}
+
+/**
+ * Fetch Growth home, or its refusal as DATA. ★A refusal is an answer, not an error: as data it stays on screen through
+ * refetches (an error clears the moment one starts) and is never retried.
+ */
+export async function loadHome(fetcher: () => Promise<HomeResponse>): Promise<HomeScreenData | HomeRefusal> {
+  try {
+    const r = await loadOrPreview(fetcher, () => FIXTURE_HOME);
+    return { ...r, ...seriesFromHome(r.data) };
+  } catch (err) {
+    if (err instanceof ApiError && (err.code === "NO_MANDATE" || err.code === "NO_BUSINESS_CLOCK")) return { refusal: err.code, preview: false };
+    throw err;
+  }
+}
+
+/** `placeholderData` that carries the last window over only while the business is the same one. */
+export function sameBusiness(businessId: string | undefined) {
+  return <T,>(previous: T | undefined, previousQuery: { queryKey: readonly unknown[] } | undefined): T | undefined =>
+    previousQuery?.queryKey[1] === (businessId ?? "none") ? previous : undefined;
+}
+
+export function useGrowthV2Home(window: HomeWindowKey = "7d", compare: HomeCompare = "last_period") {
   const { business } = useAuth();
-  return useQuery<HomeScreenData>({
-    queryKey: key(business?._id, "home"),
-    queryFn: async () => {
-      const r = await loadOrPreview(growthV2Api.home, () => FIXTURE_HOME);
-      return r.preview ? { ...r, series: FIXTURE_HOME_SERIES, pacingSeries: FIXTURE_PACING_SERIES } : r;
-    },
+  return useQuery<HomeScreenData | HomeRefusal>({
+    queryKey: key(business?._id, "home", window, compare),
+    queryFn: () => loadHome(() => growthV2Api.home(window, compare)),
     enabled: !!business?._id,
     staleTime: 30_000,
+    // Changing the window keeps the last one on screen until the next arrives, instead of collapsing to a skeleton.
+    // ★Only for the same business: another business's figures must never stand in for this one's.
+    placeholderData: sameBusiness(business?._id),
   });
 }
 
-export function useGrowthV2Decisions() {
+/** The decisions a screen reads: every page so far, merged, and whether there is another. */
+export interface DecisionsScreenData extends V2Result<DecisionsResponse> {
+  hasMore: boolean;
+}
+
+/**
+ * One queue of the Decisions screen, a page at a time (`fetchNextPage`).
+ *
+ * A PREVIEW ONLY ON 501: the sample comes back for `NOT_BUILT` and for nothing else; a 500 or a 403 reaches the
+ * merchant as an error. A preview is one page, so it never has another.
+ */
+/** Every page so far as one result. A stable function, so the query does not re-select on each render. */
+export function mergeDecisionPages(d: { pages: Array<V2Result<DecisionsResponse>> }): DecisionsScreenData {
+  const first = d.pages[0]!;
+  const last = d.pages[d.pages.length - 1]!;
+  return {
+    // The counts of the newest page: the freshest the screen has.
+    data: { ...last.data, decisions: d.pages.flatMap((p) => p.data.decisions), blocks: d.pages.flatMap((p) => p.data.blocks) },
+    preview: first.preview,
+    ...(first.row !== undefined ? { row: first.row } : {}),
+    hasMore: last.data.nextCursor !== undefined,
+  };
+}
+
+export function useGrowthV2Decisions(queue: DecisionQueue = "open") {
   const { business } = useAuth();
-  return useQuery<V2Result<DecisionsResponse>>({
-    queryKey: key(business?._id, "decisions"),
-    queryFn: () => loadOrPreview(() => growthV2Api.decisions(), () => FIXTURE_DECISIONS),
+  return useInfiniteQuery({
+    queryKey: key(business?._id, "decisions", queue),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      loadOrPreview(
+        () => growthV2Api.decisions(queue, pageParam ? { cursor: pageParam } : {}),
+        () => previewDecisions(queue),
+      ),
+    getNextPageParam: (last) => last.data.nextCursor,
+    select: mergeDecisionPages,
+    enabled: !!business?._id,
+    staleTime: 15_000,
+  });
+}
+
+/** The three tabs' counts, from the cheapest page there is. They do not move when the person changes tab. */
+export function useGrowthV2DecisionCounts() {
+  const { business } = useAuth();
+  return useQuery<V2Result<DecisionsResponse["counts"]>>({
+    queryKey: key(business?._id, "decision-counts"),
+    queryFn: async () => {
+      const r = await loadOrPreview(() => growthV2Api.decisions("open", { limit: 1 }), () => previewDecisions("open"));
+      return { data: r.data.counts, preview: r.preview, ...(r.row !== undefined ? { row: r.row } : {}) };
+    },
     enabled: !!business?._id,
     staleTime: 15_000,
   });
@@ -525,8 +697,8 @@ export function usePatchRules() {
 }
 
 /**
- * Approve, hold, reject or undo a decision. C5 builds the route; until then it
- * answers 501 and the mutation fails with that error, which the screen shows.
+ * Approve, hold, reject or undo a decision (C5's routes). It settles by refetching: a 409 can still have moved the
+ * decision (an approve the platform refused goes back to `held`), so the queues are read again whatever the answer was.
  * The Decisions screen never calls this on a preview sample.
  */
 export function useDecideV2() {
@@ -534,6 +706,11 @@ export function useDecideV2() {
   return useMutation({
     mutationFn: (v: { id: string; action: DecisionAction }) => growthV2Api.decide(v.id, v.action),
     // Every Growth v2 screen reads the decision queue's effects, so refetch them all.
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["growth-v2"] }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["growth-v2"] }),
   });
+}
+
+/** Ask a question about one decision. Free, and moves nothing: no refetch. */
+export function useAskDecisionV2() {
+  return useMutation({ mutationFn: (v: { id: string; question: string }) => growthV2Api.ask(v.id, v.question) });
 }
