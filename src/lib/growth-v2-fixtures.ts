@@ -1,7 +1,6 @@
 import type {
   ChannelsResponse,
   DecisionsResponse,
-  FirstRunPlanResponse,
   HomeResponse,
   LearningResponse,
   RulesResponse,
@@ -298,27 +297,15 @@ export const FIXTURE_RULES: RulesResponse = {
     adsHalted: false,
   },
   connections: [
-    { platform: "meta", connected: true, currency: "INR", currencyMismatch: false },
-    { platform: "google_ads", connected: true, currency: "INR", currencyMismatch: false },
+    { platform: "meta", connected: true, currency: "INR", currencyMismatch: false, signal: "ready" },
+    { platform: "google_ads", connected: true, currency: "INR", currencyMismatch: false, signal: "untracked_accepted" },
     { platform: "x", connected: true, currency: "INR", currencyMismatch: false },
     { platform: "linkedin", connected: false, currencyMismatch: false },
   ],
-};
-
-export const FIXTURE_FIRST_RUN: FirstRunPlanResponse = {
-  mandate: {
-    outcome: { kind: "bookings", source: "orders", optimizeFor: "count" },
-    currency: "INR",
-    monthlyCeiling: 20000,
-    target: { kind: "cost_per_outcome", value: 450 },
-    targetSource: "playbook",
-    playbook: { id: "travel", version: 1 },
-    autonomyLevel: 1,
-  },
-  channels: [
-    { platform: "meta", role: "lead", monthlyShare: fig(0.6), reason: "Advantage+ Leads. Short trip videos and price-first carousels, with delivery tilted toward Sunday evenings." },
-    { platform: "google_ads", role: "lead", monthlyShare: fig(0.4), reason: "Search on trip names, targeting ₹450 per booking. Brand terms excluded so you aren't paying for people who already know you." },
-    { platform: "x", role: "not_now", monthlyShare: { absent: "Not now" }, reason: "Weak evidence for travel. Revisit at week 6." },
+  neverCrossed: [
+    "Spend more in a month than your ceiling.",
+    "Run ads on a channel you have turned off, or add a channel you have not approved.",
+    "Change what counts as an outcome, your ceiling or your target without you confirming it.",
+    "Raise its own autonomy level. It can only offer, and you decide.",
   ],
-  expectedOutcomes: { low: { absent: "Your own data takes over from about week 4" }, high: { absent: "Your own data takes over from about week 4" } },
 };

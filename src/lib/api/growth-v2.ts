@@ -1,10 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import {
   FIXTURE_CHANNELS,
   FIXTURE_DECISIONS,
-  FIXTURE_FIRST_RUN,
   FIXTURE_HOME,
   FIXTURE_HOME_SERIES,
   FIXTURE_LEARNING,
@@ -245,15 +244,107 @@ export interface RulesResponse {
     currency?: string;
     /** True when the account bills in another currency than the mandate and is not managed. */
     currencyMismatch: boolean;
+    /** C3's readiness of the conversion signal; absent for a platform the signal step does not cover. */
+    signal?: SignalStateView;
   }>;
+  /** The lines the engine never crosses, at any level (H5). */
+  neverCrossed: string[];
+  /** A mandate change waiting for its signed link and code; absent when none is. */
+  pendingChange?: { decisionId: string; summary: string; expiresAt: string };
 }
+
+export type SignalStateView = "ready" | "untracked_accepted" | "needed" | "needs_primary_goal" | "not_connected";
+
+/** `PATCH /v1/growth/v2/rules` (H5): the rules as they now stand, and the mandate change it started, if any. */
+export interface RulesPatchResponse extends RulesResponse {
+  mandateChange?: { decisionId: string; linkSent: true; via: "signed_link_otp" };
+}
+
+/** The guardrail edit of `PATCH /rules`: a key left out keeps what is stored; null, [] or false clears. */
+export interface GuardrailsPatch {
+  deniedChannels?: AdPlatform[];
+  allowedChannels?: AdPlatform[] | null;
+  approvedAssetsOnly?: boolean;
+  blockedTerms?: string[];
+  quietHours?: { start: string; end: string } | null;
+  blackoutDates?: Array<{ from: string; to: string; label?: string }>;
+  timeZone?: string;
+}
+
+/** The mandate edit of `PATCH /rules`: it never writes the mandate, it sends a confirmation link. */
+export interface MandatePatch {
+  outcome?: { kind: OutcomeKind; source: OutcomeSource; focus?: NonNullable<MandateOutcome["focus"]>; optimizeFor?: "count" | "value" };
+  monthlyCeiling?: number;
+  target?: MandateTarget;
+}
+
+export type RulesPatchBody = { guardrails: GuardrailsPatch } | { mandate: MandatePatch };
 
 // -- Onboarding (H5, C6b) -----------------------------------------------------------------
 
-export interface FirstRunPlanResponse {
-  mandate: Omit<MandateView, "confirmation" | "autonomy" | "approvers"> & { autonomyLevel: AutonomyLevel };
-  channels: Array<{ platform: AdPlatform; role: "lead" | "test" | "not_now"; monthlyShare: Figure; reason: string }>;
-  expectedOutcomes: { low: Figure; high: Figure };
+/** `POST /v1/growth/v2/onboarding/draft`. Every field is optional: an empty body asks for the first look. */
+export interface FirstRunDraftRequest {
+  /** The merchant's answer to "Which best describes you?"; must be one of the tie's candidates. */
+  playbookId?: string;
+  /** The merchant's yes to "Do customers visit you in person?". */
+  customersVisitInPerson?: boolean;
+  /** The outcome the channel split and ceiling bands are drafted for; the first offer when absent. */
+  outcome?: { kind: OutcomeKind; source: OutcomeSource };
+  /** The ceiling the split is drafted within, in the plan's currency. */
+  monthlyCeiling?: number;
+}
+
+export interface DraftOffer {
+  kind: OutcomeKind;
+  source: OutcomeSource;
+  optimizeFor: "count" | "value";
+  /** The kind's own word: "Sales", "Bookings". */
+  label: string;
+  focusSuggestions: Array<{ by: "product_type" | "tag" | "vendor"; values: string[]; label: string; source: "playbook" | "revenue"; revenue: number }>;
+  focusWindowDays?: number;
+  defaultTarget?: { kind: "cost_per_outcome"; value: number; low: number; high: number; currency: string } | { kind: "roas"; value: number; low: number; high: number };
+  targetSource: "playbook" | "merchant";
+}
+
+export interface DraftChannel {
+  platform: AdPlatform;
+  role: "lead" | "test";
+  /** Of the ceiling; the shares of a plan add up to 1. */
+  monthlyShare: number;
+  /** In the ceiling's currency; absent when no ceiling was sent. */
+  monthlyAmount?: Money;
+  reason: string;
+  connected: boolean;
+}
+
+export interface FirstRunDraftResponse {
+  /** True when the business already has a mandate: the plan is changed from Rules, not drafted again. */
+  alreadyActive: boolean;
+  currency?: string;
+  /** The business clock. Absent until it is set; the mandate cannot be confirmed without it. */
+  timeZone: { value: string } | { absent: string; suggested?: string };
+  offers: DraftOffer[];
+  askAboutStores: boolean;
+  playbook?: { id: string; version: number; title: string };
+  /** More than one playbook fits equally: ask "Which best describes you?" and send the answer back as `playbookId`. */
+  tie?: { candidates: Array<{ playbookId: string; version: number; title: string }> };
+  selected?: { kind: OutcomeKind; source: OutcomeSource };
+  channels: DraftChannel[];
+  ceilingBands: { currency: string; bands: Array<{ key: "starter" | "steady" | "growth"; amount: number }> } | { absent: string };
+  ceilingBelowMinimum?: boolean;
+  excludedByGuardrails: AdPlatform[];
+}
+
+/** The plan `POST /onboarding/confirm` validates (W1) and stores pending until its link and code are accepted. */
+export interface ConfirmPlanBody {
+  outcome: MandateOutcome;
+  goal?: { perMonth: number };
+  currency: string;
+  monthlyCeiling: number;
+  target: MandateTarget;
+  targetSource: "playbook" | "merchant";
+  playbook?: { id: string; version: number };
+  approvers?: string[];
 }
 
 export interface OnboardingConfirmResponse {
@@ -275,6 +366,9 @@ export const growthV2Api = {
   channels: () => api.get<ChannelsResponse>(`${BASE}/channels`),
   learning: () => api.get<LearningResponse>(`${BASE}/learning`),
   rules: () => api.get<RulesResponse>(`${BASE}/rules`),
+  patchRules: (body: RulesPatchBody) => api.patch<RulesPatchResponse>(`${BASE}/rules`, body),
+  draft: (body: FirstRunDraftRequest) => api.post<FirstRunDraftResponse>(`${BASE}/onboarding/draft`, body),
+  confirm: (body: ConfirmPlanBody) => api.post<OnboardingConfirmResponse>(`${BASE}/onboarding/confirm`, body),
 };
 
 // -- 501 NOT_BUILT and the preview fallback --------------------------------------------------
@@ -397,11 +491,45 @@ export function mandateFor(rules: V2Result<RulesResponse> | undefined, screenPre
 }
 
 /**
- * First-run has no read route: `onboarding/draft` is a POST that H5 builds. Until
- * then the screen shows the prototype's plan, as a preview.
+ * The First-run plan. `onboarding/draft` is a POST, but it only reads: it writes nothing, so it is a query, asked again
+ * whenever an answer changes. The previous answer stays on screen while the next one loads, so the page does not blink.
  */
-export function firstRunPlanPreview() {
-  return { data: FIXTURE_FIRST_RUN, preview: true as const };
+export function useFirstRunDraft(body: FirstRunDraftRequest, opts: { enabled?: boolean } = {}) {
+  const { business } = useAuth();
+  return useQuery<FirstRunDraftResponse>({
+    queryKey: key(business?._id, "first-run-draft", body),
+    queryFn: () => growthV2Api.draft(body),
+    enabled: !!business?._id && opts.enabled !== false,
+    placeholderData: keepPreviousData,
+    staleTime: 0,
+    retry: false,
+  });
+}
+
+/** Send the plan to WhatsApp for confirmation. Nothing is written to the mandate until the link's code is accepted. */
+export function useConfirmPlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ConfirmPlanBody) => growthV2Api.confirm(body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["growth-v2"] }),
+  });
+}
+
+/**
+ * Edit the rules: a guardrail change is saved at once, and a mandate change sends a confirmation link and writes nothing.
+ * Either way the answer is the rules as they now stand, so the screen is set from it and not from a guess.
+ */
+export function usePatchRules() {
+  const qc = useQueryClient();
+  const { business } = useAuth();
+  return useMutation({
+    mutationFn: (body: RulesPatchBody) => growthV2Api.patchRules(body),
+    onSuccess: (rules) => {
+      qc.setQueryData<V2Result<RulesResponse>>(key(business?._id, "rules"), { data: rules, preview: false });
+      // The nav and the other screens read the same facts under their own keys.
+      return qc.invalidateQueries({ queryKey: ["growth-v2"] });
+    },
+  });
 }
 
 /**

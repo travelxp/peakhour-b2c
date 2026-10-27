@@ -2,9 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider, type UseQueryResult } from "@tanstack/react-query";
 import { FIXTURE_CHANNELS, FIXTURE_DECISIONS, FIXTURE_HOME, FIXTURE_HOME_SERIES, FIXTURE_LEARNING, FIXTURE_PACING_SERIES, FIXTURE_RULES } from "@/lib/growth-v2-fixtures";
-import type { HomeScreenData } from "@/lib/api/growth-v2";
+import type { DraftOffer, FirstRunDraftResponse, HomeScreenData } from "@/lib/api/growth-v2";
+import { EMPTY_ANSWERS } from "@/lib/growth-v2-firstrun";
 import { ChannelsBody } from "./channels-screen";
-import { FirstRunScreen } from "./first-run-screen";
+import { FirstRunView, type FirstRunViewProps } from "./first-run-screen";
+import { MandateConfirmView, type MandateConfirmViewProps } from "./mandate-confirm";
 import { HomeBody } from "./home-screen";
 import { LearningBody } from "./learning-screen";
 import { QueryBoundary } from "./query-boundary";
@@ -108,17 +110,53 @@ describe("the screens render their preview sample", () => {
     expect(out).toContain("5 experiments");
   });
 
-  it("Rules shows the ladder, the mandate and the guardrails", () => {
-    const out = html(<RulesBody rules={FIXTURE_RULES} preview />);
+  it("Rules shows the ladder, the mandate, the guardrail switches and the lines it never crosses", () => {
+    const out = html(withClient(<RulesBody rules={FIXTURE_RULES} preview />));
     expect(out).toContain("Propose");
     expect(out).toContain("3 of 5 cleared decisions");
     expect(out).toContain("Your mandate");
     expect(out).toContain("₹20,000");
     expect(out).toContain("Only use creatives I approved");
+    expect(out).toContain("Blocked words");
+    expect(out).toContain("Let the engine use Meta");
+    expect(out).toContain("Never, at any level");
+    expect(out).toContain("Raise its own autonomy level");
+  });
+
+  it("Rules has no control that sets the autonomy level", () => {
+    const out = html(withClient(<RulesBody rules={FIXTURE_RULES} preview={false} />));
+    // The ladder is a read-only list. No field, select, switch or button mentions the level.
+    const controls = out.match(/<(input|select|button)\b[^>]*>/g) ?? [];
+    expect(controls.length).toBeGreaterThan(0);
+    for (const tag of controls) expect(tag, tag).not.toMatch(/autonomy|level/i);
+    const buttonTexts = [...out.matchAll(/<button\b[^>]*>([^<]*)</g)].map((m) => m[1]);
+    for (const t of buttonTexts) expect(t, t).not.toMatch(/autonomy|level|promote|upgrade/i);
+  });
+
+  it("Rules shows the signal state beside each connection, and says nothing for a channel that is not connected", () => {
+    const out = html(withClient(<RulesBody rules={FIXTURE_RULES} preview />));
+    expect(out).toContain("Signal on");
+    expect(out).toContain("Not tracked");
+  });
+
+  it("Rules turns every control off on a preview, and on live data leaves the switches on", () => {
+    const preview = html(withClient(<RulesBody rules={FIXTURE_RULES} preview />));
+    expect(preview).toMatch(/<button[^>]* disabled=""[^>]*>Change/);
+    expect(preview).toMatch(/<button[^>]*role="switch"[^>]* disabled=""[^>]*aria-label="Only use creatives I approved"|<button[^>]* disabled=""[^>]*role="switch"/);
+    const live = html(withClient(<RulesBody rules={FIXTURE_RULES} preview={false} />));
+    expect(live).not.toMatch(/<button[^>]* disabled=""[^>]*>Change/);
+    expect(live).not.toMatch(/<button[^>]*role="switch"[^>]* disabled=""/);
+  });
+
+  it("Rules says a change is waiting for the owner's confirmation, and that the plan is as it was", () => {
+    const out = html(withClient(<RulesBody rules={{ ...FIXTURE_RULES, pendingChange: { decisionId: "d1", summary: "Change your plan: monthly ceiling from INR 20000 to INR 30000.", expiresAt: "2026-10-30T00:00:00Z" } }} preview={false} />));
+    expect(out).toContain("A change is waiting for your confirmation");
+    expect(out).toContain("monthly ceiling from INR 20000 to INR 30000");
+    expect(out).toContain("exactly as it was");
   });
 
   it("Rules points a business with no mandate at First run", () => {
-    const out = html(<RulesBody rules={{ ...FIXTURE_RULES, mandate: undefined }} preview={false} />);
+    const out = html(withClient(<RulesBody rules={{ ...FIXTURE_RULES, mandate: undefined }} preview={false} />));
     expect(out).toContain("The engine is off for this business");
     expect(out).toContain("/dashboard/growth/start");
   });
@@ -134,14 +172,6 @@ describe("the screens render their preview sample", () => {
     expect(out).toContain("reply CONFIRM");
     expect(out).toContain("Preview data: nothing is sent.");
     expect(out).toMatch(/<button[^>]* disabled=""[^>]*>Approve/);
-  });
-
-  it("First run is a preview with its confirm button off", () => {
-    const out = html(withClient(<FirstRunScreen />));
-    expect(out).toContain("Preview data");
-    expect(out).toContain("What do you want more of?");
-    expect(out).toContain("Your first plan");
-    expect(out).toMatch(/<button[^>]* disabled=""[^>]*>Send to WhatsApp to confirm/);
   });
 });
 
@@ -167,5 +197,215 @@ describe("DecisionCard time rules", () => {
     expect(late).toContain("undo window has passed");
     const soon = html(<DecisionCard decision={applied} currency="INR" unit={unit} now={Date.parse("2026-10-20T20:00:00Z")} onAction={noop} />);
     expect(soon).toContain("Undo works for 24 hours");
+  });
+});
+
+// -- H5: First run and the confirmation link -----------------------------------------------------
+
+const OFFER_SALES: DraftOffer = {
+  kind: "sales",
+  source: "orders",
+  optimizeFor: "value",
+  label: "Sales",
+  focusSuggestions: [{ by: "product_type", values: ["Sarees"], label: "Sarees", source: "revenue", revenue: 800000 }],
+  focusWindowDays: 90,
+  defaultTarget: { kind: "roas", value: 2.5, low: 1.5, high: 5 },
+  targetSource: "playbook",
+};
+const OFFER_LEADS: DraftOffer = { kind: "leads", source: "win_definition", optimizeFor: "count", label: "Leads", focusSuggestions: [], targetSource: "merchant" };
+const OFFER_STORE: DraftOffer = { kind: "store_visits", source: "ads_conversions", optimizeFor: "count", label: "Store visits", focusSuggestions: [], targetSource: "merchant" };
+
+const DRAFT: FirstRunDraftResponse = {
+  alreadyActive: false,
+  currency: "INR",
+  timeZone: { value: "Asia/Kolkata" },
+  offers: [OFFER_SALES, OFFER_LEADS],
+  askAboutStores: false,
+  playbook: { id: "growth-ecommerce-d2c", version: 1, title: "D2C" },
+  channels: [
+    { platform: "meta", role: "lead", monthlyShare: 0.625, reason: "Short videos.", connected: true },
+    { platform: "google_ads", role: "test", monthlyShare: 0.375, reason: "Search on your products.", connected: false },
+  ],
+  ceilingBands: { currency: "INR", bands: [{ key: "starter", amount: 30000 }, { key: "steady", amount: 60000 }, { key: "growth", amount: 120000 }] },
+  excludedByGuardrails: ["x"],
+};
+
+const noop = () => {};
+const firstRun = (over: Partial<FirstRunViewProps> = {}): FirstRunViewProps => ({
+  draft: DRAFT,
+  answers: { ...EMPTY_ANSWERS, ceiling: "60000" },
+  zone: "",
+  signalStep: <p>SIGNAL-STEP</p>,
+  blockedReason: undefined,
+  onChooseTie: noop,
+  onInPerson: noop,
+  onOffer: noop,
+  onFocus: noop,
+  onCeiling: noop,
+  onTarget: noop,
+  onZone: noop,
+  onSaveZone: noop,
+  onSend: noop,
+  ...over,
+});
+
+describe("First run", () => {
+  it("asks the three questions, with only the offered outcomes, the focus picker and the playbook's target", () => {
+    const out = html(<FirstRunView {...firstRun()} />);
+    expect(out).toContain("What do you want more of?");
+    expect(out).toContain("Your monthly ceiling");
+    expect(out).toContain("What return do you need on your ad spend?");
+    expect(out).toContain(">Sales<");
+    expect(out).toContain(">Leads<");
+    // never offered: store visits and calls, which the api did not offer this business
+    expect(out).not.toContain("Store visits");
+    expect(out).not.toContain(">Calls<");
+    // sales shows the categories the shop really sold
+    expect(out).toContain("Sarees");
+    expect(out).toContain("Filled in by the D2C playbook");
+    expect(out).toContain('value="2.5"');
+    expect(out).toContain("SIGNAL-STEP");
+  });
+
+  it("offers store visits only when the api offered them, and then asks nothing about stores", () => {
+    const withStore = html(<FirstRunView {...firstRun({ draft: { ...DRAFT, offers: [OFFER_SALES, OFFER_STORE] } })} />);
+    expect(withStore).toContain("Store visits");
+    expect(withStore).not.toContain("Do customers visit you in person?");
+    const without = html(<FirstRunView {...firstRun()} />);
+    expect(without).toContain("Do customers visit you in person?");
+  });
+
+  it("when a store is suspected but cannot be offered, says how to get store visits and still does not offer them", () => {
+    const out = html(<FirstRunView {...firstRun({ draft: { ...DRAFT, askAboutStores: true } })} />);
+    expect(out).toContain("verified Business Profile");
+    expect(out).not.toContain(">Store visits<");
+  });
+
+  it("a business offered nothing is told what to connect, not shown a menu", () => {
+    const out = html(<FirstRunView {...firstRun({ draft: { ...DRAFT, offers: [] }, blockedReason: "Nothing can be measured for this business yet." })} />);
+    expect(out).toContain("Nothing can be measured for this business yet");
+    expect(out).not.toContain(">Sales<");
+    expect(out).not.toContain(">Leads<");
+  });
+
+  it("asks 'Which best describes you?' on a tie, and shows no plan until it is answered", () => {
+    const tie: FirstRunDraftResponse = { ...DRAFT, playbook: undefined, channels: [], tie: { candidates: [{ playbookId: "growth-travel", version: 1, title: "Travel" }, { playbookId: "growth-ecommerce-d2c", version: 1, title: "D2C" }] } };
+    const out = html(<FirstRunView {...firstRun({ draft: tie })} />);
+    expect(out).toContain("Which best describes you?");
+    expect(out).toContain(">Travel<");
+    expect(out).toContain(">D2C<");
+    expect(out).not.toContain("Your first plan");
+    expect(out).not.toContain("What do you want more of?");
+  });
+
+  it("shows the split of the ceiling, what is not connected, and what the guardrails left out", () => {
+    const out = html(<FirstRunView {...firstRun()} />);
+    expect(out).toContain("Your first plan");
+    expect(out).toContain("63%");
+    expect(out).toContain("₹37,500");
+    expect(out).toContain("Not connected yet");
+    expect(out).toContain("Left out because you turned them off in Rules: X");
+  });
+
+  it("asks for the time zone while there is none, prefilled with the suggestion", () => {
+    const out = html(<FirstRunView {...firstRun({ draft: { ...DRAFT, timeZone: { absent: "No time zone is set for this business yet.", suggested: "Asia/Kolkata" } }, zone: "Asia/Kolkata" })} />);
+    expect(out).toContain("Your time zone");
+    expect(out).toContain('value="Asia/Kolkata"');
+    expect(html(<FirstRunView {...firstRun()} />)).not.toContain("Your time zone");
+  });
+
+  it("keeps Send to WhatsApp off, with the reason, until the plan can be sent", () => {
+    const off = html(<FirstRunView {...firstRun({ blockedReason: "Finish step 4 first: switch on your signal, or accept running without one." })} />);
+    expect(off).toMatch(/<button[^>]* disabled=""[^>]*>Send to WhatsApp to confirm/);
+    expect(off).toContain("Finish step 4 first");
+    const on = html(<FirstRunView {...firstRun()} />);
+    expect(on).not.toMatch(/<button[^>]* disabled=""[^>]*>Send to WhatsApp to confirm/);
+    expect(on).toContain("Send to WhatsApp to confirm");
+  });
+
+  it("after the send, says Check WhatsApp and that nothing spends yet", () => {
+    const out = html(<FirstRunView {...firstRun({ sent: true })} />);
+    expect(out).toContain("Check WhatsApp");
+    expect(out).toContain("Until then nothing spends");
+    expect(out).toContain("Send the link again");
+  });
+
+  it("says why a send failed", () => {
+    expect(html(<FirstRunView {...firstRun({ sendError: "Verify your WhatsApp number in Settings first." })} />)).toContain("Verify your WhatsApp number");
+  });
+
+  it("points a business that already has a mandate at Rules instead of drafting again", () => {
+    const out = html(<FirstRunView {...firstRun({ draft: { ...DRAFT, alreadyActive: true } })} />);
+    expect(out).toContain("already running");
+    expect(out).toContain("/dashboard/growth/rules");
+    expect(out).not.toContain("What do you want more of?");
+  });
+
+  it("says it is drafting, and says so plainly when the draft failed", () => {
+    expect(html(<FirstRunView {...firstRun({ draft: undefined })} />)).toContain("aria-busy");
+    expect(html(<FirstRunView {...firstRun({ draft: undefined, loadFailed: true })} />)).toContain("couldn&#x27;t draft your plan");
+  });
+});
+
+describe("The confirmation link page", () => {
+  const LINK = { plan: "grow Sarees with at most INR 60000 a month in ad spend, aiming for a return of 2.5x on ad spend", sentTo: "ending 01", otpSent: false, change: false };
+  const page = (over: Partial<MandateConfirmViewProps> = {}): MandateConfirmViewProps => ({ link: LINK, codeAsked: false, code: "", onCode: noop, onSend: noop, onConfirm: noop, ...over });
+
+  it("shows the plan and where the code will go, and asks nothing until the person asks for a code", () => {
+    const out = html(<MandateConfirmView {...page()} />);
+    expect(out).toContain("Confirm your plan");
+    expect(out).toContain("grow Sarees with at most INR 60000");
+    expect(out).toContain("ending 01");
+    expect(out).toContain("Nothing is spent until you enter the code");
+    expect(out).toContain("Text me the code");
+    expect(out).not.toContain("mandate-code");
+  });
+
+  it("after a code is sent, takes six digits and keeps Confirm off until they are in", () => {
+    const half = html(<MandateConfirmView {...page({ codeAsked: true, code: "123" })} />);
+    expect(half).toContain("mandate-code");
+    expect(half).toMatch(/<button[^>]* disabled=""[^>]*>Confirm and start/);
+    const full = html(<MandateConfirmView {...page({ codeAsked: true, code: "123456" })} />);
+    expect(full).not.toMatch(/<button[^>]* disabled=""[^>]*>Confirm and start/);
+  });
+
+  it("goes straight to the code when one was already sent for the link", () => {
+    expect(html(<MandateConfirmView {...page({ link: { ...LINK, otpSent: true }, codeAsked: true })} />)).toContain("mandate-code");
+  });
+
+  it("says a change is a change, and that the plan changes only on the code", () => {
+    const out = html(<MandateConfirmView {...page({ link: { ...LINK, change: true } })} />);
+    expect(out).toContain("Confirm this change to your plan");
+    expect(out).toContain("Your plan changes only when you enter the code");
+  });
+
+  it("shows a wrong code's sentence and keeps the box, but shows a finished link's sentence with no box", () => {
+    const wrong = html(<MandateConfirmView {...page({ codeAsked: true, code: "123456", error: "That code is not right." })} />);
+    expect(wrong).toContain("That code is not right.");
+    expect(wrong).toContain("mandate-code");
+    const dead = html(<MandateConfirmView {...page({ codeAsked: true, dead: true, error: "This link has expired." })} />);
+    expect(dead).toContain("This link has expired.");
+    expect(dead).not.toContain("mandate-code");
+  });
+
+  it("confirms the plan is on, or that the change is saved, once the code is accepted", () => {
+    const on = html(<MandateConfirmView {...page({ done: { activated: true, holdout: { started: true, method: "switchback" } } })} />);
+    expect(on).toContain("Your plan is on");
+    const changed = html(<MandateConfirmView {...page({ link: { ...LINK, change: true }, done: { activated: true, holdout: { started: false, reason: "kept" } } })} />);
+    expect(changed).toContain("Your change is saved");
+    expect(changed).not.toContain("Lift measurement has not started");
+  });
+
+  it("says when lift measurement did not start, without blocking the plan", () => {
+    const out = html(<MandateConfirmView {...page({ done: { activated: true, holdout: { started: false, reason: "no regions" } } })} />);
+    expect(out).toContain("Your plan is on");
+    expect(out).toContain("Lift measurement has not started yet (no regions)");
+  });
+
+  it("shows a link that cannot be read as unusable, with no way to guess a code", () => {
+    const out = html(<MandateConfirmView {...page({ link: undefined, loadError: "This link has expired. Links last 24 hours." })} />);
+    expect(out).toContain("This link can&#x27;t be used");
+    expect(out).toContain("Links last 24 hours");
+    expect(out).not.toContain("mandate-code");
   });
 });

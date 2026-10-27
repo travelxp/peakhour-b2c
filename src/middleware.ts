@@ -149,6 +149,12 @@ export function middleware(req: NextRequest) {
   // reinstalled site permanently unable to approve its pairing code — sessionBypass
   // does not help, since it is scoped to /dashboard, /onboarding and /cms.
   //
+  // (6) /growth/confirm — the page behind the signed link in the `growth_mandate_confirm_v1`
+  // WhatsApp message (https://peakhour.ai/growth/confirm/{token}). The owner opens it from
+  // WhatsApp, often with no Peakhour session on that device, and confirms with the one-time
+  // code sent to their verified number. With the gate on it would rewrite to the teaser and a
+  // mandate could never be confirmed. Only this prefix: `/growth` itself is a marketing page.
+  //
   // That is the whole set: enumerating every B2C_URL/DASHBOARD_URL the API hands
   // out gives /auth, /claim/*, /reconnect/wordpress, /shopify/connect and
   // /dashboard/*. These are the pages whose entire job is to work for someone who
@@ -172,6 +178,7 @@ export function middleware(req: NextRequest) {
     "/shopify/connect",
     "/claim",
     "/reconnect",
+    "/growth/confirm",
   ];
   const isPublicPath = PUBLIC_PATHS.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
