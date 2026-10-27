@@ -544,12 +544,18 @@ export interface HomeRefusal {
  * Fetch Growth home, or its refusal as DATA. ★A refusal is an answer, not an error: as data it stays on screen through
  * refetches (an error clears the moment one starts) and is never retried.
  */
+/** The refusal an error is, if it is one: the api answers these two instead of a page. */
+export function refusalOf(err: unknown): HomeRefusal | undefined {
+  return err instanceof ApiError && (err.code === "NO_MANDATE" || err.code === "NO_BUSINESS_CLOCK") ? { refusal: err.code, preview: false } : undefined;
+}
+
 export async function loadHome(fetcher: () => Promise<HomeResponse>): Promise<HomeScreenData | HomeRefusal> {
   try {
     const r = await loadOrPreview(fetcher, () => FIXTURE_HOME);
     return { ...r, ...seriesFromHome(r.data) };
   } catch (err) {
-    if (err instanceof ApiError && (err.code === "NO_MANDATE" || err.code === "NO_BUSINESS_CLOCK")) return { refusal: err.code, preview: false };
+    const refusal = refusalOf(err);
+    if (refusal) return refusal;
     throw err;
   }
 }
@@ -650,7 +656,8 @@ export async function loadLearning(fetcher: () => Promise<LearningResponse>): Pr
   try {
     return await loadOrPreview(fetcher, () => FIXTURE_LEARNING);
   } catch (err) {
-    if (err instanceof ApiError && (err.code === "NO_MANDATE" || err.code === "NO_BUSINESS_CLOCK")) return { refusal: err.code, preview: false };
+    const refusal = refusalOf(err);
+    if (refusal) return refusal;
     throw err;
   }
 }

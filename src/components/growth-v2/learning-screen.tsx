@@ -8,7 +8,7 @@ import { BenchmarkRows } from "./benchmark-rows";
 import { CreativeLeaderboard } from "./creative-leaderboard";
 import { EnquiryHeatmap } from "./enquiry-heatmap";
 import { ExperimentTimeline } from "./experiment-timeline";
-import { NotSetUp } from "./home-screen";
+import { NotSetUp } from "./not-set-up";
 import { PageHead } from "./page-head";
 import { QueryBoundary } from "./query-boundary";
 import { ToneBadge } from "./tone";
