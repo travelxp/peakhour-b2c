@@ -321,11 +321,11 @@ const HEAT_VALUES = [
 
 export const FIXTURE_LEARNING: LearningResponse = {
   experiments: [
-    { id: "preview-e1", title: "Google: add “family trek” searches", status: "running", startedAt: "2026-10-12T00:00:00Z", lift: { absent: "3 bookings so far, not enough to judge" } },
-    { id: "preview-e2", title: "Reels-first creative on Meta", status: "judged", verdict: "winner", startedAt: "2026-10-08T00:00:00Z", lift: fig(0.07) },
-    { id: "preview-e3", title: "X: promote the Spiti thread", status: "judged", verdict: "loser", startedAt: "2026-10-07T00:00:00Z", lift: fig(-0.4) },
-    { id: "preview-e4", title: "Shift delivery to Sunday evenings", status: "judged", verdict: "winner", startedAt: "2026-09-24T00:00:00Z", lift: fig(0.19) },
-    { id: "preview-e5", title: "Holdout: 10% of areas held back", status: "running", startedAt: "2026-09-23T00:00:00Z", lift: { absent: "A holdout is the measurement, not a test with its own lift" } },
+    { id: "preview-e1", title: "Google: add “family trek” searches", status: "running", startedAt: "2026-10-12T00:00:00Z", kind: "council_bet", lift: { absent: "judged_by_its_tripwire_not_by_lift" } },
+    { id: "preview-e2", title: "Reels-first creative on Meta", status: "ended", verdict: "winner", startedAt: "2026-10-08T00:00:00Z", kind: "council_bet", lift: { absent: "judged_by_its_tripwire_not_by_lift" } },
+    { id: "preview-e3", title: "X: promote the Spiti thread", status: "ended", verdict: "loser", startedAt: "2026-10-07T00:00:00Z", kind: "council_bet", lift: { absent: "judged_by_its_tripwire_not_by_lift" } },
+    { id: "preview-e4", title: "Shift delivery to Sunday evenings", status: "ended", verdict: "winner", startedAt: "2026-09-24T00:00:00Z", kind: "council_bet", lift: { absent: "judged_by_its_tripwire_not_by_lift" } },
+    { id: "preview-e5", title: "Holdout: 10% of areas held back", status: "running", startedAt: "2026-09-23T00:00:00Z", kind: "holdout", lift: fig(0.31), liftLow: fig(0.12), liftHigh: fig(0.5) },
   ],
   creativePatterns: [
     { key: "price_first_carousel", label: "Price-first carousel", hookFormat: "carousel", liftPer1k: fig(2.9), n: fig(14) },
@@ -334,15 +334,21 @@ export const FIXTURE_LEARNING: LearningResponse = {
     { key: "generic_photo", label: "Generic mountain photo", hookFormat: "image", liftPer1k: fig(0.4), n: fig(11) },
   ],
   benchmarks: [
-    { metric: "cost_per_outcome", you: fig(410), p25: fig(450), p50: fig(520), p75: fig(620), n: fig(214) },
-    { metric: "enquiry_to_outcome_rate", you: fig(0.083), p25: fig(0.04), p50: fig(0.061), p75: fig(0.09), n: fig(214) },
-    { metric: "creative_refresh_days", you: fig(12), p25: fig(14), p50: fig(21), p75: fig(30), n: fig(131) },
-    { metric: "incremental_share", you: fig(0.65), p25: fig(0.5), p50: fig(0.58), p75: fig(0.7), n: { absent: "Fewer than 20 merchants report this" } },
+    { metric: "cost_per_outcome", you: fig(410), p25: fig(450), p50: fig(520), p75: fig(620), n: fig(214), source: "pin", asOf: "2026-09-30" },
+    { metric: "enquiry_to_outcome_rate", you: fig(0.083), p25: fig(0.04), p50: fig(0.061), p75: fig(0.09), n: fig(214), source: "pin", asOf: "2026-09-30" },
+    { metric: "creative_refresh_days", you: fig(12), p25: fig(14), p50: fig(21), p75: fig(30), n: fig(131), source: "pin", asOf: "2026-09-30" },
+    { metric: "incremental_share", you: fig(0.65), p25: fig(0.5), p50: fig(0.58), p75: fig(0.7), n: { absent: "Fewer than 20 merchants report this" }, source: "pin", asOf: "2026-09-30" },
   ],
   heatmap: {
     rows: HEAT_DAYS,
     columns: HEAT_SLOTS,
     cells: HEAT_DAYS.flatMap((row, i) => HEAT_SLOTS.map((column, j) => ({ row, column, figure: fig(HEAT_VALUES[i][j]) }))),
+  },
+  basis: {
+    experiments: "Sample data. Holdouts show the share of outcomes the ads caused; council bets are judged by their tripwire.",
+    creativePatterns: "Sample data.",
+    benchmarks: "Sample data.",
+    heatmap: "Sample data.",
   },
 };
 

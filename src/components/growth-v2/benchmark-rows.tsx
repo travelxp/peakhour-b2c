@@ -15,6 +15,7 @@ type Benchmark = LearningResponse["benchmarks"][number];
 
 const LABEL: Record<string, string> = {
   cost_per_outcome: "Cost per outcome",
+  roas: "Return on ad spend",
   enquiry_to_outcome_rate: "Enquiry to outcome",
   creative_refresh_days: "Days between creative refreshes",
   incremental_share: "Share of outcomes caused by ads",
@@ -27,6 +28,8 @@ export const metricLabel = (metric: string) =>
 
 export function metricFormat(metric: string, currency: string): (n: number) => string {
   if (metric === "cost_per_outcome") return (n) => formatMoney(n, currency);
+  // As Growth home says it: 3.4x.
+  if (metric === "roas") return (n) => `${n.toFixed(1)}x`;
   if (/(_rate|_share)$/.test(metric)) return formatPercent;
   return formatCount;
 }
@@ -51,7 +54,7 @@ export function standing(b: Pick<Benchmark, "metric" | "you" | "p25" | "p50" | "
 
 export function BenchmarkRows({ benchmarks, currency }: { benchmarks: Benchmark[]; currency: string }) {
   if (benchmarks.length === 0) {
-    return <p className="py-6 text-center text-sm text-muted-foreground">No comparison yet. It needs at least 20 similar businesses to opt in.</p>;
+    return <p className="py-6 text-center text-sm text-muted-foreground">No comparison yet. The playbook has no benchmark for your goal, or fewer than 20 similar businesses have opted in.</p>;
   }
   return (
     <ul className="divide-y">
