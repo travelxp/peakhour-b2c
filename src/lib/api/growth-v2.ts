@@ -295,7 +295,7 @@ export interface ChannelsResponse {
   }>;
   /** Spend against outcomes per channel, for the bubble chart. */
   bubbles: Array<{ platform: AdPlatform; spend: Money; outcomes: Figure; efficiency: Figure }>;
-  /** Eight weeks of 7 days ending where the window ends, oldest first; `weekStart` is the local day a week opens. */
+  /** Eight buckets of 7 days ending where the window ends (Home's spark buckets), oldest first; `weekStart` is the local day a bucket opens, not a Monday. */
   shareByWeek: Array<{ weekStart: string; shares: Array<{ platform: AdPlatform; share: Figure }> }>;
   /** Where the allocator's latest decision would leave each platform's share of daily budget; absent when it has made none. */
   allocatorTarget?: { decisionId: string; status: string; at: string; shares: Array<{ platform: AdPlatform; share: Figure }> };
