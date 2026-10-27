@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider, type UseQueryResult } from "@tanstack/react-query";
 import { FIXTURE_CHANNELS, FIXTURE_DECISIONS, FIXTURE_HOME, FIXTURE_LEARNING, FIXTURE_PACING_SERIES, FIXTURE_RULES, previewDecisions } from "@/lib/growth-v2-fixtures";
-import type { DecisionsScreenData, DraftOffer, FirstRunDraftResponse, HomeResponse, HomeScreenData } from "@/lib/api/growth-v2";
+import type { ChannelsResponse, DecisionsScreenData, DraftOffer, FirstRunDraftResponse, HomeResponse, HomeScreenData } from "@/lib/api/growth-v2";
 import { EMPTY_ANSWERS } from "@/lib/growth-v2-firstrun";
 import { seriesFromHome } from "@/lib/growth-v2-series";
 import { ChannelsBody } from "./channels-screen";
@@ -179,6 +179,83 @@ describe("the screens render their preview sample", () => {
     expect(out).toContain("Paused by engine");
     expect(out).toContain("Not available");
     expect(out).toContain("day-by-day line is not available");
+  });
+
+  describe("Channels & money, live", () => {
+    const live: ChannelsResponse = {
+      ...FIXTURE_CHANNELS,
+      health: [
+        { platform: "meta", state: "healthy", reason: "Cost per outcome INR 250 against your target of INR 600.", spend: { value: 1000, currency: "INR" }, outcomes: { value: 4 }, efficiency: { value: 250 } },
+        { platform: "google_ads", state: "problem", reason: "Google Ads bills in USD, but your plan is in INR. The engine does not manage it, and its spend is left out of your totals.", spend: { absent: "currency_mismatch" }, outcomes: { absent: "currency_mismatch" }, efficiency: { absent: "currency_mismatch" } },
+        { platform: "x", state: "problem", reason: "INR 200 spent with no bookings credited to X Ads.", spend: { value: 200, currency: "INR" }, outcomes: { value: 0 }, efficiency: { absent: "no_outcomes_this_week" } },
+        { platform: "linkedin", state: "not_connected", reason: "LinkedIn Ads isn't connected.", spend: { absent: "not_connected" }, outcomes: { absent: "not_connected" }, efficiency: { absent: "not_connected" } },
+      ],
+      bubbles: [{ platform: "meta", spend: { value: 1000, currency: "INR" }, outcomes: { value: 4 }, efficiency: { value: 250 } }],
+      allocatorTarget: { decisionId: "d1", status: "proposed", at: "2026-10-26T01:00:00Z", shares: [{ platform: "meta", share: { value: 0.48 } }, { platform: "google_ads", share: { value: 0.52 } }] },
+      campaigns: [
+        {
+          id: "c1", platform: "meta", name: "Alpha videos", status: "active",
+          dailyBudget: { value: 600, currency: "INR" }, engineChange: { at: "2026-10-25T10:00:00Z", from: 500, to: 600 },
+          spend: { value: 900, currency: "INR" }, outcomes: { absent: "credit_is_per_channel" }, efficiency: { absent: "credit_is_per_channel" },
+        },
+        {
+          id: "c2", platform: "google_ads", name: "Search", status: "paused",
+          dailyBudget: { absent: "no_daily_budget" }, spend: { absent: "currency_mismatch" }, outcomes: { absent: "credit_is_per_channel" }, efficiency: { absent: "credit_is_per_channel" },
+        },
+      ],
+    };
+    const body = (channels: ChannelsResponse, unitPlural = "bookings", unitOne = "booking") =>
+      html(<ChannelsBody channels={channels} pacingSeries={undefined} unitPlural={unitPlural} unitOne={unitOne} />);
+
+    it("shows each channel's state with the fact that put it there, and an absent figure as an absence", () => {
+      const out = body(live);
+      expect(out).toContain("Cost per outcome INR 250 against your target of INR 600.");
+      expect(out).toContain("Google Ads bills in USD");
+      expect(out).toContain("INR 200 spent with no bookings credited to X Ads.");
+      expect(out).toContain("LinkedIn Ads isn&#x27;t connected.");
+      expect(out).toContain('data-state="problem"');
+      expect(out.match(/data-absent=""/g)!.length).toBeGreaterThan(3);
+      expect(out).toContain("Not available");
+      expect(out).toContain(": Currency mismatch");
+    });
+
+    it("says outcomes are credited to a channel, not caused by the ads", () => {
+      const out = body(live);
+      expect(out).toContain("not the extra outcomes the ads caused");
+      expect(out).toContain("Credited bookings");
+      expect(out).not.toContain("Extra bookings");
+      expect(out).toContain("Spend against credited bookings");
+      expect(out).not.toContain("extra bookings");
+    });
+
+    it("lists campaigns with budget and spend, notes the engine's change, and drops results columns that would only repeat an absence", () => {
+      const out = body(live);
+      expect(out).toContain("Alpha videos");
+      expect(out).toContain("Active");
+      expect(out).toContain("Engine changed it from ");
+      expect(out).toContain("Daily budget");
+      expect(out).not.toContain("Credit is per channel");
+    });
+
+    it("shows the allocator's target where it recorded one, and nothing where it did not", () => {
+      expect(body(live)).toMatch(/Meta Ads 48%.*, Google Ads 52%/);
+      const without: ChannelsResponse = { ...live };
+      delete without.allocatorTarget;
+      expect(body(without)).not.toContain("data-allocator-target");
+    });
+
+    it("shows the empty states: no campaigns, no share history", () => {
+      const out = body({ ...live, campaigns: [], shareByWeek: [] });
+      expect(out).toContain("No campaigns yet.");
+      expect(out).toContain("No weekly budget history yet.");
+    });
+
+    it("a return target is shown as a multiple", () => {
+      const roas: ChannelsResponse = { ...live, efficiency: { metric: "roas", target: { value: 4 } }, health: [{ ...live.health[0]!, efficiency: { value: 4.5 } }] };
+      const out = body(roas, "sales", "sale");
+      expect(out).toContain("4.5x");
+      expect(out).toContain("Return on ad spend");
+    });
   });
 
   it("Learning shows the ledger, the patterns, the benchmarks and the heatmap", () => {

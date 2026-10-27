@@ -60,7 +60,7 @@ export function HomeScreen() {
   );
 }
 
-function Choice<K extends string, O>({ label, value, options, onChange, text }: { label: string; value: K; options: Record<K, O>; onChange: (k: K) => void; text: (o: O) => string }) {
+export function Choice<K extends string, O>({ label, value, options, onChange, text }: { label: string; value: K; options: Record<K, O>; onChange: (k: K) => void; text: (o: O) => string }) {
   return (
     <div role="group" aria-label={label} className="inline-flex rounded-lg border p-0.5">
       {(Object.keys(options) as K[]).map((k) => (
@@ -73,7 +73,7 @@ function Choice<K extends string, O>({ label, value, options, onChange, text }: 
 }
 
 /** The two refusals the api gives instead of a page: no mandate, or no business clock. */
-function NotSetUp({ code }: { code: HomeRefusalCode }) {
+export function NotSetUp({ code }: { code: HomeRefusalCode }) {
   const noMandate = code === "NO_MANDATE";
   return (
     <Card>

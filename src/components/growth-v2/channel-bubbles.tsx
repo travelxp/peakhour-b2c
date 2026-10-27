@@ -3,7 +3,7 @@ import { PLATFORM_COLOR, PLATFORM_LABEL, absentReason, figureValue, formatCount,
 import { niceScale, scale } from "./svg";
 
 /**
- * Spend against extra outcomes, one bubble per channel (from chart-card24).
+ * Spend against credited outcomes, one bubble per channel (from chart-card24).
  *
  * Up and to the left is better: more outcomes for less money. A channel is
  * plotted only when both its spend and its outcomes are present; the rest are
@@ -47,7 +47,7 @@ export function ChannelBubbles({ bubbles, unitPlural }: ChannelBubblesProps) {
 
   return (
     <div className="space-y-2">
-      <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" role="img" aria-label={`Spend against extra ${unitPlural} for ${plotted.map((p) => PLATFORM_LABEL[p.b.platform]).join(", ")}`}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" role="img" aria-label={`Spend against credited ${unitPlural} for ${plotted.map((p) => PLATFORM_LABEL[p.b.platform]).join(", ")}`}>
         <g className="stroke-border">
           {yTicks.map((v) => (
             <g key={`y${v}`}>
@@ -64,10 +64,10 @@ export function ChannelBubbles({ bubbles, unitPlural }: ChannelBubblesProps) {
           </text>
         ))}
         <text x={W - R} y={H - 2} textAnchor="end" className="fill-muted-foreground text-[11px]">
-          spend this month
+          spend in this period
         </text>
         <text x={L} y={T - 6} className="fill-muted-foreground text-[11px]">
-          extra {unitPlural}
+          credited {unitPlural}
         </text>
         {plotted.map(({ b, spend, outcomes }) => {
           const eff = figureValue(b.efficiency);
@@ -75,11 +75,11 @@ export function ChannelBubbles({ bubbles, unitPlural }: ChannelBubblesProps) {
           return (
             <g key={b.platform}>
               <circle cx={x(spend)} cy={y(outcomes)} r={14} fill={color} fillOpacity={0.35} stroke={color} strokeWidth={2}>
-                <title>{`${PLATFORM_LABEL[b.platform]}: ${currency ? formatMoney(spend, currency) : formatCount(spend)} for ${formatCount(outcomes)} extra ${unitPlural}`}</title>
+                <title>{`${PLATFORM_LABEL[b.platform]}: ${currency ? formatMoney(spend, currency) : formatCount(spend)} for ${formatCount(outcomes)} credited ${unitPlural}`}</title>
               </circle>
               <text x={x(spend)} y={y(outcomes) - 20} textAnchor="middle" className="fill-foreground text-[11px] font-semibold">
                 {PLATFORM_LABEL[b.platform]}
-                {eff !== undefined ? ` · ${currency ? formatMoney(eff, currency) : formatCount(eff)}/extra` : ""}
+                {eff !== undefined ? ` · ${currency ? formatMoney(eff, currency) : formatCount(eff)}/each` : ""}
               </text>
             </g>
           );
