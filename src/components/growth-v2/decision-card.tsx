@@ -21,7 +21,6 @@ import {
   describeImpact,
   isAnswerable,
   isExpired,
-  isSpendDecision,
   KIND_LABEL,
   STATUS_LABEL,
   undoOpenUntil,
@@ -87,7 +86,8 @@ export function DecisionCard({ decision: d, currency, unit, now, onAction, actio
   const undoUntil = undoOpenUntil(d, now);
   const opLine = (op: DecisionView["ops"][number]) => op.description;
   const approve = () => {
-    if (isSpendDecision(d.kind) && d.ops.length > 0) setConfirming(true);
+    // Anything that touches a platform asks first; a spend kind with no ops has nothing to list, so it does not.
+    if (d.ops.length > 0) setConfirming(true);
     else onAction?.("approve");
   };
 

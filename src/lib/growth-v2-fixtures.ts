@@ -241,7 +241,7 @@ export const FIXTURE_DECISIONS: DecisionsResponse = {
   queue: "open",
   decisions: describedDecisions(),
   blocks: FIXTURE_BLOCKS,
-  counts: { open: 3, done: 2, blocked: FIXTURE_BLOCKS.length },
+  counts: previewDecisions("open").counts,
 };
 
 export const FIXTURE_CHANNELS: ChannelsResponse = {

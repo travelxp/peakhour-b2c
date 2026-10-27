@@ -222,6 +222,26 @@ describe("answering", () => {
     expect(h.toast).toHaveBeenCalledWith(expect.stringContaining("Approved"));
   });
 
+  it("★anything that touches a platform asks first, whatever its kind", async () => {
+    const d = decision({ id: "d2b", kind: "campaign_pause", ops: [{ ...op("Spring sale", 0), op: "set_status" as const, description: "Pause Spring sale (Meta Ads)" }] });
+    routes.open = page("open", [d]);
+    serve();
+    await mount();
+    await click("Approve");
+    expect(h.post).not.toHaveBeenCalled();
+    expect(document.body.querySelector("[role=alertdialog]")!.textContent).toContain("Pause Spring sale (Meta Ads)");
+  });
+
+  it("the toast says what the api said happened: scheduled steps are not 'applied'", async () => {
+    const d = decision({ id: "d2c", kind: "content_adjustment", ops: [] });
+    routes.open = page("open", [d]);
+    serve();
+    h.post.mockResolvedValue({ status: "applied", scheduled: [{}, {}] });
+    await mount();
+    await click("Approve");
+    expect(h.toast).toHaveBeenCalledWith("Approved. The first step is applied and the rest are scheduled.");
+  });
+
   it("a decision that spends nothing is approved at once, with no dialog", async () => {
     const d = decision({ id: "d3", kind: "content_adjustment", ops: [] });
     routes.open = page("open", [d]);
@@ -260,6 +280,18 @@ describe("answering", () => {
     // The queues are read again: a refused approve can have sent the decision back to held.
     const opens = h.get.mock.calls.filter((c) => c[0].includes("status=open")).length;
     expect(opens).toBeGreaterThanOrEqual(2);
+  });
+
+  it("★a refusal's notice goes once the refetch shows the decision has moved on", async () => {
+    const d = decision({ id: "d4b", kind: "content_adjustment", ops: [] });
+    routes.open = page("open", [d]);
+    serve();
+    h.post.mockRejectedValue(new ApiError("ALREADY_DECIDED", "x", 409));
+    await mount();
+    // After the answer is refused the queue is read again, and the decision is no longer waiting on anyone.
+    routes.open = page("open", [{ ...d, status: "applied" }]);
+    await click("Approve");
+    expect(document.body.querySelector("[role=alert]")).toBeNull();
   });
 
   it("a held decision can be approved again, and offers no Hold", async () => {
@@ -433,6 +465,16 @@ describe("ask about this decision", () => {
     await type("How much will it earn?");
     await click("Ask");
     expect(document.body.querySelector("[role=alert]")!.textContent).toContain("I can't answer that from the numbers on this decision.");
+    expect(document.body.querySelector("[role=status]")).toBeNull();
+  });
+
+  it("★the answer goes when the question is edited, so it never reads as the answer to the new one", async () => {
+    await ready();
+    h.post.mockResolvedValue({ answer: "It moves 2 a day." } satisfies DecisionAskResponse);
+    await type("Why this one?");
+    await click("Ask");
+    expect(document.body.querySelector("[role=status]")).not.toBeNull();
+    await type("What about Google?");
     expect(document.body.querySelector("[role=status]")).toBeNull();
   });
 

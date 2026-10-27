@@ -11,13 +11,14 @@ import {
   useGrowthV2DecisionCounts,
   useGrowthV2Decisions,
   useGrowthV2Rules,
+  type DecideResponse,
   type DecisionAction,
   type DecisionsScreenData,
   type DecisionView,
   type GuardrailBlockView,
 } from "@/lib/api/growth-v2";
 import { PREVIEW_BUSINESS_NAME, PREVIEW_NOW } from "@/lib/growth-v2-fixtures";
-import { decisionNotice, KIND_LABEL, QUEUE_TABS, TAB_QUEUE, whatsappPreview, type DecisionNotice, type QueueTab } from "@/lib/growth-v2-decisions";
+import { decisionNotice, isAnswerable, KIND_LABEL, QUEUE_TABS, TAB_QUEUE, whatsappPreview, type DecisionNotice, type QueueTab } from "@/lib/growth-v2-decisions";
 import { formatDay, unitFor } from "@/lib/growth-v2-figure";
 import { cn } from "@/lib/utils";
 import { DecisionAsk } from "./decision-ask";
@@ -28,13 +29,20 @@ import { ToneBadge, type Tone } from "./tone";
 
 const PREVIEW_NOTE = "Preview data: nothing is sent.";
 
-/** What the person is told when an answer went through. */
-const DONE_TOAST: Record<DecisionAction, string> = {
-  approve: "Approved. The change has been applied.",
-  hold: "Held. Nothing changes until you approve it.",
-  reject: "Rejected. Nothing changes.",
-  undo: "Undone. Your campaigns are back as they were.",
-};
+/** What the person is told when an answer went through, from what the api said happened. */
+function doneToast(action: DecisionAction, r: DecideResponse): string {
+  switch (action) {
+    case "approve":
+      if (r.status === "applied") return (r.scheduled?.length ?? 0) > 0 ? "Approved. The first step is applied and the rest are scheduled." : "Approved and applied.";
+      return "Approved.";
+    case "hold":
+      return "Held. Nothing changes until you approve it.";
+    case "reject":
+      return "Rejected. Nothing changes.";
+    case "undo":
+      return "Undone.";
+  }
+}
 
 /** Decisions: "What needs you?" Every proposal, block and finished experiment in one queue (plan 1, H2). */
 export function DecisionsScreen() {
@@ -80,6 +88,7 @@ export function DecisionsScreen() {
             businessName={r.preview ? PREVIEW_BUSINESS_NAME : (business?.name ?? "your business")}
             onLoadMore={() => void query.fetchNextPage()}
             loadingMore={query.isFetchingNextPage}
+            loadMoreFailed={query.isFetchNextPageError}
           />
         )}
       </QueryBoundary>
@@ -103,6 +112,7 @@ export function Inbox({
   businessName,
   onLoadMore,
   loadingMore,
+  loadMoreFailed,
 }: {
   tab: QueueTab;
   result: DecisionsScreenData;
@@ -111,12 +121,13 @@ export function Inbox({
   businessName: string;
   onLoadMore?: () => void;
   loadingMore?: boolean;
+  loadMoreFailed?: boolean;
 }) {
   const preview = result.preview;
   const decisions = result.data.decisions;
   const blocks = result.data.blocks;
   const [pickedId, setPickedId] = useState<string | null>(null);
-  const [notice, setNotice] = useState<{ id: string; notice: DecisionNotice } | null>(null);
+  const [notice, setNotice] = useState<{ id: string; action: DecisionAction; notice: DecisionNotice } | null>(null);
   // A lazy initial value, so the clock is not read during render, then a tick so "expires in" does not freeze on an open page.
   const [liveNow, setLiveNow] = useState(() => Date.now());
   useEffect(() => {
@@ -138,9 +149,9 @@ export function Inbox({
     decide.mutate(
       { id, action },
       {
-        onSuccess: () => toast.success(DONE_TOAST[action]),
+        onSuccess: (r) => toast.success(doneToast(action, r)),
         // The refusal stays on the card as something to do; the queues refetch (the decision may have moved to held).
-        onError: (e) => setNotice({ id, notice: decisionNotice(e, action) }),
+        onError: (e) => setNotice({ id, action, notice: decisionNotice(e, action) }),
       },
     );
   };
@@ -185,7 +196,8 @@ export function Inbox({
           </ul>
         )}
         {result.hasMore ? (
-          <div className="border-t p-3">
+          <div className="grid gap-1.5 border-t p-3">
+            {loadMoreFailed ? <p role="alert" className="text-xs text-muted-foreground">Couldn&apos;t load more. Try again.</p> : null}
             <Button variant="outline" size="sm" className="w-full" disabled={loadingMore} onClick={onLoadMore}>
               {loadingMore ? "Loading…" : "Show older"}
             </Button>
@@ -205,7 +217,7 @@ export function Inbox({
               onAction={preview ? undefined : act}
               actionsDisabled={preview ? PREVIEW_NOTE : undefined}
               pending={decide.isPending}
-              notice={notice?.id === selectedDecision.id ? notice.notice : undefined}
+              notice={liveNotice(notice, selectedDecision)}
             />
             <DecisionAsk key={selectedDecision.id} decisionId={selectedDecision.id} disabled={preview ? PREVIEW_NOTE : undefined} />
           </>
@@ -230,6 +242,16 @@ export function Inbox({
       ) : null}
     </div>
   );
+}
+
+/**
+ * A refusal stays on its card only while it is still about what the card shows: an answer's refusal while the decision
+ * can still be answered (a refused approve sends it to held, which is still answerable), an undo's while it is applied.
+ * Once the refetch shows the decision moved on (already answered, applied), the notice is stale and goes.
+ */
+function liveNotice(n: { id: string; action: DecisionAction; notice: DecisionNotice } | null, d: DecisionView): DecisionNotice | undefined {
+  if (!n || n.id !== d.id) return undefined;
+  return (n.action === "undo" ? d.status === "applied" : isAnswerable(d)) ? n.notice : undefined;
 }
 
 function RowButton({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: React.ReactNode }) {

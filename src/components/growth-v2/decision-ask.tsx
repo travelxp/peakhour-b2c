@@ -51,7 +51,8 @@ export function DecisionAsk({ decisionId, disabled }: { decisionId: string; disa
           <Send aria-hidden /> {ask.isPending ? "Asking…" : "Ask"}
         </Button>
       </form>
-      {ask.isSuccess ? (
+      {/* The answer belongs to the question that was asked: edit the question and it goes. */}
+      {ask.isSuccess && ask.variables?.question === trimmed ? (
         <p role="status" className="whitespace-pre-line rounded-lg bg-muted px-3 py-2.5 text-sm">
           {ask.data.answer}
         </p>
