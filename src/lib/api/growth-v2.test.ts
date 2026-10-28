@@ -120,12 +120,13 @@ describe("mandateFor", () => {
 });
 
 describe("mergeDecisionPages", () => {
-  const page = (queue: "open" | "blocked", ids: string[], blockIds: string[], nextCursor?: string) => ({
+  const page = (queue: "open" | "blocked", ids: string[], blockIds: string[], nextCursor?: string, waiting: string[] = []) => ({
     preview: false,
     data: {
       queue,
       decisions: ids.map((id) => ({ id }) as never),
       blocks: blockIds.map((id) => ({ id }) as never),
+      waiting: waiting.map((id) => ({ id }) as never),
       counts: { open: ids.length, done: 0, blocked: blockIds.length },
       ...(nextCursor ? { nextCursor } : {}),
     },
@@ -138,6 +139,11 @@ describe("mergeDecisionPages", () => {
     expect(m.hasMore).toBe(false);
     const b = mergeDecisionPages({ pages: [page("blocked", [], ["x"], "c1"), page("blocked", [], ["y"])] });
     expect(b.data.blocks.map((x) => x.id)).toEqual(["x", "y"]);
+  });
+
+  it("★the changes waiting for review ride the FIRST page only: later pages never add or repeat them", () => {
+    const m = mergeDecisionPages({ pages: [page("open", ["a"], [], "c1", ["w1", "w2"]), page("open", ["b"], [], undefined, [])] });
+    expect(m.data.waiting.map((w) => w.id)).toEqual(["w1", "w2"]);
   });
 });
 

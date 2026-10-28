@@ -1,5 +1,6 @@
 import type { LearningResponse } from "@/lib/api/growth-v2";
 import { ABSENT_LABEL, absentReason, figureValue, formatChange, formatDay, formatPercent } from "@/lib/growth-v2-figure";
+import { SUMMIT_TM } from "@/lib/growth-v2-copy";
 import { cn } from "@/lib/utils";
 import { ToneBadge, type Tone } from "./tone";
 
@@ -7,7 +8,7 @@ import { ToneBadge, type Tone } from "./tone";
  * Every bet the engine made, newest first, with how it was judged (from timeline-activity-1).
  *
  * A holdout shows the share of outcomes the ads caused, with its range once the reading has power; a council bet is
- * judged by its tripwire and has no lift. A verdict badge appears only where the api gave a verdict. Without one the
+ * judged by its tripwire and has no lift (the merchant name of the council is Peakhour Summit). A verdict badge appears only where the api gave a verdict. Without one the
  * badge says what state the experiment is in: starting, running, abandoned, or ended without enough data to judge.
  */
 type Experiment = LearningResponse["experiments"][number];
@@ -65,6 +66,8 @@ export function ExperimentTimeline({ experiments }: { experiments: Experiment[] 
   if (experiments.length === 0) {
     return <p className="py-6 text-center text-sm text-muted-foreground">No experiments yet. The engine will list each bet here before it is judged.</p>;
   }
+  // The trademark sign goes on the first mention on the screen.
+  const firstBet = experiments.findIndex((x) => x.kind !== "holdout");
   return (
     <ol className="grid">
       {experiments.map((e, i) => {
@@ -78,7 +81,7 @@ export function ExperimentTimeline({ experiments }: { experiments: Experiment[] 
                 <ToneBadge tone={look.tone} dot>
                   {look.label}
                 </ToneBadge>
-                <span className="text-xs text-muted-foreground">{e.kind === "holdout" ? "Holdout" : "Council bet"}</span>
+                <span className="text-xs text-muted-foreground">{e.kind === "holdout" ? "Holdout" : i === firstBet ? `${SUMMIT_TM} bet` : "Peakhour Summit bet"}</span>
                 {e.startedAt ? <span className="text-xs text-muted-foreground">Started {formatDay(e.startedAt)}</span> : null}
               </div>
               <h3 className="break-words text-sm font-semibold">{e.title}</h3>

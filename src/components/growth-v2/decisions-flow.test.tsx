@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { DecisionAskResponse, DecisionQueue, DecisionsResponse, DecisionView, GuardrailBlockView } from "@/lib/api/growth-v2";
+import type { DecisionAskResponse, DecisionQueue, DecisionsResponse, DecisionView, GuardrailBlockView, WaitingReviewView } from "@/lib/api/growth-v2";
 import { NOT_BUILT } from "@/lib/api/growth-v2";
 
 const h = vi.hoisted(() => ({
@@ -66,6 +66,7 @@ const page = (queue: DecisionQueue, decisions: DecisionView[], over: Partial<Dec
   queue,
   decisions,
   blocks: [],
+  waiting: [],
   counts: { open: 2, done: 1, blocked: 1 },
   ...over,
 });
@@ -385,7 +386,7 @@ describe("what a card shows", () => {
     serve();
     await mount();
     await click(/^Done/);
-    for (const who of ["Strategist", "Critic", "Chair's decision", "Risk check"]) {
+    for (const who of ["The case for", "The case against", "Final call", "Safety checks"]) {
       expect(document.body.querySelector(`[aria-label="${who}"]`), who).not.toBeNull();
     }
     expect(text()).toContain("anthropic/claude-sonnet-4.5");
@@ -484,5 +485,119 @@ describe("ask about this decision", () => {
     await ready();
     await type("why");
     expect(button("Ask")!.disabled).toBe(true);
+  });
+});
+
+describe("★changes waiting for Peakhour Summit", () => {
+  const waiting = (n: number, over: Partial<WaitingReviewView> = {}): WaitingReviewView => ({
+    id: `run-${n}:prop-${n}`,
+    runId: `run-${n}`,
+    proposalId: `prop-${n}`,
+    kind: "budget_raise",
+    channel: n === 1 ? "meta" : "google_ads",
+    title: `A budget raise for ${n === 1 ? "Meta Ads" : "Google Ads"} is waiting for Peakhour Summit`,
+    body: "Nothing was changed on your account. We'll try again within a few hours. There's nothing you need to do.",
+    waitingSince: ago(5),
+    giveUpAt: ahead(43),
+    attempts: n,
+    ...over,
+  });
+  const recheckPath = (n: number) => `/v1/growth/v2/decisions/waiting/run-${n}/prop-${n}/recheck`;
+  const TM = String.fromCharCode(0x2122);
+
+  it("lists them in a 'Waiting for review' section with the owner's words, and the trademark sign only on the first", async () => {
+    routes.open = page("open", [decision()], { waiting: [waiting(1), waiting(2)] });
+    serve();
+    await mount();
+    const section = document.body.querySelector('[aria-label="Waiting for review"]')!;
+    expect(section).not.toBeNull();
+    expect(section.textContent).toContain("Waiting for review");
+    expect(section.textContent).toContain(`A budget raise for Meta Ads is waiting for Peakhour Summit${TM}`);
+    expect(section.textContent).toContain("A budget raise for Google Ads is waiting for Peakhour Summit");
+    expect(section.textContent!.split(TM)).toHaveLength(2);
+    expect(section.textContent).toContain("Nothing was changed on your account. We'll try again within a few hours. There's nothing you need to do.");
+    expect(section.textContent).toMatch(/set aside and your next weekly plan will look at it again/);
+    // not decisions: no Approve on them
+    expect([...section.querySelectorAll("button")].map((b) => b.textContent)).toEqual(["Check it again now", "Check it again now"]);
+  });
+
+  it("is absent when nothing waits, and absent from the Done tab", async () => {
+    routes.open = page("open", [decision()]);
+    routes.done = page("done", [], { waiting: [waiting(1)] });
+    serve();
+    await mount();
+    expect(document.body.querySelector('[aria-label="Waiting for review"]')).toBeNull();
+    await click(/^Done/);
+    expect(document.body.querySelector('[aria-label="Waiting for review"]')).toBeNull();
+  });
+
+  it("★'Check it again now' sends ONE request for that change, and says so when it worked", async () => {
+    routes.open = page("open", [], { waiting: [waiting(1), waiting(2)] });
+    serve();
+    h.post.mockResolvedValue({ outcome: "reviewed", decisionId: "d99" });
+    await mount();
+    const second = [...document.body.querySelectorAll('[aria-label="Waiting for review"] button')][1] as HTMLButtonElement;
+    await act(async () => {
+      second.click();
+    });
+    await flush();
+    expect(posts()).toEqual([recheckPath(2)]);
+    expect(h.toast).toHaveBeenCalledWith("Reviewed. It is in your list to answer.");
+  });
+
+  it("★an honest error when it still cannot finish: the api's sentence, nothing claimed, the change still listed", async () => {
+    routes.open = page("open", [], { waiting: [waiting(1)] });
+    serve();
+    const sentence = "Peakhour Summit still couldn't finish checking this change. Nothing was changed on your account. We'll keep trying for up to 48 hours.";
+    h.post.mockRejectedValue(new ApiError("REVIEW_STILL_UNAVAILABLE", sentence, 503));
+    await mount();
+    await click("Check it again now");
+    const alert = document.body.querySelector('[aria-label="Waiting for review"] [role=alert]')!;
+    expect(alert.textContent).toBe(sentence);
+    expect(document.body.querySelector('[aria-label="Waiting for review"]')).not.toBeNull();
+    expect(posts()).toEqual([recheckPath(1)]);
+  });
+
+  it("a server error says only that nothing was changed; a rate limit says to wait; a non-approver is told who may", async () => {
+    routes.open = page("open", [], { waiting: [waiting(1)] });
+    serve();
+    await mount();
+    const alertText = () => document.body.querySelector('[aria-label="Waiting for review"] [role=alert]')?.textContent;
+    h.post.mockRejectedValueOnce(new ApiError("REVIEW_FAILED", "raw internal text", 500));
+    await click("Check it again now");
+    expect(alertText()).toBe("Couldn't check that again just now. Nothing was changed on your account. Try again in a moment.");
+    h.post.mockRejectedValueOnce(new ApiError("TOO_SOON", "Peakhour Summit was only just asked about this. Give it a couple of minutes and try again.", 429));
+    await click("Check it again now");
+    expect(alertText()).toBe("Peakhour Summit was only just asked about this. Give it a couple of minutes and try again.");
+    h.post.mockRejectedValueOnce(new ApiError("NOT_AN_APPROVER", "Only the approvers ...", 403));
+    await click("Check it again now");
+    expect(alertText()).toBe("Only the approvers named for this business can ask for a change to be checked again.");
+  });
+
+  it("★two changes that share a proposal id (it is unique only within a run): only the clicked one reads 'Checking…'", async () => {
+    routes.open = page("open", [], { waiting: [waiting(1, { proposalId: "same" }), waiting(2, { proposalId: "same" })] });
+    serve();
+    h.post.mockReturnValue(new Promise(() => {})); // never settles: the click stays pending
+    await mount();
+    const buttons = () => [...document.body.querySelectorAll('[aria-label="Waiting for review"] button')] as HTMLButtonElement[];
+    await act(async () => {
+      buttons()[1]!.click();
+    });
+    await flush();
+    expect(buttons().map((b) => b.textContent)).toEqual(["Check it again now", "Checking…"]);
+    expect(posts()).toEqual(["/v1/growth/v2/decisions/waiting/run-2/same/recheck"]);
+  });
+
+  it("a preview shows the sample but keeps the button off", async () => {
+    routes = { open: new ApiError(NOT_BUILT, "not built", 501, undefined, { row: "H2" }) };
+    serve();
+    await mount();
+    const b = button("Check it again now")!;
+    expect(b.disabled).toBe(true);
+    expect(b.title).toBe("Preview data: nothing is sent.");
+    await act(async () => {
+      b.click();
+    });
+    expect(h.post).not.toHaveBeenCalled();
   });
 });

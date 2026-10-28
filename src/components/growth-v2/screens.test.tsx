@@ -325,9 +325,11 @@ describe("the screens render their preview sample", () => {
     const result: DecisionsScreenData = { data: previewDecisions("open"), preview: true, hasMore: false };
     const out = html(withClient(<Inbox tab="needs_you" result={result} currency="INR" unit={{ one: "booking", many: "bookings" }} businessName="Himalayan Trails" />));
     expect(out).toContain("Move ₹700 a week from X to Meta Advantage+ Leads");
-    expect(out).toContain("Strategist");
-    expect(out).toContain("Critic");
-    expect(out).toContain("Risk check");
+    expect(out).toContain("The case for");
+    expect(out).toContain("The case against");
+    expect(out).toContain("Safety checks");
+    expect(out).toContain("Peakhour Summit™");
+    expect(out).not.toMatch(/Strategist|Critic|Chair|Growth Council/);
     expect(out).toContain("Decision for Himalayan Trails");
     expect(out).toContain("Also sent to WhatsApp on 26 Oct");
     expect(out).toContain("reply CONFIRM");

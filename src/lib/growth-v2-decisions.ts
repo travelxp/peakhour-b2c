@@ -179,6 +179,27 @@ type NoticeRoute = typeof INTEGRATIONS | typeof RULES;
 const NOTHING_CHANGED = "That didn't go through. Nothing changed.";
 
 /**
+ * What "Check it again now" says when it did not finish the review. Honest: it never claims a change was made, and says
+ * so when the review still could not finish (the api's own sentence, written for the merchant) or when the click was too soon.
+ */
+export function recheckNotice(err: unknown): DecisionNotice {
+  const nothing = "Couldn't check that again just now. Nothing was changed on your account. Try again in a moment.";
+  if (!(err instanceof ApiError)) return { tone: "bad", text: nothing };
+  switch (err.code) {
+    case "REVIEW_STILL_UNAVAILABLE":
+    case "TOO_SOON":
+    case "RATE_LIMITED":
+      return { tone: "warn", text: err.message };
+    case "NOT_AN_APPROVER":
+      return { tone: "warn", text: "Only the approvers named for this business can ask for a change to be checked again." };
+    case "NOT_WAITING":
+      return { tone: "warn", text: "This change is no longer waiting for review. The list has been refreshed." };
+    default:
+      return { tone: "bad", text: err.status < 500 && err.message ? err.message : nothing };
+  }
+}
+
+/**
  * The api's refusal of an answer, as a sentence and, where there is one, the place to fix it. The codes a refused apply
  * sends the decision back to `held` with (the person can clear them) each get their own words; the rest say what the
  * api said.

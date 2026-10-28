@@ -247,16 +247,37 @@ export interface GuardrailBlockView {
 
 export type DecisionQueue = "open" | "done" | "blocked";
 
+/** A change Peakhour Summit has not been able to review yet: it waits, is retried hourly for 48 hours, and has one action. */
+export interface WaitingReviewView {
+  /** `runId:proposalId` */
+  id: string;
+  runId: string;
+  proposalId: string;
+  kind: "budget_raise" | "change";
+  channel: string;
+  /** "A budget raise for Meta Ads is waiting for Peakhour Summit" (plain: the screen adds the trademark sign on the first mention). */
+  title: string;
+  body: string;
+  waitingSince: string;
+  /** When it is set aside if still unreviewed. */
+  giveUpAt: string;
+  attempts: number;
+}
+
 export interface DecisionsResponse {
   queue: DecisionQueue;
   /** Newest first. Empty for `blocked`. */
   decisions: DecisionView[];
   /** Only for `blocked`. */
   blocks: GuardrailBlockView[];
+  /** Changes waiting for Peakhour Summit; on the first page of `open` only. */
+  waiting: WaitingReviewView[];
   counts: Record<DecisionQueue, number>;
   /** Pass it back as `cursor` for the next page; absent on the last. */
   nextCursor?: string;
 }
+
+export type RecheckReviewResponse = { outcome: "reviewed"; decisionId: string } | { outcome: "closed"; reason: string };
 
 export interface DecisionAskResponse {
   answer: string;
@@ -499,6 +520,9 @@ export const growthV2Api = {
   },
   decide: (id: string, action: DecisionAction) =>
     api.post<DecideResponse>(`${BASE}/decisions/${encodeURIComponent(id)}/${action}`),
+  /** "Check it again now": one more review of a waiting change. */
+  recheckReview: (runId: string, proposalId: string) =>
+    api.post<RecheckReviewResponse>(`${BASE}/decisions/waiting/${encodeURIComponent(runId)}/${encodeURIComponent(proposalId)}/recheck`),
   ask: (id: string, question: string) =>
     api.post<DecisionAskResponse>(`${BASE}/decisions/${encodeURIComponent(id)}/ask`, { question }),
   channels: (window: HomeWindowKey = "7d") => api.get<ChannelsResponse>(`${BASE}/channels?window=${window}`),
@@ -619,7 +643,8 @@ export function mergeDecisionPages(d: { pages: Array<V2Result<DecisionsResponse>
   const last = d.pages[d.pages.length - 1]!;
   return {
     // The counts of the newest page: the freshest the screen has.
-    data: { ...last.data, decisions: d.pages.flatMap((p) => p.data.decisions), blocks: d.pages.flatMap((p) => p.data.blocks) },
+    // `waiting` rides the first page only; later pages carry none.
+    data: { ...last.data, decisions: d.pages.flatMap((p) => p.data.decisions), blocks: d.pages.flatMap((p) => p.data.blocks), waiting: first.data.waiting ?? [] },
     preview: first.preview,
     ...(first.row !== undefined ? { row: first.row } : {}),
     hasMore: last.data.nextCursor !== undefined,
@@ -793,6 +818,18 @@ export function useDecideV2() {
   return useMutation({
     mutationFn: (v: { id: string; action: DecisionAction }) => growthV2Api.decide(v.id, v.action),
     // Every Growth v2 screen reads the decision queue's effects, so refetch them all.
+    onSettled: () => qc.invalidateQueries({ queryKey: ["growth-v2"] }),
+  });
+}
+
+/**
+ * "Check it again now" on a change waiting for Peakhour Summit. A review can end in a decision, so every Growth v2 screen is
+ * read again whatever the answer was (a refusal such as "still can't finish" changes nothing, a success moves the change).
+ */
+export function useRecheckReviewV2() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { runId: string; proposalId: string }) => growthV2Api.recheckReview(v.runId, v.proposalId),
     onSettled: () => qc.invalidateQueries({ queryKey: ["growth-v2"] }),
   });
 }

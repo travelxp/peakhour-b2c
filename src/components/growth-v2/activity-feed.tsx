@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Eye, PauseCircle, ShieldAlert, SlidersHorizontal, Sparkles, TrendingUp, type LucideIcon } from "lucide-react";
 import type { HomeResponse } from "@/lib/api/growth-v2";
+import { withSummitTm } from "@/lib/growth-v2-copy";
 import { formatDay } from "@/lib/growth-v2-figure";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +26,8 @@ export function ActivityFeed({ events, decisionsHref, className }: { events: Fee
   if (events.length === 0) {
     return <p className="py-6 text-center text-sm text-muted-foreground">Nothing yet. The engine will list every check, change and refusal here.</p>;
   }
+  // The trademark sign goes on the first mention of Peakhour Summit on the screen (a change waiting for its review).
+  const firstSummit = events.findIndex((x) => x.title.includes("Peakhour Summit"));
   return (
     <ul className={cn("divide-y", className)}>
       {events.map((e, i) => {
@@ -36,7 +39,7 @@ export function ActivityFeed({ events, decisionsHref, className }: { events: Fee
               <Icon aria-hidden className="size-4" />
             </span>
             <div className="min-w-0">
-              <p className="text-sm">{e.title}</p>
+              <p className="text-sm">{i === firstSummit ? withSummitTm(e.title) : e.title}</p>
               {e.detail ? <p className="text-xs text-muted-foreground">{e.detail}</p> : null}
               {e.decisionId && decisionsHref ? (
                 <Link href={decisionsHref} className="text-xs underline underline-offset-2">
