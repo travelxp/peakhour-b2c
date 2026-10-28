@@ -89,7 +89,7 @@ export function trendLine(item: Pick<DemandItem, "trend" | "trendPct">): { tone:
     case "new":
       return { tone: "info", text: "New this month" };
     case "up":
-      return { tone: "warning", text: `Up ${item.trendPct}% on the month before` };
+      return item.trendPct == null ? null : { tone: "warning", text: `Up ${item.trendPct}% on the month before` };
     case "down":
       return { tone: "success", text: `Down ${Math.abs(item.trendPct ?? 0)}% on the month before` };
     default:

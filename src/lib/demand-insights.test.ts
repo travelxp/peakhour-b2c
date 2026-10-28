@@ -66,6 +66,8 @@ describe("the small decisions", () => {
     expect(trendLine({ trend: "down", trendPct: -25 })).toEqual({ tone: "success", text: "Down 25% on the month before" });
     expect(trendLine({ trend: "new", trendPct: null })).toEqual({ tone: "info", text: "New this month" });
     expect(trendLine({ trend: "flat", trendPct: 3 })).toBeNull();
+    // an "up" with no percentage never reads "Up null%"
+    expect(trendLine({ trend: "up", trendPct: null })).toBeNull();
   });
 
   it("surfaces: named ones are listed, an unknown one is left out rather than shown raw", () => {

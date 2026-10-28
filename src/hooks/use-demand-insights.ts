@@ -15,7 +15,8 @@ export function useDemandInsights() {
   return useQuery<DemandInsights>({
     queryKey: ["demand-insights", org?._id ?? null, business?._id ?? null],
     queryFn: () => api.get("/v1/demand-insights"),
-    enabled: isAuthenticated && !!org?._id,
+    // the api scope is org AND business: until both are pinned a read could only answer for nothing
+    enabled: isAuthenticated && !!org?._id && !!business?._id,
     retry: false,
   });
 }

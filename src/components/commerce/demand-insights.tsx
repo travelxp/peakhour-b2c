@@ -31,7 +31,7 @@ import {
  */
 export function DemandInsightsPanel() {
   const q = useDemandInsights();
-  const state: DemandState = q.isLoading
+  const state: DemandState = q.isPending
     ? { kind: "loading" }
     : q.isError
       ? stateOfError(q.error)
