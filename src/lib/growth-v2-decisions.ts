@@ -179,11 +179,6 @@ type NoticeRoute = typeof INTEGRATIONS | typeof RULES;
 const NOTHING_CHANGED = "That didn't go through. Nothing changed.";
 
 /**
- * The api's refusal of an answer, as a sentence and, where there is one, the place to fix it. The codes a refused apply
- * sends the decision back to `held` with (the person can clear them) each get their own words; the rest say what the
- * api said.
- */
-/**
  * What "Check it again now" says when it did not finish the review. Honest: it never claims a change was made, and says
  * so when the review still could not finish (the api's own sentence, written for the merchant) or when the click was too soon.
  */
@@ -204,6 +199,11 @@ export function recheckNotice(err: unknown): DecisionNotice {
   }
 }
 
+/**
+ * The api's refusal of an answer, as a sentence and, where there is one, the place to fix it. The codes a refused apply
+ * sends the decision back to `held` with (the person can clear them) each get their own words; the rest say what the
+ * api said.
+ */
 export function decisionNotice(err: unknown, action: DecisionAction): DecisionNotice {
   if (!(err instanceof ApiError)) return { tone: "bad", text: NOTHING_CHANGED };
   switch (err.code) {
