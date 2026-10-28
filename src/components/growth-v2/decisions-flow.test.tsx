@@ -574,6 +574,20 @@ describe("★changes waiting for Peakhour Summit", () => {
     expect(alertText()).toBe("Only the approvers named for this business can ask for a change to be checked again.");
   });
 
+  it("★two changes that share a proposal id (it is unique only within a run): only the clicked one reads 'Checking…'", async () => {
+    routes.open = page("open", [], { waiting: [waiting(1, { proposalId: "same" }), waiting(2, { proposalId: "same" })] });
+    serve();
+    h.post.mockReturnValue(new Promise(() => {})); // never settles: the click stays pending
+    await mount();
+    const buttons = () => [...document.body.querySelectorAll('[aria-label="Waiting for review"] button')] as HTMLButtonElement[];
+    await act(async () => {
+      buttons()[1]!.click();
+    });
+    await flush();
+    expect(buttons().map((b) => b.textContent)).toEqual(["Check it again now", "Checking…"]);
+    expect(posts()).toEqual(["/v1/growth/v2/decisions/waiting/run-2/same/recheck"]);
+  });
+
   it("a preview shows the sample but keeps the button off", async () => {
     routes = { open: new ApiError(NOT_BUILT, "not built", 501, undefined, { row: "H2" }) };
     serve();

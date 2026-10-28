@@ -168,90 +168,90 @@ export function Inbox({
   return (
     <div className="grid gap-4">
       {waiting.length > 0 ? <WaitingForReview items={waiting} preview={preview} /> : null}
-    <div className="grid min-h-[480px] overflow-hidden rounded-xl border bg-card lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)_320px]">
-      <div className="flex min-w-0 flex-col border-b lg:border-b-0 lg:border-r">
-        {items.length === 0 ? (
-          <p className="p-4 text-sm text-muted-foreground">
-            {tab === "needs_you"
-              ? "Nothing needs you. The engine will list a proposal here the moment it has one."
-              : tab === "blocked"
-                ? "Nothing is blocked. If a guardrail stops the engine from doing something, it shows here."
-                : "Nothing here yet."}
-          </p>
-        ) : (
-          <ul className="max-h-[420px] overflow-y-auto lg:max-h-none" aria-label={tab === "blocked" ? "Blocked" : "Decisions"}>
-            {isBlocked
-              ? blocks.map((b) => (
-                  <li key={b.id}>
-                    <RowButton selected={selected?.id === b.id} onClick={() => setPickedId(b.id)}>
-                      <span className="flex items-center justify-between gap-1.5">
-                        <ToneBadge tone="warn">Guardrail</ToneBadge>
-                        <span className="text-xs text-muted-foreground">{formatDay(b.lastAt)}</span>
-                      </span>
-                      <span className="mt-1 block text-sm font-medium">{b.title}</span>
-                    </RowButton>
-                  </li>
-                ))
-              : decisions.map((d) => (
-                  <li key={d.id}>
-                    <RowButton selected={selected?.id === d.id} onClick={() => setPickedId(d.id)}>
-                      <span className="flex items-center justify-between gap-1.5">
-                        <ToneBadge tone={KIND_TONE[d.kind] ?? "neutral"}>{KIND_LABEL[d.kind]}</ToneBadge>
-                        <span className="text-xs text-muted-foreground">{formatDay(d.createdAt)}</span>
-                      </span>
-                      <span className="mt-1 block text-sm font-medium">{d.title}</span>
-                      <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">{d.summary}</span>
-                    </RowButton>
-                  </li>
-                ))}
-          </ul>
-        )}
-        {result.hasMore ? (
-          <div className="grid gap-1.5 border-t p-3">
-            {loadMoreFailed ? <p role="alert" className="text-xs text-muted-foreground">Couldn&apos;t load more. Try again.</p> : null}
-            <Button variant="outline" size="sm" className="w-full" disabled={loadingMore} onClick={onLoadMore}>
-              {loadingMore ? "Loading…" : "Show older"}
-            </Button>
-          </div>
+      <div className="grid min-h-[480px] overflow-hidden rounded-xl border bg-card lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)_320px]">
+        <div className="flex min-w-0 flex-col border-b lg:border-b-0 lg:border-r">
+          {items.length === 0 ? (
+            <p className="p-4 text-sm text-muted-foreground">
+              {tab === "needs_you"
+                ? "Nothing needs you. The engine will list a proposal here the moment it has one."
+                : tab === "blocked"
+                  ? "Nothing is blocked. If a guardrail stops the engine from doing something, it shows here."
+                  : "Nothing here yet."}
+            </p>
+          ) : (
+            <ul className="max-h-[420px] overflow-y-auto lg:max-h-none" aria-label={tab === "blocked" ? "Blocked" : "Decisions"}>
+              {isBlocked
+                ? blocks.map((b) => (
+                    <li key={b.id}>
+                      <RowButton selected={selected?.id === b.id} onClick={() => setPickedId(b.id)}>
+                        <span className="flex items-center justify-between gap-1.5">
+                          <ToneBadge tone="warn">Guardrail</ToneBadge>
+                          <span className="text-xs text-muted-foreground">{formatDay(b.lastAt)}</span>
+                        </span>
+                        <span className="mt-1 block text-sm font-medium">{b.title}</span>
+                      </RowButton>
+                    </li>
+                  ))
+                : decisions.map((d) => (
+                    <li key={d.id}>
+                      <RowButton selected={selected?.id === d.id} onClick={() => setPickedId(d.id)}>
+                        <span className="flex items-center justify-between gap-1.5">
+                          <ToneBadge tone={KIND_TONE[d.kind] ?? "neutral"}>{KIND_LABEL[d.kind]}</ToneBadge>
+                          <span className="text-xs text-muted-foreground">{formatDay(d.createdAt)}</span>
+                        </span>
+                        <span className="mt-1 block text-sm font-medium">{d.title}</span>
+                        <span className="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">{d.summary}</span>
+                      </RowButton>
+                    </li>
+                  ))}
+            </ul>
+          )}
+          {result.hasMore ? (
+            <div className="grid gap-1.5 border-t p-3">
+              {loadMoreFailed ? <p role="alert" className="text-xs text-muted-foreground">Couldn&apos;t load more. Try again.</p> : null}
+              <Button variant="outline" size="sm" className="w-full" disabled={loadingMore} onClick={onLoadMore}>
+                {loadingMore ? "Loading…" : "Show older"}
+              </Button>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="grid min-w-0 content-start gap-4 p-4 sm:p-5">
+          {selectedDecision ? (
+            <>
+              <DecisionCard
+                key={selectedDecision.id}
+                decision={selectedDecision}
+                currency={currency}
+                unit={unit}
+                now={now}
+                onAction={preview ? undefined : act}
+                actionsDisabled={preview ? PREVIEW_NOTE : undefined}
+                pending={decide.isPending}
+                notice={liveNotice(notice, selectedDecision)}
+              />
+              <DecisionAsk key={selectedDecision.id} decisionId={selectedDecision.id} disabled={preview ? PREVIEW_NOTE : undefined} />
+            </>
+          ) : selected ? (
+            <BlockDetail block={selected as GuardrailBlockView} />
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {isBlocked ? "Pick a block on the left to see what was stopped and why." : "Pick a decision on the left to see what it would change and why."}
+            </p>
+          )}
+        </div>
+
+        {!isBlocked ? (
+          <aside className="grid min-w-0 content-start gap-2.5 border-t p-3.5 lg:col-span-2 xl:col-span-1 xl:border-l xl:border-t-0" aria-label="Same decision on WhatsApp">
+            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Same decision on WhatsApp</p>
+            {selectedDecision ? <WhatsAppPhone d={selectedDecision} businessName={businessName} /> : null}
+            <p className="text-xs text-muted-foreground">
+              Sent as a utility message, worded as an account action. Spend needs a CONFIRM reply from a verified number. If there&apos;s no answer within
+              72 hours, nothing happens.
+            </p>
+          </aside>
         ) : null}
       </div>
-
-      <div className="grid min-w-0 content-start gap-4 p-4 sm:p-5">
-        {selectedDecision ? (
-          <>
-            <DecisionCard
-              key={selectedDecision.id}
-              decision={selectedDecision}
-              currency={currency}
-              unit={unit}
-              now={now}
-              onAction={preview ? undefined : act}
-              actionsDisabled={preview ? PREVIEW_NOTE : undefined}
-              pending={decide.isPending}
-              notice={liveNotice(notice, selectedDecision)}
-            />
-            <DecisionAsk key={selectedDecision.id} decisionId={selectedDecision.id} disabled={preview ? PREVIEW_NOTE : undefined} />
-          </>
-        ) : selected ? (
-          <BlockDetail block={selected as GuardrailBlockView} />
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            {isBlocked ? "Pick a block on the left to see what was stopped and why." : "Pick a decision on the left to see what it would change and why."}
-          </p>
-        )}
-      </div>
-
-      {!isBlocked ? (
-        <aside className="grid min-w-0 content-start gap-2.5 border-t p-3.5 lg:col-span-2 xl:col-span-1 xl:border-l xl:border-t-0" aria-label="Same decision on WhatsApp">
-          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Same decision on WhatsApp</p>
-          {selectedDecision ? <WhatsAppPhone d={selectedDecision} businessName={businessName} /> : null}
-          <p className="text-xs text-muted-foreground">
-            Sent as a utility message, worded as an account action. Spend needs a CONFIRM reply from a verified number. If there&apos;s no answer within
-            72 hours, nothing happens.
-          </p>
-        </aside>
-      ) : null}
-    </div>
     </div>
   );
 }
@@ -263,15 +263,12 @@ export function Inbox({
 function WaitingForReview({ items, preview }: { items: WaitingReviewView[]; preview: boolean }) {
   const recheck = useRecheckReviewV2();
   const [notice, setNotice] = useState<{ id: string; notice: DecisionNotice } | null>(null);
-  const [doneId, setDoneId] = useState<string | null>(null);
   const check = (w: WaitingReviewView) => {
     setNotice(null);
-    setDoneId(null);
     recheck.mutate(
       { runId: w.runId, proposalId: w.proposalId },
       {
         onSuccess: (r) => {
-          setDoneId(w.id);
           toast.success(r.outcome === "reviewed" ? "Reviewed. It is in your list to answer." : "Reviewed. It was closed, and nothing was changed on your account.");
         },
         onError: (e) => {
@@ -306,9 +303,8 @@ function WaitingForReview({ items, preview }: { items: WaitingReviewView[]; prev
                 title={preview ? PREVIEW_NOTE : undefined}
                 onClick={() => check(w)}
               >
-                {recheck.isPending && recheck.variables?.proposalId === w.proposalId ? "Checking…" : "Check it again now"}
+                {recheck.isPending && recheck.variables?.runId === w.runId && recheck.variables?.proposalId === w.proposalId ? "Checking…" : "Check it again now"}
               </Button>
-              {doneId === w.id ? <span role="status" className="text-xs text-muted-foreground">Checked.</span> : null}
             </div>
             {notice?.id === w.id ? (
               <p role="alert" className={cn("text-sm", notice.notice.tone === "bad" ? "text-destructive-on-tint" : "text-warning-on-tint")}>
