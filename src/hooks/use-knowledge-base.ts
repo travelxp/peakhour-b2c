@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import type { KbEntry, KbPayload, KbRequest } from "@/lib/knowledge-base";
@@ -16,9 +16,11 @@ const REQUESTS_KEY = "kb-requests";
 export type EntryFilter = { source: "" | "owner" | "import" | "learned"; status: "active" | "archived"; q: string };
 
 export function useKbEntries(filter: EntryFilter) {
-  const { isAuthenticated, org } = useAuth();
+  const { isAuthenticated, org, business } = useAuth();
   return useQuery<{ entries: KbEntry[]; total: number; channels: string[] }>({
-    queryKey: [ENTRIES_KEY, org?._id ?? null, filter],
+    queryKey: [ENTRIES_KEY, org?._id ?? null, business?._id ?? null, filter],
+    // keep the list on screen while the next search is fetched, rather than a skeleton per keystroke
+    placeholderData: keepPreviousData,
     queryFn: () => {
       const params: Record<string, string> = { status: filter.status, limit: "100" };
       if (filter.source) params.source = filter.source;
@@ -31,9 +33,9 @@ export function useKbEntries(filter: EntryFilter) {
 }
 
 export function useKbRequests() {
-  const { isAuthenticated, org } = useAuth();
+  const { isAuthenticated, org, business } = useAuth();
   return useQuery<{ requests: KbRequest[] }>({
-    queryKey: [REQUESTS_KEY, org?._id ?? null],
+    queryKey: [REQUESTS_KEY, org?._id ?? null, business?._id ?? null],
     queryFn: () => api.get("/v1/kb/requests"),
     enabled: isAuthenticated && !!org?._id,
     retry: false,

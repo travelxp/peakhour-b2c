@@ -1,11 +1,13 @@
 import { describe, it, expect } from "vitest";
 import {
+  KB_CHANNELS,
   KB_CONTENT_MAX,
   KB_TAGS_MAX,
   KB_TAG_MAX,
   KB_TITLE_MAX,
   answerToPayload,
   askedLine,
+  channelLabel,
   channelsLine,
   entryToForm,
   formToPayload,
@@ -36,6 +38,13 @@ const entry = (over: Partial<KbEntry> = {}): KbEntry => ({
 describe("bounds match the api (services/kb/kb-editor.ts, biz_kb.zod.ts)", () => {
   it("are 256 / 8192 / 32 tags of 64", () => {
     expect([KB_TITLE_MAX, KB_CONTENT_MAX, KB_TAGS_MAX, KB_TAG_MAX]).toEqual([256, 8192, 32, 64]);
+  });
+});
+
+describe("channels", () => {
+  it("are the api's enum, with a label each", () => {
+    expect([...KB_CHANNELS]).toEqual(["shopify", "woocommerce"]);
+    expect(KB_CHANNELS.map(channelLabel)).toEqual(["Shopify", "WooCommerce"]);
   });
 });
 

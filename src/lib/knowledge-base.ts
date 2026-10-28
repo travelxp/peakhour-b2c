@@ -13,6 +13,9 @@ export const KB_CONTENT_MAX = 8192;
 export const KB_TAG_MAX = 64;
 export const KB_TAGS_MAX = 32;
 
+/** `cmrc_merchants.channel`, the api's enum (kb-editor.ts KB_CHANNELS): the editor's checkboxes never wait on a fetch. */
+export const KB_CHANNELS = ["shopify", "woocommerce"] as const;
+
 export type KbSource = "owner" | "import" | "learned";
 
 export interface KbEntry {

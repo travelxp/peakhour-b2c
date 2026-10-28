@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BookOpen, ExternalLink, Loader2, MessageCircleQuestion, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +22,7 @@ import {
 } from "@/hooks/use-knowledge-base";
 import {
   EMPTY_FORM,
+  KB_CHANNELS,
   KB_CONTENT_MAX,
   askedLine,
   answerToPayload,
@@ -135,9 +136,14 @@ function QuestionCard({ request }: { request: KbRequest }) {
 
 function Entries() {
   const [filter, setFilter] = useState<EntryFilter>({ source: "", status: "active", q: "" });
+  // the box updates at once; the query follows 300 ms after the last keystroke
+  const [typed, setTyped] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setFilter((f) => (f.q === typed ? f : { ...f, q: typed })), 300);
+    return () => clearTimeout(t);
+  }, [typed]);
   const [editing, setEditing] = useState<KbEntry | "new" | null>(null);
   const { data, isLoading, isError } = useKbEntries(filter);
-  const channels = data?.channels ?? ["shopify", "woocommerce"];
 
   return (
     <section aria-labelledby="kb-entries" className="space-y-3">
@@ -157,8 +163,8 @@ function Entries() {
           aria-label="Search entries"
           className="max-w-xs"
           placeholder="Search"
-          value={filter.q}
-          onChange={(e) => setFilter({ ...filter, q: e.target.value })}
+          value={typed}
+          onChange={(e) => setTyped(e.target.value)}
         />
         <select
           aria-label="Show entries from"
@@ -182,7 +188,7 @@ function Entries() {
         </select>
       </div>
 
-      {editing && <EntryEditor key={editing === "new" ? "new" : editing.id} entry={editing === "new" ? null : editing} channels={channels} onDone={() => setEditing(null)} />}
+      {editing && <EntryEditor key={editing === "new" ? "new" : editing.id} entry={editing === "new" ? null : editing} onDone={() => setEditing(null)} />}
 
       {isLoading ? (
         <Skeleton className="h-32 w-full" />
@@ -250,7 +256,7 @@ function EntryCard({ entry, onEdit }: { entry: KbEntry; onEdit: () => void }) {
   );
 }
 
-function EntryEditor({ entry, channels, onDone }: { entry: KbEntry | null; channels: string[]; onDone: () => void }) {
+function EntryEditor({ entry, onDone }: { entry: KbEntry | null; onDone: () => void }) {
   const [form, setForm] = useState<KbForm>(entry ? entryToForm(entry) : EMPTY_FORM);
   const [error, setError] = useState<string | null>(null);
   const create = useCreateKbEntry();
@@ -271,7 +277,7 @@ function EntryEditor({ entry, channels, onDone }: { entry: KbEntry | null; chann
       <CardContent className="space-y-3 p-4">
         <label className="block space-y-1 text-sm">
           <span className="font-medium">Title</span>
-          <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Do you deliver to Goa?" />
+          <Input value={form.title} maxLength={256} aria-invalid={error ? true : undefined} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Do you deliver to Goa?" />
         </label>
         <label className="block space-y-1 text-sm">
           <span className="font-medium">Answer</span>
@@ -285,7 +291,7 @@ function EntryEditor({ entry, channels, onDone }: { entry: KbEntry | null; chann
         <fieldset className="space-y-1 text-sm">
           <legend className="font-medium">Applies to</legend>
           <p className="text-xs text-muted-foreground">Leave all unticked to apply to every channel.</p>
-          {channels.map((c) => (
+          {KB_CHANNELS.map((c) => (
             <label key={c} className="mr-4 inline-flex items-center gap-2">
               <input
                 type="checkbox"
