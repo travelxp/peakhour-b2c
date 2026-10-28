@@ -24,6 +24,7 @@ import {
   EMPTY_FORM,
   KB_CHANNELS,
   KB_CONTENT_MAX,
+  KB_TITLE_MAX,
   askedLine,
   answerToPayload,
   channelLabel,
@@ -170,7 +171,7 @@ function Entries() {
           aria-label="Show entries from"
           className="rounded-md border bg-background px-2 text-sm"
           value={filter.source}
-          onChange={(e) => setFilter({ ...filter, source: e.target.value as EntryFilter["source"] })}
+          onChange={(e) => setFilter((f) => ({ ...f, source: e.target.value as EntryFilter["source"] }))}
         >
           <option value="">All sources</option>
           <option value="owner">Written by you</option>
@@ -181,7 +182,7 @@ function Entries() {
           aria-label="Active or archived"
           className="rounded-md border bg-background px-2 text-sm"
           value={filter.status}
-          onChange={(e) => setFilter({ ...filter, status: e.target.value as EntryFilter["status"] })}
+          onChange={(e) => setFilter((f) => ({ ...f, status: e.target.value as EntryFilter["status"] }))}
         >
           <option value="active">Active</option>
           <option value="archived">Archived</option>
@@ -192,7 +193,7 @@ function Entries() {
 
       {isLoading ? (
         <Skeleton className="h-32 w-full" />
-      ) : isError ? (
+      ) : isError && !data ? (
         <p className="text-sm text-destructive">Could not load the knowledge base. Please refresh.</p>
       ) : (data?.entries.length ?? 0) === 0 ? (
         <EmptyState
@@ -277,7 +278,7 @@ function EntryEditor({ entry, onDone }: { entry: KbEntry | null; onDone: () => v
       <CardContent className="space-y-3 p-4">
         <label className="block space-y-1 text-sm">
           <span className="font-medium">Title</span>
-          <Input value={form.title} maxLength={256} aria-invalid={error ? true : undefined} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Do you deliver to Goa?" />
+          <Input value={form.title} maxLength={KB_TITLE_MAX} aria-invalid={error ? true : undefined} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Do you deliver to Goa?" />
         </label>
         <label className="block space-y-1 text-sm">
           <span className="font-medium">Answer</span>
