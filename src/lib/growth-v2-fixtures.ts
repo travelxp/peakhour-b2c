@@ -8,6 +8,7 @@ import type {
   HomeResponse,
   LearningResponse,
   RulesResponse,
+  WaitingReviewView,
 } from "@/lib/api/growth-v2";
 import { describeOp, queueTab, tabCounts, type QueueTab } from "@/lib/growth-v2-decisions";
 import type { PacingSeries } from "@/lib/growth-v2-series";
@@ -132,7 +133,7 @@ const SAMPLE_DECISIONS: SampleDecision[] = [
       kind: "budget_move",
       source: { engine: "allocator" },
       title: "Move ₹700 a week from X to Meta Advantage+ Leads",
-      summary: "The council says X costs ₹3,080 per extra booking and Meta ₹531. Your total spend stays the same.",
+      summary: "Peakhour Summit says X costs ₹3,080 per extra booking and Meta ₹531. Your total spend stays the same.",
       ops: [
         { platform: "x", campaignRef: "x-spiti-thread", op: "set_daily_budget", from: 140, to: 40 },
         { platform: "meta", campaignRef: "meta-trip-videos", op: "set_daily_budget", from: 590, to: 653 },
@@ -247,6 +248,22 @@ export const FIXTURE_BLOCKS: GuardrailBlockView[] = [
   },
 ];
 
+/** One sample change waiting for Peakhour Summit, so the preview shows the state. */
+export const FIXTURE_WAITING: WaitingReviewView[] = [
+  {
+    id: "preview-run:preview-w1",
+    runId: "preview-run",
+    proposalId: "preview-w1",
+    kind: "budget_raise",
+    channel: "google_ads",
+    title: "A budget raise for Google Ads is waiting for Peakhour Summit",
+    body: "Nothing was changed on your account. We'll try again within a few hours. There's nothing you need to do.",
+    waitingSince: "2026-10-23T05:00:00Z",
+    giveUpAt: "2026-10-25T05:00:00Z",
+    attempts: 2,
+  },
+];
+
 /** The preview as the api would answer for one queue: the same sample, split the way the server splits it. */
 export function previewDecisions(queue: DecisionQueue): DecisionsResponse {
   const all = describedDecisions();
@@ -256,6 +273,7 @@ export function previewDecisions(queue: DecisionQueue): DecisionsResponse {
     queue,
     decisions: queue === "blocked" ? [] : all.filter((d) => queueTab(d.status) === tab),
     blocks: queue === "blocked" ? FIXTURE_BLOCKS : [],
+    waiting: queue === "open" ? FIXTURE_WAITING : [],
     counts: { open: counts.needs_you, done: counts.done, blocked: FIXTURE_BLOCKS.length },
   };
 }
@@ -265,6 +283,7 @@ export const FIXTURE_DECISIONS: DecisionsResponse = {
   queue: "open",
   decisions: describedDecisions(),
   blocks: FIXTURE_BLOCKS,
+  waiting: FIXTURE_WAITING,
   counts: previewDecisions("open").counts,
 };
 
@@ -351,7 +370,7 @@ export const FIXTURE_LEARNING: LearningResponse = {
     cells: HEAT_DAYS.flatMap((row, i) => HEAT_SLOTS.map((column, j) => ({ row, column, figure: fig(HEAT_VALUES[i][j]) }))),
   },
   basis: {
-    experiments: "Sample data. Holdouts show the share of outcomes the ads caused; council bets are judged by their tripwire.",
+    experiments: "Sample data. Holdouts show the share of outcomes the ads caused; bets from Peakhour Summit are judged by their tripwire.",
     creativePatterns: "Sample data.",
     benchmarks: "Sample data.",
     heatmap: "Sample data.",

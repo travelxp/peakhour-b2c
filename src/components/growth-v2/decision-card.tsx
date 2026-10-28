@@ -28,16 +28,17 @@ import {
   type DecisionNotice,
 } from "@/lib/growth-v2-decisions";
 import { formatDay, formatMoney, hoursUntil } from "@/lib/growth-v2-figure";
+import { SUMMIT_TM } from "@/lib/growth-v2-copy";
 import { cn } from "@/lib/utils";
 import { ToneBadge, TONE_CLASS, type Tone } from "./tone";
 
 /**
- * One decision in full, with the Growth Council's seats (from inbox7's detail
+ * One decision in full, with the seats of Peakhour Summit (internally the council; from inbox7's detail
  * pane).
  *
- * The council is four seats, and the card shows all four as the api sends them:
- * the strategist's case, the critic's objection (a different model vendor), the
- * chair's ruling, and the risk officer's checklist, which is rules, not a model.
+ * Peakhour Summit is four seats, and the card shows all four as the api sends them under the names a merchant
+ * sees: The case for (the strategist), The case against (the critic, a different model vendor), Final call (the
+ * chair) and Safety checks (the risk seat), which is rules, not a model.
  * A decision with no `council` block simply has no seats; none are invented.
  *
  * Actions are the caller's: pass `onAction` to enable them, or `actionsDisabled`
@@ -95,7 +96,7 @@ export function DecisionCard({ decision: d, currency, unit, now, onAction, actio
   return (
     <article className={cn("grid min-w-0 content-start gap-4", className)}>
       <div className="flex flex-wrap gap-2">
-        {d.council ? <ToneBadge tone="ai">Growth Council</ToneBadge> : null}
+        {d.council ? <ToneBadge tone="ai">{SUMMIT_TM}</ToneBadge> : null}
         <ToneBadge>{KIND_LABEL[d.kind]}</ToneBadge>
         <ToneBadge tone={STATUS_TONE[d.status] ?? "neutral"} dot>
           {STATUS_LABEL[d.status]}
@@ -156,18 +157,18 @@ export function DecisionCard({ decision: d, currency, unit, now, onAction, actio
 
       {d.council ? (
         <div className="grid gap-2.5">
-          <Seat who="Strategist" tone="info" model={d.council.strategist.model}>
+          <Seat who="The case for" tone="info" model={d.council.strategist.model}>
             {d.council.strategist.text}
           </Seat>
-          <Seat who="Critic" tone="warn" model={d.council.critic.model}>
+          <Seat who="The case against" tone="warn" model={d.council.critic.model}>
             {d.council.critic.text}
           </Seat>
-          <Seat who="Chair's decision" tone="neutral">
+          <Seat who="Final call" tone="neutral">
             {d.council.chair.text}
           </Seat>
-          <section className="grid gap-1 rounded-lg border p-3" aria-label="Risk check">
+          <section className="grid gap-1 rounded-lg border p-3" aria-label="Safety checks">
             <div className="flex items-center gap-2 text-xs font-semibold">
-              <ToneBadge tone={d.council.risk.checks.every((c) => c.pass) ? "good" : "warn"}>Risk check</ToneBadge>
+              <ToneBadge tone={d.council.risk.checks.every((c) => c.pass) ? "good" : "warn"}>Safety checks</ToneBadge>
               <span className="font-normal text-muted-foreground">rules, not a model</span>
             </div>
             <ul className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-2">

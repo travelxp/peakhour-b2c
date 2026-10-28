@@ -11,14 +11,17 @@ import {
   useGrowthV2DecisionCounts,
   useGrowthV2Decisions,
   useGrowthV2Rules,
+  useRecheckReviewV2,
   type DecideResponse,
   type DecisionAction,
   type DecisionsScreenData,
   type DecisionView,
   type GuardrailBlockView,
+  type WaitingReviewView,
 } from "@/lib/api/growth-v2";
 import { PREVIEW_BUSINESS_NAME, PREVIEW_NOW } from "@/lib/growth-v2-fixtures";
-import { decisionNotice, isAnswerable, KIND_LABEL, QUEUE_TABS, TAB_QUEUE, whatsappPreview, type DecisionNotice, type QueueTab } from "@/lib/growth-v2-decisions";
+import { decisionNotice, isAnswerable, KIND_LABEL, QUEUE_TABS, recheckNotice, TAB_QUEUE, whatsappPreview, type DecisionNotice, type QueueTab } from "@/lib/growth-v2-decisions";
+import { withSummitTm } from "@/lib/growth-v2-copy";
 import { formatDay, unitFor } from "@/lib/growth-v2-figure";
 import { cn } from "@/lib/utils";
 import { DecisionAsk } from "./decision-ask";
@@ -137,6 +140,7 @@ export function Inbox({
   const now = preview ? PREVIEW_NOW : liveNow;
   const decide = useDecideV2();
 
+  const waiting = tab === "needs_you" ? (result.data.waiting ?? []) : [];
   const isBlocked = tab === "blocked";
   const items: Array<DecisionView | GuardrailBlockView> = isBlocked ? blocks : decisions;
   const selected = items.find((x) => x.id === pickedId) ?? items[0];
@@ -162,6 +166,8 @@ export function Inbox({
   };
 
   return (
+    <div className="grid gap-4">
+      {waiting.length > 0 ? <WaitingForReview items={waiting} preview={preview} /> : null}
     <div className="grid min-h-[480px] overflow-hidden rounded-xl border bg-card lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)_320px]">
       <div className="flex min-w-0 flex-col border-b lg:border-b-0 lg:border-r">
         {items.length === 0 ? (
@@ -246,6 +252,73 @@ export function Inbox({
         </aside>
       ) : null}
     </div>
+    </div>
+  );
+}
+
+/**
+ * Changes Peakhour Summit has not been able to review yet. They are not decisions: nothing is asked of the merchant, and the one
+ * action re-runs the review once. The first title on the screen carries the trademark sign; the rest are plain.
+ */
+function WaitingForReview({ items, preview }: { items: WaitingReviewView[]; preview: boolean }) {
+  const recheck = useRecheckReviewV2();
+  const [notice, setNotice] = useState<{ id: string; notice: DecisionNotice } | null>(null);
+  const [doneId, setDoneId] = useState<string | null>(null);
+  const check = (w: WaitingReviewView) => {
+    setNotice(null);
+    setDoneId(null);
+    recheck.mutate(
+      { runId: w.runId, proposalId: w.proposalId },
+      {
+        onSuccess: (r) => {
+          setDoneId(w.id);
+          toast.success(r.outcome === "reviewed" ? "Reviewed. It is in your list to answer." : "Reviewed. It was closed, and nothing was changed on your account.");
+        },
+        onError: (e) => {
+          const n = recheckNotice(e);
+          setNotice({ id: w.id, notice: n });
+          toast.error(n.text);
+        },
+      },
+    );
+  };
+  return (
+    <section aria-label="Waiting for review" className="grid gap-3 rounded-xl border bg-card p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <ToneBadge tone="warn" dot>
+          Waiting for review
+        </ToneBadge>
+        <span className="text-xs text-muted-foreground">Not a decision: nothing is asked of you.</span>
+      </div>
+      <ul className="grid divide-y">
+        {items.map((w, i) => (
+          <li key={w.id} className="grid gap-2 py-3 first:pt-0 last:pb-0">
+            <h3 className="text-sm font-semibold">{i === 0 ? withSummitTm(w.title) : w.title}</h3>
+            <p className="text-sm text-muted-foreground">{w.body}</p>
+            <p className="text-xs text-muted-foreground">
+              Waiting since {formatDay(w.waitingSince)}. If it still can&apos;t be reviewed by {formatDay(w.giveUpAt)}, it is set aside and your next weekly plan will look at it again.
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={preview || recheck.isPending}
+                title={preview ? PREVIEW_NOTE : undefined}
+                onClick={() => check(w)}
+              >
+                {recheck.isPending && recheck.variables?.proposalId === w.proposalId ? "Checking…" : "Check it again now"}
+              </Button>
+              {doneId === w.id ? <span role="status" className="text-xs text-muted-foreground">Checked.</span> : null}
+            </div>
+            {notice?.id === w.id ? (
+              <p role="alert" className={cn("text-sm", notice.notice.tone === "bad" ? "text-destructive-on-tint" : "text-warning-on-tint")}>
+                {notice.notice.text}
+              </p>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
