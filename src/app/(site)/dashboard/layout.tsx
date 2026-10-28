@@ -206,6 +206,7 @@ const PILLAR_NAV: NavGroup[] = [
           { href: "/dashboard/commerce/pricing", label: "Pricing" },
           { href: "/dashboard/commerce/reviews", label: "Reviews" },
           { href: "/dashboard/commerce/assistant", label: "Assistant" },
+          { href: "/dashboard/commerce/knowledge", label: "Knowledge base" },
         ],
       },
       // Presence — the local-presence pillar (Google Business Profile anchor).
