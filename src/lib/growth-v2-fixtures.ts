@@ -258,9 +258,10 @@ export const FIXTURE_WAITING: WaitingReviewView[] = [
     channel: "google_ads",
     title: "A budget raise for Google Ads is waiting for Peakhour Summit",
     body: "Nothing was changed on your account. We'll try again within a few hours. There's nothing you need to do.",
-    waitingSince: "2026-10-23T05:00:00Z",
-    giveUpAt: "2026-10-25T05:00:00Z",
-    attempts: 2,
+    // Dated off the preview clock, so the give-up date is always ahead of it (2026-10-26 11:00Z).
+    waitingSince: "2026-10-26T06:00:00Z",
+    giveUpAt: "2026-10-28T06:00:00Z",
+    attempts: 5,
   },
 ];
 
