@@ -11,5 +11,7 @@ export const SUMMIT_TM = "Peakhour Summit\u2122";
 
 /** Put the trademark sign on the first "Peakhour Summit" in a text (a text that already has one is left as it is). */
 export function withSummitTm(text: string): string {
-  return text.replace(/Peakhour Summit(?!\u2122)/, () => SUMMIT_TM);
+  // A text that already carries the sign is left exactly as it is: skipping its marked first mention would mark a LATER one.
+  if (text.includes(SUMMIT_TM)) return text;
+  return text.replace(SUMMIT, () => SUMMIT_TM);
 }

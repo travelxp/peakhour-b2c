@@ -99,5 +99,7 @@ describe("the trademark sign", () => {
     expect(withSummitTm("Peakhour Summit asked Peakhour Summit")).toBe(`Peakhour Summit${TM} asked Peakhour Summit`);
     expect(withSummitTm(withSummitTm("Peakhour Summit is here"))).toBe(`Peakhour Summit${TM} is here`);
     expect(withSummitTm("Nothing to name")).toBe("Nothing to name");
+    // a text that already has the sign is left alone: the later plain mention does NOT pick it up
+    expect(withSummitTm(`Peakhour Summit${TM} reviewed this. Peakhour Summit also did.`)).toBe(`Peakhour Summit${TM} reviewed this. Peakhour Summit also did.`);
   });
 });
