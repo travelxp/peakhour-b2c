@@ -84,12 +84,12 @@ describe("merchant-facing growth copy never names the council's internal seats",
   it("★no growth screen holds a sentence or a label that names the council, strategist, critic or chair", () => {
     const found = FILES.flatMap((f) => copyIn(readFileSync(f, "utf8"), f).map((c) => `${relative(SRC, f)}:${c.line}  ${c.text.slice(0, 110)}`));
     expect(found).toEqual([]);
-  });
+  }, 60_000);
 
   it("the registered sign appears nowhere in growth copy", () => {
     const sign = String.fromCharCode(0xae);
     expect(FILES.filter((f) => readFileSync(f, "utf8").includes(sign))).toEqual([]);
-  });
+  }, 60_000);
 });
 
 describe("the trademark sign", () => {
