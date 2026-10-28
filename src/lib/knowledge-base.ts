@@ -117,6 +117,12 @@ export function readOnlyNote(e: Pick<KbEntry, "readOnly" | "managedIn">): string
   return `Managed in ${e.managedIn ?? "its source"} and refreshed from there, so it is read-only here. Take it over to write your own version - Peakhour then stops refreshing it.`;
 }
 
+/** Only an http(s) address becomes a link: React does not stop a `javascript:` href. */
+export function safeUrl(url: string | null | undefined): string | null {
+  const u = url?.trim();
+  return u && /^https?:\/\//i.test(u) ? u : null;
+}
+
 /** "Asked once" / "Asked 4 times". */
 export function askedLine(r: Pick<KbRequest, "timesAsked">): string {
   return r.timesAsked === 1 ? "Asked once" : `Asked ${r.timesAsked} times`;

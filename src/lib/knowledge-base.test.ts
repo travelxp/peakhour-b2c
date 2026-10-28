@@ -14,6 +14,7 @@ import {
   kbErrorMessage,
   parseTags,
   readOnlyNote,
+  safeUrl,
   sourceLabel,
   type KbEntry,
 } from "./knowledge-base";
@@ -100,6 +101,16 @@ describe("copy", () => {
     expect(sourceLabel({ source: "owner", managedIn: null })).toBe("Written by you");
     expect(sourceLabel({ source: "import", managedIn: "Shopify" })).toBe("Imported from Shopify");
     expect(sourceLabel({ source: "learned", managedIn: null })).toBe("Learned from a conversation");
+  });
+  it("safeUrl links only http(s) addresses, never javascript:, data: or a bare path", () => {
+    expect(safeUrl("https://shop.example/policies/refund-policy")).toBe("https://shop.example/policies/refund-policy");
+    expect(safeUrl("  HTTP://shop.example/a  ")).toBe("HTTP://shop.example/a");
+    expect(safeUrl("javascript:alert(1)")).toBeNull();
+    expect(safeUrl(" JavaScript:alert(1)")).toBeNull();
+    expect(safeUrl("data:text/html,<b>x</b>")).toBeNull();
+    expect(safeUrl("/policies/refund-policy")).toBeNull();
+    expect(safeUrl(null)).toBeNull();
+    expect(safeUrl(undefined)).toBeNull();
   });
   it("readOnlyNote exists only for an imported entry, and says it is managed in Shopify", () => {
     expect(readOnlyNote({ readOnly: false, managedIn: null })).toBeNull();

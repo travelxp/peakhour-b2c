@@ -34,6 +34,7 @@ import {
   formToPayload,
   kbErrorMessage,
   readOnlyNote,
+  safeUrl,
   sourceLabel,
   type KbEntry,
   type KbForm,
@@ -216,6 +217,7 @@ function Entries() {
 function EntryCard({ entry, onEdit }: { entry: KbEntry; onEdit: () => void }) {
   const action = useKbEntryAction();
   const note = readOnlyNote(entry);
+  const link = safeUrl(entry.url);
   const run = (a: "archive" | "restore" | "take-over") =>
     action.mutate({ id: entry.id, action: a }, { onError: (e) => toast.error(kbErrorMessage(e)) });
   return (
@@ -230,8 +232,8 @@ function EntryCard({ entry, onEdit }: { entry: KbEntry; onEdit: () => void }) {
           </div>
           <p className="line-clamp-4 whitespace-pre-line text-sm text-muted-foreground">{entry.content}</p>
           {note && <p className="text-xs text-muted-foreground">{note}</p>}
-          {entry.url && (
-            <a href={entry.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs underline">
+          {link && (
+            <a href={link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs underline">
               View the original <ExternalLink className="size-3" aria-hidden="true" />
             </a>
           )}
