@@ -67,6 +67,8 @@ describe("merchant-facing growth copy never names the council's internal seats",
     expect(copyIn('const a = "The council says no";')).toHaveLength(1);
     expect(copyIn("const a = `${n} council bets`;")).toHaveLength(1);
     expect(copyIn("const a = <p>Ask what the critic said.</p>;")).toHaveLength(1);
+    // the line a stale checkout still shows in first-run-screen.tsx (master dropped it in the cleanup): the scan must catch it
+    expect(copyIn("const a = <CardDescription>Drafted by the Growth Council from the {m.playbook.id} playbook. Your own data takes over from about week 4.</CardDescription>;")).toHaveLength(1);
     expect(copyIn('const a = { kind: "council_bet", council: 1 };')).toEqual([]);
     expect(copyIn("// the council\n/* Chair */ const council = 1;")).toEqual([]);
     expect(copyIn('type K = "holdout" | "council_bet";')).toEqual([]);
@@ -78,6 +80,7 @@ describe("merchant-facing growth copy never names the council's internal seats",
     expect(FILES.length).toBeGreaterThan(30);
     expect(FILES.some((f) => f.endsWith("decision-card.tsx"))).toBe(true);
     expect(FILES.some((f) => f.endsWith("decisions-screen.tsx"))).toBe(true);
+    expect(FILES.some((f) => f.endsWith("first-run-screen.tsx"))).toBe(true);
     expect(FILES.some((f) => f.endsWith("growth-v2-fixtures.ts"))).toBe(true);
   });
 
