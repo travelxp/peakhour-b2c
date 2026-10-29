@@ -240,6 +240,7 @@ describe("★★G19 — Performance Max, in words and in the api's own limits", 
     expect(googleChannelTypeLabel("PERFORMANCE_MAX")).toBe("Performance Max");
     expect(googleChannelTypeLabel("SEARCH")).toBe("Search");
     expect(googleChannelTypeLabel(undefined)).toBe("Search");
+    expect(googleChannelTypeLabel("DEMAND_GEN" as never)).toBe("DEMAND_GEN");
   });
   it("PASS: the minimum set is accepted", () => {
     expect(googlePmaxProblem(PMAX)).toBeNull();

@@ -264,7 +264,10 @@ export function googleCopyProblem(ad: GoogleSearchAdInput): string | null {
 
 /** A campaign's type, in words. A row from before G19 carries SEARCH, the only type there was. */
 export function googleChannelTypeLabel(t: GoogleChannelType | undefined): string {
-  return t === "PERFORMANCE_MAX" ? "Performance Max" : "Search";
+  if (t === "PERFORMANCE_MAX") return "Performance Max";
+  if (t === undefined || t === "SEARCH") return "Search";
+  // A type this build does not know is named as the api sent it, never called Search (review round 2).
+  return String(t);
 }
 
 /**
