@@ -1146,7 +1146,101 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     },
   },
 
-  // ── Reconnect alerts (D-04b) and the Portfolio Allocator (C-05) ─────
+  "growth-observations": {
+    label: "Record channel results and refit the models",
+    frequency: "Runs Mondays at 3:30 and 4:30 AM UTC",
+    description:
+      "For each business on the growth engine, records each ad channel's completed weeks of spend and outcomes, " +
+      "then refits that channel's model from them. It runs before the allocator, so the allocator proposes from " +
+      "fresh models.",
+  },
+
+  "growth-allocator": {
+    label: "Split the budget across channels",
+    frequency: "Runs hourly on Mondays, 5:00–8:00 AM UTC",
+    description:
+      "Proposes how to split the budget across channels from the channel models. At autonomy L1 a person " +
+      "decides. At L2 it applies a budget move by itself, and at L3 a move or a raise, each with a receipt — " +
+      "real ad budgets change. It does not refit the models; Record channel results does.",
+  },
+
+  "growth-holdouts": {
+    label: "Run the holdout groups",
+    frequency: "Runs every 6 hours, at twenty past",
+    description:
+      "Starts, rolls out and ends the holdout groups that measure the engine's real effect. Rolling one out " +
+      "changes targeting on the live ad platforms.",
+  },
+
+  "growth-lift": {
+    label: "Reconcile holdouts and read lift",
+    frequency: "Runs daily at 6:30 AM UTC",
+    description:
+      "First reconciles each geo holdout on the live ad platforms, re-applying its exclusion lists and ending " +
+      "it if it can no longer be kept. Then reads its lift: the extra outcomes against the held-out group. A " +
+      "reading with too little data is recorded as low-power, not as a result.",
+  },
+
+  "growth-playbook-upgrade": {
+    label: "Offer playbook upgrades",
+    frequency: "Runs Mondays at 5:00 AM UTC",
+    description:
+      "Offers each business a newer published version of its industry playbook as an upgrade decision. At " +
+      "autonomy L2 and above, a numbers-only upgrade applies itself, with a receipt.",
+  },
+
+  "growth-playbook-learning": {
+    label: "Learn playbooks from pooled benchmarks",
+    frequency: "Runs Sundays at 6:00 AM UTC",
+    description:
+      "Proposes playbook updates from opt-in, pooled benchmarks of at least 20 businesses. A numbers-only " +
+      "change within 15% of the last version a person published publishes itself; anything else waits for a " +
+      "person. It does nothing when the pooled-insights store is not configured.",
+  },
+
+  "growth-tripwire-judge": {
+    label: "Judge tripwires and offer promotions",
+    frequency: "Runs hourly, at twenty to",
+    description:
+      "When an applied decision's check window ends, clears its tripwire or reverses the change. A trip on a " +
+      "change the engine made by itself also lowers the business's autonomy; a person-approved change is " +
+      "reversed without a demotion. It also closes bets as inconclusive after 14 days and offers the autonomy " +
+      "promotions whose evidence is in.",
+  },
+
+  "growth-decision-batch": {
+    label: "Send decisions and receipts on WhatsApp",
+    frequency: "Runs hourly, at five past",
+    description:
+      "Sends each business's waiting growth decisions to its approver on WhatsApp as one message, then sends " +
+      "receipts, with Undo, for decisions applied since the last run — so it can message even when nothing is " +
+      "waiting. Nothing is sent until the WhatsApp templates are approved.",
+  },
+
+  "growth-weekly-report": {
+    label: "Send the weekly growth report",
+    frequency: "Runs hourly, at twenty-five to",
+    description:
+      "Sends the weekly growth report on WhatsApp to each business whose local send time has come.",
+  },
+
+  "growth-council-review": {
+    label: "Monthly Peakhour Summit review",
+    frequency: "Runs at 5:00 AM UTC on the 1st–7th of each month",
+    description:
+      "Reviews the growth plan of each business above autonomy L0 not yet reviewed this month: three model " +
+      "calls per business, so AI spend. A recommendation becomes a decision under the business's autonomy rules.",
+  },
+
+  "demand-weekly-digest": {
+    label: "Email the weekly shopper-demand digest",
+    frequency: "Runs Mondays at 4:30 AM UTC, retried Tuesdays",
+    description:
+      "Emails each store a weekly summary of what its shoppers asked for. Tuesday's run only catches stores " +
+      "Monday missed: a store gets one email a week, and running it again does not resend.",
+  },
+
+  // ── Reconnect alerts (D-04b) ─────────────────────────────────────────
 
   "connection-reauth-alerts": {
     label: "Send reconnect alerts",
@@ -1157,21 +1251,14 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       "before sending, and stops starting new sends after three minutes.",
   },
 
-  "portfolio-allocator": {
-    label: "Propose a weekly budget split",
-    frequency: "Runs hourly on Mondays, 04:00–23:00 UTC",
-    description:
-      "Once per business per week, proposes how to split the unchanged ad budget across channels — proposals " +
-      "only, nothing is applied. It refuses to rank channels whose conversions are measured differently, and " +
-      "records why when it makes no proposal.",
-  },
-
   "decisions-expiry": {
     label: "Close unanswered decisions",
     frequency: "Runs hourly, at ten past",
     description:
       "Marks any growth decision that nobody answered within its 72 hours as expired, so a stale budget move " +
-      "or pause can no longer be approved. It changes only the decision and the engine's own working record.",
+      "or pause can no longer be approved. The same run retries the changes waiting for a Peakhour Summit " +
+      "review (model calls, so AI spend) and sets aside any that has waited 48 hours, with one WhatsApp " +
+      "message once its template is approved.",
   },
 
   "decision-steps": {

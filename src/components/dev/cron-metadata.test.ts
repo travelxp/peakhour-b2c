@@ -1118,3 +1118,13 @@ describe("mandate-debits summary", () => {
     expect(summarizeCronBody("mandate-debits", JSON.stringify({ ok: true }))).toBeNull();
   });
 });
+
+describe("growth crons that change live ad platforms say so", () => {
+  it("the allocator says budgets move by themselves at L2 and L3", () => {
+    expect(getCronMetadata("growth-allocator").description).toMatch(/L2[\s\S]*real ad budgets change/);
+  });
+
+  it("lift says it reconciles holdouts on the live ad platforms", () => {
+    expect(getCronMetadata("growth-lift").description).toContain("live ad platforms");
+  });
+});
