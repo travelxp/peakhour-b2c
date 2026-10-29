@@ -321,6 +321,10 @@ export function googlePmaxProblem(a: GooglePmaxInput): string | null {
     if (urls.some((u) => !isHttps(u))) return `Each of the ${b.label} must be a full https:// address.`;
     if (new Set(urls).size !== urls.length) return `Each of the ${b.label} must be a different image.`;
   }
+  // The api's `assertNoRatioClash`: a landscape image cannot also be a square image or a logo (both 1:1).
+  const landscape = new Set(a.images.marketing);
+  if (a.images.square.some((u) => landscape.has(u))) return "One image can't be both a landscape and a square image.";
+  if (a.images.logos.some((u) => landscape.has(u))) return "One image can't be both a landscape image and a logo.";
   return null;
 }
 

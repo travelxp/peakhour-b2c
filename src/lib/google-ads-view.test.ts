@@ -253,6 +253,8 @@ describe("★★G19 — Performance Max, in words and in the api's own limits", 
     ["a 26-character business name", { businessName: "x".repeat(26) }, "The business name must be 1 to 25 characters."],
     ["no logo", { images: { ...PMAX.images, logos: [] } }, "Performance Max needs 1 to 5 logos, not 0."],
     ["an http image", { images: { ...PMAX.images, square: ["http://cdn.example/s.png"] } }, "Each of the square images must be a full https:// address."],
+    ["a landscape image also square", { images: { ...PMAX.images, square: ["https://cdn.example/w.png"] } }, "One image can't be both a landscape and a square image."],
+    ["a landscape image also a logo", { images: { ...PMAX.images, logos: ["https://cdn.example/w.png"] } }, "One image can't be both a landscape image and a logo."],
     ["the same image twice", { images: { ...PMAX.images, marketing: ["https://cdn.example/w.png", "https://cdn.example/w.png"] } }, "Each of the landscape images must be a different image."],
   ])("★%s", (_l, over, message) => {
     expect(googlePmaxProblem({ ...PMAX, ...over })).toBe(message);
