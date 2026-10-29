@@ -253,7 +253,7 @@ export const ADS_CHANNELS = [
     key: "google",
     label: "Google Ads",
     providerKey: "google_ads",
-    description: "Create Google Search campaigns, paused until you start them, and start or pause them here.",
+    description: "Create Google Search and Performance Max campaigns, paused until you start them, and start or pause them here.",
     crons: ["ad-campaign-monitor"],
     invalidateQueryKeys: [["google-ads-accounts"], ["google-ads-campaigns"], ["content-hub-integrations"]],
     ownedParams: ["customer"],

@@ -36,8 +36,8 @@ export interface GoogleCampaign {
   name: string;
   /** `draft` (created PAUSED, never activated), `active`, `paused`, `completed`, `archived`. */
   status: string;
-  /** Always `SEARCH`: the only shape the api creates. */
-  channelType?: "SEARCH";
+  /** The campaign type the api created: Search (G-04) or Performance Max (G19). */
+  channelType?: GoogleChannelType;
   platformCampaignId?: string;
   adAccountId?: string;
   currency?: string;
@@ -55,11 +55,32 @@ export interface GoogleSearchAdInput {
   finalUrl: string;
 }
 
+/** The Google campaign types the api creates (peakhour-api `routes/google-ads`, G19). */
+export type GoogleChannelType = "SEARCH" | "PERFORMANCE_MAX";
+
+/**
+ * G19 — a Performance Max campaign's assets: Google assembles its ads from
+ * these. Images are public https URLs, one per line in the form.
+ */
+export interface GooglePmaxInput {
+  headlines: string[];
+  longHeadlines: string[];
+  descriptions: string[];
+  businessName: string;
+  finalUrl: string;
+  images: { marketing: string[]; square: string[]; logos: string[] };
+}
+
 export interface GoogleCreateCampaignInput {
   adAccountId: string;
   name: string;
   dailyBudget: { amount: number; currencyCode: string };
-  searchAd: GoogleSearchAdInput;
+  /** Absent is Search. */
+  channelType?: GoogleChannelType;
+  /** A Search campaign's ad. */
+  searchAd?: GoogleSearchAdInput;
+  /** A Performance Max campaign's assets. */
+  performanceMax?: GooglePmaxInput;
   /** ISO datetime; the monitor completes the campaign there. */
   endsAt?: string;
   /** The merchant's "not political" tick (EU political-advertising declaration). */

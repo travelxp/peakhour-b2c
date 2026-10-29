@@ -1,16 +1,15 @@
 import { ApiError } from "@/lib/api";
 import { adsErrorMessage } from "@/lib/ads-error-message";
 import { formatMoneyOrNumber } from "@/lib/outcome-value";
-import type { GoogleCampaign, GoogleSearchAdInput, GoogleSettableStatus } from "@/lib/api/google-ads";
+import type { GoogleCampaign, GoogleChannelType, GooglePmaxInput, GoogleSearchAdInput, GoogleSettableStatus } from "@/lib/api/google-ads";
 
 /**
  * ★★G-15 — what the Google Ads panel SAYS, kept pure so every sentence and
  * every decision is tested (`google-ads-view.test.ts`).
  *
- * ⏸SEARCH ONLY. Nothing here names another Google campaign type: the api
- * creates Responsive Search Ad campaigns and nothing else, and a surface that
- * offered a type the adapter refuses would be worse than one that offers
- * fewer (the plan's G-15 row).
+ * ★SEARCH AND PERFORMANCE MAX, AND NOTHING ELSE (G19). The api creates those
+ * two types; a surface that offered a type the adapter refuses would be worse
+ * than one that offers fewer (the plan's G-15 row), so no third is named.
  */
 
 // ── What starting a campaign costs ───────────────────────────────────────
@@ -260,4 +259,87 @@ export function googleCopyProblem(ad: GoogleSearchAdInput): string | null {
   }
   if (url.protocol !== "https:" || /\s/.test(ad.finalUrl)) return "The landing page must be a full https:// address.";
   return null;
+}
+
+// ── G19: Performance Max ─────────────────────────────────────────────────
+
+/** A campaign's type, in words. A row from before G19 carries SEARCH, the only type there was. */
+export function googleChannelTypeLabel(t: GoogleChannelType | undefined): string {
+  return t === "PERFORMANCE_MAX" ? "Performance Max" : "Search";
+}
+
+/**
+ * ★★PLAN D3(b), SAID PLAINLY. Performance Max takes the audience as a hint,
+ * and Google does not report who saw one of its ads, so PeakHour claims
+ * neither: no "targeted at", no audience breakdown. Shown wherever a
+ * Performance Max campaign is offered or listed.
+ */
+export const GOOGLE_PMAX_REPORTING_NOTE =
+  "Google does not tell us who saw a Performance Max ad. The audience you give it is a hint, not a limit: Google may show the ads to other people too.";
+
+/** What Performance Max is, before anyone creates one: Google assembles the ads and chooses where they show. */
+export const GOOGLE_PMAX_DESCRIPTION =
+  "Google builds the ads itself from your text and images and chooses where they show across its own channels.";
+
+/**
+ * Performance Max bounds (peakhour-api `adapters/ads/google-pmax.ts`, from
+ * Google's asset requirements): the api refuses the same assets, so the form
+ * says so before a request.
+ */
+export const GOOGLE_PMAX = {
+  headlines: { min: 3, max: 15, chars: 30, label: "headlines" },
+  longHeadlines: { min: 1, max: 5, chars: 90, label: "long headlines" },
+  descriptions: { min: 2, max: 5, chars: 90, label: "descriptions" },
+  businessNameChars: 25,
+  images: {
+    marketing: { min: 1, max: 20, label: "landscape images" },
+    square: { min: 1, max: 20, label: "square images" },
+    logos: { min: 1, max: 5, label: "logos" },
+  },
+} as const;
+
+/** What is wrong with a Performance Max campaign's assets, in the api's words, or null. */
+export function googlePmaxProblem(a: GooglePmaxInput): string | null {
+  for (const what of ["headlines", "longHeadlines", "descriptions"] as const) {
+    const b = GOOGLE_PMAX[what];
+    const items = a[what];
+    if (items.length < b.min || items.length > b.max) return `Performance Max needs ${b.min} to ${b.max} ${b.label}, not ${items.length}.`;
+    if (items.some((t) => BAD_TEXT.test(t))) return `Each of the ${b.label} must be on one line, with no control characters.`;
+    const long = items.find((t) => googleTextWidth(t) > b.chars);
+    if (long !== undefined) return `Each of the ${b.label} must be at most ${b.chars} characters: "${long}" is ${googleTextWidth(long)}.`;
+    if (new Set(items).size !== items.length) return `Each of the ${b.label} must be different.`;
+  }
+  const name = a.businessName.trim();
+  if (!name || BAD_TEXT.test(name) || googleTextWidth(name) > GOOGLE_PMAX.businessNameChars) {
+    return `The business name must be 1 to ${GOOGLE_PMAX.businessNameChars} characters.`;
+  }
+  if (!isHttps(a.finalUrl)) return "The landing page must be a full https:// address.";
+  for (const what of ["marketing", "square", "logos"] as const) {
+    const b = GOOGLE_PMAX.images[what];
+    const urls = a.images[what];
+    if (urls.length < b.min || urls.length > b.max) return `Performance Max needs ${b.min} to ${b.max} ${b.label}, not ${urls.length}.`;
+    if (urls.some((u) => !isHttps(u))) return `Each of the ${b.label} must be a full https:// address.`;
+    if (new Set(urls).size !== urls.length) return `Each of the ${b.label} must be a different image.`;
+  }
+  return null;
+}
+
+function isHttps(u: string): boolean {
+  try {
+    return new URL(u).protocol === "https:" && !/\s/.test(u);
+  } catch {
+    return false;
+  }
+}
+
+/** The create form's decision for a Performance Max campaign: the shared fields first, then the assets. */
+export function googlePmaxCreateProblem(
+  f: { name: string; budget: string; currency: string; endDate: string; performanceMax: GooglePmaxInput },
+  today: string,
+): string | null {
+  if (f.name.trim().length === 0) return "Name the campaign.";
+  const amount = Number(f.budget);
+  if (!Number.isFinite(amount) || !(amount > 0)) return "Set a daily budget above zero.";
+  if (!/^[A-Za-z]{3}$/.test(f.currency)) return "Set the budget's three-letter currency.";
+  return googleEndDateProblem(f.endDate, today) ?? googlePmaxProblem(f.performanceMax);
 }
