@@ -1118,3 +1118,48 @@ describe("mandate-debits summary", () => {
     expect(summarizeCronBody("mandate-debits", JSON.stringify({ ok: true }))).toBeNull();
   });
 });
+
+describe("growth crons: a run that did nothing, or less than all, is not a green toast", () => {
+  const level = (cron: string, body: unknown) => summarizeCronBody(cron, JSON.stringify(body));
+
+  it("a lock another run held is a warning that says so", () => {
+    const s = level("growth-weekly-report", { ok: true, skipped: "another run holds the lock" });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toContain("another run holds the lock");
+  });
+
+  it("reads a split result one level down (decision-batch returns { batch, receipts })", () => {
+    const s = level("growth-decision-batch", { ok: true, data: { batch: { skipped: "another run holds the lock" }, receipts: { sent: 2 } } });
+    expect(s?.level).toBe("warning");
+  });
+
+  it("a disabled source is a warning", () => {
+    expect(level("growth-playbook-learning", { ok: true, skipped: "pin_disabled" })?.level).toBe("warning");
+  });
+
+  it("a sweep cut short says to trigger again", () => {
+    const s = level("growth-allocator", { ok: true, data: { processed: 40, truncated: true } });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toContain("trigger again");
+  });
+
+  it("failures are counted", () => {
+    const s = level("growth-observations", { ok: true, data: { processed: 9, failed: 2 } });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toContain("2 failed");
+  });
+
+  it("a clean run falls back to the default toast", () => {
+    expect(level("growth-holdouts", { ok: true, data: { processed: 5, failed: 0 } })).toBeNull();
+  });
+});
+
+describe("growth crons that change live ad platforms say so", () => {
+  it("the allocator says budgets move by themselves at L2 and L3", () => {
+    expect(getCronMetadata("growth-allocator").description).toMatch(/L2[\s\S]*real ad budgets change/);
+  });
+
+  it("lift says it reconciles holdouts on the live ad platforms", () => {
+    expect(getCronMetadata("growth-lift").description).toContain("live ad platforms");
+  });
+});
