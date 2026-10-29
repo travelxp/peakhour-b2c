@@ -312,16 +312,26 @@ export const GOOGLE_PMAX = {
   },
 } as const;
 
+/**
+ * One text field's lines against Google's bounds, in the api's order (count,
+ * one line, width, distinct) — shared by Performance Max and YouTube video ads
+ * (G20 review round 1), as the api shares `checkTextList`. `who` opens the
+ * count sentence ("Performance Max needs …").
+ */
+function textListProblem(items: string[], b: { min: number; max: number; chars: number; label: string }, who: string): string | null {
+  if (items.length < b.min || items.length > b.max) return `${who} needs ${b.min} to ${b.max} ${b.label}, not ${items.length}.`;
+  if (items.some((t) => BAD_TEXT.test(t))) return `Each of the ${b.label} must be on one line, with no control characters.`;
+  const long = items.find((t) => googleTextWidth(t) > b.chars);
+  if (long !== undefined) return `Each of the ${b.label} must be at most ${b.chars} characters: "${long}" is ${googleTextWidth(long)}.`;
+  if (new Set(items).size !== items.length) return `Each of the ${b.label} must be different.`;
+  return null;
+}
+
 /** What is wrong with a Performance Max campaign's assets, in the api's words, or null. */
 export function googlePmaxProblem(a: GooglePmaxInput): string | null {
   for (const what of ["headlines", "longHeadlines", "descriptions"] as const) {
-    const b = GOOGLE_PMAX[what];
-    const items = a[what];
-    if (items.length < b.min || items.length > b.max) return `Performance Max needs ${b.min} to ${b.max} ${b.label}, not ${items.length}.`;
-    if (items.some((t) => BAD_TEXT.test(t))) return `Each of the ${b.label} must be on one line, with no control characters.`;
-    const long = items.find((t) => googleTextWidth(t) > b.chars);
-    if (long !== undefined) return `Each of the ${b.label} must be at most ${b.chars} characters: "${long}" is ${googleTextWidth(long)}.`;
-    if (new Set(items).size !== items.length) return `Each of the ${b.label} must be different.`;
+    const p = textListProblem(a[what], GOOGLE_PMAX[what], "Performance Max");
+    if (p) return p;
   }
   const name = a.businessName.trim();
   if (!name || BAD_TEXT.test(name) || googleTextWidth(name) > GOOGLE_PMAX.businessNameChars) {
@@ -395,15 +405,19 @@ export function googlePmaxCreateProblem(
 export const GOOGLE_DEMAND_GEN_REPORTING_NOTE =
   "Google does not tell us who saw a YouTube video ad. The audience you give it is a hint, not a limit: Google may show the ads to other people too.";
 
+/** Google's minimum daily budget for Demand Gen is per currency and read by the api; the form says so before the request. */
+export const GOOGLE_DEMAND_GEN_BUDGET_NOTE =
+  "Google sets a minimum daily budget for YouTube video ads in each currency. If yours is below it, we'll tell you before anything is created.";
+
 /** What a YouTube video ad is, before anyone creates one: the merchant's own videos, already on YouTube. */
 export const GOOGLE_DEMAND_GEN_DESCRIPTION =
   "Your own YouTube videos, shown as ads on YouTube. Use videos that are already on YouTube (public or unlisted): PeakHour never uploads one.";
 
 /** The YouTube placements offered, in Google's order, with what each means. */
-export const GOOGLE_YOUTUBE_CHANNELS: ReadonlyArray<{ value: GoogleYoutubeChannel; label: string }> = [
-  { value: "youtube_in_stream", label: "YouTube in-stream (before, during or after other videos)" },
-  { value: "youtube_in_feed", label: "YouTube in-feed (in search results and the home feed)" },
-  { value: "youtube_shorts", label: "YouTube Shorts" },
+export const GOOGLE_YOUTUBE_CHANNELS: ReadonlyArray<{ value: GoogleYoutubeChannel; name: string; label: string }> = [
+  { value: "youtube_in_stream", name: "YouTube in-stream", label: "YouTube in-stream (before, during or after other videos)" },
+  { value: "youtube_in_feed", name: "YouTube in-feed", label: "YouTube in-feed (in search results and the home feed)" },
+  { value: "youtube_shorts", name: "YouTube Shorts", label: "YouTube Shorts" },
 ];
 
 /**
@@ -450,21 +464,17 @@ export function youtubeVideoIdOf(raw: string): string | null {
 
 /** What is wrong with a YouTube video ad, in the api's words, or null. */
 export function googleDemandGenProblem(a: GoogleDemandGenInput): string | null {
+  // ★THE API'S ORDER (`checkDemandGenAssets`, review round 1): text, then videos, name, landing page, logos, placements.
+  for (const what of ["headlines", "longHeadlines", "descriptions"] as const) {
+    const p = textListProblem(a[what], GOOGLE_DEMAND_GEN[what], "A YouTube video ad");
+    if (p) return p;
+  }
   const v = GOOGLE_DEMAND_GEN.videos;
   if (a.videos.length < v.min || a.videos.length > v.max) return `A YouTube video ad needs ${v.min} to ${v.max} ${v.label}, not ${a.videos.length}.`;
   const ids = a.videos.map(youtubeVideoIdOf);
   const badVideo = a.videos.find((_, i) => ids[i] === null);
   if (badVideo !== undefined) return `"${badVideo}" is not a YouTube video link or id.`;
   if (new Set(ids).size !== ids.length) return "Each YouTube video must be a different video.";
-  for (const what of ["headlines", "longHeadlines", "descriptions"] as const) {
-    const b = GOOGLE_DEMAND_GEN[what];
-    const items = a[what];
-    if (items.length < b.min || items.length > b.max) return `A YouTube video ad needs ${b.min} to ${b.max} ${b.label}, not ${items.length}.`;
-    if (items.some((t) => BAD_TEXT.test(t))) return `Each of the ${b.label} must be on one line, with no control characters.`;
-    const long = items.find((t) => googleTextWidth(t) > b.chars);
-    if (long !== undefined) return `Each of the ${b.label} must be at most ${b.chars} characters: "${long}" is ${googleTextWidth(long)}.`;
-    if (new Set(items).size !== items.length) return `Each of the ${b.label} must be different.`;
-  }
   const name = a.businessName.trim();
   if (!name || BAD_TEXT.test(name) || googleTextWidth(name) > GOOGLE_DEMAND_GEN.businessNameChars) {
     return `The business name must be 1 to ${GOOGLE_DEMAND_GEN.businessNameChars} characters, counted as Google counts them: it is ${googleTextWidth(name)}.`;
@@ -494,13 +504,12 @@ export function googleDemandGenCreateProblem(
  */
 export function googleChannelControlsSentence(cc: GoogleChannelControls | undefined): string | null {
   if (!cc || cc.selected.length === 0) return null;
-  const names: Record<string, string> = {
-    youtube_in_stream: "YouTube in-stream",
-    youtube_in_feed: "YouTube in-feed",
-    youtube_shorts: "YouTube Shorts",
-  };
-  // Peakhour asks for YouTube's three only; another channel Google reports is named as Google sent it.
-  const list = cc.selected.map((c) => names[c] ?? c);
+  // ★NEVER A RAW CHANNEL ID ON SCREEN (review round 1). Peakhour asks for
+  //  YouTube's three only; any other channel Google reports is said as "other
+  //  Google placements", once — not by Google's id, which would also name a
+  //  campaign type this panel never offers.
+  const youtube = GOOGLE_YOUTUBE_CHANNELS.filter((c) => cc.selected.includes(c.value)).map((c) => c.name);
+  const list = cc.selected.some((c) => !GOOGLE_YOUTUBE_CHANNELS.some((y) => y.value === c)) ? [...youtube, "other Google placements"] : youtube;
   const joined = list.length === 1 ? list[0] : `${list.slice(0, -1).join(", ")} and ${list.at(-1)}`;
   return cc.targetingApplied ? `Shows on ${joined} — confirmed by Google.` : `Set to show on ${joined}; Google hasn't confirmed it yet.`;
 }

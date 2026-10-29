@@ -350,6 +350,14 @@ describe("★★G20 — YouTube video ads (Demand Gen), in words and in the api'
   it("the shared fields come first, as Search's", () => {
     expect(googleDemandGenCreateProblem({ name: " ", budget: "10", currency: "USD", endDate: "", demandGen: DG }, "2026-10-29")).toBe("Name the campaign.");
   });
+  it("★★a channel Google reports that Peakhour never asks for is never shown by its id (round 1)", () => {
+    const s = googleChannelControlsSentence({ selected: ["youtube_in_stream", "display", "gmail"], targetingApplied: true });
+    expect(s).toBe("Shows on YouTube in-stream and other Google placements — confirmed by Google.");
+    expect(s).not.toMatch(/display|gmail/i);
+  });
+  it("★the first refusal is the api's: text before videos (checkDemandGenAssets' order, round 1)", () => {
+    expect(googleDemandGenProblem({ ...DG, videos: [], headlines: ["x".repeat(41)] })).toMatch(/at most 40 characters/);
+  });
   it("★★the placements are 'confirmed' only on Google's word", () => {
     expect(googleChannelControlsSentence({ selected: ["youtube_in_stream"], targetingApplied: true })).toBe("Shows on YouTube in-stream — confirmed by Google.");
     expect(googleChannelControlsSentence({ selected: ["youtube_in_stream", "youtube_in_feed", "youtube_shorts"], targetingApplied: false })).toBe(

@@ -39,6 +39,7 @@ import {
   type GoogleYoutubeChannel,
 } from "@/lib/api/google-ads";
 import {
+  GOOGLE_DEMAND_GEN_BUDGET_NOTE,
   GOOGLE_DEMAND_GEN_DESCRIPTION,
   GOOGLE_DEMAND_GEN_REPORTING_NOTE,
   GOOGLE_LAUNCH_NOTE,
@@ -721,6 +722,7 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
         </Field>
         {pmax ? <p className="text-sm text-muted-foreground">{GOOGLE_PMAX_REPORTING_NOTE}</p> : null}
         {demandGen ? <p className="text-sm text-muted-foreground">{GOOGLE_DEMAND_GEN_REPORTING_NOTE}</p> : null}
+        {demandGen ? <p className="text-xs text-muted-foreground">{GOOGLE_DEMAND_GEN_BUDGET_NOTE}</p> : null}
         <Field label="Campaign name">
           <Input value={form.name} onChange={(e) => set("name", e.target.value)} maxLength={200} />
         </Field>
@@ -779,7 +781,7 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
             <Field label="Business name — up to 25 characters">
               <Input value={form.businessName} onChange={(e) => set("businessName", e.target.value)} />
             </Field>
-            <Field label="Square logos (1:1) — one https:// address per line, 1 to 5, each at most 150 KB">
+            <Field label="Square logos (1:1, at least 128x128, at most 150 KB each; checked when you create) — one https:// address per line, 1 to 5">
               <Textarea rows={2} value={form.logos} onChange={(e) => set("logos", e.target.value)} />
             </Field>
             <Field label="Where on YouTube">

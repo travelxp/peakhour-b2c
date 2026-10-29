@@ -66,6 +66,10 @@ export type GoogleYoutubeChannel = "youtube_in_stream" | "youtube_in_feed" | "yo
 
 /** G20 — a Demand Gen ad group's channels as the api stored them; `targetingApplied` is Google's confirmation. */
 export interface GoogleChannelControls {
+  /**
+   * Google's channel ids. Typed loosely on purpose: Google may report a channel Peakhour never asks for, and
+   * `googleChannelControlsSentence` says those as "other Google placements", never by id.
+   */
   selected: string[];
   targetingApplied: boolean;
 }
