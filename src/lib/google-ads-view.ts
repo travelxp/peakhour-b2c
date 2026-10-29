@@ -207,11 +207,16 @@ export function googleCreateProblem(
   f: { name: string; budget: string; currency: string; endDate: string; searchAd: GoogleSearchAdInput },
   today: string,
 ): string | null {
+  return googleSharedCreateProblem(f, today) ?? googleCopyProblem(f.searchAd);
+}
+
+/** The fields every Google campaign type shares, in order: name, budget, currency, end date. */
+function googleSharedCreateProblem(f: { name: string; budget: string; currency: string; endDate: string }, today: string): string | null {
   if (f.name.trim().length === 0) return "Name the campaign.";
   const amount = Number(f.budget);
   if (!Number.isFinite(amount) || !(amount > 0)) return "Set a daily budget above zero.";
   if (!/^[A-Za-z]{3}$/.test(f.currency)) return "Set the budget's three-letter currency.";
-  return googleEndDateProblem(f.endDate, today) ?? googleCopyProblem(f.searchAd);
+  return googleEndDateProblem(f.endDate, today);
 }
 
 // ── The ad's copy — the api's own rule, checked before sending ───────────
@@ -357,9 +362,5 @@ export function googlePmaxCreateProblem(
   f: { name: string; budget: string; currency: string; endDate: string; performanceMax: GooglePmaxInput },
   today: string,
 ): string | null {
-  if (f.name.trim().length === 0) return "Name the campaign.";
-  const amount = Number(f.budget);
-  if (!Number.isFinite(amount) || !(amount > 0)) return "Set a daily budget above zero.";
-  if (!/^[A-Za-z]{3}$/.test(f.currency)) return "Set the budget's three-letter currency.";
-  return googleEndDateProblem(f.endDate, today) ?? googlePmaxProblem(f.performanceMax);
+  return googleSharedCreateProblem(f, today) ?? googlePmaxProblem(f.performanceMax);
 }
