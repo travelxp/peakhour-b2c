@@ -619,12 +619,12 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
 
   const create = useMutation({
     // The type rides with the request, so the toast names what was SENT, not what the select says now.
-    mutationFn: (_type: GoogleChannelType) =>
+    mutationFn: (type: GoogleChannelType) =>
       googleAdsApi.createCampaign({
         adAccountId: account.id,
         name: form.name.trim(),
         dailyBudget: { amount, currencyCode: currency.toUpperCase() },
-        ...(pmax ? { channelType: "PERFORMANCE_MAX" as const, performanceMax } : { searchAd }),
+        ...(type === "PERFORMANCE_MAX" ? { channelType: "PERFORMANCE_MAX" as const, performanceMax } : { searchAd }),
         ...(form.endDate ? { endsAt: new Date(`${form.endDate}T23:59:59`).toISOString() } : {}),
         ...(form.notPolitical ? { notPolitical: true } : {}),
       }),
