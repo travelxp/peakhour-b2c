@@ -173,6 +173,17 @@ describe("★★G-15/G19/G20 — nothing implies a Google campaign type but Sear
     expect(shown.length).toBe(3);
     expect(read(VIEW)).toMatch(/GOOGLE_PMAX_REPORTING_NOTE =\s*"Google does not tell us who saw a Performance Max ad\./);
   });
+  it("★★the hub and catalog say YouTube and Demand Gen only as the type's own label (round 2)", () => {
+    for (const entry of [
+      googleEntry(read("src/app/(site)/dashboard/ads/ads-channels.ts"), 'key: "google"'),
+      googleEntry(read("src/app/(site)/dashboard/content/channels.config.ts"), 'slug: "google-ads"'),
+    ]) {
+      // Comments are not copy; the label is removed, and nothing YouTube- or Demand-Gen-like may remain.
+      const copy = entry.replace(/\/\/[^\n]*/g, "").split("YouTube video (Demand Gen)").join("");
+      expect(copy.match(/YouTube|Demand Gen/i)?.[0] ?? null).toBeNull();
+    }
+    expect("Search campaigns on YouTube".split("YouTube video (Demand Gen)").join("").match(/YouTube|Demand Gen/i)?.[0]).toBe("YouTube");
+  });
   it("★the hub and catalog name the three types", () => {
     for (const entry of [
       googleEntry(read("src/app/(site)/dashboard/ads/ads-channels.ts"), 'key: "google"'),

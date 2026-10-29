@@ -503,6 +503,19 @@ export function googleDemandGenCreateProblem(
  * answer did not carry the channels.
  */
 export function googleChannelControlsSentence(cc: GoogleChannelControls | undefined): string | null {
+  const places = googleChannelPlaces(cc);
+  if (!places) return null;
+  // ★"SET TO SHOW", NOT "SHOWS" (round 2): a draft or paused campaign shows nowhere yet.
+  return cc!.targetingApplied ? `Set to show on ${places} — confirmed by Google.` : `Set to show on ${places}; Google hasn't confirmed it yet.`;
+}
+
+/**
+ * Where a YouTube video ad's channel controls place it, as a phrase ("YouTube
+ * in-stream and YouTube Shorts"), or null when the row carries none. The start
+ * dialog and the row both say this (round 2): the dialog where money is
+ * committed must not say less than the row above it.
+ */
+export function googleChannelPlaces(cc: GoogleChannelControls | undefined): string | null {
   if (!cc || cc.selected.length === 0) return null;
   // ★NEVER A RAW CHANNEL ID ON SCREEN (review round 1). Peakhour asks for
   //  YouTube's three only; any other channel Google reports is said as "other
@@ -510,7 +523,6 @@ export function googleChannelControlsSentence(cc: GoogleChannelControls | undefi
   //  campaign type this panel never offers.
   const youtube = GOOGLE_YOUTUBE_CHANNELS.filter((c) => cc.selected.includes(c.value)).map((c) => c.name);
   const list = cc.selected.some((c) => !GOOGLE_YOUTUBE_CHANNELS.some((y) => y.value === c)) ? [...youtube, "other Google placements"] : youtube;
-  const joined = list.length === 1 ? list[0] : `${list.slice(0, -1).join(", ")} and ${list.at(-1)}`;
-  return cc.targetingApplied ? `Shows on ${joined} — confirmed by Google.` : `Set to show on ${joined}; Google hasn't confirmed it yet.`;
+  return list.length === 1 ? list[0]! : `${list.slice(0, -1).join(", ")} and ${list.at(-1)}`;
 }
 

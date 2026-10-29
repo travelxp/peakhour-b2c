@@ -48,6 +48,7 @@ import {
   GOOGLE_YOUTUBE_CHANNELS,
   formatGoogleMoney,
   googleChannelControlsSentence,
+  googleChannelPlaces,
   googleChannelTypeLabel,
   googleDemandGenCreateProblem,
   googlePmaxCreateProblem,
@@ -555,7 +556,7 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
               {confirming?.channelType === "PERFORMANCE_MAX"
                 ? "Google's channels"
                 : confirming?.channelType === "DEMAND_GEN"
-                  ? "YouTube"
+                  ? (googleChannelPlaces(confirming.channelControls) ?? "YouTube")
                   : "Google Search"}{" "}
               at{" "}
               <span className="font-medium">
@@ -760,30 +761,35 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
         <Field label={`Descriptions — one per line, ${demandGen ? 1 : 2} to ${pmax || demandGen ? 5 : 4}, up to 90 characters each`}>
           <Textarea rows={3} value={form.descriptions} onChange={(e) => set("descriptions", e.target.value)} />
         </Field>
-        {pmax ? (
+        {pmax || demandGen ? (
+          // One field each for both types (round 2): the same state, so a type switch keeps what was typed.
           <>
             <Field label="Business name — up to 25 characters">
               <Input value={form.businessName} onChange={(e) => set("businessName", e.target.value)} />
             </Field>
+            <Field
+              label={
+                demandGen
+                  ? "Square logos (1:1, at least 128x128, at most 150 KB each; checked when you create) — one https:// address per line, 1 to 5"
+                  : "Logos (1:1) — one https:// address per line, 1 to 5"
+              }
+            >
+              <Textarea rows={2} value={form.logos} onChange={(e) => set("logos", e.target.value)} />
+            </Field>
+          </>
+        ) : null}
+        {pmax ? (
+          <>
             <Field label="Landscape images (1.91:1) — one https:// address per line, 1 to 20">
               <Textarea rows={2} value={form.marketingImages} onChange={(e) => set("marketingImages", e.target.value)} />
             </Field>
             <Field label="Square images (1:1) — one https:// address per line, 1 to 20">
               <Textarea rows={2} value={form.squareImages} onChange={(e) => set("squareImages", e.target.value)} />
             </Field>
-            <Field label="Logos (1:1) — one https:// address per line, 1 to 5">
-              <Textarea rows={2} value={form.logos} onChange={(e) => set("logos", e.target.value)} />
-            </Field>
           </>
         ) : null}
         {demandGen ? (
           <>
-            <Field label="Business name — up to 25 characters">
-              <Input value={form.businessName} onChange={(e) => set("businessName", e.target.value)} />
-            </Field>
-            <Field label="Square logos (1:1, at least 128x128, at most 150 KB each; checked when you create) — one https:// address per line, 1 to 5">
-              <Textarea rows={2} value={form.logos} onChange={(e) => set("logos", e.target.value)} />
-            </Field>
             <Field label="Where on YouTube">
               <div className="space-y-2">
                 {GOOGLE_YOUTUBE_CHANNELS.map((c) => (

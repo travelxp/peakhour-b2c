@@ -29,6 +29,7 @@ import {
   GOOGLE_DEMAND_GEN_REPORTING_NOTE,
   GOOGLE_YOUTUBE_CHANNELS,
   googleChannelControlsSentence,
+  googleChannelPlaces,
   googleDemandGenCreateProblem,
   googleDemandGenProblem,
   youtubeVideoIdOf,
@@ -352,14 +353,17 @@ describe("★★G20 — YouTube video ads (Demand Gen), in words and in the api'
   });
   it("★★a channel Google reports that Peakhour never asks for is never shown by its id (round 1)", () => {
     const s = googleChannelControlsSentence({ selected: ["youtube_in_stream", "display", "gmail"], targetingApplied: true });
-    expect(s).toBe("Shows on YouTube in-stream and other Google placements — confirmed by Google.");
+    expect(s).toBe("Set to show on YouTube in-stream and other Google placements — confirmed by Google.");
     expect(s).not.toMatch(/display|gmail/i);
   });
   it("★the first refusal is the api's: text before videos (checkDemandGenAssets' order, round 1)", () => {
     expect(googleDemandGenProblem({ ...DG, videos: [], headlines: ["x".repeat(41)] })).toMatch(/at most 40 characters/);
   });
   it("★★the placements are 'confirmed' only on Google's word", () => {
-    expect(googleChannelControlsSentence({ selected: ["youtube_in_stream"], targetingApplied: true })).toBe("Shows on YouTube in-stream — confirmed by Google.");
+    // ★Never "Shows on": a draft shows nowhere yet (round 2).
+    expect(googleChannelControlsSentence({ selected: ["youtube_in_stream"], targetingApplied: true })).toBe("Set to show on YouTube in-stream — confirmed by Google.");
+    expect(googleChannelPlaces({ selected: ["youtube_shorts"], targetingApplied: false })).toBe("YouTube Shorts");
+    expect(googleChannelPlaces(undefined)).toBeNull();
     expect(googleChannelControlsSentence({ selected: ["youtube_in_stream", "youtube_in_feed", "youtube_shorts"], targetingApplied: false })).toBe(
       "Set to show on YouTube in-stream, YouTube in-feed and YouTube Shorts; Google hasn't confirmed it yet.",
     );
