@@ -87,7 +87,7 @@ function sweepTail(d: Record<string, unknown>, msg: string, warnAlso = false): C
   const failed = num(d.failed);
   let out = msg;
   if (failed > 0) out += ` ${failed} failed.`;
-  if (d.truncated === true) out += " Stopped before finishing — trigger again to continue.";
+  if (d.truncated === true) out += " More runs pending — trigger again to continue.";
   return failed > 0 || d.truncated === true || warnAlso ? { message: out, level: "warning" } : out;
 }
 
@@ -114,37 +114,42 @@ function summarizeAllocator(data: unknown): CronSummary | null {
   const d = asRecord(data);
   if (!d || typeof d.businesses !== "number") return null;
   const skip = reasons(d.skipped);
+  const proposed = num(d.proposed);
   return sweepTail(
     d,
-    `${num(d.proposed)} budget ${plural(num(d.proposed), "proposal")} from ${d.businesses} ${plural(d.businesses, "business", "es")} ` +
-      `(at L2/L3 they apply by themselves).` + (skip ? ` No proposal: ${skip}.` : ""),
+    `${proposed} budget ${plural(proposed, "proposal")} from ${d.businesses} ${plural(d.businesses, "business", "es")}` +
+      (proposed > 0 ? " (a move applies by itself at L2, a move or a raise at L3)." : ".") +
+      (skip ? ` No proposal: ${skip}.` : ""),
   );
 }
 
-/** growth-holdouts: `{ businesses, rolledOut, waiting, abandoned, flipped, released, failed, truncated }`. */
+/** growth-holdouts: `{ businesses, rolledOut, waiting, abandoned, flipped, released, failed, truncated }`, each a transition THIS run made (`TickSummary`). */
 function summarizeHoldouts(data: unknown): CronSummary | null {
   const d = asRecord(data);
   if (!d || typeof d.businesses !== "number") return null;
   return sweepTail(
     d,
-    `${d.businesses} ${plural(d.businesses, "business", "es")}: ${num(d.rolledOut)} running, ${num(d.waiting)} waiting to roll out, ` +
-      `${num(d.abandoned)} abandoned, ${num(d.flipped)} switched over, ${num(d.released)} released.`,
+    `${d.businesses} ${plural(d.businesses, "business", "es")} with holdouts. This run: ${num(d.rolledOut)} finished rolling out, ` +
+      `${num(d.waiting)} still waiting to roll out, ${num(d.abandoned)} abandoned, ${num(d.flipped)} switched over, ${num(d.released)} released.`,
   );
 }
+
+/** Lift skips that are routine: a reading under 20h old, a holdout that ended or is too young to read. */
+const LIFT_ROUTINE_SKIPS = new Set(["fresh_reading_exists", "no_longer_running", "not_running", "empty_window", "no_complete_pair_of_periods"]);
 
 /** growth-lift: `{ holdouts, written, lowPower, reapplied, skipped: {reason:n}, failed, truncated }`. */
 function summarizeLift(data: unknown): CronSummary | null {
   const d = asRecord(data);
   if (!d || typeof d.holdouts !== "number") return null;
   const skip = reasons(d.skipped);
-  // Running holdouts and not one reading is worth a look even when nothing failed.
-  const noneRead = d.holdouts > 0 && num(d.written) === 0;
+  // A holdout whose campaigns do not hold the list, or whose cells or arms cannot be read, is worth a look.
+  const worrying = Object.entries(asRecord(d.skipped) ?? {}).some(([k, n]) => num(n) > 0 && !LIFT_ROUTINE_SKIPS.has(k));
   return sweepTail(
     d,
     `${d.holdouts} running ${plural(d.holdouts, "holdout")}: ${num(d.written)} lift ${plural(num(d.written), "reading")} ` +
       `(${num(d.lowPower)} low-power), ${num(d.reapplied)} exclusion ${plural(num(d.reapplied), "list")} re-applied.` +
       (skip ? ` Not measured: ${skip}.` : ""),
-    noneRead,
+    worrying,
   );
 }
 
@@ -159,37 +164,44 @@ function summarizePlaybookUpgrade(data: unknown): CronSummary | null {
   );
 }
 
-/** growth-playbook-learning: `{ skipped: "pin_disabled" }`, or `LearningResult { pinCohorts, assigned, unassigned, ambiguous, playbooks[], drafts[] }`. */
+/** growth-playbook-learning: `{ skipped: "pin_disabled" }`, or `LearningResult { pinCohorts, unassigned, ambiguous, playbooks[], drafts[] }` of `LearningOutcome { action, reason? }`. */
 function summarizePlaybookLearning(data: unknown): CronSummary | null {
   const d = asRecord(data);
   if (d?.skipped === "pin_disabled") {
     return { message: "Nothing ran: the pooled-insights (PIN) store is not configured here.", level: "warning" };
   }
-  const skipped = skippedRun(d);
-  if (skipped) return skipped;
   if (!d || typeof d.pinCohorts !== "number") return null;
-  const outcomes = Array.isArray(d.playbooks) ? d.playbooks : [];
-  const count = (action: string) => outcomes.filter((o) => asRecord(o)?.action === action).length;
-  const drafts = Array.isArray(d.drafts) ? d.drafts.length : 0;
+  const outcomes = (v: unknown) => (Array.isArray(v) ? v.map(asRecord).filter((o): o is Record<string, unknown> => o !== null) : []);
+  const playbooks = outcomes(d.playbooks);
+  const drafts = outcomes(d.drafts);
+  const count = (list: Record<string, unknown>[], action: string) => list.filter((o) => o.action === action).length;
+  // The api records a caught error as `{ action: "skipped", reason: "failed" }`.
+  const failed = [...playbooks, ...drafts].filter((o) => o.reason === "failed").length;
+  const published = count(playbooks, "auto_published");
+  const newDrafts = count(drafts, "proposed");
   const ambiguous = num(d.ambiguous);
   const msg =
-    `${d.pinCohorts} PIN ${plural(d.pinCohorts, "cohort")} (${num(d.unassigned)} unassigned): ${count("auto_published")} ` +
-    `published ${count("auto_published") === 1 ? "itself" : "themselves"}, ${count("proposed")} proposed for a person, ${drafts} new ${plural(drafts, "draft")}.` +
-    (ambiguous > 0 ? ` ${ambiguous} ${plural(ambiguous, "cohort")} matched two playbooks equally — see the job result.` : "");
-  return ambiguous > 0 ? { message: msg, level: "warning" } : msg;
+    `${d.pinCohorts} PIN ${plural(d.pinCohorts, "cohort")} (${num(d.unassigned)} unassigned): ${published} published ` +
+    `${published === 1 ? "itself" : "themselves"}, ${count(playbooks, "proposed")} proposed for a person, ${newDrafts} new ${plural(newDrafts, "draft")}.` +
+    (ambiguous > 0 ? ` ${ambiguous} ${plural(ambiguous, "cohort")} matched two playbooks equally.` : "") +
+    (failed > 0 ? ` ${failed} ${plural(failed, "pass", "es")} failed.` : "");
+  return ambiguous > 0 || failed > 0 ? { message: msg, level: "warning" } : msg;
 }
 
-/** growth-tripwire-judge: `JudgeSummary { considered, cleared, tripped, reversed, inconclusive, waiting, demoted, promotionsOffered, errors, … }`. */
+/** growth-tripwire-judge: `JudgeSummary { considered, cleared, tripped, reversed, inconclusive, waiting, resumed, demoted, promotionsOffered, unstructured, skipped, errors }`. */
 function summarizeTripwireJudge(data: unknown): CronSummary | null {
   const d = asRecord(data);
   if (!d || typeof d.considered !== "number") return null;
   const errors = num(d.errors);
+  // A free-text tripwire with no metric is left armed for ever: worth a look.
+  const unstructured = num(d.unstructured);
   const msg =
     `${d.considered} ${plural(d.considered, "tripwire")} considered: ${num(d.cleared)} cleared, ${num(d.tripped)} tripped ` +
-    `(${num(d.reversed)} reversed, ${num(d.demoted)} demoted), ${num(d.inconclusive)} inconclusive, ${num(d.waiting)} waiting; ` +
-    `${num(d.promotionsOffered)} ${plural(num(d.promotionsOffered), "promotion")} offered.` +
+    `(${num(d.reversed)} reversed, ${num(d.demoted)} demoted), ${num(d.inconclusive)} inconclusive, ${num(d.waiting)} waiting, ` +
+    `${num(d.resumed)} resumed, ${num(d.skipped)} skipped; ${num(d.promotionsOffered)} ${plural(num(d.promotionsOffered), "promotion")} offered.` +
+    (unstructured > 0 ? ` ${unstructured} cannot be judged (a tripwire with no metric).` : "") +
     (errors > 0 ? ` ${errors} ${plural(errors, "error")}.` : "");
-  return errors > 0 ? { message: msg, level: "warning" } : msg;
+  return errors > 0 || unstructured > 0 ? { message: msg, level: "warning" } : msg;
 }
 
 /** One `DeliverySummary { sent, noRecipient, deferred, failed: { code: n } }` as words. */
@@ -215,16 +227,20 @@ function summarizeDecisionBatch(data: unknown): CronSummary | null {
   return batch.bad || receipts.bad ? { message: msg, level: "warning" } : msg;
 }
 
-/** growth-weekly-report: `{ skipped }` when the lock is held, else `{ businesses, sent, skipped: n, failed }`. */
+/** growth-weekly-report: `{ skipped: "<why>" }` when the lock is held, else `{ businesses, sent, skipped, failed }`: `businesses` and
+ *  `skipped` count businesses that were due; `sent` and `failed` count messages (one per approver). */
 function summarizeWeeklyReport(data: unknown): CronSummary | null {
   const d = asRecord(data);
   const skipped = skippedRun(d);
   if (skipped) return skipped;
   if (!d || typeof d.businesses !== "number") return null;
   const failed = num(d.failed);
+  const notReached = num(d.skipped);
   const msg =
-    `${num(d.sent)} of ${d.businesses} weekly ${plural(d.businesses, "report")} sent (${num(d.skipped)} not due or not sendable` +
-    (failed > 0 ? `, ${failed} failed)` : ")") + ".";
+    `${d.businesses} ${plural(d.businesses, "business", "es")} due: ${num(d.sent)} report ${plural(num(d.sent), "message")} sent` +
+    (notReached > 0 ? `, ${notReached} ${plural(notReached, "business", "es")} with no reachable approver or already sent this week` : "") +
+    (failed > 0 ? `, ${failed} ${plural(failed, "message")} failed` : "") +
+    ".";
   return failed > 0 ? { message: msg, level: "warning" } : msg;
 }
 
@@ -262,9 +278,9 @@ function summarizeDecisionsExpiry(data: unknown): CronSummary | null {
   const waSkipped = num(r.whatsappSkipped);
   const msg =
     `${head} Waiting for review: ${num(r.waiting)}; ${num(r.reviewed)} reviewed, ${num(r.stillWaiting)} still waiting, ` +
-    `${num(r.setAside)} set aside (${num(r.whatsappSent)} WhatsApp sent, ${waSkipped} not sent).` +
+    `${num(r.setAside)} set aside (${num(r.whatsappSent)} WhatsApp sent, ${waSkipped} not sent — no approved template yet, no recipient, or throttled).` +
     (num(r.noTime) > 0 ? ` ${num(r.noTime)} left for the next run (no time for a review).` : "");
-  return waSkipped > 0 || num(r.noTime) > 0 ? { message: msg, level: "warning" } : msg;
+  return num(r.noTime) > 0 ? { message: msg, level: "warning" } : msg;
 }
 
 /** peakhour-api `cron/rails-refresh.ts` reads at most this many due rails a tick. */

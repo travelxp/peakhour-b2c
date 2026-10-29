@@ -1143,16 +1143,18 @@ describe("growth cron summaries read the api's real result shapes", () => {
   it("allocator: says proposals apply themselves at L2/L3; a failure warns", () => {
     const s = sum("growth-allocator", { businesses: 4, proposed: 2, skipped: { not_enough_weeks: 2 }, failed: 1, truncated: false });
     expect(s?.level).toBe("warning");
-    expect(s?.message).toContain("at L2/L3 they apply by themselves");
+    expect(s?.message).toContain("a move applies by itself at L2, a move or a raise at L3");
+    expect(sum("growth-allocator", { businesses: 2, proposed: 0, skipped: { not_enough_weeks: 2 }, failed: 0, truncated: false })?.message).not.toContain("applies by itself");
     expect(s?.message).toContain("1 failed");
   });
 
   it("holdouts: counts by state", () => {
     const s = sum("growth-holdouts", { businesses: 2, rolledOut: 1, waiting: 1, abandoned: 0, flipped: 0, released: 0, failed: 0, truncated: false });
-    expect(s).toEqual({ message: expect.stringContaining("1 running, 1 waiting to roll out"), level: "success" });
+    expect(s).toEqual({ message: expect.stringContaining("This run: 1 finished rolling out, 1 still waiting"), level: "success" });
   });
 
-  it("lift: running holdouts with no reading warns, and says why", () => {
+  it("lift: a reading that cannot be made warns; a fresh reading already written does not", () => {
+    expect(sum("growth-lift", { holdouts: 2, written: 0, lowPower: 0, reapplied: 0, skipped: { fresh_reading_exists: 2 }, failed: 0, truncated: false })?.level).toBe("success");
     const s = sum("growth-lift", { holdouts: 3, written: 0, lowPower: 0, reapplied: 1, skipped: { campaigns_not_holding_the_list: 3 }, failed: 0, truncated: false });
     expect(s?.level).toBe("warning");
     expect(s?.message).toContain("campaigns not holding the list 3");
@@ -1172,12 +1174,22 @@ describe("growth cron summaries read the api's real result shapes", () => {
       playbooks: [{ playbookId: "a", action: "auto_published" }, { playbookId: "b", action: "proposed" }], drafts: [],
     });
     expect(s?.message).toContain("1 published itself, 1 proposed for a person");
+    const failed = sum("growth-playbook-learning", {
+      pinCohorts: 2, assigned: 2, unassigned: 0, ambiguous: 0,
+      playbooks: [{ playbookId: "a", action: "skipped", reason: "failed" }], drafts: [{ playbookId: "c", action: "skipped", reason: "failed" }],
+    });
+    expect(failed?.level).toBe("warning");
+    expect(failed?.message).toContain("0 new drafts");
+    expect(failed?.message).toContain("2 passes failed");
   });
 
   it("tripwire judge: errors (its failure field) warn", () => {
     const s = sum("growth-tripwire-judge", { considered: 10, cleared: 6, tripped: 2, reversed: 2, inconclusive: 1, waiting: 1, resumed: 0, demoted: 1, promotionsOffered: 1, unstructured: 0, skipped: 0, errors: 2 });
     expect(s?.level).toBe("warning");
     expect(s?.message).toContain("2 errors");
+    const armed = sum("growth-tripwire-judge", { considered: 10, cleared: 0, tripped: 0, reversed: 0, inconclusive: 0, waiting: 0, resumed: 0, demoted: 0, promotionsOffered: 0, unstructured: 10, skipped: 0, errors: 0 });
+    expect(armed?.level).toBe("warning");
+    expect(armed?.message).toContain("10 cannot be judged");
   });
 
   it("decision batch: failed is a per-code record, and receipts count too", () => {
@@ -1192,7 +1204,7 @@ describe("growth cron summaries read the api's real result shapes", () => {
   });
 
   it("weekly report: a number `skipped` is not a held lock", () => {
-    expect(sum("growth-weekly-report", { businesses: 5, sent: 3, skipped: 2, failed: 0 })).toEqual({ message: expect.stringContaining("3 of 5"), level: "success" });
+    expect(sum("growth-weekly-report", { businesses: 2, sent: 6, skipped: 0, failed: 0 })).toEqual({ message: expect.stringContaining("2 businesses due: 6 report messages sent"), level: "success" });
     expect(sum("growth-weekly-report", { skipped: "another run holds the lock" })?.level).toBe("warning");
   });
 
@@ -1211,5 +1223,8 @@ describe("growth cron summaries read the api's real result shapes", () => {
     expect(failed?.message).toContain("nothing was retried or set aside");
     const clean = sum("decisions-expiry", { expired: 2, reviews: { waiting: 1, retried: 1, reviewed: 1, stillWaiting: 0, closed: 0, setAside: 0, noTime: 0, whatsappSent: 0, whatsappSkipped: 0 } });
     expect(clean?.level).toBe("success");
+    const unsent = sum("decisions-expiry", { expired: 0, reviews: { waiting: 1, retried: 1, reviewed: 0, stillWaiting: 0, closed: 1, setAside: 1, noTime: 0, whatsappSent: 0, whatsappSkipped: 1 } });
+    expect(unsent?.level).toBe("success");
+    expect(unsent?.message).toContain("no approved template yet");
   });
 });
