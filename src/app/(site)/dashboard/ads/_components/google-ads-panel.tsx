@@ -39,7 +39,6 @@ import {
 } from "@/lib/api/google-ads";
 import {
   GOOGLE_LAUNCH_NOTE,
-  GOOGLE_PMAX,
   GOOGLE_PMAX_DESCRIPTION,
   GOOGLE_PMAX_REPORTING_NOTE,
   formatGoogleMoney,
@@ -713,7 +712,7 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
         {pmax ? (
           <>
             <Field label="Business name — up to 25 characters">
-              <Input value={form.businessName} onChange={(e) => set("businessName", e.target.value)} maxLength={GOOGLE_PMAX.businessNameChars} />
+              <Input value={form.businessName} onChange={(e) => set("businessName", e.target.value)} />
             </Field>
             <Field label="Landscape images (1.91:1) — one https:// address per line, 1 to 20">
               <Textarea rows={2} value={form.marketingImages} onChange={(e) => set("marketingImages", e.target.value)} />

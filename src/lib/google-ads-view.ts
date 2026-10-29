@@ -310,7 +310,7 @@ export function googlePmaxProblem(a: GooglePmaxInput): string | null {
   }
   const name = a.businessName.trim();
   if (!name || BAD_TEXT.test(name) || googleTextWidth(name) > GOOGLE_PMAX.businessNameChars) {
-    return `The business name must be 1 to ${GOOGLE_PMAX.businessNameChars} characters.`;
+    return `The business name must be 1 to ${GOOGLE_PMAX.businessNameChars} characters, counted as Google counts them: it is ${googleTextWidth(name)}.`;
   }
   if (!isHttpsUrl(a.finalUrl)) return "The landing page must be a full https:// address.";
   for (const what of ["marketing", "square", "logos"] as const) {
