@@ -97,8 +97,9 @@ import { ADS_CHANNEL_PARAM, getAdsChannel, panelConnection, type AdsChannelKey }
  * campaign on Google.
  *
  * ★STARTING IS THE LAUNCH, and is confirmed first (round 1, as LinkedIn's):
- * it starts spend (and costs nothing itself: N2, PeakHour charges for verified outcomes). Google refuses a campaign with no
- * location or keyword, which the audience step (G-06) writes; the api says so.
+ * it starts spend (and costs nothing itself: N2, PeakHour charges for verified outcomes). Google refuses a Search campaign
+ * with no location or keyword, and a Performance Max campaign with no location or enabled asset group; the audience
+ * step (G-06) writes locations and keywords; the api says so.
  *
  * ★SEARCH AND PERFORMANCE MAX ONLY: the two types the api creates, and no
  * third is named (the plan's G-15 row). ★A PERFORMANCE MAX CAMPAIGN CARRIES

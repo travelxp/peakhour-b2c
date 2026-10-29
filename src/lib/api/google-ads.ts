@@ -14,8 +14,8 @@ import { googleAdsUrl } from "@/lib/google-ads-surface";
  *   - a create Google did not confirm answers 202 `pending` — "don't create
  *     it again" — and is read back by the hourly re-drive.
  *
- * ⏸SEARCH ONLY: the api creates Responsive Search Ad campaigns and nothing
- * else, so nothing here offers another campaign type.
+ * ★SEARCH AND PERFORMANCE MAX ONLY (G19): the two types the api creates;
+ * nothing here offers a third.
  */
 
 export interface GoogleAdAccount {
