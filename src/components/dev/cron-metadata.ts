@@ -60,6 +60,213 @@ function summarizeOptimizerSweep(data: unknown): CronSummary | null {
   return (d.failed ?? 0) > 0 || d.truncated ? { message: msg, level: "warning" } : msg;
 }
 
+// ── Growth engine summaries ─────────────────────────────────────────────
+// One per cron, each against the api result it names: these crons report a failure or a no-op in different fields
+// (`errors`, `failed` as a per-code record, `stoppedEarly`, `notReleased`, a lock's `skipped` string), and a
+// run that did nothing or less than all of it must never be a green toast.
+
+/** Sum a `{ reason: count }` record. */
+function total(v: unknown): number {
+  const r = asRecord(v);
+  return r ? Object.values(r).reduce<number>((t, n) => t + num(n), 0) : 0;
+}
+
+/** `{ reason: count }` as "a 3, b 1", largest first, or "" when empty. */
+function reasons(v: unknown): string {
+  const r = asRecord(v);
+  if (!r) return "";
+  return Object.entries(r)
+    .filter(([, n]) => num(n) > 0)
+    .sort((a, b) => num(b[1]) - num(a[1]))
+    .map(([k, n]) => `${k.replace(/_/g, " ")} ${num(n)}`)
+    .join(", ");
+}
+
+/** The sweep's own tail: failures and a cut-short run, as a warning. */
+function sweepTail(d: Record<string, unknown>, msg: string, warnAlso = false): CronSummary {
+  const failed = num(d.failed);
+  let out = msg;
+  if (failed > 0) out += ` ${failed} failed.`;
+  if (d.truncated === true) out += " Stopped before finishing — trigger again to continue.";
+  return failed > 0 || d.truncated === true || warnAlso ? { message: out, level: "warning" } : out;
+}
+
+/** A held lock or a disabled source: `{ skipped: "<why>" }`. */
+function skippedRun(d: Record<string, unknown> | null): CronSummary | null {
+  return d && typeof d.skipped === "string" ? { message: `Nothing ran: ${d.skipped}.`, level: "warning" } : null;
+}
+
+/** growth-observations: `{ businesses, lift, attributed, refit, skipped: {reason:n}, failed, truncated }`. */
+function summarizeObservations(data: unknown): CronSummary | null {
+  const d = asRecord(data);
+  if (!d || typeof d.businesses !== "number") return null;
+  const skip = reasons(d.skipped);
+  return sweepTail(
+    d,
+    `${d.businesses} ${plural(d.businesses, "business", "es")}: ${num(d.refit)} channel ${plural(num(d.refit), "model")} refit, ` +
+      `${num(d.lift)} lift and ${num(d.attributed)} attributed ${plural(num(d.lift) + num(d.attributed), "week")} recorded.` +
+      (skip ? ` Skipped: ${skip}.` : ""),
+  );
+}
+
+/** growth-allocator: `{ businesses, proposed, skipped: {reason:n}, failed, truncated }`. */
+function summarizeAllocator(data: unknown): CronSummary | null {
+  const d = asRecord(data);
+  if (!d || typeof d.businesses !== "number") return null;
+  const skip = reasons(d.skipped);
+  return sweepTail(
+    d,
+    `${num(d.proposed)} budget ${plural(num(d.proposed), "proposal")} from ${d.businesses} ${plural(d.businesses, "business", "es")} ` +
+      `(at L2/L3 they apply by themselves).` + (skip ? ` No proposal: ${skip}.` : ""),
+  );
+}
+
+/** growth-holdouts: `{ businesses, rolledOut, waiting, abandoned, flipped, released, failed, truncated }`. */
+function summarizeHoldouts(data: unknown): CronSummary | null {
+  const d = asRecord(data);
+  if (!d || typeof d.businesses !== "number") return null;
+  return sweepTail(
+    d,
+    `${d.businesses} ${plural(d.businesses, "business", "es")}: ${num(d.rolledOut)} running, ${num(d.waiting)} waiting to roll out, ` +
+      `${num(d.abandoned)} abandoned, ${num(d.flipped)} switched over, ${num(d.released)} released.`,
+  );
+}
+
+/** growth-lift: `{ holdouts, written, lowPower, reapplied, skipped: {reason:n}, failed, truncated }`. */
+function summarizeLift(data: unknown): CronSummary | null {
+  const d = asRecord(data);
+  if (!d || typeof d.holdouts !== "number") return null;
+  const skip = reasons(d.skipped);
+  // Running holdouts and not one reading is worth a look even when nothing failed.
+  const noneRead = d.holdouts > 0 && num(d.written) === 0;
+  return sweepTail(
+    d,
+    `${d.holdouts} running ${plural(d.holdouts, "holdout")}: ${num(d.written)} lift ${plural(num(d.written), "reading")} ` +
+      `(${num(d.lowPower)} low-power), ${num(d.reapplied)} exclusion ${plural(num(d.reapplied), "list")} re-applied.` +
+      (skip ? ` Not measured: ${skip}.` : ""),
+    noneRead,
+  );
+}
+
+/** growth-playbook-upgrade: `UpgradeSweepResult { checked, proposed, numeric, alreadyOpen, refused, failed, truncated }`. */
+function summarizePlaybookUpgrade(data: unknown): CronSummary | null {
+  const d = asRecord(data);
+  if (!d || typeof d.checked !== "number") return null;
+  return sweepTail(
+    d,
+    `${d.checked} ${plural(d.checked, "business", "es")} checked: ${num(d.proposed)} ${plural(num(d.proposed), "upgrade")} offered ` +
+      `(${num(d.numeric)} numbers-only, which apply themselves at L2+), ${num(d.alreadyOpen)} already open, ${num(d.refused)} refused.`,
+  );
+}
+
+/** growth-playbook-learning: `{ skipped: "pin_disabled" }`, or `LearningResult { pinCohorts, assigned, unassigned, ambiguous, playbooks[], drafts[] }`. */
+function summarizePlaybookLearning(data: unknown): CronSummary | null {
+  const d = asRecord(data);
+  if (d?.skipped === "pin_disabled") {
+    return { message: "Nothing ran: the pooled-insights (PIN) store is not configured here.", level: "warning" };
+  }
+  const skipped = skippedRun(d);
+  if (skipped) return skipped;
+  if (!d || typeof d.pinCohorts !== "number") return null;
+  const outcomes = Array.isArray(d.playbooks) ? d.playbooks : [];
+  const count = (action: string) => outcomes.filter((o) => asRecord(o)?.action === action).length;
+  const drafts = Array.isArray(d.drafts) ? d.drafts.length : 0;
+  const ambiguous = num(d.ambiguous);
+  const msg =
+    `${d.pinCohorts} PIN ${plural(d.pinCohorts, "cohort")} (${num(d.unassigned)} unassigned): ${count("auto_published")} ` +
+    `published ${count("auto_published") === 1 ? "itself" : "themselves"}, ${count("proposed")} proposed for a person, ${drafts} new ${plural(drafts, "draft")}.` +
+    (ambiguous > 0 ? ` ${ambiguous} ${plural(ambiguous, "cohort")} matched two playbooks equally — see the job result.` : "");
+  return ambiguous > 0 ? { message: msg, level: "warning" } : msg;
+}
+
+/** growth-tripwire-judge: `JudgeSummary { considered, cleared, tripped, reversed, inconclusive, waiting, demoted, promotionsOffered, errors, … }`. */
+function summarizeTripwireJudge(data: unknown): CronSummary | null {
+  const d = asRecord(data);
+  if (!d || typeof d.considered !== "number") return null;
+  const errors = num(d.errors);
+  const msg =
+    `${d.considered} ${plural(d.considered, "tripwire")} considered: ${num(d.cleared)} cleared, ${num(d.tripped)} tripped ` +
+    `(${num(d.reversed)} reversed, ${num(d.demoted)} demoted), ${num(d.inconclusive)} inconclusive, ${num(d.waiting)} waiting; ` +
+    `${num(d.promotionsOffered)} ${plural(num(d.promotionsOffered), "promotion")} offered.` +
+    (errors > 0 ? ` ${errors} ${plural(errors, "error")}.` : "");
+  return errors > 0 ? { message: msg, level: "warning" } : msg;
+}
+
+/** One `DeliverySummary { sent, noRecipient, deferred, failed: { code: n } }` as words. */
+function delivery(v: unknown, noun: string): { text: string; bad: boolean } {
+  const d = asRecord(v) ?? {};
+  const failed = total(d.failed);
+  const codes = reasons(d.failed);
+  const text =
+    `${num(d.sent)} ${plural(num(d.sent), noun)} sent, ${num(d.deferred)} deferred, ${num(d.noRecipient)} with no recipient` +
+    (failed > 0 ? `, ${failed} failed (${codes})` : "");
+  return { text, bad: failed > 0 || num(d.noRecipient) > 0 };
+}
+
+/** growth-decision-batch: `{ skipped }` when the lock is held, else `{ batch: DeliverySummary, receipts: DeliverySummary }`. */
+function summarizeDecisionBatch(data: unknown): CronSummary | null {
+  const d = asRecord(data);
+  const skipped = skippedRun(d);
+  if (skipped) return skipped;
+  if (!d || (!d.batch && !d.receipts)) return null;
+  const batch = delivery(d.batch, "decision");
+  const receipts = delivery(d.receipts, "receipt");
+  const msg = `Decisions: ${batch.text}. Receipts: ${receipts.text}.`;
+  return batch.bad || receipts.bad ? { message: msg, level: "warning" } : msg;
+}
+
+/** growth-weekly-report: `{ skipped }` when the lock is held, else `{ businesses, sent, skipped: n, failed }`. */
+function summarizeWeeklyReport(data: unknown): CronSummary | null {
+  const d = asRecord(data);
+  const skipped = skippedRun(d);
+  if (skipped) return skipped;
+  if (!d || typeof d.businesses !== "number") return null;
+  const failed = num(d.failed);
+  const msg =
+    `${num(d.sent)} of ${d.businesses} weekly ${plural(d.businesses, "report")} sent (${num(d.skipped)} not due or not sendable` +
+    (failed > 0 ? `, ${failed} failed)` : ")") + ".";
+  return failed > 0 ? { message: msg, level: "warning" } : msg;
+}
+
+/** growth-council-review: `MonthlyResult { checked, committed, declined, unavailable, notReleased, stoppedEarly? }`. */
+function summarizeCouncilReview(data: unknown): CronSummary | null {
+  const d = asRecord(data);
+  if (!d || typeof d.checked !== "number") return null;
+  if (d.notReleased === true) {
+    return { message: "Nothing reviewed: Peakhour Summit is not released here (its templates are not active).", level: "warning" };
+  }
+  const stopped =
+    d.stoppedEarly === "seats_unavailable"
+      ? " Stopped early: the review seats kept failing."
+      : d.stoppedEarly === "time_budget"
+        ? " Stopped early at the time budget — trigger again to continue."
+        : "";
+  const unavailable = num(d.unavailable);
+  const msg =
+    `${d.checked} ${plural(d.checked, "business", "es")} checked: ${num(d.committed)} ${plural(num(d.committed), "recommendation")}, ` +
+    `${num(d.declined)} declined, ${unavailable} could not be reviewed.` + stopped;
+  return stopped || unavailable > 0 ? { message: msg, level: "warning" } : msg;
+}
+
+/** decisions-expiry: `{ expired: n, reviews: ReviewSweepSummary | { skipped } | { failed: true } }`. The expiry ran even when the review pass did not. */
+function summarizeDecisionsExpiry(data: unknown): CronSummary | null {
+  const d = asRecord(data);
+  if (!d || typeof d.expired !== "number") return null;
+  const head = `${d.expired} unanswered ${plural(d.expired, "decision")} expired.`;
+  const r = asRecord(d.reviews);
+  if (!r) return head;
+  if (typeof r.skipped === "string") return { message: `${head} The Peakhour Summit retries were skipped: ${r.skipped}.`, level: "warning" };
+  if (r.failed === true) {
+    return { message: `${head} The Peakhour Summit retry pass failed — nothing was retried or set aside.`, level: "warning" };
+  }
+  const waSkipped = num(r.whatsappSkipped);
+  const msg =
+    `${head} Waiting for review: ${num(r.waiting)}; ${num(r.reviewed)} reviewed, ${num(r.stillWaiting)} still waiting, ` +
+    `${num(r.setAside)} set aside (${num(r.whatsappSent)} WhatsApp sent, ${waSkipped} not sent).` +
+    (num(r.noTime) > 0 ? ` ${num(r.noTime)} left for the next run (no time for a review).` : "");
+  return waSkipped > 0 || num(r.noTime) > 0 ? { message: msg, level: "warning" } : msg;
+}
+
 /** peakhour-api `cron/rails-refresh.ts` reads at most this many due rails a tick. */
 const RAILS_REFRESH_DUE_LIMIT = 300;
 
@@ -1153,6 +1360,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       "For each business on the growth engine, records each ad channel's completed weeks of spend and outcomes, " +
       "then refits that channel's model from them. It runs before the allocator, so the allocator proposes from " +
       "fresh models.",
+    summarize: summarizeObservations,
   },
 
   "growth-allocator": {
@@ -1162,6 +1370,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       "Proposes how to split the budget across channels from the channel models. At autonomy L1 a person " +
       "decides. At L2 it applies a budget move by itself, and at L3 a move or a raise, each with a receipt — " +
       "real ad budgets change. It does not refit the models; Record channel results does.",
+    summarize: summarizeAllocator,
   },
 
   "growth-holdouts": {
@@ -1170,6 +1379,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     description:
       "Starts, rolls out and ends the holdout groups that measure the engine's real effect. Rolling one out " +
       "changes targeting on the live ad platforms.",
+    summarize: summarizeHoldouts,
   },
 
   "growth-lift": {
@@ -1179,6 +1389,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       "First reconciles each geo holdout on the live ad platforms, re-applying its exclusion lists and ending " +
       "it if it can no longer be kept. Then reads its lift: the extra outcomes against the held-out group. A " +
       "reading with too little data is recorded as low-power, not as a result.",
+    summarize: summarizeLift,
   },
 
   "growth-playbook-upgrade": {
@@ -1187,6 +1398,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     description:
       "Offers each business a newer published version of its industry playbook as an upgrade decision. At " +
       "autonomy L2 and above, a numbers-only upgrade applies itself, with a receipt.",
+    summarize: summarizePlaybookUpgrade,
   },
 
   "growth-playbook-learning": {
@@ -1196,6 +1408,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       "Proposes playbook updates from opt-in, pooled benchmarks of at least 20 businesses. A numbers-only " +
       "change within 15% of the last version a person published publishes itself; anything else waits for a " +
       "person. It does nothing when the pooled-insights store is not configured.",
+    summarize: summarizePlaybookLearning,
   },
 
   "growth-tripwire-judge": {
@@ -1206,6 +1419,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       "change the engine made by itself also lowers the business's autonomy; a person-approved change is " +
       "reversed without a demotion. It also closes bets as inconclusive after 14 days and offers the autonomy " +
       "promotions whose evidence is in.",
+    summarize: summarizeTripwireJudge,
   },
 
   "growth-decision-batch": {
@@ -1215,6 +1429,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       "Sends each business's waiting growth decisions to its approver on WhatsApp as one message, then sends " +
       "receipts, with Undo, for decisions applied since the last run — so it can message even when nothing is " +
       "waiting. Nothing is sent until the WhatsApp templates are approved.",
+    summarize: summarizeDecisionBatch,
   },
 
   "growth-weekly-report": {
@@ -1222,6 +1437,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     frequency: "Runs hourly, at twenty-five to",
     description:
       "Sends the weekly growth report on WhatsApp to each business whose local send time has come.",
+    summarize: summarizeWeeklyReport,
   },
 
   "growth-council-review": {
@@ -1230,6 +1446,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     description:
       "Reviews the growth plan of each business above autonomy L0 not yet reviewed this month: three model " +
       "calls per business, so AI spend. A recommendation becomes a decision under the business's autonomy rules.",
+    summarize: summarizeCouncilReview,
   },
 
   "demand-weekly-digest": {
@@ -1259,6 +1476,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       "or pause can no longer be approved. The same run retries the changes waiting for a Peakhour Summit " +
       "review (model calls, so AI spend) and sets aside any that has waited 48 hours, with one WhatsApp " +
       "message once its template is approved.",
+    summarize: summarizeDecisionsExpiry,
   },
 
   "decision-steps": {

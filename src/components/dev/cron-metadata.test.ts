@@ -1128,3 +1128,88 @@ describe("growth crons that change live ad platforms say so", () => {
     expect(getCronMetadata("growth-lift").description).toContain("live ad platforms");
   });
 });
+
+describe("growth cron summaries read the api's real result shapes", () => {
+  const sum = (cron: string, data: unknown) => summarizeCronBody(cron, JSON.stringify({ ok: true, data }));
+
+  it("observations: refits and skip reasons; a cut-short run warns", () => {
+    const s = sum("growth-observations", { businesses: 3, lift: 2, attributed: 4, refit: 5, skipped: { no_spend: 1 }, failed: 0, truncated: false });
+    expect(s?.level).toBe("success");
+    expect(s?.message).toContain("5 channel models refit");
+    expect(s?.message).toContain("no spend 1");
+    expect(sum("growth-observations", { businesses: 3, refit: 0, skipped: {}, failed: 0, truncated: true })?.level).toBe("warning");
+  });
+
+  it("allocator: says proposals apply themselves at L2/L3; a failure warns", () => {
+    const s = sum("growth-allocator", { businesses: 4, proposed: 2, skipped: { not_enough_weeks: 2 }, failed: 1, truncated: false });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toContain("at L2/L3 they apply by themselves");
+    expect(s?.message).toContain("1 failed");
+  });
+
+  it("holdouts: counts by state", () => {
+    const s = sum("growth-holdouts", { businesses: 2, rolledOut: 1, waiting: 1, abandoned: 0, flipped: 0, released: 0, failed: 0, truncated: false });
+    expect(s).toEqual({ message: expect.stringContaining("1 running, 1 waiting to roll out"), level: "success" });
+  });
+
+  it("lift: running holdouts with no reading warns, and says why", () => {
+    const s = sum("growth-lift", { holdouts: 3, written: 0, lowPower: 0, reapplied: 1, skipped: { campaigns_not_holding_the_list: 3 }, failed: 0, truncated: false });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toContain("campaigns not holding the list 3");
+  });
+
+  it("playbook upgrade: numbers-only upgrades named", () => {
+    const s = sum("growth-playbook-upgrade", { checked: 5, proposed: 2, numeric: 1, alreadyOpen: 1, refused: 0, failed: 0, truncated: false });
+    expect(s?.message).toContain("1 numbers-only, which apply themselves at L2+");
+    expect(s?.level).toBe("success");
+  });
+
+  it("playbook learning: a disabled PIN store is a warning, not a green no-op", () => {
+    const flat = summarizeCronBody("growth-playbook-learning", JSON.stringify({ ok: true, skipped: "pin_disabled" }));
+    expect(flat).toEqual({ message: expect.stringContaining("not configured"), level: "warning" });
+    const s = sum("growth-playbook-learning", {
+      pinCohorts: 4, assigned: 3, unassigned: 1, ambiguous: 0,
+      playbooks: [{ playbookId: "a", action: "auto_published" }, { playbookId: "b", action: "proposed" }], drafts: [],
+    });
+    expect(s?.message).toContain("1 published itself, 1 proposed for a person");
+  });
+
+  it("tripwire judge: errors (its failure field) warn", () => {
+    const s = sum("growth-tripwire-judge", { considered: 10, cleared: 6, tripped: 2, reversed: 2, inconclusive: 1, waiting: 1, resumed: 0, demoted: 1, promotionsOffered: 1, unstructured: 0, skipped: 0, errors: 2 });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toContain("2 errors");
+  });
+
+  it("decision batch: failed is a per-code record, and receipts count too", () => {
+    const s = sum("growth-decision-batch", {
+      batch: { sent: 0, noRecipient: 0, deferred: 0, failed: { RECORD_FAILED: 3 } },
+      receipts: { sent: 1, noRecipient: 0, deferred: 0, failed: {} },
+    });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toContain("3 failed (RECORD FAILED 3)");
+    expect(s?.message).toContain("Receipts: 1 receipt sent");
+    expect(sum("growth-decision-batch", { skipped: "another run holds the lock" })?.level).toBe("warning");
+  });
+
+  it("weekly report: a number `skipped` is not a held lock", () => {
+    expect(sum("growth-weekly-report", { businesses: 5, sent: 3, skipped: 2, failed: 0 })).toEqual({ message: expect.stringContaining("3 of 5"), level: "success" });
+    expect(sum("growth-weekly-report", { skipped: "another run holds the lock" })?.level).toBe("warning");
+  });
+
+  it("council review: not released, and stopped early, both warn", () => {
+    expect(sum("growth-council-review", { checked: 1, committed: 0, declined: 0, unavailable: 0, notReleased: true })?.level).toBe("warning");
+    const s = sum("growth-council-review", { checked: 4, committed: 1, declined: 0, unavailable: 3, notReleased: false, stoppedEarly: "seats_unavailable" });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toContain("review seats kept failing");
+  });
+
+  it("decisions expiry: the expiry is reported even when the review pass was skipped or failed", () => {
+    const skipped = sum("decisions-expiry", { expired: 12, reviews: { skipped: "another run holds the lock" } });
+    expect(skipped?.message).toContain("12 unanswered decisions expired");
+    expect(skipped?.level).toBe("warning");
+    const failed = sum("decisions-expiry", { expired: 0, reviews: { failed: true } });
+    expect(failed?.message).toContain("nothing was retried or set aside");
+    const clean = sum("decisions-expiry", { expired: 2, reviews: { waiting: 1, retried: 1, reviewed: 1, stillWaiting: 0, closed: 0, setAside: 0, noTime: 0, whatsappSent: 0, whatsappSkipped: 0 } });
+    expect(clean?.level).toBe("success");
+  });
+});
