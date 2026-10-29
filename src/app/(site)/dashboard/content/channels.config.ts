@@ -199,9 +199,9 @@ export const CHANNELS: readonly ChannelConfig[] = [
   {
     slug: "google-ads",
     name: "Google Ads",
-    // ★G-15: Search only — the api creates nothing else, so the catalog must
-    //  not promise any other campaign type (the plan's G-15 row).
-    description: "Create Google Search campaigns, paused until you start them.",
+    // ★G-15/G19: Search and Performance Max, the two types the api creates;
+    //  the catalog promises no other (the plan's G-15 row).
+    description: "Create Google Search and Performance Max campaigns, paused until you start them.",
     category: "Ads",
     providerKey: "google_ads",
     // ⏸`status` is NOT promoted here: going live is the owner's call after
