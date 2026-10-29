@@ -1128,3 +1128,114 @@ describe("growth crons that change live ad platforms say so", () => {
     expect(getCronMetadata("growth-lift").description).toContain("live ad platforms");
   });
 });
+
+describe("growth cron summaries read the api's real result shapes", () => {
+  const sum = (cron: string, data: unknown) => summarizeCronBody(cron, JSON.stringify({ ok: true, data }));
+
+  it("observations: refits and skip reasons; a cut-short run warns", () => {
+    const s = sum("growth-observations", { businesses: 3, lift: 2, attributed: 4, refit: 5, skipped: { no_spend: 1 }, failed: 0, truncated: false });
+    expect(s?.level).toBe("success");
+    expect(s?.message).toContain("5 channel models refit");
+    expect(s?.message).toContain("no spend 1");
+    expect(sum("growth-observations", { businesses: 3, refit: 0, skipped: {}, failed: 0, truncated: true })?.level).toBe("warning");
+  });
+
+  it("allocator: says proposals apply themselves at L2/L3; a failure warns", () => {
+    const s = sum("growth-allocator", { businesses: 4, proposed: 2, skipped: { not_enough_weeks: 2 }, failed: 1, truncated: false });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toContain("a move applies by itself at L2, a move or a raise at L3");
+    expect(sum("growth-allocator", { businesses: 2, proposed: 0, skipped: { not_enough_weeks: 2 }, failed: 0, truncated: false })?.message).not.toContain("applies by itself");
+    expect(s?.message).toContain("1 failed");
+  });
+
+  it("holdouts: counts by state", () => {
+    const s = sum("growth-holdouts", { businesses: 2, rolledOut: 1, waiting: 1, abandoned: 0, flipped: 0, released: 0, failed: 0, truncated: false });
+    expect(s).toEqual({ message: expect.stringContaining("This run: 1 finished rolling out, 1 still waiting"), level: "success" });
+    const fellBack = sum("growth-holdouts", { businesses: 1, rolledOut: 0, waiting: 0, abandoned: 1, flipped: 6, released: 12, failed: 0, truncated: false });
+    expect(fellBack?.level).toBe("warning");
+    expect(fellBack?.message).toContain("6 campaigns flipped, 12 campaigns released");
+  });
+
+  it("lift: a reading that cannot be made warns; a fresh reading already written does not", () => {
+    expect(sum("growth-lift", { holdouts: 2, written: 0, lowPower: 0, reapplied: 0, skipped: { fresh_reading_exists: 2 }, failed: 0, truncated: false })?.level).toBe("success");
+    expect(sum("growth-lift", { holdouts: 1, written: 0, lowPower: 0, reapplied: 0, skipped: { no_longer_running: 1 }, failed: 0, truncated: false })?.level).toBe("warning");
+    const s = sum("growth-lift", { holdouts: 3, written: 0, lowPower: 0, reapplied: 1, skipped: { campaigns_not_holding_the_list: 3 }, failed: 0, truncated: false });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toContain("campaigns not holding the list 3");
+  });
+
+  it("playbook upgrade: numbers-only upgrades named", () => {
+    const s = sum("growth-playbook-upgrade", { checked: 5, proposed: 2, numeric: 1, alreadyOpen: 1, refused: 0, failed: 0, truncated: false });
+    expect(s?.message).toContain("1 numbers-only, which apply themselves at L2+");
+    expect(s?.level).toBe("success");
+    expect(sum("growth-playbook-upgrade", { checked: 3, proposed: 0, numeric: 0, alreadyOpen: 0, refused: 3, failed: 0, truncated: false })?.level).toBe("warning");
+  });
+
+  it("playbook learning: a disabled PIN store is a warning, not a green no-op", () => {
+    const flat = summarizeCronBody("growth-playbook-learning", JSON.stringify({ ok: true, skipped: "pin_disabled" }));
+    expect(flat).toEqual({ message: expect.stringContaining("not configured"), level: "warning" });
+    const s = sum("growth-playbook-learning", {
+      pinCohorts: 4, assigned: 3, unassigned: 1, ambiguous: 0,
+      playbooks: [{ playbookId: "a", action: "auto_published" }, { playbookId: "b", action: "proposed" }], drafts: [],
+    });
+    expect(s?.message).toContain("1 published itself, 1 proposed for a person");
+    const failed = sum("growth-playbook-learning", {
+      pinCohorts: 2, assigned: 2, unassigned: 0, ambiguous: 0,
+      playbooks: [{ playbookId: "a", action: "skipped", reason: "failed" }], drafts: [{ playbookId: "c", action: "skipped", reason: "failed" }],
+    });
+    expect(failed?.level).toBe("warning");
+    expect(failed?.message).toContain("0 new drafts");
+    expect(failed?.message).toContain("2 did not go as planned");
+    const refusedPublish = sum("growth-playbook-learning", { pinCohorts: 1, assigned: 1, unassigned: 0, ambiguous: 0, playbooks: [{ playbookId: "a", action: "proposed", reason: "the publish failed (lint)" }], drafts: [] });
+    expect(refusedPublish?.level).toBe("warning");
+  });
+
+  it("tripwire judge: errors (its failure field) warn", () => {
+    const s = sum("growth-tripwire-judge", { considered: 10, cleared: 6, tripped: 2, reversed: 2, inconclusive: 1, waiting: 1, resumed: 0, demoted: 1, promotionsOffered: 1, unstructured: 0, skipped: 0, errors: 2 });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toContain("2 errors");
+    const armed = sum("growth-tripwire-judge", { considered: 10, cleared: 0, tripped: 0, reversed: 0, inconclusive: 0, waiting: 0, resumed: 0, demoted: 0, promotionsOffered: 0, unstructured: 10, skipped: 0, errors: 0 });
+    expect(armed?.level).toBe("success");
+    expect(armed?.message).toContain("10 free-text bets not judged (by design)");
+  });
+
+  it("decision batch: failed is a per-code record, and receipts count too", () => {
+    const s = sum("growth-decision-batch", {
+      batch: { sent: 0, noRecipient: 0, deferred: 0, failed: { RECORD_FAILED: 3 } },
+      receipts: { sent: 1, noRecipient: 0, deferred: 0, failed: {} },
+    });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toContain("3 failed (RECORD FAILED 3)");
+    expect(s?.message).toContain("Receipts: 1 receipt sent");
+    expect(sum("growth-decision-batch", { skipped: "another run holds the lock" })?.level).toBe("warning");
+  });
+
+  it("weekly report: a number `skipped` is not a held lock", () => {
+    expect(sum("growth-weekly-report", { businesses: 2, sent: 6, skipped: 0, failed: 0 })).toEqual({ message: expect.stringContaining("2 businesses due: 6 report messages sent"), level: "success" });
+    expect(sum("growth-weekly-report", { skipped: "another run holds the lock" })?.level).toBe("warning");
+  });
+
+  it("council review: not released, and stopped early, both warn", () => {
+    expect(sum("growth-council-review", { checked: 1, committed: 0, declined: 0, unavailable: 0, notReleased: true })?.level).toBe("warning");
+    const s = sum("growth-council-review", { checked: 4, committed: 1, declined: 0, unavailable: 3, notReleased: false, stoppedEarly: "seats_unavailable" });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toContain("review seats kept failing");
+  });
+
+  it("decisions expiry: the expiry is reported even when the review pass was skipped or failed", () => {
+    const skipped = sum("decisions-expiry", { expired: 12, reviews: { skipped: "another run holds the lock" } });
+    expect(skipped?.message).toContain("12 unanswered decisions expired");
+    expect(skipped?.level).toBe("warning");
+    const failed = sum("decisions-expiry", { expired: 0, reviews: { failed: true } });
+    expect(failed?.message).toContain("nothing was retried or set aside");
+    const clean = sum("decisions-expiry", { expired: 2, reviews: { waiting: 1, retried: 1, reviewed: 1, stillWaiting: 0, closed: 0, setAside: 0, noTime: 0, whatsappSent: 0, whatsappSkipped: 0 } });
+    expect(clean?.level).toBe("success");
+    const unsent = sum("decisions-expiry", { expired: 0, reviews: { waiting: 1, retried: 1, reviewed: 0, stillWaiting: 0, closed: 1, setAside: 1, noTime: 0, whatsappSent: 0, whatsappSkipped: 1 } });
+    expect(unsent?.level).toBe("warning");
+    expect(unsent?.message).toContain("1 closed");
+    expect(unsent?.message).toContain("not told — no approved template yet");
+    const capped = sum("decisions-expiry", { expired: 500, reviews: { waiting: 0, retried: 0, reviewed: 0, stillWaiting: 0, closed: 0, setAside: 0, noTime: 0, whatsappSent: 0, whatsappSkipped: 0 } });
+    expect(capped?.level).toBe("warning");
+    expect(capped?.message).toContain("trigger again");
+  });
+});
