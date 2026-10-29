@@ -161,8 +161,10 @@ describe("★★G-15/G19 — nothing implies a Google campaign type but Search a
   it("★★G19: the panel offers Performance Max and says, wherever it does, that Google does not report who saw its ads", () => {
     const panel = read(PANEL);
     expect(panel).toContain('<SelectItem value="PERFORMANCE_MAX">Performance Max</SelectItem>');
-    // In the form, on each listed row, and in the start confirmation.
-    expect(panel.split("GOOGLE_PMAX_REPORTING_NOTE").length - 1).toBeGreaterThanOrEqual(4);
+    // RENDERED in the form, on each listed row, and in the start confirmation:
+    // counted where it is shown, never in the import or a comment.
+    const shown = panel.match(/\{GOOGLE_PMAX_REPORTING_NOTE\}|\$\{GOOGLE_PMAX_REPORTING_NOTE\}/g) ?? [];
+    expect(shown.length).toBe(3);
     expect(read(VIEW)).toMatch(/GOOGLE_PMAX_REPORTING_NOTE =\s*"Google does not tell us who saw a Performance Max ad\./);
   });
   it("★the hub and catalog name Search", () => {
