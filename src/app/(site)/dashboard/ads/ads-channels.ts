@@ -241,9 +241,10 @@ export const ADS_CHANNELS = [
     ownedParams: ["adAccount"],
   },
   /**
-   * ★★G-15/G19. Search and Performance Max: the two types the api creates
-   * (G-04, G-09, G19), so neither the description nor the panel names a
-   * third. Its routes are `lib/google-ads-surface.ts`'s.
+   * ★★G-15/G19/G20. Search, Performance Max and YouTube video (Demand Gen):
+   * the three types the api creates (G-04, G-09, G19, G20), so neither the
+   * description nor the panel names another. Its routes are
+   * `lib/google-ads-surface.ts`'s.
    *
    * `ad-campaign-monitor` is what watches a Google campaign's spend, and
    * re-reads a create Google did not confirm (the re-drive), so the chip
@@ -253,7 +254,8 @@ export const ADS_CHANNELS = [
     key: "google",
     label: "Google Ads",
     providerKey: "google_ads",
-    description: "Create Google Search and Performance Max campaigns, paused until you start them, and start or pause them here.",
+    description:
+      "Create Google Search, Performance Max and YouTube video (Demand Gen) campaigns, paused until you start them, and start or pause them here.",
     crons: ["ad-campaign-monitor"],
     invalidateQueryKeys: [["google-ads-accounts"], ["google-ads-campaigns"], ["content-hub-integrations"]],
     ownedParams: ["customer"],

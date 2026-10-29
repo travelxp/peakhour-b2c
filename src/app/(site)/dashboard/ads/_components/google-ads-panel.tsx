@@ -36,13 +36,19 @@ import {
   type GoogleChannelType,
   type GoogleConversionActionState,
   type GoogleSettableStatus,
+  type GoogleYoutubeChannel,
 } from "@/lib/api/google-ads";
 import {
+  GOOGLE_DEMAND_GEN_DESCRIPTION,
+  GOOGLE_DEMAND_GEN_REPORTING_NOTE,
   GOOGLE_LAUNCH_NOTE,
   GOOGLE_PMAX_DESCRIPTION,
   GOOGLE_PMAX_REPORTING_NOTE,
+  GOOGLE_YOUTUBE_CHANNELS,
   formatGoogleMoney,
+  googleChannelControlsSentence,
   googleChannelTypeLabel,
+  googleDemandGenCreateProblem,
   googlePmaxCreateProblem,
   googleAdsErrorMessage,
   googleAdsNeedsReconnect,
@@ -78,10 +84,11 @@ import { ADS_CHANNEL_PARAM, getAdsChannel, panelConnection, type AdsChannelKey }
  *
  * ── WHAT IT DOES ─────────────────────────────────────────────────────────
  *
- * Creates a Google **Search** campaign (one Responsive Search Ad) or, from
- * G19, a **Performance Max** campaign (its text, images, business name and
- * logo) — always PAUSED — lists the business's Google campaigns, and starts or
- * pauses them.
+ * Creates a Google **Search** campaign (one Responsive Search Ad), from G19 a
+ * **Performance Max** campaign (its text, images, business name and logo), or
+ * from G20 a **YouTube video (Demand Gen)** campaign (the merchant's own
+ * YouTube videos, text, business name, logo and YouTube placements) — always
+ * PAUSED — lists the business's Google campaigns, and starts or pauses them.
  * Every call goes through the managed routes (`lib/google-ads-surface.ts`),
  * so each campaign is an `ad_campaigns` row the monitor, the spend caps and
  * the kill switch see from the start (G-09).
@@ -101,11 +108,13 @@ import { ADS_CHANNEL_PARAM, getAdsChannel, panelConnection, type AdsChannelKey }
  * with no location or keyword, and a Performance Max campaign with no location or enabled asset group; the audience
  * step (G-06) writes locations and keywords; the api says so.
  *
- * ★SEARCH AND PERFORMANCE MAX ONLY: the two types the api creates, and no
- * third is named (the plan's G-15 row). ★A PERFORMANCE MAX CAMPAIGN CARRIES
- * D3(b)'s SENTENCE wherever it is offered, listed or started
- * (`GOOGLE_PMAX_REPORTING_NOTE`): Google does not report who saw its ads, and
- * the audience is a hint, so the panel claims neither.
+ * ★SEARCH, PERFORMANCE MAX AND YOUTUBE VIDEO (DEMAND GEN) ONLY: the three
+ * types the api creates, and no other is named (the plan's G-15 row). ★EACH
+ * SIGNAL-TARGETED TYPE CARRIES D3(b)'s SENTENCE wherever it is offered, listed
+ * or started (`GOOGLE_PMAX_REPORTING_NOTE`, `GOOGLE_DEMAND_GEN_REPORTING_NOTE`):
+ * Google does not report who saw its ads, and the audience is a hint, so the
+ * panel claims neither. A YouTube video ad's placements are said only as
+ * Google confirmed them (`googleChannelControlsSentence`).
  */
 
 const ACCOUNT_PARAM = "customer";
@@ -145,7 +154,7 @@ export function GoogleAdsPanel({ channelKey }: { channelKey: AdsChannelKey }) {
       <EmptyState
         icon={Megaphone}
         title="Connect Google Ads to run campaigns"
-        description="Connect the Google account that manages your Google Ads, and you can create Search and Performance Max campaigns here — always paused until you start them."
+        description="Connect the Google account that manages your Google Ads, and you can create Search, Performance Max and YouTube video (Demand Gen) campaigns here — always paused until you start them."
         action={{ label: "Connect Google Ads", href: "/dashboard/integrations" }}
       />
     );
@@ -493,6 +502,7 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
                 const action = googleStatusAction(c);
                 const note = googleCreateNote(c);
                 const busy = pendingIds.has(c.id);
+                const channels = c.channelType === "DEMAND_GEN" ? googleChannelControlsSentence(c.channelControls) : null;
                 return (
                   <TableRow key={c.id}>
                     <TableCell>
@@ -500,6 +510,10 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
                       {note ? <div className="text-xs text-muted-foreground">{note}</div> : null}
                       {c.channelType === "PERFORMANCE_MAX" ? (
                         <div className="text-xs text-muted-foreground">{GOOGLE_PMAX_REPORTING_NOTE}</div>
+                      ) : null}
+                      {channels ? <div className="text-xs text-muted-foreground">{channels}</div> : null}
+                      {c.channelType === "DEMAND_GEN" ? (
+                        <div className="text-xs text-muted-foreground">{GOOGLE_DEMAND_GEN_REPORTING_NOTE}</div>
                       ) : null}
                     </TableCell>
                     <TableCell>{googleChannelTypeLabel(c.channelType)}</TableCell>
@@ -537,14 +551,21 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
             <AlertDialogTitle>Start spending on this campaign?</AlertDialogTitle>
             <AlertDialogDescription>
               &ldquo;{confirming?.name}&rdquo; starts showing on{" "}
-              {confirming?.channelType === "PERFORMANCE_MAX" ? "Google's channels" : "Google Search"} at{" "}
+              {confirming?.channelType === "PERFORMANCE_MAX"
+                ? "Google's channels"
+                : confirming?.channelType === "DEMAND_GEN"
+                  ? "YouTube"
+                  : "Google Search"}{" "}
+              at{" "}
               <span className="font-medium">
                 {formatGoogleMoney(confirming?.budget?.daily, confirming?.currency ?? account.currencyCode)}/day
               </span>
               . {GOOGLE_LAUNCH_NOTE}{" "}
               {confirming?.channelType === "PERFORMANCE_MAX"
                 ? `Google will refuse it if it has no location yet — set one with the Audience step first. ${GOOGLE_PMAX_REPORTING_NOTE}`
-                : "Google will refuse it if it has no location or keywords yet — set them with the Audience step first."}
+                : confirming?.channelType === "DEMAND_GEN"
+                  ? `Google will refuse it if it has no location yet — set one with the Audience step first (a YouTube video ad takes no keywords). ${GOOGLE_DEMAND_GEN_REPORTING_NOTE}`
+                  : "Google will refuse it if it has no location or keywords yet — set them with the Audience step first."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -582,6 +603,9 @@ const EMPTY_FORM = {
   marketingImages: "",
   squareImages: "",
   logos: "",
+  // G20: a YouTube video ad's own fields. All three YouTube placements to start.
+  videos: "",
+  youtubeChannels: ["youtube_in_stream", "youtube_in_feed", "youtube_shorts"] as GoogleYoutubeChannel[],
 };
 
 function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
@@ -601,6 +625,7 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
   // `||`, not `??` (round 3): an account recorded with "" must be typeable.
   const currency = account.currencyCode || form.typedCurrency;
   const pmax = form.channelType === "PERFORMANCE_MAX";
+  const demandGen = form.channelType === "DEMAND_GEN";
   const searchAd = { headlines: linesOf(form.headlines), descriptions: linesOf(form.descriptions), finalUrl: form.finalUrl.trim() };
   const performanceMax = {
     headlines: linesOf(form.headlines),
@@ -610,12 +635,24 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
     finalUrl: form.finalUrl.trim(),
     images: { marketing: linesOf(form.marketingImages), square: linesOf(form.squareImages), logos: linesOf(form.logos) },
   };
+  const youtubeAd = {
+    videos: linesOf(form.videos),
+    headlines: linesOf(form.headlines),
+    longHeadlines: linesOf(form.longHeadlines),
+    descriptions: linesOf(form.descriptions),
+    businessName: form.businessName.trim(),
+    finalUrl: form.finalUrl.trim(),
+    logos: linesOf(form.logos),
+    channels: GOOGLE_YOUTUBE_CHANNELS.map((c) => c.value).filter((v) => form.youtubeChannels.includes(v)),
+  };
   const amount = Number(form.budget);
   const today = localIsoDay(new Date());
   const shared = { name: form.name, budget: form.budget, currency, endDate: form.endDate };
   const problem = pmax
     ? googlePmaxCreateProblem({ ...shared, performanceMax }, today)
-    : googleCreateProblem({ ...shared, searchAd }, today);
+    : demandGen
+      ? googleDemandGenCreateProblem({ ...shared, demandGen: youtubeAd }, today)
+      : googleCreateProblem({ ...shared, searchAd }, today);
 
   const create = useMutation({
     // The type rides with the request, so the toast names what was SENT, not what the select says now.
@@ -624,7 +661,11 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
         adAccountId: account.id,
         name: form.name.trim(),
         dailyBudget: { amount, currencyCode: currency.toUpperCase() },
-        ...(type === "PERFORMANCE_MAX" ? { channelType: "PERFORMANCE_MAX" as const, performanceMax } : { searchAd }),
+        ...(type === "PERFORMANCE_MAX"
+          ? { channelType: "PERFORMANCE_MAX" as const, performanceMax }
+          : type === "DEMAND_GEN"
+            ? { channelType: "DEMAND_GEN" as const, demandGen: youtubeAd }
+            : { searchAd }),
         ...(form.endDate ? { endsAt: new Date(`${form.endDate}T23:59:59`).toISOString() } : {}),
         ...(form.notPolitical ? { notPolitical: true } : {}),
       }),
@@ -661,8 +702,8 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
       <CardHeader>
         <CardTitle>New {googleChannelTypeLabel(form.channelType)} campaign</CardTitle>
         <CardDescription>
-          {pmax ? GOOGLE_PMAX_DESCRIPTION : "One text ad shown on Google Search."} It is created paused and spends nothing
-          until you start it.
+          {pmax ? GOOGLE_PMAX_DESCRIPTION : demandGen ? GOOGLE_DEMAND_GEN_DESCRIPTION : "One text ad shown on Google Search."} It is
+          created paused and spends nothing until you start it.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -674,10 +715,12 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
             <SelectContent>
               <SelectItem value="SEARCH">Search</SelectItem>
               <SelectItem value="PERFORMANCE_MAX">Performance Max</SelectItem>
+              <SelectItem value="DEMAND_GEN">YouTube video (Demand Gen)</SelectItem>
             </SelectContent>
           </Select>
         </Field>
         {pmax ? <p className="text-sm text-muted-foreground">{GOOGLE_PMAX_REPORTING_NOTE}</p> : null}
+        {demandGen ? <p className="text-sm text-muted-foreground">{GOOGLE_DEMAND_GEN_REPORTING_NOTE}</p> : null}
         <Field label="Campaign name">
           <Input value={form.name} onChange={(e) => set("name", e.target.value)} maxLength={200} />
         </Field>
@@ -699,15 +742,20 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
             <Input type="date" min={today} value={form.endDate} onChange={(e) => set("endDate", e.target.value)} className="w-44" />
           </Field>
         </div>
-        <Field label="Headlines — one per line, 3 to 15, up to 30 characters each">
+        {demandGen ? (
+          <Field label="YouTube videos — one link or video id per line, 1 to 5, already on YouTube (public or unlisted)">
+            <Textarea rows={2} value={form.videos} onChange={(e) => set("videos", e.target.value)} placeholder="https://www.youtube.com/watch?v=…" />
+          </Field>
+        ) : null}
+        <Field label={demandGen ? "Headlines — one per line, 1 to 5, up to 40 characters each" : "Headlines — one per line, 3 to 15, up to 30 characters each"}>
           <Textarea rows={4} value={form.headlines} onChange={(e) => set("headlines", e.target.value)} />
         </Field>
-        {pmax ? (
+        {pmax || demandGen ? (
           <Field label="Long headlines — one per line, 1 to 5, up to 90 characters each">
             <Textarea rows={2} value={form.longHeadlines} onChange={(e) => set("longHeadlines", e.target.value)} />
           </Field>
         ) : null}
-        <Field label={`Descriptions — one per line, 2 to ${pmax ? 5 : 4}, up to 90 characters each`}>
+        <Field label={`Descriptions — one per line, ${demandGen ? 1 : 2} to ${pmax || demandGen ? 5 : 4}, up to 90 characters each`}>
           <Textarea rows={3} value={form.descriptions} onChange={(e) => set("descriptions", e.target.value)} />
         </Field>
         {pmax ? (
@@ -723,6 +771,34 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
             </Field>
             <Field label="Logos (1:1) — one https:// address per line, 1 to 5">
               <Textarea rows={2} value={form.logos} onChange={(e) => set("logos", e.target.value)} />
+            </Field>
+          </>
+        ) : null}
+        {demandGen ? (
+          <>
+            <Field label="Business name — up to 25 characters">
+              <Input value={form.businessName} onChange={(e) => set("businessName", e.target.value)} />
+            </Field>
+            <Field label="Square logos (1:1) — one https:// address per line, 1 to 5, each at most 150 KB">
+              <Textarea rows={2} value={form.logos} onChange={(e) => set("logos", e.target.value)} />
+            </Field>
+            <Field label="Where on YouTube">
+              <div className="space-y-2">
+                {GOOGLE_YOUTUBE_CHANNELS.map((c) => (
+                  <label key={c.value} className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={form.youtubeChannels.includes(c.value)}
+                      onCheckedChange={(v) =>
+                        set(
+                          "youtubeChannels",
+                          v === true ? [...form.youtubeChannels.filter((x) => x !== c.value), c.value] : form.youtubeChannels.filter((x) => x !== c.value),
+                        )
+                      }
+                    />
+                    <span>{c.label}</span>
+                  </label>
+                ))}
+              </div>
             </Field>
           </>
         ) : null}

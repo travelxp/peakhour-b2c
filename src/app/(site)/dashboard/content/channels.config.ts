@@ -199,9 +199,11 @@ export const CHANNELS: readonly ChannelConfig[] = [
   {
     slug: "google-ads",
     name: "Google Ads",
-    // ★G-15/G19: Search and Performance Max, the two types the api creates;
-    //  the catalog promises no other (the plan's G-15 row).
-    description: "Create Google Search and Performance Max campaigns, paused until you start them.",
+    // ★G-15/G19/G20: Search, Performance Max and YouTube video (Demand Gen),
+    //  the three types the api creates; the catalog promises no other (the
+    //  plan's G-15 row). peakhour-mongodb mig 645 writes the same words to
+    //  existing catalogs, and its harness reads them from here.
+    description: "Create Google Search, Performance Max and YouTube video (Demand Gen) campaigns, paused until you start them.",
     category: "Ads",
     providerKey: "google_ads",
     // ⏸`status` is NOT promoted here: going live is the owner's call after

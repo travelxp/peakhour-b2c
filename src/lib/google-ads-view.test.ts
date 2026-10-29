@@ -24,6 +24,14 @@ import {
   googleChannelTypeLabel,
   googlePmaxCreateProblem,
   googlePmaxProblem,
+  GOOGLE_DEMAND_GEN,
+  GOOGLE_DEMAND_GEN_DESCRIPTION,
+  GOOGLE_DEMAND_GEN_REPORTING_NOTE,
+  GOOGLE_YOUTUBE_CHANNELS,
+  googleChannelControlsSentence,
+  googleDemandGenCreateProblem,
+  googleDemandGenProblem,
+  youtubeVideoIdOf,
 } from "./google-ads-view";
 
 /** G-15 — every sentence and decision the Google panel shows. */
@@ -240,7 +248,7 @@ describe("★★G19 — Performance Max, in words and in the api's own limits", 
     expect(googleChannelTypeLabel("PERFORMANCE_MAX")).toBe("Performance Max");
     expect(googleChannelTypeLabel("SEARCH")).toBe("Search");
     expect(googleChannelTypeLabel(undefined)).toBe("Search");
-    expect(googleChannelTypeLabel("DEMAND_GEN" as never)).toBe("DEMAND_GEN");
+    expect(googleChannelTypeLabel("DISPLAY" as never)).toBe("DISPLAY");
   });
   it("PASS: the minimum set is accepted", () => {
     expect(googlePmaxProblem(PMAX)).toBeNull();
@@ -269,5 +277,85 @@ describe("★★G19 — Performance Max, in words and in the api's own limits", 
   it("the shared fields come first, as Search's", () => {
     expect(googlePmaxCreateProblem({ name: " ", budget: "10", currency: "USD", endDate: "", performanceMax: PMAX }, "2026-10-29")).toBe("Name the campaign.");
     expect(googlePmaxCreateProblem({ name: "a", budget: "0", currency: "USD", endDate: "", performanceMax: PMAX }, "2026-10-29")).toBe("Set a daily budget above zero.");
+  });
+});
+
+describe("★★G20 — YouTube video ads (Demand Gen), in words and in the api's own limits", () => {
+  const DG = {
+    videos: ["https://youtu.be/dQw4w9WgXcQ"],
+    headlines: ["Linen shirts"],
+    longHeadlines: ["Breathable linen shirts, cut in Porto"],
+    descriptions: ["Breathable linen."],
+    businessName: "Linen Co",
+    finalUrl: "https://linen.example/autumn",
+    logos: ["https://cdn.example/l.png"],
+    channels: ["youtube_in_stream" as const],
+  };
+  it("★the reporting sentence claims no audience and no placement control (plan D3(b))", () => {
+    expect(GOOGLE_DEMAND_GEN_REPORTING_NOTE).toBe(
+      "Google does not tell us who saw a YouTube video ad. The audience you give it is a hint, not a limit: Google may show the ads to other people too.",
+    );
+    expect(GOOGLE_DEMAND_GEN_REPORTING_NOTE).not.toMatch(/target|reach|\d/i);
+  });
+  it("★labels the type 'YouTube video (Demand Gen)', never by the older type's name", () => {
+    expect(googleChannelTypeLabel("DEMAND_GEN")).toBe("YouTube video (Demand Gen)");
+    expect(`${googleChannelTypeLabel("DEMAND_GEN")} campaign created`).not.toMatch(/video campaign/i);
+  });
+  it("★the description promises no upload: the video must already be on YouTube", () => {
+    expect(GOOGLE_DEMAND_GEN_DESCRIPTION).toMatch(/already on YouTube/);
+    expect(GOOGLE_DEMAND_GEN_DESCRIPTION).toMatch(/never uploads/);
+  });
+  it("mirrors the api's bounds", () => {
+    expect(GOOGLE_DEMAND_GEN).toEqual({
+      videos: { min: 1, max: 5, label: "YouTube videos" },
+      headlines: { min: 1, max: 5, chars: 40, label: "headlines" },
+      longHeadlines: { min: 1, max: 5, chars: 90, label: "long headlines" },
+      descriptions: { min: 1, max: 5, chars: 90, label: "descriptions" },
+      businessNameChars: 25,
+      logos: { min: 1, max: 5, label: "square logos" },
+    });
+    expect(GOOGLE_YOUTUBE_CHANNELS.map((c) => c.value)).toEqual(["youtube_in_stream", "youtube_in_feed", "youtube_shorts"]);
+  });
+  it.each([
+    ["dQw4w9WgXcQ", "dQw4w9WgXcQ"],
+    ["https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=3", "dQw4w9WgXcQ"],
+    ["https://youtube.com/shorts/dQw4w9WgXcQ", "dQw4w9WgXcQ"],
+    ["https://youtu.be/dQw4w9WgXcQ", "dQw4w9WgXcQ"],
+    ["https://cdn.example/ad.mp4", null],
+    ["https://www.youtube.com/@linenco", null],
+    ["https://youtube.com.evil.example/watch?v=dQw4w9WgXcQ", null],
+    ["dQw4w9WgXc", null],
+  ])("youtubeVideoIdOf(%s) is %s — the api's rule", (raw, id) => {
+    expect(youtubeVideoIdOf(raw)).toBe(id);
+  });
+  it("PASS: the minimum set is accepted", () => {
+    expect(googleDemandGenProblem(DG)).toBeNull();
+    expect(googleDemandGenCreateProblem({ name: "a", budget: "10", currency: "USD", endDate: "", demandGen: DG }, "2026-10-29")).toBeNull();
+  });
+  it.each([
+    ["no video", { videos: [] }, "A YouTube video ad needs 1 to 5 YouTube videos, not 0."],
+    ["a video file", { videos: ["https://cdn.example/ad.mp4"] }, '"https://cdn.example/ad.mp4" is not a YouTube video link or id.'],
+    ["the same video twice", { videos: ["dQw4w9WgXcQ", "https://youtu.be/dQw4w9WgXcQ"] }, "Each YouTube video must be a different video."],
+    ["no headline", { headlines: [] }, "A YouTube video ad needs 1 to 5 headlines, not 0."],
+    ["a 41-character headline", { headlines: ["x".repeat(41)] }, `Each of the headlines must be at most 40 characters: "${"x".repeat(41)}" is 41.`],
+    ["no long headline", { longHeadlines: [] }, "A YouTube video ad needs 1 to 5 long headlines, not 0."],
+    ["no business name", { businessName: " " }, "The business name must be 1 to 25 characters, counted as Google counts them: it is 0."],
+    ["no logo", { logos: [] }, "A YouTube video ad needs 1 to 5 square logos, not 0."],
+    ["a logo on a private host", { logos: ["https://10.0.0.1/l.png"] }, "Each logo must be a full https:// address on a public host."],
+    ["no YouTube placement", { channels: [] }, "Choose at least one YouTube placement."],
+    ["an http landing page", { finalUrl: "http://linen.example/" }, "The landing page must be a full https:// address."],
+  ])("★%s", (_l, over, message) => {
+    expect(googleDemandGenProblem({ ...DG, ...over })).toBe(message);
+  });
+  it("the shared fields come first, as Search's", () => {
+    expect(googleDemandGenCreateProblem({ name: " ", budget: "10", currency: "USD", endDate: "", demandGen: DG }, "2026-10-29")).toBe("Name the campaign.");
+  });
+  it("★★the placements are 'confirmed' only on Google's word", () => {
+    expect(googleChannelControlsSentence({ selected: ["youtube_in_stream"], targetingApplied: true })).toBe("Shows on YouTube in-stream — confirmed by Google.");
+    expect(googleChannelControlsSentence({ selected: ["youtube_in_stream", "youtube_in_feed", "youtube_shorts"], targetingApplied: false })).toBe(
+      "Set to show on YouTube in-stream, YouTube in-feed and YouTube Shorts; Google hasn't confirmed it yet.",
+    );
+    expect(googleChannelControlsSentence(undefined)).toBeNull();
+    expect(googleChannelControlsSentence({ selected: [], targetingApplied: true })).toBeNull();
   });
 });
