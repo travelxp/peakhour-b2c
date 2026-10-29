@@ -29,10 +29,21 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { EmptyState } from "@/components/molecules/empty-state";
-import { googleAdsApi, type GoogleAdAccount, type GoogleCampaign, type GoogleConversionActionState, type GoogleSettableStatus } from "@/lib/api/google-ads";
+import {
+  googleAdsApi,
+  type GoogleAdAccount,
+  type GoogleCampaign,
+  type GoogleChannelType,
+  type GoogleConversionActionState,
+  type GoogleSettableStatus,
+} from "@/lib/api/google-ads";
 import {
   GOOGLE_LAUNCH_NOTE,
+  GOOGLE_PMAX_DESCRIPTION,
+  GOOGLE_PMAX_REPORTING_NOTE,
   formatGoogleMoney,
+  googleChannelTypeLabel,
+  googlePmaxCreateProblem,
   googleAdsErrorMessage,
   googleAdsNeedsReconnect,
   googleCreateMayExist,
@@ -67,8 +78,10 @@ import { ADS_CHANNEL_PARAM, getAdsChannel, panelConnection, type AdsChannelKey }
  *
  * ── WHAT IT DOES ─────────────────────────────────────────────────────────
  *
- * Creates a Google **Search** campaign — one Responsive Search Ad — always
- * PAUSED, lists the business's Google campaigns, and starts or pauses them.
+ * Creates a Google **Search** campaign (one Responsive Search Ad) or, from
+ * G19, a **Performance Max** campaign (its text, images, business name and
+ * logo) — always PAUSED — lists the business's Google campaigns, and starts or
+ * pauses them.
  * Every call goes through the managed routes (`lib/google-ads-surface.ts`),
  * so each campaign is an `ad_campaigns` row the monitor, the spend caps and
  * the kill switch see from the start (G-09).
@@ -84,11 +97,15 @@ import { ADS_CHANNEL_PARAM, getAdsChannel, panelConnection, type AdsChannelKey }
  * campaign on Google.
  *
  * ★STARTING IS THE LAUNCH, and is confirmed first (round 1, as LinkedIn's):
- * it starts spend (and costs nothing itself: N2, PeakHour charges for verified outcomes). Google refuses a campaign with no
- * location or keyword, which the audience step (G-06) writes; the api says so.
+ * it starts spend (and costs nothing itself: N2, PeakHour charges for verified outcomes). Google refuses a Search campaign
+ * with no location or keyword, and a Performance Max campaign with no location or enabled asset group; the audience
+ * step (G-06) writes locations and keywords; the api says so.
  *
- * ⏸SEARCH ONLY. The api creates Search campaigns and nothing else, so this
- * panel names no other campaign type (the plan's G-15 row).
+ * ★SEARCH AND PERFORMANCE MAX ONLY: the two types the api creates, and no
+ * third is named (the plan's G-15 row). ★A PERFORMANCE MAX CAMPAIGN CARRIES
+ * D3(b)'s SENTENCE wherever it is offered, listed or started
+ * (`GOOGLE_PMAX_REPORTING_NOTE`): Google does not report who saw its ads, and
+ * the audience is a hint, so the panel claims neither.
  */
 
 const ACCOUNT_PARAM = "customer";
@@ -127,8 +144,8 @@ export function GoogleAdsPanel({ channelKey }: { channelKey: AdsChannelKey }) {
     return (
       <EmptyState
         icon={Megaphone}
-        title="Connect Google Ads to run Search campaigns"
-        description="Connect the Google account that manages your Google Ads, and you can create Search campaigns here — always paused until you start them."
+        title="Connect Google Ads to run campaigns"
+        description="Connect the Google account that manages your Google Ads, and you can create Search and Performance Max campaigns here — always paused until you start them."
         action={{ label: "Connect Google Ads", href: "/dashboard/integrations" }}
       />
     );
@@ -448,7 +465,7 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Search campaigns</CardTitle>
+        <CardTitle>Google campaigns</CardTitle>
         <CardDescription>{GOOGLE_LAUNCH_NOTE}</CardDescription>
       </CardHeader>
       <CardContent>
@@ -459,12 +476,13 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
             {googleAdsErrorMessage(campaigns.error, "We couldn't load your Google campaigns. Try again in a moment.")}
           </p>
         ) : rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No Search campaigns yet. Create one below — it starts paused.</p>
+          <p className="text-sm text-muted-foreground">No Google campaigns yet. Create one below — it starts paused.</p>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Campaign</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Daily budget</TableHead>
                 <TableHead className="text-right">Action</TableHead>
@@ -480,7 +498,11 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
                     <TableCell>
                       <div className="font-medium">{c.name}</div>
                       {note ? <div className="text-xs text-muted-foreground">{note}</div> : null}
+                      {c.channelType === "PERFORMANCE_MAX" ? (
+                        <div className="text-xs text-muted-foreground">{GOOGLE_PMAX_REPORTING_NOTE}</div>
+                      ) : null}
                     </TableCell>
+                    <TableCell>{googleChannelTypeLabel(c.channelType)}</TableCell>
                     <TableCell>
                       <Badge variant="outline">{busy ? "Updating…" : googleStatusLabel(c)}</Badge>
                     </TableCell>
@@ -514,12 +536,15 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Start spending on this campaign?</AlertDialogTitle>
             <AlertDialogDescription>
-              &ldquo;{confirming?.name}&rdquo; starts showing on Google Search at{" "}
+              &ldquo;{confirming?.name}&rdquo; starts showing on{" "}
+              {confirming?.channelType === "PERFORMANCE_MAX" ? "Google's channels" : "Google Search"} at{" "}
               <span className="font-medium">
                 {formatGoogleMoney(confirming?.budget?.daily, confirming?.currency ?? account.currencyCode)}/day
               </span>
-              . {GOOGLE_LAUNCH_NOTE} Google will refuse it if it has no location or keywords yet — set them with the
-              Audience step first.
+              . {GOOGLE_LAUNCH_NOTE}{" "}
+              {confirming?.channelType === "PERFORMANCE_MAX"
+                ? `Google will refuse it if it has no location yet — set one with the Audience step first. ${GOOGLE_PMAX_REPORTING_NOTE}`
+                : "Google will refuse it if it has no location or keywords yet — set them with the Audience step first."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -542,6 +567,7 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
 // ── Create ───────────────────────────────────────────────────────────────
 
 const EMPTY_FORM = {
+  channelType: "SEARCH" as GoogleChannelType,
   name: "",
   budget: "",
   typedCurrency: "",
@@ -550,6 +576,12 @@ const EMPTY_FORM = {
   finalUrl: "",
   endDate: "",
   notPolitical: false,
+  // G19: Performance Max's own fields, one item per line.
+  longHeadlines: "",
+  businessName: "",
+  marketingImages: "",
+  squareImages: "",
+  logos: "",
 };
 
 function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
@@ -568,26 +600,39 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
   // api refuses any other, CURRENCY_MISMATCH); typed only when it did not.
   // `||`, not `??` (round 3): an account recorded with "" must be typeable.
   const currency = account.currencyCode || form.typedCurrency;
+  const pmax = form.channelType === "PERFORMANCE_MAX";
   const searchAd = { headlines: linesOf(form.headlines), descriptions: linesOf(form.descriptions), finalUrl: form.finalUrl.trim() };
+  const performanceMax = {
+    headlines: linesOf(form.headlines),
+    longHeadlines: linesOf(form.longHeadlines),
+    descriptions: linesOf(form.descriptions),
+    businessName: form.businessName.trim(),
+    finalUrl: form.finalUrl.trim(),
+    images: { marketing: linesOf(form.marketingImages), square: linesOf(form.squareImages), logos: linesOf(form.logos) },
+  };
   const amount = Number(form.budget);
   const today = localIsoDay(new Date());
-  const problem = googleCreateProblem({ name: form.name, budget: form.budget, currency, endDate: form.endDate, searchAd }, today);
+  const shared = { name: form.name, budget: form.budget, currency, endDate: form.endDate };
+  const problem = pmax
+    ? googlePmaxCreateProblem({ ...shared, performanceMax }, today)
+    : googleCreateProblem({ ...shared, searchAd }, today);
 
   const create = useMutation({
-    mutationFn: () =>
+    // The type rides with the request, so the toast names what was SENT, not what the select says now.
+    mutationFn: (type: GoogleChannelType) =>
       googleAdsApi.createCampaign({
         adAccountId: account.id,
         name: form.name.trim(),
         dailyBudget: { amount, currencyCode: currency.toUpperCase() },
-        searchAd,
+        ...(type === "PERFORMANCE_MAX" ? { channelType: "PERFORMANCE_MAX" as const, performanceMax } : { searchAd }),
         ...(form.endDate ? { endsAt: new Date(`${form.endDate}T23:59:59`).toISOString() } : {}),
         ...(form.notPolitical ? { notPolitical: true } : {}),
       }),
-    onSuccess: (res) => {
+    onSuccess: (res, sentType) => {
       if (res.pending) {
         toast.warning(res.message ?? "Google Ads didn't confirm the campaign yet. We'll check within the hour — don't create it again.");
       } else {
-        toast.success("Search campaign created, paused. Start it when you're ready.");
+        toast.success(`${googleChannelTypeLabel(sentType)} campaign created, paused. Start it when you're ready.`);
       }
       // A 202 too: the row is in the list, with its "don't create it again".
       closeAndClear();
@@ -607,19 +652,32 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
     return (
       <Button variant="outline" onClick={() => setOpen(true)}>
         <Plus className="mr-2 h-4 w-4" />
-        New Search campaign
+        New campaign
       </Button>
     );
   }
   return (
     <Card>
       <CardHeader>
-        <CardTitle>New Search campaign</CardTitle>
+        <CardTitle>New {googleChannelTypeLabel(form.channelType)} campaign</CardTitle>
         <CardDescription>
-          One text ad shown on Google Search. It is created paused and spends nothing until you start it.
+          {pmax ? GOOGLE_PMAX_DESCRIPTION : "One text ad shown on Google Search."} It is created paused and spends nothing
+          until you start it.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <Field label="Campaign type">
+          <Select value={form.channelType} onValueChange={(v) => set("channelType", v as GoogleChannelType)} disabled={create.isPending}>
+            <SelectTrigger className="w-60">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="SEARCH">Search</SelectItem>
+              <SelectItem value="PERFORMANCE_MAX">Performance Max</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+        {pmax ? <p className="text-sm text-muted-foreground">{GOOGLE_PMAX_REPORTING_NOTE}</p> : null}
         <Field label="Campaign name">
           <Input value={form.name} onChange={(e) => set("name", e.target.value)} maxLength={200} />
         </Field>
@@ -644,9 +702,30 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
         <Field label="Headlines — one per line, 3 to 15, up to 30 characters each">
           <Textarea rows={4} value={form.headlines} onChange={(e) => set("headlines", e.target.value)} />
         </Field>
-        <Field label="Descriptions — one per line, 2 to 4, up to 90 characters each">
+        {pmax ? (
+          <Field label="Long headlines — one per line, 1 to 5, up to 90 characters each">
+            <Textarea rows={2} value={form.longHeadlines} onChange={(e) => set("longHeadlines", e.target.value)} />
+          </Field>
+        ) : null}
+        <Field label={`Descriptions — one per line, 2 to ${pmax ? 5 : 4}, up to 90 characters each`}>
           <Textarea rows={3} value={form.descriptions} onChange={(e) => set("descriptions", e.target.value)} />
         </Field>
+        {pmax ? (
+          <>
+            <Field label="Business name — up to 25 characters">
+              <Input value={form.businessName} onChange={(e) => set("businessName", e.target.value)} />
+            </Field>
+            <Field label="Landscape images (1.91:1) — one https:// address per line, 1 to 20">
+              <Textarea rows={2} value={form.marketingImages} onChange={(e) => set("marketingImages", e.target.value)} />
+            </Field>
+            <Field label="Square images (1:1) — one https:// address per line, 1 to 20">
+              <Textarea rows={2} value={form.squareImages} onChange={(e) => set("squareImages", e.target.value)} />
+            </Field>
+            <Field label="Logos (1:1) — one https:// address per line, 1 to 5">
+              <Textarea rows={2} value={form.logos} onChange={(e) => set("logos", e.target.value)} />
+            </Field>
+          </>
+        ) : null}
         <Field label="Landing page">
           <Input value={form.finalUrl} onChange={(e) => set("finalUrl", e.target.value)} placeholder="https://" />
         </Field>
@@ -659,7 +738,7 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
         </label>
         {problem ? <p className="text-sm text-muted-foreground">{problem}</p> : null}
         <div className="flex gap-2">
-          <Button disabled={!!problem || create.isPending} onClick={() => create.mutate()}>
+          <Button disabled={!!problem || create.isPending} onClick={() => create.mutate(form.channelType)}>
             Create paused
           </Button>
           {/* Not while a create is in flight (round 3): its answer decides

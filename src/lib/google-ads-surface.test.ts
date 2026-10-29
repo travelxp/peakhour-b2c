@@ -129,15 +129,15 @@ describe("★★G-15 — the hub HAS a Google tab, reached only through the clie
 });
 
 /**
- * ★★SEARCH ONLY (the plan's G-15 row): "the panel must not imply PMax or
- * Demand Gen exist — a surface that offers a campaign type the adapter
- * refuses is worse than one that offers fewer". Every merchant-facing source
- * of the Google channel is read for another campaign type's name.
+ * ★★SEARCH AND PERFORMANCE MAX ONLY (the plan's G-15 row, widened by G19):
+ * "a surface that offers a campaign type the adapter refuses is worse than one
+ * that offers fewer". The api creates those two; every merchant-facing source
+ * of the Google channel is read for any OTHER campaign type's name.
  */
-describe("★★G-15 — nothing implies a Google campaign type but Search", () => {
+describe("★★G-15/G19 — nothing implies a Google campaign type but Search and Performance Max", () => {
   // ★CASE-INSENSITIVE (review round 1): the copy this row removed said
   //  "search and display", lower-case.
-  const OTHER_TYPES = /\b(Performance Max|PMax|Demand Gen|Discovery|Display|Shopping|YouTube|Video campaign|App campaign|Smart campaign)\b/i;
+  const OTHER_TYPES = /\b(Demand Gen|Discovery|Display|Shopping|YouTube|Video campaign|App campaign|Smart campaign)\b/i;
   const googleEntry = (text: string, start: string) => text.slice(text.indexOf(start), text.indexOf("}", text.indexOf(start)));
   it.each([
     ["the panel", () => read(PANEL)],
@@ -152,9 +152,20 @@ describe("★★G-15 — nothing implies a Google campaign type but Search", () 
   });
   it("★and the check SAYS SO when there is something to find", () => {
     expect("Run search and Display campaigns".match(OTHER_TYPES)?.[0]).toBe("Display");
-    expect("Try Performance Max".match(OTHER_TYPES)?.[0]).toBe("Performance Max");
+    expect("Try Demand Gen".match(OTHER_TYPES)?.[0]).toBe("Demand Gen");
+    // G19: Performance Max is a type the api creates, so naming it is not a false offer.
+    expect("Try Performance Max".match(OTHER_TYPES)).toBeNull();
     // The exact catalog copy G-15 replaced.
     expect("Run search and display campaigns from approved creative.".match(OTHER_TYPES)?.[0]).toBe("display");
+  });
+  it("★★G19: the panel offers Performance Max and says, wherever it does, that Google does not report who saw its ads", () => {
+    const panel = read(PANEL);
+    expect(panel).toContain('<SelectItem value="PERFORMANCE_MAX">Performance Max</SelectItem>');
+    // RENDERED in the form, on each listed row, and in the start confirmation:
+    // counted where it is shown, never in the import or a comment.
+    const shown = panel.match(/\{GOOGLE_PMAX_REPORTING_NOTE\}|\$\{GOOGLE_PMAX_REPORTING_NOTE\}/g) ?? [];
+    expect(shown.length).toBe(3);
+    expect(read(VIEW)).toMatch(/GOOGLE_PMAX_REPORTING_NOTE =\s*"Google does not tell us who saw a Performance Max ad\./);
   });
   it("★the hub and catalog name Search", () => {
     expect(googleEntry(read("src/app/(site)/dashboard/ads/ads-channels.ts"), 'key: "google"')).toContain("Search");

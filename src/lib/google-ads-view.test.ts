@@ -20,6 +20,10 @@ import {
   googleStatusLabel,
   googleTextWidth,
   linesOf,
+  GOOGLE_PMAX_REPORTING_NOTE,
+  googleChannelTypeLabel,
+  googlePmaxCreateProblem,
+  googlePmaxProblem,
 } from "./google-ads-view";
 
 /** G-15 — every sentence and decision the Google panel shows. */
@@ -214,5 +218,56 @@ describe("★★the ad's copy — the api's own rule, before sending", () => {
   });
   it("lines are trimmed and blanks dropped", () => {
     expect(linesOf(" a \n\n b\r\nc ")).toEqual(["a", "b", "c"]);
+  });
+});
+
+describe("★★G19 — Performance Max, in words and in the api's own limits", () => {
+  const PMAX = {
+    headlines: ["Linen shirts", "Free returns", "Made in Porto"],
+    longHeadlines: ["Breathable linen shirts, cut in Porto"],
+    descriptions: ["Breathable linen.", "Next-day dispatch."],
+    businessName: "Linen Co",
+    finalUrl: "https://linen.example/autumn",
+    images: { marketing: ["https://cdn.example/w.png"], square: ["https://cdn.example/s.png"], logos: ["https://cdn.example/l.png"] },
+  };
+  it("★the reporting sentence claims no audience and no placement control (plan D3(b))", () => {
+    expect(GOOGLE_PMAX_REPORTING_NOTE).toBe(
+      "Google does not tell us who saw a Performance Max ad. The audience you give it is a hint, not a limit: Google may show the ads to other people too.",
+    );
+    expect(GOOGLE_PMAX_REPORTING_NOTE).not.toMatch(/target|reach|\d/i);
+  });
+  it("labels the type, a pre-G19 row as Search", () => {
+    expect(googleChannelTypeLabel("PERFORMANCE_MAX")).toBe("Performance Max");
+    expect(googleChannelTypeLabel("SEARCH")).toBe("Search");
+    expect(googleChannelTypeLabel(undefined)).toBe("Search");
+    expect(googleChannelTypeLabel("DEMAND_GEN" as never)).toBe("DEMAND_GEN");
+  });
+  it("PASS: the minimum set is accepted", () => {
+    expect(googlePmaxProblem(PMAX)).toBeNull();
+    expect(googlePmaxCreateProblem({ name: "a", budget: "10", currency: "USD", endDate: "", performanceMax: PMAX }, "2026-10-29")).toBeNull();
+  });
+  it.each([
+    ["2 headlines", { headlines: ["a", "b"] }, "Performance Max needs 3 to 15 headlines, not 2."],
+    ["no long headline", { longHeadlines: [] }, "Performance Max needs 1 to 5 long headlines, not 0."],
+    ["1 description", { descriptions: ["a"] }, "Performance Max needs 2 to 5 descriptions, not 1."],
+    ["a repeated headline", { headlines: ["a", "a", "b"] }, "Each of the headlines must be different."],
+    ["a 26-character business name", { businessName: "x".repeat(26) }, "The business name must be 1 to 25 characters, counted as Google counts them: it is 26."],
+    ["no logo", { images: { ...PMAX.images, logos: [] } }, "Performance Max needs 1 to 5 logos, not 0."],
+    ["an http image", { images: { ...PMAX.images, square: ["http://cdn.example/s.png"] } }, "Each of the square images must be a full https:// address on a public host."],
+    ["an image on a private host", { images: { ...PMAX.images, square: ["https://192.168.1.5/s.png"] } }, "Each of the square images must be a full https:// address on a public host."],
+    ["a logo on localhost", { images: { ...PMAX.images, logos: ["https://localhost/l.png"] } }, "Each of the logos must be a full https:// address on a public host."],
+    ["a landscape image also square", { images: { ...PMAX.images, square: ["https://cdn.example/w.png"] } }, "One image can't be both a landscape and a square image."],
+    ["a landscape image also a logo", { images: { ...PMAX.images, logos: ["https://cdn.example/w.png"] } }, "One image can't be both a landscape image and a logo."],
+    ["the same image twice", { images: { ...PMAX.images, marketing: ["https://cdn.example/w.png", "https://cdn.example/w.png"] } }, "Each of the landscape images must be a different image."],
+  ])("★%s", (_l, over, message) => {
+    expect(googlePmaxProblem({ ...PMAX, ...over })).toBe(message);
+  });
+  it("PASS: the landing page follows Search's rule (any https host), and an image URL with a space is the api's to encode", () => {
+    expect(googlePmaxProblem({ ...PMAX, finalUrl: "https://shop.internal/" })).toBeNull();
+    expect(googlePmaxProblem({ ...PMAX, images: { ...PMAX.images, logos: ["https://cdn.example/My Logo.png"] } })).toBeNull();
+  });
+  it("the shared fields come first, as Search's", () => {
+    expect(googlePmaxCreateProblem({ name: " ", budget: "10", currency: "USD", endDate: "", performanceMax: PMAX }, "2026-10-29")).toBe("Name the campaign.");
+    expect(googlePmaxCreateProblem({ name: "a", budget: "0", currency: "USD", endDate: "", performanceMax: PMAX }, "2026-10-29")).toBe("Set a daily budget above zero.");
   });
 });
