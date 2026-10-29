@@ -39,6 +39,7 @@ import {
 } from "@/lib/api/google-ads";
 import {
   GOOGLE_LAUNCH_NOTE,
+  GOOGLE_PMAX,
   GOOGLE_PMAX_DESCRIPTION,
   GOOGLE_PMAX_REPORTING_NOTE,
   formatGoogleMoney,
@@ -617,7 +618,8 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
     : googleCreateProblem({ ...shared, searchAd }, today);
 
   const create = useMutation({
-    mutationFn: () =>
+    // The type rides with the request, so the toast names what was SENT, not what the select says now.
+    mutationFn: (_type: GoogleChannelType) =>
       googleAdsApi.createCampaign({
         adAccountId: account.id,
         name: form.name.trim(),
@@ -626,11 +628,11 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
         ...(form.endDate ? { endsAt: new Date(`${form.endDate}T23:59:59`).toISOString() } : {}),
         ...(form.notPolitical ? { notPolitical: true } : {}),
       }),
-    onSuccess: (res) => {
+    onSuccess: (res, sentType) => {
       if (res.pending) {
         toast.warning(res.message ?? "Google Ads didn't confirm the campaign yet. We'll check within the hour — don't create it again.");
       } else {
-        toast.success(`${googleChannelTypeLabel(form.channelType)} campaign created, paused. Start it when you're ready.`);
+        toast.success(`${googleChannelTypeLabel(sentType)} campaign created, paused. Start it when you're ready.`);
       }
       // A 202 too: the row is in the list, with its "don't create it again".
       closeAndClear();
@@ -711,7 +713,7 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
         {pmax ? (
           <>
             <Field label="Business name — up to 25 characters">
-              <Input value={form.businessName} onChange={(e) => set("businessName", e.target.value)} maxLength={60} />
+              <Input value={form.businessName} onChange={(e) => set("businessName", e.target.value)} maxLength={GOOGLE_PMAX.businessNameChars} />
             </Field>
             <Field label="Landscape images (1.91:1) — one https:// address per line, 1 to 20">
               <Textarea rows={2} value={form.marketingImages} onChange={(e) => set("marketingImages", e.target.value)} />
@@ -736,7 +738,7 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
         </label>
         {problem ? <p className="text-sm text-muted-foreground">{problem}</p> : null}
         <div className="flex gap-2">
-          <Button disabled={!!problem || create.isPending} onClick={() => create.mutate()}>
+          <Button disabled={!!problem || create.isPending} onClick={() => create.mutate(form.channelType)}>
             Create paused
           </Button>
           {/* Not while a create is in flight (round 3): its answer decides
