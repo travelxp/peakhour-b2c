@@ -666,7 +666,7 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <Field label="Campaign type">
-          <Select value={form.channelType} onValueChange={(v) => set("channelType", v as GoogleChannelType)}>
+          <Select value={form.channelType} onValueChange={(v) => set("channelType", v as GoogleChannelType)} disabled={create.isPending}>
             <SelectTrigger className="w-60">
               <SelectValue />
             </SelectTrigger>
