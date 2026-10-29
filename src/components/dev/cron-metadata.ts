@@ -130,12 +130,15 @@ function summarizeHoldouts(data: unknown): CronSummary | null {
   return sweepTail(
     d,
     `${d.businesses} ${plural(d.businesses, "business", "es")} with holdouts. This run: ${num(d.rolledOut)} finished rolling out, ` +
-      `${num(d.waiting)} still waiting to roll out, ${num(d.abandoned)} abandoned, ${num(d.flipped)} switched over, ${num(d.released)} released.`,
+      `${num(d.waiting)} still waiting to roll out, ${num(d.abandoned)} abandoned (or fell back to a switchback); ` +
+      `${num(d.flipped)} ${plural(num(d.flipped), "campaign")} flipped, ${num(d.released)} ${plural(num(d.released), "campaign")} released.`,
+    num(d.abandoned) > 0,
   );
 }
 
-/** Lift skips that are routine: a reading under 20h old, a holdout that ended or is too young to read. */
-const LIFT_ROUTINE_SKIPS = new Set(["fresh_reading_exists", "no_longer_running", "not_running", "empty_window", "no_complete_pair_of_periods"]);
+/** Lift skips that are routine: a reading under 20h old, or a holdout too young to read. `no_longer_running` is NOT:
+ *  in a lift run it usually means this run's reconcile just gave the holdout up (a geo list the platform cannot keep). */
+const LIFT_ROUTINE_SKIPS = new Set(["fresh_reading_exists", "not_running", "empty_window", "no_complete_pair_of_periods"]);
 
 /** growth-lift: `{ holdouts, written, lowPower, reapplied, skipped: {reason:n}, failed, truncated }`. */
 function summarizeLift(data: unknown): CronSummary | null {
@@ -159,8 +162,9 @@ function summarizePlaybookUpgrade(data: unknown): CronSummary | null {
   if (!d || typeof d.checked !== "number") return null;
   return sweepTail(
     d,
-    `${d.checked} ${plural(d.checked, "business", "es")} checked: ${num(d.proposed)} ${plural(num(d.proposed), "upgrade")} offered ` +
+    `${d.checked} ${plural(d.checked, "business", "es")} with a newer playbook: ${num(d.proposed)} ${plural(num(d.proposed), "upgrade")} offered ` +
       `(${num(d.numeric)} numbers-only, which apply themselves at L2+), ${num(d.alreadyOpen)} already open, ${num(d.refused)} refused.`,
+    num(d.refused) > 0,
   );
 }
 
@@ -175,8 +179,9 @@ function summarizePlaybookLearning(data: unknown): CronSummary | null {
   const playbooks = outcomes(d.playbooks);
   const drafts = outcomes(d.drafts);
   const count = (list: Record<string, unknown>[], action: string) => list.filter((o) => o.action === action).length;
-  // The api records a caught error as `{ action: "skipped", reason: "failed" }`.
-  const failed = [...playbooks, ...drafts].filter((o) => o.reason === "failed").length;
+  // The api says a pass went wrong only in `reason`: "failed" for a caught error, "invalid: …" for a version that
+  // failed validation, and a publish that threw or was refused comes back as `proposed` with "the publish failed (…)".
+  const failed = [...playbooks, ...drafts].filter((o) => typeof o.reason === "string" && /fail|invalid|refus/i.test(o.reason)).length;
   const published = count(playbooks, "auto_published");
   const newDrafts = count(drafts, "proposed");
   const ambiguous = num(d.ambiguous);
@@ -184,7 +189,7 @@ function summarizePlaybookLearning(data: unknown): CronSummary | null {
     `${d.pinCohorts} PIN ${plural(d.pinCohorts, "cohort")} (${num(d.unassigned)} unassigned): ${published} published ` +
     `${published === 1 ? "itself" : "themselves"}, ${count(playbooks, "proposed")} proposed for a person, ${newDrafts} new ${plural(newDrafts, "draft")}.` +
     (ambiguous > 0 ? ` ${ambiguous} ${plural(ambiguous, "cohort")} matched two playbooks equally.` : "") +
-    (failed > 0 ? ` ${failed} ${plural(failed, "pass", "es")} failed.` : "");
+    (failed > 0 ? ` ${failed} did not go as planned (failed, invalid or a publish refused) — see the job result.` : "");
   return ambiguous > 0 || failed > 0 ? { message: msg, level: "warning" } : msg;
 }
 
@@ -193,15 +198,15 @@ function summarizeTripwireJudge(data: unknown): CronSummary | null {
   const d = asRecord(data);
   if (!d || typeof d.considered !== "number") return null;
   const errors = num(d.errors);
-  // A free-text tripwire with no metric is left armed for ever: worth a look.
+  // Allocator and council bets carry a free-text tripwire by design (tripwire-judge.ts), so this is reported, not warned.
   const unstructured = num(d.unstructured);
   const msg =
     `${d.considered} ${plural(d.considered, "tripwire")} considered: ${num(d.cleared)} cleared, ${num(d.tripped)} tripped ` +
     `(${num(d.reversed)} reversed, ${num(d.demoted)} demoted), ${num(d.inconclusive)} inconclusive, ${num(d.waiting)} waiting, ` +
     `${num(d.resumed)} resumed, ${num(d.skipped)} skipped; ${num(d.promotionsOffered)} ${plural(num(d.promotionsOffered), "promotion")} offered.` +
-    (unstructured > 0 ? ` ${unstructured} cannot be judged (a tripwire with no metric).` : "") +
+    (unstructured > 0 ? ` ${unstructured} free-text ${plural(unstructured, "bet")} not judged (by design).` : "") +
     (errors > 0 ? ` ${errors} ${plural(errors, "error")}.` : "");
-  return errors > 0 || unstructured > 0 ? { message: msg, level: "warning" } : msg;
+  return errors > 0 ? { message: msg, level: "warning" } : msg;
 }
 
 /** One `DeliverySummary { sent, noRecipient, deferred, failed: { code: n } }` as words. */
@@ -239,7 +244,7 @@ function summarizeWeeklyReport(data: unknown): CronSummary | null {
   const msg =
     `${d.businesses} ${plural(d.businesses, "business", "es")} due: ${num(d.sent)} report ${plural(num(d.sent), "message")} sent` +
     (notReached > 0 ? `, ${notReached} ${plural(notReached, "business", "es")} with no reachable approver or already sent this week` : "") +
-    (failed > 0 ? `, ${failed} ${plural(failed, "message")} failed` : "") +
+    (failed > 0 ? `, ${failed} failed (a message, or a business with no card image or an error)` : "") +
     ".";
   return failed > 0 ? { message: msg, level: "warning" } : msg;
 }
@@ -264,23 +269,33 @@ function summarizeCouncilReview(data: unknown): CronSummary | null {
   return stopped || unavailable > 0 ? { message: msg, level: "warning" } : msg;
 }
 
+/** `expireDecisions` closes at most this many a run (peakhour-api services/growth/decisions.ts). */
+const DECISIONS_EXPIRY_LIMIT = 500;
+
 /** decisions-expiry: `{ expired: n, reviews: ReviewSweepSummary | { skipped } | { failed: true } }`. The expiry ran even when the review pass did not. */
 function summarizeDecisionsExpiry(data: unknown): CronSummary | null {
   const d = asRecord(data);
   if (!d || typeof d.expired !== "number") return null;
-  const head = `${d.expired} unanswered ${plural(d.expired, "decision")} expired.`;
+  const capped = d.expired >= DECISIONS_EXPIRY_LIMIT;
+  const head =
+    `${d.expired} unanswered ${plural(d.expired, "decision")} expired.` +
+    (capped ? " More may be overdue — trigger again to continue." : "");
   const r = asRecord(d.reviews);
-  if (!r) return head;
+  if (!r) return capped ? { message: head, level: "warning" } : head;
   if (typeof r.skipped === "string") return { message: `${head} The Peakhour Summit retries were skipped: ${r.skipped}.`, level: "warning" };
   if (r.failed === true) {
     return { message: `${head} The Peakhour Summit retry pass failed — nothing was retried or set aside.`, level: "warning" };
   }
-  const waSkipped = num(r.whatsappSkipped);
+  const notTold = num(r.whatsappSkipped);
   const msg =
-    `${head} Waiting for review: ${num(r.waiting)}; ${num(r.reviewed)} reviewed, ${num(r.stillWaiting)} still waiting, ` +
-    `${num(r.setAside)} set aside (${num(r.whatsappSent)} WhatsApp sent, ${waSkipped} not sent — no approved template yet, no recipient, or throttled).` +
+    `${head} Waiting for review: ${num(r.waiting)}; ${num(r.retried)} retried, ${num(r.reviewed)} reviewed, ` +
+    `${num(r.stillWaiting)} still waiting, ${num(r.closed)} closed, ${num(r.setAside)} set aside ` +
+    `(${num(r.whatsappSent)} approver ${plural(num(r.whatsappSent), "message")} sent` +
+    (notTold > 0 ? `, ${notTold} not told — no approved template yet, no recipient, or throttled` : "") +
+    ")." +
     (num(r.noTime) > 0 ? ` ${num(r.noTime)} left for the next run (no time for a review).` : "");
-  return num(r.noTime) > 0 ? { message: msg, level: "warning" } : msg;
+  // An approver whose change was set aside and was not told is worth a look; set-asides are rare (48h), so this stays quiet.
+  return capped || notTold > 0 || num(r.noTime) > 0 ? { message: msg, level: "warning" } : msg;
 }
 
 /** peakhour-api `cron/rails-refresh.ts` reads at most this many due rails a tick. */

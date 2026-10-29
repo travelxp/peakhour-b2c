@@ -1151,10 +1151,14 @@ describe("growth cron summaries read the api's real result shapes", () => {
   it("holdouts: counts by state", () => {
     const s = sum("growth-holdouts", { businesses: 2, rolledOut: 1, waiting: 1, abandoned: 0, flipped: 0, released: 0, failed: 0, truncated: false });
     expect(s).toEqual({ message: expect.stringContaining("This run: 1 finished rolling out, 1 still waiting"), level: "success" });
+    const fellBack = sum("growth-holdouts", { businesses: 1, rolledOut: 0, waiting: 0, abandoned: 1, flipped: 6, released: 12, failed: 0, truncated: false });
+    expect(fellBack?.level).toBe("warning");
+    expect(fellBack?.message).toContain("6 campaigns flipped, 12 campaigns released");
   });
 
   it("lift: a reading that cannot be made warns; a fresh reading already written does not", () => {
     expect(sum("growth-lift", { holdouts: 2, written: 0, lowPower: 0, reapplied: 0, skipped: { fresh_reading_exists: 2 }, failed: 0, truncated: false })?.level).toBe("success");
+    expect(sum("growth-lift", { holdouts: 1, written: 0, lowPower: 0, reapplied: 0, skipped: { no_longer_running: 1 }, failed: 0, truncated: false })?.level).toBe("warning");
     const s = sum("growth-lift", { holdouts: 3, written: 0, lowPower: 0, reapplied: 1, skipped: { campaigns_not_holding_the_list: 3 }, failed: 0, truncated: false });
     expect(s?.level).toBe("warning");
     expect(s?.message).toContain("campaigns not holding the list 3");
@@ -1164,6 +1168,7 @@ describe("growth cron summaries read the api's real result shapes", () => {
     const s = sum("growth-playbook-upgrade", { checked: 5, proposed: 2, numeric: 1, alreadyOpen: 1, refused: 0, failed: 0, truncated: false });
     expect(s?.message).toContain("1 numbers-only, which apply themselves at L2+");
     expect(s?.level).toBe("success");
+    expect(sum("growth-playbook-upgrade", { checked: 3, proposed: 0, numeric: 0, alreadyOpen: 0, refused: 3, failed: 0, truncated: false })?.level).toBe("warning");
   });
 
   it("playbook learning: a disabled PIN store is a warning, not a green no-op", () => {
@@ -1180,7 +1185,9 @@ describe("growth cron summaries read the api's real result shapes", () => {
     });
     expect(failed?.level).toBe("warning");
     expect(failed?.message).toContain("0 new drafts");
-    expect(failed?.message).toContain("2 passes failed");
+    expect(failed?.message).toContain("2 did not go as planned");
+    const refusedPublish = sum("growth-playbook-learning", { pinCohorts: 1, assigned: 1, unassigned: 0, ambiguous: 0, playbooks: [{ playbookId: "a", action: "proposed", reason: "the publish failed (lint)" }], drafts: [] });
+    expect(refusedPublish?.level).toBe("warning");
   });
 
   it("tripwire judge: errors (its failure field) warn", () => {
@@ -1188,8 +1195,8 @@ describe("growth cron summaries read the api's real result shapes", () => {
     expect(s?.level).toBe("warning");
     expect(s?.message).toContain("2 errors");
     const armed = sum("growth-tripwire-judge", { considered: 10, cleared: 0, tripped: 0, reversed: 0, inconclusive: 0, waiting: 0, resumed: 0, demoted: 0, promotionsOffered: 0, unstructured: 10, skipped: 0, errors: 0 });
-    expect(armed?.level).toBe("warning");
-    expect(armed?.message).toContain("10 cannot be judged");
+    expect(armed?.level).toBe("success");
+    expect(armed?.message).toContain("10 free-text bets not judged (by design)");
   });
 
   it("decision batch: failed is a per-code record, and receipts count too", () => {
@@ -1224,7 +1231,11 @@ describe("growth cron summaries read the api's real result shapes", () => {
     const clean = sum("decisions-expiry", { expired: 2, reviews: { waiting: 1, retried: 1, reviewed: 1, stillWaiting: 0, closed: 0, setAside: 0, noTime: 0, whatsappSent: 0, whatsappSkipped: 0 } });
     expect(clean?.level).toBe("success");
     const unsent = sum("decisions-expiry", { expired: 0, reviews: { waiting: 1, retried: 1, reviewed: 0, stillWaiting: 0, closed: 1, setAside: 1, noTime: 0, whatsappSent: 0, whatsappSkipped: 1 } });
-    expect(unsent?.level).toBe("success");
-    expect(unsent?.message).toContain("no approved template yet");
+    expect(unsent?.level).toBe("warning");
+    expect(unsent?.message).toContain("1 closed");
+    expect(unsent?.message).toContain("not told — no approved template yet");
+    const capped = sum("decisions-expiry", { expired: 500, reviews: { waiting: 0, retried: 0, reviewed: 0, stillWaiting: 0, closed: 0, setAside: 0, noTime: 0, whatsappSent: 0, whatsappSkipped: 0 } });
+    expect(capped?.level).toBe("warning");
+    expect(capped?.message).toContain("trigger again");
   });
 });
