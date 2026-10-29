@@ -328,12 +328,28 @@ export function googlePmaxProblem(a: GooglePmaxInput): string | null {
   return null;
 }
 
+/**
+ * An https URL on a public host: the api's `checkMediaUrl` (localhost, .local,
+ * .internal, an IPv6 literal and private IPv4 ranges are refused), so the form
+ * does not pass what the api will refuse. The api also resolves the name.
+ */
 function isHttps(u: string): boolean {
+  let url: URL;
   try {
-    return new URL(u).protocol === "https:" && !/\s/.test(u);
+    url = new URL(u);
   } catch {
     return false;
   }
+  if (url.protocol !== "https:" || /\s/.test(u)) return false;
+  const h = url.hostname.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.+$/, "");
+  if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal") || h.includes(":")) return false;
+  const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+  if (!v4) return true;
+  const [a, b, c] = [Number(v4[1]), Number(v4[2]), Number(v4[3])];
+  return !(
+    a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) ||
+    (a === 100 && b >= 64 && b <= 127) || (a === 198 && (b === 18 || b === 19)) || (a === 192 && b === 0 && c === 0) || a >= 224
+  );
 }
 
 /** The create form's decision for a Performance Max campaign: the shared fields first, then the assets. */
