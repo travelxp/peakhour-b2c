@@ -13,8 +13,8 @@
  * `v1.route("/google/ads", …)` on a `/v1` base path. The SOURCE directory is
  * `google-ads`; nothing is served there (M-13's round-1 lesson).
  *
- * ★SEARCH AND PERFORMANCE MAX ONLY (G-04, G19): no route here creates or
- * lists any other campaign type.
+ * ★SEARCH, PERFORMANCE MAX AND YOUTUBE VIDEO (DEMAND GEN) ONLY (G-04, G19,
+ * G20): no route here creates or lists any other campaign type.
  */
 
 /** The router's mount, `basePath` included. Pinned against the api in the test. */

@@ -14,8 +14,9 @@ import { googleAdsUrl } from "@/lib/google-ads-surface";
  *   - a create Google did not confirm answers 202 `pending` — "don't create
  *     it again" — and is read back by the hourly re-drive.
  *
- * ★SEARCH AND PERFORMANCE MAX ONLY (G19): the two types the api creates;
- * nothing here offers a third.
+ * ★SEARCH, PERFORMANCE MAX AND YOUTUBE VIDEO (DEMAND GEN) ONLY (G19, G20):
+ * the three types the api creates; nothing here offers another. YouTube video
+ * ads are Demand Gen campaigns: Google's API cannot create the older type.
  */
 
 export interface GoogleAdAccount {
@@ -36,8 +37,10 @@ export interface GoogleCampaign {
   name: string;
   /** `draft` (created PAUSED, never activated), `active`, `paused`, `completed`, `archived`. */
   status: string;
-  /** The campaign type the api created: Search (G-04) or Performance Max (G19). */
+  /** The campaign type the api created: Search (G-04), Performance Max (G19) or YouTube video, Demand Gen (G20). */
   channelType?: GoogleChannelType;
+  /** G20, Demand Gen only: where its ads may show, and whether Google confirmed it (mongodb mig 643). */
+  channelControls?: GoogleChannelControls;
   platformCampaignId?: string;
   adAccountId?: string;
   currency?: string;
@@ -55,8 +58,37 @@ export interface GoogleSearchAdInput {
   finalUrl: string;
 }
 
-/** The Google campaign types the api creates (peakhour-api `routes/google-ads`, G19). */
-export type GoogleChannelType = "SEARCH" | "PERFORMANCE_MAX";
+/** The Google campaign types the api creates (peakhour-api `routes/google-ads`, G19, G20). */
+export type GoogleChannelType = "SEARCH" | "PERFORMANCE_MAX" | "DEMAND_GEN";
+
+/** G20 — the YouTube placements a YouTube video ad may use (Google's `selected_channels` names). */
+export type GoogleYoutubeChannel = "youtube_in_stream" | "youtube_in_feed" | "youtube_shorts";
+
+/** G20 — a Demand Gen ad group's channels as the api stored them; `targetingApplied` is Google's confirmation. */
+export interface GoogleChannelControls {
+  /**
+   * Google's channel ids. Typed loosely on purpose: Google may report a channel Peakhour never asks for, and
+   * `googleChannelControlsSentence` says those as "other Google placements", never by id.
+   */
+  selected: string[];
+  targetingApplied: boolean;
+}
+
+/**
+ * G20 — a YouTube video ad (Demand Gen). Videos are YouTube links or ids the
+ * merchant already has on YouTube; Peakhour never uploads one. Logos are
+ * public https URLs.
+ */
+export interface GoogleDemandGenInput {
+  videos: string[];
+  headlines: string[];
+  longHeadlines: string[];
+  descriptions: string[];
+  businessName: string;
+  finalUrl: string;
+  logos: string[];
+  channels: GoogleYoutubeChannel[];
+}
 
 /**
  * G19 — a Performance Max campaign's assets: Google assembles its ads from
@@ -81,6 +113,8 @@ export interface GoogleCreateCampaignInput {
   searchAd?: GoogleSearchAdInput;
   /** A Performance Max campaign's assets. */
   performanceMax?: GooglePmaxInput;
+  /** A YouTube video ad (Demand Gen). */
+  demandGen?: GoogleDemandGenInput;
   /** ISO datetime; the monitor completes the campaign there. */
   endsAt?: string;
   /** The merchant's "not political" tick (EU political-advertising declaration). */

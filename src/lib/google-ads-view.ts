@@ -1,15 +1,26 @@
 import { ApiError } from "@/lib/api";
 import { adsErrorMessage } from "@/lib/ads-error-message";
 import { formatMoneyOrNumber } from "@/lib/outcome-value";
-import type { GoogleCampaign, GoogleChannelType, GooglePmaxInput, GoogleSearchAdInput, GoogleSettableStatus } from "@/lib/api/google-ads";
+import type {
+  GoogleCampaign,
+  GoogleChannelControls,
+  GoogleChannelType,
+  GoogleDemandGenInput,
+  GooglePmaxInput,
+  GoogleSearchAdInput,
+  GoogleSettableStatus,
+  GoogleYoutubeChannel,
+} from "@/lib/api/google-ads";
 
 /**
  * ★★G-15 — what the Google Ads panel SAYS, kept pure so every sentence and
  * every decision is tested (`google-ads-view.test.ts`).
  *
- * ★SEARCH AND PERFORMANCE MAX, AND NOTHING ELSE (G19). The api creates those
- * two types; a surface that offered a type the adapter refuses would be worse
- * than one that offers fewer (the plan's G-15 row), so no third is named.
+ * ★SEARCH, PERFORMANCE MAX AND YOUTUBE VIDEO (DEMAND GEN), AND NOTHING ELSE
+ * (G19, G20). The api creates those three types; a surface that offered a type
+ * the adapter refuses would be worse than one that offers fewer (the plan's
+ * G-15 row), so no other is named — and YouTube video ads are never called
+ * by the older type's name, which Google's API can no longer create.
  */
 
 // ── What starting a campaign costs ───────────────────────────────────────
@@ -265,6 +276,7 @@ export function googleCopyProblem(ad: GoogleSearchAdInput): string | null {
 /** A campaign's type, in words. A row from before G19 carries SEARCH, the only type there was. */
 export function googleChannelTypeLabel(t: GoogleChannelType | undefined): string {
   if (t === "PERFORMANCE_MAX") return "Performance Max";
+  if (t === "DEMAND_GEN") return "YouTube video (Demand Gen)";
   if (t === undefined || t === "SEARCH") return "Search";
   // A type this build does not know is named as the api sent it, never called Search (review round 2).
   return String(t);
@@ -300,16 +312,26 @@ export const GOOGLE_PMAX = {
   },
 } as const;
 
+/**
+ * One text field's lines against Google's bounds, in the api's order (count,
+ * one line, width, distinct) — shared by Performance Max and YouTube video ads
+ * (G20 review round 1), as the api shares `checkTextList`. `who` opens the
+ * count sentence ("Performance Max needs …").
+ */
+function textListProblem(items: string[], b: { min: number; max: number; chars: number; label: string }, who: string): string | null {
+  if (items.length < b.min || items.length > b.max) return `${who} needs ${b.min} to ${b.max} ${b.label}, not ${items.length}.`;
+  if (items.some((t) => BAD_TEXT.test(t))) return `Each of the ${b.label} must be on one line, with no control characters.`;
+  const long = items.find((t) => googleTextWidth(t) > b.chars);
+  if (long !== undefined) return `Each of the ${b.label} must be at most ${b.chars} characters: "${long}" is ${googleTextWidth(long)}.`;
+  if (new Set(items).size !== items.length) return `Each of the ${b.label} must be different.`;
+  return null;
+}
+
 /** What is wrong with a Performance Max campaign's assets, in the api's words, or null. */
 export function googlePmaxProblem(a: GooglePmaxInput): string | null {
   for (const what of ["headlines", "longHeadlines", "descriptions"] as const) {
-    const b = GOOGLE_PMAX[what];
-    const items = a[what];
-    if (items.length < b.min || items.length > b.max) return `Performance Max needs ${b.min} to ${b.max} ${b.label}, not ${items.length}.`;
-    if (items.some((t) => BAD_TEXT.test(t))) return `Each of the ${b.label} must be on one line, with no control characters.`;
-    const long = items.find((t) => googleTextWidth(t) > b.chars);
-    if (long !== undefined) return `Each of the ${b.label} must be at most ${b.chars} characters: "${long}" is ${googleTextWidth(long)}.`;
-    if (new Set(items).size !== items.length) return `Each of the ${b.label} must be different.`;
+    const p = textListProblem(a[what], GOOGLE_PMAX[what], "Performance Max");
+    if (p) return p;
   }
   const name = a.businessName.trim();
   if (!name || BAD_TEXT.test(name) || googleTextWidth(name) > GOOGLE_PMAX.businessNameChars) {
@@ -371,3 +393,136 @@ export function googlePmaxCreateProblem(
 ): string | null {
   return googleSharedCreateProblem(f, today) ?? googlePmaxProblem(f.performanceMax);
 }
+
+// ── G20: YouTube video ads (Demand Gen) ──────────────────────────────────
+
+/**
+ * ★★PLAN D3(b), FOR YOUTUBE VIDEO ADS. Demand Gen takes the audience as a hint
+ * too (Google's optimized targeting may reach past it), and Google does not
+ * report who saw an ad, so PeakHour claims neither. Shown wherever a YouTube
+ * video ad is offered, listed or started.
+ */
+export const GOOGLE_DEMAND_GEN_REPORTING_NOTE =
+  "Google does not tell us who saw a YouTube video ad. The audience you give it is a hint, not a limit: Google may show the ads to other people too.";
+
+/** Google's minimum daily budget for Demand Gen is per currency and read by the api; the form says so before the request. */
+export const GOOGLE_DEMAND_GEN_BUDGET_NOTE =
+  "Google sets a minimum daily budget for YouTube video ads in each currency. If yours is below it, we'll tell you before anything is created.";
+
+/** What a YouTube video ad is, before anyone creates one: the merchant's own videos, already on YouTube. */
+export const GOOGLE_DEMAND_GEN_DESCRIPTION =
+  "Your own YouTube videos, shown as ads on YouTube. Use videos that are already on YouTube (public or unlisted): PeakHour never uploads one.";
+
+/** The YouTube placements offered, in Google's order, with what each means. */
+export const GOOGLE_YOUTUBE_CHANNELS: ReadonlyArray<{ value: GoogleYoutubeChannel; name: string; label: string }> = [
+  { value: "youtube_in_stream", name: "YouTube in-stream", label: "YouTube in-stream (before, during or after other videos)" },
+  { value: "youtube_in_feed", name: "YouTube in-feed", label: "YouTube in-feed (in search results and the home feed)" },
+  { value: "youtube_shorts", name: "YouTube Shorts", label: "YouTube Shorts" },
+];
+
+/**
+ * YouTube video ad bounds (peakhour-api `adapters/ads/google-demand-gen.ts`,
+ * from Google Ads Help's Demand Gen specs): the api refuses the same ad, so
+ * the form says so before a request.
+ */
+export const GOOGLE_DEMAND_GEN = {
+  videos: { min: 1, max: 5, label: "YouTube videos" },
+  headlines: { min: 1, max: 5, chars: 40, label: "headlines" },
+  longHeadlines: { min: 1, max: 5, chars: 90, label: "long headlines" },
+  descriptions: { min: 1, max: 5, chars: 90, label: "descriptions" },
+  businessNameChars: 25,
+  logos: { min: 1, max: 5, label: "square logos" },
+} as const;
+
+/** "The 11 character string value used in the YouTube video URL" (the api's `youtubeVideoId`). */
+const YOUTUBE_ID = /^[A-Za-z0-9_-]{11}$/;
+const YOUTUBE_HOSTS = new Set(["youtube.com", "www.youtube.com", "m.youtube.com", "youtube-nocookie.com", "www.youtube-nocookie.com"]);
+
+/**
+ * The YouTube video id in what a merchant pasted — the id, or a link to it — or
+ * null. The api's own rule (`youtubeVideoId`), so the form refuses what the api
+ * would: a video file, a channel page or a playlist is not a video on YouTube.
+ */
+export function youtubeVideoIdOf(raw: string): string | null {
+  const text = raw.trim();
+  if (YOUTUBE_ID.test(text)) return text;
+  let url: URL;
+  try {
+    url = new URL(text);
+  } catch {
+    return null;
+  }
+  if ((url.protocol !== "https:" && url.protocol !== "http:") || url.username || url.password) return null;
+  const host = url.hostname.toLowerCase();
+  let id: string | null = null;
+  if (host === "youtu.be") id = /^\/([^/]+)\/?$/.exec(url.pathname)?.[1] ?? null;
+  else if (YOUTUBE_HOSTS.has(host)) {
+    id = url.pathname === "/watch" ? url.searchParams.get("v") : (/^\/(?:shorts|embed|live)\/([^/]+)\/?$/.exec(url.pathname)?.[1] ?? null);
+  }
+  return id && YOUTUBE_ID.test(id) ? id : null;
+}
+
+/** What is wrong with a YouTube video ad, in the api's words, or null. */
+export function googleDemandGenProblem(a: GoogleDemandGenInput): string | null {
+  // ★THE API'S ORDER (`checkDemandGenAssets`, review round 1): text, then videos, name, landing page, logos, placements.
+  for (const what of ["headlines", "longHeadlines", "descriptions"] as const) {
+    const p = textListProblem(a[what], GOOGLE_DEMAND_GEN[what], "A YouTube video ad");
+    if (p) return p;
+  }
+  const v = GOOGLE_DEMAND_GEN.videos;
+  if (a.videos.length < v.min || a.videos.length > v.max) return `A YouTube video ad needs ${v.min} to ${v.max} ${v.label}, not ${a.videos.length}.`;
+  const ids = a.videos.map(youtubeVideoIdOf);
+  const badVideo = a.videos.find((_, i) => ids[i] === null);
+  if (badVideo !== undefined) return `"${badVideo}" is not a YouTube video link or id.`;
+  if (new Set(ids).size !== ids.length) return "Each YouTube video must be a different video.";
+  const name = a.businessName.trim();
+  if (!name || BAD_TEXT.test(name) || googleTextWidth(name) > GOOGLE_DEMAND_GEN.businessNameChars) {
+    return `The business name must be 1 to ${GOOGLE_DEMAND_GEN.businessNameChars} characters, counted as Google counts them: it is ${googleTextWidth(name)}.`;
+  }
+  if (!isHttpsUrl(a.finalUrl)) return "The landing page must be a full https:// address.";
+  const l = GOOGLE_DEMAND_GEN.logos;
+  if (a.logos.length < l.min || a.logos.length > l.max) return `A YouTube video ad needs ${l.min} to ${l.max} ${l.label}, not ${a.logos.length}.`;
+  if (a.logos.some((u) => !isPublicHttpsUrl(u))) return "Each logo must be a full https:// address on a public host.";
+  if (new Set(a.logos).size !== a.logos.length) return "Each logo must be a different image.";
+  if (a.channels.length === 0) return "Choose at least one YouTube placement.";
+  return null;
+}
+
+/** The create form's decision for a YouTube video ad: the shared fields first, then the ad. */
+export function googleDemandGenCreateProblem(
+  f: { name: string; budget: string; currency: string; endDate: string; demandGen: GoogleDemandGenInput },
+  today: string,
+): string | null {
+  return googleSharedCreateProblem(f, today) ?? googleDemandGenProblem(f.demandGen);
+}
+
+/**
+ * Where a YouTube video ad may show, in words, and whether Google said so —
+ * or null when the row carries no channels. ★"CONFIRMED" ONLY ON GOOGLE'S WORD
+ * (`targetingApplied`): the api stores what it sent, unconfirmed, when Google's
+ * answer did not carry the channels.
+ */
+export function googleChannelControlsSentence(cc: GoogleChannelControls | undefined): string | null {
+  const places = googleChannelPlaces(cc);
+  if (!places) return null;
+  // ★"SET TO SHOW", NOT "SHOWS" (round 2): a draft or paused campaign shows nowhere yet.
+  return cc!.targetingApplied ? `Set to show on ${places} — confirmed by Google.` : `Set to show on ${places}; Google hasn't confirmed it yet.`;
+}
+
+/**
+ * Where a YouTube video ad's channel controls place it, as a phrase ("YouTube
+ * in-stream and YouTube Shorts"), or null when the row carries none. The start
+ * dialog and the row both say this (round 2): the dialog where money is
+ * committed must not say less than the row above it.
+ */
+export function googleChannelPlaces(cc: GoogleChannelControls | undefined): string | null {
+  if (!cc || cc.selected.length === 0) return null;
+  // ★NEVER A RAW CHANNEL ID ON SCREEN (review round 1). Peakhour asks for
+  //  YouTube's three only; any other channel Google reports is said as "other
+  //  Google placements", once — not by Google's id, which would also name a
+  //  campaign type this panel never offers.
+  const youtube = GOOGLE_YOUTUBE_CHANNELS.filter((c) => cc.selected.includes(c.value)).map((c) => c.name);
+  const list = cc.selected.some((c) => !GOOGLE_YOUTUBE_CHANNELS.some((y) => y.value === c)) ? [...youtube, "other Google placements"] : youtube;
+  return list.length === 1 ? list[0]! : `${list.slice(0, -1).join(", ")} and ${list.at(-1)}`;
+}
+

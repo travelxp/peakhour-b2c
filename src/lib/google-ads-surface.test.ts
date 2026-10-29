@@ -129,15 +129,18 @@ describe("★★G-15 — the hub HAS a Google tab, reached only through the clie
 });
 
 /**
- * ★★SEARCH AND PERFORMANCE MAX ONLY (the plan's G-15 row, widened by G19):
- * "a surface that offers a campaign type the adapter refuses is worse than one
- * that offers fewer". The api creates those two; every merchant-facing source
- * of the Google channel is read for any OTHER campaign type's name.
+ * ★★SEARCH, PERFORMANCE MAX AND YOUTUBE VIDEO (DEMAND GEN) ONLY (the plan's
+ * G-15 row, widened by G19 and G20): "a surface that offers a campaign type
+ * the adapter refuses is worse than one that offers fewer". The api creates
+ * those three; every merchant-facing source of the Google channel is read for
+ * any OTHER campaign type's name — and for the words "Video campaign", the
+ * type Google's API can no longer create (YouTube video ads are Demand Gen).
  */
-describe("★★G-15/G19 — nothing implies a Google campaign type but Search and Performance Max", () => {
+describe("★★G-15/G19/G20 — nothing implies a Google campaign type but Search, Performance Max and YouTube video (Demand Gen)", () => {
   // ★CASE-INSENSITIVE (review round 1): the copy this row removed said
-  //  "search and display", lower-case.
-  const OTHER_TYPES = /\b(Demand Gen|Discovery|Display|Shopping|YouTube|Video campaign|App campaign|Smart campaign)\b/i;
+  //  "search and display", lower-case. ★AND PLURAL (G20): "Video campaigns" ends
+  //  in no word boundary after "campaign", so the singular alone missed it.
+  const OTHER_TYPES = /\b(Discovery|Display|Shopping|Video campaigns?|App campaigns?|Smart campaigns?)\b/i;
   const googleEntry = (text: string, start: string) => text.slice(text.indexOf(start), text.indexOf("}", text.indexOf(start)));
   it.each([
     ["the panel", () => read(PANEL)],
@@ -152,9 +155,12 @@ describe("★★G-15/G19 — nothing implies a Google campaign type but Search a
   });
   it("★and the check SAYS SO when there is something to find", () => {
     expect("Run search and Display campaigns".match(OTHER_TYPES)?.[0]).toBe("Display");
-    expect("Try Demand Gen".match(OTHER_TYPES)?.[0]).toBe("Demand Gen");
-    // G19: Performance Max is a type the api creates, so naming it is not a false offer.
+    // G19 and G20: Performance Max and Demand Gen are types the api creates, so naming them is not a false offer.
     expect("Try Performance Max".match(OTHER_TYPES)).toBeNull();
+    expect("Try a YouTube video (Demand Gen) campaign".match(OTHER_TYPES)).toBeNull();
+    // ★G20: the type Google's API cannot create, in any case.
+    expect("Create a Video campaign".match(OTHER_TYPES)?.[0]).toBe("Video campaign");
+    expect("youtube video campaigns".match(OTHER_TYPES)?.[0]).toBe("video campaigns");
     // The exact catalog copy G-15 replaced.
     expect("Run search and display campaigns from approved creative.".match(OTHER_TYPES)?.[0]).toBe("display");
   });
@@ -167,9 +173,36 @@ describe("★★G-15/G19 — nothing implies a Google campaign type but Search a
     expect(shown.length).toBe(3);
     expect(read(VIEW)).toMatch(/GOOGLE_PMAX_REPORTING_NOTE =\s*"Google does not tell us who saw a Performance Max ad\./);
   });
-  it("★the hub and catalog name Search", () => {
-    expect(googleEntry(read("src/app/(site)/dashboard/ads/ads-channels.ts"), 'key: "google"')).toContain("Search");
-    expect(googleEntry(read("src/app/(site)/dashboard/content/channels.config.ts"), 'slug: "google-ads"')).toContain("Search");
+  it("★★the hub and catalog say YouTube and Demand Gen only as the type's own label (round 2)", () => {
+    for (const entry of [
+      googleEntry(read("src/app/(site)/dashboard/ads/ads-channels.ts"), 'key: "google"'),
+      googleEntry(read("src/app/(site)/dashboard/content/channels.config.ts"), 'slug: "google-ads"'),
+    ]) {
+      // Comments are not copy; the label is removed, and nothing YouTube- or Demand-Gen-like may remain.
+      const copy = entry.replace(/\/\/[^\n]*/g, "").split("YouTube video (Demand Gen)").join("");
+      expect(copy.match(/YouTube|Demand Gen/i)?.[0] ?? null).toBeNull();
+    }
+    expect("Search campaigns on YouTube".split("YouTube video (Demand Gen)").join("").match(/YouTube|Demand Gen/i)?.[0]).toBe("YouTube");
+  });
+  it("★the hub and catalog name the three types", () => {
+    for (const entry of [
+      googleEntry(read("src/app/(site)/dashboard/ads/ads-channels.ts"), 'key: "google"'),
+      googleEntry(read("src/app/(site)/dashboard/content/channels.config.ts"), 'slug: "google-ads"'),
+    ]) {
+      expect(entry).toContain("Search");
+      expect(entry).toContain("Performance Max");
+      expect(entry).toContain("YouTube video (Demand Gen)");
+    }
+  });
+  it("★★G20: the panel offers YouTube video (Demand Gen) and says, wherever it does, that Google does not report who saw its ads", () => {
+    const panel = read(PANEL);
+    expect(panel).toContain('<SelectItem value="DEMAND_GEN">YouTube video (Demand Gen)</SelectItem>');
+    // The form, each listed row, and the start confirmation: where it is shown, never the import.
+    const shown = panel.match(/\{GOOGLE_DEMAND_GEN_REPORTING_NOTE\}|\$\{GOOGLE_DEMAND_GEN_REPORTING_NOTE\}/g) ?? [];
+    expect(shown.length).toBe(3);
+    expect(read(VIEW)).toMatch(/GOOGLE_DEMAND_GEN_REPORTING_NOTE =\s*"Google does not tell us who saw a YouTube video ad\./);
+    // ★A video is the merchant's own, already on YouTube: the panel never offers an upload.
+    expect(panel).not.toMatch(/type="file"|upload a video|uploads? your video/i);
   });
 });
 
