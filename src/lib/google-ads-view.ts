@@ -256,13 +256,7 @@ export function googleCopyProblem(ad: GoogleSearchAdInput): string | null {
     const long = items.find((t) => googleTextWidth(t) > b.chars);
     if (long !== undefined) return `Each of the ${what} must be at most ${b.chars} characters: "${long}" is ${googleTextWidth(long)}.`;
   }
-  let url: URL;
-  try {
-    url = new URL(ad.finalUrl);
-  } catch {
-    return "The landing page must be a full https:// address.";
-  }
-  if (url.protocol !== "https:" || /\s/.test(ad.finalUrl)) return "The landing page must be a full https:// address.";
+  if (!isHttpsUrl(ad.finalUrl)) return "The landing page must be a full https:// address.";
   return null;
 }
 
@@ -318,12 +312,12 @@ export function googlePmaxProblem(a: GooglePmaxInput): string | null {
   if (!name || BAD_TEXT.test(name) || googleTextWidth(name) > GOOGLE_PMAX.businessNameChars) {
     return `The business name must be 1 to ${GOOGLE_PMAX.businessNameChars} characters.`;
   }
-  if (!isHttps(a.finalUrl)) return "The landing page must be a full https:// address.";
+  if (!isHttpsUrl(a.finalUrl)) return "The landing page must be a full https:// address.";
   for (const what of ["marketing", "square", "logos"] as const) {
     const b = GOOGLE_PMAX.images[what];
     const urls = a.images[what];
     if (urls.length < b.min || urls.length > b.max) return `Performance Max needs ${b.min} to ${b.max} ${b.label}, not ${urls.length}.`;
-    if (urls.some((u) => !isHttps(u))) return `Each of the ${b.label} must be a full https:// address.`;
+    if (urls.some((u) => !isPublicHttpsUrl(u))) return `Each of the ${b.label} must be a full https:// address on a public host.`;
     if (new Set(urls).size !== urls.length) return `Each of the ${b.label} must be a different image.`;
   }
   // The api's `assertNoRatioClash`: a landscape image cannot also be a square image or a logo (both 1:1).
@@ -333,19 +327,29 @@ export function googlePmaxProblem(a: GooglePmaxInput): string | null {
   return null;
 }
 
+/** A landing page: https, no whitespace — the api's rule for both shapes (Search's `googleCopyProblem` and Performance Max's). */
+function isHttpsUrl(u: string): boolean {
+  try {
+    return new URL(u).protocol === "https:" && !/\s/.test(u);
+  } catch {
+    return false;
+  }
+}
+
 /**
- * An https URL on a public host: the api's `checkMediaUrl` (localhost, .local,
- * .internal, an IPv6 literal and private IPv4 ranges are refused), so the form
- * does not pass what the api will refuse. The api also resolves the name.
+ * An IMAGE URL: https on a public host, the api's `checkMediaUrl` (localhost,
+ * .local, .internal, an IPv6 literal and private IPv4 ranges are refused; the
+ * api also resolves the name). No whitespace rule: the api takes a URL `new
+ * URL` can parse (review round 2).
  */
-function isHttps(u: string): boolean {
+function isPublicHttpsUrl(u: string): boolean {
   let url: URL;
   try {
     url = new URL(u);
   } catch {
     return false;
   }
-  if (url.protocol !== "https:" || /\s/.test(u)) return false;
+  if (url.protocol !== "https:") return false;
   const h = url.hostname.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.+$/, "");
   if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal") || h.includes(":")) return false;
   const v4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);

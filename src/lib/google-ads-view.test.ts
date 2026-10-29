@@ -252,14 +252,18 @@ describe("★★G19 — Performance Max, in words and in the api's own limits", 
     ["a repeated headline", { headlines: ["a", "a", "b"] }, "Each of the headlines must be different."],
     ["a 26-character business name", { businessName: "x".repeat(26) }, "The business name must be 1 to 25 characters."],
     ["no logo", { images: { ...PMAX.images, logos: [] } }, "Performance Max needs 1 to 5 logos, not 0."],
-    ["an http image", { images: { ...PMAX.images, square: ["http://cdn.example/s.png"] } }, "Each of the square images must be a full https:// address."],
-    ["an image on a private host", { images: { ...PMAX.images, square: ["https://192.168.1.5/s.png"] } }, "Each of the square images must be a full https:// address."],
-    ["a logo on localhost", { images: { ...PMAX.images, logos: ["https://localhost/l.png"] } }, "Each of the logos must be a full https:// address."],
+    ["an http image", { images: { ...PMAX.images, square: ["http://cdn.example/s.png"] } }, "Each of the square images must be a full https:// address on a public host."],
+    ["an image on a private host", { images: { ...PMAX.images, square: ["https://192.168.1.5/s.png"] } }, "Each of the square images must be a full https:// address on a public host."],
+    ["a logo on localhost", { images: { ...PMAX.images, logos: ["https://localhost/l.png"] } }, "Each of the logos must be a full https:// address on a public host."],
     ["a landscape image also square", { images: { ...PMAX.images, square: ["https://cdn.example/w.png"] } }, "One image can't be both a landscape and a square image."],
     ["a landscape image also a logo", { images: { ...PMAX.images, logos: ["https://cdn.example/w.png"] } }, "One image can't be both a landscape image and a logo."],
     ["the same image twice", { images: { ...PMAX.images, marketing: ["https://cdn.example/w.png", "https://cdn.example/w.png"] } }, "Each of the landscape images must be a different image."],
   ])("★%s", (_l, over, message) => {
     expect(googlePmaxProblem({ ...PMAX, ...over })).toBe(message);
+  });
+  it("PASS: the landing page follows Search's rule (any https host), and an image URL with a space is the api's to encode", () => {
+    expect(googlePmaxProblem({ ...PMAX, finalUrl: "https://shop.internal/" })).toBeNull();
+    expect(googlePmaxProblem({ ...PMAX, images: { ...PMAX.images, logos: ["https://cdn.example/My Logo.png"] } })).toBeNull();
   });
   it("the shared fields come first, as Search's", () => {
     expect(googlePmaxCreateProblem({ name: " ", budget: "10", currency: "USD", endDate: "", performanceMax: PMAX }, "2026-10-29")).toBe("Name the campaign.");
