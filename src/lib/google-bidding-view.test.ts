@@ -196,6 +196,15 @@ describe("sentences", () => {
       "Maximize Clicks. Peakhour can switch it to one of the strategies below.",
     );
   });
+  it("Google's other strategies are named in words, with their target (review round 2)", () => {
+    expect(googleBiddingSentence({ strategy: "MANUAL_CPC", form: "standard", managed: false }, undefined)).toMatch(/^Manual CPC\./);
+    expect(googleBiddingSentence({ strategy: "MAXIMIZE_CONVERSION_VALUE", form: "standard", target: 4, managed: false }, undefined)).toMatch(/^Maximize Conversion Value of 400%\./);
+  });
+  it("a Portfolio's target is read from the portfolio when the state carries it there (review round 2)", () => {
+    const p = { strategy: "TARGET_CPA", form: "portfolio", managed: true, portfolio: { resourceName: "r", type: "TARGET_CPA", ours: true, campaigns: 1, target: 250 } } as const;
+    expect(googleBiddingSentence(p, "INR")).toMatch(/Target CPA of .*250/);
+    expect(googleBiddingDraftOf(p).target).toBe("250");
+  });
   it("a save says what changed, or that nothing did", () => {
     expect(googleBiddingSavedSentence({ strategy: "TARGET_ROAS", form: "portfolio", target: 3 }, true)).toMatch(/^Bidding set to Target ROAS \(Portfolio\)\./);
     expect(googleBiddingSavedSentence({ strategy: "MAXIMIZE_CONVERSIONS", form: "standard" }, false)).toMatch(/nothing changed/);

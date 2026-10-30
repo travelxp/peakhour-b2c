@@ -49,7 +49,13 @@ export function googleBiddingStrategyLabel(s: string): string {
   // The api's word for a portfolio this account cannot read (a manager account's, or one since removed).
   if (s === "UNREADABLE") return "A strategy this account can't read";
   if (s === "MAXIMIZE_CONVERSION_VALUE") return "Maximize Conversion Value";
-  return GOOGLE_BIDDING_STRATEGIES.find((x) => x.value === s)?.label ?? s.toLowerCase().replace(/_/g, " ");
+  // Google's other names, as words (review round 2): "MANUAL_CPC" is "Manual CPC", not "manual cpc".
+  const known = GOOGLE_BIDDING_STRATEGIES.find((x) => x.value === s)?.label;
+  if (known) return known;
+  return s
+    .split("_")
+    .map((w) => (["CPC", "CPA", "CPM", "CPV", "ROAS"].includes(w) ? w : w.charAt(0) + w.slice(1).toLowerCase()))
+    .join(" ");
 }
 
 /** Why a campaign type cannot bid with this strategy and form, or null. The api's rule, in its words. */
@@ -153,7 +159,8 @@ const isStrategy = (s: string): s is GoogleBiddingStrategy => GOOGLE_BIDDING_STR
 export function googleBiddingDraftOf(state: GoogleBiddingState | undefined): GoogleBiddingDraft {
   if (!state || !isStrategy(state.strategy)) return { ...EMPTY_BIDDING_DRAFT };
   const strategy = state.strategy;
-  const target = state.target === undefined ? "" : strategy === "TARGET_ROAS" ? googleRoasPercent(state.target) : String(state.target);
+  const held = state.target ?? state.portfolio?.target;
+  const target = held === undefined ? "" : strategy === "TARGET_ROAS" ? googleRoasPercent(held) : String(held);
   return { pick: strategy, form: state.form, target };
 }
 
@@ -187,14 +194,11 @@ export function googleBiddingWarning(pick: GoogleBiddingPick, history: GoogleBid
 /** A campaign's current bidding, in one line. */
 export function googleBiddingSentence(state: GoogleBiddingState, currency: string | undefined): string {
   const name = googleBiddingStrategyLabel(state.strategy);
-  const target =
-    state.target === undefined
-      ? ""
-      : state.strategy === "TARGET_ROAS"
-        ? ` of ${googleRoasPercent(state.target)}%`
-        : state.strategy === "TARGET_CPA"
-          ? ` of ${formatGoogleMoney(state.target, currency)}`
-          : "";
+  // A Portfolio's target, wherever the read carries it (review round 2).
+  const t = state.target ?? state.portfolio?.target;
+  const roas = state.strategy === "TARGET_ROAS" || state.strategy === "MAXIMIZE_CONVERSION_VALUE";
+  const cpa = state.strategy === "TARGET_CPA" || state.strategy === "MAXIMIZE_CONVERSIONS";
+  const target = t === undefined ? "" : roas ? ` of ${googleRoasPercent(t)}%` : cpa ? ` of ${formatGoogleMoney(t, currency)}` : "";
   if (state.form === "portfolio") {
     const p = state.portfolio;
     const shared = p?.campaigns !== undefined && p.campaigns > 1 ? `, shared with ${p.campaigns - 1} other ${p.campaigns === 2 ? "campaign" : "campaigns"}` : "";
