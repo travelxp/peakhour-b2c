@@ -13,7 +13,9 @@ import {
   googleTargetingDescription,
   googleTargetingProblem,
   keywordCriterionId,
+  googleTargetingSavedSentence,
   pausedOf,
+  radiusKey,
   targetingInputFromDraft,
   type TargetingDraft,
 } from "./google-targeting-view";
@@ -178,5 +180,27 @@ describe("words", () => {
       expect(googleTargetingDescription(t)).not.toMatch(/reach|audience|people|who/i);
       expect(googleTargetingDescription(t)).toMatch(/starts nothing/);
     }
+  });
+});
+
+describe("review round 1", () => {
+  it("★★what Google holds paused may not be added back (the api refuses a save naming it)", () => {
+    const p = pausedOf(READ);
+    expect([...p.ids]).toEqual(["geoTargetConstants/2250"]);
+    expect([...p.keywordKeys]).toEqual(["BROAD:linen"]);
+    expect(p.negativeKeys.size).toBe(0);
+    const dialog = readFileSync("src/app/(site)/dashboard/ads/_components/google-targeting-dialog.tsx", "utf8");
+    expect(dialog).toContain("pausedIds?.has(r.geoTargetConstant)");
+    expect(dialog).toContain("pausedKeys?.has(key)");
+  });
+  it("★the same radius twice is one radius", () => {
+    const a = { radius: 10, radiusUnits: "KILOMETERS" as const, address: { cityName: "Madrid", countryCode: "ES" } };
+    expect(radiusKey(a)).toBe(radiusKey({ ...a, address: { cityName: "madrid", countryCode: "ES" } }));
+    expect(radiusKey(a)).not.toBe(radiusKey({ ...a, radiusUnits: "MILES" }));
+  });
+  it("★a save whose audience is signals says so; places are limits either way", () => {
+    expect(googleTargetingSavedSentence({ targetingApplied: false })).toMatch(/hints Google may look past/);
+    expect(googleTargetingSavedSentence({})).toBe("Targeting saved on Google Ads.");
+    expect(googleTargetingSavedSentence({ targetingApplied: false })).not.toMatch(/reach|people/i);
   });
 });

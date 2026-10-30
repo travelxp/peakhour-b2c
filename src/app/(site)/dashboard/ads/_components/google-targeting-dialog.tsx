@@ -50,7 +50,9 @@ import {
   keywordCriterionId,
   keywordKey,
   pausedOf,
+  radiusKey,
   targetingInputFromDraft,
+  googleTargetingSavedSentence,
   type DraftKeyword,
   type TargetingDraft,
 } from "@/lib/google-targeting-view";
@@ -87,7 +89,6 @@ export function GoogleTargetingDialog({
 }) {
   const queryClient = useQueryClient();
   const { business } = useAuth();
-  const search = isSearch(campaign.channelType);
   // ★BUSINESS-SCOPED, as the conversion card's key is.
   const queryKey = ["google-ads-targeting", business?._id ?? "none", campaign.id];
   const read = useQuery({
@@ -105,6 +106,9 @@ export function GoogleTargetingDialog({
     staleTime: 10 * 60_000,
   });
 
+  // The type as the api's read names it, once read (review round 1): the keyword route checks the row's type too.
+  const channelType = read.data?.channelType ?? campaign.channelType;
+  const search = isSearch(channelType);
   // The merchant's unsaved copy, or null: with none, the step shows the latest read as it is.
   const [edits, setEdits] = useState<TargetingDraft | null>(null);
   const draft = edits ?? (read.data ? draftFromRead(read.data.targeting) : null);
@@ -116,11 +120,15 @@ export function GoogleTargetingDialog({
     setEdits(null);
     onOpenChange(false);
   };
+  // `save` is declared below; a save in flight is not dismissed (review round 1), by Close, Escape or the overlay.
+  const requestClose = () => {
+    if (!save.isPending) close();
+  };
 
   const save = useMutation({
-    mutationFn: (d: TargetingDraft) => googleAdsApi.setTargeting(campaign.id, targetingInputFromDraft(d, campaign.channelType)),
-    onSuccess: async () => {
-      toast.success("Targeting saved on Google Ads.");
+    mutationFn: (d: TargetingDraft) => googleAdsApi.setTargeting(campaign.id, targetingInputFromDraft(d, channelType)),
+    onSuccess: async (res) => {
+      toast.success(googleTargetingSavedSentence(res));
       // ★Re-read FIRST, then let the read replace the copy: dropping the edits before the new read lands would show
       //  the old targeting for a moment, as though the save had not taken.
       await queryClient.invalidateQueries({ queryKey });
@@ -137,29 +145,37 @@ export function GoogleTargetingDialog({
     mutationFn: (v: { criterionId: string; status: GoogleKeywordStatus }) => googleAdsApi.setKeywordStatus(campaign.id, v.criterionId, v.status),
     onSuccess: (_d, v) => toast.success(v.status === "PAUSED" ? "Keyword paused." : v.status === "ENABLED" ? "Keyword enabled." : "Keyword removed."),
     onError: (err) => toast.error(googleAdsErrorMessage(err, "Google Ads didn't take that change. Try again in a moment.")),
-    onSettled: () => void queryClient.invalidateQueries({ queryKey }),
+    // ★RETURNED, so the mutation stays pending until the re-read lands (review round 1): a removed keyword's row is
+    //  not offered again in the moment before the read drops it.
+    onSettled: () => queryClient.invalidateQueries({ queryKey }),
   });
   const [removing, setRemoving] = useState<{ criterionId: string; text: string } | null>(null);
 
-  const problem = draft ? googleTargetingProblem(draft, campaign.channelType) : null;
+  const problem = draft ? googleTargetingProblem(draft, channelType) : null;
   const paused = read.data ? pausedOf(read.data.targeting) : null;
   const busy = save.isPending || keywordStatus.isPending;
   const keywordControls = !dirty && !busy;
 
   return (
-    <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(true) : close())}>
+    <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(true) : requestClose())}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Targeting — {campaign.name}</DialogTitle>
           <DialogDescription>
-            {googleChannelTypeLabel(campaign.channelType)}. {googleTargetingDescription(campaign.channelType)}
+            {googleChannelTypeLabel(channelType)}. {googleTargetingDescription(channelType)}
           </DialogDescription>
         </DialogHeader>
 
-        {campaign.channelType === "PERFORMANCE_MAX" ? <p className="text-xs text-muted-foreground">{GOOGLE_PMAX_REPORTING_NOTE}</p> : null}
-        {campaign.channelType === "DEMAND_GEN" ? <p className="text-xs text-muted-foreground">{GOOGLE_DEMAND_GEN_REPORTING_NOTE}</p> : null}
+        {channelType === "PERFORMANCE_MAX" ? <p className="text-xs text-muted-foreground">{GOOGLE_PMAX_REPORTING_NOTE}</p> : null}
+        {channelType === "DEMAND_GEN" ? <p className="text-xs text-muted-foreground">{GOOGLE_DEMAND_GEN_REPORTING_NOTE}</p> : null}
+        {/* ★A failed RE-read keeps the step and its unsaved edits on screen (review round 1); it says so above them. */}
+        {read.isError && draft ? (
+          <p className="text-xs text-destructive-on-tint">
+            {googleAdsErrorMessage(read.error, "We couldn't re-read this campaign's targeting from Google Ads. What you see is the last read and your edits.")}
+          </p>
+        ) : null}
 
-        {read.isError ? (
+        {read.isError && !draft ? (
           <p className="text-sm text-destructive-on-tint">{googleAdsErrorMessage(read.error, "We couldn't read this campaign's targeting from Google Ads. Try again in a moment.")}</p>
         ) : !draft ? (
           <div className="space-y-3">
@@ -168,12 +184,13 @@ export function GoogleTargetingDialog({
           </div>
         ) : (
           <div className="space-y-6">
-            <LocationsSection draft={draft} edit={edit} disabled={busy} />
+            <LocationsSection draft={draft} edit={edit} disabled={busy} pausedIds={paused?.ids} />
             <RadiiSection draft={draft} edit={edit} disabled={busy} />
             <LanguagesSection
               draft={draft}
               edit={edit}
               disabled={busy}
+              pausedIds={paused?.ids}
               options={languages.data?.languages ?? []}
               failed={languages.isError ? googleAdsErrorMessage(languages.error, "We couldn't load Google's languages.") : null}
             />
@@ -190,6 +207,7 @@ export function GoogleTargetingDialog({
                   list={draft.keywords}
                   onChange={(keywords) => edit((d) => ({ ...d, keywords }))}
                   disabled={busy}
+                  pausedKeys={paused?.keywordKeys}
                   controlsOn={keywordControls}
                   onStatus={(k, status) => {
                     const criterionId = k.resourceName ? keywordCriterionId(k.resourceName) : null;
@@ -232,7 +250,14 @@ export function GoogleTargetingDialog({
                   list={draft.negativeKeywords}
                   onChange={(negativeKeywords) => edit((d) => ({ ...d, negativeKeywords }))}
                   disabled={busy}
+                  pausedKeys={paused?.negativeKeys}
                 />
+                {paused && paused.negativeKeywords.length > 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Paused in Google Ads, left as they are when you save:{" "}
+                    {paused.negativeKeywords.map((k) => `${k.text} (${googleMatchTypeLabel(k.matchType)})`).join(", ")}
+                  </p>
+                ) : null}
               </>
             ) : null}
             {problem ? <p className="text-sm text-muted-foreground">{problem}</p> : null}
@@ -240,7 +265,7 @@ export function GoogleTargetingDialog({
         )}
 
         <DialogFooter>
-          <Button variant="ghost" onClick={close} disabled={save.isPending}>
+          <Button variant="ghost" onClick={requestClose} disabled={save.isPending}>
             Close
           </Button>
           <Button disabled={!draft || !!problem || !dirty || busy} onClick={() => draft && save.mutate(draft)}>
@@ -287,7 +312,7 @@ function Chip({ label, onRemove, disabled }: { label: string; onRemove: () => vo
   );
 }
 
-function LocationsSection({ draft, edit, disabled }: { draft: TargetingDraft; edit: Edit; disabled: boolean }) {
+function LocationsSection({ draft, edit, disabled, pausedIds }: { draft: TargetingDraft; edit: Edit; disabled: boolean; pausedIds?: ReadonlySet<string> }) {
   const [q, setQ] = useState("");
   const [country, setCountry] = useState("");
   const [results, setResults] = useState<GoogleLocationOption[] | null>(null);
@@ -335,14 +360,19 @@ function LocationsSection({ draft, edit, disabled }: { draft: TargetingDraft; ed
                   {r.canonicalName ?? r.name}
                   {r.targetType ? <span className="text-muted-foreground"> · {r.targetType}</span> : null}
                 </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={disabled || chosen.has(r.geoTargetConstant)}
-                  onClick={() => edit((d) => ({ ...d, locations: [...d.locations, { geoTargetConstant: r.geoTargetConstant, name: r.canonicalName ?? r.name }] }))}
-                >
-                  {chosen.has(r.geoTargetConstant) ? "Added" : "Add"}
-                </Button>
+                {pausedIds?.has(r.geoTargetConstant) ? (
+                  // The api refuses a save naming a paused place: it is enabled in Google Ads, not here.
+                  <span className="text-xs text-muted-foreground">Paused in Google Ads</span>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={disabled || chosen.has(r.geoTargetConstant)}
+                    onClick={() => edit((d) => ({ ...d, locations: [...d.locations, { geoTargetConstant: r.geoTargetConstant, name: r.canonicalName ?? r.name }] }))}
+                  >
+                    {chosen.has(r.geoTargetConstant) ? "Added" : "Add"}
+                  </Button>
+                )}
               </li>
             ))}
           </ul>
@@ -363,13 +393,17 @@ function RadiiSection({ draft, edit, disabled }: { draft: TargetingDraft; edit: 
     ...(form.countryCode.trim() ? { countryCode: form.countryCode.trim().toUpperCase() } : {}),
   };
   const radius = Number(form.radius);
-  const problem = form.radius === "" ? "Enter the radius." : (googleAddressProblem(address) ?? googleRadiusProblem(radius, form.unit));
+  const duplicate = draft.radii.some((r) => radiusKey(r) === radiusKey({ address, radius, radiusUnits: form.unit }));
+  const problem =
+    form.radius === ""
+      ? "Enter the radius."
+      : (googleAddressProblem(address) ?? googleRadiusProblem(radius, form.unit) ?? (duplicate ? "That radius is already in the list." : null));
   return (
     <div className="space-y-2">
       <Label className="text-xs uppercase tracking-wide text-muted-foreground">Radius around an address</Label>
       <div className="flex flex-wrap gap-1">
         {draft.radii.map((r, i) => (
-          <Chip key={`${googleRadiusLabel(r)}-${i}`} label={googleRadiusLabel(r)} disabled={disabled} onRemove={() => edit((d) => ({ ...d, radii: d.radii.filter((_, j) => j !== i) }))} />
+          <Chip key={radiusKey(r)} label={googleRadiusLabel(r)} disabled={disabled} onRemove={() => edit((d) => ({ ...d, radii: d.radii.filter((_, j) => j !== i) }))} />
         ))}
       </div>
       <div className="flex flex-wrap gap-2">
@@ -409,14 +443,17 @@ function LanguagesSection({
   disabled,
   options,
   failed,
+  pausedIds,
 }: {
   draft: TargetingDraft;
   edit: Edit;
   disabled: boolean;
   options: Array<{ languageConstant: string; name: string }>;
   failed: string | null;
+  pausedIds?: ReadonlySet<string>;
 }) {
-  const chosen = new Set(draft.languages.map((l) => l.languageConstant));
+  // A paused language is not offered: the api refuses a save naming one (review round 1).
+  const chosen = new Set([...draft.languages.map((l) => l.languageConstant), ...(pausedIds ?? [])]);
   return (
     <div className="space-y-2">
       <Label className="text-xs uppercase tracking-wide text-muted-foreground">Languages</Label>
@@ -468,12 +505,15 @@ function KeywordsSection({
   disabled,
   controlsOn,
   onStatus,
+  pausedKeys,
 }: {
   title: string;
   help: string;
   list: DraftKeyword[];
   onChange: (next: DraftKeyword[]) => void;
   disabled: boolean;
+  /** Keys Google holds paused: adding one again is refused by the api, so it is said here. */
+  pausedKeys?: ReadonlySet<string>;
   /** Keywords only: whether one keyword's own pause/remove is offered now. */
   controlsOn?: boolean;
   onStatus?: (k: DraftKeyword, status: GoogleKeywordStatus) => void;
@@ -481,8 +521,12 @@ function KeywordsSection({
   const [text, setText] = useState("");
   const [matchType, setMatchType] = useState<GoogleMatchType>(GOOGLE_DEFAULT_MATCH_TYPE);
   const typed = foldKeyword(text);
-  const duplicate = list.some((k) => keywordKey(k) === keywordKey({ text: typed, matchType }));
-  const problem = text ? (googleKeywordProblem(text) ?? (duplicate ? "That keyword is already in the list." : null)) : null;
+  const key = keywordKey({ text: typed, matchType });
+  const duplicate = list.some((k) => keywordKey(k) === key);
+  const problem = text
+    ? (googleKeywordProblem(text) ??
+      (duplicate ? "That keyword is already in the list." : pausedKeys?.has(key) ? "That one is paused in Google Ads. Enable it rather than adding it again." : null))
+    : null;
   const add = () => {
     onChange([...list, { text: typed, matchType }]);
     setText("");

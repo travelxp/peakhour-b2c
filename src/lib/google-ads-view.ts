@@ -76,7 +76,6 @@ export const GOOGLE_MERCHANT_FACING_CODES: ReadonlySet<string> = new Set([
   "TARGETING_UNREADABLE",
   "KEYWORD_PERSIST_FAILED",
   "NOT_SEARCH",
-  "NOT_FOUND",
   "AD_ACCOUNT_NOT_ALLOWED",
 ]);
 

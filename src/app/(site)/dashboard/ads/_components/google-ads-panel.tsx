@@ -572,11 +572,12 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
                 {formatGoogleMoney(confirming?.budget?.daily, confirming?.currency ?? account.currencyCode)}/day
               </span>
               . {GOOGLE_LAUNCH_NOTE}{" "}
+              {googleStartTargetingHint(confirming?.channelType)}
               {confirming?.channelType === "PERFORMANCE_MAX"
-                ? `${googleStartTargetingHint("PERFORMANCE_MAX")} ${GOOGLE_PMAX_REPORTING_NOTE}`
+                ? ` ${GOOGLE_PMAX_REPORTING_NOTE}`
                 : confirming?.channelType === "DEMAND_GEN"
-                  ? `${googleStartTargetingHint("DEMAND_GEN")} ${GOOGLE_DEMAND_GEN_REPORTING_NOTE}`
-                  : googleStartTargetingHint("SEARCH")}
+                  ? ` ${GOOGLE_DEMAND_GEN_REPORTING_NOTE}`
+                  : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

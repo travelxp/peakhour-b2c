@@ -124,10 +124,38 @@ export function draftFromRead(t: GoogleCampaignTargeting): TargetingDraft {
   };
 }
 
-/** What Google holds PAUSED: left alone by a save. Keywords among them can be enabled or removed one by one. */
+/**
+ * What Google holds PAUSED: left alone by a save. Keywords among them can be
+ * enabled or removed one by one. ★AND WHAT MAY NOT BE ADDED BACK (review round
+ * 1): the api refuses a save naming a paused criterion, so the step blocks
+ * adding one again (`ids`, `keywordKeys`, `negativeKeys`) and says why.
+ */
 export function pausedOf(t: GoogleCampaignTargeting) {
   const off = <T extends { status: string }>(xs: T[]) => xs.filter((x) => x.status !== "ENABLED");
-  return { places: [...off(t.locations), ...off(t.radii), ...off(t.languages)].length, keywords: off(t.keywords), negativeKeywords: off(t.negativeKeywords) };
+  return {
+    places: [...off(t.locations), ...off(t.radii), ...off(t.languages)].length,
+    keywords: off(t.keywords),
+    negativeKeywords: off(t.negativeKeywords),
+    ids: new Set<string>([...off(t.locations).map((l) => l.geoTargetConstant), ...off(t.languages).map((l) => l.languageConstant)]),
+    keywordKeys: new Set(off(t.keywords).map(keywordKey)),
+    negativeKeys: new Set(off(t.negativeKeywords).map(keywordKey)),
+  };
+}
+
+/** One radius's identity on screen: the same address (or point), radius and unit is the same radius (the api refuses it twice). */
+export function radiusKey(r: DraftRadius): string {
+  const a = r.address ?? {};
+  const where = r.geoPoint
+    ? `${r.geoPoint.latitudeInMicroDegrees},${r.geoPoint.longitudeInMicroDegrees}`
+    : [a.streetAddress, a.cityName, a.postalCode, a.provinceCode, a.provinceName, a.countryCode].map((x) => (x ?? "").toLowerCase()).join("|");
+  return `${where}:${r.radius}:${r.radiusUnits}`;
+}
+
+/** The save's toast. A recorded audience that Google takes as signals is said so; places are limits either way. */
+export function googleTargetingSavedSentence(res: { targetingApplied?: boolean }): string {
+  return res.targetingApplied === false
+    ? "Targeting saved on Google Ads. The locations and languages are limits; the campaign's audience signals are hints Google may look past."
+    : "Targeting saved on Google Ads.";
 }
 
 export const isSearch = (t: GoogleChannelType | undefined): boolean => t !== "PERFORMANCE_MAX" && t !== "DEMAND_GEN";
