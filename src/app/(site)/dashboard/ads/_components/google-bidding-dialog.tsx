@@ -13,6 +13,7 @@ import {
   googleBiddingChoiceOf,
   googleBiddingDraftOf,
   googleBiddingProblem,
+  googleBiddingSavable,
   googleBiddingSavedSentence,
   googleBiddingSentence,
   googleBiddingWarning,
@@ -128,7 +129,7 @@ export function GoogleBiddingDialog({
           <Button variant="ghost" onClick={close} disabled={save.isPending}>
             Close
           </Button>
-          <Button onClick={() => choice && save.mutate(choice)} disabled={!choice || save.isPending || edits === null}>
+          <Button onClick={() => choice && save.mutate(choice)} disabled={!choice || save.isPending || !googleBiddingSavable(read.data?.bidding, edits !== null)}>
             {save.isPending ? "Saving…" : "Save bidding"}
           </Button>
         </DialogFooter>

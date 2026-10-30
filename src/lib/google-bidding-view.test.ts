@@ -5,6 +5,7 @@ import {
   googleBiddingChoiceOf,
   googleBiddingDraftOf,
   googleBiddingProblem,
+  googleBiddingSavable,
   googleBiddingSavedSentence,
   googleBiddingSentence,
   googleBiddingStrategiesFor,
@@ -105,6 +106,19 @@ describe("the draft, checked and sent", () => {
     expect(googleBiddingDraftOf({ strategy: "TARGET_ROAS", form: "portfolio", target: 3.5, managed: true })).toEqual({ pick: "TARGET_ROAS", form: "portfolio", target: "350" });
     expect(googleBiddingDraftOf({ strategy: "TARGET_CPA", form: "standard", target: 12.5, managed: true })).toEqual({ pick: "TARGET_CPA", form: "standard", target: "12.5" });
     expect(googleBiddingDraftOf({ strategy: "MAXIMIZE_CLICKS", form: "standard", managed: false })).toEqual({ pick: "MAXIMIZE_CONVERSIONS", form: "standard", target: "" });
+  });
+
+  it("one of the three with no readable target opens as itself, its target empty (review round 1)", () => {
+    expect(googleBiddingDraftOf({ strategy: "TARGET_CPA", form: "standard", managed: false })).toEqual({ pick: "TARGET_CPA", form: "standard", target: "" });
+    expect(googleBiddingDraftOf({ strategy: "TARGET_ROAS", form: "portfolio", managed: false })).toEqual({ pick: "TARGET_ROAS", form: "portfolio", target: "" });
+  });
+
+  it("★Save is offered after an edit, or at once when Google holds what Peakhour does not set (review round 1)", () => {
+    expect(googleBiddingSavable({ strategy: "MAXIMIZE_CLICKS", form: "standard", managed: false }, false)).toBe(true);
+    expect(googleBiddingSavable({ strategy: "TARGET_CPA", form: "standard", managed: false }, false)).toBe(true);
+    expect(googleBiddingSavable({ strategy: "TARGET_CPA", form: "standard", target: 4, managed: true }, false)).toBe(false);
+    expect(googleBiddingSavable({ strategy: "TARGET_CPA", form: "standard", target: 4, managed: true }, true)).toBe(true);
+    expect(googleBiddingSavable(undefined, false)).toBe(false);
   });
 });
 
