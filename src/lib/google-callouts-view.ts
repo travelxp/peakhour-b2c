@@ -110,8 +110,12 @@ export function googleCalloutRemoveConfirmation(text: string): { title: string; 
 export function googleCalloutAddedSentence(res: Pick<GoogleCalloutAdded, "created" | "callout" | "policy">): string {
   if (!res.created) {
     // ★A PAUSED ONE IS NOT "IN PLACE" (api review round 1): the merchant is told it is not showing, and where to turn it on.
-    return res.callout.status === "PAUSED"
-      ? `Your account already has “${res.callout.text}”, paused in Google Ads, so it isn't showing. Enable it there to show it.`
+    if (res.callout.status === "PAUSED") {
+      return `Your account already has “${res.callout.text}”, paused in Google Ads, so it isn't showing. Enable it there to show it.`;
+    }
+    // ★AND ONE GOOGLE DOES NOT SHOW (review round 2): the status the list shows, said in the toast too.
+    return googleCalloutStatusIsProblem(res.callout)
+      ? `Your account already has “${res.callout.text}”, but Google says: ${googleCalloutStatusLabel(res.callout).toLowerCase()}.`
       : `Your account already has “${res.callout.text}”.`;
   }
   if (res.policy && !res.policy.checked) {

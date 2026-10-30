@@ -131,6 +131,9 @@ describe("★★G-14e — adding: the policy check's answers", () => {
     expect(googleCalloutAddedSentence({ created: false, callout: callout({ status: "PAUSED", primaryStatus: "PAUSED" }), policy: null })).toBe(
       "Your account already has “Free UK delivery”, paused in Google Ads, so it isn't showing. Enable it there to show it.",
     );
+    expect(googleCalloutAddedSentence({ created: false, callout: callout({ primaryStatus: "NOT_ELIGIBLE" }), policy: null })).toBe(
+      "Your account already has “Free UK delivery”, but Google says: not showing.",
+    );
     expect(googleCalloutAddedSentence({ created: true, callout: callout(), policy: { checked: true, verdict: "ok" } })).toBe("Added “Free UK delivery”. Google reviews it before it shows.");
     expect(googleCalloutAddedSentence({ created: true, callout: callout(), policy: { checked: false, verdict: "ok" } })).toMatch(/policy check couldn't run/);
   });
