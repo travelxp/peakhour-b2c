@@ -14,6 +14,7 @@ import {
   googleWebsiteConversionGoalNote,
   googleWebsiteConversionSavedSentence,
   googleWebsiteConversionState,
+  googleWebsiteSnippetKey,
   googleWebsiteSnippetLabel,
   orderedSnippets,
 } from "./google-website-conversion-view";
@@ -114,6 +115,11 @@ describe("snippets", () => {
     const out = orderedSnippets([odd, amp, click, page]);
     expect(out).toEqual([page, amp, click, odd]);
     expect(out[0]).toBe(page);
+  });
+  it("★two snippets with the same type and format still get different keys (review round 1)", () => {
+    const a = snip("UNSPECIFIED", "UNSPECIFIED", "<script>a</script>");
+    const b = snip("UNSPECIFIED", "UNSPECIFIED", "<script>b</script>");
+    expect(googleWebsiteSnippetKey(a, 0)).not.toBe(googleWebsiteSnippetKey(b, 1));
   });
   it("labels from Google's enums, and an unknown value in Google's own word", () => {
     expect(googleWebsiteSnippetLabel(snip("WEBPAGE", "HTML"))).toBe("When the page loads (HTML page)");

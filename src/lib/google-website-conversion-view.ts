@@ -125,8 +125,12 @@ export function googleWebsiteSnippetLabel(s: GoogleWebsiteTagSnippet): string {
   return `${what} (${format})`;
 }
 
-/** A stable key for one snippet among the action's. */
-export const googleWebsiteSnippetKey = (s: GoogleWebsiteTagSnippet): string => `${s.type}/${s.pageFormat}`;
+/**
+ * A key for one snippet among the action's, ★UNIQUE BY POSITION (review round
+ * 1): two snippets may share a type and format (an unknown or missing one is
+ * "UNSPECIFIED"), and a shared key would hide the second for ever.
+ */
+export const googleWebsiteSnippetKey = (s: GoogleWebsiteTagSnippet, index: number): string => `${index}:${s.type}/${s.pageFormat}`;
 
 // ── Errors and toasts ────────────────────────────────────────────────────
 

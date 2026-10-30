@@ -162,7 +162,8 @@ export function GoogleWebsiteConversionSection({ account }: { account: GoogleAdA
 function TagView({ name, primaryForGoal, snippets }: { name: string; primaryForGoal: boolean; snippets: GoogleWebsiteTagSnippet[] }) {
   const [picked, setPicked] = useState<string | undefined>(undefined);
   // A pick Google no longer offers falls back to the first (page-load HTML when there is one).
-  const snippet = snippets.find((s) => googleWebsiteSnippetKey(s) === picked) ?? snippets[0]!;
+  const index = Math.max(0, snippets.findIndex((s, i) => googleWebsiteSnippetKey(s, i) === picked));
+  const snippet = snippets[index]!;
   return (
     <div className="space-y-3">
       <p className="text-sm">
@@ -172,13 +173,13 @@ function TagView({ name, primaryForGoal, snippets }: { name: string; primaryForG
       {snippets.length > 1 ? (
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground">Which tag</Label>
-          <Select value={googleWebsiteSnippetKey(snippet)} onValueChange={setPicked}>
+          <Select value={googleWebsiteSnippetKey(snippet, index)} onValueChange={setPicked}>
             <SelectTrigger className="w-80">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {snippets.map((s) => (
-                <SelectItem key={googleWebsiteSnippetKey(s)} value={googleWebsiteSnippetKey(s)}>
+              {snippets.map((s, i) => (
+                <SelectItem key={googleWebsiteSnippetKey(s, i)} value={googleWebsiteSnippetKey(s, i)}>
                   {googleWebsiteSnippetLabel(s)}
                 </SelectItem>
               ))}
