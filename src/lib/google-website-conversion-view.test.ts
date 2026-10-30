@@ -39,6 +39,9 @@ describe("★★the double count: why it is secondary, said wherever the merchan
     expect(GOOGLE_WEBSITE_CONVERSION_SECONDARY_NOTE).toContain("secondary conversion action");
     expect(GOOGLE_WEBSITE_CONVERSION_SECONDARY_NOTE).toContain("doesn't bid on it");
     expect(GOOGLE_WEBSITE_CONVERSION_SECONDARY_NOTE).toContain("by its ad click");
+    // ★Conditional (review round 1): the upload runs only once Conversion tracking is set up.
+    expect(GOOGLE_WEBSITE_CONVERSION_SECONDARY_NOTE).toContain("Once Conversion tracking is set up, Peakhour reports each sale");
+    expect(GOOGLE_WEBSITE_CONVERSION_SECONDARY_NOTE).not.toContain("already reports");
     expect(GOOGLE_WEBSITE_CONVERSION_SECONDARY_NOTE).toContain("“Peakhour offline purchases”");
     expect(GOOGLE_WEBSITE_CONVERSION_SECONDARY_NOTE).toContain("Google would count it twice");
     expect(GOOGLE_WEBSITE_CONVERSION_SECONDARY_NOTE).toContain("Making it primary is your call, in Google Ads.");

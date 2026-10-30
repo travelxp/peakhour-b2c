@@ -24,7 +24,8 @@ export const GOOGLE_WEBSITE_CONVERSION_INTRO =
  */
 export const GOOGLE_WEBSITE_CONVERSION_SECONDARY_NOTE =
   "It is created as a secondary conversion action: Google Ads reports it but doesn't bid on it. " +
-  `Peakhour already reports each sale to Google by its ad click (“${PEAKHOUR_CONVERSION_ACTION_LABEL}”), ` +
+  // ★CONDITIONAL (review round 1): the upload runs only once Conversion tracking has an action chosen.
+  `Once Conversion tracking is set up, Peakhour reports each sale to Google by its ad click (“${PEAKHOUR_CONVERSION_ACTION_LABEL}”), ` +
   "and if this tag counted the same purchase as a primary action too, Google would count it twice. " +
   "Making it primary is your call, in Google Ads.";
 
