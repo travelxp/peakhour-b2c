@@ -1,6 +1,7 @@
 import { ApiError } from "@/lib/api";
 import type { GoogleCallout, GoogleCalloutAdded } from "@/lib/api/google-ads";
 import { adsErrorMessage } from "@/lib/ads-error-message";
+import { googleConversionNeedsReconnect } from "@/lib/google-conversion-view";
 
 /**
  * ★★G-14e — what the Google panel's "Callouts" section SAYS, kept pure so
@@ -164,7 +165,8 @@ export function googleCalloutErrorMessage(err: unknown, fallback: string): strin
 
 /** Whether the failure is fixed on the integrations page. */
 export function googleCalloutNeedsReconnect(err: unknown): boolean {
-  return err instanceof ApiError && ["NEEDS_REAUTH", "NOT_CONNECTED", "TOKEN_FAILED", "AD_ACCOUNT_NOT_ALLOWED", "AD_ACCOUNT_NOT_AUTHORIZED"].includes(err.code);
+  // ★G-17b's list, not a fourth copy of it (review round 1): the callout routes answer from the same account check.
+  return googleConversionNeedsReconnect(err);
 }
 
 // ── The section's state ──────────────────────────────────────────────────
