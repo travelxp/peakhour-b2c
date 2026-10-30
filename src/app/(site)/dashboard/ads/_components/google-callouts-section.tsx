@@ -85,8 +85,9 @@ export function GoogleCalloutsSection({ account }: { account: GoogleAdAccount })
     onMutate: () => {
       setAddError(null);
     },
-    onSuccess: (res) => {
-      setText("");
+    onSuccess: (res, v) => {
+      // ★ONLY THE TEXT THAT WAS SENT (review round 1): what the merchant typed while the check ran is kept.
+      setText((now) => (now.trim() === v.text ? "" : now));
       setWarning(null);
       toast.success(googleCalloutAddedSentence(res));
     },
