@@ -174,8 +174,14 @@ describe("★★empty, and not served", () => {
     expect(s.length).toBeGreaterThan(30);
     expect(s).not.toMatch(/couldn't|error|failed/i);
   });
-  it("the account's empty sentence says a test account never serves", () => {
+  it("the account's and the search terms' empty sentences say a test account never serves", () => {
     expect(googleReportEmptySentence("account")).toMatch(/test account never serves/);
+    expect(googleReportEmptySentence("search-terms")).toMatch(/test account never serves/);
+  });
+  it("★an unsegmented table lists idle entities too, so its empty sentence claims none exist, not that none served", () => {
+    for (const k of ["campaigns", "ads", "keywords", "bidding-strategies"] as const) {
+      expect(googleReportEmptySentence(k), k).not.toMatch(/activity|served|in these dates/);
+    }
   });
   it("★an account row of zeros has not served; one impression has", () => {
     const zero = { clicks: 0, impressions: 0, costMicros: 0 };

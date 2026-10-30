@@ -253,24 +253,29 @@ export const GOOGLE_REPORT_COLUMNS: Columns = {
 // ── Empty, and not served ────────────────────────────────────────────────
 
 /**
- * ★A TABLE WITH NO ROWS IS AN ACCOUNT THAT HAS NOT SERVED (in these dates),
- * said so — not "no data" and not an error. Google answers a row only for
- * what served, or for an entity that exists; a test account never serves.
+ * What an empty table means. ★IT DEPENDS ON THE TABLE (api review round 1):
+ * Google returns zero-metric rows when a report is not segmented ("filtering
+ * on a core date segment in WHERE without selecting it in SELECT does not
+ * segment the report"), so the account, campaign, ad, keyword and bidding
+ * tables list what EXISTS, idle or not — empty means there is none. The
+ * search-term table is segmented by match type, and "rows whose selected
+ * metrics are all zero won't be returned when segmenting": empty there means
+ * nothing served. Never "no data", and never an error.
  */
 export function googleReportEmptySentence(report: GoogleReportKey): string {
   switch (report) {
     case "account":
-      return "Google Ads has nothing for this account in these dates. An account shows numbers once its ads have served; a test account never serves.";
+      return "Google Ads returned nothing for this account in these dates. A test account never serves ads.";
     case "campaigns":
-      return "This Google Ads account has no campaigns with activity in these dates.";
+      return "This Google Ads account has no campaigns yet.";
     case "ads":
-      return "No ads in this account served in these dates.";
+      return "This Google Ads account has no ads yet.";
     case "keywords":
-      return "No keywords in this account have activity in these dates. Keywords belong to Search campaigns.";
+      return "This Google Ads account has no keywords yet. Keywords belong to Search campaigns.";
     case "search-terms":
-      return "No searches showed your ads in these dates. Search terms appear once a Search campaign has served.";
+      return "No searches showed your ads in these dates. Search terms appear once a Search campaign has served; a test account never serves.";
     case "bidding-strategies":
-      return "This account has no portfolio bidding strategies with activity in these dates. Campaigns using their own strategy are in the Campaigns table.";
+      return "This account has no portfolio bidding strategies. Campaigns using their own strategy are in the Campaigns table.";
   }
 }
 
