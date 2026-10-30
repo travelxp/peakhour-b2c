@@ -52,9 +52,6 @@ export function GoogleCampaignManageDialog({
   const queryClient = useQueryClient();
   const { business } = useAuth();
   const queryKey = ["google-ads-settings", business?._id ?? "none", campaign.id];
-  const removed = googleCampaignRemoved(campaign);
-  // Settings are edited only while the campaign can still run (the api refuses a finished or removed one).
-  const editable = googleCampaignSettable(campaign);
   const read = useQuery({
     queryKey,
     queryFn: () => googleAdsApi.getSettings(campaign.id),
@@ -63,6 +60,10 @@ export function GoogleCampaignManageDialog({
     staleTime: 0,
   });
   const settings = read.data?.settings;
+  // ★THE LIVE READ'S WORD TOO (review round 2): removed in Google Ads, or removed and not yet recorded, is removed.
+  const removed = googleCampaignRemoved(campaign) || !!read.data?.removedAt || settings?.status === "REMOVED";
+  // Settings are edited only while the campaign can still run (the api refuses a finished or removed one).
+  const editable = googleCampaignSettable(campaign) && !removed;
   // ★ONLY THE FIELDS THE MERCHANT TOUCHED (review round 2): the rest follow every re-read, so a budget changed in
   //  Google Ads since the dialog opened is never sent back as this save's.
   const [edits, setEdits] = useState<Partial<GoogleSettingsDraft> | null>(null);
@@ -104,6 +105,9 @@ export function GoogleCampaignManageDialog({
     },
     onError: (err) => {
       toast.error(googleAdsErrorMessage(err, "Google Ads didn't remove the campaign. Try again in a moment."));
+      // ★It may have landed (unconfirmed, or removed and not recorded): every read is asked again (review round 2).
+      void queryClient.invalidateQueries({ queryKey });
+      void queryClient.invalidateQueries({ queryKey: ["google-ads-ad-groups", business?._id ?? "none", campaign.id] });
       refreshList();
     },
   });
