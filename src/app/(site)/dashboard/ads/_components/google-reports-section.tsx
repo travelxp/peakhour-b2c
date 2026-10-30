@@ -138,10 +138,10 @@ function ReportTable({ account, report, range }: { account: GoogleAdAccount; rep
     queryFn: () => googleAdsApi.getReport(report, account.id, range ?? undefined),
     retry: false,
     staleTime: REPORT_STALE_MS,
-    // ★EACH READ IS A GOOGLE ADS OPERATION (review round 1): a tab refocus
-    //  or a remount past the stale time is not a merchant asking again.
+    // ★EACH READ IS A GOOGLE ADS OPERATION (review round 1): a tab refocus is
+    //  not a merchant asking again. A remount re-reads only past the five
+    //  minutes (react-query's default), so nothing older is shown (round 2).
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
   });
 
   // ★`isPending`, NOT `isLoading` (review round 1): a query paused offline has

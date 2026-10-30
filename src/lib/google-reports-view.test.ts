@@ -68,10 +68,11 @@ describe("★★every RMF-required column is a column, shown by default", () => 
     expect(section).toContain("if (query.isPending) {");
     expect(section).not.toMatch(/query\.isLoading/);
   });
-  it("★a refocus or remount reads nothing new: each read is a Google Ads operation", () => {
+  it("★a refocus reads nothing new (each read is a Google Ads operation); a stale remount does", () => {
     const section = readFileSync(fileURLToPath(new URL("../app/(site)/dashboard/ads/_components/google-reports-section.tsx", import.meta.url)), "utf8");
     expect(section).toContain("refetchOnWindowFocus: false,");
-    expect(section).toContain("refetchOnMount: false,");
+    // ★A remount past the stale time DOES re-read (round 2): figures older than five minutes are not shown.
+    expect(section).not.toContain("refetchOnMount");
   });
   it("★there is no hidden-column state: every column is rendered (the section maps the whole list)", () => {
     const section = readFileSync(fileURLToPath(new URL("../app/(site)/dashboard/ads/_components/google-reports-section.tsx", import.meta.url)), "utf8");
