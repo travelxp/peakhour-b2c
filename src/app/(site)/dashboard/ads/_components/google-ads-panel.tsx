@@ -889,7 +889,7 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
         {problem ? <p className="text-sm text-muted-foreground">{problem}</p> : null}
         <div className="flex gap-2">
           <Button
-            disabled={!!problem || !!biddingProblem || !!googleAdGroupNameProblem(adGroupName) || create.isPending}
+            disabled={!!problem || !!biddingProblem || (!pmax && !!googleAdGroupNameProblem(adGroupName)) || create.isPending}
             onClick={() => create.mutate(form.channelType)}
           >
             Create paused

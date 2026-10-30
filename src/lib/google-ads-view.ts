@@ -124,6 +124,11 @@ export function googleCreateMayExist(err: unknown): boolean {
  * not finished. One rule for every row button (G-14b review round 1), as the api refuses the rest
  * (NOT_CREATED_YET, CAMPAIGN_FINISHED).
  */
+/** G14c: removed on Google (mongodb mig 730), which cannot be undone. One rule for every reader of it. */
+export function googleCampaignRemoved(c: Pick<GoogleCampaign, "status"> & Partial<Pick<GoogleCampaign, "removedAt">>): boolean {
+  return !!c.removedAt && c.status === "archived";
+}
+
 export function googleCampaignSettable(c: Pick<GoogleCampaign, "platformCampaignId" | "status">): boolean {
   return !!c.platformCampaignId && c.status !== "archived" && c.status !== "completed";
 }
@@ -144,7 +149,7 @@ export function googleStatusLabel(
   c: Pick<GoogleCampaign, "status"> & Partial<Pick<GoogleCampaign, "platformCampaignId" | "createState" | "removedAt">>,
 ): string {
   // ★G14c: REMOVED ON GOOGLE is not "not running": it can never run again (mongodb mig 730).
-  if (c.removedAt && c.status === "archived") return "Removed";
+  if (googleCampaignRemoved(c)) return "Removed";
   // ★A ROW GOOGLE HAS NOT CONFIRMED IS NOT "paused on Google" (round 3).
   if (!c.platformCampaignId && (c.createState === "sending" || c.createState === "outcome_unknown")) return "Not confirmed yet";
   if (!c.platformCampaignId && c.status === "archived") return "Not created";
@@ -196,7 +201,7 @@ export function googleStatusAction(
   c: Pick<GoogleCampaign, "status" | "platformCampaignId" | "schedule"> & Partial<Pick<GoogleCampaign, "removedAt">>,
   now: Date = new Date(),
 ): { status: GoogleSettableStatus; label: string } | { status: null; reason: string } {
-  if (c.removedAt && c.status === "archived") return { status: null, reason: "Removed" };
+  if (googleCampaignRemoved(c)) return { status: null, reason: "Removed" };
   // ★AN ARCHIVED ROW GOOGLE NEVER HAD WAS NOT "finished" (round 3): it was
   //  never created.
   if (c.status === "archived" && !c.platformCampaignId) return { status: null, reason: "Not created" };
