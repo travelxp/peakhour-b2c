@@ -102,6 +102,8 @@ export function GoogleCalloutsSection({ account }: { account: GoogleAdAccount })
         setWarning({ text: v.text, message: warned });
         return;
       }
+      // ★A FAILED "ADD ANYWAY" RETIRES THE OLD WARNING (review round 2): a block must not sit beside an active "Add anyway".
+      setWarning(null);
       setAddError({
         message: googleCalloutErrorMessage(err, "We couldn't add that callout. Try again in a moment."),
         mayExist: googleCalloutMayHaveBeenAdded(err),
@@ -213,6 +215,8 @@ export function GoogleCalloutsSection({ account }: { account: GoogleAdAccount })
               placeholder="Free UK delivery"
               onChange={(e) => {
                 setText(e.target.value);
+                // ★EDITING CLEARS THE WARNING (review round 2), so typing the text back asks the check again.
+                setWarning(null);
                 setAddError(null);
               }}
               aria-describedby={`callout-${account.id}-hint`}
