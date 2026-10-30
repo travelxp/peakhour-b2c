@@ -140,6 +140,15 @@ export function googleWebsiteEventSnippetHowTo(s: GoogleWebsiteTagSnippet): stri
 }
 
 /**
+ * ★GOOGLE'S VALUES ARE PLACEHOLDERS (review round 2): the snippet carries a
+ * fixed value and an empty transaction id. Left as they are, every purchase
+ * is worth the same and a reloaded page counts again.
+ */
+export const GOOGLE_WEBSITE_EVENT_VALUES_NOTE =
+  "In the event snippet, replace the value, currency and transaction_id with the order's own, " +
+  "so Google records what each order was worth and doesn't count a reloaded page twice.";
+
+/**
  * A key for one snippet among the action's, ★UNIQUE BY POSITION (review round
  * 1): two snippets may share a type and format (an unknown or missing one is
  * "UNSPECIFIED"), and a shared key would hide the second for ever.

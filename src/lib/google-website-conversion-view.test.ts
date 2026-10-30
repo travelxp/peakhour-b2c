@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { ApiError } from "@/lib/api";
 import type { GoogleWebsiteConversionAction, GoogleWebsiteTagSnippet } from "@/lib/api/google-ads";
 import {
+  GOOGLE_WEBSITE_EVENT_VALUES_NOTE,
   GOOGLE_WEBSITE_TAG_HOW_TO,
   GOOGLE_WEBSITE_CONVERSION_GONE,
   GOOGLE_WEBSITE_CONVERSION_PRIMARY_WARNING,
@@ -147,6 +148,11 @@ describe("snippets", () => {
     expect(googleWebsiteEventSnippetHowTo(click)).not.toContain("confirmation page");
     // The shared how-to no longer places the event snippet at all.
     expect(GOOGLE_WEBSITE_TAG_HOW_TO).not.toContain("event snippet");
+  });
+  it("★the merchant is told the snippet's value and transaction id are placeholders, and the section says it (review round 2)", () => {
+    expect(GOOGLE_WEBSITE_EVENT_VALUES_NOTE).toContain("replace the value, currency and transaction_id with the order's own");
+    expect(GOOGLE_WEBSITE_EVENT_VALUES_NOTE).toContain("doesn't count a reloaded page twice");
+    expect(read("../app/(site)/dashboard/ads/_components/google-website-conversion-section.tsx")).toContain("{GOOGLE_WEBSITE_EVENT_VALUES_NOTE}");
   });
   it("labels from Google's enums, and an unknown value in Google's own word", () => {
     expect(googleWebsiteSnippetLabel(snip("WEBPAGE", "HTML"))).toBe("When the page loads (HTML page)");

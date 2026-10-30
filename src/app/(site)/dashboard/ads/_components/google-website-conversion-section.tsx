@@ -24,6 +24,7 @@ import { googleAdsApi, type GoogleAdAccount, type GoogleWebsiteConversionSetUp, 
 import { googleConversionMayHaveBeenCreated } from "@/lib/google-conversion-view";
 import {
   GOOGLE_WEBSITE_CONVERSION_GONE,
+  GOOGLE_WEBSITE_EVENT_VALUES_NOTE,
   GOOGLE_WEBSITE_CONVERSION_INTRO,
   GOOGLE_WEBSITE_CONVERSION_SECONDARY_NOTE,
   GOOGLE_WEBSITE_TAG_HOW_TO,
@@ -204,7 +205,9 @@ function TagView({ name, primaryForGoal, snippets }: { name: string; primaryForG
         </div>
       ) : null}
       <CodeBlock label="Google tag — every page, once" text={snippet.globalSiteTag} />
-      <p className="text-xs text-muted-foreground">{googleWebsiteEventSnippetHowTo(snippet)}</p>
+      <p className="text-xs text-muted-foreground">
+        {googleWebsiteEventSnippetHowTo(snippet)} {GOOGLE_WEBSITE_EVENT_VALUES_NOTE}
+      </p>
       <CodeBlock label={googleWebsiteEventSnippetLabel(snippet)} text={snippet.eventSnippet} />
     </div>
   );
