@@ -125,8 +125,8 @@ export function GoogleReportsSection({ account }: { account: GoogleAdAccount }) 
           </TabsList>
         </Tabs>
 
-        {/* Keyed by table, account and range: only the table on screen is read. */}
-        <ReportTable key={`${account.id}-${tab}-${applied ? `${applied.from}_${applied.to}` : "last30"}`} account={account} report={tab} range={applied} />
+        {/* Only the table on screen is read: its query key is the account, the table and the range. */}
+        <ReportTable account={account} report={tab} range={applied} />
       </CardContent>
     </Card>
   );
