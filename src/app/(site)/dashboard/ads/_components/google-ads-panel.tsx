@@ -78,6 +78,7 @@ import {
   googleConversionStateSentence,
 } from "@/lib/google-conversion-view";
 import { ADS_CHANNEL_PARAM, getAdsChannel, panelConnection, type AdsChannelKey } from "../ads-channels";
+import { GoogleReportsSection } from "./google-reports-section";
 
 /**
  * ★★G-15 — the Google Ads panel, inside the shared Ads hub
@@ -269,6 +270,8 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
           <CampaignsSection account={account} />
           {/* Keyed by account: switching accounts starts a fresh, empty form. */}
           <CreateCampaignCard key={account.id} account={account} />
+          {/* G-14d: Google's own reports (RMF R.10–R.130), in their own file. */}
+          <GoogleReportsSection key={`reports-${account.id}`} account={account} />
         </>
       ) : null}
     </div>

@@ -171,6 +171,98 @@ export interface GoogleConversionSignal {
 
 export type GoogleSettableStatus = "ACTIVE" | "PAUSED";
 
+// ── G-14d: Google's own reports (RMF R.10, R.20, R.40, R.50, R.70, R.130) ──
+
+/** The six reports, as the api names them (peakhour-api `services/ads/google-reports.ts`). */
+export type GoogleReportKey = "account" | "campaigns" | "ads" | "keywords" | "search-terms" | "bidding-strategies";
+
+/** No range is Google's own last 30 days (not including today, in the account's zone); a custom range is inclusive. */
+export type GoogleReportRange = { preset: "LAST_30_DAYS" } | { from: string; to: string };
+
+/** Every table's metrics. Money is in MICROS of the account's currency, as Google answers it. */
+interface GoogleReportBaseRow {
+  clicks: number;
+  impressions: number;
+  costMicros: number;
+}
+export interface GoogleAccountReportRow extends GoogleReportBaseRow {
+  customerId?: string;
+  name?: string;
+  currencyCode?: string;
+  conversions: number;
+  allConversions: number;
+}
+export interface GoogleCampaignReportRow extends GoogleReportBaseRow {
+  campaignId?: string;
+  name?: string;
+  /** Google's `campaign.status`: ENABLED, PAUSED or REMOVED. */
+  status?: string;
+  channelType?: string;
+  biddingStrategyType?: string;
+  conversions: number;
+  allConversions: number;
+}
+export interface GoogleAdReportRow extends GoogleReportBaseRow {
+  adId?: string;
+  adType?: string;
+  status?: string;
+  adGroupId?: string;
+  adGroupName?: string;
+  campaignName?: string;
+  conversions: number;
+}
+export interface GoogleKeywordReportRow extends GoogleReportBaseRow {
+  criterionId?: string;
+  text?: string;
+  matchType?: string;
+  status?: string;
+  adGroupId?: string;
+  adGroupName?: string;
+  campaignName?: string;
+  conversions: number;
+  /** Absent when Google gave no estimate — never read as 0. */
+  firstPageCpcMicros?: number;
+  firstPositionCpcMicros?: number;
+}
+export interface GoogleSearchTermReportRow extends GoogleReportBaseRow {
+  searchTerm?: string;
+  /** `segments.search_term_match_type`, Google's near variants included. */
+  matchType?: string;
+  termStatus?: string;
+  adGroupId?: string;
+  adGroupName?: string;
+  campaignName?: string;
+}
+export interface GoogleBiddingStrategyReportRow extends GoogleReportBaseRow {
+  strategyId?: string;
+  name?: string;
+  type?: string;
+  /** ENABLED or REMOVED: a portfolio strategy has no paused state. */
+  status?: string;
+  conversions: number;
+  costPerConversionMicros: number;
+  averageCpcMicros: number;
+}
+
+export interface GoogleReportRows {
+  account: GoogleAccountReportRow;
+  campaigns: GoogleCampaignReportRow;
+  ads: GoogleAdReportRow;
+  keywords: GoogleKeywordReportRow;
+  "search-terms": GoogleSearchTermReportRow;
+  "bidding-strategies": GoogleBiddingStrategyReportRow;
+}
+
+/** GET /reports/:report. `truncated`: more rows exist than shown (the costliest are shown). */
+export interface GoogleReport<K extends GoogleReportKey = GoogleReportKey> {
+  adAccountId: string;
+  report: K;
+  rmf: string;
+  range: GoogleReportRange;
+  rows: Array<GoogleReportRows[K]>;
+  truncated: boolean;
+}
+
 export const googleAdsApi = {
   listAdAccounts: () => api.get<{ adAccounts: GoogleAdAccount[] }>(googleAdsUrl("/v1/google/ads/ad-accounts")),
   listCampaigns: () => api.get<{ campaigns: GoogleCampaign[] }>(googleAdsUrl("/v1/google/ads/campaigns")),
@@ -189,4 +281,17 @@ export const googleAdsApi = {
    */
   setConversionAction: (adAccountId: string, choice: { signal: GoogleConversionSignal } | { conversionActionId: string }) =>
     api.put<GoogleConversionActionChosen>(googleAdsUrl("/v1/google/ads/conversion-action"), { adAccountId, ...choice }),
+  /** G-14d: one report, read live from Google (one operation). No `from`/`to` is the last 30 days. */
+  getReport: (report: GoogleReportKey, adAccountId: string, range?: { from: string; to: string }) =>
+    api.get<GoogleReport>(googleAdsUrl("/v1/google/ads/reports/:report", { report }) + "?" + googleReportQuery(adAccountId, range)),
 };
+
+/** The report's query string: the account, and a custom range when there is one. */
+export function googleReportQuery(adAccountId: string, range?: { from: string; to: string }): string {
+  const q = new URLSearchParams({ adAccountId });
+  if (range) {
+    q.set("from", range.from);
+    q.set("to", range.to);
+  }
+  return q.toString();
+}
