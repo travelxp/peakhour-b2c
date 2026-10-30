@@ -73,8 +73,9 @@ describe("★★G-15 — no b2c file names a Google ads path but the client", ()
     for (const p of paths) expect(isManagedGoogleAdsPath(p), p).toBe(true);
     // Each `api.<verb>(` call's first argument is a googleAdsUrl(...) call.
     const calls = [...client.matchAll(/api\.(get|post|put|patch|delete)<[^>]*>\(\s*([^,)]+)/g)].map((m) => m[2]!.trim());
-    // G-14a: +5 (targeting read and save, keyword status, locations, languages); G-14d: +1 (reports); G-14f: +2 (website conversion).
-    expect(calls.length).toBe(14);
+    // G-14a: +5 (targeting read and save, keyword status, locations, languages); G-14d: +1 (reports); G-14f: +2 (website conversion);
+    // G-14b: +3 (bidding read and save, the account's history).
+    expect(calls.length).toBe(17);
     for (const arg of calls) expect(arg.startsWith("googleAdsUrl("), arg).toBe(true);
   });
 
@@ -116,6 +117,18 @@ describe("★★G-14a — the targeting step's routes are managed, and the clien
   it("★a keyword id with a tilde fills the template and stays one segment", () => {
     const url = googleAdsUrl("/v1/google/ads/campaigns/:id/keywords/:criterionId/status", { id: "6731f0aa", criterionId: "333~444" });
     expect(url).toBe("/v1/google/ads/campaigns/6731f0aa/keywords/333~444/status");
+  });
+});
+
+describe("★★G-14b — the bidding routes are managed, and the client calls each by its verb", () => {
+  it("both are on the managed list", () => {
+    for (const r of ["/campaigns/:id/bidding", "/bidding/history"]) expect(GOOGLE_ADS_MANAGED_ROUTES).toContain(`${GOOGLE_ADS_PREFIX}${r}`);
+  });
+  it("★the client reads and saves a campaign's bidding with GET and PUT, and reads the history with GET", () => {
+    const client = read(CLIENT);
+    expect(client).toMatch(/api\.get<GoogleBiddingRead>\(googleAdsUrl\("\/v1\/google\/ads\/campaigns\/:id\/bidding", \{ id \}\)\)/);
+    expect(client).toMatch(/api\.put<GoogleBiddingSaved>\(googleAdsUrl\("\/v1\/google\/ads\/campaigns\/:id\/bidding", \{ id \}\), choice\)/);
+    expect(client).toContain('googleAdsUrl("/v1/google/ads/bidding/history") + `?adAccountId=${encodeURIComponent(adAccountId)}`');
   });
 });
 
@@ -216,6 +229,10 @@ describe("★★G-15/G19/G20 — nothing implies a Google campaign type but Sear
     // G-14a: the targeting step and its words.
     ["the targeting step", () => read("src/app/(site)/dashboard/ads/_components/google-targeting-dialog.tsx")],
     ["the targeting words", () => read("src/lib/google-targeting-view.ts")],
+    // G-14b: the bidding control, its dialog and its words.
+    ["the bidding control", () => read("src/app/(site)/dashboard/ads/_components/google-bidding-fields.tsx")],
+    ["the bidding dialog", () => read("src/app/(site)/dashboard/ads/_components/google-bidding-dialog.tsx")],
+    ["the bidding words", () => read("src/lib/google-bidding-view.ts")],
     // G-14f: the website conversion tag and its words.
     ["the website conversion section", () => read("src/app/(site)/dashboard/ads/_components/google-website-conversion-section.tsx")],
     ["the website conversion words", () => read("src/lib/google-website-conversion-view.ts")],
@@ -311,7 +328,7 @@ describe("★★G-15 — the prefix and the routes are peakhour-api's", () => {
     const used = [...client.matchAll(/api\.(get|post|put|patch|delete)<[^>]*>\(\s*googleAdsUrl\("([^"]+)"/g)].map(
       (m) => `${m[1]} ${m[2]!.slice(GOOGLE_ADS_PREFIX.length)}`,
     );
-    expect(used.length).toBe(14);
+    expect(used.length).toBe(17);
     for (const u of used) expect(declared.has(u), u).toBe(true);
     for (const r of GOOGLE_ADS_MANAGED_ROUTES) {
       const sub = r.slice(GOOGLE_ADS_PREFIX.length);
