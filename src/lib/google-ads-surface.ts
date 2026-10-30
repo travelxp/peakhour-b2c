@@ -20,7 +20,11 @@
 /** The router's mount, `basePath` included. Pinned against the api in the test. */
 export const GOOGLE_ADS_PREFIX = "/v1/google/ads";
 
-/** Every Google ads route b2c may call — each reads, or records what it did in `ad_campaigns`. */
+/**
+ * Every Google ads route b2c may call — each reads, or records what it did in `ad_campaigns`, except G-14e's callouts:
+ * an account-level asset that spends nothing and belongs to no campaign, so nothing in `ad_campaigns` records it
+ * (review round 2). Its POST runs the guardrail gate (a denied channel refuses it) and the ad-policy check.
+ */
 export const GOOGLE_ADS_MANAGED_ROUTES = [
   `${GOOGLE_ADS_PREFIX}/ad-accounts`,
   `${GOOGLE_ADS_PREFIX}/campaigns`,
