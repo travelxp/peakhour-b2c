@@ -27,6 +27,8 @@ export const GOOGLE_ADS_MANAGED_ROUTES = [
   `${GOOGLE_ADS_PREFIX}/campaigns/:id/status`,
   // G-17b: which conversion action offline sales are reported to. GET reads; PUT chooses or creates.
   `${GOOGLE_ADS_PREFIX}/conversion-action`,
+  // G-14d: Google's own reports (RMF R.10–R.130), read live. GET only.
+  `${GOOGLE_ADS_PREFIX}/reports/:report`,
 ] as const;
 
 export type GoogleAdsManagedRoute = (typeof GOOGLE_ADS_MANAGED_ROUTES)[number];
