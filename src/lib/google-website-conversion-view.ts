@@ -38,8 +38,7 @@ export const GOOGLE_WEBSITE_CONVERSION_PRIMARY_WARNING =
 export const GOOGLE_WEBSITE_TAG_HOW_TO =
   "Paste the Google tag into the <head> of every page of your site, once. " +
   // ★NEVER gtag.js TWICE (review round 1): a site already running a Google tag (Analytics, a store's Google app) adds only the config line.
-  "If your site already loads a Google tag (gtag.js), don't load it twice: add only its gtag('config', …) line to the tag you have. " +
-  "Paste the event snippet on your order confirmation page only.";
+  "If your site already loads a Google tag (gtag.js), don't load it twice: add only its gtag('config', …) line to the tag you have.";
 
 export const GOOGLE_WEBSITE_TAG_NOT_READY = "Google Ads hasn't generated this action's tag yet. Try again in a few minutes.";
 
@@ -123,6 +122,21 @@ export function googleWebsiteSnippetLabel(s: GoogleWebsiteTagSnippet): string {
   const what = s.type === "WEBPAGE" ? "When the page loads" : s.type === "WEBPAGE_ONCLICK" ? "When a button is clicked" : s.type;
   const format = s.pageFormat === "HTML" ? "HTML page" : s.pageFormat === "AMP" ? "AMP page" : s.pageFormat;
   return `${what} (${format})`;
+}
+
+/**
+ * ★WHERE THE EVENT SNIPPET GOES DEPENDS ON ITS TYPE (review round 2): a
+ * page-load snippet fires where it is pasted; a click snippet only defines
+ * `gtag_report_conversion`, which fires nothing until a click calls it.
+ */
+export function googleWebsiteEventSnippetLabel(s: GoogleWebsiteTagSnippet): string {
+  return s.type === "WEBPAGE_ONCLICK" ? "Event snippet — the page with the button" : "Event snippet — order confirmation page only";
+}
+
+export function googleWebsiteEventSnippetHowTo(s: GoogleWebsiteTagSnippet): string {
+  return s.type === "WEBPAGE_ONCLICK"
+    ? "Paste the event snippet on the page with the button, and call gtag_report_conversion() from the button's click: on its own it fires nothing."
+    : "Paste the event snippet on your order confirmation page only.";
 }
 
 /**

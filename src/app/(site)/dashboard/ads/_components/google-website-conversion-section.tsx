@@ -35,6 +35,8 @@ import {
   googleWebsiteConversionNeedsReconnect,
   googleWebsiteConversionSavedSentence,
   googleWebsiteConversionState,
+  googleWebsiteEventSnippetHowTo,
+  googleWebsiteEventSnippetLabel,
   googleWebsiteSnippetKey,
   googleWebsiteSnippetLabel,
 } from "@/lib/google-website-conversion-view";
@@ -202,7 +204,8 @@ function TagView({ name, primaryForGoal, snippets }: { name: string; primaryForG
         </div>
       ) : null}
       <CodeBlock label="Google tag — every page, once" text={snippet.globalSiteTag} />
-      <CodeBlock label="Event snippet — order confirmation page only" text={snippet.eventSnippet} />
+      <p className="text-xs text-muted-foreground">{googleWebsiteEventSnippetHowTo(snippet)}</p>
+      <CodeBlock label={googleWebsiteEventSnippetLabel(snippet)} text={snippet.eventSnippet} />
     </div>
   );
 }

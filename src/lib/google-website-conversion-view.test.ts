@@ -15,6 +15,8 @@ import {
   googleWebsiteConversionNeedsReconnect,
   googleWebsiteConversionSavedSentence,
   googleWebsiteConversionState,
+  googleWebsiteEventSnippetHowTo,
+  googleWebsiteEventSnippetLabel,
   googleWebsiteSnippetKey,
   googleWebsiteSnippetLabel,
   orderedSnippets,
@@ -70,7 +72,6 @@ describe("★★the double count: why it is secondary, said wherever the merchan
   });
   it("★the how-to never loads gtag.js twice on a site that already has it (review round 1)", () => {
     expect(GOOGLE_WEBSITE_TAG_HOW_TO).toContain("If your site already loads a Google tag (gtag.js), don't load it twice");
-    expect(GOOGLE_WEBSITE_TAG_HOW_TO).toContain("order confirmation page only");
   });
   it("★the set-up writes its answer under the key it was started with, not the one current when it lands (review round 1)", () => {
     const section = read("../app/(site)/dashboard/ads/_components/google-website-conversion-section.tsx");
@@ -135,6 +136,17 @@ describe("snippets", () => {
     const a = snip("UNSPECIFIED", "UNSPECIFIED", "<script>a</script>");
     const b = snip("UNSPECIFIED", "UNSPECIFIED", "<script>b</script>");
     expect(googleWebsiteSnippetKey(a, 0)).not.toBe(googleWebsiteSnippetKey(b, 1));
+  });
+  it("★★a click snippet is placed by the button and called from its click, never on the confirmation page alone (review round 2)", () => {
+    const click = snip("WEBPAGE_ONCLICK", "HTML");
+    const page = snip("WEBPAGE", "HTML");
+    expect(googleWebsiteEventSnippetLabel(page)).toBe("Event snippet — order confirmation page only");
+    expect(googleWebsiteEventSnippetHowTo(page)).toBe("Paste the event snippet on your order confirmation page only.");
+    expect(googleWebsiteEventSnippetLabel(click)).toBe("Event snippet — the page with the button");
+    expect(googleWebsiteEventSnippetHowTo(click)).toContain("call gtag_report_conversion()");
+    expect(googleWebsiteEventSnippetHowTo(click)).not.toContain("confirmation page");
+    // The shared how-to no longer places the event snippet at all.
+    expect(GOOGLE_WEBSITE_TAG_HOW_TO).not.toContain("event snippet");
   });
   it("labels from Google's enums, and an unknown value in Google's own word", () => {
     expect(googleWebsiteSnippetLabel(snip("WEBPAGE", "HTML"))).toBe("When the page loads (HTML page)");
