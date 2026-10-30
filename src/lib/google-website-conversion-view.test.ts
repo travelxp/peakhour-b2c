@@ -12,6 +12,7 @@ import {
   googleWebsiteConversionConfirmation,
   googleWebsiteConversionErrorMessage,
   googleWebsiteConversionGoalNote,
+  googleWebsiteConversionNeedsReconnect,
   googleWebsiteConversionSavedSentence,
   googleWebsiteConversionState,
   googleWebsiteSnippetKey,
@@ -137,6 +138,14 @@ describe("errors and toasts", () => {
     // ★Rename, never "remove": a removed action keeps its name (api review round 1).
     expect(m).toContain("rename one of them in Google Ads");
     expect(m).not.toMatch(/or remove/);
+  });
+  it("★an unreachable conversion customer is a reconnect, not a retry (review round 1)", () => {
+    const unreachable = new ApiError("CONVERSION_ACTION_REFUSED", "raw", 409, undefined, { reason: "validation_conversion_customer_unreachable" });
+    expect(googleWebsiteConversionNeedsReconnect(unreachable)).toBe(true);
+    expect(googleWebsiteConversionNeedsReconnect(new ApiError("NEEDS_REAUTH", "raw", 409))).toBe(true);
+    // PASS: another refusal, and a transient failure, are retries.
+    expect(googleWebsiteConversionNeedsReconnect(new ApiError("CONVERSION_ACTION_REFUSED", "raw", 409, undefined, { reason: "validation_conversion_action_name_taken" }))).toBe(false);
+    expect(googleWebsiteConversionNeedsReconnect(new ApiError("PLATFORM_FAILED", "raw", 502))).toBe(false);
   });
   it("other failures use G-17b's words", () => {
     expect(googleWebsiteConversionErrorMessage(new ApiError("CONVERSION_ACTION_UNCONFIRMED", "raw", 409), "fallback")).toContain("not add a second");

@@ -21,7 +21,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { googleAdsApi, type GoogleAdAccount, type GoogleWebsiteConversionState, type GoogleWebsiteTagSnippet } from "@/lib/api/google-ads";
-import { googleConversionMayHaveBeenCreated, googleConversionNeedsReconnect } from "@/lib/google-conversion-view";
+import { googleConversionMayHaveBeenCreated } from "@/lib/google-conversion-view";
 import {
   GOOGLE_WEBSITE_CONVERSION_GONE,
   GOOGLE_WEBSITE_CONVERSION_INTRO,
@@ -32,6 +32,7 @@ import {
   googleWebsiteConversionConfirmation,
   googleWebsiteConversionErrorMessage,
   googleWebsiteConversionGoalNote,
+  googleWebsiteConversionNeedsReconnect,
   googleWebsiteConversionSavedSentence,
   googleWebsiteConversionState,
   googleWebsiteSnippetKey,
@@ -100,7 +101,7 @@ export function GoogleWebsiteConversionSection({ account }: { account: GoogleAdA
         {state.kind === "error" ? (
           <p className="text-sm text-destructive-on-tint">
             {googleWebsiteConversionErrorMessage(query.error, "Google Ads didn't answer. Try again in a moment.")}{" "}
-            {googleConversionNeedsReconnect(query.error) ? (
+            {googleWebsiteConversionNeedsReconnect(query.error) ? (
               <Link href="/dashboard/integrations" className="font-medium underline underline-offset-4">
                 Check connection
               </Link>

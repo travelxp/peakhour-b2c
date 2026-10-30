@@ -1,6 +1,6 @@
 import { ApiError } from "@/lib/api";
 import type { GoogleWebsiteConversionState, GoogleWebsiteTagSnippet } from "@/lib/api/google-ads";
-import { PEAKHOUR_CONVERSION_ACTION_LABEL, googleConversionErrorMessage } from "@/lib/google-conversion-view";
+import { PEAKHOUR_CONVERSION_ACTION_LABEL, googleConversionErrorMessage, googleConversionNeedsReconnect } from "@/lib/google-conversion-view";
 
 /**
  * ★★G-14f — what the Google panel's "Website conversion tag" section SAYS,
@@ -147,6 +147,19 @@ export function googleWebsiteConversionErrorMessage(err: unknown, fallback: stri
     }
   }
   return googleConversionErrorMessage(err, fallback);
+}
+
+/**
+ * Whether the failure is fixed on the integrations page. ★AN UNREACHABLE
+ * CONVERSION CUSTOMER TOO (review round 1): its sentence says "Reconnect
+ * Google Ads through that manager account", so a Try again beside it would
+ * fail the same way for ever.
+ */
+export function googleWebsiteConversionNeedsReconnect(err: unknown): boolean {
+  if (googleConversionNeedsReconnect(err)) return true;
+  if (!(err instanceof ApiError) || err.code !== "CONVERSION_ACTION_REFUSED") return false;
+  const d = err.details;
+  return !!d && typeof d === "object" && !Array.isArray(d) && (d as Record<string, unknown>).reason === "validation_conversion_customer_unreachable";
 }
 
 /** The toast after a set-up. */
