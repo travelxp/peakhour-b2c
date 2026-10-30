@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { googleAdsApi, type GoogleMatchType } from "@/lib/api/google-ads";
-import { GOOGLE_DEFAULT_MATCH_TYPE, GOOGLE_MATCH_TYPES, type DraftKeyword, type TargetingDraft } from "@/lib/google-targeting-view";
+import { GOOGLE_DEFAULT_MATCH_TYPE, GOOGLE_MATCH_TYPES, foldKeyword, keywordKey, type DraftKeyword, type TargetingDraft } from "@/lib/google-targeting-view";
 import {
   GOOGLE_IDEA_ALREADY_ADDED,
   GOOGLE_IDEAS_ATTRIBUTION,
@@ -17,10 +17,12 @@ import {
   googleIdeaBidRange,
   googleIdeaCompetitionLabel,
   googleIdeaSearchesSentence,
+  googleIdeasMoreSentence,
   googleKeywordIdeasErrorMessage,
   ideaAddProblem,
   ideaAsKeyword,
   keywordIdeasRequest,
+  sameIdeasRequest,
   seedWordsFromDraft,
 } from "@/lib/google-keyword-ideas-view";
 
@@ -56,13 +58,20 @@ export function GoogleKeywordIdeasSection({
   const [url, setUrl] = useState("");
   const [language, setLanguage] = useState(draft.languages[0]?.languageConstant ?? ANY_LANGUAGE);
   const [matchTypes, setMatchTypes] = useState<Record<string, GoogleMatchType>>({});
-  // A language taken out of the campaign since is not sent.
-  const languageSent = draft.languages.some((l) => l.languageConstant === language) ? language : "";
+  // ★A LANGUAGE TAKEN OUT OF THE CAMPAIGN IS FORGOTTEN, not kept to come back silently if it is added again
+  //  (review round 1): the pick falls back to "Any language", and only the merchant picks it again.
+  const languagePresent = draft.languages.some((l) => l.languageConstant === language);
+  if (language !== ANY_LANGUAGE && !languagePresent) setLanguage(ANY_LANGUAGE);
+  const languageSent = languagePresent ? language : "";
   const request = keywordIdeasRequest({ words, url, language: languageSent }, draft);
   const ask = useMutation({
-    mutationFn: () => googleAdsApi.getKeywordIdeas(campaignId, request.input),
+    mutationFn: (input: typeof request.input) => googleAdsApi.getKeywordIdeas(campaignId, input),
   });
   const result = ask.data;
+  // Built once per list, not once per idea (review round 1): a campaign may hold thousands of keywords.
+  const keywordKeys = useMemo(() => new Set(draft.keywords.map(keywordKey)), [draft.keywords]);
+  const stale = !!result && !sameIdeasRequest(ask.variables, request.input);
+  const more = result ? googleIdeasMoreSentence(result.ideas.length, result.totalSize) : null;
 
   return (
     <div className="space-y-2 rounded-md border p-3">
@@ -75,7 +84,7 @@ export function GoogleKeywordIdeasSection({
         className="space-y-2"
         onSubmit={(e) => {
           e.preventDefault();
-          if (!request.problem && !ask.isPending) ask.mutate();
+          if (!request.problem && !ask.isPending) ask.mutate(request.input);
         }}
       >
         <Input value={words} onChange={(e) => setWords(e.target.value)} placeholder="Words to start from, separated by commas" maxLength={1600} aria-label="Words to start from" />
@@ -111,20 +120,24 @@ export function GoogleKeywordIdeasSection({
         ) : (
           <>
             <p className="text-xs text-muted-foreground">{GOOGLE_IDEAS_FIGURES_NOTE}</p>
+            {stale ? <p className="text-xs text-muted-foreground">These ideas are for your earlier words, page, language or places. Ask Google again for the current ones.</p> : null}
+            {more ? <p className="text-xs text-muted-foreground">{more}</p> : null}
             <ul className="max-h-80 space-y-2 overflow-y-auto">
-              {result.ideas.map((idea) => {
-                const matchType = matchTypes[idea.text] ?? GOOGLE_DEFAULT_MATCH_TYPE;
-                const problem = ideaAddProblem(idea, matchType, draft, pausedKeys);
+              {result.ideas.map((idea, i) => {
+                // The pick is kept per idea by its folded text (review round 1), and the row keyed by position too.
+                const pickKey = foldKeyword(idea.text).toLowerCase();
+                const matchType = matchTypes[pickKey] ?? GOOGLE_DEFAULT_MATCH_TYPE;
+                const problem = ideaAddProblem(idea, matchType, draft, keywordKeys, pausedKeys);
                 const figures = [googleIdeaSearchesSentence(idea), googleIdeaCompetitionLabel(idea), googleIdeaBidRange(idea, result.currencyCode)].filter(Boolean);
                 return (
-                  <li key={idea.text} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                  <li key={`${i}:${idea.text}`} className="flex flex-wrap items-center justify-between gap-2 text-sm">
                     <span className="min-w-0">
                       {idea.text}
                       {figures.length > 0 ? <span className="block text-xs text-muted-foreground">{figures.join(" · ")}</span> : null}
                       {problem && problem !== GOOGLE_IDEA_ALREADY_ADDED ? <span className="block text-xs text-muted-foreground">{problem}</span> : null}
                     </span>
                     <span className="flex items-center gap-1">
-                      <Select value={matchType} onValueChange={(v) => setMatchTypes((m) => ({ ...m, [idea.text]: v as GoogleMatchType }))}>
+                      <Select value={matchType} onValueChange={(v) => setMatchTypes((m) => ({ ...m, [pickKey]: v as GoogleMatchType }))}>
                         <SelectTrigger className="w-28" aria-label={`Match type for ${idea.text}`}>
                           <SelectValue />
                         </SelectTrigger>
