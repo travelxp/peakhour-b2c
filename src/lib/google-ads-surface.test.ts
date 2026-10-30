@@ -74,8 +74,8 @@ describe("★★G-15 — no b2c file names a Google ads path but the client", ()
     // Each `api.<verb>(` call's first argument is a googleAdsUrl(...) call.
     const calls = [...client.matchAll(/api\.(get|post|put|patch|delete)<[^>]*>\(\s*([^,)]+)/g)].map((m) => m[2]!.trim());
     // G-14a: +5 (targeting read and save, keyword status, locations, languages); G-14d: +1 (reports); G-14f: +2 (website conversion);
-    // G-14b: +3 (bidding read and save, the account's history).
-    expect(calls.length).toBe(17);
+    // G-14b: +3 (bidding read and save, the account's history); G-14g: +1 (keyword ideas).
+    expect(calls.length).toBe(18);
     for (const arg of calls) expect(arg.startsWith("googleAdsUrl("), arg).toBe(true);
   });
 
@@ -177,6 +177,27 @@ describe("★★G-14f — the website conversion route is managed, read with GET
   });
 });
 
+describe("★★G-14g — the keyword ideas route is managed, called with POST, and the section only reaches it through the client", () => {
+  it("is on the managed list, with the campaign as its one param", () => {
+    expect(GOOGLE_ADS_MANAGED_ROUTES).toContain(`${GOOGLE_ADS_PREFIX}/campaigns/:id/keyword-ideas`);
+    expect(googleAdsUrl("/v1/google/ads/campaigns/:id/keyword-ideas", { id: "6731f0aa" })).toBe("/v1/google/ads/campaigns/6731f0aa/keyword-ideas");
+    expect(() => googleAdsUrl("/v1/google/ads/campaigns/:id/keyword-ideas")).toThrow(/needs :id/);
+  });
+  it("the client asks with POST, the seeds as the body, and by no other verb", () => {
+    const client = read(CLIENT);
+    expect(client).toContain('api.post<GoogleKeywordIdeasResult>(googleAdsUrl("/v1/google/ads/campaigns/:id/keyword-ideas", { id }), input)');
+    expect(client).not.toMatch(/api\.(get|put|patch|delete)<[^>]*>\(googleAdsUrl\("\/v1\/google\/ads\/campaigns\/:id\/keyword-ideas/);
+  });
+  it("★the section reaches Google only through the client, the targeting step only mounts it, and the panel not at all", () => {
+    const section = read("src/app/(site)/dashboard/ads/_components/google-keyword-ideas-section.tsx");
+    expect(section).toContain("googleAdsApi.getKeywordIdeas(");
+    const dialog = read("src/app/(site)/dashboard/ads/_components/google-targeting-dialog.tsx");
+    expect(dialog).toContain('import { GoogleKeywordIdeasSection } from "./google-keyword-ideas-section";');
+    expect(dialog.match(/<GoogleKeywordIdeasSection\b/g)?.length).toBe(1);
+    expect(read(PANEL)).not.toContain("KeywordIdeas");
+  });
+});
+
 describe("★★googleAdsUrl, so a panel never has to write a literal", () => {
   it("fills the params, and the result is itself a managed path", () => {
     const url = googleAdsUrl("/v1/google/ads/campaigns/:id/status", { id: "6731f0aa" });
@@ -236,6 +257,9 @@ describe("★★G-15/G19/G20 — nothing implies a Google campaign type but Sear
     // G-14f: the website conversion tag and its words.
     ["the website conversion section", () => read("src/app/(site)/dashboard/ads/_components/google-website-conversion-section.tsx")],
     ["the website conversion words", () => read("src/lib/google-website-conversion-view.ts")],
+    // G-14g: Google's Keyword Ideas and their words.
+    ["the keyword ideas section", () => read("src/app/(site)/dashboard/ads/_components/google-keyword-ideas-section.tsx")],
+    ["the keyword ideas words", () => read("src/lib/google-keyword-ideas-view.ts")],
     ["the hub entry", () => googleEntry(read("src/app/(site)/dashboard/ads/ads-channels.ts"), 'key: "google"')],
     ["the catalog entry", () => googleEntry(read("src/app/(site)/dashboard/content/channels.config.ts"), 'slug: "google-ads"')],
   ])("★%s names no other campaign type", (_l, text) => {
@@ -328,7 +352,7 @@ describe("★★G-15 — the prefix and the routes are peakhour-api's", () => {
     const used = [...client.matchAll(/api\.(get|post|put|patch|delete)<[^>]*>\(\s*googleAdsUrl\("([^"]+)"/g)].map(
       (m) => `${m[1]} ${m[2]!.slice(GOOGLE_ADS_PREFIX.length)}`,
     );
-    expect(used.length).toBe(17);
+    expect(used.length).toBe(18);
     for (const u of used) expect(declared.has(u), u).toBe(true);
     for (const r of GOOGLE_ADS_MANAGED_ROUTES) {
       const sub = r.slice(GOOGLE_ADS_PREFIX.length);

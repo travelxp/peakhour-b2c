@@ -42,6 +42,8 @@ export const GOOGLE_ADS_MANAGED_ROUTES = [
   `${GOOGLE_ADS_PREFIX}/campaigns/:id/bidding`,
   // G-14b: the account's last 30 days of conversions, for the create form's warning. GET only.
   `${GOOGLE_ADS_PREFIX}/bidding/history`,
+  // G-14g: Google's Keyword Ideas for a Search campaign (RMF's look-alike rule). POST, and it reads only.
+  `${GOOGLE_ADS_PREFIX}/campaigns/:id/keyword-ideas`,
 ] as const;
 
 export type GoogleAdsManagedRoute = (typeof GOOGLE_ADS_MANAGED_ROUTES)[number];
