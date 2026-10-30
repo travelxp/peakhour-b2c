@@ -82,6 +82,10 @@ describe("★★the double count: why it is secondary, said wherever the merchan
     const section = read("../app/(site)/dashboard/ads/_components/google-website-conversion-section.tsx");
     expect(section).toContain("{query.isError && query.data ? (");
   });
+  it("★a copy attempt clears both the old 'Copied' and the old failure first (review round 1)", () => {
+    const section = read("../app/(site)/dashboard/ads/_components/google-website-conversion-section.tsx");
+    expect(section).toMatch(/setFailed\(null\);\s*setCopied\(null\);/);
+  });
   it("the label is the api's name", () => {
     expect(PEAKHOUR_WEBSITE_CONVERSION_LABEL).toBe("Peakhour website purchases");
   });

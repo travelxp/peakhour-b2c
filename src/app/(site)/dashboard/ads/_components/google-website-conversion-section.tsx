@@ -219,7 +219,9 @@ function CodeBlock({ label, text }: { label: string; text: string }) {
           size="sm"
           onClick={() => {
             // ★A FAILED COPY IS NEVER SILENT (the signals page's lesson): no clipboard on an insecure origin, or a refusal.
+            // ★EACH ATTEMPT STARTS CLEAN (review round 1): a later failure never sits beside an old "Copied".
             setFailed(null);
+            setCopied(null);
             const clipboard = typeof navigator !== "undefined" ? navigator.clipboard : undefined;
             if (!clipboard) {
               setFailed(text);
