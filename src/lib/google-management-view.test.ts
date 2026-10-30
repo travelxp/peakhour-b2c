@@ -69,6 +69,16 @@ describe("the settings form", () => {
     // A NEW past date still does.
     expect(googleSettingsProblem(ended, { ...googleSettingsDraftOf(ended), endDate: "2026-10-02" }, TODAY)).toMatch(/past/);
   });
+  it("★a new end date before a start still to come stops the save (review round 2)", () => {
+    const later = { ...S, startDate: "2026-11-15", endDate: null };
+    expect(googleSettingsProblem(later, { ...googleSettingsDraftOf(later), endDate: "2026-11-10" }, TODAY)).toMatch(/before the campaign's start, 2026-11-15/);
+    expect(googleSettingsProblem(later, { ...googleSettingsDraftOf(later), endDate: "2026-11-15" }, TODAY)).toBeNull();
+  });
+  it("★a read with no endDate key is 'no end': a name-only save sends no endDate (review round 2)", () => {
+    const { endDate: _e, ...noKey } = S;
+    const s = noKey as unknown as typeof S;
+    expect(googleSettingsChangeOf(s, { ...googleSettingsDraftOf(s), name: "Renamed" })).toEqual({ name: "Renamed" });
+  });
   it("★today is the ACCOUNT's day: 2026-10-30 20:00 UTC is 31 October in Kolkata and 30 October in Los Angeles", () => {
     const at = new Date("2026-10-30T20:00:00Z");
     expect(googleAccountToday("Asia/Kolkata", at)).toBe("2026-10-31");

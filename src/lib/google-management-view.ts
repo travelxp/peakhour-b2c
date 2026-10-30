@@ -1,5 +1,6 @@
 import type { GoogleAd, GoogleAdStatus, GoogleCampaignSettings, GoogleSettingsInput } from "@/lib/api/google-ads";
-import { formatGoogleMoney } from "@/lib/google-ads-view";
+import { formatGoogleMoney, googleEndDateProblem } from "@/lib/google-ads-view";
+import { todayIn } from "@/lib/guardrails-copy";
 
 /**
  * ★★G14c — the words and decisions of a Google campaign's management (RMF
@@ -32,22 +33,12 @@ export function googleSettingsDraftOf(s: GoogleCampaignSettings): GoogleSettings
 
 /**
  * Today as `YYYY-MM-DD` in the ACCOUNT's zone (review round 1): Google reads the
- * end date there, and so does the api's "already passed" refusal. The browser's
- * day when the read named no zone `Intl` can use.
+ * end date there, and so does the api's "already passed" refusal. The shared
+ * zone-day helper (`todayIn`, review round 2), the browser's day for a zone it
+ * cannot read.
  */
 export function googleAccountToday(timeZone: string | undefined, now: Date = new Date()): string {
-  if (timeZone) {
-    try {
-      const parts = new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
-      const get = (t: string) => parts.find((p) => p.type === t)?.value;
-      const [y, m, d] = [get("year"), get("month"), get("day")];
-      if (y && m && d) return `${y}-${m}-${d}`;
-    } catch {
-      // An unknown zone falls through to the browser's day.
-    }
-  }
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
+  return todayIn(timeZone, now);
 }
 
 /**
@@ -61,7 +52,12 @@ export function googleSettingsProblem(s: GoogleCampaignSettings, d: GoogleSettin
   if (/[\n\r]/.test(d.name)) return "The name must be on one line.";
   const amount = Number(d.budget);
   if (!d.budget.trim() || !Number.isFinite(amount) || amount <= 0) return "Enter a daily budget above zero.";
-  if (d.endDate && d.endDate !== (s.endDate ?? "") && d.endDate < today) return "The end date is in the past.";
+  if (d.endDate && d.endDate !== (s.endDate ?? "")) {
+    // The create form's own rule and words (review round 2), then the start, which the api refuses an end before.
+    const past = googleEndDateProblem(d.endDate, today);
+    if (past) return past;
+    if (s.startDate && d.endDate < s.startDate) return `The end date is before the campaign's start, ${s.startDate}.`;
+  }
   return null;
 }
 
@@ -76,7 +72,8 @@ export function googleSettingsChangeOf(s: GoogleCampaignSettings, d: GoogleSetti
   const amount = Number(d.budget);
   if (Number.isFinite(amount) && amount !== s.budget.amount) out.dailyBudget = { amount };
   const endDate = d.endDate || null;
-  if (endDate !== s.endDate) out.endDate = endDate;
+  // ★`?? null` (review round 2): a read with no end date at all is "no end", never a change to one.
+  if (endDate !== (s.endDate ?? null)) out.endDate = endDate;
   if (s.network && (d.searchPartners !== s.network.searchPartners || d.displayNetwork !== s.network.displayNetwork)) {
     out.network = { searchPartners: d.searchPartners, displayNetwork: d.displayNetwork };
   }
