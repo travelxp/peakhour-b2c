@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { GoogleCampaignSettings } from "@/lib/api/google-ads";
 import {
   GOOGLE_REMOVE_WARNING,
+  googleAccountToday,
   googleAdActions,
   googleAdGroupNameOf,
   googleAdGroupNameProblem,
@@ -11,7 +12,6 @@ import {
   googleRemoveConfirmed,
   googleSettingsChangeOf,
   googleSettingsDraftOf,
-  googleSettingsOnlyLowers,
   googleSettingsProblem,
   googleSettingsSentence,
 } from "./google-management-view";
@@ -57,22 +57,23 @@ describe("the settings form", () => {
     [{ budget: "abc" }, /budget/],
     [{ endDate: "2026-10-29" }, /past/],
   ])("%j stops the save", (over, msg) => {
-    expect(googleSettingsProblem({ ...googleSettingsDraftOf(S), ...over }, TODAY)).toMatch(msg);
+    expect(googleSettingsProblem(S, { ...googleSettingsDraftOf(S), ...over }, TODAY)).toMatch(msg);
   });
   it("PASS: today and no end date are fine", () => {
-    expect(googleSettingsProblem({ ...googleSettingsDraftOf(S), endDate: TODAY }, TODAY)).toBeNull();
-    expect(googleSettingsProblem({ ...googleSettingsDraftOf(S), endDate: "" }, TODAY)).toBeNull();
+    expect(googleSettingsProblem(S, { ...googleSettingsDraftOf(S), endDate: TODAY }, TODAY)).toBeNull();
+    expect(googleSettingsProblem(S, { ...googleSettingsDraftOf(S), endDate: "" }, TODAY)).toBeNull();
   });
-  it.each([
-    [{ dailyBudget: { amount: 2000 } }, true],
-    [{ dailyBudget: { amount: 3000 } }, false],
-    [{ endDate: "2026-11-30" }, true],
-    [{ endDate: "2027-02-01" }, false],
-    [{ endDate: null }, false],
-    [{ network: { searchPartners: true, displayNetwork: false } }, false],
-    [{ name: "x" }, true],
-  ])("%j only lowers spend: %s (the api's own kill-switch rule)", (change, lowers) => {
-    expect(googleSettingsOnlyLowers(S, change)).toBe(lowers);
+  it("★an end date Google holds that has passed does not block a rename or a lower budget (review round 1)", () => {
+    const ended = { ...S, endDate: "2026-10-01" };
+    expect(googleSettingsProblem(ended, { ...googleSettingsDraftOf(ended), name: "Renamed", budget: "100" }, TODAY)).toBeNull();
+    // A NEW past date still does.
+    expect(googleSettingsProblem(ended, { ...googleSettingsDraftOf(ended), endDate: "2026-10-02" }, TODAY)).toMatch(/past/);
+  });
+  it("★today is the ACCOUNT's day: 2026-10-30 20:00 UTC is 31 October in Kolkata and 30 October in Los Angeles", () => {
+    const at = new Date("2026-10-30T20:00:00Z");
+    expect(googleAccountToday("Asia/Kolkata", at)).toBe("2026-10-31");
+    expect(googleAccountToday("America/Los_Angeles", at)).toBe("2026-10-30");
+    expect(googleAccountToday("Not/AZone", at)).toMatch(/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/);
   });
   it("says the settings and the networks in words", () => {
     expect(googleSettingsSentence(S)).toMatch(/2,500.*\/day, ends 2026-12-31\./);

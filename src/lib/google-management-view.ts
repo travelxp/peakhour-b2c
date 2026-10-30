@@ -30,13 +30,38 @@ export function googleSettingsDraftOf(s: GoogleCampaignSettings): GoogleSettings
   };
 }
 
-/** What stops a save, in the merchant's words, or null. `today` is the browser's `YYYY-MM-DD`. */
-export function googleSettingsProblem(d: GoogleSettingsDraft, today: string): string | null {
+/**
+ * Today as `YYYY-MM-DD` in the ACCOUNT's zone (review round 1): Google reads the
+ * end date there, and so does the api's "already passed" refusal. The browser's
+ * day when the read named no zone `Intl` can use.
+ */
+export function googleAccountToday(timeZone: string | undefined, now: Date = new Date()): string {
+  if (timeZone) {
+    try {
+      const parts = new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(now);
+      const get = (t: string) => parts.find((p) => p.type === t)?.value;
+      const [y, m, d] = [get("year"), get("month"), get("day")];
+      if (y && m && d) return `${y}-${m}-${d}`;
+    } catch {
+      // An unknown zone falls through to the browser's day.
+    }
+  }
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`;
+}
+
+/**
+ * What stops a save, in the merchant's words, or null. `today` is the account's
+ * (`googleAccountToday`). ★AN END DATE LEFT AS GOOGLE HOLDS IT IS NOT JUDGED
+ * (review round 1): a campaign whose end has passed can still be renamed, or
+ * have its budget lowered.
+ */
+export function googleSettingsProblem(s: GoogleCampaignSettings, d: GoogleSettingsDraft, today: string): string | null {
   if (!d.name.trim()) return "Give the campaign a name.";
   if (/[\n\r]/.test(d.name)) return "The name must be on one line.";
   const amount = Number(d.budget);
   if (!d.budget.trim() || !Number.isFinite(amount) || amount <= 0) return "Enter a daily budget above zero.";
-  if (d.endDate && d.endDate < today) return "The end date is in the past.";
+  if (d.endDate && d.endDate !== (s.endDate ?? "") && d.endDate < today) return "The end date is in the past.";
   return null;
 }
 
@@ -56,20 +81,6 @@ export function googleSettingsChangeOf(s: GoogleCampaignSettings, d: GoogleSetti
     out.network = { searchPartners: d.searchPartners, displayNetwork: d.displayNetwork };
   }
   return Object.keys(out).length > 0 ? out : null;
-}
-
-/** Whether a change can only lower what the campaign spends: the kill switch lets only these through on a running campaign. */
-export function googleSettingsOnlyLowers(s: GoogleCampaignSettings, change: GoogleSettingsInput): boolean {
-  if (change.dailyBudget && change.dailyBudget.amount > s.budget.amount) return false;
-  if (change.endDate !== undefined) {
-    if (change.endDate === null && s.endDate !== null) return false;
-    if (change.endDate !== null && s.endDate !== null && change.endDate > s.endDate) return false;
-  }
-  if (change.network && s.network) {
-    if (change.network.searchPartners && !s.network.searchPartners) return false;
-    if (change.network.displayNetwork && !s.network.displayNetwork) return false;
-  }
-  return true;
 }
 
 /** Where a Search campaign shows, in words. */
@@ -95,7 +106,7 @@ export function googleSettingsSavedSentence(changed: boolean): string {
 
 // ── the ad group's name at create (RMF C.190) ─────────────────────────────
 
-/** v26 ad_group.name: under 255 UTF-8 bytes, one line. The api refuses, never cuts, a name past it. */
+/** v26 ad_group.name, held to at most 255 UTF-8 bytes on one line, as the api holds it. The api refuses, never cuts, a name past it. */
 export const GOOGLE_AD_GROUP_NAME_MAX_BYTES = 255;
 
 /** What stops the typed ad group name, or null (empty is fine: the campaign's name is used). */
