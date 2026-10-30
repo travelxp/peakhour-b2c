@@ -119,6 +119,11 @@ export function googleCreateMayExist(err: unknown): boolean {
   return typeof id === "string" && id.length > 0;
 }
 
+/** G14c: removed on Google (mongodb mig 730), which cannot be undone. One rule for every reader of it. */
+export function googleCampaignRemoved(c: Pick<GoogleCampaign, "status"> & Partial<Pick<GoogleCampaign, "removedAt">>): boolean {
+  return !!c.removedAt && c.status === "archived";
+}
+
 /**
  * Whether a campaign's settings (targeting, bidding) can be changed from its row: Google has confirmed it, and it has
  * not finished. One rule for every row button (G-14b review round 1), as the api refuses the rest
@@ -140,7 +145,11 @@ export function googleAdsNeedsReconnect(err: unknown): boolean {
  * every PeakHour campaign is created PAUSED and is our `draft` until its first
  * activation (G-09).
  */
-export function googleStatusLabel(c: Pick<GoogleCampaign, "status"> & Partial<Pick<GoogleCampaign, "platformCampaignId" | "createState">>): string {
+export function googleStatusLabel(
+  c: Pick<GoogleCampaign, "status"> & Partial<Pick<GoogleCampaign, "platformCampaignId" | "createState" | "removedAt">>,
+): string {
+  // ★G14c: REMOVED ON GOOGLE is not "not running": it can never run again (mongodb mig 730).
+  if (googleCampaignRemoved(c)) return "Removed";
   // ★A ROW GOOGLE HAS NOT CONFIRMED IS NOT "paused on Google" (round 3).
   if (!c.platformCampaignId && (c.createState === "sending" || c.createState === "outcome_unknown")) return "Not confirmed yet";
   if (!c.platformCampaignId && c.status === "archived") return "Not created";
@@ -189,9 +198,10 @@ export function googleCreateNote(c: Pick<GoogleCampaign, "platformCampaignId" | 
  * would refuse.)
  */
 export function googleStatusAction(
-  c: Pick<GoogleCampaign, "status" | "platformCampaignId" | "schedule">,
+  c: Pick<GoogleCampaign, "status" | "platformCampaignId" | "schedule"> & Partial<Pick<GoogleCampaign, "removedAt">>,
   now: Date = new Date(),
 ): { status: GoogleSettableStatus; label: string } | { status: null; reason: string } {
+  if (googleCampaignRemoved(c)) return { status: null, reason: "Removed" };
   // ★AN ARCHIVED ROW GOOGLE NEVER HAD WAS NOT "finished" (round 3): it was
   //  never created.
   if (c.status === "archived" && !c.platformCampaignId) return { status: null, reason: "Not created" };
