@@ -128,7 +128,7 @@ export function googleWebsiteConversionErrorMessage(err: unknown, fallback: stri
     if (reason === "validation_conversion_action_name_taken") {
       return (
         "Every name Peakhour uses for its website conversion action is already taken in this Google Ads account, " +
-        "or one was taken just now. Try again, or rename or remove one in Google Ads."
+        "or one was taken just now. Try again, or rename one of them in Google Ads (removing one does not free its name)."
       );
     }
   }

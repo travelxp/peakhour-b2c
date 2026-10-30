@@ -114,6 +114,9 @@ describe("errors and toasts", () => {
     const m = googleWebsiteConversionErrorMessage(err, "fallback");
     expect(m).toContain("website conversion action");
     expect(m).not.toContain("import-from-clicks");
+    // ★Rename, never "remove": a removed action keeps its name (api review round 1).
+    expect(m).toContain("rename one of them in Google Ads");
+    expect(m).not.toMatch(/or remove/);
   });
   it("other failures use G-17b's words", () => {
     expect(googleWebsiteConversionErrorMessage(new ApiError("CONVERSION_ACTION_UNCONFIRMED", "raw", 409), "fallback")).toContain("not add a second");
