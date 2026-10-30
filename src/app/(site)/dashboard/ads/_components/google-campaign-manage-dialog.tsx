@@ -12,9 +12,10 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { googleAdsApi, type GoogleAdAccount, type GoogleCampaign, type GoogleSettingsInput } from "@/lib/api/google-ads";
-import { googleAdsErrorMessage, googleCampaignSettable, googleChannelTypeLabel, localIsoDay } from "@/lib/google-ads-view";
+import { googleAdsErrorMessage, googleCampaignRemoved, googleCampaignSettable, googleChannelTypeLabel } from "@/lib/google-ads-view";
 import {
   GOOGLE_REMOVE_WARNING,
+  googleAccountToday,
   googleNetworkSentence,
   googleRemoveConfirmed,
   googleSettingsChangeOf,
@@ -51,9 +52,9 @@ export function GoogleCampaignManageDialog({
   const queryClient = useQueryClient();
   const { business } = useAuth();
   const queryKey = ["google-ads-settings", business?._id ?? "none", campaign.id];
-  const removed = !!campaign.removedAt;
-  // Settings are edited only while the campaign can still run (the api refuses a finished one).
-  const editable = googleCampaignSettable(campaign) && !removed;
+  const removed = googleCampaignRemoved(campaign);
+  // Settings are edited only while the campaign can still run (the api refuses a finished or removed one).
+  const editable = googleCampaignSettable(campaign);
   const read = useQuery({
     queryKey,
     queryFn: () => googleAdsApi.getSettings(campaign.id),
@@ -65,8 +66,11 @@ export function GoogleCampaignManageDialog({
   const [edits, setEdits] = useState<GoogleSettingsDraft | null>(null);
   const draft = edits ?? (settings ? googleSettingsDraftOf(settings) : null);
   const set = <K extends keyof GoogleSettingsDraft>(k: K, v: GoogleSettingsDraft[K]) => draft && setEdits({ ...draft, [k]: v });
-  const today = localIsoDay(new Date());
-  const problem = draft ? googleSettingsProblem(draft, today) : null;
+  // The account's day: Google reads the end date in the account's zone (review round 1).
+  const today = googleAccountToday(settings?.timeZone);
+  const problem = settings && draft ? googleSettingsProblem(settings, draft, today) : null;
+  // ★THE NAME AS GOOGLE HOLDS IT NOW (review round 1): a rename saved in this dialog is what the api confirms a remove against.
+  const liveName = settings?.name ?? campaign.name;
   const change = settings && draft && !problem ? googleSettingsChangeOf(settings, draft) : null;
 
   const refreshList = () => void queryClient.invalidateQueries({ queryKey: ["google-ads-campaigns"] });
@@ -90,6 +94,9 @@ export function GoogleCampaignManageDialog({
     mutationFn: () => googleAdsApi.removeCampaign(campaign.id, confirmText),
     onSuccess: () => {
       toast.success("Campaign removed on Google Ads.");
+      // ★Nothing read before the remove is shown again (review round 1): the settings and ads are dropped, the list re-read.
+      queryClient.removeQueries({ queryKey });
+      queryClient.removeQueries({ queryKey: ["google-ads-ad-groups", business?._id ?? "none", campaign.id] });
       refreshList();
       onOpenChange(false);
     },
@@ -113,7 +120,7 @@ export function GoogleCampaignManageDialog({
     <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(true) : close())}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Manage — {campaign.name}</DialogTitle>
+          <DialogTitle>Manage — {liveName}</DialogTitle>
           <DialogDescription>
             {googleChannelTypeLabel(channelType)}.{" "}
             {removed ? "This campaign was removed on Google Ads and can't be changed." : "Changes go to Google Ads as soon as you save them."}
@@ -211,11 +218,11 @@ export function GoogleCampaignManageDialog({
               <h3 className="text-sm font-medium text-destructive-on-tint">Remove this campaign</h3>
               <p className="text-sm text-muted-foreground">{GOOGLE_REMOVE_WARNING}</p>
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Type the campaign&apos;s name, {campaign.name}, to confirm</Label>
+                <Label className="text-xs text-muted-foreground">Type the campaign&apos;s name, {liveName}, to confirm</Label>
                 <Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} disabled={busy} autoComplete="off" />
               </div>
               <div className="flex justify-end">
-                <Button variant="destructive" onClick={() => remove.mutate()} disabled={!googleRemoveConfirmed(campaign.name, confirmText) || busy}>
+                <Button variant="destructive" onClick={() => remove.mutate()} disabled={!googleRemoveConfirmed(liveName, confirmText) || busy || !settings}>
                   {remove.isPending ? "Removing…" : "Remove for good"}
                 </Button>
               </div>

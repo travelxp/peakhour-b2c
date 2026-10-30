@@ -235,7 +235,9 @@ describe("★★G14c — the management routes are managed, each called by its v
   });
   it("★★the remove is behind the typed name, on the screen as in the api", () => {
     const dialog = read("src/app/(site)/dashboard/ads/_components/google-campaign-manage-dialog.tsx");
-    expect(dialog).toContain("disabled={!googleRemoveConfirmed(campaign.name, confirmText) || busy}");
+    // ★Against the name Google holds now, so a rename in the same dialog is what confirms it (review round 1).
+    expect(dialog).toContain("disabled={!googleRemoveConfirmed(liveName, confirmText) || busy || !settings}");
+    expect(dialog).toContain("const liveName = settings?.name ?? campaign.name;");
     expect(dialog).toContain("{GOOGLE_REMOVE_WARNING}");
   });
 });
