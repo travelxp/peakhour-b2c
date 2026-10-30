@@ -83,7 +83,7 @@ export function GoogleAdsListSection({ campaign, campaignOpen }: { campaign: Goo
           <div key={g.id} className="space-y-2">
             <p className="text-sm">
               Ad group: <span className="font-medium">{g.name || "(no name)"}</span>{" "}
-              <Badge variant="outline">{g.status === "ENABLED" ? "On" : googleAdStatusLabel(g.status)}</Badge>
+              <Badge variant="outline">{googleAdStatusLabel(g.status)}</Badge>
             </p>
             {own.length === 0 ? <p className="text-xs text-muted-foreground">No ads in this ad group.</p> : null}
             <ul className="space-y-2">
