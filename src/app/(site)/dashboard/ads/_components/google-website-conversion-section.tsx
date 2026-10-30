@@ -69,11 +69,13 @@ export function GoogleWebsiteConversionSection({ account }: { account: GoogleAdA
   const [confirming, setConfirming] = useState(false);
   const confirmation = googleWebsiteConversionConfirmation(account.name);
 
+  // ★THE KEY RIDES WITH THE REQUEST (review round 1): a business switched while
+  //  the PUT is in flight must not have the old business's tag cached under its key.
   const setUp = useMutation({
-    mutationFn: () => googleAdsApi.setUpWebsiteConversion(account.id),
-    onSuccess: (res) => {
+    mutationFn: (_key: readonly unknown[]) => googleAdsApi.setUpWebsiteConversion(account.id),
+    onSuccess: (res, key) => {
       // ★Show what the api answered now, so the tag is on screen even if the re-read fails.
-      queryClient.setQueryData<GoogleWebsiteConversionState>(queryKey, {
+      queryClient.setQueryData<GoogleWebsiteConversionState>(key, {
         conversionCustomerId: res.conversionCustomerId,
         action: res.action,
         storedNotLive: false,
@@ -85,7 +87,7 @@ export function GoogleWebsiteConversionSection({ account }: { account: GoogleAdA
       if (googleConversionMayHaveBeenCreated(err)) toast.warning(message);
       else toast.error(message);
     },
-    onSettled: () => void queryClient.invalidateQueries({ queryKey }),
+    onSettled: (_res, _err, key) => void queryClient.invalidateQueries({ queryKey: key }),
   });
   const busy = setUp.isPending;
 
@@ -148,7 +150,7 @@ export function GoogleWebsiteConversionSection({ account }: { account: GoogleAdA
             <AlertDialogAction
               onClick={() => {
                 setConfirming(false);
-                setUp.mutate();
+                setUp.mutate(queryKey);
               }}
             >
               Add it
