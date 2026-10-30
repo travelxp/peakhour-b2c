@@ -75,9 +75,10 @@ describe("the settings form", () => {
     expect(googleSettingsProblem(later, { ...googleSettingsDraftOf(later), endDate: "2026-11-15" }, TODAY)).toBeNull();
   });
   it("★a read with no endDate key is 'no end': a name-only save sends no endDate (review round 2)", () => {
-    const { endDate: _e, ...noKey } = S;
-    const s = noKey as unknown as typeof S;
-    expect(googleSettingsChangeOf(s, { ...googleSettingsDraftOf(s), name: "Renamed" })).toEqual({ name: "Renamed" });
+    const s = { ...S } as Partial<typeof S>;
+    delete s.endDate;
+    const read = s as typeof S;
+    expect(googleSettingsChangeOf(read, { ...googleSettingsDraftOf(read), name: "Renamed" })).toEqual({ name: "Renamed" });
   });
   it("★today is the ACCOUNT's day: 2026-10-30 20:00 UTC is 31 October in Kolkata and 30 October in Los Angeles", () => {
     const at = new Date("2026-10-30T20:00:00Z");
