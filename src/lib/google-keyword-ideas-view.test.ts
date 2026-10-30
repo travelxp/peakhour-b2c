@@ -10,14 +10,17 @@ import {
   googleIdeaBidRange,
   googleIdeaCompetitionLabel,
   googleIdeaSearchesSentence,
+  googleIdeasMoreSentence,
   googleKeywordIdeasErrorMessage,
   ideaAddProblem,
   ideaAsKeyword,
   keywordIdeasRequest,
   parseSeedWords,
+  sameIdeasRequest,
   seedWordsFromDraft,
 } from "./google-keyword-ideas-view";
-import { GOOGLE_DEFAULT_MATCH_TYPE, type TargetingDraft } from "./google-targeting-view";
+import { GOOGLE_DEFAULT_MATCH_TYPE, keywordKey, type TargetingDraft } from "./google-targeting-view";
+import { formatGoogleMicros } from "./google-reports-view";
 
 /**
  * ★★G-14g — Google's Keyword Ideas: labelled as Google's, kept apart from the
@@ -36,6 +39,7 @@ const draft = (o: Partial<TargetingDraft> = {}): TargetingDraft => ({
   ...o,
 });
 
+const keys = (d: TargetingDraft) => new Set(d.keywords.map(keywordKey));
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
 const SECTION = "../app/(site)/dashboard/ads/_components/google-keyword-ideas-section.tsx";
 const DIALOG = "../app/(site)/dashboard/ads/_components/google-targeting-dialog.tsx";
@@ -58,7 +62,8 @@ describe("★★Google's label, and ideas kept apart from ours", () => {
     expect(section).not.toMatch(/setTargeting|setKeywordStatus|keywords:\s*\[/);
     expect(section).toContain("onPick(ideaAsKeyword(idea, matchType))");
     // Google is reached only through the client, and only on the merchant's click (a mutation, never a query).
-    expect(section).toContain("googleAdsApi.getKeywordIdeas(campaignId, request.input)");
+    expect(section).toContain("googleAdsApi.getKeywordIdeas(campaignId, input)");
+    expect(section).toContain("ask.mutate(request.input)");
     expect(section).not.toMatch(/useQuery|useEffect/);
   });
   it("★★the targeting step only imports and mounts it, once, in its Search part", () => {
@@ -86,9 +91,13 @@ describe("★★D12 — Google's figures are Google's, as Google gives them, nev
     expect(googleIdeaCompetitionLabel({ competition: "HIGH" })).toBe("Google competition: high");
   });
   it("the bid range is Google's 20th–80th percentile, in the account's currency", () => {
-    expect(googleIdeaBidRange({ lowTopOfPageBidMicros: 310000, highTopOfPageBidMicros: 1120000 }, "EUR")).toBe("Google top-of-page bid: €0.31–€1.12");
-    expect(googleIdeaBidRange({ lowTopOfPageBidMicros: 310000, highTopOfPageBidMicros: 1120000 }, undefined)).toBeNull();
-    expect(googleIdeaBidRange({ lowTopOfPageBidMicros: 310000, highTopOfPageBidMicros: 1120000 }, "not a currency")).toBeNull();
+    // The panel's own micros formatter (review round 1), so it says Google's money as the reports do.
+    for (const currency of ["EUR", undefined, "XYZ"]) {
+      expect(googleIdeaBidRange({ lowTopOfPageBidMicros: 310000, highTopOfPageBidMicros: 1120000 }, currency)).toBe(
+        `Google top-of-page bid: ${formatGoogleMicros(310000, currency)}–${formatGoogleMicros(1120000, currency)}`,
+      );
+    }
+    expect(googleIdeaBidRange({ lowTopOfPageBidMicros: 310000, highTopOfPageBidMicros: 1120000 }, "EUR")).toMatch(/0\.31.*1\.12/);
   });
   it("★no copy claims reach, an audience, or a forecast for the campaign", () => {
     for (const s of [GOOGLE_IDEAS_ATTRIBUTION, googleIdeaSearchesSentence({ avgMonthlySearches: 50 })!, googleIdeaCompetitionLabel({ competition: "MEDIUM" })!]) {
@@ -107,22 +116,27 @@ describe("★★a picked idea becomes a keyword at the merchant's match type", (
     expect(ideaAsKeyword({ text: "linen shirts men" }, "BROAD")).toEqual({ text: "linen shirts men", matchType: "BROAD" });
     expect(ideaAsKeyword({ text: "linen shirts men" }, "EXACT")).toEqual({ text: "linen shirts men", matchType: "EXACT" });
     // The section starts every row at the default and keeps the merchant's choice per idea.
-    expect(read(SECTION)).toContain("matchTypes[idea.text] ?? GOOGLE_DEFAULT_MATCH_TYPE");
+    expect(read(SECTION)).toContain("matchTypes[pickKey] ?? GOOGLE_DEFAULT_MATCH_TYPE");
   });
   it("★it joins through the targeting step's own list (and so its Save), de-duplicated", () => {
     const dialog = read(DIALOG);
     expect(dialog).toContain("onPick={(k) => edit((d) => (d.keywords.some((x) => keywordKey(x) === keywordKey(k)) ? d : { ...d, keywords: [...d.keywords, k] }))}");
   });
   it("★already in the list at that match type is said, and the same words at another match type are not", () => {
-    expect(ideaAddProblem({ text: "Linen shirts" }, "PHRASE", draft())).toBe(GOOGLE_IDEA_ALREADY_ADDED);
-    expect(ideaAddProblem({ text: "linen shirts" }, "EXACT", draft())).toBeNull();
+    expect(ideaAddProblem({ text: "Linen shirts" }, "PHRASE", draft(), keys(draft()))).toBe(GOOGLE_IDEA_ALREADY_ADDED);
+    expect(ideaAddProblem({ text: "linen shirts" }, "EXACT", draft(), keys(draft()))).toBeNull();
   });
   it("★the step's keyword rules apply to an idea too", () => {
-    expect(ideaAddProblem({ text: "one two three four five six seven eight nine ten eleven" }, "PHRASE", draft())).toMatch(/at most 10 words/);
-    expect(ideaAddProblem({ text: `"linen"` }, "PHRASE", draft())).toMatch(/brackets and quotation marks/);
+    expect(ideaAddProblem({ text: "one two three four five six seven eight nine ten eleven" }, "PHRASE", draft(), keys(draft()))).toMatch(/at most 10 words/);
+    expect(ideaAddProblem({ text: `"linen"` }, "PHRASE", draft(), keys(draft()))).toMatch(/brackets and quotation marks/);
   });
   it("one paused in Google Ads is not added again", () => {
-    expect(ideaAddProblem({ text: "linen" }, "BROAD", draft(), new Set(["BROAD:linen"]))).toMatch(/Paused in Google Ads/);
+    expect(ideaAddProblem({ text: "linen" }, "BROAD", draft(), keys(draft()), new Set(["BROAD:linen"]))).toMatch(/Paused in Google Ads/);
+  });
+  it("★one a campaign negative would silence is said on its row (review round 1), not only once Save is blocked", () => {
+    // The fixture's BROAD negative "cheap" silences any keyword containing it.
+    expect(ideaAddProblem({ text: "cheap linen shirts" }, "PHRASE", draft(), keys(draft()))).toBe("Your negative keyword “cheap” would stop it from ever showing.");
+    expect(ideaAddProblem({ text: "linen shirts men" }, "PHRASE", draft(), keys(draft()))).toBeNull();
   });
 });
 
@@ -154,6 +168,20 @@ describe("★the request: the merchant's words or page, the campaign's places an
     const r = keywordIdeasRequest({ words: "linen", url: "", language: "" }, draft({ locations: [], radii: [{ radius: 5, radiusUnits: "KILOMETERS", address: { cityName: "Madrid", countryCode: "ES" } }] }));
     expect(r.input.geoTargetConstants).toEqual([]);
     expect(r.placesNote).toMatch(/locations, not a radius/);
+  });
+  it("★a phrase over the api's 80 characters is said here, not as the api's Invalid body (review round 1)", () => {
+    expect(keywordIdeasRequest({ words: "x".repeat(81), url: "", language: "" }, draft()).problem).toMatch(/at most 80 characters/);
+    expect(keywordIdeasRequest({ words: "x".repeat(80), url: "", language: "" }, draft()).problem).toBeNull();
+  });
+  it("★the list says when it answers an earlier request, and when Google has more than it shows (review round 1)", () => {
+    const now = { keywords: ["linen"], geoTargetConstants: ["geoTargetConstants/2", "geoTargetConstants/1"] };
+    expect(sameIdeasRequest({ keywords: ["Linen"], geoTargetConstants: ["geoTargetConstants/1", "geoTargetConstants/2"] }, now)).toBe(true);
+    expect(sameIdeasRequest({ keywords: ["wool"], geoTargetConstants: now.geoTargetConstants }, now)).toBe(false);
+    expect(sameIdeasRequest({ ...now, language: "languageConstants/1000" }, now)).toBe(false);
+    expect(sameIdeasRequest(undefined, now)).toBe(false);
+    expect(googleIdeasMoreSentence(100, 2400)).toBe("Google has 2,400 ideas for these; here are its first 100. Narrow the words or the page for others.");
+    expect(googleIdeasMoreSentence(40, 40)).toBeNull();
+    expect(googleIdeasMoreSentence(40, undefined)).toBeNull();
   });
   it("★nothing to start from, or too many words, can't be sent", () => {
     expect(keywordIdeasRequest({ words: " , ", url: " ", language: "" }, draft()).problem).toMatch(/some words or a page/);

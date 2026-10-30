@@ -1,7 +1,15 @@
 import { ApiError } from "@/lib/api";
 import type { GoogleKeywordIdea, GoogleKeywordIdeaCompetition, GoogleKeywordIdeasInput, GoogleMatchType } from "@/lib/api/google-ads";
 import { googleAdsErrorMessage } from "@/lib/google-ads-view";
-import { foldKeyword, googleKeywordProblem, keywordKey, type DraftKeyword, type TargetingDraft } from "@/lib/google-targeting-view";
+import { formatGoogleMicros } from "@/lib/google-reports-view";
+import {
+  foldKeyword,
+  googleKeywordProblem,
+  googleNegativeSilences,
+  keywordKey,
+  type DraftKeyword,
+  type TargetingDraft,
+} from "@/lib/google-targeting-view";
 
 /**
  * ★★G-14g — what the Google Keyword Ideas section SAYS and DECIDES, kept pure
@@ -21,6 +29,8 @@ import { foldKeyword, googleKeywordProblem, keywordKey, type DraftKeyword, type 
 
 /** Google: "Requires at least one keyword and no more than 20 keywords." */
 export const GOOGLE_IDEAS_MAX_SEED_WORDS = 20;
+/** The api's bound on one word or phrase to start from (its `KeywordIdeasBody`). */
+export const GOOGLE_IDEAS_MAX_SEED_CHARS = 80;
 /** Google: "The resource names of the location to target. Maximum is 10." */
 export const GOOGLE_IDEAS_MAX_LOCATIONS = 10;
 
@@ -85,7 +95,10 @@ export function keywordIdeasRequest(
       ? "Give Google some words or a page of your site to start from."
       : keywords.length > GOOGLE_IDEAS_MAX_SEED_WORDS
         ? `Google takes at most ${GOOGLE_IDEAS_MAX_SEED_WORDS} words or phrases to start from.`
-        : null;
+        : // ★SAID HERE, NOT AS THE API'S "Invalid body" (review round 1): a pasted sentence is one long phrase.
+          keywords.some((k) => [...k].length > GOOGLE_IDEAS_MAX_SEED_CHARS)
+          ? `A word or phrase to start from is at most ${GOOGLE_IDEAS_MAX_SEED_CHARS} characters. Separate them with commas.`
+          : null;
   const placesNote =
     d.locations.length > GOOGLE_IDEAS_MAX_LOCATIONS
       ? `Google takes ${GOOGLE_IDEAS_MAX_LOCATIONS} locations for ideas, so these use the first ${GOOGLE_IDEAS_MAX_LOCATIONS} of yours.`
@@ -111,16 +124,32 @@ export function googleIdeaCompetitionLabel(idea: Pick<GoogleKeywordIdea, "compet
   return idea.competition ? `Google competition: ${COMPETITION_WORDS[idea.competition]}` : null;
 }
 
-/** Google's top-of-page bid range in the account's currency, or null without both ends and a currency. */
+/**
+ * Google's top-of-page bid range in the account's currency, or null without
+ * both ends. The panel's own micros formatter (review round 1: one way to
+ * say Google's money on the panel).
+ */
 export function googleIdeaBidRange(idea: Pick<GoogleKeywordIdea, "lowTopOfPageBidMicros" | "highTopOfPageBidMicros">, currency: string | undefined): string | null {
-  if (idea.lowTopOfPageBidMicros === undefined || idea.highTopOfPageBidMicros === undefined || !currency) return null;
-  let fmt: Intl.NumberFormat;
-  try {
-    fmt = new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 2 });
-  } catch {
-    return null;
-  }
-  return `Google top-of-page bid: ${fmt.format(idea.lowTopOfPageBidMicros / 1e6)}–${fmt.format(idea.highTopOfPageBidMicros / 1e6)}`;
+  if (idea.lowTopOfPageBidMicros === undefined || idea.highTopOfPageBidMicros === undefined) return null;
+  return `Google top-of-page bid: ${formatGoogleMicros(idea.lowTopOfPageBidMicros, currency)}–${formatGoogleMicros(idea.highTopOfPageBidMicros, currency)}`;
+}
+
+/**
+ * Whether these ideas answer the request as it stands now (review round 1):
+ * after the words, page, language or places change, the list on screen is for
+ * the earlier one, and says so.
+ */
+export function sameIdeasRequest(a: GoogleKeywordIdeasInput | undefined, b: GoogleKeywordIdeasInput): boolean {
+  if (!a) return false;
+  const key = (r: GoogleKeywordIdeasInput) =>
+    JSON.stringify([r.keywords.map((k) => k.toLowerCase()), r.url ?? "", r.language ?? "", [...r.geoTargetConstants].sort()]);
+  return key(a) === key(b);
+}
+
+/** "Google has 2,400 ideas for these; here are its first 100." Null when all are shown. */
+export function googleIdeasMoreSentence(shown: number, totalSize: number | undefined): string | null {
+  if (totalSize === undefined || totalSize <= shown) return null;
+  return `Google has ${totalSize.toLocaleString("en-US")} ideas for these; here are its first ${shown}. Narrow the words or the page for others.`;
 }
 
 /** The keyword an idea becomes when the merchant adds it: the text folded, the match type theirs. */
@@ -133,19 +162,25 @@ export const GOOGLE_IDEA_ALREADY_ADDED = "Already in your keywords.";
 
 /**
  * Why this idea can't be added at this match type, or null: the keyword rules
- * the step applies to a typed keyword, then the list it would join.
+ * the step applies to a typed keyword, then the list it would join, then the
+ * campaign's negatives (review round 1: one that would silence it blocks the
+ * step's Save, so it is said on the idea's row). `keywordKeys` is the list's
+ * keys, built once by the caller.
  */
 export function ideaAddProblem(
   idea: Pick<GoogleKeywordIdea, "text">,
   matchType: GoogleMatchType,
   d: TargetingDraft,
+  keywordKeys: ReadonlySet<string>,
   pausedKeys?: ReadonlySet<string>,
 ): string | null {
   const k = ideaAsKeyword(idea, matchType);
   const p = googleKeywordProblem(k.text);
   if (p) return p;
   const key = keywordKey(k);
-  if (d.keywords.some((x) => keywordKey(x) === key)) return GOOGLE_IDEA_ALREADY_ADDED;
+  if (keywordKeys.has(key)) return GOOGLE_IDEA_ALREADY_ADDED;
   if (pausedKeys?.has(key)) return "Paused in Google Ads. Enable it there rather than adding it again.";
+  const negative = d.negativeKeywords.find((n) => googleNegativeSilences(n, k));
+  if (negative) return `Your negative keyword “${foldKeyword(negative.text)}” would stop it from ever showing.`;
   return null;
 }
