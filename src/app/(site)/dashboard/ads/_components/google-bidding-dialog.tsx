@@ -69,6 +69,8 @@ export function GoogleBiddingDialog({
       // ★The warning again, after the save: the target went to Google as set.
       const warning = googleBiddingWarning(res.bidding.strategy, res.history);
       if (warning) toast.warning(warning);
+      // The list too (review round 1): the api stamps the row's updatedAt.
+      void queryClient.invalidateQueries({ queryKey: ["google-ads-campaigns"] });
       await queryClient.invalidateQueries({ queryKey });
       if (queryClient.getQueryState(queryKey)?.status === "success") setEdits(null);
     },
