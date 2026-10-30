@@ -1,5 +1,5 @@
 import { ApiError } from "@/lib/api";
-import { formatGoogleMoney, googleAdsErrorMessage, googleChannelTypeLabel, localIsoDay } from "@/lib/google-ads-view";
+import { formatGoogleMoney, googleAdsErrorMessage, googleChannelTypeLabel } from "@/lib/google-ads-view";
 import type {
   GoogleAccountReportRow,
   GoogleAdReportRow,
@@ -300,11 +300,9 @@ export function googleReportTruncatedNote(shown: number): string {
 
 /**
  * A custom range's problem, or null. Days are the account's (Google reads a
- * range in the account's time zone), which b2c does not know. ★SO THE LAST
- * DAY ALLOWED IS THE BROWSER'S TOMORROW (review round 1), as the api allows
- * UTC's: an account ahead of the browser is already on its next day, and
- * refusing it would refuse the account's own today. Google's 37-month
- * lookback is the api's sentence.
+ * range in the account's time zone), which b2c does not know. The last day
+ * allowed is `googleReportLatestDay`'s. Google's 37-month lookback is the
+ * api's sentence.
  */
 export function googleReportRangeProblem(from: string, to: string, latestDay: string): string | null {
   if (!from || !to) return "Choose a start and an end date.";
@@ -313,11 +311,14 @@ export function googleReportRangeProblem(from: string, to: string, latestDay: st
   return null;
 }
 
-/** The last day a range may end on: the browser's tomorrow (see `googleReportRangeProblem`). */
+/**
+ * The last day a range may end on: ★UTC'S TOMORROW, THE API'S OWN BOUND
+ * (review round 2). Round 1 used the browser's tomorrow, which ran a day past
+ * the api's every night east of UTC (IST, 00:00–05:30), so the form offered a
+ * day the api refused. An account at most a day ahead of UTC is on that day.
+ */
 export function googleReportLatestDay(now: Date): string {
-  const next = new Date(now);
-  next.setDate(next.getDate() + 1);
-  return localIsoDay(next);
+  return new Date(now.getTime() + 86_400_000).toISOString().slice(0, 10);
 }
 
 /** Which days a table covers, said from the api's answer — never from the inputs, which may hold days not yet shown. */

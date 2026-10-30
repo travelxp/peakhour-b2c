@@ -207,11 +207,12 @@ describe("★★the date range", () => {
   ])("refuses %s → %s", (from, to, msg) => {
     expect(googleReportRangeProblem(from, to, "2026-10-30")).toMatch(msg);
   });
-  it("★the last day allowed is the browser's tomorrow: an account ahead of the browser is on its next day", () => {
-    expect(googleReportLatestDay(new Date(2026, 9, 30, 22, 0))).toBe("2026-10-31");
-    expect(googleReportLatestDay(new Date(2026, 11, 31, 9, 0))).toBe("2027-01-01");
-    expect(googleReportRangeProblem("2026-10-01", "2026-10-31", googleReportLatestDay(new Date(2026, 9, 30, 22, 0)))).toBeNull();
-    expect(googleReportRangeProblem("2026-10-01", "2026-11-01", googleReportLatestDay(new Date(2026, 9, 30, 22, 0)))).toMatch(/future/);
+  it("★the last day allowed is UTC's tomorrow, the api's own bound — whatever the browser's zone", () => {
+    // 02:00 in IST on the 30th is 20:30 UTC on the 29th: the api allows up to the 30th, so must the form.
+    expect(googleReportLatestDay(new Date("2026-10-29T20:30:00Z"))).toBe("2026-10-30");
+    expect(googleReportLatestDay(new Date("2026-12-31T09:00:00Z"))).toBe("2027-01-01");
+    expect(googleReportRangeProblem("2026-10-01", "2026-10-31", googleReportLatestDay(new Date("2026-10-29T20:30:00Z")))).toMatch(/future/);
+    expect(googleReportRangeProblem("2026-10-01", "2026-10-30", googleReportLatestDay(new Date("2026-10-29T20:30:00Z")))).toBeNull();
   });
   it("PASS: a range ending today, and a single day", () => {
     expect(googleReportRangeProblem("2026-10-01", "2026-10-30", "2026-10-30")).toBeNull();
