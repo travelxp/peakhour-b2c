@@ -73,8 +73,8 @@ describe("★★G-15 — no b2c file names a Google ads path but the client", ()
     for (const p of paths) expect(isManagedGoogleAdsPath(p), p).toBe(true);
     // Each `api.<verb>(` call's first argument is a googleAdsUrl(...) call.
     const calls = [...client.matchAll(/api\.(get|post|put|patch|delete)<[^>]*>\(\s*([^,)]+)/g)].map((m) => m[2]!.trim());
-    // G-14a: +5 (targeting read and save, keyword status, locations, languages).
-    expect(calls.length).toBe(11);
+    // G-14a: +5 (targeting read and save, keyword status, locations, languages); G-14d: +1 (reports).
+    expect(calls.length).toBe(12);
     for (const arg of calls) expect(arg.startsWith("googleAdsUrl("), arg).toBe(true);
   });
 
@@ -116,6 +116,26 @@ describe("★★G-14a — the targeting step's routes are managed, and the clien
   it("★a keyword id with a tilde fills the template and stays one segment", () => {
     const url = googleAdsUrl("/v1/google/ads/campaigns/:id/keywords/:criterionId/status", { id: "6731f0aa", criterionId: "333~444" });
     expect(url).toBe("/v1/google/ads/campaigns/6731f0aa/keywords/333~444/status");
+  });
+});
+
+describe("★★G-14d — the reports route is managed, read with GET, one report per request", () => {
+  it("is on the managed list, with the report as its one param", () => {
+    expect(GOOGLE_ADS_MANAGED_ROUTES).toContain(`${GOOGLE_ADS_PREFIX}/reports/:report`);
+    expect(googleAdsUrl("/v1/google/ads/reports/:report", { report: "search-terms" })).toBe("/v1/google/ads/reports/search-terms");
+    expect(() => googleAdsUrl("/v1/google/ads/reports/:report")).toThrow(/needs :report/);
+  });
+  it("the client reads it with GET only, the account and range in the query string", () => {
+    const client = read(CLIENT);
+    expect(client).toMatch(/api\.get<GoogleReport>\(googleAdsUrl\("\/v1\/google\/ads\/reports\/:report", \{ report \}\)/);
+    expect(client).not.toMatch(/api\.(post|put|patch|delete)<[^>]*>\(googleAdsUrl\("\/v1\/google\/ads\/reports/);
+  });
+  it("★the reports section reaches Google only through the client, and the panel only mounts it", () => {
+    const section = read("src/app/(site)/dashboard/ads/_components/google-reports-section.tsx");
+    expect(section).toContain("googleAdsApi.getReport(");
+    const panel = read(PANEL);
+    expect(panel).toContain('import { GoogleReportsSection } from "./google-reports-section";');
+    expect(panel.match(/<GoogleReportsSection /g)?.length).toBe(1);
   });
 });
 
@@ -263,7 +283,7 @@ describe("★★G-15 — the prefix and the routes are peakhour-api's", () => {
     const used = [...client.matchAll(/api\.(get|post|put|patch|delete)<[^>]*>\(\s*googleAdsUrl\("([^"]+)"/g)].map(
       (m) => `${m[1]} ${m[2]!.slice(GOOGLE_ADS_PREFIX.length)}`,
     );
-    expect(used.length).toBe(11);
+    expect(used.length).toBe(12);
     for (const u of used) expect(declared.has(u), u).toBe(true);
     for (const r of GOOGLE_ADS_MANAGED_ROUTES) {
       const sub = r.slice(GOOGLE_ADS_PREFIX.length);

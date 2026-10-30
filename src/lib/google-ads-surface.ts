@@ -34,6 +34,8 @@ export const GOOGLE_ADS_MANAGED_ROUTES = [
   // G-14a: Google's places for a name, and the account's languages. Both read.
   `${GOOGLE_ADS_PREFIX}/locations`,
   `${GOOGLE_ADS_PREFIX}/languages`,
+  // G-14d: Google's own reports (RMF R.10–R.130), read live. GET only.
+  `${GOOGLE_ADS_PREFIX}/reports/:report`,
 ] as const;
 
 export type GoogleAdsManagedRoute = (typeof GOOGLE_ADS_MANAGED_ROUTES)[number];
