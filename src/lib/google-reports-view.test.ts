@@ -13,6 +13,7 @@ import {
   formatGoogleCount,
   formatGoogleMicros,
   googleAccountHasNotServed,
+  googleAccountNotServedNote,
   googleBiddingTypeLabel,
   googleMatchTypeLabel,
   googleReportChannelLabel,
@@ -174,18 +175,26 @@ describe("cells", () => {
 });
 
 describe("★★empty, and not served", () => {
+  const LIVE = { testAccount: false };
+  const TEST = { testAccount: true };
   it.each(KEYS)("%s has its own empty sentence, never an error's", (k) => {
-    const s = googleReportEmptySentence(k);
+    const s = googleReportEmptySentence(k, LIVE);
     expect(s.length).toBeGreaterThan(30);
     expect(s).not.toMatch(/couldn't|error|failed/i);
   });
-  it("the account's and the search terms' empty sentences say a test account never serves", () => {
-    expect(googleReportEmptySentence("account")).toMatch(/test account never serves/);
-    expect(googleReportEmptySentence("search-terms")).toMatch(/test account never serves/);
+  it("★the test-account reason is given to a test account only", () => {
+    expect(googleReportEmptySentence("search-terms", TEST)).toMatch(/test account never serves/);
+    for (const k of KEYS) expect(googleReportEmptySentence(k, LIVE), k).not.toMatch(/test account/);
+    expect(googleAccountNotServedNote(TEST)).toMatch(/test account never serves/);
+    expect(googleAccountNotServedNote(LIVE)).not.toMatch(/test account/);
+  });
+  it("★an empty account table is a fault to retry, not a range to change", () => {
+    expect(googleReportEmptySentence("account", LIVE)).not.toMatch(/dates/);
+    expect(googleReportEmptySentence("account", LIVE)).toMatch(/Try again/);
   });
   it("★an unsegmented table lists idle entities too, so its empty sentence claims none exist, not that none served", () => {
     for (const k of ["campaigns", "ads", "keywords", "bidding-strategies"] as const) {
-      expect(googleReportEmptySentence(k), k).not.toMatch(/activity|served|in these dates/);
+      expect(googleReportEmptySentence(k, LIVE), k).not.toMatch(/activity|served|in these dates/);
     }
   });
   it("★an account row of zeros has not served; one impression has", () => {

@@ -262,10 +262,15 @@ export const GOOGLE_REPORT_COLUMNS: Columns = {
  * metrics are all zero won't be returned when segmenting": empty there means
  * nothing served. Never "no data", and never an error.
  */
-export function googleReportEmptySentence(report: GoogleReportKey): string {
+export function googleReportEmptySentence(report: GoogleReportKey, account: { testAccount: boolean }): string {
+  // ★THE TEST-ACCOUNT REASON ONLY FOR A TEST ACCOUNT (review round 2): it is
+  //  the reason there, and no reason at all for a live one.
+  const test = account.testAccount ? " This is a test account, and a test account never serves ads." : "";
   switch (report) {
     case "account":
-      return "Google Ads returned nothing for this account in these dates. A test account never serves ads.";
+      // ★NOT THE DATES (round 2): an unsegmented customer query answers its row
+      //  for any range, so no row is a fault to retry, not a range to change.
+      return "Google Ads returned no row for this account. Try again in a moment; if it keeps happening, check the account in Google Ads.";
     case "campaigns":
       return "This Google Ads account has no campaigns yet.";
     case "ads":
@@ -273,7 +278,7 @@ export function googleReportEmptySentence(report: GoogleReportKey): string {
     case "keywords":
       return "This Google Ads account has no keywords yet. Keywords belong to Search campaigns.";
     case "search-terms":
-      return "No searches showed your ads in these dates. Search terms appear once a Search campaign has served; a test account never serves.";
+      return `No searches showed your ads in these dates. Search terms appear once a Search campaign has served.${test}`;
     case "bidding-strategies":
       return "This account has no portfolio bidding strategies. Campaigns using their own strategy are in the Campaigns table.";
   }
@@ -284,8 +289,11 @@ export function googleAccountHasNotServed(rows: ReadonlyArray<Pick<GoogleAccount
   return rows.every((r) => r.impressions === 0 && r.clicks === 0 && r.costMicros === 0);
 }
 
-export const GOOGLE_ACCOUNT_NOT_SERVED_NOTE =
-  "This account has not served an ad in these dates, so every figure is zero. A test account never serves.";
+export function googleAccountNotServedNote(account: { testAccount: boolean }): string {
+  return account.testAccount
+    ? "This is a test account, and a test account never serves ads, so every figure is zero."
+    : "This account has not served an ad in these dates, so every figure is zero.";
+}
 
 /**
  * More rows existed than the api returns. ★THE COUNT IS THE ROWS SHOWN, not a

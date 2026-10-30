@@ -12,12 +12,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { googleAdsApi, type GoogleAdAccount, type GoogleAccountReportRow, type GoogleReport, type GoogleReportKey } from "@/lib/api/google-ads";
 import {
-  GOOGLE_ACCOUNT_NOT_SERVED_NOTE,
   GOOGLE_REPORT_COLUMNS,
   GOOGLE_REPORT_DEFAULT_RANGE_LABEL,
   GOOGLE_REPORT_TABS,
   GOOGLE_REPORTS_MEASUREMENT_NOTE,
   googleAccountHasNotServed,
+  googleAccountNotServedNote,
   googleReportEmptySentence,
   googleReportLatestDay,
   googleReportErrorMessage,
@@ -185,10 +185,10 @@ function ReportTable({ account, report, range }: { account: GoogleAdAccount; rep
       {data ? <p className="text-sm font-medium">{googleReportRangeSentence(data.range)}</p> : null}
       <p className="text-xs text-muted-foreground">{meta.note}</p>
       {rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{googleReportEmptySentence(report)}</p>
+        <p className="text-sm text-muted-foreground">{googleReportEmptySentence(report, account)}</p>
       ) : (
         <>
-          {notServed ? <p className="text-sm text-muted-foreground">{GOOGLE_ACCOUNT_NOT_SERVED_NOTE}</p> : null}
+          {notServed ? <p className="text-sm text-muted-foreground">{googleAccountNotServedNote(account)}</p> : null}
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
