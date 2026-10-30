@@ -23,7 +23,6 @@ import {
   googleReportErrorMessage,
   googleReportRangeProblem,
   googleReportRangeSentence,
-  googleReportRowKey,
   googleReportTruncatedNote,
   type GoogleReportColumn,
 } from "@/lib/google-reports-view";
@@ -191,7 +190,8 @@ function ReportTable({ account, report, range }: { account: GoogleAdAccount; rep
               </TableHeader>
               <TableBody>
                 {rows.map((row, i) => (
-                  <TableRow key={googleReportRowKey(report, row, i)}>
+                  // A read-only table, never reordered in place: the position is its key.
+                  <TableRow key={i}>
                     {columns.map((c) => (
                       <TableCell key={c.key} className={c.numeric ? "text-right tabular-nums" : undefined}>
                         {c.cell(row, currency)}

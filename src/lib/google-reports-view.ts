@@ -246,26 +246,6 @@ export const GOOGLE_REPORT_COLUMNS: Columns = {
   ],
 };
 
-/** A stable React key for a row: the ids Google answered, else its position. */
-export function googleReportRowKey(report: GoogleReportKey, row: GoogleReportRows[GoogleReportKey], index: number): string {
-  const r = row as unknown as Record<string, unknown>;
-  const parts =
-    report === "account"
-      ? [r.customerId]
-      : report === "campaigns"
-        ? [r.campaignId]
-        : report === "ads"
-          ? [r.adGroupId, r.adId]
-          : report === "keywords"
-            ? [r.adGroupId, r.criterionId]
-            : report === "search-terms"
-              ? [r.adGroupId, r.searchTerm, r.matchType]
-              : [r.strategyId];
-  // ★THE POSITION TOO: a search term can repeat in an ad group under another
-  //  match type, and a row missing an id must not collide with another.
-  return `${parts.map((p) => (p === undefined ? "" : String(p))).join("~")}#${index}`;
-}
-
 // ── Empty, and not served ────────────────────────────────────────────────
 
 /**

@@ -21,7 +21,6 @@ import {
   googleReportErrorMessage,
   googleReportRangeProblem,
   googleReportRangeSentence,
-  googleReportRowKey,
   googleReportTruncatedNote,
   googleSearchTermStatusLabel,
   humanizeGoogleEnum,
@@ -160,16 +159,6 @@ describe("cells", () => {
     expect(googleReportChannelLabel("SEARCH")).toBe("Search");
     expect(googleReportChannelLabel("LOCAL_SERVICES")).toBe("Local services");
     expect(googleReportChannelLabel(undefined)).toBe("—");
-  });
-  it("row keys are unique even when a search term repeats under another match type, or ids are missing", () => {
-    const base = { clicks: 0, impressions: 0, costMicros: 0 };
-    const keys = [
-      googleReportRowKey("search-terms", { ...base, adGroupId: "5", searchTerm: "linen", matchType: "EXACT" }, 0),
-      googleReportRowKey("search-terms", { ...base, adGroupId: "5", searchTerm: "linen", matchType: "NEAR_EXACT" }, 1),
-      googleReportRowKey("ads", { ...base, conversions: 0 }, 2),
-      googleReportRowKey("ads", { ...base, conversions: 0 }, 3),
-    ];
-    expect(new Set(keys).size).toBe(4);
   });
 });
 
