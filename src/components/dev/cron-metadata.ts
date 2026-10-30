@@ -1475,7 +1475,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     label: "Monthly Peakhour Summit review",
     frequency: "Runs at 5:00 AM UTC on the 1st–7th of each month",
     description:
-      "Reviews the growth plan of each business above autonomy L0 not yet reviewed this month: three model " +
+      "Reviews the Growth Engine plan of each business above autonomy L0 not yet reviewed this month: three model " +
       "calls per business, so AI spend. A recommendation becomes a decision under the business's autonomy rules.",
     summarize: summarizeCouncilReview,
   },
