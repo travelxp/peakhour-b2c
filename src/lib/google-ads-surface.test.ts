@@ -73,8 +73,9 @@ describe("★★G-15 — no b2c file names a Google ads path but the client", ()
     for (const p of paths) expect(isManagedGoogleAdsPath(p), p).toBe(true);
     // Each `api.<verb>(` call's first argument is a googleAdsUrl(...) call.
     const calls = [...client.matchAll(/api\.(get|post|put|patch|delete)<[^>]*>\(\s*([^,)]+)/g)].map((m) => m[2]!.trim());
-    // G-14a: +5 (targeting read and save, keyword status, locations, languages); G-14d: +1 (reports); G-14f: +2 (website conversion).
-    expect(calls.length).toBe(14);
+    // G-14a: +5 (targeting read and save, keyword status, locations, languages); G-14d: +1 (reports); G-14f: +2 (website conversion);
+    // G-14e: +3 (callouts list, add, remove).
+    expect(calls.length).toBe(17);
     for (const arg of calls) expect(arg.startsWith("googleAdsUrl("), arg).toBe(true);
   });
 
@@ -164,6 +165,37 @@ describe("★★G-14f — the website conversion route is managed, read with GET
   });
 });
 
+describe("★★G-14e — the callout routes are managed: GET lists, POST adds, DELETE unlinks one", () => {
+  it("both are on the managed list", () => {
+    expect(GOOGLE_ADS_MANAGED_ROUTES).toContain(`${GOOGLE_ADS_PREFIX}/callouts`);
+    expect(GOOGLE_ADS_MANAGED_ROUTES).toContain(`${GOOGLE_ADS_PREFIX}/callouts/:assetId`);
+    expect(googleAdsUrl("/v1/google/ads/callouts/:assetId", { assetId: "501" })).toBe("/v1/google/ads/callouts/501");
+  });
+  it("★the client lists and removes with the account in the query, and adds with the text and the merchant's acceptance in the body", () => {
+    const client = read(CLIENT);
+    expect(client).toContain(
+      'api.get<{ adAccountId: string; callouts: GoogleCallout[] }>(googleAdsUrl("/v1/google/ads/callouts") + `?adAccountId=${encodeURIComponent(adAccountId)}`)',
+    );
+    expect(client).toContain(
+      'api.post<GoogleCalloutAdded>(googleAdsUrl("/v1/google/ads/callouts"), { adAccountId, text, ...(acceptWarning ? { acceptWarning: true } : {}) })',
+    );
+    expect(client).toContain(
+      'api.delete<{ adAccountId: string; removed: boolean }>(googleAdsUrl("/v1/google/ads/callouts/:assetId", { assetId }) + `?adAccountId=${encodeURIComponent(adAccountId)}`)',
+    );
+    expect(client).not.toMatch(/api\.(put|patch)<[^>]*>\(googleAdsUrl\("\/v1\/google\/ads\/callouts/);
+  });
+  it("★the section reaches Google only through the client, and the panel only mounts it, once", () => {
+    const section = read("src/app/(site)/dashboard/ads/_components/google-callouts-section.tsx");
+    expect(section).toContain("googleAdsApi.listCallouts(");
+    expect(section).toContain("googleAdsApi.addCallout(");
+    expect(section).toContain("googleAdsApi.removeCallout(");
+    const panel = read(PANEL);
+    expect(panel).toContain('import { GoogleCalloutsSection } from "./google-callouts-section";');
+    expect(panel.match(/<GoogleCalloutsSection /g)?.length).toBe(1);
+    expect(panel).not.toMatch(/Callout\(|GOOGLE_CALLOUT/);
+  });
+});
+
 describe("★★googleAdsUrl, so a panel never has to write a literal", () => {
   it("fills the params, and the result is itself a managed path", () => {
     const url = googleAdsUrl("/v1/google/ads/campaigns/:id/status", { id: "6731f0aa" });
@@ -219,6 +251,9 @@ describe("★★G-15/G19/G20 — nothing implies a Google campaign type but Sear
     // G-14f: the website conversion tag and its words.
     ["the website conversion section", () => read("src/app/(site)/dashboard/ads/_components/google-website-conversion-section.tsx")],
     ["the website conversion words", () => read("src/lib/google-website-conversion-view.ts")],
+    // G-14e: the callouts section and its words.
+    ["the callouts section", () => read("src/app/(site)/dashboard/ads/_components/google-callouts-section.tsx")],
+    ["the callouts words", () => read("src/lib/google-callouts-view.ts")],
     ["the hub entry", () => googleEntry(read("src/app/(site)/dashboard/ads/ads-channels.ts"), 'key: "google"')],
     ["the catalog entry", () => googleEntry(read("src/app/(site)/dashboard/content/channels.config.ts"), 'slug: "google-ads"')],
   ])("★%s names no other campaign type", (_l, text) => {
@@ -311,7 +346,7 @@ describe("★★G-15 — the prefix and the routes are peakhour-api's", () => {
     const used = [...client.matchAll(/api\.(get|post|put|patch|delete)<[^>]*>\(\s*googleAdsUrl\("([^"]+)"/g)].map(
       (m) => `${m[1]} ${m[2]!.slice(GOOGLE_ADS_PREFIX.length)}`,
     );
-    expect(used.length).toBe(14);
+    expect(used.length).toBe(17);
     for (const u of used) expect(declared.has(u), u).toBe(true);
     for (const r of GOOGLE_ADS_MANAGED_ROUTES) {
       const sub = r.slice(GOOGLE_ADS_PREFIX.length);

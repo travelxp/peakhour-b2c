@@ -29,6 +29,10 @@ export const GOOGLE_ADS_MANAGED_ROUTES = [
   `${GOOGLE_ADS_PREFIX}/conversion-action`,
   // G-14f: the website conversion action and its tag (RMF C.65). GET reads; PUT finds or creates it.
   `${GOOGLE_ADS_PREFIX}/website-conversion`,
+  // G-14e: account-level callouts (RMF C.75). GET lists; POST checks the text against Google's ad policies, then adds it.
+  `${GOOGLE_ADS_PREFIX}/callouts`,
+  // G-14e: DELETE unlinks one callout from the account (the asset itself stays: Google assets cannot be deleted).
+  `${GOOGLE_ADS_PREFIX}/callouts/:assetId`,
   // G-14a: the targeting step. GET reads live from Google; PUT replaces the campaign's places, keywords and negatives.
   `${GOOGLE_ADS_PREFIX}/campaigns/:id/targeting`,
   // G-14a: pause, enable or remove one keyword (RMF M.140).
