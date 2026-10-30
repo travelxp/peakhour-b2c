@@ -134,7 +134,10 @@ function ReportTable({ account, report, range }: { account: GoogleAdAccount; rep
     staleTime: REPORT_STALE_MS,
   });
 
-  if (query.isLoading) {
+  // ★`isPending`, NOT `isLoading` (review round 1): a query paused offline has
+  //  no data and no error, and `isLoading` is false then — the table would
+  //  read as an account that never served.
+  if (query.isPending) {
     return (
       <div className="space-y-2">
         <Skeleton className="h-8 w-full" />

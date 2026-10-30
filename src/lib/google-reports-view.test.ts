@@ -61,6 +61,11 @@ describe("★★every RMF-required column is a column, shown by default", () => 
     expect([...requiredOf(report)].sort()).toEqual([...rmf].sort());
     for (const k of rmf) expect(keysOf(report)).toContain(k);
   });
+  it("★a table waits on `isPending`, so a query paused offline is not shown as an empty report", () => {
+    const section = readFileSync(fileURLToPath(new URL("../app/(site)/dashboard/ads/_components/google-reports-section.tsx", import.meta.url)), "utf8");
+    expect(section).toContain("if (query.isPending) {");
+    expect(section).not.toMatch(/query\.isLoading/);
+  });
   it("★there is no hidden-column state: every column is rendered (the section maps the whole list)", () => {
     const section = readFileSync(fileURLToPath(new URL("../app/(site)/dashboard/ads/_components/google-reports-section.tsx", import.meta.url)), "utf8");
     expect(section).toContain("const columns = GOOGLE_REPORT_COLUMNS[report]");
