@@ -77,7 +77,9 @@ import {
   googleConversionSavedSentence,
   googleConversionStateSentence,
 } from "@/lib/google-conversion-view";
+import { googleStartTargetingHint } from "@/lib/google-targeting-view";
 import { ADS_CHANNEL_PARAM, getAdsChannel, panelConnection, type AdsChannelKey } from "../ads-channels";
+import { GoogleTargetingDialog } from "./google-targeting-dialog";
 import { GoogleReportsSection } from "./google-reports-section";
 
 /**
@@ -108,8 +110,8 @@ import { GoogleReportsSection } from "./google-reports-section";
  *
  * ★STARTING IS THE LAUNCH, and is confirmed first (round 1, as LinkedIn's):
  * it starts spend (and costs nothing itself: N2, PeakHour charges for verified outcomes). Google refuses a Search campaign
- * with no location or keyword, and a Performance Max campaign with no location or enabled asset group; the audience
- * step (G-06) writes locations and keywords; the api says so.
+ * with no location or keyword, and a Performance Max campaign with no location or enabled asset group; each row's
+ * Targeting step (G-14a, `google-targeting-dialog.tsx`) sets them, and the start confirmation names it.
  *
  * ★SEARCH, PERFORMANCE MAX AND YOUTUBE VIDEO (DEMAND GEN) ONLY: the three
  * types the api creates, and no other is named (the plan's G-15 row). ★EACH
@@ -444,6 +446,8 @@ function ConversionTrackingSection({ account }: { account: GoogleAdAccount }) {
 function CampaignsSection({ account }: { account: GoogleAdAccount }) {
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState<GoogleCampaign | null>(null);
+  // G-14a: the campaign whose targeting step is open.
+  const [targeting, setTargeting] = useState<GoogleCampaign | null>(null);
 
   const campaigns = useQuery({
     queryKey: ["google-ads-campaigns"],
@@ -526,7 +530,12 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
                       <Badge variant="outline">{busy ? "Updating…" : googleStatusLabel(c)}</Badge>
                     </TableCell>
                     <TableCell>{formatGoogleMoney(c.budget?.daily, c.currency ?? account.currencyCode)}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="space-x-2 text-right">
+                      {c.platformCampaignId && c.status !== "archived" && c.status !== "completed" ? (
+                        <Button size="sm" variant="ghost" onClick={() => setTargeting(c)}>
+                          Targeting
+                        </Button>
+                      ) : null}
                       {action.status ? (
                         <Button
                           size="sm"
@@ -566,11 +575,12 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
                 {formatGoogleMoney(confirming?.budget?.daily, confirming?.currency ?? account.currencyCode)}/day
               </span>
               . {GOOGLE_LAUNCH_NOTE}{" "}
+              {googleStartTargetingHint(confirming?.channelType)}
               {confirming?.channelType === "PERFORMANCE_MAX"
-                ? `Google will refuse it if it has no location yet — set one with the Audience step first. ${GOOGLE_PMAX_REPORTING_NOTE}`
+                ? ` ${GOOGLE_PMAX_REPORTING_NOTE}`
                 : confirming?.channelType === "DEMAND_GEN"
-                  ? `Google will refuse it if it has no location yet — set one with the Audience step first (a YouTube video ad takes no keywords). ${GOOGLE_DEMAND_GEN_REPORTING_NOTE}`
-                  : "Google will refuse it if it has no location or keywords yet — set them with the Audience step first."}
+                  ? ` ${GOOGLE_DEMAND_GEN_REPORTING_NOTE}`
+                  : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -586,6 +596,10 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* G-14a: keyed by campaign, so one campaign's unsaved step never shows on another. */}
+      {targeting ? (
+        <GoogleTargetingDialog key={targeting.id} campaign={targeting} account={account} open onOpenChange={(o) => (o ? null : setTargeting(null))} />
+      ) : null}
     </Card>
   );
 }

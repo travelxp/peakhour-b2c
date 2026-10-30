@@ -73,7 +73,8 @@ describe("★★G-15 — no b2c file names a Google ads path but the client", ()
     for (const p of paths) expect(isManagedGoogleAdsPath(p), p).toBe(true);
     // Each `api.<verb>(` call's first argument is a googleAdsUrl(...) call.
     const calls = [...client.matchAll(/api\.(get|post|put|patch|delete)<[^>]*>\(\s*([^,)]+)/g)].map((m) => m[2]!.trim());
-    expect(calls.length).toBe(7);
+    // G-14a: +5 (targeting read and save, keyword status, locations, languages); G-14d: +1 (reports).
+    expect(calls.length).toBe(12);
     for (const arg of calls) expect(arg.startsWith("googleAdsUrl("), arg).toBe(true);
   });
 
@@ -94,6 +95,27 @@ describe("★★G-17b — the conversion-action route is managed, and the client
     expect(client).toMatch(/api\.get<GoogleConversionActionState>\(googleAdsUrl\("\/v1\/google\/ads\/conversion-action"\)/);
     expect(client).toMatch(/api\.put<GoogleConversionActionChosen>\(googleAdsUrl\("\/v1\/google\/ads\/conversion-action"\)/);
     expect(client).toContain("?adAccountId=${encodeURIComponent(adAccountId)}");
+  });
+});
+
+describe("★★G-14a — the targeting step's routes are managed, and the client calls each by its verb", () => {
+  it("all four are on the managed list", () => {
+    for (const r of ["/campaigns/:id/targeting", "/campaigns/:id/keywords/:criterionId/status", "/locations", "/languages"]) {
+      expect(GOOGLE_ADS_MANAGED_ROUTES).toContain(`${GOOGLE_ADS_PREFIX}${r}`);
+    }
+  });
+  it("★the client reads and saves targeting with GET and PUT, sets a keyword's status with PATCH, and looks up with GET", () => {
+    const client = read(CLIENT);
+    expect(client).toMatch(/api\.get<GoogleTargetingRead>\(googleAdsUrl\("\/v1\/google\/ads\/campaigns\/:id\/targeting", \{ id \}\)\)/);
+    expect(client).toMatch(/api\.put<GoogleTargetingSaved>\(googleAdsUrl\("\/v1\/google\/ads\/campaigns\/:id\/targeting", \{ id \}\), input\)/);
+    expect(client).toMatch(/googleAdsUrl\("\/v1\/google\/ads\/campaigns\/:id\/keywords\/:criterionId\/status", \{ id, criterionId \}\)/);
+    expect(client).toContain("api.patch<");
+    expect(client).toContain('googleAdsUrl("/v1/google/ads/locations") + `?q=${encodeURIComponent(q)}');
+    expect(client).toContain('googleAdsUrl("/v1/google/ads/languages") + `?adAccountId=${encodeURIComponent(adAccountId)}`');
+  });
+  it("★a keyword id with a tilde fills the template and stays one segment", () => {
+    const url = googleAdsUrl("/v1/google/ads/campaigns/:id/keywords/:criterionId/status", { id: "6731f0aa", criterionId: "333~444" });
+    expect(url).toBe("/v1/google/ads/campaigns/6731f0aa/keywords/333~444/status");
   });
 });
 
@@ -166,6 +188,9 @@ describe("★★G-15/G19/G20 — nothing implies a Google campaign type but Sear
     ["the panel", () => read(PANEL)],
     ["the client", () => read(CLIENT)],
     ["the view helpers", () => read(VIEW)],
+    // G-14a: the targeting step and its words.
+    ["the targeting step", () => read("src/app/(site)/dashboard/ads/_components/google-targeting-dialog.tsx")],
+    ["the targeting words", () => read("src/lib/google-targeting-view.ts")],
     ["the hub entry", () => googleEntry(read("src/app/(site)/dashboard/ads/ads-channels.ts"), 'key: "google"')],
     ["the catalog entry", () => googleEntry(read("src/app/(site)/dashboard/content/channels.config.ts"), 'slug: "google-ads"')],
   ])("★%s names no other campaign type", (_l, text) => {
@@ -227,9 +252,11 @@ describe("★★G-15/G19/G20 — nothing implies a Google campaign type but Sear
 });
 
 describe("★★G-15 — the prefix and the routes are peakhour-api's", () => {
-  const SIBLING_REPO = fileURLToPath(new URL("../../../peakhour-api", import.meta.url));
-  const ROUTES_INDEX = fileURLToPath(new URL("../../../peakhour-api/src/v1/routes/index.ts", import.meta.url));
-  const ROUTE_FILE = fileURLToPath(new URL("../../../peakhour-api/src/v1/routes/google-ads/index.ts", import.meta.url));
+  // The sibling checkout, or the one PEAKHOUR_API_ROOT names: a lane whose api routes are not merged yet points it at its
+  // api worktree (the api's own tests read PEAKHOUR_MONGODB_ROOT the same way).
+  const SIBLING_REPO = process.env.PEAKHOUR_API_ROOT ?? fileURLToPath(new URL("../../../peakhour-api", import.meta.url));
+  const ROUTES_INDEX = join(SIBLING_REPO, "src", "v1", "routes", "index.ts");
+  const ROUTE_FILE = join(SIBLING_REPO, "src", "v1", "routes", "google-ads", "index.ts");
   const present = existsSync(SIBLING_REPO);
   if (!present) console.warn(`[g15] no peakhour-api checkout at ${SIBLING_REPO} — cross-repo cases SKIPPED`);
   // A missing checkout skips; a missing FILE inside a present checkout fails (M-13's rule).
@@ -256,7 +283,7 @@ describe("★★G-15 — the prefix and the routes are peakhour-api's", () => {
     const used = [...client.matchAll(/api\.(get|post|put|patch|delete)<[^>]*>\(\s*googleAdsUrl\("([^"]+)"/g)].map(
       (m) => `${m[1]} ${m[2]!.slice(GOOGLE_ADS_PREFIX.length)}`,
     );
-    expect(used.length).toBe(7);
+    expect(used.length).toBe(12);
     for (const u of used) expect(declared.has(u), u).toBe(true);
     for (const r of GOOGLE_ADS_MANAGED_ROUTES) {
       const sub = r.slice(GOOGLE_ADS_PREFIX.length);
