@@ -11,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { googleAdsApi, type GoogleAdAccount, type GoogleAccountReportRow, type GoogleReport, type GoogleReportKey } from "@/lib/api/google-ads";
-import { localIsoDay } from "@/lib/google-ads-view";
 import {
   GOOGLE_ACCOUNT_NOT_SERVED_NOTE,
   GOOGLE_REPORT_COLUMNS,
@@ -21,6 +20,7 @@ import {
   GOOGLE_REPORTS_MEASUREMENT_NOTE,
   googleAccountHasNotServed,
   googleReportEmptySentence,
+  googleReportLatestDay,
   googleReportErrorMessage,
   googleReportRangeProblem,
   googleReportRangeSentence,
@@ -57,8 +57,8 @@ export function GoogleReportsSection({ account }: { account: GoogleAdAccount }) 
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [applied, setApplied] = useState<AppliedRange>(null);
-  const today = localIsoDay(new Date());
-  const problem = mode === "custom" ? googleReportRangeProblem(from, to, today) : null;
+  const latestDay = googleReportLatestDay(new Date());
+  const problem = mode === "custom" ? googleReportRangeProblem(from, to, latestDay) : null;
 
   return (
     <Card>
@@ -99,13 +99,13 @@ export function GoogleReportsSection({ account }: { account: GoogleAdAccount }) 
                 <Label htmlFor="google-report-from" className="text-xs text-muted-foreground">
                   From
                 </Label>
-                <Input id="google-report-from" type="date" value={from} max={today} onChange={(e) => setFrom(e.target.value)} className="w-40" />
+                <Input id="google-report-from" type="date" value={from} max={latestDay} onChange={(e) => setFrom(e.target.value)} className="w-40" />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="google-report-to" className="text-xs text-muted-foreground">
                   To
                 </Label>
-                <Input id="google-report-to" type="date" value={to} max={today} onChange={(e) => setTo(e.target.value)} className="w-40" />
+                <Input id="google-report-to" type="date" value={to} max={latestDay} onChange={(e) => setTo(e.target.value)} className="w-40" />
               </div>
               <Button type="button" variant="outline" disabled={problem !== null} onClick={() => setApplied({ from, to })}>
                 Show
