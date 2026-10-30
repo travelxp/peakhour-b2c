@@ -174,9 +174,11 @@ export function googleTargetingProblem(d: TargetingDraft, channelType: GoogleCha
     const p = googleKeywordProblem(k.text);
     if (p) return `“${k.text}”: ${p}`;
   }
-  const bought = new Set(d.keywords.map((k) => foldKeyword(k.text).toLowerCase()));
-  const clash = d.negativeKeywords.find((k) => bought.has(foldKeyword(k.text).toLowerCase()));
-  if (clash) return `“${foldKeyword(clash.text)}” is both a keyword and a negative keyword. Keep one.`;
+  // The api's rule: a PHRASE or BROAD negative silences a keyword of the same words in any match type; an EXACT one
+  // only the EXACT keyword. (An EXACT negative beside a PHRASE or BROAD keyword is a deliberate pattern.)
+  const same = (a: string, b: string) => foldKeyword(a).toLowerCase() === foldKeyword(b).toLowerCase();
+  const clash = d.negativeKeywords.find((n) => d.keywords.some((k) => same(k.text, n.text) && (n.matchType !== "EXACT" || k.matchType === "EXACT")));
+  if (clash) return `The negative keyword “${foldKeyword(clash.text)}” would stop your keyword of the same words from ever showing. Keep one.`;
   return null;
 }
 

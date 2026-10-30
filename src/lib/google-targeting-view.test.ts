@@ -145,8 +145,13 @@ describe("★★what can't be saved yet — the conditions Google refuses to sta
     expect(googleTargetingProblem({ ...base, keywords: [] }, "PERFORMANCE_MAX")).toBeNull();
     expect(googleTargetingProblem({ ...base, keywords: [] }, "DEMAND_GEN")).toBeNull();
   });
-  it("★a word both bought and excluded", () => {
-    expect(googleTargetingProblem({ ...base, negativeKeywords: [{ text: "Linen Shirts", matchType: "BROAD" }] }, "SEARCH")).toMatch(/both a keyword and a negative keyword/);
+  it("★a negative that would silence a keyword (the api's rule)", () => {
+    expect(googleTargetingProblem({ ...base, negativeKeywords: [{ text: "Linen Shirts", matchType: "BROAD" }] }, "SEARCH")).toMatch(/would stop your keyword/);
+    expect(googleTargetingProblem({ ...base, negativeKeywords: [{ text: "linen shirts", matchType: "EXACT" }] }, "SEARCH")).toMatch(/would stop your keyword/);
+  });
+  it("PASS: an EXACT negative beside a PHRASE keyword of the same words", () => {
+    const d = { ...base, keywords: [{ text: "linen shirts", matchType: "PHRASE" as const }], negativeKeywords: [{ text: "linen shirts", matchType: "EXACT" as const }] };
+    expect(googleTargetingProblem(d, "SEARCH")).toBeNull();
   });
 });
 
