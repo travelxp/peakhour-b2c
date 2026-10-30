@@ -97,7 +97,9 @@ describe("★★D12 — Google's figures are Google's, as Google gives them, nev
         `Google top-of-page bid: ${formatGoogleMicros(310000, currency)}–${formatGoogleMicros(1120000, currency)}`,
       );
     }
-    expect(googleIdeaBidRange({ lowTopOfPageBidMicros: 310000, highTopOfPageBidMicros: 1120000 }, "EUR")).toMatch(/0\.31.*1\.12/);
+    // ★And what it says, not only that it matches itself (review round 2).
+    expect(googleIdeaBidRange({ lowTopOfPageBidMicros: 310000, highTopOfPageBidMicros: 1120000 }, "EUR")).toMatch(/^Google top-of-page bid: €0\.31–€1\.12$/);
+    expect(googleIdeaBidRange({ lowTopOfPageBidMicros: 310000, highTopOfPageBidMicros: 1120000 }, undefined)).toBe("Google top-of-page bid: 0.31–1.12");
   });
   it("★no copy claims reach, an audience, or a forecast for the campaign", () => {
     for (const s of [GOOGLE_IDEAS_ATTRIBUTION, googleIdeaSearchesSentence({ avgMonthlySearches: 50 })!, googleIdeaCompetitionLabel({ competition: "MEDIUM" })!]) {
@@ -169,6 +171,10 @@ describe("★the request: the merchant's words or page, the campaign's places an
     expect(r.input.geoTargetConstants).toEqual([]);
     expect(r.placesNote).toMatch(/locations, not a radius/);
   });
+  it("★the 80 is counted as the api counts it, in UTF-16 units (review round 2)", () => {
+    const astral = "\u{1F9F5}".repeat(41); // 41 code points, 82 units
+    expect(keywordIdeasRequest({ words: astral, url: "", language: "" }, draft()).problem).toMatch(/at most 80 characters/);
+  });
   it("★a phrase over the api's 80 characters is said here, not as the api's Invalid body (review round 1)", () => {
     expect(keywordIdeasRequest({ words: "x".repeat(81), url: "", language: "" }, draft()).problem).toMatch(/at most 80 characters/);
     expect(keywordIdeasRequest({ words: "x".repeat(80), url: "", language: "" }, draft()).problem).toBeNull();
@@ -197,6 +203,13 @@ describe("★★an access refusal is readable", () => {
     ["KEYWORD_IDEAS_URL_UNREADABLE", 422, "Google Ads couldn't read that page for ideas. Check the address, or start from words instead."],
   ])("★%s is shown as the api says it", (code, status, message) => {
     expect(googleKeywordIdeasErrorMessage(new ApiError(code, message, status), "fallback")).toBe(message);
+  });
+  it("★a row the api cannot read says contact support, not try again (review round 2)", () => {
+    const msg = "This campaign's Google Ads account can't be read, so we can't ask for ideas. Contact support.";
+    expect(googleKeywordIdeasErrorMessage(new ApiError("CAMPAIGN_UNREADABLE", msg, 409), "fallback")).toBe(msg);
+  });
+  it("★a stale list cannot be added from", () => {
+    expect(read(SECTION)).toContain("disabled={disabled || stale || !!problem}");
   });
   it("PASS: the panel's own codes still read through, and an unknown one is the fallback", () => {
     expect(googleKeywordIdeasErrorMessage(new ApiError("NOT_SEARCH", "Keyword ideas are for Search campaigns, which have keywords.", 409), "fallback")).toBe(

@@ -46,6 +46,8 @@ const IDEAS_MERCHANT_FACING_CODES: ReadonlySet<string> = new Set([
   "KEYWORD_IDEAS_NOT_AVAILABLE",
   "KEYWORD_IDEAS_URL_UNREADABLE",
   "KEYWORD_IDEAS_REFUSED",
+  // Review round 2: a row the api cannot read; "contact support", never "try again".
+  "CAMPAIGN_UNREADABLE",
 ]);
 
 /** A failed request, in the merchant's words: this section's codes, then the panel's. */
@@ -96,7 +98,8 @@ export function keywordIdeasRequest(
       : keywords.length > GOOGLE_IDEAS_MAX_SEED_WORDS
         ? `Google takes at most ${GOOGLE_IDEAS_MAX_SEED_WORDS} words or phrases to start from.`
         : // ★SAID HERE, NOT AS THE API'S "Invalid body" (review round 1): a pasted sentence is one long phrase.
-          keywords.some((k) => [...k].length > GOOGLE_IDEAS_MAX_SEED_CHARS)
+          // `.length`, UTF-16 units, as the api's zod `max(80)` counts (review round 2).
+          keywords.some((k) => k.length > GOOGLE_IDEAS_MAX_SEED_CHARS)
           ? `A word or phrase to start from is at most ${GOOGLE_IDEAS_MAX_SEED_CHARS} characters. Separate them with commas.`
           : null;
   const placesNote =
