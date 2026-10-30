@@ -166,9 +166,8 @@ export function googleCalloutErrorMessage(err: unknown, fallback: string): strin
   if (err instanceof ApiError && err.code === "VALIDATION_ERROR" && err.message === "Invalid body") {
     return err.requestId ? `${fallback} (reference ${err.requestId})` : fallback;
   }
-  if (err instanceof ApiError && err.code === "CALLOUT_POLICY_BLOCKED") {
-    return `Google's ad policies wouldn't allow this callout: ${err.message}`;
-  }
+  // ★NO PREFIX ON THE CHECK'S SENTENCE (review round 2): the api's fallback is already "Google's ad policies would not
+  //  allow this callout.", and a prefix said it twice. The section heads the box instead.
   return adsErrorMessage(err, fallback, MERCHANT_FACING_CODES);
 }
 

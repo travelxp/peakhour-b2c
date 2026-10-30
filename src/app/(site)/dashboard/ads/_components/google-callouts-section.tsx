@@ -229,7 +229,9 @@ export function GoogleCalloutsSection({ account }: { account: GoogleAdAccount })
           {addError ? <p className={addError.mayExist ? "text-sm text-warning-on-tint" : "text-sm text-destructive-on-tint"}>{addError.message}</p> : null}
           {warnedHere ? (
             <div className="space-y-2 rounded-md border border-warning/40 p-3">
-              <p className="text-sm text-warning-on-tint">Google may not approve this callout: {warnedHere.message}</p>
+              {/* ★The api's sentence alone (review round 2): its own fallback is this heading's words. */}
+              <p className="text-sm font-medium text-warning-on-tint">Our policy check warns about this callout</p>
+              <p className="text-sm text-warning-on-tint">{warnedHere.message}</p>
               <div className="flex gap-2">
                 <Button
                   type="button"

@@ -106,7 +106,10 @@ describe("★★G-14e — adding: the policy check's answers", () => {
     expect(googleCalloutPolicyWarning(new Error("x"))).toBeNull();
   });
   it("★a block says it is Google's policies, with the check's reason", () => {
-    expect(googleCalloutErrorMessage(apiError("CALLOUT_POLICY_BLOCKED", "“!!!” draws attention."), "f")).toBe("Google's ad policies wouldn't allow this callout: “!!!” draws attention.");
+    expect(googleCalloutErrorMessage(apiError("CALLOUT_POLICY_BLOCKED", "“!!!” draws attention."), "f")).toBe("“!!!” draws attention.");
+    expect(googleCalloutErrorMessage(apiError("CALLOUT_POLICY_BLOCKED", "Google's ad policies would not allow this callout."), "f")).toBe(
+      "Google's ad policies would not allow this callout.",
+    );
   });
   it.each(["CALLOUT_REPEATS", "BLOCKED_TERM", "CALLOUT_UNCONFIRMED", "POLICY_CHECK_UNAVAILABLE", "VALIDATION_ERROR", "PLATFORM_REFUSED", "CALLOUT_REFUSED", "CHANNEL_DENIED", "QUIET_HOURS", "BLACKOUT", "AD_ACCOUNT_NOT_ON_CONNECTION"])(
     "%s shows the api's merchant sentence",
