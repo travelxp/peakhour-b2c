@@ -147,8 +147,11 @@ describe("★the fewer-than-15 warning: said, never a refusal", () => {
   ])("%s conversions: warned, and the target kept", (n, want) => {
     expect(googleBiddingWarning("TARGET_CPA", H(n))).toMatch(want);
     expect(googleBiddingWarning("TARGET_ROAS", H(n))).toMatch(want);
-    // The draft is still sendable: the warning does not enter the problem.
-    expect(googleBiddingProblem("SEARCH", d({ pick: "TARGET_CPA", target: "40" }), false)).toBeNull();
+  });
+  it("★the target is kept: what decides whether a draft is sent takes no history at all (review round 1)", () => {
+    // Structural, so no history can ever withhold a target: (type, draft, allowDefault).
+    expect(googleBiddingProblem.length).toBe(3);
+    expect(googleBiddingChoiceOf(d({ pick: "TARGET_CPA", target: "40" }))).toEqual({ strategy: "TARGET_CPA", form: "standard", target: 40 });
   });
   it("15 or more: no warning; an unreadable history: said so, target kept", () => {
     expect(googleBiddingWarning("TARGET_CPA", H(15))).toBeNull();
