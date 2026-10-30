@@ -74,6 +74,10 @@ describe("★★every RMF-required column is a column, shown by default", () => 
     // ★A remount past the stale time DOES re-read (round 2): figures older than five minutes are not shown.
     expect(section).not.toContain("refetchOnMount");
   });
+  it("★a failed table offers Try again (nothing re-reads by itself)", () => {
+    const section = readFileSync(fileURLToPath(new URL("../app/(site)/dashboard/ads/_components/google-reports-section.tsx", import.meta.url)), "utf8");
+    expect(section).toMatch(/onClick=\{\(\) => void query\.refetch\(\)\}/);
+  });
   it("★there is no hidden-column state: every column is rendered (the section maps the whole list)", () => {
     const section = readFileSync(fileURLToPath(new URL("../app/(site)/dashboard/ads/_components/google-reports-section.tsx", import.meta.url)), "utf8");
     expect(section).toContain("const columns = GOOGLE_REPORT_COLUMNS[report]");

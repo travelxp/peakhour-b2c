@@ -157,7 +157,18 @@ function ReportTable({ account, report, range }: { account: GoogleAdAccount; rep
     );
   }
   // A failed read is NOT an empty report.
-  if (query.isError) return <p className="text-sm text-destructive-on-tint">{googleReportErrorMessage(query.error)}</p>;
+  if (query.isError) {
+    // ★A WAY TO "TRY AGAIN" (review round 2): nothing re-reads by itself here
+    //  (no retry, no refocus read), so the sentence needs its button.
+    return (
+      <div className="space-y-2">
+        <p className="text-sm text-destructive-on-tint">{googleReportErrorMessage(query.error)}</p>
+        <Button type="button" variant="outline" size="sm" disabled={query.isFetching} onClick={() => void query.refetch()}>
+          Try again
+        </Button>
+      </div>
+    );
+  }
   const data = query.data as GoogleReport | undefined;
   const rows = data?.rows ?? [];
   const columns = GOOGLE_REPORT_COLUMNS[report] as ReadonlyArray<GoogleReportColumn<(typeof rows)[number]>>;
