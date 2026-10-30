@@ -78,6 +78,10 @@ describe("★★the double count: why it is secondary, said wherever the merchan
     expect(section).toContain("setQueryData<GoogleWebsiteConversionState>(key,");
     expect(section).not.toContain("setQueryData<GoogleWebsiteConversionState>(queryKey");
   });
+  it("★a failed re-read is said even while the last good read is shown (review round 1)", () => {
+    const section = read("../app/(site)/dashboard/ads/_components/google-website-conversion-section.tsx");
+    expect(section).toContain("{query.isError && query.data ? (");
+  });
   it("the label is the api's name", () => {
     expect(PEAKHOUR_WEBSITE_CONVERSION_LABEL).toBe("Peakhour website purchases");
   });

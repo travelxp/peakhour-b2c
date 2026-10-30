@@ -114,6 +114,17 @@ export function GoogleWebsiteConversionSection({ account }: { account: GoogleAdA
             )}
           </p>
         ) : null}
+        {/* ★A FAILED RE-READ IS SAID (review round 1): data wins the state, so "Check again" failing would otherwise change nothing on screen. */}
+        {query.isError && query.data ? (
+          <p className="text-xs text-destructive-on-tint">
+            {googleWebsiteConversionErrorMessage(query.error, "We couldn't check Google Ads again just now. Try again in a moment.")}{" "}
+            {googleWebsiteConversionNeedsReconnect(query.error) ? (
+              <Link href="/dashboard/integrations" className="font-medium underline underline-offset-4">
+                Check connection
+              </Link>
+            ) : null}
+          </p>
+        ) : null}
         {state.kind === "not_set_up" || state.kind === "gone" ? (
           <div className="space-y-2">
             {state.kind === "gone" ? <p className="text-sm text-destructive-on-tint">{GOOGLE_WEBSITE_CONVERSION_GONE}</p> : null}
