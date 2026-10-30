@@ -31,6 +31,7 @@ import {
   googleCalloutAddedSentence,
   googleCalloutErrorMessage,
   googleCalloutLength,
+  googleCalloutMayHaveBeenAdded,
   googleCalloutNeedsReconnect,
   googleCalloutPolicyWarning,
   googleCalloutRemoveConfirmation,
@@ -73,7 +74,8 @@ export function GoogleCalloutsSection({ account }: { account: GoogleAdAccount })
   const [text, setText] = useState("");
   // The warning the policy check gave for exactly this text; editing the text clears it.
   const [warning, setWarning] = useState<{ text: string; message: string } | null>(null);
-  const [addError, setAddError] = useState<string | null>(null);
+  // ★`mayExist`: the api could not confirm the add (CALLOUT_UNCONFIRMED). Said as a warning, never a failure (review round 1).
+  const [addError, setAddError] = useState<{ message: string; mayExist: boolean } | null>(null);
   const [removing, setRemoving] = useState<GoogleCallout | null>(null);
   const length = googleCalloutLength(text);
 
@@ -94,7 +96,10 @@ export function GoogleCalloutsSection({ account }: { account: GoogleAdAccount })
         setWarning({ text: v.text, message: warned });
         return;
       }
-      setAddError(googleCalloutErrorMessage(err, "We couldn't add that callout. Try again in a moment."));
+      setAddError({
+        message: googleCalloutErrorMessage(err, "We couldn't add that callout. Try again in a moment."),
+        mayExist: googleCalloutMayHaveBeenAdded(err),
+      });
     },
     onSettled: (_res, _err, v) => void queryClient.invalidateQueries({ queryKey: v.key }),
   });
@@ -201,7 +206,7 @@ export function GoogleCalloutsSection({ account }: { account: GoogleAdAccount })
             {length.label}. {GOOGLE_CALLOUT_LENGTH_HINT}
           </p>
           <p className="text-xs text-muted-foreground">{GOOGLE_CALLOUT_CHECK_NOTE}</p>
-          {addError ? <p className="text-sm text-destructive-on-tint">{addError}</p> : null}
+          {addError ? <p className={addError.mayExist ? "text-sm text-warning-on-tint" : "text-sm text-destructive-on-tint"}>{addError.message}</p> : null}
           {warnedHere ? (
             <div className="space-y-2 rounded-md border border-warning/40 p-3">
               <p className="text-sm text-warning-on-tint">Google may not approve this callout: {warnedHere.message}</p>
