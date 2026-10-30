@@ -119,6 +119,15 @@ export function googleCreateMayExist(err: unknown): boolean {
   return typeof id === "string" && id.length > 0;
 }
 
+/**
+ * Whether a campaign's settings (targeting, bidding) can be changed from its row: Google has confirmed it, and it has
+ * not finished. One rule for every row button (G-14b review round 1), as the api refuses the rest
+ * (NOT_CREATED_YET, CAMPAIGN_FINISHED).
+ */
+export function googleCampaignSettable(c: Pick<GoogleCampaign, "platformCampaignId" | "status">): boolean {
+  return !!c.platformCampaignId && c.status !== "archived" && c.status !== "completed";
+}
+
 /** Whether the failure means the connection itself needs attention. */
 export function googleAdsNeedsReconnect(err: unknown): boolean {
   return err instanceof ApiError && (err.code === "NEEDS_REAUTH" || err.code === "NOT_CONNECTED" || err.code === "TOKEN_FAILED");

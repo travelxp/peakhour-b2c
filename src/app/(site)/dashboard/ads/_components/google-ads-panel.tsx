@@ -60,6 +60,7 @@ import {
   googleCreateNote,
   googleStatusAction,
   googleStatusLabel,
+  googleCampaignSettable,
   linesOf,
 } from "@/lib/google-ads-view";
 import {
@@ -536,12 +537,12 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
                     </TableCell>
                     <TableCell>{formatGoogleMoney(c.budget?.daily, c.currency ?? account.currencyCode)}</TableCell>
                     <TableCell className="space-x-2 text-right">
-                      {c.platformCampaignId && c.status !== "archived" && c.status !== "completed" ? (
+                      {googleCampaignSettable(c) ? (
                         <Button size="sm" variant="ghost" onClick={() => setTargeting(c)}>
                           Targeting
                         </Button>
                       ) : null}
-                      {c.platformCampaignId && c.status !== "archived" && c.status !== "completed" ? (
+                      {googleCampaignSettable(c) ? (
                         <Button size="sm" variant="ghost" onClick={() => setBidding(c)}>
                           Bidding
                         </Button>
