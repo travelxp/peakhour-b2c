@@ -70,6 +70,14 @@ export const GOOGLE_MERCHANT_FACING_CODES: ReadonlySet<string> = new Set([
   "CAMPAIGN_FINISHED",
   "ADS_HALTED",
   "STATUS_PERSIST_FAILED",
+  // G-14a: the targeting step's own sentences.
+  "TARGETING_UNCONFIRMED",
+  "TARGETING_PERSIST_FAILED",
+  "TARGETING_UNREADABLE",
+  "KEYWORD_PERSIST_FAILED",
+  "NOT_SEARCH",
+  "NOT_FOUND",
+  "AD_ACCOUNT_NOT_ALLOWED",
 ]);
 
 export function googleAdsErrorMessage(err: unknown, fallback: string): string {

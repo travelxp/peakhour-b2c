@@ -171,6 +171,80 @@ export interface GoogleConversionSignal {
 
 export type GoogleSettableStatus = "ACTIVE" | "PAUSED";
 
+// ── G-14a: the targeting step (peakhour-api `routes/google-ads`) ──────────
+
+/** KeywordMatchType, v26: every value. BROAD is sent only when the merchant picks it. */
+export type GoogleMatchType = "EXACT" | "PHRASE" | "BROAD";
+/** ProximityRadiusUnits, v26. */
+export type GoogleRadiusUnit = "KILOMETERS" | "MILES";
+/** A campaign or ad-group criterion's status: ENABLED or PAUSED (removed ones are never read). */
+export type GoogleCriterionStatus = string;
+export interface GoogleGeoPoint {
+  latitudeInMicroDegrees: number;
+  longitudeInMicroDegrees: number;
+}
+/** AddressInfo, as the api reads and sends it. */
+export interface GoogleRadiusAddress {
+  streetAddress?: string;
+  cityName?: string;
+  postalCode?: string;
+  provinceCode?: string;
+  provinceName?: string;
+  countryCode?: string;
+}
+
+/** GET /campaigns/:id/targeting — read live from Google. */
+export interface GoogleCampaignTargeting {
+  locations: Array<{ resourceName: string; status: GoogleCriterionStatus; geoTargetConstant: string; name?: string }>;
+  /** Each radius with the point Google holds: sending it back keeps the radius. */
+  radii: Array<{ resourceName: string; status: GoogleCriterionStatus; geoPoint?: GoogleGeoPoint; radius: number; radiusUnits: string; address?: GoogleRadiusAddress }>;
+  languages: Array<{ resourceName: string; status: GoogleCriterionStatus; languageConstant: string; name?: string }>;
+  /** Search only. `resourceName` ends in the id the keyword status route takes. */
+  keywords: Array<{ resourceName: string; status: GoogleCriterionStatus; text: string; matchType: string }>;
+  /** Search only. */
+  negativeKeywords: Array<{ resourceName: string; status: GoogleCriterionStatus; text: string; matchType: string }>;
+}
+export interface GoogleTargetingRead {
+  managedCampaignId: string;
+  channelType?: GoogleChannelType;
+  targeting: GoogleCampaignTargeting;
+}
+
+/** PUT /campaigns/:id/targeting. Search sends its ENABLED keywords and every negative; the other types send places only. */
+export interface GoogleTargetingInput {
+  locations: string[];
+  radii: Array<{ geoPoint?: GoogleGeoPoint; address?: GoogleRadiusAddress; radius: number; radiusUnits: GoogleRadiusUnit }>;
+  languages: string[];
+  keywords?: Array<{ text: string; matchType: GoogleMatchType }>;
+  negativeKeywords?: Array<{ text: string; matchType: GoogleMatchType }>;
+  /** Names shown beside the ids (never sent to Google). */
+  labels?: Record<string, string>;
+}
+export interface GoogleTargetingSaved {
+  managedCampaignId: string;
+  appliedAt: string;
+  /** Present (false) when the recorded targeting carries audience signals Google may reach past. */
+  targetingApplied?: boolean;
+}
+
+/** The statuses one keyword is set to by hand. REMOVED cannot be undone. */
+export type GoogleKeywordStatus = "ENABLED" | "PAUSED" | "REMOVED";
+
+/** GET /locations — Google's own places for a name. */
+export interface GoogleLocationOption {
+  geoTargetConstant: string;
+  name: string;
+  canonicalName?: string;
+  targetType?: string;
+  countryCode?: string;
+}
+/** GET /languages — the account's targetable languages. */
+export interface GoogleLanguageOption {
+  languageConstant: string;
+  name: string;
+  code?: string;
+}
+
 export const googleAdsApi = {
   listAdAccounts: () => api.get<{ adAccounts: GoogleAdAccount[] }>(googleAdsUrl("/v1/google/ads/ad-accounts")),
   listCampaigns: () => api.get<{ campaigns: GoogleCampaign[] }>(googleAdsUrl("/v1/google/ads/campaigns")),
@@ -189,4 +263,20 @@ export const googleAdsApi = {
    */
   setConversionAction: (adAccountId: string, choice: { signal: GoogleConversionSignal } | { conversionActionId: string }) =>
     api.put<GoogleConversionActionChosen>(googleAdsUrl("/v1/google/ads/conversion-action"), { adAccountId, ...choice }),
+  // G-14a: the targeting step. A read is live from Google; a save replaces what the step shows.
+  getTargeting: (id: string) => api.get<GoogleTargetingRead>(googleAdsUrl("/v1/google/ads/campaigns/:id/targeting", { id })),
+  setTargeting: (id: string, input: GoogleTargetingInput) =>
+    api.put<GoogleTargetingSaved>(googleAdsUrl("/v1/google/ads/campaigns/:id/targeting", { id }), input),
+  /** `criterionId` is `{adGroupId}~{criterionId}`, the tail of the keyword's resource name. */
+  setKeywordStatus: (id: string, criterionId: string, status: GoogleKeywordStatus) =>
+    api.patch<{ managedCampaignId: string; criterionId: string; status: GoogleKeywordStatus }>(
+      googleAdsUrl("/v1/google/ads/campaigns/:id/keywords/:criterionId/status", { id, criterionId }),
+      { status },
+    ),
+  searchLocations: (q: string, countryCode?: string) =>
+    api.get<{ locations: GoogleLocationOption[] }>(
+      googleAdsUrl("/v1/google/ads/locations") + `?q=${encodeURIComponent(q)}${countryCode ? `&countryCode=${encodeURIComponent(countryCode)}` : ""}`,
+    ),
+  listLanguages: (adAccountId: string) =>
+    api.get<{ languages: GoogleLanguageOption[] }>(googleAdsUrl("/v1/google/ads/languages") + `?adAccountId=${encodeURIComponent(adAccountId)}`),
 };

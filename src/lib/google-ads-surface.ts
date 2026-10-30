@@ -27,6 +27,13 @@ export const GOOGLE_ADS_MANAGED_ROUTES = [
   `${GOOGLE_ADS_PREFIX}/campaigns/:id/status`,
   // G-17b: which conversion action offline sales are reported to. GET reads; PUT chooses or creates.
   `${GOOGLE_ADS_PREFIX}/conversion-action`,
+  // G-14a: the targeting step. GET reads live from Google; PUT replaces the campaign's places, keywords and negatives.
+  `${GOOGLE_ADS_PREFIX}/campaigns/:id/targeting`,
+  // G-14a: pause, enable or remove one keyword (RMF M.140).
+  `${GOOGLE_ADS_PREFIX}/campaigns/:id/keywords/:criterionId/status`,
+  // G-14a: Google's places for a name, and the account's languages. Both read.
+  `${GOOGLE_ADS_PREFIX}/locations`,
+  `${GOOGLE_ADS_PREFIX}/languages`,
 ] as const;
 
 export type GoogleAdsManagedRoute = (typeof GOOGLE_ADS_MANAGED_ROUTES)[number];
