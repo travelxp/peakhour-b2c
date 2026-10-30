@@ -129,6 +129,11 @@ export function googleBiddingChoiceOf(d: GoogleBiddingDraft): GoogleBiddingChoic
   return { strategy: d.pick, form: d.form, target: d.pick === "TARGET_ROAS" ? Number((n / 100).toFixed(6)) : n };
 }
 
+/** A ROAS ratio as the percent shown, exactly (review round 2: 3.505 is 350.5%, never rounded to 351). */
+export function googleRoasPercent(ratio: number): string {
+  return String(Number((ratio * 100).toFixed(4)));
+}
+
 const isStrategy = (s: string): s is GoogleBiddingStrategy => GOOGLE_BIDDING_STRATEGIES.some((x) => x.value === s);
 
 /**
@@ -139,7 +144,7 @@ const isStrategy = (s: string): s is GoogleBiddingStrategy => GOOGLE_BIDDING_STR
 export function googleBiddingDraftOf(state: GoogleBiddingState | undefined): GoogleBiddingDraft {
   if (!state || !isStrategy(state.strategy)) return { ...EMPTY_BIDDING_DRAFT, pick: "MAXIMIZE_CONVERSIONS" };
   const strategy = state.strategy;
-  const target = state.target === undefined ? "" : strategy === "TARGET_ROAS" ? String(Math.round(state.target * 100)) : String(state.target);
+  const target = state.target === undefined ? "" : strategy === "TARGET_ROAS" ? googleRoasPercent(state.target) : String(state.target);
   return { pick: strategy, form: state.form, target };
 }
 
@@ -185,7 +190,7 @@ export function googleBiddingSentence(state: GoogleBiddingState, currency: strin
     state.target === undefined
       ? ""
       : state.strategy === "TARGET_ROAS"
-        ? ` of ${Math.round(state.target * 100)}%`
+        ? ` of ${googleRoasPercent(state.target)}%`
         : state.strategy === "TARGET_CPA"
           ? ` of ${formatGoogleMoney(state.target, currency)}`
           : "";

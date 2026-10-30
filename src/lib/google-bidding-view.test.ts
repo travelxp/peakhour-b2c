@@ -118,6 +118,14 @@ describe("the draft, checked and sent", () => {
     expect(googleBiddingProblem("DEMAND_GEN", d({ pick: "TARGET_ROAS", target: "300" }), true)).toMatch(/Target ROAS isn't available/);
   });
 
+  it("★a held ROAS opens and is said exactly, so a save that changes only the form keeps it (review round 2)", () => {
+    const held = { strategy: "TARGET_ROAS", form: "standard", target: 3.505, managed: true } as const;
+    const draft = googleBiddingDraftOf(held);
+    expect(draft.target).toBe("350.5");
+    expect(googleBiddingChoiceOf({ ...draft, form: "portfolio" })).toEqual({ strategy: "TARGET_ROAS", form: "portfolio", target: 3.505 });
+    expect(googleBiddingSentence(held, undefined)).toBe("Target ROAS of 350.5%.");
+  });
+
   it("a campaign's current bidding opens as its draft; one Peakhour does not set opens on Maximize Conversions", () => {
     expect(googleBiddingDraftOf({ strategy: "TARGET_ROAS", form: "portfolio", target: 3.5, managed: true })).toEqual({ pick: "TARGET_ROAS", form: "portfolio", target: "350" });
     expect(googleBiddingDraftOf({ strategy: "TARGET_CPA", form: "standard", target: 12.5, managed: true })).toEqual({ pick: "TARGET_CPA", form: "standard", target: "12.5" });
