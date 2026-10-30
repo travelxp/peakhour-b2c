@@ -27,6 +27,7 @@ import {
   GOOGLE_CALLOUTS_INTRO,
   GOOGLE_CALLOUT_CHECK_NOTE,
   GOOGLE_CALLOUT_LENGTH_HINT,
+  GOOGLE_CALLOUT_ONE_LINE,
   googleCalloutAddedByGoogle,
   googleCalloutAddedSentence,
   googleCalloutErrorMessage,
@@ -114,7 +115,9 @@ export function GoogleCalloutsSection({ account }: { account: GoogleAdAccount })
 
   const busy = add.isPending;
   const warnedHere = warning && warning.text === text.trim() ? warning : null;
-  const canAdd = !busy && !length.empty && !length.over && state.kind !== "loading" && state.kind !== "error" && state.kind !== "offline";
+  // ★NOT WHILE THIS TEXT'S WARNING IS SHOWN (review round 1): "Check and add" would re-run the check for the same answer; "Add anyway" is the way on.
+  const canAdd =
+    !busy && !warnedHere && !length.empty && !length.over && !length.multiline && state.kind !== "loading" && state.kind !== "error" && state.kind !== "offline";
   const removeConfirmation = removing ? googleCalloutRemoveConfirmation(removing.text) : null;
 
   return (
@@ -203,9 +206,10 @@ export function GoogleCalloutsSection({ account }: { account: GoogleAdAccount })
               {busy ? "Checking…" : "Check and add"}
             </Button>
           </div>
-          <p id={`callout-${account.id}-hint`} className={length.over ? "text-xs text-destructive-on-tint" : "text-xs text-muted-foreground"}>
+          <p id={`callout-${account.id}-hint`} className={length.over || length.multiline ? "text-xs text-destructive-on-tint" : "text-xs text-muted-foreground"}>
             {length.label}. {GOOGLE_CALLOUT_LENGTH_HINT}
           </p>
+          {length.multiline ? <p className="text-xs text-destructive-on-tint">{GOOGLE_CALLOUT_ONE_LINE}</p> : null}
           <p className="text-xs text-muted-foreground">{GOOGLE_CALLOUT_CHECK_NOTE}</p>
           {addError ? <p className={addError.mayExist ? "text-sm text-warning-on-tint" : "text-sm text-destructive-on-tint"}>{addError.message}</p> : null}
           {warnedHere ? (

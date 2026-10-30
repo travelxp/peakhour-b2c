@@ -60,12 +60,16 @@ describe("★★G-14e — account level only, said where the merchant would expe
 describe("★★G-14e — the counter agrees with the api's limit", () => {
   it("25 fits, 26 is over; double-width counts two; trimmed", () => {
     expect(GOOGLE_CALLOUT_MAX).toBe(25);
-    expect(googleCalloutLength("a".repeat(25))).toEqual({ label: "25/25", over: false, empty: false });
+    expect(googleCalloutLength("a".repeat(25))).toEqual({ label: "25/25", over: false, empty: false, multiline: false });
     expect(googleCalloutLength("a".repeat(26)).over).toBe(true);
     expect(googleCalloutWidth("送料無料")).toBe(8);
-    expect(googleCalloutLength("あ".repeat(13))).toEqual({ label: "26/25", over: true, empty: false });
+    expect(googleCalloutLength("あ".repeat(13))).toEqual({ label: "26/25", over: true, empty: false, multiline: false });
     expect(googleCalloutLength("  x  ").label).toBe("1/25");
     expect(googleCalloutLength("   ").empty).toBe(true);
+    // ★The api refuses a tab or line break (review round 1): said before the round trip; a trailing newline is trimmed, as the api trims.
+    expect(googleCalloutLength("Free\tdelivery").multiline).toBe(true);
+    expect(googleCalloutLength("Free\ndelivery").multiline).toBe(true);
+    expect(googleCalloutLength("Free delivery\n").multiline).toBe(false);
   });
 });
 

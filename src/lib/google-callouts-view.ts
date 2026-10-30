@@ -46,10 +46,20 @@ export function googleCalloutWidth(text: string): number {
 }
 
 /** The counter under the field, and whether the text can be sent at all. */
-export function googleCalloutLength(text: string): { label: string; over: boolean; empty: boolean } {
+export function googleCalloutLength(text: string): { label: string; over: boolean; empty: boolean; multiline: boolean } {
   const width = googleCalloutWidth(text);
-  return { label: `${width}/${GOOGLE_CALLOUT_MAX}`, over: width > GOOGLE_CALLOUT_MAX, empty: text.trim().length === 0 };
+  return {
+    label: `${width}/${GOOGLE_CALLOUT_MAX}`,
+    over: width > GOOGLE_CALLOUT_MAX,
+    empty: text.trim().length === 0,
+    // ★The api refuses control characters (review round 1): a tab pasted from a spreadsheet is said here, before a round trip.
+    // eslint-disable-next-line no-control-regex
+    multiline: /[\u0000-\u001F\u007F]/.test(text.trim()),
+  };
 }
+
+/** Said under the field when the text holds a line break or a tab (the api's own sentence). */
+export const GOOGLE_CALLOUT_ONE_LINE = "A callout is one line of text, with no line breaks or tabs.";
 
 export const GOOGLE_CALLOUT_LENGTH_HINT = "Up to 25 characters (12 in Chinese, Japanese or Korean).";
 
