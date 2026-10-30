@@ -78,6 +78,10 @@ export const GOOGLE_MERCHANT_FACING_CODES: ReadonlySet<string> = new Set([
   "NOT_SEARCH",
   "KEYWORD_NOT_FOUND",
   "AD_ACCOUNT_NOT_ALLOWED",
+  // G-14b: the bidding routes' own sentences.
+  "BIDDING_REFUSED",
+  "SHARED_BIDDING_STRATEGY",
+  "BIDDING_UNCONFIRMED",
 ]);
 
 export function googleAdsErrorMessage(err: unknown, fallback: string): string {
@@ -113,6 +117,15 @@ export function googleCreateMayExist(err: unknown): boolean {
   if (err.status === 202) return true;
   const id = (err.details as { managedCampaignId?: unknown } | null | undefined)?.managedCampaignId;
   return typeof id === "string" && id.length > 0;
+}
+
+/**
+ * Whether a campaign's settings (targeting, bidding) can be changed from its row: Google has confirmed it, and it has
+ * not finished. One rule for every row button (G-14b review round 1), as the api refuses the rest
+ * (NOT_CREATED_YET, CAMPAIGN_FINISHED).
+ */
+export function googleCampaignSettable(c: Pick<GoogleCampaign, "platformCampaignId" | "status">): boolean {
+  return !!c.platformCampaignId && c.status !== "archived" && c.status !== "completed";
 }
 
 /** Whether the failure means the connection itself needs attention. */

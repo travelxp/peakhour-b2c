@@ -119,6 +119,45 @@ export interface GoogleCreateCampaignInput {
   endsAt?: string;
   /** The merchant's "not political" tick (EU political-advertising declaration). */
   notPolitical?: boolean;
+  /** G-14b: the merchant's bidding. Absent is the type's default (Search: Maximize Clicks). */
+  bidding?: GoogleBiddingChoice;
+}
+
+// G-14b: bidding (RMF C.96-C.98, M.96-M.98).
+export type GoogleBiddingStrategy = "MAXIMIZE_CONVERSIONS" | "TARGET_CPA" | "TARGET_ROAS";
+export type GoogleBiddingForm = "standard" | "portfolio";
+/** `target`: the campaign's currency for a Target CPA; a ratio (3.5 is 350%) for a Target ROAS. */
+export interface GoogleBiddingChoice {
+  strategy: GoogleBiddingStrategy;
+  form: GoogleBiddingForm;
+  target?: number;
+}
+/** A campaign's bidding as Google holds it. `strategy` is Google's own name when `managed` is false. */
+export interface GoogleBiddingState {
+  strategy: string;
+  form: GoogleBiddingForm;
+  target?: number;
+  managed: boolean;
+  portfolio?: { resourceName: string; name?: string; type: string; status?: string; campaigns?: number; ours: boolean; target?: number };
+}
+/** The account's conversions in the last `days` days (null: unreadable), and the `minimum` Google advises for a target. */
+export interface GoogleBiddingHistory {
+  conversions30d: number | null;
+  minimum: number;
+  days: number;
+}
+export interface GoogleBiddingRead {
+  managedCampaignId: string;
+  channelType?: GoogleChannelType;
+  currency?: string;
+  bidding: GoogleBiddingState;
+  history: GoogleBiddingHistory;
+}
+export interface GoogleBiddingSaved {
+  managedCampaignId: string;
+  changed: boolean;
+  bidding: GoogleBiddingChoice;
+  history?: GoogleBiddingHistory;
 }
 
 /** 200: created PAUSED. 202: `pending` — Google did not confirm; don't create it again. */
@@ -438,6 +477,14 @@ export const googleAdsApi = {
     ),
   listLanguages: (adAccountId: string) =>
     api.get<{ languages: GoogleLanguageOption[] }>(googleAdsUrl("/v1/google/ads/languages") + `?adAccountId=${encodeURIComponent(adAccountId)}`),
+  // G-14b: bidding. A read is live from Google; a save sends the merchant's choice as chosen.
+  getBidding: (id: string) => api.get<GoogleBiddingRead>(googleAdsUrl("/v1/google/ads/campaigns/:id/bidding", { id })),
+  setBidding: (id: string, choice: GoogleBiddingChoice) =>
+    api.put<GoogleBiddingSaved>(googleAdsUrl("/v1/google/ads/campaigns/:id/bidding", { id }), choice),
+  getBiddingHistory: (adAccountId: string) =>
+    api.get<{ adAccountId: string; history: GoogleBiddingHistory }>(
+      googleAdsUrl("/v1/google/ads/bidding/history") + `?adAccountId=${encodeURIComponent(adAccountId)}`,
+    ),
   /** G-14d: one report, read live from Google (one operation). No `from`/`to` is the last 30 days. */
   getReport: (report: GoogleReportKey, adAccountId: string, range?: { from: string; to: string }) =>
     api.get<GoogleReport>(googleAdsUrl("/v1/google/ads/reports/:report", { report }) + "?" + googleReportQuery(adAccountId, range)),
