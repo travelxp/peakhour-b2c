@@ -60,6 +60,7 @@ import {
   googleCreateNote,
   googleStatusAction,
   googleStatusLabel,
+  googleCampaignSettable,
   linesOf,
 } from "@/lib/google-ads-view";
 import {
@@ -80,6 +81,9 @@ import {
 import { googleStartTargetingHint } from "@/lib/google-targeting-view";
 import { ADS_CHANNEL_PARAM, getAdsChannel, panelConnection, type AdsChannelKey } from "../ads-channels";
 import { GoogleTargetingDialog } from "./google-targeting-dialog";
+import { GoogleBiddingDialog } from "./google-bidding-dialog";
+import { GoogleCreateBiddingFields } from "./google-bidding-fields";
+import { EMPTY_BIDDING_DRAFT, googleBiddingChoiceOf, googleBiddingProblem } from "@/lib/google-bidding-view";
 import { GoogleReportsSection } from "./google-reports-section";
 import { GoogleWebsiteConversionSection } from "./google-website-conversion-section";
 
@@ -451,6 +455,8 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
   const [confirming, setConfirming] = useState<GoogleCampaign | null>(null);
   // G-14a: the campaign whose targeting step is open.
   const [targeting, setTargeting] = useState<GoogleCampaign | null>(null);
+  // G-14b: the campaign whose bidding dialog is open.
+  const [bidding, setBidding] = useState<GoogleCampaign | null>(null);
 
   const campaigns = useQuery({
     queryKey: ["google-ads-campaigns"],
@@ -534,10 +540,15 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
                     </TableCell>
                     <TableCell>{formatGoogleMoney(c.budget?.daily, c.currency ?? account.currencyCode)}</TableCell>
                     <TableCell className="space-x-2 text-right">
-                      {c.platformCampaignId && c.status !== "archived" && c.status !== "completed" ? (
-                        <Button size="sm" variant="ghost" onClick={() => setTargeting(c)}>
-                          Targeting
-                        </Button>
+                      {googleCampaignSettable(c) ? (
+                        <>
+                          <Button size="sm" variant="ghost" onClick={() => setTargeting(c)}>
+                            Targeting
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => setBidding(c)}>
+                            Bidding
+                          </Button>
+                        </>
                       ) : null}
                       {action.status ? (
                         <Button
@@ -603,6 +614,8 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
       {targeting ? (
         <GoogleTargetingDialog key={targeting.id} campaign={targeting} account={account} open onOpenChange={(o) => (o ? null : setTargeting(null))} />
       ) : null}
+      {/* G-14b: keyed by campaign, as the targeting step is. */}
+      {bidding ? <GoogleBiddingDialog key={bidding.id} campaign={bidding} account={account} open onOpenChange={(o) => (o ? null : setBidding(null))} /> : null}
     </Card>
   );
 }
@@ -634,12 +647,15 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  // G-14b: the bidding control's draft; DEFAULT sends no choice.
+  const [bidding, setBidding] = useState(EMPTY_BIDDING_DRAFT);
   const set = <K extends keyof typeof EMPTY_FORM>(k: K, v: (typeof EMPTY_FORM)[K]) => setForm((f) => ({ ...f, [k]: v }));
   // ★CLEARED, NOT JUST CLOSED (round 1): a reopened form held the last
   //  campaign — the declaration tick included — one click from a duplicate.
   const closeAndClear = () => {
     setOpen(false);
     setForm(EMPTY_FORM);
+    setBidding(EMPTY_BIDDING_DRAFT);
   };
 
   // The account's own billing currency when the connection recorded it (the
@@ -675,7 +691,9 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
     : demandGen
       ? googleDemandGenCreateProblem({ ...shared, demandGen: youtubeAd }, today)
       : googleCreateProblem({ ...shared, searchAd }, today);
+  const biddingProblem = googleBiddingProblem(form.channelType, bidding, true);
 
+  const biddingChoice = biddingProblem ? undefined : googleBiddingChoiceOf(bidding);
   const create = useMutation({
     // The type rides with the request, so the toast names what was SENT, not what the select says now.
     mutationFn: (type: GoogleChannelType) =>
@@ -690,6 +708,7 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
             : { searchAd }),
         ...(form.endDate ? { endsAt: new Date(`${form.endDate}T23:59:59`).toISOString() } : {}),
         ...(form.notPolitical ? { notPolitical: true } : {}),
+        ...(biddingChoice ? { bidding: biddingChoice } : {}),
       }),
     onSuccess: (res, sentType) => {
       if (res.pending) {
@@ -830,6 +849,14 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
             </Field>
           </>
         ) : null}
+        <GoogleCreateBiddingFields
+          account={account}
+          channelType={form.channelType}
+          currency={currency}
+          value={bidding}
+          onChange={setBidding}
+          disabled={create.isPending}
+        />
         <Field label="Landing page">
           <Input value={form.finalUrl} onChange={(e) => set("finalUrl", e.target.value)} placeholder="https://" />
         </Field>
@@ -842,7 +869,7 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
         </label>
         {problem ? <p className="text-sm text-muted-foreground">{problem}</p> : null}
         <div className="flex gap-2">
-          <Button disabled={!!problem || create.isPending} onClick={() => create.mutate(form.channelType)}>
+          <Button disabled={!!problem || !!biddingProblem || create.isPending} onClick={() => create.mutate(form.channelType)}>
             Create paused
           </Button>
           {/* Not while a create is in flight (round 3): its answer decides
