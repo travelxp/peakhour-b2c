@@ -148,6 +148,11 @@ const MERCHANT_FACING_CODES: ReadonlySet<string> = new Set([
   "CALLOUT_POLICY_WARNING",
   "CALLOUT_UNCONFIRMED",
   "POLICY_CHECK_UNAVAILABLE",
+  // ★Review round 2: the guardrail gate POST runs (its sentences name the setting to change), and the account check's.
+  "CHANNEL_DENIED",
+  "QUIET_HOURS",
+  "BLACKOUT",
+  "AD_ACCOUNT_NOT_ON_CONNECTION",
   // ★Review round 1: a refusal of our own before sending (a malformed id), said by the api for a merchant.
   "CALLOUT_REFUSED",
 ]);
