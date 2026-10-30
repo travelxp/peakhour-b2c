@@ -301,6 +301,27 @@ export interface GoogleWebsiteConversionSetUp {
   action: GoogleWebsiteConversionAction;
 }
 
+/** G-14e — one account-level callout as Google has it now (a `CALLOUT` asset linked to the customer). */
+export interface GoogleCallout {
+  /** `customers/{customer_id}/customerAssets/{asset_id}~CALLOUT`. */
+  resourceName: string;
+  assetId: string;
+  text: string;
+  status: "ENABLED" | "PAUSED";
+  /** Google's AssetLinkPrimaryStatus: ELIGIBLE, LIMITED, NOT_ELIGIBLE, PAUSED, PENDING, or UNSPECIFIED when not yet known. */
+  primaryStatus: string;
+  /** `ADVERTISER`, or `AUTOMATICALLY_CREATED` for one Google added. */
+  source: string;
+}
+
+/** POST /callouts. `created: false` when the account already had exactly this text; `policy: null` then (nothing was checked or created). */
+export interface GoogleCalloutAdded {
+  created: boolean;
+  callout: GoogleCallout;
+  /** `checked: false`: the ad-policy check could not run, and Google's review is the only one. */
+  policy: { checked: boolean; verdict: "ok" | "warn" | "block" } | null;
+}
+
 /** What the conversion action is for (C3): a value mandate uses the uploaded value; a count mandate counts. */
 export interface GoogleConversionSignal {
   /** ISO 4217. */
@@ -541,6 +562,13 @@ export const googleAdsApi = {
     api.get<GoogleWebsiteConversionState>(googleAdsUrl("/v1/google/ads/website-conversion") + `?adAccountId=${encodeURIComponent(adAccountId)}`),
   setUpWebsiteConversion: (adAccountId: string) =>
     api.put<GoogleWebsiteConversionSetUp>(googleAdsUrl("/v1/google/ads/website-conversion"), { adAccountId }),
+  // G-14e: account-level callouts (RMF C.75). GET reads; POST checks the text against Google's ad policies, then adds it; DELETE unlinks it.
+  listCallouts: (adAccountId: string) =>
+    api.get<{ adAccountId: string; callouts: GoogleCallout[] }>(googleAdsUrl("/v1/google/ads/callouts") + `?adAccountId=${encodeURIComponent(adAccountId)}`),
+  addCallout: (adAccountId: string, text: string, acceptWarning: boolean) =>
+    api.post<GoogleCalloutAdded>(googleAdsUrl("/v1/google/ads/callouts"), { adAccountId, text, ...(acceptWarning ? { acceptWarning: true } : {}) }),
+  removeCallout: (adAccountId: string, assetId: string) =>
+    api.delete<{ adAccountId: string; removed: boolean }>(googleAdsUrl("/v1/google/ads/callouts/:assetId", { assetId }) + `?adAccountId=${encodeURIComponent(adAccountId)}`),
   // G-14a: the targeting step. A read is live from Google; a save replaces what the step shows.
   getTargeting: (id: string) => api.get<GoogleTargetingRead>(googleAdsUrl("/v1/google/ads/campaigns/:id/targeting", { id })),
   setTargeting: (id: string, input: GoogleTargetingInput) =>

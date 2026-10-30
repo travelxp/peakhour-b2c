@@ -89,6 +89,7 @@ import { GoogleCreateBiddingFields } from "./google-bidding-fields";
 import { EMPTY_BIDDING_DRAFT, googleBiddingChoiceOf, googleBiddingProblem } from "@/lib/google-bidding-view";
 import { GoogleReportsSection } from "./google-reports-section";
 import { GoogleWebsiteConversionSection } from "./google-website-conversion-section";
+import { GoogleCalloutsSection } from "./google-callouts-section";
 
 /**
  * ★★G-15 — the Google Ads panel, inside the shared Ads hub
@@ -282,6 +283,8 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
           <CampaignsSection account={account} />
           {/* Keyed by account: switching accounts starts a fresh, empty form. */}
           <CreateCampaignCard key={account.id} account={account} />
+          {/* G-14e: account-level callouts (RMF C.75), in their own file. */}
+          <GoogleCalloutsSection key={`callouts-${account.id}`} account={account} />
           {/* G-14d: Google's own reports (RMF R.10–R.130), in their own file. */}
           <GoogleReportsSection key={`reports-${account.id}`} account={account} />
         </>
