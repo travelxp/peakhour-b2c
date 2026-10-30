@@ -5,7 +5,6 @@ import {
   googleBiddingChoiceOf,
   googleBiddingDraftOf,
   googleBiddingProblem,
-  googleBiddingSavable,
   googleBiddingSavedSentence,
   googleBiddingSentence,
   googleBiddingStrategiesFor,
@@ -126,10 +125,9 @@ describe("the draft, checked and sent", () => {
     expect(googleBiddingSentence(held, undefined)).toBe("Target ROAS of 350.5%.");
   });
 
-  it("a campaign's current bidding opens as its draft; one Peakhour does not set opens on Maximize Conversions", () => {
+  it("a campaign's current bidding opens as its draft", () => {
     expect(googleBiddingDraftOf({ strategy: "TARGET_ROAS", form: "portfolio", target: 3.5, managed: true })).toEqual({ pick: "TARGET_ROAS", form: "portfolio", target: "350" });
     expect(googleBiddingDraftOf({ strategy: "TARGET_CPA", form: "standard", target: 12.5, managed: true })).toEqual({ pick: "TARGET_CPA", form: "standard", target: "12.5" });
-    expect(googleBiddingDraftOf({ strategy: "MAXIMIZE_CLICKS", form: "standard", managed: false })).toEqual({ pick: "MAXIMIZE_CONVERSIONS", form: "standard", target: "" });
   });
 
   it("one of the three with no readable target opens as itself, its target empty (review round 1)", () => {
@@ -137,12 +135,11 @@ describe("the draft, checked and sent", () => {
     expect(googleBiddingDraftOf({ strategy: "TARGET_ROAS", form: "portfolio", managed: false })).toEqual({ pick: "TARGET_ROAS", form: "portfolio", target: "" });
   });
 
-  it("★Save is offered after an edit, or at once when Google holds what Peakhour does not set (review round 1)", () => {
-    expect(googleBiddingSavable({ strategy: "MAXIMIZE_CLICKS", form: "standard", managed: false }, false)).toBe(true);
-    expect(googleBiddingSavable({ strategy: "TARGET_CPA", form: "standard", managed: false }, false)).toBe(true);
-    expect(googleBiddingSavable({ strategy: "TARGET_CPA", form: "standard", target: 4, managed: true }, false)).toBe(false);
-    expect(googleBiddingSavable({ strategy: "TARGET_CPA", form: "standard", target: 4, managed: true }, true)).toBe(true);
-    expect(googleBiddingSavable(undefined, false)).toBe(false);
+  it("★what Peakhour does not set opens with NOTHING picked: no strategy is shown that the campaign does not have (review round 2)", () => {
+    expect(googleBiddingDraftOf({ strategy: "MAXIMIZE_CLICKS", form: "standard", managed: false })).toEqual(EMPTY_BIDDING_DRAFT);
+    expect(googleBiddingDraftOf({ strategy: "UNREADABLE", form: "portfolio", managed: false })).toEqual(EMPTY_BIDDING_DRAFT);
+    // And nothing picked is not sendable from the dialog: a change is always the merchant's pick.
+    expect(googleBiddingProblem("SEARCH", EMPTY_BIDDING_DRAFT, false)).toMatch(/Choose/);
   });
 });
 

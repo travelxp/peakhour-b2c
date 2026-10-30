@@ -138,22 +138,15 @@ const isStrategy = (s: string): s is GoogleBiddingStrategy => GOOGLE_BIDDING_STR
 
 /**
  * The draft a campaign's current bidding opens as: its own strategy when it is one of the three, even with no target
- * to show (review round 1: a Target CPA with no readable target opens as Target CPA, not as a switch); Maximize
- * Conversions for anything else, which `googleBiddingSavable` then lets the merchant save as it stands.
+ * to show (review round 1: a Target CPA with no readable target opens as Target CPA, not as a switch). ★ANYTHING ELSE
+ * OPENS WITH NOTHING PICKED (review round 2): the control never shows a strategy the campaign does not have, and a
+ * change is always the merchant's own pick, so Save follows an edit only.
  */
 export function googleBiddingDraftOf(state: GoogleBiddingState | undefined): GoogleBiddingDraft {
-  if (!state || !isStrategy(state.strategy)) return { ...EMPTY_BIDDING_DRAFT, pick: "MAXIMIZE_CONVERSIONS" };
+  if (!state || !isStrategy(state.strategy)) return { ...EMPTY_BIDDING_DRAFT };
   const strategy = state.strategy;
   const target = state.target === undefined ? "" : strategy === "TARGET_ROAS" ? googleRoasPercent(state.target) : String(state.target);
   return { pick: strategy, form: state.form, target };
-}
-
-/**
- * Whether the dialog's Save is offered: after an edit, or (review round 1) when what Google holds is not what the
- * control shows, so the strategy it opened on can be saved without picking something else first.
- */
-export function googleBiddingSavable(state: GoogleBiddingState | undefined, edited: boolean): boolean {
-  return edited || (!!state && (!state.managed || !isStrategy(state.strategy)));
 }
 
 // ── what is said ─────────────────────────────────────────────────────────

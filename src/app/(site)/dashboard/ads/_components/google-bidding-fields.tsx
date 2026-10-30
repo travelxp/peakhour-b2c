@@ -11,6 +11,7 @@ import {
   GOOGLE_BIDDING_HISTORY_UNREAD,
   googleBiddingProblem,
   googleBiddingStrategiesFor,
+  googleBiddingStrategyLabel,
   googleBiddingUnavailable,
   googleBiddingWarning,
   googleBiddingWithPick,
@@ -57,7 +58,9 @@ export function GoogleBiddingFields({
   const warning = googleBiddingWarning(value.pick, history);
   // A pick the type does not offer (the type changed under it) is shown as the problem, not silently swapped.
   const offered = value.pick === "DEFAULT" || strategies.some((s) => s.value === value.pick);
-  const pickLabel = (p: GoogleBiddingPick) => (p === "DEFAULT" ? `Default (${googleDefaultBiddingLabel(channelType)})` : (strategies.find((s) => s.value === p)?.label ?? p));
+  // A held pick the type refuses keeps its name (review round 2); DEFAULT is "nothing picked" where it is not offered.
+  const pickLabel = (p: GoogleBiddingPick) =>
+    p === "DEFAULT" ? (allowDefault ? `Default (${googleDefaultBiddingLabel(channelType)})` : "Choose a strategy") : googleBiddingStrategyLabel(p);
 
   return (
     <div className="space-y-3">
