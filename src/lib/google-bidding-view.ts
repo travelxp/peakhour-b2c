@@ -154,6 +154,12 @@ export function googleBiddingSavable(state: GoogleBiddingState | undefined, edit
 // ── what is said ─────────────────────────────────────────────────────────
 
 /**
+ * What the warning says when the history could not be read at all (the request failed). The numbers are peakhour-api's
+ * `GOOGLE_MIN_HISTORY_CONVERSIONS` and `GOOGLE_HISTORY_DAYS`, as its own answers carry them (review round 1: one place).
+ */
+export const GOOGLE_BIDDING_HISTORY_UNREAD: GoogleBiddingHistory = { conversions30d: null, minimum: 15, days: 30 };
+
+/**
  * ★THE "FEWER THAN 15 CONVERSIONS" WARNING, never a refusal: shown when a
  * target strategy is picked and the account's last 30 days had fewer than
  * Google advises, or could not be read. Null otherwise.

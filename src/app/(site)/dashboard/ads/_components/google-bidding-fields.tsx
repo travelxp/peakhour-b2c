@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { googleAdsApi, type GoogleAdAccount, type GoogleBiddingForm, type GoogleBiddingHistory, type GoogleChannelType } from "@/lib/api/google-ads";
 import {
   GOOGLE_BIDDING_FORMS,
+  GOOGLE_BIDDING_HISTORY_UNREAD,
   googleBiddingProblem,
   googleBiddingStrategiesFor,
   googleBiddingUnavailable,
@@ -161,7 +162,7 @@ export function GoogleCreateBiddingFields({
       value={value}
       onChange={onChange}
       // An unreadable history is said as such by the warning; a failed request is the same thing to the merchant.
-      history={history.data?.history ?? (history.isError ? { conversions30d: null, minimum: 15, days: 30 } : undefined)}
+      history={history.data?.history ?? (history.isError ? GOOGLE_BIDDING_HISTORY_UNREAD : undefined)}
       allowDefault
       disabled={disabled}
     />
