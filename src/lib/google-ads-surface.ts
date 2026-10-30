@@ -36,6 +36,10 @@ export const GOOGLE_ADS_MANAGED_ROUTES = [
   `${GOOGLE_ADS_PREFIX}/languages`,
   // G-14d: Google's own reports (RMF R.10–R.130), read live. GET only.
   `${GOOGLE_ADS_PREFIX}/reports/:report`,
+  // G-14b: a campaign's bidding. GET reads live from Google; PUT sends the merchant's choice (RMF C.96–C.98, M.96–M.98).
+  `${GOOGLE_ADS_PREFIX}/campaigns/:id/bidding`,
+  // G-14b: the account's last 30 days of conversions, for the create form's warning. GET only.
+  `${GOOGLE_ADS_PREFIX}/bidding/history`,
 ] as const;
 
 export type GoogleAdsManagedRoute = (typeof GOOGLE_ADS_MANAGED_ROUTES)[number];

@@ -78,6 +78,10 @@ export const GOOGLE_MERCHANT_FACING_CODES: ReadonlySet<string> = new Set([
   "NOT_SEARCH",
   "KEYWORD_NOT_FOUND",
   "AD_ACCOUNT_NOT_ALLOWED",
+  // G-14b: the bidding routes' own sentences.
+  "BIDDING_REFUSED",
+  "SHARED_BIDDING_STRATEGY",
+  "BIDDING_UNCONFIRMED",
 ]);
 
 export function googleAdsErrorMessage(err: unknown, fallback: string): string {
