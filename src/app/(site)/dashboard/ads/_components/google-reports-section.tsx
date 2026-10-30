@@ -163,7 +163,8 @@ function ReportTable({ account, report, range }: { account: GoogleAdAccount; rep
   const columns = GOOGLE_REPORT_COLUMNS[report] as ReadonlyArray<GoogleReportColumn<(typeof rows)[number]>>;
   // ★THE ACCOUNT'S CURRENCY, ELSE GOOGLE'S OWN (review round 1): the account
   //  list may not carry one; the account report's row does.
-  const currency = account.currencyCode ?? (report === "account" ? (rows[0] as GoogleAccountReportRow | undefined)?.currencyCode : undefined);
+  // `||`, as the panel reads it (round 2): an empty code is no code.
+  const currency = account.currencyCode || (report === "account" ? (rows[0] as GoogleAccountReportRow | undefined)?.currencyCode : undefined);
   const notServed = report === "account" && rows.length > 0 && googleAccountHasNotServed(rows as GoogleAccountReportRow[]);
 
   return (
