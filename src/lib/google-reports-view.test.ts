@@ -19,6 +19,7 @@ import {
   googleReportEmptySentence,
   googleReportErrorMessage,
   googleReportRangeProblem,
+  googleReportRangeSentence,
   googleReportRowKey,
   googleSearchTermStatusLabel,
   humanizeGoogleEnum,
@@ -195,6 +196,19 @@ describe("★★the date range", () => {
     const section = readFileSync(fileURLToPath(new URL("../app/(site)/dashboard/ads/_components/google-reports-section.tsx", import.meta.url)), "utf8");
     expect(section).toMatch(/useState<AppliedRange>\(null\)/);
     expect(section).toMatch(/useState<"last30" \| "custom">\("last30"\)/);
+  });
+});
+
+describe("★which days a table covers (review round 1)", () => {
+  it("is said from the api's range, the default included", () => {
+    expect(googleReportRangeSentence({ preset: "LAST_30_DAYS" })).toBe("Showing the last 30 days, not including today.");
+    expect(googleReportRangeSentence({ from: "2026-09-01", to: "2026-09-30" })).toBe("Showing 2026-09-01 to 2026-09-30.");
+    expect(googleReportRangeSentence({ from: "2026-09-05", to: "2026-09-05" })).toBe("Showing 2026-09-05.");
+  });
+  it("★the section says it from the answer (data.range), and going back to the default clears the typed days", () => {
+    const section = readFileSync(fileURLToPath(new URL("../app/(site)/dashboard/ads/_components/google-reports-section.tsx", import.meta.url)), "utf8");
+    expect(section).toContain("googleReportRangeSentence(data.range)");
+    expect(section).toMatch(/setApplied\(null\);\s*setFrom\(""\);\s*setTo\(""\);/);
   });
 });
 

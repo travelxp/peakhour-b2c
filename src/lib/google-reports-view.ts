@@ -7,6 +7,7 @@ import type {
   GoogleCampaignReportRow,
   GoogleKeywordReportRow,
   GoogleReportKey,
+  GoogleReportRange,
   GoogleReportRows,
   GoogleSearchTermReportRow,
 } from "@/lib/api/google-ads";
@@ -307,6 +308,12 @@ export function googleReportRangeProblem(from: string, to: string, today: string
   if (from > to) return "The start date is after the end date.";
   if (to > today) return "The end date is in the future.";
   return null;
+}
+
+/** Which days a table covers, said from the api's answer — never from the inputs, which may hold days not yet shown. */
+export function googleReportRangeSentence(range: GoogleReportRange): string {
+  if ("preset" in range) return "Showing the last 30 days, not including today.";
+  return range.from === range.to ? `Showing ${range.from}.` : `Showing ${range.from} to ${range.to}.`;
 }
 
 // ── Errors ───────────────────────────────────────────────────────────────

@@ -23,6 +23,7 @@ import {
   googleReportEmptySentence,
   googleReportErrorMessage,
   googleReportRangeProblem,
+  googleReportRangeSentence,
   googleReportRowKey,
   type GoogleReportColumn,
 } from "@/lib/google-reports-view";
@@ -74,7 +75,13 @@ export function GoogleReportsSection({ account }: { account: GoogleAdAccount }) 
               onValueChange={(v) => {
                 const next = v === "custom" ? "custom" : "last30";
                 setMode(next);
-                if (next === "last30") setApplied(null);
+                // ★BACK TO THE DEFAULT CLEARS THE CUSTOM DAYS (review round 1): typed
+                //  days reappearing beside last-30-day figures read as their range.
+                if (next === "last30") {
+                  setApplied(null);
+                  setFrom("");
+                  setTo("");
+                }
               }}
             >
               <SelectTrigger className="w-48">
@@ -159,6 +166,9 @@ function ReportTable({ account, report, range }: { account: GoogleAdAccount; rep
 
   return (
     <div className="space-y-2">
+      {/* ★WHICH DAYS THESE ARE, from the api's own answer (review round 1): the
+          inputs above may hold days not yet shown. */}
+      {data ? <p className="text-sm font-medium">{googleReportRangeSentence(data.range)}</p> : null}
       <p className="text-xs text-muted-foreground">{meta.note}</p>
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">{googleReportEmptySentence(report)}</p>
