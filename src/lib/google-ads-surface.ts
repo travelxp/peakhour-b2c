@@ -38,6 +38,8 @@ export const GOOGLE_ADS_MANAGED_ROUTES = [
   `${GOOGLE_ADS_PREFIX}/languages`,
   // G-14d: Google's own reports (RMF R.10–R.130), read live. GET only.
   `${GOOGLE_ADS_PREFIX}/reports/:report`,
+  // G-14g: Google's Keyword Ideas for a Search campaign (RMF's look-alike rule). POST, and it reads only.
+  `${GOOGLE_ADS_PREFIX}/campaigns/:id/keyword-ideas`,
 ] as const;
 
 export type GoogleAdsManagedRoute = (typeof GOOGLE_ADS_MANAGED_ROUTES)[number];

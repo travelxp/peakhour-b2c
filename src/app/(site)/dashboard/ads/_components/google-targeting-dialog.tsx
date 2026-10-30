@@ -57,6 +57,7 @@ import {
   type DraftKeyword,
   type TargetingDraft,
 } from "@/lib/google-targeting-view";
+import { GoogleKeywordIdeasSection } from "./google-keyword-ideas-section";
 
 /**
  * ★★G-14a — the Google panel's targeting step (RMF C.20, C.30, C.260, C.270,
@@ -229,6 +230,13 @@ export function GoogleTargetingDialog({
                     if (status === "REMOVED") setRemoving({ criterionId, text: k.text });
                     else keywordStatus.mutate({ criterionId, status });
                   }}
+                />
+                <GoogleKeywordIdeasSection
+                  campaignId={campaign.id}
+                  draft={draft}
+                  disabled={busy}
+                  pausedKeys={paused?.keywordKeys}
+                  onPick={(k) => edit((d) => (d.keywords.some((x) => keywordKey(x) === keywordKey(k)) ? d : { ...d, keywords: [...d.keywords, k] }))}
                 />
                 {paused && paused.keywords.length > 0 ? (
                   <div className="space-y-2">

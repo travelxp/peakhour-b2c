@@ -371,6 +371,46 @@ export interface GoogleReport<K extends GoogleReportKey = GoogleReportKey> {
   truncated: boolean;
 }
 
+// ── G-14g: Google's Keyword Ideas (KeywordPlanIdeaService.GenerateKeywordIdeas) ──
+
+/** What the ideas start from: words, a page of the site, or both. Places and language are the campaign's. */
+export interface GoogleKeywordIdeasInput {
+  /** At most 20 (Google's bound). */
+  keywords: string[];
+  url?: string;
+  /** One `languageConstants/{id}`, or absent for every language. */
+  language?: string;
+  /** At most 10 `geoTargetConstants/{id}`. */
+  geoTargetConstants: string[];
+}
+
+/** Google's competition bucket: LOW is index 0–33, MEDIUM 34–66, HIGH 67–100 (Google's enum). */
+export type GoogleKeywordIdeaCompetition = "LOW" | "MEDIUM" | "HIGH";
+
+/** One of Google's ideas, with Google's own history for it. Each metric is absent when Google gave none, never 0. */
+export interface GoogleKeywordIdea {
+  text: string;
+  closeVariants?: string[];
+  /** Google: "Approximate number of monthly searches on this query, averaged for the past 12 months." */
+  avgMonthlySearches?: number;
+  competition?: GoogleKeywordIdeaCompetition;
+  competitionIndex?: number;
+  /** Google's top-of-page bid range (20th and 80th percentile), in micros of the account's currency. */
+  lowTopOfPageBidMicros?: number;
+  highTopOfPageBidMicros?: number;
+}
+
+export interface GoogleKeywordIdeasResult {
+  managedCampaignId: string;
+  /** Whose these are: always Google's Keyword Planner. */
+  source: "google_ads_keyword_planner";
+  network: "GOOGLE_SEARCH";
+  seed: "keyword_seed" | "url_seed" | "keyword_and_url_seed";
+  ideas: GoogleKeywordIdea[];
+  totalSize?: number;
+  currencyCode?: string;
+}
+
 export const googleAdsApi = {
   listAdAccounts: () => api.get<{ adAccounts: GoogleAdAccount[] }>(googleAdsUrl("/v1/google/ads/ad-accounts")),
   listCampaigns: () => api.get<{ campaigns: GoogleCampaign[] }>(googleAdsUrl("/v1/google/ads/campaigns")),
@@ -410,6 +450,9 @@ export const googleAdsApi = {
     ),
   listLanguages: (adAccountId: string) =>
     api.get<{ languages: GoogleLanguageOption[] }>(googleAdsUrl("/v1/google/ads/languages") + `?adAccountId=${encodeURIComponent(adAccountId)}`),
+  /** G-14g: Google's Keyword Ideas for a Search campaign. One request to Google per call (a POST that reads only). */
+  getKeywordIdeas: (id: string, input: GoogleKeywordIdeasInput) =>
+    api.post<GoogleKeywordIdeasResult>(googleAdsUrl("/v1/google/ads/campaigns/:id/keyword-ideas", { id }), input),
   /** G-14d: one report, read live from Google (one operation). No `from`/`to` is the last 30 days. */
   getReport: (report: GoogleReportKey, adAccountId: string, range?: { from: string; to: string }) =>
     api.get<GoogleReport>(googleAdsUrl("/v1/google/ads/reports/:report", { report }) + "?" + googleReportQuery(adAccountId, range)),
