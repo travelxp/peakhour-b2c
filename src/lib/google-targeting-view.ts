@@ -202,12 +202,29 @@ export function googleTargetingProblem(d: TargetingDraft, channelType: GoogleCha
     const p = googleKeywordProblem(k.text);
     if (p) return `“${k.text}”: ${p}`;
   }
-  // The api's rule: a PHRASE or BROAD negative silences a keyword of the same words in any match type; an EXACT one
-  // only the EXACT keyword. (An EXACT negative beside a PHRASE or BROAD keyword is a deliberate pattern.)
-  const same = (a: string, b: string) => foldKeyword(a).toLowerCase() === foldKeyword(b).toLowerCase();
-  const clash = d.negativeKeywords.find((n) => d.keywords.some((k) => same(k.text, n.text) && (n.matchType !== "EXACT" || k.matchType === "EXACT")));
+  const clash = d.negativeKeywords.find((n) => d.keywords.some((k) => googleNegativeSilences(n, k)));
   if (clash) return `The negative keyword “${foldKeyword(clash.text)}” would stop your keyword of the same words from ever showing. Keep one.`;
   return null;
+}
+
+/**
+ * Whether a negative keyword stops a keyword from ever showing: the api's `silences` (google-criteria.ts). A PHRASE
+ * negative whose words run in order inside an EXACT or PHRASE keyword, or a BROAD negative whose words are all inside
+ * one, excludes every search it matches; an EXACT negative only an EXACT keyword of the same words; a BROAD keyword
+ * only a PHRASE or BROAD negative of the very same words.
+ */
+export function googleNegativeSilences(negative: { text: string; matchType: string }, keyword: { text: string; matchType: string }): boolean {
+  const words = (t: string) => t.toLowerCase().trim().split(/\s+/).filter(Boolean);
+  const n = words(negative.text);
+  const k = words(keyword.text);
+  const same = n.join(" ") === k.join(" ");
+  if (negative.matchType === "EXACT") return keyword.matchType === "EXACT" && same;
+  if (keyword.matchType === "BROAD") return same;
+  if (negative.matchType === "PHRASE") {
+    for (let i = 0; i + n.length <= k.length; i++) if (n.every((w, j) => k[i + j] === w)) return true;
+    return false;
+  }
+  return n.every((w) => k.includes(w));
 }
 
 // ── words ────────────────────────────────────────────────────────────────

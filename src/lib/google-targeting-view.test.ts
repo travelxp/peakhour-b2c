@@ -13,6 +13,7 @@ import {
   googleTargetingDescription,
   googleTargetingProblem,
   keywordCriterionId,
+  googleNegativeSilences,
   googleTargetingSavedSentence,
   pausedOf,
   radiusKey,
@@ -202,5 +203,18 @@ describe("review round 1", () => {
     expect(googleTargetingSavedSentence({ targetingApplied: false })).toMatch(/hints Google may look past/);
     expect(googleTargetingSavedSentence({})).toBe("Targeting saved on Google Ads.");
     expect(googleTargetingSavedSentence({ targetingApplied: false })).not.toMatch(/reach|people/i);
+  });
+});
+
+describe("★the api's silencing rule, mirrored (api review round 2)", () => {
+  it.each([
+    [{ text: "free", matchType: "PHRASE" }, { text: "free shipping", matchType: "EXACT" }, true],
+    [{ text: "shirts linen", matchType: "BROAD" }, { text: "linen shirts", matchType: "PHRASE" }, true],
+    [{ text: "shirts linen", matchType: "PHRASE" }, { text: "linen shirts", matchType: "EXACT" }, false],
+    [{ text: "free", matchType: "PHRASE" }, { text: "free shipping", matchType: "BROAD" }, false],
+    [{ text: "linen shirts", matchType: "EXACT" }, { text: "linen shirts", matchType: "PHRASE" }, false],
+    [{ text: "Linen  Shirts", matchType: "EXACT" }, { text: "linen shirts", matchType: "EXACT" }, true],
+  ])("%o against %o: %s", (n, k, want) => {
+    expect(googleNegativeSilences(n, k)).toBe(want);
   });
 });
