@@ -42,6 +42,14 @@ export const GOOGLE_ADS_MANAGED_ROUTES = [
   `${GOOGLE_ADS_PREFIX}/campaigns/:id/bidding`,
   // G-14b: the account's last 30 days of conversions, for the create form's warning. GET only.
   `${GOOGLE_ADS_PREFIX}/bidding/history`,
+  // G14c: a campaign's settings (RMF M.10). GET reads live from Google; PUT edits budget, name, end date and networks.
+  `${GOOGLE_ADS_PREFIX}/campaigns/:id/settings`,
+  // G14c: remove a campaign on Google, which cannot be undone (RMF M.110). POST, behind the typed name.
+  `${GOOGLE_ADS_PREFIX}/campaigns/:id/remove`,
+  // G14c: the campaign's ad group and its ads, read live (RMF C.190). GET only.
+  `${GOOGLE_ADS_PREFIX}/campaigns/:id/ad-groups`,
+  // G14c: pause, enable or remove one ad (RMF M.130).
+  `${GOOGLE_ADS_PREFIX}/campaigns/:id/ads/:adId/status`,
   // G-14g: Google's Keyword Ideas for a Search campaign (RMF's look-alike rule). POST, and it reads only.
   `${GOOGLE_ADS_PREFIX}/campaigns/:id/keyword-ideas`,
 ] as const;

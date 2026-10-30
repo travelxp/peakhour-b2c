@@ -82,6 +82,9 @@ import { googleStartTargetingHint } from "@/lib/google-targeting-view";
 import { ADS_CHANNEL_PARAM, getAdsChannel, panelConnection, type AdsChannelKey } from "../ads-channels";
 import { GoogleTargetingDialog } from "./google-targeting-dialog";
 import { GoogleBiddingDialog } from "./google-bidding-dialog";
+import { GoogleCampaignManageDialog } from "./google-campaign-manage-dialog";
+import { GoogleAdGroupNameField } from "./google-ad-group-name-field";
+import { googleAdGroupNameOf, googleAdGroupNameProblem } from "@/lib/google-management-view";
 import { GoogleCreateBiddingFields } from "./google-bidding-fields";
 import { EMPTY_BIDDING_DRAFT, googleBiddingChoiceOf, googleBiddingProblem } from "@/lib/google-bidding-view";
 import { GoogleReportsSection } from "./google-reports-section";
@@ -457,6 +460,8 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
   const [targeting, setTargeting] = useState<GoogleCampaign | null>(null);
   // G-14b: the campaign whose bidding dialog is open.
   const [bidding, setBidding] = useState<GoogleCampaign | null>(null);
+  // G14c: the campaign whose management dialog is open.
+  const [managing, setManaging] = useState<GoogleCampaign | null>(null);
 
   const campaigns = useQuery({
     queryKey: ["google-ads-campaigns"],
@@ -550,6 +555,11 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
                           </Button>
                         </>
                       ) : null}
+                      {c.platformCampaignId ? (
+                        <Button size="sm" variant="ghost" onClick={() => setManaging(c)}>
+                          Manage
+                        </Button>
+                      ) : null}
                       {action.status ? (
                         <Button
                           size="sm"
@@ -616,6 +626,10 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
       ) : null}
       {/* G-14b: keyed by campaign, as the targeting step is. */}
       {bidding ? <GoogleBiddingDialog key={bidding.id} campaign={bidding} account={account} open onOpenChange={(o) => (o ? null : setBidding(null))} /> : null}
+      {/* G14c: keyed by campaign, as the others are. */}
+      {managing ? (
+        <GoogleCampaignManageDialog key={managing.id} campaign={managing} account={account} open onOpenChange={(o) => (o ? null : setManaging(null))} />
+      ) : null}
     </Card>
   );
 }
@@ -649,6 +663,8 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
   const [form, setForm] = useState(EMPTY_FORM);
   // G-14b: the bidding control's draft; DEFAULT sends no choice.
   const [bidding, setBidding] = useState(EMPTY_BIDDING_DRAFT);
+  // G14c: the ad group's name, as typed; empty names it after the campaign.
+  const [adGroupName, setAdGroupName] = useState("");
   const set = <K extends keyof typeof EMPTY_FORM>(k: K, v: (typeof EMPTY_FORM)[K]) => setForm((f) => ({ ...f, [k]: v }));
   // ★CLEARED, NOT JUST CLOSED (round 1): a reopened form held the last
   //  campaign — the declaration tick included — one click from a duplicate.
@@ -656,6 +672,7 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
     setOpen(false);
     setForm(EMPTY_FORM);
     setBidding(EMPTY_BIDDING_DRAFT);
+    setAdGroupName("");
   };
 
   // The account's own billing currency when the connection recorded it (the
@@ -709,6 +726,7 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
         ...(form.endDate ? { endsAt: new Date(`${form.endDate}T23:59:59`).toISOString() } : {}),
         ...(form.notPolitical ? { notPolitical: true } : {}),
         ...(biddingChoice ? { bidding: biddingChoice } : {}),
+        ...googleAdGroupNameOf(type, adGroupName),
       }),
     onSuccess: (res, sentType) => {
       if (res.pending) {
@@ -849,6 +867,7 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
             </Field>
           </>
         ) : null}
+        <GoogleAdGroupNameField channelType={form.channelType} value={adGroupName} onChange={setAdGroupName} disabled={create.isPending} />
         <GoogleCreateBiddingFields
           account={account}
           channelType={form.channelType}
@@ -869,7 +888,10 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
         </label>
         {problem ? <p className="text-sm text-muted-foreground">{problem}</p> : null}
         <div className="flex gap-2">
-          <Button disabled={!!problem || !!biddingProblem || create.isPending} onClick={() => create.mutate(form.channelType)}>
+          <Button
+            disabled={!!problem || !!biddingProblem || !!googleAdGroupNameProblem(adGroupName) || create.isPending}
+            onClick={() => create.mutate(form.channelType)}
+          >
             Create paused
           </Button>
           {/* Not while a create is in flight (round 3): its answer decides

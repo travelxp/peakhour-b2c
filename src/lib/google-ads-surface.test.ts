@@ -74,8 +74,9 @@ describe("★★G-15 — no b2c file names a Google ads path but the client", ()
     // Each `api.<verb>(` call's first argument is a googleAdsUrl(...) call.
     const calls = [...client.matchAll(/api\.(get|post|put|patch|delete)<[^>]*>\(\s*([^,)]+)/g)].map((m) => m[2]!.trim());
     // G-14a: +5 (targeting read and save, keyword status, locations, languages); G-14d: +1 (reports); G-14f: +2 (website conversion);
-    // G-14b: +3 (bidding read and save, the account's history); G-14g: +1 (keyword ideas).
-    expect(calls.length).toBe(18);
+    // G-14b: +3 (bidding read and save, the account's history); G-14g: +1 (keyword ideas);
+    // G14c: +5 (settings read and save, remove, the ad groups read, an ad's status).
+    expect(calls.length).toBe(23);
     for (const arg of calls) expect(arg.startsWith("googleAdsUrl("), arg).toBe(true);
   });
 
@@ -198,6 +199,47 @@ describe("★★G-14g — the keyword ideas route is managed, called with POST, 
   });
 });
 
+describe("★★G14c — the management routes are managed, each called by its verb, and the screens only reach them through the client", () => {
+  it("all four are on the managed list", () => {
+    for (const r of ["/campaigns/:id/settings", "/campaigns/:id/remove", "/campaigns/:id/ad-groups", "/campaigns/:id/ads/:adId/status"]) {
+      expect(GOOGLE_ADS_MANAGED_ROUTES).toContain(`${GOOGLE_ADS_PREFIX}${r}`);
+    }
+  });
+  it("★the client reads and saves settings with GET and PUT, removes with POST (the typed name its body), lists with GET and sets an ad with PATCH", () => {
+    const client = read(CLIENT);
+    expect(client).toContain('api.get<GoogleSettingsRead>(googleAdsUrl("/v1/google/ads/campaigns/:id/settings", { id }))');
+    expect(client).toContain('api.put<GoogleSettingsSaved>(googleAdsUrl("/v1/google/ads/campaigns/:id/settings", { id }), input)');
+    expect(client).toContain('api.post<GoogleCampaignRemoved>(googleAdsUrl("/v1/google/ads/campaigns/:id/remove", { id }), { confirmName })');
+    expect(client).toContain('api.get<GoogleAdGroupsRead>(googleAdsUrl("/v1/google/ads/campaigns/:id/ad-groups", { id }))');
+    expect(client).toContain('googleAdsUrl("/v1/google/ads/campaigns/:id/ads/:adId/status", { id, adId })');
+    expect(client).not.toMatch(/api\.(get|put|patch|delete)<[^>]*>\(googleAdsUrl\("\/v1\/google\/ads\/campaigns\/:id\/remove/);
+    expect(client).not.toMatch(/api\.(post|put|patch|delete)<[^>]*>\(googleAdsUrl\("\/v1\/google\/ads\/campaigns\/:id\/ad-groups/);
+  });
+  it("★an ad id with a tilde fills the template and stays one segment", () => {
+    expect(googleAdsUrl("/v1/google/ads/campaigns/:id/ads/:adId/status", { id: "6731f0aa", adId: "333~444" })).toBe("/v1/google/ads/campaigns/6731f0aa/ads/333~444/status");
+  });
+  it("★the screens reach Google only through the client, and the panel only mounts them", () => {
+    const dialog = read("src/app/(site)/dashboard/ads/_components/google-campaign-manage-dialog.tsx");
+    expect(dialog).toContain("googleAdsApi.getSettings(");
+    expect(dialog).toContain("googleAdsApi.setSettings(");
+    expect(dialog).toContain("googleAdsApi.removeCampaign(");
+    expect(dialog).toContain('import { GoogleAdsListSection } from "./google-ads-list-section";');
+    const list = read("src/app/(site)/dashboard/ads/_components/google-ads-list-section.tsx");
+    expect(list).toContain("googleAdsApi.getAdGroups(");
+    expect(list).toContain("googleAdsApi.setAdStatus(");
+    const panel = read(PANEL);
+    expect(panel).toContain('import { GoogleCampaignManageDialog } from "./google-campaign-manage-dialog";');
+    expect(panel.match(/<GoogleCampaignManageDialog /g)?.length).toBe(1);
+    expect(panel.match(/<GoogleAdGroupNameField /g)?.length).toBe(1);
+    expect(panel).not.toMatch(/googleAdsApi\.(getSettings|setSettings|removeCampaign|getAdGroups|setAdStatus)\(/);
+  });
+  it("★★the remove is behind the typed name, on the screen as in the api", () => {
+    const dialog = read("src/app/(site)/dashboard/ads/_components/google-campaign-manage-dialog.tsx");
+    expect(dialog).toContain("disabled={!googleRemoveConfirmed(campaign.name, confirmText) || busy}");
+    expect(dialog).toContain("{GOOGLE_REMOVE_WARNING}");
+  });
+});
+
 describe("★★googleAdsUrl, so a panel never has to write a literal", () => {
   it("fills the params, and the result is itself a managed path", () => {
     const url = googleAdsUrl("/v1/google/ads/campaigns/:id/status", { id: "6731f0aa" });
@@ -242,6 +284,8 @@ describe("★★G-15/G19/G20 — nothing implies a Google campaign type but Sear
   //  "search and display", lower-case. ★AND PLURAL (G20): "Video campaigns" ends
   //  in no word boundary after "campaign", so the singular alone missed it.
   const OTHER_TYPES = /\b(Discovery|Display|Shopping|Video campaigns?|App campaigns?|Smart campaigns?)\b/i;
+  /** Google's name for a network a Search campaign opts into (G14c), not a campaign type. */
+  const GOOGLE_DISPLAY_NETWORK = "Google Display Network";
   const googleEntry = (text: string, start: string) => text.slice(text.indexOf(start), text.indexOf("}", text.indexOf(start)));
   it.each([
     ["the panel", () => read(PANEL)],
@@ -260,12 +304,23 @@ describe("★★G-15/G19/G20 — nothing implies a Google campaign type but Sear
     // G-14g: Google's Keyword Ideas and their words.
     ["the keyword ideas section", () => read("src/app/(site)/dashboard/ads/_components/google-keyword-ideas-section.tsx")],
     ["the keyword ideas words", () => read("src/lib/google-keyword-ideas-view.ts")],
+    // G14c: the management dialog, its ads list, the ad group field and their words.
+    ["the management dialog", () => read("src/app/(site)/dashboard/ads/_components/google-campaign-manage-dialog.tsx")],
+    ["the ads list", () => read("src/app/(site)/dashboard/ads/_components/google-ads-list-section.tsx")],
+    ["the ad group name field", () => read("src/app/(site)/dashboard/ads/_components/google-ad-group-name-field.tsx")],
+    ["the management words", () => read("src/lib/google-management-view.ts")],
     ["the hub entry", () => googleEntry(read("src/app/(site)/dashboard/ads/ads-channels.ts"), 'key: "google"')],
     ["the catalog entry", () => googleEntry(read("src/app/(site)/dashboard/content/channels.config.ts"), 'slug: "google-ads"')],
   ])("★%s names no other campaign type", (_l, text) => {
-    const t = text();
+    // ★G14c: "Google Display Network" is a NETWORK a Search campaign opts into (RMF's "Opt in/out of networks"
+    //  names "the display network"), not a campaign type: Google's own name for it, exactly, is removed first.
+    const t = text().split(GOOGLE_DISPLAY_NETWORK).join("");
     expect(t.length).toBeGreaterThan(50);
     expect(t.match(OTHER_TYPES)?.[0] ?? null).toBeNull();
+  });
+  it("★the network's name is carved out exactly, no looser (G14c)", () => {
+    expect("Shows on the Google Display Network.".split(GOOGLE_DISPLAY_NETWORK).join("").match(OTHER_TYPES)).toBeNull();
+    expect("Run Display campaigns on the display network".split(GOOGLE_DISPLAY_NETWORK).join("").match(OTHER_TYPES)?.[0]).toBe("Display");
   });
   it("★and the check SAYS SO when there is something to find", () => {
     expect("Run search and Display campaigns".match(OTHER_TYPES)?.[0]).toBe("Display");
@@ -352,7 +407,7 @@ describe("★★G-15 — the prefix and the routes are peakhour-api's", () => {
     const used = [...client.matchAll(/api\.(get|post|put|patch|delete)<[^>]*>\(\s*googleAdsUrl\("([^"]+)"/g)].map(
       (m) => `${m[1]} ${m[2]!.slice(GOOGLE_ADS_PREFIX.length)}`,
     );
-    expect(used.length).toBe(18);
+    expect(used.length).toBe(23);
     for (const u of used) expect(declared.has(u), u).toBe(true);
     for (const r of GOOGLE_ADS_MANAGED_ROUTES) {
       const sub = r.slice(GOOGLE_ADS_PREFIX.length);

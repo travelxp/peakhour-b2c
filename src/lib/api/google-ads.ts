@@ -49,6 +49,8 @@ export interface GoogleCampaign {
   createState?: GoogleCreateState;
   /** A create a guardrail refused before anything was sent (e.g. `ASSET_NOT_APPROVED`). */
   refusedCode?: string;
+  /** G14c: when it was removed on Google, which cannot be undone. Its status is `archived`. */
+  removedAt?: string;
   createdAt: string;
 }
 
@@ -121,6 +123,71 @@ export interface GoogleCreateCampaignInput {
   notPolitical?: boolean;
   /** G-14b: the merchant's bidding. Absent is the type's default (Search: Maximize Clicks). */
   bidding?: GoogleBiddingChoice;
+  /** G14c (RMF C.190): the ad group's name, Search and YouTube video (Demand Gen) only. Absent is the campaign's name. */
+  adGroupName?: string;
+}
+
+// G14c: campaign settings, remove, the ad group and its ads (RMF M.10, M.110, M.130, C.190).
+/** A campaign's settings as Google holds them now (read live). */
+export interface GoogleCampaignSettings {
+  name: string;
+  status: string;
+  channelType: string;
+  budget: { amount: number; currencyCode: string; shared: boolean };
+  /** `YYYY-MM-DD` in the account's zone, or null when it runs until stopped. */
+  endDate: string | null;
+  startDate?: string;
+  timeZone?: string;
+  /** Search only. */
+  network?: { googleSearch: boolean; searchPartners: boolean; displayNetwork: boolean };
+}
+export interface GoogleSettingsRead {
+  managedCampaignId: string;
+  channelType?: GoogleChannelType;
+  settings: GoogleCampaignSettings;
+  removedAt?: string;
+}
+/** Only the fields that change; at least one. */
+export interface GoogleSettingsInput {
+  name?: string;
+  dailyBudget?: { amount: number };
+  endDate?: string | null;
+  network?: { searchPartners: boolean; displayNetwork: boolean };
+}
+export interface GoogleSettingsSaved {
+  managedCampaignId: string;
+  changed: boolean;
+  changedFields: string[];
+}
+export interface GoogleCampaignRemoved {
+  managedCampaignId: string;
+  status: "REMOVED";
+  changed: boolean;
+  removedAt: string;
+}
+export type GoogleAdStatus = "ENABLED" | "PAUSED" | "REMOVED";
+export interface GoogleAdGroup {
+  id: string;
+  name: string;
+  status: string;
+  type?: string;
+}
+export interface GoogleAd {
+  /** `{adGroupId}~{adId}`, what the status route takes. */
+  id: string;
+  adGroupId: string;
+  /** ENABLED, PAUSED, REMOVED, or UNKNOWN. */
+  status: string;
+  type?: string;
+  headlines: string[];
+  descriptions: string[];
+  finalUrls: string[];
+}
+export interface GoogleAdGroupsRead {
+  managedCampaignId: string;
+  channelType?: GoogleChannelType;
+  adGroups: GoogleAdGroup[];
+  ads: GoogleAd[];
 }
 
 // G-14b: bidding (RMF C.96-C.98, M.96-M.98).
@@ -443,7 +510,8 @@ export interface GoogleKeywordIdeasResult {
   managedCampaignId: string;
   /** Whose these are: always Google's Keyword Planner. */
   source: "google_ads_keyword_planner";
-  network: "GOOGLE_SEARCH";
+  /** The network the campaign buys (G14c): search partners on is GOOGLE_SEARCH_AND_PARTNERS. */
+  network: "GOOGLE_SEARCH" | "GOOGLE_SEARCH_AND_PARTNERS";
   seed: "keyword_seed" | "url_seed" | "keyword_and_url_seed";
   ideas: GoogleKeywordIdea[];
   totalSize?: number;
@@ -500,6 +568,19 @@ export const googleAdsApi = {
   /** G-14g: Google's Keyword Ideas for a Search campaign. One request to Google per call (a POST that reads only). */
   getKeywordIdeas: (id: string, input: GoogleKeywordIdeasInput) =>
     api.post<GoogleKeywordIdeasResult>(googleAdsUrl("/v1/google/ads/campaigns/:id/keyword-ideas", { id }), input),
+  // G14c: settings read live and edited directly; a remove on Google that cannot be undone; the ad group and its ads.
+  getSettings: (id: string) => api.get<GoogleSettingsRead>(googleAdsUrl("/v1/google/ads/campaigns/:id/settings", { id })),
+  setSettings: (id: string, input: GoogleSettingsInput) =>
+    api.put<GoogleSettingsSaved>(googleAdsUrl("/v1/google/ads/campaigns/:id/settings", { id }), input),
+  /** ★IRREVERSIBLE: the api refuses it unless `confirmName` is the campaign's name. */
+  removeCampaign: (id: string, confirmName: string) =>
+    api.post<GoogleCampaignRemoved>(googleAdsUrl("/v1/google/ads/campaigns/:id/remove", { id }), { confirmName }),
+  getAdGroups: (id: string) => api.get<GoogleAdGroupsRead>(googleAdsUrl("/v1/google/ads/campaigns/:id/ad-groups", { id })),
+  setAdStatus: (id: string, adId: string, status: GoogleAdStatus) =>
+    api.patch<{ managedCampaignId: string; adId: string; status: GoogleAdStatus; changed: boolean }>(
+      googleAdsUrl("/v1/google/ads/campaigns/:id/ads/:adId/status", { id, adId }),
+      { status },
+    ),
   /** G-14d: one report, read live from Google (one operation). No `from`/`to` is the last 30 days. */
   getReport: (report: GoogleReportKey, adAccountId: string, range?: { from: string; to: string }) =>
     api.get<GoogleReport>(googleAdsUrl("/v1/google/ads/reports/:report", { report }) + "?" + googleReportQuery(adAccountId, range)),
