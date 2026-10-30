@@ -88,10 +88,10 @@ export const EMPTY_BIDDING_DRAFT: GoogleBiddingDraft = { pick: "DEFAULT", form: 
 /** Google's target ROAS bounds, "between 0.01 and 1000.0, inclusive", as the percent the merchant types. */
 export const GOOGLE_ROAS_PERCENT = { min: 1, max: 100_000 } as const;
 
-/** A typed number, or NaN: an empty or partly typed field is not a number. */
+/** A typed number, or NaN. ".5", "5." and a decimal comma ("12,5") are numbers (review round 1); "1e3" is not. */
 function typed(raw: string): number {
-  const t = raw.trim();
-  return /^[0-9]+(\.[0-9]+)?$/.test(t) ? Number(t) : NaN;
+  const t = raw.trim().replace(",", ".");
+  return /^([0-9]+\.?[0-9]*|\.[0-9]+)$/.test(t) ? Number(t) : NaN;
 }
 
 /**
@@ -122,8 +122,9 @@ export function googleBiddingChoiceOf(d: GoogleBiddingDraft): GoogleBiddingChoic
   if (d.pick === "DEFAULT") return undefined;
   if (d.pick === "MAXIMIZE_CONVERSIONS") return { strategy: "MAXIMIZE_CONVERSIONS", form: "standard" };
   const n = typed(d.target);
-  // ROAS: the typed percent as Google's ratio, rounded to the 0.01 Google's bounds are written in steps of.
-  return { strategy: d.pick, form: d.form, target: d.pick === "TARGET_ROAS" ? Math.round(n) / 100 : n };
+  // ROAS: the typed percent as Google's ratio, exactly (review round 1: 350.5% is 3.505, as checked), to 6 places
+  //  so a float's tail is not sent.
+  return { strategy: d.pick, form: d.form, target: d.pick === "TARGET_ROAS" ? Number((n / 100).toFixed(6)) : n };
 }
 
 const isStrategy = (s: string): s is GoogleBiddingStrategy => GOOGLE_BIDDING_STRATEGIES.some((x) => x.value === s);

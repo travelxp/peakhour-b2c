@@ -88,11 +88,19 @@ describe("the draft, checked and sent", () => {
     expect(googleBiddingProblem("SEARCH", d({ pick: "TARGET_CPA", target: "" }), false)).toMatch(/cost per conversion/);
     expect(googleBiddingProblem("SEARCH", d({ pick: "TARGET_CPA", target: "0" }), false)).toMatch(/greater than 0/);
     expect(googleBiddingProblem("SEARCH", d({ pick: "TARGET_CPA", target: "1e3" }), false)).not.toBeNull();
+    // Review round 1: what a number field or a comma locale gives is a number.
+    for (const [t, n] of [[".5", 0.5], ["5.", 5], ["12,5", 12.5]] as const) {
+      expect(googleBiddingProblem("SEARCH", d({ pick: "TARGET_CPA", target: t }), false)).toBeNull();
+      expect(googleBiddingChoiceOf(d({ pick: "TARGET_CPA", target: t }))!.target).toBe(n);
+    }
   });
 
   it("★a Target ROAS is typed as a percent and sent as Google's ratio, within 1% to 100,000%", () => {
     expect(googleBiddingChoiceOf(d({ pick: "TARGET_ROAS", target: "350" }))).toEqual({ strategy: "TARGET_ROAS", form: "standard", target: 3.5 });
     expect(googleBiddingProblem("SEARCH", d({ pick: "TARGET_ROAS", target: "1" }), false)).toBeNull();
+    // ★What is checked is what is sent (review round 1): no rounding to a whole percent.
+    expect(googleBiddingChoiceOf(d({ pick: "TARGET_ROAS", target: "350.5" }))!.target).toBe(3.505);
+    expect(googleBiddingChoiceOf(d({ pick: "TARGET_ROAS", target: "1.4" }))!.target).toBe(0.014);
     expect(googleBiddingProblem("SEARCH", d({ pick: "TARGET_ROAS", target: "100000" }), false)).toBeNull();
     expect(googleBiddingProblem("SEARCH", d({ pick: "TARGET_ROAS", target: "0.5" }), false)).toMatch(/1% to 100,000%/);
     expect(googleBiddingProblem("SEARCH", d({ pick: "TARGET_ROAS", target: "100001" }), false)).toMatch(/1% to 100,000%/);
