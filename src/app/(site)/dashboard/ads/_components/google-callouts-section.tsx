@@ -77,7 +77,11 @@ export function GoogleCalloutsSection({ account }: { account: GoogleAdAccount })
   const [warning, setWarning] = useState<{ text: string; message: string } | null>(null);
   // ★`mayExist`: the api could not confirm the add (CALLOUT_UNCONFIRMED). Said as a warning, never a failure (review round 1).
   const [addError, setAddError] = useState<{ message: string; mayExist: boolean } | null>(null);
+  // ★THE DIALOG'S OPEN STATE IS ITS OWN (review round 1): its text stays while it animates closed.
   const [removing, setRemoving] = useState<GoogleCallout | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  // ★EVERY REMOVE IN FLIGHT, not only the latest (review round 1): a second removal must not re-enable the first's button.
+  const [removingIds, setRemovingIds] = useState<ReadonlySet<string>>(() => new Set());
   const length = googleCalloutLength(text);
 
   // ★THE KEY RIDES WITH THE REQUEST (G-14f's rule): a business switched mid-request never caches into the new one's key.
@@ -108,9 +112,17 @@ export function GoogleCalloutsSection({ account }: { account: GoogleAdAccount })
 
   const remove = useMutation<{ removed: boolean }, unknown, { key: readonly unknown[]; callout: GoogleCallout }>({
     mutationFn: (v) => googleAdsApi.removeCallout(account.id, v.callout.assetId),
+    onMutate: (v) => setRemovingIds((ids) => new Set(ids).add(v.callout.assetId)),
     onSuccess: (res, v) => toast.success(res.removed ? `Removed “${v.callout.text}”.` : `“${v.callout.text}” was already removed.`),
     onError: (err) => toast.error(googleCalloutErrorMessage(err, "We couldn't remove that callout. Try again in a moment.")),
-    onSettled: (_res, _err, v) => void queryClient.invalidateQueries({ queryKey: v.key }),
+    onSettled: (_res, _err, v) => {
+      setRemovingIds((ids) => {
+        const next = new Set(ids);
+        next.delete(v.callout.assetId);
+        return next;
+      });
+      void queryClient.invalidateQueries({ queryKey: v.key });
+    },
   });
 
   const busy = add.isPending;
@@ -170,8 +182,11 @@ export function GoogleCalloutsSection({ account }: { account: GoogleAdAccount })
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={remove.isPending && remove.variables?.callout.assetId === c.assetId}
-                    onClick={() => setRemoving(c)}
+                    disabled={removingIds.has(c.assetId)}
+                    onClick={() => {
+                      setRemoving(c);
+                      setConfirmOpen(true);
+                    }}
                   >
                     Remove
                   </Button>
@@ -234,7 +249,7 @@ export function GoogleCalloutsSection({ account }: { account: GoogleAdAccount })
         </form>
       </CardContent>
 
-      <AlertDialog open={!!removing} onOpenChange={(open) => (open ? null : setRemoving(null))}>
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>{removeConfirmation?.title}</AlertDialogTitle>
@@ -245,7 +260,7 @@ export function GoogleCalloutsSection({ account }: { account: GoogleAdAccount })
             <AlertDialogAction
               onClick={() => {
                 if (removing) remove.mutate({ key: queryKey, callout: removing });
-                setRemoving(null);
+                setConfirmOpen(false);
               }}
             >
               Remove
