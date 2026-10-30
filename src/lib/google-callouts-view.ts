@@ -54,7 +54,6 @@ export function googleCalloutLength(text: string): { label: string; over: boolea
     over: width > GOOGLE_CALLOUT_MAX,
     empty: text.trim().length === 0,
     // ★The api refuses control characters (review round 1): a tab pasted from a spreadsheet is said here, before a round trip.
-    // eslint-disable-next-line no-control-regex
     multiline: /[\u0000-\u001F\u007F]/.test(text.trim()),
   };
 }
