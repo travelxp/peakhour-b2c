@@ -1,6 +1,6 @@
 import { ApiError } from "@/lib/api";
 import type { GoogleWebsiteConversionState, GoogleWebsiteTagSnippet } from "@/lib/api/google-ads";
-import { PEAKHOUR_CONVERSION_ACTION_LABEL, googleConversionErrorMessage, googleConversionNeedsReconnect } from "@/lib/google-conversion-view";
+import { PEAKHOUR_CONVERSION_ACTION_LABEL, detailsOf, googleConversionErrorMessage, googleConversionNeedsReconnect } from "@/lib/google-conversion-view";
 
 /**
  * ★★G-14f — what the Google panel's "Website conversion tag" section SAYS,
@@ -160,9 +160,7 @@ export const googleWebsiteSnippetKey = (s: GoogleWebsiteTagSnippet, index: numbe
 /** One sentence for a failed read or set-up: G-17b's words, except where they name the upload action. */
 export function googleWebsiteConversionErrorMessage(err: unknown, fallback: string): string {
   if (err instanceof ApiError && err.code === "CONVERSION_ACTION_REFUSED") {
-    const d = err.details;
-    const reason = d && typeof d === "object" && !Array.isArray(d) ? (d as Record<string, unknown>).reason : undefined;
-    if (reason === "validation_conversion_action_name_taken") {
+    if (detailsOf(err).reason === "validation_conversion_action_name_taken") {
       return (
         "Every name Peakhour uses for its website conversion action is already taken in this Google Ads account, " +
         "or one was taken just now. Try again, or rename one of them in Google Ads (removing one does not free its name)."
@@ -181,8 +179,7 @@ export function googleWebsiteConversionErrorMessage(err: unknown, fallback: stri
 export function googleWebsiteConversionNeedsReconnect(err: unknown): boolean {
   if (googleConversionNeedsReconnect(err)) return true;
   if (!(err instanceof ApiError) || err.code !== "CONVERSION_ACTION_REFUSED") return false;
-  const d = err.details;
-  return !!d && typeof d === "object" && !Array.isArray(d) && (d as Record<string, unknown>).reason === "validation_conversion_customer_unreachable";
+  return detailsOf(err).reason === "validation_conversion_customer_unreachable";
 }
 
 /** The toast after a set-up. */
