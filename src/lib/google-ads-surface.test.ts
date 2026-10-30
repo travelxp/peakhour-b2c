@@ -73,8 +73,8 @@ describe("★★G-15 — no b2c file names a Google ads path but the client", ()
     for (const p of paths) expect(isManagedGoogleAdsPath(p), p).toBe(true);
     // Each `api.<verb>(` call's first argument is a googleAdsUrl(...) call.
     const calls = [...client.matchAll(/api\.(get|post|put|patch|delete)<[^>]*>\(\s*([^,)]+)/g)].map((m) => m[2]!.trim());
-    // G-14a: +5 (targeting read and save, keyword status, locations, languages); G-14d: +1 (reports).
-    expect(calls.length).toBe(12);
+    // G-14a: +5 (targeting read and save, keyword status, locations, languages); G-14d: +1 (reports); G-14f: +2 (website conversion).
+    expect(calls.length).toBe(14);
     for (const arg of calls) expect(arg.startsWith("googleAdsUrl("), arg).toBe(true);
   });
 
@@ -139,6 +139,31 @@ describe("★★G-14d — the reports route is managed, read with GET, one repor
   });
 });
 
+describe("★★G-14f — the website conversion route is managed, read with GET and set up with PUT", () => {
+  it("is on the managed list", () => {
+    expect(GOOGLE_ADS_MANAGED_ROUTES).toContain(`${GOOGLE_ADS_PREFIX}/website-conversion`);
+    expect(googleAdsUrl("/v1/google/ads/website-conversion")).toBe("/v1/google/ads/website-conversion");
+  });
+  it("the client reads with GET (with the account) and sets up with PUT, the account its whole body", () => {
+    const client = read(CLIENT);
+    expect(client).toContain(
+      'api.get<GoogleWebsiteConversionState>(googleAdsUrl("/v1/google/ads/website-conversion") + `?adAccountId=${encodeURIComponent(adAccountId)}`)',
+    );
+    expect(client).toContain('api.put<GoogleWebsiteConversionSetUp>(googleAdsUrl("/v1/google/ads/website-conversion"), { adAccountId })');
+    expect(client).not.toMatch(/api\.(post|patch|delete)<[^>]*>\(googleAdsUrl\("\/v1\/google\/ads\/website-conversion/);
+  });
+  it("★the section reaches Google only through the client, and the panel only mounts it, once", () => {
+    const section = read("src/app/(site)/dashboard/ads/_components/google-website-conversion-section.tsx");
+    expect(section).toContain("googleAdsApi.getWebsiteConversion(");
+    expect(section).toContain("googleAdsApi.setUpWebsiteConversion(");
+    const panel = read(PANEL);
+    expect(panel).toContain('import { GoogleWebsiteConversionSection } from "./google-website-conversion-section";');
+    expect(panel.match(/<GoogleWebsiteConversionSection /g)?.length).toBe(1);
+    // The panel itself names none of the section's words: only the mount.
+    expect(panel).not.toContain("WebsiteConversion(");
+  });
+});
+
 describe("★★googleAdsUrl, so a panel never has to write a literal", () => {
   it("fills the params, and the result is itself a managed path", () => {
     const url = googleAdsUrl("/v1/google/ads/campaigns/:id/status", { id: "6731f0aa" });
@@ -191,6 +216,9 @@ describe("★★G-15/G19/G20 — nothing implies a Google campaign type but Sear
     // G-14a: the targeting step and its words.
     ["the targeting step", () => read("src/app/(site)/dashboard/ads/_components/google-targeting-dialog.tsx")],
     ["the targeting words", () => read("src/lib/google-targeting-view.ts")],
+    // G-14f: the website conversion tag and its words.
+    ["the website conversion section", () => read("src/app/(site)/dashboard/ads/_components/google-website-conversion-section.tsx")],
+    ["the website conversion words", () => read("src/lib/google-website-conversion-view.ts")],
     ["the hub entry", () => googleEntry(read("src/app/(site)/dashboard/ads/ads-channels.ts"), 'key: "google"')],
     ["the catalog entry", () => googleEntry(read("src/app/(site)/dashboard/content/channels.config.ts"), 'slug: "google-ads"')],
   ])("★%s names no other campaign type", (_l, text) => {
@@ -283,7 +311,7 @@ describe("★★G-15 — the prefix and the routes are peakhour-api's", () => {
     const used = [...client.matchAll(/api\.(get|post|put|patch|delete)<[^>]*>\(\s*googleAdsUrl\("([^"]+)"/g)].map(
       (m) => `${m[1]} ${m[2]!.slice(GOOGLE_ADS_PREFIX.length)}`,
     );
-    expect(used.length).toBe(12);
+    expect(used.length).toBe(14);
     for (const u of used) expect(declared.has(u), u).toBe(true);
     for (const r of GOOGLE_ADS_MANAGED_ROUTES) {
       const sub = r.slice(GOOGLE_ADS_PREFIX.length);
