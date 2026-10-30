@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ApiError } from "@/lib/api";
 import type { GoogleCallout } from "@/lib/api/google-ads";
@@ -136,5 +137,21 @@ describe("the section's state", () => {
     expect(googleCalloutsState({ data: undefined, isError: true, fetchStatus: "idle" })).toEqual({ kind: "error" });
     expect(googleCalloutsState({ data: { callouts: [] }, isError: true, fetchStatus: "idle" })).toEqual({ kind: "none" });
     expect(googleCalloutsState({ data: { callouts: [callout()] }, isError: false, fetchStatus: "idle" })).toEqual({ kind: "list", callouts: [callout()] });
+  });
+});
+
+describe("★★the counter's width rule is the api's, character for character (review round 1)", () => {
+  // The sibling checkout, or the one PEAKHOUR_API_ROOT names (google-ads-surface.test.ts's rule): a missing checkout skips,
+  // a missing FILE inside a present one fails.
+  const SIBLING = process.env.PEAKHOUR_API_ROOT ?? fileURLToPath(new URL("../../../peakhour-api", import.meta.url));
+  const present = existsSync(SIBLING);
+  const ranges = (source: string): string | null => /const DOUBLE_WIDTH =\s*(\/.+\/u);/.exec(source)?.[1] ?? null;
+  it.skipIf(!present)("★DOUBLE_WIDTH here equals DOUBLE_WIDTH in the api's google-callouts.ts", () => {
+    const apiFile = join(SIBLING, "src", "v1", "services", "ads", "google-callouts.ts");
+    if (!existsSync(apiFile)) throw new Error(`peakhour-api is checked out but ${apiFile} is missing — the callout service moved.`);
+    const theirs = ranges(readFileSync(apiFile, "utf8"));
+    const ours = ranges(readFileSync(fileURLToPath(new URL("./google-callouts-view.ts", import.meta.url)), "utf8"));
+    expect(theirs).not.toBeNull();
+    expect(ours).toBe(theirs);
   });
 });
