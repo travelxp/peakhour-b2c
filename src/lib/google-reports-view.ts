@@ -233,10 +233,15 @@ export const GOOGLE_REPORT_COLUMNS: Columns = {
     col<GoogleBiddingStrategyReportRow>("type", "Type", true, false, (r) => googleBiddingTypeLabel(r.type)),
     status<GoogleBiddingStrategyReportRow>(),
     ...metricColumns<GoogleBiddingStrategyReportRow>(),
-    col<GoogleBiddingStrategyReportRow>("averageCpcMicros", "Average CPC", true, true, (r, cur) => formatGoogleMicros(r.averageCpcMicros, cur)),
+    // ★NO CLICKS, NO AVERAGE; NO CONVERSIONS, NO COST PER ONE (review round 1):
+    //  Google omits both then and the api reads absent as 0, which would print
+    //  "$0.00" — free conversions that never happened. A dash says none.
+    col<GoogleBiddingStrategyReportRow>("averageCpcMicros", "Average CPC", true, true, (r, cur) =>
+      r.clicks > 0 ? formatGoogleMicros(r.averageCpcMicros, cur) : "—",
+    ),
     conversions<GoogleBiddingStrategyReportRow>(),
     col<GoogleBiddingStrategyReportRow>("costPerConversionMicros", "Cost per Google Ads conversion", true, true, (r, cur) =>
-      formatGoogleMicros(r.costPerConversionMicros, cur),
+      r.conversions > 0 ? formatGoogleMicros(r.costPerConversionMicros, cur) : "—",
     ),
   ],
 };

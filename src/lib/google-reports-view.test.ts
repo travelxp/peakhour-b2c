@@ -119,6 +119,15 @@ describe("cells", () => {
     expect(cell("keywords", "firstPositionCpcMicros", r)).toBe("—");
     expect(cell("keywords", "firstPageCpcMicros", { ...r, firstPageCpcMicros: 450_000 })).toMatch(/0\.45/);
   });
+  it("★no conversions (or a retraction below zero) is no cost per conversion, and no clicks is no average CPC: a dash, never $0.00", () => {
+    const r = row("bidding-strategies", { clicks: 0, impressions: 10, costMicros: 50_000_000, conversions: 0, costPerConversionMicros: 0, averageCpcMicros: 0 });
+    expect(cell("bidding-strategies", "costPerConversionMicros", r)).toBe("—");
+    expect(cell("bidding-strategies", "averageCpcMicros", r)).toBe("—");
+    expect(cell("bidding-strategies", "costPerConversionMicros", { ...r, conversions: -1, costPerConversionMicros: -50_000_000 })).toBe("—");
+    const served = { ...r, clicks: 10, conversions: 2, costPerConversionMicros: 25_000_000, averageCpcMicros: 5_000_000 };
+    expect(cell("bidding-strategies", "costPerConversionMicros", served)).toMatch(/25\.00/);
+    expect(cell("bidding-strategies", "averageCpcMicros", served)).toMatch(/5\.00/);
+  });
   it("counts are whole; Google's conversions keep two decimals (data-driven attribution is fractional)", () => {
     expect(formatGoogleCount(12345)).toBe("12,345");
     expect(formatGoogleConversions(2.5)).toBe("2.5");
