@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { X } from "lucide-react";
@@ -51,6 +51,7 @@ import {
   keywordKey,
   pausedOf,
   radiusKey,
+  sameRadius,
   targetingInputFromDraft,
   googleTargetingSavedSentence,
   type DraftKeyword,
@@ -111,10 +112,16 @@ export function GoogleTargetingDialog({
   const search = isSearch(channelType);
   // The merchant's unsaved copy, or null: with none, the step shows the latest read as it is.
   const [edits, setEdits] = useState<TargetingDraft | null>(null);
-  const draft = edits ?? (read.data ? draftFromRead(read.data.targeting) : null);
+  // Memoised on the read (review round 2): a campaign may hold thousands of keywords.
+  const fromRead = useMemo(() => (read.data ? draftFromRead(read.data.targeting) : null), [read.data]);
+  const draft = edits ?? fromRead;
   const dirty = edits !== null;
+  // ★FUNCTIONAL (review round 2): two edits before a re-render both land.
   const edit = (f: (d: TargetingDraft) => TargetingDraft) => {
-    if (draft) setEdits(f(draft));
+    setEdits((prev) => {
+      const base = prev ?? fromRead;
+      return base ? f(base) : prev;
+    });
   };
   const close = () => {
     setEdits(null);
@@ -132,7 +139,9 @@ export function GoogleTargetingDialog({
       // ★Re-read FIRST, then let the read replace the copy: dropping the edits before the new read lands would show
       //  the old targeting for a moment, as though the save had not taken.
       await queryClient.invalidateQueries({ queryKey });
-      setEdits(null);
+      // ★ONLY ONCE THE NEW READ IS IN (review round 2): if it failed, the old read is still cached, and dropping the
+      //  edits would show the targeting from before the save as though the save had not taken.
+      if (queryClient.getQueryState(queryKey)?.status === "success") setEdits(null);
     },
     onError: (err) => {
       toast.error(googleAdsErrorMessage(err, "Google Ads didn't take that targeting. Try again in a moment."));
@@ -151,8 +160,8 @@ export function GoogleTargetingDialog({
   });
   const [removing, setRemoving] = useState<{ criterionId: string; text: string } | null>(null);
 
-  const problem = draft ? googleTargetingProblem(draft, channelType) : null;
-  const paused = read.data ? pausedOf(read.data.targeting) : null;
+  const problem = useMemo(() => (draft ? googleTargetingProblem(draft, channelType) : null), [draft, channelType]);
+  const paused = useMemo(() => (read.data ? pausedOf(read.data.targeting) : null), [read.data]);
   const busy = save.isPending || keywordStatus.isPending;
   const keywordControls = !dirty && !busy;
 
@@ -176,7 +185,12 @@ export function GoogleTargetingDialog({
         ) : null}
 
         {read.isError && !draft ? (
-          <p className="text-sm text-destructive-on-tint">{googleAdsErrorMessage(read.error, "We couldn't read this campaign's targeting from Google Ads. Try again in a moment.")}</p>
+          <p className="text-sm text-destructive-on-tint">
+            {googleAdsErrorMessage(read.error, "We couldn't read this campaign's targeting from Google Ads.")}{" "}
+            <Button variant="link" className="h-auto p-0 text-sm" onClick={() => void read.refetch()} disabled={read.isFetching}>
+              Try again
+            </Button>
+          </p>
         ) : !draft ? (
           <div className="space-y-3">
             <Skeleton className="h-10 w-full" />
@@ -205,7 +219,7 @@ export function GoogleTargetingDialog({
                   title="Keywords"
                   help="The searches this campaign shows for. Pick how closely a search must match each one."
                   list={draft.keywords}
-                  onChange={(keywords) => edit((d) => ({ ...d, keywords }))}
+                  onChange={(f) => edit((d) => ({ ...d, keywords: f(d.keywords) }))}
                   disabled={busy}
                   pausedKeys={paused?.keywordKeys}
                   controlsOn={keywordControls}
@@ -248,9 +262,10 @@ export function GoogleTargetingDialog({
                   title="Negative keywords"
                   help="Searches containing these never show your ads. They narrow what the campaign pays for."
                   list={draft.negativeKeywords}
-                  onChange={(negativeKeywords) => edit((d) => ({ ...d, negativeKeywords }))}
+                  onChange={(f) => edit((d) => ({ ...d, negativeKeywords: f(d.negativeKeywords) }))}
                   disabled={busy}
                   pausedKeys={paused?.negativeKeys}
+                  pausedMessage="That negative is paused in Google Ads. Enable it there rather than adding it again."
                 />
                 {paused && paused.negativeKeywords.length > 0 ? (
                   <p className="text-xs text-muted-foreground">
@@ -393,7 +408,7 @@ function RadiiSection({ draft, edit, disabled }: { draft: TargetingDraft; edit: 
     ...(form.countryCode.trim() ? { countryCode: form.countryCode.trim().toUpperCase() } : {}),
   };
   const radius = Number(form.radius);
-  const duplicate = draft.radii.some((r) => radiusKey(r) === radiusKey({ address, radius, radiusUnits: form.unit }));
+  const duplicate = draft.radii.some((r) => sameRadius(r, { address, radius, radiusUnits: form.unit }));
   const problem =
     form.radius === ""
       ? "Enter the radius."
@@ -506,14 +521,17 @@ function KeywordsSection({
   controlsOn,
   onStatus,
   pausedKeys,
+  pausedMessage = "That one is paused in Google Ads. Enable it rather than adding it again.",
 }: {
   title: string;
   help: string;
   list: DraftKeyword[];
-  onChange: (next: DraftKeyword[]) => void;
+  /** An updater, applied to the latest list (review round 2). */
+  onChange: (f: (list: DraftKeyword[]) => DraftKeyword[]) => void;
   disabled: boolean;
   /** Keys Google holds paused: adding one again is refused by the api, so it is said here. */
   pausedKeys?: ReadonlySet<string>;
+  pausedMessage?: string;
   /** Keywords only: whether one keyword's own pause/remove is offered now. */
   controlsOn?: boolean;
   onStatus?: (k: DraftKeyword, status: GoogleKeywordStatus) => void;
@@ -525,10 +543,10 @@ function KeywordsSection({
   const duplicate = list.some((k) => keywordKey(k) === key);
   const problem = text
     ? (googleKeywordProblem(text) ??
-      (duplicate ? "That keyword is already in the list." : pausedKeys?.has(key) ? "That one is paused in Google Ads. Enable it rather than adding it again." : null))
+      (duplicate ? "That keyword is already in the list." : pausedKeys?.has(key) ? pausedMessage : null))
     : null;
   const add = () => {
-    onChange([...list, { text: typed, matchType }]);
+    onChange((l) => [...l, { text: typed, matchType }]);
     setText("");
   };
   return (
@@ -544,7 +562,8 @@ function KeywordsSection({
               {k.resourceName ? null : <span className="text-xs text-muted-foreground"> · not saved yet</span>}
             </span>
             <span className="flex gap-1">
-              {k.resourceName && onStatus ? (
+              {/* Its own controls only when its id can be named (review round 2); otherwise nothing would happen. */}
+              {k.resourceName && onStatus && keywordCriterionId(k.resourceName) ? (
                 <>
                   <Button size="sm" variant="outline" disabled={!controlsOn} onClick={() => onStatus(k, "PAUSED")}>
                     Pause
@@ -555,7 +574,7 @@ function KeywordsSection({
                 </>
               ) : (
                 // A negative, or a keyword not yet saved: taken out of the list, and the save replaces.
-                <Button size="sm" variant="ghost" disabled={disabled} onClick={() => onChange(list.filter((x) => keywordKey(x) !== keywordKey(k)))}>
+                <Button size="sm" variant="ghost" disabled={disabled} onClick={() => onChange((l) => l.filter((x) => keywordKey(x) !== keywordKey(k)))}>
                   Take out
                 </Button>
               )}

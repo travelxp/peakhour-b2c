@@ -17,6 +17,7 @@ import {
   googleTargetingSavedSentence,
   pausedOf,
   radiusKey,
+  sameRadius,
   targetingInputFromDraft,
   type TargetingDraft,
 } from "./google-targeting-view";
@@ -216,5 +217,18 @@ describe("★the api's silencing rule, mirrored (api review round 2)", () => {
     [{ text: "Linen  Shirts", matchType: "EXACT" }, { text: "linen shirts", matchType: "EXACT" }, true],
   ])("%o against %o: %s", (n, k, want) => {
     expect(googleNegativeSilences(n, k)).toBe(want);
+  });
+});
+
+describe("review round 2", () => {
+  it("★a radius Google holds (point and address) is the same as one typed by its address", () => {
+    const held = { geoPoint: MADRID, address: { cityName: "Madrid", countryCode: "ES" }, radius: 10, radiusUnits: "KILOMETERS" as const };
+    expect(sameRadius(held, { address: { cityName: "madrid", countryCode: "ES" }, radius: 10, radiusUnits: "KILOMETERS" })).toBe(true);
+    expect(sameRadius(held, { address: { cityName: "Madrid", countryCode: "ES" }, radius: 5, radiusUnits: "KILOMETERS" })).toBe(false);
+    expect(sameRadius(held, { geoPoint: { ...MADRID, latitudeInMicroDegrees: 1 }, radius: 10, radiusUnits: "KILOMETERS" })).toBe(false);
+  });
+  it("★a keyword Google holds that Peakhour can't send back is named with its way out, not a dead end", () => {
+    const d = { ...draftFromRead(READ), keywords: [{ text: "x".repeat(80), matchType: "BROAD" as const, resourceName: `${C}/adGroupCriteria/333~12` }] };
+    expect(googleTargetingProblem(d, "SEARCH")).toMatch(/Pause or remove it first/);
   });
 });

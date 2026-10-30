@@ -142,6 +142,17 @@ export function pausedOf(t: GoogleCampaignTargeting) {
   };
 }
 
+/**
+ * Whether two radii are the same: the same radius and unit, and the same point when both have one, else the same
+ * address (review round 2: a radius Google holds carries its point AND its address, a new one only the address).
+ */
+export function sameRadius(a: DraftRadius, b: DraftRadius): boolean {
+  if (a.radius !== b.radius || a.radiusUnits !== b.radiusUnits) return false;
+  if (a.geoPoint && b.geoPoint) return a.geoPoint.latitudeInMicroDegrees === b.geoPoint.latitudeInMicroDegrees && a.geoPoint.longitudeInMicroDegrees === b.geoPoint.longitudeInMicroDegrees;
+  const addr = (r: DraftRadius) => radiusKey({ ...r, geoPoint: undefined });
+  return !!a.address && !!b.address && addr(a) === addr(b);
+}
+
 /** One radius's identity on screen: the same address (or point), radius and unit is the same radius (the api refuses it twice). */
 export function radiusKey(r: DraftRadius): string {
   const a = r.address ?? {};
@@ -200,7 +211,9 @@ export function googleTargetingProblem(d: TargetingDraft, channelType: GoogleCha
   if (d.keywords.length === 0) return "Add at least one keyword. A Search campaign shows only on searches for its keywords.";
   for (const k of [...d.keywords, ...d.negativeKeywords]) {
     const p = googleKeywordProblem(k.text);
-    if (p) return `“${k.text}”: ${p}`;
+    // ★ONE GOOGLE ALREADY HOLDS (made in Google Ads, by Google's looser bound) is named with its way out (review
+    //  round 2): the api sends every keyword back and would refuse it, so it is paused or removed first.
+    if (p) return k.resourceName ? `“${k.text}” is in Google Ads but Peakhour can't send it back (${p}) Pause or remove it first.` : `“${k.text}”: ${p}`;
   }
   const clash = d.negativeKeywords.find((n) => d.keywords.some((k) => googleNegativeSilences(n, k)));
   if (clash) return `The negative keyword “${foldKeyword(clash.text)}” would stop your keyword of the same words from ever showing. Keep one.`;
