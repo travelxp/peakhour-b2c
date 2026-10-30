@@ -538,14 +538,14 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
                     <TableCell>{formatGoogleMoney(c.budget?.daily, c.currency ?? account.currencyCode)}</TableCell>
                     <TableCell className="space-x-2 text-right">
                       {googleCampaignSettable(c) ? (
-                        <Button size="sm" variant="ghost" onClick={() => setTargeting(c)}>
-                          Targeting
-                        </Button>
-                      ) : null}
-                      {googleCampaignSettable(c) ? (
-                        <Button size="sm" variant="ghost" onClick={() => setBidding(c)}>
-                          Bidding
-                        </Button>
+                        <>
+                          <Button size="sm" variant="ghost" onClick={() => setTargeting(c)}>
+                            Targeting
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => setBidding(c)}>
+                            Bidding
+                          </Button>
+                        </>
                       ) : null}
                       {action.status ? (
                         <Button
