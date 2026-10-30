@@ -298,8 +298,14 @@ export function googleAccountHasNotServed(rows: ReadonlyArray<Pick<GoogleAccount
 export const GOOGLE_ACCOUNT_NOT_SERVED_NOTE =
   "This account has not served an ad in these dates, so every figure is zero. A test account never serves.";
 
-/** More rows existed than the api returns. */
-export const GOOGLE_REPORT_TRUNCATED_NOTE = "Showing the first 1,000 rows, costliest first. Narrow the dates to see the rest.";
+/**
+ * More rows existed than the api returns. ★THE COUNT IS THE ROWS SHOWN, not a
+ * copy of the api's limit, and it promises no way to page (review round 1):
+ * narrowing the dates re-ranks, it does not reveal the rest.
+ */
+export function googleReportTruncatedNote(shown: number): string {
+  return `Showing the ${formatGoogleCount(shown)} costliest rows. There are more: Google Ads has the full list.`;
+}
 
 // ── Dates ────────────────────────────────────────────────────────────────
 

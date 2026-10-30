@@ -16,7 +16,6 @@ import {
   GOOGLE_REPORT_COLUMNS,
   GOOGLE_REPORT_DEFAULT_RANGE_LABEL,
   GOOGLE_REPORT_TABS,
-  GOOGLE_REPORT_TRUNCATED_NOTE,
   GOOGLE_REPORTS_MEASUREMENT_NOTE,
   googleAccountHasNotServed,
   googleReportEmptySentence,
@@ -25,6 +24,7 @@ import {
   googleReportRangeProblem,
   googleReportRangeSentence,
   googleReportRowKey,
+  googleReportTruncatedNote,
   type GoogleReportColumn,
 } from "@/lib/google-reports-view";
 
@@ -202,7 +202,7 @@ function ReportTable({ account, report, range }: { account: GoogleAdAccount; rep
               </TableBody>
             </Table>
           </div>
-          {data?.truncated ? <p className="text-xs text-muted-foreground">{GOOGLE_REPORT_TRUNCATED_NOTE}</p> : null}
+          {data?.truncated ? <p className="text-xs text-muted-foreground">{googleReportTruncatedNote(rows.length)}</p> : null}
         </>
       )}
     </div>

@@ -22,6 +22,7 @@ import {
   googleReportRangeProblem,
   googleReportRangeSentence,
   googleReportRowKey,
+  googleReportTruncatedNote,
   googleSearchTermStatusLabel,
   humanizeGoogleEnum,
 } from "./google-reports-view";
@@ -186,6 +187,13 @@ describe("★★empty, and not served", () => {
     expect(googleAccountHasNotServed([zero])).toBe(true);
     expect(googleAccountHasNotServed([{ ...zero, impressions: 1 }])).toBe(false);
     expect(googleAccountHasNotServed([{ ...zero, costMicros: 10 }])).toBe(false);
+  });
+});
+
+describe("★the truncation note (review round 1)", () => {
+  it("counts the rows shown, and promises no paging", () => {
+    expect(googleReportTruncatedNote(1000)).toBe("Showing the 1,000 costliest rows. There are more: Google Ads has the full list.");
+    expect(googleReportTruncatedNote(1000)).not.toMatch(/narrow/i);
   });
 });
 
