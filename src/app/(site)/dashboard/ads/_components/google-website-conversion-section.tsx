@@ -20,7 +20,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { googleAdsApi, type GoogleAdAccount, type GoogleWebsiteConversionState, type GoogleWebsiteTagSnippet } from "@/lib/api/google-ads";
+import { googleAdsApi, type GoogleAdAccount, type GoogleWebsiteConversionSetUp, type GoogleWebsiteConversionState, type GoogleWebsiteTagSnippet } from "@/lib/api/google-ads";
 import { googleConversionMayHaveBeenCreated } from "@/lib/google-conversion-view";
 import {
   GOOGLE_WEBSITE_CONVERSION_GONE,
@@ -71,8 +71,8 @@ export function GoogleWebsiteConversionSection({ account }: { account: GoogleAdA
 
   // ★THE KEY RIDES WITH THE REQUEST (review round 1): a business switched while
   //  the PUT is in flight must not have the old business's tag cached under its key.
-  const setUp = useMutation({
-    mutationFn: (_key: readonly unknown[]) => googleAdsApi.setUpWebsiteConversion(account.id),
+  const setUp = useMutation<GoogleWebsiteConversionSetUp, unknown, readonly unknown[]>({
+    mutationFn: () => googleAdsApi.setUpWebsiteConversion(account.id),
     onSuccess: (res, key) => {
       // ★Show what the api answered now, so the tag is on screen even if the re-read fails.
       queryClient.setQueryData<GoogleWebsiteConversionState>(key, {
