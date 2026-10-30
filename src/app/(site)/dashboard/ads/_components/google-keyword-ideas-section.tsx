@@ -71,6 +71,17 @@ export function GoogleKeywordIdeasSection({
   // Built once per list, not once per idea (review round 1): a campaign may hold thousands of keywords.
   const keywordKeys = useMemo(() => new Set(draft.keywords.map(keywordKey)), [draft.keywords]);
   const stale = !!result && !sameIdeasRequest(ask.variables, request.input);
+  // ★EACH ROW'S VERDICT ONCE PER LIST, PICKS AND DRAFT (review round 2), not on every keystroke in the inputs.
+  const rows = useMemo(
+    () =>
+      (result?.ideas ?? []).map((idea) => {
+        // The pick is kept per idea by its folded text (review round 1).
+        const pickKey = foldKeyword(idea.text).toLowerCase();
+        const matchType = matchTypes[pickKey] ?? GOOGLE_DEFAULT_MATCH_TYPE;
+        return { idea, pickKey, matchType, problem: ideaAddProblem(idea, matchType, draft, keywordKeys, pausedKeys) };
+      }),
+    [result, matchTypes, draft, keywordKeys, pausedKeys],
+  );
   const more = result ? googleIdeasMoreSentence(result.ideas.length, result.totalSize) : null;
 
   return (
@@ -87,7 +98,7 @@ export function GoogleKeywordIdeasSection({
           if (!request.problem && !ask.isPending) ask.mutate(request.input);
         }}
       >
-        <Input value={words} onChange={(e) => setWords(e.target.value)} placeholder="Words to start from, separated by commas" maxLength={1600} aria-label="Words to start from" />
+        <Input value={words} onChange={(e) => setWords(e.target.value)} placeholder="Words to start from, separated by commas" maxLength={2000} aria-label="Words to start from" />
         <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="A page of your site (optional)" maxLength={2048} aria-label="A page of your site" />
         <div className="flex flex-wrap items-center gap-2">
           <Select value={languageSent || ANY_LANGUAGE} onValueChange={setLanguage}>
@@ -123,11 +134,7 @@ export function GoogleKeywordIdeasSection({
             {stale ? <p className="text-xs text-muted-foreground">These ideas are for your earlier words, page, language or places. Ask Google again for the current ones.</p> : null}
             {more ? <p className="text-xs text-muted-foreground">{more}</p> : null}
             <ul className="max-h-80 space-y-2 overflow-y-auto">
-              {result.ideas.map((idea, i) => {
-                // The pick is kept per idea by its folded text (review round 1), and the row keyed by position too.
-                const pickKey = foldKeyword(idea.text).toLowerCase();
-                const matchType = matchTypes[pickKey] ?? GOOGLE_DEFAULT_MATCH_TYPE;
-                const problem = ideaAddProblem(idea, matchType, draft, keywordKeys, pausedKeys);
+              {rows.map(({ idea, pickKey, matchType, problem }, i) => {
                 const figures = [googleIdeaSearchesSentence(idea), googleIdeaCompetitionLabel(idea), googleIdeaBidRange(idea, result.currencyCode)].filter(Boolean);
                 return (
                   <li key={`${i}:${idea.text}`} className="flex flex-wrap items-center justify-between gap-2 text-sm">
@@ -149,7 +156,7 @@ export function GoogleKeywordIdeasSection({
                           ))}
                         </SelectContent>
                       </Select>
-                      <Button size="sm" variant="outline" disabled={disabled || !!problem} title={problem ?? undefined} onClick={() => onPick(ideaAsKeyword(idea, matchType))}>
+                      <Button size="sm" variant="outline" disabled={disabled || stale || !!problem} title={stale ? "Ask Google again for your current words, page, language or places." : (problem ?? undefined)} onClick={() => onPick(ideaAsKeyword(idea, matchType))}>
                         {problem === GOOGLE_IDEA_ALREADY_ADDED ? "Added" : "Add as keyword"}
                       </Button>
                     </span>
