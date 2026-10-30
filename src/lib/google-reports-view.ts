@@ -200,7 +200,11 @@ export const GOOGLE_REPORT_COLUMNS: Columns = {
     allConversions<GoogleCampaignReportRow>(),
   ],
   ads: [
-    col<GoogleAdReportRow>("ad", "Ad", false, false, (r) => `${humanizeGoogleEnum(r.adType)}${r.adId ? ` #${r.adId}` : ""}`),
+    col<GoogleAdReportRow>("ad", "Ad", false, false, (r) => {
+      // ★NO TYPE IS "Ad", never "— #123" (review round 1).
+      const type = r.adType ? humanizeGoogleEnum(r.adType) : r.adId ? "Ad" : "—";
+      return r.adId ? `${type} #${r.adId}` : type;
+    }),
     col<GoogleAdReportRow>("adGroupName", "Ad group", false, false, (r) => r.adGroupName ?? "—"),
     col<GoogleAdReportRow>("campaignName", "Campaign", false, false, (r) => r.campaignName ?? "—"),
     status<GoogleAdReportRow>(),

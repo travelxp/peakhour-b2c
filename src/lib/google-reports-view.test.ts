@@ -129,6 +129,12 @@ describe("cells", () => {
     expect(cell("bidding-strategies", "costPerConversionMicros", served)).toMatch(/25\.00/);
     expect(cell("bidding-strategies", "averageCpcMicros", served)).toMatch(/5\.00/);
   });
+  it("★an ad with an id and no type reads \"Ad #123\", never \"— #123\"", () => {
+    const base = { clicks: 0, impressions: 0, costMicros: 0, conversions: 0 };
+    expect(cell("ads", "ad", row("ads", { ...base, adId: "123" }))).toBe("Ad #123");
+    expect(cell("ads", "ad", row("ads", { ...base, adId: "123", adType: "RESPONSIVE_SEARCH_AD" }))).toBe("Responsive search ad #123");
+    expect(cell("ads", "ad", row("ads", base))).toBe("—");
+  });
   it("counts are whole; Google's conversions keep two decimals (data-driven attribution is fractional)", () => {
     expect(formatGoogleCount(12345)).toBe("12,345");
     expect(formatGoogleConversions(2.5)).toBe("2.5");
