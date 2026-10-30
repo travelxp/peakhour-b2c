@@ -72,18 +72,24 @@ export function GoogleCampaignManageDialog({
   // The account's day: Google reads the end date in the account's zone (review round 1).
   const today = googleAccountToday(settings?.timeZone);
   const problem = settings && draft ? googleSettingsProblem(settings, draft, today) : null;
-  // ★THE NAME AS GOOGLE HOLDS IT NOW (review round 1): a rename saved in this dialog is what the api confirms a remove against.
-  const liveName = settings?.name ?? campaign.name;
+  // ★THE NAME AS GOOGLE HOLDS IT NOW (review round 1), or the one this dialog just saved while the re-read is in
+  //  flight (round 2): the api confirms a remove by the row's name or Google's, and both are that one.
+  const [savedName, setSavedName] = useState<string | null>(null);
+  const liveName = savedName ?? settings?.name ?? campaign.name;
   const change = settings && draft && !problem ? googleSettingsChangeOf(settings, draft) : null;
 
   const refreshList = () => void queryClient.invalidateQueries({ queryKey: ["google-ads-campaigns"] });
   const save = useMutation({
     mutationFn: (input: GoogleSettingsInput) => googleAdsApi.setSettings(campaign.id, input),
-    onSuccess: async (res) => {
+    onSuccess: async (res, input) => {
+      if (input.name !== undefined) setSavedName(input.name);
       toast.success(googleSettingsSavedSentence(res.changed));
       refreshList();
       await queryClient.invalidateQueries({ queryKey });
-      if (queryClient.getQueryState(queryKey)?.status === "success") setEdits(null);
+      if (queryClient.getQueryState(queryKey)?.status === "success") {
+        setEdits(null);
+        setSavedName(null);
+      }
     },
     onError: (err) => {
       toast.error(googleAdsErrorMessage(err, "Google Ads didn't take that change. Try again in a moment."));
@@ -228,7 +234,7 @@ export function GoogleCampaignManageDialog({
                 <Input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} disabled={busy} autoComplete="off" />
               </div>
               <div className="flex justify-end">
-                <Button variant="destructive" onClick={() => remove.mutate()} disabled={!googleRemoveConfirmed(liveName, confirmText) || busy || !settings}>
+                <Button variant="destructive" onClick={() => remove.mutate()} disabled={!googleRemoveConfirmed(liveName, confirmText) || busy}>
                   {remove.isPending ? "Removing…" : "Remove for good"}
                 </Button>
               </div>
