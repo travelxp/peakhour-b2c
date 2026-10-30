@@ -63,9 +63,11 @@ export function GoogleCampaignManageDialog({
     staleTime: 0,
   });
   const settings = read.data?.settings;
-  const [edits, setEdits] = useState<GoogleSettingsDraft | null>(null);
-  const draft = edits ?? (settings ? googleSettingsDraftOf(settings) : null);
-  const set = <K extends keyof GoogleSettingsDraft>(k: K, v: GoogleSettingsDraft[K]) => draft && setEdits({ ...draft, [k]: v });
+  // ★ONLY THE FIELDS THE MERCHANT TOUCHED (review round 2): the rest follow every re-read, so a budget changed in
+  //  Google Ads since the dialog opened is never sent back as this save's.
+  const [edits, setEdits] = useState<Partial<GoogleSettingsDraft> | null>(null);
+  const draft = settings ? { ...googleSettingsDraftOf(settings), ...(edits ?? {}) } : null;
+  const set = <K extends keyof GoogleSettingsDraft>(k: K, v: GoogleSettingsDraft[K]) => setEdits((e) => ({ ...(e ?? {}), [k]: v }));
   // The account's day: Google reads the end date in the account's zone (review round 1).
   const today = googleAccountToday(settings?.timeZone);
   const problem = settings && draft ? googleSettingsProblem(settings, draft, today) : null;
