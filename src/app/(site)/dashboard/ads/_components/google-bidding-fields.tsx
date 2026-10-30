@@ -9,6 +9,7 @@ import { googleAdsApi, type GoogleAdAccount, type GoogleBiddingForm, type Google
 import {
   GOOGLE_BIDDING_FORMS,
   GOOGLE_BIDDING_HISTORY_UNREAD,
+  GOOGLE_ROAS_PERCENT,
   googleBiddingProblem,
   googleBiddingStrategiesFor,
   googleBiddingStrategyLabel,
@@ -105,8 +106,9 @@ export function GoogleBiddingFields({
             </Label>
             <Input
               type="number"
-              min="0"
-              step={value.pick === "TARGET_CPA" ? "0.01" : "1"}
+              // Review round 2: the browser's own checks agree with the view's (a fractional ROAS percent is valid).
+              min={value.pick === "TARGET_ROAS" ? GOOGLE_ROAS_PERCENT.min : 0}
+              step="any"
               inputMode="decimal"
               value={value.target}
               onChange={(e) => onChange({ ...value, target: e.target.value })}
