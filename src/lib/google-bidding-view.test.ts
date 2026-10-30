@@ -88,7 +88,9 @@ describe("the draft, checked and sent", () => {
     expect(googleBiddingProblem("SEARCH", d({ pick: "TARGET_CPA", target: "0" }), false)).toMatch(/greater than 0/);
     expect(googleBiddingProblem("SEARCH", d({ pick: "TARGET_CPA", target: "1e3" }), false)).not.toBeNull();
     // Review round 1: what a number field or a comma locale gives is a number.
-    for (const [t, n] of [[".5", 0.5], ["5.", 5], ["12,5", 12.5]] as const) {
+    // Review round 2: a comma that could be thousands is refused, never read as a decimal.
+    for (const t of ["1,500", "12,000,000", "1,5.0"]) expect(googleBiddingProblem("SEARCH", d({ pick: "TARGET_CPA", target: t }), false)).not.toBeNull();
+    for (const [t, n] of [[".5", 0.5], ["5.", 5], ["12,5", 12.5], ["1500", 1500]] as const) {
       expect(googleBiddingProblem("SEARCH", d({ pick: "TARGET_CPA", target: t }), false)).toBeNull();
       expect(googleBiddingChoiceOf(d({ pick: "TARGET_CPA", target: t }))!.target).toBe(n);
     }

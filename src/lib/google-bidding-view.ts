@@ -90,9 +90,17 @@ export const EMPTY_BIDDING_DRAFT: GoogleBiddingDraft = { pick: "DEFAULT", form: 
 /** Google's target ROAS bounds, "between 0.01 and 1000.0, inclusive", as the percent the merchant types. */
 export const GOOGLE_ROAS_PERCENT = { min: 1, max: 100_000 } as const;
 
-/** A typed number, or NaN. ".5", "5." and a decimal comma ("12,5") are numbers (review round 1); "1e3" is not. */
+/**
+ * A typed number, or NaN. ".5", "5." and a decimal comma ("12,5") are numbers (review round 1); "1e3" is not.
+ * ★A COMMA THAT COULD BE A THOUSANDS SEPARATOR IS NOT GUESSED (review round 2): "1,500" is refused, never read as
+ * 1.5, and a comma beside a point is refused too.
+ */
 function typed(raw: string): number {
-  const t = raw.trim().replace(",", ".");
+  let t = raw.trim();
+  if (t.includes(",")) {
+    if (t.includes(".") || /^[0-9]{1,3}(,[0-9]{3})+$/.test(t)) return NaN;
+    t = t.replace(",", ".");
+  }
   return /^([0-9]+\.?[0-9]*|\.[0-9]+)$/.test(t) ? Number(t) : NaN;
 }
 
