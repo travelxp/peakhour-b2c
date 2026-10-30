@@ -200,6 +200,40 @@ export interface GoogleConversionActionChosen {
   setup: { primaryForGoal: boolean; hasValueSettings: boolean };
 }
 
+/** G-14f — one tag snippet, exactly as Google generated it (v26 `TagSnippet`). */
+export interface GoogleWebsiteTagSnippet {
+  /** Google's TrackingCodeType: `WEBPAGE` (fires on page load) or `WEBPAGE_ONCLICK` (fires from a click handler). */
+  type: string;
+  /** Google's TrackingCodePageFormat: `HTML` or `AMP`. */
+  pageFormat: string;
+  globalSiteTag: string;
+  eventSnippet: string;
+}
+
+/** G-14f — the website (`WEBPAGE`) conversion action as Google has it now. */
+export interface GoogleWebsiteConversionAction {
+  id: string;
+  name: string;
+  /** False as Peakhour creates it; true only when the merchant made it primary in Google Ads. */
+  primaryForGoal: boolean;
+  /** Empty when Google has not generated them yet. */
+  tagSnippets: GoogleWebsiteTagSnippet[];
+}
+
+/** GET /website-conversion. `storedNotLive`: one was set up here and Google no longer has it enabled. */
+export interface GoogleWebsiteConversionState {
+  conversionCustomerId: string;
+  action: GoogleWebsiteConversionAction | null;
+  storedNotLive: boolean;
+}
+
+/** PUT /website-conversion: `created` is true when Peakhour made the action in the merchant's Google Ads account. */
+export interface GoogleWebsiteConversionSetUp {
+  created: boolean;
+  conversionCustomerId: string;
+  action: GoogleWebsiteConversionAction;
+}
+
 /** What the conversion action is for (C3): a value mandate uses the uploaded value; a count mandate counts. */
 export interface GoogleConversionSignal {
   /** ISO 4217. */
@@ -394,6 +428,11 @@ export const googleAdsApi = {
    */
   setConversionAction: (adAccountId: string, choice: { signal: GoogleConversionSignal } | { conversionActionId: string }) =>
     api.put<GoogleConversionActionChosen>(googleAdsUrl("/v1/google/ads/conversion-action"), { adAccountId, ...choice }),
+  // G-14f: the website conversion action and its tag (RMF C.65). GET reads; PUT finds or CREATES it, secondary.
+  getWebsiteConversion: (adAccountId: string) =>
+    api.get<GoogleWebsiteConversionState>(googleAdsUrl("/v1/google/ads/website-conversion") + `?adAccountId=${encodeURIComponent(adAccountId)}`),
+  setUpWebsiteConversion: (adAccountId: string) =>
+    api.put<GoogleWebsiteConversionSetUp>(googleAdsUrl("/v1/google/ads/website-conversion"), { adAccountId }),
   // G-14a: the targeting step. A read is live from Google; a save replaces what the step shows.
   getTargeting: (id: string) => api.get<GoogleTargetingRead>(googleAdsUrl("/v1/google/ads/campaigns/:id/targeting", { id })),
   setTargeting: (id: string, input: GoogleTargetingInput) =>

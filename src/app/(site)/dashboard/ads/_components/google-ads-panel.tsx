@@ -85,6 +85,7 @@ import { GoogleBiddingDialog } from "./google-bidding-dialog";
 import { GoogleCreateBiddingFields } from "./google-bidding-fields";
 import { EMPTY_BIDDING_DRAFT, googleBiddingChoiceOf, googleBiddingProblem } from "@/lib/google-bidding-view";
 import { GoogleReportsSection } from "./google-reports-section";
+import { GoogleWebsiteConversionSection } from "./google-website-conversion-section";
 
 /**
  * ★★G-15 — the Google Ads panel, inside the shared Ads hub
@@ -273,6 +274,8 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
         <>
           {/* Keyed by account: a pick made for one account never carries to another. */}
           <ConversionTrackingSection key={`conv-${account.id}`} account={account} />
+          {/* G-14f: the website conversion tag (RMF C.65), in its own file. */}
+          <GoogleWebsiteConversionSection key={`web-conv-${account.id}`} account={account} />
           <CampaignsSection account={account} />
           {/* Keyed by account: switching accounts starts a fresh, empty form. */}
           <CreateCampaignCard key={account.id} account={account} />

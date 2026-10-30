@@ -139,7 +139,8 @@ const REFUSAL_REASONS: Readonly<Record<string, string>> = {
     "or one was taken just now. Try again, or choose an existing import-from-clicks action instead.",
 };
 
-const detailsOf = (err: unknown): Record<string, unknown> => {
+/** An api error's `details` as a record (empty when absent or not one). Shared with G-14f's view. */
+export const detailsOf = (err: unknown): Record<string, unknown> => {
   const d = err instanceof ApiError ? err.details : undefined;
   return d && typeof d === "object" && !Array.isArray(d) ? (d as Record<string, unknown>) : {};
 };
