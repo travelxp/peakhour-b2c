@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { ApiError } from "@/lib/api";
 import type { GoogleWebsiteConversionAction, GoogleWebsiteTagSnippet } from "@/lib/api/google-ads";
 import {
+  GOOGLE_WEBSITE_CONVERSION_GONE,
   GOOGLE_WEBSITE_CONVERSION_PRIMARY_WARNING,
   GOOGLE_WEBSITE_CONVERSION_SECONDARY_NOTE,
   PEAKHOUR_WEBSITE_CONVERSION_LABEL,
@@ -78,6 +79,11 @@ describe("the section's state", () => {
   it("nothing stored is not set up; a stored action Google no longer has is 'gone'", () => {
     expect(googleWebsiteConversionState({ data: { conversionCustomerId: "1", action: null, storedNotLive: false }, isError: false, fetchStatus: idle })).toEqual({ kind: "not_set_up" });
     expect(googleWebsiteConversionState({ data: { conversionCustomerId: "1", action: null, storedNotLive: true }, isError: false, fetchStatus: idle })).toEqual({ kind: "gone" });
+  });
+  it("★'gone' names both causes the api folds into it: removed or disabled, or another conversion customer (review round 1)", () => {
+    expect(GOOGLE_WEBSITE_CONVERSION_GONE).toContain("removed or disabled in Google Ads");
+    expect(GOOGLE_WEBSITE_CONVERSION_GONE).toContain("managed by another Google Ads account");
+    expect(GOOGLE_WEBSITE_CONVERSION_GONE).toContain("replace the old tag");
   });
   it("★an action with snippets is ready, carrying Google's text untouched; data wins over a failed refetch", () => {
     const a = action({ primaryForGoal: true });

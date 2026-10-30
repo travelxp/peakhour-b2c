@@ -41,8 +41,15 @@ export const GOOGLE_WEBSITE_TAG_HOW_TO =
 
 export const GOOGLE_WEBSITE_TAG_NOT_READY = "Google Ads hasn't generated this action's tag yet. Try again in a few minutes.";
 
+/**
+ * ★BOTH CAUSES (review round 1): the api's `storedNotLive` is the action
+ * removed or disabled, OR the account's conversions now managed by another
+ * account (cross-account tracking), where the action is still enabled.
+ */
 export const GOOGLE_WEBSITE_CONVERSION_GONE =
-  "The website conversion action set up here is no longer enabled in Google Ads. Set it up again to get a working tag.";
+  "The website conversion action set up here can't be used any more: it was removed or disabled in Google Ads, " +
+  "or this account's conversions are now managed by another Google Ads account. " +
+  "Set it up again to get a working tag, and replace the old tag on your site with the new one.";
 
 /** The confirmation before a create: a write to the merchant's live Google Ads account. */
 export function googleWebsiteConversionConfirmation(accountName: string): { title: string; body: string } {
