@@ -162,6 +162,9 @@ function ReportTable({ account, report, range }: { account: GoogleAdAccount; rep
   const data = query.data as GoogleReport | undefined;
   const rows = data?.rows ?? [];
   const columns = GOOGLE_REPORT_COLUMNS[report] as ReadonlyArray<GoogleReportColumn<(typeof rows)[number]>>;
+  // ★THE ACCOUNT'S CURRENCY, ELSE GOOGLE'S OWN (review round 1): the account
+  //  list may not carry one; the account report's row does.
+  const currency = account.currencyCode ?? (report === "account" ? (rows[0] as GoogleAccountReportRow | undefined)?.currencyCode : undefined);
   const notServed = report === "account" && rows.length > 0 && googleAccountHasNotServed(rows as GoogleAccountReportRow[]);
 
   return (
@@ -191,7 +194,7 @@ function ReportTable({ account, report, range }: { account: GoogleAdAccount; rep
                   <TableRow key={googleReportRowKey(report, row, i)}>
                     {columns.map((c) => (
                       <TableCell key={c.key} className={c.numeric ? "text-right tabular-nums" : undefined}>
-                        {c.cell(row, account.currencyCode)}
+                        {c.cell(row, currency)}
                       </TableCell>
                     ))}
                   </TableRow>
