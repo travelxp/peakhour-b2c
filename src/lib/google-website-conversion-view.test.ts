@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { ApiError } from "@/lib/api";
 import type { GoogleWebsiteConversionAction, GoogleWebsiteTagSnippet } from "@/lib/api/google-ads";
 import {
+  GOOGLE_WEBSITE_TAG_HOW_TO,
   GOOGLE_WEBSITE_CONVERSION_GONE,
   GOOGLE_WEBSITE_CONVERSION_PRIMARY_WARNING,
   GOOGLE_WEBSITE_CONVERSION_SECONDARY_NOTE,
@@ -64,6 +65,10 @@ describe("★★the double count: why it is secondary, said wherever the merchan
     const section = read("../app/(site)/dashboard/ads/_components/google-website-conversion-section.tsx");
     expect(section.match(/\{GOOGLE_WEBSITE_CONVERSION_SECONDARY_NOTE\}/g)?.length).toBe(1);
     expect(section.match(/\{googleWebsiteConversionGoalNote\(state\.primaryForGoal\)\}|\{googleWebsiteConversionGoalNote\(primaryForGoal\)\}/g)?.length).toBe(2);
+  });
+  it("★the how-to never loads gtag.js twice on a site that already has it (review round 1)", () => {
+    expect(GOOGLE_WEBSITE_TAG_HOW_TO).toContain("If your site already loads a Google tag (gtag.js), don't load it twice");
+    expect(GOOGLE_WEBSITE_TAG_HOW_TO).toContain("order confirmation page only");
   });
   it("the label is the api's name", () => {
     expect(PEAKHOUR_WEBSITE_CONVERSION_LABEL).toBe("Peakhour website purchases");

@@ -37,6 +37,8 @@ export const GOOGLE_WEBSITE_CONVERSION_PRIMARY_WARNING =
 
 export const GOOGLE_WEBSITE_TAG_HOW_TO =
   "Paste the Google tag into the <head> of every page of your site, once. " +
+  // ★NEVER gtag.js TWICE (review round 1): a site already running a Google tag (Analytics, a store's Google app) adds only the config line.
+  "If your site already loads a Google tag (gtag.js), don't load it twice: add only its gtag('config', …) line to the tag you have. " +
   "Paste the event snippet on your order confirmation page only.";
 
 export const GOOGLE_WEBSITE_TAG_NOT_READY = "Google Ads hasn't generated this action's tag yet. Try again in a few minutes.";
