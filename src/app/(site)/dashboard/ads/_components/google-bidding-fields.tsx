@@ -12,6 +12,7 @@ import {
   googleBiddingStrategiesFor,
   googleBiddingUnavailable,
   googleBiddingWarning,
+  googleBiddingWithPick,
   googleDefaultBiddingLabel,
   googlePortfolioOffered,
   type GoogleBiddingDraft,
@@ -62,7 +63,7 @@ export function GoogleBiddingFields({
       <div className="flex flex-wrap gap-4">
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground">Bidding</Label>
-          <Select value={value.pick} onValueChange={(v) => onChange({ ...value, pick: v as GoogleBiddingPick })} disabled={disabled}>
+          <Select value={value.pick} onValueChange={(v) => onChange(googleBiddingWithPick(value, v as GoogleBiddingPick))} disabled={disabled}>
             <SelectTrigger className="w-64">
               <SelectValue>{pickLabel(value.pick)}</SelectValue>
             </SelectTrigger>

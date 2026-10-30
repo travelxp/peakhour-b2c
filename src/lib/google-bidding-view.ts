@@ -94,6 +94,14 @@ function typed(raw: string): number {
   return /^[0-9]+(\.[0-9]+)?$/.test(t) ? Number(t) : NaN;
 }
 
+/**
+ * The draft after the strategy is changed. ★THE TARGET IS CLEARED WHEN ITS UNIT CHANGES (review round 1): a Target CPA
+ * of 5 is not a 5% ROAS, and a kept number would be sent under the other meaning.
+ */
+export function googleBiddingWithPick(d: GoogleBiddingDraft, pick: GoogleBiddingPick): GoogleBiddingDraft {
+  return pick === d.pick ? d : { ...d, pick, target: "" };
+}
+
 /** Why this draft cannot be sent, or null. DEFAULT is allowed only where `allowDefault` (the create form). */
 export function googleBiddingProblem(type: GoogleChannelType | undefined, d: GoogleBiddingDraft, allowDefault: boolean): string | null {
   if (d.pick === "DEFAULT") return allowDefault ? null : "Choose a bidding strategy.";

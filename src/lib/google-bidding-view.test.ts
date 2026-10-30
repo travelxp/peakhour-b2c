@@ -11,6 +11,7 @@ import {
   googleBiddingStrategiesFor,
   googleBiddingUnavailable,
   googleBiddingWarning,
+  googleBiddingWithPick,
   googleDefaultBiddingLabel,
   googlePortfolioOffered,
   type GoogleBiddingDraft,
@@ -95,6 +96,13 @@ describe("the draft, checked and sent", () => {
     expect(googleBiddingProblem("SEARCH", d({ pick: "TARGET_ROAS", target: "100000" }), false)).toBeNull();
     expect(googleBiddingProblem("SEARCH", d({ pick: "TARGET_ROAS", target: "0.5" }), false)).toMatch(/1% to 100,000%/);
     expect(googleBiddingProblem("SEARCH", d({ pick: "TARGET_ROAS", target: "100001" }), false)).toMatch(/1% to 100,000%/);
+  });
+
+  it("★changing the strategy clears the target, whose unit changes with it (review round 1)", () => {
+    const cpa = d({ pick: "TARGET_CPA", target: "5" });
+    expect(googleBiddingWithPick(cpa, "TARGET_ROAS")).toEqual({ pick: "TARGET_ROAS", form: "standard", target: "" });
+    expect(googleBiddingProblem("SEARCH", googleBiddingWithPick(cpa, "TARGET_ROAS"), false)).not.toBeNull();
+    expect(googleBiddingWithPick(cpa, "TARGET_CPA")).toBe(cpa);
   });
 
   it("a choice the type refuses is the problem (the type changed under it)", () => {
