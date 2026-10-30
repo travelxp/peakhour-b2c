@@ -125,7 +125,12 @@ export function GoogleWebsiteConversionSection({ account }: { account: GoogleAdA
               <Link href="/dashboard/integrations" className="font-medium underline underline-offset-4">
                 Check connection
               </Link>
-            ) : null}
+            ) : (
+              // ★A RETRY THE SENTENCE OFFERS IS ON SCREEN (review round 2), in every state, not only "Check again"'s.
+              <Button variant="link" className="h-auto p-0 text-xs" onClick={() => void query.refetch()} disabled={query.isFetching}>
+                Try again
+              </Button>
+            )}
           </p>
         ) : null}
         {state.kind === "not_set_up" || state.kind === "gone" ? (
