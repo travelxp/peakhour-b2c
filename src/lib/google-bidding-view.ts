@@ -45,7 +45,9 @@ export function googleDefaultBiddingLabel(type: GoogleChannelType | undefined): 
 }
 
 export function googleBiddingStrategyLabel(s: string): string {
-  if (s === "MAXIMIZE_CLICKS") return "Maximize Clicks";
+  if (s === "MAXIMIZE_CLICKS" || s === "TARGET_SPEND") return "Maximize Clicks";
+  // The api's word for a portfolio this account cannot read (a manager account's, or one since removed).
+  if (s === "UNREADABLE") return "A strategy this account can't read";
   if (s === "MAXIMIZE_CONVERSION_VALUE") return "Maximize Conversion Value";
   return GOOGLE_BIDDING_STRATEGIES.find((x) => x.value === s)?.label ?? s.toLowerCase().replace(/_/g, " ");
 }
@@ -184,7 +186,8 @@ export function googleBiddingSentence(state: GoogleBiddingState, currency: strin
   if (state.form === "portfolio") {
     const p = state.portfolio;
     const shared = p?.campaigns !== undefined && p.campaigns > 1 ? `, shared with ${p.campaigns - 1} other ${p.campaigns === 2 ? "campaign" : "campaigns"}` : "";
-    return `${name}${target}, a Portfolio strategy${p?.name ? ` ("${p.name}")` : ""}${shared}.`;
+    // Review round 1: a Portfolio Peakhour does not set says it can be switched, as a Standard one does.
+    return `${name}${target}, a Portfolio strategy${p?.name ? ` ("${p.name}")` : ""}${shared}.${state.managed ? "" : " Peakhour can switch it to one of the strategies below."}`;
   }
   return `${name}${target}.${state.managed ? "" : " Peakhour can switch it to one of the strategies below."}`;
 }

@@ -174,6 +174,12 @@ describe("sentences", () => {
     expect(googleBiddingSentence(P(), "INR")).toMatch(/^Target CPA of .*400.*, a Portfolio strategy \("Autumn linen · Target CPA"\)\.$/);
     expect(googleBiddingSentence(P({ portfolio: { ...P().portfolio!, campaigns: 3 } }), "INR")).toMatch(/shared with 2 other campaigns\.$/);
   });
+  it("a Portfolio Peakhour does not set, or cannot read, is named and says it can be switched (review round 1)", () => {
+    expect(googleBiddingSentence({ strategy: "TARGET_SPEND", form: "portfolio", managed: false }, undefined)).toBe(
+      "Maximize Clicks, a Portfolio strategy. Peakhour can switch it to one of the strategies below.",
+    );
+    expect(googleBiddingSentence({ strategy: "UNREADABLE", form: "portfolio", managed: false }, undefined)).toMatch(/^A strategy this account can't read, a Portfolio strategy\. Peakhour can switch/);
+  });
   it("a Standard ROAS is a percent; a strategy Peakhour does not set says it can be switched", () => {
     expect(googleBiddingSentence({ strategy: "TARGET_ROAS", form: "standard", target: 3.5, managed: true }, undefined)).toBe("Target ROAS of 350%.");
     expect(googleBiddingSentence({ strategy: "MAXIMIZE_CLICKS", form: "standard", managed: false }, undefined)).toBe(
