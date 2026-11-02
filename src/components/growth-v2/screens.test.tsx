@@ -328,7 +328,8 @@ describe("the screens render their preview sample", () => {
     expect(out).toContain("The case for");
     expect(out).toContain("The case against");
     expect(out).toContain("Safety checks");
-    expect(out).toContain("Peakhour Summit");
+    // the badge itself: the preview's summary sentences also name Peakhour Summit, so a bare toContain cannot see the badge
+    expect(out).toMatch(/>Peakhour Summit<\//);
     expect(out).not.toMatch(/[\u2122\u00ae]/);
     expect(out).not.toMatch(/Strategist|Critic|Chair|Growth Council/);
     expect(out).toContain("Decision for Himalayan Trails");

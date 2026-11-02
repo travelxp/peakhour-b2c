@@ -4,7 +4,7 @@
  * `council` as its name, so this reads COPY (JSX text, string and template literals with a sentence in them, or a capitalised
  * label), never identifiers, property names or comments, from the AST.
  *
- * Plain "Peakhour Summit" everywhere: neither the trademark nor the registered sign appears in growth copy (owner, 2026-11-02).
+ * Always plain "Peakhour Summit": neither the trademark nor the registered sign appears in the scanned growth files (owner, 2026-11-02).
  */
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -16,8 +16,8 @@ const SRC = join(__dirname, "..");
 const BANNED = /\b(council|strategist|critic|chair)\b/i;
 const LABEL = /^(Council|Strategist|Critic|Chair)$/;
 const TM = String.fromCharCode(0x2122);
-/** The trademark or registered sign, typed, escaped or as an HTML entity. */
-const hasSign = (text: string) => /[™®]|\\u(2122|00ae)|&(trade|reg|#8482|#174);/i.test(text);
+/** The trademark or registered sign: typed, as a JS escape or char code, or as an HTML entity. */
+const hasSign = (text: string) => /[™®]|\\u(2122|00ae)|\\u\{0*(2122|ae)\}|\\xae|fromCharCode\(\s*(0x0*(2122|ae)|8482|174)\s*\)|&(trade|reg|#8482|#174|#x0*(2122|ae));/i.test(text);
 
 const walk = (dir: string): string[] =>
   readdirSync(dir).flatMap((f) => {
@@ -91,11 +91,16 @@ describe("merchant-facing growth copy never names the council's internal seats",
     expect(found).toEqual([]);
   }, 60_000);
 
-  it("neither the trademark nor the registered sign appears in growth copy, as a character or an escape", () => {
+  it("neither the trademark nor the registered sign appears in the growth screens, in any spelling", () => {
     // FAIL and PASS for the matcher first, so a pattern that matches nothing cannot pass the scan below
     expect(hasSign(`<p>${SUMMIT}${TM}</p>`)).toBe(true);
     expect(hasSign('const s = "Peakhour Summit\\u2122";')).toBe(true);
     expect(hasSign("<p>&trade;</p>")).toBe(true);
+    expect(hasSign("<p>{SUMMIT}&#x2122;</p>")).toBe(true);
+    expect(hasSign('const s = "\\u{2122}";')).toBe(true);
+    expect(hasSign('const s = "\\xae";')).toBe(true);
+    expect(hasSign("const MARK = String.fromCharCode(0x2122);")).toBe(true);
+    expect(hasSign("const MARK = String.fromCharCode(174);")).toBe(true);
     expect(hasSign(`<p>${SUMMIT}</p>`)).toBe(false);
     expect(FILES.filter((f) => hasSign(readFileSync(f, "utf8")))).toEqual([]);
   }, 60_000);

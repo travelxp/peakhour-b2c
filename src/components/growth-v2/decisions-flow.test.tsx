@@ -511,8 +511,10 @@ describe("★changes waiting for Peakhour Summit", () => {
     const section = document.body.querySelector('[aria-label="Waiting for review"]')!;
     expect(section).not.toBeNull();
     expect(section.textContent).toContain("Waiting for review");
-    expect(section.textContent).toContain("A budget raise for Meta Ads is waiting for Peakhour Summit");
-    expect(section.textContent).toContain("A budget raise for Google Ads is waiting for Peakhour Summit");
+    expect([...section.querySelectorAll("h3")].map((h) => h.textContent)).toEqual([
+      "A budget raise for Meta Ads is waiting for Peakhour Summit",
+      "A budget raise for Google Ads is waiting for Peakhour Summit",
+    ]);
     expect(section.textContent).not.toMatch(/[\u2122\u00ae]/);
     expect(section.textContent).toContain("Nothing was changed on your account. We'll try again within a few hours. There's nothing you need to do.");
     expect(section.textContent).toMatch(/set aside and your next weekly plan will look at it again/);
