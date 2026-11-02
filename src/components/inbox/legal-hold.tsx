@@ -18,6 +18,7 @@ import {
   heldBadge,
   heldSince,
   holdErrorMessage,
+  threadTail,
   HOLD_EFFECT,
   HOLD_REASON_HINT,
   HOLD_REASON_MAX,
@@ -119,20 +120,23 @@ export function HeldBadge({ held }: { held: HeldBy }) {
 
 /** "Keep (legal hold)" / "Lift hold" for the open thread. Renders nothing for anyone but an owner or admin. */
 export function ThreadHoldControl({ threadId, held, role }: { threadId: string; held: HeldBy; role: string | null }) {
-  const [open, setOpen] = useState(false);
+  // ★THE MODE IS FROZEN WHEN THE DIALOG OPENS. Derived live from `held`, a refetch after a refused action (someone else lifted
+  //  it) would turn an open "Lift hold" dialog into a "Keep this conversation" one, with the typed text still in it.
+  const [mode, setMode] = useState<"place" | "lift" | null>(null);
   const hold = useThreadHold();
   if (!canManageHolds(role)) return null;
-  const lifting = canLiftThreadHold(held);
+  const canLift = canLiftThreadHold(held);
   // Held because the business is (lifted there), or not known (an api that predates holds): nothing to offer.
-  if (!lifting && !canPlaceThreadHold(held)) return null;
+  if (!canLift && !canPlaceThreadHold(held) && mode === null) return null;
+  const lifting = (mode ?? (canLift ? "lift" : "place")) === "lift";
   return (
     <>
-      <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
-        {lifting ? "Lift hold" : "Keep (legal hold)"}
+      <Button size="sm" variant="outline" onClick={() => setMode(canLift ? "lift" : "place")}>
+        {canLift ? "Lift hold" : "Keep (legal hold)"}
       </Button>
       <ReasonDialog
-        open={open}
-        onOpenChange={setOpen}
+        open={mode !== null}
+        onOpenChange={(o) => !o && setMode(null)}
         lifting={lifting}
         title={lifting ? "Lift the legal hold?" : "Keep this conversation (legal hold)"}
         description={
@@ -147,7 +151,7 @@ export function ThreadHoldControl({ threadId, held, role }: { threadId: string; 
             { threadId, action: lifting ? "lift" : "place", ...(reason ? { reason } : {}) },
             {
               onSuccess: () => {
-                setOpen(false);
+                setMode(null);
                 toast.success(lifting ? "Hold lifted." : "This conversation is now kept.");
               },
               onError: (e: Error) => toast.error(holdErrorMessage(e, lifting ? "lift" : "place")),
@@ -165,6 +169,13 @@ export function HoldsCard({ role, onOpenThread }: { role: string | null; onOpenT
   const holds = useLegalHolds(allowed);
   const business = useBusinessHold();
   const [dialog, setDialog] = useState<"place" | "lift" | null>(null);
+  // The mode the dialog was LAST opened in, kept for rendering: when it closes `dialog` is null while it animates out, and the
+  // content must not flip to the opposite action for that moment. (State, not a ref: a ref is not read during render.)
+  const [shown, setShown] = useState<"place" | "lift">("place");
+  const openDialog = (mode: "place" | "lift") => {
+    setShown(mode);
+    setDialog(mode);
+  };
   if (!allowed) return null;
   const data = holds.data;
   return (
@@ -177,7 +188,7 @@ export function HoldsCard({ role, onOpenThread }: { role: string | null; onOpenT
           </p>
         </div>
         {data && (
-          <Button size="sm" variant="outline" onClick={() => setDialog(data.business ? "lift" : "place")}>
+          <Button size="sm" variant="outline" onClick={() => openDialog(data.business ? "lift" : "place")}>
             {data.business ? "Lift business hold" : "Hold all conversations"}
           </Button>
         )}
@@ -199,7 +210,7 @@ export function HoldsCard({ role, onOpenThread }: { role: string | null; onOpenT
                 {c.reason}
               </button>
               <span className="shrink-0 text-muted-foreground">
-                {heldSince(c.heldAt)}
+                {threadTail(c.threadId)} · {heldSince(c.heldAt)}
                 {c.eraseDeferred ? " · erasure waiting" : ""}
               </span>
             </li>
@@ -210,17 +221,17 @@ export function HoldsCard({ role, onOpenThread }: { role: string | null; onOpenT
       <ReasonDialog
         open={dialog !== null}
         onOpenChange={(o) => !o && setDialog(null)}
-        lifting={dialog === "lift"}
-        title={dialog === "lift" ? "Lift the business-wide hold?" : "Keep all conversations (legal hold)"}
+        lifting={shown === "lift"}
+        title={shown === "lift" ? "Lift the business-wide hold?" : "Keep all conversations (legal hold)"}
         description={
-          dialog === "lift"
+          shown === "lift"
             ? "Conversations held only by this go back to the normal 180 days; one you held by name stays held."
             : "Every current conversation, and every new one within the hour, is kept until you lift this."
         }
-        confirmLabel={dialog === "lift" ? "Lift business hold" : "Hold all conversations"}
+        confirmLabel={shown === "lift" ? "Lift business hold" : "Hold all conversations"}
         pending={business.isPending}
         onConfirm={(reason) => {
-          const action = dialog === "lift" ? "lift" : "place";
+          const action = shown;
           business.mutate(
             { action, ...(reason ? { reason } : {}) },
             {

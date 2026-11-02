@@ -17,7 +17,7 @@ import {
   placeBody,
   placedByLabel,
   reasonCharsRemaining,
-  rowIsHeld,
+  threadTail,
   threadHoldPath,
 } from "@/lib/legal-hold";
 
@@ -71,11 +71,9 @@ describe("the badge and which action a thread offers", () => {
     expect(heldBadge(null)).toBeNull();
     expect(heldBadge(undefined)).toBeNull();
   });
-  it("a list row is held when the api says how, by name or by the business (an older api sends nothing)", () => {
-    expect(rowIsHeld("conversation")).toBe(true);
-    expect(rowIsHeld("business")).toBe(true);
-    expect(rowIsHeld(null)).toBe(false);
-    expect(rowIsHeld(undefined)).toBe(false);
+  it("two conversations held for the same reason are told apart by the tail of their key", () => {
+    expect(threadTail("whatsapp:100200300:0123456789abcdef0123456789abcdef")).toBe("abcdef");
+    expect(threadTail("abc")).toBe("abc");
   });
   it("PASS: a thread the api says is NOT held offers Keep; a thread held by name offers Lift", () => {
     expect(canPlaceThreadHold(null)).toBe(true);

@@ -67,11 +67,6 @@ export function heldBadge(held: HeldBy): string | null {
   return null;
 }
 
-/** A list row is held when the api says how (the same value as the open thread's). */
-export function rowIsHeld(held: HeldBy): boolean {
-  return held === "conversation" || held === "business";
-}
-
 /**
  * Whether the thread's own "Lift hold" is offered. A thread held because its BUSINESS is held is lifted with the business
  * hold, not on its own (the api answers 409 BUSINESS_HOLD).
@@ -144,6 +139,14 @@ export interface HoldsListing {
 export function businessHoldLine(b: { heldAt: string; byKind: string; reason: string }): string {
   const parts = [heldSince(b.heldAt), placedByLabel(b.byKind)].filter(Boolean);
   return `${parts.join(". ")}. Reason: ${b.reason}`;
+}
+
+/**
+ * The last six characters of a thread key (a pseudonym, never a number), so two conversations held for the same reason can be
+ * told apart in the list.
+ */
+export function threadTail(threadId: string): string {
+  return threadId.slice(-6);
 }
 
 /** "Placed by Peakhour support" or "Placed by you or your team". */

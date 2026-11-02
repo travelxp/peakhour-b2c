@@ -686,7 +686,7 @@ function InboxTabs() {
                       )}
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                    {thread && <ThreadHoldControl threadId={selected} held={thread.held} role={role} />}
+                    {thread && <ThreadHoldControl key={selected} threadId={selected} held={thread.held} role={role} />}
                     {thread?.status === "escalated" ? (
                       <Button
                         size="sm"
