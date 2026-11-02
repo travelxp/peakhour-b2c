@@ -487,13 +487,18 @@ function InboxTabs() {
   const [exportTo, setExportTo] = useState("");
   const [exporting, setExporting] = useState(false);
   async function runExport(path: string | null) {
+    if (exporting) return; // one at a time: a double click would spend the rate limit on itself
     if (!path) {
       toast.error("Choose the first day to export from, and a last day only if you want one (a real date).");
       return;
     }
     setExporting(true);
-    const out = await downloadConversationExport(path);
-    setExporting(false);
+    let out: Awaited<ReturnType<typeof downloadConversationExport>>;
+    try {
+      out = await downloadConversationExport(path);
+    } finally {
+      setExporting(false);
+    }
     if (out.ok) toast.success(`Saved ${out.filename}`);
     else toast.error(out.message);
   }
@@ -622,6 +627,13 @@ function InboxTabs() {
               <Button size="sm" variant="outline" className="mt-2" onClick={() => setExpiringOnly((v) => !v)}>
                 {expiringOnly ? "Show all conversations" : "Show only those"}
               </Button>
+            </div>
+          )}
+          {/* H2: the way back from the filter even when the count is gone (the last expiring conversation was exported and aged out) */}
+          {expiringOnly && !expiry && (
+            <div className="mb-4 flex items-center gap-3 rounded-lg border p-3 text-sm">
+              <p className="text-muted-foreground">Showing only conversations about to be deleted.</p>
+              <Button size="sm" variant="outline" onClick={() => setExpiringOnly(false)}>Show all conversations</Button>
             </div>
           )}
           {/* H2: a copy the owner or admin keeps. Nothing is emailed; the file is theirs from the download. */}

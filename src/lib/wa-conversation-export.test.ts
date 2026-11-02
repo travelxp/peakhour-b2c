@@ -28,6 +28,10 @@ describe("export paths", () => {
     expect(rangeExportPath("2026-10-01", "")).toBe("/v1/meta/whatsapp/conversations/export?from=2026-10-01&format=txt");
     // a malformed last day is REFUSED, not dropped: dropping it would export up to today
     for (const bad of ["soon", "2026-10-3"]) expect(rangeExportPath("2026-10-01", bad), bad).toBeNull();
+    // a day that does not exist, and a last day before the first, are caught here rather than by a round trip
+    expect(rangeExportPath("2026-02-31", "")).toBeNull();
+    expect(rangeExportPath("2026-10-01", "2026-09-30")).toBeNull();
+    expect(rangeExportPath("2026-10-01", "2026-10-01")).not.toBeNull();
     for (const bad of ["", " ", "1 Oct", "2026-10-1", "2026-10-01&x=1"]) expect(rangeExportPath(bad, ""), bad).toBeNull();
   });
 });
@@ -78,10 +82,29 @@ describe("downloadConversationExport", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("hello", { status: 200, headers: { "content-disposition": 'attachment; filename="peakhour-conversation-2026-11-02.txt"' } })));
     const anchor: { href: string; download: string; click: () => void; remove: () => void } = { href: "", download: "", click: vi.fn(), remove: vi.fn() };
     vi.stubGlobal("document", { createElement: () => anchor, body: { appendChild: vi.fn() } });
-    vi.stubGlobal("URL", { createObjectURL: () => "blob:x", revokeObjectURL: vi.fn() });
+    const revoke = vi.fn();
+    vi.stubGlobal("URL", { createObjectURL: () => "blob:x", revokeObjectURL: revoke });
     const out = await downloadConversationExport("/v1/x");
     expect(out).toEqual({ ok: true, filename: "peakhour-conversation-2026-11-02.txt" });
     expect(anchor.download).toBe("peakhour-conversation-2026-11-02.txt");
     expect(anchor.click).toHaveBeenCalledTimes(1);
+    expect(revoke).not.toHaveBeenCalled(); // not before the download has started
+  });
+
+  it("an expired access token is renewed once and the export retried; a failed renewal is the session sentence", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (u: string) => {
+      calls.push(u);
+      if (u.includes("/auth/refresh")) return new Response("{}", { status: 200 });
+      return calls.filter((c) => c.includes("/export")).length === 1 ? new Response("{}", { status: 401 }) : new Response("x", { status: 200 });
+    }));
+    const anchor = { href: "", download: "", click: vi.fn(), remove: vi.fn() };
+    vi.stubGlobal("document", { createElement: () => anchor, body: { appendChild: vi.fn() } });
+    vi.stubGlobal("URL", { createObjectURL: () => "blob:x", revokeObjectURL: vi.fn() });
+    const out = await downloadConversationExport("/v1/export?format=jsonl");
+    expect(out).toEqual({ ok: true, filename: "peakhour-conversations.jsonl" });
+    expect(calls.filter((c) => c.includes("/export"))).toHaveLength(2);
+    vi.stubGlobal("fetch", vi.fn(async (u: string) => (u.includes("/auth/refresh") ? new Response("{}", { status: 401 }) : new Response("{}", { status: 401 }))));
+    expect(await downloadConversationExport("/v1/export")).toEqual({ ok: false, message: exportFailure(401) });
   });
 });

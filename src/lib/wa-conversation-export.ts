@@ -17,6 +17,13 @@ export function canExportConversations(role: string | null | undefined): boolean
   return role === "owner" || role === "admin";
 }
 
+/** A calendar day that exists (2026-02-31 matches the shape and is not one). */
+function isRealDay(v: string): boolean {
+  if (!DAY.test(v)) return false;
+  const d = new Date(`${v}T00:00:00.000Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
+}
+
 /** The query for one conversation. The thread id is URL-encoded: it is an opaque key and never shown. */
 export function threadExportPath(threadId: string, format: ExportFormat = "txt"): string {
   return `${BASE}?threadId=${encodeURIComponent(threadId)}&format=${format}`;
@@ -30,8 +37,9 @@ export function threadExportPath(threadId: string, format: ExportFormat = "txt")
 export function rangeExportPath(from: string, to: string, format: ExportFormat = "txt"): string | null {
   const f = from.trim();
   const t = to.trim();
-  if (!DAY.test(f)) return null;
-  if (t !== "" && !DAY.test(t)) return null;
+  if (!isRealDay(f)) return null;
+  if (t !== "" && !isRealDay(t)) return null;
+  if (t !== "" && t < f) return null; // YYYY-MM-DD sorts as dates do
   return `${BASE}?from=${encodeURIComponent(f)}${t ? `&to=${encodeURIComponent(t)}` : ""}&format=${format}`;
 }
 
@@ -49,7 +57,7 @@ export function exportFailure(status: number, code?: string): string {
 function dateLabel(iso: string | null | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 }
 
 /** The banner's heading and body for `count` conversations about to be deleted, or null when there is nothing to say. */
@@ -66,6 +74,7 @@ export function expiryBanner(count: number | null | undefined, firstIso: string 
 
 /** The file name the API chose, from its Content-Disposition; a fixed fallback when absent or odd. */
 export function filenameFrom(disposition: string | null, fallback = "peakhour-conversations.txt"): string {
+  // (the header is readable cross-origin only if the API exposes it; the caller's fallback names the format either way)
   const m = /filename="([A-Za-z0-9._-]{1,120})"/.exec(disposition ?? "");
   return m ? m[1] : fallback;
 }
@@ -78,7 +87,12 @@ export type ExportOutcome = { ok: true; filename: string } | { ok: false; messag
  */
 export async function downloadConversationExport(path: string): Promise<ExportOutcome> {
   try {
-    const res = await fetch(`${API_BASE_URL}${path}`, { credentials: "include" });
+    let res = await fetch(`${API_BASE_URL}${path}`, { credentials: "include" });
+    // An idle tab's access token has usually expired while its refresh cookie has not: renew once and retry, as the api client does.
+    if (res.status === 401) {
+      const refreshed = await fetch(`${API_BASE_URL}/v1/auth/refresh`, { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" } }).then((r) => r.ok, () => false);
+      if (refreshed) res = await fetch(`${API_BASE_URL}${path}`, { credentials: "include" });
+    }
     if (!res.ok) {
       let code: string | undefined;
       try {
@@ -88,7 +102,7 @@ export async function downloadConversationExport(path: string): Promise<ExportOu
       }
       return { ok: false, message: exportFailure(res.status, code) };
     }
-    const filename = filenameFrom(res.headers.get("content-disposition"));
+    const filename = filenameFrom(res.headers.get("content-disposition"), /format=jsonl/.test(path) ? "peakhour-conversations.jsonl" : "peakhour-conversations.txt");
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -97,7 +111,8 @@ export async function downloadConversationExport(path: string): Promise<ExportOu
     document.body.appendChild(a);
     a.click();
     a.remove();
-    URL.revokeObjectURL(url);
+    // after the click has started the download (Safari reads the URL late)
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
     return { ok: true, filename };
   } catch {
     return { ok: false, message: exportFailure(500) };
