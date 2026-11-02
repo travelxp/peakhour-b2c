@@ -106,9 +106,13 @@ export const ACTIVITY_EMPTY_TEXT =
  * ★★IT REPLACED `not_a_command`. mongodb migration 392 (WhatsApp plan M1)
  * added `conversation` and rewrote the stored `not_a_command` rows to it; api
  * M3 stopped writing the old value; mongodb 782 rewrote the rows written in
- * between and dropped `not_a_command` from `plt_activity`'s enum. So no row
- * can carry the old key, and this map no longer has one (both keys read this
- * one copy until then, so one event never showed two ways).
+ * between and dropped `not_a_command` from `plt_activity`'s enum. So in an
+ * environment that has run 782 no row can carry the old key, and this map no
+ * longer has one (both keys read this one copy until then, so one event never
+ * showed two ways). 782 ran on dev on 2026-11-02. ⚠️A production cut must
+ * fast-forward peakhour-mongodb's `production` (so migrate-prod runs 782)
+ * before peakhour-b2c's: a b2c build without this key, reading a database
+ * 782 has not reached, shows an old row as the raw key under "Activity".
  *
  * 🚫★NOT "Blocked". A verified merchant saying "thanks" was not refused
  * anything, and filing ordinary chatter under a wall the tab exists to prove
@@ -127,8 +131,8 @@ export const ACTIVITY_EMPTY_TEXT =
  *   path answered.
  * - Nothing in the row says which of these it was: no reply, no kind, and no
  *   trigger. 🚫A split by `occurredAt` at M3's deploy is one environment's
- *   date compiled into every environment, and 782 rewrites pre-M3 production
- *   rows with their original dates, after any such cutoff.
+ *   date compiled into every environment, and 782 rewrites (where it has run,
+ *   rewrote) pre-M3 rows with their original dates, after any such cutoff.
  *
  * So the sentence says what holds in every case: nothing ran. The
  * `conversation` return sits before `executeMerchantCommand`, and an agent's

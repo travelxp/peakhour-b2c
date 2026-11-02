@@ -163,8 +163,8 @@ describe("activityCopy — §07's left column and 'what'", () => {
     }
   });
 
-  it("covers exactly the TWELVE outcomes plt_activity admits from migration 392", () => {
-    // ⚠️★★TWELVE ONCE mongodb 392 ADMITS `conversation`; `duplicate_skipped`
+  it("covers exactly the ELEVEN outcomes plt_activity admits from migration 782", () => {
+    // ⚠️★★ELEVEN: mongodb 392 added `conversation` and 782 dropped `not_a_command`; `duplicate_skipped`
     //  is a `PlatformInboundOutcome` the ledger deliberately never writes — *"a
     //  redelivery is not a second event"* — so copy for it would be copy for a
     //  row that cannot arrive. 🚫And `owner_only` / `not_your_domain` are
