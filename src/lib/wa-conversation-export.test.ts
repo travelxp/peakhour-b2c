@@ -23,10 +23,11 @@ describe("export paths", () => {
     expect(threadExportPath("a&b=c", "jsonl")).toBe("/v1/meta/whatsapp/conversations/export?threadId=a%26b%3Dc&format=jsonl");
   });
 
-  it("a range needs a first day as YYYY-MM-DD; the last day is optional and dropped when malformed", () => {
+  it("a range needs a first day as YYYY-MM-DD; the last day is optional but must be a date when given", () => {
     expect(rangeExportPath("2026-10-01", "2026-10-31")).toBe("/v1/meta/whatsapp/conversations/export?from=2026-10-01&to=2026-10-31&format=txt");
     expect(rangeExportPath("2026-10-01", "")).toBe("/v1/meta/whatsapp/conversations/export?from=2026-10-01&format=txt");
-    expect(rangeExportPath("2026-10-01", "soon")).toBe("/v1/meta/whatsapp/conversations/export?from=2026-10-01&format=txt");
+    // a malformed last day is REFUSED, not dropped: dropping it would export up to today
+    for (const bad of ["soon", "2026-10-3"]) expect(rangeExportPath("2026-10-01", bad), bad).toBeNull();
     for (const bad of ["", " ", "1 Oct", "2026-10-1", "2026-10-01&x=1"]) expect(rangeExportPath(bad, ""), bad).toBeNull();
   });
 });

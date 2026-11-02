@@ -488,7 +488,7 @@ function InboxTabs() {
   const [exporting, setExporting] = useState(false);
   async function runExport(path: string | null) {
     if (!path) {
-      toast.error("Choose the first day to export from.");
+      toast.error("Choose the first day to export from, and a last day only if you want one (a real date).");
       return;
     }
     setExporting(true);

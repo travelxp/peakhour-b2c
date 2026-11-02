@@ -22,12 +22,17 @@ export function threadExportPath(threadId: string, format: ExportFormat = "txt")
   return `${BASE}?threadId=${encodeURIComponent(threadId)}&format=${format}`;
 }
 
-/** The query for a date range; `null` when no first day is chosen (the API would refuse it too). */
+/**
+ * The query for a date range; `null` when the first day is not chosen or the last day is filled in but is not a date.
+ * A MALFORMED LAST DAY IS REFUSED, NOT DROPPED: dropping it would export from the first day to TODAY, up to a year of
+ * messages when the merchant meant a week. An EMPTY last day is "today" and is fine.
+ */
 export function rangeExportPath(from: string, to: string, format: ExportFormat = "txt"): string | null {
   const f = from.trim();
-  if (!DAY.test(f)) return null;
   const t = to.trim();
-  return `${BASE}?from=${encodeURIComponent(f)}${DAY.test(t) ? `&to=${encodeURIComponent(t)}` : ""}&format=${format}`;
+  if (!DAY.test(f)) return null;
+  if (t !== "" && !DAY.test(t)) return null;
+  return `${BASE}?from=${encodeURIComponent(f)}${t ? `&to=${encodeURIComponent(t)}` : ""}&format=${format}`;
 }
 
 /** The sentence for a refused export, from the API's status and code - never the raw server text. */
