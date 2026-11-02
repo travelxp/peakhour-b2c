@@ -21,7 +21,6 @@ import {
 } from "@/lib/api/growth-v2";
 import { PREVIEW_BUSINESS_NAME, PREVIEW_NOW } from "@/lib/growth-v2-fixtures";
 import { decisionNotice, isAnswerable, KIND_LABEL, QUEUE_TABS, recheckNotice, TAB_QUEUE, whatsappPreview, type DecisionNotice, type QueueTab } from "@/lib/growth-v2-decisions";
-import { withSummitTm } from "@/lib/growth-v2-copy";
 import { formatDay, unitFor } from "@/lib/growth-v2-figure";
 import { cn } from "@/lib/utils";
 import { DecisionAsk } from "./decision-ask";
@@ -258,7 +257,7 @@ export function Inbox({
 
 /**
  * Changes Peakhour Summit has not been able to review yet. They are not decisions: nothing is asked of the merchant, and the one
- * action re-runs the review once. The first title on the screen carries the trademark sign; the rest are plain.
+ * action re-runs the review once.
  */
 function WaitingForReview({ items, preview }: { items: WaitingReviewView[]; preview: boolean }) {
   const recheck = useRecheckReviewV2();
@@ -288,9 +287,9 @@ function WaitingForReview({ items, preview }: { items: WaitingReviewView[]; prev
         <span className="text-xs text-muted-foreground">Not a decision: nothing is asked of you.</span>
       </div>
       <ul className="grid divide-y">
-        {items.map((w, i) => (
+        {items.map((w) => (
           <li key={w.id} className="grid gap-2 py-3 first:pt-0 last:pb-0">
-            <h3 className="text-sm font-semibold">{i === 0 ? withSummitTm(w.title) : w.title}</h3>
+            <h3 className="text-sm font-semibold">{w.title}</h3>
             <p className="text-sm text-muted-foreground">{w.body}</p>
             <p className="text-xs text-muted-foreground">
               Waiting since {formatDay(w.waitingSince)}. If it still can&apos;t be reviewed by {formatDay(w.giveUpAt)}, it is set aside and your next weekly plan will look at it again.

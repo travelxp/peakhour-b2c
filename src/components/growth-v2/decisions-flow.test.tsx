@@ -503,18 +503,19 @@ describe("★changes waiting for Peakhour Summit", () => {
     ...over,
   });
   const recheckPath = (n: number) => `/v1/growth/v2/decisions/waiting/run-${n}/prop-${n}/recheck`;
-  const TM = String.fromCharCode(0x2122);
 
-  it("lists them in a 'Waiting for review' section with the owner's words, and the trademark sign only on the first", async () => {
+  it("lists them in a 'Waiting for review' section with the owner's words, and no trademark sign", async () => {
     routes.open = page("open", [decision()], { waiting: [waiting(1), waiting(2)] });
     serve();
     await mount();
     const section = document.body.querySelector('[aria-label="Waiting for review"]')!;
     expect(section).not.toBeNull();
     expect(section.textContent).toContain("Waiting for review");
-    expect(section.textContent).toContain(`A budget raise for Meta Ads is waiting for Peakhour Summit${TM}`);
-    expect(section.textContent).toContain("A budget raise for Google Ads is waiting for Peakhour Summit");
-    expect(section.textContent!.split(TM)).toHaveLength(2);
+    expect([...section.querySelectorAll("h3")].map((h) => h.textContent)).toEqual([
+      "A budget raise for Meta Ads is waiting for Peakhour Summit",
+      "A budget raise for Google Ads is waiting for Peakhour Summit",
+    ]);
+    expect(section.textContent).not.toMatch(/[\u2122\u00ae]/);
     expect(section.textContent).toContain("Nothing was changed on your account. We'll try again within a few hours. There's nothing you need to do.");
     expect(section.textContent).toMatch(/set aside and your next weekly plan will look at it again/);
     // not decisions: no Approve on them

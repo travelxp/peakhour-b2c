@@ -255,7 +255,7 @@ export interface WaitingReviewView {
   proposalId: string;
   kind: "budget_raise" | "change";
   channel: string;
-  /** "A budget raise for Meta Ads is waiting for Peakhour Summit" (plain: the screen adds the trademark sign on the first mention). */
+  /** "A budget raise for Meta Ads is waiting for Peakhour Summit". */
   title: string;
   body: string;
   waitingSince: string;
