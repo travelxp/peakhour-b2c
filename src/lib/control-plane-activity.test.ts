@@ -25,8 +25,8 @@ const DOMAINS: NotificationDomain[] = [
 ];
 
 /**
- * Every outcome `plt_activity` admits since mongodb migration 405 (392 added
- * `conversation`, 405 dropped `not_a_command`): the one list the whole-map
+ * Every outcome `plt_activity` admits since mongodb migration 782 (392 added
+ * `conversation`, 782 dropped `not_a_command`): the one list the whole-map
  * tests below walk, so an outcome change edits it once.
  */
 const STORED_OUTCOMES = [
@@ -108,7 +108,7 @@ describe("activityCopy — §07's left column and 'what'", () => {
   });
 
   it("files a domainless conversation as a message on which no instruction ran, under Message", () => {
-    // ★★mongodb 392 AND 405 REWROTE THE STORED `not_a_command` ROWS TO
+    // ★★mongodb 392 AND 782 REWROTE THE STORED `not_a_command` ROWS TO
     //  `conversation`. Without its own entry a rewritten row fell through to
     //  the unknown-outcome fallback: group "Activity", sentence "conversation".
     //  ⚠️Never under Blocked, and the sentence claims no good exchange: a
@@ -139,10 +139,10 @@ describe("activityCopy — §07's left column and 'what'", () => {
   });
 
   it("has no copy for the retired not_a_command: such a row is rendered by the unknown-outcome fallback, never dropped", () => {
-    // ✅mongodb 405 rewrote every `not_a_command` row to `conversation` and
+    // ✅mongodb 782 rewrote every `not_a_command` row to `conversation` and
     //  dropped the value from `plt_activity`'s enum, so no row can carry it
     //  and the map no longer has the key. If one ever did (an environment that
-    //  has not run 405), it still renders, under "Activity" with its own key.
+    //  has not run 782), it still renders, under "Activity" with its own key.
     for (const command of [null, "LAUNCH"]) {
       expect(activityCopy(row({ outcome: "not_a_command", command }), DOMAINS)).toEqual({
         group: "Activity",
