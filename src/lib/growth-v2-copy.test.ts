@@ -17,7 +17,7 @@ const BANNED = /\b(council|strategist|critic|chair)\b/i;
 const LABEL = /^(Council|Strategist|Critic|Chair)$/;
 const TM = String.fromCharCode(0x2122);
 /** The trademark or registered sign: typed, as a JS escape or char code, or as an HTML entity. */
-const hasSign = (text: string) => /[™®]|\\u(2122|00ae)|\\u\{0*(2122|ae)\}|\\xae|fromCharCode\(\s*(0x0*(2122|ae)|8482|174)\s*\)|&(trade|reg|#8482|#174|#x0*(2122|ae));/i.test(text);
+const hasSign = (text: string) => /[™®]|\\u(2122|00ae)|\\u\{0*(2122|ae)\}|\\xae|from(CharCode|CodePoint)\(\s*(0x0*(2122|ae)|8482|174)\s*\)|&(trade|reg|#8482|#174|#x0*(2122|ae));/i.test(text);
 
 const walk = (dir: string): string[] =>
   readdirSync(dir).flatMap((f) => {
@@ -91,7 +91,7 @@ describe("merchant-facing growth copy never names the council's internal seats",
     expect(found).toEqual([]);
   }, 60_000);
 
-  it("neither the trademark nor the registered sign appears in the growth screens, in any spelling", () => {
+  it("neither the trademark nor the registered sign appears in the growth screens, typed, escaped, by char code or as an entity", () => {
     // FAIL and PASS for the matcher first, so a pattern that matches nothing cannot pass the scan below
     expect(hasSign(`<p>${SUMMIT}${TM}</p>`)).toBe(true);
     expect(hasSign('const s = "Peakhour Summit\\u2122";')).toBe(true);
@@ -101,6 +101,7 @@ describe("merchant-facing growth copy never names the council's internal seats",
     expect(hasSign('const s = "\\xae";')).toBe(true);
     expect(hasSign("const MARK = String.fromCharCode(0x2122);")).toBe(true);
     expect(hasSign("const MARK = String.fromCharCode(174);")).toBe(true);
+    expect(hasSign("const MARK = String.fromCodePoint(0x2122);")).toBe(true);
     expect(hasSign(`<p>${SUMMIT}</p>`)).toBe(false);
     expect(FILES.filter((f) => hasSign(readFileSync(f, "utf8")))).toEqual([]);
   }, 60_000);

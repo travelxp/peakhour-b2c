@@ -4,6 +4,7 @@ import { ApiError } from "@/lib/api";
 import { FIXTURE_LEARNING } from "@/lib/growth-v2-fixtures";
 import { NOT_BUILT, loadLearning, type LearningResponse } from "@/lib/api/growth-v2";
 import { LearningBody } from "./learning-screen";
+import { ExperimentTimeline } from "./experiment-timeline";
 
 vi.mock("@/providers/auth-provider", () => ({ useAuth: () => ({ business: { _id: "biz-1" } }) }));
 vi.mock("next/navigation", () => ({ usePathname: () => "/dashboard/growth/learning", useRouter: () => ({ push: vi.fn() }) }));
@@ -138,5 +139,14 @@ describe("Learning, live", () => {
     const o = html(<LearningBody learning={FIXTURE_LEARNING} unitPlural="bookings" currency="INR" />);
     expect(o).toContain("Price-first carousel");
     expect(o).toContain("5 experiments");
+  });
+});
+
+describe("the experiment timeline's label", () => {
+  it("names every bet plain Peakhour Summit and every holdout Holdout, with no trademark sign", () => {
+    const out = html(<ExperimentTimeline experiments={LIVE.experiments} />);
+    expect(out.match(/>Peakhour Summit bet</g)).toHaveLength(LIVE.experiments.filter((e) => e.kind === "council_bet").length);
+    expect(out.match(/>Holdout</g)).toHaveLength(LIVE.experiments.filter((e) => e.kind === "holdout").length);
+    expect(out).not.toMatch(/[\u2122\u00ae]/);
   });
 });
