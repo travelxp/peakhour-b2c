@@ -1,16 +1,19 @@
 import { describe, it, expect } from "vitest";
 import { ApiError } from "@/lib/api";
 import {
+  businessHoldLine,
   businessHoldPath,
   canLiftThreadHold,
   canManageHolds,
   canPlaceThreadHold,
   checkHoldReason,
+  checkLiftReason,
   heldBadge,
   heldSince,
   holdErrorMessage,
   HOLD_REASON_HINT,
   HOLD_REASON_MAX,
+  LIFT_REASON_HINT,
   placeBody,
   placedByLabel,
   reasonCharsRemaining,
@@ -68,15 +71,19 @@ describe("the badge and which action a thread offers", () => {
     expect(heldBadge(null)).toBeNull();
     expect(heldBadge(undefined)).toBeNull();
   });
-  it("a list row is held only on an explicit true (an older api sends nothing)", () => {
-    expect(rowIsHeld(true)).toBe(true);
-    expect(rowIsHeld(false)).toBe(false);
+  it("a list row is held when the api says how, by name or by the business (an older api sends nothing)", () => {
+    expect(rowIsHeld("conversation")).toBe(true);
+    expect(rowIsHeld("business")).toBe(true);
+    expect(rowIsHeld(null)).toBe(false);
     expect(rowIsHeld(undefined)).toBe(false);
   });
-  it("PASS: an unheld thread offers Keep; a thread held by name offers Lift", () => {
+  it("PASS: a thread the api says is NOT held offers Keep; a thread held by name offers Lift", () => {
     expect(canPlaceThreadHold(null)).toBe(true);
-    expect(canPlaceThreadHold(undefined)).toBe(true);
     expect(canLiftThreadHold("conversation")).toBe(true);
+  });
+  it("an UNKNOWN state (an older api that sends no `held`) offers nothing: it is not 'not held'", () => {
+    expect(canPlaceThreadHold(undefined)).toBe(false);
+    expect(canLiftThreadHold(undefined)).toBe(false);
   });
   it("a thread held by its BUSINESS offers neither (it is lifted with the business hold)", () => {
     expect(canPlaceThreadHold("business")).toBe(false);
@@ -85,6 +92,36 @@ describe("the badge and which action a thread offers", () => {
   it("an unheld thread cannot be lifted and a held one cannot be held again", () => {
     expect(canLiftThreadHold(null)).toBe(false);
     expect(canPlaceThreadHold("conversation")).toBe(false);
+  });
+});
+
+describe("lifting takes an optional reason", () => {
+  it("PASS: empty is fine (the api records 'Hold lifted'); text is trimmed and bounded at 500 like a placement", () => {
+    expect(checkLiftReason("")).toEqual({ ok: true, reason: null });
+    expect(checkLiftReason("   ")).toEqual({ ok: true, reason: null });
+    expect(checkLiftReason(" case closed ")).toEqual({ ok: true, reason: "case closed" });
+    expect(checkLiftReason("x".repeat(500))).toEqual({ ok: true, reason: "x".repeat(500) });
+  });
+  it("501 characters is refused, and a PLACEMENT still refuses empty", () => {
+    expect(checkLiftReason("x".repeat(501)).ok).toBe(false);
+    expect(checkHoldReason("").ok).toBe(false);
+  });
+  it("the lift hint does not ask why it must be KEPT", () => {
+    expect(LIFT_REASON_HINT).not.toMatch(/must be kept/);
+    expect(LIFT_REASON_HINT).toMatch(/Do not put the shopper's name, phone or email/);
+  });
+});
+
+describe("the business-wide hold line", () => {
+  it("PASS: when, by whom and why", () => {
+    expect(businessHoldLine({ heldAt: "2026-11-02T10:00:00.000Z", byKind: "support", reason: "litigation 42" })).toBe(
+      "Held since 2 Nov 2026. Placed by Peakhour support. Reason: litigation 42",
+    );
+  });
+  it("a missing or bad date leaves no empty fragment (no '. .')", () => {
+    const line = businessHoldLine({ heldAt: "nope", byKind: "merchant", reason: "r" });
+    expect(line).toBe("Placed by your team. Reason: r");
+    expect(line).not.toMatch(/\.\s*\./);
   });
 });
 

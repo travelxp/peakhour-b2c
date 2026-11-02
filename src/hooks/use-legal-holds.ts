@@ -24,7 +24,8 @@ function useRefreshAfterHold() {
   return (threadId?: string) => {
     qc.invalidateQueries({ queryKey: ["legal-holds", biz] });
     qc.invalidateQueries({ queryKey: ["wa-conversations", biz] });
-    if (threadId) qc.invalidateQueries({ queryKey: ["wa-thread", biz, threadId] });
+    // A business-wide hold changes EVERY thread, so every cached thread is re-read, not just the open one.
+    qc.invalidateQueries({ queryKey: threadId ? ["wa-thread", biz, threadId] : ["wa-thread", biz] });
   };
 }
 

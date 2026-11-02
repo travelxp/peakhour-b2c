@@ -9,17 +9,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useBusinessHold, useLegalHolds, useThreadHold } from "@/hooks/use-legal-holds";
 import {
+  businessHoldLine,
   canLiftThreadHold,
   canManageHolds,
   canPlaceThreadHold,
   checkHoldReason,
+  checkLiftReason,
   heldBadge,
   heldSince,
   holdErrorMessage,
   HOLD_EFFECT,
   HOLD_REASON_HINT,
   HOLD_REASON_MAX,
-  placedByLabel,
+  LIFT_REASON_HINT,
   reasonCharsRemaining,
   type HeldBy,
 } from "@/lib/legal-hold";
@@ -29,10 +31,56 @@ import {
  * means are in `lib/legal-hold.ts`, where they are tested. The api (`/v1/legal-holds`) is owner/admin only and is the real gate.
  */
 
-/** A dialog that asks for a reason and calls `onConfirm(reason)`. */
+/**
+ * The form inside the dialog. ★ITS STATE LIVES HERE, in a component that exists only while the dialog is open (Radix unmounts
+ * the content on close), so a reason typed and then cancelled is never still there the next time the dialog opens.
+ * A PLACE needs a reason; a LIFT takes an optional one.
+ */
+function ReasonForm({
+  lifting,
+  confirmLabel,
+  pending,
+  onCancel,
+  onConfirm,
+}: {
+  lifting: boolean;
+  confirmLabel: string;
+  pending: boolean;
+  onCancel: () => void;
+  onConfirm: (reason: string | null) => void;
+}) {
+  const [text, setText] = useState("");
+  const check = lifting ? checkLiftReason(text) : checkHoldReason(text);
+  return (
+    <>
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground">{HOLD_EFFECT}</p>
+        <label className="text-sm font-medium" htmlFor="hold-reason">
+          {lifting ? "Reason (optional)" : "Reason"}
+        </label>
+        <Textarea id="hold-reason" value={text} onChange={(e) => setText(e.target.value)} rows={3} aria-describedby="hold-reason-hint" />
+        <p id="hold-reason-hint" className="text-xs text-muted-foreground">
+          {lifting ? LIFT_REASON_HINT : HOLD_REASON_HINT} ({reasonCharsRemaining(text)} of {HOLD_REASON_MAX} characters left)
+        </p>
+        {text.length > 0 && !check.ok && <p className="text-xs text-destructive">{check.problem}</p>}
+      </div>
+      <DialogFooter>
+        <Button variant="outline" onClick={onCancel} disabled={pending}>
+          Cancel
+        </Button>
+        <Button disabled={!check.ok || pending} onClick={() => check.ok && onConfirm(check.reason)}>
+          {pending ? "…" : confirmLabel}
+        </Button>
+      </DialogFooter>
+    </>
+  );
+}
+
+/** A dialog that asks for a reason and calls `onConfirm(reason)`. It cannot be dismissed while the request is in flight. */
 function ReasonDialog({
   open,
   onOpenChange,
+  lifting,
   title,
   description,
   confirmLabel,
@@ -41,46 +89,23 @@ function ReasonDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  lifting: boolean;
   title: string;
   description: string;
   confirmLabel: string;
   pending: boolean;
-  onConfirm: (reason: string) => void;
+  onConfirm: (reason: string | null) => void;
 }) {
-  const [text, setText] = useState("");
-  const check = checkHoldReason(text);
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    // ★NOT DISMISSABLE MID-REQUEST: closing the dialog (Escape, the overlay) while a hold is being placed would leave the
+    //  person unsure whether it happened, and a second attempt would meet a conflict.
+    <Dialog open={open} onOpenChange={(o) => (pending ? undefined : onOpenChange(o))}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">{HOLD_EFFECT}</p>
-          <label className="text-sm font-medium" htmlFor="hold-reason">
-            Reason
-          </label>
-          <Textarea
-            id="hold-reason"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            rows={3}
-            aria-describedby="hold-reason-hint"
-          />
-          <p id="hold-reason-hint" className="text-xs text-muted-foreground">
-            {HOLD_REASON_HINT} ({reasonCharsRemaining(text)} of {HOLD_REASON_MAX} characters left)
-          </p>
-          {text.length > 0 && !check.ok && <p className="text-xs text-destructive">{check.problem}</p>}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={pending}>
-            Cancel
-          </Button>
-          <Button disabled={!check.ok || pending} onClick={() => check.ok && onConfirm(check.reason)}>
-            {pending ? "…" : confirmLabel}
-          </Button>
-        </DialogFooter>
+        <ReasonForm lifting={lifting} confirmLabel={confirmLabel} pending={pending} onCancel={() => onOpenChange(false)} onConfirm={onConfirm} />
       </DialogContent>
     </Dialog>
   );
@@ -98,16 +123,17 @@ export function ThreadHoldControl({ threadId, held, role }: { threadId: string; 
   const hold = useThreadHold();
   if (!canManageHolds(role)) return null;
   const lifting = canLiftThreadHold(held);
-  if (!lifting && !canPlaceThreadHold(held)) return null; // held by the business: lifted there
+  // Held because the business is (lifted there), or not known (an api that predates holds): nothing to offer.
+  if (!lifting && !canPlaceThreadHold(held)) return null;
   return (
     <>
       <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
         {lifting ? "Lift hold" : "Keep (legal hold)"}
       </Button>
       <ReasonDialog
-        key={`${threadId}:${lifting ? "lift" : "place"}`}
         open={open}
         onOpenChange={setOpen}
+        lifting={lifting}
         title={lifting ? "Lift the legal hold?" : "Keep this conversation (legal hold)"}
         description={
           lifting
@@ -118,7 +144,7 @@ export function ThreadHoldControl({ threadId, held, role }: { threadId: string; 
         pending={hold.isPending}
         onConfirm={(reason) =>
           hold.mutate(
-            { threadId, action: lifting ? "lift" : "place", reason },
+            { threadId, action: lifting ? "lift" : "place", ...(reason ? { reason } : {}) },
             {
               onSuccess: () => {
                 setOpen(false);
@@ -159,8 +185,7 @@ export function HoldsCard({ role, onOpenThread }: { role: string | null; onOpenT
       {holds.isError && <p className="mt-2 text-xs text-destructive">Couldn&apos;t load the legal holds.</p>}
       {data?.business && (
         <p className="mt-2 text-xs">
-          <span className="font-medium">All conversations are on hold.</span> {heldSince(data.business.heldAt)}. {placedByLabel(data.business.byKind)}.
-          Reason: {data.business.reason}
+          <span className="font-medium">All conversations are on hold.</span> {businessHoldLine(data.business)}
         </p>
       )}
       {data && data.conversations.length === 0 && !data.business && (
@@ -182,33 +207,32 @@ export function HoldsCard({ role, onOpenThread }: { role: string | null; onOpenT
           {data.truncated && <li className="text-xs text-muted-foreground">More conversations are on hold than are listed here.</li>}
         </ul>
       )}
-      {dialog && (
-        <ReasonDialog
-          key={dialog}
-          open
-          onOpenChange={(o) => !o && setDialog(null)}
-          title={dialog === "place" ? "Keep all conversations (legal hold)" : "Lift the business-wide hold?"}
-          description={
-            dialog === "place"
-              ? "Every current conversation, and every new one within the hour, is kept until you lift this."
-              : "Conversations held only by this go back to the normal 180 days; one you held by name stays held."
-          }
-          confirmLabel={dialog === "place" ? "Hold all conversations" : "Lift business hold"}
-          pending={business.isPending}
-          onConfirm={(reason) =>
-            business.mutate(
-              { action: dialog, reason },
-              {
-                onSuccess: () => {
-                  setDialog(null);
-                  toast.success(dialog === "place" ? "All conversations are now kept." : "Business hold lifted.");
-                },
-                onError: (e: Error) => toast.error(holdErrorMessage(e, dialog)),
+      <ReasonDialog
+        open={dialog !== null}
+        onOpenChange={(o) => !o && setDialog(null)}
+        lifting={dialog === "lift"}
+        title={dialog === "lift" ? "Lift the business-wide hold?" : "Keep all conversations (legal hold)"}
+        description={
+          dialog === "lift"
+            ? "Conversations held only by this go back to the normal 180 days; one you held by name stays held."
+            : "Every current conversation, and every new one within the hour, is kept until you lift this."
+        }
+        confirmLabel={dialog === "lift" ? "Lift business hold" : "Hold all conversations"}
+        pending={business.isPending}
+        onConfirm={(reason) => {
+          const action = dialog === "lift" ? "lift" : "place";
+          business.mutate(
+            { action, ...(reason ? { reason } : {}) },
+            {
+              onSuccess: () => {
+                setDialog(null);
+                toast.success(action === "place" ? "All conversations are now kept." : "Business hold lifted.");
               },
-            )
-          }
-        />
-      )}
+              onError: (e: Error) => toast.error(holdErrorMessage(e, action)),
+            },
+          );
+        }}
+      />
     </Card>
   );
 }

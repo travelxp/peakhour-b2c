@@ -37,12 +37,27 @@ export function checkHoldReason(raw: string): ReasonCheck {
   return { ok: true, reason };
 }
 
+export type LiftReasonCheck = { ok: true; reason: string | null } | { ok: false; problem: string };
+
+/** Lifting a hold takes an OPTIONAL reason (the api records "Hold lifted" when there is none), still bounded at 500. */
+export function checkLiftReason(raw: string): LiftReasonCheck {
+  const reason = raw.trim();
+  if (reason.length === 0) return { ok: true, reason: null };
+  const c = checkHoldReason(reason);
+  return c.ok ? { ok: true, reason: c.reason } : { ok: false, problem: c.problem };
+}
+
+export const LIFT_REASON_HINT = "Optional: why the hold is being lifted. Do not put the shopper's name, phone or email here.";
+
 /** What is left to type. */
 export function reasonCharsRemaining(raw: string): number {
   return HOLD_REASON_MAX - raw.trim().length;
 }
 
-/** How a thread is held: by name, or because its whole business is. null = not held. */
+/**
+ * How a thread is held: by name, or because its whole business is. null = not held. ★undefined = UNKNOWN (an api that predates
+ * holds sends nothing), which is neither held nor not-held, so no action is offered for it.
+ */
 export type HeldBy = "conversation" | "business" | null | undefined;
 
 /** The badge on a conversation, or null when it is not held. */
@@ -52,9 +67,9 @@ export function heldBadge(held: HeldBy): string | null {
   return null;
 }
 
-/** The list row only has a yes/no. */
-export function rowIsHeld(held: boolean | undefined): boolean {
-  return held === true;
+/** A list row is held when the api says how (the same value as the open thread's). */
+export function rowIsHeld(held: HeldBy): boolean {
+  return held === "conversation" || held === "business";
 }
 
 /**
@@ -65,9 +80,9 @@ export function canLiftThreadHold(held: HeldBy): boolean {
   return held === "conversation";
 }
 
-/** Whether "Keep (legal hold)" is offered for a thread: not already held. */
+/** Whether "Keep (legal hold)" is offered for a thread: the api said it is NOT held (null), not merely said nothing. */
 export function canPlaceThreadHold(held: HeldBy): boolean {
-  return held === null || held === undefined;
+  return held === null;
 }
 
 export const HOLDS_PATH = "/v1/legal-holds";
@@ -120,6 +135,15 @@ export interface HoldsListing {
     eraseDeferred: boolean;
   }>;
   truncated: boolean;
+}
+
+/**
+ * The line under the business-wide hold: when, by whom, and why, with no empty fragment (a missing or bad date is left out
+ * rather than leaving ". ." in the sentence).
+ */
+export function businessHoldLine(b: { heldAt: string; byKind: string; reason: string }): string {
+  const parts = [heldSince(b.heldAt), placedByLabel(b.byKind)].filter(Boolean);
+  return `${parts.join(". ")}. Reason: ${b.reason}`;
 }
 
 /** "Placed by Peakhour support" or "Placed by you or your team". */

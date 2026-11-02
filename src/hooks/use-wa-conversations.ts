@@ -21,8 +21,8 @@ export interface WaConversation {
   updatedAt: string | null;
   lastInboundAt: string | null;
   preview: string;
-  /** Under a legal hold (H1): kept past 180 days. Absent from an older api. */
-  held?: boolean;
+  /** Under a legal hold (H1), and how: by name or because the whole business is. null = not held; absent = an older api. */
+  held?: "conversation" | "business" | null;
 }
 
 export interface WaMessage {

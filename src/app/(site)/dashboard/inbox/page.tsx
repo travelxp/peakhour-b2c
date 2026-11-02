@@ -46,7 +46,6 @@ import {
 } from "@/lib/review-reply";
 import { PageShell } from "@/components/dashboard/page-shell";
 import { HeldBadge, HoldsCard, ThreadHoldControl } from "@/components/inbox/legal-hold";
-import { rowIsHeld } from "@/lib/legal-hold";
 
 /**
  * Inbox — ONE queue for everything inbound (D-inbox): every channel is
@@ -657,7 +656,7 @@ function InboxTabs() {
                   <div className="flex items-center justify-between gap-2">
                     <span className="truncate text-sm font-medium">{conv.contactName || conv.waId}</span>
                     <span className="flex shrink-0 items-center gap-1">
-                      {rowIsHeld(conv.held) && <HeldBadge held="conversation" />}
+                      <HeldBadge held={conv.held} />
                       <StatusPill status={conv.status} />
                     </span>
                   </div>
