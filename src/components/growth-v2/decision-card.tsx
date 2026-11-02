@@ -28,7 +28,7 @@ import {
   type DecisionNotice,
 } from "@/lib/growth-v2-decisions";
 import { formatDay, formatMoney, hoursUntil } from "@/lib/growth-v2-figure";
-import { SUMMIT_TM } from "@/lib/growth-v2-copy";
+import { SUMMIT } from "@/lib/growth-v2-copy";
 import { cn } from "@/lib/utils";
 import { ToneBadge, TONE_CLASS, type Tone } from "./tone";
 
@@ -96,7 +96,7 @@ export function DecisionCard({ decision: d, currency, unit, now, onAction, actio
   return (
     <article className={cn("grid min-w-0 content-start gap-4", className)}>
       <div className="flex flex-wrap gap-2">
-        {d.council ? <ToneBadge tone="ai">{SUMMIT_TM}</ToneBadge> : null}
+        {d.council ? <ToneBadge tone="ai">{SUMMIT}</ToneBadge> : null}
         <ToneBadge>{KIND_LABEL[d.kind]}</ToneBadge>
         <ToneBadge tone={STATUS_TONE[d.status] ?? "neutral"} dot>
           {STATUS_LABEL[d.status]}

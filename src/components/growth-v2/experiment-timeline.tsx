@@ -1,6 +1,6 @@
 import type { LearningResponse } from "@/lib/api/growth-v2";
 import { ABSENT_LABEL, absentReason, figureValue, formatChange, formatDay, formatPercent } from "@/lib/growth-v2-figure";
-import { SUMMIT_TM } from "@/lib/growth-v2-copy";
+import { SUMMIT } from "@/lib/growth-v2-copy";
 import { cn } from "@/lib/utils";
 import { ToneBadge, type Tone } from "./tone";
 
@@ -66,8 +66,6 @@ export function ExperimentTimeline({ experiments }: { experiments: Experiment[] 
   if (experiments.length === 0) {
     return <p className="py-6 text-center text-sm text-muted-foreground">No experiments yet. The engine will list each bet here before it is judged.</p>;
   }
-  // The trademark sign goes on the first mention on the screen.
-  const firstBet = experiments.findIndex((x) => x.kind !== "holdout");
   return (
     <ol className="grid">
       {experiments.map((e, i) => {
@@ -81,7 +79,7 @@ export function ExperimentTimeline({ experiments }: { experiments: Experiment[] 
                 <ToneBadge tone={look.tone} dot>
                   {look.label}
                 </ToneBadge>
-                <span className="text-xs text-muted-foreground">{e.kind === "holdout" ? "Holdout" : i === firstBet ? `${SUMMIT_TM} bet` : "Peakhour Summit bet"}</span>
+                <span className="text-xs text-muted-foreground">{e.kind === "holdout" ? "Holdout" : `${SUMMIT} bet`}</span>
                 {e.startedAt ? <span className="text-xs text-muted-foreground">Started {formatDay(e.startedAt)}</span> : null}
               </div>
               <h3 className="break-words text-sm font-semibold">{e.title}</h3>

@@ -328,7 +328,8 @@ describe("the screens render their preview sample", () => {
     expect(out).toContain("The case for");
     expect(out).toContain("The case against");
     expect(out).toContain("Safety checks");
-    expect(out).toContain("Peakhour Summit™");
+    expect(out).toContain("Peakhour Summit");
+    expect(out).not.toMatch(/[\u2122\u00ae]/);
     expect(out).not.toMatch(/Strategist|Critic|Chair|Growth Council/);
     expect(out).toContain("Decision for Himalayan Trails");
     expect(out).toContain("Also sent to WhatsApp on 26 Oct");

@@ -4,18 +4,20 @@
  * `council` as its name, so this reads COPY (JSX text, string and template literals with a sentence in them, or a capitalised
  * label), never identifiers, property names or comments, from the AST.
  *
- * The trademark sign is on the badge or title and on the first mention on a screen. The registered sign appears nowhere.
+ * Plain "Peakhour Summit" everywhere: neither the trademark nor the registered sign appears in growth copy (owner, 2026-11-02).
  */
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import ts from "typescript";
-import { SUMMIT, SUMMIT_TM, withSummitTm } from "./growth-v2-copy";
+import { SUMMIT } from "./growth-v2-copy";
 
 const SRC = join(__dirname, "..");
 const BANNED = /\b(council|strategist|critic|chair)\b/i;
 const LABEL = /^(Council|Strategist|Critic|Chair)$/;
 const TM = String.fromCharCode(0x2122);
+/** The trademark or registered sign, typed, escaped or as an HTML entity. */
+const hasSign = (text: string) => /[™®]|\\u(2122|00ae)|&(trade|reg|#8482|#174);/i.test(text);
 
 const walk = (dir: string): string[] =>
   readdirSync(dir).flatMap((f) => {
@@ -73,7 +75,7 @@ describe("merchant-facing growth copy never names the council's internal seats",
     expect(copyIn("// the council\n/* Chair */ const council = 1;")).toEqual([]);
     expect(copyIn('type K = "holdout" | "council_bet";')).toEqual([]);
     expect(copyIn('const a = d.council ? <Seat who="The case for" /> : null;')).toEqual([]);
-    expect(copyIn(`const a = <p>Peakhour Summit${TM} could not finish</p>;`)).toEqual([]);
+    expect(copyIn(`const a = <p>${SUMMIT} could not finish</p>;`)).toEqual([]);
   });
 
   it("lists real files (a lint over nothing passes)", () => {
@@ -89,20 +91,13 @@ describe("merchant-facing growth copy never names the council's internal seats",
     expect(found).toEqual([]);
   }, 60_000);
 
-  it("the registered sign appears nowhere in growth copy", () => {
-    const sign = String.fromCharCode(0xae);
-    expect(FILES.filter((f) => readFileSync(f, "utf8").includes(sign))).toEqual([]);
+  it("neither the trademark nor the registered sign appears in growth copy, as a character or an escape", () => {
+    // FAIL and PASS for the matcher first, so a pattern that matches nothing cannot pass the scan below
+    expect(hasSign(`<p>${SUMMIT}${TM}</p>`)).toBe(true);
+    expect(hasSign('const s = "Peakhour Summit\\u2122";')).toBe(true);
+    expect(hasSign("<p>&trade;</p>")).toBe(true);
+    expect(hasSign(`<p>${SUMMIT}</p>`)).toBe(false);
+    expect(FILES.filter((f) => hasSign(readFileSync(f, "utf8")))).toEqual([]);
   }, 60_000);
 });
 
-describe("the trademark sign", () => {
-  it("goes on the first mention only, and never twice", () => {
-    expect(SUMMIT_TM).toBe(`${SUMMIT}${TM}`);
-    expect(withSummitTm("A budget raise for Meta Ads is waiting for Peakhour Summit")).toBe(`A budget raise for Meta Ads is waiting for Peakhour Summit${TM}`);
-    expect(withSummitTm("Peakhour Summit asked Peakhour Summit")).toBe(`Peakhour Summit${TM} asked Peakhour Summit`);
-    expect(withSummitTm(withSummitTm("Peakhour Summit is here"))).toBe(`Peakhour Summit${TM} is here`);
-    expect(withSummitTm("Nothing to name")).toBe("Nothing to name");
-    // a text that already has the sign is left alone: the later plain mention does NOT pick it up
-    expect(withSummitTm(`Peakhour Summit${TM} reviewed this. Peakhour Summit also did.`)).toBe(`Peakhour Summit${TM} reviewed this. Peakhour Summit also did.`);
-  });
-});
