@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { ApiError } from "@/lib/api";
-import { formatPeaks } from "@/lib/pricing";
 import { META_ANALYTICS_BATCH } from "@/lib/api/meta-ads";
 import {
   META_OFFSET_ONE_CURRENCIES,
@@ -20,7 +19,7 @@ import {
   metaInsightsIds,
   metaCoverageLine,
   META_INSIGHTS_MAX_CAMPAIGNS,
-  metaLaunchChargeSentence,
+  META_LAUNCH_NOTE,
   metaMinorToMajor,
   metaNotServingBecause,
   metaStatusToggle,
@@ -148,29 +147,11 @@ describe("★★M-16 status", () => {
   });
 });
 
-describe("★★M-16 the price before Activate (§7.0.1 requirement 4)", () => {
-  it("★★M-16 quotes the row's MULTIPLIER — what the rollup charges", () => {
-    const s = metaLaunchChargeSentence({ free: false, creditMultiplier: 30 });
-    expect(s).toContain(`${formatPeaks(30)} Peaks`);
-    expect(s).toMatch(/once/);
-  });
-
-  it("★★M-16 says Ads Manager campaigns are never charged — the api's own rule", () => {
-    expect(metaLaunchChargeSentence({ free: false, creditMultiplier: 30 })).toMatch(
-      /Ads Manager are never charged/,
-    );
-  });
-
-  it("★M-16 a free row says free, never '0 Peaks'", () => {
-    const s = metaLaunchChargeSentence({ free: true, creditMultiplier: 30 });
-    expect(s).toMatch(/free/i);
-    expect(s).not.toMatch(/\d+ Peaks/);
-  });
-
-  it("★★M-16 an unloaded card quotes no number", () => {
-    const s = metaLaunchChargeSentence(undefined);
-    expect(s).not.toMatch(/\d/);
-    expect(s).toMatch(/may be charged/);
+describe("what activating a campaign costs (N2)", () => {
+  it("★says starting costs nothing and names no price, so there is nothing to drift from the rate card", () => {
+    expect(META_LAUNCH_NOTE).toContain("costs nothing");
+    expect(META_LAUNCH_NOTE).not.toMatch(/\d/);
+    expect(META_LAUNCH_NOTE).not.toMatch(/campaign_launched/);
   });
 });
 

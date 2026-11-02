@@ -213,6 +213,9 @@ function SettingsContent() {
       // the LinkedIn identity/me read.
       queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] });
       queryClient.invalidateQueries({ queryKey: ["linkedin-me"] });
+      // D-03b: the outcomes page's reconnect card is the api's, in /outcomes
+      //  — left stale, it invites the same needless reconnect.
+      queryClient.invalidateQueries({ queryKey: ["growth-outcomes"] });
     } else if (searchParams?.get("integration") === "error") {
       const provider = searchParams.get("provider");
       const msg = searchParams.get("msg");

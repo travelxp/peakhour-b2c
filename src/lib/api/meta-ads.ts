@@ -180,6 +180,10 @@ export const metaAdsApi = {
       metaAdsUrl("/v1/meta/ads/datasets/selected"),
     ),
 
+  /** Adopt the account's dataset, or create one (a write to the merchant's Meta account), and choose it. */
+  createDataset: (adAccountId: string) =>
+    api.post<{ created: boolean; selected: MetaDatasetSelection | null }>(metaAdsUrl("/v1/meta/ads/datasets"), { adAccountId }),
+
   selectDataset: (adAccountId: string, datasetId: string) =>
     api.put<{ selected: MetaDatasetSelection | null }>(
       metaAdsUrl("/v1/meta/ads/datasets/selected"),

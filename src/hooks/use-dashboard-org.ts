@@ -10,23 +10,31 @@ import { useAuth } from "@/providers/auth-provider";
 export interface DashboardOrgPlanSummary {
   name?: string;
   subscription?: {
-    /** The org's base row's tier key, or null when there is no live base row
-     *  (none, or a Suite trial that has ended; api#1510). */
+    /** The org's base row's tier key, or null when no live base row covers
+     *  the signed-in business (none, a Suite trial that has ended, api#1510;
+     *  or one on another business, api#1553: the Suite trial and a hand-set
+     *  contract are the first business's, an Enterprise contract every
+     *  business's). The trial fields below follow it: an added business reads
+     *  no trial. */
     plan?: string | null;
     /** Customer-facing plan name from cfg_plans. ALWAYS prefer this for display —
      *  `plan` is a machine tier key, and rendering it is what once showed
      *  customers "Commerce_assistant.Free" as their plan name. Read through
      *  `lib/plan-status`. Null exactly when `plan` is. */
     planName?: string | null;
-    planVersion?: number;
+    /** Null exactly when `plan` is (api#1553). */
+    planVersion?: number | null;
     trialEndsAt?: string | null;
     trialActive?: boolean;
     trialDaysRemaining?: number;
     selfServeExtensionUsed?: boolean;
   };
+  /** The signed-in business's grant, as its gates read it (api#1553); it was
+   *  the org's snapshot, the union of every business. */
   entitlements?: {
     plan?: string;
-    planVersion?: number;
+    /** Falls back to `subscription.planVersion`, so null when it is (api#1553). */
+    planVersion?: number | null;
     computedAt?: string | null;
     features?: string[];
   } | null;

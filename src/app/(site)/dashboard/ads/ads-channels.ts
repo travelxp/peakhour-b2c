@@ -8,9 +8,9 @@
  * route, no new nav item.
  *
  * Only channels that HAVE a panel belong here. A connector that is merely
- * catalogued (google_ads) stays out until its panel exists — otherwise the
- * selector would offer a tab that renders nothing. (`meta_ads` joined in M-16,
- * with its panel.)
+ * catalogued stays out until its panel exists — otherwise the selector would
+ * offer a tab that renders nothing. (`meta_ads` joined in M-16, with its
+ * panel; `google_ads` in G-15, with its.)
  *
  * ── ★★M-13: WHEN `meta_ads` JOINS, WHICH ROUTES ITS PANEL MAY CALL ───────
  *
@@ -114,10 +114,10 @@ export function metaAdsConnectionState(
 /**
  * One ads channel's connection state — Meta through its ads capability, every
  * other channel by its provider row, where a live row outranks a stale one.
- * ★THE RULE THE OUTCOMES PAGE'S RECONNECT CARD READS (D-03), kept here beside
- * `metaAdsConnectionState`. ⚠️The LinkedIn and X panels still derive their own
- * reconnect state inline, so a change here does NOT reach them — moving them
- * onto this is a follow-up, not something this function already guarantees.
+ * ★THE ONE RULE every ads panel reads (D-03b), through `panelConnection`
+ * below — so a panel's reconnect banner and the hub's channel pick cannot
+ * disagree. (The outcomes page's reconnect card is the api's now:
+ * `/v1/growth/outcomes`.)
  */
 export function adsChannelConnectionState(
   integrations: readonly AdsIntegrationRow[],
@@ -128,6 +128,20 @@ export function adsChannelConnectionState(
   if (rows.some((i) => i.connected === true)) return "connected";
   if (rows.some((i) => i.status === "needs_reauth")) return "needs_reauth";
   return "absent";
+}
+
+/**
+ * What a channel's panel gates on (D-03b): whether it shows at all — a stale
+ * connection is still a connection, shown behind a reconnect banner rather
+ * than a Connect empty state — and whether that banner shows. Every panel
+ * calls this; none reads a row's `status` itself.
+ */
+export function panelConnection(
+  integrations: readonly AdsIntegrationRow[],
+  channel: { providerKey: string },
+): { isConnected: boolean; needsReauth: boolean } {
+  const state = adsChannelConnectionState(integrations, channel);
+  return { isConnected: state !== "absent", needsReauth: state === "needs_reauth" };
 }
 
 /**
@@ -225,6 +239,26 @@ export const ADS_CHANNELS = [
       ["content-hub-integrations"],
     ],
     ownedParams: ["adAccount"],
+  },
+  /**
+   * ★★G-15/G19/G20. Search, Performance Max and YouTube video (Demand Gen):
+   * the three types the api creates (G-04, G-09, G19, G20), so neither the
+   * description nor the panel names another. Its routes are
+   * `lib/google-ads-surface.ts`'s.
+   *
+   * `ad-campaign-monitor` is what watches a Google campaign's spend, and
+   * re-reads a create Google did not confirm (the re-drive), so the chip
+   * refreshes the list it changes.
+   */
+  {
+    key: "google",
+    label: "Google Ads",
+    providerKey: "google_ads",
+    description:
+      "Create Google Search, Performance Max and YouTube video (Demand Gen) campaigns, paused until you start them, and start or pause them here.",
+    crons: ["ad-campaign-monitor"],
+    invalidateQueryKeys: [["google-ads-accounts"], ["google-ads-campaigns"], ["content-hub-integrations"]],
+    ownedParams: ["customer"],
   },
 ] as const satisfies readonly AdsChannelShape[];
 

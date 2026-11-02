@@ -1,5 +1,6 @@
 "use client";
 
+import { keepWithinBusiness } from "@/lib/wa-conversation-export";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
@@ -21,6 +22,8 @@ export interface WaConversation {
   updatedAt: string | null;
   lastInboundAt: string | null;
   preview: string;
+  /** Under a legal hold (H1), and how: by name or because the whole business is. null = not held; absent = an older api. */
+  held?: "conversation" | "business" | null;
 }
 
 export interface WaMessage {
@@ -44,6 +47,8 @@ export interface WaThread {
   replyWindowEndsAt?: string | null;
   /** WA T2's compare-and-set version, on the read since api#1530 (see `resumeBody`). */
   statusVersion?: number;
+  /** Legal hold (H1): by name, or because the whole business is held; null = not held. */
+  held?: "conversation" | "business" | null;
   messages: WaMessage[];
 }
 
@@ -56,17 +61,37 @@ export interface WaConnectionStatus {
 
 const BASE = "/v1/meta/whatsapp/conversations";
 
-/** List the business's WhatsApp conversations (most recent first). */
-export function useWaConversations() {
+/**
+ * List the business's WhatsApp conversations (most recent first).
+ *
+ * H2: the answer also carries `expiringCount` (conversations that will be deleted in the next 14 days, the number the
+ * weekly email states) and `expiringFrom` (when the first goes). `expiringOnly` filters the list to those.
+ * The key starts `["wa-conversations", business]` in both modes, so every existing invalidation still reaches it.
+ */
+export function useWaConversations(opts?: { expiringOnly?: boolean }) {
   const { business } = useAuth();
-  const key = ["wa-conversations", business?._id ?? "none"];
+  const expiringOnly = Boolean(opts?.expiringOnly);
+  const key = ["wa-conversations", business?._id ?? "none", expiringOnly ? "expiring" : "all"];
   const query = useQuery({
     queryKey: key,
-    queryFn: () => api.get<{ conversations: WaConversation[] }>(BASE),
+    queryFn: () =>
+      api.get<{ conversations: WaConversation[]; expiringCount?: number | null; expiringFrom?: string | null }>(
+        BASE,
+        expiringOnly ? { expiring: "1" } : undefined,
+      ),
     enabled: Boolean(business?._id),
     refetchInterval: 30_000, // inbox stays roughly live
+    // toggling the filter keeps the rows and the banner on screen until the other list arrives
+    // ...but ONLY within one business: switching business must not show the previous business's list or banner
+    placeholderData: (prev, prevQuery) => keepWithinBusiness(prev, prevQuery?.queryKey, business?._id ?? "none"),
   });
-  return { ...query, listKey: key, conversations: query.data?.conversations ?? [] };
+  return {
+    ...query,
+    listKey: key,
+    conversations: query.data?.conversations ?? [],
+    expiringCount: query.data?.expiringCount ?? null,
+    expiringFrom: query.data?.expiringFrom ?? null,
+  };
 }
 
 /** Load one thread's messages. */

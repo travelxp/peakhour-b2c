@@ -45,6 +45,14 @@ import {
   unansweredBadge,
 } from "@/lib/review-reply";
 import { PageShell } from "@/components/dashboard/page-shell";
+import { HeldBadge, HoldsCard, ThreadHoldControl } from "@/components/inbox/legal-hold";
+import {
+  canExportConversations,
+  downloadConversationExport,
+  expiryBanner,
+  rangeExportPath,
+  threadExportPath,
+} from "@/lib/wa-conversation-export";
 
 /**
  * Inbox — ONE queue for everything inbound (D-inbox): every channel is
@@ -453,7 +461,9 @@ function InboxHeader() {
 }
 
 function InboxTabs() {
-  const conversationsQuery = useWaConversations();
+  // H2: the banner's "show only those" filter
+  const [expiringOnly, setExpiringOnly] = useState(false);
+  const conversationsQuery = useWaConversations({ expiringOnly });
   const { conversations } = conversationsQuery;
   const refetchConversations = conversationsQuery.refetch;
   const convState = listFetchState(conversationsQuery, conversations.length);
@@ -471,6 +481,28 @@ function InboxTabs() {
   //  and the composer, so a tick does not re-render the whole Inbox.)
   const { user, org, orgs } = useAuth();
   const role = orgs.find((o) => o._id === org?._id)?.role ?? null;
+  // H2: conversation export is for owner and admin (the API enforces it; this only decides what to show)
+  const canExport = canExportConversations(role);
+  const expiry = expiryBanner(conversationsQuery.expiringCount, conversationsQuery.expiringFrom);
+  const [exportFrom, setExportFrom] = useState("");
+  const [exportTo, setExportTo] = useState("");
+  const [exporting, setExporting] = useState(false);
+  async function runExport(path: string | null) {
+    if (exporting) return; // one at a time: a double click would spend the rate limit on itself
+    if (!path) {
+      toast.error("Choose the first day to export from, and a last day only if you want one (a real date).");
+      return;
+    }
+    setExporting(true);
+    let out: Awaited<ReturnType<typeof downloadConversationExport>>;
+    try {
+      out = await downloadConversationExport(path);
+    } finally {
+      setExporting(false);
+    }
+    if (out.ok) toast.success(`Saved ${out.filename}`);
+    else toast.error(out.message);
+  }
   const members = useOrgMembers();
   const connection = useWaConnection(Boolean(selected));
   // ★ONE STORE FOR THE PAGE'S LIFE: a draft, its key, its last warning and its
@@ -588,6 +620,44 @@ function InboxTabs() {
         </TabsContent>
 
         <TabsContent value="conversations" className="mt-4">
+          {/* Legal holds (H1): the business-wide hold and the held list. Owner/admin only; renders nothing for anyone else. */}
+          <HoldsCard role={role} onOpenThread={setSelected} />
+          {/* H2: the same count the weekly email states. Shown only when something is about to be deleted. */}
+          {expiry && (
+            <div role="status" className="mb-4 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
+              <p className="font-medium">{expiry.heading}</p>
+              <p className="mt-0.5 text-muted-foreground">{expiry.body}</p>
+              <Button size="sm" variant="outline" className="mt-2" onClick={() => setExpiringOnly((v) => !v)}>
+                {expiringOnly ? "Show all conversations" : "Show only those"}
+              </Button>
+            </div>
+          )}
+          {/* H2: the way back from the filter even when the count is gone (the last expiring conversation was exported and aged out) */}
+          {expiringOnly && !expiry && (
+            <div className="mb-4 flex items-center gap-3 rounded-lg border p-3 text-sm">
+              <p className="text-muted-foreground">Showing only conversations about to be deleted.</p>
+              <Button size="sm" variant="outline" onClick={() => setExpiringOnly(false)}>Show all conversations</Button>
+            </div>
+          )}
+          {/* H2: a copy the owner or admin keeps. Nothing is emailed; the file is theirs from the download. */}
+          {canExport && (
+            <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border p-3 text-sm">
+              <div>
+                <label className="block text-xs text-muted-foreground" htmlFor="export-from">From</label>
+                <input id="export-from" type="date" value={exportFrom} onChange={(e) => setExportFrom(e.target.value)} className="rounded-md border bg-background px-2 py-1" />
+              </div>
+              <div>
+                <label className="block text-xs text-muted-foreground" htmlFor="export-to">To (optional)</label>
+                <input id="export-to" type="date" value={exportTo} onChange={(e) => setExportTo(e.target.value)} className="rounded-md border bg-background px-2 py-1" />
+              </div>
+              <Button size="sm" variant="outline" disabled={exporting} onClick={() => runExport(rangeExportPath(exportFrom, exportTo))}>
+                {exporting ? "…" : "Export these days"}
+              </Button>
+              <p className="basis-full text-xs text-muted-foreground">
+                Download every message in those days as one file. You keep it safe; Peakhour does not email conversations.
+              </p>
+            </div>
+          )}
           <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
             {/* Thread list */}
             <Card className="max-h-[70vh] overflow-y-auto p-2">
@@ -652,7 +722,10 @@ function InboxTabs() {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="truncate text-sm font-medium">{conv.contactName || conv.waId}</span>
-                    <StatusPill status={conv.status} />
+                    <span className="flex shrink-0 items-center gap-1">
+                      <HeldBadge held={conv.held} />
+                      <StatusPill status={conv.status} />
+                    </span>
                   </div>
                   <span className="truncate text-xs text-muted-foreground">{conv.preview || "…"}</span>
                 </button>
@@ -674,10 +747,18 @@ function InboxTabs() {
                       {thread && (
                         <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                           <StatusPill status={thread.status} />
+                          <HeldBadge held={thread.held} />
                           <WindowBadge store={composerStore} threadId={thread.threadId} endsAt={thread.replyWindowEndsAt} />
                         </div>
                       )}
                     </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                    {thread && <ThreadHoldControl key={selected} threadId={selected} held={thread.held} role={role} />}
+                    {canExport && (
+                      <Button size="sm" variant="ghost" disabled={exporting} onClick={() => runExport(threadExportPath(selected))}>
+                        Export
+                      </Button>
+                    )}
                     {thread?.status === "escalated" ? (
                       <Button
                         size="sm"
@@ -708,6 +789,7 @@ function InboxTabs() {
                         {handoff.isPending ? "…" : "Take over"}
                       </Button>
                     )}
+                    </div>
                   </div>
                   <div className="flex-1 space-y-2 overflow-y-auto bg-[#e5ddd5] p-3">
                     {threadState === "loading" && <Skeleton className="h-20 w-full" />}

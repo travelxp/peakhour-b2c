@@ -11,11 +11,20 @@
  * the terms and stamps who saved them; the PATCH answer replaces the cache, so
  * the card shows the terms as they are now stored ("Café" → "cafe").
  *
+ * D-05b adds the channel ALLOW list — "only these channels", so a channel
+ * Peakhour adds later stays off — as the other mode of the one channel rule,
+ * and approved-assets-only.
+ *
+ * D-05c: approved-assets-only is OFFERED only while there is a creative to
+ * approve or one approved (`approvedAssetsOffer`) — with none, turning it on
+ * stops every ad the engine creates — and both views link to creative review.
+ *
  * ★CHANNEL-NEUTRAL, so it sits above the channel tabs on the ads hub, beside
  * the business summary — inside a channel panel it would read as that
  * channel's setting.
  */
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, Plus, ShieldBan, Trash2 } from "lucide-react";
@@ -25,6 +34,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -40,8 +50,9 @@ import {
 import { ApiError } from "@/lib/api";
 import { growthApi } from "@/lib/api/growth";
 import {
-  GUARDRAIL_CHANNELS,
   buildGuardrailsPatch,
+  channelModeWarning,
+  channelOptions,
   describeGuardrails,
   draftFromStored,
   guardrailsSaveError,
@@ -49,6 +60,14 @@ import {
   timeZoneOptions,
   type GuardrailsDraft,
 } from "@/lib/guardrails-copy";
+import {
+  CREATIVE_REVIEW_PATH,
+  approvedAssetsOffer,
+  approvedAssetsWarning,
+  approvedByChannelLine,
+  nothingToApproveLine,
+} from "@/lib/creative-review-copy";
+import { useCreativesSummary } from "@/components/ads/creatives-review-entry";
 
 /** Another save landed since Edit was opened; carries the newer record's setAt. */
 class GuardrailsChangedError extends Error {
@@ -63,7 +82,7 @@ const BUSINESS_ZONE = "__business__";
 
 export function GuardrailsCard() {
   const queryClient = useQueryClient();
-  // Shares the cache key with the declaration card and the optimizer board.
+  // Shares the cache key with the declaration card.
   const settings = useQuery({
     queryKey: ["growth-settings"],
     queryFn: () => growthApi.settings(),
@@ -71,6 +90,7 @@ export function GuardrailsCard() {
     refetchOnWindowFocus: false,
   });
   const stored = settings.data?.settings.guardrails;
+  const creatives = useCreativesSummary();
   const [draft, setDraft] = useState<GuardrailsDraft | null>(null);
   /** The stored record's `setAt` when Edit was opened, to catch a save made
    *  elsewhere in the meantime (review R1). */
@@ -157,8 +177,19 @@ export function GuardrailsCard() {
   if (!settings.data) return null;
 
   const lines = describeGuardrails(stored);
+  const assetsWarning = approvedAssetsWarning(creatives.data, stored?.approvedAssetsOnly === true);
+  const channelLine = approvedByChannelLine(creatives.data);
+  const assetsOffer = approvedAssetsOffer(
+    creatives.data,
+    stored?.approvedAssetsOnly === true || draft?.approvedAssetsOnly === true,
+  );
   // (zoneItems is memoised above the early return.)
   const set = (over: Partial<GuardrailsDraft>) => setDraft((d) => (d ? { ...d, ...over } : d));
+  // The list the channel boxes edit, and its setter — one place keyed by mode.
+  const channelList = draft ? (draft.channelMode === "allow" ? draft.allowedChannels : draft.deniedChannels) : [];
+  const writeChannels = (next: string[]) =>
+    set(draft?.channelMode === "allow" ? { allowedChannels: next } : { deniedChannels: next });
+  const modeWarning = draft ? channelModeWarning(draft.channelMode, stored) : null;
 
   const submit = (expectedSetAt: string | undefined = baseSetAt) => {
     if (!draft) return;
@@ -217,24 +248,63 @@ export function GuardrailsCard() {
             </p>
           ))}
 
+        {!draft && assetsWarning && (
+          <p role="status" className="text-sm text-amber-700 dark:text-amber-400">
+            {assetsWarning}{" "}
+            <Link href={CREATIVE_REVIEW_PATH} className="underline underline-offset-2">
+              Review creatives
+            </Link>
+          </p>
+        )}
+
         {draft && (
           <div className="space-y-6">
             <fieldset className="space-y-2">
-              <legend className="text-sm font-medium">Never advertise on</legend>
+              <legend className="text-sm font-medium">Channel rule</legend>
+              {/* ★ONE CHANNEL RULE, TWO WAYS TO SAY IT (D-05b). "Only these"
+                  is not "never those" turned round: a channel Peakhour adds
+                  later is on under the first and off under the second. */}
+              <RadioGroup
+                value={draft.channelMode}
+                onValueChange={(v) => {
+                  // ★A stale refusal of the other mode must not linger (review R2).
+                  setFormError(null);
+                  set({ channelMode: v === "allow" ? "allow" : "deny" });
+                }}
+                className="gap-2"
+              >
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem id="guardrail-mode-deny" value="deny" />
+                  <Label htmlFor="guardrail-mode-deny" className="font-normal">
+                    Every channel except the ones I turn off
+                  </Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem id="guardrail-mode-allow" value="allow" />
+                  <Label htmlFor="guardrail-mode-allow" className="font-normal">
+                    Only the channels I choose &mdash; new channels stay off until I add them
+                  </Label>
+                </div>
+              </RadioGroup>
+            </fieldset>
+
+            {/* ★THE LEGEND SAYS WHAT A TICK MEANS (review R1): the same box is
+                "blocked" in one mode and "the only one allowed" in the other,
+                and a screen reader announces the group by its legend. */}
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium">
+                {draft.channelMode === "allow" ? "Advertise only on" : "Never advertise on"}
+              </legend>
               <div className="grid gap-2 sm:grid-cols-2">
-                {GUARDRAIL_CHANNELS.map((c) => {
+                {channelOptions(channelList, stored).map((c) => {
                   const id = `guardrail-channel-${c.key}`;
                   return (
                     <div key={c.key} className="flex items-center gap-2">
                       <Checkbox
                         id={id}
-                        checked={draft.deniedChannels.includes(c.key)}
+                        checked={channelList.includes(c.key)}
                         onCheckedChange={(v) =>
-                          set({
-                            deniedChannels: v
-                              ? [...draft.deniedChannels, c.key]
-                              : draft.deniedChannels.filter((k) => k !== c.key),
-                          })
+                          writeChannels(v ? [...channelList, c.key] : channelList.filter((k) => k !== c.key))
                         }
                       />
                       <Label htmlFor={id} className="font-normal">
@@ -244,7 +314,62 @@ export function GuardrailsCard() {
                   );
                 })}
               </div>
+              {modeWarning && (
+                <p role="status" className="text-xs text-amber-700 dark:text-amber-400">
+                  {modeWarning}
+                </p>
+              )}
             </fieldset>
+
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                {/* ★D-05c: NOT OFFERED WHILE THERE IS NOTHING TO APPROVE, and not
+                    while that is unknown — always while it is on, so it can be
+                    turned off. */}
+                <Switch
+                  id="guardrail-approved-assets"
+                  checked={draft.approvedAssetsOnly}
+                  disabled={assetsOffer !== "offer"}
+                  onCheckedChange={(v) => set({ approvedAssetsOnly: v })}
+                />
+                <Label htmlFor="guardrail-approved-assets">Only use creatives I have approved</Label>
+              </div>
+              {assetsOffer === "offer" ? (
+                <p className="text-xs text-muted-foreground">
+                  {/* ★SAYS WHAT "ON" COSTS (review R1): with nothing approved, the
+                      engine creates no ad of its own at all. */}
+                  Ads Peakhour creates on its own will carry only the wording and landing page of a creative you
+                  approved, as you approved it &mdash; so until you approve one, it creates none. Ads you set up
+                  yourself are not affected.{" "}
+                  {channelLine ? `${channelLine} ` : ""}
+                  <Link href={CREATIVE_REVIEW_PATH} className="underline underline-offset-2">
+                    Review your creatives
+                  </Link>
+                </p>
+              ) : assetsOffer === "nothing_to_approve" ? (
+                <p className="text-xs text-muted-foreground">
+                  {creatives.data ? nothingToApproveLine(creatives.data) : null}{" "}
+                  <Link href={CREATIVE_REVIEW_PATH} className="underline underline-offset-2">
+                    See your creatives
+                  </Link>
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {creatives.isError ? (
+                    <>
+                      We couldn&rsquo;t check whether you have creatives to approve, so this can&rsquo;t be turned on
+                      right now.{" "}
+                      {/* ★A way back from a failed check (review R2): it does not refetch on focus. */}
+                      <button type="button" className="underline underline-offset-2" onClick={() => creatives.refetch()}>
+                        Try again
+                      </button>
+                    </>
+                  ) : (
+                    "Checking your creatives…"
+                  )}
+                </p>
+              )}
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="guardrail-terms">Words and names no ad may use</Label>
@@ -443,7 +568,7 @@ export function GuardrailsCard() {
           <AlertDialogHeader>
             <AlertDialogTitle>Clear every guardrail?</AlertDialogTitle>
             <AlertDialogDescription>
-              Peakhour will be free to suggest and run ads on every channel, with any wording, at any time.
+              Peakhour will be free to suggest and run ads on every channel, with any wording or creative, at any time.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

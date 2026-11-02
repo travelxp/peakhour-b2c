@@ -88,6 +88,21 @@ export function formatMoney(amount: number, currency: string): string {
 }
 
 /**
+ * `formatMoney` for a surface that may NOT know the currency. Unknown (null,
+ * undefined, empty) formats as a bare number with no symbol — ★NEVER USD,
+ * because a "$" on an INR account is a false claim, not a default. The X Ads
+ * panel needs this: X's account object carries no currency, only its funding
+ * instruments do, and those can be missing, mixed, or not yet loaded.
+ */
+export function formatMoneyOrNumber(
+  amount: number,
+  currency: string | null | undefined,
+): string {
+  if (currency) return formatMoney(amount, currency);
+  return new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 2 }).format(amount);
+}
+
+/**
  * An amount beside its currency CODE — "USD 1,235" — the shape paid figures
  * print in (`paidNote`, the dashboard's Channels rows), so one quantity never
  * reads two ways on one page. `wholeUnits` for a spend; otherwise the

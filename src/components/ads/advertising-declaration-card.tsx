@@ -3,11 +3,10 @@
 /**
  * The business's one-time political-advertising declaration.
  *
- * WHY IT LIVES ON THE ADS PANEL AND NOT THE OPTIMIZER PAGE: the declaration
- * governs EVERY campaign create, not just the optimizer's. /dashboard/optimizer
- * is wrapped in FeatureGate on `growth.optimizer`, so a business entitled to
- * ads but not the optimizer could boost campaigns and never be able to declare
- * — the exact hole this closes.
+ * WHY IT LIVES ON THE ADS PANEL AND NOT A GROWTH SCREEN: the declaration
+ * governs EVERY campaign create, not just the engine's. The Growth screens are
+ * gated on the engine, so a business entitled to ads but not the engine could
+ * boost campaigns and never be able to declare — the exact hole this closes.
  *
  * WHY IT MOUNTS ABOVE THE CONNECTION GATE: a business can declare before or
  * after connecting, and the gate renders an EmptyState that would otherwise
@@ -157,7 +156,7 @@ export function AdvertisingDeclarationCard() {
   // and an effect would also race the query's first resolve.
   const [categories, setCategories] = useState<string[] | null>(null);
 
-  // Shares the cache key with the optimizer board, so declaring on either
+  // Shares the cache key with the guardrails card, so declaring on either
   // surface updates both without a refetch.
   const settings = useQuery({
     queryKey: ["growth-settings"],

@@ -11,7 +11,7 @@
 import type { Guardrails, GuardrailsPatch } from "@/lib/api/growth";
 import { isClock, isTimeZone } from "@/lib/control-plane";
 
-/** The channels a merchant can turn off, in the order the card lists them. */
+/** The channels a merchant can turn off or allow, in the order the card lists them. */
 export const GUARDRAIL_CHANNELS: ReadonlyArray<{ key: string; label: string }> = [
   { key: "linkedin", label: "LinkedIn" },
   { key: "meta", label: "Meta (Facebook & Instagram)" },
@@ -19,13 +19,68 @@ export const GUARDRAIL_CHANNELS: ReadonlyArray<{ key: string; label: string }> =
   { key: "google_ads", label: "Google Ads" },
 ];
 
+/**
+ * ★THE CHANNELS THE ENGINE ALLOWS, READ AS THE ENGINE READS THEM (review R2):
+ * an ARRAY is an allow list whatever it holds — a stored `[]` allows nothing
+ * (api `readGuardrails` fails closed) — and a channel both allowed and denied
+ * is refused (the api asks the deny list first). `null` = no allow list. One
+ * helper, so the form, the summary and the warning cannot read it three ways.
+ * (The validator refuses both lists together and an empty one; only a write
+ * that skips it leaves either.)
+ */
+export function effectiveAllowList(g: Guardrails | undefined): string[] | null {
+  if (!Array.isArray(g?.allowedChannels)) return null;
+  const denied = new Set(g.deniedChannels ?? []);
+  return g.allowedChannels.filter((k) => !denied.has(k));
+}
+
 /** mig 372's blackout cap, refused here in the api's terms. */
 export const MAX_BLACKOUTS = 50;
+
+/**
+ * The channel boxes for a list: the known channels, then any key the list
+ * holds that this build does not know (review R1) — a channel the api added
+ * since, which the merchant must be able to see and untick. Shown by its key.
+ */
+export function channelOptions(
+  list: readonly string[],
+  /** The stored rule's keys too (review R3): an unknown box must survive being
+   *  unticked, or it vanishes and cannot be ticked again. */
+  stored?: Guardrails,
+): ReadonlyArray<{ key: string; label: string }> {
+  const known = new Set(GUARDRAIL_CHANNELS.map((c) => c.key));
+  const keys = [...list, ...(stored?.allowedChannels ?? []), ...(stored?.deniedChannels ?? [])];
+  const extra = [...new Set(keys)].filter((k) => !known.has(k)).map((key) => ({ key, label: key }));
+  return [...GUARDRAIL_CHANNELS, ...extra];
+}
+
+/**
+ * What saving in this mode does to the STORED channel rule, when it is the
+ * other mode (review R1): leaving an allow list silently let every channel —
+ * and every later one — back in.
+ */
+export function channelModeWarning(mode: GuardrailsDraft["channelMode"], stored: Guardrails | undefined): string | null {
+  const storedAllow = effectiveAllowList(stored) !== null;
+  if (mode === "deny" && storedAllow) {
+    return "Saving replaces your allow list: every channel you don't turn off here — including ones Peakhour adds later — will be allowed.";
+  }
+  if (mode === "allow" && !storedAllow && (stored?.deniedChannels?.length ?? 0) > 0) {
+    return "Saving replaces the channels you turned off: only the channels you tick here will be allowed.";
+  }
+  return null;
+}
 /** The api's RAW term cap (its request schema), before normalising (R2). */
 export const MAX_RAW_TERM_LENGTH = 200;
 
 export interface GuardrailsDraft {
+  /** D-05b: which channel rule the form edits — "every channel except" the
+   *  denied ones, or "only" the allowed ones. ★One rule: the api refuses both
+   *  (mig 445), and only the chosen list is sent. */
+  channelMode: "deny" | "allow";
   deniedChannels: string[];
+  allowedChannels: string[];
+  /** D-05b: ads the engine creates carry only creatives a person approved. */
+  approvedAssetsOnly: boolean;
   /** The textarea, as typed: ONE TERM PER LINE. */
   termsText: string;
   quietEnabled: boolean;
@@ -81,8 +136,14 @@ export function parseTerms(text: string): string[] {
  * where the merchant could not see them. Saving drops them.
  */
 export function draftFromStored(g: Guardrails | undefined, today: string = todayIn(g?.timeZone)): GuardrailsDraft {
+  // ★AS THE ENGINE READS IT (`effectiveAllowList`, review R2): an allow list
+  //  is the rule when one is stored, and the form opens on what it allows.
+  const allow = effectiveAllowList(g);
   return {
-    deniedChannels: [...(g?.deniedChannels ?? [])],
+    channelMode: allow !== null ? "allow" : "deny",
+    deniedChannels: allow !== null ? [] : [...(g?.deniedChannels ?? [])],
+    allowedChannels: allow ?? [],
+    approvedAssetsOnly: g?.approvedAssetsOnly === true,
     termsText: (g?.blockedTerms ?? []).join("\n"),
     quietEnabled: !!g?.quietHours,
     quietStart: g?.quietHours?.start ?? "22:00",
@@ -107,7 +168,19 @@ export function draftFromStored(g: Guardrails | undefined, today: string = today
  */
 export function buildGuardrailsPatch(
   draft: GuardrailsDraft,
-): { ok: true; patch: Required<Omit<GuardrailsPatch, "timeZone">> & Pick<GuardrailsPatch, "timeZone"> } | { ok: false; error: string } {
+):
+  | {
+      ok: true;
+      patch: Required<Omit<GuardrailsPatch, "timeZone" | "allowedChannels" | "approvedAssetsOnly">> &
+        Pick<GuardrailsPatch, "timeZone" | "allowedChannels" | "approvedAssetsOnly">;
+    }
+  | { ok: false; error: string } {
+  // ★D-05b: an allow list of nothing would read as "stop everything" and stop
+  //  nothing that is already running; that is Stop all ads (the api refuses it too).
+  const allowed = [...new Set(draft.allowedChannels)];
+  if (draft.channelMode === "allow" && allowed.length === 0) {
+    return { ok: false, error: "Choose at least one channel to allow. To stop advertising, pause your campaigns." };
+  }
   // ★The api's RAW cap, before it normalises (R2): a longer line is refused by
   //  its request schema as "Invalid body", which names nothing.
   const terms = parseTerms(draft.termsText);
@@ -146,7 +219,13 @@ export function buildGuardrailsPatch(
   return {
     ok: true,
     patch: {
-      deniedChannels: [...new Set(draft.deniedChannels)],
+      // ★ONE CHANNEL RULE (D-05b): the other list is sent empty, so the
+      //  record is replaced whole and never holds both.
+      deniedChannels: draft.channelMode === "allow" ? [] : [...new Set(draft.deniedChannels)],
+      ...(draft.channelMode === "allow" ? { allowedChannels: allowed } : {}),
+      // ★ONLY WHEN ON (review R1): off stores nothing either way (the
+      //  record is written whole), and an api without D-05b refuses the key.
+      ...(draft.approvedAssetsOnly ? { approvedAssetsOnly: true } : {}),
       blockedTerms: terms,
       quietHours: draft.quietEnabled ? { start: draft.quietStart, end: draft.quietEnd } : null,
       blackoutDates: blackouts,
@@ -212,6 +291,8 @@ export function hasGuardrails(g: Guardrails | undefined): boolean {
   return (
     !!g &&
     ((g.deniedChannels?.length ?? 0) > 0 ||
+      Array.isArray(g.allowedChannels) ||
+      g.approvedAssetsOnly === true ||
       (g.blockedTerms?.length ?? 0) > 0 ||
       !!g.quietHours ||
       (g.blackoutDates?.length ?? 0) > 0)
@@ -223,8 +304,18 @@ export function describeGuardrails(g: Guardrails | undefined, today: string = to
   if (!g) return [];
   const out: string[] = [];
   const label = (k: string) => GUARDRAIL_CHANNELS.find((c) => c.key === k)?.label ?? k;
-  if (g.deniedChannels?.length) {
+  // ★The allow list is the rule when one is stored (see draftFromStored).
+  const allow = effectiveAllowList(g);
+  if (allow && allow.length === 0) {
+    // ★The engine refuses every channel for an empty allow list; say so.
+    out.push("Advertises on no channel — none is allowed. Edit to choose channels.");
+  } else if (allow) {
+    out.push(`Advertises only on ${allow.map(label).join(", ")} — a channel Peakhour adds later stays off until you allow it.`);
+  } else if (g.deniedChannels?.length) {
     out.push(`Never advertises on ${g.deniedChannels.map(label).join(", ")}.`);
+  }
+  if (g.approvedAssetsOnly) {
+    out.push("Creates ads only from creatives you have approved.");
   }
   if (g.blockedTerms?.length) {
     const n = g.blockedTerms.length;

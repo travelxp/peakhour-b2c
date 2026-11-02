@@ -25,7 +25,7 @@ const pillars: NavGroupLike<Item>[] = [
       { href: "/dashboard/integrations", label: "Integrations" },
       { href: "/dashboard/inbox", label: "Inbox" },
       { href: "/dashboard/content", label: "Content" },
-      { href: "/dashboard/ads", label: "Growth" },
+      { href: "/dashboard/growth", label: "Growth" },
       { href: "/dashboard/commerce", label: "Commerce" },
       { href: "/dashboard/presence", label: "Presence" },
       { href: "/dashboard/insights/analytics", label: "Insights" },
@@ -35,7 +35,7 @@ const pillars: NavGroupLike<Item>[] = [
   },
 ];
 
-const home: Item = { href: "/dashboard/outcomes", label: "Outcomes" };
+const home: Item = { href: "/dashboard/pulse", label: "Pulse" };
 
 const hrefs = (groups: NavGroupLike<Item>[]) => groups.flatMap((g) => g.items).map((i) => i.href);
 
@@ -67,7 +67,7 @@ describe("funnelNav", () => {
     const out = funnelNav(pillars, home);
     expect(out[0].label).toBe("");
     expect(out[0].items.map((i) => i.href)).toEqual([
-      "/dashboard/outcomes",
+      "/dashboard/pulse",
       "/dashboard/integrations",
       "/dashboard/inbox",
     ]);
@@ -86,7 +86,7 @@ describe("funnelNav", () => {
     const out = funnelNav(pillars, home);
     const byLabel = Object.fromEntries(out.map((g) => [g.label, g.items.map((i) => i.href)]));
     expect(byLabel.Found).toEqual(["/dashboard/presence"]);
-    expect(byLabel.Chosen).toEqual(["/dashboard/content", "/dashboard/ads"]);
+    expect(byLabel.Chosen).toEqual(["/dashboard/content", "/dashboard/growth"]);
     expect(byLabel.Convinced).toEqual([
       "/dashboard/insights/analytics",
       "/dashboard/commerce",
@@ -131,14 +131,14 @@ describe("funnelNav", () => {
     // occurrence count is 1 either way, so "exactly once" cannot catch it.
     type Gated = Item & { feature?: string; subItems?: { href: string }[] };
     const real: Gated = {
-      href: "/dashboard/outcomes",
-      label: "Outcomes",
+      href: "/dashboard/pulse",
+      label: "Pulse",
       feature: "growth.nav",
-      subItems: [{ href: "/dashboard/outcomes/value" }],
+      subItems: [{ href: "/dashboard/pulse/value" }],
     };
     const withReal: NavGroupLike<Gated>[] = [{ label: "", items: [...pillars[0].items, real] }];
     const out = funnelNav(withReal, home as Gated);
-    const emitted = out.flatMap((g) => g.items).find((i) => i.href === "/dashboard/outcomes");
+    const emitted = out.flatMap((g) => g.items).find((i) => i.href === "/dashboard/pulse");
     expect(emitted).toBe(real);
     expect(emitted?.feature).toBe("growth.nav");
   });
@@ -152,7 +152,7 @@ describe("funnelNav", () => {
       { label: "", items: [...pillars[0].items, home] },
     ];
     const out = hrefs(funnelNav(withHome, home));
-    expect(out.filter((h) => h === "/dashboard/outcomes")).toHaveLength(1);
+    expect(out.filter((h) => h === "/dashboard/pulse")).toHaveLength(1);
   });
 
   it("★removes the promoted route from whichever parent held it as a subitem", () => {
@@ -166,22 +166,22 @@ describe("funnelNav", () => {
         label: "",
         items: [
           {
-            href: "/dashboard/ads",
+            href: "/dashboard/growth",
             label: "Growth",
-            subItems: [{ href: "/dashboard/ads" }, { href: "/dashboard/outcomes" }],
+            subItems: [{ href: "/dashboard/growth" }, { href: "/dashboard/pulse" }],
           },
         ],
       },
     ];
     const out = funnelNav(withSubs, home as WithSubs);
-    const growth = out.flatMap((g) => g.items).find((i) => i.href === "/dashboard/ads");
-    expect(growth?.subItems?.map((s) => s.href)).toEqual(["/dashboard/ads"]);
+    const growth = out.flatMap((g) => g.items).find((i) => i.href === "/dashboard/growth");
+    expect(growth?.subItems?.map((s) => s.href)).toEqual(["/dashboard/growth"]);
     // ★AND THE ORIGINAL IS NOT MUTATED. The pillar navigation is a module-scope
     // constant shared with the un-flagged render; editing it in place would
     // change what a merchant WITHOUT the flag sees.
     expect(withSubs[0].items[0].subItems?.map((s) => s.href)).toEqual([
-      "/dashboard/ads",
-      "/dashboard/outcomes",
+      "/dashboard/growth",
+      "/dashboard/pulse",
     ]);
   });
 });
@@ -212,7 +212,7 @@ describe("the flag itself", () => {
     vi.resetModules();
     vi.stubEnv("NEXT_PUBLIC_OUTCOMES_HOME", "true");
     const on = await import("./nav-home");
-    expect(on.HOME_ROUTE).toBe("/dashboard/outcomes");
+    expect(on.HOME_ROUTE).toBe("/dashboard/growth");
 
     vi.resetModules();
     vi.stubEnv("NEXT_PUBLIC_OUTCOMES_HOME", "");
@@ -234,7 +234,7 @@ describe("landingRoute", () => {
     vi.resetModules();
     vi.stubEnv("NEXT_PUBLIC_OUTCOMES_HOME", "true");
     const on = await import("./nav-home");
-    expect(on.landingRoute("/dashboard/overview")).toBe("/dashboard/outcomes");
+    expect(on.landingRoute("/dashboard/overview")).toBe("/dashboard/growth");
 
     vi.resetModules();
     vi.stubEnv("NEXT_PUBLIC_OUTCOMES_HOME", "");

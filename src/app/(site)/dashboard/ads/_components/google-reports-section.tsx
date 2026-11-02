@@ -1,0 +1,222 @@
+"use client";
+
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { googleAdsApi, type GoogleAdAccount, type GoogleAccountReportRow, type GoogleReport, type GoogleReportKey } from "@/lib/api/google-ads";
+import {
+  GOOGLE_REPORT_COLUMNS,
+  GOOGLE_REPORT_DEFAULT_RANGE_LABEL,
+  GOOGLE_REPORT_TABS,
+  GOOGLE_REPORTS_MEASUREMENT_NOTE,
+  googleAccountHasNotServed,
+  googleAccountNotServedNote,
+  googleReportEmptySentence,
+  googleReportLatestDay,
+  googleReportErrorMessage,
+  googleReportRangeProblem,
+  googleReportRangeSentence,
+  googleReportTruncatedNote,
+  type GoogleReportColumn,
+} from "@/lib/google-reports-view";
+
+/**
+ * ★★G-14d — Google's own reports on the Google panel: the six tables Google's
+ * Required Minimum Functionality asks for (R.10 Account, R.20 Campaign, R.40
+ * Ad, R.50 Keyword, R.70 Search term, R.130 Bidding strategy), every required
+ * column shown by default (`lib/google-reports-view.ts` owns the columns and
+ * the words).
+ *
+ * ★ONE TABLE AT A TIME, READ LIVE. Each table is one Google Ads query, one
+ * operation against the project's daily quota (peakhour-api
+ * `services/ads/google-reports.ts` has the live-or-cache decision), so only
+ * the table on screen is read, kept five minutes, and nothing is prefetched.
+ *
+ * ★LAST 30 DAYS BY DEFAULT, or a custom range (RMF's date-range
+ * recommendation). Days are the account's: Google reads a range in the
+ * account's time zone.
+ *
+ * Its own file so the panel only mounts it (G14a mounts into the same panel).
+ */
+
+const REPORT_STALE_MS = 5 * 60_000;
+
+type AppliedRange = { from: string; to: string } | null;
+
+export function GoogleReportsSection({ account }: { account: GoogleAdAccount }) {
+  const [tab, setTab] = useState<GoogleReportKey>("account");
+  const [mode, setMode] = useState<"last30" | "custom">("last30");
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [applied, setApplied] = useState<AppliedRange>(null);
+  const latestDay = googleReportLatestDay(new Date());
+  const problem = mode === "custom" ? googleReportRangeProblem(from, to, latestDay) : null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Google Ads reports</CardTitle>
+        <CardDescription>{GOOGLE_REPORTS_MEASUREMENT_NOTE}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Dates</Label>
+            <Select
+              value={mode}
+              onValueChange={(v) => {
+                const next = v === "custom" ? "custom" : "last30";
+                setMode(next);
+                // ★BACK TO THE DEFAULT CLEARS THE CUSTOM DAYS (review round 1): typed
+                //  days reappearing beside last-30-day figures read as their range.
+                if (next === "last30") {
+                  setApplied(null);
+                  setFrom("");
+                  setTo("");
+                }
+              }}
+            >
+              <SelectTrigger className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="last30">{GOOGLE_REPORT_DEFAULT_RANGE_LABEL}</SelectItem>
+                <SelectItem value="custom">Custom range</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {mode === "custom" ? (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="google-report-from" className="text-xs text-muted-foreground">
+                  From
+                </Label>
+                <Input id="google-report-from" type="date" value={from} max={latestDay} onChange={(e) => setFrom(e.target.value)} className="w-40" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="google-report-to" className="text-xs text-muted-foreground">
+                  To
+                </Label>
+                <Input id="google-report-to" type="date" value={to} max={latestDay} onChange={(e) => setTo(e.target.value)} className="w-40" />
+              </div>
+              <Button type="button" variant="outline" disabled={problem !== null} onClick={() => setApplied({ from, to })}>
+                Show
+              </Button>
+              {problem && (from || to) ? <p className="w-full text-xs text-muted-foreground">{problem}</p> : null}
+            </>
+          ) : null}
+        </div>
+
+        <Tabs value={tab} onValueChange={(v) => setTab(v as GoogleReportKey)}>
+          <TabsList className="flex h-auto flex-wrap">
+            {GOOGLE_REPORT_TABS.map((t) => (
+              <TabsTrigger key={t.key} value={t.key}>
+                {t.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+
+        {/* Only the table on screen is read: its query key is the account, the table and the range. */}
+        <ReportTable account={account} report={tab} range={applied} />
+      </CardContent>
+    </Card>
+  );
+}
+
+function ReportTable({ account, report, range }: { account: GoogleAdAccount; report: GoogleReportKey; range: AppliedRange }) {
+  const meta = GOOGLE_REPORT_TABS.find((t) => t.key === report)!;
+  const query = useQuery({
+    queryKey: ["google-ads-report", account.id, report, range?.from ?? null, range?.to ?? null],
+    queryFn: () => googleAdsApi.getReport(report, account.id, range ?? undefined),
+    retry: false,
+    staleTime: REPORT_STALE_MS,
+    // ★EACH READ IS A GOOGLE ADS OPERATION (review round 1): a tab refocus is
+    //  not a merchant asking again. A remount re-reads only past the five
+    //  minutes (react-query's default), so nothing older is shown (round 2).
+    refetchOnWindowFocus: false,
+  });
+
+  // ★`isPending`, NOT `isLoading` (review round 1): a query paused offline has
+  //  no data and no error, and `isLoading` is false then — the table would
+  //  read as an account that never served.
+  if (query.isPending) {
+    return (
+      <div className="space-y-2">
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+        <Skeleton className="h-8 w-full" />
+      </div>
+    );
+  }
+  // A failed read is NOT an empty report.
+  if (query.isError) {
+    // ★A WAY TO "TRY AGAIN" (review round 2): nothing re-reads by itself here
+    //  (no retry, no refocus read), so the sentence needs its button.
+    return (
+      <div className="space-y-2">
+        <p className="text-sm text-destructive-on-tint">{googleReportErrorMessage(query.error)}</p>
+        <Button type="button" variant="outline" size="sm" disabled={query.isFetching} onClick={() => void query.refetch()}>
+          Try again
+        </Button>
+      </div>
+    );
+  }
+  const data = query.data as GoogleReport | undefined;
+  const rows = data?.rows ?? [];
+  const columns = GOOGLE_REPORT_COLUMNS[report] as ReadonlyArray<GoogleReportColumn<(typeof rows)[number]>>;
+  // ★THE ACCOUNT'S CURRENCY, ELSE GOOGLE'S OWN (review round 1): the account
+  //  list may not carry one; the account report's row does.
+  // `||`, as the panel reads it (round 2): an empty code is no code.
+  const currency = account.currencyCode || (report === "account" ? (rows[0] as GoogleAccountReportRow | undefined)?.currencyCode : undefined);
+  const notServed = report === "account" && rows.length > 0 && googleAccountHasNotServed(rows as GoogleAccountReportRow[]);
+
+  return (
+    <div className="space-y-2">
+      {/* ★WHICH DAYS THESE ARE, from the api's own answer (review round 1): the
+          inputs above may hold days not yet shown. */}
+      {data ? <p className="text-sm font-medium">{googleReportRangeSentence(data.range)}</p> : null}
+      <p className="text-xs text-muted-foreground">{meta.note}</p>
+      {rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{googleReportEmptySentence(report, account)}</p>
+      ) : (
+        <>
+          {notServed ? <p className="text-sm text-muted-foreground">{googleAccountNotServedNote(account)}</p> : null}
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {columns.map((c) => (
+                    <TableHead key={c.key} className={c.numeric ? "text-right" : undefined}>
+                      {c.header}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((row, i) => (
+                  // A read-only table, never reordered in place: the position is its key.
+                  <TableRow key={i}>
+                    {columns.map((c) => (
+                      <TableCell key={c.key} className={c.numeric ? "text-right tabular-nums" : undefined}>
+                        {c.cell(row, currency)}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          {data?.truncated ? <p className="text-xs text-muted-foreground">{googleReportTruncatedNote(rows.length)}</p> : null}
+        </>
+      )}
+    </div>
+  );
+}

@@ -29,7 +29,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/molecules/empty-state";
-import { useCreditsRateCard } from "@/hooks/use-credits";
 import {
   metaAdsApi,
   type MetaAdAccount,
@@ -39,13 +38,12 @@ import {
   type MetaSettableStatus,
 } from "@/lib/api/meta-ads";
 import {
-  META_LAUNCH_USE_CASE,
+  META_LAUNCH_NOTE,
   formatMetaMoney,
   metaAdsErrorMessage,
   metaAdsNeedsReconnect,
   metaBudgetLabel,
   metaInsightsRange,
-  metaLaunchChargeSentence,
   metaNotServingBecause,
   metaStatusToggle,
   metaKpiState,
@@ -56,7 +54,7 @@ import {
   sumReported,
   type MetaKpiState,
 } from "@/lib/meta-ads-view";
-import { ADS_CHANNEL_PARAM, metaAdsConnectionState, type AdsChannelKey } from "../ads-channels";
+import { ADS_CHANNEL_PARAM, getAdsChannel, panelConnection, type AdsChannelKey } from "../ads-channels";
 
 /**
  * ★★M-16 — the Meta (Facebook + Instagram) panel, inside the shared Ads hub
@@ -121,15 +119,14 @@ export function MetaAdsPanel({ channelKey }: { channelKey: AdsChannelKey }) {
 
   // ★THE API REPORTS ONE `facebook` CONNECTION, NOT A `meta_ads` ONE, so the
   //  ads capability is derived — by the SAME rule the hub uses to pick this tab
-  //  (`metaAdsConnectionState`), so the two cannot disagree. ⚠️Review R1.2: a
+  //  (`metaAdsConnectionState`, through `panelConnection` as every panel
+  //  reads it, D-03b), so the two cannot disagree. ⚠️Review R1.2: a
   //  stale connection counts only if its Ads capability is on and it has an ad
   //  account; otherwise this is "Connect Meta", not a reconnect banner.
-  const state = useMemo(
-    () => metaAdsConnectionState(integrations.data?.integrations ?? []),
+  const { isConnected, needsReauth } = useMemo(
+    () => panelConnection(integrations.data?.integrations ?? [], getAdsChannel("meta")),
     [integrations.data],
   );
-  const needsReauth = state === "needs_reauth";
-  const isConnected = state !== "absent";
 
   if (integrations.isLoading) return <SkeletonStack />;
 
@@ -284,7 +281,6 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
 function CampaignsSection({ account }: { account: MetaAdAccount }) {
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
-  const rateCard = useCreditsRateCard();
 
   const campaigns = useQuery({
     queryKey: ["meta-ads-campaigns", account.id],
@@ -341,7 +337,6 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
     setStatus.mutate({ accountId: account.id, level, id, status });
   const pendingId = setStatus.isPending ? setStatus.variables?.id : undefined;
 
-  const launchRow = rateCard.data?.useCases.find((u) => u.useCase === META_LAUNCH_USE_CASE);
   // ⚠️Review R1.3 — the campaign read is consulted before the insights one; see
   //  `metaKpiState` for why `insights.isLoading` alone claimed Meta had reported nothing.
   const kpiState = metaKpiState({
@@ -461,9 +456,9 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
         </p>
       ) : null}
 
-      {/* ★§7.0.1 requirement 4 — the price is on screen BEFORE any switch is
-          pressed, from the rate card's own row, never a number typed here. */}
-      <p className="text-xs text-muted-foreground">{metaLaunchChargeSentence(launchRow)}</p>
+      {/* ★WHAT ACTIVATING COSTS is on screen BEFORE any switch is pressed. Since N2 the answer is "nothing": PeakHour charges
+          for verified outcomes, so there is no price to read from the rate card and none typed here. */}
+      <p className="text-xs text-muted-foreground">{META_LAUNCH_NOTE}</p>
     </div>
   );
 }
