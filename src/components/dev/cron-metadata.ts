@@ -1882,6 +1882,24 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
         : `${erased}. Nothing is left past the retention window.`;
     },
   },
+  "legal-hold-sweep": {
+    label: "Keep held conversations held",
+    frequency: "Runs hourly at 20 minutes past",
+    description:
+      "Holds any conversation created after a business-wide legal hold was placed, releases ones a half-finished lift left behind, and finishes a shopper's deletion that was waiting on a hold which has since been lifted.",
+    summarize: (data) => {
+      const d = data as { held?: number; released?: number; reasserted?: number; erased?: number } | null;
+      if (!d || typeof d.held !== "number") return null;
+      const parts = [
+        d.held ? `${d.held} new conversation${d.held === 1 ? "" : "s"} held` : "",
+        d.released ? `${d.released} released` : "",
+        d.erased ? `${d.erased} waiting deletion${d.erased === 1 ? "" : "s"} completed` : "",
+      ].filter(Boolean);
+      // A re-asserted expiry date means something else changed a held conversation's deadline: worth saying, never a plain success.
+      if (d.reasserted) return { message: `${[...parts, `${d.reasserted} expiry date${d.reasserted === 1 ? "" : "s"} put back`].join(", ")}.`, level: "warning" as const };
+      return parts.length ? `${parts.join(", ")}.` : "Nothing needed changing.";
+    },
+  },
   "org-deletion-executor": {
     label: "Close accounts that asked to be closed",
     frequency: "Runs daily at 3:50am UTC",

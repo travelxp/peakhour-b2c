@@ -45,6 +45,7 @@ import {
   unansweredBadge,
 } from "@/lib/review-reply";
 import { PageShell } from "@/components/dashboard/page-shell";
+import { HeldBadge, HoldsCard, ThreadHoldControl } from "@/components/inbox/legal-hold";
 import {
   canExportConversations,
   downloadConversationExport,
@@ -619,6 +620,8 @@ function InboxTabs() {
         </TabsContent>
 
         <TabsContent value="conversations" className="mt-4">
+          {/* Legal holds (H1): the business-wide hold and the held list. Owner/admin only; renders nothing for anyone else. */}
+          <HoldsCard role={role} onOpenThread={setSelected} />
           {/* H2: the same count the weekly email states. Shown only when something is about to be deleted. */}
           {expiry && (
             <div role="status" className="mb-4 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
@@ -719,7 +722,10 @@ function InboxTabs() {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="truncate text-sm font-medium">{conv.contactName || conv.waId}</span>
-                    <StatusPill status={conv.status} />
+                    <span className="flex shrink-0 items-center gap-1">
+                      <HeldBadge held={conv.held} />
+                      <StatusPill status={conv.status} />
+                    </span>
                   </div>
                   <span className="truncate text-xs text-muted-foreground">{conv.preview || "…"}</span>
                 </button>
@@ -741,10 +747,13 @@ function InboxTabs() {
                       {thread && (
                         <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                           <StatusPill status={thread.status} />
+                          <HeldBadge held={thread.held} />
                           <WindowBadge store={composerStore} threadId={thread.threadId} endsAt={thread.replyWindowEndsAt} />
                         </div>
                       )}
                     </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                    {thread && <ThreadHoldControl key={selected} threadId={selected} held={thread.held} role={role} />}
                     {canExport && (
                       <Button size="sm" variant="ghost" disabled={exporting} onClick={() => runExport(threadExportPath(selected))}>
                         Export
@@ -780,6 +789,7 @@ function InboxTabs() {
                         {handoff.isPending ? "…" : "Take over"}
                       </Button>
                     )}
+                    </div>
                   </div>
                   <div className="flex-1 space-y-2 overflow-y-auto bg-[#e5ddd5] p-3">
                     {threadState === "loading" && <Skeleton className="h-20 w-full" />}

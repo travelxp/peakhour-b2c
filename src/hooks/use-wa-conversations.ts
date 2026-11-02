@@ -22,6 +22,8 @@ export interface WaConversation {
   updatedAt: string | null;
   lastInboundAt: string | null;
   preview: string;
+  /** Under a legal hold (H1), and how: by name or because the whole business is. null = not held; absent = an older api. */
+  held?: "conversation" | "business" | null;
 }
 
 export interface WaMessage {
@@ -45,6 +47,8 @@ export interface WaThread {
   replyWindowEndsAt?: string | null;
   /** WA T2's compare-and-set version, on the read since api#1530 (see `resumeBody`). */
   statusVersion?: number;
+  /** Legal hold (H1): by name, or because the whole business is held; null = not held. */
+  held?: "conversation" | "business" | null;
   messages: WaMessage[];
 }
 
