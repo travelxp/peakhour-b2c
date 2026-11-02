@@ -3,6 +3,7 @@ import {
   canExportConversations,
   downloadConversationExport,
   expiryBanner,
+  keepWithinBusiness,
   exportFailure,
   filenameFrom,
   rangeExportPath,
@@ -106,5 +107,14 @@ describe("downloadConversationExport", () => {
     expect(calls.filter((c) => c.includes("/export"))).toHaveLength(2);
     vi.stubGlobal("fetch", vi.fn(async (u: string) => (u.includes("/auth/refresh") ? new Response("{}", { status: 401 }) : new Response("{}", { status: 401 }))));
     expect(await downloadConversationExport("/v1/export")).toEqual({ ok: false, message: exportFailure(401) });
+  });
+});
+
+describe("keepWithinBusiness", () => {
+  it("keeps the previous rows within one business and drops them across a business switch", () => {
+    const prev = { conversations: [1], expiringCount: 3 };
+    expect(keepWithinBusiness(prev, ["wa-conversations", "biz-a", "all"], "biz-a")).toBe(prev);
+    expect(keepWithinBusiness(prev, ["wa-conversations", "biz-a", "all"], "biz-b")).toBeUndefined();
+    expect(keepWithinBusiness(prev, undefined, "biz-a")).toBeUndefined();
   });
 });

@@ -118,3 +118,12 @@ export async function downloadConversationExport(path: string): Promise<ExportOu
     return { ok: false, message: exportFailure(500) };
   }
 }
+
+/**
+ * `placeholderData` for the conversations list: the previous rows stay on screen while the OTHER filter loads, but never
+ * across a business switch (the key is `["wa-conversations", business, mode]`), or business A's conversations and expiry
+ * banner would show under business B.
+ */
+export function keepWithinBusiness<T>(prev: T | undefined, prevKey: readonly unknown[] | undefined, businessId: string): T | undefined {
+  return prevKey?.[1] === businessId ? prev : undefined;
+}

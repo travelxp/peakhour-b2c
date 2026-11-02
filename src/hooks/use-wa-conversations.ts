@@ -1,6 +1,7 @@
 "use client";
 
-import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { keepWithinBusiness } from "@/lib/wa-conversation-export";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import {
@@ -77,7 +78,8 @@ export function useWaConversations(opts?: { expiringOnly?: boolean }) {
     enabled: Boolean(business?._id),
     refetchInterval: 30_000, // inbox stays roughly live
     // toggling the filter keeps the rows and the banner on screen until the other list arrives
-    placeholderData: keepPreviousData,
+    // ...but ONLY within one business: switching business must not show the previous business's list or banner
+    placeholderData: (prev, prevQuery) => keepWithinBusiness(prev, prevQuery?.queryKey, business?._id ?? "none"),
   });
   return {
     ...query,
