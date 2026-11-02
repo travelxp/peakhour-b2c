@@ -138,20 +138,6 @@ describe("activityCopy — §07's left column and 'what'", () => {
     expect(what.replace(/\bno instruction ran$/, "")).not.toMatch(/\b(ran|run|refused|chat\w*)\b/i);
   });
 
-  it("has no copy for the retired not_a_command: such a row is rendered by the unknown-outcome fallback, never dropped", () => {
-    // ✅mongodb 782 rewrote every `not_a_command` row to `conversation` and
-    //  dropped the value from `plt_activity`'s enum, so no row can carry it
-    //  and the map no longer has the key. If one ever did (an environment that
-    //  has not run 782), it still renders, under "Activity" with its own key.
-    for (const command of [null, "LAUNCH"]) {
-      expect(activityCopy(row({ outcome: "not_a_command", command }), DOMAINS)).toEqual({
-        group: "Activity",
-        what: "not_a_command",
-        refused: false,
-      });
-    }
-  });
-
   it("marks every refusal and no other outcome", () => {
     const refused = ["unknown_sender", "no_longer_a_member", "ambiguous_business", "command_denied"];
     const notRefused = STORED_OUTCOMES.filter((o) => !refused.includes(o));
@@ -164,7 +150,8 @@ describe("activityCopy — §07's left column and 'what'", () => {
   });
 
   it("covers exactly the ELEVEN outcomes plt_activity admits from migration 782", () => {
-    // ⚠️★★ELEVEN: mongodb 392 added `conversation` and 782 dropped `not_a_command`; `duplicate_skipped`
+    // ⚠️★★ELEVEN: mongodb 392 added `conversation`, 782 dropped
+    //  `not_a_command` (so it is in `absent` below: no copy, own key back); `duplicate_skipped`
     //  is a `PlatformInboundOutcome` the ledger deliberately never writes — *"a
     //  redelivery is not a second event"* — so copy for it would be copy for a
     //  row that cannot arrive. 🚫And `owner_only` / `not_your_domain` are
@@ -173,7 +160,7 @@ describe("activityCopy — §07's left column and 'what'", () => {
       // A recognised outcome never renders its own key back at the merchant.
       expect(activityCopy(row({ outcome }), DOMAINS).what, outcome).not.toBe(outcome);
     }
-    for (const absent of ["duplicate_skipped", "owner_only", "not_your_domain"]) {
+    for (const absent of ["duplicate_skipped", "owner_only", "not_your_domain", "not_a_command"]) {
       expect(activityCopy(row({ outcome: absent }), DOMAINS).what, absent).toBe(absent);
     }
   });

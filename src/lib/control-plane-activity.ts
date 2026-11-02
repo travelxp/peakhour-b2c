@@ -109,7 +109,7 @@ export const ACTIVITY_EMPTY_TEXT =
  * between and dropped `not_a_command` from `plt_activity`'s enum. So in an
  * environment that has run 782 no row can carry the old key, and this map no
  * longer has one (both keys read this one copy until then, so one event never
- * showed two ways). 782 ran on dev on 2026-11-02. ⚠️A production cut must
+ * showed two ways). ⚠️A production cut must
  * fast-forward peakhour-mongodb's `production` (so migrate-prod runs 782)
  * before peakhour-b2c's: a b2c build without this key, reading a database
  * 782 has not reached, shows an old row as the raw key under "Activity".
@@ -131,8 +131,9 @@ export const ACTIVITY_EMPTY_TEXT =
  *   path answered.
  * - Nothing in the row says which of these it was: no reply, no kind, and no
  *   trigger. 🚫A split by `occurredAt` at M3's deploy is one environment's
- *   date compiled into every environment, and 782 rewrites (where it has run,
- *   rewrote) pre-M3 rows with their original dates, after any such cutoff.
+ *   date compiled into every environment, and 782 rewrote pre-M3 rows to
+ *   `conversation` keeping their original dates, so any such cutoff would
+ *   misfile them.
  *
  * So the sentence says what holds in every case: nothing ran. The
  * `conversation` return sits before `executeMerchantCommand`, and an agent's
