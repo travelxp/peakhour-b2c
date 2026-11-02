@@ -287,7 +287,7 @@ function WaitingForReview({ items, preview }: { items: WaitingReviewView[]; prev
         <span className="text-xs text-muted-foreground">Not a decision: nothing is asked of you.</span>
       </div>
       <ul className="grid divide-y">
-        {items.map((w, i) => (
+        {items.map((w) => (
           <li key={w.id} className="grid gap-2 py-3 first:pt-0 last:pb-0">
             <h3 className="text-sm font-semibold">{w.title}</h3>
             <p className="text-sm text-muted-foreground">{w.body}</p>
