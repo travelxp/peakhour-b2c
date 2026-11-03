@@ -24,6 +24,31 @@ export interface WaConversation {
   preview: string;
   /** Under a legal hold (H1), and how: by name or because the whole business is. null = not held; absent = an older api. */
   held?: "conversation" | "business" | null;
+  /** Inbox phase 1: the assistant handed it to the team and nobody has picked it up. Absent = an older api. */
+  needsYou?: boolean;
+}
+
+/** A storefront chat summary (list row): a web visitor talking to the assistant on the store. Read-only. */
+export interface StorefrontChat {
+  threadId: string;
+  channel: "storefront";
+  /** Always "Storefront visitor": the row holds no name. */
+  contactName: string;
+  status: string;
+  updatedAt: string | null;
+  preview: string;
+  held?: "conversation" | "business" | null;
+}
+
+/** One storefront chat in full. `readOnly`: a web visitor cannot be messaged back. */
+export interface StorefrontThread {
+  threadId: string;
+  channel: "storefront";
+  contactName: string;
+  status: string;
+  held?: "conversation" | "business" | null;
+  readOnly: true;
+  messages: Array<{ role: string; content: string; timestamp: string | null }>;
 }
 
 export interface WaMessage {
@@ -49,6 +74,8 @@ export interface WaThread {
   statusVersion?: number;
   /** Legal hold (H1): by name, or because the whole business is held; null = not held. */
   held?: "conversation" | "business" | null;
+  /** Inbox phase 1: handed to the team by the assistant and not yet picked up. */
+  needsYou?: boolean;
   messages: WaMessage[];
 }
 
@@ -75,7 +102,15 @@ export function useWaConversations(opts?: { expiringOnly?: boolean }) {
   const query = useQuery({
     queryKey: key,
     queryFn: () =>
-      api.get<{ conversations: WaConversation[]; expiringCount?: number | null; expiringFrom?: string | null }>(
+      api.get<{
+        conversations: WaConversation[];
+        expiringCount?: number | null;
+        expiringFrom?: string | null;
+        /** Inbox phase 1: the connection behind the list. Absent = an older api (nothing is claimed). */
+        available?: boolean;
+        connected?: boolean;
+        needsReauth?: boolean;
+      }>(
         BASE,
         expiringOnly ? { expiring: "1" } : undefined,
       ),
@@ -92,6 +127,36 @@ export function useWaConversations(opts?: { expiringOnly?: boolean }) {
     expiringCount: query.data?.expiringCount ?? null,
     expiringFrom: query.data?.expiringFrom ?? null,
   };
+}
+
+/**
+ * The business's storefront chats (Inbox phase 1), most recent first. Read-only, and NOT behind the WhatsApp availability gate: a
+ * business whose WhatsApp is not on offer yet still reads its storefront chats. The key starts `["storefront-chats", business]`.
+ */
+export function useStorefrontChats(opts?: { expiringOnly?: boolean }) {
+  const { business } = useAuth();
+  const expiringOnly = Boolean(opts?.expiringOnly);
+  const query = useQuery({
+    queryKey: ["storefront-chats", business?._id ?? "none", expiringOnly ? "expiring" : "all"],
+    queryFn: () => api.get<{ conversations: StorefrontChat[] }>("/v1/storefront-chats", expiringOnly ? { expiring: "1" } : undefined),
+    enabled: Boolean(business?._id),
+    refetchInterval: 30_000,
+    // the expiry filter keeps the rows on screen until the other list arrives, ONLY within one business
+    placeholderData: (prev, prevQuery) => keepWithinBusiness(prev, prevQuery?.queryKey, business?._id ?? "none"),
+  });
+  return { ...query, chats: query.data?.conversations ?? [] };
+}
+
+/** One storefront chat's transcript. */
+export function useStorefrontThread(threadId: string | null) {
+  const { business } = useAuth();
+  return useQuery({
+    queryKey: ["storefront-thread", business?._id ?? "none", threadId],
+    queryFn: () => api.get<StorefrontThread>(`/v1/storefront-chats/${encodeURIComponent(threadId!)}`),
+    enabled: Boolean(business?._id && threadId),
+    // a visitor may still be talking: the open chat is re-read at the list's pace
+    refetchInterval: 30_000,
+  });
 }
 
 /** Load one thread's messages. */
