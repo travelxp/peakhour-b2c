@@ -111,6 +111,10 @@ describe("the composer's rich buttons", () => {
     expect(renderToStaticMarkup(<WaRichSend threadId="t" disabled={false} unknownSig={null} onSend={async () => true} />)).not.toContain("may not have arrived");
   });
 
+  it("a Messenger or Instagram conversation (same composer) is offered none of them: they are WhatsApp's", () => {
+    expect(here("wa-composer.tsx")).toMatch(/\{threadId\.startsWith\("whatsapp:"\) && \(\s*<WaRichSend/);
+  });
+
   it("an attachment's panel clears only when it was sent, so a refused send keeps what the person chose", () => {
     const src = here("wa-rich-send.tsx");
     expect(src).toMatch(/if \(sent\) \{\s*setFile\(null\);\s*setCaption\(""\);/);

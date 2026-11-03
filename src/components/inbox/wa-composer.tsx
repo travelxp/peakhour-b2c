@@ -268,7 +268,10 @@ export function WaComposer({
           disabled={mem.pending}
         />
         {/* Inbox rich messages: an image or PDF, a product card, a checkout link. Free-form, so only here, inside the 24-hour window. */}
-        <WaRichSend threadId={threadId} disabled={mem.pending} unknownSig={mem.attempt?.unknown ? mem.attempt.sig : null} onSend={send} />
+        {/* WhatsApp's only: a Messenger or Instagram conversation (this composer serves them too) takes text replies, and the api refuses the rest. */}
+        {threadId.startsWith("whatsapp:") && (
+          <WaRichSend threadId={threadId} disabled={mem.pending} unknownSig={mem.attempt?.unknown ? mem.attempt.sig : null} onSend={send} />
+        )}
         <div className="flex items-center justify-between gap-2">
           <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
             {/* ★SAVED REPLIES ARE FREE TEXT, SO THEY ARE OFFERED ONLY HERE, INSIDE THE 24-HOUR WINDOW: outside it the box is the template picker. */}
