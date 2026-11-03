@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { PageShell } from "@/components/dashboard/page-shell";
+import { WaTemplateApprovals } from "@/components/integrations/wa-template-approvals";
 import { STUDIO_LIST_CAP } from "@/lib/wa-studio-limits";
 import {
   addLanguageProblem,
@@ -630,6 +631,8 @@ export default function WhatsAppTemplatesPage() {
           Draft, check against WhatsApp policy, and submit message templates for approval — with a live preview.
         </p>
       </div>
+
+      <WaTemplateApprovals />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         {/* Editor */}

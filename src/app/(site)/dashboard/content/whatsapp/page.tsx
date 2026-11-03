@@ -1,5 +1,6 @@
 import { WhatsAppEmbeddedSignup } from "@/components/integrations/whatsapp-embedded-signup";
 import { PageShell } from "@/components/dashboard/page-shell";
+import { WaTemplateApprovals } from "@/components/integrations/wa-template-approvals";
 
 type ConnectSource = "peakhour" | "shopify" | "wordpress";
 
@@ -32,6 +33,8 @@ export default async function WhatsAppConnectPage({ searchParams }: Props) {
         shop={trimmedShop || undefined}
         source={normalizeSource(source)}
       />
+
+      <WaTemplateApprovals />
 
       <div className="rounded-lg border p-4">
         <h2 className="text-sm font-medium">Message templates</h2>
