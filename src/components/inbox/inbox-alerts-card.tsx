@@ -27,12 +27,14 @@ export function InboxAlertsCard({ role }: { role: string | null }) {
     setSaving(key);
     try {
       await updateProfile({ name: user.name, preferences: { inboxAlerts: alertsPatch(user.preferences?.inboxAlerts, key, value) } });
-      await refreshUser();
     } catch {
       toast.error("Couldn't save that. Try again in a moment.");
-    } finally {
       setSaving(null);
+      return;
     }
+    // saved. A refresh that fails only leaves the switch showing the old state until the next load: that is not "couldn't save".
+    await refreshUser().catch(() => undefined);
+    setSaving(null);
   }
 
   return (

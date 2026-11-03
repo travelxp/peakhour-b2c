@@ -373,7 +373,15 @@ function InboxHeader() {
 function InboxTabs() {
   // ★A search param, as the tab is (see below): an alert email links to `?tab=conversations&thread=<key>` and lands on that conversation.
   const params = useSearchParams();
-  const [selected, setSelected] = useState<string | null>(() => threadFromParam(params.get("thread")));
+  const threadParam = threadFromParam(params.get("thread"));
+  const [selected, setSelected] = useState<string | null>(threadParam);
+  // a second alert link followed while the Inbox is already open names another conversation: follow it (once per link, so choosing a
+  // different conversation afterwards is not undone)
+  const [seenThreadParam, setSeenThreadParam] = useState(threadParam);
+  if (threadParam !== seenThreadParam) {
+    setSeenThreadParam(threadParam);
+    if (threadParam) setSelected(threadParam);
+  }
   // ✅WA T4: the composer's inputs. (The ticking clock is read inside the badge and the composer, so a tick does not re-render the
   //  whole Inbox.)
   const { org, orgs } = useAuth();

@@ -141,6 +141,12 @@ describe("times", () => {
     expect(dayLabel("2026-11-02T23:00:00Z", NOW, "UTC")).toBe("Yesterday");
     expect(dayLabel("2026-10-20T10:00:00Z", NOW, "UTC")).toBe("20 Oct 2026");
   });
+  it("'Yesterday' is the calendar day before, also across a daylight-saving change", () => {
+    // New York sprang forward on 2026-03-08: 24 hours before 00:30 on the 9th is 23:30 on the 7th, which is NOT yesterday's date
+    const now = new Date("2026-03-09T04:30:00Z");
+    expect(dayLabel("2026-03-08T12:00:00Z", now, "America/New_York")).toBe("Yesterday");
+    expect(dayLabel("2026-03-07T12:00:00Z", now, "America/New_York")).toBe("7 Mar 2026");
+  });
   it("the same instant is on different days in different zones (the day is the viewer's)", () => {
     expect(dayLabel("2026-11-02T22:00:00Z", NOW, "UTC")).toBe("Yesterday");
     expect(dayLabel("2026-11-02T22:00:00Z", NOW, "Asia/Kolkata")).toBe("Today");
@@ -202,6 +208,13 @@ describe("the unread dot", () => {
     const marks = loadReadMarks(null, "k", NOW);
     const r = row("2026-11-03T15:00:00Z");
     expect(isUnread(r, markRead(marks, r, NOW))).toBe(false);
+  });
+  it("the baseline from the FIRST visit survives a visit in which nothing was opened, so a message that came in meanwhile is unread", () => {
+    const store = mem();
+    saveReadMarks(store, "k", loadReadMarks(store, "k", NOW));
+    const later = loadReadMarks(store, "k", new Date("2026-11-05T09:00:00Z"));
+    expect(later.baseline).toBe(NOW.toISOString());
+    expect(isUnread(row("2026-11-04T10:00:00Z"), later)).toBe(true);
   });
   it("marks survive a reload through storage, and are per person and per business", () => {
     const store = mem();

@@ -63,6 +63,9 @@ import {
  * separate views with a back button. Every decision is in `lib/inbox-view.ts` (tested); this is the markup and the wiring.
  */
 
+/** Within this many pixels of the end counts as "at the bottom". */
+const NEAR_BOTTOM_PX = 80;
+
 /** One line of either kind of conversation: a storefront line has no source or author. */
 interface Line {
   role: string;
@@ -150,18 +153,27 @@ export function ConversationsPane({
   // ── the unread dot: kept in this browser ──────────────────────────────────────────────────────────────────────────────
   const marksKey = readMarksKey(user?._id, business?._id);
   const [marks, setMarks] = useState<ReadMarks | null>(null);
+  const storage = typeof window === "undefined" ? null : window.localStorage;
   useEffect(() => {
     // read after mount: storage does not exist on the server render
-    setMarks(loadReadMarks(typeof window === "undefined" ? null : window.localStorage, marksKey, new Date()));
-  }, [marksKey]);
-  const open = (row: Pick<InboxRow, "threadId" | "activityAt">) => {
-    onSelect(row.threadId);
-    setMarks((prev) => {
-      const next = markRead(prev ?? loadReadMarks(null, marksKey, new Date()), row, new Date());
-      saveReadMarks(typeof window === "undefined" ? null : window.localStorage, marksKey, next);
-      return next;
-    });
-  };
+    setMarks(loadReadMarks(storage, marksKey, new Date()));
+  }, [marksKey, storage]);
+  // ★EVERY CHANGE IS SAVED, THE FIRST LOAD INCLUDED. The baseline ("this browser first saw the Inbox") is only a baseline if it
+  //  survives a visit in which nothing was opened; saved only on a click, it was "now" again on every load and the dot missed
+  //  everything that arrived while the merchant was away. (A side effect, so it is here and not inside a state updater.)
+  useEffect(() => {
+    if (marks) saveReadMarks(storage, marksKey, marks);
+  }, [marks, marksKey, storage]);
+  // ★THE OPEN CONVERSATION IS READ, HOWEVER IT WAS OPENED (a click, an alert email's link, the Manage list) AND WHILE IT STAYS OPEN:
+  //  a message that arrives on the poll of a conversation you are looking at does not bring its dot back.
+  const selectedActivity = selected ? (rows.find((r) => r.threadId === selected)?.activityAt ?? null) : null;
+  useEffect(() => {
+    if (!selected || !marks) return;
+    const row = { threadId: selected, activityAt: selectedActivity };
+    const unread = selectedActivity ? isUnread(row, marks) : marks.reads[selected] === undefined;
+    if (unread) setMarks(markRead(marks, row, new Date()));
+  }, [selected, selectedActivity, marks]);
+  const open = (row: Pick<InboxRow, "threadId">) => onSelect(row.threadId);
 
   // ── the open conversation ─────────────────────────────────────────────────────────────────────────────────────────────
   const selectedChannel = selected ? channelOfThread(selected) : null;
@@ -207,14 +219,22 @@ export function ConversationsPane({
   // ── open at the newest message ────────────────────────────────────────────────────────────────────────────────────────
   const scroller = useRef<HTMLDivElement>(null);
   const lastShown = messages?.length ?? 0;
+  // ★ONLY WHILE THE READER IS AT THE BOTTOM (or has just opened the conversation): the thread polls, and a new message must not
+  //  yank someone away from the earlier ones they scrolled up to read.
+  const atBottom = useRef(true);
+  useEffect(() => {
+    atBottom.current = true;
+  }, [selected]);
   useEffect(() => {
     const el = scroller.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (el && atBottom.current) el.scrollTop = el.scrollHeight;
   }, [selected, lastShown]);
 
   const panes = paneClasses(selected);
   const now = new Date();
   const days = useMemo(() => groupByDay(messages ?? [], new Date()), [messages]);
+  // a bubble's key is its place in the whole conversation, not in its day, so a message arriving never re-keys the ones before it
+  const lineKeys = useMemo(() => new Map((messages ?? []).map((m, i) => [m, i] as const)), [messages]);
   const contactName = selectedChannel === "storefront" ? sfThread?.contactName : waThread?.contactName;
   const takeover = waThread ? handoverAction(waThread.status) : null;
 
@@ -359,16 +379,23 @@ export function ConversationsPane({
                 }
               />
               {hold.dialog}
-              <div ref={scroller} className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-muted/40 p-3">
+              <div
+                ref={scroller}
+                onScroll={(e) => {
+                  const el = e.currentTarget;
+                  atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
+                }}
+                className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-muted/40 p-3"
+              >
                 {threadState === "loading" && <Skeleton className="h-20 w-full" />}
                 {threadState === "paused" && <WaitingForConnection what="messages" />}
                 {threadState === "error" && <p className="p-4 text-center text-sm text-muted-foreground">Couldn&apos;t load this conversation. Try again in a moment.</p>}
-                {days.map((g) => (
-                  <div key={g.key} className="space-y-2">
+                {days.map((g, gi) => (
+                  <div key={g.key + gi} className="space-y-2">
                     <DaySeparator label={g.label} />
-                    {g.items.map((m, i) => (
+                    {g.items.map((m) => (
                       <Bubble
-                        key={`${g.key}-${i}`}
+                        key={lineKeys.get(m) ?? 0}
                         role={m.role}
                         content={m.content}
                         time={clockLabel(m.timestamp)}

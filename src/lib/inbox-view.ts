@@ -218,13 +218,16 @@ export function clockLabel(iso: string | null | undefined, timeZone?: string): s
 
 const dayKey = (t: number, timeZone?: string): string => new Date(t).toLocaleDateString("en-CA", { ...(timeZone ? { timeZone } : {}) });
 
+/** The calendar day before a `YYYY-MM-DD` key. ★CALENDAR ARITHMETIC, NOT "24 hours ago": on a daylight-saving day that lands on the same date. */
+const dayBefore = (key: string): string => new Date(Date.parse(`${key}T00:00:00Z`) - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
 /** "Today", "Yesterday", or "3 Nov 2026". */
 export function dayLabel(iso: string | null | undefined, now: Date, timeZone?: string): string {
   const t = time(iso ?? null);
   if (!t) return "";
   const day = dayKey(t, timeZone);
   if (day === dayKey(now.getTime(), timeZone)) return "Today";
-  if (day === dayKey(now.getTime() - 24 * 60 * 60 * 1000, timeZone)) return "Yesterday";
+  if (day === dayBefore(dayKey(now.getTime(), timeZone))) return "Yesterday";
   return new Date(t).toLocaleDateString(LOCALE, { day: "numeric", month: "short", year: "numeric", ...(timeZone ? { timeZone } : {}) });
 }
 
