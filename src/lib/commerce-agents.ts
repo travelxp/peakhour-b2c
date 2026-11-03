@@ -3,7 +3,7 @@ export const AGENT_LABEL: Record<string, string> = {
   merchandiser: "Merchandiser",
   pricer: "Pricer",
   replenisher: "Replenisher",
-  concierge: "Concierge",
+  concierge: "Shopper chat",
   reputation: "Reputation",
   forecaster: "Forecaster",
 };

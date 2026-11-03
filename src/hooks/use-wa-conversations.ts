@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import type { CustomerPanelData, InboxPrices } from "@/lib/inbox-customer";
 import type { InboxState, StatusFilter } from "@/lib/inbox-view";
+import { deskListParams, type AssigneeFilter, type ResponseTimer, type ThreadAssignee } from "@/lib/inbox-desk";
 import {
   replyRequest,
   resumeBody,
@@ -30,6 +31,10 @@ export interface WaConversation {
   needsYou?: boolean;
   /** Inbox phase 2: Open / Needs you / Done. Absent = an older api. */
   state?: InboxState;
+  /** Team desk (I3a): who it is assigned to, its tags, and the first-reply timer (only in Needs you). Absent = an older api. */
+  assignee?: ThreadAssignee | null;
+  tagIds?: string[];
+  timer?: ResponseTimer | null;
 }
 
 /** A storefront chat summary (list row): a web visitor talking to the assistant on the store. Read-only. */
@@ -46,6 +51,10 @@ export interface StorefrontChat {
   state?: InboxState;
   /** The merchant's own "Test on your store" chat. */
   test?: boolean;
+  /** Team desk (I3a): who it is assigned to, its tags, and the first-reply timer (only in Needs you). Absent = an older api. */
+  assignee?: ThreadAssignee | null;
+  tagIds?: string[];
+  timer?: ResponseTimer | null;
 }
 
 /** One storefront chat in full. `readOnly`: a web visitor cannot be messaged back. */
@@ -58,6 +67,10 @@ export interface StorefrontThread {
   state?: InboxState;
   doneAt?: string | null;
   test?: boolean;
+  /** Team desk (I3a): who it is assigned to, its tags, and the first-reply timer (only in Needs you). Absent = an older api. */
+  assignee?: ThreadAssignee | null;
+  tagIds?: string[];
+  timer?: ResponseTimer | null;
   readOnly: true;
   messages: Array<{ role: string; content: string; timestamp: string | null }>;
 }
@@ -92,6 +105,10 @@ export interface WaThread {
   doneAt?: string | null;
   /** When the thread last changed (the api compares it when a person marks the conversation Done). */
   updatedAt?: string | null;
+  /** Team desk (I3a): who it is assigned to, its tags, and the first-reply timer (only in Needs you). Absent = an older api. */
+  assignee?: ThreadAssignee | null;
+  tagIds?: string[];
+  timer?: ResponseTimer | null;
   messages: WaMessage[];
 }
 
@@ -115,9 +132,13 @@ export interface ListView {
   expiringOnly?: boolean;
   status?: StatusFilter;
   q?: string;
+  /** Team desk (I3a): Mine / Unassigned (All = none), and one tag. A new value is a new query key, so the list starts again from its first page. */
+  assignee?: AssigneeFilter;
+  tag?: string | null;
 }
 
 const listParams = (view: ListView, cursor: string | undefined): Record<string, string> => ({
+  ...deskListParams({ assignee: view.assignee ?? "all", tag: view.tag ?? null }),
   ...(view.expiringOnly ? { expiring: "1" } : {}),
   ...(view.status ? { status: view.status } : {}),
   ...(view.q ? { q: view.q } : {}),
@@ -146,7 +167,7 @@ interface WaListPage {
  */
 export function useWaConversations(view: ListView = {}) {
   const { business } = useAuth();
-  const key = ["wa-conversations", business?._id ?? "none", view.expiringOnly ? "expiring" : "all", view.status ?? "any", view.q ?? ""];
+  const key = ["wa-conversations", business?._id ?? "none", view.expiringOnly ? "expiring" : "all", view.status ?? "any", view.q ?? "", view.assignee ?? "all", view.tag ?? ""];
   const query = useInfiniteQuery({
     queryKey: key,
     queryFn: ({ pageParam }) => {
@@ -185,7 +206,7 @@ interface StorefrontListPage {
  */
 export function useStorefrontChats(view: ListView & { enabled?: boolean } = {}) {
   const { business } = useAuth();
-  const key = ["storefront-chats", business?._id ?? "none", view.expiringOnly ? "expiring" : "all", view.status ?? "any"];
+  const key = ["storefront-chats", business?._id ?? "none", view.expiringOnly ? "expiring" : "all", view.status ?? "any", view.assignee ?? "all", view.tag ?? ""];
   const query = useInfiniteQuery({
     queryKey: key,
     queryFn: ({ pageParam }) => {

@@ -1,0 +1,383 @@
+/**
+ * The Inbox team desk (I3a): who a conversation is assigned to, the team's notes and tags, the first-reply timer, business hours and
+ * the pause of the shopper assistant. Every decision the screens make is here (tested); the components are markup and wiring.
+ *
+ * ★THE API COMPUTES THE TIMER AND THE LABELS. The page never recomputes a timer from timestamps and never retypes the note label
+ * or the pause copy: it shows what `GET /v1/inbox-desk/*` and the list rows carry.
+ */
+
+import { canReply } from "@/lib/wa-inbox-reply";
+
+// ── what the api sends ──────────────────────────────────────────────────────────────────────────────────────────────
+
+export interface ThreadAssignee {
+  userId: string;
+  name: string;
+}
+
+/** Server-computed, only on a conversation in Needs you. `paused`: the team is closed, so the clock is stopped. */
+export interface ResponseTimer {
+  state: "ok" | "amber" | "red";
+  elapsedMinutes: number;
+  targetMinutes: number;
+  paused: boolean;
+}
+
+export interface TeamMemberRef {
+  userId: string;
+  name: string;
+  role: string;
+}
+
+export interface DeskTag {
+  id: string;
+  name: string;
+}
+
+export interface DeskNote {
+  id: string;
+  body: string;
+  authorUserId: string;
+  authorName: string;
+  createdAt: string;
+}
+
+export interface DeskDay {
+  day: number;
+  open: string;
+  close: string;
+}
+
+export interface DeskSettings {
+  aiPaused: boolean;
+  aiPausedAt: string | null;
+  autoAssign: { enabled: boolean; availableUserIds: string[] };
+  firstResponseMinutes: number;
+  hours: { enabled: boolean; timezone: string; days: DeskDay[] } | null;
+  awayMessage: string | null;
+}
+
+export interface AiPauseCopy {
+  title: string;
+  on: string;
+  off: string;
+  notEmergencyStop: string;
+}
+
+export interface DeskSettingsResponse {
+  settings: DeskSettings;
+  defaults: { awayMessage: string; opensToken: string };
+  aiPauseCopy: AiPauseCopy;
+}
+
+// ── who may do what (the api's requireRole is the real gate; this decides what to show) ────────────────────────────
+
+/** Assign, tag and note a conversation: the api's `requireRole("editor")`. A viewer sees all of it and changes none of it. */
+export const canWorkConversation = canReply;
+
+/** Tags themselves, the settings and the pause: the api's `requireRole("admin")`. */
+export function canManageDesk(role: string | null | undefined): boolean {
+  return role === "owner" || role === "admin";
+}
+
+/** The pause switch is an admin's: it changes how every shopper is served. */
+export const canPauseAssistant = canManageDesk;
+
+// ── the list filters ────────────────────────────────────────────────────────────────────────────────────────────────
+
+export type AssigneeFilter = "all" | "mine" | "unassigned";
+
+export const ASSIGNEE_FILTERS: Array<{ value: AssigneeFilter; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "mine", label: "Mine" },
+  { value: "unassigned", label: "Unassigned" },
+];
+
+export function assigneeFilterFromParam(v: string | null | undefined): AssigneeFilter {
+  return v === "mine" || v === "unassigned" ? v : "all";
+}
+
+const TAG_PARAM_MAX = 64;
+/** A tag id from the URL, or null. Anything odd is "no tag" rather than a request the api would refuse. */
+export function tagFromParam(v: string | null | undefined): string | null {
+  const t = (v ?? "").trim();
+  return t && t.length <= TAG_PARAM_MAX && /^[A-Za-z0-9_-]+$/.test(t) ? t : null;
+}
+
+export interface DeskFilters {
+  assignee: AssigneeFilter;
+  tag: string | null;
+}
+
+/** The list query for the filters: `?assignee=` and `?tag=` only when set. */
+export function deskListParams(f: DeskFilters): Record<string, string> {
+  return { ...(f.assignee !== "all" ? { assignee: f.assignee } : {}), ...(f.tag ? { tag: f.tag } : {}) };
+}
+
+/** The page's own query string with the filters written in (the other keys, such as `tab`, are kept). */
+export function searchWithFilters(current: string, f: DeskFilters): string {
+  const search = new URLSearchParams(current);
+  search.delete("assignee");
+  search.delete("tag");
+  for (const [k, v] of Object.entries(deskListParams(f))) search.set(k, v);
+  return search.toString();
+}
+
+// ── assignee and timer ──────────────────────────────────────────────────────────────────────────────────────────────
+
+/** Up to two letters for the avatar badge. */
+export function initialsOf(name: string | null | undefined): string {
+  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  const first = parts[0]!;
+  const last = parts.length > 1 ? parts[parts.length - 1]! : "";
+  return `${first[0] ?? ""}${last[0] ?? ""}`.toUpperCase();
+}
+
+export function formatMinutes(total: number): string {
+  const m = Math.max(0, Math.round(total));
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  const r = m % 60;
+  return r === 0 ? `${h} h` : `${h} h ${r} min`;
+}
+
+export interface TimerView {
+  label: string;
+  tone: "ok" | "amber" | "red" | "paused";
+  className: string;
+}
+
+const TIMER_CLASS: Record<TimerView["tone"], string> = {
+  ok: "bg-muted text-muted-foreground",
+  amber: "bg-warning/15 text-warning-on-tint",
+  red: "bg-destructive/15 text-destructive-on-tint",
+  paused: "bg-muted text-muted-foreground",
+};
+
+/** The words and colour for a first-reply timer; null when the conversation has none (not in Needs you). */
+export function timerView(timer: ResponseTimer | null | undefined): TimerView | null {
+  if (!timer) return null;
+  if (timer.paused) return { label: "Paused until opening", tone: "paused", className: TIMER_CLASS.paused };
+  const waited = formatMinutes(timer.elapsedMinutes);
+  const target = formatMinutes(timer.targetMinutes);
+  if (timer.state === "red") return { label: `Overdue: waiting ${waited} (target ${target})`, tone: "red", className: TIMER_CLASS.red };
+  if (timer.state === "amber") return { label: `Reply soon: waiting ${waited} of ${target}`, tone: "amber", className: TIMER_CLASS.amber };
+  return { label: `Waiting ${waited} of ${target}`, tone: "ok", className: TIMER_CLASS.ok };
+}
+
+/** Optimistic assignee for a pick: "me", a teammate, or nobody. */
+export function assigneeFor(pick: string | null, me: string | null, team: readonly TeamMemberRef[]): ThreadAssignee | null {
+  if (pick === null) return null;
+  const id = pick === "me" ? me : pick;
+  if (!id) return null;
+  const m = team.find((t) => t.userId === id);
+  return { userId: id, name: m?.name ?? "Teammate" };
+}
+
+// ── notes ───────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+/** The api sends this with the notes; this is the line a screen shows before they have loaded. */
+export const NOTE_LABEL = "Note — only your team sees this";
+export const NOTE_MAX = 2000;
+
+export interface NoteDraft {
+  canSave: boolean;
+  remaining: number;
+  /** Why not, in plain words; null when it can be saved or is simply empty. */
+  error: string | null;
+}
+
+export function noteDraft(body: string, saving: boolean): NoteDraft {
+  const trimmed = body.trim();
+  const remaining = NOTE_MAX - body.length;
+  if (remaining < 0) return { canSave: false, remaining, error: `A note can be up to ${NOTE_MAX} characters. This one is ${body.length}.` };
+  return { canSave: trimmed.length > 0 && !saving, remaining, error: null };
+}
+
+/** Delete is the author's alone. */
+export function canDeleteNote(note: Pick<DeskNote, "authorUserId">, me: string | null | undefined, role: string | null | undefined): boolean {
+  return Boolean(me) && canWorkConversation(role) && note.authorUserId === me;
+}
+
+// ── tags ────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+export const TAG_LIMIT = 30;
+export const TAG_NAME_MAX = 30;
+/** Per conversation (the api's bound on `PUT /threads/:id/tags`). */
+export const TAGS_PER_THREAD_MAX = 10;
+
+export function tagNameError(raw: string, existing: readonly DeskTag[], exceptId?: string): string | null {
+  const name = raw.replace(/\s+/g, " ").trim();
+  if (!name) return "Type a name for the tag.";
+  if (name.length > TAG_NAME_MAX) return `A tag name is at most ${TAG_NAME_MAX} characters.`;
+  if (existing.some((t) => t.id !== exceptId && t.name.toLowerCase() === name.toLowerCase())) return "You already have a tag with that name.";
+  return null;
+}
+
+export function tagCountLine(count: number): string {
+  return `${count} of ${TAG_LIMIT} tags used`;
+}
+
+export function toggleTag(current: readonly string[], tagId: string): string[] {
+  return current.includes(tagId) ? current.filter((t) => t !== tagId) : [...current, tagId];
+}
+
+// ── the settings form ───────────────────────────────────────────────────────────────────────────────────────────────
+
+/** Monday first on screen; the api's `day` is 0 = Sunday. */
+export const WEEK: Array<{ day: number; label: string }> = [
+  { day: 1, label: "Monday" },
+  { day: 2, label: "Tuesday" },
+  { day: 3, label: "Wednesday" },
+  { day: 4, label: "Thursday" },
+  { day: 5, label: "Friday" },
+  { day: 6, label: "Saturday" },
+  { day: 0, label: "Sunday" },
+];
+
+export const DEFAULT_OPEN = "09:00";
+export const DEFAULT_CLOSE = "18:00";
+export const DEFAULT_FIRST_REPLY_MINUTES = 15;
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+export const AWAY_MAX = 300;
+
+export interface DeskFormDay {
+  day: number;
+  closed: boolean;
+  open: string;
+  close: string;
+}
+
+export interface DeskForm {
+  firstResponseMinutes: string;
+  hoursEnabled: boolean;
+  timezone: string;
+  days: DeskFormDay[];
+  awayMessage: string;
+  autoAssign: boolean;
+  availableUserIds: string[];
+}
+
+/** The form a saved setting opens as. `fallbackZone` is Settings > Preferences' timezone when the person has one. */
+export function formFromSettings(s: DeskSettings, fallbackZone: string): DeskForm {
+  const byDay = new Map((s.hours?.days ?? []).map((d) => [d.day, d] as const));
+  const hasHours = Boolean(s.hours && s.hours.days.length > 0);
+  return {
+    firstResponseMinutes: String(s.firstResponseMinutes || DEFAULT_FIRST_REPLY_MINUTES),
+    hoursEnabled: s.hours?.enabled === true,
+    timezone: s.hours?.timezone || fallbackZone || "UTC",
+    days: WEEK.map(({ day }) => {
+      const d = byDay.get(day);
+      // a business with no hours saved starts from a weekday 9-6 rather than seven closed days
+      return d ? { day, closed: false, open: d.open, close: d.close } : { day, closed: hasHours || day === 0 || day === 6, open: DEFAULT_OPEN, close: DEFAULT_CLOSE };
+    }),
+    // the saved text, or empty = "use the default line"
+    awayMessage: s.awayMessage ?? "",
+    autoAssign: s.autoAssign.enabled,
+    availableUserIds: [...s.autoAssign.availableUserIds],
+  };
+}
+
+/** The first thing wrong with the form, in the words the merchant should read; null = good to save. */
+export function validateForm(f: DeskForm): string | null {
+  const minutes = Number(f.firstResponseMinutes);
+  if (f.firstResponseMinutes.trim() === "" || !Number.isInteger(minutes)) return "Enter the first-reply target as a whole number of minutes.";
+  if (minutes < 1) return "The first-reply target is at least 1 minute.";
+  if (minutes > 1440) return "The first-reply target is at most 24 hours (1440 minutes).";
+  if (f.hoursEnabled) {
+    if (!f.timezone) return "Pick the timezone your business hours are in.";
+    const open = f.days.filter((d) => !d.closed);
+    if (open.length === 0) return "Open at least one day, or turn business hours off.";
+    for (const d of open) {
+      const label = WEEK.find((w) => w.day === d.day)?.label ?? "A day";
+      if (!TIME_RE.test(d.open) || !TIME_RE.test(d.close)) return `${label}: use a time such as 09:00.`;
+      if (d.close <= d.open) return `${label}: closing time must be after opening time.`;
+    }
+  }
+  if (f.awayMessage.length > AWAY_MAX) return `The away message is at most ${AWAY_MAX} characters.`;
+  return null;
+}
+
+/** The `PUT /inbox-desk/settings` body. "" for the away line puts the default back. */
+export function patchFromForm(f: DeskForm) {
+  return {
+    firstResponseMinutes: Number(f.firstResponseMinutes),
+    autoAssign: { enabled: f.autoAssign, availableUserIds: f.availableUserIds },
+    hours: {
+      enabled: f.hoursEnabled,
+      timezone: f.timezone,
+      days: f.days.filter((d) => !d.closed).map((d) => ({ day: d.day, open: d.open, close: d.close })),
+    },
+    awayMessage: f.awayMessage.trim(),
+  };
+}
+
+/** What a shopper would read: the away line with `{opens}` filled in. */
+export function awayPreview(message: string, defaultLine: string, token: string, example = "9:00 am tomorrow"): string {
+  const line = message.trim() || defaultLine;
+  return line.split(token).join(example);
+}
+
+export function toggleAvailable(current: readonly string[], userId: string): string[] {
+  return current.includes(userId) ? current.filter((u) => u !== userId) : [...current, userId];
+}
+
+// ── double clicks ───────────────────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * One guard per control: `run(fn)` does nothing while an earlier `fn` is still in flight. ★A FLAG HELD HERE, NOT `isPending`: a mutation's
+ * pending state reaches the screen on the next render, so two clicks in one tick would both pass a check of it.
+ */
+export function createFlightGuard(): { run: (fn: () => Promise<unknown>) => Promise<void>; readonly busy: boolean } {
+  let busy = false;
+  return {
+    get busy() {
+      return busy;
+    },
+    async run(fn) {
+      if (busy) return;
+      busy = true;
+      try {
+        await fn();
+      } finally {
+        busy = false;
+      }
+    },
+  };
+}
+
+// ── the timeline ────────────────────────────────────────────────────────────────────────────────────────────────────
+
+export type TimelineItem<M extends { timestamp: string | null }> =
+  | { kind: "message"; timestamp: string | null; line: M }
+  | { kind: "note"; timestamp: string; note: DeskNote };
+
+const ms = (iso: string | null | undefined): number => {
+  const t = iso ? Date.parse(iso) : NaN;
+  return Number.isNaN(t) ? 0 : t;
+};
+
+/**
+ * Messages and notes in one timeline, by time. ★MESSAGES KEEP THEIR OWN ORDER (a message with no time stays where it is); each note is
+ * placed before the first message that came after it, so a note written between two messages sits between them, and the notes the
+ * team wrote last come last.
+ */
+export function timelineOf<M extends { timestamp: string | null }>(messages: readonly M[], notes: readonly DeskNote[]): Array<TimelineItem<M>> {
+  const pending = [...notes].sort((a, b) => ms(a.createdAt) - ms(b.createdAt));
+  const out: Array<TimelineItem<M>> = [];
+  let next = 0;
+  for (const line of messages) {
+    const t = ms(line.timestamp);
+    while (t && next < pending.length && ms(pending[next]!.createdAt) < t) {
+      const note = pending[next++]!;
+      out.push({ kind: "note", timestamp: note.createdAt, note });
+    }
+    out.push({ kind: "message", timestamp: line.timestamp, line });
+  }
+  while (next < pending.length) {
+    const note = pending[next++]!;
+    out.push({ kind: "note", timestamp: note.createdAt, note });
+  }
+  return out;
+}

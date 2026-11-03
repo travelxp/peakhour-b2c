@@ -1,5 +1,6 @@
 import { ApiError } from "@/lib/api";
 import type { ListFetchState } from "@/lib/list-fetch-state";
+import type { ResponseTimer, ThreadAssignee } from "@/lib/inbox-desk";
 
 /**
  * What the Inbox's Conversations tab decides, kept apart from the markup so it can be tested without a DOM (Inbox phase 1).
@@ -71,6 +72,10 @@ export interface InboxRow {
   state: InboxState;
   /** The merchant's own "Test on your store" chat: labelled "Test" in the list. */
   test: boolean;
+  /** Team desk (I3a): who has it, its tag ids, and the api's first-reply timer (null unless it is in Needs you). */
+  assignee: ThreadAssignee | null;
+  tagIds: string[];
+  timer: ResponseTimer | null;
 }
 
 /** What a conversation is, as the api decides it (Done wins over Needs you; a new shopper message re-opens a Done one). */
@@ -87,6 +92,9 @@ interface WaLike {
   held?: "conversation" | "business" | null;
   needsYou?: boolean;
   state?: InboxState;
+  assignee?: ThreadAssignee | null;
+  tagIds?: string[];
+  timer?: ResponseTimer | null;
 }
 interface StorefrontLike {
   threadId: string;
@@ -97,6 +105,9 @@ interface StorefrontLike {
   held?: "conversation" | "business" | null;
   state?: InboxState;
   test?: boolean;
+  assignee?: ThreadAssignee | null;
+  tagIds?: string[];
+  timer?: ResponseTimer | null;
 }
 
 export function rowOfWhatsApp(c: WaLike): InboxRow {
@@ -115,6 +126,9 @@ export function rowOfWhatsApp(c: WaLike): InboxRow {
     // ★THE API'S WORD. An older api sends none: derive it from the flag it did send, never from the chat's age.
     state: c.state ?? (c.needsYou === true ? "needs_you" : "open"),
     test: false,
+    assignee: c.assignee ?? null,
+    tagIds: c.tagIds ?? [],
+    timer: c.timer ?? null,
   };
 }
 
@@ -132,6 +146,9 @@ export function rowOfStorefront(c: StorefrontLike): InboxRow {
     needsYou: false,
     state: c.state ?? "open",
     test: c.test === true,
+    assignee: c.assignee ?? null,
+    tagIds: c.tagIds ?? [],
+    timer: c.timer ?? null,
   };
 }
 
@@ -247,12 +264,13 @@ export function waNotice(state: WaInboxState): InboxNotice | null {
  * The empty-list sentence, only for a list that completed and has nothing to show for the chosen channel, chip and search.
  * ★A SEARCH OR A CHIP THAT FINDS NOTHING SAYS SO; it never claims the inbox is empty.
  */
-export function emptyListText(filter: ChannelFilter, state: WaInboxState, view: { status?: StatusFilter; search?: string } = {}): string {
+export function emptyListText(filter: ChannelFilter, state: WaInboxState, view: { status?: StatusFilter; search?: string; deskFiltered?: boolean } = {}): string {
   if (view.search) {
     return filter === "storefront"
       ? "Storefront visitors have no name, number or order, so a search finds none of them. Clear the search to see them."
       : `No conversations match \u201c${view.search}\u201d. Try a name, the last four digits of a number, or an order number.`;
   }
+  if (view.deskFiltered) return "No conversations match these filters. Choose All, or clear the tag, to see more.";
   if (view.status === "needs_you") return "Nothing needs you right now.";
   if (view.status === "done") return "No conversations are marked done.";
   if (filter === "storefront") return "No storefront chats yet. When a visitor talks to the assistant on your store, the chat appears here.";
