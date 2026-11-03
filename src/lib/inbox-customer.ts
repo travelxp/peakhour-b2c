@@ -26,7 +26,7 @@ export interface PanelOrder {
 export type OrdersState = "ok" | "no_customer" | "no_store" | "unavailable";
 
 export interface CustomerPanelData {
-  channel: "whatsapp" | "storefront";
+  channel: "whatsapp" | "storefront" | "messenger" | "instagram";
   anonymous: boolean;
   message?: string;
   /** `name` and `phone` are absent for a viewer; `phone` is masked to its last four digits for everyone. */
