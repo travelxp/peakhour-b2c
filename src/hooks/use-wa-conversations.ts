@@ -22,7 +22,7 @@ import {
 export interface WaConversation {
   threadId: string;
   /** Which channel the thread is on. Absent = an older api (WhatsApp). */
-  channel?: "whatsapp" | "messenger" | "instagram";
+  channel?: "whatsapp" | "messenger" | "instagram" | "x";
   waId: string;
   contactName: string | null;
   status: string;
@@ -94,7 +94,7 @@ export interface WaMessage {
 
 export interface WaThread {
   threadId: string;
-  channel?: "whatsapp" | "messenger" | "instagram";
+  channel?: "whatsapp" | "messenger" | "instagram" | "x";
   contactName: string | null;
   status: string;
   /** WA T3: the shopper's last message. */

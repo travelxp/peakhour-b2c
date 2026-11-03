@@ -45,6 +45,7 @@ import {
   STUDIO_LIST_CAP,
   TAKES_OVER_NOTE,
   WINDOW_TICK_MS,
+  windowFor,
   type ComposerMemory,
   type ComposerStore,
   type ReplyPayload,
@@ -184,7 +185,7 @@ export function WaComposer({
   store: ComposerStore;
 }) {
   const mem = useComposerMemory(store, threadId);
-  const win = useReplyWindow(store, threadId, endsAt);
+  const win = windowFor(threadId, useReplyWindow(store, threadId, endsAt));
   const mode = composerMode({ status, role, window: win });
   const reply = useWaReply(threadId);
   const templates = useWaStudioTemplates(mode.kind === "template");

@@ -16,13 +16,13 @@ export const INBOX_SUBTITLE = "Your WhatsApp and storefront conversations, leads
 
 // ── channels ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
-export type Channel = "whatsapp" | "storefront" | "messenger" | "instagram";
+export type Channel = "whatsapp" | "storefront" | "messenger" | "instagram" | "x";
 export type ChannelFilter = "all" | Channel;
 
 /** The channels the conversations list (`/meta/whatsapp/conversations`) carries; the storefront list is its own. */
-export type DmChannel = "whatsapp" | "messenger" | "instagram";
+export type DmChannel = "whatsapp" | "messenger" | "instagram" | "x";
 
-export const CHANNEL_LABEL: Record<Channel, string> = { whatsapp: "WhatsApp", storefront: "Storefront", messenger: "Messenger", instagram: "Instagram" };
+export const CHANNEL_LABEL: Record<Channel, string> = { whatsapp: "WhatsApp", storefront: "Storefront", messenger: "Messenger", instagram: "Instagram", x: "X" };
 
 export const CHANNEL_FILTERS: Array<{ value: ChannelFilter; label: string }> = [
   { value: "all", label: "All" },
@@ -30,6 +30,7 @@ export const CHANNEL_FILTERS: Array<{ value: ChannelFilter; label: string }> = [
   { value: "storefront", label: CHANNEL_LABEL.storefront },
   { value: "messenger", label: CHANNEL_LABEL.messenger },
   { value: "instagram", label: CHANNEL_LABEL.instagram },
+  { value: "x", label: CHANNEL_LABEL.x },
 ];
 
 /** Messenger and Instagram chips appear only once the business has such a conversation (or one is chosen); WhatsApp and Storefront always do. */
@@ -39,7 +40,7 @@ export function visibleChannelFilters(seen: readonly Channel[], chosen: ChannelF
 
 /** The channel a conversations-list row came in on; an older api sends none, which is WhatsApp. */
 export function dmChannelOf(c: string | null | undefined): DmChannel {
-  return c === "messenger" || c === "instagram" ? c : "whatsapp";
+  return c === "messenger" || c === "instagram" || c === "x" ? c : "whatsapp";
 }
 
 // ── status chips and search (Inbox phase 2) ───────────────────────────────────────────────────────────────────────────
@@ -175,11 +176,11 @@ const time = (iso: string | null): number => {
 
 /**
  * The conversation an email link opens: `/dashboard/inbox?tab=conversations&thread=<key>`. ★A KEY, NOT ANYTHING: it must look like
- * one of our two thread keys, so a hand-written link cannot put arbitrary text where the page expects an id. Whether the thread is
+ * one of our thread keys, so a hand-written link cannot put arbitrary text where the page expects an id. Whether the thread is
  * this business's is the api's to say (it answers 404 for another's); the page then shows "couldn't load this conversation".
  */
 export function threadFromParam(value: string | null | undefined): string | null {
-  return typeof value === "string" && /^(?:whatsapp|storefront):[A-Za-z0-9._:~-]{1,250}$/.test(value) ? value : null;
+  return typeof value === "string" && /^(?:whatsapp|storefront|messenger|instagram|x):[A-Za-z0-9._:~-]{1,250}$/.test(value) ? value : null;
 }
 
 /** The channel a thread id belongs to, from its key. */
@@ -297,6 +298,7 @@ export function emptyListText(filter: ChannelFilter, state: WaInboxState, view: 
   if (filter === "storefront") return "No storefront chats yet. When a visitor talks to the assistant on your store, the chat appears here.";
   if (filter === "messenger") return "No Messenger conversations yet.";
   if (filter === "instagram") return "No Instagram conversations yet.";
+  if (filter === "x") return "No X conversations yet.";
   if (filter === "whatsapp") return state === "ok" ? "No WhatsApp conversations yet." : "No WhatsApp conversations to show.";
   return "No conversations yet.";
 }

@@ -147,7 +147,7 @@ describe("honest states", () => {
     expect(rowOfWhatsApp({ ...base, channel: "weird" }).channel).toBe("whatsapp");
   });
   it("chip labels per channel", () => {
-    expect(CHANNEL_LABEL).toEqual({ whatsapp: "WhatsApp", storefront: "Storefront", messenger: "Messenger", instagram: "Instagram" });
+    expect(CHANNEL_LABEL).toEqual({ whatsapp: "WhatsApp", storefront: "Storefront", messenger: "Messenger", instagram: "Instagram", x: "X" });
   });
   it("the channel filter hides Messenger / Instagram until the business has one (or one is chosen)", () => {
     const labels = (seen: Channel[], chosen: ChannelFilter = "all") => visibleChannelFilters(seen, chosen).map((f) => f.label);
@@ -155,6 +155,7 @@ describe("honest states", () => {
     expect(labels(["whatsapp", "messenger"])).toEqual(["All", "WhatsApp", "Storefront", "Messenger"]);
     expect(labels(["instagram", "messenger"])).toEqual(["All", "WhatsApp", "Storefront", "Messenger", "Instagram"]);
     expect(labels([], "instagram")).toContain("Instagram");
+    expect(labels(["x", "whatsapp"])).toEqual(["All", "WhatsApp", "Storefront", "X"]);
   });
   it("each channel filter shows only its rows; All shows everything", () => {
     const mk = (threadId: string, channel: Channel) => ({ ...rowOfWhatsApp({ threadId, waId: "1", contactName: "A", status: "active", updatedAt: null, lastInboundAt: null, preview: "" }), channel });
