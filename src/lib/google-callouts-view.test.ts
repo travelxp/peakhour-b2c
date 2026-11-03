@@ -111,7 +111,7 @@ describe("★★G-14e — adding: the policy check's answers", () => {
       "Google's ad policies would not allow this callout.",
     );
   });
-  it.each(["CALLOUT_REPEATS", "BLOCKED_TERM", "CALLOUT_UNCONFIRMED", "POLICY_CHECK_UNAVAILABLE", "VALIDATION_ERROR", "PLATFORM_REFUSED", "CALLOUT_REFUSED", "CHANNEL_DENIED", "QUIET_HOURS", "BLACKOUT", "AD_ACCOUNT_NOT_ON_CONNECTION"])(
+  it.each(["CALLOUT_REPEATS", "BLOCKED_TERM", "CALLOUT_UNCONFIRMED", "POLICY_CHECK_UNAVAILABLE", "AD_POLICY_CHECK_FAILED", "VALIDATION_ERROR", "PLATFORM_REFUSED", "CALLOUT_REFUSED", "CHANNEL_DENIED", "QUIET_HOURS", "BLACKOUT", "AD_ACCOUNT_NOT_ON_CONNECTION"])(
     "%s shows the api's merchant sentence",
     (code) => expect(googleCalloutErrorMessage(apiError(code), "fallback")).toBe(`msg for ${code}`),
   );
@@ -134,8 +134,7 @@ describe("★★G-14e — adding: the policy check's answers", () => {
     expect(googleCalloutAddedSentence({ created: false, callout: callout({ primaryStatus: "NOT_ELIGIBLE" }), policy: null })).toBe(
       "Your account already has “Free UK delivery”, but Google says: not showing.",
     );
-    expect(googleCalloutAddedSentence({ created: true, callout: callout(), policy: { checked: true, verdict: "ok" } })).toBe("Added “Free UK delivery”. Google reviews it before it shows.");
-    expect(googleCalloutAddedSentence({ created: true, callout: callout(), policy: { checked: false, verdict: "ok" } })).toMatch(/policy check couldn't run/);
+    expect(googleCalloutAddedSentence({ created: true, callout: callout(), policy: { verdict: "ok" } })).toBe("Added “Free UK delivery”. Google reviews it before it shows.");
   });
 });
 

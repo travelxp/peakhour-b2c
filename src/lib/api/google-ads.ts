@@ -318,8 +318,8 @@ export interface GoogleCallout {
 export interface GoogleCalloutAdded {
   created: boolean;
   callout: GoogleCallout;
-  /** `checked: false`: the ad-policy check could not run, and Google's review is the only one. */
-  policy: { checked: boolean; verdict: "ok" | "warn" | "block" } | null;
+  /** A check that could not run adds nothing (the api answers 503 AD_POLICY_CHECK_FAILED), so a created callout was always checked. */
+  policy: { verdict: "ok" | "warn" | "block" } | null;
 }
 
 /** What the conversion action is for (C3): a value mandate uses the uploaded value; a count mandate counts. */
