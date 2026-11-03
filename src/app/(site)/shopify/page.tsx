@@ -4,15 +4,11 @@ import { Footer } from "@/components/shared/footer";
 import { ShopifyPageView } from "@/components/marketing/shopify/shopify-page-view";
 import { getPublicCatalog, publicMarketingIntegrations, signupCta } from "@/lib/catalog";
 import { badgedComingSoonKeys, channelIsComingSoon } from "@/lib/pillar-channels";
-import { getPricing, suiteTrialDays } from "@/lib/pricing";
+import { countryFromHeader, getPricing, suiteTrialDays } from "@/lib/pricing";
 import { pageMetadata } from "@/lib/seo";
 import { SHOPIFY_SEO } from "@/lib/shopify-features";
 
 export const metadata = pageMetadata(SHOPIFY_SEO);
-
-function countryFrom(header: string | null): string {
-  return header && /^[A-Za-z]{2}$/.test(header) ? header.toUpperCase() : "DEFAULT";
-}
 
 /**
  * /shopify: "Peakhour for Shopify". The merchant-facing page for the embedded
@@ -27,7 +23,7 @@ function countryFrom(header: string | null): string {
  */
 export default async function ShopifyPage() {
   const h = await headers();
-  const country = countryFrom(h.get("x-vercel-ip-country"));
+  const country = countryFromHeader(h.get("x-vercel-ip-country"));
   const [pricing, catalog] = await Promise.all([getPricing(country), getPublicCatalog()]);
 
   const published = catalog ? publicMarketingIntegrations(catalog.integrations) : [];

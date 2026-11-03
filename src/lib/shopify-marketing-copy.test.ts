@@ -42,6 +42,7 @@ describe("the hero", () => {
     expect(shopifyHeroTicks(14)).toEqual(["14-day free trial", "Billed through Shopify", "Nothing changes without your OK"]);
     expect(shopifyHeroTicks(null)).toEqual(["Billed through Shopify", "Nothing changes without your OK"]);
     expect(shopifyHeroTicks(0)).not.toContain("0-day free trial");
+    expect(shopifyHeroTicks(14, true)).toEqual(["14-day free trial", "Nothing changes without your OK"]);
   });
 
   it("pins the SEO title and description", () => {
@@ -79,6 +80,11 @@ describe("shopifyFaq", () => {
     const all = shopifyFaq({ trialDays: null, peaksIncluded: null }).map((f) => f.a).join(" ");
     expect(all).not.toMatch(/\d+ days first/);
     expect(all).not.toMatch(/\d[\d,]* a month/);
+  });
+  it("coming soon: no question about Shopify billing", () => {
+    const qs = shopifyFaq({ trialDays: 14, peaksIncluded: null, comingSoon: true }).map((f) => f.q);
+    expect(qs).not.toContain("How am I billed?");
+    expect(qs).toHaveLength(9);
   });
   it("answers the ten owner questions and never calls Peakhour a free plan", () => {
     const faq = shopifyFaq({ trialDays: 14, peaksIncluded: "5,000" });

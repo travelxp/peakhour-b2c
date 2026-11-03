@@ -93,6 +93,23 @@ describe("the install button", () => {
   });
 });
 
+describe("★coming soon: nothing on the page assumes an App Store install or Shopify billing", () => {
+  it("PASS: with the connector open the page says both", () => {
+    const t = text(html());
+    expect(t).toContain("Install from the Shopify App Store");
+    expect(t).toContain("One plan, billed through Shopify.");
+  });
+
+  it("drops the install claim, the Shopify-billing claims and the Shopify variant of the card", () => {
+    const t = text(html({ comingSoon: true }));
+    expect(t).not.toMatch(/Install from the Shopify App Store/);
+    expect(t).not.toMatch(/billed through Shopify/i);
+    expect(t).not.toMatch(/invoice through Shopify/i);
+    // The signup trial collects no card, so the plain card's note is the true one.
+    expect(t).toContain("9-day free trial · no card to start");
+  });
+});
+
 describe("price, trial and credits come from the catalog", () => {
   it("PASS: the hero tick and the card show the fixture's trial, price and allowance", () => {
     const t = text(html());
@@ -140,6 +157,13 @@ describe("structured data", () => {
     const g = graphs(html());
     expect(g.map((x) => x["@type"]).sort()).toEqual(["FAQPage", "SoftwareApplication"]);
     expect(g.find((x) => x["@type"] === "FAQPage").mainEntity.length).toBeGreaterThanOrEqual(8);
+  });
+
+  it("the SoftwareApplication offer is the price the card shows, campaign included", () => {
+    const app = (p: PricingResponse) =>
+      graphs(html({ pricing: p })).find((x) => x["@type"] === "SoftwareApplication");
+    expect(app(pricing()).offers.price).toBe("61");
+    expect(app(pricing({ monthlyDiscountPct: 50, monthlyCampaignLabel: "x" })).offers.price).toBe("30");
   });
 
   it("★carries no rating and no review", () => {

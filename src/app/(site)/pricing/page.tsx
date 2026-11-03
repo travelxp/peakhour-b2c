@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
-import { getPricing, findBundleTier, suiteCtaLabel, suiteTrialDays } from "@/lib/pricing";
+import { getPricing, findBundleTier, suiteCtaLabel, suiteTrialDays, countryFromHeader } from "@/lib/pricing";
 import { getPublicCatalog, publicMarketingIntegrations, signupCta } from "@/lib/catalog";
 import { pricingHeroTrial } from "@/lib/trial-copy";
 import { badgedComingSoonKeys } from "@/lib/pillar-channels";
@@ -25,10 +25,6 @@ export const metadata = pageMetadata({
   path: "/pricing",
 });
 
-function countryFrom(header: string | null): string {
-  return header && /^[A-Za-z]{2}$/.test(header) ? header.toUpperCase() : "DEFAULT";
-}
-
 /**
  * /pricing — the pricing hub. One catalog (billing plan D19): Peakhour Suite
  * for a business, Agency and Enterprise for teams (their own page, reached by
@@ -48,7 +44,7 @@ function countryFrom(header: string | null): string {
  */
 export default async function PricingPage() {
   const h = await headers();
-  const country = countryFrom(h.get("x-vercel-ip-country"));
+  const country = countryFromHeader(h.get("x-vercel-ip-country"));
 
   const [pricing, catalog] = await Promise.all([
     getPricing(country),

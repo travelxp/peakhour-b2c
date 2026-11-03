@@ -457,15 +457,24 @@ export const SHOPIFY_HERO = {
   pricing: "See pricing",
 } as const;
 
-/** The three ticks under the hero buttons; the trial one only with a trial. */
-export function shopifyHeroTicks(trialDays: number | null): string[] {
+/**
+ * The three ticks under the hero buttons; the trial one only with a trial.
+ * ★While the connector is coming soon the visitor signs up on peakhour.ai, so
+ * "Billed through Shopify" is left out until there is a Shopify install.
+ */
+export function shopifyHeroTicks(trialDays: number | null, comingSoon = false): string[] {
   return [
     ...(typeof trialDays === "number" && trialDays > 0
       ? [`${trialDays}-day free trial`]
       : []),
-    "Billed through Shopify",
+    ...(comingSoon ? [] : ["Billed through Shopify"]),
     "Nothing changes without your OK",
   ];
+}
+
+/** The trust strip; without an App Store install the first two claims go. */
+export function shopifyTrust(comingSoon = false): string[] {
+  return comingSoon ? SHOPIFY_TRUST.slice(2) : SHOPIFY_TRUST;
 }
 
 /**
@@ -497,25 +506,30 @@ export function shopifyTrialNote(trialDays: number): string | null {
   return trialDays > 0 ? `${trialDays}-day free trial · billed through Shopify` : null;
 }
 
+const BILLING_Q = "How am I billed?";
+
 export function shopifyFaq({
   trialDays,
   peaksIncluded,
+  comingSoon = false,
 }: {
   trialDays: number | null;
   /** Suite's monthly allowance, formatted; null when the catalog gives none. */
   peaksIncluded: string | null;
+  /** The connector is not open: no question about Shopify billing. */
+  comingSoon?: boolean;
 }): { q: string; a: string }[] {
   const trial =
     typeof trialDays === "number" && trialDays > 0
       ? `You can try it for ${trialDays} days first, and you can preview the storefront assistant before you pick a plan.`
       : "You can preview the storefront assistant before you pick a plan.";
-  return [
+  const faqs = [
     {
       q: "Is Peakhour free?",
       a: `No. There is one plan, Peakhour Suite, and it has everything. ${trial}`,
     },
     {
-      q: "How am I billed?",
+      q: BILLING_Q,
       a: "Through Shopify. Shopify bills you for Peakhour Suite.",
     },
     {
@@ -553,6 +567,7 @@ export function shopifyFaq({
       a: "Your plan also covers an Inbox, content for LinkedIn, X and Beehiiv, Growth with Peakhour Summit, and Google Business Profile. They run in your peakhour.ai dashboard.",
     },
   ];
+  return comingSoon ? faqs.filter((f) => f.q !== BILLING_Q) : faqs;
 }
 
 /**

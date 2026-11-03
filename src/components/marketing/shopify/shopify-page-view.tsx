@@ -15,18 +15,25 @@ import {
 } from "@/components/ui/accordion";
 import type { SignupCta } from "@/lib/catalog";
 import { CHANNELS, suiteModuleSlugs } from "@/lib/pricing-catalog";
-import { findBundleTier, formatPeaks, suiteTrialDays, type PricingResponse } from "@/lib/pricing";
+import {
+  findBundleTier,
+  formatPeaks,
+  hasMonthlyOffer,
+  offerMonthly,
+  suiteTrialDays,
+  type PricingResponse,
+} from "@/lib/pricing";
 import { safeJsonLd } from "@/lib/json-ld";
 import {
   SHOPIFY_GROUPS,
   SHOPIFY_HERO,
   SHOPIFY_MORE,
   SHOPIFY_SEO,
-  SHOPIFY_TRUST,
   shopifyFaq,
   shopifyHeroTicks,
   shopifyInstallCta,
   shopifyJsonLd,
+  shopifyTrust,
 } from "@/lib/shopify-features";
 import { SITE } from "@/lib/utils";
 
@@ -61,11 +68,17 @@ export function ShopifyPageView({
   });
   const peaks =
     typeof suite?.peaksIncluded === "number" ? formatPeaks(suite.peaksIncluded) : null;
-  const faqs = shopifyFaq({ trialDays, peaksIncluded: peaks });
+  const faqs = shopifyFaq({ trialDays, peaksIncluded: peaks, comingSoon });
   const jsonLd = shopifyJsonLd({
     url: `${SITE.url.replace(/\/$/, "")}${SHOPIFY_SEO.path}`,
     faqs,
-    offer: suite ? { price: suite.pricing.monthly, currency: suite.pricing.currency } : null,
+    // The price the card shows: the campaign price when one is live.
+    offer: suite
+      ? {
+          price: hasMonthlyOffer(suite.pricing) ? offerMonthly(suite.pricing) : suite.pricing.monthly,
+          currency: suite.pricing.currency,
+        }
+      : null,
   });
   // The pricing card's button: the same decision as the hero's.
   const cardCta: SignupCta =
@@ -145,7 +158,7 @@ export function ShopifyPageView({
               </a>
             </div>
             <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-muted-foreground">
-              {shopifyHeroTicks(trialDays).map((tick) => (
+              {shopifyHeroTicks(trialDays, comingSoon).map((tick) => (
                 <li key={tick}>
                   <span aria-hidden className="font-bold text-brand-label">
                     &check;
@@ -184,7 +197,7 @@ export function ShopifyPageView({
       {/* Trust strip */}
       <section aria-label="What to expect" className="border-y bg-muted/30 py-6">
         <ul className="mx-auto grid max-w-6xl gap-3 px-4 text-sm font-medium sm:px-6 md:grid-cols-2 lg:grid-cols-4">
-          {SHOPIFY_TRUST.map((t) => (
+          {shopifyTrust(comingSoon).map((t) => (
             <li key={t} className="flex gap-2.5">
               <Check className="mt-0.5 size-4 shrink-0 text-brand-strong" strokeWidth={2.5} aria-hidden />
               {t}
@@ -290,7 +303,7 @@ export function ShopifyPageView({
             Pricing
           </span>
           <h2 className="mb-8 mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
-            One plan, billed through Shopify.
+            {comingSoon ? "One plan, everything included." : "One plan, billed through Shopify."}
           </h2>
           {suite ? (
             <SuiteCard
@@ -298,7 +311,9 @@ export function ShopifyPageView({
               includedSlugs={suiteModuleSlugs(pricing)}
               cta={cardCta}
               openSignup={false}
-              channel="shopify"
+              // Coming soon, the button is the peakhour.ai signup, so the card is
+              // the plain Suite card: its trial is not billed through Shopify.
+              channel={comingSoon ? undefined : "shopify"}
             />
           ) : (
             <p className="text-muted-foreground">

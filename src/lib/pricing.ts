@@ -137,6 +137,13 @@ async function fetchPricing(country: string): Promise<PricingResponse | null> {
   }
 }
 
+/** The visitor's country for a pricing read: the edge geo header when it is a
+ *  two-letter code, else the pinned "DEFAULT" key (see the note above). One
+ *  copy, so /pricing and /shopify cannot quote two currencies to one visitor. */
+export function countryFromHeader(header: string | null): string {
+  return header && /^[A-Za-z]{2}$/.test(header) ? header.toUpperCase() : "DEFAULT";
+}
+
 export const getPricing = cache(
   fetchPricing,
   ["platform-pricing"],
