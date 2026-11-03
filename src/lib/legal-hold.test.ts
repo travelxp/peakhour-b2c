@@ -16,6 +16,7 @@ import {
   THREAD_LIFT_DELETES,
   threadLiftWarning,
   businessLiftWarning,
+  freshListing,
   type HoldsListing,
   holdErrorMessage,
   HOLD_REASON_HINT,
@@ -207,10 +208,16 @@ describe("the lift says when it deletes for good (H4)", () => {
     expect(threadLiftWarning(undefined, "t1")).toBeUndefined();
     expect(businessLiftWarning(undefined)).toBeUndefined();
   });
-  it("the business warning reads the listing's count: N warns, 0 and an older api's missing count are null", () => {
+  it("the business warning reads the listing's count: N warns, 0 is null, an older api's missing count is unknown", () => {
     expect(businessLiftWarning({ ...listing([]), deferredEraseCount: 4 })).toContain("deletes 4 conversations");
     expect(businessLiftWarning({ ...listing([]), deferredEraseCount: 0 })).toBeNull();
-    expect(businessLiftWarning(listing([]))).toBeNull();
+    expect(businessLiftWarning(listing([]))).toBeUndefined(); // an api without the count: unknown, not zero
+  });
+  it("KILL: a FAILED refetch resolves with the old data, which must not be believed; a successful one is", () => {
+    const old = listing([row("t1", true)]);
+    expect(freshListing({ status: "error", data: old })).toBeUndefined();
+    expect(freshListing({ status: "pending", data: old })).toBeUndefined();
+    expect(freshListing({ status: "success", data: old })).toBe(old);
   });
   it("KILL: a business count of N is named in the sentence", () => {
     expect(businessLiftDeletes(3)).toBe(

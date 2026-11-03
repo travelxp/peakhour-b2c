@@ -129,7 +129,7 @@ export interface HoldsListing {
     scope: "conversation" | "business";
     eraseDeferred: boolean;
   }>;
-  /** How many conversations lifting the BUSINESS hold deletes at once. Absent from an api that predates it: read as 0. */
+  /** How many conversations lifting the BUSINESS hold deletes at once. Absent from an api that predates it: read as UNKNOWN (the lift is not offered). */
   deferredEraseCount?: number;
   truncated: boolean;
 }
@@ -170,7 +170,14 @@ export function threadLiftWarning(listing: HoldsListing | undefined, threadId: s
 
 /** The same for the business-wide lift: the sentence with the count, null when it deletes nothing, undefined when unknown. */
 export function businessLiftWarning(listing: HoldsListing | undefined): string | null | undefined {
-  return listing ? businessLiftDeletes(listing.deferredEraseCount) : undefined;
+  // A listing without the count (an api that predates it) is UNKNOWN, not zero: the lift would be offered blind.
+  if (!listing || typeof listing.deferredEraseCount !== "number") return undefined;
+  return businessLiftDeletes(listing.deferredEraseCount);
+}
+
+/** A refetch that failed still resolves, with the OLD data; only a successful one may be believed. */
+export function freshListing(r: { status: string; data?: HoldsListing }): HoldsListing | undefined {
+  return r.status === "success" ? r.data : undefined;
 }
 
 /** Said when the check above could not be made, instead of opening a lift whose effect is unknown. */

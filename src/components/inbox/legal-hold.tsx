@@ -21,6 +21,7 @@ import {
   threadLiftWarning,
   businessLiftWarning,
   LIFT_CHECK_FAILED,
+  freshListing,
   holdErrorMessage,
   threadTail,
   HOLD_EFFECT,
@@ -157,7 +158,7 @@ export function ThreadHoldControl({ threadId, held, role }: { threadId: string; 
           // ★READ FRESH, NOT FROM A 30-SECOND-OLD CACHE: an uninstall or a customer's erasure can land since the last fetch, and the
           //  lift would then delete a conversation the dialog called ordinary. If the check cannot be made the lift is not offered.
           const fresh = await holds.refetch();
-          const warning = threadLiftWarning(fresh.data, threadId);
+          const warning = threadLiftWarning(freshListing(fresh), threadId);
           if (warning === undefined) return void toast.error(LIFT_CHECK_FAILED);
           setDeleteWarning(warning);
           setMode("lift");
@@ -211,7 +212,7 @@ export function HoldsCard({ role, onOpenThread }: { role: string | null; onOpenT
   const openDialog = async (mode: "place" | "lift") => {
     if (mode === "lift") {
       // ★READ FRESH (see the thread lift): a stale count would call a mass deletion an ordinary lift.
-      const warning = businessLiftWarning((await holds.refetch()).data);
+      const warning = businessLiftWarning(freshListing(await holds.refetch()));
       if (warning === undefined) return void toast.error(LIFT_CHECK_FAILED);
       setDeleting(warning);
     } else setDeleting(null);
