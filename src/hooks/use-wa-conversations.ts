@@ -104,6 +104,12 @@ export interface WaConnectionStatus {
 
 const BASE = "/v1/meta/whatsapp/conversations";
 
+/** Pages are read at different moments, so a row that moved can appear in two; each conversation is listed once (the first, newest, copy). */
+function dedupe<T extends { threadId: string }>(rows: T[]): T[] {
+  const seen = new Set<string>();
+  return rows.filter((r) => (seen.has(r.threadId) ? false : (seen.add(r.threadId), true)));
+}
+
 /** What narrows a list: the Open / Needs you / Done chip, and the search text (already trimmed and long enough: `searchTerm`). */
 export interface ListView {
   expiringOnly?: boolean;
@@ -161,7 +167,7 @@ export function useWaConversations(view: ListView = {}) {
     listKey: key,
     /** The first page: the connection state and the banner count. */
     data: first,
-    conversations: query.data?.pages.flatMap((p) => p.conversations) ?? [],
+    conversations: dedupe(query.data?.pages.flatMap((p) => p.conversations) ?? []),
     expiringCount: first?.expiringCount ?? null,
     expiringFrom: first?.expiringFrom ?? null,
   };
@@ -192,7 +198,7 @@ export function useStorefrontChats(view: ListView & { enabled?: boolean } = {}) 
     refetchInterval: 30_000,
     placeholderData: (prev: InfiniteData<StorefrontListPage, string | undefined> | undefined, prevQuery) => keepWithinBusiness(prev, prevQuery?.queryKey, business?._id ?? "none"),
   });
-  return { ...query, chats: query.data?.pages.flatMap((p) => p.conversations) ?? [] };
+  return { ...query, chats: dedupe(query.data?.pages.flatMap((p) => p.conversations) ?? []) };
 }
 
 /** One storefront chat's transcript. */

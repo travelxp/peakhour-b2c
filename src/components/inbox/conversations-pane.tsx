@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Search } from "lucide-react";
@@ -140,6 +140,19 @@ export function WaNoticeCard({ state }: { state: ReturnType<typeof waInboxState>
   );
 }
 
+/** Whether the viewport is `xl` or wider, where the customer panel sits beside the conversation. ★The panel is MOUNTED only when it can be seen: it reads a customer's orders live from Shopify, and a hidden panel would make that call for every conversation clicked through. */
+function useIsXl(): boolean {
+  return useSyncExternalStore(
+    (cb) => {
+      const m = typeof window === "undefined" ? null : window.matchMedia("(min-width: 1280px)");
+      m?.addEventListener("change", cb);
+      return () => m?.removeEventListener("change", cb);
+    },
+    () => (typeof window === "undefined" ? false : window.matchMedia("(min-width: 1280px)").matches),
+    () => false,
+  );
+}
+
 /** The search text, sent to the api once typing pauses. ★The box shows what was typed; only the settled value drives the query. */
 function useDebounced(value: string, ms: number): string {
   const [settled, setSettled] = useState(value);
@@ -167,9 +180,11 @@ export function ConversationsPane({
   const [status, setStatus] = useState<StatusFilter>(DEFAULT_STATUS_FILTER);
   const [searchRaw, setSearchRaw] = useState("");
   const q = searchTerm(useDebounced(searchRaw, SEARCH_DEBOUNCE_MS));
-  const wa = useWaConversations({ expiringOnly, status, ...(q ? { q } : {}) });
+  // ★A SEARCH LOOKS ACROSS EVERY CONVERSATION, not only the chip's: a customer whose conversation is Done must be found by their order number.
+  const wa = useWaConversations({ expiringOnly, ...(q ? { q } : { status }) });
   // a search can never match a storefront visitor (no name, number or order on the row), so that half is not asked
   const storefront = useStorefrontChats({ expiringOnly, status, enabled: !q });
+  const isXl = useIsXl();
   const canChange = canChangeConversation(role);
 
   // ── the list ──────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -578,10 +593,10 @@ export function ConversationsPane({
                   )}
                 </div>
                 {/* The customer panel: beside the conversation from `xl`; below it, the header's Customer button swaps it in. */}
-                {openThread && openThread.threadId === selected && (
+                {openThread && openThread.threadId === selected && (isXl || showCustomer) && (
                   <aside
                     aria-label="Customer"
-                    className={`min-h-0 overflow-y-auto border-l bg-background xl:block xl:w-[300px] xl:shrink-0 ${showCustomer ? "block flex-1" : "hidden"}`}
+                    className={`min-h-0 overflow-y-auto border-l bg-background xl:block xl:w-[300px] xl:shrink-0 ${showCustomer ? "block flex-1" : "hidden xl:block"}`}
                   >
                     <CustomerPanel key={selected} threadId={selected} role={role} />
                   </aside>
