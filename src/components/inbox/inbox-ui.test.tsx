@@ -108,7 +108,8 @@ describe("the thread header on a phone", () => {
     canExport: true,
     exporting: false,
     onExport: () => {},
-    handover: { label: "Take over", variant: "default", pending: false, disabled: false, onClick: () => {} },
+    handover: null,
+    done: { label: "Mark done", pending: false, disabled: false, onClick: () => {} },
   };
   const html = (over: Partial<Props> = {}) => renderToStaticMarkup(<ThreadHeader {...base} {...over} />);
 
@@ -132,11 +133,41 @@ describe("the thread header on a phone", () => {
     expect(more).toContain("lg:hidden");
     expect(more).toContain('aria-label="More actions"');
   });
-  it("the main action is 'Take over' on an active thread and the quieter 'Return to AI' on a held one", () => {
-    expect(html()).toContain("Take over");
+  it("★there is no 'Take over' button anywhere; 'Return to AI' shows on a held thread and 'Mark done' is the main action otherwise", () => {
+    expect(html()).not.toContain("Take over");
+    expect(html()).toContain("Mark done");
     const back = html({ handover: { label: "Return to AI", variant: "outline", pending: false, disabled: false, onClick: () => {} } });
     expect(back).toContain("Return to AI");
+    expect(back).toContain("Mark done");
     expect(back).not.toContain("Take over");
+  });
+  it("a Done conversation offers Reopen, and says Done", () => {
+    const h = html({ done: { label: "Reopen", pending: false, disabled: false, onClick: () => {} }, state: "done" });
+    expect(h).toContain("Reopen");
+    expect(h).toContain(">Done<");
+    expect(h).not.toContain("Mark done");
+  });
+  it("a viewer is offered no Mark done and no Return to AI", () => {
+    const h = html({ done: null, handover: null });
+    expect(h).not.toContain("Mark done");
+    expect(h).not.toContain("Return to AI");
+  });
+  it("the merchant's own test chat is labelled Test, and an ordinary one is not", () => {
+    expect(html({ channel: "storefront", test: true })).toContain('data-testid="test-chip"');
+    expect(html({ channel: "storefront", test: true })).toContain(">Test<");
+    expect(html()).not.toContain("test-chip");
+  });
+  it("Delete this customer's data is offered only when the caller passes it (owner and admin); the menu is closed in static markup, so the wide button shows", () => {
+    expect(html()).not.toMatch(/Delete this customer|Delete customer data/);
+    const h = html({ onDeleteContact: () => {} });
+    expect(h).toContain("Delete customer data");
+    // with only that action, the overflow menu exists for it
+    expect(html({ hold: { available: false, label: "", start: () => {} }, canExport: false, onDeleteContact: () => {} })).toContain("header-more");
+  });
+  it("the Customer toggle shows below xl only", () => {
+    const h = html({ customer: { shown: false, onToggle: () => {} } });
+    expect(h).toContain("Customer");
+    expect(/<button[^>]*xl:hidden[^>]*>[^<]*Customer/.exec(h)).not.toBeNull();
   });
   it("a storefront chat has no hand-over button at all", () => {
     const h = html({ channel: "storefront", handover: null });

@@ -1,12 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { CheckCircle2, ShoppingBag } from "lucide-react";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { KpiCard } from "@/components/molecules/kpi-card";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Peaks } from "@/components/peaks/peaks";
-import { AskYourInbox } from "@/components/whatsapp/ask-your-inbox";
 import { useWaAnalytics } from "@/hooks/use-wa-analytics";
 import { PageShell } from "@/components/dashboard/page-shell";
 
@@ -32,9 +32,10 @@ export default function WhatsAppAnalyticsPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           What your WhatsApp assistant delivered in the last {data?.windowDays ?? 30} days. You’re billed on outcomes, not chatter.
         </p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Want to ask a question about your conversations? <Link href="/dashboard/inbox?tab=ask" className="underline underline-offset-2">Ask your inbox</Link> is now in the Inbox.
+        </p>
       </div>
-
-      <AskYourInbox />
 
       {isLoading ? (
         <div className="grid gap-4 sm:grid-cols-3">
@@ -45,7 +46,7 @@ export default function WhatsAppAnalyticsPage() {
           <KpiCard title="Resolved conversations" value={data?.resolved.count ?? 0} icon={CheckCircle2} />
           <KpiCard title="Assisted orders" value={data?.assisted.count ?? 0} icon={ShoppingBag} />
           <Card className="p-4">
-            <p className="text-sm font-medium text-muted-foreground">Peaks spent</p>
+            <p className="text-sm font-medium text-muted-foreground">AI credits spent</p>
             <div className="mt-2">
               <Peaks amount={total} />
             </div>

@@ -82,7 +82,8 @@ function Questions() {
   );
 }
 
-function QuestionCard({ request }: { request: KbRequest }) {
+/** One question a shopper asked that the assistant could not answer. `answerLabel`: the Inbox calls the button "Answer once" (the answer is saved and used from then on). */
+export function QuestionCard({ request, answerLabel = "Answer" }: { request: KbRequest; answerLabel?: string }) {
   const [answer, setAnswer] = useState("");
   const [error, setError] = useState<string | null>(null);
   const answerMut = useAnswerKbRequest();
@@ -119,7 +120,7 @@ function QuestionCard({ request }: { request: KbRequest }) {
           <div className="flex gap-2">
             <Button size="sm" onClick={submit} disabled={busy}>
               {answerMut.isPending && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />}
-              Answer
+              {answerLabel}
             </Button>
             <Button
               size="sm"

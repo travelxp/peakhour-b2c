@@ -1,13 +1,19 @@
 import { describe, it, expect } from "vitest";
 import { ApiError } from "@/lib/api";
 import {
+  DEFAULT_STATUS_FILTER,
   INBOX_SUBTITLE,
+  SEARCH_MAX,
+  SEARCH_MIN,
+  STATUS_FILTERS,
   WHATSAPP_CONNECT_HREF,
   browserStorage,
   channelOfThread,
   clockLabel,
   combineListState,
   dayLabel,
+  doneAction,
+  doneToast,
   emptyListText,
   groupByDay,
   handoverAction,
@@ -23,6 +29,7 @@ import {
   rowOfWhatsApp,
   threadFromParam,
   saveReadMarks,
+  searchTerm,
   waInboxState,
   waNotice,
   type InboxRow,
@@ -266,12 +273,68 @@ describe("the unread dot", () => {
 });
 
 describe("the handover buttons", () => {
-  it("'Take over' is the main action on a thread the assistant holds, 'Return to AI' the quieter one on a thread a person holds", () => {
-    expect(handoverAction("active")).toEqual({ kind: "takeover", label: "Take over", variant: "default" });
+  it("★there is NO 'Take over' button: typing and sending a reply takes the conversation over, so the one step left is the way back", () => {
+    expect(handoverAction("active")).toBeNull();
+    expect(handoverAction("resolved")).toBeNull();
     expect(handoverAction("escalated")).toEqual({ kind: "return", label: "Return to AI", variant: "outline" });
   });
-  it("a resolved thread offers Take over, as before", () => {
-    expect(handoverAction("resolved").kind).toBe("takeover");
+});
+
+describe("Mark done and Reopen", () => {
+  it("a Done conversation offers Reopen; every other state offers Mark done", () => {
+    expect(doneAction("open", true)).toEqual({ kind: "done", label: "Mark done" });
+    expect(doneAction("needs_you", true)).toEqual({ kind: "done", label: "Mark done" });
+    expect(doneAction("done", true)).toEqual({ kind: "reopen", label: "Reopen" });
+  });
+  it("★a viewer is offered neither (they can read, not change)", () => {
+    for (const st of ["open", "needs_you", "done"] as const) expect(doneAction(st, false)).toBeNull();
+  });
+  it("says what happens next: the assistant answers again if it was handed back, else the conversation returns to Open on a new message", () => {
+    expect(doneToast(true, true)).toBe("Marked done. The assistant will answer again if the customer writes back.");
+    expect(doneToast(true, false)).toBe("Marked done. If the customer writes back, it will return to your Open list.");
+    expect(doneToast(false, false)).toBe("Reopened.");
+  });
+});
+
+describe("the chips and the search", () => {
+  it("the chips are Open, Needs you and Done, and the page starts on Open", () => {
+    expect(STATUS_FILTERS.map((f) => [f.value, f.label])).toEqual([
+      ["open", "Open"],
+      ["needs_you", "Needs you"],
+      ["done", "Done"],
+    ]);
+    expect(DEFAULT_STATUS_FILTER).toBe("open");
+  });
+  it("a search shorter than the minimum is no search; whitespace is collapsed; the length is bounded", () => {
+    expect(SEARCH_MIN).toBe(2);
+    expect(searchTerm("a")).toBe("");
+    expect(searchTerm("   ")).toBe("");
+    expect(searchTerm("  asha   rao ")).toBe("asha rao");
+    expect(searchTerm("4321")).toBe("4321");
+    expect(searchTerm("x".repeat(500))).toHaveLength(SEARCH_MAX);
+  });
+  it("the empty sentence belongs to the chip and the search, and never claims the inbox is empty", () => {
+    expect(emptyListText("all", "ok", { status: "needs_you" })).toBe("Nothing needs you right now.");
+    expect(emptyListText("all", "ok", { status: "done" })).toBe("No conversations are marked done.");
+    expect(emptyListText("all", "ok", { status: "open", search: "asha" })).toMatch(/^No conversations match \u201casha\u201d/);
+    expect(emptyListText("all", "ok", { status: "open", search: "asha" })).not.toMatch(/inbox is empty|No conversations yet/);
+    expect(emptyListText("storefront", "ok", { search: "asha" })).toMatch(/no name, number or order/);
+    expect(emptyListText("all", "ok", { status: "open" })).toBe("No conversations yet.");
+  });
+});
+
+describe("the rows carry the api's state and the test label", () => {
+  it("a WhatsApp row takes the api's state, and derives it from needsYou only when an older api sent none", () => {
+    expect(wa({ state: "done" }).state).toBe("done");
+    expect(wa({ needsYou: true }).state).toBe("needs_you");
+    expect(wa().state).toBe("open");
+    expect(wa().test).toBe(false);
+  });
+  it("a storefront row is Open unless the api says Done, and carries the Test flag", () => {
+    expect(sf().state).toBe("open");
+    expect(sf({ state: "done" }).state).toBe("done");
+    expect(sf({ test: true }).test).toBe(true);
+    expect(sf().test).toBe(false);
   });
 });
 

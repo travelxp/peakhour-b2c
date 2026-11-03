@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useAskInbox } from "@/hooks/use-wa-inbox-intelligence";
+import { useInboxPrices } from "@/hooks/use-wa-conversations";
+import { creditsLabel } from "@/lib/inbox-customer";
 
 const SUGGESTIONS = [
   "Who is at risk of churning, and why?",
@@ -20,15 +22,21 @@ const SUGGESTIONS = [
  * WhatsApp conversations. Each question is one priced query
  * (whatsapp.inbox_intelligence); the answer is grounded in the merchant's inbox
  * with contact citations.
+ *
+ * Lives in the Inbox (Inbox phase 2; it was on the WhatsApp outcomes page). ★THE PRICE IS ON THE PAGE BEFORE A QUESTION IS ASKED, read
+ * from the rate card (`/inbox-prices`); with no price row the box says it is not available instead of advertising one.
  */
 export function AskYourInbox() {
   const [question, setQuestion] = useState("");
   const ask = useAskInbox();
+  const prices = useInboxPrices();
+  const price = creditsLabel(prices.data?.askInbox);
+  const unavailable = !prices.isLoading && price === null;
   const answer = ask.data;
 
   function submit(q: string) {
     const trimmed = q.trim();
-    if (trimmed.length < 3 || ask.isPending) return;
+    if (trimmed.length < 3 || ask.isPending || unavailable) return;
     setQuestion(trimmed);
     ask.mutate(trimmed);
   }
@@ -38,11 +46,13 @@ export function AskYourInbox() {
       <div className="flex items-center gap-2">
         <Sparkles className="h-4 w-4 text-primary" />
         <p className="text-sm font-medium">Ask your inbox</p>
-        <Badge variant="secondary" className="ml-auto text-xs">Charged per question</Badge>
+        {price && <Badge variant="secondary" className="ml-auto text-xs">{price === "Free" ? "Free" : `${price} per question`}</Badge>}
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
         Ask anything about your WhatsApp conversations — trends, complaints, buying signals, who to follow up with.
+        {price && price !== "Free" ? ` Each question uses ${price}.` : ""}
       </p>
+      {unavailable && <p className="mt-1 text-sm text-muted-foreground">Asking your inbox isn&apos;t available right now.</p>}
 
       <div className="mt-3 flex flex-wrap gap-2">
         {SUGGESTIONS.map((s) => (
@@ -50,7 +60,7 @@ export function AskYourInbox() {
             key={s}
             type="button"
             onClick={() => submit(s)}
-            disabled={ask.isPending}
+            disabled={ask.isPending || unavailable}
             className="rounded-full border px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50"
           >
             {s}
@@ -68,9 +78,9 @@ export function AskYourInbox() {
           placeholder="e.g. Which customers are unhappy and why?"
           rows={2}
           className="flex-1"
-          disabled={ask.isPending}
+          disabled={ask.isPending || unavailable}
         />
-        <Button onClick={() => submit(question)} disabled={ask.isPending || question.trim().length < 3}>
+        <Button onClick={() => submit(question)} disabled={ask.isPending || unavailable || question.trim().length < 3}>
           <Send className="h-4 w-4" />
         </Button>
       </div>
