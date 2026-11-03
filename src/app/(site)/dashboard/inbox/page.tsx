@@ -10,29 +10,13 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChevronDown, ChevronUp, Sparkles } from "lucide-react";
-import {
-  useWaConnection,
-  useWaConversations,
-  useWaThread,
-  useWaHandoff,
-  useWaResume,
-  type WaConversation,
-} from "@/hooks/use-wa-conversations";
-import { useOrgMembers } from "@/hooks/use-control-plane";
 import { useAuth } from "@/providers/auth-provider";
-import { WaComposer, useComposerMemory, useReplyWindow } from "@/components/inbox/wa-composer";
-import {
-  createComposerStore,
-  memberNameLookup,
-  replyingAsLine,
-  senderLabel,
-  statusErrorMessage,
-  type ComposerStore,
-  type ReplyWindow,
-} from "@/lib/wa-inbox-reply";
+import { createComposerStore } from "@/lib/wa-inbox-reply";
+import { ConversationsPane, WaitingForConnection } from "@/components/inbox/conversations-pane";
+import { INBOX_SUBTITLE, threadFromParam } from "@/lib/inbox-view";
 import { inboxApi, type InboxItem, type InboxPriority } from "@/lib/api/inbox";
 import { ReviewReplyCard } from "@/components/inbox/review-reply-card";
-import { listFetchState, showsSkeleton, showsRows } from "@/lib/list-fetch-state";
+import { listFetchState, showsSkeleton } from "@/lib/list-fetch-state";
 import {
   inboxTabFromParam,
   REVIEW_SUMMARY_QUERY_KEY,
@@ -45,70 +29,15 @@ import {
   unansweredBadge,
 } from "@/lib/review-reply";
 import { PageShell } from "@/components/dashboard/page-shell";
-import { HeldBadge, HoldsCard, ThreadHoldControl } from "@/components/inbox/legal-hold";
-import {
-  canExportConversations,
-  downloadConversationExport,
-  expiryBanner,
-  rangeExportPath,
-  threadExportPath,
-} from "@/lib/wa-conversation-export";
 
 /**
  * Inbox — ONE queue for everything inbound (D-inbox): every channel is
- * an adapter into the same list. Lanes shipped so far: WhatsApp
- * conversations (live chat) and LinkedIn lead-gen leads (G2 — scored
- * by the lead qualifier, priority-ranked, SLA clock running). New
- * channels join as adapters, never as new pages.
+ * an adapter into the same list. Lanes shipped so far: conversations (WhatsApp
+ * live chat and, read-only, storefront chats — `components/inbox/conversations-pane.tsx`),
+ * LinkedIn lead-gen leads (G2 — scored by the lead qualifier, priority-ranked,
+ * SLA clock running) and Google reviews. New channels join as adapters, never
+ * as new pages.
  */
-
-const STATUS_LABEL: Record<string, { label: string; className: string }> = {
-  active: { label: "Active", className: "bg-success/15 text-success-on-tint" },
-  resolved: { label: "Resolved", className: "bg-muted text-muted-foreground" },
-  escalated: { label: "With a human", className: "bg-warning/15 text-warning-on-tint" },
-};
-
-function StatusPill({ status }: { status: string }) {
-  const v = STATUS_LABEL[status] ?? STATUS_LABEL.active;
-  return <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${v.className}`}>{v.label}</span>;
-}
-
-/** ✅WA T4: the 24h customer-service window, from a ticking clock. */
-const WINDOW_TONE: Record<ReplyWindow["tone"], string> = {
-  ok: "bg-success/15 text-success-on-tint",
-  warning: "bg-warning/15 text-warning-on-tint",
-  closed: "bg-muted text-muted-foreground",
-};
-
-function WindowBadge({ store, threadId, endsAt }: { store: ComposerStore; threadId: string; endsAt: string | null | undefined }) {
-  // ★THE COMPOSER'S OWN READING (`useReplyWindow`), so the two cannot disagree.
-  const win = useReplyWindow(store, threadId, endsAt);
-  return (
-    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${WINDOW_TONE[win.tone]}`}>
-      {win.label}
-    </span>
-  );
-}
-
-function Bubble({ role, content, sender }: { role: string; content: string; sender: string }) {
-  const mine = role === "assistant" || role === "merchant";
-  return (
-    <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-      <div
-        className={`max-w-[80%] rounded-lg p-2.5 text-sm ${
-          mine
-            ? "rounded-tr-none bg-[#dcf8c6] text-foreground"
-            : "rounded-tl-none bg-white text-foreground shadow-sm"
-        }`}
-      >
-        {/* ✅WA T4: every line says who wrote it: the shopper, the AI, the
-            business phone, or a named team member from the Inbox. */}
-        <p className="mb-0.5 text-[11px] font-medium opacity-70">{sender}</p>
-        <p className="whitespace-pre-wrap">{content}</p>
-      </div>
-    </div>
-  );
-}
 
 // ── Leads lane (sup_inbox, kind: lead) ────────────────────────────────
 
@@ -305,22 +234,6 @@ function LeadsPane() {
   );
 }
 
-/**
- * What a lane says while it is waiting on the network.
- *
- * ★ONE SENTENCE, THREE LANES. A paused query never resolves and never errors,
- * so without this the merchant watches placeholders for ever with nothing to
- * act on — and three hand-written versions of that sentence is three chances
- * for one of them to go missing again.
- */
-function WaitingForConnection({ what }: { what: string }) {
-  return (
-    <p className="text-center text-xs text-muted-foreground">
-      Waiting for a connection — your {what} will load when you&apos;re back online.
-    </p>
-  );
-}
-
 // ── Reviews lane (sup_inbox, kind: review — S0·4) ─────────────────────
 
 /**
@@ -452,68 +365,22 @@ function InboxHeader() {
   return (
     <div>
       <h1 className="text-2xl font-semibold tracking-tight">Inbox</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        One queue for everything inbound — conversations and leads, whichever channel they came
-        from.
-      </p>
+      <p className="mt-1 text-sm text-muted-foreground">{INBOX_SUBTITLE}</p>
     </div>
   );
 }
 
 function InboxTabs() {
-  // H2: the banner's "show only those" filter
-  const [expiringOnly, setExpiringOnly] = useState(false);
-  const conversationsQuery = useWaConversations({ expiringOnly });
-  const { conversations } = conversationsQuery;
-  const refetchConversations = conversationsQuery.refetch;
-  const convState = listFetchState(conversationsQuery, conversations.length);
-  const [selected, setSelected] = useState<string | null>(null);
-  const threadQuery = useWaThread(selected);
-  const thread = threadQuery.data;
-  // ★AND THE SAME `enabled`-GATED TRAP AGAIN: with
-  // no thread selected the query is pending and idle for ever. Silent rather
-  // than false — a blank pane claims nothing — but a blank pane is still not an
-  // answer when the merchant is offline.
-  const threadState = listFetchState(threadQuery, thread?.messages.length ?? 0);
-  const handoff = useWaHandoff();
-  const resume = useWaResume();
-  // ✅WA T4: the composer's inputs. (The ticking clock is read inside the badge
-  //  and the composer, so a tick does not re-render the whole Inbox.)
-  const { user, org, orgs } = useAuth();
+  // ★A search param, as the tab is (see below): an alert email links to `?tab=conversations&thread=<key>` and lands on that conversation.
+  const params = useSearchParams();
+  const [selected, setSelected] = useState<string | null>(() => threadFromParam(params.get("thread")));
+  // ✅WA T4: the composer's inputs. (The ticking clock is read inside the badge and the composer, so a tick does not re-render the
+  //  whole Inbox.)
+  const { org, orgs } = useAuth();
   const role = orgs.find((o) => o._id === org?._id)?.role ?? null;
-  // H2: conversation export is for owner and admin (the API enforces it; this only decides what to show)
-  const canExport = canExportConversations(role);
-  const expiry = expiryBanner(conversationsQuery.expiringCount, conversationsQuery.expiringFrom);
-  const [exportFrom, setExportFrom] = useState("");
-  const [exportTo, setExportTo] = useState("");
-  const [exporting, setExporting] = useState(false);
-  async function runExport(path: string | null) {
-    if (exporting) return; // one at a time: a double click would spend the rate limit on itself
-    if (!path) {
-      toast.error("Choose the first day to export from, and a last day only if you want one (a real date).");
-      return;
-    }
-    setExporting(true);
-    let out: Awaited<ReturnType<typeof downloadConversationExport>>;
-    try {
-      out = await downloadConversationExport(path);
-    } finally {
-      setExporting(false);
-    }
-    if (out.ok) toast.success(`Saved ${out.filename}`);
-    else toast.error(out.message);
-  }
-  const members = useOrgMembers();
-  const connection = useWaConnection(Boolean(selected));
-  // ★ONE STORE FOR THE PAGE'S LIFE: a draft, its key, its last warning and its
-  //  in-flight flag per thread, kept across switching threads or tabs, and
-  //  written by a send that settles after its composer unmounted.
+  // ★ONE STORE FOR THE PAGE'S LIFE: a draft, its key, its last warning and its in-flight flag per thread, kept across switching
+  //  threads or tabs, and written by a send that settles after its composer unmounted.
   const [composerStore] = useState(createComposerStore);
-  // ★NO HAND-BACK WHILE A REPLY IS IN FLIGHT (review R3): the api escalated
-  //  before sending, and a Resume landing mid-send gives the shopper the AI's
-  //  answer and the person's reply at once.
-  const replyInFlight = useComposerMemory(composerStore, selected ?? "").pending;
-  const memberName = memberNameLookup(members.data);
   // ★★HOISTED SO THE BADGE EXISTS BEFORE THE TAB IS OPENED. A count that only
   // appears once you have already looked at the lane is not a count — the
   // number of reviews waiting on an answer is the thing that makes somebody
@@ -532,7 +399,6 @@ function InboxTabs() {
   // the exact bug the link exists to fix, working on a hard load and broken on
   // the only path anybody takes. `useSearchParams` is subscribed to the router
   // rather than read off `window`, so it is right on both.
-  const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
   const fromUrl = inboxTabFromParam(params.get("tab"));
@@ -620,218 +486,7 @@ function InboxTabs() {
         </TabsContent>
 
         <TabsContent value="conversations" className="mt-4">
-          {/* Legal holds (H1): the business-wide hold and the held list. Owner/admin only; renders nothing for anyone else. */}
-          <HoldsCard role={role} onOpenThread={setSelected} />
-          {/* H2: the same count the weekly email states. Shown only when something is about to be deleted. */}
-          {expiry && (
-            <div role="status" className="mb-4 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
-              <p className="font-medium">{expiry.heading}</p>
-              <p className="mt-0.5 text-muted-foreground">{expiry.body}</p>
-              <Button size="sm" variant="outline" className="mt-2" onClick={() => setExpiringOnly((v) => !v)}>
-                {expiringOnly ? "Show all conversations" : "Show only those"}
-              </Button>
-            </div>
-          )}
-          {/* H2: the way back from the filter even when the count is gone (the last expiring conversation was exported and aged out) */}
-          {expiringOnly && !expiry && (
-            <div className="mb-4 flex items-center gap-3 rounded-lg border p-3 text-sm">
-              <p className="text-muted-foreground">Showing only conversations about to be deleted.</p>
-              <Button size="sm" variant="outline" onClick={() => setExpiringOnly(false)}>Show all conversations</Button>
-            </div>
-          )}
-          {/* H2: a copy the owner or admin keeps. Nothing is emailed; the file is theirs from the download. */}
-          {canExport && (
-            <div className="mb-4 flex flex-wrap items-end gap-3 rounded-lg border p-3 text-sm">
-              <div>
-                <label className="block text-xs text-muted-foreground" htmlFor="export-from">From</label>
-                <input id="export-from" type="date" value={exportFrom} onChange={(e) => setExportFrom(e.target.value)} className="rounded-md border bg-background px-2 py-1" />
-              </div>
-              <div>
-                <label className="block text-xs text-muted-foreground" htmlFor="export-to">To (optional)</label>
-                <input id="export-to" type="date" value={exportTo} onChange={(e) => setExportTo(e.target.value)} className="rounded-md border bg-background px-2 py-1" />
-              </div>
-              <Button size="sm" variant="outline" disabled={exporting} onClick={() => runExport(rangeExportPath(exportFrom, exportTo))}>
-                {exporting ? "…" : "Export these days"}
-              </Button>
-              <p className="basis-full text-xs text-muted-foreground">
-                Download every message in those days as one file. You keep it safe; Peakhour does not email conversations.
-              </p>
-            </div>
-          )}
-          <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
-            {/* Thread list */}
-            <Card className="max-h-[70vh] overflow-y-auto p-2">
-              {/* ⚠️★★★THE THIRD LANE, AND THE ONE WITH THE EXTRA TRAP. This query
-                  is `enabled`-gated on a business being picked, so a DISABLED
-                  query sits pending with an idle fetch for ever — the repair
-                  the other two lanes needed (`isPending`) would spin a skeleton
-                  here with nothing behind it. It also had no error branch at
-                  all, so a failed request read as "No conversations yet". */}
-              {/* ⚠️`showsSkeleton` — see the leads lane. `waiting` is a disabled
-                  query, and a skeleton for it never resolves. */}
-              {showsSkeleton(convState) && (
-                <div className="space-y-2 p-2">
-                  {[0, 1, 2].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
-                </div>
-              )}
-              {convState === "paused" && (
-                <div className="p-2">
-                  <WaitingForConnection what="conversations" />
-                </div>
-              )}
-              {convState === "error" && (
-                <div className="space-y-2 p-4 text-center">
-                  <p className="text-sm font-medium">Couldn&apos;t load your conversations</p>
-                  <p className="text-xs text-muted-foreground">
-                    This is a problem loading the list, not an empty inbox.
-                  </p>
-                  <Button size="sm" variant="outline" onClick={() => refetchConversations()}>
-                    Retry
-                  </Button>
-                </div>
-              )}
-              {convState === "empty" && (
-                <p className="p-4 text-sm text-muted-foreground">No conversations yet.</p>
-              )}
-              {/* ⚠️★★★A FAILED REFRESH SAYS SO WITHOUT TAKING THE ROWS AWAY. This
-                  lane polls every thirty seconds, so `error` here is usually a
-                  failed BACKGROUND refetch with the last good list still behind
-                  it — query-core keeps `data` and flips `status`. Collapsing
-                  that into `error` painted "couldn't load your conversations,
-                  this is not an empty inbox" directly above the conversations it
-                  had just listed. `stale` keeps the rows and admits the
-                  staleness instead. */}
-              {convState === "stale" && (
-                <p className="px-2 pb-1 text-[11px] text-muted-foreground">
-                  Couldn&apos;t refresh just now — showing the last update.{" "}
-                  <button
-                    onClick={() => refetchConversations()}
-                    className="underline underline-offset-2"
-                  >
-                    Retry
-                  </button>
-                </p>
-              )}
-              {showsRows(convState) && conversations.map((conv: WaConversation) => (
-                <button
-                  key={conv.threadId}
-                  onClick={() => setSelected(conv.threadId)}
-                  className={`flex w-full flex-col gap-0.5 rounded-lg p-2.5 text-left hover:bg-muted ${
-                    selected === conv.threadId ? "bg-muted" : ""
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-sm font-medium">{conv.contactName || conv.waId}</span>
-                    <span className="flex shrink-0 items-center gap-1">
-                      <HeldBadge held={conv.held} />
-                      <StatusPill status={conv.status} />
-                    </span>
-                  </div>
-                  <span className="truncate text-xs text-muted-foreground">{conv.preview || "…"}</span>
-                </button>
-              ))}
-            </Card>
-
-            {/* Thread view */}
-            <Card className="flex max-h-[70vh] flex-col p-0">
-              {!selected && (
-                <div className="flex flex-1 items-center justify-center p-8 text-sm text-muted-foreground">
-                  Select a conversation to view it.
-                </div>
-              )}
-              {selected && (
-                <>
-                  <div className="flex items-center justify-between border-b p-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{thread?.contactName || selected.split(":").slice(2).join(":")}</p>
-                      {thread && (
-                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-                          <StatusPill status={thread.status} />
-                          <HeldBadge held={thread.held} />
-                          <WindowBadge store={composerStore} threadId={thread.threadId} endsAt={thread.replyWindowEndsAt} />
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                    {thread && <ThreadHoldControl key={selected} threadId={selected} held={thread.held} role={role} />}
-                    {canExport && (
-                      <Button size="sm" variant="ghost" disabled={exporting} onClick={() => runExport(threadExportPath(selected))}>
-                        Export
-                      </Button>
-                    )}
-                    {thread?.status === "escalated" ? (
-                      <Button
-                        size="sm"
-                        variant="default"
-                        disabled={resume.isPending || replyInFlight}
-                        onClick={() =>
-                          resume.mutate({ threadId: selected, thread }, {
-                            onSuccess: () => toast.success("Handed back — the assistant will reply again."),
-                            onError: (e: Error) => toast.error(statusErrorMessage(e, "hand back")),
-                          })
-                        }
-                      >
-                        {resume.isPending ? "…" : "Return to AI"}
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={handoff.isPending}
-                        onClick={() =>
-                          handoff.mutate(selected, {
-                            onSuccess: () =>
-                              toast.success("You've taken over. The assistant won't reply to this shopper until you return it."),
-                            onError: (e: Error) => toast.error(statusErrorMessage(e, "take over")),
-                          })
-                        }
-                      >
-                        {handoff.isPending ? "…" : "Take over"}
-                      </Button>
-                    )}
-                    </div>
-                  </div>
-                  <div className="flex-1 space-y-2 overflow-y-auto bg-[#e5ddd5] p-3">
-                    {threadState === "loading" && <Skeleton className="h-20 w-full" />}
-                    {threadState === "paused" && <WaitingForConnection what="messages" />}
-                    {threadState === "error" && (
-                      <p className="p-4 text-center text-sm text-muted-foreground">
-                        Couldn&apos;t load this conversation. Try again in a moment.
-                      </p>
-                    )}
-                    {thread?.messages.map((m, i) => (
-                      <Bubble
-                        key={i}
-                        role={m.role}
-                        content={m.content}
-                        sender={senderLabel(m, {
-                          contactName: thread.contactName,
-                          currentUserId: user?._id ?? null,
-                          memberName,
-                        })}
-                      />
-                    ))}
-                    {threadState === "empty" && (
-                      <p className="p-4 text-center text-sm text-muted-foreground">No messages.</p>
-                    )}
-                  </div>
-                  {/* ✅WA T4: the composer. ★KEYED BY THREAD, so a draft written to
-                      one shopper can never be sent to the next one opened. */}
-                  {thread && thread.threadId === selected && (
-                    <WaComposer
-                      key={selected}
-                      threadId={selected}
-                      status={thread.status}
-                      role={role}
-                      endsAt={thread.replyWindowEndsAt}
-                      replyingAs={replyingAsLine(selected, connection.data)}
-                      store={composerStore}
-                    />
-                  )}
-                </>
-              )}
-            </Card>
-          </div>
+          <ConversationsPane role={role} selected={selected} onSelect={setSelected} composerStore={composerStore} />
         </TabsContent>
       </Tabs>
     </PageShell>

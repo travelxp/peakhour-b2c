@@ -15,6 +15,11 @@ export interface UserPreferences {
    * falls back to the initials monogram for anything it does not recognise.
    */
   avatar?: string | null;
+  /**
+   * Which inbox alert emails this person wants (Inbox phase 1). Absent = on; only an explicit `false` switches one off. Saved
+   * whole (all three keys): the api replaces the object. See @/lib/inbox-alerts.
+   */
+  inboxAlerts?: { needsHuman?: boolean; newLead?: boolean; badReview?: boolean };
 }
 
 export interface AuthUser {

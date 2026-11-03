@@ -133,8 +133,13 @@ export function HeldBadge({ held }: { held: HeldBy }) {
   return label ? <Badge className="bg-warning/15 text-[10px] text-warning-on-tint">{label}</Badge> : null;
 }
 
-/** "Keep (legal hold)" / "Lift hold" for the open thread. Renders nothing for anyone but an owner or admin. */
-export function ThreadHoldControl({ threadId, held, role }: { threadId: string; held: HeldBy; role: string | null }) {
+/**
+ * The open thread's hold, as a flow a header can place wherever it likes (Inbox phase 1: a button on a wide screen, an item in the
+ * overflow menu on a phone). `available` is false for anyone but an owner or admin, and for a thread held only because the whole
+ * business is. `start` opens the dialog (a lift first reads the holds fresh). `dialog` is the dialog itself: render it OUTSIDE any
+ * menu, because a menu unmounts its content when an item is chosen and would take the open dialog with it.
+ */
+export function useThreadHoldFlow({ threadId, held, role }: { threadId: string; held: HeldBy; role: string | null }) {
   // ★THE MODE IS FROZEN WHEN THE DIALOG OPENS. Derived live from `held`, a refetch after a refused action (someone else lifted
   //  it) would turn an open "Lift hold" dialog into a "Keep this conversation" one, with the typed text still in it.
   const [mode, setMode] = useState<"place" | "lift" | null>(null);
@@ -143,57 +148,64 @@ export function ThreadHoldControl({ threadId, held, role }: { threadId: string; 
   const [deleteWarning, setDeleteWarning] = useState<string | null>(null);
   const hold = useThreadHold();
   const holds = useLegalHolds(canManageHolds(role));
-  if (!canManageHolds(role)) return null;
+  const allowed = canManageHolds(role);
   const canLift = canLiftThreadHold(held);
   // Held because the business is (lifted there), or not known (an api that predates holds): nothing to offer.
-  if (!canLift && !canPlaceThreadHold(held) && mode === null) return null;
+  const available = allowed && (canLift || canPlaceThreadHold(held) || mode !== null);
   const lifting = (mode ?? (canLift ? "lift" : "place")) === "lift";
+  const start = async () => {
+    if (!canLift) return setMode("place");
+    // ★READ FRESH, NOT FROM A 30-SECOND-OLD CACHE: an uninstall or a customer's erasure can land since the last fetch, and the
+    //  lift would then delete a conversation the dialog called ordinary. If the check cannot be made the lift is not offered.
+    const fresh = await holds.refetch();
+    const warning = threadLiftWarning(freshListing(fresh), threadId);
+    if (warning === undefined) return void toast.error(LIFT_CHECK_FAILED);
+    setDeleteWarning(warning);
+    setMode("lift");
+  };
+  const dialog = available ? (
+    <ReasonDialog
+      open={mode !== null}
+      onOpenChange={(o) => !o && setMode(null)}
+      lifting={lifting}
+      warning={lifting ? deleteWarning : null}
+      title={lifting ? (deleteWarning ? "Lift the hold and delete?" : "Lift the legal hold?") : "Keep this conversation (legal hold)"}
+      description={
+        lifting && deleteWarning
+          ? "This conversation is waiting to be erased. Read the warning before you confirm."
+          : lifting
+          ? "The conversation goes back to the normal 180 days after its last message (at least 7 days from now)."
+          : "Use this when you must keep a conversation for a legal reason."
+      }
+      confirmLabel={lifting ? liftConfirmLabel(deleteWarning, "Lift hold") : "Keep this conversation"}
+      pending={hold.isPending}
+      onConfirm={(reason) =>
+        hold.mutate(
+          { threadId, action: lifting ? "lift" : "place", ...(reason ? { reason } : {}) },
+          {
+            onSuccess: () => {
+              setMode(null);
+              toast.success(lifting ? "Hold lifted." : "This conversation is now kept.");
+            },
+            onError: (e: Error) => toast.error(holdErrorMessage(e, lifting ? "lift" : "place")),
+          },
+        )
+      }
+    />
+  ) : null;
+  return { available, label: canLift ? "Lift hold" : "Keep (legal hold)", start, dialog };
+}
+
+/** "Keep (legal hold)" / "Lift hold" for the open thread. Renders nothing for anyone but an owner or admin. */
+export function ThreadHoldControl({ threadId, held, role }: { threadId: string; held: HeldBy; role: string | null }) {
+  const flow = useThreadHoldFlow({ threadId, held, role });
+  if (!flow.available) return null;
   return (
     <>
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={async () => {
-          if (!canLift) return setMode("place");
-          // ★READ FRESH, NOT FROM A 30-SECOND-OLD CACHE: an uninstall or a customer's erasure can land since the last fetch, and the
-          //  lift would then delete a conversation the dialog called ordinary. If the check cannot be made the lift is not offered.
-          const fresh = await holds.refetch();
-          const warning = threadLiftWarning(freshListing(fresh), threadId);
-          if (warning === undefined) return void toast.error(LIFT_CHECK_FAILED);
-          setDeleteWarning(warning);
-          setMode("lift");
-        }}
-      >
-        {canLift ? "Lift hold" : "Keep (legal hold)"}
+      <Button size="sm" variant="outline" onClick={flow.start}>
+        {flow.label}
       </Button>
-      <ReasonDialog
-        open={mode !== null}
-        onOpenChange={(o) => !o && setMode(null)}
-        lifting={lifting}
-        warning={lifting ? deleteWarning : null}
-        title={lifting ? (deleteWarning ? "Lift the hold and delete?" : "Lift the legal hold?") : "Keep this conversation (legal hold)"}
-        description={
-          lifting && deleteWarning
-            ? "This conversation is waiting to be erased. Read the warning before you confirm."
-            : lifting
-            ? "The conversation goes back to the normal 180 days after its last message (at least 7 days from now)."
-            : "Use this when you must keep a conversation for a legal reason."
-        }
-        confirmLabel={lifting ? liftConfirmLabel(deleteWarning, "Lift hold") : "Keep this conversation"}
-        pending={hold.isPending}
-        onConfirm={(reason) =>
-          hold.mutate(
-            { threadId, action: lifting ? "lift" : "place", ...(reason ? { reason } : {}) },
-            {
-              onSuccess: () => {
-                setMode(null);
-                toast.success(lifting ? "Hold lifted." : "This conversation is now kept.");
-              },
-              onError: (e: Error) => toast.error(holdErrorMessage(e, lifting ? "lift" : "place")),
-            },
-          )
-        }
-      />
+      {flow.dialog}
     </>
   );
 }
