@@ -13,6 +13,8 @@ import { ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
 import { createComposerStore } from "@/lib/wa-inbox-reply";
 import { ConversationsPane, WaitingForConnection } from "@/components/inbox/conversations-pane";
+import { AllStoresPane } from "@/components/inbox/all-stores-pane";
+import { SCOPE_LABEL, offersAllStores, openAddress, scopeFromParam, type InboxScope } from "@/lib/inbox-all-stores";
 import { QuestionsPane } from "@/components/inbox/questions-pane";
 import { AskYourInbox } from "@/components/whatsapp/ask-your-inbox";
 import { useKbRequests } from "@/hooks/use-knowledge-base";
@@ -388,7 +390,7 @@ function InboxTabs() {
   }
   // ✅WA T4: the composer's inputs. (The ticking clock is read inside the badge and the composer, so a tick does not re-render the
   //  whole Inbox.)
-  const { org, orgs } = useAuth();
+  const { org, orgs, businesses } = useAuth();
   const role = orgs.find((o) => o._id === org?._id)?.role ?? null;
   // ★ONE STORE FOR THE PAGE'S LIFE: a draft, its key, its last warning and its in-flight flag per thread, kept across switching
   //  threads or tabs, and written by a send that settles after its composer unmounted.
@@ -448,6 +450,21 @@ function InboxTabs() {
   // TRUNCATED page whose hundred newest reviews were all answered — a silent
   // tab asserting nothing is waiting, about older rows we never fetched.
   const badge = unansweredBadge(reviews.data?.items);
+
+  // "All my stores" (I3f): a read-only list across the person's stores, offered only to someone with more than one. The scope is in the
+  // URL (`?scope=all`) so a reload keeps it; opening a row switches the session to that store (see AllStoresPane), drops the scope and
+  // names the thread, so the address always describes the pinned store.
+  const scope: InboxScope = offersAllStores(businesses.length) ? scopeFromParam(params.get("scope")) : "store";
+  function selectScope(next: InboxScope) {
+    const search = new URLSearchParams(params.toString());
+    if (next === "all") search.set("scope", "all");
+    else search.delete("scope");
+    router.replace(`${pathname}?${search.toString()}`, { scroll: false });
+  }
+  function openFromAllStores(threadId: string) {
+    router.replace(openAddress(pathname, params.toString(), threadId), { scroll: false });
+    setSelected(threadId);
+  }
 
   return (
     <PageShell>
@@ -517,7 +534,20 @@ function InboxTabs() {
         </TabsContent>
 
         <TabsContent value="conversations" className="mt-4">
-          <ConversationsPane role={role} selected={selected} onSelect={setSelected} composerStore={composerStore} />
+          {offersAllStores(businesses.length) && (
+            <div className="mb-3 flex items-center gap-1.5" role="group" aria-label="Stores">
+              {(["store", "all"] as const).map((v) => (
+                <Button key={v} size="xs" variant={scope === v ? "secondary" : "ghost"} aria-pressed={scope === v} onClick={() => selectScope(v)}>
+                  {SCOPE_LABEL[v]}
+                </Button>
+              ))}
+            </div>
+          )}
+          {scope === "all" ? (
+            <AllStoresPane onOpen={openFromAllStores} />
+          ) : (
+            <ConversationsPane role={role} selected={selected} onSelect={setSelected} composerStore={composerStore} />
+          )}
         </TabsContent>
       </Tabs>
     </PageShell>

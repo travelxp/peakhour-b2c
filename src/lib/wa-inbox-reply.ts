@@ -197,6 +197,14 @@ export const TAKES_OVER_NOTE = "Sending a reply pauses the assistant on this con
  * offered on an assistant-held thread too, with a note (`TAKES_OVER_NOTE`) that sending pauses the assistant. A viewer gets the
  * reason and no box.
  */
+/**
+ * X has no reply window (its api answers `replyWindowEndsAt: null`), so an X thread must never read as "the 24 hours have passed" and
+ * fall to the WhatsApp template picker: free text is always on offer there. Every other thread keeps the window the api sent.
+ */
+export function windowFor(threadId: string, win: ReplyWindow): ReplyWindow {
+  return threadId.startsWith("x:") ? { open: true, label: "", tone: "ok" } : win;
+}
+
 export function composerMode(args: { status: string; role: string | null | undefined; window: ReplyWindow }): ComposerMode {
   if (!canReply(args.role)) {
     return {
