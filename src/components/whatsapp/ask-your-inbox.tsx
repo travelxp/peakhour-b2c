@@ -31,7 +31,8 @@ export function AskYourInbox() {
   const ask = useAskInbox();
   const prices = useInboxPrices();
   const price = creditsLabel(prices.data?.askInbox);
-  const unavailable = !prices.isLoading && price === null;
+  // ★ONLY WHEN THE RATE CARD ANSWERED WITH NO PRICE: a failed price lookup is not "no price row", and must not switch the feature off
+  const unavailable = prices.isSuccess && price === null;
   const answer = ask.data;
 
   function submit(q: string) {

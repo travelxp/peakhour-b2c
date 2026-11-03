@@ -135,7 +135,7 @@ function SuggestedReply({ threadId, onUse, hasDraft, disabled }: { threadId: str
         >
           {suggest.isPending ? "Drafting…" : price.text}
         </Button>
-        {!price.available && !prices.isLoading && <span className="text-[11px] text-muted-foreground">Suggested replies aren&apos;t available right now.</span>}
+        {!price.available && prices.isSuccess && <span className="text-[11px] text-muted-foreground">Suggested replies aren&apos;t available right now.</span>}
       </div>
       {error && (
         <p role="alert" className="text-xs text-warning-on-tint">

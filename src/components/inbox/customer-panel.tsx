@@ -174,7 +174,6 @@ export function CustomerPanel({ threadId, role }: { threadId: string; role: stri
             </div>
           </dl>
           {firstSeenLine(d.contact.firstSeenAt) && <p className="text-xs text-muted-foreground">{firstSeenLine(d.contact.firstSeenAt)}</p>}
-          <p className="text-[11px] text-muted-foreground">Storefront chats can&apos;t be linked to a customer who didn&apos;t sign in.</p>
         </Section>
       )}
 
