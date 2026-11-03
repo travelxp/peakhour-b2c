@@ -7,8 +7,28 @@
  * `inbox-ui.test.tsx` fails on a hard-coded colour in this file and in the pane that lays them out.
  */
 
-export function Bubble({ role, content, sender, time }: { role: string; content: string; sender: string; time?: string }) {
+import { BubbleMedia } from "@/components/inbox/inbox-media-view";
+import type { MessageMedia } from "@/lib/inbox-media";
+
+export function Bubble({
+  role,
+  content,
+  sender,
+  time,
+  media,
+  threadId,
+}: {
+  role: string;
+  content: string;
+  sender: string;
+  time?: string;
+  /** Inbox rich messages: the attachment on this line, opened on a press (`BubbleMedia`). Needs the thread it belongs to. */
+  media?: MessageMedia | null;
+  threadId?: string;
+}) {
   const mine = role === "assistant" || role === "merchant";
+  // a placeholder line ("[Photo]") only stands in for an attachment with no words; once the attachment is shown it would say it twice
+  const placeholderOnly = Boolean(media) && /^\[(Photo|Voice note|Audio|Video|Document|Sticker)\]$/.test(content);
   return (
     <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
       <div
@@ -18,7 +38,8 @@ export function Bubble({ role, content, sender, time }: { role: string; content:
       >
         {/* ✅WA T4: every line says who wrote it: the shopper, the AI, the business phone, or a named team member from the Inbox. */}
         <p className="mb-0.5 text-[11px] font-medium opacity-70">{sender}</p>
-        <p className="whitespace-pre-wrap wrap-break-word">{content}</p>
+        {media && threadId ? <BubbleMedia threadId={threadId} media={media} /> : null}
+        {placeholderOnly && media && threadId ? null : <p className="whitespace-pre-wrap wrap-break-word">{content}</p>}
         {time ? <p className="mt-1 text-right text-[10px] text-muted-foreground">{time}</p> : null}
       </div>
     </div>
