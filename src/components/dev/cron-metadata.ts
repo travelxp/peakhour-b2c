@@ -1966,6 +1966,35 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     description:
       "Feeds each merchant's approvals, edits and rejections of AI suggestions back into their voice card, so future suggestions sound more like them. Skips a store until it has enough new verdicts to learn from. Uses AI, so it costs Peaks.",
   },
+  "seo-tracking": {
+    label: "Run search visibility tracking",
+    frequency: "Runs every hour, at 20 minutes past",
+    description:
+      "Checks the stores that switched search visibility tracking on: a Google rank check each week and an AI-answer check each month. " +
+      "A store that has never run is checked first. It spends AI credits and the vendor's money, so it asks before it runs.",
+  },
+  "conversation-expiry-notice": {
+    label: "Email the conversation deletion notice",
+    frequency: "Runs Mondays and Tuesdays at 4:45 AM UTC",
+    description:
+      "Emails a store when conversations are about to be deleted under its retention period. A store with nothing expiring in the next 14 days, or one that opted out of this notice, is sent nothing. " +
+      "Tuesday's run only catches stores Monday missed: a store gets one email a week, and running it again does not resend.",
+  },
+  "commerce-stockout-alerts": {
+    label: "Send stock-out alerts",
+    frequency: "Runs daily at 5:00 AM UTC",
+    description:
+      "Tells each store about products forecast to run out before a reorder could arrive, on WhatsApp where it is connected. A product is never alerted twice in a week, " +
+      "and the emergency stop silences it.",
+  },
+  "x-dm-resume": {
+    label: "Resume X message listening for a new month",
+    frequency: "Runs daily at 12:40 AM UTC",
+    description:
+      "Starts a new month for a connected X account whose monthly message limit was reached earlier, and switches its message feed back on. " +
+      "It also stops any feed that should not be running (X messages switched off, over this month's limit, or left behind by a disconnect), because X charges for every message it delivers. " +
+      "Does nothing while X messages are not released.",
+  },
 };
 
 /** Fallback for a cron name not yet documented in CRON_METADATA. The UI
