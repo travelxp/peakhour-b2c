@@ -240,7 +240,12 @@ export interface Attempt {
 
 export type ReplyPayload =
   | { kind: "text"; text: string }
-  | { kind: "template"; templateId: string; params?: { header?: string[]; body?: string[] } };
+  | { kind: "template"; templateId: string; params?: { header?: string[]; body?: string[] } }
+  // Inbox rich messages: a product card, a checkout link and an attached image or PDF. All go through the same attempt/key/confirm
+  // rules as a text, and are free-form (inside the 24-hour window only).
+  | { kind: "product"; productId: string }
+  | { kind: "checkout"; items: Array<{ productId: string; variantId: string; quantity: number }> }
+  | { kind: "media"; file: { name: string; size: number; lastModified: number; type: string }; caption?: string };
 
 /**
  * The words a key is bound to, as the api binds them (`payloadOf`): the text,
@@ -251,9 +256,19 @@ export type ReplyPayload =
  * connection would otherwise mint a new key and send the reply twice.
  */
 export function replySignature(p: ReplyPayload): string {
-  return p.kind === "text"
-    ? JSON.stringify(["text", p.text.trim()])
-    : JSON.stringify(["template", p.templateId.toLowerCase(), p.params?.header ?? [], p.params?.body ?? []]);
+  switch (p.kind) {
+    case "text":
+      return JSON.stringify(["text", p.text.trim()]);
+    case "template":
+      return JSON.stringify(["template", p.templateId.toLowerCase(), p.params?.header ?? [], p.params?.body ?? []]);
+    case "product":
+      return JSON.stringify(["product", p.productId.toLowerCase()]);
+    case "checkout":
+      return JSON.stringify(["checkout", p.items.map((i) => [i.productId.toLowerCase(), i.variantId, i.quantity])]);
+    case "media":
+      // the file's identity (the same file chosen again is the same send) and its caption
+      return JSON.stringify(["media", p.file.name, p.file.size, p.file.lastModified, (p.caption ?? "").trim()]);
+  }
 }
 
 /**
@@ -328,10 +343,26 @@ export function replyRequest(
   if (payload.kind === "text") {
     return { path: `${base}/reply`, body: { text: payload.text.trim(), idempotencyKey } };
   }
+  if (payload.kind === "product") return { path: `${base}/send-product`, body: { productId: payload.productId, idempotencyKey } };
+  if (payload.kind === "checkout") return { path: `${base}/send-checkout-link`, body: { items: payload.items, idempotencyKey } };
+  if (payload.kind === "media") throw new Error("an attachment goes as a form: use replyForm");
   return {
     path: `${base}/reply-template`,
     body: { templateId: payload.templateId, ...(payload.params ? { params: payload.params } : {}), idempotencyKey },
   };
+}
+
+/**
+ * The form an attached image or PDF goes as (`POST .../reply-media`): the file, its caption and the idempotency key. The caption is
+ * trimmed here as a text is, because it is part of what the key is bound to (`replySignature`).
+ */
+export function replyForm(threadId: string, payload: Extract<ReplyPayload, { kind: "media" }>, file: Blob, idempotencyKey: string): { path: string; form: FormData } {
+  const form = new FormData();
+  form.append("file", file, payload.file.name);
+  const caption = (payload.caption ?? "").trim();
+  if (caption) form.append("caption", caption);
+  form.append("idempotencyKey", idempotencyKey);
+  return { path: `/v1/meta/whatsapp/conversations/${encodeURIComponent(threadId)}/reply-media`, form };
 }
 
 /**
@@ -545,7 +576,31 @@ export function replyErrorCopy(err: unknown, kind: ReplyPayload["kind"] = "text"
         detail:
           kind === "template"
             ? `Each template value must be filled in, at most ${TEMPLATE_VALUE_MAX.toLocaleString("en-US")} characters, with no line break or tab. ${NOTHING_SENT}`
-            : `It must not be empty, and must be at most ${REPLY_TEXT_MAX.toLocaleString("en-US")} characters. ${NOTHING_SENT}`,
+            : kind === "product" || kind === "checkout" || kind === "media"
+              ? `${serverMessage(err, "Check what you chose and try again.")} ${NOTHING_SENT}`
+              : `It must not be empty, and must be at most ${REPLY_TEXT_MAX.toLocaleString("en-US")} characters. ${NOTHING_SENT}`,
+      };
+    // Inbox rich messages. Each one is refused BEFORE anything is claimed or sent, so each says so.
+    case "MEDIA_REFUSED":
+      return {
+        ...base,
+        attempt: "fresh",
+        title: "This file can't be sent",
+        detail: `${serverMessage(err, "Choose a JPEG or PNG image or a PDF of up to 4 MB.")} ${NOTHING_SENT}`,
+      };
+    case "PRODUCT_NOT_FOUND":
+      return {
+        ...base,
+        attempt: "fresh",
+        title: "That product isn't in your catalogue any more",
+        detail: `${serverMessage(err, "Search again and pick it from the list.")} ${NOTHING_SENT}`,
+      };
+    case "CHECKOUT_UNAVAILABLE":
+      return {
+        ...base,
+        attempt: "fresh",
+        title: "A checkout link can't be built for this",
+        detail: `${serverMessage(err, "Check the products on the link.")} ${NOTHING_SENT}`,
       };
     case "FORBIDDEN":
       return {
