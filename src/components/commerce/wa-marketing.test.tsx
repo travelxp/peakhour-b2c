@@ -25,6 +25,7 @@ const overview = (over: Partial<WaOverview> = {}, ready: WaOverview["recovery"][
   settings: { cartRecovery: { enabled: false, delayMinutes: 60, secondReminder: false }, broadcasts: { enabled: false }, frequencyCap: { max: 1, perDays: 3 } },
   recovery: { ready, counts: { watching: 2, reminded: 5, recovered: 1 }, recoveredRevenue: [{ currency: "INR", minor: 149900 }], windowDays: 30 },
   ratesAsOf: "2026-11-03",
+  currency: "INR",
   ...over,
 });
 
@@ -76,7 +77,7 @@ const row = (over: Partial<Broadcast> = {}): Broadcast => ({
 
 describe("a broadcast row", () => {
   it("a scheduled one can be cancelled", () => {
-    const out = renderToStaticMarkup(<BroadcastRow b={row()} onCancel={() => undefined} />);
+    const out = renderToStaticMarkup(<BroadcastRow b={row()} currency="INR" onCancel={() => undefined} />);
     expect(out).toContain("Scheduled");
     expect(out).toContain("Cancel broadcast");
     expect(out).toContain("120 shoppers");
@@ -86,6 +87,7 @@ describe("a broadcast row", () => {
     const out = renderToStaticMarkup(
       <BroadcastRow
         b={row({ status: "sending", canCancel: false, counts: { queued: 20, sent: 100, delivered: 90, read: 40, replied: 3, failed: 0, skipped: 0, attributedOrders: 2, attributedMinor: 250000 } })}
+        currency="INR"
         onCancel={() => undefined}
       />,
     );
@@ -97,8 +99,16 @@ describe("a broadcast row", () => {
     expect(out).toMatch(/not proof the message caused it/);
   });
 
+  it("shows attributed revenue in the STORE's currency, with or without a cost estimate", () => {
+    const counts = { queued: 0, sent: 10, delivered: 10, read: 5, replied: 1, failed: 0, skipped: 0, attributedOrders: 1, attributedMinor: 12000 };
+    const out = renderToStaticMarkup(<BroadcastRow b={row({ status: "sent", canCancel: false, estimate: null, counts })} currency="AED" onCancel={() => undefined} />);
+    expect(out).toContain("120.00");
+    expect(out).toMatch(/AED|\u062F\.\u0625/);
+    expect(out).not.toContain("\u20B9");
+  });
+
   it("a cancelled one shows no results", () => {
-    const out = renderToStaticMarkup(<BroadcastRow b={row({ status: "cancelled", canCancel: false })} onCancel={() => undefined} />);
+    const out = renderToStaticMarkup(<BroadcastRow b={row({ status: "cancelled", canCancel: false })} currency="INR" onCancel={() => undefined} />);
     expect(out).toContain("Cancelled");
     expect(out).not.toContain("Delivered");
   });

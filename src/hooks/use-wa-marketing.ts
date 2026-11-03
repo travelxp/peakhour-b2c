@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import { useActiveStore } from "@/providers/active-store-provider";
@@ -38,23 +38,24 @@ export function useBroadcasts() {
   });
 }
 
-export function useWaTemplates(enabled2: boolean) {
+export function useWaTemplates(active: boolean) {
   const { store, enabled, key } = useScope();
   return useQuery<{ templates: WaTemplate[]; error?: string }>({
     queryKey: [WA_KEY, "templates", ...key],
     queryFn: () => api.get(store.path(`${BASE}/broadcasts/templates`)),
-    enabled: enabled && enabled2,
+    enabled: enabled && active,
     retry: false,
   });
 }
 
-export function useWaProducts(q: string, enabled2: boolean) {
+export function useWaProducts(q: string, active: boolean) {
   const { store, enabled, key } = useScope();
   return useQuery<Array<{ sourceProductId: string; title: string }>>({
     queryKey: [WA_KEY, "products", q, ...key],
     queryFn: async () => (await api.get<{ products: Array<{ sourceProductId: string; title: string }> }>(store.path(`${BASE}/products?q=${encodeURIComponent(q)}`))).products,
-    enabled: enabled && enabled2,
+    enabled: enabled && active,
     retry: false,
+    placeholderData: keepPreviousData,
   });
 }
 

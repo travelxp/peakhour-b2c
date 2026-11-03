@@ -58,7 +58,8 @@ export function BroadcastsPanel() {
     );
   }
   const d = overview.data;
-  const banner = d.stopped ? readinessCopy("ready", true) : null;
+  // Broadcasts need the stop to be off and WhatsApp connected; the cart reminder's template approval is not their concern.
+  const banner = d.stopped ? readinessCopy("ready", true) : d.recovery.ready === "no_whatsapp" ? readinessCopy("no_whatsapp", false) : null;
   return (
     <div className="space-y-6" data-broadcasts="ready">
       <p className="text-sm text-muted-foreground">{BROADCAST_INTRO} {FEES_NOTE}</p>
@@ -70,7 +71,7 @@ export function BroadcastsPanel() {
       )}
       <SwitchCard on={d.settings.broadcasts.enabled} />
       {d.settings.broadcasts.enabled && <Composer ratesAsOf={d.ratesAsOf} />}
-      <History />
+      <History currency={d.currency} />
     </div>
   );
 }
@@ -80,7 +81,7 @@ function SwitchCard({ on }: { on: boolean }) {
   return (
     <Card>
       <CardContent className="flex flex-wrap items-center gap-3 pt-6">
-        <Switch id="bc-enabled" checked={on} disabled={save.isPending} onCheckedChange={(v) => save.mutate({ broadcasts: { enabled: v } })} />
+        <Switch id="bc-enabled" checked={save.isPending ? save.variables?.broadcasts?.enabled === true : on} disabled={save.isPending} onCheckedChange={(v) => save.mutate({ broadcasts: { enabled: v } })} />
         <Label htmlFor="bc-enabled">Allow broadcasts</Label>
         <span className="text-sm text-muted-foreground">Off until you turn it on. Only shoppers who opted in are ever messaged, and each can reply STOP.</span>
         {save.isError && <span role="alert" className="text-sm text-destructive">We could not save that. Nothing was changed.</span>}
@@ -127,6 +128,7 @@ function Composer({ ratesAsOf }: { ratesAsOf: string }) {
     if (when === "later") {
       const d = new Date(at);
       if (!at || Number.isNaN(d.getTime())) return "Choose when to send it.";
+      if (d.getTime() < Date.now()) return "Choose a time that has not passed.";
       scheduledFor = d.toISOString();
     }
     return { name: name.trim(), templateName: chosen.name, language: chosen.language, bodyParams: params, audience, scheduledFor };
@@ -149,8 +151,17 @@ function Composer({ ratesAsOf }: { ratesAsOf: string }) {
     try {
       const r = await createM.mutateAsync({ draft: preview.draft, expectedAudienceSize: preview.value.audienceSize });
       setNotice({ tone: "ok", text: r.duplicate ? "That broadcast was already set up. Nothing new was sent." : `Done. The broadcast is set up for ${r.audienceSize} ${r.audienceSize === 1 ? "shopper" : "shoppers"} and will start ${preview.draft.scheduledFor ? "at the time you chose" : "shortly"}.` });
+      // The whole form starts fresh: a second review of the same template and audience would be the same broadcast.
       setPreview(null);
       setName("");
+      setTpl("");
+      setParams([]);
+      setKind("all_opted_in");
+      setDaysText("30");
+      setProductQ("");
+      setProductId("");
+      setWhen("now");
+      setAt("");
     } catch (err) {
       // A 409 (the group changed) and any other refusal both say nothing was sent; show the group again.
       setNotice({ tone: "bad", text: err instanceof Error ? err.message : "We could not set that broadcast up. Nothing was sent." });
@@ -214,7 +225,7 @@ function Composer({ ratesAsOf }: { ratesAsOf: string }) {
         {kind === "bought_product" && (
           <div className="space-y-1">
             <Label htmlFor="bc-product-q">Find the product</Label>
-            <Input id="bc-product-q" className="max-w-md" value={productQ} onChange={(e) => setProductQ(e.target.value)} />
+            <Input id="bc-product-q" className="max-w-md" value={productQ} onChange={(e) => { setProductQ(e.target.value); setProductId(""); setPreview(null); }} />
             <select aria-label="Product" className={field} value={productId} onChange={(e) => { setPreview(null); setProductId(e.target.value); }}>
               <option value="">Choose a product</option>
               {(products.data ?? []).map((p) => (
@@ -263,7 +274,7 @@ function Composer({ ratesAsOf }: { ratesAsOf: string }) {
   );
 }
 
-function History() {
+function History({ currency }: { currency: string | null }) {
   const q = useBroadcasts();
   const cancel = useCancelBroadcast();
   if (q.isPending) return <Skeleton className="h-24 w-full" />;
@@ -282,13 +293,13 @@ function History() {
       <h2 id="bc-history" className="text-lg font-semibold">Your broadcasts</h2>
       {cancel.isError && <p role="alert" className="text-sm text-destructive">{cancel.error instanceof Error ? cancel.error.message : "We could not cancel that."}</p>}
       {rows.map((b) => (
-        <BroadcastRow key={b.id} b={b} onCancel={() => cancel.mutate(b.id)} />
+        <BroadcastRow key={b.id} b={b} currency={currency} onCancel={() => cancel.mutate(b.id)} />
       ))}
     </section>
   );
 }
 
-export function BroadcastRow({ b, onCancel }: { b: Broadcast; onCancel: () => void }) {
+export function BroadcastRow({ b, currency, onCancel }: { b: Broadcast; currency: string | null; onCancel: () => void }) {
   const notSent = notSentLine(b.counts);
   return (
     <Card>
@@ -313,7 +324,7 @@ export function BroadcastRow({ b, onCancel }: { b: Broadcast; onCancel: () => vo
             ))}
           </dl>
         )}
-        {b.counts.attributedMinor > 0 && b.estimate && <p className="text-xs text-muted-foreground">Orders placed within 7 days of the message by the people it reached: {moneyMinor(b.counts.attributedMinor, b.estimate.currency)}. Measured from your store&apos;s orders; it shows who bought after, not proof the message caused it.</p>}
+        {b.counts.attributedMinor > 0 && currency && <p className="text-xs text-muted-foreground">Orders placed within 7 days of the message by the people it reached: {moneyMinor(b.counts.attributedMinor, currency)}. Measured from your store&apos;s orders; it shows who bought after, not proof the message caused it.</p>}
         {notSent && <p className="text-xs text-muted-foreground">{notSent}.</p>}
         {b.canCancel ? (
           <ConfirmDialog

@@ -37,8 +37,8 @@ export function WinBackPanel() {
   if (!q.data.supported) {
     return <p className="text-sm text-muted-foreground">Cart reminders work with Shopify stores. Connect a Shopify store to use them.</p>;
   }
-  // Keyed by what is stored, so after a save or a refresh the form starts from the api's truth rather than from what was typed.
-  return <WinBackView key={JSON.stringify(q.data.settings)} data={q.data} />;
+  // Not keyed by the stored settings: a remount after a save would reset the form and lose the "Saved." confirmation.
+  return <WinBackView data={q.data} />;
 }
 
 export function WinBackView({ data }: { data: WaOverview }) {

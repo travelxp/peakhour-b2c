@@ -25,6 +25,8 @@ export interface WaOverview {
     windowDays: number;
   };
   ratesAsOf: string;
+  /** The store's own currency (orders are in it), or null. */
+  currency: string | null;
 }
 
 export type AudienceKind = "all_opted_in" | "purchased_recent" | "bought_product" | "cod_buyers" | "never_purchased";
@@ -169,6 +171,6 @@ export function moneyMinor(minor: number, currency: string): string {
     const digits = f.resolvedOptions().maximumFractionDigits ?? 2;
     return f.format(minor / 10 ** digits);
   } catch {
-    return `${minor / 100} ${currency}`;
+    return `${minor} ${currency} (minor units)`;
   }
 }
