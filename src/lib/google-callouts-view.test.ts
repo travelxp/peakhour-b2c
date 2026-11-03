@@ -135,6 +135,8 @@ describe("★★G-14e — adding: the policy check's answers", () => {
       "Your account already has “Free UK delivery”, but Google says: not showing.",
     );
     expect(googleCalloutAddedSentence({ created: true, callout: callout(), policy: { verdict: "ok" } })).toBe("Added “Free UK delivery”. Google reviews it before it shows.");
+    // FC2: a legacy `checked: false` from an api not yet on the fail-closed release is not special-cased any more.
+    expect(googleCalloutAddedSentence({ created: true, callout: callout(), policy: { checked: false, verdict: "ok" } as never })).toBe("Added “Free UK delivery”. Google reviews it before it shows.");
   });
 });
 
