@@ -1793,6 +1793,22 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       };
     },
   },
+  "wa-template-sync": {
+    label: "Send merchants' WhatsApp messages to Meta",
+    frequency: "Runs every 30 minutes, at 7 and 37 past",
+    description:
+      "Sends each connected merchant's missing WhatsApp templates to their own WhatsApp account, tries again on ones Meta rejected (a few times, then it is left for support), and reads Meta's answer for any left waiting six hours. Never touches Peakhour's own number. Fired by hand it creates templates on the dev merchant's real Meta account.",
+    summarize: (data) => {
+      const d = data as { processed?: number; failed?: number; unitsHandedOver?: number } | null;
+      if (!d || typeof d.processed !== "number") return null;
+      const ran = `${d.processed} merchant${d.processed === 1 ? "" : "s"} handled`;
+      if (!d.failed) return ran;
+      return {
+        message: `${ran}, and ${d.failed} could not reach Meta; each is retried after a wait.`,
+        level: "warning" as const,
+      };
+    },
+  },
   "commerce-campaign-expiry": {
     label: "Take finished promotions back down",
     frequency: "Runs hourly at 25 past",
