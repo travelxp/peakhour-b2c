@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useSaveWaSettings, useWaOverview } from "@/hooks/use-wa-marketing";
-import { CART_INTRO, FEES_NOTE, moneyMinor, readinessCopy, type WaOverview } from "@/lib/wa-marketing";
+import { CART_INTRO, FEES_NOTE, moneyMinor, readinessCopy, winBackPatch, type WaOverview } from "@/lib/wa-marketing";
 
 const DELAYS = [30, 60, 120, 360, 1440];
 const delayLabel = (m: number) => (m === 1440 ? "24 hours" : m % 60 === 0 ? (m === 60 ? "1 hour" : `${m / 60} hours`) : `${m} minutes`);
@@ -56,12 +56,10 @@ export function WinBackView({ data }: { data: WaOverview }) {
   const delays = [...new Set([...DELAYS, delay])].sort((a, b) => a - b);
 
   function onSave() {
-    const m = Number(max);
-    const d = Number(days);
-    if (!Number.isInteger(m) || m < 1 || m > 10) return setProblem("Send each shopper between 1 and 10 messages in the period. Nothing was changed.");
-    if (!Number.isInteger(d) || d < 1 || d > 30) return setProblem("The period must be between 1 and 30 days. Nothing was changed.");
+    const built = winBackPatch(data.settings, { enabled, delayMinutes: delay, secondReminder: second, max, perDays: days });
+    if (!built.ok) return setProblem(built.error);
     setProblem(null);
-    save.mutate({ cartRecovery: { enabled, delayMinutes: delay, secondReminder: second }, frequencyCap: { max: m, perDays: d } });
+    save.mutate(built.patch);
   }
 
   const r = data.recovery;
@@ -81,29 +79,29 @@ export function WinBackView({ data }: { data: WaOverview }) {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center gap-3">
-            <Switch id="wb-enabled" checked={enabled} onCheckedChange={setEnabled} disabled={save.isPending} />
+            <Switch id="wb-enabled" checked={enabled} onCheckedChange={(v) => { save.reset(); setEnabled(v); }} disabled={save.isPending} />
             <Label htmlFor="wb-enabled">Send cart reminders</Label>
           </div>
           <div className="space-y-1">
             <Label htmlFor="wb-delay">Send the first reminder after</Label>
-            <select id="wb-delay" className="block h-9 rounded-md border bg-background px-3 text-sm" value={delay} disabled={save.isPending} onChange={(e) => setDelay(Number(e.target.value))}>
+            <select id="wb-delay" className="block h-9 rounded-md border bg-background px-3 text-sm" value={delay} disabled={save.isPending} onChange={(e) => { save.reset(); setDelay(Number(e.target.value)); }}>
               {delays.map((m) => (
                 <option key={m} value={m}>{delayLabel(m)}</option>
               ))}
             </select>
           </div>
           <div className="flex items-center gap-3">
-            <Switch id="wb-second" checked={second} onCheckedChange={setSecond} disabled={save.isPending} />
+            <Switch id="wb-second" checked={second} onCheckedChange={(v) => { save.reset(); setSecond(v); }} disabled={save.isPending} />
             <Label htmlFor="wb-second">Send one more reminder 24 hours later, if the cart is still open</Label>
           </div>
           <div className="flex flex-wrap items-end gap-4">
             <div className="space-y-1">
               <Label htmlFor="wb-max">Most messages one shopper gets</Label>
-              <Input id="wb-max" className="w-28" inputMode="numeric" value={max} disabled={save.isPending} onChange={(e) => setMax(e.target.value)} />
+              <Input id="wb-max" className="w-28" inputMode="numeric" value={max} disabled={save.isPending} onChange={(e) => { save.reset(); setMax(e.target.value); }} />
             </div>
             <div className="space-y-1">
               <Label htmlFor="wb-days">In this many days</Label>
-              <Input id="wb-days" className="w-28" inputMode="numeric" value={days} disabled={save.isPending} onChange={(e) => setDays(e.target.value)} />
+              <Input id="wb-days" className="w-28" inputMode="numeric" value={days} disabled={save.isPending} onChange={(e) => { save.reset(); setDays(e.target.value); }} />
             </div>
           </div>
           <p className="text-xs text-muted-foreground">This limit counts cart reminders and broadcasts together.</p>

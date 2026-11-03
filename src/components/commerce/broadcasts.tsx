@@ -70,7 +70,7 @@ export function BroadcastsPanel() {
         </div>
       )}
       <SwitchCard on={d.settings.broadcasts.enabled} />
-      {d.settings.broadcasts.enabled && <Composer ratesAsOf={d.ratesAsOf} />}
+      {d.settings.broadcasts.enabled && <Composer ratesAsOf={d.ratesAsOf} blocked={d.stopped ? "Your emergency stop is on, so a broadcast cannot be sent." : d.recovery.ready === "no_whatsapp" ? "Connect WhatsApp to send a broadcast." : null} />}
       <History currency={d.currency} />
     </div>
   );
@@ -78,10 +78,12 @@ export function BroadcastsPanel() {
 
 function SwitchCard({ on }: { on: boolean }) {
   const save = useSaveWaSettings();
+  // The value the merchant chose stays on screen until the refetch confirms it, so it does not flick back and look unsaved.
+  const [chosen, setChosen] = useState<boolean | null>(null);
   return (
     <Card>
       <CardContent className="flex flex-wrap items-center gap-3 pt-6">
-        <Switch id="bc-enabled" checked={save.isPending ? save.variables?.broadcasts?.enabled === true : on} disabled={save.isPending} onCheckedChange={(v) => save.mutate({ broadcasts: { enabled: v } })} />
+        <Switch id="bc-enabled" checked={chosen ?? on} disabled={save.isPending} onCheckedChange={(v) => { setChosen(v); save.mutate({ broadcasts: { enabled: v } }, { onError: () => setChosen(null) }); }} />
         <Label htmlFor="bc-enabled">Allow broadcasts</Label>
         <span className="text-sm text-muted-foreground">Off until you turn it on. Only shoppers who opted in are ever messaged, and each can reply STOP.</span>
         {save.isError && <span role="alert" className="text-sm text-destructive">We could not save that. Nothing was changed.</span>}
@@ -90,7 +92,7 @@ function SwitchCard({ on }: { on: boolean }) {
   );
 }
 
-function Composer({ ratesAsOf }: { ratesAsOf: string }) {
+function Composer({ ratesAsOf, blocked }: { ratesAsOf: string; blocked: string | null }) {
   const templates = useWaTemplates(true);
   const [name, setName] = useState("");
   const [tpl, setTpl] = useState("");
@@ -147,7 +149,14 @@ function Composer({ ratesAsOf }: { ratesAsOf: string }) {
   }
 
   async function onConfirm() {
-    if (!preview) return;
+    // One request at a time: the dialog closes on confirm, and a send cannot be undone.
+    if (!preview || createM.isPending || blocked) return;
+    // The time was checked at Review; the page may have sat open since.
+    if (preview.draft.scheduledFor && new Date(preview.draft.scheduledFor).getTime() < Date.now()) {
+      setNotice({ tone: "bad", text: "That time has passed. Choose a new time and review again. Nothing was sent." });
+      setPreview(null);
+      return;
+    }
     try {
       const r = await createM.mutateAsync({ draft: preview.draft, expectedAudienceSize: preview.value.audienceSize });
       setNotice({ tone: "ok", text: r.duplicate ? "That broadcast was already set up. Nothing new was sent." : `Done. The broadcast is set up for ${r.audienceSize} ${r.audienceSize === 1 ? "shopper" : "shoppers"} and will start ${preview.draft.scheduledFor ? "at the time you chose" : "shortly"}.` });
@@ -184,7 +193,7 @@ function Composer({ ratesAsOf }: { ratesAsOf: string }) {
         )}
         <div className="space-y-1">
           <Label htmlFor="bc-name">Name (only you see it)</Label>
-          <Input id="bc-name" className="max-w-md" value={name} maxLength={120} onChange={(e) => setName(e.target.value)} />
+          <Input id="bc-name" className="max-w-md" value={name} maxLength={120} onChange={(e) => { setPreview(null); setName(e.target.value); }} />
         </div>
         <div className="space-y-1">
           <Label htmlFor="bc-template">Message</Label>
@@ -241,7 +250,8 @@ function Composer({ ratesAsOf }: { ratesAsOf: string }) {
           {when === "later" && <Input aria-label="Send at" type="datetime-local" className="mt-1 max-w-xs" value={at} onChange={(e) => { setAt(e.target.value); setPreview(null); }} />}
         </fieldset>
         {notice && <p role={notice.tone === "bad" ? "alert" : "status"} className={notice.tone === "bad" ? "text-sm text-destructive" : "text-sm"}>{notice.text}</p>}
-        <Button variant="outline" onClick={() => void onReview()} disabled={previewM.isPending}>{previewM.isPending ? "Checking…" : "Review"}</Button>
+        {blocked && <p role="status" className="text-sm text-muted-foreground">{blocked}</p>}
+        <Button variant="outline" onClick={() => void onReview()} disabled={previewM.isPending || !!blocked}>{previewM.isPending ? "Checking…" : "Review"}</Button>
         {preview && (
           <div className="space-y-3 rounded-lg border p-4" data-broadcast-review>
             <p className="font-medium">
@@ -293,13 +303,13 @@ function History({ currency }: { currency: string | null }) {
       <h2 id="bc-history" className="text-lg font-semibold">Your broadcasts</h2>
       {cancel.isError && <p role="alert" className="text-sm text-destructive">{cancel.error instanceof Error ? cancel.error.message : "We could not cancel that."}</p>}
       {rows.map((b) => (
-        <BroadcastRow key={b.id} b={b} currency={currency} onCancel={() => cancel.mutate(b.id)} />
+        <BroadcastRow key={b.id} b={b} currency={currency} busy={cancel.isPending} onCancel={() => { cancel.reset(); cancel.mutate(b.id); }} />
       ))}
     </section>
   );
 }
 
-export function BroadcastRow({ b, currency, onCancel }: { b: Broadcast; currency: string | null; onCancel: () => void }) {
+export function BroadcastRow({ b, currency, busy = false, onCancel }: { b: Broadcast; currency: string | null; busy?: boolean; onCancel: () => void }) {
   const notSent = notSentLine(b.counts);
   return (
     <Card>
@@ -328,7 +338,7 @@ export function BroadcastRow({ b, currency, onCancel }: { b: Broadcast; currency
         {notSent && <p className="text-xs text-muted-foreground">{notSent}.</p>}
         {b.canCancel ? (
           <ConfirmDialog
-            trigger={<Button variant="outline" size="sm">Cancel broadcast</Button>}
+            trigger={<Button variant="outline" size="sm" disabled={busy}>Cancel broadcast</Button>}
             title="Cancel this broadcast?"
             description="Nothing has been sent yet. Cancelling stops it for everyone. After it starts, it cannot be cancelled."
             confirmLabel="Yes, cancel it"

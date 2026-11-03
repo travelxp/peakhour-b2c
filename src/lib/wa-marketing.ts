@@ -95,7 +95,7 @@ export function audienceSentence(a: Audience, productTitle?: string): string {
     case "purchased_recent":
       return `Bought in the last ${a.days ?? 0} days`;
     case "bought_product":
-      return `Bought ${productTitle ?? "one product"}`;
+      return `Bought ${productTitle ?? "a product you chose"}`;
     case "cod_buyers":
       return "Cash on delivery buyers";
     case "never_purchased":
@@ -173,4 +173,37 @@ export function moneyMinor(minor: number, currency: string): string {
   } catch {
     return `${minor} ${currency} (minor units)`;
   }
+}
+
+export interface WinBackForm {
+  enabled: boolean;
+  delayMinutes: number;
+  secondReminder: boolean;
+  max: string;
+  perDays: string;
+}
+
+/**
+ * The Win back form as a PATCH body holding ONLY what the merchant changed, or the sentence saying what to fix.
+ * Unchanged fields are left out so a field edited meanwhile in another tab or the Shopify app is not overwritten.
+ */
+export function winBackPatch(current: WaSettings, form: WinBackForm): { ok: true; patch: Partial<WaSettings> } | { ok: false; error: string } {
+  const max = Number(form.max);
+  const perDays = Number(form.perDays);
+  if (!Number.isInteger(max) || max < 1 || max > 10) return { ok: false, error: "Send each shopper between 1 and 10 messages in the period. Nothing was changed." };
+  if (!Number.isInteger(perDays) || perDays < 1 || perDays > 30) return { ok: false, error: "The period must be between 1 and 30 days. Nothing was changed." };
+  const c = current.cartRecovery;
+  const f = current.frequencyCap;
+  const cartRecovery: Partial<WaSettings["cartRecovery"]> = {};
+  if (form.enabled !== c.enabled) cartRecovery.enabled = form.enabled;
+  if (form.delayMinutes !== c.delayMinutes) cartRecovery.delayMinutes = form.delayMinutes;
+  if (form.secondReminder !== c.secondReminder) cartRecovery.secondReminder = form.secondReminder;
+  const frequencyCap: Partial<WaSettings["frequencyCap"]> = {};
+  if (max !== f.max) frequencyCap.max = max;
+  if (perDays !== f.perDays) frequencyCap.perDays = perDays;
+  const patch: Record<string, object> = {};
+  if (Object.keys(cartRecovery).length) patch.cartRecovery = cartRecovery;
+  if (Object.keys(frequencyCap).length) patch.frequencyCap = frequencyCap;
+  if (Object.keys(patch).length === 0) return { ok: false, error: "Nothing has changed, so nothing was saved." };
+  return { ok: true, patch: patch as Partial<WaSettings> };
 }

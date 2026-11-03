@@ -11,7 +11,9 @@ import {
   notSentLine,
   readinessCopy,
   resultsLine,
+  winBackPatch,
   type BroadcastCounts,
+  type WaSettings,
 } from "./wa-marketing";
 
 const counts = (over: Partial<BroadcastCounts> = {}): BroadcastCounts => ({ queued: 0, sent: 0, delivered: 0, read: 0, replied: 0, failed: 0, skipped: 0, attributedOrders: 0, attributedMinor: 0, ...over });
@@ -73,5 +75,32 @@ describe("results", () => {
     expect(moneyMinor(149900, "INR")).toContain("1,499.00");
     expect(moneyMinor(1500, "JPY")).toContain("1,500");
     expect(moneyMinor(1500, "JPY")).not.toContain(".");
+  });
+});
+
+describe("winBackPatch sends only what changed", () => {
+  const current: WaSettings = { cartRecovery: { enabled: false, delayMinutes: 60, secondReminder: false }, broadcasts: { enabled: true }, frequencyCap: { max: 1, perDays: 3 } };
+  const same = { enabled: false, delayMinutes: 60, secondReminder: false, max: "1", perDays: "3" };
+  it("one changed field is one leaf; the rest is left to whoever else edited it", () => {
+    expect(winBackPatch(current, { ...same, enabled: true })).toEqual({ ok: true, patch: { cartRecovery: { enabled: true } } });
+    expect(winBackPatch(current, { ...same, max: "2", delayMinutes: 120 })).toEqual({ ok: true, patch: { cartRecovery: { delayMinutes: 120 }, frequencyCap: { max: 2 } } });
+  });
+  it("nothing changed is said, not sent", () => {
+    expect(winBackPatch(current, same)).toEqual({ ok: false, error: "Nothing has changed, so nothing was saved." });
+  });
+  it("a bad limit names the fix and that nothing was changed", () => {
+    expect(winBackPatch(current, { ...same, max: "11" })).toEqual({ ok: false, error: "Send each shopper between 1 and 10 messages in the period. Nothing was changed." });
+    expect(winBackPatch(current, { ...same, perDays: "0" })).toMatchObject({ ok: false });
+    expect(winBackPatch(current, { ...same, max: "1.5" })).toMatchObject({ ok: false });
+  });
+  it("never touches the broadcasts switch", () => {
+    const r = winBackPatch(current, { ...same, enabled: true });
+    expect(r.ok && "broadcasts" in r.patch).toBe(false);
+  });
+});
+
+describe("audience wording", () => {
+  it("a product broadcast without a known title does not claim one product", () => {
+    expect(audienceSentence({ kind: "bought_product", sourceProductId: "7" })).toBe("Bought a product you chose");
   });
 });
