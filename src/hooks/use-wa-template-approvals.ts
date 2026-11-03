@@ -17,6 +17,11 @@ export function useWaTemplateApprovals() {
     queryFn: () => api.get<TemplateApprovals>("/v1/meta/whatsapp/template-approvals"),
     enabled: isAuthenticated && !!org?._id && !!business?._id,
     retry: false,
-    refetchInterval: (q) => (q.state.data?.connected && q.state.data.templates.length > 0 && !q.state.data.allApproved ? 60_000 : false),
+    refetchInterval: (q) => {
+      const d = q.state.data;
+      if (!d?.connected || d.templates.length === 0 || d.allApproved) return false;
+      // A minute while Meta is still reviewing; five once nothing is waiting (a rejection Peakhour is still retrying).
+      return d.counts.waiting > 0 ? 60_000 : 300_000;
+    },
   });
 }

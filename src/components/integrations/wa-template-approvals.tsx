@@ -38,7 +38,7 @@ export function TemplateApprovalsView({ data }: { data: TemplateApprovals }) {
               <p className="text-xs text-muted-foreground">Needed for: {t.unlocks}</p>
               <p className="mt-1 text-sm text-muted-foreground">{t.message}</p>
               {t.state === "not_approved" && t.reason ? (
-                <p className="mt-1 text-xs text-muted-foreground">Meta said: {t.reason}</p>
+                <p className="mt-1 break-words text-xs text-muted-foreground">Meta said: {t.reason}</p>
               ) : null}
             </div>
             <Badge variant={VARIANT[t.state]} data-state={t.state} className="shrink-0 self-start">
