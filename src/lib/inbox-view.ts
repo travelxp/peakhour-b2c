@@ -1,5 +1,6 @@
 import { ApiError } from "@/lib/api";
 import type { ListFetchState } from "@/lib/list-fetch-state";
+import type { ResponseTimer, ThreadAssignee } from "@/lib/inbox-desk";
 
 /**
  * What the Inbox's Conversations tab decides, kept apart from the markup so it can be tested without a DOM (Inbox phase 1).
@@ -15,16 +16,31 @@ export const INBOX_SUBTITLE = "Your WhatsApp and storefront conversations, leads
 
 // ── channels ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
-export type Channel = "whatsapp" | "storefront";
+export type Channel = "whatsapp" | "storefront" | "messenger" | "instagram";
 export type ChannelFilter = "all" | Channel;
 
-export const CHANNEL_LABEL: Record<Channel, string> = { whatsapp: "WhatsApp", storefront: "Storefront" };
+/** The channels the conversations list (`/meta/whatsapp/conversations`) carries; the storefront list is its own. */
+export type DmChannel = "whatsapp" | "messenger" | "instagram";
+
+export const CHANNEL_LABEL: Record<Channel, string> = { whatsapp: "WhatsApp", storefront: "Storefront", messenger: "Messenger", instagram: "Instagram" };
 
 export const CHANNEL_FILTERS: Array<{ value: ChannelFilter; label: string }> = [
   { value: "all", label: "All" },
   { value: "whatsapp", label: CHANNEL_LABEL.whatsapp },
   { value: "storefront", label: CHANNEL_LABEL.storefront },
+  { value: "messenger", label: CHANNEL_LABEL.messenger },
+  { value: "instagram", label: CHANNEL_LABEL.instagram },
 ];
+
+/** Messenger and Instagram chips appear only once the business has such a conversation (or one is chosen); WhatsApp and Storefront always do. */
+export function visibleChannelFilters(seen: readonly Channel[], chosen: ChannelFilter): typeof CHANNEL_FILTERS {
+  return CHANNEL_FILTERS.filter((f) => f.value === "all" || f.value === "whatsapp" || f.value === "storefront" || f.value === chosen || seen.includes(f.value));
+}
+
+/** The channel a conversations-list row came in on; an older api sends none, which is WhatsApp. */
+export function dmChannelOf(c: string | null | undefined): DmChannel {
+  return c === "messenger" || c === "instagram" ? c : "whatsapp";
+}
 
 // ── status chips and search (Inbox phase 2) ───────────────────────────────────────────────────────────────────────────
 
@@ -71,6 +87,10 @@ export interface InboxRow {
   state: InboxState;
   /** The merchant's own "Test on your store" chat: labelled "Test" in the list. */
   test: boolean;
+  /** Team desk (I3a): who has it, its tag ids, and the api's first-reply timer (null unless it is in Needs you). */
+  assignee: ThreadAssignee | null;
+  tagIds: string[];
+  timer: ResponseTimer | null;
 }
 
 /** What a conversation is, as the api decides it (Done wins over Needs you; a new shopper message re-opens a Done one). */
@@ -87,6 +107,10 @@ interface WaLike {
   held?: "conversation" | "business" | null;
   needsYou?: boolean;
   state?: InboxState;
+  channel?: string;
+  assignee?: ThreadAssignee | null;
+  tagIds?: string[];
+  timer?: ResponseTimer | null;
 }
 interface StorefrontLike {
   threadId: string;
@@ -97,12 +121,15 @@ interface StorefrontLike {
   held?: "conversation" | "business" | null;
   state?: InboxState;
   test?: boolean;
+  assignee?: ThreadAssignee | null;
+  tagIds?: string[];
+  timer?: ResponseTimer | null;
 }
 
 export function rowOfWhatsApp(c: WaLike): InboxRow {
   return {
     threadId: c.threadId,
-    channel: "whatsapp",
+    channel: dmChannelOf(c.channel),
     title: c.contactName || c.waId || "WhatsApp contact",
     preview: c.preview,
     status: c.status,
@@ -115,6 +142,9 @@ export function rowOfWhatsApp(c: WaLike): InboxRow {
     // ★THE API'S WORD. An older api sends none: derive it from the flag it did send, never from the chat's age.
     state: c.state ?? (c.needsYou === true ? "needs_you" : "open"),
     test: false,
+    assignee: c.assignee ?? null,
+    tagIds: c.tagIds ?? [],
+    timer: c.timer ?? null,
   };
 }
 
@@ -132,6 +162,9 @@ export function rowOfStorefront(c: StorefrontLike): InboxRow {
     needsYou: false,
     state: c.state ?? "open",
     test: c.test === true,
+    assignee: c.assignee ?? null,
+    tagIds: c.tagIds ?? [],
+    timer: c.timer ?? null,
   };
 }
 
@@ -159,7 +192,9 @@ export function channelOfThread(threadId: string): Channel {
  * NOT BY HIDING ROWS IN THE MARKUP, so what the count and the empty state say is what the list shows.
  */
 export function mergeRows(whatsapp: readonly InboxRow[], storefront: readonly InboxRow[], filter: ChannelFilter): InboxRow[] {
-  const all = filter === "whatsapp" ? [...whatsapp] : filter === "storefront" ? [...storefront] : [...whatsapp, ...storefront];
+  // ★THE CONVERSATIONS LIST CARRIES WHATSAPP, MESSENGER AND INSTAGRAM: a channel filter picks by each row's own channel
+  const all =
+    filter === "all" ? [...whatsapp, ...storefront] : filter === "storefront" ? [...storefront] : whatsapp.filter((r) => r.channel === filter);
   return all.sort((a, b) => Number(b.needsYou) - Number(a.needsYou) || time(b.updatedAt) - time(a.updatedAt));
 }
 
@@ -247,15 +282,21 @@ export function waNotice(state: WaInboxState): InboxNotice | null {
  * The empty-list sentence, only for a list that completed and has nothing to show for the chosen channel, chip and search.
  * ★A SEARCH OR A CHIP THAT FINDS NOTHING SAYS SO; it never claims the inbox is empty.
  */
-export function emptyListText(filter: ChannelFilter, state: WaInboxState, view: { status?: StatusFilter; search?: string } = {}): string {
+export function emptyListText(filter: ChannelFilter, state: WaInboxState, view: { status?: StatusFilter; search?: string; deskFiltered?: boolean } = {}): string {
+  if (view.search && view.deskFiltered) {
+    return `No conversations match \u201c${view.search}\u201d with the Mine / Unassigned or tag filter on. Choose All and clear the tag to search every conversation.`;
+  }
   if (view.search) {
     return filter === "storefront"
       ? "Storefront visitors have no name, number or order, so a search finds none of them. Clear the search to see them."
       : `No conversations match \u201c${view.search}\u201d. Try a name, the last four digits of a number, or an order number.`;
   }
+  if (view.deskFiltered) return "No conversations match these filters. Choose All, or clear the tag, to see more.";
   if (view.status === "needs_you") return "Nothing needs you right now.";
   if (view.status === "done") return "No conversations are marked done.";
   if (filter === "storefront") return "No storefront chats yet. When a visitor talks to the assistant on your store, the chat appears here.";
+  if (filter === "messenger") return "No Messenger conversations yet.";
+  if (filter === "instagram") return "No Instagram conversations yet.";
   if (filter === "whatsapp") return state === "ok" ? "No WhatsApp conversations yet." : "No WhatsApp conversations to show.";
   return "No conversations yet.";
 }

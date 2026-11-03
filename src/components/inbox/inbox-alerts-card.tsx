@@ -9,17 +9,18 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/providers/auth-provider";
 import { updateProfile } from "@/lib/auth";
-import { INBOX_ALERTS, INBOX_ALERTS_NOTE, alertSwitches, alertsPatch, canSeeInboxAlerts, type InboxAlertKey } from "@/lib/inbox-alerts";
+import { INBOX_ALERTS_EDITOR_NOTE, INBOX_ALERTS_NOTE, alertSwitches, alertsForRole, alertsPatch, canSeeInboxAlerts, type InboxAlertKey } from "@/lib/inbox-alerts";
 
 /**
  * Settings > Preferences: which inbox alert emails you get (Inbox phase 1). Personal, like the rest of that page: the switches are
- * saved on YOUR profile, so a teammate's choice never changes yours. Shown to owners and admins only, because they are the only
- * people the emails go to. Each switch saves at once and reverts if the save fails.
+ * saved on YOUR profile, so a teammate's choice never changes yours. Owners and admins see all four switches; an editor sees only "A conversation is assigned to me", the one email that
+ * reaches them. A viewer sees none. Each switch saves at once and reverts if the save fails.
  */
 export function InboxAlertsCard({ role }: { role: string | null }) {
   const { user, refreshUser } = useAuth();
   const [saving, setSaving] = useState<InboxAlertKey | null>(null);
-  if (!canSeeInboxAlerts(role)) return null;
+  const visible = alertsForRole(role);
+  if (visible.length === 0) return null;
   const on = alertSwitches(user?.preferences?.inboxAlerts);
 
   async function change(key: InboxAlertKey, value: boolean) {
@@ -51,7 +52,7 @@ export function InboxAlertsCard({ role }: { role: string | null }) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {INBOX_ALERTS.map((a, i) => (
+        {visible.map((a, i) => (
           <div key={a.key}>
             {i > 0 && <Separator className="mb-4" />}
             <div className="flex items-start justify-between gap-4">
@@ -63,7 +64,7 @@ export function InboxAlertsCard({ role }: { role: string | null }) {
             </div>
           </div>
         ))}
-        <p className="text-xs text-muted-foreground">{INBOX_ALERTS_NOTE}</p>
+        <p className="text-xs text-muted-foreground">{canSeeInboxAlerts(role) ? INBOX_ALERTS_NOTE : INBOX_ALERTS_EDITOR_NOTE}</p>
       </CardContent>
     </Card>
   );

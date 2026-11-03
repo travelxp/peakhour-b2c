@@ -197,7 +197,17 @@ describe("Settings: inbox emails", () => {
     expect(newLead).toContain('aria-checked="false"');
     expect(needsHuman).toContain('aria-checked="true"');
   });
-  it("an editor, a viewer and nobody see nothing: they get no emails", () => {
-    for (const role of ["editor", "viewer", null]) expect(renderToStaticMarkup(<InboxAlertsCard role={role} />), String(role)).toBe("");
+  it("an owner also sees 'A conversation is assigned to me'", () => {
+    expect(renderToStaticMarkup(<InboxAlertsCard role="owner" />)).toContain("A conversation is assigned to me");
+  });
+  it("an editor sees ONLY the assigned switch: the other three are not theirs", () => {
+    const h = renderToStaticMarkup(<InboxAlertsCard role="editor" />);
+    expect(h).toContain("A conversation is assigned to me");
+    expect(h).toContain('id="alert-assigned"');
+    for (const other of ["A shopper is waiting for a reply", "A new lead arrives", "A review of two stars or fewer"]) expect(h).not.toContain(other);
+    expect(h).not.toContain("These emails go to owners and admins");
+  });
+  it("a viewer and nobody see nothing: they get no emails", () => {
+    for (const role of ["viewer", null]) expect(renderToStaticMarkup(<InboxAlertsCard role={role} />), String(role)).toBe("");
   });
 });
