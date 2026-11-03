@@ -1987,6 +1987,14 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       "Tells each store about products forecast to run out before a reorder could arrive, on WhatsApp where it is connected. A product is never alerted twice in a week, " +
       "and the emergency stop silences it.",
   },
+  "x-dm-resume": {
+    label: "Resume X message listening for a new month",
+    frequency: "Runs daily at 12:40 AM UTC",
+    description:
+      "Starts a new month for a connected X account whose monthly message limit was reached earlier, and switches its message feed back on. " +
+      "It also stops any feed that should not be running (X messages switched off, over this month's limit, or left behind by a disconnect), because X charges for every message it delivers. " +
+      "Does nothing while X messages are not released.",
+  },
 };
 
 /** Fallback for a cron name not yet documented in CRON_METADATA. The UI
