@@ -55,9 +55,11 @@ export interface InboxPrices {
  * ★NULL IS NOT "FREE": a missing row says nothing, and a button must not advertise a price nobody set (the api refuses the act then).
  */
 export function creditsLabel(price: number | null | undefined): string | null {
-  if (price === null || price === undefined || !Number.isFinite(price) || price < 0) return null;
-  if (price === 0) return "Free";
-  return `${price.toLocaleString("en-GB")} AI credit${price === 1 ? "" : "s"}`;
+  // (Number.isFinite is false for null and undefined, so one test covers "no price row" and "not a number")
+  const n = price as number;
+  if (!Number.isFinite(n) || n < 0) return null;
+  if (n === 0) return "Free";
+  return `${n.toLocaleString("en-GB")} AI credit${n === 1 ? "" : "s"}`;
 }
 
 /** "Suggest a reply · 10 AI credits": the price is on the button, before it is pressed. With no price the button says it is not available. */
