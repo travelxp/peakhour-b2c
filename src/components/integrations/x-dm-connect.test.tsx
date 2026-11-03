@@ -6,7 +6,7 @@ import type { XDmStatus } from "@/lib/x-dm";
 vi.mock("@/lib/api", () => ({ api: { get: vi.fn(), post: vi.fn(), put: vi.fn() }, API_BASE_URL: "https://api.example" }));
 
 const { XDmConnectView, xMessagesAuthorizeUrl } = await import("./x-dm-connect");
-const { priceLine, usageLine, capReachedLine, parseCap, xDmErrorMessage, X_DM_COPY, CAP_RANGE_ERROR } = await import("@/lib/x-dm");
+const { priceLine, usageLine, capReachedLine, parseCap, xDmErrorMessage, isNotReleased, LOAD_FAILED, REFRESH_FAILED, X_DM_COPY, CAP_RANGE_ERROR } = await import("@/lib/x-dm");
 
 const status = (over: Partial<XDmStatus> = {}): XDmStatus => ({
   connected: true,
@@ -65,8 +65,9 @@ describe("the states", () => {
     expect(out).toContain("12 of 1,000 X messages used this month.");
     expect(out).not.toContain(X_DM_COPY.turnOn);
   });
-  it("off shows no usage line", () => {
-    expect(html(status())).not.toContain("used this month");
+  it("off still shows the month's use (a turned-off account keeps the count the limit is judged against); needs-reconnect does not", () => {
+    expect(html(status({ usedThisMonth: 40 }))).toContain("40 of 1,000 X messages used this month.");
+    expect(html(status({ state: "needs_reconnect" }))).not.toContain("used this month");
   });
   it("limit reached: the merchant is told, with the date it starts again and how to carry on now", () => {
     const out = html(status({ state: "cap_reached", usedThisMonth: 1000, resumesAt: "2026-12-01T00:00:00.000Z" }));
@@ -77,6 +78,8 @@ describe("the states", () => {
   it("the reset date is read in UTC, so no time zone moves it to the wrong day", () => {
     expect(capReachedLine({ monthlyCap: 5, resumesAt: "2026-12-01T00:00:00.000Z" })).toContain("December 1, 2026");
     expect(capReachedLine({ monthlyCap: 5, resumesAt: null })).toContain("the start of next month");
+    expect(capReachedLine({ monthlyCap: 5, resumesAt: "not a date" })).toContain("the start of next month");
+    expect(capReachedLine({ monthlyCap: 5, resumesAt: "not a date" })).not.toContain("Invalid");
   });
   it("a control in flight disables EVERY control until the status is re-read", () => {
     const out = html(status(), { busy: true });
@@ -99,12 +102,24 @@ describe("the monthly limit", () => {
     expect(parseCap(" 1,500 ")).toBe(1500);
     expect(parseCap("100000")).toBe(100000);
     for (const bad of ["", "0", "-5", "100001", "12.5", "abc", "1e3", "1000000"]) expect(parseCap(bad)).toBeNull();
+    // a comma is a thousands separator or a typo: a typo is refused, never saved as another number
+    for (const typo of ["1,00", "1,0,0,0", "1,5", ",100", "1,5000", "10,00"]) expect(parseCap(typo)).toBeNull();
+    expect(parseCap("12,345")).toBe(12345);
   });
   it("the range sentence matches the api's", () => {
     expect(CAP_RANGE_ERROR).toBe("Enter a whole number from 1 to 100,000.");
   });
   it("usage reads in plain words", () => {
     expect(usageLine({ usedThisMonth: 1, monthlyCap: 2 })).toBe("1 of 2 X messages used this month.");
+  });
+});
+
+describe("a status that could not be read", () => {
+  it("only a 404 means not released; any other failure is a failure", () => {
+    expect(isNotReleased({ status: 404 })).toBe(true);
+    for (const e of [{ status: 500 }, { status: 0 }, new Error("network"), null, undefined]) expect(isNotReleased(e)).toBe(false);
+    expect(LOAD_FAILED).toBe("X messages could not be loaded.");
+    expect(REFRESH_FAILED).toMatch(/Reload it/);
   });
 });
 

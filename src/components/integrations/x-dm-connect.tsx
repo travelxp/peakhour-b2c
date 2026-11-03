@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CAP_RANGE_ERROR, X_DM_COPY, capReachedLine, parseCap, priceLine, usageLine, xDmErrorMessage, type XDmStatus } from "@/lib/x-dm";
+import { CAP_RANGE_ERROR, LOAD_FAILED, REFRESH_FAILED, X_DM_COPY, capReachedLine, isNotReleased, parseCap, priceLine, usageLine, xDmErrorMessage, type XDmStatus } from "@/lib/x-dm";
 
 const STATUS_KEY = ["x-dm-status"] as const;
 const RETURN_TO = "/dashboard/integrations";
@@ -95,7 +95,7 @@ export function XDmConnectView({ status, busy, error, onGrant, onSwitch, onCap }
             {capReachedLine(status)}
           </p>
         ) : null}
-        {on ? <p className="text-sm text-muted-foreground">{usageLine(status)}</p> : null}
+        {status.connected && status.state !== "needs_reconnect" ? <p className="text-sm text-muted-foreground">{usageLine(status)}</p> : null}
         {status.connected && status.state !== "needs_reconnect" ? <CapForm key={status.monthlyCap} status={status} busy={busy} onCap={onCap} /> : null}
         {error ? (
           <p role="alert" className="text-sm text-destructive" data-testid="x-dm-error">
@@ -120,12 +120,31 @@ export function XDmConnect() {
   const query = useQuery({
     queryKey: STATUS_KEY,
     queryFn: () => api.get<XDmStatus>("/v1/x/dm/status"),
-    retry: false,
+    // a 404 is the answer "not released" and is never retried; anything else gets one more try
+    retry: (count, err) => !isNotReleased(err) && count < 1,
     staleTime: 30_000,
   });
-  // Nothing while loading and nothing when there has never been an answer (a 404 means X messages are off): no skeleton, so a
-  // merchant with the feature off sees no flash and no layout jump. A failed re-read keeps the last answer.
-  if (!query.data) return null;
+  // Nothing while loading and nothing when the api says X messages are off (a 404): no skeleton, so a merchant with the feature off
+  // sees no flash and no layout jump. ANY OTHER failure is said, with a way to try again, and is never mistaken for "off".
+  if (!query.data) {
+    if (query.isError && !isNotReleased(query.error)) {
+      return (
+        <Card data-testid="x-dm-load-error">
+          <CardContent className="flex flex-wrap items-center justify-between gap-2 pt-6">
+            <p role="alert" className="text-sm text-destructive">
+              {LOAD_FAILED}
+            </p>
+            <Button size="sm" variant="outline" onClick={() => void query.refetch()}>
+              Try again
+            </Button>
+          </CardContent>
+        </Card>
+      );
+    }
+    return null;
+  }
+  // "unavailable" is the api's word for off: nothing to show
+  if (query.data.state === "unavailable") return null;
 
   async function run(call: () => Promise<unknown>) {
     if (busy) return;
@@ -138,6 +157,8 @@ export function XDmConnect() {
     } finally {
       // re-read BEFORE the controls come back, so the next click sees what the api now says
       await queryClient.invalidateQueries({ queryKey: STATUS_KEY }).catch(() => undefined);
+      // a re-read that failed leaves the old answer on screen: say so instead of showing a state that is no longer true
+      if (queryClient.getQueryState(STATUS_KEY)?.status === "error") setError((prev) => prev ?? REFRESH_FAILED);
       setBusy(false);
     }
   }
@@ -148,6 +169,7 @@ export function XDmConnect() {
       busy={busy}
       error={error}
       onGrant={() => {
+        if (busy) return;
         window.location.href = xMessagesAuthorizeUrl();
       }}
       onSwitch={(on) => void run(() => api.post(on ? "/v1/x/dm/enable" : "/v1/x/dm/disable", {}))}

@@ -48,19 +48,28 @@ export const usageLine = (s: Pick<XDmStatus, "usedThisMonth" | "monthlyCap">): s
 
 /** The banner for a reached limit, naming the date it starts again. */
 export function capReachedLine(s: Pick<XDmStatus, "monthlyCap" | "resumesAt">): string {
-  const when = s.resumesAt ? new Date(s.resumesAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }) : "the start of next month";
+  const at = s.resumesAt ? new Date(s.resumesAt) : null;
+  // an unreadable date reads as the plain fallback, never "Invalid Date"
+  const when = at && !Number.isNaN(at.getTime()) ? at.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" }) : "the start of next month";
   return `You reached your limit of ${s.monthlyCap.toLocaleString("en-US")} X messages this month, so Peakhour has stopped reading them. It starts again on ${when}. Raise the limit to carry on now.`;
 }
 
 /** A whole number from 1 to 100,000, or null. */
 export function parseCap(raw: string): number | null {
-  const t = raw.trim().replace(/,/g, "");
-  if (!/^[0-9]{1,6}$/.test(t)) return null;
-  const n = Number(t);
+  const t = raw.trim();
+  // commas are thousands separators only: "1,500" is 1500, but "1,00" or "1,5" is a typo and is refused, not saved as another number
+  if (!/^(?:[0-9]{1,6}|[0-9]{1,3}(?:,[0-9]{3})+)$/.test(t)) return null;
+  const n = Number(t.replace(/,/g, ""));
   return n >= X_DM_CAP_MIN && n <= X_DM_CAP_MAX ? n : null;
 }
 
 export const CAP_RANGE_ERROR = `Enter a whole number from ${X_DM_CAP_MIN} to ${X_DM_CAP_MAX.toLocaleString("en-US")}.`;
+
+export const REFRESH_FAILED = "Your change was saved, but this page could not refresh. Reload it to see the current state.";
+export const LOAD_FAILED = "X messages could not be loaded.";
+
+/** Only a 404 means "not released": any other failure to read the status is a failure, not an absence. */
+export const isNotReleased = (err: unknown): boolean => (err as { status?: unknown } | null)?.status === 404;
 
 /** The api's own sentence when it sent one, else a next step: never a bare code. */
 export function xDmErrorMessage(err: unknown): string {
