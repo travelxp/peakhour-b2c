@@ -166,6 +166,22 @@ export function timerView(timer: ResponseTimer | null | undefined): TimerView | 
   return { label: `Waiting ${waited} of ${target}`, tone: "ok", className: TIMER_CLASS.ok };
 }
 
+/** A conversation's shopper rating, as the api returns it (Inbox CSAT, I3c). Absent/null = never asked. */
+export interface ThreadCsat {
+  score: number | null;
+  resolvedBy: "ai" | "human";
+  askedAt: string;
+  answeredAt: string | null;
+}
+
+/** The words for the read-only rating badge in the thread header; null when the shopper was never asked. */
+export function csatView(csat: ThreadCsat | null | undefined): { label: string; answered: boolean } | null {
+  if (!csat) return null;
+  const by = csat.resolvedBy === "human" ? "closed by your team" : "closed by the assistant";
+  if (typeof csat.score === "number" && csat.score >= 1 && csat.score <= 5) return { label: `Rated ${csat.score}/5 · ${by}`, answered: true };
+  return { label: `Rating asked, no answer yet · ${by}`, answered: false };
+}
+
 /** Optimistic assignee for a pick: "me", a teammate, or nobody. */
 export function assigneeFor(pick: string | null, me: string | null, team: readonly TeamMemberRef[]): ThreadAssignee | null {
   if (pick === null) return null;

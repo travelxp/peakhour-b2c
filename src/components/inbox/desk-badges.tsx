@@ -1,4 +1,4 @@
-import { initialsOf, timerView, type DeskTag, type ResponseTimer, type ThreadAssignee } from "@/lib/inbox-desk";
+import { csatView, initialsOf, timerView, type DeskTag, type ResponseTimer, type ThreadAssignee, type ThreadCsat } from "@/lib/inbox-desk";
 
 /** The team desk's small labels on a conversation, shared by the list row and the thread header (I3a). */
 
@@ -23,6 +23,17 @@ export function TimerChip({ timer }: { timer: ResponseTimer | null | undefined }
   if (!v) return null;
   return (
     <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${v.className}`} data-testid="timer-chip" data-tone={v.tone}>
+      {v.label}
+    </span>
+  );
+}
+
+/** The shopper's rating of a closed conversation, read-only. Nothing when they were never asked. */
+export function CsatBadge({ csat }: { csat: ThreadCsat | null | undefined }) {
+  const v = csatView(csat);
+  if (!v) return null;
+  return (
+    <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground" data-testid="csat-badge" data-answered={v.answered}>
       {v.label}
     </span>
   );

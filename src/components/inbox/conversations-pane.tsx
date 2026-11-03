@@ -25,10 +25,11 @@ import { useAuth } from "@/providers/auth-provider";
 import { WaComposer, useComposerMemory, useReplyWindow } from "@/components/inbox/wa-composer";
 import { HeldBadge, useThreadHoldFlow } from "@/components/inbox/legal-hold";
 import { Bubble, DaySeparator } from "@/components/inbox/message-bubble";
+import type { MessageMedia } from "@/lib/inbox-media";
 import { ChannelChip, StatusPill, TestChip, UnreadDot } from "@/components/inbox/inbox-badges";
 import { ManagePanel } from "@/components/inbox/manage-panel";
 import { ThreadHeader } from "@/components/inbox/thread-header";
-import { AssigneeBadge, TagChips, TimerChip } from "@/components/inbox/desk-badges";
+import { AssigneeBadge, CsatBadge, TagChips, TimerChip } from "@/components/inbox/desk-badges";
 import { ThreadDeskControls } from "@/components/inbox/desk-controls";
 import { NoteCard } from "@/components/inbox/note-card";
 import { NotesPanel } from "@/components/inbox/notes-panel";
@@ -574,7 +575,12 @@ export function ConversationsPane({
                 windowBadge={
                   openChannel === "whatsapp" && waThread ? <WindowBadge store={composerStore} threadId={waThread.threadId} endsAt={waThread.replyWindowEndsAt} /> : null
                 }
-                timer={<TimerChip timer={openThread?.timer} />}
+                timer={
+                  <>
+                    <TimerChip timer={openThread?.timer} />
+                    <CsatBadge csat={waThread?.csat} />
+                  </>
+                }
                 desk={
                   openThread && openThread.threadId === selected ? (
                     <ThreadDeskControls key={selected} threadId={selected} role={role} assignee={openThread.assignee ?? null} tagIds={openThread.tagIds ?? []} />
@@ -679,6 +685,8 @@ export function ConversationsPane({
                               key={lineKeys.get(item.line) ?? 0}
                               role={item.line.role}
                               content={item.line.content}
+                              media={(item.line as { media?: MessageMedia | null }).media ?? null}
+                              threadId={selected ?? undefined}
                               time={clockLabel(item.line.timestamp)}
                               sender={senderLabel(item.line, { contactName: contactName ?? null, currentUserId: user?._id ?? null, memberName })}
                             />

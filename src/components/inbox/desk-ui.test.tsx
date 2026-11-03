@@ -15,7 +15,7 @@ const { NotesPanelView } = await import("./notes-panel");
 const { NoteCard } = await import("./note-card");
 const { AiPauseView } = await import("./ai-pause");
 const { TeamDeskFormView, TagManagerView, TEAM_DESK_READONLY_NOTE } = await import("./team-desk-card");
-const { AssigneeBadge, TimerChip, TagChips } = await import("./desk-badges");
+const { AssigneeBadge, CsatBadge, TimerChip, TagChips } = await import("./desk-badges");
 const { ThreadHeader } = await import("./thread-header");
 const { formFromSettings, NOTE_LABEL } = await import("@/lib/inbox-desk");
 
@@ -222,6 +222,29 @@ describe("the timer and the list badges", () => {
     );
     expect(h).toContain("Reply soon");
     expect(h).toContain("desk-slot");
+  });
+});
+
+describe("the shopper's rating (Inbox CSAT)", () => {
+  const asked = "2026-11-03T10:00:00.000Z";
+  it("an answered rating reads 'Rated 4/5' and who closed it", () => {
+    const h = renderToStaticMarkup(<CsatBadge csat={{ score: 4, resolvedBy: "ai", askedAt: asked, answeredAt: asked }} />);
+    expect(h).toContain("Rated 4/5 · closed by the assistant");
+    expect(h).toContain('data-answered="true"');
+    expect(renderToStaticMarkup(<CsatBadge csat={{ score: 2, resolvedBy: "human", askedAt: asked, answeredAt: asked }} />)).toContain("Rated 2/5 · closed by your team");
+  });
+  it("an unanswered request says so and never shows a score", () => {
+    const h = renderToStaticMarkup(<CsatBadge csat={{ score: null, resolvedBy: "human", askedAt: asked, answeredAt: null }} />);
+    expect(h).toContain("Rating asked, no answer yet · closed by your team");
+    expect(h).not.toContain("/5");
+  });
+  it("nothing for a conversation that was never asked", () => {
+    expect(renderToStaticMarkup(<CsatBadge csat={null} />)).toBe("");
+    expect(renderToStaticMarkup(<CsatBadge csat={undefined} />)).toBe("");
+  });
+  it("the open conversation's header renders it (wired in the pane)", () => {
+    const src = readFileSync(join(process.cwd(), "src/components/inbox/conversations-pane.tsx"), "utf8");
+    expect(src).toContain("<CsatBadge csat={waThread?.csat} />");
   });
 });
 

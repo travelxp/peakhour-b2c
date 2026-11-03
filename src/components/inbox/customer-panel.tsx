@@ -136,7 +136,9 @@ export function CustomerPanel({ threadId, role }: { threadId: string; role: stri
     return (
       <div className="p-3 text-xs text-muted-foreground" data-testid="customer-panel">
         <p className="font-medium text-foreground">{d.message}</p>
-        <p className="mt-1">This visitor didn&apos;t sign in, so there is no way to tell who they are or to link their other chats.</p>
+        {d.channel === "storefront" ? (
+          <p className="mt-1">This visitor didn&apos;t sign in, so there is no way to tell who they are or to link their other chats.</p>
+        ) : null}
       </div>
     );
   }

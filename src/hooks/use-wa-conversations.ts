@@ -6,8 +6,10 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import type { CustomerPanelData, InboxPrices } from "@/lib/inbox-customer";
 import type { InboxState, StatusFilter } from "@/lib/inbox-view";
-import { deskListParams, type AssigneeFilter, type ResponseTimer, type ThreadAssignee } from "@/lib/inbox-desk";
+import { deskListParams, type AssigneeFilter, type ResponseTimer, type ThreadAssignee, type ThreadCsat } from "@/lib/inbox-desk";
+import type { MessageMedia, ProductHit } from "@/lib/inbox-media";
 import {
+  replyForm,
   replyRequest,
   resumeBody,
   threadPollInterval,
@@ -86,6 +88,8 @@ export interface WaMessage {
   source?: "phone" | "inbox";
   /** WA T3: the team member who wrote an Inbox line; null from the Shopify admin. */
   authorUserId?: string | null;
+  /** Inbox rich messages: a photo, voice note, video, document or sticker on this line; null on every other. Absent = an older api. */
+  media?: MessageMedia | null;
 }
 
 export interface WaThread {
@@ -112,6 +116,8 @@ export interface WaThread {
   assignee?: ThreadAssignee | null;
   tagIds?: string[];
   timer?: ResponseTimer | null;
+  /** The shopper's rating of this conversation (Inbox CSAT); null = never asked. */
+  csat?: ThreadCsat | null;
   messages: WaMessage[];
 }
 
@@ -290,7 +296,13 @@ export function useWaReply(threadId: string) {
   const { business } = useAuth();
   const biz = business?._id ?? "none";
   return useMutation({
-    mutationFn: ({ payload, idempotencyKey }: { payload: ReplyPayload; idempotencyKey: string }) => {
+    mutationFn: ({ payload, idempotencyKey, file }: { payload: ReplyPayload; idempotencyKey: string; file?: Blob }) => {
+      // an attached image or PDF is a form; everything else is JSON
+      if (payload.kind === "media") {
+        if (!file) throw new Error("an attachment needs its file");
+        const req = replyForm(threadId, payload, file, idempotencyKey);
+        return api.postForm<ReplyResult>(req.path, req.form);
+      }
       const req = replyRequest(threadId, payload, idempotencyKey);
       return api.post<ReplyResult>(req.path, req.body);
     },
@@ -301,6 +313,17 @@ export function useWaReply(threadId: string) {
       qc.invalidateQueries({ queryKey: ["wa-thread", biz, threadId] });
       qc.invalidateQueries({ queryKey: ["wa-conversations", biz] });
     },
+  });
+}
+
+/** The composer's product search: this business's active products (up to 10; no words = the newest). */
+export function useInboxProducts(threadId: string, q: string, enabled: boolean) {
+  const { business } = useAuth();
+  return useQuery({
+    queryKey: ["wa-products", business?._id ?? "none", threadId, q],
+    queryFn: () => api.get<{ products: ProductHit[] }>(`${BASE}/${encodeURIComponent(threadId)}/products`, { q }),
+    enabled: Boolean(business?._id && threadId && enabled),
+    staleTime: 60_000,
   });
 }
 
