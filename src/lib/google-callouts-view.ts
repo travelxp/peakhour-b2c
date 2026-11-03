@@ -118,9 +118,6 @@ export function googleCalloutAddedSentence(res: Pick<GoogleCalloutAdded, "create
       ? `Your account already has “${res.callout.text}”, but Google says: ${googleCalloutStatusLabel(res.callout).toLowerCase()}.`
       : `Your account already has “${res.callout.text}”.`;
   }
-  if (res.policy && !res.policy.checked) {
-    return `Added “${res.callout.text}”. Our policy check couldn't run, so Google's own review is the only one.`;
-  }
   return `Added “${res.callout.text}”. Google reviews it before it shows.`;
 }
 
@@ -152,6 +149,8 @@ const MERCHANT_FACING_CODES: ReadonlySet<string> = new Set([
   "CALLOUT_POLICY_WARNING",
   "CALLOUT_UNCONFIRMED",
   "POLICY_CHECK_UNAVAILABLE",
+  // ★FC2: a check that threw adds nothing (the api fails closed); its retry sentence is the merchant's.
+  "AD_POLICY_CHECK_FAILED",
   // ★Review round 2: the guardrail gate POST runs (its sentences name the setting to change), and the account check's.
   "CHANNEL_DENIED",
   "QUIET_HOURS",
