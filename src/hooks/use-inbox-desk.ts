@@ -168,7 +168,8 @@ export function useSaveDeskSettings() {
   const biz = business?._id ?? "none";
   return useMutation({
     mutationFn: (form: Parameters<typeof patchFromForm>[0]) => api.put<{ settings: DeskSettings }>(`${BASE}/settings`, patchFromForm(form)),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: deskKeys.settings(biz) }),
+    // returned, so the save settles only once the form has the saved values to show
+    onSuccess: () => qc.invalidateQueries({ queryKey: deskKeys.settings(biz) }),
   });
 }
 

@@ -218,7 +218,9 @@ export function ConversationsPane({
   function setDeskFilters(next: { assignee: AssigneeFilter; tag: string | null }) {
     setAssignee(next.assignee);
     setTag(next.tag);
-    router.replace(`${pathname}?${searchWithFilters(params.toString(), next)}`, { scroll: false });
+    // the address as it is NOW (a tab click's push may not have reached `params` yet), so the filters never undo it
+    const current = typeof window === "undefined" ? params.toString() : window.location.search.replace(/^\?/, "");
+    router.replace(`${pathname}?${searchWithFilters(current, next)}`, { scroll: false });
   }
   const deskFiltered = assignee !== "all" || tag !== null;
   const deskTags = useDeskTags().data?.tags;

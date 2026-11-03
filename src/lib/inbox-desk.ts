@@ -318,7 +318,8 @@ export function patchFromForm(f: DeskForm) {
     hours: {
       enabled: f.hoursEnabled,
       timezone: f.timezone,
-      days: f.days.filter((d) => !d.closed).map((d) => ({ day: d.day, open: d.open, close: d.close })),
+      // ★ONLY DAYS THE API WOULD ACCEPT: with hours switched off nothing checked the times, and a half-edited day must not make the save fail
+      days: f.days.filter((d) => !d.closed && TIME_RE.test(d.open) && TIME_RE.test(d.close) && d.close > d.open).map((d) => ({ day: d.day, open: d.open, close: d.close })),
     },
     awayMessage: f.awayMessage.trim(),
   };

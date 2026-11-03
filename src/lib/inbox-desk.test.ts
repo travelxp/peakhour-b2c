@@ -240,6 +240,12 @@ describe("the team desk form", () => {
     expect(body.awayMessage).toBe("");
     expect(body.autoAssign).toEqual({ enabled: true, availableUserIds: ["u1"] });
   });
+  it("a half-edited day is not sent when hours are off (the api checked nothing then)", () => {
+    const f = { ...good(), hoursEnabled: false };
+    const bad = { ...f, days: f.days.map((d) => (d.day === 1 ? { ...d, open: "18:00", close: "09:00" } : d.day === 2 ? { ...d, open: "" } : d)) };
+    expect(validateForm(bad)).toBeNull();
+    expect(patchFromForm(bad).hours.days.map((d) => d.day)).toEqual([3, 4, 5]);
+  });
   it("the away preview fills {opens}, and shows the default when empty", () => {
     const def = "Our team is away now and will reply after {opens}.";
     expect(awayPreview("", def, "{opens}")).toBe("Our team is away now and will reply after 9:00 am tomorrow.");

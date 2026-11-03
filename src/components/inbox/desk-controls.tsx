@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Tag, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AssigneeBadge, TagChips } from "@/components/inbox/desk-badges";
+import { useAuth } from "@/providers/auth-provider";
 import { useAssignThread, useDeskTags, useDeskTeam, useSetThreadTags, useTagAdmin } from "@/hooks/use-inbox-desk";
 import { actionError } from "@/lib/inbox-customer";
 import {
@@ -186,8 +187,15 @@ export function ThreadDeskControls({
   const assignGuard = useState(createFlightGuard)[0];
   const tagGuard = useState(createFlightGuard)[0];
 
+  const { user } = useAuth();
   const list = team.data?.team ?? [];
-  const me = team.data?.me ?? null;
+  // the team answer, else the signed-in person: "Assign to me" must not read as "Unassigned" while the team is still loading
+  const me = team.data?.me ?? user?._id ?? null;
+  // the tags as of NOW, for a write that starts after an await (a tag ticked while a new one was being created is not undone)
+  const latestTags = useRef(tagIds);
+  useEffect(() => {
+    latestTags.current = tagIds;
+  });
 
   return (
     <DeskControlsView
@@ -222,11 +230,14 @@ export function ThreadDeskControls({
         }
         // a tag made from a conversation goes onto it: that is why the person made it. ★SAYS SO WHEN IT DID NOT: the tag exists now,
         //  and "created" must not read as "applied".
-        if (tagIds.length >= TAGS_PER_THREAD_MAX) return `Tag created, but this conversation already has ${TAGS_PER_THREAD_MAX} tags. Remove one, then tick the new tag.`;
+        const current = latestTags.current;
+        if (current.length >= TAGS_PER_THREAD_MAX) return `Tag created, but this conversation already has ${TAGS_PER_THREAD_MAX} tags. Remove one, then tick the new tag.`;
+        // ★A TICK STILL IN FLIGHT: running now would be skipped by the guard and read as applied. Say so instead.
+        if (tagGuard.busy) return "Tag created. Another tag change is still saving, so tick the new tag in a moment.";
         let failed: string | null = null;
         await tagGuard.run(async () => {
           try {
-            await setTags.mutateAsync([...tagIds, created.id]);
+            await setTags.mutateAsync([...latestTags.current, created.id]);
           } catch (e) {
             failed = `Tag created, but it was not added to this conversation. ${actionError(e, "Adding the tag")}`;
           }
