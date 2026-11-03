@@ -1482,6 +1482,14 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     summarize: summarizeCouncilReview,
   },
 
+  "wa-marketing": {
+    label: "Send WhatsApp cart reminders and due broadcasts",
+    frequency: "Runs every 10 minutes",
+    description:
+      "Reminds shoppers who opted in about carts they left, and sends the next batch of any broadcast that is due. " +
+      "Only stores that switched it on are read, a shopper who opted out or hit the message limit is skipped, and the emergency stop silences it.",
+  },
+
   "demand-weekly-digest": {
     label: "Email the weekly shopper-demand digest",
     frequency: "Runs Mondays at 4:30 AM UTC, retried Tuesdays",
