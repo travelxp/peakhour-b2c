@@ -3,6 +3,7 @@ import { ApiError } from "@/lib/api";
 import {
   INBOX_SUBTITLE,
   WHATSAPP_CONNECT_HREF,
+  browserStorage,
   channelOfThread,
   clockLabel,
   combineListState,
@@ -200,6 +201,23 @@ describe("the unread dot", () => {
     const a = row("2026-11-03T12:30:00Z", "a");
     const b = row("2026-11-03T12:30:00Z", "b");
     expect(isUnread(b, markRead(marks, a, NOW))).toBe(true);
+  });
+  it("a WhatsApp row's activity is the shopper's last message: the team's own reply or a status change is not unread", () => {
+    expect(wa({ lastInboundAt: null, updatedAt: "2026-11-03T11:00:00Z" }).activityAt).toBeNull();
+    expect(wa({ lastInboundAt: "2026-11-03T09:00:00Z", updatedAt: "2026-11-03T11:00:00Z" }).activityAt).toBe("2026-11-03T09:00:00Z");
+    expect(isUnread(wa({ lastInboundAt: null, updatedAt: "2026-11-03T13:00:00Z" }), loadReadMarks(null, "k", NOW))).toBe(false);
+  });
+  it("storage that cannot even be reached is no storage, not a crash", () => {
+    const g = globalThis as { window?: unknown };
+    const saved = g.window;
+    g.window = { get localStorage(): never { throw new Error("SecurityError"); } };
+    try {
+      expect(browserStorage()).toBeNull();
+    } finally {
+      if (saved === undefined) delete g.window;
+      else g.window = saved;
+    }
+    expect(browserStorage()).toBeNull(); // no window at all (this environment)
   });
   it("a row with no activity time is never unread", () => {
     expect(isUnread(row(null), loadReadMarks(null, "k", NOW))).toBe(false);

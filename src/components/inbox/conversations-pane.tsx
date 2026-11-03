@@ -42,6 +42,7 @@ import {
   groupByDay,
   handoverAction,
   isUnread,
+  browserStorage,
   loadReadMarks,
   markRead,
   mergeRows,
@@ -152,27 +153,21 @@ export function ConversationsPane({
 
   // ── the unread dot: kept in this browser ──────────────────────────────────────────────────────────────────────────────
   const marksKey = readMarksKey(user?._id, business?._id);
-  const [marks, setMarks] = useState<ReadMarks | null>(null);
-  const storage = typeof window === "undefined" ? null : window.localStorage;
+  // ★KEYED BY THE KEY IT WAS LOADED UNDER: when the person or business changes, the old marks are not the new ones. Held as one value so
+  //  a save can never pair one key's marks with another key's name.
+  const [loaded, setLoaded] = useState<{ key: string; marks: ReadMarks } | null>(null);
+  const marks = loaded && loaded.key === marksKey ? loaded.marks : null;
+  const setMarks = (next: ReadMarks) => setLoaded({ key: marksKey, marks: next });
   useEffect(() => {
-    // read after mount: storage does not exist on the server render
-    setMarks(loadReadMarks(storage, marksKey, new Date()));
-  }, [marksKey, storage]);
+    // read after mount: storage does not exist on the server render (and may not be reachable in the browser)
+    setLoaded({ key: marksKey, marks: loadReadMarks(browserStorage(), marksKey, new Date()) });
+  }, [marksKey]);
   // ★EVERY CHANGE IS SAVED, THE FIRST LOAD INCLUDED. The baseline ("this browser first saw the Inbox") is only a baseline if it
   //  survives a visit in which nothing was opened; saved only on a click, it was "now" again on every load and the dot missed
   //  everything that arrived while the merchant was away. (A side effect, so it is here and not inside a state updater.)
   useEffect(() => {
-    if (marks) saveReadMarks(storage, marksKey, marks);
-  }, [marks, marksKey, storage]);
-  // ★THE OPEN CONVERSATION IS READ, HOWEVER IT WAS OPENED (a click, an alert email's link, the Manage list) AND WHILE IT STAYS OPEN:
-  //  a message that arrives on the poll of a conversation you are looking at does not bring its dot back.
-  const selectedActivity = selected ? (rows.find((r) => r.threadId === selected)?.activityAt ?? null) : null;
-  useEffect(() => {
-    if (!selected || !marks) return;
-    const row = { threadId: selected, activityAt: selectedActivity };
-    const unread = selectedActivity ? isUnread(row, marks) : marks.reads[selected] === undefined;
-    if (unread) setMarks(markRead(marks, row, new Date()));
-  }, [selected, selectedActivity, marks]);
+    if (marks) saveReadMarks(browserStorage(), marksKey, marks);
+  }, [marks, marksKey]);
   const open = (row: Pick<InboxRow, "threadId">) => onSelect(row.threadId);
 
   // ── the open conversation ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -193,6 +188,19 @@ export function ConversationsPane({
   // ★NO HAND-BACK WHILE A REPLY IS IN FLIGHT (review R3): the api escalated before sending, and a Resume landing mid-send gives
   //  the shopper the AI's answer and the person's reply at once.
   const replyInFlight = useComposerMemory(composerStore, selected ?? "").pending;
+
+  // ★THE OPEN CONVERSATION IS READ, HOWEVER IT WAS OPENED (a click, an alert email's link, the Manage list) AND WHILE IT STAYS OPEN:
+  //  a message that arrives on the poll of a conversation you are looking at does not bring its dot back.
+  const selectedActivity = selected ? (rows.find((r) => r.threadId === selected)?.activityAt ?? null) : null;
+  // ...but only once it LOADED: a conversation that failed to open (a 404, offline) was not read
+  const selectedLoaded = selectedChannel === "storefront" ? Boolean(sfThread) : Boolean(waThread);
+  useEffect(() => {
+    if (!selected || !marks || !selectedLoaded) return;
+    const row = { threadId: selected, activityAt: selectedActivity };
+    const unread = selectedActivity ? isUnread(row, marks) : marks.reads[selected] === undefined;
+    if (unread) setMarks(markRead(marks, row, new Date()));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- setMarks only closes over marksKey, which `marks` already tracks
+  }, [selected, selectedActivity, selectedLoaded, marks]);
 
   // H2: conversation export is for owner and admin (the API enforces it; this only decides what to show)
   const canExport = canExportConversations(role);
@@ -355,7 +363,7 @@ export function ConversationsPane({
                 exporting={exporting}
                 onExport={() => runExport(threadExportPath(selected))}
                 handover={
-                  selectedChannel === "whatsapp" && waThread && takeover
+                  selectedChannel === "whatsapp" && waThread && waThread.threadId === selected && takeover
                     ? {
                         label: takeover.label,
                         variant: takeover.variant,

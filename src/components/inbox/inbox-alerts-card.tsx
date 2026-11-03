@@ -23,7 +23,9 @@ export function InboxAlertsCard({ role }: { role: string | null }) {
   const on = alertSwitches(user?.preferences?.inboxAlerts);
 
   async function change(key: InboxAlertKey, value: boolean) {
-    if (!user?.name || saving) return;
+    if (saving) return;
+    // a profile with no name cannot be saved (the api requires one): say so, rather than a switch that snaps back with no reason
+    if (!user?.name) return void toast.error("Add your name to your profile first, then try again.");
     setSaving(key);
     try {
       await updateProfile({ name: user.name, preferences: { inboxAlerts: alertsPatch(user.preferences?.inboxAlerts, key, value) } });

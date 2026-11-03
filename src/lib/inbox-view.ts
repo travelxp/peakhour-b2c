@@ -69,7 +69,9 @@ export function rowOfWhatsApp(c: WaLike): InboxRow {
     preview: c.preview,
     status: c.status,
     updatedAt: c.updatedAt,
-    activityAt: c.lastInboundAt ?? c.updatedAt,
+    // ★THE SHOPPER'S LAST MESSAGE ONLY. `updatedAt` moves on the team's own replies and on status changes too, and a dot for your own
+    //  action is wrong; a conversation with no inbound message has nothing to be unread.
+    activityAt: c.lastInboundAt,
     held: c.held ?? null,
     needsYou: c.needsYou === true,
   };
@@ -283,6 +285,18 @@ export const READ_MARKS_MAX = 300;
 
 export function readMarksKey(userId: string | null | undefined, businessId: string | null | undefined): string {
   return `peakhour:inbox-read:${userId ?? "anon"}:${businessId ?? "none"}`;
+}
+
+/**
+ * The browser's storage, or null when there is none or it cannot be touched. ★THE ACCESSOR ITSELF CAN THROW (Safari with site data
+ * blocked, a sandboxed frame): reading `window.localStorage` is guarded here, so it never takes a page down.
+ */
+export function browserStorage(): MarkStorage | null {
+  try {
+    return typeof window === "undefined" ? null : window.localStorage;
+  } catch {
+    return null;
+  }
 }
 
 /** A tiny storage seam, so this runs where there is no `window` (a test, a server render) and where storage throws. */
