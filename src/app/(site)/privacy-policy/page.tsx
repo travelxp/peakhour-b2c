@@ -734,20 +734,27 @@ export default function PrivacyPolicyPage() {
               from the connection itself.
             </p>
             <p className="mt-2">
-              <strong>How far back we look.</strong> Shopify limits apps to your{" "}
-              <strong>last 60 days</strong> of orders unless it separately approves wider
-              access. Sixty days is too short to tell a seasonal pattern from a real change in
-              demand, or to tell slow-moving stock from stock that has genuinely stopped
-              selling, so we have prepared a request to Shopify for that wider access
-              (<code>read_all_orders</code>). It is <strong>not granted today</strong>, and
-              until Shopify approves it we see only your most recent 60 days.
+              <strong>How far back we look.</strong> Shopify has approved Peakhour to read
+              your store&apos;s <strong>full order history</strong>, not only the most recent
+              60 days. Each store confirms this permission when it installs or updates the
+              app; until your store has confirmed it, Shopify limits us to your last 60 days
+              of orders, and the app tells you so.
             </p>
             <p className="mt-2">
-              If it is approved, it widens the <strong>time range only</strong>, and we have
-              committed to Shopify that we will read <strong>order line items and dates
-              only</strong> from those older orders — not the shopper name, phone, email or
-              postcode described above. So a longer history tells us more about{" "}
-              <em>what sold and when</em>, and nothing more about any individual shopper.
+              We use older orders for three purposes only.{" "}
+              <strong>Merchandising:</strong> from older orders we read line items, dates and
+              order status (never the shopper&apos;s name, phone number, email address or
+              postcode) to tell seasonal patterns from real changes in demand, and slow-moving
+              stock from stock that has stopped selling. <strong>Order status:</strong> when a
+              signed-in shopper asks the storefront assistant about their own order, we look up
+              that shopper&apos;s orders of any age and show the status, delivery estimate and
+              tracking to that shopper only. The reply is kept only as part of the
+              conversation, which is deleted 180 days after its last message, and it is never
+              used for advertising, sale or profiling. <strong>Customer support:</strong> when
+              someone on your team opens a conversation in the Peakhour Inbox, we show that
+              customer&apos;s orders with your store, of any age, so the person answering knows
+              the customer&apos;s history. This is shown only to your team, inside your own
+              Peakhour account, and is never used for advertising, sale or profiling.
             </p>
             <p className="mt-2">
               <strong>Your customers&apos; data, and our role.</strong> An order record can

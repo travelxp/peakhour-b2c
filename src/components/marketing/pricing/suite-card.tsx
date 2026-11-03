@@ -12,6 +12,7 @@ import {
 } from "@/lib/pricing";
 import type { SignupCta } from "@/lib/catalog";
 import { pricingPillar } from "@/lib/pricing-catalog";
+import { shopifyTrialNote } from "@/lib/shopify-features";
 import type { PillarSlug } from "@/lib/pillars";
 
 /**
@@ -38,6 +39,7 @@ export function SuiteCard({
   includedSlugs,
   cta,
   openSignup,
+  channel,
 }: {
   tier: ResolvedProductTier;
   /** ★THE MODULES THIS PLAN ACTUALLY COMPOSES, resolved by the caller from the
@@ -48,7 +50,17 @@ export function SuiteCard({
   includedSlugs: PillarSlug[];
   cta: SignupCta;
   openSignup: boolean;
+  /**
+   * "shopify" is the /shopify page's card: the button is the App Store
+   * install (an external link the caller passes in `cta`, opened in a new
+   * tab), the trial note says it is billed through Shopify, and the
+   * allowance is named "AI credits (Peaks)". ★NEVER "No card to start": a
+   * Shopify trial is billed through Shopify, not started on peakhour.ai.
+   */
+  channel?: "shopify";
 }) {
+  const shopify = channel === "shopify";
+  const external = shopify && cta.href.startsWith("http");
   const p = tier.pricing;
   const monthlyOffer = hasMonthlyOffer(p);
   const yearly = yearlyPrice(p);
@@ -130,7 +142,9 @@ export function SuiteCard({
                 >
                   {formatPeaks(peaks)}
                 </span>
-                <span className="text-sm font-bold">Peaks a month</span>
+                <span className="text-sm font-bold">
+                  {shopify ? "AI credits (Peaks) a month" : "Peaks a month"}
+                </span>
               </div>
               <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Zap className="size-3.5 shrink-0 text-brand-strong" aria-hidden />
@@ -149,6 +163,9 @@ export function SuiteCard({
           ) : (
             <Link
               href={cta.href}
+              {...(external
+                ? { target: "_blank", rel: "noopener noreferrer" }
+                : {})}
               className="group mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-gradient px-6 py-3.5 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 sm:w-auto"
             >
               {openSignup ? suiteCtaLabel(p.trialDays) : cta.label}
@@ -160,7 +177,9 @@ export function SuiteCard({
               trial bought at checkout, and this button goes to signup. */}
           {p.trialDays > 0 && (
             <p className="mt-2.5 text-[11px] text-muted-foreground">
-              {p.trialDays}-day free trial · no card to start
+              {shopify
+                ? shopifyTrialNote(p.trialDays)
+                : `${p.trialDays}-day free trial · no card to start`}
             </p>
           )}
         </div>
@@ -201,8 +220,9 @@ export function SuiteCard({
           </ul>
           <p className="mt-5 flex items-start gap-2 text-xs text-muted-foreground">
             <Check className="mt-0.5 size-3.5 shrink-0 text-brand-strong" strokeWidth={3} aria-hidden />
-            One login, one Peaks wallet, one invoice. New modules are included as
-            they ship.
+            {shopify
+              ? "One plan, one invoice through Shopify. New modules are included as they ship."
+              : "One login, one Peaks wallet, one invoice. New modules are included as they ship."}
           </p>
         </div>
       </div>

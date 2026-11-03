@@ -19,8 +19,8 @@ import { Textarea } from "@/components/ui/textarea";
  * `businessContext` column. Everything else we want about an early applicant
  * is derived, never asked:
  *
- *   • Product cohort — from `source`. A Shopify link means Commerce, a
- *     WordPress link means Marketing; the API derives it, so the applicant is
+ *   • Product cohort — from `source`. A Shopify link means the Shopify
+ *     app, a WordPress link means the WordPress plugin; the API derives it, so the applicant is
  *     never made to choose.
  *   • Country — from the Vercel edge geo header, resolved on the server page
  *     and passed in as a prop.
@@ -34,8 +34,8 @@ type SignupSource = "shopify" | "wordpress" | "direct";
 
 /** Friendly product name for a known entry surface, for a light confirmation line. */
 const SOURCE_PRODUCT: Partial<Record<SignupSource, string>> = {
-  shopify: "Peakhour Commerce",
-  wordpress: "Peakhour Marketing",
+  shopify: "Peakhour for Shopify",
+  wordpress: "Peakhour Suite",
 };
 
 /** Mirrors waitlist_signups.businessContext (max 2048) — the API rejects more. */
@@ -76,7 +76,7 @@ export function LaunchPartnerForm({
         // Direct landing-page application (not an in-app feature gate).
         channel: "direct",
         // Entry surface — the API derives the product cohort from it, so the
-        // applicant is never asked to choose Commerce vs Marketing.
+        // applicant is never asked to choose between them.
         signupSource: source,
         // Optional; omitted entirely when blank so an untouched field doesn't
         // write an empty string into the qualitative dataset.

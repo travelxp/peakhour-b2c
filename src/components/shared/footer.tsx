@@ -15,6 +15,13 @@ const FOOTER_GROUPS = [
     ],
   },
   {
+    heading: "Works with",
+    links: [
+      { href: "/shopify", label: "Shopify" },
+      { href: "/content", label: "WordPress" },
+    ],
+  },
+  {
     heading: "Product",
     links: [
       { href: "/pricing", label: "Pricing" },

@@ -121,12 +121,12 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
       {
         title: "Catalog always in sync",
         description:
-          "Products, prices, and stock pull automatically from Shopify and WooCommerce. The AI always answers from live data — no stale info, no wrong prices.",
+          "Products, prices, and stock sync from Shopify and WooCommerce, so the assistant answers from your current catalog.",
       },
       {
         title: "WhatsApp & storefront chat",
         description:
-          "Shoppers ask on your WhatsApp number or your site. AI replies instantly, reserves items, and shares a checkout link — zero agent time.",
+          "Shoppers ask on your WhatsApp number or your site. AI replies instantly and shares a checkout link; you step in when needed.",
       },
       {
         title: "Inventory intelligence",
@@ -189,12 +189,12 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
     icon: TrendingUp,
     name: "Growth",
     eyebrow: "The Growth module",
-    headline: "Ads and LinkedIn",
-    accent: "on autopilot.",
-    lede: "Campaigns drafted, audiences found, leads captured, budgets optimized — around the clock. Growth runs the acquisition work a small team can't get to, and stops wasting spend on what isn't working.",
+    headline: "Ads and LinkedIn,",
+    accent: "with your approval.",
+    lede: "Campaigns drafted, audiences suggested, LinkedIn leads captured and budgets reviewed every week, with your approval. Growth takes on the acquisition work a small team can't get to.",
     hubLine: "Runs ads and leads",
     valueProp:
-      "Acquisition that keeps running — campaigns drafted, budgets tuned, every lead captured.",
+      "Campaigns drafted, budgets reviewed each week, LinkedIn leads captured — with you approving the changes.",
     channels: [
       { name: "Meta Ads", key: "meta_ads" },
       // The growth engine is the ORGANIC connector; Lead Gen forms come from
@@ -213,18 +213,18 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
       {
         title: "Ad campaigns + optimizer",
         description:
-          "Draft platform-native campaigns, launch them, and let the AI pause underperformers and double down on winners hourly.",
+          "Draft platform-native campaigns, launch them, and let the AI suggest pausing underperformers and backing winners each week. You approve the changes.",
       },
       {
         title: "Lead inbox",
         description:
-          "Every lead from every channel lands in one inbox, enriched and ready — so nothing slips through the cracks.",
+          "LinkedIn leads land in one inbox, ready to follow up — so nothing slips through the cracks.",
       },
     ],
     outcomes: [
       "Stop burning ad budget on what isn't converting.",
       "Find shoppers who look like your best customers, automatically.",
-      "Capture and follow up on every lead — no manual chasing.",
+      "Keep your LinkedIn leads in one place instead of chasing them across tabs.",
     ],
     planLabel: "In Peakhour Suite",
   },
@@ -235,21 +235,20 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
     eyebrow: "The Support module",
     headline: "One inbox for every channel,",
     accent: "answered.",
-    lede: "WhatsApp, Instagram, email — all in one place. AI answers the routine questions with full context and hands you only the ones that need a human, so support never runs your day.",
+    lede: "Your WhatsApp conversations in one place. AI answers the routine questions with full context and hands you only the ones that need a human, so support never runs your day.",
     hubLine: "Answers every message",
     valueProp:
-      "One inbox where AI clears the routine questions and hands you only what genuinely needs a human.",
+      "One inbox where AI clears the routine questions and hands you only what needs a human.",
     channels: [
       { name: "WhatsApp", key: "whatsapp" },
       { name: "Instagram", key: "instagram" },
       { name: "Facebook", key: "facebook_pages" },
-      { name: "Email" },
     ],
     features: [
       {
-        title: "Omnichannel inbox",
+        title: "One inbox",
         description:
-          "Every conversation from every channel in one thread-per-customer view — no more tab-switching to keep up.",
+          "Your WhatsApp conversations in one thread-per-customer view, with Instagram and Facebook alongside as their connectors open.",
       },
       {
         title: "AI-drafted replies",
@@ -276,10 +275,10 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
     eyebrow: "The Presence module",
     headline: "Own how you show up",
     accent: "on Google.",
-    lede: "Your Google Business Profile — listings, hours, photos, and reviews — managed from one place, always current. So when someone searches nearby, you're the one they find and trust.",
+    lede: "Connect your Google Business Profile and see how it performs in Insights, so you know how people find you when they search nearby.",
     hubLine: "Found first on Google",
     valueProp:
-      "Show up accurate and current wherever people look for you — and never leave a review unanswered.",
+      "Connect your Google Business Profile and see how people find you on Google.",
     channels: [
       { name: "Google Business Profile", key: "google_business_profile" },
       // Where the listing SHOWS UP. Neither is a connector, so neither is ever
@@ -289,25 +288,19 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
     ],
     features: [
       {
-        title: "Google Business Profile",
+        title: "Connect your profile",
         description:
-          "Keep your listing accurate everywhere — hours, contact, categories, photos — updated from one dashboard.",
+          "Connect your Google Business Profile once, and Peakhour knows which listing is yours.",
       },
       {
-        title: "Review management",
+        title: "Insights",
         description:
-          "Every review surfaced and replied to, with AI-drafted responses in your voice, so your rating keeps climbing.",
-      },
-      {
-        title: "Listing health",
-        description:
-          "Spot what's missing or out of date before it costs you a customer — and fix it in a tap.",
+          "See how your profile performs in Insights, next to the rest of your Peakhour results.",
       },
     ],
     outcomes: [
-      "Be the business that shows up first for “near me” searches.",
-      "Never let a review go unanswered and drag your rating down.",
-      "Keep every listing detail current without the busywork.",
+      "See how people find your business on Google.",
+      "Keep your Google profile and your other results in one place.",
     ],
     planLabel: "In Peakhour Suite",
   },

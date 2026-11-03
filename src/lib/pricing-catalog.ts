@@ -39,7 +39,7 @@ export interface PricingPillarMeta {
 export const PRICING_PILLARS: Record<PillarSlug, PricingPillarMeta> = {
   presence: {
     slug: "presence",
-    promise: "Get found on Google, Maps and AI search — and keep every listing right.",
+    promise: "Connect your Google Business Profile and see how people find you.",
   },
   commerce: {
     slug: "commerce",
@@ -51,11 +51,11 @@ export const PRICING_PILLARS: Record<PillarSlug, PricingPillarMeta> = {
   },
   support: {
     slug: "support",
-    promise: "Every support message — email, chat, WhatsApp, DMs — in one inbox.",
+    promise: "Your WhatsApp and storefront chat conversations in one inbox.",
   },
   growth: {
     slug: "growth",
-    promise: "Ads and LinkedIn on autopilot — campaigns, audiences and leads, handled.",
+    promise: "Meta, Google and LinkedIn campaigns, drafted for you and launched when you approve.",
   },
 };
 
@@ -138,6 +138,13 @@ export interface ChannelMeta {
   billed?: string;
   /** Primary link for the channel's card. */
   href: string;
+  /**
+   * Set when the channel has a page of its own on this site. The /pricing
+   * strip links here instead of `href`, so a visitor reads about the channel
+   * before leaving for its listing. `href` stays the listing (Shopify: the App
+   * Store), which the page itself sends the install button to.
+   */
+  pageHref?: string;
 }
 
 const SHOPIFY_APP_STORE_URL =
@@ -153,9 +160,10 @@ export const CHANNELS: Record<ChannelKey, ChannelMeta> = {
     // A value proposition, not an instruction. "Install from the Shopify App
     // Store" is a step a visitor cannot take while the connector is still
     // coming_soon, and it sat directly under the chip saying so.
-    blurb: "Your catalog-grounded assistant, answering shoppers on your storefront.",
+    blurb: "Your AI team inside Shopify: assistant, Smart Rails, COD confirmation and more.",
     billed: "Billed through Shopify",
     href: SHOPIFY_APP_STORE_URL,
+    pageHref: "/shopify",
   },
   wordpress: {
     key: "wordpress",
@@ -189,7 +197,7 @@ export const CHANNELS: Record<ChannelKey, ChannelMeta> = {
     name: "BigCommerce",
     tag: "BC",
     color: "#121118",
-    blurb: "Bring your BigCommerce products into catalog-grounded answers.",
+    blurb: "Bring your BigCommerce products into the shop assistant's answers.",
     href: "/commerce",
   },
   whatsapp: {
