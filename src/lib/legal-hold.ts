@@ -129,8 +129,59 @@ export interface HoldsListing {
     scope: "conversation" | "business";
     eraseDeferred: boolean;
   }>;
+  /** How many conversations lifting the BUSINESS hold deletes at once. Absent from an api that predates it: read as UNKNOWN (the lift is not offered). */
+  deferredEraseCount?: number;
   truncated: boolean;
 }
+
+/**
+ * ★LIFTING A HOLD CAN DELETE. A conversation whose erasure was deferred while it was held (the store uninstalled, or the customer
+ * asked to be erased) is deleted AT ONCE when the hold is lifted: no 180 days, no 7-day undo. The confirmation must say so.
+ * The api's own lift reports `erasedOnLift` only after the fact; these read the listing before.
+ */
+export const LIFT_AND_DELETE_LABEL = "Lift and delete";
+
+/** The confirm button of a lift: "Lift and delete" when the dialog carries a deletion warning, else the plain label. */
+export function liftConfirmLabel(warning: string | null, plain: string): string {
+  return warning ? LIFT_AND_DELETE_LABEL : plain;
+}
+
+/** The one sentence a single-conversation lift shows when the lift deletes that conversation. */
+export const THREAD_LIFT_DELETES =
+  "Lifting this hold deletes this conversation permanently right away, because the store or the customer asked for it to be erased. This cannot be undone.";
+
+/** The sentence a business-wide lift shows when `count` conversations would be deleted at once; null when none would. */
+export function businessLiftDeletes(count: number | null | undefined): string | null {
+  if (typeof count !== "number" || !Number.isFinite(count) || count < 1) return null;
+  const n = Math.floor(count);
+  return `Lifting this hold deletes ${n} ${n === 1 ? "conversation" : "conversations"} permanently right away, because the store or the customer asked for ${n === 1 ? "it" : "them"} to be erased. This cannot be undone.`;
+}
+
+/**
+ * The deletion warning for lifting THIS conversation's hold: the sentence, null when the lift deletes nothing, or ★undefined when the
+ * listing is not known (not loaded, or it failed), which is neither: the caller must not offer the lift then, because a lift that
+ * deletes would look like an ordinary one. (The api lists every erase-deferred conversation even past its cap, so "listed with the
+ * flag clear, or not listed" means nothing is waiting.)
+ */
+export function threadLiftWarning(listing: HoldsListing | undefined, threadId: string): string | null | undefined {
+  if (!listing) return undefined;
+  return listing.conversations.some((c) => c.threadId === threadId && c.eraseDeferred === true) ? THREAD_LIFT_DELETES : null;
+}
+
+/** The same for the business-wide lift: the sentence with the count, null when it deletes nothing, undefined when unknown. */
+export function businessLiftWarning(listing: HoldsListing | undefined): string | null | undefined {
+  // A listing without the count (an api that predates it) is UNKNOWN, not zero: the lift would be offered blind.
+  if (!listing || typeof listing.deferredEraseCount !== "number") return undefined;
+  return businessLiftDeletes(listing.deferredEraseCount);
+}
+
+/** A refetch that failed still resolves, with the OLD data; only a successful one may be believed. */
+export function freshListing(r: { status: string; data?: HoldsListing }): HoldsListing | undefined {
+  return r.status === "success" ? r.data : undefined;
+}
+
+/** Said when the check above could not be made, instead of opening a lift whose effect is unknown. */
+export const LIFT_CHECK_FAILED = "Couldn't check whether lifting this hold deletes anything. Try again in a moment.";
 
 /**
  * The line under the business-wide hold: when, by whom, and why, with no empty fragment (a missing or bad date is left out

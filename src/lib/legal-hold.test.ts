@@ -10,6 +10,14 @@ import {
   checkLiftReason,
   heldBadge,
   heldSince,
+  businessLiftDeletes,
+  liftConfirmLabel,
+  LIFT_AND_DELETE_LABEL,
+  THREAD_LIFT_DELETES,
+  threadLiftWarning,
+  businessLiftWarning,
+  freshListing,
+  type HoldsListing,
   holdErrorMessage,
   HOLD_REASON_HINT,
   HOLD_REASON_MAX,
@@ -168,5 +176,65 @@ describe("dates and labels", () => {
   it("support placements are labelled", () => {
     expect(placedByLabel("support")).toBe("Placed by Peakhour support");
     expect(placedByLabel("merchant")).toBe("Placed by your team");
+  });
+});
+
+describe("the lift says when it deletes for good (H4)", () => {
+  const row = (threadId: string, eraseDeferred: boolean): HoldsListing["conversations"][number] => ({
+    threadId,
+    heldAt: "2026-11-01T00:00:00.000Z",
+    heldBy: null,
+    byKind: "merchant",
+    reason: "case",
+    scope: "conversation",
+    eraseDeferred,
+  });
+  const listing = (conversations: HoldsListing["conversations"]): HoldsListing => ({ business: null, conversations, truncated: false });
+
+  it("the exact single-conversation sentence and button name", () => {
+    expect(THREAD_LIFT_DELETES).toBe(
+      "Lifting this hold deletes this conversation permanently right away, because the store or the customer asked for it to be erased. This cannot be undone.",
+    );
+    expect(LIFT_AND_DELETE_LABEL).toBe("Lift and delete");
+  });
+  it("KILL: a listed conversation whose erasure is waiting warns with the exact sentence", () => {
+    expect(threadLiftWarning(listing([row("t1", true)]), "t1")).toBe(THREAD_LIFT_DELETES);
+  });
+  it("PASS: a conversation with no erasure waiting, or another thread's flag, shows the normal dialog (null)", () => {
+    expect(threadLiftWarning(listing([row("t1", false)]), "t1")).toBeNull();
+    expect(threadLiftWarning(listing([row("t2", true)]), "t1")).toBeNull();
+  });
+  it("KILL: no listing (not loaded, or the fetch failed) is UNKNOWN, never 'nothing to warn about'", () => {
+    expect(threadLiftWarning(undefined, "t1")).toBeUndefined();
+    expect(businessLiftWarning(undefined)).toBeUndefined();
+  });
+  it("the business warning reads the listing's count: N warns, 0 is null, an older api's missing count is unknown", () => {
+    expect(businessLiftWarning({ ...listing([]), deferredEraseCount: 4 })).toContain("deletes 4 conversations");
+    expect(businessLiftWarning({ ...listing([]), deferredEraseCount: 0 })).toBeNull();
+    expect(businessLiftWarning(listing([]))).toBeUndefined(); // an api without the count: unknown, not zero
+  });
+  it("KILL: a FAILED refetch resolves with the old data, which must not be believed; a successful one is", () => {
+    const old = listing([row("t1", true)]);
+    expect(freshListing({ status: "error", data: old })).toBeUndefined();
+    expect(freshListing({ status: "pending", data: old })).toBeUndefined();
+    expect(freshListing({ status: "success", data: old })).toBe(old);
+  });
+  it("KILL: a business count of N is named in the sentence", () => {
+    expect(businessLiftDeletes(3)).toBe(
+      "Lifting this hold deletes 3 conversations permanently right away, because the store or the customer asked for them to be erased. This cannot be undone.",
+    );
+    expect(businessLiftDeletes(12)).toContain("deletes 12 conversations");
+  });
+  it("one conversation reads in the singular", () => {
+    expect(businessLiftDeletes(1)).toBe(
+      "Lifting this hold deletes 1 conversation permanently right away, because the store or the customer asked for it to be erased. This cannot be undone.",
+    );
+  });
+  it("PASS: a count of 0, a missing count (older api) and nonsense show the normal dialog", () => {
+    for (const c of [0, undefined, null, -2, Number.NaN]) expect(businessLiftDeletes(c)).toBeNull();
+  });
+  it("the confirm button is renamed only when there is a warning", () => {
+    expect(liftConfirmLabel("x", "Lift hold")).toBe("Lift and delete");
+    expect(liftConfirmLabel(null, "Lift hold")).toBe("Lift hold");
   });
 });

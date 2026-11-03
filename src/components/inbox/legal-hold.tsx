@@ -17,6 +17,11 @@ import {
   checkLiftReason,
   heldBadge,
   heldSince,
+  liftConfirmLabel,
+  threadLiftWarning,
+  businessLiftWarning,
+  LIFT_CHECK_FAILED,
+  freshListing,
   holdErrorMessage,
   threadTail,
   HOLD_EFFECT,
@@ -37,14 +42,17 @@ import {
  * the content on close), so a reason typed and then cancelled is never still there the next time the dialog opens.
  * A PLACE needs a reason; a LIFT takes an optional one.
  */
-function ReasonForm({
+export function ReasonForm({
   lifting,
+  warning,
   confirmLabel,
   pending,
   onCancel,
   onConfirm,
 }: {
   lifting: boolean;
+  /** Said first, in the destructive colour, when confirming deletes something for good. */
+  warning: string | null;
   confirmLabel: string;
   pending: boolean;
   onCancel: () => void;
@@ -55,7 +63,12 @@ function ReasonForm({
   return (
     <>
       <div className="space-y-2">
-        <p className="text-xs text-muted-foreground">{HOLD_EFFECT}</p>
+        {warning && (
+          <p role="alert" className="text-sm font-medium text-destructive">
+            {warning}
+          </p>
+        )}
+        {!warning && <p className="text-xs text-muted-foreground">{HOLD_EFFECT}</p>}
         <label className="text-sm font-medium" htmlFor="hold-reason">
           {lifting ? "Reason (optional)" : "Reason"}
         </label>
@@ -69,7 +82,7 @@ function ReasonForm({
         <Button variant="outline" onClick={onCancel} disabled={pending}>
           Cancel
         </Button>
-        <Button disabled={!check.ok || pending} onClick={() => check.ok && onConfirm(check.reason)}>
+        <Button variant={warning ? "destructive" : "default"} disabled={!check.ok || pending} onClick={() => check.ok && onConfirm(check.reason)}>
           {pending ? "…" : confirmLabel}
         </Button>
       </DialogFooter>
@@ -82,6 +95,7 @@ function ReasonDialog({
   open,
   onOpenChange,
   lifting,
+  warning = null,
   title,
   description,
   confirmLabel,
@@ -91,6 +105,7 @@ function ReasonDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   lifting: boolean;
+  warning?: string | null;
   title: string;
   description: string;
   confirmLabel: string;
@@ -106,7 +121,7 @@ function ReasonDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <ReasonForm lifting={lifting} confirmLabel={confirmLabel} pending={pending} onCancel={() => onOpenChange(false)} onConfirm={onConfirm} />
+        <ReasonForm lifting={lifting} warning={warning} confirmLabel={confirmLabel} pending={pending} onCancel={() => onOpenChange(false)} onConfirm={onConfirm} />
       </DialogContent>
     </Dialog>
   );
@@ -123,7 +138,11 @@ export function ThreadHoldControl({ threadId, held, role }: { threadId: string; 
   // ★THE MODE IS FROZEN WHEN THE DIALOG OPENS. Derived live from `held`, a refetch after a refused action (someone else lifted
   //  it) would turn an open "Lift hold" dialog into a "Keep this conversation" one, with the typed text still in it.
   const [mode, setMode] = useState<"place" | "lift" | null>(null);
+  // ★LIKEWISE FROZEN: whether this lift deletes the conversation is read when the dialog opens, so a refetch cannot swap the
+  //  warning (or the button's name) under a person who is already reading it.
+  const [deleteWarning, setDeleteWarning] = useState<string | null>(null);
   const hold = useThreadHold();
+  const holds = useLegalHolds(canManageHolds(role));
   if (!canManageHolds(role)) return null;
   const canLift = canLiftThreadHold(held);
   // Held because the business is (lifted there), or not known (an api that predates holds): nothing to offer.
@@ -131,20 +150,36 @@ export function ThreadHoldControl({ threadId, held, role }: { threadId: string; 
   const lifting = (mode ?? (canLift ? "lift" : "place")) === "lift";
   return (
     <>
-      <Button size="sm" variant="outline" onClick={() => setMode(canLift ? "lift" : "place")}>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={async () => {
+          if (!canLift) return setMode("place");
+          // ★READ FRESH, NOT FROM A 30-SECOND-OLD CACHE: an uninstall or a customer's erasure can land since the last fetch, and the
+          //  lift would then delete a conversation the dialog called ordinary. If the check cannot be made the lift is not offered.
+          const fresh = await holds.refetch();
+          const warning = threadLiftWarning(freshListing(fresh), threadId);
+          if (warning === undefined) return void toast.error(LIFT_CHECK_FAILED);
+          setDeleteWarning(warning);
+          setMode("lift");
+        }}
+      >
         {canLift ? "Lift hold" : "Keep (legal hold)"}
       </Button>
       <ReasonDialog
         open={mode !== null}
         onOpenChange={(o) => !o && setMode(null)}
         lifting={lifting}
-        title={lifting ? "Lift the legal hold?" : "Keep this conversation (legal hold)"}
+        warning={lifting ? deleteWarning : null}
+        title={lifting ? (deleteWarning ? "Lift the hold and delete?" : "Lift the legal hold?") : "Keep this conversation (legal hold)"}
         description={
-          lifting
+          lifting && deleteWarning
+            ? "This conversation is waiting to be erased. Read the warning before you confirm."
+            : lifting
             ? "The conversation goes back to the normal 180 days after its last message (at least 7 days from now)."
             : "Use this when you must keep a conversation for a legal reason."
         }
-        confirmLabel={lifting ? "Lift hold" : "Keep this conversation"}
+        confirmLabel={lifting ? liftConfirmLabel(deleteWarning, "Lift hold") : "Keep this conversation"}
         pending={hold.isPending}
         onConfirm={(reason) =>
           hold.mutate(
@@ -172,7 +207,15 @@ export function HoldsCard({ role, onOpenThread }: { role: string | null; onOpenT
   // The mode the dialog was LAST opened in, kept for rendering: when it closes `dialog` is null while it animates out, and the
   // content must not flip to the opposite action for that moment. (State, not a ref: a ref is not read during render.)
   const [shown, setShown] = useState<"place" | "lift">("place");
-  const openDialog = (mode: "place" | "lift") => {
+  // How many conversations the business lift deletes, read when the dialog opens and frozen like `shown`.
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const openDialog = async (mode: "place" | "lift") => {
+    if (mode === "lift") {
+      // ★READ FRESH (see the thread lift): a stale count would call a mass deletion an ordinary lift.
+      const warning = businessLiftWarning(freshListing(await holds.refetch()));
+      if (warning === undefined) return void toast.error(LIFT_CHECK_FAILED);
+      setDeleting(warning);
+    } else setDeleting(null);
     setShown(mode);
     setDialog(mode);
   };
@@ -222,13 +265,16 @@ export function HoldsCard({ role, onOpenThread }: { role: string | null; onOpenT
         open={dialog !== null}
         onOpenChange={(o) => !o && setDialog(null)}
         lifting={shown === "lift"}
-        title={shown === "lift" ? "Lift the business-wide hold?" : "Keep all conversations (legal hold)"}
+        warning={shown === "lift" ? deleting : null}
+        title={shown === "lift" ? (deleting ? "Lift the hold and delete?" : "Lift the business-wide hold?") : "Keep all conversations (legal hold)"}
         description={
-          shown === "lift"
+          shown === "lift" && deleting
+            ? "Some held conversations are waiting to be erased. Read the warning before you confirm."
+            : shown === "lift"
             ? "Conversations held only by this go back to the normal 180 days; one you held by name stays held."
             : "Every current conversation, and every new one within the hour, is kept until you lift this."
         }
-        confirmLabel={shown === "lift" ? "Lift business hold" : "Hold all conversations"}
+        confirmLabel={shown === "lift" ? liftConfirmLabel(deleting, "Lift business hold") : "Hold all conversations"}
         pending={business.isPending}
         onConfirm={(reason) => {
           const action = shown;
