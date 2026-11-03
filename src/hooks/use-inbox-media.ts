@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { API_BASE_URL, ApiError } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
@@ -52,10 +52,15 @@ export function useThreadMedia(threadId: string, ref: string, enabled: boolean) 
 
 /** An object URL for a blob, revoked when the blob changes or the bubble goes. */
 export function useObjectUrl(blob: Blob | undefined): string | null {
-  const url = useMemo(() => (blob ? URL.createObjectURL(blob) : null), [blob]);
+  const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
-    if (!url) return;
-    return () => URL.revokeObjectURL(url);
-  }, [url]);
+    // created and revoked in the same effect, so a re-run (StrictMode, Fast Refresh) makes a fresh URL instead of keeping a revoked one
+    const u = blob ? URL.createObjectURL(blob) : null;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- an object URL is an external resource; this is the sync to it
+    setUrl(u);
+    return () => {
+      if (u) URL.revokeObjectURL(u);
+    };
+  }, [blob]);
   return url;
 }

@@ -66,7 +66,7 @@ describe("an attachment in a bubble", () => {
 });
 
 describe("the composer's rich buttons", () => {
-  const markup = renderToStaticMarkup(<WaRichSend threadId="whatsapp:1:abc" disabled={false} onSend={async () => true} />);
+  const markup = renderToStaticMarkup(<WaRichSend threadId="whatsapp:1:abc" disabled={false} unknownSig={null} onSend={async () => true} />);
 
   it("offers the three ways, and opens none of them by itself", () => {
     expect(markup).toContain("Attach image or PDF");
@@ -80,7 +80,7 @@ describe("the composer's rich buttons", () => {
   });
 
   it("every button is off while a send is in flight (one press, one send)", () => {
-    const busy = renderToStaticMarkup(<WaRichSend threadId="t" disabled onSend={async () => true} />);
+    const busy = renderToStaticMarkup(<WaRichSend threadId="t" disabled unknownSig={null} onSend={async () => true} />);
     expect(busy.match(/<button[^>]*disabled/g)?.length).toBe(3);
   });
 
@@ -91,6 +91,14 @@ describe("the composer's rich buttons", () => {
     expect(rich).toBeGreaterThan(0);
     expect(templateMode).toBeGreaterThan(rich);
     expect(src.indexOf("<WaRichSend", rich + 1)).toBe(-1);
+  });
+
+  it("a send whose outcome is unknown asks for a confirming press: the label says so, and only for that same send", () => {
+    const src = here("wa-rich-send.tsx");
+    expect(src).toContain('"Send again anyway"');
+    expect(src).toMatch(/replySignature\(payload\) === unknownSig/);
+    expect(src).toMatch(/cardLabel=\{sendLabel\(\{ kind: "product"/);
+    expect(here("wa-composer.tsx")).toMatch(/unknownSig=\{mem\.attempt\?\.unknown \? mem\.attempt\.sig : null\}/);
   });
 
   it("an attachment's panel clears only when it was sent, so a refused send keeps what the person chose", () => {

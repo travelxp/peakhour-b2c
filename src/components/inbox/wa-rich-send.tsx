@@ -23,7 +23,7 @@ import {
   type CheckoutLine,
   type ProductHit,
 } from "@/lib/inbox-media";
-import type { ReplyPayload } from "@/lib/wa-inbox-reply";
+import { replySignature, type ReplyPayload } from "@/lib/wa-inbox-reply";
 
 /**
  * Inbox rich messages: the composer's three extra ways to answer a shopper, shown only while the 24-hour window is open (an image, a
@@ -39,12 +39,18 @@ import type { ReplyPayload } from "@/lib/wa-inbox-reply";
  */
 type SendFn = (payload: ReplyPayload, file?: Blob) => Promise<boolean>;
 
-export function WaRichSend({ threadId, disabled, onSend }: { threadId: string; disabled: boolean; onSend: SendFn }) {
+/** The label of a send button: "Send again anyway" when THIS exact send is the one whose outcome is unknown (the press is the confirmation). */
+function sendLabel(payload: ReplyPayload, unknownSig: string | null, idle: string, busy: boolean): string {
+  if (busy) return "Sending…";
+  return unknownSig !== null && replySignature(payload) === unknownSig ? "Send again anyway" : idle;
+}
+
+export function WaRichSend({ threadId, disabled, unknownSig, onSend }: { threadId: string; disabled: boolean; unknownSig: string | null; onSend: SendFn }) {
   const [mode, setMode] = useState<"product" | "checkout" | null>(null);
   return (
     <div className="space-y-2" data-testid="rich-send">
       <div className="flex flex-wrap items-center gap-2">
-        <AttachButton disabled={disabled} onSend={onSend} />
+        <AttachButton disabled={disabled} unknownSig={unknownSig} onSend={onSend} />
         <Button size="xs" variant={mode === "product" ? "secondary" : "outline"} disabled={disabled} onClick={() => setMode(mode === "product" ? null : "product")}>
           Send a product
         </Button>
@@ -52,13 +58,19 @@ export function WaRichSend({ threadId, disabled, onSend }: { threadId: string; d
           Send a checkout link
         </Button>
       </div>
-      {mode && <ProductPanel key={mode} mode={mode} threadId={threadId} disabled={disabled} onSend={onSend} onDone={() => setMode(null)} />}
+      {mode && <ProductPanel key={mode} mode={mode} threadId={threadId} disabled={disabled} unknownSig={unknownSig} onSend={onSend} onDone={() => setMode(null)} />}
     </div>
   );
 }
 
+const attachPayload = (file: File, caption: string): ReplyPayload => ({
+  kind: "media",
+  file: { name: file.name, size: file.size, lastModified: file.lastModified, type: file.type },
+  ...(caption.trim() ? { caption } : {}),
+});
+
 /** "Attach image or PDF": choose, check at once, add a caption, send. Nothing leaves until Send file is pressed. */
-function AttachButton({ disabled, onSend }: { disabled: boolean; onSend: SendFn }) {
+function AttachButton({ disabled, unknownSig, onSend }: { disabled: boolean; unknownSig: string | null; onSend: SendFn }) {
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [caption, setCaption] = useState("");
@@ -69,7 +81,8 @@ function AttachButton({ disabled, onSend }: { disabled: boolean; onSend: SendFn 
     if (!f) return;
     const p = attachmentProblem(f);
     setProblem(p);
-    setFile(p ? null : f);
+    // a refused pick leaves the file already staged (and its caption) as it was
+    if (!p) setFile(f);
   }
 
   return (
@@ -110,14 +123,14 @@ function AttachButton({ disabled, onSend }: { disabled: boolean; onSend: SendFn 
                 size="xs"
                 disabled={disabled || Boolean(captionIssue)}
                 onClick={async () => {
-                  const sent = await onSend({ kind: "media", file: { name: file.name, size: file.size, lastModified: file.lastModified, type: file.type }, ...(caption.trim() ? { caption } : {}) }, file);
+                  const sent = await onSend(attachPayload(file, caption), file);
                   if (sent) {
                     setFile(null);
                     setCaption("");
                   }
                 }}
               >
-                {disabled ? "Sending…" : "Send file"}
+                {sendLabel(attachPayload(file, caption), unknownSig, "Send file", disabled)}
               </Button>
             </span>
           </div>
@@ -128,7 +141,7 @@ function AttachButton({ disabled, onSend }: { disabled: boolean; onSend: SendFn 
 }
 
 /** The catalogue search, for both "Send a product" (send one card) and "Send a checkout link" (build a basket). */
-function ProductPanel({ mode, threadId, disabled, onSend, onDone }: { mode: "product" | "checkout"; threadId: string; disabled: boolean; onSend: SendFn; onDone: () => void }) {
+function ProductPanel({ mode, threadId, disabled, unknownSig, onSend, onDone }: { mode: "product" | "checkout"; threadId: string; disabled: boolean; unknownSig: string | null; onSend: SendFn; onDone: () => void }) {
   const [q, setQ] = useState("");
   const [asked, setAsked] = useState("");
   const [lines, setLines] = useState<CheckoutLine[]>([]);
@@ -163,6 +176,7 @@ function ProductPanel({ mode, threadId, disabled, onSend, onDone }: { mode: "pro
             p={p}
             mode={mode}
             disabled={disabled}
+            cardLabel={sendLabel({ kind: "product", productId: p.productId }, unknownSig, "Send card", false)}
             onCard={async () => {
               if (await onSend({ kind: "product", productId: p.productId })) onDone();
             }}
@@ -202,7 +216,7 @@ function ProductPanel({ mode, threadId, disabled, onSend, onDone }: { mode: "pro
                 if (await onSend({ kind: "checkout", items: checkoutItems(lines) })) onDone();
               }}
             >
-              {disabled ? "Sending…" : "Send checkout link"}
+              {sendLabel({ kind: "checkout", items: checkoutItems(lines) }, unknownSig, "Send checkout link", disabled)}
             </Button>
           </div>
         </div>
@@ -211,7 +225,7 @@ function ProductPanel({ mode, threadId, disabled, onSend, onDone }: { mode: "pro
   );
 }
 
-function ProductRow({ p, mode, disabled, onCard, onAdd }: { p: ProductHit; mode: "product" | "checkout"; disabled: boolean; onCard: () => void; onAdd: (variantId: string, qty: number) => void }) {
+function ProductRow({ p, mode, disabled, cardLabel, onCard, onAdd }: { p: ProductHit; mode: "product" | "checkout"; disabled: boolean; cardLabel: string; onCard: () => void; onAdd: (variantId: string, qty: number) => void }) {
   const start = defaultVariant(p);
   const [variantId, setVariantId] = useState(start?.id ?? "");
   const [qty, setQty] = useState("1");
@@ -230,7 +244,7 @@ function ProductRow({ p, mode, disabled, onCard, onAdd }: { p: ProductHit; mode:
       </span>
       {mode === "product" ? (
         <Button size="xs" disabled={disabled} onClick={onCard}>
-          Send card
+          {cardLabel}
         </Button>
       ) : (
         <span className="flex items-center gap-1.5">
