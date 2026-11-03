@@ -1977,14 +1977,14 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     label: "Email the conversation deletion notice",
     frequency: "Runs Mondays and Tuesdays at 4:45 AM UTC",
     description:
-      "Emails a store when conversations are about to be deleted under its retention period. A store with nothing expiring in the next 14 days is sent nothing. " +
+      "Emails a store when conversations are about to be deleted under its retention period. A store with nothing expiring in the next 14 days, or one that opted out of this notice, is sent nothing. " +
       "Tuesday's run only catches stores Monday missed: a store gets one email a week, and running it again does not resend.",
   },
   "commerce-stockout-alerts": {
     label: "Send stock-out alerts",
     frequency: "Runs daily at 5:00 AM UTC",
     description:
-      "Tells each store on WhatsApp about products forecast to run out before a reorder could arrive. A product is never alerted twice in a week, " +
+      "Tells each store about products forecast to run out before a reorder could arrive, on WhatsApp where it is connected. A product is never alerted twice in a week, " +
       "and the emergency stop silences it.",
   },
 };
