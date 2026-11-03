@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { api, API_BASE_URL } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -110,11 +110,10 @@ export function XDmConnectView({ status, busy, error, onGrant, onSwitch, onCap }
 
 /**
  * The container. It renders NOTHING unless the api says X messages are released: the status route is a 404 while the platform
- * switch is off, and any failed read also hides the panel rather than show a half-working one. Every change is confirmed by
- * re-reading the status.
+ * switch is off (also when that happens after the panel is up). Any OTHER failed read is said, with a way to try again. Every
+ * change is confirmed by re-reading the status, and a re-read that fails is said too.
  */
 export function XDmConnect() {
-  const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const query = useQuery({
@@ -143,8 +142,9 @@ export function XDmConnect() {
     }
     return null;
   }
-  // "unavailable" is the api's word for off: nothing to show
-  if (query.data.state === "unavailable") return null;
+  // "unavailable" is the api's word for off: nothing to show. So is a 404 that arrives AFTER the panel loaded (the platform switch was
+  // turned off meanwhile): the stale On badge must not stay up with controls that can only fail.
+  if (query.data.state === "unavailable" || (query.isError && isNotReleased(query.error))) return null;
 
   async function run(call: () => Promise<unknown>) {
     if (busy) return;
@@ -156,9 +156,10 @@ export function XDmConnect() {
       setError(xDmErrorMessage(err));
     } finally {
       // re-read BEFORE the controls come back, so the next click sees what the api now says
-      await queryClient.invalidateQueries({ queryKey: STATUS_KEY }).catch(() => undefined);
+      const reread = await query.refetch().catch(() => null);
       // a re-read that failed leaves the old answer on screen: say so instead of showing a state that is no longer true
-      if (queryClient.getQueryState(STATUS_KEY)?.status === "error") setError((prev) => prev ?? REFRESH_FAILED);
+      // (a 404 is not that: the panel then hides itself below)
+      if (reread?.isError && !isNotReleased(reread.error)) setError((prev) => prev ?? REFRESH_FAILED);
       setBusy(false);
     }
   }
