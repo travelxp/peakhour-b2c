@@ -29,7 +29,9 @@ export function ChannelsStrip({
       {FEATURED_CHANNELS.map((key) => {
         const ch = CHANNELS[key];
         const soon = channelIsComingSoon(key, badged);
-        const external = ch.href.startsWith("http");
+        // A channel with a page of its own is read about here first.
+        const href = ch.pageHref ?? ch.href;
+        const external = href.startsWith("http");
         const inner = (
           <>
             <ChannelTile channel={key} className="size-10 rounded-xl text-sm" />
@@ -53,7 +55,7 @@ export function ChannelsStrip({
         return (
           <Link
             key={key}
-            href={ch.href}
+            href={href}
             {...(external
               ? { target: "_blank", rel: "noopener noreferrer" }
               : {})}

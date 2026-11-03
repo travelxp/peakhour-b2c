@@ -13,7 +13,14 @@ import { PILLARS, PILLAR_ORDER, type PillarSlug } from "@/lib/pillars";
  * catalog (same resolver + fallback as the homepage), so the CTA can never
  * disagree with the signup flow. Polish is CSS-only.
  */
-export async function PillarPage({ slug }: { slug: PillarSlug }) {
+export async function PillarPage({
+  slug,
+  aside,
+}: {
+  slug: PillarSlug;
+  /** An extra line under the hero's trial note (e.g. /commerce's link to /shopify). */
+  aside?: React.ReactNode;
+}) {
   const pillar = PILLARS[slug];
   const Icon = pillar.icon;
 
@@ -86,6 +93,7 @@ export async function PillarPage({ slug }: { slug: PillarSlug }) {
                 </span>{" "}
                 {trialCopy.note}
               </p>
+              {aside}
             </div>
 
             {/* "What you get back" — outcomes in a dark panel */}
@@ -148,13 +156,13 @@ export async function PillarPage({ slug }: { slug: PillarSlug }) {
             <div className="max-w-3xl">
               <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
                 <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-                One platform, five pillars
+                One plan, five modules
               </span>
               <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
                 {pillar.name} shares one brain with the rest.
               </h2>
               <p className="mt-3 text-muted-foreground">
-                Your catalog, your brand voice, your customers — every pillar
+                Your catalog, your brand voice, your customers — every module
                 learns from the same place. Add the others when you&rsquo;re ready.
               </p>
             </div>

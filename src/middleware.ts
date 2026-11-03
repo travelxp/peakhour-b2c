@@ -175,6 +175,9 @@ export function middleware(req: NextRequest) {
     // Peaks and lands on the teaser has been stopped exactly where the
     // allowlist exists to let them through.
     "/peaks",
+    // The "Peakhour for Shopify" page. A visitor reaches it from the App Store
+    // listing and from /pricing, before there is any account to sign in to.
+    "/shopify",
     "/shopify/connect",
     "/claim",
     "/reconnect",

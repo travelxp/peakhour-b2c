@@ -10,7 +10,7 @@ import { pageMetadata } from "@/lib/seo";
 export const metadata = pageMetadata({
   title: "Agency & Enterprise plans",
   description:
-    "Every Peakhour module across many businesses — one unit per client, volume Peaks and central billing on Agency, plus SSO, SLAs and a dedicated team on Enterprise.",
+    "Every Peakhour module across many businesses — one unit per client, volume Peaks and central billing on Agency, plus SLAs and a dedicated team on Enterprise.",
   path: "/pricing/teams",
 });
 
@@ -27,7 +27,6 @@ const AGENCY_FEATURES = [
 
 const ENTERPRISE_FEATURES = [
   "Everything in Agency",
-  "SSO & advanced roles",
   "SLAs & uptime guarantees",
   "Dedicated success manager",
   "Security review & DPA",

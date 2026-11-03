@@ -9,7 +9,7 @@ export const HOW_IT_WORKS_STEPS = [
     step: "1",
     title: "Connect what you have",
     description:
-      "Shopify, WordPress, WooCommerce, WhatsApp, LinkedIn, Google — one click each. Peakhour reads your real catalog and content, never guesses from your name.",
+      "Shopify, WordPress, WhatsApp, LinkedIn and Google connect in a few clicks; WooCommerce connects with an API key. Peakhour reads your real catalog and content, never guesses from your name.",
     detail:
       "Everything the AI does is grounded in your actual products, prices, and past content — so it's right from day one, not generic.",
   },

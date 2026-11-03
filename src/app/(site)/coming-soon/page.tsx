@@ -5,7 +5,7 @@ import { SITE } from "@/lib/utils";
 export const metadata: Metadata = {
   title: "Peakhour — Autonomous Customer Engagement",
   description:
-    "Peakhour helps businesses build visibility, engage customers, and unlock growth opportunities across every channel — without a full-scale marketing team. Two solutions, one platform: Peakhour Commerce and Peakhour Marketing. Launching soon.",
+    "Peakhour helps businesses build visibility, engage customers, and unlock growth opportunities across every channel — without a full-scale marketing team. One plan, Peakhour Suite, with five modules: Commerce, Content, Growth, Support and Presence. Launching soon.",
 };
 
 /**
@@ -14,8 +14,8 @@ export const metadata: Metadata = {
  * (no Header/Footer that link into the gated app). Preview locally at
  * /coming-soon, or set COMING_SOON=true to exercise the full gate in dev.
  *
- * Positioning: one Peakhour platform with two solution entry points
- * (Commerce + Marketing). Links use plain <a> so they resolve straight
+ * Positioning: one plan, Peakhour Suite, with five modules, shown as two
+ * entry points (the store modules and the marketing modules). Links use plain <a> so they resolve straight
  * through the coming-soon gate — /launch-partner is allowlisted in
  * middleware alongside the legal routes; #commerce / #marketing are
  * in-page anchors (no separate gated routes to loop back on).
@@ -74,7 +74,7 @@ export default function ComingSoonPage() {
               href="#commerce"
               className="inline-flex items-center justify-center gap-2 rounded-full border px-6 py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted/60"
             >
-              Explore Peakhour Commerce
+              Explore the five modules
             </a>
           </div>
         </div>
@@ -96,12 +96,13 @@ export default function ComingSoonPage() {
               <ShoppingBag className="size-5" aria-hidden />
             </span>
             <h3 className="mt-5 text-xl font-semibold tracking-tight">
-              Peakhour Commerce
+              Commerce, Support and Presence
             </h3>
             <p className="mt-2 text-pretty text-sm leading-relaxed text-muted-foreground">
-              For Shopify, WooCommerce and D2C brands that want to recover
-              carts, re-engage customers, and grow revenue with less manual
-              effort.
+              For Shopify, WooCommerce and D2C brands: an AI shop assistant
+              that answers shoppers from your catalogue, one inbox for your
+              customer messages, and a Google Business Profile that stays
+              current.
             </p>
             {/* Pre-launch, "Learn more" routes to the launch-partner capture.
                 Swap to /commerce once the solution page ships post-launch. */}
@@ -123,11 +124,11 @@ export default function ComingSoonPage() {
               <Megaphone className="size-5" aria-hidden />
             </span>
             <h3 className="mt-5 text-xl font-semibold tracking-tight">
-              Peakhour Marketing
+              Content and Growth
             </h3>
             <p className="mt-2 text-pretty text-sm leading-relaxed text-muted-foreground">
-              For publishers, brands and marketing teams that want to create,
-              optimize and automate campaigns across channels.
+              For publishers, brands and marketing teams: content written in
+              your voice, and ads and LinkedIn growth that you approve.
             </p>
             <a
               href="/launch-partner"

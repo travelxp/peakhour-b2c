@@ -7,7 +7,7 @@ import { LaunchPartnerForm } from "./launch-partner-form";
 export const metadata: Metadata = {
   title: "Become a Launch Partner — Peakhour",
   description:
-    "Join the Peakhour launch partner program. Work directly with our team to shape Peakhour Commerce and Peakhour Marketing, and get early access ahead of public launch.",
+    "Join the Peakhour launch partner program. Work directly with our team to shape Peakhour Suite, and get early access ahead of public launch.",
 };
 
 /**
@@ -71,7 +71,7 @@ export default async function LaunchPartnerPage({
         <p className="max-w-lg text-balance text-lg text-muted-foreground">
           We&rsquo;re onboarding a small group of launch partners ahead of public
           launch. Work directly with our team, shape the roadmap for Peakhour
-          Commerce and Peakhour Marketing, and get early access &mdash; with
+          Suite, and get early access &mdash; with
           hands-on setup.
         </p>
 
