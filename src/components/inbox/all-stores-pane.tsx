@@ -12,7 +12,7 @@ import { ChannelChip, StatusPill, TestChip } from "@/components/inbox/inbox-badg
 import { WaitingForConnection } from "@/components/inbox/conversations-pane";
 import { ASSIGNEE_FILTERS, type AssigneeFilter } from "@/lib/inbox-desk";
 import { ALL_STORES_EMPTY, ALL_STORES_NOTE, openAllStoresRow, rowOfAllStores, storeChipLabel, type AllStoresRow } from "@/lib/inbox-all-stores";
-import { DEFAULT_STATUS_FILTER, STATUS_FILTERS, visibleChannelFilters, previewTime, type ChannelFilter, type StatusFilter } from "@/lib/inbox-view";
+import { DEFAULT_STATUS_FILTER, STATUS_FILTERS, visibleChannelFilters, previewTime, type Channel, type ChannelFilter, type StatusFilter } from "@/lib/inbox-view";
 import { listFetchState, showsRows, showsSkeleton } from "@/lib/list-fetch-state";
 
 /**
@@ -30,7 +30,11 @@ export function AllStoresPane({ onOpen }: { onOpen: (threadId: string) => void }
   const list = useAllStoresConversations({ status, assignee, channel, store }, true);
   const rows = list.conversations.map(rowOfAllStores);
   // Messenger, Instagram and X chips show only for channels the loaded conversations are on (or the one chosen)
-  const seenChannels = rows.map((r) => r.channel);
+  // ...and once seen they stay, so choosing a channel (or a store) that happens to be empty does not hide the others
+  const [everSeen, setEverSeen] = useState<ReadonlySet<Channel>>(new Set());
+  const seenNow = rows.map((r) => r.channel);
+  if (seenNow.some((c) => !everSeen.has(c))) setEverSeen(new Set([...everSeen, ...seenNow]));
+  const seenChannels = [...everSeen];
   const state = listFetchState(list, rows.length);
   const now = new Date();
 

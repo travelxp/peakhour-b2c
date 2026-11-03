@@ -457,6 +457,7 @@ function InboxTabs() {
   const scope: InboxScope = offersAllStores(businesses.length) ? scopeFromParam(params.get("scope")) : "store";
   function selectScope(next: InboxScope) {
     const search = new URLSearchParams(params.toString());
+    search.set("tab", "conversations");
     if (next === "all") search.set("scope", "all");
     else search.delete("scope");
     router.replace(`${pathname}?${search.toString()}`, { scroll: false });
