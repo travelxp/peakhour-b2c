@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { useInboxPrices, useSuggestReply, useWaReply, useWaStudioTemplates } from "@/hooks/use-wa-conversations";
 import { SavedReplyPicker } from "@/components/inbox/saved-reply-picker";
+import { WaRichSend } from "@/components/inbox/wa-rich-send";
 import { actionError, priced } from "@/lib/inbox-customer";
 import { listFetchState, showsSkeleton } from "@/lib/list-fetch-state";
 import { createSharedClock, deadlineDelay } from "@/lib/shared-clock";
@@ -197,16 +198,18 @@ export function WaComposer({
     );
   }
 
-  async function send(payload: ReplyPayload) {
+  /** Send a reply. ★Answers whether it was sent (Inbox rich messages): the attachment and product panels clear only then. */
+  async function send(payload: ReplyPayload, file?: Blob): Promise<boolean> {
     const sig = replySignature(payload);
     const prev = store.get(threadId).attempt;
     const attempt = attemptFor(prev, sig, mintIdempotencyKey);
     update({ attempt, error: null, note: null, pending: true });
     try {
-      const res = await reply.mutateAsync({ payload, idempotencyKey: attempt.key });
+      const res = await reply.mutateAsync({ payload, idempotencyKey: attempt.key, ...(file ? { file } : {}) });
       const note = replySuccessNote(res);
       update((cur) => ({ ...clearAfterSend(cur, sig), attempt: null, error: null, note, pending: false }));
       if (!note) toast.success("Sent to the shopper on WhatsApp.");
+      return true;
     } catch (e) {
       const copy = replyErrorCopy(e, payload.kind);
       update({
@@ -216,6 +219,7 @@ export function WaComposer({
         ...(copy.closesWindow && endsAt ? { closedFor: endsAt } : {}),
       });
       if (copy.refetchTemplates) void templates.refetch();
+      return false;
     }
   }
 
@@ -263,6 +267,8 @@ export function WaComposer({
           hasDraft={mem.text.trim().length > 0}
           disabled={mem.pending}
         />
+        {/* Inbox rich messages: an image or PDF, a product card, a checkout link. Free-form, so only here, inside the 24-hour window. */}
+        <WaRichSend threadId={threadId} disabled={mem.pending} onSend={send} />
         <div className="flex items-center justify-between gap-2">
           <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
             {/* ★SAVED REPLIES ARE FREE TEXT, SO THEY ARE OFFERED ONLY HERE, INSIDE THE 24-HOUR WINDOW: outside it the box is the template picker. */}

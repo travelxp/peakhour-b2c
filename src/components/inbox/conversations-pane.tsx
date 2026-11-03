@@ -24,6 +24,7 @@ import { useAuth } from "@/providers/auth-provider";
 import { WaComposer, useComposerMemory, useReplyWindow } from "@/components/inbox/wa-composer";
 import { HeldBadge, useThreadHoldFlow } from "@/components/inbox/legal-hold";
 import { Bubble, DaySeparator } from "@/components/inbox/message-bubble";
+import type { MessageMedia } from "@/lib/inbox-media";
 import { ChannelChip, StatusPill, TestChip, UnreadDot } from "@/components/inbox/inbox-badges";
 import { ManagePanel } from "@/components/inbox/manage-panel";
 import { ThreadHeader } from "@/components/inbox/thread-header";
@@ -560,6 +561,8 @@ export function ConversationsPane({
                             key={lineKeys.get(m) ?? 0}
                             role={m.role}
                             content={m.content}
+                            media={(m as { media?: MessageMedia | null }).media ?? null}
+                            threadId={selected ?? undefined}
                             time={clockLabel(m.timestamp)}
                             sender={senderLabel(m, { contactName: contactName ?? null, currentUserId: user?._id ?? null, memberName })}
                           />
