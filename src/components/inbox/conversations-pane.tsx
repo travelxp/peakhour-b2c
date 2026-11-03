@@ -1,17 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { Search } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
+  useDeleteContactData,
+  useMarkDone,
   useStorefrontChats,
   useStorefrontThread,
   useWaConnection,
   useWaConversations,
-  useWaHandoff,
   useWaResume,
   useWaThread,
 } from "@/hooks/use-wa-conversations";
@@ -20,9 +24,10 @@ import { useAuth } from "@/providers/auth-provider";
 import { WaComposer, useComposerMemory, useReplyWindow } from "@/components/inbox/wa-composer";
 import { HeldBadge, useThreadHoldFlow } from "@/components/inbox/legal-hold";
 import { Bubble, DaySeparator } from "@/components/inbox/message-bubble";
-import { ChannelChip, StatusPill, UnreadDot } from "@/components/inbox/inbox-badges";
+import { ChannelChip, StatusPill, TestChip, UnreadDot } from "@/components/inbox/inbox-badges";
 import { ManagePanel } from "@/components/inbox/manage-panel";
 import { ThreadHeader } from "@/components/inbox/thread-header";
+import { CustomerPanel } from "@/components/inbox/customer-panel";
 import {
   memberNameLookup,
   replyingAsLine,
@@ -34,10 +39,24 @@ import {
 import { listFetchState, showsRows, showsSkeleton } from "@/lib/list-fetch-state";
 import { canExportConversations, downloadConversationExport, expiryBanner, threadExportPath } from "@/lib/wa-conversation-export";
 import {
+  actionError,
+  canChangeConversation,
+  canDeleteContactData,
+  deleteContactToast,
+  DELETE_CONTACT_BODY,
+  DELETE_CONTACT_CONFIRM,
+  DELETE_CONTACT_TITLE,
+} from "@/lib/inbox-customer";
+import {
   CHANNEL_FILTERS,
+  DEFAULT_STATUS_FILTER,
+  SEARCH_DEBOUNCE_MS,
+  STATUS_FILTERS,
   channelOfThread,
   clockLabel,
   combineListState,
+  doneAction,
+  doneToast,
   emptyListText,
   groupByDay,
   handoverAction,
@@ -52,16 +71,21 @@ import {
   rowOfStorefront,
   rowOfWhatsApp,
   saveReadMarks,
+  searchTerm,
   waInboxState,
   waNotice,
   type ChannelFilter,
   type InboxRow,
+  type InboxState,
   type ReadMarks,
+  type StatusFilter,
 } from "@/lib/inbox-view";
 
 /**
  * The Conversations tab (Inbox phase 1): WhatsApp and storefront chats in one list, a thread beside it, and, below `lg`, the two as
- * separate views with a back button. Every decision is in `lib/inbox-view.ts` (tested); this is the markup and the wiring.
+ * separate views with a back button. Inbox phase 2 adds the Open / Needs you / Done chips, search, "Show more", Mark done, the customer
+ * panel (beside the conversation from `xl`, a toggle below it), type-to-take-over, saved replies and Suggest a reply in the composer.
+ * Every decision is in `lib/inbox-view.ts` and `lib/inbox-customer.ts` (tested); this is the markup and the wiring.
  */
 
 /** Within this many pixels of the end counts as "at the bottom". */
@@ -116,6 +140,29 @@ export function WaNoticeCard({ state }: { state: ReturnType<typeof waInboxState>
   );
 }
 
+/** Whether the viewport is `xl` or wider, where the customer panel sits beside the conversation. ★The panel is MOUNTED only when it can be seen: it reads a customer's orders live from Shopify, and a hidden panel would make that call for every conversation clicked through. */
+function useIsXl(): boolean {
+  return useSyncExternalStore(
+    (cb) => {
+      const m = typeof window === "undefined" ? null : window.matchMedia("(min-width: 1280px)");
+      m?.addEventListener("change", cb);
+      return () => m?.removeEventListener("change", cb);
+    },
+    () => (typeof window === "undefined" ? false : window.matchMedia("(min-width: 1280px)").matches),
+    () => false,
+  );
+}
+
+/** The search text, sent to the api once typing pauses. ★The box shows what was typed; only the settled value drives the query. */
+function useDebounced(value: string, ms: number): string {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setSettled(value), ms);
+    return () => clearTimeout(id);
+  }, [value, ms]);
+  return settled;
+}
+
 export function ConversationsPane({
   role,
   selected,
@@ -130,24 +177,34 @@ export function ConversationsPane({
   const { user, business } = useAuth();
   const [expiringOnly, setExpiringOnly] = useState(false);
   const [channel, setChannel] = useState<ChannelFilter>("all");
-  const wa = useWaConversations({ expiringOnly });
-  const storefront = useStorefrontChats({ expiringOnly });
+  const [status, setStatus] = useState<StatusFilter>(DEFAULT_STATUS_FILTER);
+  const [searchRaw, setSearchRaw] = useState("");
+  const q = searchTerm(useDebounced(searchRaw, SEARCH_DEBOUNCE_MS));
+  // ★A SEARCH LOOKS ACROSS EVERY CONVERSATION, not only the chip's: a customer whose conversation is Done must be found by their order number.
+  const wa = useWaConversations({ expiringOnly, ...(q ? { q } : { status }) });
+  // a search can never match a storefront visitor (no name, number or order on the row), so that half is not asked
+  const storefront = useStorefrontChats({ expiringOnly, status, enabled: !q });
+  const isXl = useIsXl();
+  const canChange = canChangeConversation(role);
 
   // ── the list ──────────────────────────────────────────────────────────────────────────────────────────────────────
   const waState = waInboxState({ data: wa.data, error: wa.error });
   // ★A 404 IS "NOT AVAILABLE YET", NOT A FAILURE: that half is settled (empty), and its card says so.
   const waFetch = waState === "not_available" ? "empty" : listFetchState(wa, wa.conversations.length);
-  const sfFetch = listFetchState(storefront, storefront.chats.length);
+  const sfFetch = q ? "empty" : listFetchState(storefront, storefront.chats.length);
   const rows = useMemo(
-    () => mergeRows(waState === "not_available" ? [] : wa.conversations.map(rowOfWhatsApp), storefront.chats.map(rowOfStorefront), channel),
-    [waState, wa.conversations, storefront.chats, channel],
+    () => mergeRows(waState === "not_available" ? [] : wa.conversations.map(rowOfWhatsApp), q ? [] : storefront.chats.map(rowOfStorefront), channel),
+    [waState, wa.conversations, storefront.chats, channel, q],
   );
   // a filter ignores the half it does not show, so a failure there is not this list's
   const listState = combineListState(channel === "storefront" ? "empty" : waFetch, channel === "whatsapp" ? "empty" : sfFetch, rows.length);
   const retryList = () => {
     if (channel !== "storefront") void wa.refetch();
-    if (channel !== "whatsapp") void storefront.refetch();
+    if (channel !== "whatsapp" && !q) void storefront.refetch();
   };
+  const moreWa = channel !== "storefront" && wa.hasNextPage;
+  const moreSf = channel !== "whatsapp" && !q && storefront.hasNextPage;
+  const loadingMore = wa.isFetchingNextPage || storefront.isFetchingNextPage;
   const notice = channel === "storefront" ? null : <WaNoticeCard state={waState} />;
   const expiry = expiryBanner(wa.expiringCount, wa.expiringFrom);
 
@@ -180,14 +237,23 @@ export function ConversationsPane({
   const messages: Line[] | undefined = selectedChannel === "storefront" ? sfThread?.messages : waThread?.messages;
   // ★AND THE SAME `enabled`-GATED TRAP: with no thread selected the query is pending and idle for ever. Silent rather than false.
   const threadState = listFetchState(threadQuery, messages?.length ?? 0);
-  const handoff = useWaHandoff();
   const resume = useWaResume();
+  const markDone = useMarkDone();
+  const eraseContact = useDeleteContactData();
   const members = useOrgMembers();
   const connection = useWaConnection(selectedChannel === "whatsapp");
   const memberName = memberNameLookup(members.data);
   // ★NO HAND-BACK WHILE A REPLY IS IN FLIGHT (review R3): the api escalated before sending, and a Resume landing mid-send gives
   //  the shopper the AI's answer and the person's reply at once.
   const replyInFlight = useComposerMemory(composerStore, selected ?? "").pending;
+  const [confirmErase, setConfirmErase] = useState(false);
+  // below `xl` the customer panel and the conversation are two views of the same card
+  const [showCustomer, setShowCustomer] = useState(false);
+  const [shownFor, setShownFor] = useState<string | null>(null);
+  if (shownFor !== selected) {
+    setShownFor(selected);
+    setShowCustomer(false);
+  }
 
   // ★THE OPEN CONVERSATION IS READ, HOWEVER IT WAS OPENED (a click, an alert email's link, the Manage list) AND WHILE IT STAYS OPEN:
   //  a message that arrives on the poll of a conversation you are looking at does not bring its dot back.
@@ -244,7 +310,22 @@ export function ConversationsPane({
   // a bubble's key is its place in the whole conversation, not in its day, so a message arriving never re-keys the ones before it
   const lineKeys = useMemo(() => new Map((messages ?? []).map((m, i) => [m, i] as const)), [messages]);
   const contactName = selectedChannel === "storefront" ? sfThread?.contactName : waThread?.contactName;
-  const takeover = waThread ? handoverAction(waThread.status) : null;
+  const returnToAi = waThread ? handoverAction(waThread.status) : null;
+  const openThread = selectedChannel === "storefront" ? sfThread : waThread;
+  const threadStateOf: InboxState = openThread?.state ?? (waThread?.needsYou ? "needs_you" : "open");
+  const done = openThread ? doneAction(threadStateOf, canChange) : null;
+  const updatedAtMs = waThread?.updatedAt ? Date.parse(waThread.updatedAt) : undefined;
+
+  function runDone(threadId: string, makeDone: boolean) {
+    if (markDone.isPending) return; // a double click is one request
+    markDone.mutate(
+      { threadId, done: makeDone, ...(makeDone && updatedAtMs !== undefined && !Number.isNaN(updatedAtMs) ? { seenUpdatedAt: updatedAtMs } : {}) },
+      {
+        onSuccess: (r) => toast.success(doneToast(r.done, r.resumed)),
+        onError: (e) => toast.error(actionError(e, makeDone ? "Marking this done" : "Reopening this")),
+      },
+    );
+  }
 
   return (
     <>
@@ -268,15 +349,37 @@ export function ConversationsPane({
         </div>
       )}
 
-      <div className={`mb-3 flex items-center justify-between gap-2 ${selected ? "max-lg:hidden" : ""}`}>
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5" role="group" aria-label="Channel">
-          {CHANNEL_FILTERS.map((f) => (
-            <Button key={f.value} size="xs" variant={channel === f.value ? "default" : "outline"} aria-pressed={channel === f.value} onClick={() => setChannel(f.value)}>
-              {f.label}
-            </Button>
-          ))}
+      <div className={`mb-3 space-y-2 ${selected ? "max-lg:hidden" : ""}`}>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5" role="group" aria-label="Status">
+            {STATUS_FILTERS.map((f) => (
+              <Button key={f.value} size="xs" variant={status === f.value ? "default" : "outline"} aria-pressed={status === f.value} onClick={() => setStatus(f.value)}>
+                {f.label}
+              </Button>
+            ))}
+          </div>
+          <ManagePanel role={role} canExport={canExport} exporting={exporting} onRunExport={runExport} onOpenThread={(id) => onSelect(id)} />
         </div>
-        <ManagePanel role={role} canExport={canExport} exporting={exporting} onRunExport={runExport} onOpenThread={(id) => onSelect(id)} />
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Channel">
+            {CHANNEL_FILTERS.map((f) => (
+              <Button key={f.value} size="xs" variant={channel === f.value ? "secondary" : "ghost"} aria-pressed={channel === f.value} onClick={() => setChannel(f.value)}>
+                {f.label}
+              </Button>
+            ))}
+          </div>
+          <div className="relative min-w-40 flex-1">
+            <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchRaw}
+              onChange={(e) => setSearchRaw(e.target.value)}
+              placeholder="Name, last 4 digits or order number"
+              aria-label="Search conversations"
+              className="h-8 pl-7 text-xs"
+              maxLength={80}
+            />
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
@@ -305,7 +408,7 @@ export function ConversationsPane({
               </Button>
             </div>
           )}
-          {listState === "empty" && <p className="p-4 text-sm text-muted-foreground">{emptyListText(channel, waState)}</p>}
+          {listState === "empty" && <p className="p-4 text-sm text-muted-foreground">{emptyListText(channel, waState, { status, search: q })}</p>}
           {/* ⚠️★★★A FAILED REFRESH SAYS SO WITHOUT TAKING THE ROWS AWAY. This lane polls every thirty seconds, so `error` here is
               usually a failed BACKGROUND refetch with the last good list still behind it. */}
           {listState === "stale" && (
@@ -334,13 +437,29 @@ export function ConversationsPane({
                   </div>
                   <div className="flex flex-wrap items-center gap-1">
                     <ChannelChip channel={row.channel} />
+                    {row.test && <TestChip />}
                     <HeldBadge held={row.held} />
-                    <StatusPill status={row.status} needsYou={row.needsYou} />
+                    <StatusPill status={row.status} needsYou={row.needsYou} state={row.state} />
                   </div>
                   <span className="truncate text-xs text-muted-foreground">{row.preview || "…"}</span>
                 </button>
               );
             })}
+          {showsRows(listState) && (moreWa || moreSf) && (
+            <div className="p-2 text-center">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={loadingMore}
+                onClick={() => {
+                  if (moreWa) void wa.fetchNextPage();
+                  if (moreSf) void storefront.fetchNextPage();
+                }}
+              >
+                {loadingMore ? "Loading…" : "Show more conversations"}
+              </Button>
+            </div>
+          )}
         </Card>
 
         {/* Thread view */}
@@ -353,6 +472,8 @@ export function ConversationsPane({
                 channel={selectedChannel ?? "whatsapp"}
                 status={(selectedChannel === "storefront" ? sfThread?.status : waThread?.status) ?? "active"}
                 needsYou={selectedChannel === "whatsapp" && waThread?.needsYou === true}
+                state={openThread?.state}
+                test={selectedChannel === "storefront" && sfThread?.test === true}
                 held={(selectedChannel === "storefront" ? sfThread?.held : waThread?.held) ?? null}
                 windowBadge={
                   selectedChannel === "whatsapp" && waThread ? <WindowBadge store={composerStore} threadId={waThread.threadId} endsAt={waThread.replyWindowEndsAt} /> : null
@@ -363,80 +484,124 @@ export function ConversationsPane({
                 exporting={exporting}
                 onExport={() => runExport(threadExportPath(selected))}
                 handover={
-                  selectedChannel === "whatsapp" && waThread && waThread.threadId === selected && takeover
+                  selectedChannel === "whatsapp" && waThread && waThread.threadId === selected && returnToAi
                     ? {
-                        label: takeover.label,
-                        variant: takeover.variant,
-                        pending: takeover.kind === "return" ? resume.isPending : handoff.isPending,
-                        disabled: takeover.kind === "return" ? resume.isPending || replyInFlight : handoff.isPending,
+                        label: returnToAi.label,
+                        variant: returnToAi.variant,
+                        pending: resume.isPending,
+                        disabled: resume.isPending || replyInFlight,
                         onClick: () =>
-                          takeover.kind === "return"
-                            ? resume.mutate(
-                                { threadId: selected, thread: waThread },
-                                {
-                                  onSuccess: () => toast.success("Handed back — the assistant will reply again."),
-                                  onError: (e: Error) => toast.error(statusErrorMessage(e, "hand back")),
-                                },
-                              )
-                            : handoff.mutate(selected, {
-                                onSuccess: () => toast.success("You've taken over. The assistant won't reply to this shopper until you return it."),
-                                onError: (e: Error) => toast.error(statusErrorMessage(e, "take over")),
-                              }),
+                          resume.mutate(
+                            { threadId: selected, thread: waThread },
+                            {
+                              onSuccess: () => toast.success("Handed back — the assistant will reply again."),
+                              onError: (e: Error) => toast.error(statusErrorMessage(e, "hand back")),
+                            },
+                          ),
                       }
                     : null
                 }
+                done={
+                  done && openThread
+                    ? { label: done.label, pending: markDone.isPending, disabled: markDone.isPending || replyInFlight, onClick: () => runDone(selected, done.kind === "done") }
+                    : null
+                }
+                customer={openThread ? { shown: showCustomer, onToggle: () => setShowCustomer((v) => !v) } : null}
+                onDeleteContact={selectedChannel === "whatsapp" && waThread && canDeleteContactData(role) ? () => setConfirmErase(true) : null}
               />
               {hold.dialog}
-              <div
-                ref={scroller}
-                onScroll={(e) => {
-                  const el = e.currentTarget;
-                  atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
-                }}
-                className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-muted/40 p-3"
-              >
-                {threadState === "loading" && <Skeleton className="h-20 w-full" />}
-                {threadState === "paused" && <WaitingForConnection what="messages" />}
-                {threadState === "error" && <p className="p-4 text-center text-sm text-muted-foreground">Couldn&apos;t load this conversation. Try again in a moment.</p>}
-                {days.map((g, gi) => (
-                  <div key={g.key + gi} className="space-y-2">
-                    <DaySeparator label={g.label} />
-                    {g.items.map((m) => (
-                      <Bubble
-                        key={lineKeys.get(m) ?? 0}
-                        role={m.role}
-                        content={m.content}
-                        time={clockLabel(m.timestamp)}
-                        sender={senderLabel(m, { contactName: contactName ?? null, currentUserId: user?._id ?? null, memberName })}
-                      />
+              <Dialog open={confirmErase} onOpenChange={(o) => (eraseContact.isPending ? undefined : setConfirmErase(o))}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>{DELETE_CONTACT_TITLE}</DialogTitle>
+                    <DialogDescription>{DELETE_CONTACT_BODY}</DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button variant="outline" disabled={eraseContact.isPending} onClick={() => setConfirmErase(false)}>
+                      Keep their data
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      disabled={eraseContact.isPending}
+                      onClick={() =>
+                        eraseContact.mutate(selected, {
+                          onSuccess: (r) => {
+                            toast.success(deleteContactToast(r));
+                            setConfirmErase(false);
+                            onSelect(null);
+                          },
+                          onError: (e) => toast.error(actionError(e, "Deleting this customer’s data")),
+                        })
+                      }
+                    >
+                      {eraseContact.isPending ? "Deleting…" : DELETE_CONTACT_CONFIRM}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+              <div className="flex min-h-0 flex-1">
+                <div className={`min-h-0 min-w-0 flex-1 flex-col ${showCustomer ? "hidden xl:flex" : "flex"}`}>
+                  <div
+                    ref={scroller}
+                    onScroll={(e) => {
+                      const el = e.currentTarget;
+                      atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
+                    }}
+                    className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-muted/40 p-3"
+                  >
+                    {threadState === "loading" && <Skeleton className="h-20 w-full" />}
+                    {threadState === "paused" && <WaitingForConnection what="messages" />}
+                    {threadState === "error" && <p className="p-4 text-center text-sm text-muted-foreground">Couldn&apos;t load this conversation. Try again in a moment.</p>}
+                    {days.map((g, gi) => (
+                      <div key={g.key + gi} className="space-y-2">
+                        <DaySeparator label={g.label} />
+                        {g.items.map((m) => (
+                          <Bubble
+                            key={lineKeys.get(m) ?? 0}
+                            role={m.role}
+                            content={m.content}
+                            time={clockLabel(m.timestamp)}
+                            sender={senderLabel(m, { contactName: contactName ?? null, currentUserId: user?._id ?? null, memberName })}
+                          />
+                        ))}
+                      </div>
                     ))}
+                    {threadState === "empty" && <p className="p-4 text-center text-sm text-muted-foreground">No messages.</p>}
                   </div>
-                ))}
-                {threadState === "empty" && <p className="p-4 text-center text-sm text-muted-foreground">No messages.</p>}
+                  {/* A web visitor cannot be messaged back, so a storefront chat has no composer, and says why. */}
+                  {selectedChannel === "storefront" && sfThread && (
+                    <div className="border-t bg-muted/30 p-3">
+                      <p className="text-xs text-muted-foreground">
+                        This chat is on your storefront. The visitor gave no way to reach them, so it is here to read, not to reply to.
+                      </p>
+                    </div>
+                  )}
+                  {/* ✅WA T4: the composer. ★KEYED BY THREAD, so a draft written to one shopper can never be sent to the next one opened.
+                      It sits outside the scrolling pane, so on a phone it stays at the bottom while the messages scroll. */}
+                  {selectedChannel === "whatsapp" && waThread && waThread.threadId === selected && (
+                    <div className="sticky bottom-0 border-t bg-background">
+                      <WaComposer
+                        key={selected}
+                        threadId={selected}
+                        status={waThread.status}
+                        role={role}
+                        endsAt={waThread.replyWindowEndsAt}
+                        replyingAs={replyingAsLine(selected, connection.data)}
+                        store={composerStore}
+                      />
+                    </div>
+                  )}
+                </div>
+                {/* The customer panel: beside the conversation from `xl`; below it, the header's Customer button swaps it in. */}
+                {openThread && openThread.threadId === selected && (isXl || showCustomer) && (
+                  <aside
+                    aria-label="Customer"
+                    className={`min-h-0 overflow-y-auto border-l bg-background xl:block xl:w-[300px] xl:shrink-0 ${showCustomer ? "block flex-1" : "hidden xl:block"}`}
+                  >
+                    <CustomerPanel key={selected} threadId={selected} role={role} />
+                  </aside>
+                )}
               </div>
-              {/* A web visitor cannot be messaged back, so a storefront chat has no composer, and says why. */}
-              {selectedChannel === "storefront" && sfThread && (
-                <div className="border-t bg-muted/30 p-3">
-                  <p className="text-xs text-muted-foreground">
-                    This chat is on your storefront. The visitor gave no way to reach them, so it is here to read, not to reply to.
-                  </p>
-                </div>
-              )}
-              {/* ✅WA T4: the composer. ★KEYED BY THREAD, so a draft written to one shopper can never be sent to the next one opened.
-                  It sits outside the scrolling pane, so on a phone it stays at the bottom while the messages scroll. */}
-              {selectedChannel === "whatsapp" && waThread && waThread.threadId === selected && (
-                <div className="sticky bottom-0 border-t bg-background">
-                  <WaComposer
-                    key={selected}
-                    threadId={selected}
-                    status={waThread.status}
-                    role={role}
-                    endsAt={waThread.replyWindowEndsAt}
-                    replyingAs={replyingAsLine(selected, connection.data)}
-                    store={composerStore}
-                  />
-                </div>
-              )}
             </>
           )}
         </Card>

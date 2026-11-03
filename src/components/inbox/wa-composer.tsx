@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useWaReply, useWaStudioTemplates } from "@/hooks/use-wa-conversations";
+import { useInboxPrices, useSuggestReply, useWaReply, useWaStudioTemplates } from "@/hooks/use-wa-conversations";
+import { SavedReplyPicker } from "@/components/inbox/saved-reply-picker";
+import { actionError, priced } from "@/lib/inbox-customer";
 import { listFetchState, showsSkeleton } from "@/lib/list-fetch-state";
 import { createSharedClock, deadlineDelay } from "@/lib/shared-clock";
 import {
@@ -23,6 +25,7 @@ import {
   clearAfterSend,
   composerMode,
   errorAfterEdit,
+  insertSavedReply,
   maySend,
   mintIdempotencyKey,
   needsResendConfirm,
@@ -39,6 +42,7 @@ import {
   textProblem,
   REPLY_TEXT_MAX,
   STUDIO_LIST_CAP,
+  TAKES_OVER_NOTE,
   WINDOW_TICK_MS,
   type ComposerMemory,
   type ComposerStore,
@@ -102,6 +106,67 @@ export function useReplyWindow(store: ComposerStore, threadId: string, endsAt: s
   return replyWindow(endsAt, now, closedFor);
 }
 
+/**
+ * "Suggest a reply" (Inbox phase 2): an editable draft for the customer's last message, from the conversation, their orders and your
+ * own knowledge. ★A DRAFT, NEVER SENT: it appears in a card with a reason; "Use this reply" puts it in the box for the person to edit and
+ * send themselves, and "Dismiss" throws it away. The price is on the button before it is pressed, and the button is off while a
+ * request is running (one press, one charge).
+ */
+function SuggestedReply({ threadId, onUse, hasDraft, disabled }: { threadId: string; onUse: (reply: string) => void; hasDraft: boolean; disabled: boolean }) {
+  const prices = useInboxPrices();
+  const suggest = useSuggestReply(threadId);
+  const [draft, setDraft] = useState<{ reply: string; rationale: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const price = priced("Suggest a reply", prices.data?.suggestReply);
+  return (
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          size="xs"
+          variant="outline"
+          disabled={disabled || suggest.isPending || !price.available}
+          onClick={() => {
+            setError(null);
+            suggest.mutate(undefined, {
+              onSuccess: (r) => setDraft({ reply: r.reply, rationale: r.rationale }),
+              onError: (e) => setError(actionError(e, "Drafting a reply")),
+            });
+          }}
+        >
+          {suggest.isPending ? "Drafting…" : price.text}
+        </Button>
+        {!price.available && prices.isSuccess && <span className="text-[11px] text-muted-foreground">Suggested replies aren&apos;t available right now.</span>}
+      </div>
+      {error && (
+        <p role="alert" className="text-xs text-warning-on-tint">
+          {error}
+        </p>
+      )}
+      {draft && (
+        <div className="space-y-1.5 rounded-md border bg-muted/30 p-2" data-testid="suggested-reply">
+          <p className="whitespace-pre-wrap text-xs">{draft.reply}</p>
+          <p className="text-[11px] text-muted-foreground">{draft.rationale}</p>
+          <div className="flex gap-2">
+            <Button
+              size="xs"
+              onClick={() => {
+                onUse(draft.reply);
+                setDraft(null);
+              }}
+            >
+              {hasDraft ? "Replace my text with this" : "Use this reply"}
+            </Button>
+            <Button size="xs" variant="ghost" onClick={() => setDraft(null)}>
+              Dismiss
+            </Button>
+          </div>
+          <p className="text-[11px] text-muted-foreground">Read it and change anything before you send. Nothing is sent until you press Send.</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function WaComposer({
   threadId,
   status,
@@ -124,7 +189,7 @@ export function WaComposer({
   const templates = useWaStudioTemplates(mode.kind === "template");
   const update = (patch: Parameters<ComposerStore["update"]>[1]) => store.update(threadId, patch);
 
-  if (mode.kind === "readonly" || mode.kind === "takeover") {
+  if (mode.kind === "readonly") {
     return (
       <div className="border-t bg-muted/30 p-3">
         <p className="text-xs text-muted-foreground">{mode.reason}</p>
@@ -177,6 +242,7 @@ export function WaComposer({
     return (
       <div className="space-y-2 border-t p-3">
         <p className="text-[11px] text-muted-foreground">{replyingAs}</p>
+        {mode.takesOver && <p className="text-[11px] text-muted-foreground">{TAKES_OVER_NOTE}</p>}
         {status_}
         <Textarea
           value={mem.text}
@@ -191,9 +257,27 @@ export function WaComposer({
           rows={3}
           aria-label="Reply to the shopper"
         />
+        <SuggestedReply
+          threadId={threadId}
+          onUse={(reply) => update((cur) => ({ text: reply, error: errorAfterEdit(cur.error, cur.attempt) }))}
+          hasDraft={mem.text.trim().length > 0}
+          disabled={mem.pending}
+        />
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[11px] text-muted-foreground">
-            {mem.text.trim().length > REPLY_TEXT_MAX ? problem : `${mem.text.trim().length}/${REPLY_TEXT_MAX}`}
+          <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
+            {/* ★SAVED REPLIES ARE FREE TEXT, SO THEY ARE OFFERED ONLY HERE, INSIDE THE 24-HOUR WINDOW: outside it the box is the template picker. */}
+            <SavedReplyPicker
+              channel="whatsapp"
+              draft={mem.text}
+              disabled={mem.pending}
+              onInsert={(body) => {
+                const r = insertSavedReply(store.get(threadId).text, body);
+                if (!r.ok) return false;
+                update((cur) => ({ text: r.text, error: errorAfterEdit(cur.error, cur.attempt) }));
+                return true;
+              }}
+            />
+            <span>{mem.text.trim().length > REPLY_TEXT_MAX ? problem : `${mem.text.trim().length}/${REPLY_TEXT_MAX}`}</span>
           </span>
           <Button size="sm" disabled={Boolean(problem) || mem.pending} onClick={() => submit("button")}>
             {mem.pending ? "Sending…" : confirm ? "Send again anyway" : "Send"}
@@ -221,6 +305,7 @@ export function WaComposer({
     <div className="space-y-2 border-t p-3">
       <p className="text-xs text-muted-foreground">{mode.reason}</p>
       <p className="text-[11px] text-muted-foreground">{replyingAs}</p>
+      {mode.takesOver && <p className="text-[11px] text-muted-foreground">{TAKES_OVER_NOTE}</p>}
       {status_}
       {showsSkeleton(state) && <Skeleton className="h-9 w-full" />}
       {state === "paused" && (

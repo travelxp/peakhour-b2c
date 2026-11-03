@@ -4,6 +4,9 @@ import {
   attemptFor,
   canReply,
   composerMode,
+  REPLY_TEXT_MAX,
+  insertSavedReply,
+  TAKES_OVER_NOTE,
   inboxTemplatePlan,
   memberNameLookup,
   mintIdempotencyKey,
@@ -176,17 +179,43 @@ describe("composerMode", () => {
     expect(m.kind).toBe("readonly");
     expect(m.kind === "readonly" && m.reason).toMatch(/Editor access/);
   });
-  it("an active thread asks for a takeover first", () => {
-    expect(composerMode({ status: "active", role: "editor", window: OPEN }).kind).toBe("takeover");
+  it("★an active thread offers the box too (typing and sending IS the takeover), with the note that sending pauses the assistant", () => {
+    expect(composerMode({ status: "active", role: "editor", window: OPEN })).toEqual({ kind: "text", takesOver: true });
+    expect(TAKES_OVER_NOTE).toBe("Sending a reply pauses the assistant on this conversation until you press Return to AI.");
   });
-  it("a resolved thread asks for a takeover first", () => {
-    expect(composerMode({ status: "resolved", role: "owner", window: OPEN }).kind).toBe("takeover");
+  it("a resolved thread offers the box too, as a takeover", () => {
+    expect(composerMode({ status: "resolved", role: "owner", window: OPEN })).toEqual({ kind: "text", takesOver: true });
   });
-  it("an escalated thread inside the window offers free text", () => {
-    expect(composerMode({ status: "escalated", role: "editor", window: OPEN })).toEqual({ kind: "text" });
+  it("an escalated thread inside the window offers free text with no takeover note", () => {
+    expect(composerMode({ status: "escalated", role: "editor", window: OPEN })).toEqual({ kind: "text", takesOver: false });
   });
   it("an escalated thread outside the window offers templates", () => {
     expect(composerMode({ status: "escalated", role: "editor", window: CLOSED }).kind).toBe("template");
+  });
+  it("★outside the 24-hour window an active thread offers templates only, never free text (saved replies are free text)", () => {
+    const m = composerMode({ status: "active", role: "editor", window: CLOSED });
+    expect(m.kind).toBe("template");
+    expect(m.kind === "template" && m.takesOver).toBe(true);
+  });
+  it("★a viewer never gets the box, on any thread", () => {
+    for (const status of ["active", "escalated", "resolved"]) expect(composerMode({ status, role: "viewer", window: OPEN }).kind, status).toBe("readonly");
+  });
+});
+
+describe("insertSavedReply", () => {
+  it("puts the reply in an empty box as it is", () => {
+    expect(insertSavedReply("", "  Thanks for writing!  ")).toEqual({ ok: true, text: "Thanks for writing!" });
+  });
+  it("adds to what is already typed, on a new paragraph", () => {
+    expect(insertSavedReply("Hi Asha,", "Your order shipped today.")).toEqual({ ok: true, text: "Hi Asha,\n\nYour order shipped today." });
+  });
+  it("★refuses rather than cutting a reply short when the result would pass the WhatsApp limit", () => {
+    expect(insertSavedReply("x".repeat(REPLY_TEXT_MAX - 5), "0123456789")).toEqual({ ok: false });
+    expect(insertSavedReply("", "y".repeat(REPLY_TEXT_MAX))).toMatchObject({ ok: true });
+    expect(insertSavedReply("", "y".repeat(REPLY_TEXT_MAX + 1))).toEqual({ ok: false });
+  });
+  it("an empty reply is not inserted", () => {
+    expect(insertSavedReply("Hi", "   ")).toEqual({ ok: false });
   });
 });
 

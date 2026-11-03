@@ -249,7 +249,7 @@ export function unansweredCta(summary: ReviewSummary): UnansweredCta | null {
 }
 
 /** The Inbox's lanes. */
-export type InboxTab = "conversations" | "leads" | "reviews";
+export type InboxTab = "conversations" | "leads" | "reviews" | "questions" | "ask";
 
 /**
  * Which Inbox lane a `?tab=` value asks for.
@@ -270,6 +270,6 @@ export type InboxTab = "conversations" | "leads" | "reviews";
  * meant for something else must not leave the page showing no tab at all.
  */
 export function inboxTabFromParam(value: string | null | undefined): InboxTab {
-  if (value === "reviews" || value === "leads") return value;
+  if (value === "reviews" || value === "leads" || value === "questions" || value === "ask") return value;
   return "conversations";
 }
