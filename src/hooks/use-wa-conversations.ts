@@ -1,9 +1,11 @@
 "use client";
 
 import { keepWithinBusiness } from "@/lib/wa-conversation-export";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
+import type { CustomerPanelData, InboxPrices } from "@/lib/inbox-customer";
+import type { InboxState, StatusFilter } from "@/lib/inbox-view";
 import {
   replyRequest,
   resumeBody,
@@ -26,6 +28,8 @@ export interface WaConversation {
   held?: "conversation" | "business" | null;
   /** Inbox phase 1: the assistant handed it to the team and nobody has picked it up. Absent = an older api. */
   needsYou?: boolean;
+  /** Inbox phase 2: Open / Needs you / Done. Absent = an older api. */
+  state?: InboxState;
 }
 
 /** A storefront chat summary (list row): a web visitor talking to the assistant on the store. Read-only. */
@@ -38,6 +42,10 @@ export interface StorefrontChat {
   updatedAt: string | null;
   preview: string;
   held?: "conversation" | "business" | null;
+  /** Inbox phase 2: Open or Done (a storefront chat is never "Needs you"). */
+  state?: InboxState;
+  /** The merchant's own "Test on your store" chat. */
+  test?: boolean;
 }
 
 /** One storefront chat in full. `readOnly`: a web visitor cannot be messaged back. */
@@ -47,6 +55,9 @@ export interface StorefrontThread {
   contactName: string;
   status: string;
   held?: "conversation" | "business" | null;
+  state?: InboxState;
+  doneAt?: string | null;
+  test?: boolean;
   readOnly: true;
   messages: Array<{ role: string; content: string; timestamp: string | null }>;
 }
@@ -76,6 +87,11 @@ export interface WaThread {
   held?: "conversation" | "business" | null;
   /** Inbox phase 1: handed to the team by the assistant and not yet picked up. */
   needsYou?: boolean;
+  /** Inbox phase 2: Open / Needs you / Done, and when a person marked it Done (while it still counts). */
+  state?: InboxState;
+  doneAt?: string | null;
+  /** When the thread last changed (the api compares it when a person marks the conversation Done). */
+  updatedAt?: string | null;
   messages: WaMessage[];
 }
 
@@ -88,63 +104,101 @@ export interface WaConnectionStatus {
 
 const BASE = "/v1/meta/whatsapp/conversations";
 
-/**
- * List the business's WhatsApp conversations (most recent first).
- *
- * H2: the answer also carries `expiringCount` (conversations that will be deleted in the next 14 days, the number the
- * weekly email states) and `expiringFrom` (when the first goes). `expiringOnly` filters the list to those.
- * The key starts `["wa-conversations", business]` in both modes, so every existing invalidation still reaches it.
- */
-export function useWaConversations(opts?: { expiringOnly?: boolean }) {
-  const { business } = useAuth();
-  const expiringOnly = Boolean(opts?.expiringOnly);
-  const key = ["wa-conversations", business?._id ?? "none", expiringOnly ? "expiring" : "all"];
-  const query = useQuery({
-    queryKey: key,
-    queryFn: () =>
-      api.get<{
-        conversations: WaConversation[];
-        expiringCount?: number | null;
-        expiringFrom?: string | null;
-        /** Inbox phase 1: the connection behind the list. Absent = an older api (nothing is claimed). */
-        available?: boolean;
-        connected?: boolean;
-        needsReauth?: boolean;
-      }>(
-        BASE,
-        expiringOnly ? { expiring: "1" } : undefined,
-      ),
-    enabled: Boolean(business?._id),
-    refetchInterval: 30_000, // inbox stays roughly live
-    // toggling the filter keeps the rows and the banner on screen until the other list arrives
-    // ...but ONLY within one business: switching business must not show the previous business's list or banner
-    placeholderData: (prev, prevQuery) => keepWithinBusiness(prev, prevQuery?.queryKey, business?._id ?? "none"),
-  });
-  return {
-    ...query,
-    listKey: key,
-    conversations: query.data?.conversations ?? [],
-    expiringCount: query.data?.expiringCount ?? null,
-    expiringFrom: query.data?.expiringFrom ?? null,
-  };
+/** Pages are read at different moments, so a row that moved can appear in two; each conversation is listed once (the first, newest, copy). */
+function dedupe<T extends { threadId: string }>(rows: T[]): T[] {
+  const seen = new Set<string>();
+  return rows.filter((r) => (seen.has(r.threadId) ? false : (seen.add(r.threadId), true)));
+}
+
+/** What narrows a list: the Open / Needs you / Done chip, and the search text (already trimmed and long enough: `searchTerm`). */
+export interface ListView {
+  expiringOnly?: boolean;
+  status?: StatusFilter;
+  q?: string;
+}
+
+const listParams = (view: ListView, cursor: string | undefined): Record<string, string> => ({
+  ...(view.expiringOnly ? { expiring: "1" } : {}),
+  ...(view.status ? { status: view.status } : {}),
+  ...(view.q ? { q: view.q } : {}),
+  ...(cursor ? { cursor } : {}),
+});
+
+interface WaListPage {
+  conversations: WaConversation[];
+  /** Where the next page starts; null = the list ends here. Absent = an older api (no paging). */
+  nextCursor?: string | null;
+  expiringCount?: number | null;
+  expiringFrom?: string | null;
+  /** Inbox phase 1: the connection behind the list. Absent = an older api (nothing is claimed). */
+  available?: boolean;
+  connected?: boolean;
+  needsReauth?: boolean;
 }
 
 /**
- * The business's storefront chats (Inbox phase 1), most recent first. Read-only, and NOT behind the WhatsApp availability gate: a
- * business whose WhatsApp is not on offer yet still reads its storefront chats. The key starts `["storefront-chats", business]`.
+ * List the business's WhatsApp conversations (most recent first), a page at a time (Inbox phase 2: `fetchNextPage`).
+ *
+ * H2: the first page also carries `expiringCount` (conversations that will be deleted in the next 14 days, the number the
+ * weekly email states) and `expiringFrom` (when the first goes). `expiringOnly` filters the list to those.
+ * The key starts `["wa-conversations", business]` in every mode, so every existing invalidation still reaches it.
+ * `data` is the FIRST page (the connection state and the banner count are read from it).
  */
-export function useStorefrontChats(opts?: { expiringOnly?: boolean }) {
+export function useWaConversations(view: ListView = {}) {
   const { business } = useAuth();
-  const expiringOnly = Boolean(opts?.expiringOnly);
-  const query = useQuery({
-    queryKey: ["storefront-chats", business?._id ?? "none", expiringOnly ? "expiring" : "all"],
-    queryFn: () => api.get<{ conversations: StorefrontChat[] }>("/v1/storefront-chats", expiringOnly ? { expiring: "1" } : undefined),
+  const key = ["wa-conversations", business?._id ?? "none", view.expiringOnly ? "expiring" : "all", view.status ?? "any", view.q ?? ""];
+  const query = useInfiniteQuery({
+    queryKey: key,
+    queryFn: ({ pageParam }) => {
+      const params = listParams(view, pageParam);
+      return api.get<WaListPage>(BASE, Object.keys(params).length ? params : undefined);
+    },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
     enabled: Boolean(business?._id),
-    refetchInterval: 30_000,
-    // the expiry filter keeps the rows on screen until the other list arrives, ONLY within one business
-    placeholderData: (prev, prevQuery) => keepWithinBusiness(prev, prevQuery?.queryKey, business?._id ?? "none"),
+    refetchInterval: 30_000, // inbox stays roughly live
+    // changing the chip or the search keeps the rows and the banner on screen until the other list arrives
+    // ...but ONLY within one business: switching business must not show the previous business's list or banner
+    placeholderData: (prev: InfiniteData<WaListPage, string | undefined> | undefined, prevQuery) => keepWithinBusiness(prev, prevQuery?.queryKey, business?._id ?? "none"),
   });
-  return { ...query, chats: query.data?.conversations ?? [] };
+  const first = query.data?.pages[0];
+  return {
+    ...query,
+    listKey: key,
+    /** The first page: the connection state and the banner count. */
+    data: first,
+    conversations: dedupe(query.data?.pages.flatMap((p) => p.conversations) ?? []),
+    expiringCount: first?.expiringCount ?? null,
+    expiringFrom: first?.expiringFrom ?? null,
+  };
+}
+
+interface StorefrontListPage {
+  conversations: StorefrontChat[];
+  nextCursor?: string | null;
+}
+
+/**
+ * The business's storefront chats (Inbox phase 1), most recent first, a page at a time. Read-only, and NOT behind the WhatsApp
+ * availability gate: a business whose WhatsApp is not on offer yet still reads its storefront chats. The key starts
+ * `["storefront-chats", business]`. `enabled: false` (a search, which a visitor row can never match) fetches nothing.
+ */
+export function useStorefrontChats(view: ListView & { enabled?: boolean } = {}) {
+  const { business } = useAuth();
+  const key = ["storefront-chats", business?._id ?? "none", view.expiringOnly ? "expiring" : "all", view.status ?? "any"];
+  const query = useInfiniteQuery({
+    queryKey: key,
+    queryFn: ({ pageParam }) => {
+      const params = listParams({ ...view, q: undefined }, pageParam);
+      return api.get<StorefrontListPage>("/v1/storefront-chats", Object.keys(params).length ? params : undefined);
+    },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    enabled: Boolean(business?._id) && view.enabled !== false,
+    refetchInterval: 30_000,
+    placeholderData: (prev: InfiniteData<StorefrontListPage, string | undefined> | undefined, prevQuery) => keepWithinBusiness(prev, prevQuery?.queryKey, business?._id ?? "none"),
+  });
+  return { ...query, chats: dedupe(query.data?.pages.flatMap((p) => p.conversations) ?? []) };
 }
 
 /** One storefront chat's transcript. */
@@ -254,6 +308,91 @@ export function useWaResume() {
     onSettled: (_r, _e, { threadId }) => {
       qc.invalidateQueries({ queryKey: ["wa-conversations", business?._id ?? "none"] });
       qc.invalidateQueries({ queryKey: ["wa-thread", business?._id ?? "none", threadId] });
+    },
+  });
+}
+
+// ── Inbox phase 2: Mark done, the customer panel, the priced buttons ─────────────────────────────────────────────
+
+/** What the Inbox's priced buttons cost, in AI credits, from the live rate card (null = no price row: the button says so). */
+export function useInboxPrices() {
+  const { business } = useAuth();
+  return useQuery({
+    queryKey: ["inbox-prices", business?._id ?? "none"],
+    queryFn: () => api.get<InboxPrices>(`${BASE.replace("/conversations", "")}/inbox-prices`),
+    enabled: Boolean(business?._id),
+    staleTime: 5 * 60_000,
+  });
+}
+
+/**
+ * The customer panel beside an open conversation. `after` is the orders cursor of a page a person asked for; the first page has none.
+ * ★A WHATSAPP THREAD AND A STOREFRONT THREAD HAVE THEIR OWN MOUNTS (the storefront tree is not behind the WhatsApp availability gate).
+ */
+export function useCustomerPanel(threadId: string | null, after?: string) {
+  const { business } = useAuth();
+  const storefront = Boolean(threadId?.startsWith("storefront:"));
+  return useQuery({
+    queryKey: ["inbox-customer", business?._id ?? "none", threadId, after ?? ""],
+    queryFn: () => {
+      const path = storefront ? `/v1/storefront-chats/${encodeURIComponent(threadId!)}/customer` : `${BASE}/${encodeURIComponent(threadId!)}/customer`;
+      return api.get<CustomerPanelData>(path, after ? { after } : undefined);
+    },
+    enabled: Boolean(business?._id && threadId),
+    // the orders are read live from Shopify and not stored: a short stay in this browser, so reopening a conversation is quick and a refresh is current
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/** Mark a conversation Done, or Reopen it. `seenUpdatedAt` is the time the person's view was loaded: a message that arrived since is a refusal, not a hidden message. */
+export function useMarkDone() {
+  const qc = useQueryClient();
+  const { business } = useAuth();
+  const biz = business?._id ?? "none";
+  return useMutation({
+    mutationFn: ({ threadId, done, seenUpdatedAt }: { threadId: string; done: boolean; seenUpdatedAt?: number }) => {
+      const mount = threadId.startsWith("storefront:") ? `/v1/storefront-chats/${encodeURIComponent(threadId)}` : `${BASE}/${encodeURIComponent(threadId)}`;
+      return api.post<{ done: boolean; resumed: boolean }>(`${mount}/${done ? "done" : "reopen"}`, done && seenUpdatedAt !== undefined ? { seenUpdatedAt } : undefined);
+    },
+    // ★SETTLED, NOT ONLY SUCCESS: a refusal because a message arrived must re-read the thread and the list
+    onSettled: (_r, _e, { threadId }) => {
+      void qc.invalidateQueries({ queryKey: ["wa-conversations", biz] });
+      void qc.invalidateQueries({ queryKey: ["storefront-chats", biz] });
+      void qc.invalidateQueries({ queryKey: ["wa-thread", biz, threadId] });
+      void qc.invalidateQueries({ queryKey: ["storefront-thread", biz, threadId] });
+    },
+  });
+}
+
+/** "Refresh summary": rewrite the customer's summary from the conversation. Priced; a deliberate press. */
+export function useRefreshSummary(threadId: string) {
+  const qc = useQueryClient();
+  const { business } = useAuth();
+  return useMutation({
+    mutationFn: () => api.post<{ summary: string | null; chargedCredits: number }>(`${BASE}/${encodeURIComponent(threadId)}/customer/summary`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["inbox-customer", business?._id ?? "none", threadId] }),
+  });
+}
+
+/** "Suggest a reply": an editable draft. A draft only: nothing is sent or stored. Priced; a deliberate press. */
+export function useSuggestReply(threadId: string) {
+  return useMutation({
+    mutationFn: () => api.post<{ reply: string; rationale: string; chargedCredits: number }>(`${BASE}/${encodeURIComponent(threadId)}/suggest-reply`),
+  });
+}
+
+/** "Delete this customer's data" (owner/admin): the api erases the customer's conversations, contact record and queued messages. */
+export function useDeleteContactData() {
+  const qc = useQueryClient();
+  const { business } = useAuth();
+  const biz = business?._id ?? "none";
+  return useMutation({
+    mutationFn: (threadId: string) => api.delete<{ erased: true; held: { deferred: number } }>(`${BASE}/${encodeURIComponent(threadId)}/contact-data`),
+    onSuccess: (_r, threadId) => {
+      void qc.invalidateQueries({ queryKey: ["wa-conversations", biz] });
+      qc.removeQueries({ queryKey: ["wa-thread", biz, threadId] });
+      qc.removeQueries({ queryKey: ["inbox-customer", biz, threadId] });
     },
   });
 }

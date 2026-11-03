@@ -13,6 +13,9 @@ import { ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
 import { createComposerStore } from "@/lib/wa-inbox-reply";
 import { ConversationsPane, WaitingForConnection } from "@/components/inbox/conversations-pane";
+import { QuestionsPane } from "@/components/inbox/questions-pane";
+import { AskYourInbox } from "@/components/whatsapp/ask-your-inbox";
+import { useKbRequests } from "@/hooks/use-knowledge-base";
 import { INBOX_SUBTITLE, threadFromParam } from "@/lib/inbox-view";
 import { inboxApi, type InboxItem, type InboxPriority } from "@/lib/api/inbox";
 import { ReviewReplyCard } from "@/components/inbox/review-reply-card";
@@ -35,7 +38,8 @@ import { PageShell } from "@/components/dashboard/page-shell";
  * an adapter into the same list. Lanes shipped so far: conversations (WhatsApp
  * live chat and, read-only, storefront chats — `components/inbox/conversations-pane.tsx`),
  * LinkedIn lead-gen leads (G2 — scored by the lead qualifier, priority-ranked,
- * SLA clock running) and Google reviews. New channels join as adapters, never
+ * SLA clock running), Google reviews, the questions the assistant could not
+ * answer ("Answer once") and "Ask your inbox" (Inbox phase 2). New channels join as adapters, never
  * as new pages.
  */
 
@@ -394,6 +398,10 @@ function InboxTabs() {
   // number of reviews waiting on an answer is the thing that makes somebody
   // open the app at all.
   const reviews = useReviewsQuery();
+  // Inbox phase 2: the questions the assistant could not answer. ★A COUNT ONLY ONCE IT IS KNOWN, like the reviews': a failed or in-flight
+  //  fetch shows no badge rather than a zero that claims nothing is waiting.
+  const questions = useKbRequests();
+  const waiting = questions.data?.requests.length ?? 0;
   // ★★SO A LINK CAN NAME A LANE. Presence's "answer 3 waiting reviews" button
   // dropped somebody on Conversations, with the thing they asked for one
   // unexplained click away. Read once, on mount: the hash is a starting point,
@@ -469,7 +477,22 @@ function InboxTabs() {
               </Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="questions">
+            Questions
+            {waiting > 0 && (
+              <Badge className="ml-1.5 bg-warning/15 px-1.5 text-[10px] text-warning-on-tint">{waiting}</Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="ask">Ask your inbox</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="questions" className="mt-4">
+          <QuestionsPane />
+        </TabsContent>
+
+        <TabsContent value="ask" className="mt-4">
+          <AskYourInbox />
+        </TabsContent>
 
         <TabsContent value="leads" className="mt-4">
           <LeadsPane />

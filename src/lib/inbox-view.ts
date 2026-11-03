@@ -26,6 +26,34 @@ export const CHANNEL_FILTERS: Array<{ value: ChannelFilter; label: string }> = [
   { value: "storefront", label: CHANNEL_LABEL.storefront },
 ];
 
+// ── status chips and search (Inbox phase 2) ───────────────────────────────────────────────────────────────────────────
+
+export type StatusFilter = InboxState;
+
+/**
+ * The chips. ★"Open" IS EVERY CONVERSATION NOBODY HAS MARKED DONE (Needs you included), as the api's chip is; it is the page's
+ * starting chip, so a conversation marked Done leaves the list a person works from, and "Done" is one tap away.
+ */
+export const STATUS_FILTERS: Array<{ value: StatusFilter; label: string }> = [
+  { value: "open", label: "Open" },
+  { value: "needs_you", label: "Needs you" },
+  { value: "done", label: "Done" },
+];
+export const DEFAULT_STATUS_FILTER: StatusFilter = "open";
+
+/** The shortest search sent to the api: one character matches everyone and is not a search. */
+export const SEARCH_MIN = 2;
+/** The longest (the api's bound); anything past it is cut here so what is sent is what is shown. */
+export const SEARCH_MAX = 40;
+/** How long typing pauses before the search is sent. */
+export const SEARCH_DEBOUNCE_MS = 350;
+
+/** The text to search for, or "" for none: whitespace collapsed, bounded, and too short to search treated as nothing. */
+export function searchTerm(raw: string): string {
+  const t = raw.replace(/\s+/g, " ").trim().slice(0, SEARCH_MAX);
+  return t.length >= SEARCH_MIN ? t : "";
+}
+
 /** One line in the list, whichever channel it came from. */
 export interface InboxRow {
   threadId: string;
@@ -39,7 +67,14 @@ export interface InboxRow {
   held: "conversation" | "business" | null;
   /** The assistant handed it to the team and nobody has picked it up. */
   needsYou: boolean;
+  /** Open / Needs you / Done: the one state the api says the row is in (Inbox phase 2). */
+  state: InboxState;
+  /** The merchant's own "Test on your store" chat: labelled "Test" in the list. */
+  test: boolean;
 }
+
+/** What a conversation is, as the api decides it (Done wins over Needs you; a new shopper message re-opens a Done one). */
+export type InboxState = "open" | "needs_you" | "done";
 
 interface WaLike {
   threadId: string;
@@ -51,6 +86,7 @@ interface WaLike {
   preview: string;
   held?: "conversation" | "business" | null;
   needsYou?: boolean;
+  state?: InboxState;
 }
 interface StorefrontLike {
   threadId: string;
@@ -59,6 +95,8 @@ interface StorefrontLike {
   updatedAt: string | null;
   preview: string;
   held?: "conversation" | "business" | null;
+  state?: InboxState;
+  test?: boolean;
 }
 
 export function rowOfWhatsApp(c: WaLike): InboxRow {
@@ -74,6 +112,9 @@ export function rowOfWhatsApp(c: WaLike): InboxRow {
     activityAt: c.lastInboundAt,
     held: c.held ?? null,
     needsYou: c.needsYou === true,
+    // ★THE API'S WORD. An older api sends none: derive it from the flag it did send, never from the chat's age.
+    state: c.state ?? (c.needsYou === true ? "needs_you" : "open"),
+    test: false,
   };
 }
 
@@ -89,6 +130,8 @@ export function rowOfStorefront(c: StorefrontLike): InboxRow {
     activityAt: c.updatedAt,
     held: c.held ?? null,
     needsYou: false,
+    state: c.state ?? "open",
+    test: c.test === true,
   };
 }
 
@@ -200,8 +243,18 @@ export function waNotice(state: WaInboxState): InboxNotice | null {
   }
 }
 
-/** The empty-list sentence, only for a list that completed and has nothing to show for the chosen channel. */
-export function emptyListText(filter: ChannelFilter, state: WaInboxState): string {
+/**
+ * The empty-list sentence, only for a list that completed and has nothing to show for the chosen channel, chip and search.
+ * ★A SEARCH OR A CHIP THAT FINDS NOTHING SAYS SO; it never claims the inbox is empty.
+ */
+export function emptyListText(filter: ChannelFilter, state: WaInboxState, view: { status?: StatusFilter; search?: string } = {}): string {
+  if (view.search) {
+    return filter === "storefront"
+      ? "Storefront visitors have no name, number or order, so a search finds none of them. Clear the search to see them."
+      : `No conversations match \u201c${view.search}\u201d. Try a name, the last four digits of a number, or an order number.`;
+  }
+  if (view.status === "needs_you") return "Nothing needs you right now.";
+  if (view.status === "done") return "No conversations are marked done.";
   if (filter === "storefront") return "No storefront chats yet. When a visitor talks to the assistant on your store, the chat appears here.";
   if (filter === "whatsapp") return state === "ok" ? "No WhatsApp conversations yet." : "No WhatsApp conversations to show.";
   return "No conversations yet.";
@@ -351,11 +404,29 @@ export function markRead(marks: ReadMarks, row: Pick<InboxRow, "threadId" | "act
 
 // ── the buttons ────────────────────────────────────────────────────────────────────────────────────────────────────
 
-/** "Take over" is the main action on a thread the assistant holds; "Return to AI" is the quieter one on a thread a person holds. */
-export function handoverAction(status: string): { kind: "return" | "takeover"; label: string; variant: "default" | "outline" } {
-  return status === "escalated"
-    ? { kind: "return", label: "Return to AI", variant: "outline" }
-    : { kind: "takeover", label: "Take over", variant: "default" };
+/**
+ * "Return to AI" on a thread a person holds. ★THERE IS NO "TAKE OVER" BUTTON (Inbox phase 2): typing and sending a reply takes the
+ * conversation over, so the one hand-over step left is the way back. Null when the assistant holds the thread.
+ */
+export function handoverAction(status: string): { kind: "return"; label: string; variant: "outline" } | null {
+  return status === "escalated" ? { kind: "return", label: "Return to AI", variant: "outline" } : null;
+}
+
+/**
+ * Mark done / Reopen, for the person who may (editor or above; the api enforces it). Done conversations offer "Reopen"; every other
+ * state offers "Mark done". Null for a viewer: they can read, not change.
+ */
+export function doneAction(state: InboxState, canChange: boolean): { kind: "done" | "reopen"; label: string } | null {
+  if (!canChange) return null;
+  return state === "done" ? { kind: "reopen", label: "Reopen" } : { kind: "done", label: "Mark done" };
+}
+
+/** What a person is told after the mark changes. ★It says what happens next, because Done is also a promise about the customer. */
+export function doneToast(done: boolean, resumed: boolean): string {
+  if (!done) return "Reopened.";
+  return resumed
+    ? "Marked done. The assistant will answer again if the customer writes back."
+    : "Marked done. If the customer writes back, it will return to your Open list.";
 }
 
 // ── the phone layout ───────────────────────────────────────────────────────────────────────────────────────────────

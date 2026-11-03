@@ -178,17 +178,24 @@ export function canReply(role: string | null | undefined): boolean {
 
 export type ComposerMode =
   | { kind: "readonly"; reason: string }
-  | { kind: "takeover"; reason: string }
-  | { kind: "text" }
-  | { kind: "template"; reason: string };
+  /** `takesOver`: the assistant still holds this conversation, so sending a reply pauses it (the api escalates on the send). */
+  | { kind: "text"; takesOver: boolean }
+  | { kind: "template"; reason: string; takesOver: boolean };
+
+/**
+ * The line under the box while the assistant still holds the conversation (Inbox phase 2). ★Typing and sending IS the takeover: there is
+ * no separate "Take over" step to find first. The api escalates the thread in the same act as the send (`sendHumanReply`), and says
+ * so; "Return to AI" is the way back.
+ */
+export const TAKES_OVER_NOTE = "Sending a reply pauses the assistant on this conversation until you press Return to AI.";
 
 /**
  * What sits under the message pane.
  *
- * ★ONLY AN ESCALATED THREAD IS REPLIED TO (spec-wa T4). The api would take an
- * active thread over on the first send, but a composer under a conversation
- * the assistant is still answering invites two voices at once; Take over is
- * the deliberate step.
+ * ★A REPLY BOX FOR EVERY THREAD AN EDITOR CAN ANSWER (Inbox phase 2). It used to appear only after a separate Take over, which a
+ * person typing to a customer had to know to press first. The api already takes a thread over on the first send, so the box is
+ * offered on an assistant-held thread too, with a note (`TAKES_OVER_NOTE`) that sending pauses the assistant. A viewer gets the
+ * reason and no box.
  */
 export function composerMode(args: { status: string; role: string | null | undefined; window: ReplyWindow }): ComposerMode {
   if (!canReply(args.role)) {
@@ -197,18 +204,27 @@ export function composerMode(args: { status: string; role: string | null | undef
       reason: "You can read this conversation, but replying to shoppers needs Editor access or above.",
     };
   }
-  if (args.status !== "escalated") {
-    return {
-      kind: "takeover",
-      reason: "Take over to reply. The assistant stops answering this shopper while you do.",
-    };
-  }
-  if (args.window.open) return { kind: "text" };
+  const takesOver = args.status !== "escalated";
+  if (args.window.open) return { kind: "text", takesOver };
   return {
     kind: "template",
+    takesOver,
     reason:
       "It has been more than 24 hours since this shopper last messaged, so WhatsApp only allows an approved template.",
   };
+}
+
+/**
+ * Put a saved reply into the box (Inbox phase 2). ★IT ADDS TO WHAT IS THERE, ON A NEW LINE, and refuses rather than truncating when the
+ * result would pass the WhatsApp text limit: a reply cut short mid-sentence is worse than one the person shortens. `ok: false` tells the
+ * picker the reply did not go in, so it is not counted as used.
+ */
+export function insertSavedReply(current: string, body: string): { ok: true; text: string } | { ok: false } {
+  const add = body.trim();
+  if (!add) return { ok: false };
+  const base = current.trimEnd();
+  const text = base ? `${base}\n\n${add}` : add;
+  return text.trim().length > REPLY_TEXT_MAX ? { ok: false } : { ok: true, text };
 }
 
 // ── One idempotency key per compose attempt ──────────────────────────
