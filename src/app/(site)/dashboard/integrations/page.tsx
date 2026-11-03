@@ -18,6 +18,7 @@ import { ConfirmDialog } from "@/components/molecules/confirm-dialog";
 import { WhatsAppEmbeddedSignup } from "@/components/integrations/whatsapp-embedded-signup";
 import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
 import { MetaDmConnect } from "@/components/integrations/meta-dm-connect";
+import { XDmConnect } from "@/components/integrations/x-dm-connect";
 import { WordPressConnectModal } from "@/components/integrations/wordpress-connect-modal";
 import { MeasurementHealthPanel } from "@/components/growth/measurement-health-panel";
 import { affectsMeasurementHealth } from "@/lib/measurement-health";
@@ -890,6 +891,9 @@ export default function IntegrationsPage() {
 
       {/* Messenger and Instagram messages (Inbox lane I3e): renders nothing until the api says a channel is released. */}
       <MetaDmConnect />
+
+      {/* X messages (Inbox lane I3g): renders nothing until the api says they are released. */}
+      <XDmConnect />
 
       {/* Beehiiv connect modal */}
       <BeehiivConnectModal
