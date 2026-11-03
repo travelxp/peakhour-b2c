@@ -17,10 +17,10 @@ import {
   checkLiftReason,
   heldBadge,
   heldSince,
-  businessLiftDeletes,
   liftConfirmLabel,
-  THREAD_LIFT_DELETES,
-  threadLiftDeletes,
+  threadLiftWarning,
+  businessLiftWarning,
+  LIFT_CHECK_FAILED,
   holdErrorMessage,
   threadTail,
   HOLD_EFFECT,
@@ -139,7 +139,7 @@ export function ThreadHoldControl({ threadId, held, role }: { threadId: string; 
   const [mode, setMode] = useState<"place" | "lift" | null>(null);
   // ★LIKEWISE FROZEN: whether this lift deletes the conversation is read when the dialog opens, so a refetch cannot swap the
   //  warning (or the button's name) under a person who is already reading it.
-  const [deletes, setDeletes] = useState(false);
+  const [deleteWarning, setDeleteWarning] = useState<string | null>(null);
   const hold = useThreadHold();
   const holds = useLegalHolds(canManageHolds(role));
   if (!canManageHolds(role)) return null;
@@ -147,15 +147,20 @@ export function ThreadHoldControl({ threadId, held, role }: { threadId: string; 
   // Held because the business is (lifted there), or not known (an api that predates holds): nothing to offer.
   if (!canLift && !canPlaceThreadHold(held) && mode === null) return null;
   const lifting = (mode ?? (canLift ? "lift" : "place")) === "lift";
-  const deleteWarning = lifting && deletes ? THREAD_LIFT_DELETES : null;
   return (
     <>
       <Button
         size="sm"
         variant="outline"
-        onClick={() => {
-          setDeletes(canLift && threadLiftDeletes(holds.data, threadId));
-          setMode(canLift ? "lift" : "place");
+        onClick={async () => {
+          if (!canLift) return setMode("place");
+          // ★READ FRESH, NOT FROM A 30-SECOND-OLD CACHE: an uninstall or a customer's erasure can land since the last fetch, and the
+          //  lift would then delete a conversation the dialog called ordinary. If the check cannot be made the lift is not offered.
+          const fresh = await holds.refetch();
+          const warning = threadLiftWarning(fresh.data, threadId);
+          if (warning === undefined) return void toast.error(LIFT_CHECK_FAILED);
+          setDeleteWarning(warning);
+          setMode("lift");
         }}
       >
         {canLift ? "Lift hold" : "Keep (legal hold)"}
@@ -164,10 +169,12 @@ export function ThreadHoldControl({ threadId, held, role }: { threadId: string; 
         open={mode !== null}
         onOpenChange={(o) => !o && setMode(null)}
         lifting={lifting}
-        warning={deleteWarning}
-        title={lifting ? "Lift the legal hold?" : "Keep this conversation (legal hold)"}
+        warning={lifting ? deleteWarning : null}
+        title={lifting ? (deleteWarning ? "Lift the hold and delete?" : "Lift the legal hold?") : "Keep this conversation (legal hold)"}
         description={
-          lifting
+          lifting && deleteWarning
+            ? "This conversation is waiting to be erased. Read the warning before you confirm."
+            : lifting
             ? "The conversation goes back to the normal 180 days after its last message (at least 7 days from now)."
             : "Use this when you must keep a conversation for a legal reason."
         }
@@ -201,8 +208,13 @@ export function HoldsCard({ role, onOpenThread }: { role: string | null; onOpenT
   const [shown, setShown] = useState<"place" | "lift">("place");
   // How many conversations the business lift deletes, read when the dialog opens and frozen like `shown`.
   const [deleting, setDeleting] = useState<string | null>(null);
-  const openDialog = (mode: "place" | "lift") => {
-    setDeleting(mode === "lift" ? businessLiftDeletes(holds.data?.deferredEraseCount) : null);
+  const openDialog = async (mode: "place" | "lift") => {
+    if (mode === "lift") {
+      // ★READ FRESH (see the thread lift): a stale count would call a mass deletion an ordinary lift.
+      const warning = businessLiftWarning((await holds.refetch()).data);
+      if (warning === undefined) return void toast.error(LIFT_CHECK_FAILED);
+      setDeleting(warning);
+    } else setDeleting(null);
     setShown(mode);
     setDialog(mode);
   };
@@ -253,9 +265,11 @@ export function HoldsCard({ role, onOpenThread }: { role: string | null; onOpenT
         onOpenChange={(o) => !o && setDialog(null)}
         lifting={shown === "lift"}
         warning={shown === "lift" ? deleting : null}
-        title={shown === "lift" ? "Lift the business-wide hold?" : "Keep all conversations (legal hold)"}
+        title={shown === "lift" ? (deleting ? "Lift the hold and delete?" : "Lift the business-wide hold?") : "Keep all conversations (legal hold)"}
         description={
-          shown === "lift"
+          shown === "lift" && deleting
+            ? "Some held conversations are waiting to be erased. Read the warning before you confirm."
+            : shown === "lift"
             ? "Conversations held only by this go back to the normal 180 days; one you held by name stays held."
             : "Every current conversation, and every new one within the hour, is kept until you lift this."
         }

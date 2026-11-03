@@ -14,7 +14,8 @@ import {
   liftConfirmLabel,
   LIFT_AND_DELETE_LABEL,
   THREAD_LIFT_DELETES,
-  threadLiftDeletes,
+  threadLiftWarning,
+  businessLiftWarning,
   type HoldsListing,
   holdErrorMessage,
   HOLD_REASON_HINT,
@@ -195,13 +196,21 @@ describe("the lift says when it deletes for good (H4)", () => {
     );
     expect(LIFT_AND_DELETE_LABEL).toBe("Lift and delete");
   });
-  it("KILL: a listed conversation whose erasure is waiting warns", () => {
-    expect(threadLiftDeletes(listing([row("t1", true)]), "t1")).toBe(true);
+  it("KILL: a listed conversation whose erasure is waiting warns with the exact sentence", () => {
+    expect(threadLiftWarning(listing([row("t1", true)]), "t1")).toBe(THREAD_LIFT_DELETES);
   });
-  it("PASS: a held conversation with no erasure waiting, an unlisted one and no listing yet all show the normal dialog", () => {
-    expect(threadLiftDeletes(listing([row("t1", false)]), "t1")).toBe(false);
-    expect(threadLiftDeletes(listing([row("t2", true)]), "t1")).toBe(false); // another thread's flag is not this one's
-    expect(threadLiftDeletes(undefined, "t1")).toBe(false);
+  it("PASS: a conversation with no erasure waiting, or another thread's flag, shows the normal dialog (null)", () => {
+    expect(threadLiftWarning(listing([row("t1", false)]), "t1")).toBeNull();
+    expect(threadLiftWarning(listing([row("t2", true)]), "t1")).toBeNull();
+  });
+  it("KILL: no listing (not loaded, or the fetch failed) is UNKNOWN, never 'nothing to warn about'", () => {
+    expect(threadLiftWarning(undefined, "t1")).toBeUndefined();
+    expect(businessLiftWarning(undefined)).toBeUndefined();
+  });
+  it("the business warning reads the listing's count: N warns, 0 and an older api's missing count are null", () => {
+    expect(businessLiftWarning({ ...listing([]), deferredEraseCount: 4 })).toContain("deletes 4 conversations");
+    expect(businessLiftWarning({ ...listing([]), deferredEraseCount: 0 })).toBeNull();
+    expect(businessLiftWarning(listing([]))).toBeNull();
   });
   it("KILL: a business count of N is named in the sentence", () => {
     expect(businessLiftDeletes(3)).toBe(

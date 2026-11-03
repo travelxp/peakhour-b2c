@@ -157,10 +157,24 @@ export function businessLiftDeletes(count: number | null | undefined): string | 
   return `Lifting this hold deletes ${n} ${n === 1 ? "conversation" : "conversations"} permanently right away, because the store or the customer asked for ${n === 1 ? "it" : "them"} to be erased. This cannot be undone.`;
 }
 
-/** Whether lifting THIS conversation's hold deletes it (the listing says its erasure is waiting). Not listed = nothing to warn about. */
-export function threadLiftDeletes(listing: HoldsListing | undefined, threadId: string): boolean {
-  return listing?.conversations.some((c) => c.threadId === threadId && c.eraseDeferred === true) ?? false;
+/**
+ * The deletion warning for lifting THIS conversation's hold: the sentence, null when the lift deletes nothing, or ★undefined when the
+ * listing is not known (not loaded, or it failed), which is neither: the caller must not offer the lift then, because a lift that
+ * deletes would look like an ordinary one. (The api lists every erase-deferred conversation even past its cap, so "listed with the
+ * flag clear, or not listed" means nothing is waiting.)
+ */
+export function threadLiftWarning(listing: HoldsListing | undefined, threadId: string): string | null | undefined {
+  if (!listing) return undefined;
+  return listing.conversations.some((c) => c.threadId === threadId && c.eraseDeferred === true) ? THREAD_LIFT_DELETES : null;
 }
+
+/** The same for the business-wide lift: the sentence with the count, null when it deletes nothing, undefined when unknown. */
+export function businessLiftWarning(listing: HoldsListing | undefined): string | null | undefined {
+  return listing ? businessLiftDeletes(listing.deferredEraseCount) : undefined;
+}
+
+/** Said when the check above could not be made, instead of opening a lift whose effect is unknown. */
+export const LIFT_CHECK_FAILED = "Couldn't check whether lifting this hold deletes anything. Try again in a moment.";
 
 /**
  * The line under the business-wide hold: when, by whom, and why, with no empty fragment (a missing or bad date is left out
