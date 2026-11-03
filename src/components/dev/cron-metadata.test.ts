@@ -1238,4 +1238,12 @@ describe("growth cron summaries read the api's real result shapes", () => {
     expect(capped?.level).toBe("warning");
     expect(capped?.message).toContain("trigger again");
   });
+
+  it("wa-template-sync: a quiet run is a success, a merchant Meta could not be reached for is a warning", () => {
+    expect(sum("wa-template-sync", { processed: 0, failed: 0 })).toEqual({ message: "0 merchants handled", level: "success" });
+    expect(sum("wa-template-sync", { processed: 1, failed: 0 })?.message).toBe("1 merchant handled");
+    const bad = sum("wa-template-sync", { processed: 3, failed: 1 });
+    expect(bad?.level).toBe("warning");
+    expect(bad?.message).toContain("1 could not reach Meta");
+  });
 });
