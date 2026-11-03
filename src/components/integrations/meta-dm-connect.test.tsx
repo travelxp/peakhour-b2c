@@ -77,12 +77,21 @@ describe("the page rows", () => {
     expect(out).toContain(DM_COPY.noInstagram);
     expect(out).toMatch(/<button[^>]*disabled=""[^>]*>Turn on<\/button>/);
   });
-  it("a switch in flight disables its own button only (a double click is one request)", () => {
+  it("a switch in flight disables EVERY switch until the status is re-read (no click acts on state about to change)", () => {
     const out = html(status(), { busy: "1055550001:messenger" });
     const buttons = out.match(/<button[^>]*>Turn on<\/button>/g) ?? [];
     expect(buttons).toHaveLength(2);
-    expect(buttons[0]).toContain('disabled=""');
-    expect(buttons[1]).not.toContain('disabled=""');
+    for (const b of buttons) expect(b).toContain('disabled=""');
+    const idle = html(status()).match(/<button[^>]*>Turn on<\/button>/g) ?? [];
+    for (const b of idle) expect(b).not.toContain('disabled=""');
+  });
+  it("an unavailable channel says why instead of showing a dead button", () => {
+    expect(html(status({ pages: [page({ messenger: { available: false, enabled: false } })] }))).toContain(DM_COPY.needsAccess);
+  });
+  it("an api that omits missingPermissions does not crash the screen", () => {
+    const s = { ...status(), missingPermissions: undefined } as unknown as DmStatus;
+    expect(needsMetaStep(s)).toBeNull();
+    expect(() => html(s)).not.toThrow();
   });
   it("connected with no Pages says so and what to do", () => {
     expect(html(status({ pages: [] }))).toContain(DM_COPY.noPages);

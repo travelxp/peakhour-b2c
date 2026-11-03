@@ -37,6 +37,7 @@ export const DM_COPY = {
   connectWhy: "Connect Meta to choose a Page.",
   reconnectWhy: "Your Meta connection needs to be reconnected first.",
   noPages: "We could not find a Facebook Page on your Meta connection. Reconnect Meta and choose the Page you want to use.",
+  needsAccess: "Grant messaging access first, then turn this on.",
   noInstagram: "Link an Instagram professional account to this Page in Instagram settings to use Instagram messages.",
   on: "On",
   off: "Off",
@@ -48,9 +49,9 @@ export const DM_COPY = {
 export function needsMetaStep(status: DmStatus): "connect" | "reconnect" | "grant" | null {
   if (status.needsReauth) return "reconnect";
   if (!status.connected) return "connect";
-  const missing = (Object.keys(status.missingPermissions) as DmChannel[]).some(
-    (c) => status.channels[c] && (status.missingPermissions[c]?.length ?? 0) > 0,
-  );
+  // an older api may omit the field: nothing is then known to be missing
+  const missingBy = status.missingPermissions ?? {};
+  const missing = (Object.keys(missingBy) as DmChannel[]).some((c) => status.channels[c] && (missingBy[c]?.length ?? 0) > 0);
   return missing ? "grant" : null;
 }
 

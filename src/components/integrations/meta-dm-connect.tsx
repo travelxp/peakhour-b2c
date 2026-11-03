@@ -5,7 +5,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, API_BASE_URL } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   DM_CHANNEL_LABEL,
@@ -26,7 +25,8 @@ export const metaMessagingAuthorizeUrl = (): string =>
 
 interface ViewProps {
   status: DmStatus;
-  /** `${pageId}:${channel}` while a switch is in flight: its button is disabled, so a double click is one request. */
+  /** `${pageId}:${channel}` while a switch is in flight. EVERY switch is disabled until it has finished AND the status has been
+   *  re-read, so a second click cannot act on state that is about to change. */
   busy: string | null;
   error: string | null;
   onMeta: () => void;
@@ -35,8 +35,12 @@ interface ViewProps {
 
 function ChannelRow({ page, channel, busy, onSwitch }: { page: DmStatusPage; channel: DmChannel; busy: string | null; onSwitch: ViewProps["onSwitch"] }) {
   const state = page[channel];
-  const key = `${page.pageId}:${channel}`;
-  const note = channel === "instagram" && !page.instagramUsername ? DM_COPY.noInstagram : null;
+  const note =
+    channel === "instagram" && !page.instagramUsername
+      ? DM_COPY.noInstagram
+      : !state.available && !state.enabled
+        ? DM_COPY.needsAccess
+        : null;
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 py-2" data-testid={`dm-row-${channel}`}>
       <div className="min-w-0">
@@ -49,11 +53,11 @@ function ChannelRow({ page, channel, busy, onSwitch }: { page: DmStatusPage; cha
       <div className="flex items-center gap-2">
         <Badge variant={state.enabled ? "default" : "outline"}>{state.enabled ? DM_COPY.on : DM_COPY.off}</Badge>
         {state.enabled ? (
-          <Button size="sm" variant="outline" disabled={busy === key} onClick={() => onSwitch(page, channel, false)}>
+          <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => onSwitch(page, channel, false)}>
             {DM_COPY.turnOff}
           </Button>
         ) : (
-          <Button size="sm" disabled={busy === key || !state.available} onClick={() => onSwitch(page, channel, true)}>
+          <Button size="sm" disabled={busy !== null || !state.available} onClick={() => onSwitch(page, channel, true)}>
             {DM_COPY.turnOn}
           </Button>
         )}
@@ -115,8 +119,10 @@ export function MetaDmConnect() {
     retry: false,
     staleTime: 30_000,
   });
-  if (query.isPending) return <Skeleton className="h-32 w-full" />;
-  if (query.isError || !query.data) return null;
+  // Nothing while loading and nothing when there has never been an answer (a 404 means no channel is released): no skeleton, so a
+  // merchant with the feature off sees no flash and no layout jump. ★A FAILED RE-READ KEEPS THE LAST ANSWER, so an error message
+  // from a switch is not lost with the panel.
+  if (!query.data) return null;
 
   async function onSwitch(page: DmStatusPage, channel: DmChannel, on: boolean) {
     if (busy) return;
@@ -127,8 +133,9 @@ export function MetaDmConnect() {
     } catch (err) {
       setError(dmErrorMessage(err));
     } finally {
+      // re-read BEFORE the buttons come back, so the next click sees what the api now says
+      await queryClient.invalidateQueries({ queryKey: STATUS_KEY }).catch(() => undefined);
       setBusy(null);
-      await queryClient.invalidateQueries({ queryKey: STATUS_KEY });
     }
   }
 
