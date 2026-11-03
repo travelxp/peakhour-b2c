@@ -45,10 +45,19 @@ function sendLabel(payload: ReplyPayload, unknownSig: string | null, idle: strin
   return unknownSig !== null && replySignature(payload) === unknownSig ? "Send again anyway" : idle;
 }
 
+/**
+ * ★A SEND WHOSE OUTCOME IS UNKNOWN BLOCKS A DIFFERENT SEND. The composer keeps one attempt per thread, so sending something else would
+ * drop the "may already have reached the shopper" guard on the first and let it go out twice. Only the very same send may be pressed
+ * again (its label says "Send again anyway"); anything else waits until the person has looked at the conversation.
+ */
+const blocked = (payload: ReplyPayload, unknownSig: string | null): boolean => unknownSig !== null && replySignature(payload) !== unknownSig;
+export const UNKNOWN_BLOCK_NOTE = "A message you sent may not have arrived. Check the conversation before sending something else, or press Send again anyway on that message.";
+
 export function WaRichSend({ threadId, disabled, unknownSig, onSend }: { threadId: string; disabled: boolean; unknownSig: string | null; onSend: SendFn }) {
   const [mode, setMode] = useState<"product" | "checkout" | null>(null);
   return (
     <div className="space-y-2" data-testid="rich-send">
+      {unknownSig !== null && <p className="text-[11px] text-muted-foreground">{UNKNOWN_BLOCK_NOTE}</p>}
       <div className="flex flex-wrap items-center gap-2">
         <AttachButton disabled={disabled} unknownSig={unknownSig} onSend={onSend} />
         <Button size="xs" variant={mode === "product" ? "secondary" : "outline"} disabled={disabled} onClick={() => setMode(mode === "product" ? null : "product")}>
@@ -121,7 +130,7 @@ function AttachButton({ disabled, unknownSig, onSend }: { disabled: boolean; unk
               </Button>
               <Button
                 size="xs"
-                disabled={disabled || Boolean(captionIssue)}
+                disabled={disabled || Boolean(captionIssue) || blocked(attachPayload(file, caption), unknownSig)}
                 onClick={async () => {
                   const sent = await onSend(attachPayload(file, caption), file);
                   if (sent) {
@@ -175,7 +184,7 @@ function ProductPanel({ mode, threadId, disabled, unknownSig, onSend, onDone }: 
             key={p.productId}
             p={p}
             mode={mode}
-            disabled={disabled}
+            disabled={disabled || blocked({ kind: "product", productId: p.productId }, unknownSig)}
             cardLabel={sendLabel({ kind: "product", productId: p.productId }, unknownSig, "Send card", false)}
             onCard={async () => {
               if (await onSend({ kind: "product", productId: p.productId })) onDone();
@@ -211,7 +220,7 @@ function ProductPanel({ mode, threadId, disabled, unknownSig, onSend, onDone }: 
             </span>
             <Button
               size="xs"
-              disabled={disabled}
+              disabled={disabled || blocked({ kind: "checkout", items: checkoutItems(lines) }, unknownSig)}
               onClick={async () => {
                 if (await onSend({ kind: "checkout", items: checkoutItems(lines) })) onDone();
               }}

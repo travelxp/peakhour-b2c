@@ -101,6 +101,16 @@ describe("the composer's rich buttons", () => {
     expect(here("wa-composer.tsx")).toMatch(/unknownSig=\{mem\.attempt\?\.unknown \? mem\.attempt\.sig : null\}/);
   });
 
+  it("a send of unknown outcome blocks a DIFFERENT rich send (the one attempt would be dropped), and says why", () => {
+    const src = here("wa-rich-send.tsx");
+    expect(src).toMatch(/unknownSig !== null && replySignature\(payload\) !== unknownSig/);
+    // the definition's own parameter list is not a call: the attach, the card and the checkout buttons are the three
+    expect((src.match(/blocked\(/g) ?? []).length).toBe(3);
+    const html = renderToStaticMarkup(<WaRichSend threadId="t" disabled={false} unknownSig={"[\"text\",\"hi\"]"} onSend={async () => true} />);
+    expect(html).toContain("A message you sent may not have arrived.");
+    expect(renderToStaticMarkup(<WaRichSend threadId="t" disabled={false} unknownSig={null} onSend={async () => true} />)).not.toContain("may not have arrived");
+  });
+
   it("an attachment's panel clears only when it was sent, so a refused send keeps what the person chose", () => {
     const src = here("wa-rich-send.tsx");
     expect(src).toMatch(/if \(sent\) \{\s*setFile\(null\);\s*setCaption\(""\);/);

@@ -59,8 +59,9 @@ export function BubbleMedia({ threadId, media }: { threadId: string; media: Mess
 
   return (
     <div className="mb-1">
-      <Button size="xs" variant="outline" disabled={open && file.isFetching} onClick={() => setOpen(true)}>
-        {open && file.isFetching ? "Opening…" : label}
+      {/* opening: the fetch, and the one render between the blob arriving and its object URL existing */}
+      <Button size="xs" variant="outline" disabled={open && (file.isFetching || Boolean(file.data))} onClick={() => setOpen(true)}>
+        {open && (file.isFetching || file.data) ? "Opening…" : label}
       </Button>
       {size ? <span className="ml-2 text-[11px] text-muted-foreground">{size}</span> : null}
     </div>
