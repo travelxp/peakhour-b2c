@@ -10,6 +10,12 @@ import {
   checkLiftReason,
   heldBadge,
   heldSince,
+  businessLiftDeletes,
+  liftConfirmLabel,
+  LIFT_AND_DELETE_LABEL,
+  THREAD_LIFT_DELETES,
+  threadLiftDeletes,
+  type HoldsListing,
   holdErrorMessage,
   HOLD_REASON_HINT,
   HOLD_REASON_MAX,
@@ -168,5 +174,51 @@ describe("dates and labels", () => {
   it("support placements are labelled", () => {
     expect(placedByLabel("support")).toBe("Placed by Peakhour support");
     expect(placedByLabel("merchant")).toBe("Placed by your team");
+  });
+});
+
+describe("the lift says when it deletes for good (H4)", () => {
+  const row = (threadId: string, eraseDeferred: boolean): HoldsListing["conversations"][number] => ({
+    threadId,
+    heldAt: "2026-11-01T00:00:00.000Z",
+    heldBy: null,
+    byKind: "merchant",
+    reason: "case",
+    scope: "conversation",
+    eraseDeferred,
+  });
+  const listing = (conversations: HoldsListing["conversations"]): HoldsListing => ({ business: null, conversations, truncated: false });
+
+  it("the exact single-conversation sentence and button name", () => {
+    expect(THREAD_LIFT_DELETES).toBe(
+      "Lifting this hold deletes this conversation permanently right away, because the store or the customer asked for it to be erased. This cannot be undone.",
+    );
+    expect(LIFT_AND_DELETE_LABEL).toBe("Lift and delete");
+  });
+  it("KILL: a listed conversation whose erasure is waiting warns", () => {
+    expect(threadLiftDeletes(listing([row("t1", true)]), "t1")).toBe(true);
+  });
+  it("PASS: a held conversation with no erasure waiting, an unlisted one and no listing yet all show the normal dialog", () => {
+    expect(threadLiftDeletes(listing([row("t1", false)]), "t1")).toBe(false);
+    expect(threadLiftDeletes(listing([row("t2", true)]), "t1")).toBe(false); // another thread's flag is not this one's
+    expect(threadLiftDeletes(undefined, "t1")).toBe(false);
+  });
+  it("KILL: a business count of N is named in the sentence", () => {
+    expect(businessLiftDeletes(3)).toBe(
+      "Lifting this hold deletes 3 conversations permanently right away, because the store or the customer asked for them to be erased. This cannot be undone.",
+    );
+    expect(businessLiftDeletes(12)).toContain("deletes 12 conversations");
+  });
+  it("one conversation reads in the singular", () => {
+    expect(businessLiftDeletes(1)).toBe(
+      "Lifting this hold deletes 1 conversation permanently right away, because the store or the customer asked for it to be erased. This cannot be undone.",
+    );
+  });
+  it("PASS: a count of 0, a missing count (older api) and nonsense show the normal dialog", () => {
+    for (const c of [0, undefined, null, -2, Number.NaN]) expect(businessLiftDeletes(c)).toBeNull();
+  });
+  it("the confirm button is renamed only when there is a warning", () => {
+    expect(liftConfirmLabel("x", "Lift hold")).toBe("Lift and delete");
+    expect(liftConfirmLabel(null, "Lift hold")).toBe("Lift hold");
   });
 });

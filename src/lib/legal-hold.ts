@@ -129,7 +129,37 @@ export interface HoldsListing {
     scope: "conversation" | "business";
     eraseDeferred: boolean;
   }>;
+  /** How many conversations lifting the BUSINESS hold deletes at once. Absent from an api that predates it: read as 0. */
+  deferredEraseCount?: number;
   truncated: boolean;
+}
+
+/**
+ * ★LIFTING A HOLD CAN DELETE. A conversation whose erasure was deferred while it was held (the store uninstalled, or the customer
+ * asked to be erased) is deleted AT ONCE when the hold is lifted: no 180 days, no 7-day undo. The confirmation must say so.
+ * The api's own lift reports `erasedOnLift` only after the fact; these read the listing before.
+ */
+export const LIFT_AND_DELETE_LABEL = "Lift and delete";
+
+/** The confirm button of a lift: "Lift and delete" when the dialog carries a deletion warning, else the plain label. */
+export function liftConfirmLabel(warning: string | null, plain: string): string {
+  return warning ? LIFT_AND_DELETE_LABEL : plain;
+}
+
+/** The one sentence a single-conversation lift shows when the lift deletes that conversation. */
+export const THREAD_LIFT_DELETES =
+  "Lifting this hold deletes this conversation permanently right away, because the store or the customer asked for it to be erased. This cannot be undone.";
+
+/** The sentence a business-wide lift shows when `count` conversations would be deleted at once; null when none would. */
+export function businessLiftDeletes(count: number | null | undefined): string | null {
+  if (typeof count !== "number" || !Number.isFinite(count) || count < 1) return null;
+  const n = Math.floor(count);
+  return `Lifting this hold deletes ${n} ${n === 1 ? "conversation" : "conversations"} permanently right away, because the store or the customer asked for ${n === 1 ? "it" : "them"} to be erased. This cannot be undone.`;
+}
+
+/** Whether lifting THIS conversation's hold deletes it (the listing says its erasure is waiting). Not listed = nothing to warn about. */
+export function threadLiftDeletes(listing: HoldsListing | undefined, threadId: string): boolean {
+  return listing?.conversations.some((c) => c.threadId === threadId && c.eraseDeferred === true) ?? false;
 }
 
 /**
