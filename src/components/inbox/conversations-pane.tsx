@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Search } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -28,6 +29,23 @@ import type { MessageMedia } from "@/lib/inbox-media";
 import { ChannelChip, StatusPill, TestChip, UnreadDot } from "@/components/inbox/inbox-badges";
 import { ManagePanel } from "@/components/inbox/manage-panel";
 import { ThreadHeader } from "@/components/inbox/thread-header";
+import { AssigneeBadge, CsatBadge, TagChips, TimerChip } from "@/components/inbox/desk-badges";
+import { ThreadDeskControls } from "@/components/inbox/desk-controls";
+import { NoteCard } from "@/components/inbox/note-card";
+import { NotesPanel } from "@/components/inbox/notes-panel";
+import { AiPauseControl } from "@/components/inbox/ai-pause";
+import { TeamDeskSheet } from "@/components/inbox/team-desk-card";
+import { useDeleteNote, useDeskTags, useThreadNotes } from "@/hooks/use-inbox-desk";
+import {
+  ASSIGNEE_FILTERS,
+  NOTE_LABEL,
+  assigneeFilterFromParam,
+  canDeleteNote,
+  searchWithFilters,
+  tagFromParam,
+  timelineOf,
+  type AssigneeFilter,
+} from "@/lib/inbox-desk";
 import { CustomerPanel } from "@/components/inbox/customer-panel";
 import {
   memberNameLookup,
@@ -49,7 +67,9 @@ import {
   DELETE_CONTACT_TITLE,
 } from "@/lib/inbox-customer";
 import {
-  CHANNEL_FILTERS,
+  visibleChannelFilters,
+  dmChannelOf,
+  type Channel,
   DEFAULT_STATUS_FILTER,
   SEARCH_DEBOUNCE_MS,
   STATUS_FILTERS,
@@ -181,10 +201,38 @@ export function ConversationsPane({
   const [status, setStatus] = useState<StatusFilter>(DEFAULT_STATUS_FILTER);
   const [searchRaw, setSearchRaw] = useState("");
   const q = searchTerm(useDebounced(searchRaw, SEARCH_DEBOUNCE_MS));
+  // ★TEAM DESK FILTERS LIVE IN THE URL (`?assignee=mine&tag=<id>`), like the lane does, so a reload, a bookmark or a shared link keeps them.
+  //  Read once for the first render and written on every change; a new filter is a new query key, so the list starts from its first page.
+  const params = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const urlAssignee = assigneeFilterFromParam(params.get("assignee"));
+  const urlTag = tagFromParam(params.get("tag"));
+  const [assignee, setAssignee] = useState<AssigneeFilter>(urlAssignee);
+  const [tag, setTag] = useState<string | null>(urlTag);
+  // ★AND THE URL IS FOLLOWED: Back, or a link followed while the Inbox is open, changes the address without touching this state. The
+  //  state adopts the address when IT changes (once per change, so our own write, which arrives a render later, is a no-op).
+  const [seenUrl, setSeenUrl] = useState(`${urlAssignee}|${urlTag ?? ""}`);
+  if (seenUrl !== `${urlAssignee}|${urlTag ?? ""}`) {
+    setSeenUrl(`${urlAssignee}|${urlTag ?? ""}`);
+    setAssignee(urlAssignee);
+    setTag(urlTag);
+  }
+  function setDeskFilters(next: { assignee: AssigneeFilter; tag: string | null }) {
+    setAssignee(next.assignee);
+    setTag(next.tag);
+    // the address as it is NOW (a tab click's push may not have reached `params` yet), so the filters never undo it
+    const current = typeof window === "undefined" ? params.toString() : window.location.search.replace(/^\?/, "");
+    router.replace(`${pathname}?${searchWithFilters(current, next)}`, { scroll: false });
+  }
+  const deskFiltered = assignee !== "all" || tag !== null;
+  const deskTags = useDeskTags().data?.tags;
   // ★A SEARCH LOOKS ACROSS EVERY CONVERSATION, not only the chip's: a customer whose conversation is Done must be found by their order number.
-  const wa = useWaConversations({ expiringOnly, ...(q ? { q } : { status }) });
+  const wa = useWaConversations({ expiringOnly, assignee, tag, ...(q ? { q } : { status }) });
   // a search can never match a storefront visitor (no name, number or order on the row), so that half is not asked
-  const storefront = useStorefrontChats({ expiringOnly, status, enabled: !q });
+  const storefront = useStorefrontChats({ expiringOnly, status, assignee, tag, enabled: !q });
+  // Messenger / Instagram chips show only for channels this business has a conversation on (read from the unfiltered list)
+  const seenChannels = useMemo(() => wa.conversations.map((c) => dmChannelOf(c.channel)), [wa.conversations]);
   const isXl = useIsXl();
   const canChange = canChangeConversation(role);
 
@@ -198,13 +246,13 @@ export function ConversationsPane({
     [waState, wa.conversations, storefront.chats, channel, q],
   );
   // a filter ignores the half it does not show, so a failure there is not this list's
-  const listState = combineListState(channel === "storefront" ? "empty" : waFetch, channel === "whatsapp" ? "empty" : sfFetch, rows.length);
+  const listState = combineListState(channel === "storefront" ? "empty" : waFetch, channel === "all" || channel === "storefront" ? sfFetch : "empty", rows.length);
   const retryList = () => {
     if (channel !== "storefront") void wa.refetch();
-    if (channel !== "whatsapp" && !q) void storefront.refetch();
+    if ((channel === "all" || channel === "storefront") && !q) void storefront.refetch();
   };
   const moreWa = channel !== "storefront" && wa.hasNextPage;
-  const moreSf = channel !== "whatsapp" && !q && storefront.hasNextPage;
+  const moreSf = (channel === "all" || channel === "storefront") && !q && storefront.hasNextPage;
   const loadingMore = wa.isFetchingNextPage || storefront.isFetchingNextPage;
   const notice = channel === "storefront" ? null : <WaNoticeCard state={waState} />;
   const expiry = expiryBanner(wa.expiringCount, wa.expiringFrom);
@@ -244,6 +292,10 @@ export function ConversationsPane({
   const members = useOrgMembers();
   const connection = useWaConnection(selectedChannel === "whatsapp");
   const memberName = memberNameLookup(members.data);
+  // the team's notes, laid into the timeline by time (the side panel reads the same query)
+  const notesQuery = useThreadNotes(selected);
+  const deleteNote = useDeleteNote(selected ?? "");
+  const notes = useMemo(() => (selected ? (notesQuery.data?.notes ?? []) : []), [selected, notesQuery.data]);
   // ★NO HAND-BACK WHILE A REPLY IS IN FLIGHT (review R3): the api escalated before sending, and a Resume landing mid-send gives
   //  the shopper the AI's answer and the person's reply at once.
   const replyInFlight = useComposerMemory(composerStore, selected ?? "").pending;
@@ -293,7 +345,7 @@ export function ConversationsPane({
 
   // ── open at the newest message ────────────────────────────────────────────────────────────────────────────────────────
   const scroller = useRef<HTMLDivElement>(null);
-  const lastShown = messages?.length ?? 0;
+  const lastShown = (messages?.length ?? 0) + notes.length;
   // ★ONLY WHILE THE READER IS AT THE BOTTOM (or has just opened the conversation): the thread polls, and a new message must not
   //  yank someone away from the earlier ones they scrolled up to read.
   const atBottom = useRef(true);
@@ -307,12 +359,15 @@ export function ConversationsPane({
 
   const panes = paneClasses(selected);
   const now = new Date();
-  const days = useMemo(() => groupByDay(messages ?? [], new Date()), [messages]);
+  const timeline = useMemo(() => timelineOf(messages ?? [], notes), [messages, notes]);
+  const days = useMemo(() => groupByDay(timeline, new Date()), [timeline]);
   // a bubble's key is its place in the whole conversation, not in its day, so a message arriving never re-keys the ones before it
   const lineKeys = useMemo(() => new Map((messages ?? []).map((m, i) => [m, i] as const)), [messages]);
   const contactName = selectedChannel === "storefront" ? sfThread?.contactName : waThread?.contactName;
   const returnToAi = waThread ? handoverAction(waThread.status) : null;
   const openThread = selectedChannel === "storefront" ? sfThread : waThread;
+  // the real channel of the open thread (Messenger / Instagram / WhatsApp / Storefront), for the header chip and the WhatsApp-only parts
+  const openChannel: Channel = selectedChannel === "storefront" ? "storefront" : dmChannelOf(waThread?.channel ?? rows.find((r) => r.threadId === selected)?.channel);
   const threadStateOf: InboxState = openThread?.state ?? (waThread?.needsYou ? "needs_you" : "open");
   const done = openThread ? doneAction(threadStateOf, canChange) : null;
   const updatedAtMs = waThread?.updatedAt ? Date.parse(waThread.updatedAt) : undefined;
@@ -350,6 +405,9 @@ export function ConversationsPane({
         </div>
       )}
 
+      {/* Team desk (I3a): the pause of the shopper assistant, with the words from the api. A banner with Resume while it is paused. */}
+      <AiPauseControl role={role} variant="inbox" />
+
       <div className={`mb-3 space-y-2 ${selected ? "max-lg:hidden" : ""}`}>
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5" role="group" aria-label="Status">
@@ -359,11 +417,44 @@ export function ConversationsPane({
               </Button>
             ))}
           </div>
-          <ManagePanel role={role} canExport={canExport} exporting={exporting} onRunExport={runExport} onOpenThread={(id) => onSelect(id)} />
+          <div className="flex shrink-0 items-center gap-1.5">
+            <TeamDeskSheet role={role} />
+            <ManagePanel role={role} canExport={canExport} exporting={exporting} onRunExport={runExport} onOpenThread={(id) => onSelect(id)} />
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Assignee">
+            {ASSIGNEE_FILTERS.map((f) => (
+              <Button key={f.value} size="xs" variant={assignee === f.value ? "secondary" : "ghost"} aria-pressed={assignee === f.value} onClick={() => setDeskFilters({ assignee: f.value, tag })}>
+                {f.label}
+              </Button>
+            ))}
+          </div>
+          {(deskTags?.length || tag) && (
+            <select
+              aria-label="Tag"
+              value={tag ?? ""}
+              onChange={(e) => setDeskFilters({ assignee, tag: tagFromParam(e.target.value) })}
+              className="h-6 rounded-md border bg-background px-1.5 text-xs"
+            >
+              <option value="">All tags</option>
+              {(deskTags ?? []).map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+              {tag && !(deskTags ?? []).some((t) => t.id === tag) && <option value={tag}>A tag that was removed</option>}
+            </select>
+          )}
+          {deskFiltered && (
+            <Button size="xs" variant="ghost" onClick={() => setDeskFilters({ assignee: "all", tag: null })}>
+              Clear filters
+            </Button>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Channel">
-            {CHANNEL_FILTERS.map((f) => (
+            {visibleChannelFilters(seenChannels, channel).map((f) => (
               <Button key={f.value} size="xs" variant={channel === f.value ? "secondary" : "ghost"} aria-pressed={channel === f.value} onClick={() => setChannel(f.value)}>
                 {f.label}
               </Button>
@@ -409,7 +500,7 @@ export function ConversationsPane({
               </Button>
             </div>
           )}
-          {listState === "empty" && <p className="p-4 text-sm text-muted-foreground">{emptyListText(channel, waState, { status, search: q })}</p>}
+          {listState === "empty" && <p className="p-4 text-sm text-muted-foreground">{emptyListText(channel, waState, { status, search: q, deskFiltered })}</p>}
           {/* ⚠️★★★A FAILED REFRESH SAYS SO WITHOUT TAKING THE ROWS AWAY. This lane polls every thirty seconds, so `error` here is
               usually a failed BACKGROUND refetch with the last good list still behind it. */}
           {listState === "stale" && (
@@ -434,13 +525,18 @@ export function ConversationsPane({
                       {unread && <UnreadDot />}
                       <span className={`truncate text-sm ${unread ? "font-semibold" : "font-medium"}`}>{row.title}</span>
                     </span>
-                    <span className="shrink-0 text-[11px] text-muted-foreground">{previewTime(row.updatedAt, now)}</span>
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      <AssigneeBadge assignee={row.assignee} />
+                      <span className="text-[11px] text-muted-foreground">{previewTime(row.updatedAt, now)}</span>
+                    </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-1">
                     <ChannelChip channel={row.channel} />
                     {row.test && <TestChip />}
                     <HeldBadge held={row.held} />
                     <StatusPill status={row.status} needsYou={row.needsYou} state={row.state} />
+                    <TimerChip timer={row.timer} />
+                    <TagChips tagIds={row.tagIds} tags={deskTags} max={3} />
                   </div>
                   <span className="truncate text-xs text-muted-foreground">{row.preview || "…"}</span>
                 </button>
@@ -470,14 +566,25 @@ export function ConversationsPane({
             <>
               <ThreadHeader
                 title={contactName || (selectedChannel === "storefront" ? "Storefront visitor" : selected.split(":").slice(2).join(":"))}
-                channel={selectedChannel ?? "whatsapp"}
+                channel={selected ? openChannel : "whatsapp"}
                 status={(selectedChannel === "storefront" ? sfThread?.status : waThread?.status) ?? "active"}
                 needsYou={selectedChannel === "whatsapp" && waThread?.needsYou === true}
                 state={openThread?.state}
                 test={selectedChannel === "storefront" && sfThread?.test === true}
                 held={(selectedChannel === "storefront" ? sfThread?.held : waThread?.held) ?? null}
                 windowBadge={
-                  selectedChannel === "whatsapp" && waThread ? <WindowBadge store={composerStore} threadId={waThread.threadId} endsAt={waThread.replyWindowEndsAt} /> : null
+                  openChannel === "whatsapp" && waThread ? <WindowBadge store={composerStore} threadId={waThread.threadId} endsAt={waThread.replyWindowEndsAt} /> : null
+                }
+                timer={
+                  <>
+                    <TimerChip timer={openThread?.timer} />
+                    <CsatBadge csat={waThread?.csat} />
+                  </>
+                }
+                desk={
+                  openThread && openThread.threadId === selected ? (
+                    <ThreadDeskControls key={selected} threadId={selected} role={role} assignee={openThread.assignee ?? null} tagIds={openThread.tagIds ?? []} />
+                  ) : null
                 }
                 onBack={() => onSelect(null)}
                 hold={{ available: hold.available && (selectedChannel === "storefront" ? Boolean(sfThread) : Boolean(waThread)), label: hold.label, start: () => void hold.start() }}
@@ -556,20 +663,38 @@ export function ConversationsPane({
                     {days.map((g, gi) => (
                       <div key={g.key + gi} className="space-y-2">
                         <DaySeparator label={g.label} />
-                        {g.items.map((m) => (
-                          <Bubble
-                            key={lineKeys.get(m) ?? 0}
-                            role={m.role}
-                            content={m.content}
-                            media={(m as { media?: MessageMedia | null }).media ?? null}
-                            threadId={selected ?? undefined}
-                            time={clockLabel(m.timestamp)}
-                            sender={senderLabel(m, { contactName: contactName ?? null, currentUserId: user?._id ?? null, memberName })}
-                          />
-                        ))}
+                        {g.items.map((item) =>
+                          item.kind === "note" ? (
+                            <NoteCard
+                              key={`note-${item.note.id}`}
+                              body={item.note.body}
+                              author={item.note.authorName}
+                              time={clockLabel(item.note.createdAt)}
+                              label={notesQuery.data?.label ?? NOTE_LABEL}
+                              deleting={deleteNote.isPending && deleteNote.variables === item.note.id}
+                              onDelete={
+                                canDeleteNote(item.note, notesQuery.data?.me, role)
+                                  ? () => {
+                                      if (!deleteNote.isPending) deleteNote.mutate(item.note.id, { onError: (e) => toast.error(actionError(e, "Deleting the note")) });
+                                    }
+                                  : null
+                              }
+                            />
+                          ) : (
+                            <Bubble
+                              key={lineKeys.get(item.line) ?? 0}
+                              role={item.line.role}
+                              content={item.line.content}
+                              media={(item.line as { media?: MessageMedia | null }).media ?? null}
+                              threadId={selected ?? undefined}
+                              time={clockLabel(item.line.timestamp)}
+                              sender={senderLabel(item.line, { contactName: contactName ?? null, currentUserId: user?._id ?? null, memberName })}
+                            />
+                          ),
+                        )}
                       </div>
                     ))}
-                    {threadState === "empty" && <p className="p-4 text-center text-sm text-muted-foreground">No messages.</p>}
+                    {threadState === "empty" && notes.length === 0 && <p className="p-4 text-center text-sm text-muted-foreground">No messages.</p>}
                   </div>
                   {/* A web visitor cannot be messaged back, so a storefront chat has no composer, and says why. */}
                   {selectedChannel === "storefront" && sfThread && (
@@ -602,6 +727,8 @@ export function ConversationsPane({
                     className={`min-h-0 overflow-y-auto border-l bg-background xl:block xl:w-[300px] xl:shrink-0 ${showCustomer ? "block flex-1" : "hidden xl:block"}`}
                   >
                     <CustomerPanel key={selected} threadId={selected} role={role} />
+                    {/* Team desk (I3a): the team's notes, beside the customer's details. */}
+                    <NotesPanel key={`notes-${selected}`} threadId={selected} role={role} />
                   </aside>
                 )}
               </div>

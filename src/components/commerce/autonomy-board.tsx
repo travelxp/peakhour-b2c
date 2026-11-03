@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { ArrowUpCircle, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +8,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { AiPauseControl } from "@/components/inbox/ai-pause";
+import { useAuth } from "@/providers/auth-provider";
 import { ConsentDial, AUTONOMY_LEVEL_META } from "@/components/commerce/consent-dial";
 import {
   useCommerceAutonomy,
@@ -36,7 +39,7 @@ const AGENT_META: Record<string, { name: string; description: string }> = {
   merchandiser: { name: "Merchandiser", description: "Listings, PDP copy, keywords & buy-box" },
   pricer: { name: "Pricer", description: "Price & promotions within your margin floor" },
   replenisher: { name: "Replenisher", description: "Availability & restock across locations" },
-  concierge: { name: "Concierge", description: "The conversational assistant" },
+  concierge: { name: "Shopper chat", description: "The assistant that answers shoppers on WhatsApp and your store" },
   reputation: { name: "Reputation", description: "Reviews & drafted responses" },
   forecaster: { name: "Forecaster", description: "Demand & assortment — advises only" },
 };
@@ -46,6 +49,8 @@ export function AutonomyBoard() {
   const setAutonomy = useSetAutonomy();
   const setKillSwitch = useSetKillSwitch();
   const dismiss = useDismissGraduation();
+  const { org, orgs } = useAuth();
+  const role = orgs.find((o) => o._id === org?._id)?.role ?? null;
 
   if (isError) return null;
 
@@ -97,6 +102,8 @@ export function AutonomyBoard() {
             <AgentRow
               key={agent.agent}
               entry={agent}
+              // the pause of the shopper assistant sits with the Shopper chat dial (I3a); it is not the kill switch above
+              extra={agent.agent === "concierge" ? <AiPauseControl role={role} variant="card" /> : null}
               busy={setAutonomy.isPending && setAutonomy.variables?.agent === agent.agent}
               onSet={(level) =>
                 setAutonomy.mutate({ agent: agent.agent, channel: data.channel, level })
@@ -122,12 +129,14 @@ export function AutonomyBoard() {
 
 function AgentRow({
   entry,
+  extra,
   busy,
   onSet,
   onGraduate,
   onDismiss,
 }: {
   entry: AutonomyEntry;
+  extra?: ReactNode;
   busy: boolean;
   onSet: (level: AutonomyLevel) => void;
   onGraduate: (level: AutonomyLevel) => void;
@@ -162,6 +171,8 @@ function AgentRow({
           {hint && <p className="mt-1.5 text-xs text-muted-foreground">{hint}</p>}
         </div>
       </div>
+
+      {extra}
 
       {/* Earned graduation invite — the merchant opts in, never auto-raised. */}
       {entry.graduation && (

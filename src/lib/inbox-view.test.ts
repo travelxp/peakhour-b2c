@@ -21,6 +21,10 @@ import {
   loadReadMarks,
   markRead,
   mergeRows,
+  CHANNEL_LABEL,
+  visibleChannelFilters,
+  type Channel,
+  type ChannelFilter,
   paneClasses,
   previewTime,
   READ_MARKS_MAX,
@@ -133,6 +137,43 @@ describe("honest states", () => {
     expect(emptyListText("all", "ok")).toBe("No conversations yet.");
     expect(emptyListText("storefront", "ok")).toMatch(/^No storefront chats yet/);
     expect(emptyListText("whatsapp", "not_connected")).toBe("No WhatsApp conversations to show.");
+  });
+  it("each row keeps its real channel; an older api's row is WhatsApp", () => {
+    const base = { threadId: "t", waId: "1", contactName: "A", status: "active", updatedAt: null, lastInboundAt: null, preview: "" };
+    expect(rowOfWhatsApp({ ...base, channel: "messenger" }).channel).toBe("messenger");
+    expect(rowOfWhatsApp({ ...base, channel: "instagram" }).channel).toBe("instagram");
+    expect(rowOfWhatsApp({ ...base, channel: "whatsapp" }).channel).toBe("whatsapp");
+    expect(rowOfWhatsApp(base).channel).toBe("whatsapp");
+    expect(rowOfWhatsApp({ ...base, channel: "weird" }).channel).toBe("whatsapp");
+  });
+  it("chip labels per channel", () => {
+    expect(CHANNEL_LABEL).toEqual({ whatsapp: "WhatsApp", storefront: "Storefront", messenger: "Messenger", instagram: "Instagram" });
+  });
+  it("the channel filter hides Messenger / Instagram until the business has one (or one is chosen)", () => {
+    const labels = (seen: Channel[], chosen: ChannelFilter = "all") => visibleChannelFilters(seen, chosen).map((f) => f.label);
+    expect(labels(["whatsapp"])).toEqual(["All", "WhatsApp", "Storefront"]);
+    expect(labels(["whatsapp", "messenger"])).toEqual(["All", "WhatsApp", "Storefront", "Messenger"]);
+    expect(labels(["instagram", "messenger"])).toEqual(["All", "WhatsApp", "Storefront", "Messenger", "Instagram"]);
+    expect(labels([], "instagram")).toContain("Instagram");
+  });
+  it("each channel filter shows only its rows; All shows everything", () => {
+    const mk = (threadId: string, channel: Channel) => ({ ...rowOfWhatsApp({ threadId, waId: "1", contactName: "A", status: "active", updatedAt: null, lastInboundAt: null, preview: "" }), channel });
+    const dm = [mk("w", "whatsapp"), mk("m", "messenger"), mk("i", "instagram")];
+    const sf = [mk("s", "storefront")];
+    const ids = (f: ChannelFilter) => mergeRows(dm, sf, f).map((r) => r.threadId).sort();
+    expect(ids("all")).toEqual(["i", "m", "s", "w"]);
+    expect(ids("whatsapp")).toEqual(["w"]);
+    expect(ids("messenger")).toEqual(["m"]);
+    expect(ids("instagram")).toEqual(["i"]);
+    expect(ids("storefront")).toEqual(["s"]);
+  });
+  it("team desk filters: an empty list says a filter is on, with or without a search", () => {
+    expect(emptyListText("all", "ok", { deskFiltered: true })).toMatch(/match these filters/);
+    const searched = emptyListText("all", "ok", { search: "1234", deskFiltered: true });
+    expect(searched).toContain("“1234”");
+    expect(searched).toMatch(/Mine \/ Unassigned or tag filter/);
+    // PASS: no filter, no mention of one
+    expect(emptyListText("all", "ok", { search: "1234" })).not.toMatch(/filter/);
   });
 });
 

@@ -31,6 +31,8 @@ export function ThreadHeader({
   test,
   held,
   windowBadge,
+  timer,
+  desk,
   onBack,
   hold,
   canExport,
@@ -51,6 +53,10 @@ export function ThreadHeader({
   test?: boolean;
   held: HeldBy;
   windowBadge?: ReactNode;
+  /** Team desk (I3a): the first-reply timer chip, beside the status. */
+  timer?: ReactNode;
+  /** Team desk (I3a): the assign control and tag editor (or, for a viewer, who has it and its tags), under the chips. */
+  desk?: ReactNode;
   onBack: () => void;
   /** From `useThreadHoldFlow`; the caller renders `hold.dialog`. */
   hold: { available: boolean; label: string; start: () => void };
@@ -80,7 +86,9 @@ export function ThreadHeader({
           <StatusPill status={status} needsYou={needsYou} {...(state ? { state } : {})} />
           <HeldBadge held={held} />
           {windowBadge}
+          {timer}
         </div>
+        {desk}
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {handover && (
