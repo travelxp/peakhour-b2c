@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { TemplateApprovals } from "@/lib/wa-template-approvals";
-import { TemplateApprovalsView } from "./wa-template-approvals";
+import { TemplateApprovalsErrorView, TemplateApprovalsView } from "./wa-template-approvals";
 
 const data = (over: Partial<TemplateApprovals> = {}): TemplateApprovals => ({
   connected: true,
@@ -46,5 +46,11 @@ describe("Messages Meta must approve", () => {
   it("renders nothing when WhatsApp is not connected or there is nothing to approve", () => {
     expect(renderToStaticMarkup(<TemplateApprovalsView data={data({ connected: false })} />)).toBe("");
     expect(renderToStaticMarkup(<TemplateApprovalsView data={data({ templates: [] })} />)).toBe("");
+  });
+
+  it("a failed read says what failed and what to do, instead of going quiet", () => {
+    const out = renderToStaticMarkup(<TemplateApprovalsErrorView />);
+    expect(out).toContain("We could not load the list of messages Meta must approve.");
+    expect(out).toContain("Reload the page to try again");
   });
 });

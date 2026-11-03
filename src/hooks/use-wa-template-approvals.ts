@@ -8,7 +8,7 @@ import type { TemplateApprovals } from "@/lib/wa-template-approvals";
 /**
  * Which WhatsApp messages Meta must approve for this business, and where each stands. Read-only: Peakhour sends them to Meta
  * itself, so there is nothing for the merchant to submit. The Shopify admin reads the same list from the same api function.
- * Refreshes every minute while anything is still waiting, so an approval shows without a reload.
+ * Refreshes every minute until every message is approved, so an approval (or a retry after a rejection) shows without a reload.
  */
 export function useWaTemplateApprovals() {
   const { isAuthenticated, org, business } = useAuth();
@@ -17,6 +17,6 @@ export function useWaTemplateApprovals() {
     queryFn: () => api.get<TemplateApprovals>("/v1/meta/whatsapp/template-approvals"),
     enabled: isAuthenticated && !!org?._id && !!business?._id,
     retry: false,
-    refetchInterval: (q) => (q.state.data && q.state.data.counts.waiting > 0 ? 60_000 : false),
+    refetchInterval: (q) => (q.state.data?.connected && q.state.data.templates.length > 0 && !q.state.data.allApproved ? 60_000 : false),
   });
 }

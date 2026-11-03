@@ -1799,7 +1799,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     description:
       "Sends each connected merchant's missing WhatsApp templates to their own WhatsApp account, tries again on ones Meta rejected (a few times, then it is left for support), and reads Meta's answer for any left waiting six hours. Never touches Peakhour's own number. Fired by hand it creates templates on the dev merchant's real Meta account.",
     summarize: (data) => {
-      const d = data as { processed?: number; failed?: number; unitsHandedOver?: number } | null;
+      const d = data as { processed?: number; failed?: number } | null;
       if (!d || typeof d.processed !== "number") return null;
       const ran = `${d.processed} merchant${d.processed === 1 ? "" : "s"} handled`;
       if (!d.failed) return ran;

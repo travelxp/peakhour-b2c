@@ -51,7 +51,17 @@ export function TemplateApprovalsView({ data }: { data: TemplateApprovals }) {
   );
 }
 
+/** What a failed read says: what failed, and what to do. Silence would read as "nothing to approve". */
+export function TemplateApprovalsErrorView() {
+  return (
+    <p className="rounded-lg border p-4 text-sm text-muted-foreground" role="status">
+      We could not load the list of messages Meta must approve. Reload the page to try again; if it keeps happening, contact support.
+    </p>
+  );
+}
+
 export function WaTemplateApprovals() {
-  const { data } = useWaTemplateApprovals();
-  return data ? <TemplateApprovalsView data={data} /> : null;
+  const { data, isError } = useWaTemplateApprovals();
+  if (data) return <TemplateApprovalsView data={data} />;
+  return isError ? <TemplateApprovalsErrorView /> : null;
 }
