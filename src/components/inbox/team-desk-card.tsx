@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { UsersRound } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import {
   canManageDesk,
   createFlightGuard,
   formFromSettings,
+  pruneAvailable,
   tagCountLine,
   tagNameError,
   toggleAvailable,
@@ -334,13 +335,15 @@ export function TeamDeskCard({ role }: { role: string | null }) {
   const [edited, setEdited] = useState<DeskForm | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tagError, setTagError] = useState<string | null>(null);
-  const saveGuard = useRef(createFlightGuard()).current;
-  const tagGuard = useRef(createFlightGuard()).current;
+  const saveGuard = useState(createFlightGuard)[0];
+  const tagGuard = useState(createFlightGuard)[0];
 
   const data = settings.data;
   if (settings.isError) return <p className="text-sm text-muted-foreground">Couldn&apos;t load the team desk settings. Reload the page to try again.</p>;
   if (!data) return <p className="text-sm text-muted-foreground">Loading…</p>;
-  const form = edited ?? formFromSettings(data.settings, fallbackZone);
+  // once the teammates are known, a saved name that is no longer one of them is not shown or sent
+  const base = formFromSettings(data.settings, fallbackZone);
+  const form = team.data ? pruneAvailable(edited ?? base, team.data.team) : (edited ?? base);
 
   async function onSave() {
     const problem = validateForm(form);

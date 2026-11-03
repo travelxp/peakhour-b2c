@@ -135,7 +135,7 @@ export function initialsOf(name: string | null | undefined): string {
 }
 
 export function formatMinutes(total: number): string {
-  const m = Math.max(0, Math.round(total));
+  const m = Number.isFinite(total) ? Math.max(0, Math.round(total)) : 0;
   if (m < 60) return `${m} min`;
   const h = Math.floor(m / 60);
   const r = m % 60;
@@ -296,7 +296,18 @@ export function validateForm(f: DeskForm): string | null {
     }
   }
   if (f.awayMessage.length > AWAY_MAX) return `The away message is at most ${AWAY_MAX} characters.`;
+  if (f.autoAssign && f.availableUserIds.length === 0) return "Choose at least one available teammate, or turn off taking turns.";
   return null;
+}
+
+/**
+ * Keeps only teammates who can still take a conversation. ★A TEAMMATE WHO WAS REMOVED OR DEMOTED STAYS IN THE SAVED LIST, is not in
+ * the checkbox list (so cannot be unticked), and the api refuses a save that names them. Dropping them here is what lets it through.
+ */
+export function pruneAvailable(f: DeskForm, team: readonly TeamMemberRef[]): DeskForm {
+  const known = new Set(team.map((t) => t.userId));
+  const kept = f.availableUserIds.filter((id) => known.has(id));
+  return kept.length === f.availableUserIds.length ? f : { ...f, availableUserIds: kept };
 }
 
 /** The `PUT /inbox-desk/settings` body. "" for the away line puts the default back. */

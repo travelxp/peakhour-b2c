@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useState } from "react";
 import { PauseCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -66,7 +66,7 @@ export function AiPauseView({
 export function AiPauseControl({ role, variant }: { role: string | null; variant: "inbox" | "card" }) {
   const settings = useDeskSettings();
   const setPause = useSetAiPause();
-  const guard = useRef(createFlightGuard()).current;
+  const guard = useState(createFlightGuard)[0];
   const data = settings.data;
   // nothing is claimed until the server has answered: a switch drawn "off" before that could be a lie about a paused business
   if (!data) return null;

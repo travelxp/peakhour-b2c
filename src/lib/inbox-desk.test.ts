@@ -17,6 +17,8 @@ import {
   initialsOf,
   noteDraft,
   patchFromForm,
+  pruneAvailable,
+  formatMinutes,
   searchWithFilters,
   tagCountLine,
   tagFromParam,
@@ -211,6 +213,20 @@ describe("the team desk form", () => {
     expect(validateForm({ ...on, days: on.days.map((d) => ({ ...d, closed: true })) })).toMatch(/Open at least one day/);
     // hours off: a bad day is not the api's business
     expect(validateForm({ ...on, hoursEnabled: false, days: on.days.map((d) => ({ ...d, closed: true })) })).toBeNull();
+  });
+  it("taking turns needs at least one available teammate", () => {
+    expect(validateForm({ ...good(), autoAssign: true, availableUserIds: [] })).toMatch(/at least one available teammate/);
+    expect(validateForm({ ...good(), autoAssign: true, availableUserIds: ["u1"] })).toBeNull();
+    expect(validateForm({ ...good(), autoAssign: false, availableUserIds: [] })).toBeNull();
+  });
+  it("a removed or demoted teammate is dropped from the available list (the api refuses a save that names them)", () => {
+    const f = { ...good(), autoAssign: true, availableUserIds: ["u1", "gone"] };
+    expect(pruneAvailable(f, [{ userId: "u1", name: "Ada", role: "editor" }]).availableUserIds).toEqual(["u1"]);
+    expect(pruneAvailable(f, [{ userId: "u1", name: "Ada", role: "editor" }, { userId: "gone", name: "G", role: "editor" }])).toBe(f);
+  });
+  it("a timer with no usable number reads 0 min, not NaN", () => {
+    expect(formatMinutes(Number.NaN)).toBe("0 min");
+    expect(formatMinutes(90)).toBe("1 h 30 min");
   });
   it("the away message is bounded", () => {
     expect(validateForm({ ...good(), awayMessage: "x".repeat(301) })).toMatch(/at most 300/);

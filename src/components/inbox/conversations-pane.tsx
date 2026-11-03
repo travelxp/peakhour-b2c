@@ -203,8 +203,18 @@ export function ConversationsPane({
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const [assignee, setAssignee] = useState<AssigneeFilter>(() => assigneeFilterFromParam(params.get("assignee")));
-  const [tag, setTag] = useState<string | null>(() => tagFromParam(params.get("tag")));
+  const urlAssignee = assigneeFilterFromParam(params.get("assignee"));
+  const urlTag = tagFromParam(params.get("tag"));
+  const [assignee, setAssignee] = useState<AssigneeFilter>(urlAssignee);
+  const [tag, setTag] = useState<string | null>(urlTag);
+  // ★AND THE URL IS FOLLOWED: Back, or a link followed while the Inbox is open, changes the address without touching this state. The
+  //  state adopts the address when IT changes (once per change, so our own write, which arrives a render later, is a no-op).
+  const [seenUrl, setSeenUrl] = useState(`${urlAssignee}|${urlTag ?? ""}`);
+  if (seenUrl !== `${urlAssignee}|${urlTag ?? ""}`) {
+    setSeenUrl(`${urlAssignee}|${urlTag ?? ""}`);
+    setAssignee(urlAssignee);
+    setTag(urlTag);
+  }
   function setDeskFilters(next: { assignee: AssigneeFilter; tag: string | null }) {
     setAssignee(next.assignee);
     setTag(next.tag);

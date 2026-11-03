@@ -58,20 +58,30 @@ interface Patchable {
   tagIds?: string[];
 }
 
-/** Writes `patch` into whichever thread query holds the conversation, and hands back what to put back. */
+/**
+ * Writes `patch` into whichever thread query holds the conversation, and hands back what to put back: ONLY the fields this write
+ * changed. ★An assign and a tag change can be in flight together; putting the whole old object back would undo the other one's
+ * optimistic edit (or bring back one it had already rolled back).
+ */
 async function patchThreadCaches(qc: QueryClient, biz: string, threadId: string, patch: Patchable) {
   const keys = [
     ["wa-thread", biz, threadId],
     ["storefront-thread", biz, threadId],
   ];
   await Promise.all(keys.map((k) => qc.cancelQueries({ queryKey: k })));
-  const previous = keys.map((k) => [k, qc.getQueryData<Patchable>(k)] as const);
-  for (const [k, data] of previous) if (data) qc.setQueryData(k, { ...data, ...patch });
+  const previous = keys.map((k) => {
+    const data = qc.getQueryData<Patchable>(k);
+    const was: Patchable = {};
+    if (data && "assignee" in patch) was.assignee = data.assignee ?? null;
+    if (data && "tagIds" in patch) was.tagIds = data.tagIds ?? [];
+    return [k, data ? was : undefined] as const;
+  });
+  for (const k of keys) qc.setQueryData<Patchable | undefined>(k, (data) => (data ? { ...data, ...patch } : data));
   return previous;
 }
 
 function restore(qc: QueryClient, previous: ReadonlyArray<readonly [readonly string[], Patchable | undefined]> | undefined) {
-  for (const [k, data] of previous ?? []) if (data) qc.setQueryData(k, data);
+  for (const [k, was] of previous ?? []) if (was) qc.setQueryData<Patchable | undefined>(k, (data) => (data ? { ...data, ...was } : data));
 }
 
 function refreshLists(qc: QueryClient, biz: string, threadId: string) {

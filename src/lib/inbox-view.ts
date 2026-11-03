@@ -265,6 +265,9 @@ export function waNotice(state: WaInboxState): InboxNotice | null {
  * ★A SEARCH OR A CHIP THAT FINDS NOTHING SAYS SO; it never claims the inbox is empty.
  */
 export function emptyListText(filter: ChannelFilter, state: WaInboxState, view: { status?: StatusFilter; search?: string; deskFiltered?: boolean } = {}): string {
+  if (view.search && view.deskFiltered) {
+    return `No conversations match \u201c${view.search}\u201d with the Mine / Unassigned or tag filter on. Choose All and clear the tag to search every conversation.`;
+  }
   if (view.search) {
     return filter === "storefront"
       ? "Storefront visitors have no name, number or order, so a search finds none of them. Clear the search to see them."

@@ -134,6 +134,14 @@ describe("honest states", () => {
     expect(emptyListText("storefront", "ok")).toMatch(/^No storefront chats yet/);
     expect(emptyListText("whatsapp", "not_connected")).toBe("No WhatsApp conversations to show.");
   });
+  it("team desk filters: an empty list says a filter is on, with or without a search", () => {
+    expect(emptyListText("all", "ok", { deskFiltered: true })).toMatch(/match these filters/);
+    const searched = emptyListText("all", "ok", { search: "1234", deskFiltered: true });
+    expect(searched).toContain("“1234”");
+    expect(searched).toMatch(/Mine \/ Unassigned or tag filter/);
+    // PASS: no filter, no mention of one
+    expect(emptyListText("all", "ok", { search: "1234" })).not.toMatch(/filter/);
+  });
 });
 
 describe("times", () => {

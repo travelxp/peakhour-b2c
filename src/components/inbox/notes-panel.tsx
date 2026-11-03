@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -101,8 +101,8 @@ export function NotesPanel({ threadId, role }: { threadId: string; role: string 
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const addGuard = useRef(createFlightGuard()).current;
-  const delGuard = useRef(createFlightGuard()).current;
+  const addGuard = useState(createFlightGuard)[0];
+  const delGuard = useState(createFlightGuard)[0];
 
   return (
     <NotesPanelView

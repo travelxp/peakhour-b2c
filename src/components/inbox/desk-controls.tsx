@@ -183,8 +183,8 @@ export function ThreadDeskControls({
   const setTags = useSetThreadTags(threadId);
   const admin = useTagAdmin();
   // one guard per control, and per thread: held in a ref so two clicks in one tick are one request
-  const assignGuard = useRef(createFlightGuard()).current;
-  const tagGuard = useRef(createFlightGuard()).current;
+  const assignGuard = useState(createFlightGuard)[0];
+  const tagGuard = useState(createFlightGuard)[0];
 
   const list = team.data?.team ?? [];
   const me = team.data?.me ?? null;
@@ -214,14 +214,24 @@ export function ThreadDeskControls({
         )
       }
       onCreateTag={async (name) => {
+        let created: DeskTag;
         try {
-          const created = await admin.create.mutateAsync(name);
-          // a tag made from a conversation goes onto it: that is why the person made it
-          if (tagIds.length < TAGS_PER_THREAD_MAX) await setTags.mutateAsync([...tagIds, created.id]).catch(() => undefined);
-          return null;
+          created = await admin.create.mutateAsync(name);
         } catch (e) {
           return actionError(e, "Creating the tag");
         }
+        // a tag made from a conversation goes onto it: that is why the person made it. ★SAYS SO WHEN IT DID NOT: the tag exists now,
+        //  and "created" must not read as "applied".
+        if (tagIds.length >= TAGS_PER_THREAD_MAX) return `Tag created, but this conversation already has ${TAGS_PER_THREAD_MAX} tags. Remove one, then tick the new tag.`;
+        let failed: string | null = null;
+        await tagGuard.run(async () => {
+          try {
+            await setTags.mutateAsync([...tagIds, created.id]);
+          } catch (e) {
+            failed = `Tag created, but it was not added to this conversation. ${actionError(e, "Adding the tag")}`;
+          }
+        });
+        return failed;
       }}
     />
   );
