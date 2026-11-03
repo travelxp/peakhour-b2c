@@ -270,6 +270,11 @@ describe("inboxTabFromParam — where the call to action lands", () => {
     expect(inboxTabFromParam("reviews")).toBe("reviews");
   });
 
+  it("opens the new lanes by name: the questions the assistant could not answer, and Ask your inbox", () => {
+    expect(inboxTabFromParam("questions")).toBe("questions");
+    expect(inboxTabFromParam("ask")).toBe("ask");
+  });
+
   it("★★opens the default lane for anything it does not recognise", () => {
     // ⚠️A STALE BOOKMARK MUST NOT LEAVE THE PAGE SHOWING NO TAB AT ALL.
     expect(inboxTabFromParam("nonsense")).toBe("conversations");
