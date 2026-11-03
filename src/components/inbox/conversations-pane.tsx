@@ -66,7 +66,9 @@ import {
   DELETE_CONTACT_TITLE,
 } from "@/lib/inbox-customer";
 import {
-  CHANNEL_FILTERS,
+  visibleChannelFilters,
+  dmChannelOf,
+  type Channel,
   DEFAULT_STATUS_FILTER,
   SEARCH_DEBOUNCE_MS,
   STATUS_FILTERS,
@@ -228,6 +230,8 @@ export function ConversationsPane({
   const wa = useWaConversations({ expiringOnly, assignee, tag, ...(q ? { q } : { status }) });
   // a search can never match a storefront visitor (no name, number or order on the row), so that half is not asked
   const storefront = useStorefrontChats({ expiringOnly, status, assignee, tag, enabled: !q });
+  // Messenger / Instagram chips show only for channels this business has a conversation on (read from the unfiltered list)
+  const seenChannels = useMemo(() => wa.conversations.map((c) => dmChannelOf(c.channel)), [wa.conversations]);
   const isXl = useIsXl();
   const canChange = canChangeConversation(role);
 
@@ -241,13 +245,13 @@ export function ConversationsPane({
     [waState, wa.conversations, storefront.chats, channel, q],
   );
   // a filter ignores the half it does not show, so a failure there is not this list's
-  const listState = combineListState(channel === "storefront" ? "empty" : waFetch, channel === "whatsapp" ? "empty" : sfFetch, rows.length);
+  const listState = combineListState(channel === "storefront" ? "empty" : waFetch, channel === "all" || channel === "storefront" ? sfFetch : "empty", rows.length);
   const retryList = () => {
     if (channel !== "storefront") void wa.refetch();
-    if (channel !== "whatsapp" && !q) void storefront.refetch();
+    if ((channel === "all" || channel === "storefront") && !q) void storefront.refetch();
   };
   const moreWa = channel !== "storefront" && wa.hasNextPage;
-  const moreSf = channel !== "whatsapp" && !q && storefront.hasNextPage;
+  const moreSf = (channel === "all" || channel === "storefront") && !q && storefront.hasNextPage;
   const loadingMore = wa.isFetchingNextPage || storefront.isFetchingNextPage;
   const notice = channel === "storefront" ? null : <WaNoticeCard state={waState} />;
   const expiry = expiryBanner(wa.expiringCount, wa.expiringFrom);
@@ -361,6 +365,8 @@ export function ConversationsPane({
   const contactName = selectedChannel === "storefront" ? sfThread?.contactName : waThread?.contactName;
   const returnToAi = waThread ? handoverAction(waThread.status) : null;
   const openThread = selectedChannel === "storefront" ? sfThread : waThread;
+  // the real channel of the open thread (Messenger / Instagram / WhatsApp / Storefront), for the header chip and the WhatsApp-only parts
+  const openChannel: Channel = selectedChannel === "storefront" ? "storefront" : dmChannelOf(waThread?.channel ?? rows.find((r) => r.threadId === selected)?.channel);
   const threadStateOf: InboxState = openThread?.state ?? (waThread?.needsYou ? "needs_you" : "open");
   const done = openThread ? doneAction(threadStateOf, canChange) : null;
   const updatedAtMs = waThread?.updatedAt ? Date.parse(waThread.updatedAt) : undefined;
@@ -447,7 +453,7 @@ export function ConversationsPane({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Channel">
-            {CHANNEL_FILTERS.map((f) => (
+            {visibleChannelFilters(seenChannels, channel).map((f) => (
               <Button key={f.value} size="xs" variant={channel === f.value ? "secondary" : "ghost"} aria-pressed={channel === f.value} onClick={() => setChannel(f.value)}>
                 {f.label}
               </Button>
@@ -559,14 +565,14 @@ export function ConversationsPane({
             <>
               <ThreadHeader
                 title={contactName || (selectedChannel === "storefront" ? "Storefront visitor" : selected.split(":").slice(2).join(":"))}
-                channel={selectedChannel ?? "whatsapp"}
+                channel={selected ? openChannel : "whatsapp"}
                 status={(selectedChannel === "storefront" ? sfThread?.status : waThread?.status) ?? "active"}
                 needsYou={selectedChannel === "whatsapp" && waThread?.needsYou === true}
                 state={openThread?.state}
                 test={selectedChannel === "storefront" && sfThread?.test === true}
                 held={(selectedChannel === "storefront" ? sfThread?.held : waThread?.held) ?? null}
                 windowBadge={
-                  selectedChannel === "whatsapp" && waThread ? <WindowBadge store={composerStore} threadId={waThread.threadId} endsAt={waThread.replyWindowEndsAt} /> : null
+                  openChannel === "whatsapp" && waThread ? <WindowBadge store={composerStore} threadId={waThread.threadId} endsAt={waThread.replyWindowEndsAt} /> : null
                 }
                 timer={<TimerChip timer={openThread?.timer} />}
                 desk={

@@ -19,6 +19,8 @@ import {
 /** A WhatsApp conversation summary (list row). */
 export interface WaConversation {
   threadId: string;
+  /** Which channel the thread is on. Absent = an older api (WhatsApp). */
+  channel?: "whatsapp" | "messenger" | "instagram";
   waId: string;
   contactName: string | null;
   status: string;
@@ -88,6 +90,7 @@ export interface WaMessage {
 
 export interface WaThread {
   threadId: string;
+  channel?: "whatsapp" | "messenger" | "instagram";
   contactName: string | null;
   status: string;
   /** WA T3: the shopper's last message. */

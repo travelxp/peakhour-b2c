@@ -16,16 +16,31 @@ export const INBOX_SUBTITLE = "Your WhatsApp and storefront conversations, leads
 
 // ── channels ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
-export type Channel = "whatsapp" | "storefront";
+export type Channel = "whatsapp" | "storefront" | "messenger" | "instagram";
 export type ChannelFilter = "all" | Channel;
 
-export const CHANNEL_LABEL: Record<Channel, string> = { whatsapp: "WhatsApp", storefront: "Storefront" };
+/** The channels the conversations list (`/meta/whatsapp/conversations`) carries; the storefront list is its own. */
+export type DmChannel = "whatsapp" | "messenger" | "instagram";
+
+export const CHANNEL_LABEL: Record<Channel, string> = { whatsapp: "WhatsApp", storefront: "Storefront", messenger: "Messenger", instagram: "Instagram" };
 
 export const CHANNEL_FILTERS: Array<{ value: ChannelFilter; label: string }> = [
   { value: "all", label: "All" },
   { value: "whatsapp", label: CHANNEL_LABEL.whatsapp },
   { value: "storefront", label: CHANNEL_LABEL.storefront },
+  { value: "messenger", label: CHANNEL_LABEL.messenger },
+  { value: "instagram", label: CHANNEL_LABEL.instagram },
 ];
+
+/** Messenger and Instagram chips appear only once the business has such a conversation (or one is chosen); WhatsApp and Storefront always do. */
+export function visibleChannelFilters(seen: readonly Channel[], chosen: ChannelFilter): typeof CHANNEL_FILTERS {
+  return CHANNEL_FILTERS.filter((f) => f.value === "all" || f.value === "whatsapp" || f.value === "storefront" || f.value === chosen || seen.includes(f.value));
+}
+
+/** The channel a conversations-list row came in on; an older api sends none, which is WhatsApp. */
+export function dmChannelOf(c: string | null | undefined): DmChannel {
+  return c === "messenger" || c === "instagram" ? c : "whatsapp";
+}
 
 // ── status chips and search (Inbox phase 2) ───────────────────────────────────────────────────────────────────────────
 
@@ -92,6 +107,7 @@ interface WaLike {
   held?: "conversation" | "business" | null;
   needsYou?: boolean;
   state?: InboxState;
+  channel?: string;
   assignee?: ThreadAssignee | null;
   tagIds?: string[];
   timer?: ResponseTimer | null;
@@ -113,7 +129,7 @@ interface StorefrontLike {
 export function rowOfWhatsApp(c: WaLike): InboxRow {
   return {
     threadId: c.threadId,
-    channel: "whatsapp",
+    channel: dmChannelOf(c.channel),
     title: c.contactName || c.waId || "WhatsApp contact",
     preview: c.preview,
     status: c.status,
@@ -176,7 +192,9 @@ export function channelOfThread(threadId: string): Channel {
  * NOT BY HIDING ROWS IN THE MARKUP, so what the count and the empty state say is what the list shows.
  */
 export function mergeRows(whatsapp: readonly InboxRow[], storefront: readonly InboxRow[], filter: ChannelFilter): InboxRow[] {
-  const all = filter === "whatsapp" ? [...whatsapp] : filter === "storefront" ? [...storefront] : [...whatsapp, ...storefront];
+  // ★THE CONVERSATIONS LIST CARRIES WHATSAPP, MESSENGER AND INSTAGRAM: a channel filter picks by each row's own channel
+  const all =
+    filter === "all" ? [...whatsapp, ...storefront] : filter === "storefront" ? [...storefront] : whatsapp.filter((r) => r.channel === filter);
   return all.sort((a, b) => Number(b.needsYou) - Number(a.needsYou) || time(b.updatedAt) - time(a.updatedAt));
 }
 
@@ -277,6 +295,8 @@ export function emptyListText(filter: ChannelFilter, state: WaInboxState, view: 
   if (view.status === "needs_you") return "Nothing needs you right now.";
   if (view.status === "done") return "No conversations are marked done.";
   if (filter === "storefront") return "No storefront chats yet. When a visitor talks to the assistant on your store, the chat appears here.";
+  if (filter === "messenger") return "No Messenger conversations yet.";
+  if (filter === "instagram") return "No Instagram conversations yet.";
   if (filter === "whatsapp") return state === "ok" ? "No WhatsApp conversations yet." : "No WhatsApp conversations to show.";
   return "No conversations yet.";
 }
