@@ -1190,21 +1190,21 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       return `${parts.join(", ")}.${tail}`;
     },
   },
-  "wa-outcome-billing": {
-    label: "Bill resolved chats",
+  "wa-conversation-outcomes": {
+    label: "Review quiet chats",
     frequency: "Runs every 3 hours",
     description:
-      "Reviews WhatsApp conversations that have gone quiet, works out which ones actually reached an outcome (resolved, lead qualified, appointment booked), and charges Peaks once per outcome. Ongoing chat turns are always free.",
+      "Reviews WhatsApp conversations that have gone quiet, works out which ones reached an outcome (resolved, lead qualified, appointment booked) and records it for the results page, then asks for a rating where that is switched on. Nothing is charged for an outcome.",
     summarize: (data) => {
       const d = asRecord(data);
       if (!d) return null;
       const scanned = num(d.scanned);
       if (scanned === 0) return "No quiet conversations to review yet.";
-      const billed = num(d.billed);
+      const recorded = num(d.recorded);
       const parts = [
-        billed === 0
-          ? `${scanned} ${plural(scanned, "conversation")} reviewed — none reached a billable outcome`
-          : `${billed} of ${scanned} ${plural(scanned, "conversation")} billed`,
+        recorded === 0
+          ? `${scanned} ${plural(scanned, "conversation")} reviewed — none reached an outcome`
+          : `${recorded} of ${scanned} ${plural(scanned, "conversation")} reached an outcome`,
       ];
       if (num(d.humanTakeover) > 0) parts.push(`${num(d.humanTakeover)} handed to a human`);
       if (num(d.errors) > 0) parts.push(`${num(d.errors)} failed`);

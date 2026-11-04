@@ -50,9 +50,9 @@ export default async function WhatsAppConnectPage({ searchParams }: Props) {
       </div>
 
       <div className="rounded-lg border p-4">
-        <h2 className="text-sm font-medium">Outcomes</h2>
+        <h2 className="text-sm font-medium">Results</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Support results, resolved conversations, assisted orders, and AI credits spent — you’re billed on outcomes, not chatter.
+          Support results, resolved conversations, and orders your assistant helped with. These are figures for your information.
         </p>
         <a
           href="/dashboard/content/whatsapp/analytics"
