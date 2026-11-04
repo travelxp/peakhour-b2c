@@ -10,6 +10,11 @@ import {
   draftIsSaved,
   firstFreeLogoForm,
   fontHint,
+  VOICE_LIMITS,
+  voiceChanges,
+  voiceFormFrom,
+  voiceFormIsSaved,
+  voicePayloadFromForm,
   inheritNote,
   initialSelection,
   kitErrorMessage,
@@ -82,7 +87,7 @@ describe("the draft and what it saves", () => {
   });
 
   it("a save carries ids and roles only, never the urls the page drew from", () => {
-    const d = draftFromView(view({ logos: [logo("a", { form: "icon" })], fonts: [{ mediaId: "f", role: "heading", family: "Fraunces", url: "https://x/f.woff2", mimeType: "font/woff2" }], guidelines: [{ mediaId: "g", name: "Book.pdf", mimeType: "application/pdf", visibility: "private" }] }));
+    const d = draftFromView(view({ logos: [logo("a", { form: "icon" })], fonts: [{ mediaId: "f", role: "heading", family: "Fraunces", url: "https://x/f.woff2", visibility: "published", mimeType: "font/woff2" }], guidelines: [{ mediaId: "g", name: "Book.pdf", mimeType: "application/pdf", visibility: "private" }] }));
     expect(payloadFromDraft(d)).toEqual({
       logos: [{ mediaId: "a", form: "icon" }],
       colors: [],
@@ -149,11 +154,11 @@ describe("logos, fonts and guidelines", () => {
   it("fonts take heading, then body, then accent; guidelines are not doubled", () => {
     let d = empty();
     for (const id of ["f1", "f2", "f3"]) {
-      const r = addFont(d, { mediaId: id, url: "u", mimeType: "font/woff2" });
+      const r = addFont(d, { mediaId: id, url: "u", visibility: "published", mimeType: "font/woff2" });
       if (r.ok) d = r.draft;
     }
     expect(d.fonts.map((f) => f.role)).toEqual(["heading", "body", "accent"]);
-    expect(addFont(d, { mediaId: "f1", url: "u", mimeType: "font/woff2" }).ok).toBe(false);
+    expect(addFont(d, { mediaId: "f1", url: "u", visibility: "published", mimeType: "font/woff2" }).ok).toBe(false);
     const g = { mediaId: "g", name: "Brand book.pdf", mimeType: "application/pdf", visibility: "private" };
     const once = addGuideline(empty(), g);
     expect(once.ok && addGuideline(once.draft, g)).toEqual({ ok: false, reason: "Brand book.pdf is already in this kit." });
@@ -349,5 +354,64 @@ describe("errors", () => {
     expect(kitErrorMessage(new Error("Unexpected token < in JSON"), "Nope.")).toBe("Nope.");
     expect(kitErrorMessage(undefined, "Nope.")).toBe("Nope.");
     expect(kitErrorMessage({ status: 500, code: "INTERNAL", message: "  " })).toBe("That did not work. Try again.");
+  });
+});
+
+describe("editing the Brand Voice", () => {
+  const form = (over: Partial<ReturnType<typeof voiceFormFrom>> = {}) => ({ ...voiceFormFrom(null), ...over });
+
+  it("the form shows the whole voice, one entry per line", () => {
+    const f = voiceFormFrom({ tone: "Warm", vocabulary: ["a", "b"], avoidTerms: ["c"], sampleHeadlines: ["H, one"] });
+    expect(f).toEqual({ tone: "Warm", vocabulary: "a\nb", avoidTerms: "c", sampleHeadlines: "H, one" });
+    expect(voiceFormFrom(null)).toEqual({ tone: "", vocabulary: "", avoidTerms: "", sampleHeadlines: "" });
+  });
+
+  it("entries split on lines only, are trimmed and de-duplicated; a comma belongs to the entry in every list", () => {
+    const r = voicePayloadFromForm(form({ tone: " Plain ", vocabulary: "a\n\n c \na", avoidTerms: "free, guaranteed", sampleHeadlines: "Tea, but better\nSecond" }));
+    expect(r).toEqual({ ok: true, payload: { tone: "Plain", vocabulary: ["a", "c"], avoidTerms: ["free, guaranteed"], sampleHeadlines: ["Tea, but better", "Second"] } });
+  });
+
+  it("a phrase with a comma survives an edit of something else unchanged", () => {
+    const saved = voiceFormFrom({ tone: "Warm", avoidTerms: ["free, guaranteed"] });
+    expect(voicePayloadFromForm(saved)).toMatchObject({ ok: true, payload: { avoidTerms: ["free, guaranteed"] } });
+    expect(voiceChanges({ ...saved, tone: "Warmer" }, saved)).toEqual({ tone: "Warmer" });
+  });
+
+  it("holds the schema's bounds: a tone of 512, words of 128, headlines of 512, 30 of each", () => {
+    expect(voicePayloadFromForm(form({ tone: "x".repeat(VOICE_LIMITS.tone) })).ok).toBe(true);
+    expect(voicePayloadFromForm(form({ tone: "x".repeat(VOICE_LIMITS.tone + 1) }))).toMatchObject({ ok: false, reason: expect.stringContaining("513") });
+    expect(voicePayloadFromForm(form({ vocabulary: "w".repeat(VOICE_LIMITS.word + 1) }))).toMatchObject({ ok: false, reason: expect.stringContaining("Words we use") });
+    expect(voicePayloadFromForm(form({ avoidTerms: "w".repeat(VOICE_LIMITS.word) })).ok).toBe(true);
+    expect(voicePayloadFromForm(form({ sampleHeadlines: "h".repeat(VOICE_LIMITS.headline + 1) }))).toMatchObject({ ok: false });
+    const many = Array.from({ length: VOICE_LIMITS.items + 1 }, (_, i) => `w${i}`).join("\n");
+    expect(voicePayloadFromForm(form({ vocabulary: many }))).toMatchObject({ ok: false, reason: expect.stringContaining("31") });
+    expect(voicePayloadFromForm(form({ vocabulary: many.split("\n").slice(0, VOICE_LIMITS.items).join("\n") })).ok).toBe(true);
+  });
+
+  it("an emptied box is sent empty, so the api clears it", () => {
+    expect(voicePayloadFromForm(form())).toEqual({ ok: true, payload: { tone: "", vocabulary: [], avoidTerms: [], sampleHeadlines: [] } });
+  });
+
+  it("knows when nothing changed, however the lines were spaced", () => {
+    const saved = voiceFormFrom({ tone: "Warm", vocabulary: ["a", "b"] });
+    expect(voiceFormIsSaved(saved, saved)).toBe(true);
+    expect(voiceFormIsSaved({ ...saved, vocabulary: " a \n\nb\n" }, saved)).toBe(true);
+    expect(voiceFormIsSaved({ ...saved, tone: "Warmer" }, saved)).toBe(false);
+  });
+
+  it("a saved voice already over a list limit (the website read has none) can still be shortened: only the changed field is sent", () => {
+    const long = Array.from({ length: VOICE_LIMITS.items + 11 }, (_, i) => `w${i}`);
+    const saved = voiceFormFrom({ tone: "Warm", vocabulary: long, avoidTerms: ["x"] });
+    expect(voicePayloadFromForm(saved).ok).toBe(false); // it cannot be saved as it is
+    const trimmed = { ...saved, vocabulary: long.slice(0, 5).join("\n") };
+    expect(voiceChanges(trimmed, saved)).toEqual({ vocabulary: ["w0", "w1", "w2", "w3", "w4"] }); // not the whole voice
+  });
+
+  it("voiceChanges names only the fields that changed, so a save cannot overwrite what someone else edited", () => {
+    const saved = voiceFormFrom({ tone: "Warm", vocabulary: ["a", "b"], avoidTerms: ["x"] });
+    expect(voiceChanges(saved, saved)).toEqual({});
+    expect(voiceChanges({ ...saved, vocabulary: "a\nb\nc" }, saved)).toEqual({ vocabulary: ["a", "b", "c"] });
+    expect(voiceChanges({ ...saved, avoidTerms: "" }, saved)).toEqual({ avoidTerms: [] }); // emptied is a clear, and it is sent
+    expect(voiceChanges({ ...saved, tone: "x".repeat(VOICE_LIMITS.tone + 1) }, saved)).toBeUndefined();
   });
 });

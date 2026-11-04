@@ -30,7 +30,10 @@ export interface KitFont {
   mediaId: string;
   role: FontRole;
   family?: string;
-  url: string;
+  /** A Published font's public link, or a Private font's short-lived signed one (about five minutes). Absent when a Private font could not be signed. */
+  url?: string;
+  /** A licensed font may be Private: it never has a public address. */
+  visibility: "published" | "private";
   mimeType: string;
 }
 export interface KitGuideline {
@@ -139,10 +142,24 @@ export interface KitFileCandidate {
 export async function listKitFileCandidates(params: { kind: "image" | "font" | "document"; q?: string; page?: number }): Promise<{ items: KitFileCandidate[]; hasMore: boolean }> {
   const qs: Record<string, string> = { kind: params.kind, limit: "60", sort: "newest", page: String(params.page ?? 1) };
   if (params.q?.trim()) qs.q = params.q.trim();
-  // A kit logo must be Published (an ad needs a public link) and a font must be too, or the resolver drops it. Guidelines may be either.
-  if (params.kind !== "document") qs.visibility = "published";
+  // A kit logo must be Published (an ad needs a public link). A font and a guideline may be either: a licensed font stays Private, and the
+  // page is served a short-lived signed link for it.
+  if (params.kind === "image") qs.visibility = "published";
   const { data, meta } = await api.getWithMeta<KitFileCandidate[]>("/v1/media", qs);
   return { items: data ?? [], hasMore: meta.hasMore === true };
+}
+
+/** The Brand Voice fields a person edits. An empty field is cleared; one left out is untouched. */
+export interface VoicePayload {
+  tone?: string;
+  vocabulary?: string[];
+  avoidTerms?: string[];
+  sampleHeadlines?: string[];
+}
+
+/** Save this business's Brand Voice: the one voice every creative and ad reads (the kit keeps no copy). editor and above. */
+export function saveBrandVoice(payload: VoicePayload): Promise<{ voice: KitVoice | null }> {
+  return api.put<{ voice: KitVoice | null }>("/v1/brand-kit/voice", payload);
 }
 
 /** Share a file with every business in the organisation (admin only): the organisation's kit may hold only shared files. */

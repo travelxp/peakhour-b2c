@@ -308,6 +308,89 @@ export function voiceIsEmpty(v: VoiceLines): boolean {
   return !v.tone && v.uses.length === 0 && v.avoids.length === 0 && !v.headline;
 }
 
+// -- Editing the voice ---------------------------------------------------------
+
+/** The bounds the api and the schema hold: a tone of 512, words of 128, headlines of 512, 30 of each list. */
+export const VOICE_LIMITS = { tone: 512, word: 128, headline: 512, items: 30 } as const;
+
+/** The editor's text boxes: one entry per line, in all three lists. A comma is part of an entry ("free, guaranteed" is one phrase), never a separator. */
+export interface VoiceForm {
+  tone: string;
+  vocabulary: string;
+  avoidTerms: string;
+  sampleHeadlines: string;
+}
+
+const NL = String.fromCharCode(10);
+
+export function voiceFormFrom(v: { tone?: string; vocabulary?: string[]; avoidTerms?: string[]; sampleHeadlines?: string[] } | null | undefined): VoiceForm {
+  return {
+    tone: v?.tone ?? "",
+    vocabulary: (v?.vocabulary ?? []).join(NL),
+    avoidTerms: (v?.avoidTerms ?? []).join(NL),
+    sampleHeadlines: (v?.sampleHeadlines ?? []).join(NL),
+  };
+}
+
+/** The entries of a form, trimmed and de-duplicated, with no limit applied (what was SAVED may already be over one a person is now shortening). */
+function parts(f: VoiceForm): { tone: string; vocabulary: string[]; avoidTerms: string[]; sampleHeadlines: string[] } {
+  return { tone: f.tone.trim(), vocabulary: lines(f.vocabulary), avoidTerms: lines(f.avoidTerms), sampleHeadlines: lines(f.sampleHeadlines) };
+}
+
+function lines(text: string): string[] {
+  const out: string[] = [];
+  for (const part of text.split(/\n/)) {
+    const t = part.trim();
+    if (t && !out.includes(t)) out.push(t);
+  }
+  return out;
+}
+
+export type VoiceCheck = { ok: true; payload: { tone: string; vocabulary: string[]; avoidTerms: string[]; sampleHeadlines: string[] } } | { ok: false; reason: string };
+
+/** What a save sends, or why not. Every field is sent, so a box the person emptied is cleared and not left behind. */
+export function voicePayloadFromForm(f: VoiceForm): VoiceCheck {
+  const tone = f.tone.trim();
+  if (tone.length > VOICE_LIMITS.tone) return { ok: false, reason: `The tone can be up to ${VOICE_LIMITS.tone} characters. It is ${tone.length} now.` };
+  const lists: Array<[keyof Omit<VoiceForm, "tone">, string, number]> = [
+    ["vocabulary", "Words we use", VOICE_LIMITS.word],
+    ["avoidTerms", "Words we avoid", VOICE_LIMITS.word],
+    ["sampleHeadlines", "Sounds like", VOICE_LIMITS.headline],
+  ];
+  const out = { tone, vocabulary: [] as string[], avoidTerms: [] as string[], sampleHeadlines: [] as string[] };
+  for (const [key, label, max] of lists) {
+    const items = lines(f[key]);
+    if (items.length > VOICE_LIMITS.items) return { ok: false, reason: `${label} can hold up to ${VOICE_LIMITS.items}. There are ${items.length}.` };
+    const long = items.find((i) => i.length > max);
+    if (long) return { ok: false, reason: `In ${label}, "${long.slice(0, 24)}..." is over ${max} characters.` };
+    out[key] = items;
+  }
+  return { ok: true, payload: out };
+}
+
+/**
+ * Only the fields the person changed, so a save cannot overwrite a field someone else edited meanwhile. Empty object when nothing changed;
+ * undefined when the form is not valid (the caller shows `voicePayloadFromForm`'s reason).
+ */
+export function voiceChanges(form: VoiceForm, saved: VoiceForm): Partial<{ tone: string; vocabulary: string[]; avoidTerms: string[]; sampleHeadlines: string[] }> | undefined {
+  const next = voicePayloadFromForm(form);
+  if (!next.ok) return undefined;
+  // `saved` may hold more than a person may now enter (the website read has no list limit): it is compared as it is, not re-validated.
+  const before = parts(saved);
+  const out: Record<string, unknown> = {};
+  for (const k of ["tone", "vocabulary", "avoidTerms", "sampleHeadlines"] as const) {
+    if (JSON.stringify(next.payload[k]) !== JSON.stringify(before[k])) out[k] = next.payload[k];
+  }
+  return out;
+}
+
+/** True when saving would change nothing. */
+export function voiceFormIsSaved(f: VoiceForm, saved: VoiceForm): boolean {
+  const a = voicePayloadFromForm(f);
+  const b = voicePayloadFromForm(saved);
+  return a.ok && b.ok && JSON.stringify(a.payload) === JSON.stringify(b.payload);
+}
+
 // ── Errors ────────────────────────────────────────────────────────────────────
 
 /**
