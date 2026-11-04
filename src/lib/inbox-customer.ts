@@ -51,7 +51,7 @@ export interface InboxPrices {
 // ── price ──────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 /**
- * The price of a button, in words: "10 AI credits", "1 AI credit", "Free", or null when the rate card has no price for it.
+ * The price of a button, in words: "10 Peaks", "1 Peak", "Free", or null when the rate card has no price for it.
  * ★NULL IS NOT "FREE": a missing row says nothing, and a button must not advertise a price nobody set (the api refuses the act then).
  */
 export function creditsLabel(price: number | null | undefined): string | null {
@@ -59,10 +59,10 @@ export function creditsLabel(price: number | null | undefined): string | null {
   const n = price as number;
   if (!Number.isFinite(n) || n < 0) return null;
   if (n === 0) return "Free";
-  return `${n.toLocaleString("en-GB")} AI credit${n === 1 ? "" : "s"}`;
+  return `${n.toLocaleString("en-GB")} Peak${n === 1 ? "" : "s"}`;
 }
 
-/** "Suggest a reply · 10 AI credits": the price is on the button, before it is pressed. With no price the button says it is not available. */
+/** "Suggest a reply · 10 Peaks": the price is on the button, before it is pressed. With no price the button says it is not available. */
 export function priced(label: string, price: number | null | undefined): { text: string; available: boolean } {
   const cost = creditsLabel(price);
   return cost === null ? { text: label, available: false } : { text: `${label} · ${cost}`, available: true };

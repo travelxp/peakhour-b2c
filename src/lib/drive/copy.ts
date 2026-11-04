@@ -75,7 +75,7 @@ export function metaLine(item: MediaItem): string {
   return parts.join(". ");
 }
 
-const USED_KIND_LABEL: Record<UsedInEntry["kind"], string> = {
+const USED_KIND_LABEL: Record<string, string> = {
   idea: "Content idea",
   draft: "Draft",
   ad_creative: "Ad",
@@ -86,14 +86,20 @@ const USED_KIND_LABEL: Record<UsedInEntry["kind"], string> = {
   listing: "Google listing",
 };
 
+/** What a "Used in" line says. A kind this page does not know yet (the api is ahead of it) reads "Somewhere in Peakhour", never "undefined". */
 export function usedInLabel(e: UsedInEntry): string {
-  const base = USED_KIND_LABEL[e.kind];
+  // The api collapses every live share link of a file into one entry: "Share links (5)", or "Share link" for one.
+  if (e.kind === "share") return e.count !== undefined && e.count > 1 ? `Share links (${e.count})` : "Share link";
+  const base = USED_KIND_LABEL[e.kind] ?? "Somewhere in Peakhour";
   const where = e.label ? `${base}: ${e.label}` : base;
   return e.published ? `${where}, live` : where;
 }
 
-/** Where a "Used in" line goes. A kind with no page of its own goes to the screen that lists them. */
-export function usedInHref(e: UsedInEntry): string {
+/**
+ * Where a "Used in" line goes, or null when it goes nowhere. A kind with no page of its own goes to the screen that lists them. A share link
+ * is plain text: the panel below already lists the links, and a link to this same page would only reload it. An unknown kind is plain text too.
+ */
+export function usedInHref(e: UsedInEntry): string | null {
   switch (e.kind) {
     case "page":
       return `/dashboard/pages/${e.refId}`;
@@ -110,7 +116,23 @@ export function usedInHref(e: UsedInEntry): string {
       return "/dashboard/drive?tab=brand";
     case "listing":
       return "/dashboard/presence";
+    default:
+      return null;
   }
+}
+
+const TRASH_FAILED = "That file could not be moved to Trash. Try again.";
+
+/** Why one file did not go to Trash. A 409 carries the api's reason (a share link, ad, post or page still holds it): show it, because "Try again" cannot fix it. */
+export function trashFailureText(err: unknown): string {
+  const e = err as { status?: number; message?: string } | null;
+  return e && e.status === 409 && e.message ? e.message : TRASH_FAILED;
+}
+
+/** The sentence for files a bulk move left because something still holds them; empty when none were. */
+export function blockedText(n: number): string {
+  if (n <= 0) return "";
+  return ` ${n} ${n === 1 ? "file was" : "files were"} left because ${n === 1 ? "it is" : "they are"} still in use by a share link, ad, post or page. Take ${n === 1 ? "it" : "them"} out of use, or revoke the share link, then try again.`;
 }
 
 const CHANNEL_LABELS: Record<string, string> = {

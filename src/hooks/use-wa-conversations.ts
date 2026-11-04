@@ -354,7 +354,7 @@ export function useWaResume() {
 
 // ── Inbox phase 2: Mark done, the customer panel, the priced buttons ─────────────────────────────────────────────
 
-/** What the Inbox's priced buttons cost, in AI credits, from the live rate card (null = no price row: the button says so). */
+/** What the Inbox's priced buttons cost, in Peaks, from the live rate card (null = no price row: the button says so). */
 export function useInboxPrices() {
   const { business } = useAuth();
   return useQuery({

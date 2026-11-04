@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Zap, History, ArrowUpRight, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { ChargeRecordCard } from "@/components/peaks/charge-record-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -445,7 +446,7 @@ export default function PeaksPage() {
               Peaks
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              AI credits that power every feature. Resets monthly on your billing date.
+              The AI credits that power every feature. Resets monthly on your billing date.
             </p>
           </div>
           <Button
@@ -509,8 +510,8 @@ export default function PeaksPage() {
                   <div className="flex items-center justify-between">
                     <p className="text-sm text-muted-foreground">
                       {capStatus === "hard"
-                        ? "AI features are paused until your Peaks reset."
-                        : "Getting close — AI features pause when you hit the limit."}
+                        ? "Your store's assistant is not answering shoppers, and new AI work will not start, until your Peaks reset."
+                        : "Getting close — your store's assistant stops answering shoppers when you hit the limit."}
                     </p>
                     {/* ⚠️★NO BUTTON ON THE PAID PATH, because the action IS this
                         page: "Buy more Peaks" renders directly below. The old
@@ -542,6 +543,9 @@ export default function PeaksPage() {
 
         {/* ── Storage: its own line, apart from AI work ────────────── */}
         <StoragePeaksCard />
+
+        {/* ── What was charged, charge by charge ────────────────────── */}
+        <ChargeRecordCard />
 
         {/* ── Rate card ─────────────────────────────────────────────── */}
         <Card>

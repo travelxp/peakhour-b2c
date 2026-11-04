@@ -10,11 +10,11 @@ import { Peaks } from "@/components/peaks/peaks";
 import { getPeaks, formatPackPrice, type PeakPack } from "@/lib/peaks";
 import { marketingTrialDays } from "@/lib/pricing";
 import { hasTrial, trialCtaLabel } from "@/lib/trial-copy";
+import { PEAKS_REFUND_SENTENCE } from "@/lib/peaks-refund-terms";
 
 export const metadata: Metadata = {
   title: "Peaks — AI credits that power Peakhour.ai",
-  description:
-    "Peaks are the AI credits behind every Peakhour.ai feature. Every plan includes a monthly allowance; purchased Peaks never expire, are non-refundable, and work across every Peakhour product.",
+  description: `Peaks are the AI credits behind every Peakhour.ai feature. Every plan includes a monthly allowance; purchased Peaks never expire and work across every Peakhour product. ${PEAKS_REFUND_SENTENCE}`,
 };
 
 /**
@@ -92,7 +92,7 @@ export default async function PeaksPage() {
               <HowItWorksCard
                 icon={<RefreshCw className="size-5" />}
                 title="Top up — Peaks never expire"
-                body="Need more? Buy a Peaks pack anytime. Purchased Peaks never expire, are non-refundable, and work across every Peakhour product."
+                body={`Need more? Buy a Peaks pack anytime. Purchased Peaks never expire and work across every Peakhour product. ${PEAKS_REFUND_SENTENCE}`}
               />
             </div>
           </div>
@@ -238,7 +238,8 @@ function PackCard({ pack }: { pack: PeakPack }) {
 
 /**
  * The Peaks usage policy — the non-negotiable facts a buyer needs: Peaks need a
- * paid plan, never expire, are non-refundable, and span every Peakhour product.
+ * paid plan, never expire, span every Peakhour product, and are non-refundable except
+ * where a task failed or a charge was made in error.
  */
 function PeaksPolicy() {
   return (
@@ -246,9 +247,9 @@ function PeaksPolicy() {
       <p className="text-sm text-muted-foreground">
         <span className="font-medium text-foreground">Good to know.</span> Peaks require an active
         paid Peakhour plan. Purchased Peaks{" "}
-        <strong className="font-medium text-foreground">never expire</strong>, are{" "}
-        <strong className="font-medium text-foreground">non-refundable</strong>, and are usable
+        <strong className="font-medium text-foreground">never expire</strong> and are usable
         across <strong className="font-medium text-foreground">any Peakhour product</strong>.{" "}
+        {PEAKS_REFUND_SENTENCE}{" "}
         <Link href="/pricing" className="font-medium text-foreground underline underline-offset-2">
           View Plans
         </Link>

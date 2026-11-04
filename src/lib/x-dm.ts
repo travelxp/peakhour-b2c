@@ -10,7 +10,7 @@ export interface XDmStatus {
   connected: boolean;
   connectionId: string | null;
   state: XDmState;
-  /** AI credits per X message, from the rate card. Null: no price is set, so the switch cannot be turned on. */
+  /** Peaks per X message, from the rate card. Null: no price is set, so the switch cannot be turned on. */
   pricePerMessage: number | null;
   monthlyCap: number;
   usedThisMonth: number;
@@ -34,13 +34,13 @@ export const X_DM_COPY = {
   noPrice: "X messages cannot be turned on yet because their price is not set.",
   saveLimit: "Save limit",
   limitLabel: "Most X messages a month",
-  zeroCredits: "When your AI credits run out, Peakhour stops answering X messages and they wait in your Inbox marked Needs you.",
+  zeroCredits: "When your Peaks run out, Peakhour stops answering X messages and they wait in your Inbox marked Needs you.",
 } as const;
 
-/** "Each X message uses 75 AI credits." The number is the rate card's, never typed here. */
+/** "Each X message uses 75 Peaks." The number is the rate card's, never typed here. */
 export function priceLine(price: number | null): string | null {
   if (price === null) return null;
-  return `Each X message uses ${price} AI credit${price === 1 ? "" : "s"}. A customer's message and each reply (yours or Peakhour's) are one each.`;
+  return `Each X message uses ${price} Peak${price === 1 ? "" : "s"}. A customer's message and each reply (yours or Peakhour's) are one each.`;
 }
 
 export const usageLine = (s: Pick<XDmStatus, "usedThisMonth" | "monthlyCap">): string =>
