@@ -312,6 +312,11 @@ export class UploadQueue {
         ...(i.visibility ? { visibility: i.visibility } : {}),
         ...(i.dims?.width ? { width: i.dims.width, height: i.dims.height } : {}),
       });
+      if (init.deduped === false && signal.aborted) {
+        // Cancelled while the api was starting the upload: the session exists now, so throw it away.
+        void d.abort(init.uploadId).catch(() => {});
+        return "cancelled";
+      }
       if (signal.aborted) return "cancelled";
       if (init.deduped) {
         patch({ status: "duplicate", progress: 1, mediaId: init.mediaId, name: init.name, publicUrl: init.publicUrl, visibility: init.visibility });
@@ -369,7 +374,7 @@ export class UploadQueue {
     if (signal.aborted) return "cancelled";
     patch({ status: done.deduped ? "duplicate" : "done", mediaId: done.mediaId, name: done.name, publicUrl: done.publicUrl, visibility: done.visibility, progress: 1 });
 
-    if (visible && !done.deduped && file.type.startsWith("video/")) await this.sendPoster(i, file, done.mediaId);
+    if (visible && !done.deduped && file.type.startsWith("video/")) await this.sendPoster(file, done.mediaId, done.visibility);
     return done.mediaId;
   }
 
@@ -415,11 +420,12 @@ export class UploadQueue {
     return false;
   }
 
-  private async sendPoster(i: Internal, video: File, videoId: string): Promise<void> {
+  private async sendPoster(video: File, videoId: string, visibility: "published" | "private"): Promise<void> {
     try {
       const frame = await this.deps.poster(video);
       if (!frame) return;
-      const inner: Internal = { file: frame, controller: new AbortController(), settle: [] };
+      // The frame is as private as the video it came from: a frame of a Private video must not get a public address.
+      const inner: Internal = { file: frame, controller: new AbortController(), settle: [], visibility };
       const posterId = await this.upload(null, inner, frame, false);
       if (posterId === "cancelled") return;
       await this.deps.attachPoster(videoId, posterId);

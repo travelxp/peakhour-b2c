@@ -331,6 +331,39 @@ describe("a video's poster frame", () => {
     expect(q2.getSnapshot()[0]!.status).toBe("done");
   });
 
+  it("the frame of a Private video is Private too, and a published one Published", async () => {
+    for (const vis of ["private", "published"] as const) {
+      const w = world();
+      (w.deps.complete as any).mockImplementationOnce(async () => ({ mediaId: "v1", name: "Clip", visibility: vis, sizeBytes: 10, deduped: false }));
+      w.deps.poster = vi.fn(async () => file("p.jpg", 10, "image/jpeg"));
+      const q = new UploadQueue(w.deps);
+      const [row] = q.add([file("clip.mp4", 10, "video/mp4")]);
+      await q.whenSettled(row!.id);
+      await until(() => w.calls.initiate.length === 2);
+      expect(w.calls.initiate[1]).toMatchObject({ filename: "p.jpg", visibility: vis });
+    }
+  });
+
+  it("cancelling while the api is still starting the upload throws the new session away", async () => {
+    const w = world();
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => (release = r));
+    const init = w.deps.initiate;
+    w.deps.initiate = vi.fn(async (b: any) => {
+      await gate;
+      return init(b);
+    });
+    const q = new UploadQueue(w.deps);
+    const [row] = q.add([file("pic.png", 10)]);
+    await until(() => (w.deps.initiate as any).mock.calls.length > 0);
+    q.cancel(row!.id);
+    release();
+    await settle();
+    await settle();
+    expect(w.calls.abort).toEqual(["up1"]);
+    expect(w.puts).toHaveLength(0);
+  });
+
   it("an image never asks for a poster", async () => {
     const w = world();
     const q = new UploadQueue(w.deps);

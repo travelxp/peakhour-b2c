@@ -47,6 +47,7 @@ describe("the list request a set of filters makes", () => {
     expect(isFiltered(NO_FILTERS)).toBe(false);
     expect(isFiltered({ ...NO_FILTERS, sort: "name" })).toBe(false);
     expect(isFiltered({ ...NO_FILTERS, q: "tin" })).toBe(true);
+    expect(isFiltered({ ...NO_FILTERS, q: "   " })).toBe(false);
     expect(isFiltered({ ...NO_FILTERS, visibility: "private" })).toBe(true);
   });
 });

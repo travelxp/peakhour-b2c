@@ -200,12 +200,20 @@ export function FilesView({ abilities }: { abilities: { canEdit: boolean; isAdmi
       if (job.kind === "collection") return { text: "added to the collection", r: await bulkMedia({ action: "add_to_collection", mediaIds: ids, collectionId: job.collectionId }) };
       let deleted = 0;
       let forbidden = 0;
+      let stopped = false;
       for (let i = 0; i < ids.length; i += 200) {
-        const r = await bulkDeleteMedia(ids.slice(i, i + 200));
-        deleted += r.deletedCount;
-        forbidden += r.forbidden ?? 0;
+        try {
+          const r = await bulkDeleteMedia(ids.slice(i, i + 200));
+          deleted += r.deletedCount;
+          forbidden += r.forbidden ?? 0;
+        } catch (err) {
+          // Earlier chunks are already in Trash: say so, and refresh, rather than claim nothing changed.
+          if (deleted === 0) throw err;
+          stopped = true;
+          break;
+        }
       }
-      return { text: "moved to Trash", r: { changed: deleted, forbidden, skipped: 0, requested: ids.length, notFound: 0 } };
+      return { text: stopped ? "moved to Trash before the connection failed. Select the rest and try again" : "moved to Trash", r: { changed: deleted, forbidden, skipped: 0, requested: ids.length, notFound: 0 } };
     },
     onSuccess: ({ text, r }) => {
       const extra = r.forbidden > 0 ? ` ${r.forbidden} ${r.forbidden === 1 ? "is" : "are"} shared across your organisation and need an admin.` : "";

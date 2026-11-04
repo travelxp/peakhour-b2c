@@ -65,7 +65,7 @@ export function toListParams(f: FilesFilters, page: number, limit = 40): ListMed
 
 /** True when any filter narrows the list (the empty state then says "Nothing matches that" rather than "No files yet"). */
 export function isFiltered(f: FilesFilters): boolean {
-  return JSON.stringify({ ...f, sort: "newest", liveCollectionId: null }) !== JSON.stringify({ ...NO_FILTERS });
+  return JSON.stringify({ ...f, q: f.q.trim(), sort: "newest", liveCollectionId: null }) !== JSON.stringify({ ...NO_FILTERS });
 }
 
 export interface FilesPage {
