@@ -10,7 +10,7 @@ import { actionCost, actionCostSentence, actionCostShort, priceUseCases, type Ac
  * to say "Uses Peaks." now say a number.
  */
 // Markup only: the rate card hook is replaced, so nothing here reaches the api or the auth provider.
-const h = vi.hoisted(() => ({ card: { data: undefined as unknown, isError: false } }));
+const h = vi.hoisted(() => ({ card: { data: undefined as unknown, isError: false, isPending: false, fetchStatus: "idle" as string } }));
 vi.mock("@/hooks/use-credits", () => ({ useCreditsRateCard: () => h.card }));
 const { ActionCost } = await import("@/components/dashboard/action-cost");
 
