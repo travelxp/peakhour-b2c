@@ -122,6 +122,17 @@ describe("Add space: confirm and cancel", () => {
     expect(panel(usage(), { step: "confirm", selectedGb: 25 })).not.toMatch(/<button[^>]*disabled=""[^>]*>Pay 3,750 Peaks/);
   });
 
+  it("confirm says why Pay is disabled when the balance is short, with a way to top up", () => {
+    const out = panel(usage(), { step: "confirm", selectedGb: 25, balance: 100 });
+    expect(out).toContain("You need 3,650 more Peaks for this pack");
+    expect(out).toContain("Top up your Peaks");
+    expect(panel(usage(), { step: "confirm", selectedGb: 25 })).not.toContain("more Peaks for this pack");
+  });
+
+  it("the packs are a radio group with a label", () => {
+    expect(panel(usage())).toContain('role="radiogroup" aria-label="Storage packs"');
+  });
+
   it("an error is announced and the cancel step says the space stays to the date", () => {
     expect(panel(usage(), { step: "confirm", selectedGb: 25, error: "Nothing was charged." })).toContain('role="alert"');
     const out = panel(usage({ packs: [owned()] }), { step: "cancel", cancelId: "p1" });

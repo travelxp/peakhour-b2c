@@ -109,6 +109,8 @@ describe("the meter's states", () => {
     expect(copy.gbUsedText(4.96)).toBe("4.9");
     expect(copy.gbUsedText(5)).toBe("5");
     expect(copy.gbUsedText(0.999)).toBe("0.99");
+    expect(copy.gbUsedText(0.29)).toBe("0.29"); // 0.29 * 100 is 28.999999999999996
+    expect(copy.gbUsedText(4.6)).toBe("4.6");
     expect(copy.gbUsedText(0)).toBe("0.00");
   });
 
@@ -171,9 +173,16 @@ describe("errors", () => {
     expect(copy.isQuotaError(new ApiError("OTHER", "x", 402))).toBe(false);
     expect(copy.isQuotaError(new Error("STORAGE_QUOTA_EXCEEDED"))).toBe(false);
   });
-  it("shows the api's own message for a refused purchase, and a plain one for anything else", () => {
+  it("shows the api's own message for a refused purchase", () => {
     expect(copy.packErrorMessage(new ApiError("STORAGE_PACK_SHORT_WALLET", "A 25 GB pack costs 3,750 Peaks and you have 100. Nothing was charged.", 402))).toContain("Nothing was charged");
     expect(copy.packErrorMessage(new ApiError("STORAGE_PACK_BUSY", "x", 409))).toContain("Another purchase is in progress");
-    expect(copy.packErrorMessage(new Error("network"))).toBe("That did not go through. Nothing was charged.");
+  });
+
+  it("never says 'nothing was charged' when it cannot know: a dropped connection or an error with no pack code says to check", () => {
+    for (const err of [new Error("network"), new ApiError("INTERNAL", "boom", 500), new ApiError("STORAGE_PACK_CHARGE_FAILED", "", 503)]) {
+      expect(copy.packErrorMessage(err)).toBe(copy.UNSURE_MESSAGE);
+    }
+    expect(copy.UNSURE_MESSAGE).toContain("Check your packs and your Peaks balance");
+    expect(copy.UNSURE_MESSAGE).not.toMatch(/nothing was charged/i);
   });
 });

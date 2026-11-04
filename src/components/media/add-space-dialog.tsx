@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { buyStoragePack, cancelStoragePack, getStorageUsage, type StoragePackOffer, type StorageUsage } from "@/lib/api/media";
-import { useCreditsBalance } from "@/hooks/use-credits";
+import { CREDITS_KEY, useCreditsBalance } from "@/hooks/use-credits";
 import { onePress } from "@/lib/one-press";
 import { CONFIRM_BUY, USD_NOTE, gbText, longDate, packCostLine, packErrorMessage, peaksText, renewalLine, shortBy } from "@/lib/storage-copy";
 
@@ -82,6 +82,11 @@ export function AddSpacePanel(p: AddSpacePanelProps) {
         <p className="text-sm text-muted-foreground">
           Your Peaks: <span className="font-medium tabular-nums text-foreground">{p.balance === null ? "—" : peaksText(p.balance)}</span>
         </p>
+        {shortBy(offer, p.balance) > 0 ? (
+          <p className="text-sm text-muted-foreground">
+            You need {peaksText(shortBy(offer, p.balance))} more Peaks for this pack. <Link href="/dashboard/peaks" className="underline">Top up your Peaks</Link>, then come back.
+          </p>
+        ) : null}
         {p.error ? <p role="alert" className="text-sm text-destructive">{p.error}</p> : null}
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={p.onBack} disabled={p.busy}>Back</Button>
@@ -100,12 +105,12 @@ export function AddSpacePanel(p: AddSpacePanelProps) {
           <p className="text-sm text-muted-foreground">
             Your Peaks: <span className="font-medium tabular-nums text-foreground">{p.balance === null ? "—" : peaksText(p.balance)}</span>
           </p>
-          <ul className="space-y-2">
+          <ul role="radiogroup" aria-label="Storage packs" className="space-y-2">
             {usage.catalog.map((c: StoragePackOffer) => {
               const short = shortBy(c, p.balance);
               const picked = p.selectedGb === c.gb;
               return (
-                <li key={c.gb}>
+                <li key={c.gb} role="presentation">
                   <button
                     type="button"
                     role="radio"
@@ -175,7 +180,11 @@ export function AddSpaceDialog() {
   // ★ONE PRESS, as on the Peaks page: a double click on Pay must never charge twice. The api locks and de-duplicates as well.
   const [press] = useState(onePress);
 
-  const { data: usage } = useQuery({ queryKey: ["storage-usage"], queryFn: getStorageUsage, staleTime: 0, refetchOnMount: "always", enabled: open });
+  // the same key and fetch as the sidebar meter (one request); `show` below refetches it explicitly each time the dialog opens
+  const { data: cached, dataUpdatedAt } = useQuery({ queryKey: ["storage-usage"], queryFn: getStorageUsage, staleTime: 60_000 });
+  const [openedAt, setOpenedAt] = useState(0);
+  // only data read AFTER the dialog opened is shown: a cached copy up to a minute old could offer a pack that was just cancelled
+  const usage = cached && dataUpdatedAt >= openedAt ? cached : undefined;
   const { data: credits } = useCreditsBalance();
   const balance = credits ? (credits.unlimited ? null : credits.remaining) : null;
 
@@ -185,11 +194,11 @@ export function AddSpaceDialog() {
       setSelectedGb(null);
       setCancelId(null);
       setError(null);
+      setOpenedAt(Date.now());
       setOpen(true);
-      // the balance and the pack list are read fresh every time the dialog opens: a cached copy up to a minute old could offer a pack
-      // that is no longer affordable, or hide one that is
-      void qc.invalidateQueries({ queryKey: ["storage-usage"] });
-      void qc.invalidateQueries({ queryKey: ["/v1/dashboard/credits"] });
+      // the balance and the pack list are read fresh every time the dialog opens
+      void qc.refetchQueries({ queryKey: ["storage-usage"] });
+      void qc.refetchQueries({ queryKey: [CREDITS_KEY] });
     };
     window.addEventListener(ADD_SPACE_EVENT, show);
     return () => window.removeEventListener(ADD_SPACE_EVENT, show);
@@ -205,7 +214,7 @@ export function AddSpaceDialog() {
 
   const refresh = useCallback(() => {
     void qc.invalidateQueries({ queryKey: ["storage-usage"] });
-    void qc.invalidateQueries({ queryKey: ["/v1/dashboard/credits"] });
+    void qc.invalidateQueries({ queryKey: [CREDITS_KEY] });
   }, [qc]);
 
   const run = useCallback(
@@ -239,8 +248,8 @@ export function AddSpaceDialog() {
   const stop = () =>
     run(async () => {
       if (!cancelId) return;
-      await cancelStoragePack(cancelId);
-      toast.success("The pack will not renew. You keep the space until its renewal date.");
+      const r = await cancelStoragePack(cancelId);
+      toast.success(r.spaceEndsNow ? "The pack has ended and its space is gone. Your files are not deleted." : "The pack will not renew. You keep the space until its renewal date.");
       refresh();
       setStep("choose");
       setCancelId(null);

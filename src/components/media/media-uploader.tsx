@@ -92,8 +92,8 @@ export function MediaUploader({
             const msg = err instanceof ApiError ? err.message : "Upload failed";
             onError(file, err instanceof Error ? err : new Error(msg));
             if (isQuotaError(err)) {
-              // offered unless the api said packs cannot be bought (a trial, an override): the dialog then explains what to do
-              const canAdd = (err.details as { canBuyPacks?: boolean } | undefined)?.canBuyPacks !== false;
+              // offered only when the api said packs can be bought (it sends this on every quota 402); a trial or an override gets the message alone
+              const canAdd = (err.details as { canBuyPacks?: boolean } | undefined)?.canBuyPacks === true;
               toast.error(`${file.name}: ${msg}`, canAdd ? { action: { label: "Add space", onClick: openAddSpace } } : undefined);
             } else {
               toast.error(`${file.name}: ${msg}`);

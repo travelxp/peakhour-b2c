@@ -31,7 +31,8 @@ export const gbText = (gb: number): string => (gb < 1 ? gb.toFixed(2) : Number.i
 
 /** GB USED, rounded DOWN: 4.96 of 5 reads "4.9", never "5.0", so the number never says full before the bar and the state do. */
 export const gbUsedText = (gb: number): string => {
-  const down = gb < 1 ? Math.floor(gb * 100) / 100 : Math.floor(gb * 10) / 10;
+  // the epsilon: 0.29 * 100 is 28.999999999999996 and must not floor to 0.28
+  const down = gb < 1 ? Math.floor(gb * 100 + 1e-9) / 100 : Math.floor(gb * 10 + 1e-9) / 10;
   return gb < 1 ? down.toFixed(2) : Number.isInteger(down) ? String(down) : down.toFixed(1);
 };
 export const peaksText = (n: number): string => n.toLocaleString("en-US");
@@ -122,11 +123,17 @@ export function isQuotaError(err: unknown): err is ApiError {
   return err instanceof ApiError && err.code === "STORAGE_QUOTA_EXCEEDED";
 }
 
-/** Sentence for a failed buy or cancel: the api's own message is already plain; a short wallet adds nothing to it. */
+/** What a customer is told when we cannot say whether a request went through (a dropped connection, a timeout, an error we have no code for). */
+export const UNSURE_MESSAGE = "We could not confirm whether that went through. Check your packs and your Peaks balance before trying again.";
+
+/**
+ * Sentence for a failed buy or cancel. ONLY the api's own refusals (codes STORAGE_PACK_*, each of which charged nothing and says so) are
+ * read as "nothing was charged"; anything else, a network failure included, may have reached the server after it charged, so it says to check.
+ */
 export function packErrorMessage(err: unknown): string {
-  if (err instanceof ApiError) {
+  if (err instanceof ApiError && err.code.startsWith("STORAGE_PACK_")) {
     if (err.code === "STORAGE_PACK_BUSY") return "Another purchase is in progress. Check your packs in a moment before trying again.";
-    return err.message || "That did not go through. Nothing was charged.";
+    return err.message || UNSURE_MESSAGE;
   }
-  return "That did not go through. Nothing was charged.";
+  return UNSURE_MESSAGE;
 }
