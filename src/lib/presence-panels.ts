@@ -83,8 +83,75 @@ export interface PresenceListingResponse {
     syncMode: string | null;
     lastSyncedAt: string | null;
     driftFields: string[];
+    /** Whether the merchant controls the listing. `unknown` is its own state. */
+    control: PresenceControl;
+    /** What the network changed by itself. `items: null` is "never answered"; `[]` is "nothing changed". */
+    changes: PresenceNetworkChanges;
+    /** What the network can do, from its adapter's declaration. */
+    capabilities: PresenceCapabilities;
+    searchTerms: PresenceSearchTerms;
   } | null;
-  verification: { state?: string } | null;
+}
+
+export type ControlState = "controlled" | "not_controlled" | "unknown";
+
+export interface PresenceControl {
+  state: ControlState;
+  reason: string | null;
+  hasPendingVerification: boolean | null;
+  ownsBusiness: boolean | null;
+  pendingEdits: boolean | null;
+  duplicateOf: string | null;
+  checkedAt: string | null;
+  lastReadFailedAt: string | null;
+}
+
+export interface PresenceNetworkChange {
+  field: string;
+  label?: string;
+  suggested?: string;
+}
+
+export interface PresenceNetworkChanges {
+  items: PresenceNetworkChange[] | null;
+  pendingFields: string[] | null;
+  checkedAt: string | null;
+  lastReadFailedAt: string | null;
+  customerMediaAt: string | null;
+}
+
+/** Neutral metric names, as the api declares them. */
+export type NeutralMetricKey =
+  | "calls"
+  | "directionRequests"
+  | "websiteClicks"
+  | "messagingClicks"
+  | "bookings"
+  | "impressions";
+
+export interface PresenceCapabilities {
+  control: boolean;
+  networkChanges: boolean;
+  searchTerms: boolean;
+  metricKeys: NeutralMetricKey[];
+}
+
+export interface PresenceSearchTerm {
+  term: string;
+  /** The exact count. Null for a term the network only gave a threshold for. */
+  value: number | null;
+  /** The real count is below this. Null when `value` is known. */
+  threshold: number | null;
+}
+
+export interface PresenceSearchTerms {
+  /** `YYYY-MM`. Null when never answered. */
+  month: string | null;
+  /** Null: never answered. `[]`: answered with no terms. */
+  terms: PresenceSearchTerm[] | null;
+  truncated: boolean;
+  checkedAt: string | null;
+  lastReadFailedAt: string | null;
 }
 
 /** One listing the connection manages. */
@@ -93,14 +160,17 @@ export interface PresenceLocation {
   title: string | null;
 }
 
+/**
+ * One day. A figure the network did not report is `null`, never 0: those are different things on screen.
+ */
 export interface InsightDay {
   date: string;
-  calls: number;
-  directions: number;
-  websiteClicks: number;
-  messagingClicks: number;
-  bookings: number;
-  views: number;
+  calls: number | null;
+  directions: number | null;
+  websiteClicks: number | null;
+  messagingClicks: number | null;
+  bookings: number | null;
+  views: number | null;
 }
 
 /** `GET /v1/presence/insights`. */
@@ -327,14 +397,35 @@ export function specialHoursText(s: SpecialHours): string {
 
 export type InsightKey = keyof Omit<InsightDay, "date">;
 
-export const INSIGHT_METRICS: readonly { key: InsightKey; label: string }[] = [
-  { key: "views", label: "Profile views" },
-  { key: "calls", label: "Calls" },
-  { key: "directions", label: "Directions" },
-  { key: "websiteClicks", label: "Website clicks" },
-  { key: "messagingClicks", label: "WhatsApp and messages" },
-  { key: "bookings", label: "Bookings" },
+export const INSIGHT_METRICS: readonly { key: InsightKey; label: string; neutral: NeutralMetricKey }[] = [
+  { key: "views", label: "Profile views", neutral: "impressions" },
+  { key: "calls", label: "Calls", neutral: "calls" },
+  { key: "directions", label: "Directions", neutral: "directionRequests" },
+  { key: "websiteClicks", label: "Website clicks", neutral: "websiteClicks" },
+  { key: "messagingClicks", label: "WhatsApp and messages", neutral: "messagingClicks" },
+  { key: "bookings", label: "Bookings", neutral: "bookings" },
 ];
+
+/**
+ * The tiles the network declares. With no declaration to go by (an older api), all of them: a tile that
+ * says "not available yet" is honest, a missing one is silent.
+ */
+export function declaredMetrics(
+  capabilities: Pick<PresenceCapabilities, "metricKeys"> | null | undefined,
+): typeof INSIGHT_METRICS {
+  if (!capabilities || !Array.isArray(capabilities.metricKeys)) return INSIGHT_METRICS;
+  const declared = new Set<string>(capabilities.metricKeys);
+  return INSIGHT_METRICS.filter((m) => declared.has(m.neutral));
+}
+
+/** What a tile or a chart says for a figure that is missing. It is never "0". */
+export const NOT_AVAILABLE_YET = "Not available yet";
+
+/**
+ * The display name of the network this page reads. The helpers in this file take a name as an argument and
+ * name none, so the one place a name lives is here, passed in by the components.
+ */
+export const PRESENCE_NETWORK_LABEL = "Google";
 
 export const INSIGHT_WINDOWS: readonly { days: number; label: string }[] = [
   { days: 7, label: "7 days" },
@@ -367,20 +458,6 @@ export function windowSeries(series: InsightDay[], days: number, now: Date): Ins
   return series
     .map((d) => ({ ...d, date: String(d.date).slice(0, 10) }))
     .filter((d) => inWindow.has(d.date));
-}
-
-/** What Google's verification state means, in words. `null`: say nothing. */
-export function verificationNote(state: string | undefined | null): string | null {
-  switch ((state ?? "").toLowerCase()) {
-    case "unverified":
-      return "Google hasn't verified this business yet, so it may not show to customers.";
-    case "pending":
-      return "Google is still verifying this business, so it may not show to customers yet.";
-    case "suspended":
-      return "Google has suspended this listing, so it may not show to customers.";
-    default:
-      return null;
-  }
 }
 
 /** `null` when there is no data at all for the window. */
@@ -424,4 +501,207 @@ export function chartPoints(
 export function coverageNote(series: InsightDay[], days: number): string | null {
   if (series.length === 0 || series.length >= days) return null;
   return `Google has sent figures for ${series.length} of the last ${days} days. The other days are left blank, not counted as zero.`;
+}
+
+/**
+ * Whether the chart has a single known day to draw. Days with a row but no figure for this metric are
+ * gaps, so a window of only gaps is "not available yet", not a flat line at zero.
+ */
+export function chartHasData(points: ChartPoint[]): boolean {
+  return points.some((p) => p.value !== null);
+}
+
+// ── Control: can edits go live? ──────────────────────────────────────────────
+
+export type NoteTone = "good" | "warn" | "unknown";
+
+export interface ControlNote {
+  tone: NoteTone;
+  headline: string;
+  body: string;
+  /** Extra sentences, each a separate fact. */
+  extras: string[];
+}
+
+const NOT_CONTROLLED_BODY: Record<string, (label: string) => string> = {
+  under_review: (n) => `${n} is still reviewing this listing, so edits may not show yet.`,
+  needs_verification: (n) => `${n} may be waiting for you to verify this business before edits go live.`,
+  ownership_conflict: (n) => `Someone else may also be managing this listing on ${n}, so your edits may not go live.`,
+  guideline_violation: (n) => `${n} may have held this listing back over its guidelines, so edits may not go live.`,
+  suspended: (n) => `${n} may have suspended this listing, so edits may not go live.`,
+  disabled: (n) => `${n} may have turned this listing off, so edits may not go live.`,
+};
+
+/**
+ * Whether edits can go live, in plain words. `null`: the network does not report it, so say nothing.
+ *
+ * `unknown` IS ITS OWN STATE. It is neither "you have lost control" nor "all good": it says we could
+ * not tell. A read that failed is said out loud, and on a `controlled` or `not_controlled` answer it
+ * only adds that the answer may be out of date. Words say "may", never a rule the network has not stated.
+ *
+ * @param label the network's display name, passed in so this file names none
+ */
+export function controlNote(
+  google: Pick<NonNullable<PresenceListingResponse["google"]>, "control" | "capabilities"> | null,
+  label: string,
+): ControlNote | null {
+  if (!google || !google.capabilities?.control || !google.control) return null;
+  const c = google.control;
+  const extras: string[] = [];
+  if (c.pendingEdits === true) {
+    extras.push(`Some of your edits are waiting for ${label} to publish them.`);
+  }
+  if (c.duplicateOf) {
+    extras.push(`${label} may have this business listed twice.`);
+  }
+  const failedAfterAnswer =
+    !!c.lastReadFailedAt && (!c.checkedAt || new Date(c.lastReadFailedAt) > new Date(c.checkedAt));
+
+  if (c.state === "controlled") {
+    if (failedAfterAnswer) extras.push("Our latest check didn't get an answer, so this may be out of date.");
+    return {
+      tone: "good",
+      headline: "Your edits can go live",
+      body: `${label} shows you as managing this listing.`,
+      extras,
+    };
+  }
+  if (c.state === "not_controlled") {
+    const reason = c.reason ?? "other";
+    const body =
+      NOT_CONTROLLED_BODY[reason]?.(label) ??
+      `${label} may not let your edits go live on this listing yet.`;
+    if (reason === "needs_verification" && c.hasPendingVerification === true) {
+      extras.push("A verification has already been started.");
+    }
+    if (failedAfterAnswer) extras.push("Our latest check didn't get an answer, so this may be out of date.");
+    return { tone: "warn", headline: "Your edits may not go live", body, extras };
+  }
+  return {
+    tone: "unknown",
+    headline: "We can't tell yet whether your edits can go live",
+    body: c.lastReadFailedAt
+      ? `We asked ${label} and didn't get an answer. This is not a sign that anything is wrong.`
+      : `We haven't asked ${label} yet. This is not a sign that anything is wrong.`,
+    extras,
+  };
+}
+
+// ── What the network changed by itself ───────────────────────────────────────
+
+const FIELD_WORDS: Record<string, string> = {
+  name: "name",
+  description: "description",
+  primaryCategory: "main category",
+  additionalCategories: "other categories",
+  phone: "phone number",
+  website: "website",
+  address: "address",
+  geo: "map pin",
+  regularHours: "opening hours",
+  specialHours: "holiday hours",
+};
+
+export function fieldWords(field: string, label?: string): string {
+  return FIELD_WORDS[field] ?? (label && label.trim() ? label : "something else");
+}
+
+export type ChangesView =
+  | { kind: "no_answer"; text: string }
+  | { kind: "none"; text: string }
+  | { kind: "some"; headline: string; lines: string[]; pending: string | null };
+
+/**
+ * `items: null` AND `items: []` ARE DIFFERENT ANSWERS. Null is "the network has not told us", and must
+ * never read as "nothing changed"; an empty list is the network saying nothing changed.
+ * `null` return: the network does not report changes, so there is no section.
+ */
+export function changesView(
+  google: Pick<NonNullable<PresenceListingResponse["google"]>, "changes" | "capabilities"> | null,
+  label: string,
+): ChangesView | null {
+  if (!google || !google.capabilities?.networkChanges || !google.changes) return null;
+  const { items, pendingFields } = google.changes;
+  if (items === null) {
+    return {
+      kind: "no_answer",
+      text: `We haven't been able to ask ${label} whether it changed anything yet. That is not the same as no changes.`,
+    };
+  }
+  const pending =
+    pendingFields && pendingFields.length > 0
+      ? `Waiting for ${label} to publish your edit to: ${pendingFields.map((f) => fieldWords(f)).join(", ")}.`
+      : null;
+  if (items.length === 0) {
+    return { kind: "none", text: `${label} hasn't changed anything on its own.${pending ? ` ${pending}` : ""}` };
+  }
+  return {
+    kind: "some",
+    headline: `${label} changed ${items.length === 1 ? "something" : `${items.length} things`} on its own`,
+    lines: items.map((i) => {
+      const what = fieldWords(i.field, i.label);
+      return i.suggested ? `Its ${what}: ${label} suggests "${i.suggested}"` : `Its ${what}`;
+    }),
+    pending,
+  };
+}
+
+// ── Search terms ─────────────────────────────────────────────────────────────
+
+/**
+ * One count as words. A THRESHOLD IS "FEWER THAN N", never N: the network said the real count is below
+ * it and nothing more. `formatNumber` is passed in so the locale is the caller's.
+ */
+export function termCountText(t: PresenceSearchTerm, formatNumber: (n: number) => string): string {
+  if (t.value !== null) return `${formatNumber(t.value)} ${t.value === 1 ? "search" : "searches"}`;
+  if (t.threshold !== null) return `Fewer than ${formatNumber(t.threshold)} searches`;
+  return NOT_AVAILABLE_YET.toLowerCase();
+}
+
+/**
+ * `YYYY-MM` as the first instant of that calendar month (UTC), for the caller to format with its own
+ * locale and `timeZone: "UTC"`. A month is a calendar month, not an instant in the viewer's zone.
+ * `null` for text that is not a month.
+ */
+export function monthStartIso(month: string): string | null {
+  const m = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(month);
+  return m ? `${m[1]}-${m[2]}-01T00:00:00Z` : null;
+}
+
+export type SearchTermsView =
+  | { kind: "no_answer"; text: string }
+  | { kind: "none"; text: string; month: string }
+  | { kind: "terms"; month: string; terms: PresenceSearchTerm[]; note: string | null };
+
+/**
+ * `null`: the network does not report search terms, so no section.
+ * NEVER ASKED (`terms: null`) IS NOT "NOBODY SEARCHED": the first says we have no answer.
+ */
+export function searchTermsView(
+  google: Pick<NonNullable<PresenceListingResponse["google"]>, "searchTerms" | "capabilities"> | null,
+  label: string,
+): SearchTermsView | null {
+  if (!google || !google.capabilities?.searchTerms || !google.searchTerms) return null;
+  const st = google.searchTerms;
+  if (st.terms === null || st.month === null) {
+    return {
+      kind: "no_answer",
+      text: st.lastReadFailedAt
+        ? `We asked ${label} for what people searched for and didn't get an answer. We'll try again.`
+        : `${label} reports search terms once a month. We haven't received the first list yet.`,
+    };
+  }
+  if (st.terms.length === 0) {
+    return {
+      kind: "none",
+      month: st.month,
+      text: `${label} didn't list any search terms for this month. That doesn't mean nobody searched: ${label} leaves out terms searched only a few times.`,
+    };
+  }
+  const notes: string[] = [];
+  if (st.terms.some((t) => t.value === null && t.threshold !== null)) {
+    notes.push(`${label} only says "fewer than" for terms searched a few times, so those have no exact count.`);
+  }
+  if (st.truncated) notes.push("The list was cut short, so it may not include every term.");
+  return { kind: "terms", month: st.month, terms: st.terms, note: notes.length ? notes.join(" ") : null };
 }
