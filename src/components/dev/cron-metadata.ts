@@ -629,7 +629,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     label: "Purge expired deletions",
     frequency: "Runs nightly (3:00 AM UTC)",
     description:
-      "Permanently removes media that has been in the trash past its 30-day recovery window, freeing the storage for good.",
+      "Permanently removes media that has been in the trash past its 30-day recovery window, freeing the storage for good. The same run removes a share-link visitor's IP address and device from access records older than the retention window set in the CMS.",
     summarize: (data) => {
       const d = data as { purged?: number; skipped?: string } | null;
       // The handler early-returns `{success:true, skipped:"storage_not_configured",
@@ -641,21 +641,6 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
         return { message: "Nothing purged — media storage isn't configured.", level: "warning" };
       }
       return typeof d?.purged === "number" ? `${d.purged} expired item${d.purged === 1 ? "" : "s"} purged.` : null;
-    },
-  },
-  "drive-visitor-retention": {
-    label: "Remove old share-link visitor data",
-    frequency: "Runs nightly (3:30 AM UTC)",
-    description:
-      "Removes the IP address and device recorded when a Drive share link was opened, once they are older than the retention window set in the CMS (90 days to start). The record of the open itself stays, so the date survives.",
-    summarize: (data) => {
-      const d = data as { cleared?: number; complete?: boolean; retentionDays?: number } | null;
-      if (typeof d?.cleared !== "number") return null;
-      // A run that ran out of time is not "done": the rest waits for the next night.
-      if (d.complete === false) {
-        return { message: `${d.cleared} open record${d.cleared === 1 ? "" : "s"} cleaned; more are waiting for the next run.`, level: "warning" };
-      }
-      return `${d.cleared} open record${d.cleared === 1 ? "" : "s"} cleaned.`;
     },
   },
   "media-storage-reconcile": {

@@ -17,6 +17,16 @@ import { ERROR_TEXT, GONE_TEXT, LOCKED_TEXT, visitorNotice } from "@/lib/drive-s
  * NO NUMBER, NO BUTTON: if the api cannot say how long it keeps an address, the page says the file is unavailable instead of opening it.
  */
 
+/** Only an https (or http, in dev) address is ever put in an href or navigated to: the api hands back a signed storage URL, never a script. */
+export function safeFileUrl(url: string): string | null {
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" || u.protocol === "http:" ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 export type ShareView =
   | { step: "loading" }
   | { step: "ready"; passwordRequired: boolean; retentionDays: number; wrongPassword?: boolean; locked?: boolean; failed?: boolean }
@@ -59,7 +69,7 @@ export function SharePageView({ view, password, busy, onPassword, onOpen }: Shar
         </CardHeader>
         <CardContent className="grid gap-3">
           <Button asChild>
-            <a href={view.url} rel="noreferrer">Open file</a>
+            <a href={safeFileUrl(view.url) ?? "#"} rel="noreferrer">Open file</a>
           </Button>
           {view.retentionDays > 0 ? <p className="text-xs text-muted-foreground">{visitorNotice(view.retentionDays)}</p> : null}
         </CardContent>
@@ -149,7 +159,9 @@ export function SharePage({ token, load = fetchSharePage, open = openSharedFile,
     // The visitor left, or the link changed, while the request was out: do not move the browser to a file they walked away from.
     if (!alive.current) return;
     setBusy(false);
-    if (r.kind === "opened") {
+    if (r.kind === "opened" && safeFileUrl(r.url) === null) {
+      setView({ ...view, failed: true });
+    } else if (r.kind === "opened") {
       setView({ step: "opened", url: r.url, name: r.name, retentionDays: r.retentionDays || view.retentionDays });
       navigate(r.url);
     } else if (r.kind === "password") {

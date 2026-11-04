@@ -7,7 +7,7 @@ import type { OpenResult, SharePageState } from "@/lib/api/drive-share";
 
 vi.mock("@/lib/api", () => ({ api: { get: vi.fn() }, ApiError: class extends Error {}, API_BASE_URL: "https://api.example" }));
 
-const { SharePage, SharePageView } = await import("./share-page");
+const { SharePage, SharePageView, safeFileUrl } = await import("./share-page");
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 /**
@@ -155,5 +155,16 @@ describe("the page", () => {
     });
     expect(open).toHaveBeenCalledTimes(1);
     await act(async () => release({ kind: "error" }));
+  });
+
+  it("never navigates to or links a non-http address", async () => {
+    expect(safeFileUrl("javascript:alert(1)")).toBeNull();
+    expect(safeFileUrl("data:text/html,x")).toBeNull();
+    expect(safeFileUrl("not a url")).toBeNull();
+    expect(safeFileUrl("https://files.example/x?sig=1")).toBe("https://files.example/x?sig=1");
+    const { navigate } = await mount({ open: async () => ({ kind: "opened", url: "javascript:alert(1)", name: "x", retentionDays: 90 }) });
+    await act(async () => button("Open file")!.click());
+    expect(navigate).not.toHaveBeenCalled();
+    expect(host.innerHTML).not.toContain("javascript:");
   });
 });

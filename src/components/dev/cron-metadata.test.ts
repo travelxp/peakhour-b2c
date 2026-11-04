@@ -1247,21 +1247,3 @@ describe("growth cron summaries read the api's real result shapes", () => {
     expect(bad?.message).toContain("1 could not reach Meta");
   });
 });
-
-describe("drive-visitor-retention summary", () => {
-  it("counts the records cleaned", () => {
-    const body = JSON.stringify({ success: true, retentionDays: 90, cleared: 12, complete: true });
-    expect(summarizeCronBody("drive-visitor-retention", body)).toMatchObject({ message: "12 open records cleaned." });
-    expect(summarizeCronBody("drive-visitor-retention", JSON.stringify({ success: true, cleared: 1, complete: true }))?.message).toBe("1 open record cleaned.");
-  });
-
-  it("warns when the run ran out of time: the rest waits for tomorrow, so it is not 'done'", () => {
-    const summary = summarizeCronBody("drive-visitor-retention", JSON.stringify({ success: true, cleared: 800, complete: false }));
-    expect(summary?.level).toBe("warning");
-    expect(summary?.message).toContain("waiting");
-  });
-
-  it("says nothing when the count is absent (a failed run is not a zero)", () => {
-    expect(summarizeCronBody("drive-visitor-retention", JSON.stringify({ success: false }))).toBeNull();
-  });
-});
