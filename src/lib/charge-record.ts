@@ -36,7 +36,7 @@ export function chargeWhen(iso: string, timeZone?: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   // UTC unless a zone is named, and said so: the downloaded file is UTC, and one charge must read the same on screen and in it.
-  const text = d.toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: timeZone ?? "UTC" });
+  const text = d.toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: timeZone ?? "UTC" });
   return timeZone ? text : `${text} UTC`;
 }
 
@@ -57,6 +57,7 @@ export function chargeStatusText(line: Pick<ChargeLine, "status" | "refund" | "r
 
 /** The amount column: a charge as a number, credits given back with a minus sign (grouping pinned, like every Peaks figure). */
 export function chargeAmount(credits: number): string {
+  if (typeof credits !== "number" || !Number.isFinite(credits)) return "";
   return credits < 0 ? `-${formatPeaks(-credits)}` : formatPeaks(credits);
 }
 

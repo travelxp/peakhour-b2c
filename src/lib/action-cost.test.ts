@@ -60,6 +60,11 @@ describe("actionCost", () => {
     expect(actionCost(partial, "composerRewrite")).toEqual({ state: "unknown" });
     expect(priceUseCases(card, ["ask_peakhour", "not_a_row"])).toEqual({ state: "unknown" });
   });
+
+  it("a zero price with no free flag (an older api) is Free, never 'Costs 0'", () => {
+    expect(priceUseCases([{ useCase: "x", creditMultiplier: 0, free: false }], ["x"])).toEqual({ state: "free" });
+    expect(priceUseCases([{ useCase: "x", creditMultiplier: Number.NaN, free: false }], ["x"])).toEqual({ state: "free" });
+  });
 });
 
 describe("the words", () => {

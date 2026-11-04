@@ -101,11 +101,13 @@ export function priceUseCases(
     if (!row) return { state: "unknown" };
     found.push(row);
   }
-  const priced = found.filter((r) => !r.free).map((r) => r.creditMultiplier);
+  // Free is the flag OR no positive price: an api build that predates the flag sends a zero, and "Costs 0" is not a price.
+  const isFree = (r: Pick<RateCardUseCase, "free" | "creditMultiplier">): boolean => r.free || !(r.creditMultiplier > 0);
+  const priced = found.filter((r) => !isFree(r)).map((r) => r.creditMultiplier);
   if (priced.length === 0) return { state: "free" };
   const peaks = Math.max(...priced);
   // "up to" when the rows differ, and when one of them is free: a run that reaches only the free one costs nothing.
-  return { state: "priced", peaks, upTo: new Set(priced).size > 1 || found.some((r) => r.free) };
+  return { state: "priced", peaks, upTo: new Set(priced).size > 1 || found.some(isFree) };
 }
 
 /**

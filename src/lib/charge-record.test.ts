@@ -8,6 +8,13 @@ describe("chargeWhen", () => {
     expect(chargeWhen("2026-11-04T10:02:00.000Z", "UTC")).toBe("4 Nov 2026, 10:02");
     expect(chargeWhen("2026-11-04T10:02:00.000Z", "Asia/Kolkata")).toBe("4 Nov 2026, 15:32");
   });
+  it("midnight is 00:05, never 24:05, so the screen and the file agree", () => {
+    expect(chargeWhen("2026-11-04T00:05:00.000Z", "UTC")).toBe("4 Nov 2026, 00:05");
+  });
+  it("a figure the api did not send as a number prints nothing rather than breaking the page", () => {
+    expect(chargeAmount(null as unknown as number)).toBe("");
+    expect(chargeAmount(Number.NaN)).toBe("");
+  });
   it("with no zone named it is UTC and says so, to match the downloaded file", () => {
     expect(chargeWhen("2026-11-04T23:30:00.000Z")).toBe("4 Nov 2026, 23:30 UTC");
   });
