@@ -242,7 +242,8 @@ export function AiComposeToolbar({
     if (disabled && meta.requiresText && isEmpty) {
       return `Write something first, or use Compose to generate a draft from scratch. ${meta.label} needs existing text.`;
     }
-    return `${meta.tooltip} ${actionCostSentence(cost)}`;
+    // The price is said when there is one (or it is free); "checking" and "unknown" would only be noise in a tooltip.
+    return cost.state === "priced" || cost.state === "free" ? `${meta.tooltip} ${actionCostSentence(cost)}` : meta.tooltip;
   }
 
   return (

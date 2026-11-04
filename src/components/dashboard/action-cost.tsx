@@ -14,9 +14,10 @@ export function useActionCost(action: ActionCostKey): Cost {
 }
 
 /** "8 Peaks" or "Free" on its own, for a label that already has its own sentence ("Draft reply · 8 Peaks"). Empty when unknown. */
-export function ActionCostShort({ action }: { action: ActionCostKey }) {
+export function ActionCostShort({ action, prefix = "" }: { action: ActionCostKey; prefix?: string }) {
   const text = actionCostShort(useActionCost(action));
-  return text ? <>{text}</> : null;
+  // The separator belongs to the price: with no price known there is nothing to separate.
+  return text ? <>{prefix}{text}</> : null;
 }
 
 /**

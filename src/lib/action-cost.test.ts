@@ -12,7 +12,7 @@ import { actionCost, actionCostSentence, actionCostShort, priceUseCases, type Ac
 // Markup only: the rate card hook is replaced, so nothing here reaches the api or the auth provider.
 const h = vi.hoisted(() => ({ card: { data: undefined as unknown, isError: false, isPending: false, fetchStatus: "idle" as string } }));
 vi.mock("@/hooks/use-credits", () => ({ useCreditsRateCard: () => h.card }));
-const { ActionCost } = await import("@/components/dashboard/action-cost");
+const { ActionCost, ActionCostShort } = await import("@/components/dashboard/action-cost");
 
 const card = [
   { useCase: "ask_peakhour", creditMultiplier: 8, free: false },
@@ -95,6 +95,13 @@ describe("the component", () => {
     expect(html("ask")).toContain('data-cost-state="priced"');
   });
 
+  it("the short form carries its own separator, so no price means no dangling dot", () => {
+    h.card = { data: { useCases: [...card] }, isError: false, isPending: false, fetchStatus: "idle" };
+    expect(renderToStaticMarkup(ActionCostShort({ action: "pricerBrief", prefix: " · " }))).toBe(" · 4 Peaks");
+    h.card = { data: undefined, isError: false, isPending: true, fetchStatus: "fetching" };
+    expect(renderToStaticMarkup(ActionCostShort({ action: "pricerBrief", prefix: " · " }))).toBe("");
+  });
+
   it("passes a per-item unit through to the sentence", () => {
     h.card = { data: { useCases: [...card] }, isError: false, isPending: false, fetchStatus: "idle" };
     expect(html("webPages", "for each page")).toContain("Costs 150 Peaks for each page.");
@@ -125,7 +132,7 @@ describe("the places that said 'Uses Peaks.'", () => {
     for (const t of [pricing, replenisher, reviews, inventory]) expect(t).not.toMatch(/Uses Peaks|uses Peaks/);
     expect(pricing).toContain('<ActionCost action="pricerBrief" />');
     expect(replenisher).toContain('<ActionCost action="replenisherBrief" />');
-    expect(reviews).toContain('<ActionCostShort action="reviewReply" />');
+    expect(reviews).toContain('<ActionCostShort action="reviewReply" prefix=" · " />');
     expect(reviews).toContain('<ActionCost action="reviewAnalysis"');
   });
 
