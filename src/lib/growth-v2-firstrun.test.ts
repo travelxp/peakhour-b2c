@@ -11,6 +11,8 @@ import {
   selectedFocus,
   selectedOffer,
   sendErrorMessage,
+  targetQuestion,
+  TARGET_NOT_A_FEE,
   type FirstRunAnswers,
 } from "./growth-v2-firstrun";
 
@@ -102,6 +104,14 @@ describe("the target", () => {
     expect(resolveTarget(SALES, answers({ target: "abc" }))).toBeUndefined();
     expect(buildPlanBody(draft(), answers({ target: "" }))).toBeUndefined();
     expect(planBlockedReason(draft(), answers({ target: "" }), true)).toMatch(/target box is empty/);
+  });
+  it("C7: the third question asks what the merchant wants to spend on ads, never what they can pay Peakhour, and says it is not a fee", () => {
+    expect(targetQuestion("cost_per_outcome", "booking")).toBe("What is the most you want to spend on ads to get one booking?");
+    expect(targetQuestion("roas", "order")).toBe("What return do you need on your ad spend?");
+    expect(TARGET_NOT_A_FEE).toBe("The engine aims to spend no more than this on ads for each one. It is not a Peakhour charge.");
+    // and the blocked-reason sentences no longer say "pay"
+    expect(planBlockedReason(draft({ offers: [LEADS] }), answers({ target: "" }), true)).toBe("Enter the most you want to spend on ads per outcome: the target box is empty.");
+    expect(`${targetQuestion("cost_per_outcome", "lead")}${TARGET_NOT_A_FEE}`).not.toMatch(/pay|can pay/i);
   });
   it("never takes a default of the other kind", () => {
     const wrong: DraftOffer = { ...SALES, defaultTarget: { kind: "cost_per_outcome", value: 90, low: 1, high: 2, currency: "INR" } };
