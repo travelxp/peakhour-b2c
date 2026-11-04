@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { api } from "@/lib/api";
+import { api, newActionKey } from "@/lib/api";
 import { API_BASE_URL } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { ActionCost } from "@/components/dashboard/action-cost";
@@ -143,7 +143,7 @@ export default function StrategistPage() {
       const body: { topic?: string; contentFormat?: Exclude<ContentFormatChoice, "any"> } = {};
       if (topic?.trim()) body.topic = topic.trim();
       if (format && format !== "any") body.contentFormat = format;
-      const res = await api.streamPost("/v1/content/suggest", Object.keys(body).length > 0 ? body : undefined);
+      const res = await api.streamPost("/v1/content/suggest", Object.keys(body).length > 0 ? body : undefined, newActionKey());
       await readSSEStream(res, setGenProgress, setGenResult, (msg) => toast.error(msg));
       queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] });
     } catch (err) {

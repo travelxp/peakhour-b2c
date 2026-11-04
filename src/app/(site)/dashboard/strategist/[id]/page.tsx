@@ -5,7 +5,7 @@ import DOMPurify from "isomorphic-dompurify";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { api } from "@/lib/api";
+import { api, newActionKey } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useLocale } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";
@@ -627,7 +627,7 @@ function BriefTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
     setGenerating(true);
     setProgress(null);
     try {
-      const res = await api.streamPost(`/v1/content/ideas/${ideaId}/generate-brief`);
+      const res = await api.streamPost(`/v1/content/ideas/${ideaId}/generate-brief`, undefined, newActionKey());
       const result = await consumeSSE(res, setProgress);
       if (result.event === "complete") {
         toast.success("Brief generated");
@@ -1291,7 +1291,7 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
     setGenerating(true);
     setProgress(null);
     try {
-      const res = await api.streamPost(`/v1/content/ideas/${ideaId}/generate-content`);
+      const res = await api.streamPost(`/v1/content/ideas/${ideaId}/generate-content`, undefined, newActionKey());
       const result = await consumeSSE(res, setProgress);
       if (result.event === "complete") {
         toast.success("Draft generated");
