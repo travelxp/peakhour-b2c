@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useAuth } from "@/providers/auth-provider";
@@ -67,10 +67,15 @@ export function BrandKitTab({ onUpload }: { onUpload?: () => void }) {
   const [edit, setEdit] = useState<{ scope: KitScope | null; businessId: string; draft: KitDraft } | null>(null);
   const draft = edit && edit.scope === scope && edit.businessId === businessId ? edit.draft : saved;
   const dirty = !draftIsSaved(draft, saved);
+  // The saved kit as it is when late work lands (a save or a refetch may have changed it since the click that started that work).
+  const savedNow = useRef(saved);
+  useEffect(() => {
+    savedNow.current = saved;
+  }, [saved]);
   const change = (next: KitDraft) => setEdit({ scope, businessId, draft: next });
   // For work that finishes later (the pre-fill's logo imports): build on the draft as it is when the work lands, not as it was at the click.
   const changeWith = (fn: (current: KitDraft) => KitDraft) =>
-    setEdit((prev) => ({ scope, businessId, draft: fn(prev && prev.scope === scope && prev.businessId === businessId ? prev.draft : saved) }));
+    setEdit((prev) => ({ scope, businessId, draft: fn(prev && prev.scope === scope && prev.businessId === businessId ? prev.draft : savedNow.current) }));
 
   const [problem, setProblem] = useState<string | null>(null);
   const [picking, setPicking] = useState<KitPickKind | null>(null);
@@ -80,13 +85,19 @@ export function BrandKitTab({ onUpload }: { onUpload?: () => void }) {
     mutationFn: async () => {
       if (!scope) throw new Error("Nothing to save");
       await saveBrandKit(scope, payloadFromDraft(draft));
-      // Wait for the fresh kit before dropping the draft, so the page never flashes the old one.
-      await queryClient.invalidateQueries({ queryKey: BRAND_KIT_QUERY_KEY });
+      // Wait for the fresh kit before dropping the draft, so the page never flashes the old one. invalidateQueries does not throw when the
+      // reload fails, so ask the cache whether it worked: if not, the draft stays on screen (saving it again changes nothing).
+      await queryClient.invalidateQueries({ queryKey });
+      return { reloaded: queryClient.getQueryState(queryKey)?.status !== "error" };
     },
-    onSuccess: () => {
-      setEdit(null);
+    onSuccess: ({ reloaded }) => {
       setProblem(null);
-      toast.success("Brand Kit saved.");
+      if (reloaded) {
+        setEdit(null);
+        toast.success("Brand Kit saved.");
+      } else {
+        toast.success("Brand Kit saved. We could not reload it, so your changes stay on screen.");
+      }
     },
     onError: (err) => setProblem(kitErrorMessage(err, "The Brand Kit could not be saved. Try again.")),
   });
@@ -94,7 +105,7 @@ export function BrandKitTab({ onUpload }: { onUpload?: () => void }) {
   const revert = useMutation({
     mutationFn: async () => {
       await removeBusinessKit();
-      await queryClient.invalidateQueries({ queryKey: BRAND_KIT_QUERY_KEY });
+      await queryClient.invalidateQueries({ queryKey });
     },
     onSuccess: () => {
       setEdit(null);

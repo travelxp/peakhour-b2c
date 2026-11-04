@@ -275,8 +275,8 @@ const PREFILL: BrandPrefill = {
   logos: [{ url: "https://cdn.example/logo.png", source: "img-logo" }],
   fontFamilies: ["Fraunces"],
 };
-const review = (state: Parameters<typeof PrefillReview>[0]["state"], label = "Use these") =>
-  renderToStaticMarkup(<PrefillReview state={state} confirmLabel={label} onToggleColor={noop} onToggleLogo={noop} onConfirm={noop} onDismiss={noop} onRetry={noop} />);
+const review = (state: Parameters<typeof PrefillReview>[0]["state"], label = "Use these", busy = false) =>
+  renderToStaticMarkup(<PrefillReview state={state} confirmLabel={label} onToggleColor={noop} onToggleLogo={noop} onConfirm={noop} onDismiss={noop} onRetry={noop} busy={busy} />);
 
 describe("Website review", () => {
   it("while reading it is a status in plain words", () => {
@@ -314,6 +314,12 @@ describe("Website review", () => {
     const out = review({ status: "ready", data: PREFILL, selection: { colors: ["#1f4d3f"], logos: [] }, applying: true });
     expect(out).toContain("Adding…");
     expect(out).toMatch(/<button[^>]*\sdisabled=""[^>]*>(?:(?!<\/button>)[\s\S])*Adding…/);
+  });
+
+  it("while the caller is saving what was kept, nothing can be pressed, even though the imports are done", () => {
+    const out = review({ status: "ready", data: PREFILL, selection: { colors: ["#1f4d3f"], logos: [] }, applying: false }, "Save and continue", true);
+    expect(out).toMatch(/<button[^>]*\sdisabled=""[^>]*>(?:(?!<\/button>)[\s\S])*Adding…/);
+    expect(out).toMatch(/<button[^>]*\sdisabled=""[^>]*>Not now/);
   });
 
   it("a partly imported run keeps the review up with the reason as an alert", () => {
@@ -368,6 +374,14 @@ describe("Choosing a file for the kit", () => {
     expect(out).toContain("Nothing matches");
     expect(out).toContain("blue tin");
     expect(out).not.toContain("Upload a file");
+  });
+
+  it("offers the next page when there is one, because the organisation's list is filtered after it is fetched and shared files can sit later", () => {
+    const more = results({ status: "ready", items: [file()], hasMore: true }, { scope: "org", onMore: noop });
+    expect(more).toContain("Show more");
+    expect(results({ status: "ready", items: [file()], hasMore: false }, { onMore: noop })).not.toContain("Show more");
+    const loading = results({ status: "ready", items: [file()], hasMore: true, loadingMore: true }, { onMore: noop });
+    expect(loading).toMatch(/<button[^>]*\sdisabled=""[^>]*>Loading…/);
   });
 
   it("loading and error are distinct, and the error can be retried", () => {

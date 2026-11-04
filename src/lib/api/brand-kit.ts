@@ -136,13 +136,13 @@ export interface KitFileCandidate {
   sizeBytes: number;
 }
 
-export async function listKitFileCandidates(params: { kind: "image" | "font" | "document"; q?: string }): Promise<KitFileCandidate[]> {
-  const qs: Record<string, string> = { kind: params.kind, limit: "60", sort: "newest" };
+export async function listKitFileCandidates(params: { kind: "image" | "font" | "document"; q?: string; page?: number }): Promise<{ items: KitFileCandidate[]; hasMore: boolean }> {
+  const qs: Record<string, string> = { kind: params.kind, limit: "60", sort: "newest", page: String(params.page ?? 1) };
   if (params.q?.trim()) qs.q = params.q.trim();
   // A kit logo must be Published (an ad needs a public link) and a font must be too, or the resolver drops it. Guidelines may be either.
   if (params.kind !== "document") qs.visibility = "published";
-  const { data } = await api.getWithMeta<KitFileCandidate[]>("/v1/media", qs);
-  return data ?? [];
+  const { data, meta } = await api.getWithMeta<KitFileCandidate[]>("/v1/media", qs);
+  return { items: data ?? [], hasMore: meta.hasMore === true };
 }
 
 /** Share a file with every business in the organisation (admin only): the organisation's kit may hold only shared files. */

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { BRAND_KIT_QUERY_KEY, getBrandKit, saveBrandKit } from "@/lib/api/brand-kit";
@@ -22,6 +22,7 @@ import { useWebsitePrefill } from "@/components/brand-kit/use-website-prefill";
  */
 export default function BrandKitStepPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { org, orgs, business, isLoading } = useAuth();
   const role = orgs.find((o) => o._id === org?._id)?.role;
   const perms = useMemo(() => kitPermissions(role), [role]);
@@ -29,7 +30,7 @@ export default function BrandKitStepPage() {
   const businessId = business?._id ?? "";
 
   // No retries: this step must never be in the way, so a failed read goes straight on instead of waiting out the backoff.
-  const kit = useQuery({ queryKey: [...BRAND_KIT_QUERY_KEY, businessId], queryFn: getBrandKit, enabled: !!businessId && !!scope, retry: false });
+  const kit = useQuery({ queryKey: [...BRAND_KIT_QUERY_KEY, businessId], queryFn: getBrandKit, enabled: !!businessId && !!scope, retry: false, refetchOnWindowFocus: false });
   const prefill = useWebsitePrefill();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,11 +45,13 @@ export default function BrandKitStepPage() {
       router.replace("/onboarding/launch");
       return;
     }
+    // Once the review is up the decision is made: a later failed refetch must not pull the person out of it.
+    if (started.current) return;
     if (kit.isError) {
       router.replace("/onboarding/launch");
       return;
     }
-    if (!kit.data || started.current) return;
+    if (!kit.data) return;
     const alreadyHasKit = !draftIsEmpty(draftFromView(kit.data.effective));
     if (alreadyHasKit || !kit.data.websiteUrl) {
       router.replace("/onboarding/launch");
@@ -71,7 +74,11 @@ export default function BrandKitStepPage() {
       // or by another admin, since then is added to and never wiped.
       const fresh = await getBrandKit();
       const merged = r.fold(draftFromView(scope === "org" ? fresh.org : fresh.business));
-      if (!draftIsEmpty(merged)) await saveBrandKit(scope, payloadFromDraft(merged));
+      if (!draftIsEmpty(merged)) {
+        await saveBrandKit(scope, payloadFromDraft(merged));
+        // Drive's Brand Kit tab reads the same cache: without this it would show the empty kit it fetched before this save.
+        await queryClient.invalidateQueries({ queryKey: BRAND_KIT_QUERY_KEY });
+      }
       // A logo that could not be brought in leaves the review up with the reason; what did work is saved either way.
       if (r.complete) goOn();
     } catch (err) {
@@ -103,6 +110,7 @@ export default function BrandKitStepPage() {
           onConfirm={() => void keep()}
           onDismiss={goOn}
           onRetry={() => void prefill.start()}
+          busy={saving}
         />
       )}
 
@@ -113,7 +121,7 @@ export default function BrandKitStepPage() {
       )}
 
       <div className="text-center">
-        <Button variant="link" onClick={goOn}>
+        <Button variant="link" onClick={goOn} disabled={saving}>
           Skip for now
         </Button>
       </div>

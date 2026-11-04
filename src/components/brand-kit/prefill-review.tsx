@@ -34,6 +34,8 @@ export interface PrefillReviewProps {
   onConfirm: () => void;
   onDismiss: () => void;
   onRetry: () => void;
+  /** The caller is busy with what happens after the confirm (saving): nothing here may be pressed until it is done. */
+  busy?: boolean;
 }
 
 /** A suggested logo as the browser sees it. A site can refuse to be hot-linked, so a preview that will not load says so and stays tickable: the server fetches it differently. */
@@ -51,7 +53,7 @@ function LogoPreview({ url }: { url: string }) {
   );
 }
 
-export function PrefillReview({ state, confirmLabel, onToggleColor, onToggleLogo, onConfirm, onDismiss, onRetry }: PrefillReviewProps) {
+export function PrefillReview({ state, confirmLabel, onToggleColor, onToggleLogo, onConfirm, onDismiss, onRetry, busy = false }: PrefillReviewProps) {
   if (state.status === "loading") {
     return (
       <div role="status" className="flex items-center gap-2 rounded-xl border bg-card p-4 text-sm text-muted-foreground">
@@ -76,7 +78,8 @@ export function PrefillReview({ state, confirmLabel, onToggleColor, onToggleLogo
     );
   }
 
-  const { data, selection, applying, notice } = state;
+  const { data, selection, notice } = state;
+  const applying = state.applying || busy;
   const count = selectionCount(selection);
   const hint = fontHint(data);
   const nothing = data.colors.length === 0 && data.logos.length === 0;

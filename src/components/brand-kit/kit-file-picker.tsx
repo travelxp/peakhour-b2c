@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { FileText, Loader2, Search, Type } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,7 +32,7 @@ export function offered(items: readonly KitFileCandidate[], scope: KitScope): { 
   return { shown, held: items.length - shown.length };
 }
 
-export type FileResultsState = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; items: KitFileCandidate[] };
+export type FileResultsState = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; items: KitFileCandidate[]; hasMore?: boolean; loadingMore?: boolean };
 
 export function KitFileResults({
   state,
@@ -42,6 +42,7 @@ export function KitFileResults({
   onPick,
   onUpload,
   onRetry,
+  onMore,
 }: {
   state: FileResultsState;
   kind: KitPickKind;
@@ -50,6 +51,8 @@ export function KitFileResults({
   onPick: (file: KitFileCandidate) => void;
   onUpload?: () => void;
   onRetry: () => void;
+  /** Load the next page. The organisation's list is filtered after it is fetched, so shared files can sit on a later page. */
+  onMore?: () => void;
 }) {
   const words = KIND_WORDS[kind];
   if (state.status === "loading") {
@@ -118,6 +121,11 @@ export function KitFileResults({
           ))}
         </ul>
       )}
+      {state.hasMore && onMore && (
+        <Button variant="outline" size="sm" className="self-start" onClick={onMore} disabled={state.loadingMore}>
+          {state.loadingMore ? "Loading…" : "Show more"}
+        </Button>
+      )}
     </div>
   );
 }
@@ -142,9 +150,11 @@ export function KitFilePicker({
   const [q, setQ] = useState("");
   // The list is the active business's own files plus the organisation's shared ones, so it is cached per business.
   const { business } = useAuth();
-  const query = useQuery({
+  const query = useInfiniteQuery({
     queryKey: ["brand-kit-files", business?._id ?? "", kind, q],
-    queryFn: () => listKitFileCandidates({ kind, q }),
+    queryFn: ({ pageParam }) => listKitFileCandidates({ kind, q, page: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (last, pages) => (last.hasMore ? pages.length + 1 : undefined),
     enabled: open,
   });
   // isPending and not isLoading: a paused query (offline) is pending and not loading, and would otherwise render as an empty list.
@@ -152,7 +162,7 @@ export function KitFilePicker({
     ? { status: "error", message: kitErrorMessage(query.error, "Drive could not be read. Try again.") }
     : query.isPending
       ? { status: "loading" }
-      : { status: "ready", items: query.data ?? [] };
+      : { status: "ready", items: query.data?.pages.flatMap((pg) => pg.items) ?? [], hasMore: query.hasNextPage, loadingMore: query.isFetchingNextPage };
   const words = KIND_WORDS[kind];
 
   return (
@@ -179,7 +189,7 @@ export function KitFilePicker({
             Search
           </Button>
         </form>
-        <KitFileResults state={state} kind={kind} scope={scope} query={q} onPick={onPick} onUpload={onUpload} onRetry={() => void query.refetch()} />
+        <KitFileResults state={state} kind={kind} scope={scope} query={q} onPick={onPick} onUpload={onUpload} onRetry={() => void query.refetch()} onMore={() => void query.fetchNextPage()} />
       </DialogContent>
     </Dialog>
   );
