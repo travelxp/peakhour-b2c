@@ -69,7 +69,7 @@ const asNumber = (v: unknown): number | null => (typeof v === "number" && Number
  */
 export async function fetchSharePage(token: string, doFetch: typeof fetch = fetch): Promise<SharePageState> {
   try {
-    const res = await doFetch(sharePath(token), { credentials: "omit", headers: { Accept: "application/json" } });
+    const res = await doFetch(sharePath(token), { credentials: "omit", redirect: "error", headers: { Accept: "application/json" } });
     if (res.status === 404 || res.status === 410) return { kind: "gone" };
     const body = (await res.json().catch(() => null)) as { success?: boolean; data?: { passwordRequired?: unknown; retentionDays?: unknown } } | null;
     const days = asNumber(body?.data?.retentionDays);
