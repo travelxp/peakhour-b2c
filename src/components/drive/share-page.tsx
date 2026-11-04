@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -19,7 +19,7 @@ import { ERROR_TEXT, GONE_TEXT, LOCKED_TEXT, visitorNotice } from "@/lib/drive-s
 
 export type ShareView =
   | { step: "loading" }
-  | { step: "ready"; passwordRequired: boolean; retentionDays: number; wrongPassword?: boolean; locked?: boolean }
+  | { step: "ready"; passwordRequired: boolean; retentionDays: number; wrongPassword?: boolean; locked?: boolean; failed?: boolean }
   | { step: "opened"; url: string; name: string; retentionDays: number }
   | { step: "gone" }
   | { step: "error" };
@@ -95,6 +95,7 @@ export function SharePageView({ view, password, busy, onPassword, onOpen }: Shar
                 {view.wrongPassword ? <p role="alert" className="text-sm text-destructive-on-tint">That password is not right.</p> : null}
               </div>
             ) : null}
+            {view.failed ? <p role="alert" className="text-sm text-destructive-on-tint">{ERROR_TEXT}</p> : null}
             <Button onClick={onOpen} disabled={busy || (needsPassword && password.length === 0)}>
               {busy ? "Opening." : "Open file"}
             </Button>
@@ -117,6 +118,15 @@ export function SharePage({ token, load = fetchSharePage, open = openSharedFile,
   const [view, setView] = useState<ShareView>({ step: "loading" });
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  // A ref, not the state: two quick triggers (Enter then a click) must not both send the POST, which records twice and counts two tries.
+  const inFlight = useRef(false);
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, [token]);
 
   useEffect(() => {
     let cancelled = false;
@@ -131,9 +141,13 @@ export function SharePage({ token, load = fetchSharePage, open = openSharedFile,
   }, [token, load]);
 
   async function onOpen() {
-    if (busy || view.step !== "ready") return;
+    if (inFlight.current || view.step !== "ready") return;
+    inFlight.current = true;
     setBusy(true);
     const r = await open(token, view.passwordRequired ? password : undefined);
+    inFlight.current = false;
+    // The visitor left, or the link changed, while the request was out: do not move the browser to a file they walked away from.
+    if (!alive.current) return;
     setBusy(false);
     if (r.kind === "opened") {
       setView({ step: "opened", url: r.url, name: r.name, retentionDays: r.retentionDays || view.retentionDays });
@@ -143,8 +157,11 @@ export function SharePage({ token, load = fetchSharePage, open = openSharedFile,
       setPassword("");
     } else if (r.kind === "locked") {
       setView({ step: "ready", passwordRequired: true, retentionDays: r.retentionDays || view.retentionDays, locked: true });
+    } else if (r.kind === "gone") {
+      setView({ step: "gone" });
     } else {
-      setView({ step: r.kind });
+      // A blip is not the end of the link: keep the page and the password box, say so, and let them press again.
+      setView({ ...view, failed: true });
     }
   }
 

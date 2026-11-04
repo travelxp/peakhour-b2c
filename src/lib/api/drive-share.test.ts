@@ -33,6 +33,10 @@ describe("fetchSharePage", () => {
     }
   });
 
+  it("a 410 is a dead link too", async () => {
+    expect(await fetchSharePage(TOKEN, reply(410, { success: false }) as never)).toEqual({ kind: "gone" });
+  });
+
   it("a 404 is a dead link; anything else, or no network, is an error", async () => {
     expect(await fetchSharePage(TOKEN, reply(404, { success: false }) as never)).toEqual({ kind: "gone" });
     expect(await fetchSharePage(TOKEN, reply(503, { success: false }) as never)).toEqual({ kind: "error" });

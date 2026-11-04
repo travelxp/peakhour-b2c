@@ -70,7 +70,7 @@ const asNumber = (v: unknown): number | null => (typeof v === "number" && Number
 export async function fetchSharePage(token: string, doFetch: typeof fetch = fetch): Promise<SharePageState> {
   try {
     const res = await doFetch(sharePath(token), { credentials: "omit", headers: { Accept: "application/json" } });
-    if (res.status === 404) return { kind: "gone" };
+    if (res.status === 404 || res.status === 410) return { kind: "gone" };
     const body = (await res.json().catch(() => null)) as { success?: boolean; data?: { passwordRequired?: unknown; retentionDays?: unknown } } | null;
     const days = asNumber(body?.data?.retentionDays);
     // No number, no notice: a page that cannot say how long it keeps your address does not open the file.
@@ -90,7 +90,7 @@ export async function openSharedFile(token: string, password?: string, doFetch: 
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify(password ? { password } : {}),
     });
-    if (res.status === 404) return { kind: "gone" };
+    if (res.status === 404 || res.status === 410) return { kind: "gone" };
     const body = (await res.json().catch(() => null)) as {
       success?: boolean;
       data?: { url?: unknown; name?: unknown; retentionDays?: unknown };

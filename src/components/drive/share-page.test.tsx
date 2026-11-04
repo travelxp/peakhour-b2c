@@ -135,4 +135,25 @@ describe("the page", () => {
     expect(host.textContent).toContain("does not exist or has expired");
     expect(button("Open file")).toBeUndefined();
   });
+
+  it("a failed open keeps the page, the notice and the button, with an inline error", async () => {
+    const { navigate } = await mount({ open: async () => ({ kind: "error" }) });
+    await act(async () => button("Open file")!.click());
+    expect(host.textContent).toContain("not available right now");
+    expect(host.textContent).toContain(NOTICE_90);
+    expect(button("Open file")).toBeTruthy();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it("two quick presses send one request", async () => {
+    let release!: (r: OpenResult) => void;
+    const { open } = await mount({ open: () => new Promise<OpenResult>((r) => (release = r)) });
+    const b = button("Open file")!;
+    await act(async () => {
+      b.click();
+      b.click();
+    });
+    expect(open).toHaveBeenCalledTimes(1);
+    await act(async () => release({ kind: "error" }));
+  });
 });
