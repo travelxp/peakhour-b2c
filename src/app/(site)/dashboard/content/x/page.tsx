@@ -194,7 +194,7 @@ function XContentDashboardInner() {
             </CardContent>
           </Card>
           <p className="mt-3 text-xs text-muted-foreground">
-            Text-only for now — media upload, threads, and scheduling are coming.
+            Threads and scheduling work here. Images aren’t in the composer yet.
           </p>
         </TabsContent>
 

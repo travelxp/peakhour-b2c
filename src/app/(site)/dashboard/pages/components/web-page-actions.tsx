@@ -40,7 +40,7 @@ export function WebPageActions({ draftId, name, onDone, size = "sm" }: WebPageAc
   async function doApprove() {
     try {
       const res = await approve.mutateAsync(draftId);
-      toast.success(`Published — it's live at /${res.slug}`);
+      toast.success(`Published on Peakhour’s site at /${res.slug}`);
       onDone?.();
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Couldn't publish this page. Please try again.");
@@ -70,7 +70,7 @@ export function WebPageActions({ draftId, name, onDone, size = "sm" }: WebPageAc
           </Button>
         }
         title={`Publish “${name}”?`}
-        description="This puts the page live on your website right away. If anything looks wrong, send it back instead."
+        description="This publishes the page on Peakhour’s own site, not on your website; connecting your own domain isn’t available yet. If anything looks wrong, send it back instead."
         confirmLabel="Approve & publish"
         onConfirm={doApprove}
       />

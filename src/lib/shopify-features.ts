@@ -353,11 +353,11 @@ export const SHOPIFY_GROUPS: ShopifyGroup[] = [
       {
         id: "emergency-stop",
         title: "Emergency stop",
-        does: "One button that stops Peakhour from making changes in your store.",
-        benefit: "You can pause everything in a second.",
+        does: "One button that pauses Peakhour's automatic work in your store.",
+        benefit: "You can pause its automatic work in a second.",
         steps: [
           "Press Emergency stop.",
-          "Peakhour stops making changes.",
+          "Peakhour pauses its automatic work.",
           "Switch it back on when you are ready.",
         ],
       },
@@ -540,7 +540,7 @@ export function shopifyFaq({
     },
     {
       q: "Will Peakhour change my store without asking?",
-      a: "It changes only what you switch on. Each change appears in your activity feed with an Undo, and the emergency stop pauses everything.",
+      a: "It changes only what you switch on. Each change appears in your activity feed with an Undo, and the emergency stop pauses its automatic work.",
     },
     {
       q: "What does WhatsApp cost?",
