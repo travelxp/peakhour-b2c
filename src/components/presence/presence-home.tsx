@@ -6,6 +6,7 @@ import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { GbpConnectCard } from "@/components/presence/gbp-connect-card";
 import { ReviewSummaryCard } from "@/components/presence/review-summary-card";
 import { ListingPanel } from "@/components/presence/listing-panel";
+import { ListingScoreCard } from "@/components/presence/listing-score-card";
 import { InsightsPanel } from "@/components/presence/insights-panel";
 import { ReviewKitCard } from "@/components/presence/review-kit-card";
 import { useListingQuery } from "@/hooks/use-presence-listing";
@@ -97,6 +98,8 @@ export function PresenceHome() {
         <ReviewSummaryCard location={location} />
 
         <ReviewKitCard location={location} />
+
+        <ListingScoreCard location={panelLocation} />
 
         <ListingPanel location={panelLocation} />
 
