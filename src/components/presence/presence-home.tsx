@@ -47,9 +47,8 @@ export function PresenceHome() {
             Be found, accurate &amp; well-reviewed everywhere
           </h1>
           <p className="max-w-2xl text-muted-foreground">
-            One record you edit once — synced across Google, maps, and listing
-            networks — with every review in one inbox and your local performance
-            in one dashboard. Anchored on Google Business Profile.
+            Connect your Google Business Profile listing and answer your Google
+            reviews from one place.
           </p>
         </header>
 
