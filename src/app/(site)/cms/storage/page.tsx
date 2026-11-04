@@ -111,8 +111,8 @@ function Dashboard({ data }: { data: StorageIntelligence }) {
           label="Pack revenue"
           value={`${(data.pnl.latestPackRevenuePeaks ?? 0).toLocaleString("en-US")} Peaks`}
           sub={
-            data.packPeriods?.[0]
-              ? `about ${usd(data.pnl.latestPackRevenueUsdAtListPrice)} at the $${data.pnl.peakValueUsd}/Peak list price · period ${data.packPeriods[0].period}`
+            data.pnl.packRevenuePeriod
+              ? `about ${usd(data.pnl.latestPackRevenueUsdAtListPrice)} at the $${data.pnl.peakValueUsd}/Peak list price · ${data.pnl.packRevenuePeriod}${data.pnl.packRevenuePartialMonth ? " so far (month not closed)" : ""}`
               : "no storage packs bought yet"
           }
         />

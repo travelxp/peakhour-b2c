@@ -141,8 +141,8 @@ export function buyStoragePack(gb: number): Promise<{ pack: StoragePackView; cha
 }
 
 /** Stop a pack renewing. The space stays until its next charge date. */
-export function cancelStoragePack(id: string): Promise<{ pack: StoragePackView; alreadyCancelled: boolean }> {
-  return api.delete<{ pack: StoragePackView; alreadyCancelled: boolean }>(`/v1/storage/packs/${id}`);
+export function cancelStoragePack(id: string): Promise<{ pack: StoragePackView; alreadyCancelled: boolean; spaceEndsNow: boolean }> {
+  return api.delete<{ pack: StoragePackView; alreadyCancelled: boolean; spaceEndsNow: boolean }>(`/v1/storage/packs/${id}`);
 }
 
 export interface MediaUploadResult {

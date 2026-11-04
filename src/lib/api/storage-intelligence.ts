@@ -15,7 +15,11 @@ export interface StorageIntelligence {
   pnl: {
     r2CostUsd: number;
     softDeleteCarryUsd: number;
-    /** Storage-pack revenue in the latest month, in Peaks (the `drive.storage_pack` charges). */
+    /** The month the pack revenue below is for: the latest CLOSED month, or the current one when none has closed yet. */
+    packRevenuePeriod: string | null;
+    /** True when no month has closed yet, so the figure is the current month so far (and the net understates). */
+    packRevenuePartialMonth: boolean;
+    /** Storage-pack revenue in that month, in Peaks (the `drive.storage_pack` charges). */
     latestPackRevenuePeaks: number;
     /** The same, at the Peak LIST price: what a customer actually pays per Peak depends on how they bought it. */
     latestPackRevenueUsdAtListPrice: number;

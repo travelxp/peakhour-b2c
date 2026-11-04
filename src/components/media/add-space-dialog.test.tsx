@@ -128,6 +128,13 @@ describe("Add space: confirm and cancel", () => {
     expect(out).toContain("Stop renewing the 25 GB pack?");
     expect(out).toContain("keep the space until December 4, 2026");
   });
+
+  it("cancelling a PAUSED pack says it ends at once, that files stay, and gives no future date", () => {
+    const out = panel(usage({ packs: [owned({ paused: true, nextChargeAt: "2026-10-30T10:00:00.000Z" })] }), { step: "cancel", cancelId: "p1" });
+    expect(out).toContain("Cancelling ends it now, so its space goes at once");
+    expect(out).toContain("Your files are not deleted");
+    expect(out).not.toContain("keep the space until");
+  });
 });
 
 describe("the meter and the Peaks page line", () => {

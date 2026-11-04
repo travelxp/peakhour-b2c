@@ -56,7 +56,9 @@ export function AddSpacePanel(p: AddSpacePanelProps) {
     return (
       <div className="space-y-4">
         <p className="text-sm">
-          Stop renewing the {gbText(cancelling.gb)} GB pack? You keep the space until {longDate(cancelling.nextChargeAt)}, and nothing more is charged.
+          {cancelling.paused
+            ? `The ${gbText(cancelling.gb)} GB pack is paused because your Peaks were short. Cancelling ends it now, so its space goes at once. Your files are not deleted; if you are then over your limit, new uploads wait until you free space or add a pack.`
+            : `Stop renewing the ${gbText(cancelling.gb)} GB pack? You keep the space until ${longDate(cancelling.nextChargeAt)}, and nothing more is charged.`}
         </p>
         {p.error ? <p role="alert" className="text-sm text-destructive">{p.error}</p> : null}
         <div className="flex justify-end gap-2">
