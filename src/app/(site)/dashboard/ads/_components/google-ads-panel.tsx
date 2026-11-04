@@ -119,7 +119,7 @@ import { GoogleCalloutsSection } from "./google-callouts-section";
  * campaign on Google.
  *
  * ★STARTING IS THE LAUNCH, and is confirmed first (round 1, as LinkedIn's):
- * it starts spend (and costs nothing itself: N2, PeakHour charges for verified outcomes). Google refuses a Search campaign
+ * it starts spend (and costs nothing itself: Peaks are charged for tasks the merchant asks for, never for a launch or a result). Google refuses a Search campaign
  * with no location or keyword, and a Performance Max campaign with no location or enabled asset group; each row's
  * Targeting step (G-14a, `google-targeting-dialog.tsx`) sets them, and the start confirmation names it.
  *

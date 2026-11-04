@@ -456,8 +456,8 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
         </p>
       ) : null}
 
-      {/* ★WHAT ACTIVATING COSTS is on screen BEFORE any switch is pressed. Since N2 the answer is "nothing": PeakHour charges
-          for verified outcomes, so there is no price to read from the rate card and none typed here. */}
+      {/* ★WHAT ACTIVATING COSTS is on screen BEFORE any switch is pressed. The answer is "nothing": Peaks are charged for
+          the tasks the merchant asks for, never for launching or for a result, so there is no price to read here. */}
       <p className="text-xs text-muted-foreground">{META_LAUNCH_NOTE}</p>
     </div>
   );

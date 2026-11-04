@@ -186,11 +186,11 @@ function metaStatusWord(status: string): string {
 // ── What activating a campaign costs ─────────────────────────────────────
 
 /**
- * The sentence beside Activate. Activating, pausing and resuming a campaign costs nothing (N2): PeakHour charges for
- * outcomes it verifies for your goal, not for launching. There is no price to look up, so there is no rate-card read here.
+ * The sentence beside Activate. Activating, pausing and resuming a campaign costs nothing. Peaks are charged for the
+ * tasks the merchant asks for (C7), never for launching and never for a result. There is no price to look up, so there is no rate-card read here.
  */
 export const META_LAUNCH_NOTE =
-  "Starting, pausing and resuming a campaign costs nothing. Peaks are charged for outcomes PeakHour verifies for your goal, not for launching.";
+  "Starting, pausing and resuming a campaign costs nothing. You are charged Peaks for the tasks you ask us to do, such as planning a campaign or writing ads, and never for launching one or for the results it brings.";
 
 // ── Errors ───────────────────────────────────────────────────────────────
 

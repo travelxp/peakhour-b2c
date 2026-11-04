@@ -1,8 +1,13 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 
-const nextConfig: NextConfig = {
+export const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // A Drive share link's token is its credential and sits in the /share/<token> URL: never send it on as a Referer, from the page or
+  // from anything the page loads. (The page also sets <meta name="referrer">; this is the header, which covers every response.)
+  async headers() {
+    return [{ source: "/share/:path*", headers: [{ key: "Referrer-Policy", value: "no-referrer" }] }];
+  },
 };
 
 // next-intl request pipeline (English-only today; see src/i18n/request.ts).

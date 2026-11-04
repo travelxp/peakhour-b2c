@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { Peaks } from "@/components/peaks/peaks";
 import { useWaAnalytics } from "@/hooks/use-wa-analytics";
 import { useCsatSetting, useSupportResults } from "@/hooks/use-support-results";
 import { PageShell } from "@/components/dashboard/page-shell";
@@ -38,14 +37,6 @@ import {
   type SupportChannel,
   type SupportParams,
 } from "@/lib/support-results";
-
-const PILLAR_LABEL: Record<string, string> = {
-  support: "Support",
-  commerce: "Commerce",
-  growth: "Growth",
-  content: "Content",
-  general: "General",
-};
 
 const PRESETS = [
   { days: 7 as const, label: "Last 7 days" },
@@ -81,8 +72,6 @@ export default function SupportResultsPage() {
   const revenue = results.data?.revenue;
   const csatEnabled = results.data?.csatEnabled ?? false;
   const pending = results.isPending && canRead;
-  const total = outcomes.data?.totalPeaks ?? 0;
-  const maxPillar = Math.max(1, ...(outcomes.data?.byPillar ?? []).map((p) => p.peaks));
 
   const choosePreset = (days: 7 | 30 | 90) => {
     setPreset(days);
@@ -103,7 +92,7 @@ export default function SupportResultsPage() {
 
   return (
     <PageShell>
-      <CronToolbar crons={["wa-outcome-billing"]} />
+      <CronToolbar crons={["wa-conversation-outcomes"]} />
 
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Support results</h1>
@@ -308,47 +297,22 @@ export default function SupportResultsPage() {
       </Card>
 
       <div>
-        <h2 className="text-lg font-semibold tracking-tight">Billed outcomes, last {outcomes.data?.windowDays ?? 30} days</h2>
-        <p className="mt-1 text-sm text-muted-foreground">What your WhatsApp assistant delivered. You’re billed on outcomes, not chatter.</p>
+        <h2 className="text-lg font-semibold tracking-tight">What the assistant reached, last {outcomes.data?.windowDays ?? 30} days</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          What your WhatsApp assistant reached. These are counts for your information. AI credits are used for the work the assistant does, such as each reply, not for these results.
+        </p>
       </div>
 
       {outcomes.isPending ? (
-        <div className="grid gap-4 sm:grid-cols-3">
-          {[0, 1, 2].map((i) => <Skeleton key={i} className="h-24 w-full" />)}
+        <div className="grid gap-4 sm:grid-cols-2">
+          {[0, 1].map((i) => <Skeleton key={i} className="h-24 w-full" />)}
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           <KpiCard title="Resolved conversations" value={outcomes.data?.resolved.count ?? 0} icon={CheckCircle2} />
-          <KpiCard title="Assisted orders" value={outcomes.data?.assisted.count ?? 0} icon={ShoppingBag} />
-          <Card className="p-4">
-            <p className="text-sm font-medium text-muted-foreground">Peaks spent</p>
-            <div className="mt-2">
-              <Peaks amount={total} unit="Peaks" />
-            </div>
-          </Card>
+          <KpiCard title="Orders the assistant helped with" value={outcomes.data?.assisted.count ?? 0} icon={ShoppingBag} />
         </div>
       )}
-
-      <Card className="p-4">
-        <p className="text-sm font-medium">Outcomes by product</p>
-        <div className="mt-3 space-y-2.5">
-          {outcomes.isPending && <Skeleton className="h-4 w-full" />}
-          {!outcomes.isPending && (outcomes.data?.byPillar.length ?? 0) === 0 && (
-            <p className="text-sm text-muted-foreground">No billable outcomes yet.</p>
-          )}
-          {outcomes.data?.byPillar.map((p) => (
-            <div key={p.pillar} className="flex items-center gap-3">
-              <span className="w-24 shrink-0 text-sm">{PILLAR_LABEL[p.pillar] ?? p.pillar}</span>
-              <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-                <div className="h-full rounded-full bg-primary" style={{ width: `${(p.peaks / maxPillar) * 100}%` }} />
-              </div>
-              <span className="w-36 shrink-0 text-right">
-                <Peaks amount={p.peaks} unit="Peaks" />
-              </span>
-            </div>
-          ))}
-        </div>
-      </Card>
     </PageShell>
   );
 }

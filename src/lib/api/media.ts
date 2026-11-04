@@ -26,10 +26,12 @@ export type DescribeState = "described" | "describing" | "pending" | "not_descri
 
 /** One place a file is used. The page builds the link from `kind` and `refId`. */
 export interface UsedInEntry {
-  kind: "idea" | "draft" | "ad_creative" | "scheduled_item" | "social_post" | "page" | "brand" | "listing";
+  kind: "idea" | "draft" | "ad_creative" | "scheduled_item" | "social_post" | "page" | "brand" | "listing" | "share";
   refId: string;
   label?: string;
   published?: boolean;
+  /** Only on `share`: how many live share links the file has. The api collapses them into one entry (they are one place). */
+  count?: number;
 }
 
 export interface ChannelFitEntry {
@@ -231,6 +233,8 @@ export interface BulkResult {
   notFound: number;
   forbidden: number;
   skipped: number;
+  /** Files a bulk move left because something still holds them. */
+  blocked?: number;
 }
 
 export function bulkMedia(body: BulkAction): Promise<BulkResult> {
@@ -262,6 +266,25 @@ export function getMediaUrl(id: string, opts: { download?: boolean } = {}): Prom
 /** A link for a PRIVATE file. The address is shown once, here. */
 export function createShareLink(id: string, opts: { expiresInDays?: number; password?: string } = {}): Promise<{ shareId: string; url: string; expiresAt: string; hasPassword: boolean }> {
   return api.post(`/v1/media/${id}/shares`, opts);
+}
+
+export interface ShareLinkRow {
+  id: string;
+  expiresAt: string;
+  revokedAt?: string;
+  hasPassword: boolean;
+  openCount: number;
+  lastOpenedAt?: string;
+  createdAt: string;
+}
+
+/** A file's share links (never their addresses: an address is shown once, when the link is made). Editor and above. */
+export function listShareLinks(mediaId: string): Promise<ShareLinkRow[]> {
+  return api.get<ShareLinkRow[]>("/v1/media/" + mediaId + "/shares");
+}
+
+export function revokeShareLink(shareId: string): Promise<{ revoked: boolean }> {
+  return api.delete<{ revoked: boolean }>("/v1/media/shares/" + shareId);
 }
 
 export interface DriveCollection {

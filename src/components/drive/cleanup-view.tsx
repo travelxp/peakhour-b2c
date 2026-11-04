@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { ConfirmDialog } from "@/components/molecules/confirm-dialog";
 import { getCleanup, trashCleanup, type CleanupGroup, type CleanupKind } from "@/lib/api/media";
-import { cleanupCopy, cleanupTotals, gbText } from "@/lib/drive/copy";
+import { blockedText, cleanupCopy, cleanupTotals, gbText } from "@/lib/drive/copy";
 
 /**
  * Smart Cleanup (D9, Main board "Cleanup"). Peakhour suggests, the person decides, and nothing happens without one confirm.
@@ -104,8 +104,8 @@ export function CleanupView({ onMoved }: { onMoved: () => void }) {
     onSuccess: (r) => {
       toast.success(
         r.deletedCount === 0
-          ? "Nothing was moved: those files are in use now."
-          : `${r.deletedCount} ${r.deletedCount === 1 ? "file" : "files"} moved to Trash. ${gbText(r.freedBytes)} freed.${r.remaining > 0 ? ` ${r.remaining} more are left. Run Smart Cleanup again.` : ""}`,
+          ? `Nothing was moved: those files are in use now.${blockedText(r.blocked ?? 0)}`
+          : `${r.deletedCount} ${r.deletedCount === 1 ? "file" : "files"} moved to Trash. ${gbText(r.freedBytes)} freed.${r.remaining > 0 ? ` ${r.remaining} more are left. Run Smart Cleanup again.` : ""}${blockedText(r.blocked ?? 0)}`,
       );
       for (const key of [["drive", "cleanup"], ["drive", "files"], ["drive", "trash"], ["storage-usage"]]) void qc.invalidateQueries({ queryKey: key });
       if (r.deletedCount > 0) onMoved();

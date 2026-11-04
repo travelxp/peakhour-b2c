@@ -150,6 +150,23 @@ describe("the file panel", () => {
     expect(flat(html)).toMatch(/Used in/);
   });
 
+  it("shows share links as one plain-text row, and an unknown kind without crashing or an empty href", () => {
+    const html = detail(
+      file({
+        usedInCount: 2,
+        usedIn: [
+          { kind: "share", refId: "s1", count: 5 },
+          { kind: "hologram", refId: "h1" } as never,
+        ],
+      }),
+    );
+    expect(flat(html)).toContain("Share links (5)");
+    expect(flat(html)).toContain("Somewhere in Peakhour");
+    expect(html).not.toContain('href=""');
+    expect(html).not.toMatch(/<a [^>]*>[^<]*Share links/);
+    expect(html).not.toMatch(/<a [^>]*>[^<]*Somewhere in Peakhour/);
+  });
+
   it("says a file is not used anywhere yet, and when the list is longer than the panel shows", () => {
     expect(flat(detail(file()))).toContain("Not used anywhere yet");
     expect(flat(detail(file({ usedInCount: 25, usedIn: [{ kind: "page", refId: "p1" }] })))).toContain("and 24 more");
@@ -174,6 +191,41 @@ describe("the file panel", () => {
     const priv = flat(detail(file({ kind: "document", mimeType: "application/pdf", visibility: "private", publicUrl: undefined })));
     expect(priv).toContain("Private. Opens only with a link that expires.");
     expect(priv).toContain("Share link");
+  });
+
+  it("a private file's panel carries the share dialog line and each link's Opened by list (the real panel, cache pre-filled)", () => {
+    const item = file({ kind: "document", mimeType: "application/pdf", visibility: "private", publicUrl: undefined });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData(["drive-share-privacy"], { retentionDays: 90 });
+    qc.setQueryData(["drive-share-links", item.id], [
+      { id: "s1", expiresAt: "2026-11-10T12:00:00.000Z", hasPassword: true, openCount: 2, createdAt: "2026-11-03T12:00:00.000Z" },
+      { id: "s2", expiresAt: "2026-11-01T12:00:00.000Z", revokedAt: "2026-11-02T12:00:00.000Z", hasPassword: false, openCount: 0, createdAt: "2026-10-30T12:00:00.000Z" },
+    ]);
+    qc.setQueryData(["drive-share-access", "s1"], { entries: [], retentionDays: 90, truncated: false });
+    const html = renderToStaticMarkup(
+      <QueryClientProvider client={qc}>
+        <FileDetail item={item} now={NOW} canEdit onPatch={async () => {}} onTrash={() => {}} trashing={false} />
+      </QueryClientProvider>,
+    );
+    const text = flat(html);
+    expect(text).toContain("When someone opens this link, we keep their IP address and device for 90 days so you can spot a leak.");
+    expect(text).toContain("Expires after");
+    expect(text).toContain("Password (optional");
+    expect(html.match(/data-testid="share-link-row"/g)).toHaveLength(2);
+    // only a link that has been opened reads its history; the other says so without a request
+    expect(html.match(/aria-label="Opened by"/g)).toHaveLength(1);
+    expect(text).toContain("Not opened yet.");
+    expect(text).toContain("opened 2 times");
+    // only the live link can be revoked
+    expect(html.match(/>Revoke</g)).toHaveLength(1);
+    expect(text).toContain("Revoked");
+  });
+
+  it("a viewer, and a published file, get no share links panel", () => {
+    expect(flat(detail(file({ kind: "document", mimeType: "application/pdf", visibility: "private", publicUrl: undefined }), { canEdit: false }))).not.toContain("Share links");
+    const pub = flat(detail(file()));
+    expect(pub).not.toContain("Share links");
+    expect(pub).toContain("Copy link");
   });
 
   it("lets someone who may change the file edit name, description, alt text and tags, and move it to Trash", () => {

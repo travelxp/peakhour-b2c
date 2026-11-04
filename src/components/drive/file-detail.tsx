@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog } from "@/components/molecules/confirm-dialog";
 import { FileThumb } from "@/components/drive/file-tile";
-import { createShareLink, getMedia, getMediaUrl, type MediaItem, type MediaPatch } from "@/lib/api/media";
+import { ShareLinksPanel } from "./share-links-panel";
+import { getMedia, getMediaUrl, type MediaItem, type MediaPatch } from "@/lib/api/media";
 import { DESCRIBING_LINE, fitsOf, isBeingDescribed, metaLine, usedInHref, usedInLabel, visibilityName, visibilityNote } from "@/lib/drive/copy";
 
 /**
@@ -230,14 +231,9 @@ export function FileDetail({
   const share = async () => {
     setBusy("share");
     try {
-      if (item.visibility === "published") {
-        await navigator.clipboard.writeText(item.publicUrl ?? "");
-        toast.success("Link copied. It stays the same for as long as the file is here.");
-      } else {
-        const r = await createShareLink(item.id, { expiresInDays: 7 });
-        await navigator.clipboard.writeText(r.url);
-        toast.success("Link copied. It stops working in 7 days.");
-      }
+      // Only a published file has a button here; a private file's links are made in the Share links panel (expiry, password, and what opening one records).
+      await navigator.clipboard.writeText(item.publicUrl ?? "");
+      toast.success("Link copied. It stays the same for as long as the file is here.");
     } catch {
       toast.error("A link could not be made. Try again in a moment.");
     } finally {
@@ -297,9 +293,13 @@ export function FileDetail({
           <ul className="mt-1.5 flex flex-col gap-1">
             {item.usedIn.map((u) => (
               <li key={`${u.kind}:${u.refId}`}>
-                <Link href={usedInHref(u)} className="text-sm text-brand-label underline-offset-2 hover:underline">
-                  {usedInLabel(u)}
-                </Link>
+                {usedInHref(u) ? (
+                  <Link href={usedInHref(u)!} className="text-sm text-brand-label underline-offset-2 hover:underline">
+                    {usedInLabel(u)}
+                  </Link>
+                ) : (
+                  <span className="text-sm">{usedInLabel(u)}</span>
+                )}
               </li>
             ))}
             {item.usedInCount > item.usedIn.length && <li className="text-sm text-muted-foreground">and {item.usedInCount - item.usedIn.length} more</li>}
@@ -339,9 +339,11 @@ export function FileDetail({
         <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void open()}>
           {busy === "open" ? "Opening…" : "Open"}
         </Button>
-        <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void share()}>
-          {item.visibility === "private" ? "Share link" : "Copy link"}
-        </Button>
+        {item.visibility === "published" && (
+          <Button type="button" variant="outline" disabled={busy !== null} onClick={() => void share()}>
+            Copy link
+          </Button>
+        )}
         {canEdit && (
           <ConfirmDialog
             trigger={
@@ -360,6 +362,7 @@ export function FileDetail({
           />
         )}
       </div>
+      {item.visibility === "private" && canEdit && <ShareLinksPanel mediaId={item.id} />}
     </aside>
   );
 }

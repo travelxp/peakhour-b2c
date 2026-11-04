@@ -150,6 +150,7 @@ describe("★★M-16 status", () => {
 describe("what activating a campaign costs (N2)", () => {
   it("★says starting costs nothing and names no price, so there is nothing to drift from the rate card", () => {
     expect(META_LAUNCH_NOTE).toContain("costs nothing");
+    expect(META_LAUNCH_NOTE).not.toMatch(/verif/i);
     expect(META_LAUNCH_NOTE).not.toMatch(/\d/);
     expect(META_LAUNCH_NOTE).not.toMatch(/campaign_launched/);
   });

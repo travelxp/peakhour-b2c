@@ -558,9 +558,10 @@ export default function PeaksPage() {
                       it is false: `peaksForUsageRow` charges the row's price
                       flat — or the quote the merchant accepted — and reads no
                       token count at all. */}
-                  The Peaks each task costs when it runs — or, for an
-                  outcome, each time it happens. The price does not depend on
-                  how long the output is.
+                  The Peaks each task costs when it runs — or, for a task
+                  that happens as an event (a boost, an X message), each time
+                  it happens. The price does not depend on how long the output
+                  is.
                 </CardDescription>
               </div>
               {rateLoading && (
