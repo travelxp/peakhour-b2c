@@ -33,7 +33,7 @@ const FORM_FIELDS = new Set(["name", "month", "relevance", "dates", "status"]);
  * instead of being erased by a dialog that predates it.
  */
 export function withHolidayFields<T extends object>(wire: T, initial: HolidayFields | null): T & HolidayFields {
-  const out: Record<string, unknown> = { ...wire };
+  const out: Record<string, unknown> = { ...(wire as object) };
   for (const [k, v] of Object.entries(initial ?? {})) {
     if (!FORM_FIELDS.has(k) && v !== undefined) out[k] = v;
   }
