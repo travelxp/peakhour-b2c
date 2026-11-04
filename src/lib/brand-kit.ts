@@ -313,7 +313,7 @@ export function voiceIsEmpty(v: VoiceLines): boolean {
 /** The bounds the api and the schema hold: a tone of 512, words of 128, headlines of 512, 30 of each list. */
 export const VOICE_LIMITS = { tone: 512, word: 128, headline: 512, items: 30 } as const;
 
-/** The editor's text boxes: words one per line or comma separated, headlines one per line (a headline can hold a comma). */
+/** The editor's text boxes: one entry per line, in all three lists. A comma is part of an entry ("free, guaranteed" is one phrase), never a separator. */
 export interface VoiceForm {
   tone: string;
   vocabulary: string;
@@ -332,9 +332,9 @@ export function voiceFormFrom(v: { tone?: string; vocabulary?: string[]; avoidTe
   };
 }
 
-function lines(text: string, splitComma: boolean): string[] {
+function lines(text: string): string[] {
   const out: string[] = [];
-  for (const part of text.split(splitComma ? /[\n,]/ : /\n/)) {
+  for (const part of text.split(/\n/)) {
     const t = part.trim();
     if (t && !out.includes(t)) out.push(t);
   }
@@ -347,20 +347,35 @@ export type VoiceCheck = { ok: true; payload: { tone: string; vocabulary: string
 export function voicePayloadFromForm(f: VoiceForm): VoiceCheck {
   const tone = f.tone.trim();
   if (tone.length > VOICE_LIMITS.tone) return { ok: false, reason: `The tone can be up to ${VOICE_LIMITS.tone} characters. It is ${tone.length} now.` };
-  const lists: Array<[keyof Omit<VoiceForm, "tone">, string, number, boolean]> = [
-    ["vocabulary", "Words we use", VOICE_LIMITS.word, true],
-    ["avoidTerms", "Words we avoid", VOICE_LIMITS.word, true],
-    ["sampleHeadlines", "Sounds like", VOICE_LIMITS.headline, false],
+  const lists: Array<[keyof Omit<VoiceForm, "tone">, string, number]> = [
+    ["vocabulary", "Words we use", VOICE_LIMITS.word],
+    ["avoidTerms", "Words we avoid", VOICE_LIMITS.word],
+    ["sampleHeadlines", "Sounds like", VOICE_LIMITS.headline],
   ];
   const out = { tone, vocabulary: [] as string[], avoidTerms: [] as string[], sampleHeadlines: [] as string[] };
-  for (const [key, label, max, comma] of lists) {
-    const items = lines(f[key], comma);
+  for (const [key, label, max] of lists) {
+    const items = lines(f[key]);
     if (items.length > VOICE_LIMITS.items) return { ok: false, reason: `${label} can hold up to ${VOICE_LIMITS.items}. There are ${items.length}.` };
     const long = items.find((i) => i.length > max);
     if (long) return { ok: false, reason: `In ${label}, "${long.slice(0, 24)}..." is over ${max} characters.` };
     out[key] = items;
   }
   return { ok: true, payload: out };
+}
+
+/**
+ * Only the fields the person changed, so a save cannot overwrite a field someone else edited meanwhile. Empty object when nothing changed;
+ * undefined when either form is not valid (the caller shows `voicePayloadFromForm`'s reason).
+ */
+export function voiceChanges(form: VoiceForm, saved: VoiceForm): Partial<{ tone: string; vocabulary: string[]; avoidTerms: string[]; sampleHeadlines: string[] }> | undefined {
+  const next = voicePayloadFromForm(form);
+  const before = voicePayloadFromForm(saved);
+  if (!next.ok || !before.ok) return undefined;
+  const out: Record<string, unknown> = {};
+  for (const k of ["tone", "vocabulary", "avoidTerms", "sampleHeadlines"] as const) {
+    if (JSON.stringify(next.payload[k]) !== JSON.stringify(before.payload[k])) out[k] = next.payload[k];
+  }
+  return out;
 }
 
 /** True when saving would change nothing. */

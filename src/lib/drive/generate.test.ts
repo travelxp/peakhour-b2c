@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const h = vi.hoisted(() => ({ post: vi.fn() }));
 vi.mock("@/lib/api", () => ({ api: { post: h.post }, newActionKey: () => ({ "Idempotency-Key": "click-test" }) }));
 
-const { generateImageToDrive } = await import("./generate");
+const { generateImageToDrive, GeneratedPrivateError } = await import("./generate");
 
 beforeEach(() => {
   h.post.mockReset();
@@ -24,9 +24,12 @@ describe("generateImageToDrive", () => {
     expect(h.post).toHaveBeenCalledWith("/v1/media/generate", { prompt: "A tin", aspect: "9:16" }, { "Idempotency-Key": "click-test" });
   });
 
-  it("an image that is already in Drive as a Private file has no public link to hand back, and says so rather than returning an empty address", async () => {
+  it("an image that is already in Drive as a Private file has no public link to hand back: a typed result naming the file, never an empty address", async () => {
     h.post.mockResolvedValue({ mediaId: "m1", name: "x", mimeType: "image/png", deduped: true });
-    await expect(generateImageToDrive({ prompt: "A tin" })).rejects.toThrow(/already in Drive as a Private file/);
+    const caught = await generateImageToDrive({ prompt: "A tin" }).catch((e: unknown) => e);
+    expect(caught).toBeInstanceOf(GeneratedPrivateError);
+    expect((caught as InstanceType<typeof GeneratedPrivateError>).mediaId).toBe("m1");
+    expect((caught as Error).message).toMatch(/already in Drive as a Private file/);
   });
 
   it("lets the api's refusal through untouched, so the tab can say what to do", async () => {

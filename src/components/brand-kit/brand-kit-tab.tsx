@@ -56,7 +56,9 @@ export function BrandKitTab({ onUpload }: { onUpload?: () => void }) {
 
   // The kit depends on the active business, so it is part of the key: switching business must not show the other one's kit.
   const queryKey = [...BRAND_KIT_QUERY_KEY, businessId];
-  const query = useQuery({ queryKey, queryFn: getBrandKit, enabled: !!businessId });
+  // A Private font arrives with a link that lives about five minutes, and every kit read signs one (and writes a ledger row), so the kit is not refetched on
+  // every focus: it is fresh for four minutes, the font sample loads once from it, and a reload after a save brings a new link.
+  const query = useQuery({ queryKey, queryFn: getBrandKit, enabled: !!businessId, staleTime: 4 * 60_000 });
 
   const [chosenScope, setChosenScope] = useState<KitScope | null>(null);
   const scope: KitScope | null = chosenScope && perms.scopes.includes(chosenScope) ? chosenScope : perms.defaultScope;

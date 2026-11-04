@@ -72,16 +72,16 @@ describe("Voice card", () => {
     expect((button(el, "Save voice") as HTMLButtonElement).disabled).toBe(true); // nothing changed yet
   });
 
-  it("Save sends every field, words split on lines and commas, a headline kept whole; the form closes on success", async () => {
+  it("Save sends the fields that changed, one entry per line with a comma kept inside its entry; the form closes on success", async () => {
     const onSave = vi.fn(async () => undefined);
     const el = mount({ canEdit: true, onSave });
     await act(async () => button(el, "Edit voice")!.click());
     await type(field(el, "voice-tone"), "  Calm, plain.  ");
     await type(field(el, "voice-uses"), "estate, first flush\nleaf\nleaf");
     await type(field(el, "voice-avoids"), "");
-    await type(field(el, "voice-headlines"), "Steep in joy, daily\n");
     await submit(el);
-    expect(onSave).toHaveBeenCalledWith({ tone: "Calm, plain.", vocabulary: ["estate", "first flush", "leaf"], avoidTerms: [], sampleHeadlines: ["Steep in joy, daily"] });
+    // the headlines box was not touched, so it is not sent: a headline someone else changed meanwhile is not overwritten
+    expect(onSave).toHaveBeenCalledWith({ tone: "Calm, plain.", vocabulary: ["estate, first flush", "leaf"], avoidTerms: [] });
     expect(el.querySelector("form")).toBeNull();
   });
 

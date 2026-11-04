@@ -21,7 +21,7 @@ const h = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
 }));
 vi.mock("@/lib/drive/files", async (orig) => ({ ...(await orig<typeof import("@/lib/drive/files")>()), listDriveFiles: h.list, getFileLink: h.link }));
-vi.mock("@/lib/drive/generate", () => ({ generateImageToDrive: h.generate }));
+vi.mock("@/lib/drive/generate", async (orig) => ({ ...(await orig<typeof import("@/lib/drive/generate")>()), generateImageToDrive: h.generate }));
 // the price comes from the rate card over the network; the tab's use of it is what is under test
 vi.mock("@/hooks/use-peaks-quote", async (orig) => ({ ...(await orig<typeof import("@/hooks/use-peaks-quote")>()), usePeaksQuote: vi.fn(() => h.price) }));
 vi.mock("sonner", () => ({ toast: { info: h.toastInfo, error: h.toastError, success: h.toastSuccess } }));
@@ -471,6 +471,58 @@ describe("Generate", () => {
     expect(text()).toContain("Generating isn't available here");
   });
 
+  it("a screen's own generator shows no price unless it says it is charged as the image act; then it shows it and passes the quote", async () => {
+    h.list.mockResolvedValue(page([]));
+    h.price = { quote: { action: "content.generate_image", useCase: "creative_image", label: "Image", description: null, peaks: 40, breakdown: [], free: false, source: "code", token: "q2", expiresAt: Date.now() + 600_000 }, loading: false, unavailable: false, reason: undefined };
+    const onGenerate = vi.fn(async () => undefined);
+    await mount({ onGenerate, generatePrompt: "A tin" });
+    openGenerate();
+    expect(text()).not.toContain("40");
+    act(() => root.unmount());
+    host.remove();
+    await mount({ onGenerate, generatePrompt: "A tin", generatePriced: true });
+    openGenerate();
+    expect(text()).toContain("40");
+    click(buttonByText("Make an image"));
+    await flush();
+    expect(onGenerate).toHaveBeenLastCalledWith("A tin", "image", { quoteToken: "q2" });
+  });
+
+  it("an image that was made but kept as an existing Private file is not called a failure or a free try: the person is told where it is", async () => {
+    h.list.mockResolvedValue(page([]));
+    const { GeneratedPrivateError } = await import("@/lib/drive/generate");
+    h.generate.mockRejectedValue(new GeneratedPrivateError("m1"));
+    const { onSelect } = await mount();
+    openGenerate();
+    const box = host.querySelector<HTMLTextAreaElement>("textarea")!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(box, "A blue tin");
+      box.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    click(buttonByText("Make an image"));
+    await flush();
+    expect(h.toastInfo).toHaveBeenCalledWith("Already in Drive", expect.objectContaining({ description: expect.stringContaining("Find it in the Drive tab") }));
+    expect(h.toastError).not.toHaveBeenCalled();
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("a dropped connection does not claim the image was not charged (it may have been made)", async () => {
+    h.list.mockResolvedValue(page([]));
+    h.generate.mockRejectedValue(new TypeError("Failed to fetch"));
+    await mount();
+    openGenerate();
+    const box = host.querySelector<HTMLTextAreaElement>("textarea")!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(box, "A blue tin");
+      box.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    click(buttonByText("Make an image"));
+    await flush();
+    const [, opts] = h.toastError.mock.calls[0]!;
+    expect(opts.description).not.toContain("not charged");
+    expect(opts.description).toContain("look in Drive");
+  });
+
   it("a refused generation (too few credits) says so and nothing is selected", async () => {
     h.list.mockResolvedValue(page([]));
     const { ApiError } = await import("@/lib/api");
@@ -499,7 +551,7 @@ describe("Generate", () => {
     expect(box.readOnly).toBe(true);
     click(buttonByText("Make an image"));
     await flush();
-    expect(onGenerate).toHaveBeenCalledWith("A blue tin on a table", "image", {});
+    expect(onGenerate).toHaveBeenCalledWith("A blue tin on a table", "image", undefined); // unpriced: it is not the picker's image act
     expect(h.generate).not.toHaveBeenCalled(); // the screen's own generator is used when it gives one
     expect(onClose).toHaveBeenCalled();
     expect(onSelect).not.toHaveBeenCalled();

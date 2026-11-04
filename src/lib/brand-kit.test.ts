@@ -11,6 +11,7 @@ import {
   firstFreeLogoForm,
   fontHint,
   VOICE_LIMITS,
+  voiceChanges,
   voiceFormFrom,
   voiceFormIsSaved,
   voicePayloadFromForm,
@@ -365,9 +366,15 @@ describe("editing the Brand Voice", () => {
     expect(voiceFormFrom(null)).toEqual({ tone: "", vocabulary: "", avoidTerms: "", sampleHeadlines: "" });
   });
 
-  it("words split on lines and commas and are trimmed and de-duplicated; a headline keeps its commas", () => {
-    const r = voicePayloadFromForm(form({ tone: " Plain ", vocabulary: "a, b\n\n c ,a", sampleHeadlines: "Tea, but better\nSecond" }));
-    expect(r).toEqual({ ok: true, payload: { tone: "Plain", vocabulary: ["a", "b", "c"], avoidTerms: [], sampleHeadlines: ["Tea, but better", "Second"] } });
+  it("entries split on lines only, are trimmed and de-duplicated; a comma belongs to the entry in every list", () => {
+    const r = voicePayloadFromForm(form({ tone: " Plain ", vocabulary: "a\n\n c \na", avoidTerms: "free, guaranteed", sampleHeadlines: "Tea, but better\nSecond" }));
+    expect(r).toEqual({ ok: true, payload: { tone: "Plain", vocabulary: ["a", "c"], avoidTerms: ["free, guaranteed"], sampleHeadlines: ["Tea, but better", "Second"] } });
+  });
+
+  it("a phrase with a comma survives an edit of something else unchanged", () => {
+    const saved = voiceFormFrom({ tone: "Warm", avoidTerms: ["free, guaranteed"] });
+    expect(voicePayloadFromForm(saved)).toMatchObject({ ok: true, payload: { avoidTerms: ["free, guaranteed"] } });
+    expect(voiceChanges({ ...saved, tone: "Warmer" }, saved)).toEqual({ tone: "Warmer" });
   });
 
   it("holds the schema's bounds: a tone of 512, words of 128, headlines of 512, 30 of each", () => {
@@ -376,19 +383,27 @@ describe("editing the Brand Voice", () => {
     expect(voicePayloadFromForm(form({ vocabulary: "w".repeat(VOICE_LIMITS.word + 1) }))).toMatchObject({ ok: false, reason: expect.stringContaining("Words we use") });
     expect(voicePayloadFromForm(form({ avoidTerms: "w".repeat(VOICE_LIMITS.word) })).ok).toBe(true);
     expect(voicePayloadFromForm(form({ sampleHeadlines: "h".repeat(VOICE_LIMITS.headline + 1) }))).toMatchObject({ ok: false });
-    const many = Array.from({ length: VOICE_LIMITS.items + 1 }, (_, i) => `w${i}`).join(",");
+    const many = Array.from({ length: VOICE_LIMITS.items + 1 }, (_, i) => `w${i}`).join("\n");
     expect(voicePayloadFromForm(form({ vocabulary: many }))).toMatchObject({ ok: false, reason: expect.stringContaining("31") });
-    expect(voicePayloadFromForm(form({ vocabulary: many.split(",").slice(0, VOICE_LIMITS.items).join(",") })).ok).toBe(true);
+    expect(voicePayloadFromForm(form({ vocabulary: many.split("\n").slice(0, VOICE_LIMITS.items).join("\n") })).ok).toBe(true);
   });
 
   it("an emptied box is sent empty, so the api clears it", () => {
     expect(voicePayloadFromForm(form())).toEqual({ ok: true, payload: { tone: "", vocabulary: [], avoidTerms: [], sampleHeadlines: [] } });
   });
 
-  it("knows when nothing changed, however the words were spaced", () => {
+  it("knows when nothing changed, however the lines were spaced", () => {
     const saved = voiceFormFrom({ tone: "Warm", vocabulary: ["a", "b"] });
     expect(voiceFormIsSaved(saved, saved)).toBe(true);
-    expect(voiceFormIsSaved({ ...saved, vocabulary: "a, b" }, saved)).toBe(true);
+    expect(voiceFormIsSaved({ ...saved, vocabulary: " a \n\nb\n" }, saved)).toBe(true);
     expect(voiceFormIsSaved({ ...saved, tone: "Warmer" }, saved)).toBe(false);
+  });
+
+  it("voiceChanges names only the fields that changed, so a save cannot overwrite what someone else edited", () => {
+    const saved = voiceFormFrom({ tone: "Warm", vocabulary: ["a", "b"], avoidTerms: ["x"] });
+    expect(voiceChanges(saved, saved)).toEqual({});
+    expect(voiceChanges({ ...saved, vocabulary: "a\nb\nc" }, saved)).toEqual({ vocabulary: ["a", "b", "c"] });
+    expect(voiceChanges({ ...saved, avoidTerms: "" }, saved)).toEqual({ avoidTerms: [] }); // emptied is a clear, and it is sent
+    expect(voiceChanges({ ...saved, tone: "x".repeat(VOICE_LIMITS.tone + 1) }, saved)).toBeUndefined();
   });
 });

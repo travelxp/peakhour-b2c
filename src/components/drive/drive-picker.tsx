@@ -25,7 +25,7 @@ import { PEAKS_ACTIONS } from "@/lib/api/peaks";
 import { usePeaksQuote, quoteTokenFor } from "@/hooks/use-peaks-quote";
 import { chargedTaskRefusal } from "@/hooks/use-audience-plan";
 import { PriceLine } from "@/components/audience/discover-audiences-dialog";
-import { generateImageToDrive } from "@/lib/drive/generate";
+import { generateImageToDrive, GeneratedPrivateError } from "@/lib/drive/generate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -70,6 +70,11 @@ export interface DrivePickerProps {
    * (`POST /v1/media/generate`, charged like the Strategist's image, the price shown first). `quoteToken` is the receipt for the price shown.
    */
   onGenerate?: (prompt: string, kind: "image" | "video", opts?: { quoteToken?: string }) => Promise<MediaAsset | void>;
+  /**
+   * True when the screen's own `onGenerate` is charged as the image act (`content.generate_image`), so the tab shows that price first. The picker's
+   * built-in generator always is. Leave it off for a generator charged as anything else: the tab then shows no price rather than the wrong one.
+   */
+  generatePriced?: boolean;
   /** What the Generate box starts with (a brief the screen already holds). */
   generatePrompt?: string;
   /** False when Generate makes the file from `generatePrompt` alone (the box is read-only). Default true. */
@@ -124,6 +129,7 @@ export function DrivePickerPanel({
   addLabel = "Add",
   onGenerate,
   generatePrompt,
+  generatePriced = false,
   promptEditable = true,
   onSelect,
   onClose,
@@ -313,6 +319,7 @@ export function DrivePickerPanel({
           kinds={kinds}
           onGenerate={onGenerate}
           prompt={generatePrompt}
+          priced={generatePriced}
           editable={promptEditable}
           onMade={(asset) => {
             if (!asset) return onClose?.();
@@ -716,12 +723,14 @@ function GenerateTab({
   kinds,
   onGenerate,
   prompt: initial,
+  priced,
   editable,
   onMade,
 }: {
   kinds: DriveKind[];
   onGenerate: DrivePickerProps["onGenerate"];
   prompt?: string;
+  priced: boolean;
   editable: boolean;
   onMade: (asset: MediaAsset | undefined) => void;
 }) {
@@ -735,7 +744,9 @@ function GenerateTab({
   const both = offered.includes("image") && offered.includes("video");
   const queryClient = useQueryClient();
   // The price of one image, asked for while the tab is open and shown before the button is pressed (the cost is known first).
-  const price = usePeaksQuote(PEAKS_ACTIONS.generateImage, Boolean(generate) && kind === "image");
+  // Only for a generator charged as the image act: the built-in one, or a screen's own that says it is (`generatePriced`).
+  const showPrice = !onGenerate || priced;
+  const price = usePeaksQuote(PEAKS_ACTIONS.generateImage, Boolean(generate) && showPrice && kind === "image");
 
   if (!generate || (!offered.includes("image") && !offered.includes("video"))) {
     return (
@@ -748,18 +759,27 @@ function GenerateTab({
     if (!generate || prompt.trim().length === 0) return;
     setRunning(true);
     try {
-      const made = await generate(prompt.trim(), kind, kind === "image" ? quoteTokenFor(price) : undefined);
+      // The built-in generator makes images only, whatever `kind` says.
+      const asked = onGenerate ? kind : "image";
+      const made = await generate(prompt.trim(), asked, showPrice && asked === "image" ? quoteTokenFor(price) : undefined);
       onMade(made ?? undefined);
     } catch (err) {
       // Refused before it started (too few credits, already running): nothing was charged, and the api says what to do.
       const refusal = err instanceof ApiError ? chargedTaskRefusal(err.code, err.message) : undefined;
-      if (refusal) toast.error(refusal.title, { description: refusal.description });
+      if (err instanceof GeneratedPrivateError) {
+        // Made, and kept as the Private file that already held those bytes: it is in the Drive tab, not handed back (a Private file has no public link).
+        void queryClient.invalidateQueries({ queryKey: ["drive-picker"] });
+        toast.info("Already in Drive", { description: err.message });
+      } else if (refusal) toast.error(refusal.title, { description: refusal.description });
       else if (err instanceof ApiError && err.code === "QUOTE_NOT_HONOURED") {
         // The receipt for the price shown has lapsed: nothing ran. Ask for the price again, then press again.
         queryClient.resetQueries({ queryKey: ["peaks-quote"] });
         toast.error("That price has changed.", { description: err.message || "Ask for a fresh quote and confirm the new price." });
       } else if (err instanceof ApiError && err.code === "STORAGE_QUOTA_EXCEEDED") toast.error("Your Drive is full.", { description: `${err.message} You were not charged.` });
-      else toast.error("We couldn't make that", { description: err instanceof Error ? `${err.message} You were not charged.` : "Try again in a moment. You were not charged." });
+      // The api answered with a refusal or a failure: a held charge is released only on success, so nothing was charged. A failure with no answer
+      // (the connection dropped) may have gone either way, so it says nothing about the charge.
+      else if (err instanceof ApiError) toast.error("We couldn't make that", { description: `${err.message} You were not charged.` });
+      else toast.error("We couldn't make that", { description: "Check your connection and look in Drive before trying again." });
     } finally {
       setRunning(false);
     }
@@ -782,7 +802,7 @@ function GenerateTab({
           </Button>
         </div>
       )}
-      {kind === "image" && <PriceLine price={price} />}
+      {showPrice && kind === "image" && <PriceLine price={price} />}
       <Button type="button" onClick={() => void run()} disabled={running || prompt.trim().length === 0} className="w-full gap-1.5">
         {running ? <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" /> : <Sparkles className="size-3.5" />}
         {running ? "Making it…" : `Make ${kind === "image" ? "an image" : "a video"}`}

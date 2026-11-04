@@ -22,6 +22,7 @@ import {
   scopePill,
   VOICE_LIMITS,
   voiceFormFrom,
+  voiceChanges,
   voiceFormIsSaved,
   voiceIsEmpty,
   voicePayloadFromForm,
@@ -234,7 +235,8 @@ export function VoiceCard({
           setSaving(true);
           setProblem(null);
           try {
-            await onSave(check.payload);
+            // only what changed: a field another editor changed meanwhile is not overwritten with this form's older copy
+            await onSave(voiceChanges(form, voiceFormFrom(voice)) ?? check.payload);
             setEditing(false);
           } catch (err) {
             setProblem(err instanceof Error ? err.message : "The Brand Voice could not be saved. Try again.");
@@ -249,11 +251,11 @@ export function VoiceCard({
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="voice-uses">Words we use</Label>
-          <Textarea id="voice-uses" value={form.vocabulary} onChange={set("vocabulary")} rows={2} placeholder="One per line, or separated by commas" />
+          <Textarea id="voice-uses" value={form.vocabulary} onChange={set("vocabulary")} rows={2} placeholder="One per line" />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="voice-avoids">Words we avoid</Label>
-          <Textarea id="voice-avoids" value={form.avoidTerms} onChange={set("avoidTerms")} rows={2} placeholder="One per line, or separated by commas" />
+          <Textarea id="voice-avoids" value={form.avoidTerms} onChange={set("avoidTerms")} rows={2} placeholder="One per line" />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="voice-headlines">Headlines that sound like you</Label>

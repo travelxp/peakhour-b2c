@@ -21,11 +21,22 @@ interface GeneratedImage {
   deduped: boolean;
 }
 
+/**
+ * The api stored nothing new: these bytes were already in Drive as a PRIVATE file, so there is no public link to hand a screen. The image WAS made
+ * (the api answered 200), so this is not a failure to wave away: the picker tells the person where it is and does not say "you were not charged".
+ */
+export class GeneratedPrivateError extends Error {
+  constructor(readonly mediaId: string) {
+    super("That picture is already in Drive as a Private file, so we kept that one. Find it in the Drive tab.");
+    this.name = "GeneratedPrivateError";
+  }
+}
+
 export async function generateImageToDrive(args: { prompt: string; aspect?: GenerateAspect; quoteToken?: string }): Promise<MediaAsset> {
   const headers = { ...newActionKey(), ...(args.quoteToken ? { "x-peaks-quote": args.quoteToken } : {}) };
   const made = await api.post<GeneratedImage>("/v1/media/generate", { prompt: args.prompt, aspect: args.aspect ?? "1:1" }, headers);
   // The same picture can already be in Drive as a Private file; it then has no public link to hand to a screen that needs one.
-  if (!made.publicUrl) throw new Error("That picture is already in Drive as a Private file. Choose it from the Drive tab.");
+  if (!made.publicUrl) throw new GeneratedPrivateError(made.mediaId);
   return {
     id: made.mediaId,
     url: made.publicUrl,
