@@ -103,6 +103,8 @@ function AttachButton({ disabled, unknownSig, onSend }: { disabled: boolean; unk
         kinds={["image", "document"]}
         requirePublicUrl={false}
         needUrl={false}
+        // a shopper's photo must not get a public address
+        uploadAs="private"
         maxSelection={1}
         addLabel="Attach"
         unusable={(f) => attachmentProblem({ type: f.mimeType, size: f.sizeBytes })}

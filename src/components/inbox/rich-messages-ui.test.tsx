@@ -82,6 +82,8 @@ describe("the composer's rich buttons", () => {
     expect(src).toContain("requirePublicUrl={false}");
     // the file goes by id and the api reads its bytes: no signed link is fetched for it
     expect(src).toContain("needUrl={false}");
+    // and a file uploaded from here is Private: a shopper's photo gets no public address
+    expect(src).toContain('uploadAs="private"');
   });
 
   it("every button is off while a send is in flight (one press, one send)", () => {

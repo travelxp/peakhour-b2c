@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api";
-import { UploadAborted, uploadErrorMessage, uploadToDrive, type InitiateAnswer, type UploadDeps } from "./upload";
+import { PartRejected, UploadAborted, uploadErrorMessage, uploadToDrive, type InitiateAnswer, type UploadDeps } from "./upload";
 
 const HASH = "a".repeat(64);
 const PART = 4;
@@ -88,7 +88,7 @@ describe("uploading straight to storage", () => {
         if (url.endsWith("/2") && ++tries < 3) throw new Error("The connection dropped.");
       }),
     });
-    const res = await uploadToDrive(file(10), { deps: d });
+    const res = await uploadToDrive(file(10), { deps: d, retryDelayMs: () => 0 });
     expect(res.mediaId).toBe("m1");
     expect(tries).toBe(3);
     expect(d.resume).not.toHaveBeenCalled();
@@ -111,7 +111,7 @@ describe("uploading straight to storage", () => {
         parts: [2, 3].map((n) => ({ partNumber: n, url: `https://r2.test/new/${n}` })),
       })),
     });
-    const res = await uploadToDrive(file(10), { deps: d, partAttempts: 2 });
+    const res = await uploadToDrive(file(10), { deps: d, partAttempts: 2, retryDelayMs: () => 0 });
     expect(res.mediaId).toBe("m1");
     expect(d.resume).toHaveBeenCalledTimes(1);
     expect(put).toEqual(["https://r2.test/old/1", "https://r2.test/new/2", "https://r2.test/new/3"]);
@@ -172,5 +172,54 @@ describe("a complete whose answer never arrived", () => {
     });
     await expect(uploadToDrive(file(10), { deps: d, partAttempts: 1 })).rejects.toThrow("drop");
     expect(d.abort).toHaveBeenCalledWith("u1");
+  });
+});
+
+describe("what retrying can and cannot cure", () => {
+  it("a part refused with 403 (its signed link expired) is NOT retried on the same link: it goes straight to resume for fresh ones", async () => {
+    const calls: string[] = [];
+    const { d } = deps({
+      initiate: vi.fn(async () => started(1, "https://r2.test/old")),
+      putPart: vi.fn(async (url) => {
+        calls.push(url);
+        if (url.includes("/old/")) throw new PartRejected(403);
+      }),
+      resume: vi.fn(async () => ({ uploadId: "u1", partSize: PART, partCount: 1, uploaded: [], parts: [{ partNumber: 1, url: "https://r2.test/new/1" }] })),
+    });
+    await uploadToDrive(file(3), { deps: d, retryDelayMs: () => 0 });
+    expect(calls).toEqual(["https://r2.test/old/1", "https://r2.test/new/1"]);
+  });
+
+  it("a part that failed for any other reason is retried, waiting a little longer each time", async () => {
+    vi.useFakeTimers();
+    try {
+      let tries = 0;
+      const { d } = deps({
+        putPart: vi.fn(async (url) => {
+          if (url.endsWith("/1") && ++tries < 3) throw new Error("The connection dropped.");
+        }),
+      });
+      const p = uploadToDrive(file(10), { deps: d, retryDelayMs: (n) => 100 * n });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(tries).toBe(1);
+      await vi.advanceTimersByTimeAsync(99);
+      expect(tries).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(tries).toBe(2);
+      await vi.advanceTimersByTimeAsync(200);
+      await p;
+      expect(tries).toBe(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a gateway error on complete may hide a finished upload: not aborted. A refusal (4xx) is.", async () => {
+    const gateway = deps({ complete: vi.fn(async () => Promise.reject(new ApiError("BAD_GATEWAY", "Bad gateway", 502))) });
+    await expect(uploadToDrive(file(10), { deps: gateway.d })).rejects.toBeInstanceOf(ApiError);
+    expect(gateway.d.abort).not.toHaveBeenCalled();
+    const refused = deps({ complete: vi.fn(async () => Promise.reject(new ApiError("UPLOAD_INCOMPLETE", "Some parts are missing.", 409))) });
+    await expect(uploadToDrive(file(10), { deps: refused.d })).rejects.toBeInstanceOf(ApiError);
+    expect(refused.d.abort).toHaveBeenCalledWith("u1");
   });
 });

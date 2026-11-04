@@ -9,7 +9,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { DriveFile } from "@/lib/drive/files";
-import type { UploadDeps } from "@/lib/drive/upload";
+import { UploadAborted, type UploadDeps } from "@/lib/drive/upload";
 
 const h = vi.hoisted(() => ({
   list: vi.fn(),
@@ -123,6 +123,22 @@ describe("the grid's states", () => {
     expect(gridState({ isPending: false, isError: true, fetchStatus: "idle" }, 0)).toBe("error");
     // files already on screen are never replaced by a state: a failed "show more" keeps the grid
     expect(gridState({ isPending: false, isError: true, fetchStatus: "idle" }, 3)).toBe("ready");
+    // more pages to read and none of them showable yet: still loading, not empty
+    expect(gridState({ isPending: false, isError: false, fetchStatus: "idle" }, 0, true)).toBe("loading");
+  });
+
+  it("with several kinds, keeps reading pages while the ones read hold nothing this screen can use, instead of calling Drive empty", async () => {
+    const vid = (id: string) => file(id, { kind: "video", mimeType: "video/mp4" });
+    h.list
+      .mockResolvedValueOnce(page([vid("v1"), vid("v2")], true))
+      .mockResolvedValueOnce({ items: [vid("v3")], hasMore: true, page: 2 })
+      .mockResolvedValueOnce({ items: [file("img")], hasMore: false, page: 3 });
+    await mount({ kinds: ["image", "document"] });
+    await flush();
+    await flush();
+    expect(h.list).toHaveBeenCalledTimes(3);
+    expect(names()).toEqual(["File img"]);
+    expect(text()).not.toContain("Nothing in Drive yet");
   });
 
   it("asks for the next page when 'Show more' is pressed", async () => {
@@ -352,6 +368,47 @@ describe("the Upload tab", () => {
     await flush();
     expect(text()).toContain("already in Drive as a Private file");
     expect(text()).toContain("Nothing selected");
+    expect(h.toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("a Private upload is asked for where the screen says so (an Inbox reply), never the type's public default", async () => {
+    h.list.mockResolvedValue(page([]));
+    const deps = goodDeps();
+    await mount({ kinds: ["image", "document"], requirePublicUrl: false, uploadAs: "private", uploadOptions: { deps } });
+    click([...host.querySelectorAll<HTMLButtonElement>("[role=tab]")].find((t) => t.textContent === "Upload")!);
+    choose([new File(["hello"], "invoice.jpg", { type: "image/jpeg" })]);
+    await flush();
+    expect(deps.initiate).toHaveBeenCalledWith(expect.objectContaining({ visibility: "private" }));
+  });
+
+  it("a dropped file of a kind the screen cannot use is turned away with a line saying so, and never starts uploading or gets selected", async () => {
+    h.list.mockResolvedValue(page([]));
+    const deps = goodDeps();
+    await mount({ kinds: ["image"], uploadOptions: { deps } });
+    click([...host.querySelectorAll<HTMLButtonElement>("[role=tab]")].find((t) => t.textContent === "Upload")!);
+    const zone = host.querySelector("input[type=file]")!.parentElement!;
+    const drop = new Event("drop", { bubbles: true, cancelable: true });
+    Object.defineProperty(drop, "dataTransfer", { value: { files: [new File(["x"], "clip.mp4", { type: "video/mp4" })] } });
+    act(() => void zone.dispatchEvent(drop));
+    await flush();
+    expect(text()).toContain("This screen can't use this kind of file.");
+    expect(deps.initiate).not.toHaveBeenCalled();
+    expect(text()).toContain("Nothing selected");
+  });
+
+  it("closing the picker mid-upload stops the files queued behind the one in flight", async () => {
+    h.list.mockResolvedValue(page([]));
+    const deps = goodDeps({
+      putPart: vi.fn((_url, _body, _on, signal) => new Promise<void>((_res, rej) => signal?.addEventListener("abort", () => rej(new UploadAborted())))),
+    });
+    await mount({ uploadOptions: { deps } });
+    click([...host.querySelectorAll<HTMLButtonElement>("[role=tab]")].find((t) => t.textContent === "Upload")!);
+    choose([new File(["a"], "a.jpg", { type: "image/jpeg" }), new File(["b"], "b.jpg", { type: "image/jpeg" }), new File(["c"], "c.jpg", { type: "image/jpeg" })]);
+    await flush();
+    expect(deps.initiate).toHaveBeenCalledTimes(1);
+    act(() => root.unmount());
+    await flush();
+    expect(deps.initiate).toHaveBeenCalledTimes(1);
     expect(h.toastSuccess).not.toHaveBeenCalled();
   });
 

@@ -17,7 +17,7 @@
  */
 
 import { useEffect, useId, useMemo, useRef, useState, type DragEvent } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { FileText, Image as ImageIcon, Loader2, Lock, Search, Sparkles, Upload, Video, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -50,6 +50,8 @@ export interface DrivePickerProps {
   maxSelection?: number;
   /** True (default): the file must have a public link, so a Private file cannot be added. False: a Private file is added with a short-lived signed link. */
   requirePublicUrl?: boolean;
+  /** What a file uploaded here becomes. Default: Published where a public link is needed, else the file type's own default. An Inbox reply passes "private": a shopper's photo must not get a public address. */
+  uploadAs?: "published" | "private";
   /** False when the screen takes only the file's id and reads the bytes itself (an Inbox reply): no link is fetched, so a Private file's `url` is "". Default true. */
   needUrl?: boolean;
   /** A reason this file cannot be used HERE (wrong type, too big), or null. Shown on the tile, which is greyed out. */
@@ -107,6 +109,7 @@ export function DrivePickerPanel({
   maxSelection,
   requirePublicUrl = true,
   needUrl = true,
+  uploadAs,
   unusable,
   addLabel = "Add",
   onGenerate,
@@ -123,6 +126,7 @@ export function DrivePickerPanel({
   /** Files uploaded in this panel, shown first so they are there before the list refetches. */
   const [added, setAdded] = useState<DriveFile[]>([]);
   const [adding, setAdding] = useState(false);
+  const queryClient = useQueryClient();
 
   const single = kinds.length === 1 ? kinds[0] : undefined;
   const query = useInfiniteQuery({
@@ -147,6 +151,16 @@ export function DrivePickerPanel({
     return orderByFit(all, target?.channel);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `kinds` is read through kindsKey
   }, [query.data, added, q, kindsKey, target?.channel]);
+
+  // With several kinds the api is asked for every kind and this list is filtered here, so a page can hold nothing this screen can use: keep
+  // reading pages until something shows or Drive runs out, rather than call a Drive full of videos empty.
+  const fetchNext = query.fetchNextPage;
+  const readingOn = single === undefined && files.length === 0 && Boolean(query.hasNextPage);
+  const pagesRead = query.data?.pages.length ?? 0;
+  useEffect(() => {
+    if (readingOn && !query.isFetchingNextPage) void fetchNext();
+    // `pagesRead` re-runs this when a page lands, so a page that arrives with nothing showable asks for the next
+  }, [readingOn, query.isFetchingNextPage, pagesRead, fetchNext]);
 
   function toggle(file: DriveFile) {
     if (selected.has(file.id)) {
@@ -241,7 +255,7 @@ export function DrivePickerPanel({
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-4">
             <FileGrid
-              state={gridState(query, files.length)}
+              state={gridState(query, files.length, readingOn)}
               files={files}
               channel={channel}
               selected={selected}
@@ -264,6 +278,7 @@ export function DrivePickerPanel({
         <UploadTab
           kinds={kinds}
           requirePublicUrl={requirePublicUrl}
+          visibility={uploadAs ?? (requirePublicUrl ? "published" : undefined)}
           uploadOptions={uploadOptions}
           onDone={(done) => {
             const files = done.map(fileOf);
@@ -272,11 +287,12 @@ export function DrivePickerPanel({
               const next = new Map(prev);
               for (const f of files) {
                 if (maxSelection !== undefined && next.size >= maxSelection) break;
-                if (!unusable?.(f) && !(requirePublicUrl && f.visibility === "private")) next.set(f.id, f);
+                if (kinds.includes(f.kind) && !unusable?.(f) && !(requirePublicUrl && f.visibility === "private")) next.set(f.id, f);
               }
               return next;
             });
-            void query.refetch();
+            // marked stale, so the Drive tab (disabled while Upload is open) fetches afresh when it comes back
+            void queryClient.invalidateQueries({ queryKey: ["drive-picker"] });
             setTab("drive");
           }}
         />
@@ -328,9 +344,11 @@ type GridState = "loading" | "offline" | "error" | "empty" | "ready";
 export function gridState(
   q: { isPending: boolean; isError: boolean; fetchStatus: "fetching" | "paused" | "idle" },
   fileCount: number,
+  readingOn = false,
 ): GridState {
   if (fileCount > 0) return "ready";
   if (q.isError) return "error";
+  if (readingOn) return "loading";
   if (q.isPending && q.fetchStatus === "paused") return "offline";
   if (q.isPending) return "loading";
   return "empty";
@@ -537,11 +555,13 @@ const ACCEPT: Record<DriveKind, string> = {
 function UploadTab({
   kinds,
   requirePublicUrl,
+  visibility,
   onDone,
   uploadOptions,
 }: {
   kinds: DriveKind[];
   requirePublicUrl: boolean;
+  visibility: "published" | "private" | undefined;
   onDone: (done: UploadedFile[]) => void;
   uploadOptions?: Pick<UploadOptions, "deps">;
 }) {
@@ -555,27 +575,38 @@ function UploadTab({
     onDoneRef.current = onDone;
   }, [onDone]);
 
-  // Closing the picker ends an upload that is still running: its progress has nowhere to show.
+  // Closing the picker (or leaving this tab) ends the upload in flight AND stops the queue behind it: its progress has nowhere to show.
+  const stopped = useRef(false);
   useEffect(() => {
+    stopped.current = false;
     const live = controllers.current;
-    return () => live.forEach((c) => c.abort());
+    return () => {
+      stopped.current = true;
+      live.forEach((c) => c.abort());
+    };
   }, []);
 
   const patch = (key: number, p: Partial<UploadRow>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...p } : r)));
 
   async function start(list: File[]) {
     if (list.length === 0) return;
-    const fresh: UploadRow[] = list.map((file) => ({ key: next.current++, file, sent: 0, status: "uploading" }));
-    setRows((rs) => [...fresh, ...rs]);
+    // A dropped file can be of any type (the input's `accept` does not apply to a drop): turn away what this screen cannot use, and say so.
+    const usable = list.filter((f) => kinds.includes(kindOfMime(f.type)));
+    const turnedAway: UploadRow[] = list
+      .filter((f) => !usable.includes(f))
+      .map((file) => ({ key: next.current++, file, sent: 0, status: "error" as const, error: "This screen can't use this kind of file." }));
+    const fresh: UploadRow[] = usable.map((file) => ({ key: next.current++, file, sent: 0, status: "uploading" }));
+    setRows((rs) => [...turnedAway, ...fresh, ...rs]);
     const done: UploadedFile[] = [];
     // One at a time: a quota refusal on the first file stops the rest cleanly, and the person sees which file it was.
     for (const row of fresh) {
+      if (stopped.current) break;
       const ctl = new AbortController();
       controllers.current.set(row.key, ctl);
       try {
         const res = await uploadToDrive(row.file, {
           // A screen that needs a public link gets a Published file, whatever the type's own default is (a PDF defaults to Private).
-          ...(requirePublicUrl ? { visibility: "published" as const } : {}),
+          ...(visibility ? { visibility } : {}),
           signal: ctl.signal,
           onProgress: ({ sent }) => patch(row.key, { sent }),
           ...uploadOptions,
@@ -594,7 +625,7 @@ function UploadTab({
         controllers.current.delete(row.key);
       }
     }
-    if (done.length > 0) {
+    if (done.length > 0 && !stopped.current) {
       toast.success(`Added ${done.length} ${done.length === 1 ? "file" : "files"} to Drive.`);
       onDoneRef.current(done);
     }

@@ -89,6 +89,16 @@ export interface UploadOptions {
   deps?: Partial<UploadDeps>;
   /** Tries per part before the upload is resumed from what R2 holds. */
   partAttempts?: number;
+  /** Wait before try n+1 of a part, in ms. Default 400 x n. */
+  retryDelayMs?: (attempt: number) => number;
+}
+
+/** Storage refused a part on its link (expired or not allowed): trying the SAME link again cannot help. */
+export class PartRejected extends Error {
+  constructor(readonly status: number) {
+    super(`Storage answered ${status}`);
+    this.name = "PartRejected";
+  }
 }
 
 export class UploadAborted extends Error {
@@ -129,7 +139,7 @@ function putPartXhr(url: string, body: Blob, onBytes: (sent: number) => void, si
     };
     xhr.open("PUT", url);
     xhr.upload.onprogress = (e) => onBytes(e.loaded);
-    xhr.onload = settle(() => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Storage answered ${xhr.status}`))));
+    xhr.onload = settle(() => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new PartRejected(xhr.status))));
     xhr.onerror = settle(() => reject(new Error("The connection dropped.")));
     xhr.onabort = settle(() => reject(new UploadAborted()));
     signal?.addEventListener("abort", onAbort, { once: true });
@@ -160,6 +170,8 @@ export async function uploadToDrive(file: File, opts: UploadOptions = {}): Promi
   const d: UploadDeps = { ...liveDeps, ...opts.deps };
   const attempts = opts.partAttempts ?? 3;
   const total = file.size;
+  const retryDelay = opts.retryDelayMs ?? ((n: number) => 400 * n);
+  const sleep = (ms: number) => (ms > 0 ? new Promise<void>((r) => setTimeout(r, ms)) : Promise.resolve());
   const check = () => {
     if (opts.signal?.aborted) throw new UploadAborted();
   };
@@ -222,6 +234,9 @@ export async function uploadToDrive(file: File, opts: UploadOptions = {}): Promi
           inFlight = 0;
           if (err instanceof UploadAborted) throw err;
           lastErr = err;
+          // An expired or refused link stays expired or refused: go straight to resume for fresh ones.
+          if (err instanceof PartRejected && (err.status === 401 || err.status === 403)) break;
+          if (attempt < attempts) await sleep(retryDelay(attempt));
         }
       }
       if (lastErr !== undefined) throw lastErr;
@@ -256,9 +271,9 @@ export async function uploadToDrive(file: File, opts: UploadOptions = {}): Promi
   } catch (err) {
     // Resume already ran inside the try above, so a failure that reaches here is final for this attempt: throw the parts away rather
     // than leave an open session (a person holds at most 20) until it expires. Trying again starts a fresh upload.
-    // EXCEPT a complete whose answer never arrived (no api answer at all): the server may have stitched the file, and discarding its parts
+    // EXCEPT a complete whose answer never arrived (no api answer at all, or a gateway error): the server may have stitched the file, and discarding its parts
     // now could undo a finished upload. That session is left to its own expiry; a retry finds the file by its hash and says it is already in Drive.
-    const lostAnswer = completing && !(err instanceof ApiError);
+    const lostAnswer = completing && (!(err instanceof ApiError) || err.status >= 500);
     if (!lostAnswer) await d.abort(uploadId).catch(() => undefined);
     throw err;
   }
