@@ -314,12 +314,6 @@ export function setDrivePrivacy(dontSendPrivateFilesToAi: boolean): Promise<{ do
   return api.put(`/v1/media/privacy`, { dontSendPrivateFilesToAi });
 }
 
-/**
- * ONE FILE THROUGH THE MULTIPART UPLOAD. Kept only because the library picker (lane C's file) still calls it; the old route it used,
- * POST /v1/media/upload, is gone. When the picker moves to the upload tray, delete this line.
- */
-export { uploadMedia, type MediaUploadResult } from "@/lib/drive/upload-engine";
-
 /** Human-readable byte size. */
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

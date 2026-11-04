@@ -114,15 +114,21 @@ export interface VoiceCardSummary {
   refreshedAt?: string;
 }
 
-/** Media asset shape that `<MediaPicker/>` lists + returns on
- *  selection. Backed by `cnt_media` in peakhour-mongodb (or by a
- *  session shim until the R2 wiring lands per
- *  [[project_media_manager_r2_plan]]). */
+/** What `<DrivePicker/>` returns for each file chosen. Backed by
+ *  `cnt_media` (Drive). */
 export interface MediaAsset {
-  /** Stable id for the asset — Mongo ObjectId hex once R2 ships. */
+  /** The file's Drive id (a cnt_media ObjectId hex). */
   id: string;
-  /** Public URL (R2 presigned or data URL during the shim phase). */
+  /** The file's public URL. For a Private file (only when the screen said it
+   *  can use one) it is a signed link that expires: see
+   *  `linkExpiresInSeconds`. */
   url: string;
+  /** The file's name in Drive. */
+  name?: string;
+  /** Published has a stable public URL; Private only a signed, expiring one. */
+  visibility?: "published" | "private";
+  /** Seconds the signed link in `url` lasts, from when the file was chosen. */
+  linkExpiresInSeconds?: number;
   /** Optional alt-text (a11y + carried into the publish payload). */
   alt?: string;
   /** MIME type, used to drive the per-platform aspect-ratio chip and

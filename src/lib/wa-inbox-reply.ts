@@ -253,7 +253,8 @@ export type ReplyPayload =
   // rules as a text, and are free-form (inside the 24-hour window only).
   | { kind: "product"; productId: string }
   | { kind: "checkout"; items: Array<{ productId: string; variantId: string; quantity: number }> }
-  | { kind: "media"; file: { name: string; size: number; lastModified: number; type: string }; caption?: string };
+  // A file chosen from Drive (row D7): the api reads its bytes from R2 by `mediaId`, so nothing is uploaded from the browser.
+  | { kind: "media"; mediaId: string; file: { name: string; size: number; type: string }; caption?: string };
 
 /**
  * The words a key is bound to, as the api binds them (`payloadOf`): the text,
@@ -274,8 +275,8 @@ export function replySignature(p: ReplyPayload): string {
     case "checkout":
       return JSON.stringify(["checkout", p.items.map((i) => [i.productId.toLowerCase(), i.variantId, i.quantity])]);
     case "media":
-      // the file's identity (the same file chosen again is the same send) and its caption
-      return JSON.stringify(["media", p.file.name, p.file.size, p.file.lastModified, (p.caption ?? "").trim()]);
+      // the Drive file's identity (the same file chosen again is the same send) and its caption
+      return JSON.stringify(["media", p.mediaId.toLowerCase(), (p.caption ?? "").trim()]);
   }
 }
 
@@ -353,24 +354,17 @@ export function replyRequest(
   }
   if (payload.kind === "product") return { path: `${base}/send-product`, body: { productId: payload.productId, idempotencyKey } };
   if (payload.kind === "checkout") return { path: `${base}/send-checkout-link`, body: { items: payload.items, idempotencyKey } };
-  if (payload.kind === "media") throw new Error("an attachment goes as a form: use replyForm");
+  if (payload.kind === "media") {
+    const caption = (payload.caption ?? "").trim();
+    return {
+      path: `${base}/reply-media`,
+      body: { mediaId: payload.mediaId, ...(caption ? { caption } : {}), idempotencyKey },
+    };
+  }
   return {
     path: `${base}/reply-template`,
     body: { templateId: payload.templateId, ...(payload.params ? { params: payload.params } : {}), idempotencyKey },
   };
-}
-
-/**
- * The form an attached image or PDF goes as (`POST .../reply-media`): the file, its caption and the idempotency key. The caption is
- * trimmed here as a text is, because it is part of what the key is bound to (`replySignature`).
- */
-export function replyForm(threadId: string, payload: Extract<ReplyPayload, { kind: "media" }>, file: Blob, idempotencyKey: string): { path: string; form: FormData } {
-  const form = new FormData();
-  form.append("file", file, payload.file.name);
-  const caption = (payload.caption ?? "").trim();
-  if (caption) form.append("caption", caption);
-  form.append("idempotencyKey", idempotencyKey);
-  return { path: `/v1/meta/whatsapp/conversations/${encodeURIComponent(threadId)}/reply-media`, form };
 }
 
 /**

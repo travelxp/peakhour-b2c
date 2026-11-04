@@ -49,6 +49,7 @@ export interface UploadRow {
   /** The name Drive holds it under (for a duplicate, the existing file's name kept or replaced by this one). */
   name?: string;
   publicUrl?: string;
+  visibility?: "published" | "private";
   error?: string;
   /** Set on a failure that sending again will not fix (a full Drive, a type or size that is refused). */
   final?: boolean;
@@ -130,6 +131,7 @@ export const defaultDeps = (): UploadDeps => ({
 interface Internal {
   file: File;
   controller: AbortController;
+  visibility?: "published" | "private";
   hash?: string;
   dims?: { width?: number; height?: number };
   uploadId?: string;
@@ -177,10 +179,10 @@ export class UploadQueue {
   }
 
   /** Add files. Returns their rows. Starts at once, up to `fileConcurrency` at a time. */
-  add(files: File[]): UploadRow[] {
+  add(files: File[], opts: { visibility?: "published" | "private" } = {}): UploadRow[] {
     const added = files.map((file): UploadRow => {
       const id = `u${++this.seq}`;
-      this.internal.set(id, { file, controller: new AbortController(), settle: [] });
+      this.internal.set(id, { file, controller: new AbortController(), settle: [], ...(opts.visibility ? { visibility: opts.visibility } : {}) });
       return { id, filename: file.name, sizeBytes: file.size, kind: kindOf(file.type), status: "waiting", progress: 0 };
     });
     this.rows = [...this.rows, ...added];
@@ -307,11 +309,12 @@ export class UploadQueue {
         mimeType: file.type,
         sizeBytes: file.size,
         contentHash: i.hash,
+        ...(i.visibility ? { visibility: i.visibility } : {}),
         ...(i.dims?.width ? { width: i.dims.width, height: i.dims.height } : {}),
       });
       if (signal.aborted) return "cancelled";
       if (init.deduped) {
-        patch({ status: "duplicate", progress: 1, mediaId: init.mediaId, name: init.name, publicUrl: init.publicUrl });
+        patch({ status: "duplicate", progress: 1, mediaId: init.mediaId, name: init.name, publicUrl: init.publicUrl, visibility: init.visibility });
         return init.mediaId;
       }
       i.uploadId = init.uploadId;
@@ -364,7 +367,7 @@ export class UploadQueue {
     const done: CompleteResponse = await d.complete(session.uploadId);
     i.uploadId = undefined;
     if (signal.aborted) return "cancelled";
-    patch({ status: done.deduped ? "duplicate" : "done", mediaId: done.mediaId, name: done.name, publicUrl: done.publicUrl, progress: 1 });
+    patch({ status: done.deduped ? "duplicate" : "done", mediaId: done.mediaId, name: done.name, publicUrl: done.publicUrl, visibility: done.visibility, progress: 1 });
 
     if (visible && !done.deduped && file.type.startsWith("video/")) await this.sendPoster(i, file, done.mediaId);
     return done.mediaId;
@@ -429,23 +432,84 @@ export class UploadQueue {
 /** The one queue the app uses. */
 export const uploadQueue = new UploadQueue();
 
-export interface MediaUploadResult {
+/** Thrown by {@link uploadToDrive} when the caller's signal cancelled the upload. */
+export class UploadAborted extends Error {
+  constructor() {
+    super("Upload cancelled.");
+    this.name = "UploadAborted";
+  }
+}
+
+/** Thrown by {@link uploadToDrive} when a file stopped. The message is already the sentence for a person. */
+export class UploadFailed extends Error {
+  constructor(
+    message: string,
+    readonly final: boolean,
+  ) {
+    super(message);
+    this.name = "UploadFailed";
+  }
+}
+
+export interface UploadedFile {
   mediaId: string;
+  name: string;
   publicUrl?: string;
+  visibility: "published" | "private";
   sizeBytes: number;
+  /** Drive already held this exact file; nothing was sent. */
   deduped: boolean;
+  mimeType?: string;
+}
+
+export interface UploadOptions {
+  /** Defaults by kind on the server: documents Private, everything else Published. */
+  visibility?: "published" | "private";
+  onProgress?: (p: { sent: number; total: number }) => void;
+  signal?: AbortSignal;
+  /** Test seam. */
+  deps?: Partial<UploadDeps>;
+}
+
+/** The merchant's words for a file that stopped. */
+export function uploadErrorMessage(err: unknown): string {
+  if (err instanceof UploadAborted) return "Cancelled.";
+  if (err instanceof UploadFailed) return err.message;
+  return "That upload didn't finish. Check your connection and try again.";
 }
 
 /**
- * One file through the same multipart path, resolved when it is in Drive.
- * ONLY FOR the library picker (lane C owns it), which has not moved to the tray yet. When it does, delete this and its re-export from
- * lib/api/media.ts.
+ * One file through the SAME machine as the tray (hash in slices, parts, resume, poster), on a queue of its own, resolved when it is in
+ * Drive. For a screen that shows its own progress and must stop when it closes (the Drive picker): the file does not appear in the tray,
+ * and aborting `signal` cancels it and throws {@link UploadAborted}.
  */
-export async function uploadMedia(file: File): Promise<MediaUploadResult> {
-  const [row] = uploadQueue.add([file]);
-  const settled = await uploadQueue.whenSettled(row!.id);
-  if ((settled.status === "done" || settled.status === "duplicate") && settled.mediaId) {
-    return { mediaId: settled.mediaId, publicUrl: settled.publicUrl, sizeBytes: settled.sizeBytes, deduped: settled.status === "duplicate" };
+export async function uploadToDrive(file: File, opts: UploadOptions = {}): Promise<UploadedFile> {
+  if (opts.signal?.aborted) throw new UploadAborted();
+  const queue = new UploadQueue({ ...defaultDeps(), ...opts.deps });
+  const [row] = queue.add([file], opts.visibility ? { visibility: opts.visibility } : {});
+  const unsub = queue.subscribe(() => {
+    const r = queue.getSnapshot()[0];
+    if (r) opts.onProgress?.({ sent: Math.min(file.size, Math.floor(r.progress * file.size)), total: file.size });
+  });
+  const onAbort = () => queue.cancel(row!.id);
+  opts.signal?.addEventListener("abort", onAbort, { once: true });
+  try {
+    const settled = await queue.whenSettled(row!.id);
+    if (settled.status === "cancelled") throw new UploadAborted();
+    if ((settled.status === "done" || settled.status === "duplicate") && settled.mediaId) {
+      return {
+        mediaId: settled.mediaId,
+        name: settled.name ?? file.name,
+        publicUrl: settled.publicUrl,
+        visibility: settled.visibility ?? opts.visibility ?? "published",
+        sizeBytes: file.size,
+        deduped: settled.status === "duplicate",
+        mimeType: file.type,
+      };
+    }
+    throw new UploadFailed(settled.error ?? "This file could not be uploaded.", settled.final === true);
+  } finally {
+    unsub();
+    opts.signal?.removeEventListener("abort", onAbort);
   }
-  throw new Error(settled.error ?? "This file could not be uploaded.");
 }

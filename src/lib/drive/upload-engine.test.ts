@@ -17,7 +17,7 @@ vi.mock("@/lib/api/media-uploads", () => ({ initiateUpload: vi.fn(), resumeUploa
 vi.mock("./probe-file", () => ({ probeDimensions: vi.fn(), captureVideoPoster: vi.fn() }));
 
 const { ApiError } = (await import("@/lib/api")) as unknown as { ApiError: new (code: string, message: string, status: number) => Error };
-const { UploadQueue, PartError, partBackoffMs, failureMessage } = await import("./upload-engine");
+const { UploadQueue, PartError, partBackoffMs, failureMessage, uploadToDrive, UploadAborted, uploadErrorMessage } = await import("./upload-engine");
 type UploadDeps = import("./upload-engine").UploadDeps;
 
 /**
@@ -350,5 +350,65 @@ describe("onDone", () => {
     await Promise.all(rows.map((r) => q.whenSettled(r.id)));
     await until(() => landed.length === 2);
     expect(new Set(landed).size).toBe(2);
+  });
+});
+
+describe("uploadToDrive: one file on its own queue, for a screen that shows its own progress (the Drive picker)", () => {
+  it("asks for the visibility the screen needs, reports bytes sent, and returns the file", async () => {
+    const w = world();
+    const seen: number[] = [];
+    const r = await uploadToDrive(file("pic.png", 10), { visibility: "published", deps: w.deps, onProgress: (p) => seen.push(p.sent) });
+    expect(w.calls.initiate[0]).toMatchObject({ visibility: "published" });
+    expect(r).toMatchObject({ mediaId: "m1", name: "Pic", deduped: false, sizeBytes: 10, visibility: "published" });
+    expect(Math.max(...seen)).toBe(10);
+  });
+  it("sends no visibility when the screen does not care (the server picks by kind)", async () => {
+    const w = world();
+    await uploadToDrive(file("pic.png", 10), { deps: w.deps });
+    expect(w.calls.initiate[0]).not.toHaveProperty("visibility");
+  });
+  it("a duplicate comes back as deduped, with the existing file", async () => {
+    const w = world();
+    (w.deps.initiate as any).mockResolvedValueOnce({ deduped: true, mediaId: "old", name: "Logo", visibility: "private", sizeBytes: 10 });
+    expect(await uploadToDrive(file("logo.png", 10), { deps: w.deps })).toMatchObject({ mediaId: "old", deduped: true, visibility: "private" });
+  });
+  it("a refusal throws with the api's own sentence", async () => {
+    const w = world();
+    (w.deps.initiate as any).mockRejectedValueOnce(new ApiError("STORAGE_QUOTA_EXCEEDED", "Your Drive is full. Add space to upload more.", 402));
+    const err = await uploadToDrive(file("pic.png", 10), { deps: w.deps }).catch((e) => e);
+    expect(uploadErrorMessage(err)).toBe("Your Drive is full. Add space to upload more.");
+  });
+  it("aborting the signal cancels it, throws UploadAborted and completes nothing", async () => {
+    const w = world();
+    const ctl = new AbortController();
+    w.deps.putPart = vi.fn((_u, _b, _o, signal) => new Promise<void>((_res, rej) => signal.addEventListener("abort", () => rej(new UploadAborted()))));
+    const p = uploadToDrive(file("pic.png", 10), { deps: w.deps, signal: ctl.signal }).catch((e) => e);
+    await until(() => (w.deps.putPart as any).mock.calls.length > 0);
+    ctl.abort();
+    expect(await p).toBeInstanceOf(UploadAborted);
+    expect(w.calls.complete).toBe(0);
+    expect(w.calls.abort).toEqual(["up1"]);
+  });
+  it("an already-aborted signal starts nothing", async () => {
+    const w = world();
+    const ctl = new AbortController();
+    ctl.abort();
+    await expect(uploadToDrive(file("pic.png", 10), { deps: w.deps, signal: ctl.signal })).rejects.toBeInstanceOf(UploadAborted);
+    expect(w.deps.hash).not.toHaveBeenCalled();
+  });
+});
+
+describe("the api's real resume answer", () => {
+  it("reads uploaded as [{ partNumber, size }] and sends only the parts not in it", async () => {
+    const w = world();
+    w.held.set(1, new Uint8Array([1, 2, 3, 4]));
+    // a first session that lost part 2 and 3: resume names part 1 as held, in the api's real shape
+    (w.deps.resume as any).mockResolvedValueOnce({ uploadId: "up1", partSize: PART, partCount: 3, expiresAt: "x", uploaded: [{ partNumber: 1, size: PART }], parts: [2, 3].map((n) => ({ partNumber: n, url: `https://r2/up1/${n}?sig=2` })) });
+    w.setFail((part, attempt) => (part === 2 && attempt <= 3 ? new PartError(0) : null));
+    const q = new UploadQueue(w.deps);
+    const [row] = q.add([file("pic.png", 10)]);
+    await q.whenSettled(row!.id);
+    expect(q.getSnapshot()[0]!.status).toBe("done");
+    expect(w.puts.filter((p) => p.part === 1).length).toBe(1);
   });
 });
