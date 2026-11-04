@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Printer, Copy } from "lucide-react";
@@ -20,6 +20,8 @@ import { askLine, copyLabel, kitEmptyState, svgDataUri, REVIEW_KIT_QUERY_KEY } f
 export function ReviewKitCard() {
   const kit = useQuery({ queryKey: REVIEW_KIT_QUERY_KEY, queryFn: () => presenceApi.reviewKit(), staleTime: 60_000 });
   const [copied, setCopied] = useState<"idle" | "copied" | "failed">("idle");
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(timer.current), []);
 
   if (kit.isLoading) return <Skeleton className="h-40 w-full" />;
   // ⚠️A FAILED READ IS NOT "NO LINK": say the read failed.
@@ -47,7 +49,8 @@ export function ReviewKitCard() {
     } catch {
       setCopied("failed");
     }
-    setTimeout(() => setCopied("idle"), 3000);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setCopied("idle"), 3000);
   }
 
   return (

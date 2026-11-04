@@ -39,6 +39,8 @@ export const ACTION_USE_CASES = {
   replenisherBrief: ["commerce.replenisher.brief"],
   /** Commerce: a drafted reply to a review. */
   reviewReply: ["commerce.reputation.respond"],
+  /** Presence: a drafted reply to a Google review, saved as the review's suggestion. Never sent. */
+  presenceReviewReply: ["presence_review_reply"],
   /** Commerce: the review analysis. */
   reviewAnalysis: ["commerce.reputation.analyze"],
   /** Find sources from a competitor. */

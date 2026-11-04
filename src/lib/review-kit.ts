@@ -1,4 +1,4 @@
-import { priced } from "@/lib/inbox-customer";
+import { actionCostShort, type ActionCost } from "@/lib/action-cost";
 
 /**
  * The review kit's words and rules (PE-05): a link, a QR code and a printable poster that ask customers for a review, and the
@@ -15,7 +15,7 @@ import { priced } from "@/lib/inbox-customer";
  */
 
 export type ReviewKit =
-  | { state: "no_listing" | "no_link"; draftPrice: number | null }
+  | { state: "no_listing" | "no_link" }
   | {
       state: "ready";
       listingId: string;
@@ -25,8 +25,6 @@ export type ReviewKit =
       networkLabel?: string;
       /** One SVG with its quiet zone, drawn by the api. */
       qrSvg: string;
-      /** AI credits one reply draft costs; null when no price row exists. Present in every state, so the Inbox can show it before a link exists. */
-      draftPrice: number | null;
     };
 
 export const REVIEW_KIT_QUERY_KEY = ["presence", "reviews", "kit"] as const;
@@ -77,9 +75,15 @@ export function copyLabel(state: "idle" | "copied" | "failed"): string {
   return state === "copied" ? "Link copied" : state === "failed" ? "Copy failed. Select the link instead" : "Copy link";
 }
 
-/** "Draft a reply · 4 AI credits": the price is on the button before it is pressed. With no price the button is off. */
-export function draftButton(price: number | null | undefined): { text: string; available: boolean } {
-  return priced("Draft a reply", price);
+/**
+ * The "Draft a reply" button: its label and whether it may be pressed. The price is the rate card's, read through `lib/action-cost.ts`
+ * (action `presenceReviewReply`), never typed here. ★OFF UNTIL A PRICE IS KNOWN: while the card loads, or when it has no row for the
+ * action, the button says nothing about a price and cannot be pressed (the api refuses an unpriced draft too). "Free" is a price.
+ */
+export function draftButton(cost: ActionCost, hasSuggestion = false): { text: string; available: boolean } {
+  const label = hasSuggestion ? "Draft again" : "Draft a reply";
+  const short = actionCostShort(cost);
+  return short ? { text: `${label} · ${short}`, available: true } : { text: label, available: false };
 }
 
 /**

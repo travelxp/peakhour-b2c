@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, it, expect } from "vitest";
 import { askLine, canOfferDraft, copyLabel, draftButton, kitEmptyState, posterCopy, svgDataUri, DRAFT_SAVED_NOTE } from "@/lib/review-kit";
+import { actionCost } from "@/lib/action-cost";
 
 const sources = ["src/lib/review-kit.ts", "src/components/presence/review-kit-card.tsx", "src/components/presence/review-poster.tsx"];
 const code = (rel: string) =>
@@ -26,10 +27,10 @@ describe("the kit's words", () => {
     expect(`${copy.headline} ${copy.subline}`).not.toMatch(/5|five|star|best|great|love|discount|free|win|offer/i);
   });
   it("an empty kit says what to do next, and a ready one says nothing", () => {
-    expect(kitEmptyState({ state: "no_listing", draftPrice: null })?.headline).toMatch(/Connect your listing/);
-    expect(kitEmptyState({ state: "no_link", draftPrice: 2 })?.description).toMatch(/Nothing is wrong/);
+    expect(kitEmptyState({ state: "no_listing" })?.headline).toMatch(/Connect your listing/);
+    expect(kitEmptyState({ state: "no_link" })?.description).toMatch(/Nothing is wrong/);
     expect(kitEmptyState(undefined)).toBeNull();
-    expect(kitEmptyState({ state: "ready", listingId: "a", businessName: "b", link: "https://x.example/r", network: "n", qrSvg: "<svg/>", draftPrice: 1 })).toBeNull();
+    expect(kitEmptyState({ state: "ready", listingId: "a", businessName: "b", link: "https://x.example/r", network: "n", qrSvg: "<svg/>" })).toBeNull();
   });
   it("the qr is an <img> source, escaped", () => {
     const uri = svgDataUri('<svg a="1"><path d="M0,0"/></svg>');
@@ -45,10 +46,16 @@ describe("the kit's words", () => {
 
 describe("the draft button", () => {
   it("shows the price before it is pressed, and is off with no price row", () => {
-    expect(draftButton(4)).toEqual({ text: "Draft a reply · 4 AI credits", available: true });
-    expect(draftButton(0)).toEqual({ text: "Draft a reply · Free", available: true });
-    expect(draftButton(null)).toEqual({ text: "Draft a reply", available: false });
-    expect(draftButton(undefined).available).toBe(false);
+    const row = (creditMultiplier: number, free = false) => [{ useCase: "presence_review_reply", creditMultiplier, free }];
+    expect(draftButton(actionCost(row(4), "presenceReviewReply"))).toEqual({ text: "Draft a reply · 4 Peaks", available: true });
+    expect(draftButton(actionCost(row(0, true), "presenceReviewReply"))).toEqual({ text: "Draft a reply · Free", available: true });
+    expect(draftButton(actionCost(row(4), "presenceReviewReply"), true).text).toBe("Draft again · 4 Peaks");
+  });
+  it("with no price known the button is off and quotes nothing: loading, failed and a missing row are not Free", () => {
+    for (const cost of [actionCost(undefined, "presenceReviewReply"), actionCost(undefined, "presenceReviewReply", true), actionCost([], "presenceReviewReply")]) {
+      expect(draftButton(cost)).toEqual({ text: "Draft a reply", available: false });
+      expect(draftButton(cost, true)).toEqual({ text: "Draft again", available: false });
+    }
   });
   it("is offered on every unanswered review whatever its rating", () => {
     for (const rating of [1, 3, 5, undefined]) expect(canOfferDraft({ kind: "review", review: (rating ? { rating } : {}) as { replyPublished?: string } }), String(rating)).toBe(true);

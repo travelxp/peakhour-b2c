@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -12,8 +12,9 @@ import { SavedReplyPicker, appendReply } from "@/components/inbox/saved-reply-pi
 import { ApiError } from "@/lib/api";
 import { inboxApi, type InboxItem } from "@/lib/api/inbox";
 import { presenceApi } from "@/lib/api/presence";
-import { actionError } from "@/lib/inbox-customer";
-import { canOfferDraft, draftButton, DRAFT_SAVED_NOTE, REVIEW_KIT_QUERY_KEY } from "@/lib/review-kit";
+import { useActionCost } from "@/components/dashboard/action-cost";
+import { toastUnhandledApiError } from "@/lib/toast-errors";
+import { canOfferDraft, draftButton, DRAFT_SAVED_NOTE } from "@/lib/review-kit";
 import { useLocale } from "@/hooks/use-locale";
 import {
   checkReplyText,
@@ -187,15 +188,16 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
 
   // "Draft a reply": an AI suggestion saved on the review, charged per press, price on the button first. ★IT NEVER SENDS AND NEVER FILLS
   // THE BOX: it lands as the suggestion below, one explicit click from the box, like any other suggestion.
-  const kitPrice = useQuery({ queryKey: REVIEW_KIT_QUERY_KEY, queryFn: () => presenceApi.reviewKit(), staleTime: 60_000, enabled: canOfferDraft(item) });
-  const draftPrice = draftButton(kitPrice.data?.draftPrice);
+  const draftCost = useActionCost("presenceReviewReply");
+  const draftLabel = draftButton(draftCost, Boolean(state.suggestion));
   const draft = useMutation({
     mutationFn: () => presenceApi.draftReviewReply(item._id),
     onSuccess: () => {
       toast.success(DRAFT_SAVED_NOTE);
       onChanged();
     },
-    onError: (err) => toast.error(actionError(err, "Drafting a reply")),
+    // out of Peaks, a refusal and a failure each get the app-wide wording (and "Buy Peaks")
+    onError: (err) => toastUnhandledApiError(err, "draft a reply"),
   });
 
   const remaining = replyCharsRemaining(text);
@@ -332,10 +334,10 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
                 size="sm"
                 variant="outline"
                 className="h-7 px-2 text-xs"
-                disabled={sending || draft.isPending || !draftPrice.available}
+                disabled={sending || draft.isPending || !draftLabel.available}
                 onClick={() => draft.mutate()}
               >
-                {draft.isPending ? "Drafting…" : state.suggestion ? `Draft again · ${draftPrice.text.replace("Draft a reply · ", "")}` : draftPrice.text}
+                {draft.isPending ? "Drafting…" : draftLabel.text}
               </Button>
             )}
             {state.suggestion && (
