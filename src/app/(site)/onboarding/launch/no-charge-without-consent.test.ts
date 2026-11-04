@@ -30,6 +30,14 @@ describe("the launch page spends nothing on its own", () => {
     expect(panel).not.toMatch(/useEffect/);
   });
 
+  it("drafts survive a reload and the offer does not return once the last draft is used", () => {
+    const panel = read("src/app/(site)/dashboard/content/linkedin/_components/suggested-drafts-panel.tsx");
+    expect(panel).toContain("window.sessionStorage.setItem(STORE_KEY");
+    expect(panel).toMatch(/initialData: \(\) => \(typeof window === "undefined" \? null : readStore\(\)\)/);
+    expect(panel).toContain("if (data && drafts.length === 0) return null;");
+    expect(panel).not.toMatch(/if \(remaining\.length === 0\) return null;/);
+  });
+
   it("a failure says what to do next", () => {
     const panel = read("src/app/(site)/dashboard/content/linkedin/_components/suggested-drafts-panel.tsx");
     expect(panel).toContain("We could not draft posts just now. Try again in a moment.");

@@ -55,6 +55,26 @@ interface Props {
  * while typing in the composer. Side-by-side suggestion + authoring
  * matches how the user actually works.
  */
+// Per-tab convenience only: the drafts also live server-side. Keeps them across a reload so the merchant is not offered
+// (and charged for) a second batch, and keeps the offer hidden once the last draft is used or dismissed.
+const STORE_KEY = "ph-linkedin-suggested-drafts";
+function readStore(): GenerateFromProfileResponse | null {
+  try {
+    const raw = window.sessionStorage.getItem(STORE_KEY);
+    return raw ? (JSON.parse(raw) as GenerateFromProfileResponse) : null;
+  } catch {
+    return null;
+  }
+}
+function writeStore(v: GenerateFromProfileResponse | null) {
+  try {
+    if (v) window.sessionStorage.setItem(STORE_KEY, JSON.stringify(v));
+    else window.sessionStorage.removeItem(STORE_KEY);
+  } catch {
+    /* storage unavailable: the in-memory cache still works */
+  }
+}
+
 export function SuggestedDraftsPanel({ onUseDraft }: Props) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(true);
@@ -69,7 +89,7 @@ export function SuggestedDraftsPanel({ onUseDraft }: Props) {
   const { data } = useQuery<GenerateFromProfileResponse | null>({
     queryKey: SUGGESTED_DRAFTS_QUERY_KEY,
     enabled: false,
-    initialData: null,
+    initialData: () => (typeof window === "undefined" ? null : readStore()),
     staleTime: Infinity,
     gcTime: Infinity,
   });
@@ -79,13 +99,18 @@ export function SuggestedDraftsPanel({ onUseDraft }: Props) {
   const generate = useMutation({
     mutationFn: () => linkedInContentApi.generateFromProfile(),
     onSuccess: (response) => {
-      queryClient.setQueryData(SUGGESTED_DRAFTS_QUERY_KEY, response);
+      if (response.posts && response.posts.length > 0) {
+        queryClient.setQueryData(SUGGESTED_DRAFTS_QUERY_KEY, response);
+        writeStore(response);
+      }
       if (!response.posts || response.posts.length === 0) toast.info("We could not draft any posts from your profile yet. Add more to your business profile, then try again.");
     },
     onError: () => toast.error("We could not draft posts just now. Try again in a moment."),
   });
 
   const drafts = data?.posts ?? [];
+  // Generated this session and all used or dismissed: say nothing, do not offer a second batch.
+  if (data && drafts.length === 0) return null;
   if (drafts.length === 0) {
     return (
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
@@ -108,10 +133,11 @@ export function SuggestedDraftsPanel({ onUseDraft }: Props) {
       (prev) => {
         if (!prev) return prev;
         const remaining = prev.posts.filter((p) => p.draftId !== draftId);
-        // Last draft dismissed → null the cache so the panel hides
-        // permanently for this session.
-        if (remaining.length === 0) return null;
-        return { ...prev, posts: remaining };
+        // Last draft dismissed → keep an empty batch so the panel hides
+        // for this session instead of offering a new (charged) one.
+        const next = { ...prev, posts: remaining };
+        writeStore(next);
+        return next;
       },
     );
   }
