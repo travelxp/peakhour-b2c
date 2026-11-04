@@ -293,9 +293,13 @@ export function FileDetail({
           <ul className="mt-1.5 flex flex-col gap-1">
             {item.usedIn.map((u) => (
               <li key={`${u.kind}:${u.refId}`}>
-                <Link href={usedInHref(u)} className="text-sm text-brand-label underline-offset-2 hover:underline">
-                  {usedInLabel(u)}
-                </Link>
+                {usedInHref(u) ? (
+                  <Link href={usedInHref(u)!} className="text-sm text-brand-label underline-offset-2 hover:underline">
+                    {usedInLabel(u)}
+                  </Link>
+                ) : (
+                  <span className="text-sm">{usedInLabel(u)}</span>
+                )}
               </li>
             ))}
             {item.usedInCount > item.usedIn.length && <li className="text-sm text-muted-foreground">and {item.usedInCount - item.usedIn.length} more</li>}
