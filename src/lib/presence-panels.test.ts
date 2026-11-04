@@ -11,7 +11,6 @@ import {
   locationSwitcher,
   presenceInsightsQueryKey,
   presenceListingQueryKey,
-  verificationNote,
   windowSeries,
   metricTotal,
   setupMessage,
@@ -27,6 +26,19 @@ const google = (over: Partial<NonNullable<PresenceListingResponse["google"]>> = 
   syncMode: "auto",
   lastSyncedAt: "2026-11-03T10:00:00.000Z",
   driftFields: [],
+  control: {
+    state: "controlled" as const,
+    reason: null,
+    hasPendingVerification: null,
+    ownsBusiness: null,
+    pendingEdits: null,
+    duplicateOf: null,
+    checkedAt: "2026-11-03T10:00:00.000Z",
+    lastReadFailedAt: null,
+  },
+  changes: { items: [], pendingFields: [], checkedAt: null, lastReadFailedAt: null, customerMediaAt: null },
+  capabilities: { control: true, networkChanges: true, searchTerms: true, metricKeys: [] },
+  searchTerms: { month: null, terms: null, truncated: false, checkedAt: null, lastReadFailedAt: null },
   ...over,
 });
 
@@ -247,18 +259,6 @@ describe("windowSeries keeps tiles, chart and coverage on one list", () => {
     const w = windowSeries([day("2026-11-03T00:00:00.000Z", { calls: 2 })], 7, now);
     expect(w[0].date).toBe("2026-11-03");
     expect(chartPoints(w, "calls", 1, now)[0].value).toBe(2);
-  });
-});
-
-describe("verificationNote", () => {
-  it("words each non-verified state and says nothing for verified or unknown", () => {
-    expect(verificationNote("unverified")).toMatch(/hasn't verified/);
-    expect(verificationNote("PENDING")).toMatch(/still verifying/);
-    expect(verificationNote("suspended")).toMatch(/suspended/);
-    expect(verificationNote("verified")).toBeNull();
-    expect(verificationNote("VERIFIED")).toBeNull();
-    expect(verificationNote("weird")).toBeNull();
-    expect(verificationNote(undefined)).toBeNull();
   });
 });
 
