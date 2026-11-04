@@ -321,9 +321,9 @@ export default function SupportResultsPage() {
           <KpiCard title="Resolved conversations" value={outcomes.data?.resolved.count ?? 0} icon={CheckCircle2} />
           <KpiCard title="Assisted orders" value={outcomes.data?.assisted.count ?? 0} icon={ShoppingBag} />
           <Card className="p-4">
-            <p className="text-sm font-medium text-muted-foreground">AI credits spent</p>
+            <p className="text-sm font-medium text-muted-foreground">Peaks spent</p>
             <div className="mt-2">
-              <Peaks amount={total} unit="AI credits" />
+              <Peaks amount={total} unit="Peaks" />
             </div>
           </Card>
         </div>
@@ -343,7 +343,7 @@ export default function SupportResultsPage() {
                 <div className="h-full rounded-full bg-primary" style={{ width: `${(p.peaks / maxPillar) * 100}%` }} />
               </div>
               <span className="w-36 shrink-0 text-right">
-                <Peaks amount={p.peaks} unit="AI credits" />
+                <Peaks amount={p.peaks} unit="Peaks" />
               </span>
             </div>
           ))}

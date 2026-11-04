@@ -12,6 +12,7 @@ import { RankedListCard } from "@/components/molecules/ranked-list-card";
 import { ProportionListCard } from "@/components/molecules/proportion-list-card";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { PageShell } from "@/components/dashboard/page-shell";
+import { ActionCost } from "@/components/dashboard/action-cost";
 import {
   useReviewsSummary,
   useReviewsList,
@@ -121,27 +122,29 @@ function ReviewsBody() {
         </div>
         <span className="text-sm text-muted-foreground">{data.respondedReviews} replied</span>
         {data.pendingReviews > 0 && (
-          <Button
-            size="sm"
-            className="ml-auto"
-            onClick={() =>
-              analyze.mutate(undefined, {
-                onSuccess: (r) => toast.success(`Analysed ${r.analysed} review${r.analysed === 1 ? "" : "s"}`),
-                onError: () => toast.error("Couldn't analyse reviews", { description: "Please try again." }),
-              })
-            }
-            disabled={analyze.isPending}
-          >
-            {analyze.isPending ? (
-              <>
-                <Loader2 className="mr-2 size-4 animate-spin" /> Analysing…
-              </>
-            ) : (
-              <>
-                <Sparkles className="mr-2 size-4" /> Analyse {data.pendingReviews} new
-              </>
-            )}
-          </Button>
+          <span className="ml-auto flex items-center gap-2">
+            <ActionCost action="reviewAnalysis" className="text-xs" />
+            <Button
+              size="sm"
+              onClick={() =>
+                analyze.mutate(undefined, {
+                  onSuccess: (r) => toast.success(`Analysed ${r.analysed} review${r.analysed === 1 ? "" : "s"}`),
+                  onError: () => toast.error("Couldn't analyse reviews", { description: "Please try again." }),
+                })
+              }
+              disabled={analyze.isPending}
+            >
+              {analyze.isPending ? (
+                <>
+                  <Loader2 className="mr-2 size-4 animate-spin" /> Analysing…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-2 size-4" /> Analyse {data.pendingReviews} new
+                </>
+              )}
+            </Button>
+          </span>
         )}
       </div>
 
@@ -321,7 +324,7 @@ function ReviewCard({
         {shownDraft && (
           <div className="rounded-md border bg-muted/40 p-3 text-sm">
             <p className="mb-1 text-xs font-medium text-muted-foreground">
-              {review.responseStatus === "published" ? "Published reply" : "Draft reply · uses Peaks"}
+              {review.responseStatus === "published" ? "Published reply" : <>Draft reply · <ActionCost action="reviewReply" /></>}
             </p>
             <p className="whitespace-pre-wrap">{shownDraft}</p>
           </div>

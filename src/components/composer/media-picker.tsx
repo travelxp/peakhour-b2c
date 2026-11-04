@@ -659,8 +659,7 @@ function GeneratePanel({
         {running ? "Generating…" : `Generate ${kind}`}
       </Button>
       <p className="text-xs text-muted-foreground">
-        Costs are pulled from your monthly AI credits. Generation typically takes
-        {kind === "image" ? " 5–15 seconds." : " 20–60 seconds."}
+        {kind === "image" ? "Generating an image does not use your Peaks. It typically takes 5–15 seconds." : "Generation typically takes 20–60 seconds."}
       </p>
     </div>
   );

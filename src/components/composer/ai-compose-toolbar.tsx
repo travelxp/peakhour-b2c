@@ -68,6 +68,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useActionCost } from "@/components/dashboard/action-cost";
+import { actionCostSentence } from "@/lib/action-cost";
 import type { AiActionContext, PlatformKey, RewriteOp } from "./types";
 
 // ── Op metadata ──────────────────────────────────────────
@@ -223,6 +225,8 @@ export function AiComposeToolbar({
   const showTone = !hideOps?.includes("tone");
 
   const isEmpty = text.trim().length === 0;
+  // Every op here is one rewrite call: the price is the rate card's, and it joins each tooltip.
+  const cost = useActionCost("composerRewrite");
 
   /**
    * The tooltip a DISABLED chip shows — the reason, not the description.
@@ -238,7 +242,7 @@ export function AiComposeToolbar({
     if (disabled && meta.requiresText && isEmpty) {
       return `Write something first, or use Compose to generate a draft from scratch. ${meta.label} needs existing text.`;
     }
-    return meta.tooltip;
+    return `${meta.tooltip} ${actionCostSentence(cost)}`;
   }
 
   return (
