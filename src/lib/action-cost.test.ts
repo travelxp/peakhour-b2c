@@ -85,18 +85,18 @@ describe("the component", () => {
   const html = (action: ActionCostKey, unit?: string) => renderToStaticMarkup(ActionCost({ action, unit }));
 
   it("renders the rate card's number beside the button", () => {
-    h.card = { data: { useCases: [...card] }, isError: false };
+    h.card = { data: { useCases: [...card] }, isError: false, isPending: false, fetchStatus: "idle" };
     expect(html("ask")).toContain("Costs 8 Peaks.");
     expect(html("ask")).toContain('data-cost-state="priced"');
   });
 
   it("passes a per-item unit through to the sentence", () => {
-    h.card = { data: { useCases: [...card] }, isError: false };
+    h.card = { data: { useCases: [...card] }, isError: false, isPending: false, fetchStatus: "idle" };
     expect(html("webPages", "for each page")).toContain("Costs 150 Peaks for each page.");
   });
 
   it("renders Free for a free task and the loading line before the card arrives", () => {
-    h.card = { data: { useCases: [...card] }, isError: false };
+    h.card = { data: { useCases: [...card] }, isError: false, isPending: false, fetchStatus: "idle" };
     expect(html("reviewReply")).toContain("Free — you are never charged for this.");
     h.card = { data: undefined, isError: false, isPending: true, fetchStatus: "fetching" };
     expect(html("ask")).toContain("Checking the price…");
