@@ -73,7 +73,8 @@ describe("charges from shoppers", () => {
     const c = shopperChargesCopy(peaks);
     expect(c.body).toContain("each reply it sends uses 5 Peaks");
     expect(c.body).toContain("not when you press a button");
-    expect(c.control).toContain("To stop them, turn the storefront assistant off");
+    expect(c.control).toContain("The assistant stops answering by itself when your Peaks run out, or when shopper chats reach the limit you set on this page.");
+    expect(c.control).toContain("To stop them sooner, turn the storefront assistant off");
   });
   it("states no number the card does not carry", () => {
     expect(shopperReplyPeaks(undefined)).toBeNull();
