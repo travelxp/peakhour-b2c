@@ -213,11 +213,11 @@ export function FilesView({ abilities }: { abilities: { canEdit: boolean; isAdmi
           break;
         }
       }
-      return { text: stopped ? "moved to Trash before the connection failed. Select the rest and try again" : "moved to Trash", r: { changed: deleted, forbidden, skipped: 0, requested: ids.length, notFound: 0 } };
+      return { partial: stopped, text: stopped ? "moved to Trash. The connection failed before the rest. Select the others and try again" : "moved to Trash", r: { changed: deleted, forbidden, skipped: 0, requested: ids.length, notFound: 0 } };
     },
-    onSuccess: ({ text, r }) => {
+    onSuccess: ({ text, r, partial }) => {
       const extra = r.forbidden > 0 ? ` ${r.forbidden} ${r.forbidden === 1 ? "is" : "are"} shared across your organisation and need an admin.` : "";
-      toast.success(`${r.changed} ${r.changed === 1 ? "file" : "files"} ${text}.${extra}`);
+      (partial ? toast.warning : toast.success)(`${r.changed} ${r.changed === 1 ? "file" : "files"} ${text}.${extra}`);
       setChecked(new Set());
       setTagDraft("");
       refresh();

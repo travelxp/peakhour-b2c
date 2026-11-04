@@ -158,6 +158,7 @@ export class UploadQueue {
   private internal = new Map<string, Internal>();
   private listeners = new Set<() => void>();
   private doneListeners = new Set<(row: UploadRow) => void>();
+  private runs = new Map<string, Promise<void>>();
   private active = 0;
   private seq = 0;
 
@@ -189,6 +190,11 @@ export class UploadQueue {
     this.emit();
     this.pump();
     return added;
+  }
+
+  /** Resolves when everything for the file has finished, a video's poster frame included (whenSettled resolves as soon as the file is in). */
+  async whenFinished(id: string): Promise<void> {
+    await this.runs.get(id);
   }
 
   /** Resolves when the file is done, a duplicate, failed or cancelled. */
@@ -257,10 +263,12 @@ export class UploadQueue {
       if (!next) return;
       this.active++;
       this.patch(next.id, { status: "preparing" });
-      void this.run(next.id).finally(() => {
+      const run = this.run(next.id).finally(() => {
         this.active--;
+        this.runs.delete(next.id);
         this.pump();
       });
+      this.runs.set(next.id, run);
     }
   }
 
@@ -374,7 +382,7 @@ export class UploadQueue {
     if (signal.aborted) return "cancelled";
     patch({ status: done.deduped ? "duplicate" : "done", mediaId: done.mediaId, name: done.name, publicUrl: done.publicUrl, visibility: done.visibility, progress: 1 });
 
-    if (visible && !done.deduped && file.type.startsWith("video/")) await this.sendPoster(file, done.mediaId, done.visibility);
+    if (visible && !done.deduped && file.type.startsWith("video/")) await this.sendPoster(file, done.mediaId, done.visibility, signal);
     return done.mediaId;
   }
 
@@ -420,12 +428,15 @@ export class UploadQueue {
     return false;
   }
 
-  private async sendPoster(video: File, videoId: string, visibility: "published" | "private"): Promise<void> {
+  private async sendPoster(video: File, videoId: string, visibility: "published" | "private", parent: AbortSignal): Promise<void> {
     try {
       const frame = await this.deps.poster(video);
       if (!frame) return;
       // The frame is as private as the video it came from: a frame of a Private video must not get a public address.
       const inner: Internal = { file: frame, controller: new AbortController(), settle: [], visibility };
+      // Cancelling the video (or closing the picker that started it) stops its frame too.
+      if (parent.aborted) return;
+      parent.addEventListener("abort", () => inner.controller.abort(), { once: true });
       const posterId = await this.upload(null, inner, frame, false);
       if (posterId === "cancelled") return;
       await this.deps.attachPoster(videoId, posterId);
@@ -481,6 +492,7 @@ export interface UploadOptions {
 export function uploadErrorMessage(err: unknown): string {
   if (err instanceof UploadAborted) return "Cancelled.";
   if (err instanceof UploadFailed) return err.message;
+  if (err instanceof ApiError && err.message && err.message !== "Request failed") return err.message;
   return "That upload didn't finish. Check your connection and try again.";
 }
 
@@ -501,6 +513,9 @@ export async function uploadToDrive(file: File, opts: UploadOptions = {}): Promi
   opts.signal?.addEventListener("abort", onAbort, { once: true });
   try {
     const settled = await queue.whenSettled(row!.id);
+    // A video is not handed back until its poster frame is attached, so what the caller sends or attaches is complete.
+    if (settled.status === "done") await queue.whenFinished(row!.id);
+    if (opts.signal?.aborted) throw new UploadAborted();
     if (settled.status === "cancelled") throw new UploadAborted();
     if ((settled.status === "done" || settled.status === "duplicate") && settled.mediaId) {
       return {
