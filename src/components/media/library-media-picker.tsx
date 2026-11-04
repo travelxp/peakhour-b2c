@@ -18,7 +18,7 @@ import { listMedia, uploadMedia, type MediaItem } from "@/lib/api/media";
 function toAsset(m: MediaItem): MediaAsset {
   return {
     id: m.id,
-    url: m.publicUrl,
+    url: m.publicUrl ?? "",
     mime: m.mimeType,
     width: m.width,
     height: m.height,
@@ -58,7 +58,8 @@ export function LibraryMediaPicker({
                 m.mimeType.toLowerCase().includes(q),
             )
           : items;
-        return filtered.map(toAsset);
+        // A private file has no public address and a composer needs one: it is not offered here (lane C's picker explains why).
+        return filtered.filter((m) => m.publicUrl !== undefined).map(toAsset);
       }}
       onUpload={async (files) => {
         // Sequential so a quota rejection stops the batch cleanly; the
@@ -68,7 +69,7 @@ export function LibraryMediaPicker({
           const res = await uploadMedia(file);
           created.push({
             id: res.mediaId,
-            url: res.publicUrl,
+            url: res.publicUrl ?? "",
             mime: file.type,
             bytes: res.sizeBytes,
             source: "upload",
