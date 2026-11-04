@@ -61,11 +61,11 @@ export default async function TeamsPricingPage() {
   const agencyPeaks =
     typeof agency?.peaksIncluded === "number"
       ? formatPeaks(agency.peaksIncluded)
-      : "25,000";
+      : "250,000";
   const enterprisePeaks =
     typeof enterprise?.peaksIncluded === "number"
       ? formatPeaks(enterprise.peaksIncluded)
-      : "100,000";
+      : "1,000,000";
 
   return (
     <div className="flex min-h-screen flex-col">
