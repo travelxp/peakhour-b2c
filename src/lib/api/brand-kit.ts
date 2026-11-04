@@ -110,9 +110,17 @@ export function prefillBrandKit(): Promise<BrandPrefill> {
   return api.post<BrandPrefill>("/v1/brand-kit/prefill", {});
 }
 
+/** A suggested logo once it is a Drive file. `mimeType` is the sniffed type of the bytes (png, jpeg or webp). */
+export interface ImportedLogo {
+  mediaId: string;
+  publicUrl: string;
+  mimeType: string;
+  deduped: boolean;
+}
+
 /** Take one suggested logo into Drive as a Published image. */
-export function importPrefillLogo(url: string): Promise<{ mediaId: string; publicUrl: string; deduped: boolean }> {
-  return api.post<{ mediaId: string; publicUrl: string; deduped: boolean }>("/v1/brand-kit/prefill/logo", { url });
+export function importPrefillLogo(url: string): Promise<ImportedLogo> {
+  return api.post<ImportedLogo>("/v1/brand-kit/prefill/logo", { url });
 }
 
 /** A Drive file a kit may hold, as the Files list returns it. */

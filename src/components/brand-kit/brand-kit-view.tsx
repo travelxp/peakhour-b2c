@@ -161,18 +161,22 @@ function ColorAdder({ onAdd }: { onAdd: (hex: string, role?: ColorRole) => strin
 function FontSample({ font, index }: { font: KitFont; index: number }) {
   const [family, setFamily] = useState<string | undefined>(undefined);
   useEffect(() => {
-    if (typeof FontFace === "undefined" || typeof document === "undefined") return;
+    if (!font.url || typeof FontFace === "undefined" || typeof document === "undefined") return;
     let cancelled = false;
     const name = `kit-font-${font.mediaId}`;
-    const face = new FontFace(name, `url(${JSON.stringify(font.url)})`);
-    face
-      .load()
-      .then((loaded) => {
-        if (cancelled) return;
-        document.fonts.add(loaded);
-        setFamily(name);
-      })
-      .catch(() => undefined);
+    try {
+      // The constructor throws on a source it cannot parse, and that must not take the tab down: the sample just stays in the page's font.
+      new FontFace(name, `url(${JSON.stringify(font.url)})`)
+        .load()
+        .then((loaded) => {
+          if (cancelled) return;
+          document.fonts.add(loaded);
+          setFamily(name);
+        })
+        .catch(() => undefined);
+    } catch {
+      return;
+    }
     return () => {
       cancelled = true;
     };

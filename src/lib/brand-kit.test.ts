@@ -204,21 +204,30 @@ describe("website pre-fill, reviewed before it touches anything", () => {
   it("a ticked logo goes in only if it was imported into Drive; one that failed is left out, not half added", () => {
     const p = prefill();
     const sel = { colors: [], logos: [p.logos[0]!.url, p.logos[1]!.url] };
-    const imported = new Map([[p.logos[1]!.url, { mediaId: "m2", publicUrl: "https://media.example/m2.png" }]]);
+    const imported = new Map([[p.logos[1]!.url, { mediaId: "m2", publicUrl: "https://media.example/m2.png", mimeType: "image/png" }]]);
     const out = mergePrefill(empty(), p, sel, imported);
     expect(out.logos).toEqual([{ mediaId: "m2", url: "https://media.example/m2.png", mimeType: "image/png", name: "touch", form: "primary" }]);
   });
 
-  it("reads the logo's type from its address and names it from the file, not the host", () => {
+  it("takes the logo's type from the api, which sniffed the bytes, never from the address; names it from the file, not the host", () => {
     const p = prefill();
     const sel = { colors: [], logos: p.logos.map((l) => l.url) };
-    const imported = new Map(p.logos.map((l, i) => [l.url, { mediaId: `m${i}`, publicUrl: `https://media.example/m${i}` }]));
+    // The addresses say svg, png and jpg; the bytes were webp, jpeg and png. The api's answer is the one that counts.
+    const types = ["image/webp", "image/jpeg", "image/png"];
+    const imported = new Map(p.logos.map((l, i) => [l.url, { mediaId: `m${i}`, publicUrl: `https://media.example/m${i}`, mimeType: types[i]! }]));
     const out = mergePrefill(empty(), p, sel, imported);
     expect(out.logos.map((l) => [l.mimeType, l.name, l.form])).toEqual([
-      ["image/svg+xml", "acme logo", "primary"],
-      ["image/png", "touch", "icon"],
-      ["image/jpeg", "og", "light"],
+      ["image/webp", "acme logo", "primary"],
+      ["image/jpeg", "touch", "icon"],
+      ["image/png", "og", "light"],
     ]);
+  });
+
+  it("a kit whose only logo is WebP is warned about for Google ads, even though its address ends in .png", () => {
+    const p = prefill({ logos: [{ url: "https://cdn.example/logo.png", source: "img-logo" }] });
+    const imported = new Map([[p.logos[0]!.url, { mediaId: "m", publicUrl: "https://media.example/m", mimeType: "image/webp" }]]);
+    const out = mergePrefill(empty(), p, { colors: [], logos: [p.logos[0]!.url] }, imported);
+    expect(logoAdWarning(out)).toContain("PNG or JPEG");
   });
 
   it("says what it found, and says so plainly when it found nothing", () => {
@@ -242,11 +251,11 @@ describe("website pre-fill, reviewed before it touches anything", () => {
 });
 
 describe("importing the suggested logos into Drive", () => {
-  const ok = (id: string) => async () => ({ mediaId: id, publicUrl: `https://media.example/${id}` });
+  const ok = (id: string) => async () => ({ mediaId: id, publicUrl: `https://media.example/${id}`, mimeType: "image/png" });
 
   it("in the organisation's scope each file is shared with every business, because that kit takes shared files only", async () => {
     const shared: string[] = [];
-    const r = await importSuggestedLogos(["u1", "u2"], "org", { importLogo: async (u) => ({ mediaId: `m-${u}`, publicUrl: `p-${u}` }), share: async (id) => void shared.push(id) });
+    const r = await importSuggestedLogos(["u1", "u2"], "org", { importLogo: async (u) => ({ mediaId: `m-${u}`, publicUrl: `p-${u}`, mimeType: "image/png" }), share: async (id) => void shared.push(id) });
     expect(shared).toEqual(["m-u1", "m-u2"]);
     expect([...r.imported.keys()]).toEqual(["u1", "u2"]);
     expect(r.failures).toEqual([]);
@@ -269,7 +278,7 @@ describe("importing the suggested logos into Drive", () => {
         order.push(u);
         await Promise.resolve();
         running--;
-        return { mediaId: u, publicUrl: u };
+        return { mediaId: u, publicUrl: u, mimeType: "image/png" };
       },
       share: async () => undefined,
     });
@@ -281,7 +290,7 @@ describe("importing the suggested logos into Drive", () => {
     const r = await importSuggestedLogos(["a", "b", "c"], "business", {
       importLogo: async (u) => {
         if (u === "b") throw Object.assign(new Error("This image is already in Drive as a Private file. Publish it there, then pick it as the logo."), { status: 422, code: "LOGO_IS_PRIVATE" });
-        return { mediaId: u, publicUrl: u };
+        return { mediaId: u, publicUrl: u, mimeType: "image/png" };
       },
       share: async () => undefined,
     });
@@ -289,27 +298,28 @@ describe("importing the suggested logos into Drive", () => {
     expect(r.failures).toEqual([{ url: "b", message: "This image is already in Drive as a Private file. Publish it there, then pick it as the logo." }]);
   });
 
-  it("a rate limit stops the run: the rest would be refused the same way, and what was imported stays", async () => {
+  it("a rate limit stops the run: the rest would be refused the same way, what was imported stays, and the logos it never reached count as not added", async () => {
     const calls: string[] = [];
     const r = await importSuggestedLogos(["a", "b", "c"], "business", {
       importLogo: async (u) => {
         calls.push(u);
         if (u === "b") throw Object.assign(new Error("slow down"), { status: 429, code: "RATE_LIMITED" });
-        return { mediaId: u, publicUrl: u };
+        return { mediaId: u, publicUrl: u, mimeType: "image/png" };
       },
       share: async () => undefined,
     });
     expect(calls).toEqual(["a", "b"]);
     expect([...r.imported.keys()]).toEqual(["a"]);
-    expect(r.failures).toHaveLength(1);
+    expect(r.failures.map((f) => f.url)).toEqual(["b", "c"]);
     expect(r.failures[0]!.message).toContain("Wait a few seconds");
+    expect(prefillFailureNotice(r.failures)).toMatch(/^2 logos could not be added/);
   });
 
   it("a file that was imported but could not be shared is not offered to the organisation's kit, which would refuse it", async () => {
     const r = await importSuggestedLogos(["a"], "org", {
       importLogo: ok("m1"),
       share: async () => {
-        throw Object.assign(new Error("Only an admin can change who a file is shared with."), { status: 403 });
+        throw Object.assign(new Error("Only an admin can change who a file is shared with."), { status: 403, code: "FORBIDDEN" });
       },
     });
     expect(r.imported.size).toBe(0);
@@ -328,11 +338,16 @@ describe("the Voice card", () => {
 });
 
 describe("errors", () => {
-  it("a rate limit reads the same wherever it appears, the api's plain message is passed through, anything else falls back", () => {
-    expect(kitErrorMessage({ status: 429, message: "x" })).toContain("Wait a few seconds");
-    expect(kitErrorMessage({ code: "NO_WEBSITE", message: "x" })).toContain("no website address");
-    expect(kitErrorMessage({ status: 422, message: "A logo must be a Published file." })).toBe("A logo must be a Published file.");
+  it("a rate limit reads the same wherever it appears, and the api's plain message is passed through", () => {
+    expect(kitErrorMessage({ status: 429, code: "RATE_LIMITED", message: "x" })).toContain("Wait a few seconds");
+    expect(kitErrorMessage({ status: 422, code: "NO_WEBSITE", message: "x" })).toContain("no website address");
+    expect(kitErrorMessage({ status: 422, code: "MEDIA_NOT_PUBLISHED", message: "A logo must be a Published file." })).toBe("A logo must be a Published file.");
+  });
+
+  it("an error that did not come from the api is the browser's words, not ours: the fallback is shown instead", () => {
+    expect(kitErrorMessage(new TypeError("Failed to fetch"))).toBe("That did not work. Try again.");
+    expect(kitErrorMessage(new Error("Unexpected token < in JSON"), "Nope.")).toBe("Nope.");
     expect(kitErrorMessage(undefined, "Nope.")).toBe("Nope.");
-    expect(kitErrorMessage({ message: "  " })).toBe("That did not work. Try again.");
+    expect(kitErrorMessage({ status: 500, code: "INTERNAL", message: "  " })).toBe("That did not work. Try again.");
   });
 });

@@ -6,6 +6,7 @@ import { FileText, Loader2, Search, Type } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useAuth } from "@/providers/auth-provider";
 import { listKitFileCandidates, type KitFileCandidate, type KitScope } from "@/lib/api/brand-kit";
 import { fileSize, kitErrorMessage } from "@/lib/brand-kit";
 
@@ -139,8 +140,10 @@ export function KitFilePicker({
 }) {
   const [draft, setDraft] = useState("");
   const [q, setQ] = useState("");
+  // The list is the active business's own files plus the organisation's shared ones, so it is cached per business.
+  const { business } = useAuth();
   const query = useQuery({
-    queryKey: ["brand-kit-files", kind, q],
+    queryKey: ["brand-kit-files", business?._id ?? "", kind, q],
     queryFn: () => listKitFileCandidates({ kind, q }),
     enabled: open,
   });

@@ -68,6 +68,9 @@ export function BrandKitTab({ onUpload }: { onUpload?: () => void }) {
   const draft = edit && edit.scope === scope && edit.businessId === businessId ? edit.draft : saved;
   const dirty = !draftIsSaved(draft, saved);
   const change = (next: KitDraft) => setEdit({ scope, businessId, draft: next });
+  // For work that finishes later (the pre-fill's logo imports): build on the draft as it is when the work lands, not as it was at the click.
+  const changeWith = (fn: (current: KitDraft) => KitDraft) =>
+    setEdit((prev) => ({ scope, businessId, draft: fn(prev && prev.scope === scope && prev.businessId === businessId ? prev.draft : saved) }));
 
   const [problem, setProblem] = useState<string | null>(null);
   const [picking, setPicking] = useState<KitPickKind | null>(null);
@@ -146,9 +149,9 @@ export function BrandKitTab({ onUpload }: { onUpload?: () => void }) {
         onRetry={() => void prefill.start()}
         onConfirm={() => {
           if (!scope) return;
-          void prefill.apply(draft, scope).then((r) => {
+          void prefill.apply(scope).then((r) => {
             if (!r) return;
-            change(r.draft);
+            changeWith(r.fold);
             if (r.complete) prefill.dismiss();
             toast.message("Added to your Brand Kit. Review it, then save.");
           });

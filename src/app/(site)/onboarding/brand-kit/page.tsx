@@ -28,7 +28,8 @@ export default function BrandKitStepPage() {
   const scope = perms.canEditOrg ? "org" : perms.canEditBusiness ? "business" : null;
   const businessId = business?._id ?? "";
 
-  const kit = useQuery({ queryKey: [...BRAND_KIT_QUERY_KEY, businessId], queryFn: getBrandKit, enabled: !!businessId && !!scope });
+  // No retries: this step must never be in the way, so a failed read goes straight on instead of waiting out the backoff.
+  const kit = useQuery({ queryKey: [...BRAND_KIT_QUERY_KEY, businessId], queryFn: getBrandKit, enabled: !!businessId && !!scope, retry: false });
   const prefill = useWebsitePrefill();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,9 +65,13 @@ export default function BrandKitStepPage() {
     setError(null);
     setSaving(true);
     try {
-      const r = await prefill.apply(draftFromView(null), scope);
+      const r = await prefill.apply(scope);
       if (!r) return;
-      if (!draftIsEmpty(r.draft)) await saveBrandKit(scope, payloadFromDraft(r.draft));
+      // The save replaces every section, so it builds on the kit as it is NOW, not as it was when this page opened: a kit made in another tab,
+      // or by another admin, since then is added to and never wiped.
+      const fresh = await getBrandKit();
+      const merged = r.fold(draftFromView(scope === "org" ? fresh.org : fresh.business));
+      if (!draftIsEmpty(merged)) await saveBrandKit(scope, payloadFromDraft(merged));
       // A logo that could not be brought in leaves the review up with the reason; what did work is saved either way.
       if (r.complete) goOn();
     } catch (err) {

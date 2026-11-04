@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,21 @@ export interface PrefillReviewProps {
   onConfirm: () => void;
   onDismiss: () => void;
   onRetry: () => void;
+}
+
+/** A suggested logo as the browser sees it. A site can refuse to be hot-linked, so a preview that will not load says so and stays tickable: the server fetches it differently. */
+function LogoPreview({ url }: { url: string }) {
+  const [broken, setBroken] = useState(false);
+  return (
+    <span className="flex h-16 items-center justify-center overflow-hidden rounded-md bg-muted text-center text-xs text-muted-foreground">
+      {broken ? (
+        "No preview"
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element -- a suggestion from the customer's own site: not ours to optimise or allow-list
+        <img src={url} alt="" className="max-h-full max-w-full object-contain" loading="lazy" referrerPolicy="no-referrer" onError={() => setBroken(true)} />
+      )}
+    </span>
+  );
 }
 
 export function PrefillReview({ state, confirmLabel, onToggleColor, onToggleLogo, onConfirm, onDismiss, onRetry }: PrefillReviewProps) {
@@ -113,10 +129,7 @@ export function PrefillReview({ state, confirmLabel, onToggleColor, onToggleLogo
                     on ? "border-primary" : "opacity-60",
                   )}
                 >
-                  <span className="flex h-16 items-center justify-center overflow-hidden rounded-md bg-muted">
-                    {/* eslint-disable-next-line @next/next/no-img-element -- a suggestion from the customer's own site: not ours to optimise or allow-list */}
-                    <img src={l.url} alt="" className="max-h-full max-w-full object-contain" loading="lazy" referrerPolicy="no-referrer" />
-                  </span>
+                  <LogoPreview url={l.url} />
                   <span className="flex items-center gap-1.5">
                     <input type="checkbox" className="size-4 accent-primary" checked={on} onChange={() => onToggleLogo(l.url)} />
                     <span>{logoSourceLabel(l.source)}</span>

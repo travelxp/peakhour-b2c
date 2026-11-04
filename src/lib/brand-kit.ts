@@ -258,7 +258,7 @@ export function mergePrefill(
   draft: KitDraft,
   p: BrandPrefill,
   selection: PrefillSelection,
-  imported: ReadonlyMap<string, { mediaId: string; publicUrl: string }>,
+  imported: ReadonlyMap<string, { mediaId: string; publicUrl: string; mimeType: string }>,
 ): KitDraft {
   let next = draft;
   for (const c of p.colors) {
@@ -270,9 +270,8 @@ export function mergePrefill(
     if (!selection.logos.includes(l.url)) continue;
     const file = imported.get(l.url);
     if (!file) continue;
-    const ext = /\.([a-z0-9]{2,4})(?:$|\?)/i.exec(l.url)?.[1]?.toLowerCase();
-    const mimeType = ext === "svg" ? "image/svg+xml" : ext === "jpg" || ext === "jpeg" ? "image/jpeg" : ext === "webp" ? "image/webp" : "image/png";
-    const r = addLogo(next, { mediaId: file.mediaId, url: file.publicUrl, mimeType, name: nameFromUrl(l.url) });
+    // The type is the api's own (it sniffed the bytes), never a guess from the address: a guess of "png" would hide the Google-ads warning.
+    const r = addLogo(next, { mediaId: file.mediaId, url: file.publicUrl, mimeType: file.mimeType, name: nameFromUrl(l.url) });
     if (r.ok) next = r.draft;
   }
   return next;
@@ -311,12 +310,17 @@ export function voiceIsEmpty(v: VoiceLines): boolean {
 
 // ── Errors ────────────────────────────────────────────────────────────────────
 
-/** The api's messages are already plain; a rate limit gets a line of ours so it reads the same wherever it appears. */
+/**
+ * The api's messages are plain English and safe to show; a rate limit gets a line of ours so it reads the same wherever it appears. Only an
+ * error that came from the api (it has a string `code` and a numeric `status`, as `ApiError` does) is quoted: "Failed to fetch" and
+ * "Unexpected token <" are the browser's words, not ours, and get the fallback.
+ */
 export function kitErrorMessage(err: unknown, fallback = "That did not work. Try again."): string {
-  const e = err as { status?: number; code?: string; message?: string } | null;
-  if (e?.status === 429) return "That is a lot of website reads in a short time. Wait a few seconds and try again.";
-  if (e?.code === "NO_WEBSITE") return "This business has no website address on file, so there is nothing to read.";
-  if (typeof e?.message === "string" && e.message.trim()) return e.message;
+  const e = err as { status?: unknown; code?: unknown; message?: unknown } | null;
+  const fromApi = typeof e?.code === "string" && typeof e?.status === "number";
+  if (fromApi && e?.status === 429) return "That is a lot of website reads in a short time. Wait a few seconds and try again.";
+  if (fromApi && e?.code === "NO_WEBSITE") return "This business has no website address on file, so there is nothing to read.";
+  if (fromApi && typeof e?.message === "string" && e.message.trim()) return e.message;
   return fallback;
 }
 
