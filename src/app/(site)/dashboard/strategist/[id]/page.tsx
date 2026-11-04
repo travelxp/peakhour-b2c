@@ -13,6 +13,7 @@ import { chargedTaskRefusal } from "@/hooks/use-audience-plan";
 import { cn } from "@/lib/utils";
 import { useLocale } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";
+import { ActionCost } from "@/components/dashboard/action-cost";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { DrivePicker } from "@/components/drive/drive-picker";
 import { Badge } from "@/components/ui/badge";
@@ -665,6 +666,7 @@ function BriefTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
                 <Sparkles className="mr-1.5 h-4 w-4" />
                 Generate Brief
               </Button>
+              <ActionCost action="contentBrief" className="mt-2 block text-xs" />
             </>
           )}
         </CardContent>
@@ -1567,6 +1569,7 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
             {generating ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
             Regenerate
           </Button>
+          <ActionCost action="contentDraft" className="text-xs" />
           {/* Emoji insert — only in Edit mode (operates on the textarea
               caret) and before finalize. */}
           {!preview && !finalized && <EmojiPickerTrigger onInsert={insertSnippet} />}

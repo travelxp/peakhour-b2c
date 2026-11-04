@@ -14,6 +14,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { ActionCost } from "@/components/dashboard/action-cost";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -592,7 +593,8 @@ function CompetitorTab({ onClose }: { onClose: () => void }) {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Paste a competitor or peer brand&apos;s URL — the AI proposes trusted sources grounded in your brand&apos;s sectors and audience. Approved recommendations land in your Suggested tab for one-click review.
+            Paste a competitor or peer brand&apos;s URL — the AI proposes trusted sources grounded in your brand&apos;s sectors and audience. Approved recommendations land in your Suggested tab for one-click review.{" "}
+            <ActionCost action="findSources" />
           </p>
         </form>
 

@@ -12,6 +12,7 @@ import type { UIMessage } from "ai";
 import { Bot, Send, Loader2, Check, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { ActionCost } from "@/components/dashboard/action-cost";
 import { cn } from "@/lib/utils";
 import { useAsk } from "@/hooks/use-ask";
 
@@ -206,6 +207,7 @@ export function AskConversation({
         <p className="mt-1.5 px-1 text-[10px] text-muted-foreground">
           Ask Peakhour answers only from your connected data — it won&apos;t make numbers up.
         </p>
+        <ActionCost action="ask" className="mt-0.5 block px-1 text-[10px]" />
       </div>
     </div>
   );

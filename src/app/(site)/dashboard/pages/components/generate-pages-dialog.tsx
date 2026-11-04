@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError } from "@/lib/api";
+import { ActionCost } from "@/components/dashboard/action-cost";
 import type { GenerateSegmentInput } from "@/hooks/use-web-pages";
 
 /**
@@ -378,6 +379,7 @@ function GeneratePagesDialogBody({
         <Button variant="outline" type="button" disabled={submitting} onClick={onClose}>
           Cancel
         </Button>
+        <ActionCost action="webPages" unit="for each page" className="mr-auto self-center text-xs" />
         <Button type="button" disabled={!canSubmit} onClick={handleSubmit}>
           {submitting ? (
             <>

@@ -17,6 +17,7 @@ import {
 import { WebPageRow } from "./components/web-page-row";
 import { GeneratePagesDialog, type TopicSeed } from "./components/generate-pages-dialog";
 import { TemplateGallery } from "./components/template-gallery";
+import { ActionCost } from "@/components/dashboard/action-cost";
 
 /**
  * Turn a generate result into one plain-language line.
@@ -129,10 +130,13 @@ export default function PagesDashboard() {
             approve to publish — nothing goes live until you say so.
           </p>
         </div>
-        <Button onClick={() => openWithSeed(undefined)} disabled={busy}>
-          <Sparkles className="size-4" aria-hidden="true" />
-          {generate.isPending ? "Writing pages…" : "Generate pages"}
-        </Button>
+        <div className="flex flex-col items-start gap-1 sm:items-end">
+          <Button onClick={() => openWithSeed(undefined)} disabled={busy}>
+            <Sparkles className="size-4" aria-hidden="true" />
+            {generate.isPending ? "Writing pages…" : "Generate pages"}
+          </Button>
+          <ActionCost action="webPages" unit="for each page" className="text-xs" />
+        </div>
       </div>
 
       {/* ★THE GALLERY LEADS WHEN THE QUEUE IS EMPTY, AND FOLLOWS WHEN IT IS NOT.
