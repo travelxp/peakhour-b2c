@@ -32,7 +32,7 @@ import {
   type MediaItem,
   type MediaPatch,
 } from "@/lib/api/media";
-import { KIND_CHIPS, channelLabel } from "@/lib/drive/copy";
+import { KIND_CHIPS, blockedText, channelLabel, trashFailureText } from "@/lib/drive/copy";
 import { describePoller } from "@/lib/drive/describe-poller";
 import {
   NO_FILTERS,
@@ -190,7 +190,7 @@ export function FilesView({ abilities }: { abilities: { canEdit: boolean; isAdmi
       setOpenId(null);
       refresh();
     },
-    onError: () => toast.error("That file could not be moved to Trash. Try again."),
+    onError: (err) => toast.error(trashFailureText(err)),
   });
 
   const ids = [...checked];
@@ -200,12 +200,14 @@ export function FilesView({ abilities }: { abilities: { canEdit: boolean; isAdmi
       if (job.kind === "collection") return { text: "added to the collection", r: await bulkMedia({ action: "add_to_collection", mediaIds: ids, collectionId: job.collectionId }) };
       let deleted = 0;
       let forbidden = 0;
+      let blocked = 0;
       let stopped = false;
       for (let i = 0; i < ids.length; i += 200) {
         try {
           const r = await bulkDeleteMedia(ids.slice(i, i + 200));
           deleted += r.deletedCount;
           forbidden += r.forbidden ?? 0;
+          blocked += r.blocked ?? 0;
         } catch (err) {
           // Earlier chunks are already in Trash: say so, and refresh, rather than claim nothing changed.
           if (deleted === 0) throw err;
@@ -213,10 +215,10 @@ export function FilesView({ abilities }: { abilities: { canEdit: boolean; isAdmi
           break;
         }
       }
-      return { partial: stopped, text: stopped ? "moved to Trash. The connection failed before the rest. Select the others and try again" : "moved to Trash", r: { changed: deleted, forbidden, skipped: 0, requested: ids.length, notFound: 0 } };
+      return { partial: stopped, text: stopped ? "moved to Trash. The connection failed before the rest. Select the others and try again" : "moved to Trash", r: { changed: deleted, forbidden, blocked, skipped: 0, requested: ids.length, notFound: 0 } };
     },
     onSuccess: ({ text, r, partial }) => {
-      const extra = r.forbidden > 0 ? ` ${r.forbidden} ${r.forbidden === 1 ? "is" : "are"} shared across your organisation and need an admin.` : "";
+      const extra = (r.forbidden > 0 ? ` ${r.forbidden} ${r.forbidden === 1 ? "is" : "are"} shared across your organisation and need an admin.` : "") + blockedText(r.blocked ?? 0);
       (partial ? toast.warning : toast.success)(`${r.changed} ${r.changed === 1 ? "file" : "files"} ${text}.${extra}`);
       setChecked(new Set());
       setTagDraft("");

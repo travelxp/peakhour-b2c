@@ -409,7 +409,7 @@ function CampaignsPanel() {
 
   // ROI strip: blended CPQL across campaigns sharing the first row's
   // currency (defensive — a mixed-currency edge must not make the sum
-  // lie). Qualified leads are the billable, conservatively-scored ones.
+  // lie). Qualified leads are the conservatively-scored ones. They are counted, never charged.
   const stripCurrency = rows.find((r) => r.performance?.qualifiedLeads)?.currency;
   const stripRows = rows.filter((r) => r.currency === stripCurrency);
   const totalQualified = stripRows.reduce(
@@ -462,7 +462,7 @@ function CampaignsPanel() {
               <TableHead className="text-right">CTR</TableHead>
               <TableHead
                 className="text-right"
-                title="Billable qualified leads · cost per qualified lead (spend ÷ qualified leads)"
+                title="Qualified leads · cost per qualified lead (spend ÷ qualified leads)"
               >
                 Leads · CPQL
               </TableHead>

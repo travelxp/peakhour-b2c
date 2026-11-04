@@ -26,10 +26,12 @@ export type DescribeState = "described" | "describing" | "pending" | "not_descri
 
 /** One place a file is used. The page builds the link from `kind` and `refId`. */
 export interface UsedInEntry {
-  kind: "idea" | "draft" | "ad_creative" | "scheduled_item" | "social_post" | "page" | "brand" | "listing";
+  kind: "idea" | "draft" | "ad_creative" | "scheduled_item" | "social_post" | "page" | "brand" | "listing" | "share";
   refId: string;
   label?: string;
   published?: boolean;
+  /** Only on `share`: how many live share links the file has. The api collapses them into one entry (they are one place). */
+  count?: number;
 }
 
 export interface ChannelFitEntry {
@@ -231,6 +233,8 @@ export interface BulkResult {
   notFound: number;
   forbidden: number;
   skipped: number;
+  /** Files a bulk move left because something still holds them. */
+  blocked?: number;
 }
 
 export function bulkMedia(body: BulkAction): Promise<BulkResult> {

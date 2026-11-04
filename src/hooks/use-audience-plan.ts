@@ -132,6 +132,13 @@ export function useAudiencePlan(opts?: { onPlanned?: (res: AudiencePlanResponse)
         });
         return;
       }
+      // C7: a charged task that did not start, in the api's own words. Both are refused BEFORE the model is called, so nothing was
+      // charged, and the api's sentence says what to do next (add credits, or wait for the first run to finish).
+      const refusal = chargedTaskRefusal(code, err instanceof ApiError ? err.message : undefined);
+      if (refusal) {
+        toast.error(refusal.title, { description: refusal.description });
+        return;
+      }
       /**
        * ★THE CHANNEL THE REQUEST WAS FOR, NOT A CONSTANT.
        *
@@ -180,6 +187,22 @@ export function useAudiencePlan(opts?: { onPlanned?: (res: AudiencePlanResponse)
       }
     },
   });
+}
+
+/**
+ * The two refusals a CHARGED task can answer before it starts (peakhour-api `chargedAct`): too few AI credits for its price
+ * (429 CREDITS_EXHAUSTED) and the same task already running for this business (409 ACT_ALREADY_RUNNING). Neither ran the model
+ * and neither charged anything. The api's message already names the price, what is left and what to do, so it is rendered, not
+ * replaced; the title says what happened. Any other code is not ours: undefined.
+ */
+export function chargedTaskRefusal(code: string | undefined, message: string | undefined): { title: string; description: string } | undefined {
+  if (code === "CREDITS_EXHAUSTED") {
+    return { title: "You don't have enough AI credits for this.", description: message || "Add AI credits, or wait for your allowance to reset. Nothing was started and nothing was charged." };
+  }
+  if (code === "ACT_ALREADY_RUNNING") {
+    return { title: "This is already running.", description: message || "Wait for it to finish. You will be charged once." };
+  }
+  return undefined;
 }
 
 /**

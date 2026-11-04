@@ -509,8 +509,8 @@ export default function PeaksPage() {
                   <div className="flex items-center justify-between">
                     <p className="text-sm text-muted-foreground">
                       {capStatus === "hard"
-                        ? "AI features are paused until your Peaks reset."
-                        : "Getting close — AI features pause when you hit the limit."}
+                        ? "Your store's assistant is not answering shoppers, and new AI work will not start, until your Peaks reset."
+                        : "Getting close — your store's assistant stops answering shoppers when you hit the limit."}
                     </p>
                     {/* ⚠️★NO BUTTON ON THE PAID PATH, because the action IS this
                         page: "Buy more Peaks" renders directly below. The old
@@ -554,9 +554,10 @@ export default function PeaksPage() {
                       it is false: `peaksForUsageRow` charges the row's price
                       flat — or the quote the merchant accepted — and reads no
                       token count at all. */}
-                  The Peaks each task costs when it runs — or, for an
-                  outcome, each time it happens. The price does not depend on
-                  how long the output is.
+                  The Peaks each task costs when it runs — or, for a task
+                  that happens as an event (a boost, an X message), each time
+                  it happens. The price does not depend on how long the output
+                  is.
                 </CardDescription>
               </div>
               {rateLoading && (

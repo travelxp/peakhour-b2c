@@ -150,6 +150,23 @@ describe("the file panel", () => {
     expect(flat(html)).toMatch(/Used in/);
   });
 
+  it("shows share links as one plain-text row, and an unknown kind without crashing or an empty href", () => {
+    const html = detail(
+      file({
+        usedInCount: 2,
+        usedIn: [
+          { kind: "share", refId: "s1", count: 5 },
+          { kind: "hologram", refId: "h1" } as never,
+        ],
+      }),
+    );
+    expect(flat(html)).toContain("Share links (5)");
+    expect(flat(html)).toContain("Somewhere in Peakhour");
+    expect(html).not.toContain('href=""');
+    expect(html).not.toMatch(/<a [^>]*>[^<]*Share links/);
+    expect(html).not.toMatch(/<a [^>]*>[^<]*Somewhere in Peakhour/);
+  });
+
   it("says a file is not used anywhere yet, and when the list is longer than the panel shows", () => {
     expect(flat(detail(file()))).toContain("Not used anywhere yet");
     expect(flat(detail(file({ usedInCount: 25, usedIn: [{ kind: "page", refId: "p1" }] })))).toContain("and 24 more");
