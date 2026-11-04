@@ -8,6 +8,9 @@ import {
   fetchView,
   hoursLines,
   insightsView,
+  locationSwitcher,
+  presenceInsightsQueryKey,
+  presenceListingQueryKey,
   verificationNote,
   windowSeries,
   metricTotal,
@@ -289,5 +292,42 @@ describe("hoursLines tolerates day spelling", () => {
       { day: "monday" as never, open: "18:00", close: "20:00" },
     ]);
     expect(lines[0].periods).toEqual(["09:00 to 17:00", "18:00 to 20:00"]);
+  });
+});
+
+describe("locationSwitcher - only when there is a choice", () => {
+  const two = [
+    { locationName: "locations/1", title: "Bandra" },
+    { locationName: "locations/2", title: null },
+  ];
+
+  it("is hidden for a one-listing business, so the page reads as before", () => {
+    expect(locationSwitcher([two[0]!], undefined)).toBeNull();
+    expect(locationSwitcher([], undefined)).toBeNull();
+    expect(locationSwitcher(undefined, undefined)).toBeNull();
+  });
+
+  it("lists every listing, by title where there is one", () => {
+    expect(locationSwitcher(two, undefined)?.options).toEqual([
+      { value: "locations/1", label: "Bandra" },
+      { value: "locations/2", label: "locations/2" },
+    ]);
+  });
+
+  it("shows the chosen listing, and the first when there is no choice", () => {
+    expect(locationSwitcher(two, "locations/2")?.value).toBe("locations/2");
+    expect(locationSwitcher(two, undefined)?.value).toBe("locations/1");
+  });
+
+  it("a choice that is no longer managed falls back to the first, never to a place the api refuses", () => {
+    expect(locationSwitcher(two, "locations/9")?.value).toBe("locations/1");
+  });
+});
+
+describe("query keys follow the listing", () => {
+  it("one listing never reads another's cache", () => {
+    expect(presenceListingQueryKey("locations/1")).not.toEqual(presenceListingQueryKey("locations/2"));
+    expect(presenceInsightsQueryKey(28, "locations/1")).not.toEqual(presenceInsightsQueryKey(28, "locations/2"));
+    expect(presenceInsightsQueryKey(28, undefined)).toEqual(presenceInsightsQueryKey(28, undefined));
   });
 });

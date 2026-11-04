@@ -53,6 +53,13 @@ export interface LocalPostOptionsProps {
   onDraftChange: (next: ListingDraft) => void;
   /** Shown instead of the form when the merchant has no location picked. */
   locationMissing?: boolean;
+  /**
+   * Every listing the connection manages. With more than one the merchant must
+   * choose which this post is for - it is never sent to all by default.
+   */
+  locations?: ReadonlyArray<{ locationName: string; title: string | null }>;
+  chosenLocation?: string | null;
+  onChosenLocationChange?: (locationName: string) => void;
   className?: string;
 }
 
@@ -62,6 +69,9 @@ export function LocalPostOptions({
   draft,
   onDraftChange,
   locationMissing,
+  locations = [],
+  chosenLocation,
+  onChosenLocationChange,
   className,
 }: LocalPostOptionsProps) {
   const id = useId();
@@ -122,6 +132,34 @@ export function LocalPostOptions({
 
       {enabled && !locationMissing && (
         <div className="space-y-3 border-t p-3">
+          {/* Which listing. Only when there is a real choice. */}
+          {locations.length > 1 && (
+            <div className="space-y-1.5">
+              <Label htmlFor={`${id}-listing`} className="text-xs font-medium text-muted-foreground">
+                Post to which listing
+              </Label>
+              <select
+                id={`${id}-listing`}
+                className="h-9 w-full rounded-md border bg-background px-2 text-sm"
+                value={chosenLocation ?? ""}
+                onChange={(e) => onChosenLocationChange?.(e.target.value)}
+              >
+                <option value="" disabled>
+                  Choose a listing
+                </option>
+                {locations.map((l) => (
+                  <option key={l.locationName} value={l.locationName}>
+                    {l.title?.trim() || l.locationName}
+                  </option>
+                ))}
+              </select>
+              {!chosenLocation && (
+                <p className="text-xs text-muted-foreground">
+                  Choose one: a post goes to a single listing, never to all of them.
+                </p>
+              )}
+            </div>
+          )}
           {/* Topic type */}
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-muted-foreground">Post type</Label>

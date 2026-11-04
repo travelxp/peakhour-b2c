@@ -101,10 +101,11 @@ function WorstList({ summary }: { summary: ReviewSummary }) {
   );
 }
 
-export function ReviewSummaryCard() {
+/** `location` narrows the summary to one listing; absent is the whole business. */
+export function ReviewSummaryCard({ location }: { location?: string }) {
   const query = useQuery({
-    queryKey: REVIEW_SUMMARY_QUERY_KEY,
-    queryFn: () => presenceApi.reviewSummary(),
+    queryKey: [...REVIEW_SUMMARY_QUERY_KEY, location ?? "all"],
+    queryFn: () => presenceApi.reviewSummary(undefined, location),
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
   });
