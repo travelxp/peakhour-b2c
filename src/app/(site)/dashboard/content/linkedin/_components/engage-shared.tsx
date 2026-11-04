@@ -15,6 +15,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { ActionCost } from "@/components/dashboard/action-cost";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -254,6 +255,9 @@ export function ReplyBox({
             )}
             Draft with AI
           </Button>
+        )}
+        {commentText && commentText.trim().length > 0 && (
+          <ActionCost action="linkedinReply" className="text-[10px]" />
         )}
         <SavedReplyPicker
           channel="linkedin"

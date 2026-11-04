@@ -39,6 +39,7 @@ import {
 } from "@/lib/api/repurpose";
 import { SchedulerComposer } from "@/components/scheduler/scheduler-composer";
 import { sourceTextHash } from "@/lib/scheduler/source-hash";
+import { ActionCost } from "@/components/dashboard/action-cost";
 import type {
   CommitPlanRequest,
   ScheduleSourceType,
@@ -482,6 +483,7 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
               >
                 Cancel
               </Button>
+              <ActionCost action="repurpose" className="mr-auto self-center text-xs" />
               <Button
                 type="button"
                 size="sm"

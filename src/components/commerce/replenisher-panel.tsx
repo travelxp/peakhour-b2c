@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ActionCost } from "@/components/dashboard/action-cost";
 import { useLocale } from "@/hooks/use-locale";
 import { minorToMajor } from "@/lib/money";
 import {
@@ -131,7 +132,7 @@ export function ReplenisherPanel() {
           ) : (
             <p className="text-sm text-muted-foreground">
               A prioritised, plain-language restock plan — what to reorder this week and roughly
-              how much. Uses Peaks.
+              how much. <ActionCost action="replenisherBrief" />
             </p>
           )}
         </CardContent>

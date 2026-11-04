@@ -76,7 +76,7 @@ describe("the customer panel", () => {
   });
   it("the Refresh summary button carries its price before it is pressed, and says it only runs when pressed", () => {
     const m = html();
-    expect(m).toContain("Refresh summary · 10 AI credits");
+    expect(m).toContain("Refresh summary · 10 Peaks");
     expect(m).toContain("Only runs when you press it.");
   });
   it("no price row: the button is off and says why", () => {

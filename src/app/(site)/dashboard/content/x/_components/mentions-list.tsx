@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ActionCost } from "@/components/dashboard/action-cost";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ToggleGroup,
@@ -294,6 +295,7 @@ function MentionCard({
               <Sparkles className="size-3.5" />
               Suggest reply
             </Button>
+            <ActionCost action="xReply" className="text-[10px]" />
             {mention.url && (
               <Button
                 variant="ghost"
