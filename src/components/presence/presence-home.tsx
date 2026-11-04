@@ -6,6 +6,7 @@ import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { GbpConnectCard } from "@/components/presence/gbp-connect-card";
 import { ReviewSummaryCard } from "@/components/presence/review-summary-card";
 import { ListingPanel } from "@/components/presence/listing-panel";
+import { EditListingCard } from "@/components/presence/edit/edit-listing-card";
 import { InsightsPanel } from "@/components/presence/insights-panel";
 import { ReviewKitCard } from "@/components/presence/review-kit-card";
 import { useListingQuery } from "@/hooks/use-presence-listing";
@@ -65,7 +66,7 @@ export function PresenceHome() {
           </h1>
           <p className="max-w-2xl text-muted-foreground">
             See your Google listing, how customers use it, and your Google
-            reviews. To change your listing, use Google for now.
+            reviews. You can prepare changes to your listing here. A person approves each one before it is sent.
           </p>
         </header>
 
@@ -99,6 +100,8 @@ export function PresenceHome() {
         <ReviewKitCard location={location} />
 
         <ListingPanel location={panelLocation} />
+
+        <EditListingCard location={panelLocation} />
 
         <InsightsPanel location={panelLocation} />
 

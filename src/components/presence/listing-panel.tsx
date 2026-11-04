@@ -26,8 +26,8 @@ import {
  * The listing as we hold it, with a mark on each field Google shows differently.
  *
  * MARKUP ONLY. What each state says, and whether a field "matches" Google, come
- * from `lib/presence-panels.ts`. Nothing here edits anything: edit forms are a
- * later row, and no control is shown for a change that cannot be made.
+ * from `lib/presence-panels.ts`. Nothing here edits anything: changes are made in
+ * the edit card below (`edit/edit-listing-card.tsx`).
  */
 function DriftMark({ status }: { status: DriftStatus }) {
   if (status === "differs") {
@@ -160,7 +160,7 @@ export function ListingPanel({ location }: { location?: string }) {
     <div>
       <h2 className="font-medium">Your listing</h2>
       <p className="text-xs text-muted-foreground">
-        As Peakhour has it from Google. Nothing here is edited from this page yet.
+        As Peakhour has it from Google. To change something, use the card below.
       </p>
     </div>
   );
