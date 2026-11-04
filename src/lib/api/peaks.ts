@@ -163,12 +163,13 @@ export const peaksApi = {
  * at a call site is a string nothing checks until a merchant presses the
  * button and gets a 404 where a price should be.
  *
- * ⏸ONE ENTRY TODAY, and that is the api's shape rather than a sketch:
- * `POST /v1/audiences/plan` is the only act wrapped in `quotedAction` so far.
- * A second entry is a second wrapped route, not a second button.
+ * ⏸TWO ENTRIES, and that is the api's shape rather than a sketch: the routes wrapped in `chargedAct` that have a button here are
+ * `POST /v1/audiences/plan` and the content image route. A further entry is a further wrapped route with a button.
  */
 export const PEAKS_ACTIONS = {
   proposeAudiences: "growth.propose_audiences",
+  /** C7: one content image (`POST /v1/content/ideas/:id/placeholders/:index/generate`). */
+  generateImage: "content.generate_image",
 } as const;
 
 export type PeaksActionKey = (typeof PEAKS_ACTIONS)[keyof typeof PEAKS_ACTIONS];

@@ -10,7 +10,7 @@ import { googleAdsUrl } from "@/lib/google-ads-surface";
  *   - a campaign is OUR row (`id` is `ad_campaigns._id`), listed locally like
  *     LinkedIn's, not read live from Google;
  *   - it is created PAUSED, and activation is the launch (nothing is charged
- *     for it: the engine bills a verified outcome);
+ *     for it: Growth is charged per task, never per launch or result);
  *   - a create Google did not confirm answers 202 `pending` — "don't create
  *     it again" — and is read back by the hourly re-drive.
  *

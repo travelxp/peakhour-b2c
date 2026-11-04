@@ -83,6 +83,20 @@ export function ceilingChips(draft: FirstRunDraftResponse): Array<{ key: "starte
   return draft.ceilingBands.bands.map((b) => ({ key: b.key, label: label[b.key], amount: b.amount }));
 }
 
+/**
+ * The third question, in the merchant's words. The answer is the TARGET the engine steers bids to (the cost cap of a campaign is
+ * the mandate's cost per outcome), so it is asked as money spent on ads. It is not a Peakhour charge: Growth is charged AI
+ * credits per task the merchant asks for, never per result (owner, 2026-11-04), and the sentence under the box says so.
+ */
+export function targetQuestion(kind: MandateTarget["kind"], unitOne: string): string {
+  return kind === "roas" ? "What return do you need on your ad spend?" : `What is the most you want to spend on ads to get one ${unitOne}?`;
+}
+
+/** The line beside the target box: what the number does, and that it is not a fee. */
+export const TARGET_NOT_A_FEE = "The engine aims to spend no more than this on ads for each one. It is not a Peakhour charge.";
+
+const SPEND_PER_OUTCOME = "the most you want to spend on ads per outcome";
+
 /** Why the plan cannot be sent yet, in the merchant's words, or undefined when it can. Signal is the api's own `complete`. */
 export function planBlockedReason(draft: FirstRunDraftResponse | undefined, answers: FirstRunAnswers, signalDone: boolean): string | undefined {
   if (!draft) return "Your plan is still loading.";
@@ -96,8 +110,8 @@ export function planBlockedReason(draft: FirstRunDraftResponse | undefined, answ
   if (parseAmount(answers.ceiling) === undefined) return "Enter your monthly ceiling.";
   if (!resolveTarget(offer, answers)) {
     return answers.target !== undefined
-      ? `Enter ${offer.optimizeFor === "value" ? "the return you need" : "what you can pay per outcome"}: the target box is empty.`
-      : `Enter ${offer.optimizeFor === "value" ? "the return you need" : "what you can pay per outcome"}: this outcome has no playbook default.`;
+      ? `Enter ${offer.optimizeFor === "value" ? "the return you need" : SPEND_PER_OUTCOME}: the target box is empty.`
+      : `Enter ${offer.optimizeFor === "value" ? "the return you need" : SPEND_PER_OUTCOME}: this outcome has no playbook default.`;
   }
   if (!signalDone) return "Finish step 4 first: switch on your signal, or accept running without one.";
   return undefined;
