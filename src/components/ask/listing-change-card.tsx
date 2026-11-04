@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api";
 import { presenceChangesApi } from "@/lib/api/presence-changes";
-import { cardStatus, TERMINAL_STATUSES, UNREAD_STATUS, UNREADABLE_STATUS, type ListingChangeCardData } from "@/lib/presence-change-card";
+import { cardStatus, expiryOf, TERMINAL_STATUSES, UNREAD_STATUS, UNREADABLE_STATUS, type ListingChangeCardData } from "@/lib/presence-change-card";
 import { cn } from "@/lib/utils";
 
 /**
@@ -31,7 +31,19 @@ export function ListingChangeCard({ card }: { card: ListingChangeCardData }) {
   // The stored row's current status. The card's own status is what it was when the assistant prepared it, so it is never what decides the buttons:
   // a card for a change that has since been decided must not be approvable while the read is loading or if it fails. A status that cannot change
   // again needs no read.
-  const settled = TERMINAL_STATUSES.has(card.status);
+  // A waiting card runs out of time while it is on screen: a timer re-renders it at its expiry, so it stops offering Approve without a read.
+  const [now, setNow] = useState(() => Date.now());
+  const expiry = expiryOf(card);
+  useEffect(() => {
+    if (expiry === null) return;
+    const wait = expiry - Date.now();
+    if (wait <= 0) return; // already past at mount: `now` started at or after it
+    // setTimeout holds at most 2^31 ms; a proposal lives for days, not weeks
+    const t = setTimeout(() => setNow(Date.now()), Math.min(wait + 50, 2_147_000_000));
+    return () => clearTimeout(t);
+  }, [expiry]);
+  const lapsed = expiry !== null && expiry <= now;
+  const settled = TERMINAL_STATUSES.has(card.status) || lapsed;
   const live = useQuery({
     queryKey: KEY(card.id),
     queryFn: () => presenceChangesApi.get(card.id),
@@ -41,9 +53,9 @@ export function ListingChangeCard({ card }: { card: ListingChangeCardData }) {
   });
   const item = live.data?.item;
   const status = settled
-    ? cardStatus(card.status, { reason: card.blockedReason })
+    ? cardStatus(lapsed ? "expired" : card.status, { reason: card.blockedReason })
     : item
-      ? cardStatus(item.status, { held: item.held?.reason ?? null, reason: item.reason?.message ?? null, liveNote: item.liveCheck?.note ?? null, expiresAt: item.expiresAt })
+      ? cardStatus(item.status, { held: item.held?.reason ?? null, reason: item.reason?.message ?? null, liveNote: item.liveCheck?.note ?? null, expiresAt: item.expiresAt, now })
       : live.isError
         ? UNREADABLE_STATUS
         : UNREAD_STATUS;

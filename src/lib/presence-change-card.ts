@@ -31,7 +31,7 @@ export interface ProposeToolOutput {
   cards?: unknown[];
 }
 
-const CARD_KEYS = ["id", "status", "placeName", "networkLabel", "headline", "before", "after"] as const;
+const CARD_KEYS = ["id", "status", "placeName", "networkLabel", "field", "fieldLabel", "headline", "before", "after", "expiresAt"] as const;
 
 /** The cards in a tool's output that have the shape the app draws. Anything else is dropped, as `parseCards` drops it on the server. */
 export function cardsOf(output: unknown): ListingChangeCardData[] {
@@ -43,7 +43,8 @@ export function cardsOf(output: unknown): ListingChangeCardData[] {
       typeof c === "object" &&
       (c as { type?: unknown }).type === "listing_change" &&
       CARD_KEYS.every((k) => typeof (c as Record<string, unknown>)[k] === "string") &&
-      Array.isArray((c as { notes?: unknown }).notes),
+      Array.isArray((c as { notes?: unknown }).notes) &&
+      (c as { notes: unknown[] }).notes.every((n) => typeof n === "string"),
   );
 }
 
@@ -52,6 +53,13 @@ const DECIDABLE = new Set(["proposed", "validated"]);
 
 /** Statuses that never change again: a card in one of them needs no read to be shown. */
 export const TERMINAL_STATUSES: ReadonlySet<string> = new Set(["rejected", "expired", "superseded", "failed", "blocked", "live"]);
+
+/** When a card that is still waiting runs out of time, in ms since the epoch, or null when it is not waiting or the time is unreadable. */
+export function expiryOf(card: Pick<ListingChangeCardData, "status" | "expiresAt">): number | null {
+  if (!DECIDABLE.has(card.status)) return null;
+  const at = Date.parse(card.expiresAt);
+  return Number.isNaN(at) ? null : at;
+}
 
 /** Shown while the live status is being read, and when it could not be: no Approve, because a stale card must not be approvable. */
 export const UNREAD_STATUS: CardStatus = { label: "Checking", detail: null, tone: "closed", canDecide: false };

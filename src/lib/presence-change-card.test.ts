@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { cardsOf, cardStatus, uniqueCards, UNREAD_STATUS, UNREADABLE_STATUS, TERMINAL_STATUSES } from "./presence-change-card";
+import { cardsOf, cardStatus, expiryOf, uniqueCards, UNREAD_STATUS, UNREADABLE_STATUS, TERMINAL_STATUSES } from "./presence-change-card";
 import { isPresenceRoute, routeKeyFromPath } from "@/providers/ask-context-provider";
 
 const card = (over: Record<string, unknown> = {}) => ({
@@ -27,6 +27,10 @@ describe("cardsOf: the cards in the change tool's output", () => {
 
   it("drops anything that is not a card of this shape", () => {
     expect(cardsOf({ cards: [card({ type: "suggestion" }), card({ id: 5 }), card({ notes: "x" }), null, "text", card()] })).toHaveLength(1);
+  });
+
+  it("drops a card the component could not draw: a missing label, a note that is not text", () => {
+    expect(cardsOf({ cards: [card({ fieldLabel: undefined }), card({ field: undefined }), card({ expiresAt: undefined }), card({ notes: ["ok", 3] }), card()] })).toHaveLength(1);
   });
 
   it("is empty for a question, a refusal or nothing at all", () => {
@@ -98,6 +102,15 @@ describe("a stale card is never approvable", () => {
   it("terminal statuses are exactly the ones that never change again", () => {
     for (const s of ["rejected", "expired", "superseded", "failed", "blocked", "live"]) expect(TERMINAL_STATUSES.has(s), s).toBe(true);
     for (const s of ["proposed", "validated", "approved", "applying", "submitted"]) expect(TERMINAL_STATUSES.has(s), s).toBe(false);
+  });
+});
+
+describe("expiryOf: when a waiting card runs out of time", () => {
+  it("is the card's own time while it can still be decided, and nothing otherwise", () => {
+    expect(expiryOf({ status: "proposed", expiresAt: "2026-11-07T00:00:00.000Z" })).toBe(Date.parse("2026-11-07T00:00:00.000Z"));
+    expect(expiryOf({ status: "validated", expiresAt: "2026-11-07T00:00:00.000Z" })).not.toBeNull();
+    for (const status of ["approved", "submitted", "live", "blocked", "rejected", "expired"]) expect(expiryOf({ status, expiresAt: "2026-11-07T00:00:00.000Z" }), status).toBeNull();
+    expect(expiryOf({ status: "proposed", expiresAt: "not a date" })).toBeNull();
   });
 });
 
