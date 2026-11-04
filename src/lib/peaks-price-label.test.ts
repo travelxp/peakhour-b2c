@@ -87,7 +87,7 @@ describe("peaksCostSentence — the price shown BEFORE the ask", () => {
     // The distinction that matters: we do not know the price yet, so we say so
     // rather than quoting a number we do not have or implying it is free.
     const s = peaksCostSentence(undefined);
-    expect(s).toBe("Uses Peaks.");
+    expect(s).toBe("The price is on your Peaks page.");
     expect(s).not.toMatch(/free/i);
     expect(s).not.toMatch(/\d/);
   });

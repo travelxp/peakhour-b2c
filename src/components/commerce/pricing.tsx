@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ActionCost } from "@/components/dashboard/action-cost";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
@@ -178,7 +179,7 @@ function PricingBrief({ hasProposals }: { hasProposals: boolean }) {
         ) : (
           <p className="text-sm text-muted-foreground">
             A prioritised, plain-language markdown plan — what to clear this week and at
-            what discount. Uses Peaks.
+            what discount. <ActionCost action="pricerBrief" />
           </p>
         )}
       </CardContent>

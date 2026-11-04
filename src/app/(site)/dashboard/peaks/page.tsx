@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Zap, History, ArrowUpRight, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { ChargeRecordCard } from "@/components/peaks/charge-record-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -446,7 +447,7 @@ export default function PeaksPage() {
               Peaks
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              AI credits that power every feature. Resets monthly on your billing date.
+              The AI credits that power every feature. Resets monthly on your billing date.
             </p>
           </div>
           <Button
@@ -544,6 +545,9 @@ export default function PeaksPage() {
         {/* ── Storage: its own line, apart from AI work ────────────── */}
         <StoragePeaksCard />
         <ShopperCapCard />
+
+        {/* ── What was charged, charge by charge ────────────────────── */}
+        <ChargeRecordCard />
 
         {/* ── Rate card ─────────────────────────────────────────────── */}
         <Card>

@@ -24,12 +24,12 @@ const html = (s: XDmStatus, over: { busy?: boolean; error?: string | null } = {}
 describe("the cost is shown before it is turned on, from the api's price", () => {
   it("says what each X message uses, in the rate card's number", () => {
     const out = html(status());
-    expect(out).toContain("Each X message uses 5 AI credits. A customer&#x27;s message and each reply (yours or Peakhour&#x27;s) are one each.");
+    expect(out).toContain("Each X message uses 5 Peaks. A customer&#x27;s message and each reply (yours or Peakhour&#x27;s) are one each.");
     expect(out).toContain(X_DM_COPY.turnOn);
   });
   it("follows the rate card: another price reads as that price, and 1 is singular", () => {
-    expect(html(status({ pricePerMessage: 8 }))).toContain("Each X message uses 8 AI credits.");
-    expect(priceLine(1)).toContain("uses 1 AI credit.");
+    expect(html(status({ pricePerMessage: 8 }))).toContain("Each X message uses 8 Peaks.");
+    expect(priceLine(1)).toContain("uses 1 Peak.");
   });
   it("with no price the switch cannot be turned on and the panel says why", () => {
     const out = html(status({ pricePerMessage: null }));
@@ -38,7 +38,7 @@ describe("the cost is shown before it is turned on, from the api's price", () =>
     expect(priceLine(null)).toBeNull();
   });
   it("tells the merchant what happens at zero credits", () => {
-    expect(html(status())).toContain("When your AI credits run out, Peakhour stops answering X messages and they wait in your Inbox marked Needs you.");
+    expect(html(status())).toContain("When your Peaks run out, Peakhour stops answering X messages and they wait in your Inbox marked Needs you.");
   });
 });
 

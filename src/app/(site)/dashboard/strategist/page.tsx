@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { api, newActionKey } from "@/lib/api";
 import { API_BASE_URL } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { ActionCost } from "@/components/dashboard/action-cost";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { KanbanBoard } from "./components/kanban-board";
@@ -302,7 +303,8 @@ export default function StrategistPage() {
             <p className="text-xs text-muted-foreground">
               AI will check latest news, analyse your library, and suggest 7 prioritised ideas
             </p>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
+              <ActionCost action="contentIdeas" className="text-xs" />
               <Button variant="ghost" size="sm" onClick={() => { setShowTopicInput(false); setIdeaTopic(""); setContentFormatChoice("any"); }}>Cancel</Button>
               <Button size="sm" onClick={() => handleGetIdeas(ideaTopic, contentFormatChoice)} className="gap-1.5">
                 <Send className="h-3.5 w-3.5" />

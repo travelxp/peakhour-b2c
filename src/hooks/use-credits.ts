@@ -1,8 +1,9 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
+import type { ChargePage } from "@/lib/charge-record";
 
 // ── Response types ─────────────────────────────────────────────────────────
 
@@ -207,5 +208,22 @@ export function useCreditsHistory() {
     queryFn: () => api.get<{ days: CreditsHistoryDay[]; total: number }>("/v1/dashboard/credits/history"),
     enabled: isAuthenticated && !!org?._id,
     staleTime: 5 * 60_000,
+  });
+}
+
+/**
+ * The charge-by-charge record (`GET /v1/dashboard/credits/charges`), a page at a
+ * time, newest first. One line per charge; a refunded charge stays one line.
+ */
+export function useCreditCharges() {
+  const { isAuthenticated, org } = useAuth();
+  return useInfiniteQuery({
+    queryKey: [CREDITS_KEY, "charges", org?._id ?? null],
+    queryFn: ({ pageParam }) =>
+      api.get<ChargePage>("/v1/dashboard/credits/charges", pageParam ? { before: pageParam } : undefined),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.next ?? undefined,
+    enabled: isAuthenticated && !!org?._id,
+    staleTime: 60_000,
   });
 }

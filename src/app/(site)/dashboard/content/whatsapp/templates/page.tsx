@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
+import { ActionCost } from "@/components/dashboard/action-cost";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -650,6 +651,7 @@ export default function WhatsAppTemplatesPage() {
               <Button onClick={() => suggest.mutate()} disabled={!goal.trim() || suggest.isPending}>
                 {suggest.isPending ? "Drafting…" : "Draft with AI"}
               </Button>
+              <ActionCost action="waTemplateStudio" className="self-center text-xs" />
             </div>
           </Card>
 
@@ -707,6 +709,7 @@ export default function WhatsAppTemplatesPage() {
               <Button variant="outline" onClick={() => lint.mutate()} disabled={!canSave || lint.isPending}>
                 {lint.isPending ? "Checking…" : "Check policy"}
               </Button>
+              <ActionCost action="waTemplateStudio" className="self-center text-xs" />
               <Button variant="outline" onClick={() => saveDraft.mutate()} disabled={!canSave || saveDraft.isPending}>
                 {saveDraft.isPending ? "Saving…" : "Save draft"}
               </Button>
@@ -844,6 +847,7 @@ export default function WhatsAppTemplatesPage() {
                             <Button size="sm" variant="outline" className="mt-1.5" onClick={() => repair.mutate(t._id)} disabled={repair.isPending}>
                               {repair.isPending ? "Fixing…" : "Suggest a fix"}
                             </Button>
+                            <ActionCost action="waTemplateStudio" className="ml-2 text-xs" />
                           </div>
                         )}
                       </div>
