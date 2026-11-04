@@ -26,7 +26,7 @@ export type DescribeState = "described" | "describing" | "pending" | "not_descri
 
 /** One place a file is used. The page builds the link from `kind` and `refId`. */
 export interface UsedInEntry {
-  kind: "idea" | "draft" | "ad_creative" | "scheduled_item" | "social_post" | "page" | "brand" | "listing";
+  kind: "idea" | "draft" | "ad_creative" | "scheduled_item" | "social_post" | "page" | "brand" | "listing" | "share";
   refId: string;
   label?: string;
   published?: boolean;

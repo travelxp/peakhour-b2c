@@ -84,6 +84,7 @@ const USED_KIND_LABEL: Record<UsedInEntry["kind"], string> = {
   page: "Page",
   brand: "Brand Kit",
   listing: "Google listing",
+  share: "Share link",
 };
 
 export function usedInLabel(e: UsedInEntry): string {
@@ -110,6 +111,8 @@ export function usedInHref(e: UsedInEntry): string {
       return "/dashboard/drive?tab=brand";
     case "listing":
       return "/dashboard/presence";
+    case "share":
+      return "/dashboard/drive";
   }
 }
 

@@ -6,7 +6,7 @@ import type { DescribeStateRow, MediaItem } from "@/lib/api/media";
 vi.mock("@/lib/api", () => ({ api: { get: vi.fn() }, ApiError: class extends Error {}, API_BASE_URL: "" }));
 
 const { NO_FILTERS, applyDescribeRows, canChangeFile, driveAbilities, isFiltered, toListParams, waitingIds } = await import("./files-state");
-const { usedInHref, tileLine, isBeingDescribed, SHIMMER_WINDOW_MS, cleanupCopy, DESCRIBING_LINE, fitsOf, channelLabel } = await import("./copy");
+const { usedInHref, usedInLabel, tileLine, isBeingDescribed, SHIMMER_WINDOW_MS, cleanupCopy, DESCRIBING_LINE, fitsOf, channelLabel } = await import("./copy");
 const { tabFromParam, DRIVE_TABS } = await import("./tabs");
 const { fitWithin, posterTime, POSTER_MAX_SIDE } = await import("./probe-file");
 const { trayTitle, pillText } = await import("./tray-copy");
@@ -111,6 +111,11 @@ describe("the links from 'Used in'", () => {
     expect(usedInHref({ kind: "draft", refId: "x" })).toBe("/dashboard/content");
     expect(usedInHref({ kind: "brand", refId: "x" })).toBe("/dashboard/drive?tab=brand");
     expect(usedInHref({ kind: "listing", refId: "x" })).toBe("/dashboard/presence");
+    expect(usedInHref({ kind: "share", refId: "x" })).toBe("/dashboard/drive");
+  });
+  it("name a share link in plain words, with the live flag and label where there are some", () => {
+    expect(usedInLabel({ kind: "share", refId: "x" })).toBe("Share link");
+    expect(usedInLabel({ kind: "share", refId: "x", label: "Spring lookbook", published: true })).toBe("Share link: Spring lookbook, live");
   });
   it("every route it names exists as a page in the app", () => {
     const routes: Array<[string, string]> = [
