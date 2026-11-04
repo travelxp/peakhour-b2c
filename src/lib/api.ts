@@ -61,7 +61,6 @@ export async function getCsrfToken(): Promise<string | null> {
   }
 }
 
-/** Clear the cached CSRF token (e.g. after a CSRF rejection). */
 /**
  * A fresh key for ONE click on a paid action (owner, 2026-11-04: one action, one charge). Send it as `Idempotency-Key`;
  * the api turns it into the charge id, so a double click or a retry of that click is charged once. Make a new one per
@@ -71,6 +70,7 @@ export function newActionKey(): Record<string, string> {
   return { "Idempotency-Key": `click-${globalThis.crypto.randomUUID()}` };
 }
 
+/** Clear the cached CSRF token (e.g. after a CSRF rejection). */
 export function clearCsrfToken(): void {
   csrfToken = null;
 }

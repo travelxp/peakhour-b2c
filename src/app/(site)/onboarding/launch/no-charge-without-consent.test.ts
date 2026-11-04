@@ -44,6 +44,10 @@ describe("a paid click carries a key of its own", () => {
     for (const k of [a, b]) expect(k).toMatch(/^[A-Za-z0-9._:-]{8,128}$/);
   });
 
+  it("the draft-posts button sends one too", () => {
+    expect(read("src/lib/api/linkedin-content.ts")).toMatch(/generate-from-profile",\s*count !== undefined \? \{ count \} : \{\},\s*newActionKey\(\),/);
+  });
+
   it("the strategist, the draft and the page generator send it", () => {
     expect(read("src/hooks/use-web-pages.ts")).toMatch(/"\/v1\/content\/web-pages\/generate", body \?\? \{\}, newActionKey\(\)/);
     expect(read("src/app/(site)/dashboard/strategist/page.tsx")).toMatch(/streamPost\("\/v1\/content\/suggest", .*newActionKey\(\)\)/);

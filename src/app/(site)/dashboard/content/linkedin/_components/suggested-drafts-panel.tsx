@@ -65,7 +65,7 @@ export function SuggestedDraftsPanel({ onUseDraft }: Props) {
   // Pure cache reader — no network call, no queryFn invocation. The
   // button below populates the cache via setQueryData. enabled:false + initialData:null means useQuery
   // never runs a fetch and renders the "no drafts" branch cleanly on
-  // first mount before the launch page has stashed anything.
+  // first mount, before the merchant has asked for drafts.
   const { data } = useQuery<GenerateFromProfileResponse | null>({
     queryKey: SUGGESTED_DRAFTS_QUERY_KEY,
     enabled: false,
