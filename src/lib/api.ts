@@ -67,7 +67,7 @@ export async function getCsrfToken(): Promise<string | null> {
  * click, never per page: two deliberate runs are two actions.
  */
 export function newActionKey(): Record<string, string> {
-  return { "Idempotency-Key": `click-${globalThis.crypto.randomUUID()}` };
+  return { "Idempotency-Key": `click-${typeof globalThis.crypto?.randomUUID === "function" ? globalThis.crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`}` };
 }
 
 /** Clear the cached CSRF token (e.g. after a CSRF rejection). */
