@@ -44,7 +44,7 @@ export function PresenceHome() {
             <span className="text-sm font-medium uppercase tracking-wide">Presence</span>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
-            Be found, accurate &amp; well-reviewed everywhere
+            Your Google listing and reviews, in one place
           </h1>
           <p className="max-w-2xl text-muted-foreground">
             Connect your Google Business Profile listing and answer your Google

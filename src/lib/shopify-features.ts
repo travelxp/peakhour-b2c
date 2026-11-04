@@ -353,11 +353,11 @@ export const SHOPIFY_GROUPS: ShopifyGroup[] = [
       {
         id: "emergency-stop",
         title: "Emergency stop",
-        does: "One button that stops Peakhour from making changes in your store.",
+        does: "One button that pauses Peakhour's automatic work in your store.",
         benefit: "You can pause its automatic work in a second.",
         steps: [
           "Press Emergency stop.",
-          "Peakhour stops making changes.",
+          "Peakhour pauses its automatic work.",
           "Switch it back on when you are ready.",
         ],
       },

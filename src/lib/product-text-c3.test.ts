@@ -22,6 +22,11 @@ describe("Presence says what it does", () => {
     expect(home).toContain("Connect your Google Business Profile listing and answer your Google reviews from one place.");
   });
 
+  it("the header no longer says 'everywhere'", () => {
+    expect(home).toContain("Your Google listing and reviews, in one place");
+    expect(home).not.toContain("Be found, accurate");
+  });
+
   it("no promise of an edit-once record, syncing to other networks, or a performance dashboard", () => {
     expect(home).not.toContain("One record you edit once");
     expect(home).not.toMatch(/synced across/i);
@@ -36,7 +41,7 @@ describe("Presence says what it does", () => {
   });
 
   it("PASS: the unbuilt parts stay labelled as coming", () => {
-    expect(home).toContain("Coming with Presence");
+    expect(home).toMatch(/<h2[^>]*> Coming with Presence <\/h2>/);
   });
 });
 
@@ -71,6 +76,9 @@ describe("the emergency stop pauses automatic work, not everything", () => {
       "It changes only what you switch on. Each change appears in your activity feed with an Undo, and the emergency stop pauses its automatic work.",
     );
     expect(src).toContain("You can pause its automatic work in a second.");
+    expect(src).toContain("One button that pauses Peakhour's automatic work in your store.");
+    expect(src).toContain("Peakhour pauses its automatic work.");
+    expect(src).not.toContain("stops Peakhour from making changes");
     expect(src).not.toMatch(/pauses? everything/i);
   });
 });
