@@ -58,12 +58,15 @@ describe("the draft button", () => {
     }
   });
   it("is offered on every unanswered review whatever its rating", () => {
-    for (const rating of [1, 3, 5, undefined]) expect(canOfferDraft({ kind: "review", review: (rating ? { rating } : {}) as { replyPublished?: string } }), String(rating)).toBe(true);
+    for (const rating of [1, 3, 5, undefined]) expect(canOfferDraft({ kind: "review", review: (rating ? { rating } : {}) as { replyPublished?: string } }, true), String(rating)).toBe(true);
   });
   it("is not offered on an answered review or on something that is not a review", () => {
-    expect(canOfferDraft({ kind: "review", review: { replyPublished: "Thanks!" } })).toBe(false);
-    expect(canOfferDraft({ kind: "review", review: { replyPublished: "  " } })).toBe(true);
-    expect(canOfferDraft({ kind: "lead" })).toBe(false);
+    expect(canOfferDraft({ kind: "review", review: { replyPublished: "Thanks!" } }, true)).toBe(false);
+    expect(canOfferDraft({ kind: "review", review: { replyPublished: "  " } }, true)).toBe(true);
+    expect(canOfferDraft({ kind: "lead" }, true)).toBe(false);
+  });
+  it("is not offered on a review the composer cannot answer (another network, or no reference)", () => {
+    expect(canOfferDraft({ kind: "review", review: {} }, false)).toBe(false);
   });
   it("the saved note says it was not sent", () => {
     expect(DRAFT_SAVED_NOTE).toMatch(/Nothing is sent until you press Send/);

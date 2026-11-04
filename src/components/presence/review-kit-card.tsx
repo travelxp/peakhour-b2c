@@ -2,13 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
 import { Printer, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { presenceApi } from "@/lib/api/presence";
-import { askLine, copyLabel, kitEmptyState, svgDataUri, REVIEW_KIT_QUERY_KEY } from "@/lib/review-kit";
+import { useReviewKit } from "@/hooks/use-review-kit";
+import { askLine, copyLabel, kitEmptyState, svgDataUri } from "@/lib/review-kit";
 
 /**
  * Get more reviews: a link to copy, a QR code, and a poster to print (PE-05).
@@ -18,20 +17,21 @@ import { askLine, copyLabel, kitEmptyState, svgDataUri, REVIEW_KIT_QUERY_KEY } f
  * ★NOTHING IS SENT FROM HERE. A person copies the link or prints the poster.
  */
 export function ReviewKitCard() {
-  const kit = useQuery({ queryKey: REVIEW_KIT_QUERY_KEY, queryFn: () => presenceApi.reviewKit(), staleTime: 60_000 });
+  const kit = useReviewKit();
   const [copied, setCopied] = useState<"idle" | "copied" | "failed">("idle");
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
 
-  if (kit.isLoading) return <Skeleton className="h-40 w-full" />;
+  // isPending, not isLoading: a query that is paused (offline) has no data and is not "loading", and is not a failure either
+  if (kit.isPending) return <Skeleton className="h-40 w-full" />;
   // ⚠️A FAILED READ IS NOT "NO LINK": say the read failed.
-  if (kit.isError || !kit.data) {
+  if (kit.isError) {
     return (
       <Card className="p-4 text-sm text-muted-foreground">We couldn&apos;t load your review link just now. Try again in a moment.</Card>
     );
   }
-  const empty = kitEmptyState(kit.data);
-  if (empty || kit.data.state !== "ready") {
+  if (kit.data.state !== "ready") {
+    const empty = kitEmptyState(kit.data);
     return (
       <Card className="space-y-1 p-4">
         <h2 className="text-base font-semibold">Get more reviews</h2>

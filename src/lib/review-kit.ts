@@ -87,16 +87,17 @@ export function draftButton(cost: ActionCost, hasSuggestion = false): { text: st
 }
 
 /**
- * Whether a review row may offer the draft button: it is a review we can read, and no reply is live. A rated-only review is included;
- * nothing here looks at the rating (no gating, and a one-star review needs an answer most).
+ * Whether a review row may offer the draft button: it is a review we can answer from here (`canSend`: the composer's own test that the row
+ * is a review of the network we reply on, with a reference), and no reply is live. A rated-only review is included; nothing here looks at
+ * the rating (no gating, and a one-star review needs an answer most).
  */
-export function canOfferDraft(item: { kind?: string; review?: { replyPublished?: string } }): boolean {
-  if (item.kind !== "review") return false;
+export function canOfferDraft(item: { kind?: string; review?: { replyPublished?: string } }, canSend: boolean): boolean {
+  if (!canSend || item.kind !== "review") return false;
   return !(item.review?.replyPublished ?? "").trim();
 }
 
 /** What a draft action tells the merchant on success. It never says the reply was sent. */
 export const DRAFT_SAVED_NOTE = "Draft saved below. Read it and change anything before you send. Nothing is sent until you press Send.";
 
-/** The page title of the printable poster route. */
+/** The instruction line above the printable poster (not the page title, which `page.tsx` sets). */
 export const POSTER_PAGE_NOTE = "Print this page on A4. Your link and QR code are the same for every customer.";

@@ -3,11 +3,10 @@
 import { useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { presenceApi } from "@/lib/api/presence";
-import { kitEmptyState, posterCopy, svgDataUri, POSTER_PAGE_NOTE, REVIEW_KIT_QUERY_KEY, type ReviewKit } from "@/lib/review-kit";
+import { useReviewKit } from "@/hooks/use-review-kit";
+import { kitEmptyState, posterCopy, svgDataUri, POSTER_PAGE_NOTE, type ReviewKit } from "@/lib/review-kit";
 
 /**
  * The printable A4 poster (PE-05): the business's name, a line asking for a review, and the QR code.
@@ -31,21 +30,21 @@ const PRINT_CSS = `
 type PosterKit = Extract<ReviewKit, { state: "ready" }>;
 
 /** The sheet itself. Drawn twice: once on screen as a preview, once in the print-only copy that sits directly under <body>. */
-function PosterSheet({ kit, id }: { kit: PosterKit; id?: string }) {
+function PosterSheet({ kit, id, print = false }: { kit: PosterKit; id?: string; print?: boolean }) {
   const copy = posterCopy(kit);
   return (
     <div
       id={id}
       className="mx-auto flex aspect-[210/297] w-full max-w-[210mm] flex-col items-center justify-between rounded-md border bg-white p-[12mm] text-center text-black shadow-sm"
     >
-      <p className="text-[clamp(1.25rem,4vw,2.25rem)] font-semibold leading-tight">{copy.businessName}</p>
+      <p className={print ? "text-[26pt] font-semibold leading-tight" : "text-[clamp(1.25rem,4vw,2.25rem)] font-semibold leading-tight"}>{copy.businessName}</p>
       <div className="space-y-3">
-        <p className="text-[clamp(1.5rem,6vw,3.5rem)] font-bold leading-tight">{copy.headline}</p>
-        <p className="text-[clamp(0.9rem,2.4vw,1.5rem)]">{copy.subline}</p>
+        <p className={print ? "text-[40pt] font-bold leading-tight" : "text-[clamp(1.5rem,6vw,3.5rem)] font-bold leading-tight"}>{copy.headline}</p>
+        <p className={print ? "text-[18pt]" : "text-[clamp(0.9rem,2.4vw,1.5rem)]"}>{copy.subline}</p>
       </div>
       {/* eslint-disable-next-line @next/next/no-img-element -- an api-drawn SVG data URI */}
       <img src={svgDataUri(kit.qrSvg)} alt={`QR code that opens ${copy.businessName}'s review page`} className="aspect-square w-[62%] max-w-[120mm]" />
-      <p className="text-[clamp(0.9rem,2.4vw,1.5rem)] font-medium">{copy.instruction}</p>
+      <p className={print ? "text-[18pt] font-medium" : "text-[clamp(0.9rem,2.4vw,1.5rem)] font-medium"}>{copy.instruction}</p>
     </div>
   );
 }
@@ -57,13 +56,13 @@ export function ReviewPoster() {
     () => true,
     () => false,
   );
-  const kit = useQuery({ queryKey: REVIEW_KIT_QUERY_KEY, queryFn: () => presenceApi.reviewKit(), staleTime: 60_000 });
-  if (kit.isLoading) return <Skeleton className="mx-auto h-[60vh] w-full max-w-md" />;
-  if (kit.isError || !kit.data) {
+  const kit = useReviewKit();
+  if (kit.isPending) return <Skeleton className="mx-auto h-[60vh] w-full max-w-md" />;
+  if (kit.isError) {
     return <p className="p-6 text-sm text-muted-foreground">We couldn&apos;t load your poster just now. Try again in a moment.</p>;
   }
-  const empty = kitEmptyState(kit.data);
-  if (empty || kit.data.state !== "ready") {
+  if (kit.data.state !== "ready") {
+    const empty = kitEmptyState(kit.data);
     return (
       <div className="mx-auto max-w-md space-y-2 p-6">
         <p className="font-medium">{empty?.headline}</p>
@@ -91,7 +90,7 @@ export function ReviewPoster() {
       </div>
       <PosterSheet kit={ready} />
       {/* The print copy lives directly under <body> (a portal), so the print rules can hide everything else. */}
-      {mounted && createPortal(<div id="review-poster-print"><PosterSheet kit={ready} /></div>, document.body)}
+      {mounted && createPortal(<div id="review-poster-print"><PosterSheet kit={ready} print /></div>, document.body)}
     </div>
   );
 }

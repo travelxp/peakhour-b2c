@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import { ApiError } from "@/lib/api";
 import { inboxApi, type InboxItem } from "@/lib/api/inbox";
 import { presenceApi } from "@/lib/api/presence";
 import { useActionCost } from "@/components/dashboard/action-cost";
+import { CREDITS_KEY } from "@/hooks/use-credits";
 import { toastUnhandledApiError } from "@/lib/toast-errors";
 import { canOfferDraft, draftButton, DRAFT_SAVED_NOTE } from "@/lib/review-kit";
 import { useLocale } from "@/hooks/use-locale";
@@ -188,12 +189,15 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
 
   // "Draft a reply": an AI suggestion saved on the review, charged per press, price on the button first. ★IT NEVER SENDS AND NEVER FILLS
   // THE BOX: it lands as the suggestion below, one explicit click from the box, like any other suggestion.
+  const qc = useQueryClient();
   const draftCost = useActionCost("presenceReviewReply");
   const draftLabel = draftButton(draftCost, Boolean(state.suggestion));
   const draft = useMutation({
     mutationFn: () => presenceApi.draftReviewReply(item._id),
     onSuccess: () => {
       toast.success(DRAFT_SAVED_NOTE);
+      // the press spent Peaks: the balance (and the price beside the next button) is re-read
+      void qc.invalidateQueries({ queryKey: [CREDITS_KEY] });
       onChanged();
     },
     // out of Peaks, a refusal and a failure each get the app-wide wording (and "Buy Peaks")
@@ -329,7 +333,7 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
                 part-way through editing, or a paragraph they had just typed —
                 with no undo, which is the same mistake `appendReply` was
                 written to stop the saved-reply picker making. */}
-            {canOfferDraft(item) && (
+            {canOfferDraft(item, state.canSend) && (
               <Button
                 size="sm"
                 variant="outline"
