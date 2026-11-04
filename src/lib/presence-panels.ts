@@ -696,6 +696,6 @@ export function searchTermsView(
   if (st.terms.some((t) => t.value === null && t.threshold !== null)) {
     notes.push(`${label} only says "fewer than" for terms searched a few times, so those have no exact count.`);
   }
-  if (st.truncated) notes.push("The list was cut short, so it shows the most searched terms only.");
+  if (st.truncated) notes.push("The list was cut short, so it may not include every term.");
   return { kind: "terms", month: st.month, terms: st.terms, note: notes.length ? notes.join(" ") : null };
 }
