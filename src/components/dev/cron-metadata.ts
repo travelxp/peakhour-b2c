@@ -1690,6 +1690,14 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     description:
       "Pulls fresh USD-base currency rates so revenue reported in USD reflects today's rates rather than the day a sale happened to land.",
   },
+  // PE-08c: the holiday calendar fills itself from our own rules.
+  "holiday-calendar-refresh": {
+    label: "Fill the holiday calendar",
+    frequency: "Runs monthly (2nd, 3:20 AM UTC)",
+    description:
+      "Adds the public-holiday dates for this year and the next two to each country's calendar (UK, US, Canada, Australia, New Zealand), worked out from the governments' own rules. " +
+      "It only adds: a date or holiday someone already set or removed is never changed, and India's list is not calculated.",
+  },
   "trial-conversion-sweep": {
     label: "Convert finished trials",
     frequency: "Runs daily at 3:45am UTC",
