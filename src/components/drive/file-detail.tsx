@@ -11,6 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDialog } from "@/components/molecules/confirm-dialog";
 import { FileThumb } from "@/components/drive/file-tile";
 import { ShareLinksPanel } from "./share-links-panel";
+import { ReplaceFileDialog } from "./replace-file";
+import { VersionHistory } from "./version-history";
 import { getMedia, getMediaUrl, type MediaItem, type MediaPatch } from "@/lib/api/media";
 import { DESCRIBING_LINE, fitsOf, isBeingDescribed, metaLine, usedInHref, usedInLabel, visibilityName, visibilityNote } from "@/lib/drive/copy";
 
@@ -202,6 +204,7 @@ export function FileDetail({
   onPatch,
   onTrash,
   trashing,
+  onReplaced,
 }: {
   item: MediaItem;
   now: Date;
@@ -210,6 +213,8 @@ export function FileDetail({
   onPatch: (patch: MediaPatch) => Promise<void>;
   onTrash: () => void;
   trashing: boolean;
+  /** Replace everywhere or a restored version made another row the file: move the screen to it. */
+  onReplaced: (newFileId: string | null) => void;
 }) {
   const preview = usePreviewUrl(item);
   const fits = fitsOf(item.channelFit);
@@ -344,6 +349,7 @@ export function FileDetail({
             Copy link
           </Button>
         )}
+        {canEdit && <ReplaceFileDialog item={item} onReplaced={onReplaced} />}
         {canEdit && (
           <ConfirmDialog
             trigger={
@@ -362,6 +368,7 @@ export function FileDetail({
           />
         )}
       </div>
+      <VersionHistory fileId={item.id} now={now} canEdit={canEdit} onRestored={onReplaced} />
       {item.visibility === "private" && canEdit && <ShareLinksPanel mediaId={item.id} />}
     </aside>
   );
