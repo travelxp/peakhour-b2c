@@ -5,7 +5,11 @@ import DOMPurify from "isomorphic-dompurify";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
+import { usePeaksQuote, quoteTokenFor } from "@/hooks/use-peaks-quote";
+import { PEAKS_ACTIONS } from "@/lib/api/peaks";
+import { PriceLine } from "@/components/audience/discover-audiences-dialog";
+import { chargedTaskRefusal } from "@/hooks/use-audience-plan";
 import { cn } from "@/lib/utils";
 import { useLocale } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";
@@ -871,7 +875,8 @@ function ImagePlaceholderRail({
 }: {
   placeholders: ImagePlaceholder[];
   onDelete: (index: number) => void;
-  onGenerate: (index: number) => void;
+  /** `quoteToken` is the receipt for the price the merchant was shown beside the buttons (absent while none is held). */
+  onGenerate: (index: number, quoteToken?: string) => void;
   /** Resolve a placeholder from an external URL (status "supplied"). */
   onSupplyUrl: (index: number, url: string) => void;
   /** Resolve from the media library / an upload (status "uploaded"). */
@@ -881,6 +886,8 @@ function ImagePlaceholderRail({
   generatingIndex: number | null;
   resolvingIndex: number | null;
 }) {
+  // The price of one image, asked for while the buttons are usable and shown before any is pressed (C7: the cost is known upfront).
+  const price = usePeaksQuote(PEAKS_ACTIONS.generateImage, finalized && placeholders.length > 0);
   if (!placeholders.length) return null;
   return (
     <Card>
@@ -891,6 +898,12 @@ function ImagePlaceholderRail({
             ? "Text finalized — per placeholder: Generate with AI, paste an image URL, or choose from Drive (you can upload or generate there too). Delete what you don't want first."
             : "Delete what you don't want; Finalize text to unlock image generation."}
         </CardDescription>
+        {finalized ? (
+          <div className="text-xs text-muted-foreground">
+            <span>Each AI image: </span>
+            <PriceLine price={price} />
+          </div>
+        ) : null}
       </CardHeader>
       <CardContent>
         <ul className="grid gap-2 sm:grid-cols-2">
@@ -900,7 +913,7 @@ function ImagePlaceholderRail({
               p={p}
               index={i}
               onDelete={onDelete}
-              onGenerate={onGenerate}
+              onGenerate={(i) => onGenerate(i, quoteTokenFor(price).quoteToken)}
               onSupplyUrl={onSupplyUrl}
               onPickFromLibrary={onPickFromLibrary}
               busy={busy}
@@ -1380,14 +1393,17 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
   // user clicks Generate before Finalize). UI also disables the
   // button when !finalized so the gate is enforced both sides.
   // (state declared with the other hooks at the top — see note there.)
-  async function handleGeneratePlaceholder(index: number) {
+  async function handleGeneratePlaceholder(index: number, quoteToken?: string) {
     setGeneratingPlaceholderIdx(index);
     try {
-      await api.post(`/v1/content/ideas/${ideaId}/placeholders/${index}/generate`, {});
+      await api.post(`/v1/content/ideas/${ideaId}/placeholders/${index}/generate`, {}, quoteToken ? { "x-peaks-quote": quoteToken } : undefined);
       toast.success(`Image ${index + 1} generated`);
       onRefresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Image generation failed");
+      // Refused before it started (too few credits, already running): nothing was charged, and the api says what to do.
+      const refusal = err instanceof ApiError ? chargedTaskRefusal(err.code, err.message) : undefined;
+      if (refusal) toast.error(refusal.title, { description: refusal.description });
+      else toast.error(err instanceof Error ? err.message : "Image generation failed. You were not charged.");
     }
     setGeneratingPlaceholderIdx(null);
   }
