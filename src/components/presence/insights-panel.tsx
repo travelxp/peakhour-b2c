@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -14,13 +14,14 @@ import {
 } from "@/components/ui/chart";
 import { presenceApi } from "@/lib/api/presence";
 import { useLocale } from "@/hooks/use-locale";
-import { useListingQuery } from "@/components/presence/listing-panel";
+import { useListingQuery } from "@/hooks/use-presence-listing";
 import {
   DEFAULT_INSIGHT_DAYS,
   INSIGHT_METRICS,
   INSIGHT_WINDOWS,
   chartPoints,
   coverageNote,
+  windowSeries,
   fetchView,
   insightsView,
   metricTotal,
@@ -56,6 +57,8 @@ export function InsightsPanel() {
     queryKey: presenceInsightsQueryKey(days),
     queryFn: () => presenceApi.insights(days),
     enabled: canAsk,
+    // Keep the last window on screen while the next loads, rather than blanking.
+    placeholderData: keepPreviousData,
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
   });
@@ -64,7 +67,7 @@ export function InsightsPanel() {
     <div className="flex flex-wrap items-start justify-between gap-2">
       <div>
         <h2 className="font-medium">How customers found you</h2>
-        <p className="text-xs text-muted-foreground">Google · last {days} days</p>
+        <p className="text-xs text-muted-foreground">Google · last {insightsQ.data?.days ?? days} days</p>
       </div>
       <div className="flex gap-1" role="group" aria-label="Time window">
         {INSIGHT_WINDOWS.map((w) => (
@@ -149,11 +152,14 @@ export function InsightsPanel() {
   }
 
   const data = insightsQ.data;
-  const series = data.series;
-  const hasData = insightsView(data) === "data";
+  // The window the data is FOR, which lags the picker while a switch loads.
+  const shownDays = data.days;
+  const now = new Date();
+  const series = windowSeries(data.series, shownDays, now);
+  const hasData = insightsView(data, shownDays, now) === "data";
   const selected = INSIGHT_METRICS.find((m) => m.key === metric) ?? INSIGHT_METRICS[0];
-  const points = chartPoints(series, selected.key, days, new Date());
-  const coverage = coverageNote(series, days);
+  const points = chartPoints(series, selected.key, shownDays, now);
+  const coverage = coverageNote(series, shownDays);
   const syncNote = staleSyncNote(listingQ.data.setup);
   const chartConfig = {
     value: { label: selected.label, color: "var(--chart-5)" },
@@ -166,6 +172,11 @@ export function InsightsPanel() {
       {view === "data_stale" && (
         <p className="text-xs text-warning-on-tint">
           Couldn&apos;t refresh just now, so these figures may be out of date.
+        </p>
+      )}
+      {listingView === "data_stale" && (
+        <p className="text-xs text-warning-on-tint">
+          Couldn&apos;t check your Google connection just now, so this may be out of date.
         </p>
       )}
       {syncNote && <p className="text-xs text-warning-on-tint">{syncNote}</p>}
@@ -201,7 +212,7 @@ export function InsightsPanel() {
         <div className="rounded-lg border border-dashed p-6 text-center">
           <p className="text-sm font-medium">No figures from Google yet</p>
           <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
-            We haven&apos;t received any daily figures for this listing in the last {days} days.
+            We haven&apos;t received any daily figures for this listing in the last {shownDays} days.
             That is different from no customers: nothing has been counted, one way or the other.
           </p>
         </div>
@@ -254,7 +265,7 @@ export function InsightsPanel() {
                 strokeWidth={2}
                 fill="url(#presenceInsightsFill)"
                 connectNulls={false}
-                dot={points.length <= 31 ? { r: 2.5, fill: "var(--chart-5)", strokeWidth: 0 } : false}
+                dot={{ r: 2, fill: "var(--chart-5)", strokeWidth: 0 }}
                 isAnimationActive={false}
               />
             </AreaChart>

@@ -308,8 +308,38 @@ export type InsightsView = "no_data" | "data";
  * ★NO ROWS IS NOT A ZERO WEEK. The api's `totals` are zeros when the series is
  * empty, so they are never used to answer "how many".
  */
-export function insightsView(r: PresenceInsightsResponse): InsightsView {
-  return r.series.length === 0 ? "no_data" : "data";
+export function insightsView(
+  r: PresenceInsightsResponse,
+  days: number,
+  now: Date,
+): InsightsView {
+  return windowSeries(r.series, days, now).length === 0 ? "no_data" : "data";
+}
+
+/**
+ * The rows that fall inside the window the chart draws. Totals, the chart and
+ * the coverage note all read this one list, so the tiles can never disagree with
+ * the picture. Dates are normalised to `YYYY-MM-DD`.
+ */
+export function windowSeries(series: InsightDay[], days: number, now: Date): InsightDay[] {
+  const inWindow = new Set(chartPoints([], "views", days, now).map((p) => p.date));
+  return series
+    .map((d) => ({ ...d, date: String(d.date).slice(0, 10) }))
+    .filter((d) => inWindow.has(d.date));
+}
+
+/** What Google's verification state means, in words. `null`: say nothing. */
+export function verificationNote(state: string | undefined | null): string | null {
+  switch ((state ?? "").toLowerCase()) {
+    case "unverified":
+      return "Google hasn't verified this business yet, so it may not show to customers.";
+    case "pending":
+      return "Google is still verifying this business, so it may not show to customers yet.";
+    case "suspended":
+      return "Google has suspended this listing, so it may not show to customers.";
+    default:
+      return null;
+  }
 }
 
 /** `null` when there is no data at all for the window. */
@@ -331,12 +361,12 @@ export interface ChartPoint {
  * @param now injected so the window is testable
  */
 export function chartPoints(
-  series: InsightDay[],
+  rawSeries: InsightDay[],
   key: InsightKey,
   days: number,
   now: Date,
 ): ChartPoint[] {
-  const byDate = new Map(series.map((d) => [d.date, d[key]]));
+  const byDate = new Map(rawSeries.map((d) => [String(d.date).slice(0, 10), d[key]]));
   const todayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   const out: ChartPoint[] = [];
   for (let i = days; i >= 1; i--) {

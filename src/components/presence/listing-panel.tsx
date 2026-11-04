@@ -1,16 +1,14 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Check, Minus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { presenceApi } from "@/lib/api/presence";
+import { useListingQuery } from "@/hooks/use-presence-listing";
 import { useLocale } from "@/hooks/use-locale";
 import {
   DRIFT_LABEL,
   LISTING_ROWS,
-  PRESENCE_LISTING_QUERY_KEY,
   addressLines,
   driftStatus,
   fetchView,
@@ -18,6 +16,7 @@ import {
   setupMessage,
   specialHoursText,
   staleSyncNote,
+  verificationNote,
   type DriftStatus,
   type PresenceListing,
   type PresenceListingResponse,
@@ -29,19 +28,7 @@ import {
  * MARKUP ONLY. What each state says, and whether a field "matches" Google, come
  * from `lib/presence-panels.ts`. Nothing here edits anything: edit forms are a
  * later row, and no control is shown for a change that cannot be made.
- *
- * Shared with the Insights panel: the same query key, so one request answers
- * both.
  */
-export function useListingQuery() {
-  return useQuery({
-    queryKey: PRESENCE_LISTING_QUERY_KEY,
-    queryFn: () => presenceApi.listing(),
-    staleTime: 60_000,
-    refetchOnWindowFocus: false,
-  });
-}
-
 function DriftMark({ status }: { status: DriftStatus }) {
   if (status === "differs") {
     return (
@@ -232,7 +219,10 @@ export function ListingPanel() {
   }
 
   const listing = data.listing;
-  const checked = !!data.google?.lastSyncedAt;
+  // A failing sync means nothing was compared recently, so no row may claim "same".
+  const google = data.setup === "ready" ? data.google : null;
+  const checked = !!google?.lastSyncedAt;
+  const verification = verificationNote(data.verification?.state);
 
   return (
     <Card className="gap-3 p-5">
@@ -244,16 +234,11 @@ export function ListingPanel() {
         </p>
       )}
       {note && <p className="text-xs text-warning-on-tint">{note}</p>}
-      {data.verification?.state && data.verification.state !== "verified" && (
-        <p className="text-xs text-warning-on-tint">
-          Google lists this business as {data.verification.state}. Until it is verified, it may not
-          show to customers.
-        </p>
-      )}
+      {verification && <p className="text-xs text-warning-on-tint">{verification}</p>}
 
       <dl className="divide-y">
         {LISTING_ROWS.map((r) => (
-          <Row key={r.key} label={r.label} status={driftStatus(r.compares, data.google)}>
+          <Row key={r.key} label={r.label} status={driftStatus(r.compares, google)}>
             {rowValue(r.key, listing, formatDate)}
           </Row>
         ))}
@@ -261,8 +246,8 @@ export function ListingPanel() {
 
       <p className="text-[11px] text-muted-foreground">
         {checked
-          ? `Last compared with Google on ${formatDateTime(data.google?.lastSyncedAt)}. Only some fields are compared; the rest say so.`
-          : "We haven't compared this with Google yet."}
+          ? `Last compared with Google on ${formatDateTime(google?.lastSyncedAt)}. Only some fields are compared; the rest say so.`
+          : "We haven't compared this with Google recently."}
       </p>
     </Card>
   );

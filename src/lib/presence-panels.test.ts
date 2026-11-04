@@ -8,6 +8,8 @@ import {
   fetchView,
   hoursLines,
   insightsView,
+  verificationNote,
+  windowSeries,
   metricTotal,
   setupMessage,
   staleSyncNote,
@@ -153,12 +155,16 @@ describe("insights: absent is not zero", () => {
   });
   it("the api's all-zero totals do not turn an empty series into data", () => {
     expect(
-      insightsView({
-        days: 28,
-        locationName: "locations/1",
-        totals: { calls: 0, directions: 0, websiteClicks: 0, messagingClicks: 0, bookings: 0, views: 0 },
-        series: [],
-      }),
+      insightsView(
+        {
+          days: 28,
+          locationName: "locations/1",
+          totals: { calls: 0, directions: 0, websiteClicks: 0, messagingClicks: 0, bookings: 0, views: 0 },
+          series: [],
+        },
+        28,
+        new Date("2026-11-04T10:00:00Z"),
+      ),
     ).toBe("no_data");
   });
 });
@@ -218,5 +224,37 @@ describe("listing text", () => {
     expect(lines[0]).toEqual({ day: "Monday", periods: null });
     expect(lines[1].periods).toEqual(["09:00 to 12:00", "14:00 to 18:00"]);
     expect(lines).toHaveLength(7);
+  });
+});
+
+describe("windowSeries keeps tiles, chart and coverage on one list", () => {
+  const now = new Date("2026-11-04T15:00:00.000Z");
+  it("drops rows outside the drawn window, including today", () => {
+    const rows = [day("2026-10-01", { calls: 9 }), day("2026-11-03", { calls: 1 }), day("2026-11-04", { calls: 5 })];
+    const w = windowSeries(rows, 7, now);
+    expect(w.map((d) => d.date)).toEqual(["2026-11-03"]);
+    expect(metricTotal(w, "calls")).toBe(1);
+  });
+  it("a row only outside the window is no data, not data", () => {
+    expect(
+      insightsView({ days: 7, locationName: "l", totals: day("x"), series: [day("2026-09-01")] }, 7, now),
+    ).toBe("no_data");
+  });
+  it("accepts a full ISO timestamp for a date", () => {
+    const w = windowSeries([day("2026-11-03T00:00:00.000Z", { calls: 2 })], 7, now);
+    expect(w[0].date).toBe("2026-11-03");
+    expect(chartPoints(w, "calls", 1, now)[0].value).toBe(2);
+  });
+});
+
+describe("verificationNote", () => {
+  it("words each non-verified state and says nothing for verified or unknown", () => {
+    expect(verificationNote("unverified")).toMatch(/hasn't verified/);
+    expect(verificationNote("PENDING")).toMatch(/still verifying/);
+    expect(verificationNote("suspended")).toMatch(/suspended/);
+    expect(verificationNote("verified")).toBeNull();
+    expect(verificationNote("VERIFIED")).toBeNull();
+    expect(verificationNote("weird")).toBeNull();
+    expect(verificationNote(undefined)).toBeNull();
   });
 });
