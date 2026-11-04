@@ -62,6 +62,15 @@ export async function getCsrfToken(): Promise<string | null> {
 }
 
 /** Clear the cached CSRF token (e.g. after a CSRF rejection). */
+/**
+ * A fresh key for ONE click on a paid action (owner, 2026-11-04: one action, one charge). Send it as `Idempotency-Key`;
+ * the api turns it into the charge id, so a double click or a retry of that click is charged once. Make a new one per
+ * click, never per page: two deliberate runs are two actions.
+ */
+export function newActionKey(): Record<string, string> {
+  return { "Idempotency-Key": `click-${globalThis.crypto.randomUUID()}` };
+}
+
 export function clearCsrfToken(): void {
   csrfToken = null;
 }
@@ -416,12 +425,13 @@ class ApiClient {
    * Handles CSRF + credentials like other methods, but
    * does NOT parse JSON — caller reads the stream.
    */
-  async streamPost(path: string, body?: unknown): Promise<Response> {
+  async streamPost(path: string, body?: unknown, callerHeaders?: Record<string, string>): Promise<Response> {
     const method = "POST";
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { ...(callerHeaders ?? {}) };
     if (body) headers["Content-Type"] = "application/json";
 
     const token = await getCsrfToken();
+    stripCsrfHeader(headers); // a caller header can never stand in for the real token, in any casing
     if (token) headers["X-CSRF-Token"] = token;
 
     const fetchOpts: RequestInit = {

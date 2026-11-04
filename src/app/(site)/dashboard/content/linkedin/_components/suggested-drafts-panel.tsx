@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +13,7 @@ import {
 } from "@/components/ui/collapsible";
 import { ChevronDown, Share2, Sparkles, X } from "lucide-react";
 import {
+  linkedInContentApi,
   SUGGESTED_DRAFTS_QUERY_KEY,
   type GenerateFromProfileResponse,
   type SuggestedDraft,
@@ -21,9 +23,9 @@ import type { RepurposeSource } from "@/lib/api/repurpose";
 
 /**
  * Cache lifecycle for the SuggestedDraftsPanel:
- *   • Launch page writes the generate-from-profile response into the
- *     TanStack cache under SUGGESTED_DRAFTS_QUERY_KEY (re-exported from
- *     the api-client module so launch + panel share a neutral source).
+ *   • The panel's own "Draft posts from my profile" button writes the
+ *     generate-from-profile response into the TanStack cache under
+ *     SUGGESTED_DRAFTS_QUERY_KEY (nothing is generated unasked).
  *   • This panel reads from the cache via useQuery with enabled:false +
  *     initialData:null — pure cache reader, no queryFn invocation.
  *   • Dismissals are persisted into the cache itself (mutated via
@@ -61,8 +63,7 @@ export function SuggestedDraftsPanel({ onUseDraft }: Props) {
   const [repurposeSource, setRepurposeSource] = useState<RepurposeSource | null>(null);
 
   // Pure cache reader — no network call, no queryFn invocation. The
-  // launch page populates the cache via setQueryData; this panel only
-  // reads from it. enabled:false + initialData:null means useQuery
+  // button below populates the cache via setQueryData. enabled:false + initialData:null means useQuery
   // never runs a fetch and renders the "no drafts" branch cleanly on
   // first mount before the launch page has stashed anything.
   const { data } = useQuery<GenerateFromProfileResponse | null>({
@@ -73,8 +74,29 @@ export function SuggestedDraftsPanel({ onUseDraft }: Props) {
     gcTime: Infinity,
   });
 
+  // ★GENERATED ONLY WHEN THE MERCHANT ASKS (owner, 2026-11-04). The drafts used to be written for them at the end of
+  //  onboarding, which spent Peaks nobody had agreed to spend.
+  const generate = useMutation({
+    mutationFn: () => linkedInContentApi.generateFromProfile(),
+    onSuccess: (response) => {
+      queryClient.setQueryData(SUGGESTED_DRAFTS_QUERY_KEY, response);
+      if (!response.posts || response.posts.length === 0) toast.info("We could not draft any posts from your profile yet. Add more to your business profile, then try again.");
+    },
+    onError: () => toast.error("We could not draft posts just now. Try again in a moment."),
+  });
+
   const drafts = data?.posts ?? [];
-  if (drafts.length === 0) return null;
+  if (drafts.length === 0) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+        <p className="text-sm text-muted-foreground">Want a few post ideas drafted from your business profile? They use Peaks.</p>
+        <Button size="sm" variant="outline" disabled={generate.isPending} onClick={() => generate.mutate()}>
+          <Sparkles className="mr-1.5 size-4" />
+          {generate.isPending ? "Drafting…" : "Draft posts from my profile"}
+        </Button>
+      </div>
+    );
+  }
 
   // Dismissals mutate the cache directly so they survive tab switches
   // and route navigation within the session (component-local useState
