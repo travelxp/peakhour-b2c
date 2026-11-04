@@ -134,7 +134,7 @@ export function InventoryPanel() {
           ) : (
             <p className="text-sm text-muted-foreground">
               Generate AI recommendations to prioritise restocks and clear slow
-              stock. Uses Peaks.
+              stock.
             </p>
           )}
         </CardContent>

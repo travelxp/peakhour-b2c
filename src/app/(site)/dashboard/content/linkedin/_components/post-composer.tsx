@@ -11,6 +11,7 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { ActionCost } from "@/components/dashboard/action-cost";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -903,6 +904,7 @@ export function PostComposer({ identity, seedText }: Props) {
             )}
             {carousel.isPending ? "Generating preview…" : "Carousel"}
           </Button>
+          <ActionCost action="linkedinCarousel" className="text-[10px]" />
           <Button onClick={onSubmit} disabled={publishDisabled} aria-busy={publish.isPending}>
             <Send className="size-4 mr-1.5" />
             {publish.isPending ? "Publishing…" : "Publish"}
@@ -1536,6 +1538,9 @@ function HookScoreCard({
               )}
               {rewritePending ? "Rewriting…" : "Rewrite"}
             </Button>
+          )}
+          {onRewrite && (
+            <ActionCost action="linkedinRewrite" className="text-[10px]" />
           )}
           <span className="font-mono text-base font-semibold tabular-nums">
             {score.score}
