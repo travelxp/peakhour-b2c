@@ -297,7 +297,7 @@ export default function SupportResultsPage() {
       </Card>
 
       <div>
-        <h2 className="text-lg font-semibold tracking-tight">Results, last {outcomes.data?.windowDays ?? 30} days</h2>
+        <h2 className="text-lg font-semibold tracking-tight">What the assistant reached, last {outcomes.data?.windowDays ?? 30} days</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           What your WhatsApp assistant reached. These are counts for your information. AI credits are used for the work the assistant does, such as each reply, not for these results.
         </p>

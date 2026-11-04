@@ -20,7 +20,7 @@ const LINKEDIN = read("../../ads/_components/linkedin-ads-panel.tsx");
 
 describe("the WhatsApp results page", () => {
   it("says the figures are for information and that credits are for the assistant's work, not for these results", () => {
-    expect(ANALYTICS).toContain("Results, last {outcomes.data?.windowDays ?? 30} days");
+    expect(ANALYTICS).toContain("What the assistant reached, last {outcomes.data?.windowDays ?? 30} days");
     expect(ANALYTICS).toContain(
       "What your WhatsApp assistant reached. These are counts for your information. AI credits are used for the work the assistant does, such as each reply, not for these results.",
     );
