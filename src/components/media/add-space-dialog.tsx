@@ -173,7 +173,7 @@ export function AddSpaceDialog() {
   // ★ONE PRESS, as on the Peaks page: a double click on Pay must never charge twice. The api locks and de-duplicates as well.
   const [press] = useState(onePress);
 
-  const { data: usage } = useQuery({ queryKey: ["storage-usage"], queryFn: getStorageUsage, staleTime: 60_000, enabled: open });
+  const { data: usage } = useQuery({ queryKey: ["storage-usage"], queryFn: getStorageUsage, staleTime: 0, refetchOnMount: "always", enabled: open });
   const { data: credits } = useCreditsBalance();
   const balance = credits ? (credits.unlimited ? null : credits.remaining) : null;
 
@@ -184,10 +184,22 @@ export function AddSpaceDialog() {
       setCancelId(null);
       setError(null);
       setOpen(true);
+      // the balance and the pack list are read fresh every time the dialog opens: a cached copy up to a minute old could offer a pack
+      // that is no longer affordable, or hide one that is
+      void qc.invalidateQueries({ queryKey: ["storage-usage"] });
+      void qc.invalidateQueries({ queryKey: ["/v1/dashboard/credits"] });
     };
     window.addEventListener(ADD_SPACE_EVENT, show);
     return () => window.removeEventListener(ADD_SPACE_EVENT, show);
-  }, []);
+  }, [qc]);
+
+  // The pack being confirmed or cancelled can vanish under a refresh (the cron removed it, the catalog changed): go back to the list
+  // rather than sit on a step with nothing to show.
+  useEffect(() => {
+    if (!usage) return;
+    if (step === "cancel" && !usage.packs.some((p) => p.id === cancelId)) setStep("choose");
+    if (step === "confirm" && !usage.catalog.some((c) => c.gb === selectedGb)) setStep("choose");
+  }, [usage, step, cancelId, selectedGb]);
 
   const refresh = useCallback(() => {
     void qc.invalidateQueries({ queryKey: ["storage-usage"] });
@@ -233,7 +245,14 @@ export function AddSpaceDialog() {
     });
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        // not while a purchase is in flight: closing would hide its result (a charge may or may not have happened)
+        if (!v && busy) return;
+        setOpen(v);
+      }}
+    >
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Add space</DialogTitle>

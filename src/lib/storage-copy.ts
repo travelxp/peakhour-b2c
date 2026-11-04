@@ -28,6 +28,12 @@ const WARN_PCT = 80;
 const FULL_PCT = 100;
 
 export const gbText = (gb: number): string => (gb < 1 ? gb.toFixed(2) : Number.isInteger(gb) ? String(gb) : gb.toFixed(1));
+
+/** GB USED, rounded DOWN: 4.96 of 5 reads "4.9", never "5.0", so the number never says full before the bar and the state do. */
+export const gbUsedText = (gb: number): string => {
+  const down = gb < 1 ? Math.floor(gb * 100) / 100 : Math.floor(gb * 10) / 10;
+  return gb < 1 ? down.toFixed(2) : Number.isInteger(down) ? String(down) : down.toFixed(1);
+};
 export const peaksText = (n: number): string => n.toLocaleString("en-US");
 
 /** About what a number of Peaks is in dollars at the LIST price ($1 per 1,000). Never "the price": see the module note. */
@@ -49,7 +55,8 @@ export function meterState(u: StorageUsage): MeterState {
   }
   // A 0 GB quota has no denominator but is full, not unlimited.
   const pct = u.limitBytes === 0 ? 100 : Math.min(100, u.percentUsed ?? 0);
-  const canAddSpace = u.canBuyPacks && u.catalog.length > 0;
+  // No "Add space" while a pack is paused: the guidance is to top up Peaks, and a new purchase would be gated on the same short wallet.
+  const canAddSpace = u.canBuyPacks && u.catalog.length > 0 && !u.paused;
   if (u.paused) {
     return {
       kind: "paused",

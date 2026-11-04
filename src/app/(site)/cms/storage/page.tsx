@@ -109,9 +109,9 @@ function Dashboard({ data }: { data: StorageIntelligence }) {
         <Kpi
           icon={TrendingUp}
           label="Pack revenue"
-          value={`${data.pnl.latestPackRevenuePeaks.toLocaleString("en-US")} Peaks`}
+          value={`${(data.pnl.latestPackRevenuePeaks ?? 0).toLocaleString("en-US")} Peaks`}
           sub={
-            data.packPeriods[0]
+            data.packPeriods?.[0]
               ? `about ${usd(data.pnl.latestPackRevenueUsdAtListPrice)} at the $${data.pnl.peakValueUsd}/Peak list price · period ${data.packPeriods[0].period}`
               : "no storage packs bought yet"
           }

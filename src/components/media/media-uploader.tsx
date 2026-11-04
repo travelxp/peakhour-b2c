@@ -92,7 +92,8 @@ export function MediaUploader({
             const msg = err instanceof ApiError ? err.message : "Upload failed";
             onError(file, err instanceof Error ? err : new Error(msg));
             if (isQuotaError(err)) {
-              const canAdd = (err.details as { canBuyPacks?: boolean } | undefined)?.canBuyPacks === true;
+              // offered unless the api said packs cannot be bought (a trial, an override): the dialog then explains what to do
+              const canAdd = (err.details as { canBuyPacks?: boolean } | undefined)?.canBuyPacks !== false;
               toast.error(`${file.name}: ${msg}`, canAdd ? { action: { label: "Add space", onClick: openAddSpace } } : undefined);
             } else {
               toast.error(`${file.name}: ${msg}`);

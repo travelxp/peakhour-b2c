@@ -14,7 +14,8 @@ import { openAddSpace } from "@/components/media/add-space-dialog";
  * charged for the space used.
  */
 export function StoragePeaksView({ usage }: { usage: StorageUsage }) {
-  const live = usage.packs.filter((p) => !p.cancelAtPeriodEnd);
+  // Charging packs only: a cancelled pack will not renew, and a paused one is not being charged until the Peaks are there.
+  const live = usage.packs.filter((p) => !p.cancelAtPeriodEnd && !p.paused);
   const monthly = live.reduce((n, p) => n + p.peaksPerMonth, 0);
   return (
     <Card>
@@ -48,7 +49,7 @@ export function StoragePeaksView({ usage }: { usage: StorageUsage }) {
             </ul>
           </>
         )}
-        {usage.canBuyPacks && usage.catalog.length > 0 ? (
+        {usage.canBuyPacks && usage.catalog.length > 0 && !usage.paused ? (
           <Button variant="outline" size="sm" onClick={openAddSpace}>
             Add space
           </Button>

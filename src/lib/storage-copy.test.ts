@@ -105,6 +105,17 @@ describe("the meter's states", () => {
     expect(s).toMatchObject({ kind: "unbounded", canAddSpace: false });
   });
 
+  it("used GB rounds down, so the number never says full before the state does", () => {
+    expect(copy.gbUsedText(4.96)).toBe("4.9");
+    expect(copy.gbUsedText(5)).toBe("5");
+    expect(copy.gbUsedText(0.999)).toBe("0.99");
+    expect(copy.gbUsedText(0)).toBe("0.00");
+  });
+
+  it("a paused pack offers top-up only, not Add space", () => {
+    expect(copy.meterState(usage({ paused: true, packs: [pack({ paused: true })] })).canAddSpace).toBe(false);
+  });
+
   it("a 0 GB quota is full, not unlimited", () => {
     expect(copy.meterState(usage({ limitBytes: 0, limitGb: 0, percentUsed: null })).kind).toBe("full");
   });

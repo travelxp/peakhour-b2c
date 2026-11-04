@@ -142,6 +142,13 @@ describe("the meter and the Peaks page line", () => {
     const out = renderToStaticMarkup(<StorageMeter usage={usage({ paused: true, packs: [owned({ paused: true })] })} />);
     expect(out).toContain("New uploads are paused");
     expect(out).toContain("Top up Peaks");
+    // one piece of guidance, not two: a new purchase would be gated on the same short wallet
+    expect(out).not.toContain("Add space");
+  });
+
+  it("the used figure never reads as full before the bar does: 4.96 of 5 GB shows 4.9", () => {
+    const out = renderToStaticMarkup(<StorageMeter usage={usage({ gbUsed: 4.96, limitGb: 5, limitBytes: 5 * 1024 ** 3, percentUsed: 99.2 })} compact />);
+    expect(out).toContain("4.9 / 5 GB");
   });
 
   it("the compact sidebar meter is the bar and the numbers only", () => {
@@ -158,5 +165,12 @@ describe("the meter and the Peaks page line", () => {
     expect(out).toContain("5,250 Peaks a month");
     expect(out).toContain("never for the space you use");
     expect(renderToStaticMarkup(<StoragePeaksView usage={usage()} />)).toContain("No storage packs");
+  });
+
+  it("a paused pack is not counted in the monthly total (nothing is being charged for it) and offers no purchase", () => {
+    const out = renderToStaticMarkup(<StoragePeaksView usage={usage({ paused: true, packs: [owned({ paused: true }), owned({ id: "p2", gb: 10, peaksPerMonth: 1500 })] })} />);
+    expect(out).toContain("1,500 Peaks a month");
+    expect(out).not.toContain("5,250");
+    expect(out).not.toContain("Add space");
   });
 });

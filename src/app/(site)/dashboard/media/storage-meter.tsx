@@ -5,7 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { type StorageUsage, formatBytes } from "@/lib/api/media";
-import { meterState, gbText } from "@/lib/storage-copy";
+import { meterState, gbText, gbUsedText } from "@/lib/storage-copy";
 import { openAddSpace } from "@/components/media/add-space-dialog";
 
 /**
@@ -32,7 +32,7 @@ export function StorageMeter({
       <div className="flex items-center justify-between text-sm">
         <span className="font-medium">Storage</span>
         <span className="text-muted-foreground">
-          {unbounded ? `${formatBytes(usage.totalBytes)} used` : `${gbText(usage.gbUsed)} / ${gbText(usage.limitGb ?? 0)} GB`}
+          {unbounded ? `${formatBytes(usage.totalBytes)} used` : `${gbUsedText(usage.gbUsed)} / ${gbText(usage.limitGb ?? 0)} GB`}
         </span>
       </div>
       {!unbounded && (
