@@ -13,7 +13,8 @@ import { fileSize, kitErrorMessage } from "@/lib/brand-kit";
 /**
  * Pick a Drive file for the Brand Kit: a logo, a font or a guideline document (Peakhour Drive B2). The Brand Kit holds files by id, so this lists
  * the right kind from Drive. It is not the picker the Composer and Ads use (that one is lane C's); a kit has rules a post does not:
- *   - a logo and a font must be Published (an ad needs a public link, and the kit drops a font without one), so only those are offered;
+ *   - a logo must be Published (an ad needs a public link), so only Published images are offered. A font may be Private: a licensed font must not
+ *     sit at a public address, so both kinds are offered and a Private one is marked; the page is shown it through a short-lived link;
  *   - the ORGANISATION's kit may hold only files shared with every business, so for that scope the rest are left out, and counted.
  */
 
@@ -21,7 +22,7 @@ export type KitPickKind = "image" | "font" | "document";
 
 const KIND_WORDS: Record<KitPickKind, { title: string; noun: string; plural: string; empty: string }> = {
   image: { title: "Pick a logo", noun: "image", plural: "images", empty: "There are no Published images in Drive yet." },
-  font: { title: "Pick a font", noun: "font", plural: "fonts", empty: "There are no Published font files in Drive yet." },
+  font: { title: "Pick a font", noun: "font", plural: "fonts", empty: "There are no font files in Drive yet." },
   document: { title: "Pick a guideline file", noun: "document", plural: "documents", empty: "There are no documents in Drive yet." },
 };
 
@@ -75,7 +76,8 @@ export function KitFileResults({
   const { shown, held } = offered(state.items, scope);
   return (
     <div className="flex flex-col gap-3">
-      {kind !== "document" && <p className="text-xs text-muted-foreground">Only Published {words.plural} are listed: an ad needs a public link to the file.</p>}
+      {kind === "image" && <p className="text-xs text-muted-foreground">Only Published {words.plural} are listed: an ad needs a public link to the file.</p>}
+      {kind === "font" && <p className="text-xs text-muted-foreground">A Private font stays off the public web. The Brand Kit shows it through a link that expires.</p>}
       {held > 0 && (
         <p className="text-xs text-muted-foreground">
           {held === 1 ? "1 file belongs" : `${held} files belong`} to one business and {held === 1 ? "is" : "are"} not listed. The organisation&apos;s kit can hold only files shared with

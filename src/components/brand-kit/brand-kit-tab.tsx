@@ -6,13 +6,16 @@ import { toast } from "sonner";
 import { useAuth } from "@/providers/auth-provider";
 import {
   BRAND_KIT_QUERY_KEY,
+  type BrandKitResponse,
   getBrandKit,
   getFileLink,
   removeBusinessKit,
   saveBrandKit,
+  saveBrandVoice,
   type KitFileCandidate,
   type KitGuideline,
   type KitScope,
+  type VoicePayload,
 } from "@/lib/api/brand-kit";
 import {
   addColor,
@@ -54,7 +57,9 @@ export function BrandKitTab({ onUpload }: { onUpload?: () => void }) {
 
   // The kit depends on the active business, so it is part of the key: switching business must not show the other one's kit.
   const queryKey = [...BRAND_KIT_QUERY_KEY, businessId];
-  const query = useQuery({ queryKey, queryFn: getBrandKit, enabled: !!businessId });
+  // A Private font arrives with a link that lives about five minutes, and every kit read signs one (and writes a ledger row), so the kit is not refetched on
+  // every focus: it is fresh for four minutes, the font sample loads once from it, and a reload after a save brings a new link.
+  const query = useQuery({ queryKey, queryFn: getBrandKit, enabled: !!businessId, staleTime: 4 * 60_000 });
 
   const [chosenScope, setChosenScope] = useState<KitScope | null>(null);
   const scope: KitScope | null = chosenScope && perms.scopes.includes(chosenScope) ? chosenScope : perms.defaultScope;
@@ -114,6 +119,20 @@ export function BrandKitTab({ onUpload }: { onUpload?: () => void }) {
     onError: (err) => setProblem(kitErrorMessage(err, "That could not be changed. Try again.")),
   });
 
+  // The Brand Voice is the business's own, saved on its own: it never waits on the kit's draft. editor and above, as the api holds.
+  const saveVoice = async (voice: VoicePayload) => {
+    let saved: Awaited<ReturnType<typeof saveBrandVoice>>;
+    try {
+      saved = await saveBrandVoice(voice);
+    } catch (err) {
+      throw new Error(kitErrorMessage(err, "The Brand Voice could not be saved. Try again."));
+    }
+    // The api returns the voice as stored: put it in the cache. A reload of the whole kit would sign every Private font again (a ledger row each)
+    // and, if it failed, would leave the card showing the old voice beside a "saved" message.
+    queryClient.setQueryData<BrandKitResponse>(queryKey, (old) => (old ? { ...old, voice: saved.voice } : old));
+    toast.success("Brand Voice saved.");
+  };
+
   if (!businessId) return <BrandKitSkeleton />;
   // isPending, not isLoading: a query paused for being offline is pending but not loading, and isLoading would draw an empty page for it.
   if (query.isPending && query.fetchStatus === "paused") return <BrandKitOffline />;
@@ -135,7 +154,7 @@ export function BrandKitTab({ onUpload }: { onUpload?: () => void }) {
     const kind = picking;
     setPicking(null);
     if (kind === "image") took(addLogo(draft, { mediaId: f.id, url: f.publicUrl ?? "", mimeType: f.mimeType, name: f.name }));
-    else if (kind === "font") took(addFont(draft, { mediaId: f.id, url: f.publicUrl ?? "", mimeType: f.mimeType, family: f.name.replace(/\.[a-z0-9]{2,5}$/i, "").slice(0, 128) }));
+    else if (kind === "font") took(addFont(draft, { mediaId: f.id, ...(f.publicUrl ? { url: f.publicUrl } : {}), visibility: f.visibility, mimeType: f.mimeType, family: f.name.replace(/\.[a-z0-9]{2,5}$/i, "").slice(0, 128) }));
     else took(addGuideline(draft, { mediaId: f.id, name: f.name, mimeType: f.mimeType, visibility: f.visibility, ...(f.publicUrl ? { url: f.publicUrl } : {}) }));
   };
 
@@ -179,6 +198,8 @@ export function BrandKitTab({ onUpload }: { onUpload?: () => void }) {
         draft={draft}
         effective={data.effective}
         voice={data.voice}
+        canEditVoice={perms.canEditBusiness}
+        onSaveVoice={saveVoice}
         websiteUrl={data.websiteUrl}
         dirty={dirty}
         saving={save.isPending}

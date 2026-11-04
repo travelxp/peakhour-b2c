@@ -27,6 +27,8 @@ const props = (over: Partial<Props> = {}): Props => ({
   draft: draftFromView(null),
   effective: view(),
   voice: null,
+  canEditVoice: false,
+  onSaveVoice: async () => undefined,
   websiteUrl: "https://monsoon.example/",
   dirty: false,
   saving: false,
@@ -65,7 +67,7 @@ const FILLED = view({
     { hex: "#1f4d3f", role: "primary" },
     { hex: "#f3e6c8" },
   ],
-  fonts: [{ mediaId: "f1", role: "heading", family: "Fraunces", url: "https://media.example/f1.woff2", mimeType: "font/woff2" }],
+  fonts: [{ mediaId: "f1", role: "heading", family: "Fraunces", url: "https://media.example/f1.woff2", visibility: "published", mimeType: "font/woff2" }],
   guidelines: [
     { mediaId: "g1", name: "Brand book 2026.pdf", mimeType: "application/pdf", visibility: "private" },
     { mediaId: "g2", name: "Packaging rules.pdf", mimeType: "application/pdf", visibility: "published", url: "https://media.example/p.pdf" },
@@ -353,9 +355,12 @@ describe("Choosing a file for the kit", () => {
     expect(out.match(/aria-label="Use /g)).toHaveLength(1);
   });
 
-  it("says why only Published files are offered for a logo and a font, but not for a document", () => {
+  it("says why only Published files are offered for a logo, that a font may be Private, and nothing of the kind for a document", () => {
     expect(results({ status: "ready", items: [file()] })).toContain("Only Published images are listed");
-    expect(results({ status: "ready", items: [file({ kind: "font", name: "F.woff2" })] }, { kind: "font" })).toContain("Only Published fonts are listed");
+    const fontList = results({ status: "ready", items: [file({ kind: "font", name: "F.woff2", visibility: "private", publicUrl: undefined })] }, { kind: "font" });
+    expect(fontList).not.toContain("Only Published");
+    expect(fontList).toContain("A Private font stays off the public web.");
+    expect(fontList).toContain("Private"); // the tile says so too
     expect(results({ status: "ready", items: [file({ kind: "document", name: "Book.pdf", visibility: "private", publicUrl: undefined })] }, { kind: "document" })).not.toContain("Only Published");
   });
 
@@ -366,7 +371,7 @@ describe("Choosing a file for the kit", () => {
   it("empty Drive offers the Upload tray when the page gave one, and not otherwise", () => {
     expect(results({ status: "ready", items: [] }, { kind: "font", onUpload: noop })).toContain("Upload a file");
     expect(results({ status: "ready", items: [] }, { kind: "font" })).not.toContain("Upload a file");
-    expect(results({ status: "ready", items: [] }, { kind: "font" })).toContain("There are no Published font files in Drive yet.");
+    expect(results({ status: "ready", items: [] }, { kind: "font" })).toContain("There are no font files in Drive yet.");
   });
 
   it("a search with no match says so and does not offer to upload", () => {
