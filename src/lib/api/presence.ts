@@ -1,5 +1,6 @@
 import { api } from "@/lib/api";
 import type { ReviewSummary } from "@/lib/review-summary";
+import type { ReviewKit } from "@/lib/review-kit";
 import type { PresenceInsightsResponse, PresenceListingResponse } from "@/lib/presence-panels";
 
 /**
@@ -24,6 +25,19 @@ export const presenceApi = {
     api.get<ReviewSummary>(
       `/v1/presence/reviews/summary${days ? `?days=${days}` : ""}`,
     ),
+
+  /**
+   * The review link, its QR code and what a poster prints. One link for the place, for every customer: it takes no rating or sentiment.
+   * `draftPrice` is what "Draft a reply" costs, shown on the button before it is pressed.
+   */
+  reviewKit: () => api.get<ReviewKit>("/v1/presence/reviews/kit"),
+
+  /**
+   * Draft a reply to one review and save it as the review's suggestion. ★IT NEVER SENDS: the person reads it, edits it and presses Send.
+   * Charged per press at the price `reviewKit` reported.
+   */
+  draftReviewReply: (inboxItemId: string) =>
+    api.post<{ ok: true; draft: string; rationale: string; chargedCredits: number }>(`/v1/presence/reviews/${inboxItemId}/draft`, {}),
 
   /** The listing, its Google sync state and which fields differ from Google. */
   listing: () => api.get<PresenceListingResponse>("/v1/presence/listing"),

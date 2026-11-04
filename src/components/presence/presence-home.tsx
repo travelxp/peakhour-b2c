@@ -6,6 +6,7 @@ import { GbpConnectCard } from "@/components/presence/gbp-connect-card";
 import { ReviewSummaryCard } from "@/components/presence/review-summary-card";
 import { ListingPanel } from "@/components/presence/listing-panel";
 import { InsightsPanel } from "@/components/presence/insights-panel";
+import { ReviewKitCard } from "@/components/presence/review-kit-card";
 
 /**
  * Presence pillar home. The local-presence cockpit — keep a business found,
@@ -54,6 +55,8 @@ export function PresenceHome() {
         <GbpConnectCard />
 
         <ReviewSummaryCard />
+
+        <ReviewKitCard />
 
         <ListingPanel />
 
