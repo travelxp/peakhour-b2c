@@ -318,7 +318,7 @@ describe("the Upload tab", () => {
     initiate: vi.fn(async () => ({ deduped: false as const, uploadId: "u1", visibility: "published" as const, kind: "image", partSize: 100, partCount: 1, parts: [{ partNumber: 1, url: "https://r2.test/1" }], expiresAt: "x" })),
     putPart: vi.fn(async () => undefined),
     complete: vi.fn(async () => ({ mediaId: "new1", name: "Tin", publicUrl: "https://media.test/new1.jpg", visibility: "published" as const, sizeBytes: 5, deduped: false })),
-    abort: vi.fn(async () => undefined),
+    abort: vi.fn(async () => ({ aborted: true })),
     ...over,
   });
   const choose = (files: File[]) => {
