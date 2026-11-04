@@ -4,9 +4,11 @@ import { useEffect, useState, type ReactNode } from "react";
 import { FileText, Loader2, Plus, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import type { ColorRole, FontRole, KitFont, KitGuideline, KitScope, KitView, KitVoice, LogoForm } from "@/lib/api/brand-kit";
+import type { ColorRole, FontRole, KitFont, KitGuideline, KitScope, KitView, KitVoice, LogoForm, VoicePayload } from "@/lib/api/brand-kit";
 import {
   COLOR_ROLES,
   FONT_ROLES,
@@ -18,9 +20,15 @@ import {
   logoFormLabel,
   scopeLabel,
   scopePill,
+  VOICE_LIMITS,
+  voiceFormFrom,
+  voiceChanges,
+  voiceFormIsSaved,
   voiceIsEmpty,
+  voicePayloadFromForm,
   voiceSummary,
   type KitDraft,
+  type VoiceForm,
   type SectionKey,
 } from "@/lib/brand-kit";
 
@@ -42,6 +50,10 @@ export interface BrandKitViewProps {
   /** What every generator sees: used to say a section follows the organisation. */
   effective: KitView | null;
   voice: KitVoice | null;
+  /** This person may edit the Brand Voice (editor and above). The voice is the business's, not a scope's, so it has its own save. */
+  canEditVoice: boolean;
+  /** Saves the voice. Rejects with a message safe to show when it could not. */
+  onSaveVoice: (voice: VoicePayload) => Promise<void>;
   websiteUrl: string | null;
   dirty: boolean;
   saving: boolean;
@@ -163,6 +175,7 @@ function FontSample({ font, index }: { font: KitFont; index: number }) {
   useEffect(() => {
     if (!font.url || typeof FontFace === "undefined" || typeof document === "undefined") return;
     let cancelled = false;
+    let added: FontFace | undefined;
     const name = `kit-font-${font.mediaId}`;
     try {
       // The constructor throws on a source it cannot parse, and that must not take the tab down: the sample just stays in the page's font.
@@ -171,6 +184,7 @@ function FontSample({ font, index }: { font: KitFont; index: number }) {
         .then((loaded) => {
           if (cancelled) return;
           document.fonts.add(loaded);
+          added = loaded;
           setFamily(name);
         })
         .catch(() => undefined);
@@ -179,6 +193,8 @@ function FontSample({ font, index }: { font: KitFont; index: number }) {
     }
     return () => {
       cancelled = true;
+      // A Private font's link changes on every read; the face loaded from the old one is dropped so faces do not pile up for the life of the page.
+      if (added) document.fonts.delete(added);
     };
   }, [font.mediaId, font.url]);
   const heading = font.role === "heading";
@@ -186,6 +202,137 @@ function FontSample({ font, index }: { font: KitFont; index: number }) {
     <div style={family ? { fontFamily: `"${family}", system-ui, sans-serif` } : undefined} data-font-sample={index}>
       <div className={heading ? "text-2xl font-semibold" : "text-[15px]"}>{heading ? "Heading Aa" : font.role === "body" ? "Body text looks like this." : "Accent text Aa"}</div>
     </div>
+  );
+}
+
+/**
+ * The Voice card: what the Brand Voice holds, and, for an editor, a form to change it. It writes through its own route (`PUT /v1/brand-kit/voice`)
+ * to the same Brand Voice every generator reads; the Brand Kit's draft and its Save button are not involved.
+ */
+export function VoiceCard({
+  voice,
+  summary,
+  canEdit,
+  onSave,
+}: {
+  voice: KitVoice | null;
+  summary: ReturnType<typeof voiceSummary>;
+  canEdit: boolean;
+  onSave: (v: VoicePayload) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState<VoiceForm>(() => voiceFormFrom(voice));
+  // The voice as it was when the person began editing: "what I changed" is measured against THIS, so a refetch that brings someone else's edit
+  // in underneath an open form is neither mistaken for the person's change nor overwritten by the form's older copy of it.
+  const [baseline, setBaseline] = useState<VoiceForm>(() => voiceFormFrom(voice));
+  const [saving, setSaving] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const empty = voiceIsEmpty(summary);
+
+  if (editing) {
+    const check = voicePayloadFromForm(form);
+    const unchanged = voiceFormIsSaved(form, baseline);
+    const set = (k: keyof VoiceForm) => (e: React.ChangeEvent<HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
+    return (
+      <form
+        className="flex flex-col gap-3 text-sm"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!check.ok) return;
+          setSaving(true);
+          setProblem(null);
+          try {
+            // only what changed: a field another editor changed meanwhile is not overwritten with this form's older copy
+            await onSave(voiceChanges(form, baseline) ?? check.payload);
+            setEditing(false);
+          } catch (err) {
+            setProblem(err instanceof Error ? err.message : "The Brand Voice could not be saved. Try again.");
+          } finally {
+            setSaving(false);
+          }
+        }}
+      >
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="voice-tone">How you sound</Label>
+          <Textarea id="voice-tone" value={form.tone} onChange={set("tone")} rows={2} placeholder="Warm, plain and a little playful" />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="voice-uses">Words we use</Label>
+          <Textarea id="voice-uses" value={form.vocabulary} onChange={set("vocabulary")} rows={2} placeholder="One per line" />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="voice-avoids">Words we avoid</Label>
+          <Textarea id="voice-avoids" value={form.avoidTerms} onChange={set("avoidTerms")} rows={2} placeholder="One per line" />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="voice-headlines">Headlines that sound like you</Label>
+          <Textarea id="voice-headlines" value={form.sampleHeadlines} onChange={set("sampleHeadlines")} rows={3} placeholder="One headline per line" />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          The tone can be up to {VOICE_LIMITS.tone} characters; each list holds up to {VOICE_LIMITS.items}.
+        </p>
+        {!check.ok && (
+          <p role="alert" className="text-xs text-destructive">
+            {check.reason}
+          </p>
+        )}
+        {problem && (
+          <p role="alert" className="text-xs text-destructive">
+            {problem}
+          </p>
+        )}
+        <div className="flex gap-2">
+          <Button type="submit" size="sm" disabled={saving || !check.ok || unchanged}>
+            {saving && <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />} Save voice
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={saving}
+            onClick={() => {
+              setEditing(false);
+              setProblem(null);
+            }}
+          >
+            Cancel
+          </Button>
+        </div>
+      </form>
+    );
+  }
+
+  return (
+    <>
+      {empty ? (
+        <p className="text-sm text-muted-foreground">
+          No brand voice is recorded yet.{" "}
+          {canEdit ? "Write one here, or let Peakhour read one from your website when a business is added." : "Peakhour reads one from your website when a business is added."}
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2.5 text-sm">
+          {summary.tone && <p className="leading-snug">{summary.tone}</p>}
+          {summary.headline && <p className="text-muted-foreground">Sounds like: &ldquo;{summary.headline}&rdquo;</p>}
+          {summary.uses.length > 0 && <Chips label="Words we use" words={summary.uses} />}
+          {summary.avoids.length > 0 && <Chips label="Words we avoid" words={summary.avoids} />}
+        </div>
+      )}
+      {canEdit && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="self-start"
+          onClick={() => {
+            setForm(voiceFormFrom(voice));
+            setBaseline(voiceFormFrom(voice));
+            setProblem(null);
+            setEditing(true);
+          }}
+        >
+          {empty ? "Write your voice" : "Edit voice"}
+        </Button>
+      )}
+    </>
   );
 }
 
@@ -335,13 +482,17 @@ export function BrandKitView(p: BrandKitViewProps) {
           {editing && <ColorAdder onAdd={p.onAddColor} />}
         </Card>
 
-        <Card title="Fonts" note={draft.fonts.length ? "Use only fonts you are licensed to use. A font file has to be Published to appear in ads." : undefined}>
+        <Card title="Fonts" note={draft.fonts.length ? "Use only fonts you are licensed to use. A Private font has no public address; it is shown here through a link that expires." : undefined}>
           <Inherit text={note("fonts")} />
           {draft.fonts.map((f, i) => (
             <div key={f.mediaId} className="flex items-start gap-2">
               <div className="min-w-0 flex-1">
                 <FontSample font={f} index={i} />
-                <div className="mt-1 truncate text-xs text-muted-foreground">{f.family ?? "Font file"}</div>
+                <div className="mt-1 flex items-center gap-2 truncate text-xs text-muted-foreground">
+                  <span className="truncate">{f.family ?? "Font file"}</span>
+                  {f.visibility === "private" && <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">Private</span>}
+                  {f.visibility === "private" && !f.url && <span>Preview shows once the kit is saved.</span>}
+                </div>
               </div>
               {editing && (
                 <>
@@ -368,16 +519,7 @@ export function BrandKitView(p: BrandKitViewProps) {
         </Card>
 
         <Card title="Voice" note={voiceIsEmpty(voice) ? undefined : "From your Brand Voice. Every creative and ad reads it."}>
-          {voiceIsEmpty(voice) ? (
-            <p className="text-sm text-muted-foreground">No brand voice is recorded yet. Peakhour reads one from your website when a business is added.</p>
-          ) : (
-            <div className="flex flex-col gap-2.5 text-sm">
-              {voice.tone && <p className="leading-snug">{voice.tone}</p>}
-              {voice.headline && <p className="text-muted-foreground">Sounds like: “{voice.headline}”</p>}
-              {voice.uses.length > 0 && <Chips label="Words we use" words={voice.uses} />}
-              {voice.avoids.length > 0 && <Chips label="Words we avoid" words={voice.avoids} />}
-            </div>
-          )}
+          <VoiceCard voice={p.voice} summary={voice} canEdit={p.canEditVoice} onSave={p.onSaveVoice} />
         </Card>
 
         <Card title="Guidelines" note={draft.guidelines.some((g) => g.visibility === "private") ? "Private. Shared only by expiring link." : undefined}>

@@ -1044,6 +1044,7 @@ function PlaceholderCard({
             addLabel="Use this image"
             // Generate makes THIS spot's image from its description (the same call as the Generate button); the card shows the result.
             generatePrompt={p.description}
+            generatePriced
             promptEditable={false}
             onGenerate={async () => {
               onGenerate(index);
