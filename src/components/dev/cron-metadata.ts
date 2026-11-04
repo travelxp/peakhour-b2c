@@ -1696,7 +1696,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     frequency: "Runs monthly (2nd, 3:20 AM UTC)",
     description:
       "Adds the public-holiday dates for this year and the next two to each country's calendar (UK, US, Canada, Australia, New Zealand), worked out from the governments' own rules. " +
-      "It only adds: a date or holiday someone already set or removed is never changed, and India's list is not calculated.",
+      "It only adds: a date someone set is never changed and a deleted holiday stays deleted, but a year cleared from a holiday is filled again. India's list is not calculated.",
   },
   "trial-conversion-sweep": {
     label: "Convert finished trials",
