@@ -38,8 +38,9 @@ export function ShopperCapCard() {
     onError: (err) => {
       setSaved(false);
       const denied = err instanceof ApiError && err.status === 403;
-      setError(denied ? "Only an owner or admin can change this limit." : "Your limit was not saved. Please try again in a moment.");
-      toast.error("Couldn't save the limit.");
+      const rejected = err instanceof ApiError && err.status === 400;
+      setError(denied ? "Only an owner or admin can change this limit." : rejected ? "That limit was not accepted. Enter a whole number of Peaks from 1 up, or leave it empty for no limit." : "Your limit was not saved. Please try again in a moment.");
+      toast.error("Couldn't save the limit.", { id: "shopper-cap-save" });
     },
   });
 
@@ -83,6 +84,7 @@ export function ShopperCapCard() {
               onChange={(e) => {
                 setTyped(e.target.value);
                 setSaved(false);
+                setError("");
               }}
             />
             <Button size="sm" variant="outline" onClick={onSave} disabled={save.isPending}>

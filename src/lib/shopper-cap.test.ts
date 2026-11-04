@@ -12,6 +12,9 @@ describe("parseShopperCapInput", () => {
     expect(parseShopperCapInput("2000")).toEqual({ ok: true, cap: 2000 });
     expect(parseShopperCapInput("12,500")).toEqual({ ok: true, cap: 12500 });
   });
+  it("refuses malformed separators instead of reading them as another number", () => {
+    for (const bad of ["1 2 3", "1,2,,3", "12,50", ",500"]) expect(parseShopperCapInput(bad).ok, bad).toBe(false);
+  });
   it("refuses zero, negatives, decimals, words and too-large numbers, saying what to enter", () => {
     for (const bad of ["0", "-5", "1.5", "lots", "1e3", "999999999999"]) {
       const r = parseShopperCapInput(bad);
