@@ -36,4 +36,12 @@ describe("withHolidayFields: the editor does not erase what it has no control fo
     withHolidayFields(wire, holiday);
     expect(wire).toEqual({ name: "X", month: 1 });
   });
+
+  it("carries a field added later too, and never the ones the form owns", () => {
+    const initial = { type: "festival", futureField: "kept", name: "OLD", month: 9, relevance: "old note" } as unknown as HolidayFields;
+    const out = withHolidayFields({ name: "New", month: 1 }, initial) as Record<string, unknown>;
+    expect(out.futureField).toBe("kept");
+    expect(out).toMatchObject({ name: "New", month: 1, type: "festival" });
+    expect(out).not.toHaveProperty("relevance");
+  });
 });

@@ -24,11 +24,18 @@ export interface HolidayFields {
   source?: string;
 }
 
+/** The fields this dialog has a control for; it rebuilds exactly these from the form. */
+const FORM_FIELDS = new Set(["name", "month", "relevance", "dates", "status"]);
+
+/**
+ * Carry through every field of the opened event that the form does not control,
+ * not just the four PE-08 named: a field added to the pack later is kept too,
+ * instead of being erased by a dialog that predates it.
+ */
 export function withHolidayFields<T extends object>(wire: T, initial: HolidayFields | null): T & HolidayFields {
-  const out: T & HolidayFields = { ...wire };
-  if (initial?.type !== undefined) out.type = initial.type;
-  if (initial?.region !== undefined) out.region = initial.region;
-  if (initial?.closureLikely !== undefined) out.closureLikely = initial.closureLikely;
-  if (initial?.source !== undefined) out.source = initial.source;
-  return out;
+  const out: Record<string, unknown> = { ...wire };
+  for (const [k, v] of Object.entries(initial ?? {})) {
+    if (!FORM_FIELDS.has(k) && v !== undefined) out[k] = v;
+  }
+  return out as T & HolidayFields;
 }
