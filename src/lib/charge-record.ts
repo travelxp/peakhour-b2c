@@ -89,6 +89,6 @@ export function shopperChargesCopy(peaks: number | null): { heading: string; bod
       peaks === null
         ? "When a shopper chats with your assistant, each reply it sends uses Peaks. This happens when the shopper writes, not when you press a button, so it cannot be shown before it happens."
         : `When a shopper chats with your assistant, each reply it sends uses ${formatPeaks(peaks)} Peaks. This happens when the shopper writes, not when you press a button, so it cannot be shown before it happens.`,
-    control: "Every reply is listed in the record below. To stop them, turn the storefront assistant off on your site. On a Shopify store, that is in the theme editor.",
+    control: "Every reply is listed in the record below. The assistant stops answering by itself when your Peaks run out, or when shopper chats reach the limit you set on this page. To stop them sooner, turn the storefront assistant off on your site. On a Shopify store, that is in the theme editor.",
   };
 }

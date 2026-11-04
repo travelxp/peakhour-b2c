@@ -186,6 +186,8 @@ export function toastUnhandledApiError(
   // purchase, not a retry and not a support ticket.
   if (apiError.code === "CREDITS_EXHAUSTED" || apiError.code === "AI_CREDITS_EXHAUSTED") {
     toast.error(`Couldn't ${whatFailed}.`, {
+      // one toast, however many AI calls were refused
+      id: "credits-exhausted",
       description: CREDITS_EXHAUSTED_COPY,
       action: { label: "Buy Peaks", onClick: () => window.location.assign("/dashboard/peaks") },
       // the only actionable button: it stays until dismissed
