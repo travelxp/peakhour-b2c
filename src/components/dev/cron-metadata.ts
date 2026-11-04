@@ -629,7 +629,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     label: "Purge expired deletions",
     frequency: "Runs nightly (3:00 AM UTC)",
     description:
-      "Permanently removes media that has been in the trash past its 30-day recovery window, freeing the storage for good.",
+      "Permanently removes media that has been in the trash past its 30-day recovery window, freeing the storage for good. The same run removes a share-link visitor's IP address and device from access records older than the retention window set in the CMS.",
     summarize: (data) => {
       const d = data as { purged?: number; skipped?: string } | null;
       // The handler early-returns `{success:true, skipped:"storage_not_configured",

@@ -182,6 +182,10 @@ export function middleware(req: NextRequest) {
     "/claim",
     "/reconnect",
     "/growth/confirm",
+    // (7) /share, where a Drive share link lands. The person opening it has no Peakhour account and is reached from an email or a
+    // message; with the gate on it would show the teaser and the file could never be opened. Only this prefix: it holds nothing but
+    // the share page, which says what opening the link records before it serves the file.
+    "/share",
   ];
   const isPublicPath = PUBLIC_PATHS.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
