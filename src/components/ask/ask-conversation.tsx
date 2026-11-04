@@ -16,9 +16,9 @@ import { ActionCost } from "@/components/dashboard/action-cost";
 import { cn } from "@/lib/utils";
 import { useAsk } from "@/hooks/use-ask";
 import { usePathname } from "next/navigation";
-import { routeKeyFromPath } from "@/providers/ask-context-provider";
+import { isPresenceRoute, routeKeyFromPath } from "@/providers/ask-context-provider";
 import { ListingChangeCard } from "@/components/ask/listing-change-card";
-import { cardsOf } from "@/lib/presence-change-card";
+import { uniqueCards } from "@/lib/presence-change-card";
 
 /** Friendly labels for the analytics tools (falls back to a prettified name). */
 const TOOL_LABELS: Record<string, string> = {
@@ -101,13 +101,14 @@ function MessageView({ message }: { message: UIMessage }) {
           })}
         </div>
       )}
-      {/* Change cards (assistant only): built by the api from the stored change, with Approve. */}
+      {/* Change cards (assistant only): built by the api from the stored change, with Approve. One per change, however many tool calls name it. */}
       {!isUser &&
-        toolParts.flatMap((p, i) => {
-          const name = p.type === "dynamic-tool" ? (p.toolName ?? "tool") : p.type.slice("tool-".length);
-          if (!CARD_TOOLS.has(name) || p.state !== "output-available") return [];
-          return cardsOf(p.output).map((c) => <ListingChangeCard key={`${i}-${c.id}`} card={c} />);
-        })}
+        uniqueCards(
+          toolParts.flatMap((p) => {
+            const name = p.type === "dynamic-tool" ? (p.toolName ?? "tool") : p.type.slice("tool-".length);
+            return CARD_TOOLS.has(name) && p.state === "output-available" ? [p.output] : [];
+          }),
+        ).map((c) => <ListingChangeCard key={c.id} card={c} />)}
       {textParts.map((p, i) => (
         <div
           key={i}
@@ -139,7 +140,7 @@ export function AskConversation({
 }) {
   const { messages, sendMessage, status, error } = useAsk(threadId);
   // The Presence pages get their own examples (the same route key the server's engine activates on).
-  const onPresence = /^presence(\.|$)/.test(routeKeyFromPath(usePathname() ?? ""));
+  const onPresence = isPresenceRoute(routeKeyFromPath(usePathname() ?? ""));
   const suggestions = onPresence ? PRESENCE_SUGGESTIONS : SUGGESTIONS;
   const [input, setInput] = useState(initialInput ?? "");
   const scrollRef = useRef<HTMLDivElement>(null);

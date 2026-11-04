@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { cardsOf, cardStatus } from "./presence-change-card";
-import { routeKeyFromPath } from "@/providers/ask-context-provider";
+import { cardsOf, cardStatus, uniqueCards, UNREAD_STATUS, UNREADABLE_STATUS, TERMINAL_STATUSES } from "./presence-change-card";
+import { isPresenceRoute, routeKeyFromPath } from "@/providers/ask-context-provider";
 
 const card = (over: Record<string, unknown> = {}) => ({
   type: "listing_change",
@@ -78,12 +78,50 @@ describe("cardStatus: what each state tells a person", () => {
   });
 });
 
+describe("a stale card is never approvable", () => {
+  it("a proposal past its time reads as expired, whatever the api still says", () => {
+    const past = "2026-11-01T00:00:00.000Z";
+    const now = Date.parse("2026-11-04T00:00:00.000Z");
+    expect(cardStatus("proposed", { expiresAt: past, now })).toMatchObject({ label: "Expired", canDecide: false });
+    expect(cardStatus("validated", { expiresAt: past, now }).canDecide).toBe(false);
+    expect(cardStatus("proposed", { expiresAt: "2026-11-07T00:00:00.000Z", now }).canDecide).toBe(true);
+    // only a change that can still be decided expires: a sent change keeps its status
+    expect(cardStatus("submitted", { expiresAt: past, now }).label).toBe("Sent");
+  });
+
+  it("the states shown while the live status is unread, or unreadable, offer no Approve", () => {
+    expect(UNREAD_STATUS.canDecide).toBe(false);
+    expect(UNREADABLE_STATUS.canDecide).toBe(false);
+    expect(UNREADABLE_STATUS.detail).toMatch(/could not check/);
+  });
+
+  it("terminal statuses are exactly the ones that never change again", () => {
+    for (const s of ["rejected", "expired", "superseded", "failed", "blocked", "live"]) expect(TERMINAL_STATUSES.has(s), s).toBe(true);
+    for (const s of ["proposed", "validated", "approved", "applying", "submitted"]) expect(TERMINAL_STATUSES.has(s), s).toBe(false);
+  });
+});
+
+describe("uniqueCards: one card per change", () => {
+  it("collapses a change named by two tool calls, and keeps order", () => {
+    const a = card({ id: "a".repeat(24) });
+    const b = card({ id: "b".repeat(24) });
+    const out = uniqueCards([{ cards: [a, b] }, { cards: [a] }, { status: "needs_place" }, null]);
+    expect(out.map((c) => c.id)).toEqual(["a".repeat(24), "b".repeat(24)]);
+  });
+});
+
 describe("the Presence pages are where the engine is", () => {
-  it("routeKeyFromPath gives the keys the server activates on", () => {
+  it("isPresenceRoute matches the keys the server activates on, and no other", () => {
+    expect(isPresenceRoute("presence")).toBe(true);
+    expect(isPresenceRoute("presence.review-poster")).toBe(true);
+    for (const rk of ["presentations", "presence-x", "insights.presence", "analytics", "", "dashboard"]) expect(isPresenceRoute(rk), rk).toBe(false);
+  });
+
+  it("routeKeyFromPath gives those keys for the Presence pages", () => {
     expect(routeKeyFromPath("/dashboard/presence")).toBe("presence");
     expect(routeKeyFromPath("/dashboard/presence/review-poster")).toBe("presence.review-poster");
-    expect(/^presence(\.|$)/.test(routeKeyFromPath("/dashboard/presence"))).toBe(true);
-    expect(/^presence(\.|$)/.test(routeKeyFromPath("/dashboard/presentations"))).toBe(false);
-    expect(/^presence(\.|$)/.test(routeKeyFromPath("/dashboard/insights/analytics"))).toBe(false);
+    expect(isPresenceRoute(routeKeyFromPath("/dashboard/presence"))).toBe(true);
+    expect(isPresenceRoute(routeKeyFromPath("/dashboard/presentations"))).toBe(false);
+    expect(isPresenceRoute(routeKeyFromPath("/dashboard/insights/analytics"))).toBe(false);
   });
 });

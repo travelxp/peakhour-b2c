@@ -6,7 +6,7 @@ import { Check, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api";
 import { presenceChangesApi } from "@/lib/api/presence-changes";
-import { cardStatus, type ListingChangeCardData } from "@/lib/presence-change-card";
+import { cardStatus, TERMINAL_STATUSES, UNREAD_STATUS, UNREADABLE_STATUS, type ListingChangeCardData } from "@/lib/presence-change-card";
 import { cn } from "@/lib/utils";
 
 /**
@@ -17,9 +17,9 @@ import { cn } from "@/lib/utils";
  */
 const KEY = (id: string) => ["presence", "change", id] as const;
 
-function wordsOf(err: unknown): string {
+function wordsOf(err: unknown, kind: "approve" | "reject"): string {
   if (err instanceof ApiError) {
-    if (err.status === 403) return "Only an admin of this business can approve a change.";
+    if (err.status === 403) return kind === "approve" ? "Only an admin of this business can approve a change." : "You do not have permission to discard this change.";
     return err.message;
   }
   return "That did not work. Please try again.";
@@ -28,19 +28,25 @@ function wordsOf(err: unknown): string {
 export function ListingChangeCard({ card }: { card: ListingChangeCardData }) {
   const qc = useQueryClient();
   const [problem, setProblem] = useState<string | null>(null);
-  // The stored row's current status. The card's own status is what it was when the assistant prepared it.
+  // The stored row's current status. The card's own status is what it was when the assistant prepared it, so it is never what decides the buttons:
+  // a card for a change that has since been decided must not be approvable while the read is loading or if it fails. A status that cannot change
+  // again needs no read.
+  const settled = TERMINAL_STATUSES.has(card.status);
   const live = useQuery({
     queryKey: KEY(card.id),
     queryFn: () => presenceChangesApi.get(card.id),
+    enabled: !settled,
     staleTime: 15_000,
     refetchInterval: (q) => (["approved", "applying", "submitted"].includes(q.state.data?.item.status ?? "") ? 20_000 : false),
   });
   const item = live.data?.item;
-  const status = cardStatus(item?.status ?? card.status, {
-    held: item?.held?.reason ?? null,
-    reason: item?.reason?.message ?? card.blockedReason,
-    liveNote: item?.liveCheck?.note ?? null,
-  });
+  const status = settled
+    ? cardStatus(card.status, { reason: card.blockedReason })
+    : item
+      ? cardStatus(item.status, { held: item.held?.reason ?? null, reason: item.reason?.message ?? null, liveNote: item.liveCheck?.note ?? null, expiresAt: item.expiresAt })
+      : live.isError
+        ? UNREADABLE_STATUS
+        : UNREAD_STATUS;
 
   const decide = useMutation({
     mutationFn: (kind: "approve" | "reject") => (kind === "approve" ? presenceChangesApi.approve(card.id) : presenceChangesApi.reject(card.id)),
@@ -48,8 +54,8 @@ export function ListingChangeCard({ card }: { card: ListingChangeCardData }) {
       setProblem(null);
       qc.setQueryData(KEY(card.id), res);
     },
-    onError: (err) => {
-      setProblem(wordsOf(err));
+    onError: (err, kind) => {
+      setProblem(wordsOf(err, kind));
       void qc.invalidateQueries({ queryKey: KEY(card.id) });
     },
   });

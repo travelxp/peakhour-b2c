@@ -47,6 +47,16 @@ export function cardsOf(output: unknown): ListingChangeCardData[] {
   );
 }
 
+/** The statuses a person can still decide on. */
+const DECIDABLE = new Set(["proposed", "validated"]);
+
+/** Statuses that never change again: a card in one of them needs no read to be shown. */
+export const TERMINAL_STATUSES: ReadonlySet<string> = new Set(["rejected", "expired", "superseded", "failed", "blocked", "live"]);
+
+/** Shown while the live status is being read, and when it could not be: no Approve, because a stale card must not be approvable. */
+export const UNREAD_STATUS: CardStatus = { label: "Checking", detail: null, tone: "closed", canDecide: false };
+export const UNREADABLE_STATUS: CardStatus = { label: "Status unavailable", detail: "We could not check this change just now. Open the Presence page to see it.", tone: "closed", canDecide: false };
+
 export type Tone = "waiting" | "progress" | "done" | "problem" | "closed";
 
 export interface CardStatus {
@@ -58,7 +68,12 @@ export interface CardStatus {
 }
 
 /** What a status means to the person reading the card. `held` is the api's reason a change is approved but not yet sent. */
-export function cardStatus(status: string, opts: { held?: string | null; reason?: string | null; liveNote?: string | null } = {}): CardStatus {
+export function cardStatus(
+  status: string,
+  opts: { held?: string | null; reason?: string | null; liveNote?: string | null; expiresAt?: string | null; now?: number } = {},
+): CardStatus {
+  // The api closes an unanswered proposal lazily, so a change past its time can still read "proposed": it is expired to the person reading it.
+  if (DECIDABLE.has(status) && opts.expiresAt && Date.parse(opts.expiresAt) <= (opts.now ?? Date.now())) status = "expired";
   switch (status) {
     case "proposed":
     case "validated":
@@ -89,4 +104,18 @@ export function cardStatus(status: string, opts: { held?: string | null; reason?
     default:
       return { label: "Unknown", detail: null, tone: "closed", canDecide: false };
   }
+}
+
+/** The cards of several tool outputs, once per change: a change prepared and then listed in one reply is one card. */
+export function uniqueCards(outputs: readonly unknown[]): ListingChangeCardData[] {
+  const seen = new Set<string>();
+  const out: ListingChangeCardData[] = [];
+  for (const o of outputs) {
+    for (const c of cardsOf(o)) {
+      if (seen.has(c.id)) continue;
+      seen.add(c.id);
+      out.push(c);
+    }
+  }
+  return out;
 }
