@@ -25,6 +25,7 @@ import {
   reviewsAreTruncated,
   shouldAdoptPublishedReply,
   shouldRefreshAfter,
+  shouldRefreshAfterRefusal,
   TRANSPORT_ERROR_CODE,
   unansweredBadge,
   replyCharsRemaining,
@@ -270,6 +271,36 @@ describe("reviewQueueOrder — worst first, oldest first", () => {
 
 // ── What goes in the box ─────────────────────────────────────────────────────
 
+describe("a reply Google has not cleared", () => {
+  it("★★★is not called live when Google is still checking it", () => {
+    const out = replyOutcome({ sent: true, recorded: true, replyState: "pending" });
+    expect(out.headline).toBe("Google is checking your reply before it goes live.");
+  });
+
+  it("★★the unrecorded warning does not claim the customer can see it", () => {
+    const out = replyOutcome({ sent: true, recorded: false, replyState: "pending" });
+    expect(out.headline).toBe("Google is checking your reply before it goes live.");
+    expect(out.description).toContain("Google already has it");
+    expect(out.description).not.toContain("customer can already see it");
+  });
+
+  it("★an approved reply, or one with no state, is live", () => {
+    expect(replyOutcome({ sent: true, recorded: true, replyState: "approved" }).headline).toBe(
+      "Your reply is live on Google.",
+    );
+    expect(replyOutcome({ sent: true, recorded: true }).headline).toBe("Your reply is live on Google.");
+  });
+
+  it("★★★a rejection refreshes the row, which the api has already changed", () => {
+    expect(shouldRefreshAfterRefusal("REPLY_REJECTED")).toBe(true);
+  });
+
+  it("★any other refusal changed nothing, so it keeps the merchant's place", () => {
+    expect(shouldRefreshAfterRefusal("RATE_LIMITED")).toBe(false);
+    expect(shouldRefreshAfterRefusal(undefined)).toBe(false);
+  });
+});
+
 describe("composerStateFor — what the merchant is handed", () => {
   it("★★★never prefills the box with the AI draft", () => {
     // A prefilled draft makes Send a one-click publish of machine-written
@@ -282,6 +313,73 @@ describe("composerStateFor — what the merchant is handed", () => {
     const state = composerStateFor(row({ review: review({ replyDraft: "Sorry to hear that!" }) }));
     expect(state.suggestion).toBe("Sorry to hear that!");
     expect(state.canSend).toBe(true);
+  });
+
+  it("★★★a rejected reply is offered back to fix, with Google's reason in words", () => {
+    const state = composerStateFor(
+      row({
+        review: review({
+          replyState: "rejected",
+          replyRejectedText: "You are wrong",
+          replyPolicyViolation: "OFF_TOPIC",
+        }),
+      }),
+    );
+    expect(state.rejected).toEqual({
+      text: "You are wrong",
+      note: "Reason: off topic. Edit it and send it again.",
+    });
+    expect(state.initialText).toBe("You are wrong");
+    expect(state.published).toBeUndefined();
+    expect(state.canSend).toBe(true);
+  });
+
+  it("★a rejection with no reason or text still reports the rejection", () => {
+    const state = composerStateFor(row({ review: review({ replyState: "rejected" }) }));
+    expect(state.rejected).toEqual({ text: undefined, note: "Edit it and send it again." });
+    expect(state.initialText).toBe("");
+  });
+
+  it("★★an unspecified code is no reason, so none is shown", () => {
+    const state = composerStateFor(
+      row({ review: review({ replyState: "rejected", replyPolicyViolation: "POLICY_VIOLATION_UNSPECIFIED" }) }),
+    );
+    expect(state.rejected?.note).toBe("Edit it and send it again.");
+  });
+
+  it("★★a row that cannot be answered here is not told to send it again", () => {
+    const state = composerStateFor(
+      row({ review: review({ externalReviewId: "", replyState: "rejected", replyPolicyViolation: "OFF_TOPIC" }) }),
+    );
+    expect(state.canSend).toBe(false);
+    expect(state.rejected?.note).toBe("Reason: off topic.");
+  });
+
+  it("★★a rejected reply leaves the review waiting for an answer", () => {
+    const item = row({ review: review({ replyState: "rejected", replyRejectedText: "No." }) });
+    expect(hasPublishedReply(item)).toBe(false);
+    expect(needsAnswer(item)).toBe(true);
+  });
+
+  it("★★a live reply outranks a rejection left on the row", () => {
+    const state = composerStateFor(
+      row({ review: review({ replyState: "rejected", replyPublished: "Thanks!", replyRejectedText: "No." }) }),
+    );
+    expect(state.rejected).toBeUndefined();
+    expect(state.initialText).toBe("Thanks!");
+  });
+
+  it("★★a reply Google is still checking is not called published", () => {
+    const pending = composerStateFor(row({ review: review({ replyState: "pending", replyPublished: "Thanks!" }) }));
+    expect(pending.pendingCheck).toBe(true);
+    const approved = composerStateFor(row({ review: review({ replyState: "approved", replyPublished: "Thanks!" }) }));
+    expect(approved.pendingCheck).toBe(false);
+    const older = composerStateFor(row({ review: review({ replyPublished: "Thanks!" }) }));
+    expect(older.pendingCheck).toBe(false);
+  });
+
+  it("★pending with no reply to show is not a pending reply", () => {
+    expect(composerStateFor(row({ review: review({ replyState: "pending" }) })).pendingCheck).toBe(false);
   });
 
   it("★★prefills the box with the reply already published, so editing means editing", () => {
@@ -395,7 +493,7 @@ describe("replyOutcome — two successes that look like failures", () => {
   it("★★★treats an unchanged reply as nothing-to-do, not as a failure", () => {
     const out = replyOutcome({ sent: false, reason: "unchanged" });
     expect(out.kind).toBe("unchanged");
-    expect(out.headline).toBe("That's already your published reply.");
+    expect(out.headline).toBe("That's already your reply.");
   });
 
   it("★★★offers the override only on the unchanged answer", () => {

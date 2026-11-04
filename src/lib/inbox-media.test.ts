@@ -20,7 +20,7 @@ import {
   type CheckoutLine,
   type ProductHit,
 } from "@/lib/inbox-media";
-import { replyErrorCopy, replyForm, replyRequest, replySignature, type ReplyPayload } from "@/lib/wa-inbox-reply";
+import { replyErrorCopy, replyRequest, replySignature, type ReplyPayload } from "@/lib/wa-inbox-reply";
 
 const TEE: ProductHit = {
   productId: "a".repeat(24),
@@ -155,22 +155,23 @@ describe("the checkout link's basket", () => {
 });
 
 describe("the composer's new payloads go through the same idempotency rules as a text", () => {
-  const file = { name: "tee.jpg", size: 1234, lastModified: 1_700_000_000_000, type: "image/jpeg" };
-  const media: ReplyPayload = { kind: "media", file, caption: " Here " };
+  const MEDIA_ID = "a".repeat(24);
+  const file = { name: "tee.jpg", size: 1234, type: "image/jpeg" };
+  const media: ReplyPayload = { kind: "media", mediaId: MEDIA_ID, file, caption: " Here " };
   const product: ReplyPayload = { kind: "product", productId: "A".repeat(24) };
   const checkout: ReplyPayload = { kind: "checkout", items: [{ productId: "A".repeat(24), variantId: "111", quantity: 2 }] };
 
-  it("the same choice has the same signature (so the same key); another file, caption, product or quantity has another", () => {
-    expect(replySignature(media)).toBe(replySignature({ kind: "media", file, caption: "Here" }));
-    expect(replySignature(media)).not.toBe(replySignature({ kind: "media", file: { ...file, size: 1235 }, caption: " Here " }));
-    expect(replySignature(media)).not.toBe(replySignature({ kind: "media", file, caption: "Other" }));
+  it("the same choice has the same signature (so the same key); another Drive file, caption, product or quantity has another", () => {
+    expect(replySignature(media)).toBe(replySignature({ kind: "media", mediaId: MEDIA_ID.toUpperCase(), file, caption: "Here" }));
+    expect(replySignature(media)).not.toBe(replySignature({ kind: "media", mediaId: "b".repeat(24), file, caption: " Here " }));
+    expect(replySignature(media)).not.toBe(replySignature({ kind: "media", mediaId: MEDIA_ID, file, caption: "Other" }));
     expect(replySignature(product)).toBe(replySignature({ kind: "product", productId: "a".repeat(24) }));
     expect(replySignature(product)).not.toBe(replySignature({ kind: "product", productId: "b".repeat(24) }));
     expect(replySignature(checkout)).not.toBe(replySignature({ kind: "checkout", items: [{ productId: "A".repeat(24), variantId: "111", quantity: 3 }] }));
     expect(new Set([replySignature(media), replySignature(product), replySignature(checkout), replySignature({ kind: "text", text: "x" })]).size).toBe(4);
   });
 
-  it("a product and a checkout link go to their own routes with the key; an attachment is a form", () => {
+  it("a product and a checkout link go to their own routes with the key; an attachment names its Drive file", () => {
     expect(replyRequest("whatsapp:1:abc", product, "key-0000001")).toEqual({
       path: "/v1/meta/whatsapp/conversations/whatsapp%3A1%3Aabc/send-product",
       body: { productId: "A".repeat(24), idempotencyKey: "key-0000001" },
@@ -179,14 +180,14 @@ describe("the composer's new payloads go through the same idempotency rules as a
       path: "/v1/meta/whatsapp/conversations/whatsapp%3A1%3Aabc/send-checkout-link",
       body: { items: [{ productId: "A".repeat(24), variantId: "111", quantity: 2 }], idempotencyKey: "key-0000002" },
     });
-    expect(() => replyRequest("t", media, "key-0000003")).toThrow(/replyForm/);
-    const { path, form } = replyForm("whatsapp:1:abc", media as Extract<ReplyPayload, { kind: "media" }>, new Blob(["x"], { type: "image/jpeg" }), "key-0000003");
-    expect(path).toBe("/v1/meta/whatsapp/conversations/whatsapp%3A1%3Aabc/reply-media");
-    expect(form.get("idempotencyKey")).toBe("key-0000003");
-    expect(form.get("caption")).toBe("Here");
-    expect((form.get("file") as File).name).toBe("tee.jpg");
-    const bare = replyForm("t", { kind: "media", file }, new Blob(["x"]), "key-0000004");
-    expect(bare.form.has("caption")).toBe(false);
+    expect(replyRequest("whatsapp:1:abc", media, "key-0000003")).toEqual({
+      path: "/v1/meta/whatsapp/conversations/whatsapp%3A1%3Aabc/reply-media",
+      body: { mediaId: MEDIA_ID, caption: "Here", idempotencyKey: "key-0000003" },
+    });
+    // no caption: the key is absent, not an empty string
+    const bare = replyRequest("t", { kind: "media", mediaId: MEDIA_ID, file }, "key-0000004");
+    expect(bare.body).toEqual({ mediaId: MEDIA_ID, idempotencyKey: "key-0000004" });
+    expect(replyRequest("t", { kind: "media", mediaId: MEDIA_ID, file, caption: "   " }, "key-0000005").body).not.toHaveProperty("caption");
   });
 
   it("each refusal before the send says nothing was sent, and the next try gets a fresh key", () => {

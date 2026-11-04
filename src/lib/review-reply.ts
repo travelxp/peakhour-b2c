@@ -62,6 +62,12 @@ export interface ReviewPayload {
   /** What we last published to the listing. */
   replyPublished?: string;
   replyPublishedAt?: string;
+  /** Google's moderation result. Absent means Google reported none. */
+  replyState?: "pending" | "approved" | "rejected";
+  /** The words Google refused. Never live, so never `replyPublished`. */
+  replyRejectedText?: string;
+  /** Google's reason code, which it may add to at any time. */
+  replyPolicyViolation?: string;
 }
 
 /** Just enough of an inbox row to answer everything below. */
@@ -264,8 +270,12 @@ export interface ComposerState {
   initialText: string;
   /** The AI suggestion, offered behind an explicit "use this" — or absent. */
   suggestion?: string;
-  /** What is live on the listing right now, when anything is. */
+  /** The reply customers can see, or will once Google's check clears it. */
   published?: string;
+  /** Google is still checking `published`, so customers may not see it yet. */
+  pendingCheck: boolean;
+  /** Google refused the last reply. Absent when it did not. */
+  rejected?: { text?: string; note: string };
   /** Sending is possible at all. */
   canSend: boolean;
   /** Why not, when not — a sentence, not a code. */
@@ -287,15 +297,22 @@ export interface ComposerState {
  * means: Google's reply endpoint is a PUT, the merchant is looking at their own
  * published words, and the api answers "unchanged" if they send them back
  * untouched. That is not the same act as sending a suggestion nobody read.
+ *
+ * ★★A REJECTED REPLY IS PREFILLED TOO, for the same reason. They are the
+ * merchant's own words, and fixing them is the one thing left to do.
  */
 export function composerStateFor(item: ReviewItemLike): ComposerState {
   const suggestion = item.review?.replyDraft?.trim() || undefined;
   const published = item.review?.replyPublished?.trim() || undefined;
+  const pendingCheck = Boolean(published) && item.review?.replyState === "pending";
+  const rejected = rejectionOf(item, isRepliableReview(item));
   if (!isRepliableReview(item)) {
     return {
       initialText: "",
       suggestion,
       published,
+      pendingCheck,
+      rejected,
       canSend: false,
       blockedReason:
         item.source !== REVIEW_SOURCE || item.review?.network !== REVIEW_NETWORK
@@ -303,7 +320,45 @@ export function composerStateFor(item: ReviewItemLike): ComposerState {
           : "We don't have a reference for this review on Google, so it has to be answered in your Business Profile.",
     };
   }
-  return { initialText: published ?? "", suggestion, published, canSend: true };
+  return {
+    initialText: published ?? rejected?.text ?? "",
+    suggestion,
+    published,
+    pendingCheck,
+    rejected,
+    canSend: true,
+  };
+}
+
+/**
+ * What Google refused, if it did, and what the merchant can do about it.
+ *
+ * ★A LIVE REPLY OUTRANKS AN OLD REJECTION. The api clears the rejection on a
+ * resend, but if the two ever sit on one row, telling the merchant their reply
+ * is rejected while it shows on the listing would send them to fix nothing.
+ */
+function rejectionOf(item: ReviewItemLike, canSend: boolean): ComposerState["rejected"] {
+  if (item.review?.replyState !== "rejected" || hasPublishedReply(item)) return undefined;
+  const reason = policyReason(item.review.replyPolicyViolation);
+  return {
+    text: item.review.replyRejectedText?.trim() || undefined,
+    note: [reason ? `Reason: ${reason}.` : "", canSend ? "Edit it and send it again." : ""]
+      .filter(Boolean)
+      .join(" "),
+  };
+}
+
+/**
+ * Google's code as words.
+ *
+ * ★SPELLED OUT, NOT LOOKED UP. Google says it may add codes, so a table would
+ * show nothing for the new ones. `OFF_TOPIC` reads well enough as "off topic".
+ * An unspecified code is no reason at all, so it shows none.
+ */
+function policyReason(code: string | undefined): string | undefined {
+  const trimmed = code?.trim();
+  if (!trimmed || trimmed.endsWith("UNSPECIFIED")) return undefined;
+  return trimmed.toLowerCase().replaceAll("_", " ");
 }
 
 /**
@@ -384,6 +439,8 @@ export interface ReplyResponseLike {
   recorded?: boolean;
   replyPublishedAt?: string;
   reason?: string;
+  /** Google's answer to this send. `pending` means not live yet. */
+  replyState?: string;
 }
 
 export type ReplyOutcome =
@@ -414,24 +471,28 @@ export function replyOutcome(res: ReplyResponseLike): ReplyOutcome {
   if (!res.sent) {
     return {
       kind: "unchanged",
-      headline: "That's already your published reply.",
+      headline: "That's already your reply.",
       description:
         "Nothing was sent, because the words haven't changed. If the reply has gone missing from " +
         "Google, send it again to put it back.",
       offerForce: true,
     };
   }
+  // ★A REPLY GOOGLE IS CHECKING IS NOT LIVE, and saying so would be untrue beside
+  // a card that says "waiting for Google's check".
+  const checking = res.replyState === "pending";
+  const headline = checking ? "Google is checking your reply before it goes live." : "Your reply is live on Google.";
   if (res.recorded === false) {
     return {
       kind: "published_unrecorded",
-      headline: "Your reply is live on Google.",
+      headline,
       description:
         "We couldn't file it against this item, so it may still show as unanswered here. " +
-        "Don't send it again — the customer can already see it.",
+        `Don't send it again — ${checking ? "Google already has it" : "the customer can already see it"}.`,
       offerForce: false,
     };
   }
-  return { kind: "published", headline: "Your reply is live on Google.", offerForce: false };
+  return { kind: "published", headline, offerForce: false };
 }
 
 /**
@@ -450,6 +511,19 @@ export function replyOutcome(res: ReplyResponseLike): ReplyOutcome {
  */
 export function shouldRefreshAfter(outcome: ReplyOutcome): boolean {
   return outcome.kind !== "published_unrecorded";
+}
+
+/**
+ * Does this refusal mean the row changed?
+ *
+ * ★★GOOGLE'S MODERATION REJECTION IS WRITTEN BEFORE IT IS REPORTED. The api
+ * clears the published reply and stores the reason, so without a refresh the
+ * card goes on showing a reply that is gone, and never shows the reason. The
+ * same code also covers a plain Google 4xx, which changes nothing, and a
+ * refresh then does no harm.
+ */
+export function shouldRefreshAfterRefusal(code: string | undefined): boolean {
+  return code === "REPLY_REJECTED";
 }
 
 // ── What went wrong ──────────────────────────────────────────────────────────
