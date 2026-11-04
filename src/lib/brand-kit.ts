@@ -332,6 +332,11 @@ export function voiceFormFrom(v: { tone?: string; vocabulary?: string[]; avoidTe
   };
 }
 
+/** The entries of a form, trimmed and de-duplicated, with no limit applied (what was SAVED may already be over one a person is now shortening). */
+function parts(f: VoiceForm): { tone: string; vocabulary: string[]; avoidTerms: string[]; sampleHeadlines: string[] } {
+  return { tone: f.tone.trim(), vocabulary: lines(f.vocabulary), avoidTerms: lines(f.avoidTerms), sampleHeadlines: lines(f.sampleHeadlines) };
+}
+
 function lines(text: string): string[] {
   const out: string[] = [];
   for (const part of text.split(/\n/)) {
@@ -365,15 +370,16 @@ export function voicePayloadFromForm(f: VoiceForm): VoiceCheck {
 
 /**
  * Only the fields the person changed, so a save cannot overwrite a field someone else edited meanwhile. Empty object when nothing changed;
- * undefined when either form is not valid (the caller shows `voicePayloadFromForm`'s reason).
+ * undefined when the form is not valid (the caller shows `voicePayloadFromForm`'s reason).
  */
 export function voiceChanges(form: VoiceForm, saved: VoiceForm): Partial<{ tone: string; vocabulary: string[]; avoidTerms: string[]; sampleHeadlines: string[] }> | undefined {
   const next = voicePayloadFromForm(form);
-  const before = voicePayloadFromForm(saved);
-  if (!next.ok || !before.ok) return undefined;
+  if (!next.ok) return undefined;
+  // `saved` may hold more than a person may now enter (the website read has no list limit): it is compared as it is, not re-validated.
+  const before = parts(saved);
   const out: Record<string, unknown> = {};
   for (const k of ["tone", "vocabulary", "avoidTerms", "sampleHeadlines"] as const) {
-    if (JSON.stringify(next.payload[k]) !== JSON.stringify(before.payload[k])) out[k] = next.payload[k];
+    if (JSON.stringify(next.payload[k]) !== JSON.stringify(before[k])) out[k] = next.payload[k];
   }
   return out;
 }

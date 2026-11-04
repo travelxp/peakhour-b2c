@@ -776,10 +776,10 @@ function GenerateTab({
         queryClient.resetQueries({ queryKey: ["peaks-quote"] });
         toast.error("That price has changed.", { description: err.message || "Ask for a fresh quote and confirm the new price." });
       } else if (err instanceof ApiError && err.code === "STORAGE_QUOTA_EXCEEDED") toast.error("Your Drive is full.", { description: `${err.message} You were not charged.` });
-      // The api answered with a refusal or a failure: a held charge is released only on success, so nothing was charged. A failure with no answer
-      // (the connection dropped) may have gone either way, so it says nothing about the charge.
-      else if (err instanceof ApiError) toast.error("We couldn't make that", { description: `${err.message} You were not charged.` });
-      else toast.error("We couldn't make that", { description: "Check your connection and look in Drive before trying again." });
+      // A 4xx is the api refusing before it made anything (a held charge is released unless the answer is a success), so nothing was charged. A 5xx
+      // from a gateway or a dropped connection may have come after the image was made, so those say nothing about the charge and point to Drive.
+      else if (err instanceof ApiError && err.status >= 400 && err.status < 500) toast.error("We couldn't make that", { description: `${err.message} You were not charged.` });
+      else toast.error("We couldn't make that", { description: "Check Drive before trying again: the image may have been made." });
     } finally {
       setRunning(false);
     }

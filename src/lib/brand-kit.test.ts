@@ -399,6 +399,14 @@ describe("editing the Brand Voice", () => {
     expect(voiceFormIsSaved({ ...saved, tone: "Warmer" }, saved)).toBe(false);
   });
 
+  it("a saved voice already over a list limit (the website read has none) can still be shortened: only the changed field is sent", () => {
+    const long = Array.from({ length: VOICE_LIMITS.items + 11 }, (_, i) => `w${i}`);
+    const saved = voiceFormFrom({ tone: "Warm", vocabulary: long, avoidTerms: ["x"] });
+    expect(voicePayloadFromForm(saved).ok).toBe(false); // it cannot be saved as it is
+    const trimmed = { ...saved, vocabulary: long.slice(0, 5).join("\n") };
+    expect(voiceChanges(trimmed, saved)).toEqual({ vocabulary: ["w0", "w1", "w2", "w3", "w4"] }); // not the whole voice
+  });
+
   it("voiceChanges names only the fields that changed, so a save cannot overwrite what someone else edited", () => {
     const saved = voiceFormFrom({ tone: "Warm", vocabulary: ["a", "b"], avoidTerms: ["x"] });
     expect(voiceChanges(saved, saved)).toEqual({});

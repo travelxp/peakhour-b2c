@@ -109,6 +109,18 @@ describe("Voice card", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
+  it("a refetch that brings someone else's edit in while the form is open is not overwritten: only what this person changed is sent", async () => {
+    const onSave = vi.fn(async () => undefined);
+    const el = mount({ canEdit: true, onSave });
+    await act(async () => button(el, "Edit voice")!.click());
+    await type(field(el, "voice-tone"), "Calmer");
+    // meanwhile another editor changes the words, and the card is handed the new voice
+    const theirs = { ...VOICE, vocabulary: ["estate", "first flush", "theirs"] };
+    act(() => root!.render(<VoiceCard voice={theirs} summary={voiceSummary(theirs)} canEdit onSave={onSave as never} />));
+    await submit(el);
+    expect(onSave).toHaveBeenCalledWith({ tone: "Calmer" }); // not the form's older word list
+  });
+
   it("Cancel drops the edit", async () => {
     const el = mount({ canEdit: true });
     await act(async () => button(el, "Edit voice")!.click());
@@ -119,54 +131,89 @@ describe("Voice card", () => {
   });
 });
 
+const fontProps = (fonts: unknown[]) =>
+  ({
+    scope: "org",
+    scopes: ["org", "business"],
+    businessName: "Monsoon Tea Co.",
+    draft: draftFromView({ logos: [], colors: [], fonts: fonts as never, guidelines: [], from: { logos: "none", colors: "none", fonts: "org", guidelineMediaIds: "none" } }),
+    effective: null,
+    voice: null,
+    canEditVoice: true,
+    onSaveVoice: async () => undefined,
+    websiteUrl: null,
+    dirty: false,
+    saving: false,
+    error: null,
+    hasOverride: false,
+    review: null,
+    prefillBusy: false,
+    fontHintText: null,
+    onScope() {},
+    onSave() {},
+    onDiscard() {},
+    onRevert() {},
+    onPrefill() {},
+    onAddLogo() {},
+    onLogoForm() {},
+    onRemoveLogo() {},
+    onAddColor: () => null,
+    onColorRole() {},
+    onRemoveColor() {},
+    onAddFont() {},
+    onFontRole() {},
+    onRemoveFont() {},
+    onAddGuideline() {},
+    onRemoveGuideline() {},
+    onOpenGuideline() {},
+  }) as Parameters<typeof BrandKitView>[0];
+
+describe("Font sample: the face a refreshed link replaces is dropped", () => {
+  it("loads the font from its link, and deletes that face when the link changes, so faces do not pile up", async () => {
+    const added: unknown[] = [];
+    const deleted: unknown[] = [];
+    class FakeFace {
+      constructor(
+        public family: string,
+        public src: string,
+      ) {}
+      async load() {
+        return this;
+      }
+    }
+    vi.stubGlobal("FontFace", FakeFace);
+    Object.defineProperty(document, "fonts", { configurable: true, value: { add: (f: unknown) => added.push(f), delete: (f: unknown) => deleted.push(f) } });
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    const font = (url: string) => ({ mediaId: "f1", role: "heading", family: "Licensed Serif", visibility: "private", url, mimeType: "font/woff2" });
+    const view = (url: string) => <BrandKitView {...fontProps([font(url)])} />;
+    await act(async () => root!.render(view("https://signed.example/a?sig=1")));
+    await act(async () => void (await new Promise((r) => setTimeout(r, 5))));
+    expect(added).toHaveLength(1);
+    expect(deleted).toHaveLength(0);
+    await act(async () => root!.render(view("https://signed.example/a?sig=2")));
+    await act(async () => void (await new Promise((r) => setTimeout(r, 5))));
+    expect(deleted).toEqual([added[0]]); // the face from the first link is gone
+    expect(added).toHaveLength(2);
+    vi.unstubAllGlobals();
+  });
+});
+
 describe("Fonts card: a Private font", () => {
-  const props = (fonts: unknown[]) =>
-    ({
-      scope: "org",
-      scopes: ["org", "business"],
-      businessName: "Monsoon Tea Co.",
-      draft: draftFromView({ logos: [], colors: [], fonts: fonts as never, guidelines: [], from: { logos: "none", colors: "none", fonts: "org", guidelineMediaIds: "none" } }),
-      effective: null,
-      voice: null,
-      canEditVoice: true,
-      onSaveVoice: async () => undefined,
-      websiteUrl: null,
-      dirty: false,
-      saving: false,
-      error: null,
-      hasOverride: false,
-      review: null,
-      prefillBusy: false,
-      fontHintText: null,
-      onScope() {},
-      onSave() {},
-      onDiscard() {},
-      onRevert() {},
-      onPrefill() {},
-      onAddLogo() {},
-      onLogoForm() {},
-      onRemoveLogo() {},
-      onAddColor: () => null,
-      onColorRole() {},
-      onRemoveColor() {},
-      onAddFont() {},
-      onFontRole() {},
-      onRemoveFont() {},
-      onAddGuideline() {},
-      onRemoveGuideline() {},
-      onOpenGuideline() {},
-    }) as Parameters<typeof BrandKitView>[0];
 
   it("is marked Private, is still listed when its link could not be made, and the card says it has no public address", () => {
-    const out = renderToStaticMarkup(<BrandKitView {...props([{ mediaId: "f1", role: "heading", family: "Licensed Serif", visibility: "private", mimeType: "font/woff2" }])} />);
+    const out = renderToStaticMarkup(<BrandKitView {...fontProps([{ mediaId: "f1", role: "heading", family: "Licensed Serif", visibility: "private", mimeType: "font/woff2" }])} />);
     expect(out).toContain("Licensed Serif");
     expect(out).toContain(">Private</span>");
     expect(out).toContain("A Private font has no public address");
+    expect(out).toContain("Preview shows once the kit is saved."); // a Private font picked but not yet saved has no link to preview
   });
 
   it("a Published font carries no Private mark", () => {
-    const out = renderToStaticMarkup(<BrandKitView {...props([{ mediaId: "f1", role: "heading", family: "Open Serif", visibility: "published", url: "https://m/f.woff2", mimeType: "font/woff2" }])} />);
+    const out = renderToStaticMarkup(<BrandKitView {...fontProps([{ mediaId: "f1", role: "heading", family: "Open Serif", visibility: "published", url: "https://m/f.woff2", mimeType: "font/woff2" }])} />);
     expect(out).toContain("Open Serif");
     expect(out).not.toContain(">Private</span>");
+    expect(out).not.toContain("Preview shows once");
   });
 });

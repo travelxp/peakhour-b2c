@@ -175,6 +175,7 @@ function FontSample({ font, index }: { font: KitFont; index: number }) {
   useEffect(() => {
     if (!font.url || typeof FontFace === "undefined" || typeof document === "undefined") return;
     let cancelled = false;
+    let added: FontFace | undefined;
     const name = `kit-font-${font.mediaId}`;
     try {
       // The constructor throws on a source it cannot parse, and that must not take the tab down: the sample just stays in the page's font.
@@ -183,6 +184,7 @@ function FontSample({ font, index }: { font: KitFont; index: number }) {
         .then((loaded) => {
           if (cancelled) return;
           document.fonts.add(loaded);
+          added = loaded;
           setFamily(name);
         })
         .catch(() => undefined);
@@ -191,6 +193,8 @@ function FontSample({ font, index }: { font: KitFont; index: number }) {
     }
     return () => {
       cancelled = true;
+      // A Private font's link changes on every read; the face loaded from the old one is dropped so faces do not pile up for the life of the page.
+      if (added) document.fonts.delete(added);
     };
   }, [font.mediaId, font.url]);
   const heading = font.role === "heading";
@@ -218,13 +222,16 @@ export function VoiceCard({
 }) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<VoiceForm>(() => voiceFormFrom(voice));
+  // The voice as it was when the person began editing: "what I changed" is measured against THIS, so a refetch that brings someone else's edit
+  // in underneath an open form is neither mistaken for the person's change nor overwritten by the form's older copy of it.
+  const [baseline, setBaseline] = useState<VoiceForm>(() => voiceFormFrom(voice));
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const empty = voiceIsEmpty(summary);
 
   if (editing) {
     const check = voicePayloadFromForm(form);
-    const unchanged = voiceFormIsSaved(form, voiceFormFrom(voice));
+    const unchanged = voiceFormIsSaved(form, baseline);
     const set = (k: keyof VoiceForm) => (e: React.ChangeEvent<HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
     return (
       <form
@@ -236,7 +243,7 @@ export function VoiceCard({
           setProblem(null);
           try {
             // only what changed: a field another editor changed meanwhile is not overwritten with this form's older copy
-            await onSave(voiceChanges(form, voiceFormFrom(voice)) ?? check.payload);
+            await onSave(voiceChanges(form, baseline) ?? check.payload);
             setEditing(false);
           } catch (err) {
             setProblem(err instanceof Error ? err.message : "The Brand Voice could not be saved. Try again.");
@@ -317,6 +324,7 @@ export function VoiceCard({
           className="self-start"
           onClick={() => {
             setForm(voiceFormFrom(voice));
+            setBaseline(voiceFormFrom(voice));
             setProblem(null);
             setEditing(true);
           }}
@@ -483,6 +491,7 @@ export function BrandKitView(p: BrandKitViewProps) {
                 <div className="mt-1 flex items-center gap-2 truncate text-xs text-muted-foreground">
                   <span className="truncate">{f.family ?? "Font file"}</span>
                   {f.visibility === "private" && <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">Private</span>}
+                  {f.visibility === "private" && !f.url && <span>Preview shows once the kit is saved.</span>}
                 </div>
               </div>
               {editing && (

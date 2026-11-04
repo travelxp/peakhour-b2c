@@ -520,7 +520,30 @@ describe("Generate", () => {
     await flush();
     const [, opts] = h.toastError.mock.calls[0]!;
     expect(opts.description).not.toContain("not charged");
-    expect(opts.description).toContain("look in Drive");
+    expect(opts.description).toContain("Check Drive");
+  });
+
+  it("only a 4xx refusal says nothing was charged; a 5xx (a gateway timeout can come after the image was made) points to Drive instead", async () => {
+    h.list.mockResolvedValue(page([]));
+    const { ApiError } = await import("@/lib/api");
+    const type = (text: string) => {
+      const box = host.querySelector<HTMLTextAreaElement>("textarea")!;
+      act(() => {
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(box, text);
+        box.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    };
+    h.generate.mockRejectedValueOnce(new ApiError("GENERATE_FAILED", "The model said no.", 400)).mockRejectedValueOnce(new ApiError("BAD_GATEWAY", "Bad gateway.", 502));
+    await mount();
+    openGenerate();
+    type("A blue tin");
+    click(buttonByText("Make an image"));
+    await flush();
+    expect(h.toastError.mock.calls[0]![1].description).toBe("The model said no. You were not charged.");
+    click(buttonByText("Make an image"));
+    await flush();
+    expect(h.toastError.mock.calls[1]![1].description).not.toContain("not charged");
+    expect(h.toastError.mock.calls[1]![1].description).toContain("Check Drive");
   });
 
   it("a refused generation (too few credits) says so and nothing is selected", async () => {

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/providers/auth-provider";
 import {
   BRAND_KIT_QUERY_KEY,
+  type BrandKitResponse,
   getBrandKit,
   getFileLink,
   removeBusinessKit,
@@ -120,12 +121,15 @@ export function BrandKitTab({ onUpload }: { onUpload?: () => void }) {
 
   // The Brand Voice is the business's own, saved on its own: it never waits on the kit's draft. editor and above, as the api holds.
   const saveVoice = async (voice: VoicePayload) => {
+    let saved: Awaited<ReturnType<typeof saveBrandVoice>>;
     try {
-      await saveBrandVoice(voice);
+      saved = await saveBrandVoice(voice);
     } catch (err) {
       throw new Error(kitErrorMessage(err, "The Brand Voice could not be saved. Try again."));
     }
-    await queryClient.invalidateQueries({ queryKey });
+    // The api returns the voice as stored: put it in the cache. A reload of the whole kit would sign every Private font again (a ledger row each)
+    // and, if it failed, would leave the card showing the old voice beside a "saved" message.
+    queryClient.setQueryData<BrandKitResponse>(queryKey, (old) => (old ? { ...old, voice: saved.voice } : old));
     toast.success("Brand Voice saved.");
   };
 
