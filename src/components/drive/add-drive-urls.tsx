@@ -17,15 +17,30 @@ export function appendUrls(current: string, urls: string[]): string {
   return (base ? `${base}\n` : "") + add.join("\n");
 }
 
+/** How many addresses the box holds. */
+export function lineCount(current: string): number {
+  return current.split(/\r?\n/).filter((l) => l.trim()).length;
+}
+
 export function AddDriveUrls({ value, onChange, label, max }: { value: string; onChange: (next: string) => void; label: string; max?: number }) {
+  // The box's own cap counts what is already typed: 4 logos typed leaves room for 1 more, not 5.
+  const room = max === undefined ? undefined : Math.max(0, max - lineCount(value));
   return (
     <DrivePicker
       kinds={["image"]}
       addLabel="Add to ad"
-      maxSelection={max}
+      maxSelection={room}
       onSelect={(assets) => onChange(appendUrls(value, assets.map((a) => a.url)))}
       trigger={
-        <Button type="button" variant="outline" size="sm" className="gap-1.5" aria-label={`Add ${label} from Drive`}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          disabled={room === 0}
+          title={room === 0 ? `This box already has the most it can hold (${max}).` : undefined}
+          aria-label={`Add ${label} from Drive`}
+        >
           <ImageIcon className="size-3.5" aria-hidden /> Add from Drive
         </Button>
       }

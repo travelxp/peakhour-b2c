@@ -80,6 +80,8 @@ describe("the composer's rich buttons", () => {
     const src = here("wa-rich-send.tsx");
     expect(src).toMatch(/unusable=\{\(f\) => attachmentProblem\(\{ type: f\.mimeType, size: f\.sizeBytes \}\)\}/);
     expect(src).toContain("requirePublicUrl={false}");
+    // the file goes by id and the api reads its bytes: no signed link is fetched for it
+    expect(src).toContain("needUrl={false}");
   });
 
   it("every button is off while a send is in flight (one press, one send)", () => {

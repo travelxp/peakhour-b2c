@@ -225,6 +225,17 @@ describe("a Private file", () => {
     expect(h.toastError).toHaveBeenCalledWith(expect.stringContaining("Contract"), expect.anything());
   });
 
+  it("a screen that sends the file by id (an Inbox reply) fetches NO link, so a slow or failing link route cannot block it", async () => {
+    h.list.mockResolvedValue(page([priv]));
+    h.link.mockRejectedValue(new Error("503"));
+    const { onSelect } = await mount({ kinds: ["document"], requirePublicUrl: false, needUrl: false });
+    click(tiles()[0]!);
+    click(buttonByText("Add"));
+    await flush();
+    expect(h.link).not.toHaveBeenCalled();
+    expect(onSelect).toHaveBeenCalledWith([expect.objectContaining({ id: "p", url: "", visibility: "private" })]);
+  });
+
   it("assetOf never hands back a Private file as if it had a public link", async () => {
     expect(await assetOf(priv, true)).toBeNull();
     expect(h.link).not.toHaveBeenCalled();
@@ -256,6 +267,19 @@ describe("choosing and adding", () => {
     click(tiles()[1]!);
     expect(text()).toContain("1 selected");
     expect(h.toastInfo).toHaveBeenCalledWith("You can add up to 1 file here.");
+  });
+
+  it("the limit message is said once per press, not from inside a state updater that React may replay", async () => {
+    h.list.mockResolvedValue(page([file("a"), file("b")]));
+    await mount({ maxSelection: 1 });
+    click(tiles()[0]!);
+    click(tiles()[1]!);
+    expect(h.toastInfo).toHaveBeenCalledTimes(1);
+    // deselecting frees the slot
+    click(tiles()[0]!);
+    click(tiles()[1]!);
+    expect(h.toastInfo).toHaveBeenCalledTimes(1);
+    expect(text()).toContain("1 selected");
   });
 
   it("a file the screen cannot use is greyed out with ITS reason, and a Private file's reason comes first", async () => {
@@ -316,6 +340,19 @@ describe("the Upload tab", () => {
     expect(text()).toContain("Your Drive is full. Add space to upload more.");
     expect(text()).toContain("Not added");
     expect(text()).toContain("Nothing selected");
+  });
+
+  it("a file Drive already holds as PRIVATE is not added where a public link is needed, and the person is told why", async () => {
+    h.list.mockResolvedValue(page([]));
+    const deps = goodDeps({ initiate: vi.fn(async () => ({ deduped: true as const, mediaId: "old1", name: "Logo", visibility: "private" as const, sizeBytes: 5 })) });
+    await mount({ uploadOptions: { deps } });
+    click([...host.querySelectorAll<HTMLButtonElement>("[role=tab]")].find((t) => t.textContent === "Upload")!);
+    choose([new File(["hello"], "logo.png", { type: "image/png" })]);
+    await flush();
+    await flush();
+    expect(text()).toContain("already in Drive as a Private file");
+    expect(text()).toContain("Nothing selected");
+    expect(h.toastSuccess).not.toHaveBeenCalled();
   });
 
   it("reads progress in whole megabytes, and says only 'Sending' for a small file", () => {

@@ -121,12 +121,18 @@ function putPartXhr(url: string, body: Blob, onBytes: (sent: number) => void, si
   return new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(new UploadAborted());
     const xhr = new XMLHttpRequest();
+    // One listener per part attempt, taken off when the attempt ends: a long upload with retries must not pile them up on one signal.
+    const onAbort = () => xhr.abort();
+    const settle = (fn: () => void) => () => {
+      signal?.removeEventListener("abort", onAbort);
+      fn();
+    };
     xhr.open("PUT", url);
     xhr.upload.onprogress = (e) => onBytes(e.loaded);
-    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Storage answered ${xhr.status}`)));
-    xhr.onerror = () => reject(new Error("The connection dropped."));
-    xhr.onabort = () => reject(new UploadAborted());
-    signal?.addEventListener("abort", () => xhr.abort(), { once: true });
+    xhr.onload = settle(() => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Storage answered ${xhr.status}`))));
+    xhr.onerror = settle(() => reject(new Error("The connection dropped.")));
+    xhr.onabort = settle(() => reject(new UploadAborted()));
+    signal?.addEventListener("abort", onAbort, { once: true });
     xhr.send(body);
   });
 }
@@ -222,6 +228,7 @@ export async function uploadToDrive(file: File, opts: UploadOptions = {}): Promi
     }
   }
 
+  let completing = false;
   try {
     try {
       await send(started.parts);
@@ -235,6 +242,7 @@ export async function uploadToDrive(file: File, opts: UploadOptions = {}): Promi
       await send(r.parts);
     }
     check();
+    completing = true;
     const result = await d.complete(uploadId);
     opts.onProgress?.({ sent: total, total });
     return {
@@ -248,7 +256,10 @@ export async function uploadToDrive(file: File, opts: UploadOptions = {}): Promi
   } catch (err) {
     // Resume already ran inside the try above, so a failure that reaches here is final for this attempt: throw the parts away rather
     // than leave an open session (a person holds at most 20) until it expires. Trying again starts a fresh upload.
-    await d.abort(uploadId).catch(() => undefined);
+    // EXCEPT a complete whose answer never arrived (no api answer at all): the server may have stitched the file, and discarding its parts
+    // now could undo a finished upload. That session is left to its own expiry; a retry finds the file by its hash and says it is already in Drive.
+    const lostAnswer = completing && !(err instanceof ApiError);
+    if (!lostAnswer) await d.abort(uploadId).catch(() => undefined);
     throw err;
   }
 }

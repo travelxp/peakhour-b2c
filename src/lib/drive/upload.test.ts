@@ -157,3 +157,20 @@ describe("uploading straight to storage", () => {
     expect(uploadErrorMessage(new ApiError("X", "Request failed", 500))).toBe("That upload didn't finish. Check your connection and try again.");
   });
 });
+
+describe("a complete whose answer never arrived", () => {
+  it("is NOT aborted: the server may have finished the file, and aborting could undo it", async () => {
+    const { d } = deps({ complete: vi.fn(async () => Promise.reject(new TypeError("Failed to fetch"))) });
+    await expect(uploadToDrive(file(10), { deps: d })).rejects.toThrow("Failed to fetch");
+    expect(d.abort).not.toHaveBeenCalled();
+  });
+
+  it("but a failure while sending parts still is", async () => {
+    const { d } = deps({
+      putPart: vi.fn(async () => Promise.reject(new Error("drop"))),
+      resume: vi.fn(async () => ({ uploadId: "u1", partSize: PART, partCount: 3, uploaded: [], parts: [{ partNumber: 1, url: "https://r2.test/new/1" }] })),
+    });
+    await expect(uploadToDrive(file(10), { deps: d, partAttempts: 1 })).rejects.toThrow("drop");
+    expect(d.abort).toHaveBeenCalledWith("u1");
+  });
+});

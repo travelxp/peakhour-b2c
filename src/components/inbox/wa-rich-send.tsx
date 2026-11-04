@@ -102,6 +102,7 @@ function AttachButton({ disabled, unknownSig, onSend }: { disabled: boolean; unk
       <DrivePicker
         kinds={["image", "document"]}
         requirePublicUrl={false}
+        needUrl={false}
         maxSelection={1}
         addLabel="Attach"
         unusable={(f) => attachmentProblem({ type: f.mimeType, size: f.sizeBytes })}

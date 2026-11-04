@@ -50,6 +50,8 @@ export interface DrivePickerProps {
   maxSelection?: number;
   /** True (default): the file must have a public link, so a Private file cannot be added. False: a Private file is added with a short-lived signed link. */
   requirePublicUrl?: boolean;
+  /** False when the screen takes only the file's id and reads the bytes itself (an Inbox reply): no link is fetched, so a Private file's `url` is "". Default true. */
+  needUrl?: boolean;
   /** A reason this file cannot be used HERE (wrong type, too big), or null. Shown on the tile, which is greyed out. */
   unusable?: (file: DriveFile) => string | null;
   /** The button: "Add to post". Default "Add". */
@@ -104,6 +106,7 @@ export function DrivePickerPanel({
   kinds = DEFAULT_KINDS,
   maxSelection,
   requirePublicUrl = true,
+  needUrl = true,
   unusable,
   addLabel = "Add",
   onGenerate,
@@ -131,6 +134,8 @@ export function DrivePickerPanel({
     staleTime: 15_000,
   });
 
+  // keyed on the list's CONTENT: callers pass an inline array, which is a new reference every render
+  const kindsKey = kinds.join(",");
   const files = useMemo(() => {
     const seen = new Set<string>();
     const all: DriveFile[] = [];
@@ -140,21 +145,23 @@ export function DrivePickerPanel({
       all.push(f);
     }
     return orderByFit(all, target?.channel);
-  }, [query.data, added, q, kinds, target?.channel]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `kinds` is read through kindsKey
+  }, [query.data, added, q, kindsKey, target?.channel]);
 
   function toggle(file: DriveFile) {
-    setSelected((prev) => {
-      const next = new Map(prev);
-      if (next.has(file.id)) next.delete(file.id);
-      else {
-        if (maxSelection !== undefined && next.size >= maxSelection) {
-          toast.info(`You can add up to ${maxSelection} ${maxSelection === 1 ? "file" : "files"} here.`);
-          return prev;
-        }
-        next.set(file.id, file);
-      }
-      return next;
-    });
+    if (selected.has(file.id)) {
+      setSelected((prev) => {
+        const next = new Map(prev);
+        next.delete(file.id);
+        return next;
+      });
+      return;
+    }
+    if (maxSelection !== undefined && selected.size >= maxSelection) {
+      toast.info(`You can add up to ${maxSelection} ${maxSelection === 1 ? "file" : "files"} here.`);
+      return;
+    }
+    setSelected((prev) => new Map(prev).set(file.id, file));
   }
 
   async function add() {
@@ -162,7 +169,7 @@ export function DrivePickerPanel({
     try {
       const assets: MediaAsset[] = [];
       for (const f of selected.values()) {
-        const asset = await assetOf(f, requirePublicUrl);
+        const asset = await assetOf(f, requirePublicUrl, needUrl);
         if (!asset) {
           toast.error(`We couldn't get a link for "${f.name}".`, { description: f.visibility === "private" ? PRIVATE_NEEDS_PUBLIC : "Try again in a moment." });
           return;
@@ -573,6 +580,11 @@ function UploadTab({
           onProgress: ({ sent }) => patch(row.key, { sent }),
           ...uploadOptions,
         });
+        if (requirePublicUrl && res.visibility === "private") {
+          // Drive already held this exact file as a Private one, so nothing new was made Published. Say so rather than add a tile that is greyed out.
+          patch(row.key, { status: "error", error: "This file is already in Drive as a Private file, and this needs a public link. Publish it in Drive, then choose it here." });
+          continue;
+        }
         patch(row.key, { status: "done", sent: row.file.size, result: res });
         done.push({ ...res, mimeType: row.file.type });
       } catch (err) {
@@ -761,20 +773,25 @@ export function kindOfMime(mime: string): DriveKind {
  * What the screen receives for a chosen file. A Published file's `url` is its public one. A Private file's is a SIGNED link that expires
  * (`linkExpiresInSeconds` says when), fetched now; null when the link could not be made, so the caller never gets a file with no way to read it.
  */
-export async function assetOf(f: DriveFile, requirePublicUrl: boolean): Promise<MediaAsset | null> {
+export async function assetOf(f: DriveFile, requirePublicUrl: boolean, needUrl = true): Promise<MediaAsset | null> {
   let url = f.publicUrl;
   let expires: number | undefined;
   if (f.visibility === "private") {
     if (requirePublicUrl) return null;
-    try {
-      const link = await getFileLink(f.id);
-      url = link.url;
-      expires = link.expiresInSeconds ?? undefined;
-    } catch {
-      return null;
+    if (!needUrl) {
+      // The screen sends the file by id: no link is fetched, so a slow or failing link route cannot block it.
+      url = "";
+    } else {
+      try {
+        const link = await getFileLink(f.id);
+        url = link.url;
+        expires = link.expiresInSeconds ?? undefined;
+      } catch {
+        return null;
+      }
     }
   }
-  if (!url) return null;
+  if (url === undefined || (url === "" && needUrl)) return null;
   return {
     id: f.id,
     url,
