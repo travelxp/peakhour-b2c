@@ -195,7 +195,8 @@ describe("the file panel", () => {
     expect(text).toContain("Expires after");
     expect(text).toContain("Password (optional");
     expect(html.match(/data-testid="share-link-row"/g)).toHaveLength(2);
-    expect(html.match(/aria-label="Opened by"/g)!.length).toBeGreaterThanOrEqual(2);
+    // only a link that has been opened reads its history; the other says so without a request
+    expect(html.match(/aria-label="Opened by"/g)).toHaveLength(1);
     expect(text).toContain("Not opened yet.");
     expect(text).toContain("opened 2 times");
     // only the live link can be revoked

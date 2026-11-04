@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createShareLink, listShareLinks, revokeShareLink, type ShareLinkRow } from "@/lib/api/media";
 import { SharePrivacyNote, ShareAccessPanel } from "./share-privacy";
-import { openedAtText } from "@/lib/drive-share-copy";
+import { NOT_OPENED_YET, openedAtText } from "@/lib/drive-share-copy";
 
 /**
  * Share links for one PRIVATE file, in the file panel: make a link (expiry and optional password, with the line that says what opening
@@ -33,6 +33,9 @@ export interface ShareLinksViewProps {
   onPassword: (p: string) => void;
   onCreate: () => void;
   onRevoke: (id: string) => void;
+  /** The address of the link just made: shown once, in a field that stays until it is dismissed (addresses are never listed again). */
+  createdUrl?: string | null;
+  revoking?: boolean;
 }
 
 function state(l: ShareLinkRow, now: Date): "revoked" | "expired" | "live" {
@@ -58,6 +61,9 @@ export function ShareLinksView(p: ShareLinksViewProps) {
           <Input type="password" autoComplete="new-password" value={p.password} onChange={(e) => p.onPassword(e.target.value)} />
         </label>
         <SharePrivacyNote />
+        {p.createdUrl ? (
+          <Input readOnly aria-label="The new link" value={p.createdUrl} onFocus={(e) => e.currentTarget.select()} />
+        ) : null}
         <Button type="button" variant="outline" disabled={p.creating || (p.password.length > 0 && p.password.length < 8)} onClick={p.onCreate}>
           {p.creating ? "Making the link." : "Make link and copy"}
         </Button>
@@ -81,15 +87,20 @@ export function ShareLinksView(p: ShareLinksViewProps) {
                     {`, opened ${l.openCount} ${l.openCount === 1 ? "time" : "times"}`}
                   </span>
                   {s === "live" ? (
-                    <Button type="button" size="sm" variant="ghost" onClick={() => p.onRevoke(l.id)}>
+                    <Button type="button" size="sm" variant="ghost" disabled={p.revoking} onClick={() => p.onRevoke(l.id)}>
                       Revoke
                     </Button>
                   ) : null}
                 </div>
-                <details>
-                  <summary className="cursor-pointer text-xs text-muted-foreground">Opened by</summary>
-                  <ShareAccessPanel shareId={l.id} />
-                </details>
+                {/* The history holds visitors' addresses: read it only for a link that has been opened. */}
+                {l.openCount > 0 ? (
+                  <details>
+                    <summary className="cursor-pointer text-xs text-muted-foreground">Opened by</summary>
+                    <ShareAccessPanel shareId={l.id} />
+                  </details>
+                ) : (
+                  <p className="text-xs text-muted-foreground">{NOT_OPENED_YET}</p>
+                )}
               </li>
             );
           })}
@@ -103,18 +114,20 @@ export function ShareLinksPanel({ mediaId }: { mediaId: string }) {
   const qc = useQueryClient();
   const [expiryDays, setExpiryDays] = useState(7);
   const [password, setPassword] = useState("");
+  const [createdUrl, setCreatedUrl] = useState<string | null>(null);
   const q = useQuery({ queryKey: ["drive-share-links", mediaId], queryFn: () => listShareLinks(mediaId), retry: 1 });
   const create = useMutation({
     mutationFn: () => createShareLink(mediaId, { expiresInDays: expiryDays, ...(password ? { password } : {}) }),
     onSuccess: async (r) => {
       setPassword("");
+      setCreatedUrl(r.url);
+      void qc.invalidateQueries({ queryKey: ["drive-share-links", mediaId] });
       try {
         await navigator.clipboard.writeText(r.url);
         toast.success("Link copied.");
       } catch {
-        toast.success(`Link made: ${r.url}`);
+        toast.message("Link made. Copy it from the field below.");
       }
-      void qc.invalidateQueries({ queryKey: ["drive-share-links", mediaId] });
     },
     onError: () => toast.error("A link could not be made. Try again in a moment."),
   });
@@ -136,6 +149,8 @@ export function ShareLinksPanel({ mediaId }: { mediaId: string }) {
       onPassword={setPassword}
       onCreate={() => create.mutate()}
       onRevoke={(id) => revoke.mutate(id)}
+      createdUrl={createdUrl}
+      revoking={revoke.isPending}
     />
   );
 }
