@@ -64,6 +64,13 @@ describe("the charge record", () => {
     expect(out).toContain("1 charge and 1 refund shown");
   });
 
+  it("groups thousands the way every Peaks figure does, charge and refund alike", () => {
+    h.charges.data = pages([refundLine({ credits: -1500 }), line({ credits: 2500 })]);
+    const out = html();
+    expect(out).toContain(">-1,500<");
+    expect(out).toContain(">2,500<");
+  });
+
   it("says what is happening when there is nothing yet, or it could not load", () => {
     h.charges.isLoading = true;
     expect(html()).toContain("Loading…");
