@@ -45,8 +45,8 @@ describe("Presence says what it does", () => {
     expect(home).not.toContain("Coming with Presence");
     expect(home).not.toContain("we keep them in sync across every network");
     expect(home).not.toContain("Explain this");
-    expect(home).toContain("<ListingPanel location={location} />");
-    expect(home).toContain("<InsightsPanel location={location} />");
+    expect(home).toContain("<ListingPanel location={panelLocation} />");
+    expect(home).toContain("<InsightsPanel location={panelLocation} />");
   });
 });
 

@@ -128,11 +128,13 @@ export const presenceInsightsQueryKey = (days: number, location: string | undefi
 export function locationSwitcher(
   locations: readonly PresenceLocation[] | undefined,
   chosen: string | undefined,
-): { options: Array<{ value: string; label: string }>; value: string } | null {
+): { options: Array<{ value: string; label: string }>; value: string; isDefault: boolean } | null {
   if (!locations || locations.length < 2) return null;
   const value = locations.some((l) => l.locationName === chosen) ? (chosen as string) : locations[0]!.locationName;
   return {
     value,
+    // The first listing is the api's default, so asking for it by name is the same read as not asking.
+    isDefault: value === locations[0]!.locationName,
     options: locations.map((l) => ({ value: l.locationName, label: l.title?.trim() || l.locationName })),
   };
 }

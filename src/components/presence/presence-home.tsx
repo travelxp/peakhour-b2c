@@ -48,6 +48,8 @@ export function PresenceHome() {
   const switcher = locationSwitcher(listAnswer.data?.connection?.locations, chosen);
   // Panels follow the switcher only when it is shown; a one-listing business is read as before.
   const location = switcher?.value;
+  // The listing and insights panels share the default read's cache unless another listing is chosen.
+  const panelLocation = switcher && !switcher.isDefault ? switcher.value : undefined;
 
   return (
     <FeatureGate feature="presence.nav" featureName="Presence" mode="hide">
@@ -93,9 +95,9 @@ export function PresenceHome() {
 
         <ReviewSummaryCard location={location} />
 
-        <ListingPanel location={location} />
+        <ListingPanel location={panelLocation} />
 
-        <InsightsPanel location={location} />
+        <InsightsPanel location={panelLocation} />
 
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
           <MessageSquareText className="h-4 w-4" />

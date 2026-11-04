@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tan
 import { toast } from "sonner";
 import { MapPin, ArrowRight, RefreshCw, AlertTriangle, Check } from "lucide-react";
 import { api } from "@/lib/api";
+import { REVIEW_SUMMARY_QUERY_KEY } from "@/lib/review-summary";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -132,6 +133,7 @@ export function GbpConnectCard() {
       );
       // The Presence page's switcher and the composer's chooser read the set too.
       void qc.invalidateQueries({ queryKey: ["presence"] });
+      void qc.invalidateQueries({ queryKey: REVIEW_SUMMARY_QUERY_KEY });
       void qc.invalidateQueries({ queryKey: ["content-hub-integrations"] });
       qc.invalidateQueries({ queryKey: CAP_KEY });
       qc.invalidateQueries({ queryKey: STATUS_KEY });
@@ -427,8 +429,8 @@ function LocationPicker({
   return (
     <div className="mt-5 space-y-3 border-t pt-5">
       <p className="text-sm text-muted-foreground">
-        Tick every listing this business should manage. You can change this at any time; a listing you
-        remove stops syncing and keeps its past figures and reviews.
+        Tick every listing this business should manage (at least one). You can change this at any time; a
+        listing you untick stops syncing and keeps its past figures and reviews.
       </p>
       <ul className="space-y-2">
         {locations.map((l) => {

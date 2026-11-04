@@ -319,6 +319,12 @@ describe("locationSwitcher - only when there is a choice", () => {
     expect(locationSwitcher(two, undefined)?.value).toBe("locations/1");
   });
 
+  it("the first listing is the api's default, so only another listing is asked for by name", () => {
+    expect(locationSwitcher(two, undefined)?.isDefault).toBe(true);
+    expect(locationSwitcher(two, "locations/1")?.isDefault).toBe(true);
+    expect(locationSwitcher(two, "locations/2")?.isDefault).toBe(false);
+  });
+
   it("a choice that is no longer managed falls back to the first, never to a place the api refuses", () => {
     expect(locationSwitcher(two, "locations/9")?.value).toBe("locations/1");
   });

@@ -278,6 +278,9 @@ export function SchedulerComposer({
   // when the badge and the count should already include it and the button
   // should be disabled, rather than the panel appearing to switch itself off.
   const listingBlockers = listingActive ? listingProblems(listingDraft) : [];
+  // With several listings the post needs one chosen: the button says so instead of looking sendable.
+  const listingLocationMissing =
+    listingActive && resolveListingLocation(listingTarget.locations, listingLocation) === null;
 
   const submit = async () => {
     if (channels.length === 0 && !listingActive) {
@@ -514,6 +517,7 @@ export function SchedulerComposer({
           submitting ||
           (channels.length === 0 && !listingActive) ||
           listingBlockers.length > 0 ||
+          listingLocationMissing ||
           loading ||
           bundleExceedsCap ||
           bundlesLocked
