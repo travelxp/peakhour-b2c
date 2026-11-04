@@ -284,6 +284,55 @@ describe("composerStateFor — what the merchant is handed", () => {
     expect(state.canSend).toBe(true);
   });
 
+  it("★★★a rejected reply is offered back to fix, with Google's reason in words", () => {
+    const state = composerStateFor(
+      row({
+        review: review({
+          replyState: "rejected",
+          replyRejectedText: "You are wrong",
+          replyPolicyViolation: "OFF_TOPIC",
+        }),
+      }),
+    );
+    expect(state.rejected).toEqual({ text: "You are wrong", reason: "off topic" });
+    expect(state.initialText).toBe("You are wrong");
+    expect(state.published).toBeUndefined();
+    expect(state.canSend).toBe(true);
+  });
+
+  it("★a rejection with no reason or text still reports the rejection", () => {
+    const state = composerStateFor(row({ review: review({ replyState: "rejected" }) }));
+    expect(state.rejected).toEqual({ text: undefined, reason: undefined });
+    expect(state.initialText).toBe("");
+  });
+
+  it("★★a rejected reply leaves the review waiting for an answer", () => {
+    const item = row({ review: review({ replyState: "rejected", replyRejectedText: "No." }) });
+    expect(hasPublishedReply(item)).toBe(false);
+    expect(needsAnswer(item)).toBe(true);
+  });
+
+  it("★★a live reply outranks a rejection left on the row", () => {
+    const state = composerStateFor(
+      row({ review: review({ replyState: "rejected", replyPublished: "Thanks!", replyRejectedText: "No." }) }),
+    );
+    expect(state.rejected).toBeUndefined();
+    expect(state.initialText).toBe("Thanks!");
+  });
+
+  it("★★a reply Google is still checking is not called published", () => {
+    const pending = composerStateFor(row({ review: review({ replyState: "pending", replyPublished: "Thanks!" }) }));
+    expect(pending.pendingCheck).toBe(true);
+    const approved = composerStateFor(row({ review: review({ replyState: "approved", replyPublished: "Thanks!" }) }));
+    expect(approved.pendingCheck).toBe(false);
+    const older = composerStateFor(row({ review: review({ replyPublished: "Thanks!" }) }));
+    expect(older.pendingCheck).toBe(false);
+  });
+
+  it("★pending with no reply to show is not a pending reply", () => {
+    expect(composerStateFor(row({ review: review({ replyState: "pending" }) })).pendingCheck).toBe(false);
+  });
+
   it("★★prefills the box with the reply already published, so editing means editing", () => {
     const state = composerStateFor(row({ review: review({ replyPublished: "Thanks, Jo!" }) }));
     expect(state.initialText).toBe("Thanks, Jo!");

@@ -62,6 +62,12 @@ export interface ReviewPayload {
   /** What we last published to the listing. */
   replyPublished?: string;
   replyPublishedAt?: string;
+  /** Google's moderation result. Absent means Google reported none. */
+  replyState?: "pending" | "approved" | "rejected";
+  /** The words Google refused. Never live, so never `replyPublished`. */
+  replyRejectedText?: string;
+  /** Google's reason code, which it may add to at any time. */
+  replyPolicyViolation?: string;
 }
 
 /** Just enough of an inbox row to answer everything below. */
@@ -266,6 +272,10 @@ export interface ComposerState {
   suggestion?: string;
   /** What is live on the listing right now, when anything is. */
   published?: string;
+  /** Google is still checking `published`, so customers may not see it yet. */
+  pendingCheck: boolean;
+  /** Google refused the last reply. Absent when it did not. */
+  rejected?: { text?: string; reason?: string };
   /** Sending is possible at all. */
   canSend: boolean;
   /** Why not, when not — a sentence, not a code. */
@@ -287,15 +297,22 @@ export interface ComposerState {
  * means: Google's reply endpoint is a PUT, the merchant is looking at their own
  * published words, and the api answers "unchanged" if they send them back
  * untouched. That is not the same act as sending a suggestion nobody read.
+ *
+ * ★★A REJECTED REPLY IS PREFILLED TOO, for the same reason. They are the
+ * merchant's own words, and fixing them is the one thing left to do.
  */
 export function composerStateFor(item: ReviewItemLike): ComposerState {
   const suggestion = item.review?.replyDraft?.trim() || undefined;
   const published = item.review?.replyPublished?.trim() || undefined;
+  const pendingCheck = Boolean(published) && item.review?.replyState === "pending";
+  const rejected = rejectionOf(item);
   if (!isRepliableReview(item)) {
     return {
       initialText: "",
       suggestion,
       published,
+      pendingCheck,
+      rejected,
       canSend: false,
       blockedReason:
         item.source !== REVIEW_SOURCE || item.review?.network !== REVIEW_NETWORK
@@ -303,7 +320,38 @@ export function composerStateFor(item: ReviewItemLike): ComposerState {
           : "We don't have a reference for this review on Google, so it has to be answered in your Business Profile.",
     };
   }
-  return { initialText: published ?? "", suggestion, published, canSend: true };
+  return {
+    initialText: published ?? rejected?.text ?? "",
+    suggestion,
+    published,
+    pendingCheck,
+    rejected,
+    canSend: true,
+  };
+}
+
+/**
+ * What Google refused, if it did.
+ *
+ * ★A LIVE REPLY OUTRANKS AN OLD REJECTION. The api clears the rejection on a
+ * resend, but if the two ever sit on one row, telling the merchant their reply
+ * is rejected while it shows on the listing would send them to fix nothing.
+ */
+function rejectionOf(item: ReviewItemLike): ComposerState["rejected"] {
+  if (item.review?.replyState !== "rejected" || item.review.replyPublished?.trim()) return undefined;
+  const text = item.review.replyRejectedText?.trim() || undefined;
+  const code = item.review.replyPolicyViolation?.trim();
+  return { text, reason: code ? policyReason(code) : undefined };
+}
+
+/**
+ * Google's code as words.
+ *
+ * ★SPELLED OUT, NOT LOOKED UP. Google says it may add codes, so a table would
+ * show nothing for the new ones. `OFF_TOPIC` reads well enough as "off topic".
+ */
+function policyReason(code: string): string {
+  return code.toLowerCase().replaceAll("_", " ");
 }
 
 /**

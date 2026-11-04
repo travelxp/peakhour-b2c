@@ -230,7 +230,7 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
             </Badge>
             {state.published ? (
               <Badge variant="outline" className="text-[10px]">
-                replied
+                {state.pendingCheck ? "checking" : "replied"}
               </Badge>
             ) : (
               <span className="text-[11px] font-medium text-warning-on-tint">unanswered</span>
@@ -266,10 +266,23 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
       {state.published && (
         <div className="mt-2 rounded-md bg-muted/40 p-2 text-xs">
           <p className="font-medium">
-            Your published reply
+            {state.pendingCheck ? "Your reply, waiting for Google's check" : "Your published reply"}
             {item.review?.replyPublishedAt ? ` · ${formatDate(item.review.replyPublishedAt)}` : ""}
           </p>
           <p className="mt-0.5 whitespace-pre-wrap text-muted-foreground">{state.published}</p>
+        </div>
+      )}
+
+      {/* Customers cannot see a rejected reply, so the review still needs one. */}
+      {state.rejected && (
+        <div className="mt-2 rounded-md bg-muted/40 p-2 text-xs">
+          <p className="font-medium text-warning-on-tint">
+            Google rejected your reply, so customers can&apos;t see it
+          </p>
+          <p className="mt-0.5 text-muted-foreground">
+            {state.rejected.reason ? `Reason: ${state.rejected.reason}. ` : ""}
+            Edit it and send it again.
+          </p>
         </div>
       )}
 
