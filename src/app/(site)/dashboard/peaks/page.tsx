@@ -47,6 +47,7 @@ import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { toastUnhandledApiError } from "@/lib/toast-errors";
 import { onePress } from "@/lib/one-press";
 import { StoragePeaksCard } from "@/components/media/storage-peaks-card";
+import { ShopperCapCard } from "@/components/dashboard/shopper-cap-card";
 
 // ── Formatting helpers ────────────────────────────────────────────────────
 
@@ -543,6 +544,7 @@ export default function PeaksPage() {
 
         {/* ── Storage: its own line, apart from AI work ────────────── */}
         <StoragePeaksCard />
+        <ShopperCapCard />
 
         {/* ── What was charged, charge by charge ────────────────────── */}
         <ChargeRecordCard />

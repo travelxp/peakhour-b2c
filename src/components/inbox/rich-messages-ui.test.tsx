@@ -4,10 +4,15 @@ import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 
 // Markup only: every hook module is replaced so nothing here reaches the api, the router or the auth provider.
-vi.mock("@/providers/auth-provider", () => ({ useAuth: () => ({ business: { _id: "b1" } }) }));
+const auth = vi.hoisted(() => ({ role: "editor" as string }));
+vi.mock("@/providers/auth-provider", () => ({ useAuth: () => ({ business: { _id: "b1" }, org: { _id: "o1" }, orgs: [{ _id: "o1", role: auth.role }] }) }));
 vi.mock("@/hooks/use-inbox-media", () => ({
   useThreadMedia: () => ({ data: undefined, isError: false, isFetching: false, error: null, refetch: async () => {} }),
   useObjectUrl: () => null,
+}));
+// The Save to Drive button needs a query client; its own behaviour is tested in drive/replace-file.test.tsx. Here it is a marker with the source it was given.
+vi.mock("@/components/drive/save-to-drive", () => ({
+  SaveToDriveButton: ({ source, label }: { source: unknown; label: string }) => <button data-save-source={JSON.stringify(source)}>{label}</button>,
 }));
 vi.mock("@/hooks/use-wa-conversations", () => ({
   useInboxProducts: () => ({ data: { products: [] }, isLoading: false, isError: false, isSuccess: true, refetch: async () => {} }),
@@ -36,6 +41,27 @@ describe("an attachment in a bubble", () => {
     const doc = at({ kind: "document", filename: "invoice.pdf", bytes: 2 * 1024 * 1024 });
     expect(doc).toContain("Download invoice.pdf");
     expect(doc).toContain("2.0 MB");
+  });
+
+  it("a photo, video or document can be saved to Drive, privately, by the conversation and the message's own key; a voice note or sticker cannot", () => {
+    const at = (m: Record<string, unknown>) => renderToStaticMarkup(<BubbleMedia threadId="whatsapp:1:abc" media={media(m)} />);
+    for (const kind of ["image", "video", "document"]) {
+      const html = at({ kind });
+      expect(html, kind).toContain("Save to Drive (private)");
+      expect(html, kind).toContain(`data-save-source="{&quot;from&quot;:&quot;inbox&quot;,&quot;threadId&quot;:&quot;whatsapp:1:abc&quot;,&quot;ref&quot;:&quot;${"a".repeat(64)}&quot;}"`);
+    }
+    for (const kind of ["audio", "sticker"]) expect(at({ kind }), kind).not.toContain("Save to Drive");
+  });
+
+  it("a viewer is not offered Save to Drive", () => {
+    auth.role = "viewer";
+    try {
+      const html = renderToStaticMarkup(<BubbleMedia threadId="whatsapp:1:abc" media={media()} />);
+      expect(html).toContain("View photo");
+      expect(html).not.toContain("Save to Drive");
+    } finally {
+      auth.role = "editor";
+    }
   });
 
   it("the bubble shows the button and not the placeholder line it stands in for", () => {

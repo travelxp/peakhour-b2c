@@ -13,6 +13,7 @@
 import { describe, it, expect } from "vitest";
 import {
   listingPlanTarget,
+  resolveListingLocation,
   listingTargetFrom,
   shouldOfferListing,
   LISTING_CHANNEL,
@@ -21,10 +22,10 @@ import {
 } from "./listing-target";
 import { buildListingChannelOptions, emptyListingDraft, type ListingDraft } from "./local-post";
 
-const connectedRow = (locationName: string | null): IntegrationRowLike => ({
+const connectedRow = (...locationNames: string[]): IntegrationRowLike => ({
   provider: LISTING_PROVIDER,
   connected: true,
-  account: { extra: { locationName } },
+  account: { extra: { locationNames } },
 });
 
 const draft = (over: Partial<ListingDraft> = {}): ListingDraft => ({
@@ -37,6 +38,7 @@ describe("listingTargetFrom — may we offer it", () => {
     expect(listingTargetFrom([LISTING_CHANNEL], [connectedRow("locations/222")])).toEqual({
       available: true,
       locationPicked: true,
+      locations: [{ locationName: "locations/222", title: null }],
     });
   });
 
@@ -63,14 +65,14 @@ describe("listingTargetFrom — may we offer it", () => {
     expect(listingTargetFrom([LISTING_CHANNEL], undefined).available).toBe(false);
   });
 
-  it("★★★reads NULL as connected-but-unpicked, not as picked", () => {
+  it("★★★reads an EMPTY list as connected-but-unpicked, not as picked", () => {
     // The publisher refuses a connection with nothing selected, terminally.
-    const t = listingTargetFrom([LISTING_CHANNEL], [connectedRow(null)]);
+    const t = listingTargetFrom([LISTING_CHANNEL], [connectedRow()]);
     expect(t.available).toBe(true);
     expect(t.locationPicked).toBe(false);
   });
 
-  it("★★★reads an ABSENT locationName as unpicked too — an old api cannot say", () => {
+  it("★★★reads an ABSENT locationNames as unpicked too — an old api cannot say", () => {
     const t = listingTargetFrom([LISTING_CHANNEL], [
       { provider: LISTING_PROVIDER, connected: true, account: { extra: {} } },
     ]);
@@ -86,6 +88,7 @@ describe("listingTargetFrom — may we offer it", () => {
     expect(listingTargetFrom([LISTING_CHANNEL], rows)).toEqual({
       available: true,
       locationPicked: true,
+      locations: [{ locationName: "locations/222", title: null }],
     });
   });
 
@@ -183,7 +186,13 @@ describe("buildListingChannelOptions — the Call button, belt and braces", () =
 });
 
 describe("listingPlanTarget — what it contributes", () => {
-  const on = { offered: true, locationPicked: true, enabled: true };
+  const on = {
+    offered: true,
+    locationPicked: true,
+    enabled: true,
+    locations: [{ locationName: "locations/222", title: null }],
+    chosenLocation: null as string | null,
+  };
 
   it("★★★contributes the listing channel when everything is in place", () => {
     const t = listingPlanTarget({ ...on, draft: draft() });
@@ -267,5 +276,45 @@ describe("listingPlanTarget — what it contributes", () => {
       event: { title: "Winter sale", startDate: "2026-12-01" },
       offer: { couponCode: "WINTER20" },
     });
+  });
+});
+
+describe("several listings: a post is for ONE the merchant chose", () => {
+  const two = [
+    { locationName: "locations/1", title: "Bandra" },
+    { locationName: "locations/2", title: null },
+  ];
+  const on = { offered: true, locationPicked: true, enabled: true, draft: draft(), locations: two };
+
+  it("lists every listing the connection manages, with titles where known", () => {
+    const row: IntegrationRowLike = {
+      provider: LISTING_PROVIDER,
+      connected: true,
+      account: { extra: { locationNames: ["locations/1", "locations/2"], locations: [{ locationName: "locations/1", title: "Bandra" }] } },
+    };
+    expect(listingTargetFrom([LISTING_CHANNEL], [row]).locations).toEqual(two);
+  });
+
+  it("resolveListingLocation: one listing needs no choice; several need a valid one, never the first", () => {
+    expect(resolveListingLocation([two[0]!], null)).toBe("locations/1");
+    expect(resolveListingLocation(two, "locations/2")).toBe("locations/2");
+    expect(resolveListingLocation(two, null)).toBeNull();
+    expect(resolveListingLocation(two, "locations/9")).toBeNull();
+    expect(resolveListingLocation([], "locations/1")).toBeNull();
+  });
+
+  it("contributes nothing until a listing is chosen - never all, never the first", () => {
+    expect(listingPlanTarget({ ...on, chosenLocation: null })).toBeNull();
+    expect(listingPlanTarget({ ...on, chosenLocation: "locations/9" })).toBeNull();
+  });
+
+  it("names the chosen listing in the options the publisher reads", () => {
+    const t = listingPlanTarget({ ...on, chosenLocation: "locations/2" });
+    expect(t?.payload.channelOptions).toMatchObject({ locationName: "locations/2" });
+  });
+
+  it("a one-listing connection still names its listing", () => {
+    const t = listingPlanTarget({ ...on, locations: [two[0]!], chosenLocation: null });
+    expect(t?.payload.channelOptions).toMatchObject({ locationName: "locations/1" });
   });
 });
