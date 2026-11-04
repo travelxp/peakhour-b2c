@@ -22,6 +22,7 @@ import {
   reviewerLabel,
   shouldAdoptPublishedReply,
   shouldRefreshAfter,
+  shouldRefreshAfterRefusal,
   REVIEW_REPLY_MAX_LENGTH,
   TRANSPORT_ERROR_CODE,
   type ReplyOutcome,
@@ -162,6 +163,7 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
       const detail = err instanceof ApiError ? err : { code: TRANSPORT_ERROR_CODE };
       setRefusal(replyRefusal(detail));
       setOutcome(null);
+      if (shouldRefreshAfterRefusal(detail.code)) onChanged();
     },
   });
 
@@ -262,7 +264,7 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
         )}
       </div>
 
-      {/* What is live on the listing right now. */}
+      {/* The reply on the listing, or waiting for Google's check. */}
       {state.published && (
         <div className="mt-2 rounded-md bg-muted/40 p-2 text-xs">
           <p className="font-medium">
@@ -279,10 +281,9 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
           <p className="font-medium text-warning-on-tint">
             Google rejected your reply, so customers can&apos;t see it
           </p>
-          <p className="mt-0.5 text-muted-foreground">
-            {state.rejected.reason ? `Reason: ${state.rejected.reason}. ` : ""}
-            Edit it and send it again.
-          </p>
+          {state.rejected.note && (
+            <p className="mt-0.5 text-muted-foreground">{state.rejected.note}</p>
+          )}
         </div>
       )}
 
