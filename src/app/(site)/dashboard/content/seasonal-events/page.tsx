@@ -47,6 +47,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { withHolidayFields, type SeasonalEventType } from "./seasonal-event-wire";
 
 // ── Types ───────────────────────────────────────────────────────
 
@@ -69,6 +70,12 @@ interface SeasonalEvent {
   dates?: Record<string, string>;
   /** Absent === confirmed on read. */
   status?: SeasonalEventStatus;
+  /** PE-08. From the platform pack; this page has no control for them and
+   *  carries them through a save (see ./seasonal-event-wire.ts). */
+  type?: SeasonalEventType;
+  region?: string;
+  closureLikely?: boolean;
+  source?: string;
 }
 
 const STATUS_OPTIONS: { value: SeasonalEventStatus; label: string }[] = [
@@ -792,10 +799,15 @@ function SeasonalEventEditor({
         if (!/^\d{4}-\d{2}-\d{2}$/.test(row.date)) continue;
         dates[row.year] = row.date;
       }
-      const wire: SeasonalEvent = {
-        name: trimmedName,
-        month,
-      };
+      // The four PE-08 fields have no control here; start from the event this
+      // dialog was opened on so a save does not erase them.
+      const wire: SeasonalEvent = withHolidayFields(
+        {
+          name: trimmedName,
+          month,
+        },
+        initial,
+      );
       const trimmedRelevance = relevance.trim();
       if (trimmedRelevance) wire.relevance = trimmedRelevance;
       if (Object.keys(dates).length > 0) wire.dates = dates;

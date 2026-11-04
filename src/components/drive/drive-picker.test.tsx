@@ -9,7 +9,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { DriveFile } from "@/lib/drive/files";
-import { UploadAborted, type UploadDeps } from "@/lib/drive/upload";
+import { UploadAborted, type UploadDeps } from "@/lib/drive/upload-engine";
 
 const h = vi.hoisted(() => ({
   list: vi.fn(),
@@ -313,12 +313,12 @@ describe("choosing and adding", () => {
 
 describe("the Upload tab", () => {
   const goodDeps = (over: Partial<UploadDeps> = {}): Partial<UploadDeps> => ({
-    sha256Hex: async () => "a".repeat(64),
-    measureImage: async () => undefined,
+    hash: async () => "a".repeat(64),
+    probe: async () => ({}),
     initiate: vi.fn(async () => ({ deduped: false as const, uploadId: "u1", visibility: "published" as const, kind: "image", partSize: 100, partCount: 1, parts: [{ partNumber: 1, url: "https://r2.test/1" }], expiresAt: "x" })),
     putPart: vi.fn(async () => undefined),
     complete: vi.fn(async () => ({ mediaId: "new1", name: "Tin", publicUrl: "https://media.test/new1.jpg", visibility: "published" as const, sizeBytes: 5, deduped: false })),
-    abort: vi.fn(async () => undefined),
+    abort: vi.fn(async () => ({ aborted: true })),
     ...over,
   });
   const choose = (files: File[]) => {
