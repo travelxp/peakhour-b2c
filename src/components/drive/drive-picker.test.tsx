@@ -14,11 +14,16 @@ import { UploadAborted, type UploadDeps } from "@/lib/drive/upload-engine";
 const h = vi.hoisted(() => ({
   list: vi.fn(),
   link: vi.fn(),
+  generate: vi.fn(),
+  price: { quote: undefined as unknown, loading: false, unavailable: false, reason: undefined as unknown },
   toastInfo: vi.fn(),
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
 }));
 vi.mock("@/lib/drive/files", async (orig) => ({ ...(await orig<typeof import("@/lib/drive/files")>()), listDriveFiles: h.list, getFileLink: h.link }));
+vi.mock("@/lib/drive/generate", () => ({ generateImageToDrive: h.generate }));
+// the price comes from the rate card over the network; the tab's use of it is what is under test
+vi.mock("@/hooks/use-peaks-quote", async (orig) => ({ ...(await orig<typeof import("@/hooks/use-peaks-quote")>()), usePeaksQuote: vi.fn(() => h.price) }));
 vi.mock("sonner", () => ({ toast: { info: h.toastInfo, error: h.toastError, success: h.toastSuccess } }));
 
 const { DrivePickerPanel, assetOf, blockedReason, gridState, progressWords } = await import("./drive-picker");
@@ -28,6 +33,7 @@ let root: Root;
 let host: HTMLElement;
 beforeEach(() => {
   vi.resetAllMocks();
+  h.price = { quote: undefined, loading: false, unavailable: false, reason: undefined };
 });
 afterEach(() => {
   act(() => root.unmount());
@@ -421,12 +427,56 @@ describe("the Upload tab", () => {
 describe("Generate", () => {
   const openGenerate = () => click([...host.querySelectorAll<HTMLButtonElement>("[role=tab]")].find((t) => t.textContent === "Generate")!);
 
-  it("says plainly when the screen cannot make files, instead of a dead form", async () => {
+  it("says plainly when the screen takes nothing the picker can make (no image), instead of a dead form", async () => {
     h.list.mockResolvedValue(page([]));
-    await mount();
+    await mount({ kinds: ["document"] });
     openGenerate();
     expect(text()).toContain("Generating isn't available here");
     expect(host.querySelector("textarea")).toBeNull();
+  });
+
+  it("a screen with no generator of its own still generates images: the tab shows the price first, then makes the image, charged with the quote shown", async () => {
+    h.list.mockResolvedValue(page([]));
+    h.price = { quote: { action: "content.generate_image", useCase: "creative_image", label: "Image", description: null, peaks: 40, breakdown: [], free: false, source: "code", token: "quote-token-1", expiresAt: Date.now() + 600_000 }, loading: false, unavailable: false, reason: undefined };
+    const made = { id: "g9", url: "https://media.test/g9.png", mime: "image/png", source: "ai_image" as const, createdAt: "2026-11-04T10:00:00.000Z" };
+    h.generate.mockResolvedValue(made);
+    const { onSelect } = await mount();
+    openGenerate();
+    expect(host.querySelector("textarea")).not.toBeNull();
+    expect(text()).toContain("40"); // the cost is on screen before the button is pressed
+    const box = host.querySelector<HTMLTextAreaElement>("textarea")!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(box, "A blue tin of Assam tea");
+      box.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    click(buttonByText("Make an image"));
+    await flush();
+    expect(h.generate).toHaveBeenCalledWith({ prompt: "A blue tin of Assam tea", quoteToken: "quote-token-1" });
+    expect(onSelect).toHaveBeenCalledWith([made]);
+  });
+
+  it("with only video asked for and no generator of its own, the picker offers nothing to make", async () => {
+    h.list.mockResolvedValue(page([]));
+    await mount({ kinds: ["video"] });
+    openGenerate();
+    expect(text()).toContain("Generating isn't available here");
+  });
+
+  it("a refused generation (too few credits) says so and nothing is selected", async () => {
+    h.list.mockResolvedValue(page([]));
+    const { ApiError } = await import("@/lib/api");
+    h.generate.mockRejectedValue(new ApiError("CREDITS_EXHAUSTED", "You need 40 credits and have 10.", 429));
+    const { onSelect } = await mount();
+    openGenerate();
+    const box = host.querySelector<HTMLTextAreaElement>("textarea")!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(box, "A blue tin");
+      box.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    click(buttonByText("Make an image"));
+    await flush();
+    expect(h.toastError).toHaveBeenCalledWith("You don't have enough AI credits for this.", expect.objectContaining({ description: "You need 40 credits and have 10." }));
+    expect(onSelect).not.toHaveBeenCalled();
   });
 
   it("starts from the brief the screen holds; when the screen shows the result itself the picker just closes", async () => {
@@ -440,7 +490,8 @@ describe("Generate", () => {
     expect(box.readOnly).toBe(true);
     click(buttonByText("Make an image"));
     await flush();
-    expect(onGenerate).toHaveBeenCalledWith("A blue tin on a table", "image");
+    expect(onGenerate).toHaveBeenCalledWith("A blue tin on a table", "image", {});
+    expect(h.generate).not.toHaveBeenCalled(); // the screen's own generator is used when it gives one
     expect(onClose).toHaveBeenCalled();
     expect(onSelect).not.toHaveBeenCalled();
   });

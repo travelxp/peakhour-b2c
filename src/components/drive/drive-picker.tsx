@@ -20,6 +20,12 @@ import { useEffect, useId, useMemo, useRef, useState, type DragEvent } from "rea
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { FileText, Image as ImageIcon, Loader2, Lock, Search, Sparkles, Upload, Video, Check, X } from "lucide-react";
 import { toast } from "sonner";
+import { ApiError } from "@/lib/api";
+import { PEAKS_ACTIONS } from "@/lib/api/peaks";
+import { usePeaksQuote, quoteTokenFor } from "@/hooks/use-peaks-quote";
+import { chargedTaskRefusal } from "@/hooks/use-audience-plan";
+import { PriceLine } from "@/components/audience/discover-audiences-dialog";
+import { generateImageToDrive } from "@/lib/drive/generate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -58,8 +64,12 @@ export interface DrivePickerProps {
   unusable?: (file: DriveFile) => string | null;
   /** The button: "Add to post". Default "Add". */
   addLabel?: string;
-  /** Make something new. Returns the file to add, or nothing when the screen shows the result itself (the picker then closes). */
-  onGenerate?: (prompt: string, kind: "image" | "video") => Promise<MediaAsset | void>;
+  /**
+   * Make something new. Returns the file to add, or nothing when the screen shows the result itself (the picker then closes).
+   * Leave it off and, where the screen takes images, the Generate tab makes an image from the sentence and saves it to Drive
+   * (`POST /v1/media/generate`, charged like the Strategist's image, the price shown first). `quoteToken` is the receipt for the price shown.
+   */
+  onGenerate?: (prompt: string, kind: "image" | "video", opts?: { quoteToken?: string }) => Promise<MediaAsset | void>;
   /** What the Generate box starts with (a brief the screen already holds). */
   generatePrompt?: string;
   /** False when Generate makes the file from `generatePrompt` alone (the box is read-only). Default true. */
@@ -718,9 +728,16 @@ function GenerateTab({
   const [prompt, setPrompt] = useState(initial ?? "");
   const [kind, setKind] = useState<"image" | "video">(kinds.includes("image") ? "image" : "video");
   const [running, setRunning] = useState(false);
-  const both = kinds.includes("image") && kinds.includes("video");
+  // No screen-supplied generator: the picker's own makes IMAGES, so a screen that takes only video or documents has nothing to offer here.
+  const generate: DrivePickerProps["onGenerate"] =
+    onGenerate ?? (kinds.includes("image") ? (p, _kind, opts) => generateImageToDrive({ prompt: p, ...(opts?.quoteToken ? { quoteToken: opts.quoteToken } : {}) }) : undefined);
+  const offered = onGenerate ? kinds : kinds.filter((k) => k === "image");
+  const both = offered.includes("image") && offered.includes("video");
+  const queryClient = useQueryClient();
+  // The price of one image, asked for while the tab is open and shown before the button is pressed (the cost is known first).
+  const price = usePeaksQuote(PEAKS_ACTIONS.generateImage, Boolean(generate) && kind === "image");
 
-  if (!onGenerate || (!kinds.includes("image") && !kinds.includes("video"))) {
+  if (!generate || (!offered.includes("image") && !offered.includes("video"))) {
     return (
       <div className="flex-1 p-4">
         <Notice title="Generating isn't available here" body="Generate an image from where you write the post, or upload one from your computer." />
@@ -728,13 +745,21 @@ function GenerateTab({
     );
   }
   async function run() {
-    if (!onGenerate || prompt.trim().length === 0) return;
+    if (!generate || prompt.trim().length === 0) return;
     setRunning(true);
     try {
-      const made = await onGenerate(prompt.trim(), kind);
+      const made = await generate(prompt.trim(), kind, kind === "image" ? quoteTokenFor(price) : undefined);
       onMade(made ?? undefined);
     } catch (err) {
-      toast.error("We couldn't make that", { description: err instanceof Error ? err.message : "Try again in a moment." });
+      // Refused before it started (too few credits, already running): nothing was charged, and the api says what to do.
+      const refusal = err instanceof ApiError ? chargedTaskRefusal(err.code, err.message) : undefined;
+      if (refusal) toast.error(refusal.title, { description: refusal.description });
+      else if (err instanceof ApiError && err.code === "QUOTE_NOT_HONOURED") {
+        // The receipt for the price shown has lapsed: nothing ran. Ask for the price again, then press again.
+        queryClient.resetQueries({ queryKey: ["peaks-quote"] });
+        toast.error("That price has changed.", { description: err.message || "Ask for a fresh quote and confirm the new price." });
+      } else if (err instanceof ApiError && err.code === "STORAGE_QUOTA_EXCEEDED") toast.error("Your Drive is full.", { description: `${err.message} You were not charged.` });
+      else toast.error("We couldn't make that", { description: err instanceof Error ? `${err.message} You were not charged.` : "Try again in a moment. You were not charged." });
     } finally {
       setRunning(false);
     }
@@ -757,6 +782,7 @@ function GenerateTab({
           </Button>
         </div>
       )}
+      {kind === "image" && <PriceLine price={price} />}
       <Button type="button" onClick={() => void run()} disabled={running || prompt.trim().length === 0} className="w-full gap-1.5">
         {running ? <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" /> : <Sparkles className="size-3.5" />}
         {running ? "Making it…" : `Make ${kind === "image" ? "an image" : "a video"}`}

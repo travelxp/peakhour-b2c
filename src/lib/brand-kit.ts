@@ -308,6 +308,68 @@ export function voiceIsEmpty(v: VoiceLines): boolean {
   return !v.tone && v.uses.length === 0 && v.avoids.length === 0 && !v.headline;
 }
 
+// -- Editing the voice ---------------------------------------------------------
+
+/** The bounds the api and the schema hold: a tone of 512, words of 128, headlines of 512, 30 of each list. */
+export const VOICE_LIMITS = { tone: 512, word: 128, headline: 512, items: 30 } as const;
+
+/** The editor's text boxes: words one per line or comma separated, headlines one per line (a headline can hold a comma). */
+export interface VoiceForm {
+  tone: string;
+  vocabulary: string;
+  avoidTerms: string;
+  sampleHeadlines: string;
+}
+
+const NL = String.fromCharCode(10);
+
+export function voiceFormFrom(v: { tone?: string; vocabulary?: string[]; avoidTerms?: string[]; sampleHeadlines?: string[] } | null | undefined): VoiceForm {
+  return {
+    tone: v?.tone ?? "",
+    vocabulary: (v?.vocabulary ?? []).join(NL),
+    avoidTerms: (v?.avoidTerms ?? []).join(NL),
+    sampleHeadlines: (v?.sampleHeadlines ?? []).join(NL),
+  };
+}
+
+function lines(text: string, splitComma: boolean): string[] {
+  const out: string[] = [];
+  for (const part of text.split(splitComma ? /[\n,]/ : /\n/)) {
+    const t = part.trim();
+    if (t && !out.includes(t)) out.push(t);
+  }
+  return out;
+}
+
+export type VoiceCheck = { ok: true; payload: { tone: string; vocabulary: string[]; avoidTerms: string[]; sampleHeadlines: string[] } } | { ok: false; reason: string };
+
+/** What a save sends, or why not. Every field is sent, so a box the person emptied is cleared and not left behind. */
+export function voicePayloadFromForm(f: VoiceForm): VoiceCheck {
+  const tone = f.tone.trim();
+  if (tone.length > VOICE_LIMITS.tone) return { ok: false, reason: `The tone can be up to ${VOICE_LIMITS.tone} characters. It is ${tone.length} now.` };
+  const lists: Array<[keyof Omit<VoiceForm, "tone">, string, number, boolean]> = [
+    ["vocabulary", "Words we use", VOICE_LIMITS.word, true],
+    ["avoidTerms", "Words we avoid", VOICE_LIMITS.word, true],
+    ["sampleHeadlines", "Sounds like", VOICE_LIMITS.headline, false],
+  ];
+  const out = { tone, vocabulary: [] as string[], avoidTerms: [] as string[], sampleHeadlines: [] as string[] };
+  for (const [key, label, max, comma] of lists) {
+    const items = lines(f[key], comma);
+    if (items.length > VOICE_LIMITS.items) return { ok: false, reason: `${label} can hold up to ${VOICE_LIMITS.items}. There are ${items.length}.` };
+    const long = items.find((i) => i.length > max);
+    if (long) return { ok: false, reason: `In ${label}, "${long.slice(0, 24)}..." is over ${max} characters.` };
+    out[key] = items;
+  }
+  return { ok: true, payload: out };
+}
+
+/** True when saving would change nothing. */
+export function voiceFormIsSaved(f: VoiceForm, saved: VoiceForm): boolean {
+  const a = voicePayloadFromForm(f);
+  const b = voicePayloadFromForm(saved);
+  return a.ok && b.ok && JSON.stringify(a.payload) === JSON.stringify(b.payload);
+}
+
 // ── Errors ────────────────────────────────────────────────────────────────────
 
 /**
