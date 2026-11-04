@@ -6,7 +6,7 @@ import type { DescribeStateRow, MediaItem } from "@/lib/api/media";
 vi.mock("@/lib/api", () => ({ api: { get: vi.fn() }, ApiError: class extends Error {}, API_BASE_URL: "" }));
 
 const { NO_FILTERS, applyDescribeRows, canChangeFile, driveAbilities, isFiltered, toListParams, waitingIds } = await import("./files-state");
-const { usedInHref, usedInLabel, tileLine, isBeingDescribed, SHIMMER_WINDOW_MS, cleanupCopy, DESCRIBING_LINE, fitsOf, channelLabel } = await import("./copy");
+const { usedInHref, usedInLabel, trashFailureText, blockedText, tileLine, isBeingDescribed, SHIMMER_WINDOW_MS, cleanupCopy, DESCRIBING_LINE, fitsOf, channelLabel } = await import("./copy");
 const { tabFromParam, DRIVE_TABS } = await import("./tabs");
 const { fitWithin, posterTime, POSTER_MAX_SIDE } = await import("./probe-file");
 const { trayTitle, pillText } = await import("./tray-copy");
@@ -111,11 +111,19 @@ describe("the links from 'Used in'", () => {
     expect(usedInHref({ kind: "draft", refId: "x" })).toBe("/dashboard/content");
     expect(usedInHref({ kind: "brand", refId: "x" })).toBe("/dashboard/drive?tab=brand");
     expect(usedInHref({ kind: "listing", refId: "x" })).toBe("/dashboard/presence");
-    expect(usedInHref({ kind: "share", refId: "x" })).toBe("/dashboard/drive");
   });
-  it("name a share link in plain words, with the live flag and label where there are some", () => {
+  it("name a share link in plain words, and collapse the links into one line with their count", () => {
     expect(usedInLabel({ kind: "share", refId: "x" })).toBe("Share link");
-    expect(usedInLabel({ kind: "share", refId: "x", label: "Spring lookbook", published: true })).toBe("Share link: Spring lookbook, live");
+    expect(usedInLabel({ kind: "share", refId: "x", count: 1 })).toBe("Share link");
+    expect(usedInLabel({ kind: "share", refId: "x", count: 5 })).toBe("Share links (5)");
+  });
+  it("a share link is plain text, not a link to the page you are on", () => {
+    expect(usedInHref({ kind: "share", refId: "x", count: 5 })).toBeNull();
+  });
+  it("a kind this page does not know yet reads in plain words and goes nowhere", () => {
+    const e = { kind: "hologram", refId: "x" } as unknown as Parameters<typeof usedInLabel>[0];
+    expect(usedInLabel(e)).toBe("Somewhere in Peakhour");
+    expect(usedInHref(e)).toBeNull();
   });
   it("every route it names exists as a page in the app", () => {
     const routes: Array<[string, string]> = [
@@ -218,5 +226,24 @@ describe("nothing in the app still points at the old Media page", () => {
     const content = layout.slice(layout.indexOf('label: "Content"'), layout.indexOf('label: "Growth"'));
     expect(content).not.toMatch(/label: "Media"/);
     expect(content).not.toMatch(/dashboard\/drive/);
+  });
+});
+
+describe("why a file did not go to Trash", () => {
+  it("shows the api's reason on a 409, because trying again cannot fix it", () => {
+    const reason = "This shared file is still used by an ad, post, page, Brand Kit or share link; take it out of use, or revoke its share link, before deleting it.";
+    expect(trashFailureText(Object.assign(new Error(reason), { status: 409 }))).toBe(reason);
+  });
+  it("keeps the generic line for anything else (a 500, a lost connection, a 409 with no words)", () => {
+    expect(trashFailureText(Object.assign(new Error("boom"), { status: 500 }))).toBe("That file could not be moved to Trash. Try again.");
+    expect(trashFailureText(new Error("Failed to fetch"))).toBe("That file could not be moved to Trash. Try again.");
+    expect(trashFailureText(Object.assign(new Error(""), { status: 409 }))).toBe("That file could not be moved to Trash. Try again.");
+    expect(trashFailureText(undefined)).toBe("That file could not be moved to Trash. Try again.");
+  });
+  it("counts the files a bulk move left, in the singular and the plural, and says nothing for none", () => {
+    expect(blockedText(0)).toBe("");
+    expect(blockedText(1)).toMatch(/^ 1 file was left because it is still in use by a share link/);
+    expect(blockedText(3)).toMatch(/^ 3 files were left because they are still in use/);
+    expect(blockedText(3)).toMatch(/revoke the share link/);
   });
 });
