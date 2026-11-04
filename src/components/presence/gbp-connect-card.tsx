@@ -271,9 +271,9 @@ export function GbpConnectCard() {
                   ) : null}
                 </>
               ) : card.kind === "needs_reconnect" ? (
-                "Google stopped accepting our access. Reconnect to resume insights and reviews."
+                "Google stopped accepting our access. Reconnect to resume your reviews."
               ) : (
-                "Connect your listing to sync calls, direction requests and website clicks — and to get every review in one inbox."
+                "Connect your listing to get your Google reviews in one inbox and reply to them there."
               )}
             </p>
           </div>
