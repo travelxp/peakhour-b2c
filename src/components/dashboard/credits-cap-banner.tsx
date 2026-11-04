@@ -60,7 +60,7 @@ export function CreditCapBanner() {
         <AlertTriangle className="size-4 shrink-0" />
         <div className="flex-1 text-sm">
           <span className="font-medium">Monthly Peaks limit reached.</span>{" "}
-          AI features are paused until {resetDate}. {cta.verb} to resume immediately.
+          Your store&apos;s assistant is not answering shoppers, and new AI work will not start, until {resetDate}. {cta.verb} to resume immediately.
         </div>
         <Button size="sm" variant="destructive" asChild>
           <Link href={cta.href}>{cta.label}</Link>

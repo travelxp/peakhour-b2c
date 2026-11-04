@@ -100,6 +100,9 @@ const USER_FIXABLE_COPY: Record<string, string> = {
   NOT_FOUND: "That's gone — reload the page to see what's there now.",
 };
 
+/** What an out-of-Peaks refusal says. Nothing was charged: the refusal happens before the AI runs. */
+export const CREDITS_EXHAUSTED_COPY = "You've used all your Peaks for this billing period, so this didn't run and nothing was charged. Buy Peaks to continue now, or they renew on your billing date.";
+
 function dispositionOf(code: string, status: number): Disposition {
   if (USER_FIXABLE.has(code)) return "user_fixable";
 
@@ -176,6 +179,16 @@ export function toastUnhandledApiError(
     // Not an api response at all — a thrown TypeError from fetch, i.e.
     // offline / DNS / CORS. Genuinely worth another go.
     toast.error(`Couldn't ${whatFailed}. Check your connection and try again.`);
+    return;
+  }
+
+  // Out of Peaks: the api refuses an AI action with CREDITS_EXHAUSTED before the model runs, so nothing was charged. The way forward is a
+  // purchase, not a retry and not a support ticket.
+  if (apiError.code === "CREDITS_EXHAUSTED") {
+    toast.error(`Couldn't ${whatFailed}.`, {
+      description: CREDITS_EXHAUSTED_COPY,
+      action: { label: "Buy Peaks", onClick: () => window.location.assign("/dashboard/peaks") },
+    });
     return;
   }
 

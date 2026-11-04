@@ -4,11 +4,15 @@ const errorToast = vi.fn();
 vi.mock("sonner", () => ({ toast: { error: (...args: unknown[]) => errorToast(...args) } }));
 
 import {
+  CREDITS_EXHAUSTED_COPY,
   toastUnhandledApiError,
   toastAdAccountNotAuthorized,
   toastAdAccountForbidden,
 } from "./toast-errors";
 import { ApiError } from "@/lib/api";
+
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 const REQ = "bc662f49-6c8a-41cb-9e40-5156925f6202";
 
@@ -282,5 +286,37 @@ describe("AD_ACCOUNT_NOT_AUTHORIZED never offers a reconnect", () => {
       "Updating targeting",
     );
     expect(shown().description).toMatch(/Please contact support\.$/);
+  });
+});
+
+describe("out of Peaks (CREDITS_EXHAUSTED)", () => {
+  it("says nothing was charged and offers the Peaks page, not a retry and not support", () => {
+    toastUnhandledApiError(apiError("CREDITS_EXHAUSTED", 429), "write the article");
+    expect(errorToast).toHaveBeenCalledTimes(1);
+    const [title, opts] = errorToast.mock.calls[0] as [string, { description?: string; duration?: number; action?: { label: string } }];
+    expect(title).toBe("Couldn't write the article.");
+    expect(opts.description).toBe(CREDITS_EXHAUSTED_COPY);
+    expect(opts.description).toContain("nothing was charged");
+    expect(opts.description).not.toMatch(/support|reference|try again/i);
+    expect(opts.action?.label).toBe("Buy Peaks");
+    expect(opts.duration).toBeUndefined();
+  });
+
+  it("PASS: other 429s are unchanged (an unknown 4xx code is still a support toast)", () => {
+    toastUnhandledApiError(apiError("SOMETHING_ELSE", 429), "write the article");
+    expect(errorToast.mock.calls[0]![1]).toMatchObject({ duration: Infinity });
+  });
+});
+
+describe("the cap banner and the Peaks page say what is actually paused", () => {
+  const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8").replace(/\r\n/g, "\n");
+  it("no longer claims AI features are paused", () => {
+    const banner = read("../components/dashboard/credits-cap-banner.tsx");
+    const page = read("../app/(site)/dashboard/peaks/page.tsx");
+    expect(banner).not.toContain("AI features are paused until");
+    expect(banner).toContain("Your store&apos;s assistant is not answering shoppers, and new AI work will not start, until {resetDate}.");
+    expect(page).not.toContain("AI features are paused until");
+    expect(page).not.toContain("AI features pause when");
+    expect(page).toContain("Your store's assistant is not answering shoppers, and new AI work will not start, until your Peaks reset.");
   });
 });
