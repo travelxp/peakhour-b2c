@@ -606,12 +606,23 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     label: "Find cleanup suggestions",
     frequency: "Runs weekly (Sun 4:00 AM UTC)",
     description:
-      "Scans your media library for unused, duplicate, oversized, or never-used AI images and flags them for the Smart Delete review (advisory only — nothing is deleted automatically).",
+      "Scans Drive for unused, duplicate, oversized, or never-used AI images and flags them for Smart Cleanup (advisory only — nothing is removed automatically).",
     summarize: (data) => {
       const d = data as { totalTagged?: number } | null;
       return typeof d?.totalTagged === "number"
         ? `${d.totalTagged} cleanup suggestion${d.totalTagged === 1 ? "" : "s"} found.`
         : null;
+    },
+  },
+  "media-describe-sweep": {
+    label: "Name new Drive files",
+    frequency: "Runs every 2 minutes",
+    description:
+      "Finds files added to Drive that Peakhour has not named yet and queues them to be named and described (the tiles that say \"Studying your image…\").",
+    summarize: (data) => {
+      const d = data as { queued?: number; off?: boolean } | null;
+      if (d?.off) return { message: "Naming is switched off, so nothing was queued.", level: "warning" };
+      return typeof d?.queued === "number" ? `${d.queued} file${d.queued === 1 ? "" : "s"} queued to be named.` : null;
     },
   },
   "media-hard-delete": {

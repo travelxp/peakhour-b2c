@@ -42,6 +42,7 @@ import { CreditCapBanner } from "@/components/dashboard/credits-cap-banner";
 import { CommandMenu } from "@/components/molecules/command-menu";
 import { SidebarStorageMeter } from "@/components/dashboard/sidebar-storage-meter";
 import { AddSpaceDialog } from "@/components/media/add-space-dialog";
+import { UploadTrayHost } from "@/components/drive/upload-tray";
 import { FeedbackWidget } from "@/components/molecules/feedback-widget";
 import { ChatPanel } from "@/components/molecules/chat-panel";
 import { AskContextProvider } from "@/providers/ask-context-provider";
@@ -68,6 +69,7 @@ import {
   ShoppingBag,
   MapPin,
   LineChart,
+  HardDrive,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -125,13 +127,19 @@ const SHOW_AUTOPILOT = process.env.NEXT_PUBLIC_VERCEL_ENV !== "production";
  * the five pillars in their canonical order, then Insights, which is where you
  * go to see how the six above went.
  *
- * Ask Peakhour, Tasks, Peaks and Settings drop below that line. None of them is
- * a place you go to DO the business — they are the assistant, the machine's own
- * work log, the meter and the controls — and mixing them into the pillar run
- * made the list read as eleven equal things.
+ * Ask Peakhour, Tasks, Drive, Peaks and Settings drop below that line. None of
+ * them is a place you go to DO the business — they are the assistant, the
+ * machine's own work log, the shelf of files every pillar reads from, the meter
+ * and the controls — and mixing them into the pillar run made the list read as
+ * thirteen equal things.
+ *
+ * Drive sits directly above Peaks (plan DR2): it is the one place for every
+ * image, video, document and brand kit, so it cannot live under Content, which
+ * is only one of the pillars that reads from it. It replaced "Media", a
+ * Content sub-item, and its old route is gone.
  *
  * There is deliberately ONE group with no label. A label per cluster would add
- * four headings and three rules to a list of twelve items, which is more chrome
+ * four headings and three rules to a list of thirteen items, which is more chrome
  * than the grouping is worth; the ordering carries the meaning on its own.
  */
 const PILLAR_NAV: NavGroup[] = [
@@ -169,7 +177,6 @@ const PILLAR_NAV: NavGroup[] = [
           // it is the only screen here about what came back rather than what
           // goes out, and it is meaningless before something has gone out.
           { href: "/dashboard/content/ledger", label: "Ledger" },
-          { href: "/dashboard/media", label: "Media" },
           { href: "/dashboard/content/seasonal-events", label: "Seasonal Events" },
         ],
       },
@@ -244,6 +251,7 @@ const PILLAR_NAV: NavGroup[] = [
         ? [{ href: "/dashboard/ask", label: "Ask Peakhour", icon: Sparkles }]
         : []),
       { href: "/dashboard/tasks", label: "Tasks", icon: ListChecks, badge: () => <RunningJobsBadge /> },
+      { href: "/dashboard/drive", label: "Drive", icon: HardDrive },
       { href: "/dashboard/peaks", label: "Peaks", icon: Zap },
       {
         href: "/dashboard/settings",
@@ -674,6 +682,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
       {/* ── Cmd+K Command Menu ─────────────────────────────── */}
       <CommandMenu />
+      <UploadTrayHost />
 
       {/* ── Main Content ──────────────────────────────────── */}
       <SidebarInset>
