@@ -299,7 +299,12 @@ describe("out of Peaks (CREDITS_EXHAUSTED)", () => {
     expect(opts.description).toContain("nothing was charged");
     expect(opts.description).not.toMatch(/support|reference|try again/i);
     expect(opts.action?.label).toBe("Buy Peaks");
-    expect(opts.duration).toBeUndefined();
+    expect(opts.duration).toBe(Infinity);
+  });
+
+  it("AI_CREDITS_EXHAUSTED, the other code the api raises for the same state, gets the same toast", () => {
+    toastUnhandledApiError(apiError("AI_CREDITS_EXHAUSTED", 402), "write the article");
+    expect((errorToast.mock.calls[0] as [string, { description?: string }])[1].description).toBe(CREDITS_EXHAUSTED_COPY);
   });
 
   it("PASS: other 429s are unchanged (an unknown 4xx code is still a support toast)", () => {
@@ -317,6 +322,7 @@ describe("the cap banner and the Peaks page say what is actually paused", () => 
     expect(banner).toContain("Your store&apos;s assistant is not answering shoppers, and new AI work will not start, until {resetDate}.");
     expect(page).not.toContain("AI features are paused until");
     expect(page).not.toContain("AI features pause when");
+    expect(banner).not.toContain("AI features will pause");
     expect(page).toContain("Your store's assistant is not answering shoppers, and new AI work will not start, until your Peaks reset.");
   });
 });

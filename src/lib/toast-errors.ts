@@ -184,10 +184,12 @@ export function toastUnhandledApiError(
 
   // Out of Peaks: the api refuses an AI action with CREDITS_EXHAUSTED before the model runs, so nothing was charged. The way forward is a
   // purchase, not a retry and not a support ticket.
-  if (apiError.code === "CREDITS_EXHAUSTED") {
+  if (apiError.code === "CREDITS_EXHAUSTED" || apiError.code === "AI_CREDITS_EXHAUSTED") {
     toast.error(`Couldn't ${whatFailed}.`, {
       description: CREDITS_EXHAUSTED_COPY,
       action: { label: "Buy Peaks", onClick: () => window.location.assign("/dashboard/peaks") },
+      // the only actionable button: it stays until dismissed
+      duration: Infinity,
     });
     return;
   }
