@@ -632,6 +632,21 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       return typeof d?.purged === "number" ? `${d.purged} expired item${d.purged === 1 ? "" : "s"} purged.` : null;
     },
   },
+  "drive-visitor-retention": {
+    label: "Remove old share-link visitor data",
+    frequency: "Runs nightly (3:30 AM UTC)",
+    description:
+      "Removes the IP address and device recorded when a Drive share link was opened, once they are older than the retention window set in the CMS (90 days to start). The record of the open itself stays, so the date survives.",
+    summarize: (data) => {
+      const d = data as { cleared?: number; complete?: boolean; retentionDays?: number } | null;
+      if (typeof d?.cleared !== "number") return null;
+      // A run that ran out of time is not "done": the rest waits for the next night.
+      if (d.complete === false) {
+        return { message: `${d.cleared} open record${d.cleared === 1 ? "" : "s"} cleaned; more are waiting for the next run.`, level: "warning" };
+      }
+      return `${d.cleared} open record${d.cleared === 1 ? "" : "s"} cleaned.`;
+    },
+  },
   "media-storage-reconcile": {
     label: "Reconcile storage usage",
     frequency: "Runs weekly (Sun 5:00 AM UTC)",
