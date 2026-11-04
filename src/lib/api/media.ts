@@ -264,6 +264,25 @@ export function createShareLink(id: string, opts: { expiresInDays?: number; pass
   return api.post(`/v1/media/${id}/shares`, opts);
 }
 
+export interface ShareLinkRow {
+  id: string;
+  expiresAt: string;
+  revokedAt?: string;
+  hasPassword: boolean;
+  openCount: number;
+  lastOpenedAt?: string;
+  createdAt: string;
+}
+
+/** A file's share links (never their addresses: an address is shown once, when the link is made). Editor and above. */
+export function listShareLinks(mediaId: string): Promise<ShareLinkRow[]> {
+  return api.get<ShareLinkRow[]>("/v1/media/" + mediaId + "/shares");
+}
+
+export function revokeShareLink(shareId: string): Promise<{ revoked: boolean }> {
+  return api.delete<{ revoked: boolean }>("/v1/media/shares/" + shareId);
+}
+
 export interface DriveCollection {
   id: string;
   name: string;
