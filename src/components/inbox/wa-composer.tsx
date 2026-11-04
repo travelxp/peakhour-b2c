@@ -200,13 +200,13 @@ export function WaComposer({
   }
 
   /** Send a reply. ★Answers whether it was sent (Inbox rich messages): the attachment and product panels clear only then. */
-  async function send(payload: ReplyPayload, file?: Blob): Promise<boolean> {
+  async function send(payload: ReplyPayload): Promise<boolean> {
     const sig = replySignature(payload);
     const prev = store.get(threadId).attempt;
     const attempt = attemptFor(prev, sig, mintIdempotencyKey);
     update({ attempt, error: null, note: null, pending: true });
     try {
-      const res = await reply.mutateAsync({ payload, idempotencyKey: attempt.key, ...(file ? { file } : {}) });
+      const res = await reply.mutateAsync({ payload, idempotencyKey: attempt.key });
       const note = replySuccessNote(res);
       update((cur) => ({ ...clearAfterSend(cur, sig), attempt: null, error: null, note, pending: false }));
       if (!note) toast.success("Sent to the shopper on WhatsApp.");
