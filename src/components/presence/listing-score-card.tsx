@@ -58,11 +58,11 @@ function ChangeCard({ change, busy, error, onApprove, onDiscard }: { change: Cha
         <dt className="text-xs text-muted-foreground">Change to</dt>
         <dd className="break-words font-medium">{valueText(change.after)}</dd>
       </dl>
-      {change.notes.map((n) => (
-        <p key={n} className="text-xs text-muted-foreground">{n}</p>
+      {change.notes.map((n, i) => (
+        <p key={`${i}:${n}`} className="text-xs text-muted-foreground">{n}</p>
       ))}
-      {issues.map((m) => (
-        <p key={m} className="text-xs text-warning-on-tint">{m}</p>
+      {issues.map((m, i) => (
+        <p key={`${i}:${m}`} className="text-xs text-warning-on-tint">{m}</p>
       ))}
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
       <p className="text-xs text-muted-foreground">{statusSentence(change.status)}</p>
@@ -77,7 +77,6 @@ function ChangeCard({ change, busy, error, onApprove, onDiscard }: { change: Cha
 }
 
 function FixRow({ fix, onOpenForm }: { fix: ScoreFix; onOpenForm?: ((field: string) => void) | undefined }) {
-  const queryClient = useQueryClient();
   const [change, setChange] = useState<ChangeView | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -105,8 +104,8 @@ function FixRow({ fix, onOpenForm }: { fix: ScoreFix; onOpenForm?: ((field: stri
   const approve = () =>
     run(async () => {
       if (!change) return null;
+      // The score is NOT refetched here: the fix stays a gap until a later read shows the change live, so the card must stay put.
       const res = await presenceScoreApi.approve(change.id);
-      await queryClient.invalidateQueries({ queryKey: ["presence"] });
       return res.item;
     });
   const discard = () =>
@@ -138,7 +137,7 @@ function FixRow({ fix, onOpenForm }: { fix: ScoreFix; onOpenForm?: ((field: stri
           {control.label}
         </Button>
       ) : null}
-      {control?.kind === "form" && control.risky ? (
+      {(control?.kind === "form" && control.risky) || (fix.action.kind === "card" && fix.action.risky) ? (
         <p className="text-xs text-muted-foreground">Changing this may mean verifying your business again.</p>
       ) : null}
       {error && !change ? <p className="text-xs text-destructive">{error}</p> : null}
