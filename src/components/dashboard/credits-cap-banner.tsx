@@ -60,7 +60,7 @@ export function CreditCapBanner() {
         <AlertTriangle className="size-4 shrink-0" />
         <div className="flex-1 text-sm">
           <span className="font-medium">Monthly Peaks limit reached.</span>{" "}
-          AI features are paused until {resetDate}. {cta.verb} to resume immediately.
+          Your store&apos;s assistant is not answering shoppers, and new AI work will not start, until {resetDate}. {cta.verb} to resume immediately.
         </div>
         <Button size="sm" variant="destructive" asChild>
           <Link href={cta.href}>{cta.label}</Link>
@@ -79,7 +79,7 @@ export function CreditCapBanner() {
       <Zap className="size-4 shrink-0" />
       <div className="flex-1 text-sm">
         <span className="font-medium">You&apos;ve used {pct}% of your {walletNoun}.</span>{" "}
-        AI features will pause when the limit is reached. Resets on {resetDate}.
+        Your store&apos;s assistant stops answering shoppers when the limit is reached. Resets on {resetDate}.
       </div>
       <div className="flex items-center gap-2">
         <Button size="sm" variant="outline" asChild className="border-warning/30">

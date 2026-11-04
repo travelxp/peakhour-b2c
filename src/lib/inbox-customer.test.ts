@@ -21,10 +21,10 @@ import {
 } from "@/lib/inbox-customer";
 
 describe("the price on a button", () => {
-  it("says AI credits, singular for one, and Free for a free act", () => {
-    expect(creditsLabel(10)).toBe("10 AI credits");
-    expect(creditsLabel(1)).toBe("1 AI credit");
-    expect(creditsLabel(1200)).toBe("1,200 AI credits");
+  it("says Peaks, singular for one, and Free for a free act", () => {
+    expect(creditsLabel(10)).toBe("10 Peaks");
+    expect(creditsLabel(1)).toBe("1 Peak");
+    expect(creditsLabel(1200)).toBe("1,200 Peaks");
     expect(creditsLabel(0)).toBe("Free");
   });
   it("no price row is NOT Free: it is no label at all, and the button is unavailable", () => {
@@ -33,11 +33,11 @@ describe("the price on a button", () => {
     expect(priced("Suggest a reply", undefined)).toEqual({ text: "Suggest a reply", available: false });
   });
   it("puts the price on the button before it is pressed", () => {
-    expect(priced("Suggest a reply", 10)).toEqual({ text: "Suggest a reply · 10 AI credits", available: true });
+    expect(priced("Suggest a reply", 10)).toEqual({ text: "Suggest a reply · 10 Peaks", available: true });
     expect(priced("Refresh summary", 0)).toEqual({ text: "Refresh summary · Free", available: true });
   });
-  it("never says Peaks", () => {
-    expect(JSON.stringify([creditsLabel(10), priced("x", 10), WINDOW_LIMITED_NOTE, DELETE_CONTACT_BODY])).not.toMatch(/peaks/i);
+  it("says Peaks on peakhour.ai, never AI credits (the Shopify app's word)", () => {
+    expect(JSON.stringify([creditsLabel(10), priced("x", 10), WINDOW_LIMITED_NOTE, DELETE_CONTACT_BODY])).not.toMatch(/AI credit/i);
   });
 });
 
