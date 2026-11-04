@@ -260,6 +260,9 @@ describe("Replace everywhere: the words", () => {
   it("names an item, with the reason it stays when it does", () => {
     expect(placeLine(it1("page", "Spring sale"))).toBe("Page: Spring sale");
     expect(placeLine(it1("scheduled_item", undefined, "Already published"))).toBe("Scheduled post. Already published.");
+    // a reason that already ends in a full stop is not given a second
+    expect(placeLine(it1("scheduled_item", undefined, "Already published."))).toBe("Scheduled post. Already published.");
+    expect(placeLine(it1("page", "Spring sale", "Live page. "))).toBe("Page: Spring sale. Live page.");
   });
   it("the intro says what changes and what stays, and says so when nothing is in use", () => {
     expect(replaceIntro([it1("draft")], [it1("page"), it1("page")])).toBe("1 draft will use the new file. 2 pages already went out, or are being sent, and stay exactly as they were. The old file is kept, so they keep showing it.");

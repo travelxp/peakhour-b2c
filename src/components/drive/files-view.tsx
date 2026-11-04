@@ -26,6 +26,7 @@ import {
   deleteMedia,
   formatBytes,
   listCollections,
+  getMedia,
   listMedia,
   updateMedia,
   type DriveCollection,
@@ -164,7 +165,10 @@ export function FilesView({ abilities }: { abilities: { canEdit: boolean; isAdmi
     [qc],
   );
 
-  const open = items.find((i) => i.id === openId) ?? null;
+  // After a replace or a restore the file in the panel is a different row, which may not be on the loaded page (a filter, a later page): ask for it.
+  const inList = items.find((i) => i.id === openId) ?? null;
+  const fetched = useQuery({ queryKey: ["drive", "file", openId], queryFn: () => getMedia(openId!), enabled: openId !== null && inList === null, staleTime: 30_000 });
+  const open = inList ?? (fetched.data && !fetched.data.deletedAt && fetched.data.id === openId ? fetched.data : null);
   const state = listState(list);
 
   const patch = async (id: string, p: MediaPatch) => {

@@ -15,6 +15,10 @@ import { uploadErrorMessage, uploadToDrive } from "@/lib/drive/upload-engine";
  * same resumable engine as the tray) and swaps. What did not change is listed with a Try again that finishes it: the same call is safe to repeat.
  */
 
+const RETRY_FAILED = "That did not finish. What was changed before stays changed, and the places listed here still show the old file. Try again.";
+/** `replaceFailureText` answers this when it has nothing better; it claims nothing changed, which is not true after a partial result. */
+const REPLACE_FAILED_FALLBACK = replaceFailureText(null);
+
 const ACCEPT: Record<MediaItem["kind"], string> = {
   image: "image/png,image/jpeg,image/webp,image/gif",
   video: "video/mp4,video/quicktime",
@@ -50,6 +54,9 @@ export function ReplaceFileDialog({ item, onReplaced }: { item: MediaItem; onRep
   // The screen moves to the new file only when this dialog closes, so a Try again still names the file being replaced.
   const replacedTo = useRef<string | null>(null);
   const swapStarted = useRef(false);
+  // The last result shown, so a Try again that fails does not take the list of what is still unchanged off the screen.
+  const lastDone = useRef<ReplaceResult | null>(null);
+  const [retryError, setRetryError] = useState<string | null>(null);
 
   const preview = useQuery({
     queryKey: ["drive", "replace-preview", item.id],
@@ -70,6 +77,8 @@ export function ReplaceFileDialog({ item, onReplaced }: { item: MediaItem; onRep
     const started = swapStarted.current;
     replacedTo.current = null;
     swapStarted.current = false;
+    lastDone.current = null;
+    setRetryError(null);
     reset();
     if (to || started) onReplaced(to);
   };
@@ -77,12 +86,20 @@ export function ReplaceFileDialog({ item, onReplaced }: { item: MediaItem; onRep
   const swap = async (mediaId: string) => {
     setPhase({ name: "working", step: "swapping" });
     swapStarted.current = true;
+    setRetryError(null);
     try {
       const result = await replaceMedia(item.id, mediaId);
+      lastDone.current = result;
       setPhase({ name: "done", result });
       replacedTo.current = result.fileId;
     } catch (e) {
-      setPhase({ name: "error", message: replaceFailureText(e), uploadedId: mediaId });
+      if (lastDone.current) {
+        // A Try again after a partial result: part of the swap already happened, so keep showing what is still unchanged, and say so.
+        setPhase({ name: "done", result: lastDone.current });
+        setRetryError(RETRY_FAILED + (replaceFailureText(e) !== REPLACE_FAILED_FALLBACK ? ` ${replaceFailureText(e)}` : ""));
+      } else {
+        setPhase({ name: "error", message: replaceFailureText(e), uploadedId: mediaId });
+      }
     }
   };
 
@@ -140,6 +157,8 @@ export function ReplaceFileDialog({ item, onReplaced }: { item: MediaItem; onRep
 
         {(phase.name === "choose" || phase.name === "error") && !preview.isError && (
           <div className="space-y-2">
+            {/* The file is already uploaded when a swap failed: choosing another here would leave it unused in Drive. */}
+            {!(phase.name === "error" && phase.uploadedId) && (
             <input
               ref={input}
               type="file"
@@ -151,6 +170,7 @@ export function ReplaceFileDialog({ item, onReplaced }: { item: MediaItem; onRep
                 if (phase.name === "error") setPhase({ name: "choose" });
               }}
             />
+            )}
             {phase.name === "error" && (
               <p role="alert" className="text-sm text-destructive-on-tint">
                 {phase.message}
@@ -170,6 +190,11 @@ export function ReplaceFileDialog({ item, onReplaced }: { item: MediaItem; onRep
             <p role={outcome.failed ? "alert" : "status"} className={`text-sm font-medium ${outcome.failed ? "text-warning-on-tint" : "text-success-on-tint"}`}>
               {outcome.headline}
             </p>
+            {retryError && (
+              <p role="alert" className="text-sm text-destructive-on-tint">
+                {retryError}
+              </p>
+            )}
             <Places title="Could not be changed" items={done.notChanged} />
             <Places title="Stayed as they went out" items={done.staysAsSent} tone="muted" />
           </div>

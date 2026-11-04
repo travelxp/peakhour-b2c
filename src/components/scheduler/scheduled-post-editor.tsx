@@ -452,7 +452,11 @@ export function ScheduledPostEditor({
                 isSavableAddress(url) ? (
                   <li key={`save-${i}-${url}`} className="flex items-center gap-2">
                     <span>Attachment {i + 1}</span>
-                    <SaveToDriveButton source={{ from: "draft_asset", url }} />
+                    <SaveToDriveButton
+                      source={{ from: "draft_asset", url }}
+                      // The post then holds the Drive file's own address, not the outside one that can expire or be blocked. (A Private file has no public address: the post keeps what it had.)
+                      onSaved={(saved) => saved.publicUrl && setMediaUrls((prev) => prev.map((u) => (u === url ? saved.publicUrl! : u)))}
+                    />
                   </li>
                 ) : null,
               )}

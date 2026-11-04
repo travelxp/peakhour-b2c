@@ -974,6 +974,7 @@ function PlaceholderCard({
   const resolved = !!p.resolvedImageUrl &&
     (p.status === "generated" || p.status === "supplied" || p.status === "uploaded");
   const rowBusy = busy || isGenerating || isResolving;
+  const saveSrc = saveSource(p);
 
   const statusLabel = p.status === "generated" ? "Generated"
     : p.status === "supplied" ? "From URL"
@@ -1006,9 +1007,9 @@ function PlaceholderCard({
           </div>
         )}
         {/* An image Drive does not hold yet (an AI image kept as data, or a picture from a pasted address): keep it (D8). */}
-        {resolved && p.resolvedImageUrl && !p.mediaId && saveSource(p) && (
+        {resolved && p.resolvedImageUrl && !p.mediaId && saveSrc && (
           <div className="mt-2">
-            <SaveToDriveButton key={p.resolvedImageUrl} source={saveSource(p)!} />
+            <SaveToDriveButton key={p.resolvedImageUrl} source={saveSrc} />
           </div>
         )}
         <div className="mt-2 flex items-center gap-2 flex-wrap">

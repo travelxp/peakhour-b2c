@@ -5,7 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { HardDriveUpload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { saveToDrive, type SaveToDriveSource } from "@/lib/api/media";
+import { saveToDrive, type SavedToDrive, type SaveToDriveSource } from "@/lib/api/media";
 import { saveFailureText, savedText } from "@/lib/drive/copy";
 
 /**
@@ -24,7 +24,7 @@ export function SaveToDriveButton({
   label?: string;
   size?: "xs" | "sm";
   className?: string;
-  onSaved?: (mediaId: string) => void;
+  onSaved?: (saved: SavedToDrive) => void;
 }) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
@@ -38,7 +38,7 @@ export function SaveToDriveButton({
       setSaved(true);
       void qc.invalidateQueries({ queryKey: ["drive"] });
       void qc.invalidateQueries({ queryKey: ["storage-usage"] });
-      onSaved?.(r.mediaId);
+      onSaved?.(r);
     } catch (e) {
       toast.error(saveFailureText(e));
     } finally {

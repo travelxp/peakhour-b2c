@@ -135,6 +135,30 @@ describe("the Replace everywhere dialog", () => {
     expect(text()).toContain("1 scheduled post now use the new file.");
   });
 
+  it("a Try again that fails after a partial result keeps the unchanged places on screen and does not claim nothing changed", async () => {
+    api.replaceMedia.mockResolvedValueOnce(result({ changed: [{ kind: "draft", refId: "d1" }], notChanged: [{ kind: "scheduled_item", refId: "s1", reason: "It changed while this ran. Try again." }] }));
+    await mount(<ReplaceFileDialog item={item()} onReplaced={vi.fn()} />);
+    await click(button(/Replace everywhere/));
+    await choose(new File(["x"], "logo-v2.png", { type: "image/png" }));
+    await click([...document.body.querySelectorAll("button")].filter((b) => /Replace everywhere/.test(b.textContent ?? "")).pop());
+    api.replaceMedia.mockRejectedValueOnce({ status: 503, message: "x" });
+    await click(button(/^Try again$/));
+    expect(text()).toContain("Could not be changed");
+    expect(text()).toContain("Scheduled post");
+    expect(text()).toContain("What was changed before stays changed");
+    expect(text()).not.toContain("Nothing that was already published changed");
+    expect(button(/^Try again$/)).toBeTruthy();
+  });
+
+  it("once the file is uploaded and only the swap failed, a different file cannot be chosen (it would orphan the upload)", async () => {
+    api.replaceMedia.mockRejectedValueOnce({ status: 503, message: "x" });
+    await mount(<ReplaceFileDialog item={item()} onReplaced={vi.fn()} />);
+    await click(button(/Replace everywhere/));
+    await choose(new File(["x"], "logo-v2.png", { type: "image/png" }));
+    await click([...document.body.querySelectorAll("button")].filter((b) => /Replace everywhere/.test(b.textContent ?? "")).pop());
+    expect(document.body.querySelector('input[type="file"]')).toBeNull();
+  });
+
   it("when the swap fails after the upload, Try again swaps without uploading the file a second time", async () => {
     api.replaceMedia.mockRejectedValueOnce({ status: 503, message: "x" });
     await mount(<ReplaceFileDialog item={item()} onReplaced={vi.fn()} />);
@@ -250,7 +274,7 @@ describe("Save to Drive", () => {
     await click(button(/Save to Drive/));
     expect(api.saveToDrive).toHaveBeenCalledWith({ from: "inbox", threadId: "wa:1:2", ref: "a".repeat(64) });
     expect(toast.success.mock.calls[0]![0]).toContain("It is Private");
-    expect(onSaved).toHaveBeenCalledWith("m9");
+    expect(onSaved).toHaveBeenCalledWith({ mediaId: "m9", name: "WhatsApp photo", visibility: "private", deduped: false, alreadyInDrive: false });
     expect(button(/Saved to Drive/)?.disabled).toBe(true);
   });
 

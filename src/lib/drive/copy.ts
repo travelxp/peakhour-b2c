@@ -245,7 +245,9 @@ export function placesSummary(items: Pick<ReplaceItem, "kind">[]): string {
 export function placeLine(it: ReplaceItem): string {
   const noun = PLACE_NOUN[it.kind]?.[0] ?? "place";
   const base = it.label ? `${noun.charAt(0).toUpperCase()}${noun.slice(1)}: ${it.label}` : `${noun.charAt(0).toUpperCase()}${noun.slice(1)}`;
-  return it.reason ? `${base}. ${it.reason}.` : base;
+  // The api's reason is a phrase: it is given one full stop, whether or not it already carried one.
+  const reason = it.reason?.trim().replace(/[.\s]+$/, "");
+  return reason ? `${base}. ${reason}.` : base;
 }
 
 /** The sentence over the two lists, before the person confirms. */
