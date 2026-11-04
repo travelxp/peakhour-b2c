@@ -18,7 +18,7 @@ const { LOAD_FAILED, REFRESH_FAILED } = await import("@/lib/x-dm");
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const status = (over: Partial<XDmStatus> = {}): XDmStatus => ({
-  connected: true, connectionId: "c1", state: "off", pricePerMessage: 5, monthlyCap: 1000, usedThisMonth: 0, resumesAt: null, ...over,
+  connected: true, connectionId: "c1", state: "off", pricePerMessage: 5, monthlyCap: 500, usedThisMonth: 0, resumesAt: null, ...over,
 });
 const notFound = () => Object.assign(new Error("not found"), { status: 404 });
 const serverError = () => Object.assign(new Error("boom"), { status: 500 });

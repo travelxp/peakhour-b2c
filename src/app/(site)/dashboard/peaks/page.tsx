@@ -45,6 +45,7 @@ import { ApiError } from "@/lib/api";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { toastUnhandledApiError } from "@/lib/toast-errors";
 import { onePress } from "@/lib/one-press";
+import { StoragePeaksCard } from "@/components/media/storage-peaks-card";
 
 // ── Formatting helpers ────────────────────────────────────────────────────
 
@@ -538,6 +539,9 @@ export default function PeaksPage() {
         <Suspense fallback={null}>
           <BuyPeaks />
         </Suspense>
+
+        {/* ── Storage: its own line, apart from AI work ────────────── */}
+        <StoragePeaksCard />
 
         {/* ── Rate card ─────────────────────────────────────────────── */}
         <Card>
