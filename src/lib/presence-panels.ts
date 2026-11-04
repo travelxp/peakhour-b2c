@@ -150,6 +150,9 @@ export function setupMessage(
         body: `Connect Google above to see ${what} here.`,
       };
     case "needs_reconnect":
+      // A saved listing stays on screen (as sync_failing does); only the figures,
+      // which cannot be read, are replaced by the message.
+      if (hasListing && subject === "listing") return null;
       return {
         headline: "Google needs you to reconnect",
         body: `Google stopped accepting our access, so we can't read ${what}. Reconnect above.`,
@@ -160,6 +163,7 @@ export function setupMessage(
         body: `Nothing is read until you choose a listing above, so there is no ${subject} to show.`,
       };
     case "importing":
+      if (hasListing && subject === "listing") return null;
       return {
         headline:
           subject === "listing" ? "Getting your listing from Google" : "Waiting for your first figures",
@@ -179,9 +183,13 @@ export function setupMessage(
 
 /** A sentence for a failing sync that still has something to show. */
 export function staleSyncNote(setup: PresenceSetup): string | null {
-  return setup === "sync_failing"
-    ? "The last sync with Google failed, so this may be out of date."
-    : null;
+  if (setup === "sync_failing") {
+    return "The last sync with Google failed, so this may be out of date.";
+  }
+  if (setup === "needs_reconnect") {
+    return "Google needs you to reconnect, so this may be out of date. Reconnect above.";
+  }
+  return null;
 }
 
 // ── Listing: differences from Google ─────────────────────────────────────────
@@ -269,7 +277,7 @@ export function hoursLines(hours: HoursPeriod[]): HoursLine[] {
   if (hours.length === 0) return [];
   return DAYS.map((d) => {
     const periods = hours
-      .filter((h) => h.day === d)
+      .filter((h) => String(h.day).slice(0, 3).toLowerCase() === d)
       .sort((a, b) => a.open.localeCompare(b.open))
       .map((h) => `${h.open} to ${h.close}`);
     return { day: DAY_LABEL[d], periods: periods.length ? periods : null };
@@ -345,7 +353,9 @@ export function verificationNote(state: string | undefined | null): string | nul
 /** `null` when there is no data at all for the window. */
 export function metricTotal(series: InsightDay[], key: InsightKey): number | null {
   if (series.length === 0) return null;
-  return series.reduce((sum, d) => sum + d[key], 0);
+  // A day whose figure is missing or not a number is no figure, not a zero.
+  const nums = series.map((d) => d[key]).filter((v): v is number => Number.isFinite(v));
+  return nums.length === 0 ? null : nums.reduce((sum, v) => sum + v, 0);
 }
 
 export interface ChartPoint {
@@ -371,7 +381,8 @@ export function chartPoints(
   const out: ChartPoint[] = [];
   for (let i = days; i >= 1; i--) {
     const date = new Date(todayUtc - i * 86_400_000).toISOString().slice(0, 10);
-    out.push({ date, value: byDate.has(date) ? (byDate.get(date) as number) : null });
+    const v = byDate.get(date);
+    out.push({ date, value: typeof v === "number" && Number.isFinite(v) ? v : null });
   }
   return out;
 }

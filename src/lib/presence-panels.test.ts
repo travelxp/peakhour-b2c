@@ -258,3 +258,36 @@ describe("verificationNote", () => {
     expect(verificationNote(undefined)).toBeNull();
   });
 });
+
+describe("a saved listing survives a lapsed connection", () => {
+  it("reconnect and importing keep a saved listing on the listing panel, with a note", () => {
+    expect(setupMessage("needs_reconnect", true, "listing")).toBeNull();
+    expect(setupMessage("importing", true, "listing")).toBeNull();
+    expect(staleSyncNote("needs_reconnect")).toMatch(/reconnect/);
+  });
+  it("but the figures panel still says it cannot read them", () => {
+    expect(setupMessage("needs_reconnect", true, "performance")?.headline).toMatch(/reconnect/);
+  });
+});
+
+describe("a malformed day is no figure, not a zero or NaN", () => {
+  const now = new Date("2026-11-04T15:00:00.000Z");
+  const bad = { ...day("2026-11-03", { views: 10 }), calls: null } as unknown as InsightDay;
+  it("total skips it, and is null if nothing is a number", () => {
+    expect(metricTotal([bad], "calls")).toBeNull();
+    expect(metricTotal([bad], "views")).toBe(10);
+  });
+  it("chart leaves a gap", () => {
+    expect(chartPoints([bad], "calls", 1, now)[0].value).toBeNull();
+  });
+});
+
+describe("hoursLines tolerates day spelling", () => {
+  it("Mon and monday both land on Monday", () => {
+    const lines = hoursLines([
+      { day: "Mon" as never, open: "09:00", close: "17:00" },
+      { day: "monday" as never, open: "18:00", close: "20:00" },
+    ]);
+    expect(lines[0].periods).toEqual(["09:00 to 17:00", "18:00 to 20:00"]);
+  });
+});

@@ -245,8 +245,8 @@ export function ListingPanel() {
       </dl>
 
       <p className="text-[11px] text-muted-foreground">
-        {checked
-          ? `Last compared with Google on ${formatDateTime(google?.lastSyncedAt)}. Only some fields are compared; the rest say so.`
+        {checked && google
+          ? `Last compared with Google on ${formatDateTime(google.lastSyncedAt)}. Only some fields are compared; the rest say so.`
           : "We haven't compared this with Google recently."}
       </p>
     </Card>
