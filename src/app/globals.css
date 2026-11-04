@@ -714,3 +714,28 @@
     animation: none;
   }
 }
+
+/* Drive: the soft shimmer over a tile Peakhour is still naming (Studying your image, Watching your video, Reading your document). Two
+   passes, one pale and one warm, as on the Main board. Under prefers-reduced-motion nothing moves: the tile keeps a faint, still wash
+   and its words say what is happening. */
+@keyframes drive-shine {
+  from { background-position: 130% 0; }
+  to { background-position: -30% 0; }
+}
+.drive-shine {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-size: 240% 100%;
+  background-image: linear-gradient(105deg, transparent 35%, color-mix(in oklab, var(--card) 70%, transparent) 50%, transparent 65%);
+  animation: drive-shine 1.9s ease-in-out infinite;
+}
+.drive-shine-warm {
+  background-image: linear-gradient(105deg, transparent 35%, color-mix(in oklab, var(--brand) 35%, transparent) 50%, transparent 65%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .drive-shine {
+    animation: none;
+    opacity: 0.4;
+  }
+}
