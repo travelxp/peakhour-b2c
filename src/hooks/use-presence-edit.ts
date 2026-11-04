@@ -70,6 +70,8 @@ export function usePresenceEditMutations(listingId: string | undefined) {
   const refresh = async () => {
     await qc.invalidateQueries({ queryKey: presenceEditKeys.changes(listingId ?? "") });
     await qc.invalidateQueries({ queryKey: presenceEditKeys.offers(listingId ?? "") });
+    // The "Your listing" panel above reads the same listing a live change rewrites.
+    await qc.invalidateQueries({ queryKey: ["presence", "listing"] });
   };
   return {
     propose: useMutation({ mutationFn: (b: ProposeBody) => presenceEditApi.propose(b), onSuccess: refresh }),

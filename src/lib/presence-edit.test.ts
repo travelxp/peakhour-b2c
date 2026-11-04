@@ -3,6 +3,7 @@ import {
   cardActions,
   capabilityFor,
   categoriesValue,
+  categoriesDropped,
   categoryQueryReady,
   charsLeft,
   descriptionValue,
@@ -19,6 +20,7 @@ import {
   statusWords,
   valueLines,
   websiteValue,
+  wipeNote,
   withCategory,
   writesNote,
   type CapabilitiesResponse,
@@ -303,13 +305,44 @@ describe("showing a value", () => {
   });
 });
 
+describe("not wiping or losing what is there", () => {
+  const c = (id: string, label: string) => ({ id, label });
+  it("names the categories a new list leaves out, by name", () => {
+    expect(categoriesDropped(["Bakery", "Cafe"], [c("c/1", "bakery")])).toEqual(["Cafe"]);
+    expect(categoriesDropped(["Bakery"], [c("c/1", " Bakery ")])).toEqual([]);
+    expect(categoriesDropped(["Bakery", "Cafe"], [])).toEqual(["Bakery", "Cafe"]);
+    expect(categoriesDropped([], [c("c/1", "Deli")])).toEqual([]);
+    expect(categoriesDropped(["", " "], [])).toEqual([]);
+  });
+  it("says what an empty value would wipe, and nothing for a value that is not a wipe", () => {
+    expect(wipeNote("regularHours", [])).toContain("closed every day");
+    expect(wipeNote("regularHours", [{ day: "mon", open: "09:00", close: "17:00" }])).toBeNull();
+    expect(wipeNote("phone", { additional: [] })).toContain("every phone number");
+    expect(wipeNote("phone", { primary: "+1", additional: [] })).toBeNull();
+    expect(wipeNote("phone", { additional: ["+2"] })).toBeNull();
+    expect(wipeNote("website", "")).toContain("website");
+    expect(wipeNote("website", "https://a.example")).toBeNull();
+    expect(wipeNote("specialHours", [])).toContain("holiday");
+    expect(wipeNote("additionalCategories", [])).toContain("every other category");
+    expect(wipeNote("description", "")).toBeNull();
+  });
+  it("reads a category held as plain text", () => {
+    expect(valueLines("primaryCategory", "Bakery")).toEqual(["Bakery"]);
+    expect(valueLines("additionalCategories", ["Bakery", "Cafe"])).toEqual(["Bakery", "Cafe"]);
+  });
+});
+
 describe("the holiday offer", () => {
   const offer = (over = {}) => ({ key: "k", date: "2026-12-25", name: "Christmas Day", tentative: false, regionUnknown: false, ...over });
   const resp = (over = {}) => ({ offers: [offer()], needsRegularHours: false, openChange: false, noTimeZone: false, ...over });
 
-  it("shows nothing when there is no day to offer or no calendar", () => {
+  it("shows nothing when there is no day to offer", () => {
     expect(offerState(resp({ offers: [] })).show).toBe(false);
-    expect(offerState(resp({ noTimeZone: true })).show).toBe(false);
+  });
+  it("says why when there is no calendar to place the days on", () => {
+    const s = offerState(resp({ offers: [], noTimeZone: true }));
+    expect(s).toMatchObject({ show: true, canAccept: false });
+    expect(s.message).toContain("time zone");
   });
   it("can be accepted when nothing stands in the way", () => {
     expect(offerState(resp())).toEqual({ show: true, message: null, canAccept: true });

@@ -36,8 +36,32 @@ export function EditListingCard({ location }: { location?: string | undefined })
     </div>
   );
 
+  // The listing first: with none to edit there is nothing to wait for, and a failed read is not "no listing".
+  if (listingQ.isPending) {
+    return (
+      <Card className="gap-3 p-5">
+        {header}
+        <Skeleton className="h-16 w-full" />
+        {listingQ.fetchStatus === "paused" && <p className="text-xs text-muted-foreground">Waiting for a connection.</p>}
+      </Card>
+    );
+  }
+  if (listingQ.isError && !listingQ.data) {
+    return (
+      <Card className="gap-3 p-5">
+        {header}
+        <p className="text-sm">We could not load your listing, so the forms are not available. This is a problem loading the page, not with your listing.</p>
+        <Button size="sm" variant="outline" className="w-fit" onClick={() => listingQ.refetch()}>
+          Try again
+        </Button>
+      </Card>
+    );
+  }
+  // No listing yet (not connected, importing): the listing card above already says why.
+  if (!listing) return null;
+
   const view = fetchView({ hasData: !!caps.data, isPending: caps.isPending, isError: caps.isError, fetchStatus: caps.fetchStatus });
-  if (listingQ.isPending || view === "loading" || view === "paused") {
+  if (view === "loading" || view === "paused") {
     return (
       <Card className="gap-3 p-5">
         {header}
@@ -154,7 +178,7 @@ export function EditListingCard({ location }: { location?: string | undefined })
           <>
             {changes.isError && <p className="text-xs text-warning-on-tint">Could not refresh just now, so this may be out of date.</p>}
             {changes.data.items.map((c) => (
-              <ChangeCard key={c.id} change={c} label={cap.label} can={caps.data.can} listingId={listing.id} />
+              <ChangeCard key={c.id} change={c} label={cap.label} can={caps.data.can} m={m} />
             ))}
           </>
         ) : (

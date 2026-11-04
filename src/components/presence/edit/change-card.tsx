@@ -3,7 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SECTIONS, cardActions, errorWords, statusWords, valueLines, type CapabilitiesResponse, type ChangeCardData } from "@/lib/presence-edit";
-import { usePresenceEditMutations } from "@/hooks/use-presence-edit";
+import type { usePresenceEditMutations } from "@/hooks/use-presence-edit";
 
 const TONE: Record<string, string> = {
   neutral: "text-muted-foreground",
@@ -35,19 +35,21 @@ export function ChangeCard({
   change,
   label,
   can,
-  listingId,
+  m,
 }: {
   change: ChangeCardData;
   label: string;
   can: CapabilitiesResponse["can"] | undefined;
-  listingId: string;
+  /** One set of mutations for the whole list, owned by the card that lists the changes. */
+  m: ReturnType<typeof usePresenceEditMutations>;
 }) {
-  const m = usePresenceEditMutations(listingId);
   const words = statusWords(change, label, can);
   const act = cardActions(change, can);
   const title = SECTIONS.find((s) => s.field === change.field)?.title ?? change.field;
   const busy = m.approve.isPending || m.reject.isPending || m.undo.isPending;
-  const failure = m.approve.error ?? m.reject.error ?? m.undo.error;
+  // Only the card the failed press was for shows it, and a new press clears it.
+  const mine = (v: unknown) => v === change.id;
+  const failure = (mine(m.approve.variables) && m.approve.error) || (mine(m.reject.variables) && m.reject.error) || (mine(m.undo.variables) && m.undo.error) || null;
   const issues = change.validation?.issues ?? [];
 
   return (

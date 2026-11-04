@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useHolidayOffers, usePresenceEditMutations } from "@/hooks/use-presence-edit";
 import { fetchView } from "@/lib/presence-panels";
@@ -16,6 +17,7 @@ const SHOWN = 4;
 export function HolidayOffersCard({ listingId, network, label }: { listingId: string; network: string; label: string }) {
   const q = useHolidayOffers(listingId);
   const m = usePresenceEditMutations(listingId);
+  const [done, setDone] = useState<string | null>(null);
   const view = fetchView({ hasData: !!q.data, isPending: q.isPending, isError: q.isError, fetchStatus: q.fetchStatus });
 
   if (view === "loading" || view === "paused") return <p className="text-xs text-muted-foreground">{view === "paused" ? "Waiting for a connection to look for holidays." : "Looking for upcoming holidays..."}</p>;
@@ -31,12 +33,18 @@ export function HolidayOffersCard({ listingId, network, label }: { listingId: st
   }
   const state = offerState(q.data);
   if (!state.show) return null;
+  // Nothing to offer, but a reason to say: a lone line, not a card with no days in it.
+  if (q.data.offers.length === 0) return state.message ? <p className="text-xs text-muted-foreground">{state.message}</p> : null;
 
   const failure = m.acceptOffer.error ?? m.dismissOffer.error;
   const busy = m.acceptOffer.isPending || m.dismissOffer.isPending;
 
   function accept(o: HolidayOffer, confirmRegion: boolean) {
-    m.acceptOffer.mutate({ listingId, network, date: o.date, ...(o.regionUnknown ? { confirmRegion } : {}) });
+    setDone(null);
+    m.acceptOffer.mutate(
+      { listingId, network, date: o.date, ...(o.regionUnknown ? { confirmRegion } : {}) },
+      { onSuccess: () => setDone(`${o.name} is prepared. Review it under Changes below, then approve it. Nothing has been sent to ${label}.`) },
+    );
   }
 
   return (
@@ -64,7 +72,10 @@ export function HolidayOffersCard({ listingId, network, label }: { listingId: st
                   Prepare a closed day
                 </Button>
               )}
-              <Button size="sm" variant="outline" disabled={busy} onClick={() => m.dismissOffer.mutate({ listingId, key: o.key })}>
+              <Button size="sm" variant="outline" disabled={busy} onClick={() => {
+                  setDone(null);
+                  m.dismissOffer.mutate({ listingId, key: o.key }, { onSuccess: () => setDone(`${o.name} will not be suggested again.`) });
+                }}>
                 {o.regionUnknown ? "No, not for me" : "No thanks"}
               </Button>
             </div>
@@ -73,6 +84,11 @@ export function HolidayOffersCard({ listingId, network, label }: { listingId: st
       </ul>
       {q.data.offers.length > SHOWN && <p className="text-xs text-muted-foreground">{q.data.offers.length - SHOWN} more later.</p>}
       {failure ? <p className="text-xs text-destructive">{errorWords(failure)}</p> : null}
+      {done && (
+        <p role="status" className="text-xs text-muted-foreground">
+          {done}
+        </p>
+      )}
     </div>
   );
 }

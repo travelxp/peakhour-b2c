@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CategoryPicker } from "@/components/presence/edit/category-picker";
 import type { PresenceListing } from "@/lib/presence-panels";
 import {
+  categoriesDropped,
   categoriesValue,
   charsLeft,
   descriptionValue,
@@ -19,6 +20,7 @@ import {
   type SpecialDraft,
   riskWarning,
   websiteValue,
+  wipeNote,
   withCategory,
   type Built,
   type CategoryOption,
@@ -49,6 +51,9 @@ interface Props {
 export function FieldForm({ section, cap, listing, listingId, submitting, onSubmit, onCancel }: Props) {
   const { field } = section;
   const [message, setMessage] = useState<string | null>(null);
+  // A value that would wipe a field is sent on the second press, after the note has been read.
+  const [wipeSeen, setWipeSeen] = useState<string | null>(null);
+  const [dropOk, setDropOk] = useState(false);
   const [understood, setUnderstood] = useState(!section.risky);
 
   const [hours, setHours] = useState<DayDraft[]>(() => hoursDraft(listing.regularHours));
@@ -72,9 +77,17 @@ export function FieldForm({ section, cap, listing, listingId, submitting, onSubm
 
   function finish<T>(built: Built<T>) {
     if (!built.ok) return setMessage(built.message);
+    const wipe = wipeNote(field, built.value);
+    if (wipe && wipeSeen !== wipe) {
+      setWipeSeen(wipe);
+      return setMessage(wipe);
+    }
     setMessage(null);
     onSubmit(field, built.value);
   }
+
+  // The listing keeps a category by name only, so each one to keep is picked again; one left out is removed.
+  const dropped = field === "additionalCategories" ? categoriesDropped(listing.additionalCategories, extra) : [];
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -90,6 +103,7 @@ export function FieldForm({ section, cap, listing, listingId, submitting, onSubm
       case "temporaryClosure":
         return finish({ ok: true, value: { closed } });
       case "additionalCategories":
+        if (dropped.length > 0 && !dropOk) return setMessage(`Tick the box to confirm that ${dropped.join(", ")} will be removed.`);
         return finish(categoriesValue(extra, cap.limits));
       case "primaryCategory":
         return primary ? finish({ ok: true, value: primary }) : setMessage("Pick a category from the list.");
@@ -100,6 +114,7 @@ export function FieldForm({ section, cap, listing, listingId, submitting, onSubm
         return finish({ ok: true, value: v });
       }
       case "address": {
+        if (address.country.trim().toUpperCase() === "UK") return setMessage("Use GB as the country code for the United Kingdom.");
         if (!address.line1.trim() || !/^[A-Za-z]{2}$/.test(address.country.trim())) return setMessage("Enter the street address and a two-letter country code.");
         const clean = Object.fromEntries(Object.entries(address).map(([k, v]) => [k, v.trim()]).filter(([, v]) => v !== ""));
         return finish({ ok: true, value: { ...clean, country: address.country.trim().toUpperCase() } });
@@ -223,14 +238,23 @@ export function FieldForm({ section, cap, listing, listingId, submitting, onSubm
       {field === "address" && (
         <div className="grid gap-2 sm:grid-cols-2">
           {(["line1", "line2", "city", "region", "postalCode", "country"] as const).map((k) => (
-            <Input key={k} aria-label={k} placeholder={{ line1: "Street address", line2: "Address line 2", city: "Town or city", region: "State or region", postalCode: "Postcode", country: "Country code, for example GB" }[k]} value={address[k]} onChange={(e) => setAddress({ ...address, [k]: e.target.value })} />
+            <Input key={k} aria-label={{ line1: "Street address", line2: "Address line 2", city: "Town or city", region: "State or region", postalCode: "Postcode", country: "Country code" }[k]} placeholder={{ line1: "Street address", line2: "Address line 2", city: "Town or city", region: "State or region", postalCode: "Postcode", country: "Country code, for example GB" }[k]} value={address[k]} onChange={(e) => setAddress({ ...address, [k]: e.target.value })} />
           ))}
         </div>
       )}
 
       {field === "additionalCategories" && cap.options.categories && (
         <div className="space-y-2">
-          <p className="text-xs text-muted-foreground">The whole list is sent, so pick every category you want to keep.</p>
+          <p className="text-xs text-muted-foreground">
+            The whole list is sent, so pick every category you want to keep.
+            {listing.additionalCategories.length > 0 ? ` You have now: ${listing.additionalCategories.join(", ")}. Pick each one you want to keep again.` : ""}
+          </p>
+          {dropped.length > 0 && (
+            <label className="flex items-center gap-2 text-xs text-warning-on-tint">
+              <input type="checkbox" checked={dropOk} onChange={(e) => setDropOk(e.target.checked)} />
+              Remove {dropped.join(", ")}
+            </label>
+          )}
           {extra.length > 0 && (
             <ul className="flex flex-wrap gap-2">
               {extra.map((c) => (

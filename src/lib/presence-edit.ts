@@ -275,9 +275,9 @@ export function valueLines(field: string, value: unknown): string[] {
       return [...(v.primary ? [v.primary] : []), ...(v.additional ?? [])];
     }
     case "primaryCategory":
-      return [(value as { label?: string }).label ?? ""].filter(Boolean);
+      return [typeof value === "string" ? value : ((value as { label?: string }).label ?? "")].filter(Boolean);
     case "additionalCategories":
-      return ((Array.isArray(value) ? value : []) as Array<{ label?: string }>).map((c) => c.label ?? "").filter(Boolean);
+      return ((Array.isArray(value) ? value : []) as Array<{ label?: string } | string>).map((c) => (typeof c === "string" ? c : (c.label ?? ""))).filter(Boolean);
     case "address": {
       const a = value as Record<string, string | undefined>;
       return [a.line1, a.line2, [a.city, a.region].filter(Boolean).join(", "), [a.postalCode, a.country].filter(Boolean).join(" ")].filter((x): x is string => !!x);
@@ -397,6 +397,25 @@ export function categoriesValue(list: readonly CategoryOption[], limits: Listing
   return { ok: true, value: [...list] };
 }
 
+/**
+ * Categories the listing holds today that the new list leaves out, by label. The listing keeps a category by label only (the network's id is
+ * not stored), so the form cannot carry an existing one over: the person picks each one to keep again, and anything left out is REMOVED.
+ */
+export function categoriesDropped(existingLabels: readonly string[], picked: readonly CategoryOption[]): string[] {
+  const keep = new Set(picked.map((c) => c.label.trim().toLowerCase()));
+  return existingLabels.filter((l) => l.trim() && !keep.has(l.trim().toLowerCase()));
+}
+
+/** What an empty value would wipe, said before it is sent. Null when the value is not a wipe. */
+export function wipeNote(field: EditField, value: unknown): string | null {
+  if (field === "regularHours" && Array.isArray(value) && value.length === 0) return "No opening hours are set, so this marks you closed every day. Press the button again to go ahead.";
+  if (field === "phone" && !(value as { primary?: string; additional?: string[] }).primary && !(value as { additional?: string[] }).additional?.length) return "This removes every phone number. Press the button again to go ahead.";
+  if (field === "website" && value === "") return "This removes your website. Press the button again to go ahead.";
+  if (field === "specialHours" && Array.isArray(value) && value.length === 0) return "This removes every holiday-hours day. Press the button again to go ahead.";
+  if (field === "additionalCategories" && Array.isArray(value) && value.length === 0) return "This removes every other category. Press the button again to go ahead.";
+  return null;
+}
+
 /** Add an offered category to the list once. */
 export function withCategory(list: readonly CategoryOption[], add: CategoryOption): CategoryOption[] {
   return list.some((c) => c.id === add.id) ? [...list] : [...list, add];
@@ -443,7 +462,7 @@ export function offerLine(o: HolidayOffer): string {
 /** What an offer card can do. A regional day with no known region asks first; a listing without regular hours cannot take one. */
 export function offerState(r: HolidayOffersResponse): { show: boolean; message: string | null; canAccept: boolean } {
   if (r.noTimeZone) {
-    return { show: false, message: null, canAccept: false };
+    return { show: true, message: "We cannot suggest holiday hours yet, because we do not know your time zone.", canAccept: false };
   }
   if (r.offers.length === 0) return { show: false, message: null, canAccept: false };
   if (r.needsRegularHours) {

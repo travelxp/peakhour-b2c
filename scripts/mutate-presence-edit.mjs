@@ -61,6 +61,15 @@ const CASES = [
   ["an open holiday needs no times", "if (!d.closed && (!HHMM.test(d.open) || !HHMM.test(d.close) || d.open === d.close)) return", "if (false) return"],
   ["holiday days go out unsorted", "for (const d of [...draft].sort((a, b) => a.date.localeCompare(b.date))) {", "for (const d of draft) {"],
   ["the category list is asked for after one letter", "export const MIN_CATEGORY_QUERY = 2;", "export const MIN_CATEGORY_QUERY = 1;"],
+  // ── not wiping or losing what is there ──
+  ["a category left out is not named", "return existingLabels.filter((l) => l.trim() && !keep.has(l.trim().toLowerCase()));", "return [];"],
+  ["category names are compared with case", "const keep = new Set(picked.map((c) => c.label.trim().toLowerCase()));", "const keep = new Set(picked.map((c) => c.label.trim()));"],
+  ["an empty week is not called a wipe", "if (field === \"regularHours\" && Array.isArray(value) && value.length === 0) return", "if (false) return"],
+  ["removing every number is not called a wipe", "if (field === \"phone\" && !(value as { primary?: string; additional?: string[] }).primary", "if (false && !(value as { primary?: string; additional?: string[] }).primary"],
+  ["a number kept is called a wipe", "&& !(value as { additional?: string[] }).additional?.length) return", "&& true) return"],
+  ["removing the website is not called a wipe", "if (field === \"website\" && value === \"\") return", "if (false) return"],
+  ["no calendar is not explained", "return { show: true, message: \"We cannot suggest holiday hours yet, because we do not know your time zone.\", canAccept: false };", "return { show: false, message: null, canAccept: false };"],
+  ["a plain-text category reads as nothing", "return [typeof value === \"string\" ? value : ((value as { label?: string }).label ?? \"\")].filter(Boolean);", "return [((value as { label?: string }).label ?? \"\")].filter(Boolean);"],
   // ── submitting ──
   ["a submit carries a second field", "return { listingId, network, changes: [{ field, value }] };", "return { listingId, network, changes: [{ field, value }, { field: \"description\", value: \"\" }] };"],
   ["a risky warning states a rule", "Changing this may mean ${label} asks you to verify", "Changing this means ${label} asks you to verify"],
