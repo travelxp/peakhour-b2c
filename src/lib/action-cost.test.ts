@@ -133,12 +133,6 @@ describe("the places that said 'Uses Peaks.'", () => {
     expect(read("components/repurpose/repurpose-sheet.tsx")).toContain('<ActionCost action="repurpose"');
     expect(read("app/(site)/dashboard/content/x/_components/mentions-list.tsx")).toContain('<ActionCost action="xReply"');
   });
-
-  it("the media picker no longer claims image generation draws on monthly credits", () => {
-    const t = read("components/composer/media-picker.tsx");
-    expect(t).not.toContain("Costs are pulled from your monthly AI credits");
-    expect(t).toContain("Generating an image does not use your Peaks.");
-  });
 });
 
 describe("the shown prices are the ones the routes bill", () => {

@@ -9,7 +9,6 @@ import type { InboxState, StatusFilter } from "@/lib/inbox-view";
 import { deskListParams, type AssigneeFilter, type ResponseTimer, type ThreadAssignee, type ThreadCsat } from "@/lib/inbox-desk";
 import type { MessageMedia, ProductHit } from "@/lib/inbox-media";
 import {
-  replyForm,
   replyRequest,
   resumeBody,
   threadPollInterval,
@@ -296,13 +295,7 @@ export function useWaReply(threadId: string) {
   const { business } = useAuth();
   const biz = business?._id ?? "none";
   return useMutation({
-    mutationFn: ({ payload, idempotencyKey, file }: { payload: ReplyPayload; idempotencyKey: string; file?: Blob }) => {
-      // an attached image or PDF is a form; everything else is JSON
-      if (payload.kind === "media") {
-        if (!file) throw new Error("an attachment needs its file");
-        const req = replyForm(threadId, payload, file, idempotencyKey);
-        return api.postForm<ReplyResult>(req.path, req.form);
-      }
+    mutationFn: ({ payload, idempotencyKey }: { payload: ReplyPayload; idempotencyKey: string }) => {
       const req = replyRequest(threadId, payload, idempotencyKey);
       return api.post<ReplyResult>(req.path, req.body);
     },
