@@ -622,7 +622,7 @@ export default function PeaksPage() {
 
         {/* ── Explainer ─────────────────────────────────────────────── */}
         <p className="text-xs text-muted-foreground">
-          1 Peak ≈ $0.001 in AI compute. Peaks are consumed when the AI runs — not when you write
+          1,000 Peaks = $1. Peaks are consumed when the AI runs — not when you write
           or edit. Unused Peaks reset each month and do not roll over.
         </p>
       </div>
