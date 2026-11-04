@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Megaphone, Plus, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
+import { AddDriveUrls } from "@/components/drive/add-drive-urls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -835,6 +836,7 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
               }
             >
               <Textarea rows={2} value={form.logos} onChange={(e) => set("logos", e.target.value)} />
+              <AddDriveUrls label="logos" value={form.logos} onChange={(v) => set("logos", v)} max={5} />
             </Field>
           </>
         ) : null}
@@ -842,9 +844,11 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
           <>
             <Field label="Landscape images (1.91:1) — one https:// address per line, 1 to 20">
               <Textarea rows={2} value={form.marketingImages} onChange={(e) => set("marketingImages", e.target.value)} />
+              <AddDriveUrls label="landscape images" value={form.marketingImages} onChange={(v) => set("marketingImages", v)} max={20} />
             </Field>
             <Field label="Square images (1:1) — one https:// address per line, 1 to 20">
               <Textarea rows={2} value={form.squareImages} onChange={(e) => set("squareImages", e.target.value)} />
+              <AddDriveUrls label="square images" value={form.squareImages} onChange={(v) => set("squareImages", v)} max={20} />
             </Field>
           </>
         ) : null}

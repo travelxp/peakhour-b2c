@@ -69,14 +69,17 @@ describe("the composer's rich buttons", () => {
   const markup = renderToStaticMarkup(<WaRichSend threadId="whatsapp:1:abc" disabled={false} unknownSig={null} onSend={async () => true} />);
 
   it("offers the three ways, and opens none of them by itself", () => {
-    expect(markup).toContain("Attach image or PDF");
+    expect(markup).toContain("Attach from Drive");
+    expect(markup).not.toContain("<input");
     expect(markup).toContain("Send a product");
     expect(markup).toContain("Send a checkout link");
     expect(markup).not.toContain("Search your products");
   });
 
-  it("the file picker takes JPEG, PNG and PDF only", () => {
-    expect(markup).toContain('accept="image/jpeg,image/png,application/pdf"');
+  it("the Drive picker greys out what WhatsApp will not take (JPEG, PNG and PDF only, up to 4 MB), and a Private file is allowed", () => {
+    const src = here("wa-rich-send.tsx");
+    expect(src).toMatch(/unusable=\{\(f\) => attachmentProblem\(\{ type: f\.mimeType, size: f\.sizeBytes \}\)\}/);
+    expect(src).toContain("requirePublicUrl={false}");
   });
 
   it("every button is off while a send is in flight (one press, one send)", () => {

@@ -61,7 +61,6 @@ export function mediaOpenError(err: unknown): string {
 
 // ── What can be attached ─────────────────────────────────────────────────────────────────────────────────────────
 
-export const ATTACH_ACCEPT = "image/jpeg,image/png,application/pdf";
 /** The api's limit (`OUTBOUND_MAX_BYTES`): under WhatsApp's 5 MB image limit and the hosting platform's request size. */
 export const ATTACH_MAX_BYTES = 4 * 1024 * 1024;
 /** WhatsApp's caption limit. */

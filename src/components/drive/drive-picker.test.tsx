@@ -1,0 +1,368 @@
+// @vitest-environment jsdom
+/**
+ * The Drive picker's states (row D7): what it shows while loading, offline, failed, empty and ready; what fits comes first and says so;
+ * a Private file where a public link is needed; what is handed back on Add; and the Upload tab. The api client and the toast are
+ * replaced, so nothing here reaches the network.
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createRoot, type Root } from "react-dom/client";
+import { act } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { DriveFile } from "@/lib/drive/files";
+import type { UploadDeps } from "@/lib/drive/upload";
+
+const h = vi.hoisted(() => ({
+  list: vi.fn(),
+  link: vi.fn(),
+  toastInfo: vi.fn(),
+  toastError: vi.fn(),
+  toastSuccess: vi.fn(),
+}));
+vi.mock("@/lib/drive/files", async (orig) => ({ ...(await orig<typeof import("@/lib/drive/files")>()), listDriveFiles: h.list, getFileLink: h.link }));
+vi.mock("sonner", () => ({ toast: { info: h.toastInfo, error: h.toastError, success: h.toastSuccess } }));
+
+const { DrivePickerPanel, assetOf, blockedReason, gridState, progressWords } = await import("./drive-picker");
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+let root: Root;
+let host: HTMLElement;
+beforeEach(() => {
+  vi.resetAllMocks();
+});
+afterEach(() => {
+  act(() => root.unmount());
+  host.remove();
+});
+
+const file = (id: string, over: Partial<DriveFile> = {}): DriveFile => ({
+  id,
+  name: `File ${id}`,
+  kind: "image",
+  mimeType: "image/jpeg",
+  visibility: "published",
+  publicUrl: `https://media.test/${id}.jpg`,
+  sizeBytes: 1000,
+  source: "uploaded",
+  createdAt: "2026-11-04T10:00:00.000Z",
+  ...over,
+});
+const page = (items: DriveFile[], hasMore = false) => ({ items, hasMore, page: 1 });
+const IG = { channel: "instagram", label: "an Instagram post" };
+
+// react-query hands results to React on a timer, so a few ticks pass before a resolved fetch is on screen
+const flush = async () => {
+  for (let i = 0; i < 4; i++) await act(async () => void (await new Promise((r) => setTimeout(r, 5))));
+};
+async function mount(props: Partial<React.ComponentProps<typeof DrivePickerPanel>> = {}) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
+  host = document.createElement("div");
+  document.body.appendChild(host);
+  root = createRoot(host);
+  const onSelect = vi.fn();
+  act(() =>
+    root.render(
+      <QueryClientProvider client={client}>
+        <DrivePickerPanel onSelect={onSelect} {...props} />
+      </QueryClientProvider>,
+    ),
+  );
+  await flush();
+  return { onSelect, client };
+}
+const tiles = () => [...host.querySelectorAll<HTMLButtonElement>("ul button[aria-pressed]")];
+const names = () => tiles().map((t) => t.querySelector(".truncate")?.textContent);
+const text = () => host.textContent ?? "";
+const click = (el: Element) => act(() => void el.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+const buttonByText = (label: string) => [...host.querySelectorAll("button")].find((b) => b.textContent?.trim() === label) as HTMLButtonElement;
+
+describe("the grid's states", () => {
+  it("shows a busy skeleton, not an empty Drive, while the first page loads", async () => {
+    h.list.mockReturnValue(new Promise(() => {}));
+    await mount();
+    expect(host.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(text()).not.toContain("Nothing in Drive yet");
+  });
+
+  it("says so, with a way to try again, when the first load fails; Try again loads the files", async () => {
+    h.list.mockRejectedValueOnce(new Error("boom")).mockResolvedValueOnce(page([file("a")]));
+    await mount();
+    expect(text()).toContain("We couldn't load your files");
+    expect(text()).not.toContain("boom");
+    click(buttonByText("Try again"));
+    await flush();
+    expect(names()).toEqual(["File a"]);
+    expect(text()).not.toContain("We couldn't load your files");
+  });
+
+  it("an empty Drive offers an upload; an empty search says what was searched and offers none", async () => {
+    h.list.mockResolvedValue(page([]));
+    await mount();
+    expect(text()).toContain("Nothing in Drive yet");
+    click(buttonByText("Upload a file"));
+    expect(host.querySelector("input[type=file]")).not.toBeNull();
+
+    act(() => root.unmount());
+    host.remove();
+    await mount();
+    const search = host.querySelector<HTMLInputElement>("#drive-picker-search")!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(search, "blue tin");
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => void (await new Promise((r) => setTimeout(r, 320))));
+    await flush();
+    expect(h.list).toHaveBeenLastCalledWith(expect.objectContaining({ q: "blue tin", page: 1 }));
+    expect(text()).toContain('Nothing matches "blue tin"');
+    expect(text()).not.toContain("Nothing in Drive yet");
+  });
+
+  it("★a query that cannot run because the browser is offline is 'offline', not an empty Drive (isLoading would say neither)", () => {
+    expect(gridState({ isPending: true, isError: false, fetchStatus: "paused" }, 0)).toBe("offline");
+    expect(gridState({ isPending: true, isError: false, fetchStatus: "fetching" }, 0)).toBe("loading");
+    expect(gridState({ isPending: false, isError: false, fetchStatus: "idle" }, 0)).toBe("empty");
+    expect(gridState({ isPending: false, isError: true, fetchStatus: "idle" }, 0)).toBe("error");
+    // files already on screen are never replaced by a state: a failed "show more" keeps the grid
+    expect(gridState({ isPending: false, isError: true, fetchStatus: "idle" }, 3)).toBe("ready");
+  });
+
+  it("asks for the next page when 'Show more' is pressed", async () => {
+    h.list.mockResolvedValueOnce(page([file("a")], true)).mockResolvedValueOnce({ items: [file("b")], hasMore: false, page: 2 });
+    await mount();
+    click(buttonByText("Show more"));
+    await flush();
+    expect(h.list).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2 }));
+    expect(names()).toEqual(["File a", "File b"]);
+    expect(buttonByText("Show more")).toBeUndefined();
+  });
+});
+
+describe("what fits comes first", () => {
+  const fit = (channel: string, f: "good" | "possible" | "poor", reason?: string) => [{ channel, fit: f, ...(reason ? { reason } : {}) }];
+
+  it("puts files that fit a post first, says so, and names each file's verdict in plain words", async () => {
+    h.list.mockResolvedValue(
+      page([
+        file("poor", { channelFit: fit("instagram", "poor", "Instagram takes shapes from 0.8:1 to 1.91:1; this one is 2.4:1") }),
+        file("none"),
+        file("good", { channelFit: fit("instagram", "good") }),
+        file("maybe", { channelFit: fit("instagram", "possible", "Size could not be measured") }),
+      ]),
+    );
+    await mount({ target: IG });
+    expect(names()).toEqual(["File good", "File maybe", "File none", "File poor"]);
+    expect(host.querySelector('[data-testid="fit-line"]')?.textContent).toBe("Showing what fits an Instagram post first.");
+    const notes = tiles().map((t) => t.querySelector(".truncate:nth-child(2)")?.textContent);
+    expect(notes).toEqual(["Fits", "Check before using", "Not checked yet", "Doesn't fit"]);
+    // the api's sentence is on the tile for anyone who needs the why
+    expect(tiles()[3]!.title).toContain("this one is 2.4:1");
+  });
+
+  it("does not claim an order it does not have: with no verdicts yet the line says files are newest first", async () => {
+    h.list.mockResolvedValue(page([file("a"), file("b", { describeState: "pending" })]));
+    await mount({ target: IG });
+    expect(names()).toEqual(["File a", "File b"]);
+    expect(host.querySelector('[data-testid="fit-line"]')?.textContent).toContain("still being worked out");
+    expect(host.querySelector('[data-testid="fit-line"]')?.textContent).not.toContain("fits an Instagram post first");
+    expect(text()).toContain("Checking fit…");
+  });
+
+  it("with no place named there is no fit line and no verdicts", async () => {
+    h.list.mockResolvedValue(page([file("a", { channelFit: fit("instagram", "good") })]));
+    await mount();
+    expect(host.querySelector('[data-testid="fit-line"]')).toBeNull();
+    expect(text()).not.toContain("Fits");
+  });
+
+  it("only shows the kinds the screen can use, and asks the api for one kind when there is one", async () => {
+    h.list.mockResolvedValue(page([file("a"), file("v", { kind: "video", mimeType: "video/mp4" }), file("d", { kind: "document", mimeType: "application/pdf" })]));
+    await mount({ kinds: ["image", "document"] });
+    expect(names()).toEqual(["File a", "File d"]);
+    expect(h.list).toHaveBeenCalledWith(expect.not.objectContaining({ kind: "image" }));
+    act(() => root.unmount());
+    host.remove();
+    await mount({ kinds: ["video"] });
+    expect(h.list).toHaveBeenLastCalledWith(expect.objectContaining({ kind: "video" }));
+  });
+});
+
+describe("a Private file", () => {
+  const priv = file("p", { name: "Contract", visibility: "private", publicUrl: undefined, kind: "document", mimeType: "application/pdf" });
+
+  it("where a public link is needed is greyed out with the reason, and cannot be added", async () => {
+    h.list.mockResolvedValue(page([file("a"), priv]));
+    const { onSelect } = await mount({ kinds: ["image", "document"] });
+    const t = tiles().find((b) => b.textContent?.includes("Contract"))!;
+    expect(t.disabled).toBe(true);
+    expect(t.textContent).toContain("Private. No public link.");
+    expect(t.title).toContain("Publish the file in Drive");
+    expect(host.querySelector('[data-testid="private-line"]')?.textContent).toContain("no public link");
+    click(t);
+    expect(text()).toContain("Nothing selected");
+    expect(buttonByText("Add").disabled).toBe(true);
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("where none is needed (an Inbox reply) can be added, and the picker fetches a short-lived signed link for it", async () => {
+    h.list.mockResolvedValue(page([priv]));
+    h.link.mockResolvedValue({ url: "https://signed.test/p?sig=1", expiresInSeconds: 300, signed: true });
+    const { onSelect } = await mount({ kinds: ["document"], requirePublicUrl: false });
+    expect(host.querySelector('[data-testid="private-line"]')).toBeNull();
+    click(tiles()[0]!);
+    click(buttonByText("Add"));
+    await flush();
+    expect(h.link).toHaveBeenCalledWith("p");
+    expect(onSelect).toHaveBeenCalledWith([expect.objectContaining({ id: "p", url: "https://signed.test/p?sig=1", visibility: "private", linkExpiresInSeconds: 300 })]);
+  });
+
+  it("if the signed link cannot be made nothing is added, and the person is told which file", async () => {
+    h.list.mockResolvedValue(page([priv]));
+    h.link.mockRejectedValue(new Error("503"));
+    const { onSelect } = await mount({ kinds: ["document"], requirePublicUrl: false });
+    click(tiles()[0]!);
+    click(buttonByText("Add"));
+    await flush();
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(h.toastError).toHaveBeenCalledWith(expect.stringContaining("Contract"), expect.anything());
+  });
+
+  it("assetOf never hands back a Private file as if it had a public link", async () => {
+    expect(await assetOf(priv, true)).toBeNull();
+    expect(h.link).not.toHaveBeenCalled();
+    expect(blockedReason(priv, true)).toBe("Private. No public link.");
+    expect(blockedReason(priv, false)).toBeNull();
+  });
+});
+
+describe("choosing and adding", () => {
+  it("hands back the public address, name, type and size of each chosen file, in the order chosen", async () => {
+    h.list.mockResolvedValue(page([file("a", { width: 1080, height: 1350, altText: "A blue tin" }), file("b")]));
+    const { onSelect } = await mount({ addLabel: "Add to post" });
+    expect(buttonByText("Add to post").disabled).toBe(true);
+    click(tiles()[1]!);
+    click(tiles()[0]!);
+    expect(text()).toContain("2 selected");
+    click(buttonByText("Add to post"));
+    await flush();
+    expect(onSelect).toHaveBeenCalledWith([
+      expect.objectContaining({ id: "b", url: "https://media.test/b.jpg", name: "File b", mime: "image/jpeg", bytes: 1000, visibility: "published", source: "upload" }),
+      expect.objectContaining({ id: "a", url: "https://media.test/a.jpg", width: 1080, height: 1350, alt: "A blue tin" }),
+    ]);
+  });
+
+  it("stops at the number the screen can take and says so", async () => {
+    h.list.mockResolvedValue(page([file("a"), file("b")]));
+    await mount({ maxSelection: 1 });
+    click(tiles()[0]!);
+    click(tiles()[1]!);
+    expect(text()).toContain("1 selected");
+    expect(h.toastInfo).toHaveBeenCalledWith("You can add up to 1 file here.");
+  });
+
+  it("a file the screen cannot use is greyed out with ITS reason, and a Private file's reason comes first", async () => {
+    h.list.mockResolvedValue(page([file("big", { sizeBytes: 9_000_000 })]));
+    await mount({ unusable: (f) => (f.sizeBytes > 4_000_000 ? "Over 4 MB." : null) });
+    expect(tiles()[0]!.disabled).toBe(true);
+    expect(tiles()[0]!.textContent).toContain("Over 4 MB.");
+  });
+
+  it("AI-made files are labelled by what they are, not 'upload'", async () => {
+    expect(await assetOf(file("g", { source: "ai_generated" }), true)).toMatchObject({ source: "ai_image" });
+    expect(await assetOf(file("v", { source: "ai_generated", kind: "video" }), true)).toMatchObject({ source: "ai_video" });
+  });
+});
+
+describe("the Upload tab", () => {
+  const goodDeps = (over: Partial<UploadDeps> = {}): Partial<UploadDeps> => ({
+    sha256Hex: async () => "a".repeat(64),
+    measureImage: async () => undefined,
+    initiate: vi.fn(async () => ({ deduped: false as const, uploadId: "u1", visibility: "published" as const, kind: "image", partSize: 100, partCount: 1, parts: [{ partNumber: 1, url: "https://r2.test/1" }], expiresAt: "x" })),
+    putPart: vi.fn(async () => undefined),
+    complete: vi.fn(async () => ({ mediaId: "new1", name: "Tin", publicUrl: "https://media.test/new1.jpg", visibility: "published" as const, sizeBytes: 5, deduped: false })),
+    abort: vi.fn(async () => undefined),
+    ...over,
+  });
+  const choose = (files: File[]) => {
+    const input = host.querySelector<HTMLInputElement>("input[type=file]")!;
+    Object.defineProperty(input, "files", { value: files, configurable: true });
+    act(() => void input.dispatchEvent(new Event("change", { bubbles: true })));
+  };
+
+  it("uploads a chosen file, asks for a PUBLISHED file where a public link is needed, then shows it in Drive already selected", async () => {
+    h.list.mockResolvedValue(page([]));
+    const deps = goodDeps();
+    const { onSelect } = await mount({ uploadOptions: { deps } });
+    click([...host.querySelectorAll<HTMLButtonElement>("[role=tab]")].find((t) => t.textContent === "Upload")!);
+    choose([new File(["hello"], "tin.jpg", { type: "image/jpeg" })]);
+    await flush();
+    await flush();
+    expect(deps.initiate).toHaveBeenCalledWith(expect.objectContaining({ filename: "tin.jpg", visibility: "published" }));
+    expect(h.toastSuccess).toHaveBeenCalledWith("Added 1 file to Drive.");
+    expect(names()).toEqual(["Tin"]);
+    expect(text()).toContain("1 selected");
+    click(buttonByText("Add"));
+    await flush();
+    expect(onSelect).toHaveBeenCalledWith([expect.objectContaining({ id: "new1", url: "https://media.test/new1.jpg" })]);
+  });
+
+  it("names a refused upload in the api's words and adds nothing", async () => {
+    h.list.mockResolvedValue(page([]));
+    const { ApiError } = await import("@/lib/api");
+    const deps = goodDeps({ initiate: vi.fn(async () => Promise.reject(new ApiError("STORAGE_QUOTA_EXCEEDED", "Your Drive is full. Add space to upload more.", 402))) });
+    await mount({ uploadOptions: { deps } });
+    click([...host.querySelectorAll<HTMLButtonElement>("[role=tab]")].find((t) => t.textContent === "Upload")!);
+    choose([new File(["hello"], "tin.jpg", { type: "image/jpeg" })]);
+    await flush();
+    await flush();
+    expect(text()).toContain("Your Drive is full. Add space to upload more.");
+    expect(text()).toContain("Not added");
+    expect(text()).toContain("Nothing selected");
+  });
+
+  it("reads progress in whole megabytes, and says only 'Sending' for a small file", () => {
+    expect(progressWords(12 * 1048576, 48 * 1048576)).toBe("Sending 12 of 48 MB");
+    expect(progressWords(10, 500_000)).toBe("Sending…");
+  });
+});
+
+describe("Generate", () => {
+  const openGenerate = () => click([...host.querySelectorAll<HTMLButtonElement>("[role=tab]")].find((t) => t.textContent === "Generate")!);
+
+  it("says plainly when the screen cannot make files, instead of a dead form", async () => {
+    h.list.mockResolvedValue(page([]));
+    await mount();
+    openGenerate();
+    expect(text()).toContain("Generating isn't available here");
+    expect(host.querySelector("textarea")).toBeNull();
+  });
+
+  it("starts from the brief the screen holds; when the screen shows the result itself the picker just closes", async () => {
+    h.list.mockResolvedValue(page([]));
+    const onGenerate = vi.fn(async () => undefined);
+    const onClose = vi.fn();
+    const { onSelect } = await mount({ onGenerate, generatePrompt: "A blue tin on a table", promptEditable: false, onClose });
+    openGenerate();
+    const box = host.querySelector<HTMLTextAreaElement>("textarea")!;
+    expect(box.value).toBe("A blue tin on a table");
+    expect(box.readOnly).toBe(true);
+    click(buttonByText("Make an image"));
+    await flush();
+    expect(onGenerate).toHaveBeenCalledWith("A blue tin on a table", "image");
+    expect(onClose).toHaveBeenCalled();
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("returns a made file to the screen when the screen hands one back", async () => {
+    h.list.mockResolvedValue(page([]));
+    const made = { id: "g1", url: "https://media.test/g1.png", mime: "image/png", source: "ai_image" as const, createdAt: "2026-11-04T10:00:00.000Z" };
+    const { onSelect } = await mount({ onGenerate: vi.fn(async () => made) });
+    openGenerate();
+    const box = host.querySelector<HTMLTextAreaElement>("textarea")!;
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(box, "A tin");
+      box.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    click(buttonByText("Make an image"));
+    await flush();
+    expect(onSelect).toHaveBeenCalledWith([made]);
+  });
+});

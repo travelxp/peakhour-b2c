@@ -49,7 +49,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { LibraryMediaPicker } from "@/components/media/library-media-picker";
+import { DrivePicker } from "@/components/drive/drive-picker";
+import { targetLabel } from "@/lib/drive/fit";
 import { ScheduleTimePicker } from "@/components/scheduler/schedule-time-picker";
 import { PlatformCharCounter } from "@/components/composer/platform-char-counter";
 import { scheduler } from "@/lib/scheduler/client";
@@ -441,7 +442,10 @@ export function ScheduledPostEditor({
           supportsMedia && <p className="text-xs text-muted-foreground">No attachments.</p>
         )}
         {supportsMedia ? (
-          <LibraryMediaPicker
+          <DrivePicker
+            // Files that fit this channel come first (the api's `channelFit`).
+            target={{ channel: item.channel, label: targetLabel(channelDisplayName(item.channel)) }}
+            addLabel="Add to post"
             // Remaining slots against the payload schema's cap, not a guessed
             // per-platform number: the channel's real `maxMediaCount` lives in
             // the server's constraints adapter and is enforced there

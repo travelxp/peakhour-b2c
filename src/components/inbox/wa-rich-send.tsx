@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import { DrivePicker } from "@/components/drive/drive-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useInboxProducts } from "@/hooks/use-wa-conversations";
 import {
-  ATTACH_ACCEPT,
   CAPTION_MAX,
   CHECKOUT_MAX_LINES,
   CHECKOUT_NOTE,
@@ -29,7 +29,7 @@ import { replySignature, type ReplyPayload } from "@/lib/wa-inbox-reply";
  * Inbox rich messages: the composer's three extra ways to answer a shopper, shown only while the 24-hour window is open (an image, a
  * product card and a checkout link are free-form messages, like text).
  *
- *  - **Attach an image or PDF** (JPEG, PNG or PDF, up to 4 MB), with an optional caption.
+ *  - **Attach from Drive** an image or PDF (JPEG, PNG or PDF, up to 4 MB), with an optional caption.
  *  - **Send a product**: search this store's catalogue and send the product as a card (its photo, name, price and link).
  *  - **Send a checkout link**: pick products, options and quantities and send a link to the store's own checkout with them in the cart.
  *
@@ -37,7 +37,7 @@ import { replySignature, type ReplyPayload } from "@/lib/wa-inbox-reply";
  * tested there. A send goes through the composer's own `onSend`, so it has the same idempotency key, double-click guard and error card
  * as a text reply. `onSend` answers whether it was sent; a panel clears only then, so a refused send keeps what the person chose.
  */
-type SendFn = (payload: ReplyPayload, file?: Blob) => Promise<boolean>;
+type SendFn = (payload: ReplyPayload) => Promise<boolean>;
 
 /** The label of a send button: "Send again anyway" when THIS exact send is the one whose outcome is unknown (the press is the confirmation). */
 function sendLabel(payload: ReplyPayload, unknownSig: string | null, idle: string, busy: boolean): string {
@@ -72,50 +72,50 @@ export function WaRichSend({ threadId, disabled, unknownSig, onSend }: { threadI
   );
 }
 
-const attachPayload = (file: File, caption: string): ReplyPayload => ({
+/** A file picked from Drive, staged to send. */
+interface Staged {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+}
+
+const attachPayload = (file: Staged, caption: string): ReplyPayload => ({
   kind: "media",
-  file: { name: file.name, size: file.size, lastModified: file.lastModified, type: file.type },
+  mediaId: file.id,
+  file: { name: file.name, size: file.size, type: file.type },
   ...(caption.trim() ? { caption } : {}),
 });
 
-/** "Attach image or PDF": choose, check at once, add a caption, send. Nothing leaves until Send file is pressed. */
+/**
+ * "Attach from Drive": the one Drive picker, with Upload inside it, so a new file is added to Drive and sent from there. A Private file is
+ * allowed (the bytes go to WhatsApp as an upload, never as a public link). What WhatsApp takes (JPEG, PNG, PDF, up to 4 MB) greys a tile out
+ * with the reason, and the api checks the bytes again. Nothing leaves until Send file is pressed.
+ */
 function AttachButton({ disabled, unknownSig, onSend }: { disabled: boolean; unknownSig: string | null; onSend: SendFn }) {
-  const input = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState<File | null>(null);
+  const [file, setFile] = useState<Staged | null>(null);
   const [caption, setCaption] = useState("");
-  const [problem, setProblem] = useState<string | null>(null);
   const captionIssue = captionProblem(caption);
-
-  function choose(f: File | undefined) {
-    if (!f) return;
-    const p = attachmentProblem(f);
-    setProblem(p);
-    // a refused pick leaves the file already staged (and its caption) as it was
-    if (!p) setFile(f);
-  }
 
   return (
     <>
-      <input
-        ref={input}
-        type="file"
-        accept={ATTACH_ACCEPT}
-        className="hidden"
-        aria-label="Choose an image or PDF to send"
-        onChange={(e) => {
-          choose(e.target.files?.[0]);
-          // the same file chosen again must fire again
-          e.target.value = "";
+      <DrivePicker
+        kinds={["image", "document"]}
+        requirePublicUrl={false}
+        maxSelection={1}
+        addLabel="Attach"
+        unusable={(f) => attachmentProblem({ type: f.mimeType, size: f.sizeBytes })}
+        onSelect={(assets) => {
+          const a = assets[0];
+          // a refused pick leaves the file already staged (and its caption) as it was
+          if (a) setFile({ id: a.id, name: a.name ?? "file", size: a.bytes ?? 0, type: a.mime });
         }}
+        trigger={
+          <Button size="xs" variant="outline" disabled={disabled}>
+            Attach from Drive
+          </Button>
+        }
       />
-      <Button size="xs" variant="outline" disabled={disabled} onClick={() => input.current?.click()}>
-        Attach image or PDF
-      </Button>
-      {problem && (
-        <p role="alert" className="basis-full text-xs text-warning-on-tint">
-          {problem}
-        </p>
-      )}
       {file && (
         <div className="basis-full space-y-1.5 rounded-md border bg-muted/30 p-2" data-testid="attachment">
           <p className="text-xs">
@@ -132,7 +132,7 @@ function AttachButton({ disabled, unknownSig, onSend }: { disabled: boolean; unk
                 size="xs"
                 disabled={disabled || Boolean(captionIssue) || blocked(attachPayload(file, caption), unknownSig)}
                 onClick={async () => {
-                  const sent = await onSend(attachPayload(file, caption), file);
+                  const sent = await onSend(attachPayload(file, caption));
                   if (sent) {
                     setFile(null);
                     setCaption("");
