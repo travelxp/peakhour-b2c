@@ -18,11 +18,12 @@ describe("the content image price is shown before the click", () => {
     expect(page).toContain("usePeaksQuote(PEAKS_ACTIONS.generateImage");
     expect(page).toContain("<PriceLine price={price} />");
     expect(page).toContain("quoteTokenFor(price).quoteToken");
-    expect(page).toMatch(/placeholders\/\$\{index\}\/generate`, \{\}, quoteToken \? \{ "x-peaks-quote": quoteToken \} : undefined\)/);
+    expect(page).toContain('{ ...newActionKey(), ...(quoteToken ? { "x-peaks-quote": quoteToken } : {}) }');
   });
 
   it("shows a refusal before the task started, and a failed generation says nothing was charged", () => {
     expect(page).toContain("chargedTaskRefusal(err.code, err.message)");
-    expect(page).toContain("Image generation failed. You were not charged.");
+    expect(page).toContain('description: "You were not charged."');
+    expect(page).toContain('err.code === "QUOTE_NOT_HONOURED"');
   });
 });

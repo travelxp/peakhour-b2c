@@ -913,7 +913,7 @@ function ImagePlaceholderRail({
               p={p}
               index={i}
               onDelete={onDelete}
-              onGenerate={(i) => onGenerate(i, quoteTokenFor(price).quoteToken)}
+              onGenerate={(idx) => onGenerate(idx, quoteTokenFor(price).quoteToken)}
               onSupplyUrl={onSupplyUrl}
               onPickFromLibrary={onPickFromLibrary}
               busy={busy}
@@ -1159,6 +1159,7 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
   // other hooks at the top — MUST be unconditional (it previously sat
   // after this component's early returns, a react-hooks/rules-of-hooks
   // violation).
+  const queryClient = useQueryClient();
   const [generatingPlaceholderIdx, setGeneratingPlaceholderIdx] = useState<number | null>(null);
   // Per-placeholder resolution busy index (paste-URL / library pick).
   const [resolvingPlaceholderIdx, setResolvingPlaceholderIdx] = useState<number | null>(null);
@@ -1396,14 +1397,22 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
   async function handleGeneratePlaceholder(index: number, quoteToken?: string) {
     setGeneratingPlaceholderIdx(index);
     try {
-      await api.post(`/v1/content/ideas/${ideaId}/placeholders/${index}/generate`, {}, quoteToken ? { "x-peaks-quote": quoteToken } : undefined);
+      // One key per click: a retry or a double click of this click is one charge (the api derives the charge id from it).
+      await api.post(`/v1/content/ideas/${ideaId}/placeholders/${index}/generate`, {}, { ...newActionKey(), ...(quoteToken ? { "x-peaks-quote": quoteToken } : {}) });
       toast.success(`Image ${index + 1} generated`);
       onRefresh();
     } catch (err) {
       // Refused before it started (too few credits, already running): nothing was charged, and the api says what to do.
       const refusal = err instanceof ApiError ? chargedTaskRefusal(err.code, err.message) : undefined;
       if (refusal) toast.error(refusal.title, { description: refusal.description });
-      else toast.error(err instanceof Error ? err.message : "Image generation failed. You were not charged.");
+      else if (err instanceof ApiError && err.code === "QUOTE_NOT_HONOURED") {
+        // The receipt for the price shown has lapsed: nothing ran. Drop it so the price is asked for again, then press again.
+        queryClient.resetQueries({ queryKey: ["peaks-quote"] });
+        toast.error("That price has changed.", { description: err.message || "Ask for a fresh quote and confirm the new price." });
+      } else if (err instanceof ApiError) {
+        // The api answered with a failure: a held charge is released only on success, so nothing was charged.
+        toast.error(err.message || "Image generation failed.", { description: "You were not charged." });
+      } else toast.error(err instanceof Error ? err.message : "Image generation failed.");
     }
     setGeneratingPlaceholderIdx(null);
   }
