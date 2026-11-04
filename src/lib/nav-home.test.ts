@@ -30,6 +30,9 @@ const pillars: NavGroupLike<Item>[] = [
       { href: "/dashboard/presence", label: "Presence" },
       { href: "/dashboard/insights/analytics", label: "Insights" },
       { href: "/dashboard/tasks", label: "Tasks" },
+      // Drive (plan DR2): top level, directly above Peaks, and it has no funnel question of its own.
+      { href: "/dashboard/drive", label: "Drive" },
+      { href: "/dashboard/peaks", label: "Peaks" },
       { href: "/dashboard/settings", label: "Settings" },
     ],
   },
@@ -46,6 +49,15 @@ describe("funnelNav", () => {
       expect(out).toContain(href);
       expect(out.filter((h) => h === href)).toHaveLength(1);
     }
+  });
+
+  it("keeps Drive once, in the tail, directly above Peaks", () => {
+    const out = funnelNav(pillars, home);
+    const all = hrefs(out);
+    expect(all.filter((h) => h === "/dashboard/drive")).toHaveLength(1);
+    const tail = out[out.length - 1].items.map((i) => i.href);
+    expect(tail.indexOf("/dashboard/drive")).toBeGreaterThanOrEqual(0);
+    expect(tail.indexOf("/dashboard/peaks")).toBe(tail.indexOf("/dashboard/drive") + 1);
   });
 
   it("★★sweeps a destination it has never heard of into the tail rather than losing it", () => {

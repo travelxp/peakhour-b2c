@@ -12,7 +12,7 @@ import { openAddSpace } from "@/components/media/add-space-dialog";
  * Storage meter (Peakhour Drive Q4). Shows the POOL: GB used of the organisation's total, which is every paid business's plan
  * allowance plus any packs it chose. Amber from 80%, red when full, and its own state when a pack could not renew (new uploads
  * paused, files and space safe). The words live in lib/storage-copy.ts so the sidebar and the page say the same thing.
- * Reused on the Media page (full) and the dashboard sidebar (compact).
+ * Reused on the Drive Storage tab (full) and the dashboard sidebar (compact).
  */
 export function StorageMeter({
   usage,

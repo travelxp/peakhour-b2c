@@ -6,7 +6,7 @@ vi.mock("@/lib/api", () => ({ api: { get: vi.fn(), post: vi.fn(), delete: vi.fn(
 vi.mock("@/hooks/use-credits", () => ({ useCreditsBalance: vi.fn() }));
 
 const { AddSpacePanel } = await import("./add-space-dialog");
-const { StorageMeter } = await import("@/app/(site)/dashboard/media/storage-meter");
+const { StorageMeter } = await import("@/components/drive/storage-meter");
 const { StoragePeaksView } = await import("./storage-peaks-card");
 
 const CATALOG = [
