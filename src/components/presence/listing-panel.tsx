@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useListingQuery } from "@/hooks/use-presence-listing";
 import { useLocale } from "@/hooks/use-locale";
+import { ControlSection } from "@/components/presence/control-section";
 import {
   DRIFT_LABEL,
   LISTING_ROWS,
@@ -16,7 +17,6 @@ import {
   setupMessage,
   specialHoursText,
   staleSyncNote,
-  verificationNote,
   type DriftStatus,
   type PresenceListing,
   type PresenceListingResponse,
@@ -222,7 +222,6 @@ export function ListingPanel() {
   // A failing sync means nothing was compared recently, so no row may claim "same".
   const google = data.setup === "ready" ? data.google : null;
   const checked = !!google?.lastSyncedAt;
-  const verification = verificationNote(data.verification?.state);
 
   return (
     <Card className="gap-3 p-5">
@@ -234,7 +233,8 @@ export function ListingPanel() {
         </p>
       )}
       {note && <p className="text-xs text-warning-on-tint">{note}</p>}
-      {verification && <p className="text-xs text-warning-on-tint">{verification}</p>}
+
+      <ControlSection google={google} formatDateTime={formatDateTime} />
 
       <dl className="divide-y">
         {LISTING_ROWS.map((r) => (

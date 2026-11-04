@@ -15,15 +15,17 @@ import {
 import { presenceApi } from "@/lib/api/presence";
 import { useLocale } from "@/hooks/use-locale";
 import { useListingQuery } from "@/hooks/use-presence-listing";
+import { SearchTermsSection } from "@/components/presence/search-terms-section";
 import {
   DEFAULT_INSIGHT_DAYS,
-  INSIGHT_METRICS,
   INSIGHT_WINDOWS,
+  NOT_AVAILABLE_YET,
+  chartHasData,
   chartPoints,
+  declaredMetrics,
   coverageNote,
   windowSeries,
   fetchView,
-  insightsView,
   metricTotal,
   presenceInsightsQueryKey,
   setupMessage,
@@ -41,8 +43,8 @@ import {
  * series, no legend, and one colour: Presence's pillar token `--chart-5`.
  * A day Google sent nothing for is a gap in the line, never a zero.
  *
- * Search terms and whether edits are live arrive in later rows; there is no
- * placeholder for them here.
+ * A figure Google did not report is "Not available yet", never 0. Search terms
+ * (monthly, and only where the network declares them) sit under the chart.
  */
 export function InsightsPanel() {
   const [days, setDays] = useState(DEFAULT_INSIGHT_DAYS);
@@ -156,9 +158,18 @@ export function InsightsPanel() {
   const shownDays = data.days;
   const now = new Date();
   const series = windowSeries(data.series, shownDays, now);
-  const hasData = insightsView(data, shownDays, now) === "data";
-  const selected = INSIGHT_METRICS.find((m) => m.key === metric) ?? INSIGHT_METRICS[0];
+  const google = listingQ.data.google;
+  const metrics = declaredMetrics(google?.capabilities);
+  const selected = metrics.find((m) => m.key === metric) ?? metrics[0];
+  if (!selected) {
+    return shell(
+      <p className="rounded-lg border border-dashed p-6 text-center text-xs text-muted-foreground">
+        This listing doesn&apos;t report any figures we can show yet.
+      </p>,
+    );
+  }
   const points = chartPoints(series, selected.key, shownDays, now);
+  const hasData = chartHasData(points);
   const coverage = coverageNote(series, shownDays);
   const syncNote = staleSyncNote(listingQ.data.setup);
   const chartConfig = {
@@ -182,7 +193,7 @@ export function InsightsPanel() {
       {syncNote && <p className="text-xs text-warning-on-tint">{syncNote}</p>}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {INSIGHT_METRICS.map((m) => {
+        {metrics.map((m) => {
           const total = metricTotal(series, m.key);
           const active = m.key === selected.key;
           return (
@@ -199,7 +210,7 @@ export function InsightsPanel() {
                 {m.label}
               </p>
               {total === null ? (
-                <p className="mt-1 text-sm text-muted-foreground">No data yet</p>
+                <p className="mt-1 text-sm text-muted-foreground">{NOT_AVAILABLE_YET}</p>
               ) : (
                 <p className="mt-1 text-xl font-semibold tabular-nums">{formatNumber(total)}</p>
               )}
@@ -210,9 +221,13 @@ export function InsightsPanel() {
 
       {!hasData ? (
         <div className="rounded-lg border border-dashed p-6 text-center">
-          <p className="text-sm font-medium">No figures from Google yet</p>
+          <p className="text-sm font-medium">
+            {series.length === 0 ? "No figures from Google yet" : `${selected.label}: ${NOT_AVAILABLE_YET.toLowerCase()}`}
+          </p>
           <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
-            We haven&apos;t received any daily figures for this listing in the last {shownDays} days.
+            {series.length === 0
+              ? `We haven't received any daily figures for this listing in the last ${shownDays} days. `
+              : `Google didn't send this figure for any of the last ${shownDays} days. `}
             That is different from no customers: nothing has been counted, one way or the other.
           </p>
         </div>
@@ -274,6 +289,8 @@ export function InsightsPanel() {
       )}
 
       {coverage && <p className="text-[11px] text-muted-foreground">{coverage}</p>}
+
+      <SearchTermsSection google={google} />
     </>,
   );
 }
