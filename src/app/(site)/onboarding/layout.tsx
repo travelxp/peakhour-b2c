@@ -5,17 +5,19 @@ import { usePathname } from "next/navigation";
 import { cn, SITE } from "@/lib/utils";
 
 /**
- * Three-step onboarding shell. Each step has plain-English labels —
+ * Four-step onboarding shell. Each step has plain-English labels —
  * we never expose backend nouns ("discovery", "taxonomy") to the user.
  *
  * The route slugs map: add-business is the historical first step
  * (renamed visually to "Start"), about is the AI-extracted profile
- * confirmation, and launch is the friendly hand-off where the
+ * confirmation, brand-kit is the optional, skippable Brand Kit pre-fill
+ * (Drive B2), and launch is the friendly hand-off where the
  * background pipeline finishes while the user can already use the app.
  */
 const STEPS = [
   { path: "/onboarding/add-business", label: "Tell us about you" },
   { path: "/onboarding/about", label: "Confirm" },
+  { path: "/onboarding/brand-kit", label: "Your brand" },
   { path: "/onboarding/launch", label: "We're on it" },
 ];
 
