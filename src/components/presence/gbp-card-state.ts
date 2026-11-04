@@ -40,29 +40,28 @@ export interface GbpCardState {
 }
 
 /**
- * `locationName` is deliberately three-valued:
- *   a string  — this listing is selected
- *   `null`    — read successfully, nothing selected
- *   `undefined` — NOT READ. In flight, failed, or an api old enough not to
- *                 return the field at all.
+ * `locationNames` is deliberately three-valued:
+ *   a non-empty list - these listings are selected
+ *   `[]`             - read successfully, nothing selected
+ *   `undefined`      - NOT READ. In flight, failed, or an api old enough not to
+ *                      return the field at all.
  *
  * ★★THE THIRD VALUE IS THE POINT. Collapsing "unknown" into "not selected" told
  * a fully configured merchant "Nothing syncs until you choose" for as long as
- * the capabilities read was in flight — and PERMANENTLY on any deployment whose
- * api predates the field, which is every production deployment until the api
- * ships. The route returns `locationName: … ?? null`, so the key is always
- * present on a new api and always absent on an old one: `undefined` is a
- * reliable "we do not know", not a guess.
+ * the capabilities read was in flight - and PERMANENTLY on any deployment whose
+ * api predates the field. The route returns the list for a Google connection,
+ * so the key is always present on a new api and always absent on an old one:
+ * `undefined` is a reliable "we do not know", not a guess.
  *
  * ★AND `error` IS ITS OWN STATE, NOT A KIND OF "READY". A connection the cron
  * stamped `error` is skipped by BOTH the hourly performance-sync and the review
- * receiver — each selects `status: "active"` — so it is not syncing whatever
- * listing it points at. Rendering it as "Connected · Syncing Bandra" is exactly
+ * receiver - each selects `status: "active"` - so it is not syncing whatever
+ * listings it points at. Rendering it as "Connected - Syncing Bandra" is exactly
  * the healthy-looking dead connection this card exists to remove.
  */
 export function gbpCardState(
   status: GbpConnectionStatus,
-  locationName: string | null | undefined,
+  locationNames: readonly string[] | undefined,
 ): GbpCardState {
   if (status === "expired" || status === "needs_reauth") {
     return { kind: "needs_reconnect", canPick: false, action: "Reconnect" };
@@ -81,7 +80,7 @@ export function gbpCardState(
   // listing" over copy blaming the last sync — while its "Try again" enqueues a
   // sync the provider answers `skipped: not_configured`, because the thing
   // actually missing is the pick. Choosing is the fix; say so.
-  if (locationName === null) {
+  if (locationNames !== undefined && locationNames.length === 0) {
     return { kind: "needs_location", canPick: true, action: "Choose your listing" };
   }
 
@@ -90,7 +89,7 @@ export function gbpCardState(
     // a merchant can do about a failing sync, and the api restores `active`
     // when they do. ★A KNOWN-BAD STATUS BEATS AN UNREAD PICK — we are certain
     // the sync failed, so this outranks `connected_unknown`.
-    return { kind: "sync_failing", canPick: true, action: "Change listing" };
+    return { kind: "sync_failing", canPick: true, action: "Change listings" };
   }
 
   // ★PICKABLE, DELIBERATELY, EVEN THOUGH ONE ROUTE TO THIS STATE IS AN API TOO
@@ -99,15 +98,15 @@ export function gbpCardState(
   // for whom hiding the picker means no way to finish setup at all. An
   // unavailable route surfaces as an error with a retry inside the picker;
   // a missing button surfaces as nothing. The louder failure is the right one.
-  if (locationName === undefined) {
+  if (locationNames === undefined) {
     return { kind: "connected_unknown", canPick: true, action: "Choose your listing" };
   }
 
-  return { kind: "ready", canPick: true, action: "Change listing" };
+  return { kind: "ready", canPick: true, action: "Change listings" };
 }
 
 /**
- * The listing the picker should show as chosen.
+ * The listings the picker should show as chosen.
  *
  * ★★A DRAFT THAT IS NOT IN THE LIST IS NOT A DRAFT. `draft` is seeded once from
  * the stored pick, before the listing has loaded — and when the api RETIRES a
@@ -117,32 +116,50 @@ export function gbpCardState(
  * value the server has already refused.
  */
 export function effectiveDraft(
-  draft: string | null | undefined,
-  selected: string | null | undefined,
+  draft: readonly string[] | null | undefined,
+  selected: readonly string[] | null | undefined,
   locations: ReadonlyArray<{ locationName?: string }>,
-): string | null {
-  const has = (v: string | null | undefined) =>
-    !!v && locations.some((l) => l.locationName === v);
-  if (has(draft)) return draft as string;
-  if (has(selected)) return selected as string;
-  return null;
+): string[] {
+  // Only listings that are still on offer count: a retired one is not a draft.
+  const offered = (names: readonly string[] | null | undefined) =>
+    (names ?? []).filter((v) => locations.some((l) => l.locationName === v));
+  return draft ? offered(draft) : offered(selected);
+}
+
+/** Add or remove one listing from a draft, keeping the order the merchant ticked them in. */
+export function toggleLocation(draft: readonly string[], name: string): string[] {
+  return draft.includes(name) ? draft.filter((n) => n !== name) : [...draft, name];
 }
 
 /**
  * Whether the picker's Save button does anything.
  *
- * ★★A BUTTON THAT RE-SAVES THE CURRENT VALUE IS A BUTTON THAT LIES. It reports
- * success, the merchant believes something changed, and nothing did — and the
- * route would happily 200 on it, so nothing downstream catches it either.
+ * ★★A BUTTON THAT RE-SAVES THE CURRENT SET IS A BUTTON THAT LIES. It reports
+ * success, the merchant believes something changed, and nothing did. The set is
+ * compared as a set: ticking the same listings in another order is no change.
+ * ★AND AT LEAST ONE LISTING, because the api refuses an empty set.
  */
 export function canSaveLocation(
-  draft: string | null | undefined,
-  selected: string | null | undefined,
+  draft: readonly string[],
+  selected: readonly string[] | null | undefined,
   saving: boolean,
 ): boolean {
   if (saving) return false;
-  if (!draft) return false;
-  return draft !== selected;
+  if (draft.length === 0) return false;
+  const have = new Set(selected ?? []);
+  return draft.length !== have.size || draft.some((n) => !have.has(n));
+}
+
+/** "Bandra", "Bandra and Andheri", "Bandra, Andheri and 2 more". */
+export function selectionLabel(
+  names: readonly string[],
+  known: ReadonlyArray<{ locationName?: string; title?: string }>,
+): string | null {
+  const labels = names.map((n) => locationLabel(n, known) ?? n);
+  if (labels.length === 0) return null;
+  if (labels.length === 1) return labels[0]!;
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
+  return `${labels[0]}, ${labels[1]} and ${labels.length - 2} more`;
 }
 
 /**

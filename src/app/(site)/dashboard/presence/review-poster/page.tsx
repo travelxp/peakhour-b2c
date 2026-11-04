@@ -7,10 +7,11 @@ export const metadata: Metadata = {
 };
 
 /** The printable A4 review poster. Gated on `presence.nav` like the rest of Presence. */
-export default function ReviewPosterPage() {
+export default async function ReviewPosterPage({ searchParams }: { searchParams: Promise<{ location?: string | string[] }> }) {
+  const { location } = await searchParams;
   return (
     <FeatureGate feature="presence.nav" featureName="Presence" mode="hide">
-      <ReviewPoster />
+      <ReviewPoster location={typeof location === "string" ? location : undefined} />
     </FeatureGate>
   );
 }

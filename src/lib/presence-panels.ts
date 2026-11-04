@@ -69,7 +69,10 @@ export interface PresenceListingResponse {
   setup: PresenceSetup;
   connection: {
     status: string;
+    /** The listing this answer is about: the one asked for, else the first. */
     locationName: string | null;
+    /** Every listing the connection manages. */
+    locations?: PresenceLocation[];
     lastSyncAt: string | null;
     lastError: string | null;
   } | null;
@@ -82,6 +85,12 @@ export interface PresenceListingResponse {
     driftFields: string[];
   } | null;
   verification: { state?: string } | null;
+}
+
+/** One listing the connection manages. */
+export interface PresenceLocation {
+  locationName: string;
+  title: string | null;
 }
 
 export interface InsightDay {
@@ -102,9 +111,33 @@ export interface PresenceInsightsResponse {
   series: InsightDay[];
 }
 
-export const PRESENCE_LISTING_QUERY_KEY = ["presence", "listing"] as const;
-export const presenceInsightsQueryKey = (days: number) =>
-  ["presence", "insights", days] as const;
+/** Keyed by listing, so switching listings never shows another's figures from cache. */
+export const presenceListingQueryKey = (location: string | undefined) =>
+  ["presence", "listing", location ?? "default"] as const;
+export const presenceInsightsQueryKey = (days: number, location: string | undefined) =>
+  ["presence", "insights", days, location ?? "default"] as const;
+
+/**
+ * What the location switcher shows, or `null` when it should not be shown.
+ *
+ * ★ONLY WHEN THERE IS A CHOICE. A one-listing business sees the page exactly as
+ * before. The value is the listing the page is about: the merchant's choice if it
+ * is still managed, else the first, so a stale choice (a listing since removed)
+ * falls back instead of asking the api for a place it refuses.
+ */
+export function locationSwitcher(
+  locations: readonly PresenceLocation[] | undefined,
+  chosen: string | undefined,
+): { options: Array<{ value: string; label: string }>; value: string; isDefault: boolean } | null {
+  if (!locations || locations.length < 2) return null;
+  const value = locations.some((l) => l.locationName === chosen) ? (chosen as string) : locations[0]!.locationName;
+  return {
+    value,
+    // The first listing is the api's default, so asking for it by name is the same read as not asking.
+    isDefault: value === locations[0]!.locationName,
+    options: locations.map((l) => ({ value: l.locationName, label: l.title?.trim() || l.locationName })),
+  };
+}
 
 // ── Fetch state ──────────────────────────────────────────────────────────────
 

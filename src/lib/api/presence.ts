@@ -12,6 +12,15 @@ import type { PresenceInsightsResponse, PresenceListingResponse } from "@/lib/pr
  * computed figure is `null`. That is an answer, not a failure — see
  * `lib/review-summary.ts`, which is where it is turned into words.
  */
+/** `?days=&location=`, leaving out what is not set. */
+export function presenceQuery(p: { days?: number | undefined; location?: string | undefined }): string {
+  const q = new URLSearchParams();
+  if (p.days) q.set("days", String(p.days));
+  if (p.location) q.set("location", p.location);
+  const s = q.toString();
+  return s ? `?${s}` : "";
+}
+
 export const presenceApi = {
   /**
    * The review summary: rating, volume, unanswered, median response time and
@@ -21,15 +30,13 @@ export const presenceApi = {
    *   more slowly than clicks, and a 28-day mean rating over one review is
    *   noise.
    */
-  reviewSummary: (days?: number) =>
-    api.get<ReviewSummary>(
-      `/v1/presence/reviews/summary${days ? `?days=${days}` : ""}`,
-    ),
+  reviewSummary: (days?: number, location?: string) =>
+    api.get<ReviewSummary>(`/v1/presence/reviews/summary${presenceQuery({ days, location })}`),
 
   /**
    * The review link, its QR code and what a poster prints. One link for the place, for every customer: it takes no rating or sentiment.
    */
-  reviewKit: () => api.get<ReviewKit>("/v1/presence/reviews/kit"),
+  reviewKit: (location?: string) => api.get<ReviewKit>(`/v1/presence/reviews/kit${presenceQuery({ location })}`),
 
   /**
    * Draft a reply to one review and save it as the review's suggestion. ★IT NEVER SENDS: the person reads it, edits it and presses Send.
@@ -39,15 +46,14 @@ export const presenceApi = {
     api.post<{ ok: true; draft: string; rationale: string; chargedCredits: number }>(`/v1/presence/reviews/${inboxItemId}/draft`, {}),
 
   /** The listing, its Google sync state and which fields differ from Google. */
-  listing: () => api.get<PresenceListingResponse>("/v1/presence/listing"),
+  listing: (location?: string) =>
+    api.get<PresenceListingResponse>(`/v1/presence/listing${presenceQuery({ location })}`),
 
   /**
    * Day-by-day customer actions for the chosen listing.
    *
    * @param days 1-90. The api clamps and defaults to 28.
    */
-  insights: (days?: number) =>
-    api.get<PresenceInsightsResponse>(
-      `/v1/presence/insights${days ? `?days=${days}` : ""}`,
-    ),
+  insights: (days?: number, location?: string) =>
+    api.get<PresenceInsightsResponse>(`/v1/presence/insights${presenceQuery({ days, location })}`),
 };

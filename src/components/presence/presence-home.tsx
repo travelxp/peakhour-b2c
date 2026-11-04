@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { MapPin, MessageSquareText } from "lucide-react";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { GbpConnectCard } from "@/components/presence/gbp-connect-card";
@@ -7,6 +8,8 @@ import { ReviewSummaryCard } from "@/components/presence/review-summary-card";
 import { ListingPanel } from "@/components/presence/listing-panel";
 import { InsightsPanel } from "@/components/presence/insights-panel";
 import { ReviewKitCard } from "@/components/presence/review-kit-card";
+import { useListingQuery } from "@/hooks/use-presence-listing";
+import { locationSwitcher } from "@/lib/presence-panels";
 
 /**
  * Presence pillar home. The local-presence cockpit — keep a business found,
@@ -35,6 +38,20 @@ import { ReviewKitCard } from "@/components/presence/review-kit-card";
  * merchant has no reviews.
  */
 export function PresenceHome() {
+  // ★A PAGE CHOICE, NOT A SESSION PIN. The session pins one organisation and one
+  // business; which of that business's listings this page describes is the
+  // merchant's choice here, and it resets with the page.
+  const [chosen, setChosen] = useState<string | undefined>(undefined);
+  // The list of listings always comes from the default read, so a stale choice (a
+  // listing since removed) can never ask the api for a place it refuses: the switcher
+  // falls back to the first listing instead.
+  const listAnswer = useListingQuery(undefined);
+  const switcher = locationSwitcher(listAnswer.data?.connection?.locations, chosen);
+  // Panels follow the switcher only when it is shown; a one-listing business is read as before.
+  const location = switcher?.value;
+  // The listing and insights panels share the default read's cache unless another listing is chosen.
+  const panelLocation = switcher && !switcher.isDefault ? switcher.value : undefined;
+
   return (
     <FeatureGate feature="presence.nav" featureName="Presence" mode="hide">
       <div className="mx-auto w-full max-w-5xl space-y-8 p-4 md:p-6">
@@ -54,13 +71,36 @@ export function PresenceHome() {
 
         <GbpConnectCard />
 
-        <ReviewSummaryCard />
+        {switcher ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <label htmlFor="presence-location" className="text-sm font-medium">
+              Listing
+            </label>
+            <select
+              id="presence-location"
+              className="h-9 rounded-md border bg-background px-2 text-sm"
+              value={switcher.value}
+              onChange={(e) => setChosen(e.target.value)}
+            >
+              {switcher.options.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-muted-foreground">
+              Listing, reviews and insights show this one listing. Figures are never added across listings.
+            </span>
+          </div>
+        ) : null}
 
-        <ReviewKitCard />
+        <ReviewSummaryCard location={location} />
 
-        <ListingPanel />
+        <ReviewKitCard location={location} />
 
-        <InsightsPanel />
+        <ListingPanel location={panelLocation} />
+
+        <InsightsPanel location={panelLocation} />
 
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
           <MessageSquareText className="h-4 w-4" />

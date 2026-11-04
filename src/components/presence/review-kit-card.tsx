@@ -16,8 +16,8 @@ import { askLine, copyLabel, kitEmptyState, svgDataUri } from "@/lib/review-kit"
  * holds none. One link, the same for every customer: nothing here asks who was pleased.
  * ★NOTHING IS SENT FROM HERE. A person copies the link or prints the poster.
  */
-export function ReviewKitCard() {
-  const kit = useReviewKit();
+export function ReviewKitCard({ location }: { location?: string | undefined }) {
+  const kit = useReviewKit(location);
   const [copied, setCopied] = useState<"idle" | "copied" | "failed">("idle");
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -74,7 +74,7 @@ export function ReviewKitCard() {
               {copyLabel(copied)}
             </Button>
             <Button size="sm" asChild>
-              <Link href="/dashboard/presence/review-poster">
+              <Link href={`/dashboard/presence/review-poster${location ? `?location=${encodeURIComponent(location)}` : ""}`}>
                 <Printer className="mr-1.5 size-3.5" aria-hidden />
                 Print the poster
               </Link>
