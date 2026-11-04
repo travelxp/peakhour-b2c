@@ -159,7 +159,7 @@ export function capRecoveryCta(balance: MeteredBalance): { href: string; label: 
 
 // ── Cache keys ─────────────────────────────────────────────────────────────
 
-const CREDITS_KEY = "/v1/dashboard/credits";
+export const CREDITS_KEY = "/v1/dashboard/credits";
 const RATE_CARD_KEY = "/v1/dashboard/credits/rate-card";
 const HISTORY_KEY = "/v1/dashboard/credits/history";
 

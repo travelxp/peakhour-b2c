@@ -1691,11 +1691,11 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     description:
       "Scores each Shopify store's catalog for stock that isn't selling and writes the diagnosis the Commerce insights read from. Uses AI, so it costs Peaks.",
   },
-  "media-overage-snapshot": {
-    label: "Snapshot storage overage",
-    frequency: "Runs monthly (1st, 6:00 AM UTC)",
+  "storage-packs-renew": {
+    label: "Renew storage packs",
+    frequency: "Runs daily at 6:00 AM UTC",
     description:
-      "Captures how much storage each organisation used beyond its plan for the month that just closed, which is what any overage is billed from.",
+      "Charges the Peaks for every storage pack that is due, removes packs that were cancelled and have run out, and emails about packs and full storage. A pack the wallet cannot pay for is paused, never removed. Charges Peaks.",
   },
   "meta-token-keepalive": {
     label: "Keep Meta tokens alive",

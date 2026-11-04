@@ -41,6 +41,7 @@ import { BalanceChip } from "@/components/dashboard/balance-chip";
 import { CreditCapBanner } from "@/components/dashboard/credits-cap-banner";
 import { CommandMenu } from "@/components/molecules/command-menu";
 import { SidebarStorageMeter } from "@/components/dashboard/sidebar-storage-meter";
+import { AddSpaceDialog } from "@/components/media/add-space-dialog";
 import { FeedbackWidget } from "@/components/molecules/feedback-widget";
 import { ChatPanel } from "@/components/molecules/chat-panel";
 import { AskContextProvider } from "@/providers/ask-context-provider";
@@ -429,6 +430,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         `body { overflow: hidden }`, so moving the scroller off the document
         does not let the background scroll behind a Dialog or Sheet. */}
     <SidebarProvider className="h-svh">
+      {/* The ONE "Add space" dialog: opened by the storage meter and by a 402 on an upload, on any dashboard page. */}
+      <AddSpaceDialog />
       <Sidebar collapsible="icon" variant="sidebar">
         {/* ── Header: brand block + workspace ────────────────── */}
         {/* ★MARK IN ONE COLUMN, NAME OVER DESCRIPTION IN THE OTHER — the shape
