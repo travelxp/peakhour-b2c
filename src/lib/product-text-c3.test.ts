@@ -18,8 +18,9 @@ describe("Presence says what it does", () => {
   const home = flat("components/presence/presence-home.tsx");
   const card = flat("components/presence/gbp-connect-card.tsx");
 
-  it("the header: connect a Google listing and answer Google reviews", () => {
-    expect(home).toContain("Connect your Google Business Profile listing and answer your Google reviews from one place.");
+  it("the header: what the page does today, and that edits are made on Google for now", () => {
+    expect(home).toContain("See your Google listing, how customers use it, and your Google reviews. To change your listing, use Google for now.");
+    expect(home).not.toContain("Connect your Google Business Profile listing and answer");
   });
 
   it("the header no longer says 'everywhere'", () => {
@@ -40,8 +41,12 @@ describe("Presence says what it does", () => {
     expect(card).not.toContain("resume insights and reviews");
   });
 
-  it("PASS: the unbuilt parts stay labelled as coming", () => {
-    expect(home).toMatch(/<h2[^>]*> Coming with Presence <\/h2>/);
+  it("both 'coming' cards are built, so the heading and the promises are gone", () => {
+    expect(home).not.toContain("Coming with Presence");
+    expect(home).not.toContain("we keep them in sync across every network");
+    expect(home).not.toContain("Explain this");
+    expect(home).toContain("<ListingPanel />");
+    expect(home).toContain("<InsightsPanel />");
   });
 });
 

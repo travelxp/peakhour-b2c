@@ -22,6 +22,7 @@ import {
   reviewerLabel,
   shouldAdoptPublishedReply,
   shouldRefreshAfter,
+  shouldRefreshAfterRefusal,
   REVIEW_REPLY_MAX_LENGTH,
   TRANSPORT_ERROR_CODE,
   type ReplyOutcome,
@@ -132,7 +133,7 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
     setSeen(state.published);
     setText(state.published ?? "");
     // ⚠️★★AND THE NOTES GO WITH THE TEXT THEY WERE ABOUT. Swapping the box
-    // contents while leaving "that's already your published reply" — and its
+    // contents while leaving "that's already your reply" — and its
     // force-publish button — standing over the NEW words is the same hazard
     // `edit` clears them for, reached without anybody typing.
     setRefusal(null);
@@ -162,6 +163,7 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
       const detail = err instanceof ApiError ? err : { code: TRANSPORT_ERROR_CODE };
       setRefusal(replyRefusal(detail));
       setOutcome(null);
+      if (shouldRefreshAfterRefusal(detail.code)) onChanged();
     },
   });
 
@@ -230,7 +232,7 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
             </Badge>
             {state.published ? (
               <Badge variant="outline" className="text-[10px]">
-                replied
+                {state.pendingCheck ? "checking" : "replied"}
               </Badge>
             ) : (
               <span className="text-[11px] font-medium text-warning-on-tint">unanswered</span>
@@ -262,14 +264,26 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
         )}
       </div>
 
-      {/* What is live on the listing right now. */}
+      {/* The reply on the listing, or waiting for Google's check. */}
       {state.published && (
         <div className="mt-2 rounded-md bg-muted/40 p-2 text-xs">
           <p className="font-medium">
-            Your published reply
+            {state.pendingCheck ? "Your reply, waiting for Google's check" : "Your published reply"}
             {item.review?.replyPublishedAt ? ` · ${formatDate(item.review.replyPublishedAt)}` : ""}
           </p>
           <p className="mt-0.5 whitespace-pre-wrap text-muted-foreground">{state.published}</p>
+        </div>
+      )}
+
+      {/* Customers cannot see a rejected reply, so the review still needs one. */}
+      {state.rejected && (
+        <div className="mt-2 rounded-md bg-muted/40 p-2 text-xs">
+          <p className="font-medium text-warning-on-tint">
+            Google rejected your reply, so customers can&apos;t see it
+          </p>
+          {state.rejected.note && (
+            <p className="mt-0.5 text-muted-foreground">{state.rejected.note}</p>
+          )}
         </div>
       )}
 
@@ -349,7 +363,8 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
               Try again
             </Button>
           )}
-          {outcome && (
+          {/* A later rejection outdates any success note from this send. */}
+          {outcome && !state.rejected && (
             <OutcomeNote
               outcome={outcome}
               sending={sending}

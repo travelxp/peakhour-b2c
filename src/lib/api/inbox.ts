@@ -92,6 +92,8 @@ export interface InboxItem {
 export interface InboxReplyResult {
   _id: string;
   sent: boolean;
+  /** Google's answer to this send. `pending` means not live yet. */
+  replyState?: string;
   recorded?: boolean;
   replyPublishedAt?: string;
   reason?: string;

@@ -1,5 +1,6 @@
 import { api } from "@/lib/api";
 import type { ReviewSummary } from "@/lib/review-summary";
+import type { PresenceInsightsResponse, PresenceListingResponse } from "@/lib/presence-panels";
 
 /**
  * `/v1/presence/*` — the Presence pillar's read surface.
@@ -22,5 +23,18 @@ export const presenceApi = {
   reviewSummary: (days?: number) =>
     api.get<ReviewSummary>(
       `/v1/presence/reviews/summary${days ? `?days=${days}` : ""}`,
+    ),
+
+  /** The listing, its Google sync state and which fields differ from Google. */
+  listing: () => api.get<PresenceListingResponse>("/v1/presence/listing"),
+
+  /**
+   * Day-by-day customer actions for the chosen listing.
+   *
+   * @param days 1-90. The api clamps and defaults to 28.
+   */
+  insights: (days?: number) =>
+    api.get<PresenceInsightsResponse>(
+      `/v1/presence/insights${days ? `?days=${days}` : ""}`,
     ),
 };
