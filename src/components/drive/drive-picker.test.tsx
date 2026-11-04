@@ -455,6 +455,15 @@ describe("Generate", () => {
     expect(onSelect).toHaveBeenCalledWith([made]);
   });
 
+  it("a screen that takes images and videos but gives no generator is offered images only: the picker never pretends to make a video", async () => {
+    h.list.mockResolvedValue(page([]));
+    await mount({ kinds: ["image", "video"] });
+    openGenerate();
+    expect(host.querySelector('[aria-label="What to make"]')).toBeNull(); // no Image / Video switch
+    expect(buttonByText("Make an image")).toBeDefined();
+    expect(text()).not.toContain("Make a video");
+  });
+
   it("with only video asked for and no generator of its own, the picker offers nothing to make", async () => {
     h.list.mockResolvedValue(page([]));
     await mount({ kinds: ["video"] });
