@@ -17,7 +17,8 @@
     "contentDraft": ["content_editor"],
     "composerRewrite": ["content_editor"],
     "repurpose": ["skill_execution", "write_blog_article", "content_editor", "linkedin_repurpose_newsletter"],
-    "xReply": ["skill_execution"]
+    "xReply": ["skill_execution"],
+    "waTemplateStudio": ["whatsapp.template_studio"]
   },
   "shopify": {
     "contentIdeas": ["content_ideas"],
