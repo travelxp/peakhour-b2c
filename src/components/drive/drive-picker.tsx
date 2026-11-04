@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils";
 import type { MediaAsset } from "@/components/composer/types";
 import { getFileLink, listDriveFiles, type DriveFile, type DriveKind } from "@/lib/drive/files";
 import { anyVerdict, fitNote, orderByFit, PRIVATE_NEEDS_PUBLIC } from "@/lib/drive/fit";
-import { uploadErrorMessage, uploadToDrive, UploadAborted, type UploadedFile, type UploadOptions } from "@/lib/drive/upload";
+import { uploadErrorMessage, uploadToDrive, UploadAborted, type UploadedFile, type UploadOptions } from "@/lib/drive/upload-engine";
 
 export type PickerTab = "drive" | "upload" | "generate";
 

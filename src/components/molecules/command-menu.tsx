@@ -28,11 +28,13 @@ import {
   Coins,
   Lightbulb,
   ShieldCheck,
+  HardDrive,
 } from "lucide-react";
 
 const PAGES = [
   { label: "Overview", href: "/dashboard/overview", icon: LayoutDashboard, group: "Navigation" },
   { label: "Content Library", href: "/dashboard/content", icon: FileText, group: "Navigation" },
+  { label: "Drive", href: "/dashboard/drive", icon: HardDrive, group: "Navigation" },
   { label: "Strategist", href: "/dashboard/strategist", icon: Brain, group: "Navigation" },
   { label: "Calendar", href: "/dashboard/calendar", icon: Calendar, group: "Navigation" },
   // ★THE SECOND NAVIGATION SURFACE, AND IT WAS MISSED BY BOTH G1 AND G2 — on a
