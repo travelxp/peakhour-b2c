@@ -55,7 +55,7 @@ export default function StorageIntelligencePage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Storage Intelligence</h1>
         <p className="text-sm text-muted-foreground">
-          R2 cost vs. overage revenue, usage mix, and cleanup opportunity across all orgs.
+          R2 cost vs. storage-pack revenue, usage mix, and cleanup opportunity across all orgs.
           {data ? ` As of ${new Date(data.asOf).toLocaleString()}.` : ""}
         </p>
       </div>
@@ -108,13 +108,17 @@ function Dashboard({ data }: { data: StorageIntelligence }) {
         />
         <Kpi
           icon={TrendingUp}
-          label="Overage revenue"
-          value={usd(data.pnl.latestOverageRevenueUsd)}
-          sub={data.overagePeriods[0] ? `period ${data.overagePeriods[0].period}` : "no realized overage yet"}
+          label="Pack revenue"
+          value={`${data.pnl.latestPackRevenuePeaks.toLocaleString("en-US")} Peaks`}
+          sub={
+            data.packPeriods[0]
+              ? `about ${usd(data.pnl.latestPackRevenueUsdAtListPrice)} at the $${data.pnl.peakValueUsd}/Peak list price · period ${data.packPeriods[0].period}`
+              : "no storage packs bought yet"
+          }
         />
         <Kpi
           icon={DollarSign}
-          label="Net (overage − cost)"
+          label="Net (pack revenue at list − cost)"
           value={usd(data.pnl.netUsd)}
           sub={data.pnl.netUsd >= 0 ? "covering R2 cost" : "subsidising R2 cost"}
           tone={data.pnl.netUsd >= 0 ? "positive" : "negative"}

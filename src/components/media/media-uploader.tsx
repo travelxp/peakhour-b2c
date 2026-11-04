@@ -18,6 +18,8 @@ import {
 import { cn } from "@/lib/utils";
 import { ApiError } from "@/lib/api";
 import { uploadMedia, type MediaUploadResult } from "@/lib/api/media";
+import { openAddSpace } from "@/components/media/add-space-dialog";
+import { isQuotaError } from "@/lib/storage-copy";
 
 /**
  * <MediaUploader> — reusable image upload affordance (Media Manager / R2).
@@ -86,14 +88,15 @@ export function MediaUploader({
             onUploaded?.({ ...res, file });
             toast.success(res.deduped ? `${file.name} already in your library` : `${file.name} uploaded`);
           } catch (err) {
-            const msg =
-              err instanceof ApiError && err.code === "STORAGE_QUOTA_EXCEEDED"
-                ? "Storage limit reached — clean up or upgrade to upload more."
-                : err instanceof ApiError
-                  ? err.message
-                  : "Upload failed";
+            // The api's 402 already says what to do (it offers the packs, or says the trial is full, or that a pack is paused).
+            const msg = err instanceof ApiError ? err.message : "Upload failed";
             onError(file, err instanceof Error ? err : new Error(msg));
-            toast.error(`${file.name}: ${msg}`);
+            if (isQuotaError(err)) {
+              const canAdd = (err.details as { canBuyPacks?: boolean } | undefined)?.canBuyPacks === true;
+              toast.error(`${file.name}: ${msg}`, canAdd ? { action: { label: "Add space", onClick: openAddSpace } } : undefined);
+            } else {
+              toast.error(`${file.name}: ${msg}`);
+            }
           }
         }),
       );

@@ -53,17 +53,43 @@ export interface MediaListMeta {
   hasMore: boolean;
 }
 
+/** A storage pack the org bought (Peakhour Drive Q3). The price is the one agreed at purchase. */
+export interface StoragePackView {
+  id: string;
+  gb: number;
+  peaksPerMonth: number;
+  boughtAt: string;
+  nextChargeAt: string;
+  /** Renewal stopped: the space stays until `nextChargeAt`. */
+  cancelAtPeriodEnd: boolean;
+  /** The wallet was short at renewal: the space is kept, new uploads are blocked. */
+  paused: boolean;
+}
+
+export interface StoragePackOffer {
+  gb: number;
+  peaksPerMonth: number;
+}
+
+/** The POOL: one quota for the whole organisation (each paid business adds its plan's allowance, packs add on top). */
 export interface StorageUsage {
   totalBytes: number;
   softDeletedBytes: number;
   fileCount: number;
+  /** null = unbounded. */
   limitBytes: number | null;
-  gbIncluded: number | null;
+  limitGb: number | null;
   gbUsed: number;
   percentUsed: number | null;
-  overageBytes: number;
-  isOverage: boolean;
-  plan: string;
+  /** Where the quota comes from: a per-customer override, the plans (plus packs), a trial, or none (unlimited). */
+  source: "override" | "plan" | "trial" | "unbounded";
+  pool: { planGb: number; packGb: number; overrideGb: number | null; holdings: { planKey: string; planName: string | null; trial: boolean; gb: number }[] };
+  perBusiness: { businessId: string; name: string; bytes: number; fileCount: number }[];
+  /** New uploads are blocked while a pack could not renew. Files and space are untouched. */
+  paused: boolean;
+  packs: StoragePackView[];
+  canBuyPacks: boolean;
+  catalog: StoragePackOffer[];
 }
 
 export interface ListMediaParams {
@@ -107,6 +133,16 @@ export function getMedia(id: string): Promise<MediaItem> {
 
 export function getStorageUsage(): Promise<StorageUsage> {
   return api.get<StorageUsage>(`/v1/storage/usage`);
+}
+
+/** Buy a pack: the first month is charged now, in full, and the pack is active at once. */
+export function buyStoragePack(gb: number): Promise<{ pack: StoragePackView; charged: number; duplicate: boolean }> {
+  return api.post<{ pack: StoragePackView; charged: number; duplicate: boolean }>(`/v1/storage/packs`, { gb });
+}
+
+/** Stop a pack renewing. The space stays until its next charge date. */
+export function cancelStoragePack(id: string): Promise<{ pack: StoragePackView; alreadyCancelled: boolean }> {
+  return api.delete<{ pack: StoragePackView; alreadyCancelled: boolean }>(`/v1/storage/packs/${id}`);
 }
 
 export interface MediaUploadResult {

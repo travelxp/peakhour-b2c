@@ -15,7 +15,11 @@ export interface StorageIntelligence {
   pnl: {
     r2CostUsd: number;
     softDeleteCarryUsd: number;
-    latestOverageRevenueUsd: number;
+    /** Storage-pack revenue in the latest month, in Peaks (the `drive.storage_pack` charges). */
+    latestPackRevenuePeaks: number;
+    /** The same, at the Peak LIST price: what a customer actually pays per Peak depends on how they bought it. */
+    latestPackRevenueUsdAtListPrice: number;
+    peakValueUsd: number;
     netUsd: number;
   };
   sourceMix: { source: string; bytes: number; gb: number; count: number }[];
@@ -30,7 +34,7 @@ export interface StorageIntelligence {
     storageOverrideGb?: number;
   }[];
   reclaimable: { kind: string; bytes: number; gb: number; count: number }[];
-  overagePeriods: { period: string; amountUsd: number; orgCount: number; overageGb: number }[];
+  packPeriods: { period: string; peaks: number; usdAtListPrice: number; orgCount: number }[];
   recommendations: string[];
 }
 

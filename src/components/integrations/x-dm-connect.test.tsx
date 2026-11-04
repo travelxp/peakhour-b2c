@@ -13,7 +13,7 @@ const status = (over: Partial<XDmStatus> = {}): XDmStatus => ({
   connectionId: "c1",
   state: "off",
   pricePerMessage: 5,
-  monthlyCap: 1000,
+  monthlyCap: 500,
   usedThisMonth: 0,
   resumesAt: null,
   ...over,
@@ -59,21 +59,21 @@ describe("the states", () => {
     expect(xMessagesAuthorizeUrl()).toBe("https://api.example/v1/integrations/x/authorize?dm=1&returnTo=%2Fdashboard%2Fintegrations");
   });
   it("on: reads On with Turn off, and shows the month's use against the limit", () => {
-    const out = html(status({ state: "on", usedThisMonth: 12, monthlyCap: 1000 }));
+    const out = html(status({ state: "on", usedThisMonth: 12, monthlyCap: 500 }));
     expect(out).toContain(">On<");
     expect(out).toContain(X_DM_COPY.turnOff);
-    expect(out).toContain("12 of 1,000 X messages used this month.");
+    expect(out).toContain("12 of 500 X messages used this month.");
     expect(out).not.toContain(X_DM_COPY.turnOn);
   });
   it("off still shows the month's use (a turned-off account keeps the count the limit is judged against); needs-reconnect does not", () => {
-    expect(html(status({ usedThisMonth: 40 }))).toContain("40 of 1,000 X messages used this month.");
+    expect(html(status({ usedThisMonth: 40 }))).toContain("40 of 500 X messages used this month.");
     expect(html(status({ state: "needs_reconnect" }))).not.toContain("used this month");
   });
   it("limit reached: the merchant is told, with the date it starts again and how to carry on now", () => {
-    const out = html(status({ state: "cap_reached", usedThisMonth: 1000, resumesAt: "2026-12-01T00:00:00.000Z" }));
+    const out = html(status({ state: "cap_reached", usedThisMonth: 500, resumesAt: "2026-12-01T00:00:00.000Z" }));
     expect(out).toContain("x-dm-cap-reached");
-    expect(out).toContain("You reached your limit of 1,000 X messages this month, so Peakhour has stopped reading them. It starts again on December 1, 2026. Raise the limit to carry on now.");
-    expect(out).toContain("1,000 of 1,000 X messages used this month.");
+    expect(out).toContain("You reached your limit of 500 X messages this month, so Peakhour has stopped reading them. It starts again on December 1, 2026. Raise the limit to carry on now.");
+    expect(out).toContain("500 of 500 X messages used this month.");
   });
   it("the reset date is read in UTC, so no time zone moves it to the wrong day", () => {
     expect(capReachedLine({ monthlyCap: 5, resumesAt: "2026-12-01T00:00:00.000Z" })).toContain("December 1, 2026");
