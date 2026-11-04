@@ -133,7 +133,7 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
     setSeen(state.published);
     setText(state.published ?? "");
     // ⚠️★★AND THE NOTES GO WITH THE TEXT THEY WERE ABOUT. Swapping the box
-    // contents while leaving "that's already your published reply" — and its
+    // contents while leaving "that's already your reply" — and its
     // force-publish button — standing over the NEW words is the same hazard
     // `edit` clears them for, reached without anybody typing.
     setRefusal(null);
@@ -363,7 +363,8 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
               Try again
             </Button>
           )}
-          {outcome && (
+          {/* A later rejection outdates any success note from this send. */}
+          {outcome && !state.rejected && (
             <OutcomeNote
               outcome={outcome}
               sending={sending}

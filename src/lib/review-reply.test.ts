@@ -493,7 +493,7 @@ describe("replyOutcome — two successes that look like failures", () => {
   it("★★★treats an unchanged reply as nothing-to-do, not as a failure", () => {
     const out = replyOutcome({ sent: false, reason: "unchanged" });
     expect(out.kind).toBe("unchanged");
-    expect(out.headline).toBe("That's already your published reply.");
+    expect(out.headline).toBe("That's already your reply.");
   });
 
   it("★★★offers the override only on the unchanged answer", () => {

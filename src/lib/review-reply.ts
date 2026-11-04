@@ -471,7 +471,7 @@ export function replyOutcome(res: ReplyResponseLike): ReplyOutcome {
   if (!res.sent) {
     return {
       kind: "unchanged",
-      headline: "That's already your published reply.",
+      headline: "That's already your reply.",
       description:
         "Nothing was sent, because the words haven't changed. If the reply has gone missing from " +
         "Google, send it again to put it back.",
@@ -516,9 +516,11 @@ export function shouldRefreshAfter(outcome: ReplyOutcome): boolean {
 /**
  * Does this refusal mean the row changed?
  *
- * ★★GOOGLE'S REJECTION IS WRITTEN BEFORE IT IS REPORTED. The api clears the
- * published reply and stores the reason, so without a refresh the card goes on
- * showing a reply that is gone, and never shows the reason.
+ * ★★GOOGLE'S MODERATION REJECTION IS WRITTEN BEFORE IT IS REPORTED. The api
+ * clears the published reply and stores the reason, so without a refresh the
+ * card goes on showing a reply that is gone, and never shows the reason. The
+ * same code also covers a plain Google 4xx, which changes nothing, and a
+ * refresh then does no harm.
  */
 export function shouldRefreshAfterRefusal(code: string | undefined): boolean {
   return code === "REPLY_REJECTED";
