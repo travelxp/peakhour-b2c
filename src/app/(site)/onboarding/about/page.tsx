@@ -158,7 +158,7 @@ export default function AboutPage() {
       // The business exists; "adding another" is done (add-business/page.tsx).
       sessionStorage.removeItem("onboarding:addingAnother");
       await refreshUser();
-      router.push("/onboarding/launch");
+      router.push("/onboarding/brand-kit");
     } catch (err) {
       if (err instanceof ApiError) {
         // ORG_EXISTS: the user already has an org with this name. Most

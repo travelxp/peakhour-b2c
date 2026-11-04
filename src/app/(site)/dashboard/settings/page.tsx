@@ -18,6 +18,8 @@ import { RequestReviewButton } from "@/components/integrations/request-review-bu
 import { CreateWorkspaceButton } from "@/components/integrations/create-workspace-button";
 import { ContactSupportDialog } from "@/components/support/contact-support-dialog";
 import { Badge } from "@/components/ui/badge";
+import { DrivePrivacyCard } from "@/components/drive/drive-privacy-card";
+import { driveAbilities } from "@/lib/drive/files-state";
 import { Input } from "@/components/ui/input";
 import {
   Card,
@@ -103,7 +105,7 @@ function SettingsLoading() {
 }
 
 function SettingsContent() {
-  const { org, business, entitlements } = useAuth();
+  const { org, orgs, business, entitlements } = useAuth();
   const active = activeBusiness(entitlements, business);
   const { formatCurrency } = useLocale();
   const searchParams = useSearchParams();
@@ -543,6 +545,8 @@ function SettingsContent() {
             </CardContent>
           </Card>
         </Link>
+
+        <DrivePrivacyCard canChange={driveAbilities(orgs.find((o) => o._id === org?._id)?.role).isAdmin} />
       </div>
     </div>
   );

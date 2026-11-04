@@ -5,12 +5,12 @@ import DOMPurify from "isomorphic-dompurify";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { api } from "@/lib/api";
+import { api, newActionKey } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useLocale } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { LibraryMediaPicker } from "@/components/media/library-media-picker";
+import { DrivePicker } from "@/components/drive/drive-picker";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ChannelIcon } from "@/components/brand/channel-icon";
@@ -626,7 +626,7 @@ function BriefTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
     setGenerating(true);
     setProgress(null);
     try {
-      const res = await api.streamPost(`/v1/content/ideas/${ideaId}/generate-brief`);
+      const res = await api.streamPost(`/v1/content/ideas/${ideaId}/generate-brief`, undefined, newActionKey());
       const result = await consumeSSE(res, setProgress);
       if (result.event === "complete") {
         toast.success("Brief generated");
@@ -888,7 +888,7 @@ function ImagePlaceholderRail({
         <CardTitle className="text-sm flex items-center gap-2"><ImageIcon className="h-4 w-4" /> Image placeholders <span className="text-muted-foreground font-normal">({placeholders.length})</span></CardTitle>
         <CardDescription className="text-xs">
           {finalized
-            ? "Text finalized — per placeholder: Generate with AI, paste an image URL, or pick from your media library (Library also uploads). Delete what you don't want first."
+            ? "Text finalized — per placeholder: Generate with AI, paste an image URL, or choose from Drive (you can upload or generate there too). Delete what you don't want first."
             : "Delete what you don't want; Finalize text to unlock image generation."}
         </CardDescription>
       </CardHeader>
@@ -920,9 +920,8 @@ function ImagePlaceholderRail({
  * parent rail stays stateless. Resolution paths:
  *   - Generate  → AI image pipeline (status "generated"), gated on finalize
  *   - Paste URL → external URL        (status "supplied"),  gated on finalize
- *   - Library   → pick from cnt_media OR upload (status "uploaded" + mediaId),
- *                 gated on finalize — via <LibraryMediaPicker> (Media Manager
- *                 / R2). Closes the newsletter image-placeholder gap.
+ *   - Drive     → pick from Drive, upload or generate (status "uploaded" +
+ *                 mediaId), gated on finalize — via <DrivePicker>.
  */
 function PlaceholderCard({
   p,
@@ -955,7 +954,7 @@ function PlaceholderCard({
 
   const statusLabel = p.status === "generated" ? "Generated"
     : p.status === "supplied" ? "From URL"
-    : p.status === "uploaded" ? "From library"
+    : p.status === "uploaded" ? "From Drive"
     : null;
 
   function submitUrl() {
@@ -1006,8 +1005,17 @@ function PlaceholderCard({
           >
             {isResolving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link2 className="h-3 w-3" />} Paste URL
           </button>
-          <LibraryMediaPicker
+          <DrivePicker
             maxSelection={1}
+            kinds={["image"]}
+            target={{ channel: "newsletter", label: "a newsletter" }}
+            addLabel="Use this image"
+            // Generate makes THIS spot's image from its description (the same call as the Generate button); the card shows the result.
+            generatePrompt={p.description}
+            promptEditable={false}
+            onGenerate={async () => {
+              onGenerate(index);
+            }}
             onSelect={(assets) => {
               const a = assets[0];
               if (a) onPickFromLibrary(index, a.url, a.id);
@@ -1017,9 +1025,9 @@ function PlaceholderCard({
                 type="button"
                 disabled={rowBusy || !finalized}
                 className="text-xs font-medium px-2.5 py-1 rounded border bg-background hover:bg-accent disabled:opacity-40 flex items-center gap-1"
-                title={finalized ? "Choose from your media library or upload" : "Finalize text first to unlock"}
+                title={finalized ? "Choose from Drive, upload, or generate" : "Finalize text first to unlock"}
               >
-                <ImageIcon className="h-3 w-3" /> Library
+                <ImageIcon className="h-3 w-3" /> Drive
               </button>
             }
           />
@@ -1281,7 +1289,7 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
     setGenerating(true);
     setProgress(null);
     try {
-      const res = await api.streamPost(`/v1/content/ideas/${ideaId}/generate-content`);
+      const res = await api.streamPost(`/v1/content/ideas/${ideaId}/generate-content`, undefined, newActionKey());
       const result = await consumeSSE(res, setProgress);
       if (result.event === "complete") {
         toast.success("Draft generated");
