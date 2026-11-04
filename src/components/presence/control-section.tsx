@@ -1,10 +1,13 @@
 "use client";
 
 import { AlertTriangle, CheckCircle2, HelpCircle } from "lucide-react";
-import { changesView, controlNote, type NoteTone, type PresenceListingResponse } from "@/lib/presence-panels";
-
-/** The display name of the network this page reads. Shared UI logic takes it as a value and names none. */
-export const PRESENCE_NETWORK_LABEL = "Google";
+import {
+  PRESENCE_NETWORK_LABEL,
+  changesView,
+  controlNote,
+  type NoteTone,
+  type PresenceListingResponse,
+} from "@/lib/presence-panels";
 
 const TONE_ICON: Record<NoteTone, React.ReactNode> = {
   good: <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />,

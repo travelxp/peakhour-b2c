@@ -1,8 +1,7 @@
 "use client";
 
 import { useLocale } from "@/hooks/use-locale";
-import { PRESENCE_NETWORK_LABEL } from "@/components/presence/control-section";
-import { monthStartIso, searchTermsView, termCountText, type PresenceListingResponse } from "@/lib/presence-panels";
+import { PRESENCE_NETWORK_LABEL, monthStartIso, searchTermsView, termCountText, type PresenceListingResponse } from "@/lib/presence-panels";
 
 /**
  * What people searched for to find the listing, for one month.

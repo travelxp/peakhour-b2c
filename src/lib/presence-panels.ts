@@ -421,6 +421,12 @@ export function declaredMetrics(
 /** What a tile or a chart says for a figure that is missing. It is never "0". */
 export const NOT_AVAILABLE_YET = "Not available yet";
 
+/**
+ * The display name of the network this page reads. The helpers in this file take a name as an argument and
+ * name none, so the one place a name lives is here, passed in by the components.
+ */
+export const PRESENCE_NETWORK_LABEL = "Google";
+
 export const INSIGHT_WINDOWS: readonly { days: number; label: string }[] = [
   { days: 7, label: "7 days" },
   { days: 28, label: "28 days" },
