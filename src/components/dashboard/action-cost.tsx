@@ -1,13 +1,22 @@
 "use client";
 
 import { useCreditsRateCard } from "@/hooks/use-credits";
-import { actionCost, actionCostSentence, type ActionCost as Cost, type ActionCostKey } from "@/lib/action-cost";
+import { actionCost, actionCostShort, actionCostSentence, type ActionCost as Cost, type ActionCostKey } from "@/lib/action-cost";
 import { cn } from "@/lib/utils";
 
 /** The price of an action, read off the rate card. Safe to call in any component that renders a button. */
 export function useActionCost(action: ActionCostKey): Cost {
   const card = useCreditsRateCard();
-  return actionCost(card.data?.useCases, action, card.isError);
+  // "Loading" only while a request is really in flight. A query that is not running (signed out, auth not yet
+  // hydrated, paused) with no data is not about to deliver a price, so it reads as "we cannot price this".
+  const waiting = card.isPending && card.fetchStatus === "fetching";
+  return actionCost(card.data?.useCases, action, card.isError || (!card.data && !waiting));
+}
+
+/** "8 Peaks" or "Free" on its own, for a label that already has its own sentence ("Draft reply · 8 Peaks"). Empty when unknown. */
+export function ActionCostShort({ action }: { action: ActionCostKey }) {
+  const text = actionCostShort(useActionCost(action));
+  return text ? <>{text}</> : null;
 }
 
 /**

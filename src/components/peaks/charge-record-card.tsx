@@ -22,7 +22,12 @@ export function ChargeRecordCard() {
   const rateCard = useCreditsRateCard();
   const [downloading, setDownloading] = useState(false);
 
-  const lines = charges.data?.pages.flatMap((p) => p.charges) ?? [];
+  // Pages are refetched together, so a boundary line can arrive on two of them: one line per kind and reference.
+  const seen = new Set<string>();
+  const lines = (charges.data?.pages.flatMap((p) => p.charges) ?? []).filter((c) => {
+    const key = `${c.kind}:${c.id}`;
+    return seen.has(key) ? false : (seen.add(key), true);
+  });
   const shopper = shopperChargesCopy(shopperReplyPeaks(rateCard.data?.useCases));
 
   // Fetched as a blob with the session cookie, not a bare link: an expired session
@@ -95,7 +100,7 @@ export function ChargeRecordCard() {
                 </TableHeader>
                 <TableBody>
                   {lines.map((c) => (
-                    <TableRow key={c.id} data-line-kind={c.kind}>
+                    <TableRow key={`${c.kind}:${c.id}`} data-line-kind={c.kind}>
                       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{chargeWhen(c.at)}</TableCell>
                       <TableCell className="font-medium">{c.task}</TableCell>
                       <TableCell className="text-right tabular-nums">{chargeAmount(c.credits)}</TableCell>

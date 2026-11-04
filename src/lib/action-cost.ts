@@ -104,7 +104,8 @@ export function priceUseCases(
   const priced = found.filter((r) => !r.free).map((r) => r.creditMultiplier);
   if (priced.length === 0) return { state: "free" };
   const peaks = Math.max(...priced);
-  return { state: "priced", peaks, upTo: new Set(priced).size > 1 };
+  // "up to" when the rows differ, and when one of them is free: a run that reaches only the free one costs nothing.
+  return { state: "priced", peaks, upTo: new Set(priced).size > 1 || found.some((r) => r.free) };
 }
 
 /**

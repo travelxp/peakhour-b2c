@@ -8,6 +8,9 @@ describe("chargeWhen", () => {
     expect(chargeWhen("2026-11-04T10:02:00.000Z", "UTC")).toBe("4 Nov 2026, 10:02");
     expect(chargeWhen("2026-11-04T10:02:00.000Z", "Asia/Kolkata")).toBe("4 Nov 2026, 15:32");
   });
+  it("with no zone named it is UTC and says so, to match the downloaded file", () => {
+    expect(chargeWhen("2026-11-04T23:30:00.000Z")).toBe("4 Nov 2026, 23:30 UTC");
+  });
   it("prints nothing for a date it cannot read, never 'Invalid Date'", () => {
     expect(chargeWhen("not a date")).toBe("");
   });

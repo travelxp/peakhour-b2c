@@ -12,7 +12,7 @@ import { RankedListCard } from "@/components/molecules/ranked-list-card";
 import { ProportionListCard } from "@/components/molecules/proportion-list-card";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { PageShell } from "@/components/dashboard/page-shell";
-import { ActionCost } from "@/components/dashboard/action-cost";
+import { ActionCost, ActionCostShort } from "@/components/dashboard/action-cost";
 import {
   useReviewsSummary,
   useReviewsList,
@@ -324,7 +324,7 @@ function ReviewCard({
         {shownDraft && (
           <div className="rounded-md border bg-muted/40 p-3 text-sm">
             <p className="mb-1 text-xs font-medium text-muted-foreground">
-              {review.responseStatus === "published" ? "Published reply" : <>Draft reply · <ActionCost action="reviewReply" /></>}
+              {review.responseStatus === "published" ? "Published reply" : <>Draft reply <span className="text-muted-foreground">· <ActionCostShort action="reviewReply" /></span></>}
             </p>
             <p className="whitespace-pre-wrap">{shownDraft}</p>
           </div>

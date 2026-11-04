@@ -35,7 +35,9 @@ export interface ChargePage {
 export function chargeWhen(iso: string, timeZone?: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, ...(timeZone ? { timeZone } : {}) });
+  // UTC unless a zone is named, and said so: the downloaded file is UTC, and one charge must read the same on screen and in it.
+  const text = d.toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: timeZone ?? "UTC" });
+  return timeZone ? text : `${text} UTC`;
 }
 
 /**

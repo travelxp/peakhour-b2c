@@ -81,7 +81,7 @@ export function peaksPrice(u: Pick<RateCardUseCase, "free" | "creditMultiplier">
 export function peaksCostSentence(
   u: Pick<RateCardUseCase, "free" | "creditMultiplier"> | undefined,
 ): string {
-  if (!u) return "Checking the price…";
+  if (!u) return "The price is on your Peaks page.";
   if (u.free) return "Free — you are never charged for this.";
   return `Uses about ${u.creditMultiplier} Peaks.`;
 }
@@ -116,7 +116,7 @@ export function peaksCostSentence(
 export function quoteCostSentence(
   quote: { free: boolean; peaks: number } | undefined,
 ): string {
-  if (!quote) return "Checking the price…";
+  if (!quote) return "The price is on your Peaks page.";
   if (quote.free) return "Free — you are never charged for this.";
   // WARN `formatPeaks`, NOT A BARE `toLocaleString()` (round 1). The default
   // locale is the host's, so an en-IN merchant reads 'Costs 1,00,000 Peaks.'

@@ -51,8 +51,8 @@ describe("actionCost", () => {
   it("several rows: priced at the dearest, 'up to' only when they differ", () => {
     expect(priceUseCases(card, ["ask_peakhour", "compose_web_page"])).toEqual({ state: "priced", peaks: 150, upTo: true });
     expect(priceUseCases(card, ["content_editor", "content_editor"])).toEqual({ state: "priced", peaks: 150, upTo: false });
-    // a free row beside a priced one does not lower or raise the price
-    expect(priceUseCases(card, ["commerce.reputation.respond", "ask_peakhour"])).toEqual({ state: "priced", peaks: 8, upTo: false });
+    // a free row beside a priced one does not change the price, but makes it a ceiling
+    expect(priceUseCases(card, ["commerce.reputation.respond", "ask_peakhour"])).toEqual({ state: "priced", peaks: 8, upTo: true });
   });
 
   it("one missing row among several makes the whole action unknown (a quote that may be too low is worse than none)", () => {
@@ -98,8 +98,14 @@ describe("the component", () => {
   it("renders Free for a free task and the loading line before the card arrives", () => {
     h.card = { data: { useCases: [...card] }, isError: false };
     expect(html("reviewReply")).toContain("Free — you are never charged for this.");
-    h.card = { data: undefined, isError: false };
+    h.card = { data: undefined, isError: false, isPending: true, fetchStatus: "fetching" };
     expect(html("ask")).toContain("Checking the price…");
+  });
+
+  it("a card that is not running (signed out, paused) and has no data is not 'about to arrive'", () => {
+    h.card = { data: undefined, isError: false, isPending: true, fetchStatus: "idle" };
+    expect(html("ask")).toContain("The price is on your Peaks page.");
+    expect(html("ask")).not.toContain("Checking");
   });
 });
 
@@ -114,7 +120,7 @@ describe("the places that said 'Uses Peaks.'", () => {
     for (const t of [pricing, replenisher, reviews, inventory]) expect(t).not.toMatch(/Uses Peaks|uses Peaks/);
     expect(pricing).toContain('<ActionCost action="pricerBrief" />');
     expect(replenisher).toContain('<ActionCost action="replenisherBrief" />');
-    expect(reviews).toContain('<ActionCost action="reviewReply" />');
+    expect(reviews).toContain('<ActionCostShort action="reviewReply" />');
     expect(reviews).toContain('<ActionCost action="reviewAnalysis"');
   });
 

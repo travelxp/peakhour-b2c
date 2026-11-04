@@ -50,7 +50,7 @@ describe("★★quoteCostSentence — the sentence beside the button", () => {
     // ⚠️THE FOURTH STATE. "We do not know yet" is not "free" and not a price:
     // quoting a figure we do not have is the false-price-at-the-moment-of-the-ask
     // that this whole requirement exists to remove.
-    expect(quoteCostSentence(undefined)).toBe("Checking the price…");
+    expect(quoteCostSentence(undefined)).toBe("The price is on your Peaks page.");
     expect(quoteCostSentence(undefined)).not.toMatch(/free/i);
     expect(quoteCostSentence(undefined)).not.toMatch(/\d/);
   });
