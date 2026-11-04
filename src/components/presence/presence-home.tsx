@@ -7,6 +7,7 @@ import { GbpConnectCard } from "@/components/presence/gbp-connect-card";
 import { ReviewSummaryCard } from "@/components/presence/review-summary-card";
 import { ListingPanel } from "@/components/presence/listing-panel";
 import { InsightsPanel } from "@/components/presence/insights-panel";
+import { ReviewKitCard } from "@/components/presence/review-kit-card";
 import { useListingQuery } from "@/hooks/use-presence-listing";
 import { locationSwitcher } from "@/lib/presence-panels";
 
@@ -94,6 +95,8 @@ export function PresenceHome() {
         ) : null}
 
         <ReviewSummaryCard location={location} />
+
+        <ReviewKitCard location={location} />
 
         <ListingPanel location={panelLocation} />
 

@@ -7,6 +7,7 @@
     "pricerBrief": ["commerce.pricer.brief"],
     "replenisherBrief": ["commerce.replenisher.brief"],
     "reviewReply": ["commerce.reputation.respond"],
+    "presenceReviewReply": ["presence_review_reply"],
     "reviewAnalysis": ["commerce.reputation.analyze"],
     "findSources": ["trusted_sources.competitor_recommender"],
     "linkedinRewrite": ["content_editor"],
