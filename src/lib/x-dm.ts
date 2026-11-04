@@ -37,7 +37,7 @@ export const X_DM_COPY = {
   zeroCredits: "When your AI credits run out, Peakhour stops answering X messages and they wait in your Inbox marked Needs you.",
 } as const;
 
-/** "Each X message uses 5 AI credits." The number is the rate card's, never typed here. */
+/** "Each X message uses 75 AI credits." The number is the rate card's, never typed here. */
 export function priceLine(price: number | null): string | null {
   if (price === null) return null;
   return `Each X message uses ${price} AI credit${price === 1 ? "" : "s"}. A customer's message and each reply (yours or Peakhour's) are one each.`;
