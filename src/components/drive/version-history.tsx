@@ -44,7 +44,7 @@ export function VersionRow({ version, now, canRestore, restoring, onRestore }: {
   );
 }
 
-export function VersionHistory({ fileId, now, canEdit, onRestored }: { fileId: string; now: Date; canEdit: boolean; onRestored: (newFileId: string) => void }) {
+export function VersionHistory({ fileId, now, canEdit, onRestored }: { fileId: string; now: Date; canEdit: boolean; onRestored: (newFileId: string | null) => void }) {
   const qc = useQueryClient();
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const q = useQuery({ queryKey: ["drive", "versions", fileId], queryFn: () => listVersions(fileId), staleTime: 30_000 });
@@ -80,7 +80,7 @@ export function VersionHistory({ fileId, now, canEdit, onRestored }: { fileId: s
           <VersionRow key={v.id} version={v} now={now} canRestore={canEdit} restoring={restoringId === v.id} onRestore={() => void restore(v)} />
         ))}
       </ul>
-      <p className="mt-1.5 text-xs text-muted-foreground">Kept for 30 days. They do not count against your storage.</p>
+      <p className="mt-1.5 text-xs text-muted-foreground">Most are kept for 30 days. One that things you already published still show is kept for as long as that is true. None count against your storage.</p>
     </div>
   );
 }

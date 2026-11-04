@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { DrivePicker } from "@/components/drive/drive-picker";
 import { SaveToDriveButton } from "@/components/drive/save-to-drive";
+import type { SaveToDriveSource } from "@/lib/api/media";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ChannelIcon } from "@/components/brand/channel-icon";
@@ -937,6 +938,14 @@ function ImagePlaceholderRail({
  *   - Drive     → pick from Drive, upload or generate (status "uploaded" +
  *                 mediaId), gated on finalize — via <DrivePicker>.
  */
+/** What Save to Drive is given for a placeholder's image: the AI image as data or as a link, or the address that was pasted. Anything else (a blob, a data URL that is not an AI image) is not offered. */
+function saveSource(p: ImagePlaceholder): SaveToDriveSource | null {
+  const url = p.resolvedImageUrl;
+  if (!url) return null;
+  if (p.status === "generated") return url.startsWith("data:") ? { from: "ai_image", dataUrl: url } : /^https:\/\//i.test(url) ? { from: "ai_image", imageUrl: url } : null;
+  return /^https:\/\//i.test(url) ? { from: "draft_asset", url } : null;
+}
+
 function PlaceholderCard({
   p,
   index,
@@ -996,18 +1005,10 @@ function PlaceholderCard({
             <img src={p.resolvedImageUrl} alt={p.suggestedAltText} className="block w-full h-auto" />
           </div>
         )}
-        {/* An image Drive does not hold yet (an AI image kept only as data, or a picture from a pasted address): keep it (D8). */}
-        {resolved && p.resolvedImageUrl && !p.mediaId && (
+        {/* An image Drive does not hold yet (an AI image kept as data, or a picture from a pasted address): keep it (D8). */}
+        {resolved && p.resolvedImageUrl && !p.mediaId && saveSource(p) && (
           <div className="mt-2">
-            <SaveToDriveButton
-              source={
-                p.status === "generated"
-                  ? p.resolvedImageUrl.startsWith("data:")
-                    ? { from: "ai_image", dataUrl: p.resolvedImageUrl }
-                    : { from: "ai_image", imageUrl: p.resolvedImageUrl }
-                  : { from: "draft_asset", url: p.resolvedImageUrl }
-              }
-            />
+            <SaveToDriveButton key={p.resolvedImageUrl} source={saveSource(p)!} />
           </div>
         )}
         <div className="mt-2 flex items-center gap-2 flex-wrap">

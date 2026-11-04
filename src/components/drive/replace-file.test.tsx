@@ -91,7 +91,7 @@ describe("the Replace everywhere dialog", () => {
     await click(button(/Replace everywhere/));
     const t = text();
     expect(t).toContain("1 draft, 1 scheduled post will use the new file.");
-    expect(t).toContain("1 page already went out, or are being sent, and stay exactly as they were.");
+    expect(t).toContain("1 page already went out, or are being sent, and stay exactly as they were. The old file is kept, so they keep showing it.");
     expect(t).toContain("Draft: Diwali email");
     expect(t).toContain("Page: Spring sale. Live page.");
     expect(api.previewReplace).toHaveBeenCalledWith("old1");
@@ -113,7 +113,7 @@ describe("the Replace everywhere dialog", () => {
     await click(go);
     expect(upload.uploadToDrive.mock.calls[0]![1]).toMatchObject({ visibility: "private" });
     expect(api.replaceMedia).toHaveBeenCalledWith("old1", "new1");
-    expect(text()).toContain("1 draft now use the new file. The old file is in version history for 30 days.");
+    expect(text()).toContain("1 draft now use the new file. The old file is kept, because things that went out still show it.");
     expect(onReplaced).not.toHaveBeenCalled();
     await click(button(/^Done$/));
     expect(onReplaced).toHaveBeenCalledWith("new1");
@@ -146,6 +146,35 @@ describe("the Replace everywhere dialog", () => {
     await click(button(/^Try again$/));
     expect(api.replaceMedia).toHaveBeenCalledTimes(2);
     expect(upload.uploadToDrive).toHaveBeenCalledTimes(1);
+  });
+
+  it("a file of the wrong kind is refused before anything is uploaded", async () => {
+    await mount(<ReplaceFileDialog item={item()} onReplaced={vi.fn()} />);
+    await click(button(/Replace everywhere/));
+    await choose(new File(["x"], "menu.pdf", { type: "application/pdf" }));
+    await click([...document.body.querySelectorAll("button")].filter((b) => /Replace everywhere/.test(b.textContent ?? "")).pop());
+    expect(text()).toContain("This file is an image, so it can only be replaced by an image. You chose a document.");
+    expect(upload.uploadToDrive).not.toHaveBeenCalled();
+    expect(api.replaceMedia).not.toHaveBeenCalled();
+  });
+
+  it("closing after a swap that never answered refreshes without moving the screen (the swap may have been applied)", async () => {
+    api.replaceMedia.mockRejectedValueOnce({ status: 503, message: "x" });
+    const onReplaced = vi.fn();
+    await mount(<ReplaceFileDialog item={item()} onReplaced={onReplaced} />);
+    await click(button(/Replace everywhere/));
+    await choose(new File(["x"], "logo-v2.png", { type: "image/png" }));
+    await click([...document.body.querySelectorAll("button")].filter((b) => /Replace everywhere/.test(b.textContent ?? "")).pop());
+    await click(button(/^Cancel$/));
+    expect(onReplaced).toHaveBeenCalledWith(null);
+  });
+
+  it("closing before anything was swapped changes nothing", async () => {
+    const onReplaced = vi.fn();
+    await mount(<ReplaceFileDialog item={item()} onReplaced={onReplaced} />);
+    await click(button(/Replace everywhere/));
+    await click(button(/^Cancel$/));
+    expect(onReplaced).not.toHaveBeenCalled();
   });
 
   it("when the preview cannot be read nothing can be replaced", async () => {

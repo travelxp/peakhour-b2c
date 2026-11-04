@@ -7,7 +7,7 @@ vi.mock("@/lib/api", () => ({ api: { get: vi.fn() }, ApiError: class extends Err
 
 const { NO_FILTERS, applyDescribeRows, canChangeFile, driveAbilities, isFiltered, toListParams, waitingIds } = await import("./files-state");
 const { usedInHref, usedInLabel, trashFailureText, blockedText, tileLine, isBeingDescribed, SHIMMER_WINDOW_MS, cleanupCopy, DESCRIBING_LINE, fitsOf, channelLabel } = await import("./copy");
-const { placesSummary, placeLine, replaceIntro, replaceOutcome, replaceFailureText, versionLine, savedText, saveFailureText } = await import("./copy");
+const { placesSummary, placeLine, replaceIntro, replaceOutcome, replaceFailureText, versionLine, savedText, saveFailureText, kindOfChosenFile, replaceKindProblem, isSavableAddress } = await import("./copy");
 const { tabFromParam, DRIVE_TABS } = await import("./tabs");
 const { fitWithin, posterTime, POSTER_MAX_SIDE } = await import("./probe-file");
 const { trayTitle, pillText } = await import("./tray-copy");
@@ -262,13 +262,15 @@ describe("Replace everywhere: the words", () => {
     expect(placeLine(it1("scheduled_item", undefined, "Already published"))).toBe("Scheduled post. Already published.");
   });
   it("the intro says what changes and what stays, and says so when nothing is in use", () => {
-    expect(replaceIntro([it1("draft")], [it1("page"), it1("page")])).toBe("1 draft will use the new file. 2 pages already went out, or are being sent, and stay exactly as they were.");
+    expect(replaceIntro([it1("draft")], [it1("page"), it1("page")])).toBe("1 draft will use the new file. 2 pages already went out, or are being sent, and stay exactly as they were. The old file is kept, so they keep showing it.");
     expect(replaceIntro([], [it1("page")])).toContain("Nothing will change anywhere it is used.");
     expect(replaceIntro([], [])).toContain("Nothing uses this file yet");
   });
   it("an outcome with anything not changed is a failure that says to try again, and never claims success", () => {
     const ok = replaceOutcome({ changed: [it1("draft")], staysAsSent: [], notChanged: [] });
     expect(ok).toEqual({ headline: "1 draft now use the new file. The old file is in version history for 30 days.", failed: false });
+    // things that went out still show the old file: it is kept, not purged
+    expect(replaceOutcome({ changed: [it1("draft")], staysAsSent: [it1("page")], notChanged: [] }).headline).toBe("1 draft now use the new file. The old file is kept, because things that went out still show it.");
     const partial = replaceOutcome({ changed: [it1("draft")], staysAsSent: [], notChanged: [it1("scheduled_item")] });
     expect(partial.failed).toBe(true);
     expect(partial.headline).toContain("1 scheduled post could not be changed");
@@ -283,6 +285,8 @@ describe("Replace everywhere: the words", () => {
     const v = { id: "v", name: "Logo", mimeType: "image/png", sizeBytes: 2048, visibility: "published" as const, replacedAt: new Date(NOW.getTime() - 3 * 86_400_000).toISOString(), hardDeleteAfter: new Date(NOW.getTime() + 27 * 86_400_000).toISOString() };
     expect(versionLine(v, NOW)).toBe("2 KB. Replaced 3 days ago. 27 days left");
     expect(versionLine({ ...v, replacedAt: NOW.toISOString() }, NOW)).toContain("Replaced today");
+    // no purge date: kept while something that went out still shows it
+    expect(versionLine({ ...v, hardDeleteAfter: undefined }, NOW)).toBe("2 KB. Replaced 3 days ago. Kept while things that went out still show it");
   });
 });
 
@@ -297,5 +301,31 @@ describe("Save to Drive: the words", () => {
     expect(saveFailureText({ status: 402, message: "Your Drive is full." })).toBe("Your Drive is full.");
     expect(saveFailureText({ status: 415, message: "Drive does not store this kind of file." })).toBe("Drive does not store this kind of file.");
     expect(saveFailureText({ status: 500, message: "x" })).toBe("That could not be saved to Drive. Try again.");
+  });
+});
+
+describe("Replace everywhere: the file chosen is checked before anything is uploaded", () => {
+  const f = (name: string, type: string) => ({ name, type });
+  it("tells the kind of a chosen file by its type, then its extension, and says nothing when it cannot tell", () => {
+    expect(kindOfChosenFile(f("a.png", "image/png"))).toBe("image");
+    expect(kindOfChosenFile(f("a.mov", "video/quicktime"))).toBe("video");
+    expect(kindOfChosenFile(f("a.pdf", "application/pdf"))).toBe("document");
+    expect(kindOfChosenFile(f("a.docx", ""))).toBe("document");
+    expect(kindOfChosenFile(f("a.woff2", ""))).toBe("font");
+    expect(kindOfChosenFile(f("a.xyz", "application/octet-stream"))).toBeNull();
+  });
+  it("a PDF cannot replace an image, in words; the same kind and an unknown kind go on to the api", () => {
+    expect(replaceKindProblem(f("menu.pdf", "application/pdf"), "image")).toBe("This file is an image, so it can only be replaced by an image. You chose a document.");
+    expect(replaceKindProblem(f("b.jpg", "image/jpeg"), "image")).toBeNull();
+    expect(replaceKindProblem(f("b.xyz", ""), "image")).toBeNull();
+  });
+  it("offers Save to Drive for a plain https address only, and never for a Drive file's own address", () => {
+    const key = `${"a".repeat(24)}/${"b".repeat(24)}/202611/${"c".repeat(32)}.png`;
+    expect(isSavableAddress("https://cdn.example.com/hero.png")).toBe(true);
+    expect(isSavableAddress(`https://media.example.com/${key}`)).toBe(false);
+    expect(isSavableAddress(`https://x.test/r?u=${encodeURIComponent(key)}`)).toBe(false);
+    expect(isSavableAddress("data:image/png;base64,AAAA")).toBe(false);
+    expect(isSavableAddress("blob:https://app.test/1")).toBe(false);
+    expect(isSavableAddress("http://cdn.example.com/hero.png")).toBe(false);
   });
 });

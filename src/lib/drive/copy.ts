@@ -252,7 +252,7 @@ export function placeLine(it: ReplaceItem): string {
 export function replaceIntro(willChange: ReplaceItem[], stays: ReplaceItem[]): string {
   if (willChange.length === 0 && stays.length === 0) return "Nothing uses this file yet, so only the file itself changes. The old one stays in its version history for 30 days.";
   const change = willChange.length > 0 ? `${placesSummary(willChange)} will use the new file.` : "Nothing will change anywhere it is used.";
-  const stay = stays.length > 0 ? ` ${placesSummary(stays)} already went out, or are being sent, and stay exactly as they were.` : "";
+  const stay = stays.length > 0 ? ` ${placesSummary(stays)} already went out, or are being sent, and stay exactly as they were. The old file is kept, so they keep showing it.` : "";
   return `${change}${stay}`;
 }
 
@@ -262,7 +262,9 @@ export function replaceOutcome(r: Pick<ReplaceResult, "changed" | "staysAsSent" 
     return { headline: `The file was replaced, but ${placesSummary(r.notChanged)} could not be changed. They still show the old file. Try again to finish.`, failed: true };
   }
   const moved = r.changed.length > 0 ? `${placesSummary(r.changed)} now use the new file.` : "The new file is in place.";
-  return { headline: `${moved} The old file is in version history for 30 days.`, failed: false };
+  // A file that something published still shows is kept (the api gives it no purge date); any other is in version history for 30 days.
+  const kept = r.staysAsSent.length > 0 ? "The old file is kept, because things that went out still show it." : "The old file is in version history for 30 days.";
+  return { headline: `${moved} ${kept}`, failed: false };
 }
 
 const REPLACE_FAILED = "The file could not be replaced. Nothing that was already published changed. Try again.";
@@ -281,8 +283,12 @@ export function versionLine(v: FileVersion, now: Date): string {
     const days = Math.floor((now.getTime() - new Date(v.replacedAt).getTime()) / DAY_MS);
     parts.push(days <= 0 ? "Replaced today" : `Replaced ${days} ${days === 1 ? "day" : "days"} ago`);
   }
-  const left = daysLeftText(daysLeft(v.hardDeleteAfter, now));
-  if (left) parts.push(left);
+  // No purge date: something that went out still shows this file, so it is kept.
+  if (!v.hardDeleteAfter) parts.push("Kept while things that went out still show it");
+  else {
+    const left = daysLeftText(daysLeft(v.hardDeleteAfter, now));
+    if (left) parts.push(left);
+  }
   return parts.join(". ");
 }
 
@@ -297,4 +303,40 @@ export function saveFailureText(err: unknown): string {
   const e = err as { status?: number; message?: string } | null;
   if (e && e.message && [402, 404, 415, 422, 503].includes(e.status ?? 0)) return e.message;
   return "That could not be saved to Drive. Try again.";
+}
+
+/** What a chosen file is, for the one check made before anything is uploaded: a Replace takes a file of the SAME kind (the api refuses otherwise, after the bytes moved). */
+export function kindOfChosenFile(file: Pick<File, "name" | "type">): MediaKind | null {
+  const type = file.type.toLowerCase();
+  const ext = file.name.toLowerCase().split(".").pop() ?? "";
+  if (type.startsWith("image/")) return "image";
+  if (type.startsWith("video/")) return "video";
+  if (type.startsWith("font/") || ["woff", "woff2", "ttf", "otf"].includes(ext)) return "font";
+  if (type === "application/pdf" || type.startsWith("text/") || type.includes("officedocument") || type.includes("msword") || type.includes("ms-excel") || type.includes("ms-powerpoint")) return "document";
+  if (["pdf", "txt", "doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(ext)) return "document";
+  return null;
+}
+
+const KIND_WORD: Record<MediaKind, string> = { image: "an image", video: "a video", document: "a document", font: "a font" };
+
+/** The sentence when the chosen file is not the kind being replaced; null when it is (or when the kind cannot be told, and the api decides). */
+export function replaceKindProblem(file: Pick<File, "name" | "type">, kind: MediaKind): string | null {
+  const got = kindOfChosenFile(file);
+  if (got === null || got === kind) return null;
+  return `This file is ${KIND_WORD[kind]}, so it can only be replaced by ${KIND_WORD[kind]}. You chose ${KIND_WORD[got]}.`;
+}
+
+/** `{org}/{business}/{YYYYMM}/{file}`: the key every Drive file's address carries. */
+const DRIVE_KEY = /[0-9a-f]{24}\/[0-9a-f]{24}\/\d{6}\/[A-Za-z0-9._-]+/;
+
+/** An address Save to Drive can fetch and that is not a Drive file already: a plain https address. A Drive file's own address, a data: or a blob: address is not offered. */
+export function isSavableAddress(url: string): boolean {
+  if (!/^https:\/\//i.test(url)) return false;
+  let text = url;
+  try {
+    text = decodeURIComponent(url);
+  } catch {
+    /* keep the raw text */
+  }
+  return !DRIVE_KEY.test(text);
 }

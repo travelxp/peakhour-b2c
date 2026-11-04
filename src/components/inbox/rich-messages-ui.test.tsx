@@ -4,7 +4,8 @@ import { join } from "node:path";
 import { renderToStaticMarkup } from "react-dom/server";
 
 // Markup only: every hook module is replaced so nothing here reaches the api, the router or the auth provider.
-vi.mock("@/providers/auth-provider", () => ({ useAuth: () => ({ business: { _id: "b1" } }) }));
+const auth = vi.hoisted(() => ({ role: "editor" as string }));
+vi.mock("@/providers/auth-provider", () => ({ useAuth: () => ({ business: { _id: "b1" }, org: { _id: "o1" }, orgs: [{ _id: "o1", role: auth.role }] }) }));
 vi.mock("@/hooks/use-inbox-media", () => ({
   useThreadMedia: () => ({ data: undefined, isError: false, isFetching: false, error: null, refetch: async () => {} }),
   useObjectUrl: () => null,
@@ -50,6 +51,17 @@ describe("an attachment in a bubble", () => {
       expect(html, kind).toContain(`data-save-source="{&quot;from&quot;:&quot;inbox&quot;,&quot;threadId&quot;:&quot;whatsapp:1:abc&quot;,&quot;ref&quot;:&quot;${"a".repeat(64)}&quot;}"`);
     }
     for (const kind of ["audio", "sticker"]) expect(at({ kind }), kind).not.toContain("Save to Drive");
+  });
+
+  it("a viewer is not offered Save to Drive", () => {
+    auth.role = "viewer";
+    try {
+      const html = renderToStaticMarkup(<BubbleMedia threadId="whatsapp:1:abc" media={media()} />);
+      expect(html).toContain("View photo");
+      expect(html).not.toContain("Save to Drive");
+    } finally {
+      auth.role = "editor";
+    }
   });
 
   it("the bubble shows the button and not the placeholder line it stands in for", () => {

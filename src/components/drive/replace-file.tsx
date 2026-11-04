@@ -6,7 +6,7 @@ import { Replace } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { previewReplace, replaceMedia, type MediaItem, type ReplaceItem, type ReplaceResult } from "@/lib/api/media";
-import { placeLine, replaceFailureText, replaceIntro, replaceOutcome } from "@/lib/drive/copy";
+import { placeLine, replaceFailureText, replaceIntro, replaceKindProblem, replaceOutcome } from "@/lib/drive/copy";
 import { uploadErrorMessage, uploadToDrive } from "@/lib/drive/upload-engine";
 
 /**
@@ -38,13 +38,18 @@ function Places({ title, items, tone }: { title: string; items: ReplaceItem[]; t
 
 type Phase = { name: "choose" } | { name: "working"; step: "uploading" | "swapping" } | { name: "done"; result: ReplaceResult } | { name: "error"; message: string; uploadedId?: string };
 
-export function ReplaceFileDialog({ item, onReplaced }: { item: MediaItem; onReplaced: (newFileId: string) => void }) {
+/**
+ * `onReplaced(id)`: the file is now `id`, move the screen to it. `onReplaced(null)`: a swap was started and this screen never learned
+ * how it ended (the reply did not arrive), so refresh and stay where you are.
+ */
+export function ReplaceFileDialog({ item, onReplaced }: { item: MediaItem; onReplaced: (newFileId: string | null) => void }) {
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [phase, setPhase] = useState<Phase>({ name: "choose" });
   const input = useRef<HTMLInputElement>(null);
   // The screen moves to the new file only when this dialog closes, so a Try again still names the file being replaced.
   const replacedTo = useRef<string | null>(null);
+  const swapStarted = useRef(false);
 
   const preview = useQuery({
     queryKey: ["drive", "replace-preview", item.id],
@@ -62,13 +67,16 @@ export function ReplaceFileDialog({ item, onReplaced }: { item: MediaItem; onRep
   const close = () => {
     setOpen(false);
     const to = replacedTo.current;
+    const started = swapStarted.current;
     replacedTo.current = null;
+    swapStarted.current = false;
     reset();
-    if (to) onReplaced(to);
+    if (to || started) onReplaced(to);
   };
 
   const swap = async (mediaId: string) => {
     setPhase({ name: "working", step: "swapping" });
+    swapStarted.current = true;
     try {
       const result = await replaceMedia(item.id, mediaId);
       setPhase({ name: "done", result });
@@ -80,6 +88,11 @@ export function ReplaceFileDialog({ item, onReplaced }: { item: MediaItem; onRep
 
   const run = async () => {
     if (!file) return;
+    const problem = replaceKindProblem(file, item.kind);
+    if (problem) {
+      setPhase({ name: "error", message: problem });
+      return;
+    }
     setPhase({ name: "working", step: "uploading" });
     let uploaded;
     try {

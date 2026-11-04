@@ -214,7 +214,7 @@ export function FileDetail({
   onTrash: () => void;
   trashing: boolean;
   /** Replace everywhere or a restored version made another row the file: move the screen to it. */
-  onReplaced: (newFileId: string) => void;
+  onReplaced: (newFileId: string | null) => void;
 }) {
   const preview = usePreviewUrl(item);
   const fits = fitsOf(item.channelFit);

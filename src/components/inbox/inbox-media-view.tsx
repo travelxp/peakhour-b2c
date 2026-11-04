@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { SaveToDriveButton } from "@/components/drive/save-to-drive";
 import { useObjectUrl, useThreadMedia } from "@/hooks/use-inbox-media";
+import { useAuth } from "@/providers/auth-provider";
+import { driveAbilities } from "@/lib/drive/files-state";
 import { humanBytes, mediaActionLabel, mediaOpenError, type MessageMedia } from "@/lib/inbox-media";
 
 /**
@@ -18,7 +20,10 @@ import { humanBytes, mediaActionLabel, mediaOpenError, type MessageMedia } from 
 const SAVEABLE = new Set<MessageMedia["kind"]>(["image", "video", "document"]);
 
 export function BubbleMedia({ threadId, media }: { threadId: string; media: MessageMedia }) {
-  if (!SAVEABLE.has(media.kind)) return <OpenMedia threadId={threadId} media={media} />;
+  const { org, orgs } = useAuth();
+  // Saving writes a file to Drive: an editor or above (the api refuses a viewer, so the button is not offered).
+  const canSave = driveAbilities(orgs.find((o) => o._id === org?._id)?.role).canEdit;
+  if (!canSave || !SAVEABLE.has(media.kind)) return <OpenMedia threadId={threadId} media={media} />;
   return (
     <div>
       <OpenMedia threadId={threadId} media={media} />
