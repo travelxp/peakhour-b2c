@@ -26,6 +26,7 @@ import {
   deleteMedia,
   formatBytes,
   listCollections,
+  getMedia,
   listMedia,
   updateMedia,
   type DriveCollection,
@@ -164,7 +165,10 @@ export function FilesView({ abilities }: { abilities: { canEdit: boolean; isAdmi
     [qc],
   );
 
-  const open = items.find((i) => i.id === openId) ?? null;
+  // After a replace or a restore the file in the panel is a different row, which may not be on the loaded page (a filter, a later page): ask for it.
+  const inList = items.find((i) => i.id === openId) ?? null;
+  const fetched = useQuery({ queryKey: ["drive", "file", openId], queryFn: () => getMedia(openId!), enabled: openId !== null && inList === null, staleTime: 30_000 });
+  const open = inList ?? (fetched.data && !fetched.data.deletedAt && fetched.data.id === openId ? fetched.data : null);
   const state = listState(list);
 
   const patch = async (id: string, p: MediaPatch) => {
@@ -175,12 +179,13 @@ export function FilesView({ abilities }: { abilities: { canEdit: boolean; isAdmi
     void qc.invalidateQueries({ queryKey: COLLECTIONS_KEY });
   };
 
-  const refresh = () => {
-    void qc.invalidateQueries({ queryKey: FILES_KEY });
+  const refresh = (): Promise<void> => {
+    const files = qc.invalidateQueries({ queryKey: FILES_KEY });
     void qc.invalidateQueries({ queryKey: COLLECTIONS_KEY });
     void qc.invalidateQueries({ queryKey: ["storage-usage"] });
     void qc.invalidateQueries({ queryKey: ["drive", "cleanup"] });
     void qc.invalidateQueries({ queryKey: ["drive", "trash"] });
+    return files;
   };
 
   const trashOne = useMutation({
@@ -440,7 +445,7 @@ export function FilesView({ abilities }: { abilities: { canEdit: boolean; isAdmi
 
       {open && (
         <div className="min-w-0 max-w-sm flex-[1_1_18rem]">
-          <FileDetail item={open} now={now} canEdit={canChangeFile(open, abilities)} onPatch={(p) => patch(open.id, p)} onTrash={() => trashOne.mutate(open.id)} trashing={trashOne.isPending} />
+          <FileDetail item={open} now={now} canEdit={canChangeFile(open, abilities)} onPatch={(p) => patch(open.id, p)} onTrash={() => trashOne.mutate(open.id)} trashing={trashOne.isPending} onReplaced={(id) => { void refresh().then(() => id && setOpenId(id)); }} />
         </div>
       )}
     </div>

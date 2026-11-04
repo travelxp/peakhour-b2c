@@ -146,8 +146,8 @@ function rowValue(
   }
 }
 
-export function ListingPanel() {
-  const q = useListingQuery();
+export function ListingPanel({ location }: { location?: string }) {
+  const q = useListingQuery(location);
   const { formatDate, formatDateTime } = useLocale();
   const view = fetchView({
     hasData: !!q.data,

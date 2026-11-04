@@ -46,18 +46,18 @@ import {
  * A figure Google did not report is "Not available yet", never 0. Search terms
  * (monthly, and only where the network declares them) sit under the chart.
  */
-export function InsightsPanel() {
+export function InsightsPanel({ location }: { location?: string }) {
   const [days, setDays] = useState(DEFAULT_INSIGHT_DAYS);
   const [metric, setMetric] = useState<InsightKey>("views");
   const { formatDate, formatNumber } = useLocale();
 
-  const listingQ = useListingQuery();
+  const listingQ = useListingQuery(location);
   const setup = listingQ.data?.setup;
   // Figures are only asked for once the listing says there is one to ask about.
   const canAsk = setup === "ready" || setup === "sync_failing";
   const insightsQ = useQuery({
-    queryKey: presenceInsightsQueryKey(days),
-    queryFn: () => presenceApi.insights(days),
+    queryKey: presenceInsightsQueryKey(days, location),
+    queryFn: () => presenceApi.insights(days, location),
     enabled: canAsk,
     // Keep the last window on screen while the next loads, rather than blanking.
     placeholderData: keepPreviousData,

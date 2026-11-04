@@ -337,6 +337,89 @@ export function setDrivePrivacy(dontSendPrivateFilesToAi: boolean): Promise<{ do
   return api.put(`/v1/media/privacy`, { dontSendPrivateFilesToAi });
 }
 
+// ── Replace everywhere, version history and Save to Drive (D8) ──────────────────────────────
+
+/** One item that holds a file: a draft, a scheduled post, an ad, a page, a Brand Kit, a share link... `reason` says why it stays. */
+export interface ReplaceItem {
+  kind: UsedInEntry["kind"];
+  refId: string;
+  label?: string;
+  reason?: string;
+}
+
+export interface ReplacePreview {
+  /** These take the new file. */
+  willChange: ReplaceItem[];
+  /** These have gone out (or are being sent, or were approved for this picture) and stay as they went out. */
+  staysAsSent: ReplaceItem[];
+}
+
+/** Show what a replace would do, before anything is uploaded or changed. */
+export function previewReplace(id: string): Promise<ReplacePreview> {
+  return api.get<ReplacePreview>(`/v1/media/${id}/replace-preview`);
+}
+
+export interface ReplaceResult {
+  /** The new current file's id (the old id is now its earlier version). */
+  fileId: string;
+  replacedFileId: string;
+  /** This call swept what an earlier call left. */
+  retry: boolean;
+  changed: ReplaceItem[];
+  staysAsSent: ReplaceItem[];
+  /** Should have changed and did not; the same call again carries on. */
+  notChanged: ReplaceItem[];
+}
+
+/** `mediaId` is a COMPLETED upload of the new file. */
+export function replaceMedia(id: string, mediaId: string): Promise<ReplaceResult> {
+  return api.post<ReplaceResult>(`/v1/media/${id}/replace`, { mediaId });
+}
+
+export interface FileVersion {
+  id: string;
+  name: string;
+  mimeType: string;
+  sizeBytes: number;
+  width?: number;
+  height?: number;
+  publicUrl?: string;
+  visibility: MediaVisibility;
+  replacedAt?: string;
+  /** The day the nightly purge removes it. */
+  hardDeleteAfter?: string;
+}
+
+export function listVersions(id: string): Promise<FileVersion[]> {
+  return api.get<FileVersion[]>(`/v1/media/${id}/versions`);
+}
+
+export function restoreVersion(id: string, versionId: string): Promise<Omit<ReplaceResult, "replacedFileId" | "retry">> {
+  return api.post(`/v1/media/${id}/versions/${versionId}/restore`, {});
+}
+
+/** Where a file to save comes from. An Inbox attachment is always saved Private. */
+export type SaveToDriveSource =
+  | { from: "ai_image"; dataUrl: string; prompt?: string; modelId?: string }
+  | { from: "ai_image"; imageUrl: string; prompt?: string; modelId?: string }
+  | { from: "draft_asset"; url: string }
+  | { from: "inbox"; threadId: string; ref: string };
+
+export interface SavedToDrive {
+  mediaId: string;
+  name: string;
+  visibility: MediaVisibility;
+  publicUrl?: string;
+  /** The same bytes were in Drive already. */
+  deduped: boolean;
+  /** The address was one of this organisation's Drive files; nothing was copied. */
+  alreadyInDrive: boolean;
+}
+
+export function saveToDrive(source: SaveToDriveSource): Promise<SavedToDrive> {
+  return api.post<SavedToDrive>(`/v1/media/save`, source);
+}
+
 /** Human-readable byte size. */
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

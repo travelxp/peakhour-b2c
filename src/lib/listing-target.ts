@@ -27,19 +27,28 @@ export const LISTING_CHANNEL = "googlebusiness";
  *  string, deliberately — the channel key cannot carry an underscore. */
 export const LISTING_PROVIDER = "google_business_profile";
 
+/** One listing the connection manages. */
+export interface ListingLocation {
+  locationName: string;
+  title: string | null;
+}
+
 export interface ListingTarget {
   /** Show the panel at all. */
   available: boolean;
   /** False when connected but no location is chosen — the panel says so and
    *  points at the picker rather than offering a toggle that would fail. */
   locationPicked: boolean;
+  /** Every listing the connection manages. More than one means the merchant
+   *  must say which one a post is for: it is never sent to all by default. */
+  locations: ListingLocation[];
 }
 
 /** Just enough of `GET /v1/integrations` to answer the question. */
 export interface IntegrationRowLike {
   provider: string;
   connected?: boolean;
-  account?: { extra?: { locationName?: string | null } };
+  account?: { extra?: { locationNames?: string[]; locations?: ListingLocation[] } };
 }
 
 /**
@@ -70,12 +79,19 @@ export function listingTargetFrom(
 
   const row = integrations?.find((i) => i.provider === LISTING_PROVIDER);
   const connected = row?.connected === true;
-  // ⚠️A STRING, NOT MERELY TRUTHY. The field is three-valued: `null` means
-  // connected with nothing picked, `undefined` means an api too old to say.
-  // Both must read as not-picked.
-  const locationPicked = typeof row?.account?.extra?.locationName === "string";
+  // ⚠️A NON-EMPTY LIST, NOT MERELY PRESENT. The field is three-valued: `[]`
+  // means connected with nothing picked, `undefined` means an api too old to
+  // say. Both must read as not-picked.
+  const names = row?.account?.extra?.locationNames;
+  const picked = Array.isArray(names) ? names.filter((n) => typeof n === "string" && n.trim() !== "") : [];
+  const titled = row?.account?.extra?.locations ?? [];
+  // A name with no stored title is still offered, under its reference.
+  const locations = picked.map((locationName) => ({
+    locationName,
+    title: titled.find((l) => l.locationName === locationName)?.title ?? null,
+  }));
 
-  return { available: enabled && connected, locationPicked };
+  return { available: enabled && connected, locationPicked: picked.length > 0, locations };
 }
 
 /**
@@ -125,6 +141,23 @@ export function shouldOfferListing(args: {
   return !args.hasCommitOverride && args.available;
 }
 
+/**
+ * The listing a post is for, or `null` when the merchant has yet to say.
+ *
+ * ★A POST GOES TO THE LISTING THE MERCHANT CHOSE, NEVER TO ALL BY DEFAULT.
+ * With one listing there is nothing to choose. With several the choice must be
+ * one of them: a stale or missing choice resolves to `null`, never to the first,
+ * because a public post on the wrong shop is not a fixable default.
+ */
+export function resolveListingLocation(
+  locations: readonly ListingLocation[],
+  chosen: string | null | undefined,
+): string | null {
+  if (locations.length === 0) return null;
+  if (locations.length === 1) return locations[0]!.locationName;
+  return locations.find((l) => l.locationName === chosen)?.locationName ?? null;
+}
+
 /** What the listing adds to the committed plan — `null` when it adds nothing. */
 export interface ListingPlanTarget {
   channel: string;
@@ -153,8 +186,13 @@ export function listingPlanTarget(args: {
   locationPicked: boolean;
   enabled: boolean;
   draft: ListingDraft;
+  /** The connection's listings and the merchant's choice among them. */
+  locations: readonly ListingLocation[];
+  chosenLocation: string | null | undefined;
 }): ListingPlanTarget | null {
   if (!args.offered || !args.locationPicked || !args.enabled) return null;
+  const locationName = resolveListingLocation(args.locations, args.chosenLocation);
+  if (!locationName) return null;
   if (listingProblems(args.draft).length > 0) return null;
   // Blanks dropped, exactly as the rules count them.
   const media = args.draft.mediaUrls.map((u) => u.trim()).filter(Boolean);
@@ -178,7 +216,9 @@ export function listingPlanTarget(args: {
       // panel has no image input yet) and a silent loss the moment one is added,
       // which is the worst time to discover it.
       ...(media.length > 0 ? { mediaUrls: media } : {}),
-      channelOptions: buildListingChannelOptions(args.draft),
+      // The listing this post is for, always named: the publisher refuses a
+      // connection with several listings and no name.
+      channelOptions: { ...buildListingChannelOptions(args.draft), locationName },
     },
   };
 }
