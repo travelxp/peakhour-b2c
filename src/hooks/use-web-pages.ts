@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, newActionKey } from "@/lib/api";
 import type { PageBlock, MarketingPageSeo } from "@/lib/marketing-pages";
 
 // ── Types (mirror the /v1/content/web-pages API) ─────────────────────────────
@@ -139,7 +139,7 @@ export function useGenerateWebPages() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body?: { segments?: GenerateSegmentInput[]; dryRun?: boolean }) =>
-      api.post<GenerateResult>("/v1/content/web-pages/generate", body ?? {}),
+      api.post<GenerateResult>("/v1/content/web-pages/generate", body ?? {}, newActionKey()),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: webPagesKeys.all }),
   });
 }

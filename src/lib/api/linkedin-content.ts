@@ -1,4 +1,4 @@
-import { api } from "@/lib/api";
+import { api, newActionKey } from "@/lib/api";
 
 export type LinkedInVisibility = "PUBLIC" | "CONNECTIONS" | "LOGGED_IN";
 
@@ -378,13 +378,14 @@ export const linkedInContentApi = {
   /** Generate N initial LinkedIn post drafts grounded in the active
    *  business's profile + voice card + cohort archetype. Persists each
    *  as a cnt_drafts row server-side and returns them in the response.
-   *  Designed to fire once on onboarding completion (and on-demand
-   *  from a "generate more" button later). Server clamps count to
+   *  Fires only when the merchant presses "Draft posts from my profile"
+   *  (never on its own: it uses Peaks). Server clamps count to
    *  [1, 10]; defaults to 5 when omitted. */
   generateFromProfile: (count?: number) =>
     api.post<GenerateFromProfileResponse>(
       "/v1/linkedin/content/generate-from-profile",
       count !== undefined ? { count } : {},
+      newActionKey(),
     ),
 
   /** Boost-this-post candidates. Read-only ranking of the business's

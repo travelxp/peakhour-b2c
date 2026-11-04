@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useAuth } from "@/providers/auth-provider";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +14,7 @@ import {
 } from "@/components/ui/collapsible";
 import { ChevronDown, Share2, Sparkles, X } from "lucide-react";
 import {
+  linkedInContentApi,
   SUGGESTED_DRAFTS_QUERY_KEY,
   type GenerateFromProfileResponse,
   type SuggestedDraft,
@@ -21,9 +24,9 @@ import type { RepurposeSource } from "@/lib/api/repurpose";
 
 /**
  * Cache lifecycle for the SuggestedDraftsPanel:
- *   • Launch page writes the generate-from-profile response into the
- *     TanStack cache under SUGGESTED_DRAFTS_QUERY_KEY (re-exported from
- *     the api-client module so launch + panel share a neutral source).
+ *   • The panel's own "Draft posts from my profile" button writes the
+ *     generate-from-profile response into the TanStack cache under
+ *     SUGGESTED_DRAFTS_QUERY_KEY (nothing is generated unasked).
  *   • This panel reads from the cache via useQuery with enabled:false +
  *     initialData:null — pure cache reader, no queryFn invocation.
  *   • Dismissals are persisted into the cache itself (mutated via
@@ -53,18 +56,40 @@ interface Props {
  * while typing in the composer. Side-by-side suggestion + authoring
  * matches how the user actually works.
  */
+// Per-tab convenience only: the drafts also live server-side. Keeps them across a reload so the merchant is not offered
+// (and charged for) a second batch, and keeps the offer hidden once the last draft is used or dismissed.
+// Keyed by business, so switching business or signing in as someone else in the tab never shows another tenant's drafts.
+const storeKey = (businessId: string | undefined) => `ph-linkedin-suggested-drafts:${businessId ?? "none"}`;
+function readStore(key: string): GenerateFromProfileResponse | null {
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as GenerateFromProfileResponse) : null;
+  } catch {
+    return null;
+  }
+}
+function writeStore(key: string, v: GenerateFromProfileResponse | null) {
+  try {
+    if (v) window.sessionStorage.setItem(key, JSON.stringify(v));
+    else window.sessionStorage.removeItem(key);
+  } catch {
+    /* storage unavailable: the in-memory cache still works */
+  }
+}
+
 export function SuggestedDraftsPanel({ onUseDraft }: Props) {
   const queryClient = useQueryClient();
+  const { business } = useAuth();
+  const key = storeKey(business?._id);
   const [open, setOpen] = useState(true);
   // Sheet state lives here (not per-card) so the sheet survives card
   // dismissal animations without an unmount race.
   const [repurposeSource, setRepurposeSource] = useState<RepurposeSource | null>(null);
 
   // Pure cache reader — no network call, no queryFn invocation. The
-  // launch page populates the cache via setQueryData; this panel only
-  // reads from it. enabled:false + initialData:null means useQuery
+  // button below populates the cache via setQueryData. enabled:false + initialData:null means useQuery
   // never runs a fetch and renders the "no drafts" branch cleanly on
-  // first mount before the launch page has stashed anything.
+  // first mount, before the merchant has asked for drafts.
   const { data } = useQuery<GenerateFromProfileResponse | null>({
     queryKey: SUGGESTED_DRAFTS_QUERY_KEY,
     enabled: false,
@@ -73,25 +98,54 @@ export function SuggestedDraftsPanel({ onUseDraft }: Props) {
     gcTime: Infinity,
   });
 
+  // Restore after mount (not during render, so the server and first client render agree) when the cache is empty.
+  useEffect(() => {
+    if (queryClient.getQueryData(SUGGESTED_DRAFTS_QUERY_KEY)) return;
+    const stored = readStore(key);
+    if (stored) queryClient.setQueryData(SUGGESTED_DRAFTS_QUERY_KEY, stored);
+  }, [key, queryClient]);
+
+  // ★GENERATED ONLY WHEN THE MERCHANT ASKS (owner, 2026-11-04). The drafts used to be written for them at the end of
+  //  onboarding, which spent Peaks nobody had agreed to spend.
+  const generate = useMutation({
+    mutationFn: () => linkedInContentApi.generateFromProfile(),
+    onSuccess: (response) => {
+      if (response.posts && response.posts.length > 0) {
+        queryClient.setQueryData(SUGGESTED_DRAFTS_QUERY_KEY, response);
+        writeStore(key, response);
+      }
+      if (!response.posts || response.posts.length === 0) toast.info("We could not draft any posts from your profile yet. Add more to your business profile, then try again.");
+    },
+    onError: () => toast.error("We could not draft posts just now. Try again in a moment."),
+  });
+
   const drafts = data?.posts ?? [];
-  if (drafts.length === 0) return null;
+  // Generated this session and all used or dismissed: say nothing, do not offer a second batch.
+  if (data && drafts.length === 0) return null;
+  if (drafts.length === 0) {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+        <p className="text-sm text-muted-foreground">Want a few post ideas drafted from your business profile? They use Peaks.</p>
+        <Button size="sm" variant="outline" disabled={generate.isPending} onClick={() => generate.mutate()}>
+          <Sparkles className="mr-1.5 size-4" />
+          {generate.isPending ? "Drafting…" : "Draft posts from my profile"}
+        </Button>
+      </div>
+    );
+  }
 
   // Dismissals mutate the cache directly so they survive tab switches
   // and route navigation within the session (component-local useState
   // would reset on remount, re-showing dismissed drafts). One source
   // of truth: the TanStack cache.
   function dismiss(draftId: string) {
-    queryClient.setQueryData<GenerateFromProfileResponse | null>(
-      SUGGESTED_DRAFTS_QUERY_KEY,
-      (prev) => {
-        if (!prev) return prev;
-        const remaining = prev.posts.filter((p) => p.draftId !== draftId);
-        // Last draft dismissed → null the cache so the panel hides
-        // permanently for this session.
-        if (remaining.length === 0) return null;
-        return { ...prev, posts: remaining };
-      },
-    );
+    const prev = queryClient.getQueryData<GenerateFromProfileResponse | null>(SUGGESTED_DRAFTS_QUERY_KEY);
+    if (!prev) return;
+    // Last draft dismissed → keep an empty batch so the panel hides
+    // for this session instead of offering a new (charged) one.
+    const next = { ...prev, posts: prev.posts.filter((p) => p.draftId !== draftId) };
+    writeStore(key, next);
+    queryClient.setQueryData<GenerateFromProfileResponse | null>(SUGGESTED_DRAFTS_QUERY_KEY, next);
   }
 
   function use(draft: SuggestedDraft) {
