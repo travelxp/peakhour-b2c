@@ -6,22 +6,19 @@ import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tan
 import { toast } from "sonner";
 import { MapPin, ArrowRight, RefreshCw, AlertTriangle, Check } from "lucide-react";
 import { api } from "@/lib/api";
+import { REVIEW_SUMMARY_QUERY_KEY } from "@/lib/review-summary";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   gbpCardState,
   canSaveLocation,
   locationLabel,
   emptyListingReason,
   effectiveDraft,
+  toggleLocation,
+  selectionLabel,
   type GbpConnectionStatus,
 } from "@/components/presence/gbp-card-state";
 
@@ -58,7 +55,7 @@ interface CapabilitiesResponse {
   /** ★NOT where a Google selection lives — see the api route's note. */
   capabilities: Record<string, unknown> | null;
   /** Absent entirely on an api that predates the field. See `gbpCardState`. */
-  locationName?: string | null;
+  locationNames?: string[];
   account?: {
     extra?: {
       locations?: Array<{ locationName?: string; title?: string }>;
@@ -71,8 +68,9 @@ interface LocationsResponse {
   provider: string;
   locations: Array<{ locationName: string; title?: string }>;
   complete: boolean;
-  selected: string | null;
-  selectionRetired?: boolean;
+  selected: string[];
+  /** Listings dropped from the selection because Google no longer lists them. */
+  retired?: string[];
 }
 
 const PROVIDER = "google_business_profile";
@@ -118,8 +116,8 @@ export function GbpConnectCard() {
   });
 
   const setLocationMut = useMutation({
-    mutationFn: (locationName: string) =>
-      api.put(`/v1/integrations/${PROVIDER}/gbp-location`, { locationName }),
+    mutationFn: (locationNames: string[]) =>
+      api.put(`/v1/integrations/${PROVIDER}/gbp-locations`, { locationNames }),
     // ★★THE LOCATIONS CACHE HAS TO MOVE TOO, OR THE SAVE APPEARS TO UNDO ITSELF.
     // `selected` prefers this query over the capabilities read, and a disabled
     // query keeps its cache — so invalidating only CAP_KEY left the stale
@@ -127,12 +125,16 @@ export function GbpConnectCard() {
     // you choose" the instant after the success toast. Written directly rather
     // than invalidated: the query is disabled once the picker closes, so an
     // invalidation would not re-fetch it.
-    onSuccess: (_data, locationName) => {
-      toast.success("Listing selected — insights and reviews will start arriving");
+    onSuccess: (_data, locationNames) => {
+      toast.success("Listings saved — insights and reviews will start arriving");
       setPickerOpen(false);
       qc.setQueryData<LocationsResponse>(LOCATIONS_KEY, (old) =>
-        old ? { ...old, selected: locationName, selectionRetired: false } : old,
+        old ? { ...old, selected: locationNames, retired: [] } : old,
       );
+      // The Presence page's switcher and the composer's chooser read the set too.
+      void qc.invalidateQueries({ queryKey: ["presence"] });
+      void qc.invalidateQueries({ queryKey: REVIEW_SUMMARY_QUERY_KEY });
+      void qc.invalidateQueries({ queryKey: ["content-hub-integrations"] });
       qc.invalidateQueries({ queryKey: CAP_KEY });
       qc.invalidateQueries({ queryKey: STATUS_KEY });
       // ★AND THE INTEGRATIONS LIST, because `GET /v1/integrations` now reports
@@ -176,12 +178,12 @@ export function GbpConnectCard() {
   // `gbpCardState`: on an api that predates the field the key is absent
   // entirely, and treating that as "nothing selected" nags every configured
   // merchant on every deployment that has not shipped it yet.
-  const selected = locationsQ.data ? locationsQ.data.selected : capQ.data?.locationName;
+  const selected = locationsQ.data ? locationsQ.data.selected : capQ.data?.locationNames;
   const card = gbpCardState(statusQ.data?.status, selected);
   // The picker's list once it has loaded, else what connect captured — so the
   // selected listing has a name to show without a Google call.
   const known = locationsQ.data?.locations ?? capQ.data?.account?.extra?.locations ?? [];
-  const selectedLabel = locationLabel(selected, known);
+  const selectedLabel = selected ? selectionLabel(selected, known) : null;
 
   // ★THE CAPABILITIES READ IS PART OF THE ANSWER, so its loading state is part
   // of the skeleton. Rendering the card first showed "Finish setup" for a
@@ -249,13 +251,13 @@ export function GbpConnectCard() {
                   Syncing <span className="font-medium text-foreground">{selectedLabel}</span>.
                 </>
               ) : card.kind === "connected_unknown" ? (
-                "Connected. Choose which listing this business is if you haven't already."
+                "Connected. Choose which listings this business manages if you haven't already."
               ) : card.kind === "needs_location" ? (
                 // ★NOT "you manage more than one listing" — that is asserted as
                 // fact and is not always true. Auto-pick also declines when the
                 // listing came back partial, so a single-location merchant who
                 // connected during a Google throttle lands here too.
-                "We need to know which listing this business is. Nothing syncs until you choose."
+                "We need to know which listings this business manages. Nothing syncs until you choose."
               ) : card.kind === "sync_failing" ? (
                 // ★★THE ONE STATE THAT USED TO RENDER AS "Connected · Syncing".
                 // The hourly sync and the review receiver both select
@@ -316,11 +318,13 @@ export function GbpConnectCard() {
           selection Google no longer lists; without this the card simply drops
           from "Syncing Bandra" to "Nothing syncs until you choose" and reads as
           an unexplained regression the merchant did not cause. */}
-      {locationsQ.data?.selectionRetired ? (
+      {locationsQ.data?.retired && locationsQ.data.retired.length > 0 ? (
         <div className="mt-5 border-t pt-5">
           <PickerNotice>
-            The listing you had selected is no longer in your Google account, so
-            we&rsquo;ve cleared it. Choose another to resume.
+            {locationsQ.data.retired.length === 1
+              ? "A listing you had selected is no longer in your Google account, so we’ve removed it."
+              : "Some listings you had selected are no longer in your Google account, so we’ve removed them."}{" "}
+            Its past figures and reviews are kept.
           </PickerNotice>
         </div>
       ) : null}
@@ -328,7 +332,7 @@ export function GbpConnectCard() {
       {pickerOpen && card.canPick ? (
         <LocationPicker
           query={locationsQ}
-          selected={selected ?? null}
+          selected={selected ?? []}
           saving={setLocationMut.isPending}
           onChoose={(name) => setLocationMut.mutate(name)}
         />
@@ -366,11 +370,12 @@ function LocationPicker({
   onChoose,
 }: {
   query: UseQueryResult<LocationsResponse, Error>;
-  selected: string | null;
+  selected: string[];
   saving: boolean;
-  onChoose: (locationName: string) => void;
+  onChoose: (locationNames: string[]) => void;
 }) {
-  const [draft, setDraft] = useState<string | null>(selected);
+  // null until the merchant ticks something: until then the stored selection is the draft.
+  const [draft, setDraft] = useState<string[] | null>(null);
   // ★DERIVED, NOT STORED. `draft` is seeded once — before the listing loads —
   // and a retired pick means the fresh list contains neither it nor a
   // replacement. See `effectiveDraft`.
@@ -423,34 +428,32 @@ function LocationPicker({
 
   return (
     <div className="mt-5 space-y-3 border-t pt-5">
-      <div className="flex flex-wrap items-center gap-2">
-        {/* ★`""`, NOT `undefined`. An undefined `value` makes Radix's Select
-            UNCONTROLLED — which logs a controlled/uncontrolled warning on the
-            ordinary first pick, and, worse, leaves Radix showing the old label
-            after `effectiveDraft` blanks a retired one. */}
-        <Select value={chosen ?? ""} onValueChange={setDraft}>
-          <SelectTrigger className="w-full max-w-sm">
-            <SelectValue placeholder="Choose a listing" />
-          </SelectTrigger>
-          <SelectContent>
-            {locations.map((l) => (
-              <SelectItem key={l.locationName} value={l.locationName}>
-                {/* ★THE SAME FALLBACK AS THE HEADLINE. `title ?? locationName`
-                    rendered a BLANK ROW for a whitespace-only title. */}
+      <p className="text-sm text-muted-foreground">
+        Tick every listing this business should manage (at least one). You can change this at any time; a
+        listing you untick stops syncing and keeps its past figures and reviews.
+      </p>
+      <ul className="space-y-2">
+        {locations.map((l) => {
+          const id = `gbp-loc-${l.locationName}`;
+          return (
+            <li key={l.locationName} className="flex items-center gap-2">
+              <Checkbox
+                id={id}
+                checked={chosen.includes(l.locationName)}
+                onCheckedChange={() => setDraft(toggleLocation(chosen, l.locationName))}
+              />
+              {/* The same fallback as the headline: never a blank row. */}
+              <label htmlFor={id} className="text-sm">
                 {locationLabel(l.locationName, locations)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Button
-          disabled={!canSaveLocation(chosen, selected, saving)}
-          onClick={() => chosen && onChoose(chosen)}
-        >
-          {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : null}
-          Save
-        </Button>
-      </div>
+              </label>
+            </li>
+          );
+        })}
+      </ul>
+      <Button disabled={!canSaveLocation(chosen, selected, saving)} onClick={() => onChoose(chosen)}>
+        {saving ? <RefreshCw className="h-4 w-4 animate-spin" /> : null}
+        Save
+      </Button>
 
       {/* ★SAY SO WHEN THE LIST MAY BE SHORT. Google throttles per-account
           listings, and a partial answer is indistinguishable from a whole one —

@@ -54,7 +54,7 @@ import { AUTO_APPROVE_CALLOUT, showAutoApproveCallout } from "./auto-approve-cal
 import { LocalPostOptions } from "./local-post-options";
 import { LISTING_CHANNEL, useListingTarget } from "./use-listing-target";
 import { emptyListingDraft, listingProblems, type ListingDraft } from "@/lib/local-post";
-import { listingPlanTarget, shouldOfferListing } from "@/lib/listing-target";
+import { listingPlanTarget, resolveListingLocation, shouldOfferListing } from "@/lib/listing-target";
 import { UpgradeCallout } from "./upgrade-callout";
 import { channelDisplayName } from "@/lib/scheduler/format";
 
@@ -169,6 +169,8 @@ export function SchedulerComposer({
     alreadyTargeted: channels.some((c) => c.channel === LISTING_CHANNEL),
   });
   const [listingOn, setListingOn] = useState(false);
+  // Which listing the post is for. Only a real choice when the connection manages several.
+  const [listingLocation, setListingLocation] = useState<string | null>(null);
   // ⚠️"ACTIVE" AND "SENDABLE" ARE DIFFERENT. The merchant has turned it on and
   // could send it (active) even while the draft still has problems — which is
   // when the badge and the count should already include it and the button
@@ -268,16 +270,25 @@ export function SchedulerComposer({
     locationPicked: listingTarget.locationPicked,
     enabled: listingOn,
     draft: listingDraft,
+    locations: listingTarget.locations,
+    chosenLocation: listingLocation,
   });
   // ⚠️"ACTIVE" AND "SENDABLE" ARE DIFFERENT. The merchant has turned it on and
   // could send it (active) even while the draft still has problems — which is
   // when the badge and the count should already include it and the button
   // should be disabled, rather than the panel appearing to switch itself off.
   const listingBlockers = listingActive ? listingProblems(listingDraft) : [];
+  // With several listings the post needs one chosen: the button says so instead of looking sendable.
+  const listingLocationMissing =
+    listingActive && resolveListingLocation(listingTarget.locations, listingLocation) === null;
 
   const submit = async () => {
     if (channels.length === 0 && !listingActive) {
       toast.error("Pick at least one channel before scheduling.");
+      return;
+    }
+    if (listingActive && resolveListingLocation(listingTarget.locations, listingLocation) === null) {
+      toast.error("Choose which listing this post is for.");
       return;
     }
     if (listingBlockers.length > 0) {
@@ -390,6 +401,9 @@ export function SchedulerComposer({
           draft={listingDraft}
           onDraftChange={setListingDraft}
           locationMissing={!listingTarget.locationPicked}
+          locations={listingTarget.locations}
+          chosenLocation={listingLocation}
+          onChosenLocationChange={setListingLocation}
         />
       )}
 
@@ -503,6 +517,7 @@ export function SchedulerComposer({
           submitting ||
           (channels.length === 0 && !listingActive) ||
           listingBlockers.length > 0 ||
+          listingLocationMissing ||
           loading ||
           bundleExceedsCap ||
           bundlesLocked
