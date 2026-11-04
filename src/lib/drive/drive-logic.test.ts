@@ -7,6 +7,7 @@ vi.mock("@/lib/api", () => ({ api: { get: vi.fn() }, ApiError: class extends Err
 
 const { NO_FILTERS, applyDescribeRows, canChangeFile, driveAbilities, isFiltered, toListParams, waitingIds } = await import("./files-state");
 const { usedInHref, usedInLabel, trashFailureText, blockedText, tileLine, isBeingDescribed, SHIMMER_WINDOW_MS, cleanupCopy, DESCRIBING_LINE, fitsOf, channelLabel } = await import("./copy");
+const { placesSummary, placeLine, replaceIntro, replaceOutcome, replaceFailureText, versionLine, savedText, saveFailureText } = await import("./copy");
 const { tabFromParam, DRIVE_TABS } = await import("./tabs");
 const { fitWithin, posterTime, POSTER_MAX_SIDE } = await import("./probe-file");
 const { trayTitle, pillText } = await import("./tray-copy");
@@ -245,5 +246,56 @@ describe("why a file did not go to Trash", () => {
     expect(blockedText(1)).toMatch(/^ 1 file was left because it is still in use by a share link/);
     expect(blockedText(3)).toMatch(/^ 3 files were left because they are still in use/);
     expect(blockedText(3)).toMatch(/revoke the share link/);
+  });
+});
+
+describe("Replace everywhere: the words", () => {
+  const it1 = (kind: string, label?: string, reason?: string) => ({ kind: kind as never, refId: "r", label, reason });
+  it("counts places by what they are, and never says undefined for a kind it does not know", () => {
+    expect(placesSummary([it1("draft"), it1("draft"), it1("scheduled_item")])).toBe("2 drafts, 1 scheduled post");
+    expect(placesSummary([it1("share")])).toBe("1 share link");
+    expect(placesSummary([it1("hologram"), it1("hologram")])).toBe("2 other places");
+    expect(placesSummary([])).toBe("");
+  });
+  it("names an item, with the reason it stays when it does", () => {
+    expect(placeLine(it1("page", "Spring sale"))).toBe("Page: Spring sale");
+    expect(placeLine(it1("scheduled_item", undefined, "Already published"))).toBe("Scheduled post. Already published.");
+  });
+  it("the intro says what changes and what stays, and says so when nothing is in use", () => {
+    expect(replaceIntro([it1("draft")], [it1("page"), it1("page")])).toBe("1 draft will use the new file. 2 pages already went out, or are being sent, and stay exactly as they were.");
+    expect(replaceIntro([], [it1("page")])).toContain("Nothing will change anywhere it is used.");
+    expect(replaceIntro([], [])).toContain("Nothing uses this file yet");
+  });
+  it("an outcome with anything not changed is a failure that says to try again, and never claims success", () => {
+    const ok = replaceOutcome({ changed: [it1("draft")], staysAsSent: [], notChanged: [] });
+    expect(ok).toEqual({ headline: "1 draft now use the new file. The old file is in version history for 30 days.", failed: false });
+    const partial = replaceOutcome({ changed: [it1("draft")], staysAsSent: [], notChanged: [it1("scheduled_item")] });
+    expect(partial.failed).toBe(true);
+    expect(partial.headline).toContain("1 scheduled post could not be changed");
+    expect(partial.headline).toContain("Try again to finish");
+  });
+  it("shows the api's own reason when trying again cannot help, and a plain sentence otherwise", () => {
+    expect(replaceFailureText({ status: 409, message: "A image can only be replaced by another image." })).toBe("A image can only be replaced by another image.");
+    expect(replaceFailureText({ status: 503, message: "x" })).toContain("Nothing that was already published changed");
+    expect(replaceFailureText(new Error("boom"))).toContain("Try again");
+  });
+  it("a version says when it was replaced and how long it is kept", () => {
+    const v = { id: "v", name: "Logo", mimeType: "image/png", sizeBytes: 2048, visibility: "published" as const, replacedAt: new Date(NOW.getTime() - 3 * 86_400_000).toISOString(), hardDeleteAfter: new Date(NOW.getTime() + 27 * 86_400_000).toISOString() };
+    expect(versionLine(v, NOW)).toBe("2 KB. Replaced 3 days ago. 27 days left");
+    expect(versionLine({ ...v, replacedAt: NOW.toISOString() }, NOW)).toContain("Replaced today");
+  });
+});
+
+describe("Save to Drive: the words", () => {
+  it("an Inbox file says it is Private; a file Drive had says so", () => {
+    expect(savedText({ name: "Photo", visibility: "private", deduped: false, alreadyInDrive: false })).toContain("It is Private");
+    expect(savedText({ name: "Photo", visibility: "published", deduped: false, alreadyInDrive: false })).toBe('Saved to Drive as "Photo".');
+    expect(savedText({ name: "Photo", visibility: "published", deduped: true, alreadyInDrive: false })).toContain("already had this exact file");
+    expect(savedText({ name: "Photo", visibility: "published", deduped: false, alreadyInDrive: true })).toBe('"Photo" is already in Drive.');
+  });
+  it("shows the api's reason for a full Drive, a type Drive does not store or an address that cannot be fetched", () => {
+    expect(saveFailureText({ status: 402, message: "Your Drive is full." })).toBe("Your Drive is full.");
+    expect(saveFailureText({ status: 415, message: "Drive does not store this kind of file." })).toBe("Drive does not store this kind of file.");
+    expect(saveFailureText({ status: 500, message: "x" })).toBe("That could not be saved to Drive. Try again.");
   });
 });

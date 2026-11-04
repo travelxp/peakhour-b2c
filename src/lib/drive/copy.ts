@@ -1,4 +1,4 @@
-import type { ChannelFitEntry, CleanupGroup, CleanupKind, MediaItem, MediaKind, UsedInEntry } from "@/lib/api/media";
+import type { ChannelFitEntry, CleanupGroup, CleanupKind, FileVersion, MediaItem, MediaKind, ReplaceItem, ReplaceResult, UsedInEntry } from "@/lib/api/media";
 import { formatBytes } from "@/lib/api/media";
 
 /**
@@ -213,4 +213,88 @@ export function cleanupTotals(groups: CleanupGroup[], chosen: ReadonlySet<Cleanu
   return groups
     .filter((g) => g.trashable && chosen.has(g.kind))
     .reduce((t, g) => ({ count: t.count + g.count, bytes: t.bytes + g.reclaimableBytes }), { count: 0, bytes: 0 });
+}
+
+// ── Replace everywhere, version history and Save to Drive (D8) ──────────────────────────────
+
+const PLACE_NOUN: Record<string, [string, string]> = {
+  idea: ["content idea", "content ideas"],
+  draft: ["draft", "drafts"],
+  ad_creative: ["ad", "ads"],
+  scheduled_item: ["scheduled post", "scheduled posts"],
+  social_post: ["post", "posts"],
+  page: ["page", "pages"],
+  brand: ["Brand Kit setting", "Brand Kit settings"],
+  listing: ["Google listing", "Google listings"],
+  share: ["share link", "share links"],
+};
+
+/** "2 drafts, 1 scheduled post": the places in a list, counted by what they are. A kind this page does not know yet reads "other places". */
+export function placesSummary(items: Pick<ReplaceItem, "kind">[]): string {
+  const counts = new Map<string, number>();
+  for (const it of items) counts.set(it.kind, (counts.get(it.kind) ?? 0) + 1);
+  return [...counts.entries()]
+    .map(([kind, n]) => {
+      const noun = PLACE_NOUN[kind];
+      return noun ? `${n} ${n === 1 ? noun[0] : noun[1]}` : `${n} other ${n === 1 ? "place" : "places"}`;
+    })
+    .join(", ");
+}
+
+/** One line of the confirm dialog: what an item is, by name when it has one. */
+export function placeLine(it: ReplaceItem): string {
+  const noun = PLACE_NOUN[it.kind]?.[0] ?? "place";
+  const base = it.label ? `${noun.charAt(0).toUpperCase()}${noun.slice(1)}: ${it.label}` : `${noun.charAt(0).toUpperCase()}${noun.slice(1)}`;
+  return it.reason ? `${base}. ${it.reason}.` : base;
+}
+
+/** The sentence over the two lists, before the person confirms. */
+export function replaceIntro(willChange: ReplaceItem[], stays: ReplaceItem[]): string {
+  if (willChange.length === 0 && stays.length === 0) return "Nothing uses this file yet, so only the file itself changes. The old one stays in its version history for 30 days.";
+  const change = willChange.length > 0 ? `${placesSummary(willChange)} will use the new file.` : "Nothing will change anywhere it is used.";
+  const stay = stays.length > 0 ? ` ${placesSummary(stays)} already went out, or are being sent, and stay exactly as they were.` : "";
+  return `${change}${stay}`;
+}
+
+/** What the result of a replace says. `notChanged` is never hidden, and says what to do about it. */
+export function replaceOutcome(r: Pick<ReplaceResult, "changed" | "staysAsSent" | "notChanged">): { headline: string; failed: boolean } {
+  if (r.notChanged.length > 0) {
+    return { headline: `The file was replaced, but ${placesSummary(r.notChanged)} could not be changed. They still show the old file. Try again to finish.`, failed: true };
+  }
+  const moved = r.changed.length > 0 ? `${placesSummary(r.changed)} now use the new file.` : "The new file is in place.";
+  return { headline: `${moved} The old file is in version history for 30 days.`, failed: false };
+}
+
+const REPLACE_FAILED = "The file could not be replaced. Nothing that was already published changed. Try again.";
+
+/** Why a replace stopped. The api's own sentence is shown when it has one (a kind or visibility mismatch cannot be fixed by trying again). */
+export function replaceFailureText(err: unknown): string {
+  const e = err as { status?: number; message?: string } | null;
+  if (e && (e.status === 409 || e.status === 403 || e.status === 402) && e.message) return e.message;
+  return REPLACE_FAILED;
+}
+
+/** The line under a version: when it was replaced, and how long it is kept. */
+export function versionLine(v: FileVersion, now: Date): string {
+  const parts = [formatBytes(v.sizeBytes)];
+  if (v.replacedAt) {
+    const days = Math.floor((now.getTime() - new Date(v.replacedAt).getTime()) / DAY_MS);
+    parts.push(days <= 0 ? "Replaced today" : `Replaced ${days} ${days === 1 ? "day" : "days"} ago`);
+  }
+  const left = daysLeftText(daysLeft(v.hardDeleteAfter, now));
+  if (left) parts.push(left);
+  return parts.join(". ");
+}
+
+/** What the toast says after Save to Drive. An Inbox file is Private and the person is told so. */
+export function savedText(r: { name: string; visibility: "published" | "private"; deduped: boolean; alreadyInDrive: boolean }): string {
+  if (r.alreadyInDrive) return `"${r.name}" is already in Drive.`;
+  if (r.deduped) return `Drive already had this exact file, as "${r.name}".`;
+  return r.visibility === "private" ? `Saved to Drive as "${r.name}". It is Private: it opens only with a link that expires.` : `Saved to Drive as "${r.name}".`;
+}
+
+export function saveFailureText(err: unknown): string {
+  const e = err as { status?: number; message?: string } | null;
+  if (e && e.message && [402, 404, 415, 422, 503].includes(e.status ?? 0)) return e.message;
+  return "That could not be saved to Drive. Try again.";
 }

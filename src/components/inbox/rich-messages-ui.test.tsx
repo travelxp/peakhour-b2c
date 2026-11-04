@@ -9,6 +9,10 @@ vi.mock("@/hooks/use-inbox-media", () => ({
   useThreadMedia: () => ({ data: undefined, isError: false, isFetching: false, error: null, refetch: async () => {} }),
   useObjectUrl: () => null,
 }));
+// The Save to Drive button needs a query client; its own behaviour is tested in drive/replace-file.test.tsx. Here it is a marker with the source it was given.
+vi.mock("@/components/drive/save-to-drive", () => ({
+  SaveToDriveButton: ({ source, label }: { source: unknown; label: string }) => <button data-save-source={JSON.stringify(source)}>{label}</button>,
+}));
 vi.mock("@/hooks/use-wa-conversations", () => ({
   useInboxProducts: () => ({ data: { products: [] }, isLoading: false, isError: false, isSuccess: true, refetch: async () => {} }),
 }));
@@ -36,6 +40,16 @@ describe("an attachment in a bubble", () => {
     const doc = at({ kind: "document", filename: "invoice.pdf", bytes: 2 * 1024 * 1024 });
     expect(doc).toContain("Download invoice.pdf");
     expect(doc).toContain("2.0 MB");
+  });
+
+  it("a photo, video or document can be saved to Drive, privately, by the conversation and the message's own key; a voice note or sticker cannot", () => {
+    const at = (m: Record<string, unknown>) => renderToStaticMarkup(<BubbleMedia threadId="whatsapp:1:abc" media={media(m)} />);
+    for (const kind of ["image", "video", "document"]) {
+      const html = at({ kind });
+      expect(html, kind).toContain("Save to Drive (private)");
+      expect(html, kind).toContain(`data-save-source="{&quot;from&quot;:&quot;inbox&quot;,&quot;threadId&quot;:&quot;whatsapp:1:abc&quot;,&quot;ref&quot;:&quot;${"a".repeat(64)}&quot;}"`);
+    }
+    for (const kind of ["audio", "sticker"]) expect(at({ kind }), kind).not.toContain("Save to Drive");
   });
 
   it("the bubble shows the button and not the placeholder line it stands in for", () => {

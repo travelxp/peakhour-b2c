@@ -15,6 +15,7 @@ import { useLocale } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { DrivePicker } from "@/components/drive/drive-picker";
+import { SaveToDriveButton } from "@/components/drive/save-to-drive";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ChannelIcon } from "@/components/brand/channel-icon";
@@ -993,6 +994,20 @@ function PlaceholderCard({
           <div className="mt-2 rounded-md overflow-hidden border bg-background">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={p.resolvedImageUrl} alt={p.suggestedAltText} className="block w-full h-auto" />
+          </div>
+        )}
+        {/* An image Drive does not hold yet (an AI image kept only as data, or a picture from a pasted address): keep it (D8). */}
+        {resolved && p.resolvedImageUrl && !p.mediaId && (
+          <div className="mt-2">
+            <SaveToDriveButton
+              source={
+                p.status === "generated"
+                  ? p.resolvedImageUrl.startsWith("data:")
+                    ? { from: "ai_image", dataUrl: p.resolvedImageUrl }
+                    : { from: "ai_image", imageUrl: p.resolvedImageUrl }
+                  : { from: "draft_asset", url: p.resolvedImageUrl }
+              }
+            />
           </div>
         )}
         <div className="mt-2 flex items-center gap-2 flex-wrap">

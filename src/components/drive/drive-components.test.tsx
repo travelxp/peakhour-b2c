@@ -125,7 +125,7 @@ function detail(item: MediaItem, over: Partial<Parameters<typeof FileDetail>[0]>
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return renderToStaticMarkup(
     <QueryClientProvider client={qc}>
-      <FileDetail item={item} now={NOW} canEdit onPatch={async () => {}} onTrash={() => {}} trashing={false} {...over} />
+      <FileDetail item={item} now={NOW} canEdit onPatch={async () => {}} onTrash={() => {}} trashing={false} onReplaced={() => {}} {...over} />
     </QueryClientProvider>,
   );
 }
@@ -204,7 +204,7 @@ describe("the file panel", () => {
     qc.setQueryData(["drive-share-access", "s1"], { entries: [], retentionDays: 90, truncated: false });
     const html = renderToStaticMarkup(
       <QueryClientProvider client={qc}>
-        <FileDetail item={item} now={NOW} canEdit onPatch={async () => {}} onTrash={() => {}} trashing={false} />
+        <FileDetail item={item} now={NOW} canEdit onPatch={async () => {}} onTrash={() => {}} trashing={false} onReplaced={() => {}} />
       </QueryClientProvider>,
     );
     const text = flat(html);

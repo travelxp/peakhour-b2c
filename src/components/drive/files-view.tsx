@@ -440,7 +440,7 @@ export function FilesView({ abilities }: { abilities: { canEdit: boolean; isAdmi
 
       {open && (
         <div className="min-w-0 max-w-sm flex-[1_1_18rem]">
-          <FileDetail item={open} now={now} canEdit={canChangeFile(open, abilities)} onPatch={(p) => patch(open.id, p)} onTrash={() => trashOne.mutate(open.id)} trashing={trashOne.isPending} />
+          <FileDetail item={open} now={now} canEdit={canChangeFile(open, abilities)} onPatch={(p) => patch(open.id, p)} onTrash={() => trashOne.mutate(open.id)} trashing={trashOne.isPending} onReplaced={(id) => { setOpenId(id); refresh(); }} />
         </div>
       )}
     </div>

@@ -50,6 +50,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { DrivePicker } from "@/components/drive/drive-picker";
+import { SaveToDriveButton } from "@/components/drive/save-to-drive";
 import { targetLabel } from "@/lib/drive/fit";
 import { ScheduleTimePicker } from "@/components/scheduler/schedule-time-picker";
 import { PlatformCharCounter } from "@/components/composer/platform-char-counter";
@@ -440,6 +441,20 @@ export function ScheduledPostEditor({
           </ul>
         ) : (
           supportsMedia && <p className="text-xs text-muted-foreground">No attachments.</p>
+        )}
+        {mediaUrls.length > 0 && (
+          // A picture that is not in Drive yet (a pasted address, an older post) can be kept there; one that is says "already in Drive" and copies nothing (D8).
+          <details className="text-xs text-muted-foreground">
+            <summary className="cursor-pointer">Keep these in Drive</summary>
+            <ul className="mt-1.5 space-y-1">
+              {mediaUrls.map((url, i) => (
+                <li key={`save-${i}-${url}`} className="flex items-center gap-2">
+                  <span>Attachment {i + 1}</span>
+                  <SaveToDriveButton source={{ from: "draft_asset", url }} />
+                </li>
+              ))}
+            </ul>
+          </details>
         )}
         {supportsMedia ? (
           <DrivePicker
