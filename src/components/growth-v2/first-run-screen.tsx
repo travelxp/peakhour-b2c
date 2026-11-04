@@ -21,6 +21,8 @@ import {
   selectedOffer,
   sendErrorMessage,
   targetKindOf,
+  targetQuestion,
+  TARGET_NOT_A_FEE,
   type FirstRunAnswers,
 } from "@/lib/growth-v2-firstrun";
 import { GROWTH_HOME } from "@/lib/growth-v2-nav";
@@ -309,7 +311,7 @@ export function FirstRunView(p: FirstRunViewProps) {
 
           <div className="grid gap-2">
             <label htmlFor="first-run-target" className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-              3 &middot; {targetKind === "roas" ? "What return do you need on your ad spend?" : `What can you pay for one ${unit?.one ?? "outcome"}?`}
+              3 &middot; {targetQuestion(targetKind, unit?.one ?? "outcome")}
             </label>
             <div className="flex flex-wrap items-center gap-2.5">
               {targetKind === "cost_per_outcome" ? <span className="text-sm text-muted-foreground">{currency}</span> : null}
@@ -318,6 +320,7 @@ export function FirstRunView(p: FirstRunViewProps) {
               {resolved?.source === "playbook" ? <ToneBadge tone="ai">Filled in by the {draft.playbook?.title} playbook</ToneBadge> : null}
               <span className="text-xs text-muted-foreground">Change it any time.</span>
             </div>
+            {targetKind === "cost_per_outcome" ? <p className="text-xs text-muted-foreground">{TARGET_NOT_A_FEE}</p> : null}
           </div>
         </CardContent>
       </Card>

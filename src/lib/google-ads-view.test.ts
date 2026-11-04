@@ -44,9 +44,10 @@ const apiError = (code: string, message = `msg for ${code}`, requestId?: string)
 };
 
 describe("what starting a campaign costs (N2)", () => {
-  it("★says starting, pausing and resuming cost nothing and that Peaks are charged for verified outcomes, and names no number or deleted useCase", () => {
+  it("★says starting, pausing and resuming cost nothing and that Peaks are charged for tasks the merchant asks for and never for launching or results, and names no number or deleted useCase", () => {
     expect(GOOGLE_LAUNCH_NOTE).toContain("Starting, pausing and resuming a campaign costs nothing");
-    expect(GOOGLE_LAUNCH_NOTE).toMatch(/charged for outcomes PeakHour verifies/);
+    expect(GOOGLE_LAUNCH_NOTE).toBe("Starting, pausing and resuming a campaign costs nothing. You are charged Peaks for the tasks you ask us to do, such as planning a campaign or writing ads, and never for launching one or for the results it brings.");
+    expect(GOOGLE_LAUNCH_NOTE).not.toMatch(/verif/i);
     expect(GOOGLE_LAUNCH_NOTE).not.toMatch(/\d/);
     expect(GOOGLE_LAUNCH_NOTE).not.toMatch(/campaign_launched/);
   });
