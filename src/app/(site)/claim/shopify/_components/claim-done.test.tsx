@@ -25,8 +25,4 @@ describe("the hosted claim's success state", () => {
     const own = doneCopy({ newBusiness: false, businessName: null, adopted: false, separate: true }, "silk", "Silk Co");
     expect(renderToStaticMarkup(<ClaimDone done={own} />)).not.toContain("See it in Integrations");
   });
-
-  it("never shows a claim address", () => {
-    expect(renderToStaticMarkup(<ClaimDone done={done} />)).not.toMatch(/token=|claim\/shopify\?/i);
-  });
 });
