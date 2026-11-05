@@ -49,14 +49,14 @@ function PosterSheet({ kit, id, print = false }: { kit: PosterKit; id?: string; 
   );
 }
 
-export function ReviewPoster({ location }: { location?: string | undefined }) {
+export function ReviewPoster({ location, network }: { location?: string | undefined; network?: string | undefined }) {
   // false while rendering on the server, true in the browser: the portal needs <body>, which only the browser has
   const mounted = useSyncExternalStore(
     () => () => {},
     () => true,
     () => false,
   );
-  const kit = useReviewKit(location);
+  const kit = useReviewKit(location, network);
   if (kit.isPending) return <Skeleton className="mx-auto h-[60vh] w-full max-w-md" />;
   if (kit.isError) {
     return <p className="p-6 text-sm text-muted-foreground">We couldn&apos;t load your poster just now. Try again in a moment.</p>;

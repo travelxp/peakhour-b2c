@@ -215,6 +215,8 @@ export type NeutralMetricKey =
   | "impressions";
 
 export interface PresenceCapabilities {
+  /** The network gives a listing that can be read, so the listing, score and edit panels draw. Absent on an api that predates the field. */
+  listing?: boolean;
   /** The network sends reviews into the inbox. Absent on an api that predates the field. */
   reviews?: boolean;
   /** A listing change can be written to the network. Absent on an api that predates the field. */
@@ -526,9 +528,30 @@ export function declaredMetrics(
  * Whether the insights panel is drawn for a network: not when its adapter declares no figures at all (`metricKeys: []`).
  * With no declaration to go by (an older api, or no entry yet) it is drawn, as `declaredMetrics` does.
  */
-export function drawsInsights(entry: Pick<PresenceNetworkEntry, "capabilities"> | null | undefined): boolean {
+export function drawsInsights(entry: { capabilities?: Pick<PresenceCapabilities, "metricKeys"> | undefined } | null | undefined): boolean {
   const keys = entry?.capabilities?.metricKeys;
   return !Array.isArray(keys) || keys.length > 0;
+}
+
+/**
+ * Whether the listing, score and edit panels draw for a network. A network that declares no listing (reviews only) has nothing to show in them,
+ * and "still bringing in your listing" would promise one. With no declaration to go by (an older api) they are drawn.
+ */
+export function drawsListing(entry: { capabilities?: Pick<PresenceCapabilities, "listing"> | undefined } | null | undefined): boolean {
+  return entry?.capabilities?.listing !== false;
+}
+
+/**
+ * Whether the review cards (summary and kit) draw for a network. Called with the network itself (a connect item or a listing entry), like
+ * `drawsListing` and `drawsInsights`. With no declaration to go by (an older api) they are drawn.
+ */
+export function drawsReviews(entry: { capabilities?: Pick<PresenceCapabilities, "reviews"> | undefined } | null | undefined): boolean {
+  return entry?.capabilities?.reviews !== false;
+}
+
+/** The networks whose connection status read failed (parallel to `networks`). A failed read is not "disconnected". */
+export function unreadableNetworks<N>(networks: readonly N[], reads: ReadonlyArray<{ isError: boolean } | undefined>): N[] {
+  return networks.filter((_, i) => reads[i]?.isError === true);
 }
 
 /** What a tile or a chart says for a figure that is missing. It is never "0". */

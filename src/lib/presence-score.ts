@@ -61,7 +61,7 @@ export interface ListingScoreBody {
 }
 
 export type ListingScoreResponse =
-  | { state: "not_connected" | "needs_reconnect" | "needs_location" | "sync_failing" | "importing" }
+  | { state: "not_connected" | "needs_reconnect" | "needs_location" | "sync_failing" | "importing" | "no_listing" }
   | { state: "ready"; listingId: string; network: { key: string; label: string }; score: ListingScoreBody; health: HealthItem[] };
 
 export const presenceScoreQueryKey = (location: string | undefined, network?: string) => ["presence", "score", location ?? "default", network ?? "default"] as const;
@@ -80,6 +80,9 @@ export function scoreEmptyState(r: ListingScoreResponse | undefined): { headline
   }
   if (r.state === "needs_location") {
     return { headline: "Choose which listing is yours", description: "Pick your listing in the connection above, and your score appears here." };
+  }
+  if (r.state === "no_listing") {
+    return { headline: "This network gives no listing to score", description: "It sends reviews only, so there is nothing here to check." };
   }
   return { headline: "We are still bringing in your listing", description: "It usually arrives within the hour. Nothing is wrong with your listing." };
 }

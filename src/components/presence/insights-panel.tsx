@@ -26,6 +26,7 @@ import {
   coverageNote,
   drawsInsights,
   keepInsightsWhileLoading,
+  type PresenceCapabilities,
   networkLabel,
   primaryEntry,
   windowSeries,
@@ -50,7 +51,7 @@ import {
  * A figure the network did not report is "Not available yet", never 0. Search terms
  * (monthly, and only where the network declares them) sit under the chart.
  */
-export function InsightsPanel({ location, network, label: labelFallback }: { location?: string; network?: string; label?: string | null }) {
+export function InsightsPanel({ location, network, label: labelFallback, capabilities: capsFallback }: { location?: string; network?: string; label?: string | null; capabilities?: PresenceCapabilities | undefined }) {
   const [days, setDays] = useState(DEFAULT_INSIGHT_DAYS);
   const [metric, setMetric] = useState<InsightKey>("views");
   const { formatDate, formatNumber } = useLocale();
@@ -65,7 +66,7 @@ export function InsightsPanel({ location, network, label: labelFallback }: { loc
   const insightsQ = useQuery({
     queryKey: presenceInsightsQueryKey(days, location, network),
     queryFn: () => presenceApi.insights(days, location, network),
-    enabled: canAsk && drawsInsights(entry),
+    enabled: canAsk && drawsInsights(entry ?? { capabilities: capsFallback }),
     // Keep the last window on screen while the next loads, rather than blanking, but ONLY when just the days changed: a switch of
     // network or place must not show the old figures under the new name.
     placeholderData: (prev, prevQuery) => (keepInsightsWhileLoading(prevQuery?.queryKey, presenceInsightsQueryKey(days, location, network)) ? prev : undefined),
@@ -132,7 +133,7 @@ export function InsightsPanel({ location, network, label: labelFallback }: { loc
 
   // ★RIGHT AFTER THE LISTING READ, before any setup message, skeleton or figure: a network that declares no figures has no insights panel,
   // not an empty one and not a "connect it" prompt for something it cannot show.
-  if (!drawsInsights(entry)) return null;
+  if (!drawsInsights(entry ?? { capabilities: capsFallback })) return null;
 
   const message = setupMessage(listingQ.data.setup, !!listingQ.data.listing, "performance", label);
   if (message) {
@@ -172,7 +173,7 @@ export function InsightsPanel({ location, network, label: labelFallback }: { loc
   const shownDays = data.days;
   const now = new Date();
   const series = windowSeries(data.series, shownDays, now);
-  const metrics = declaredMetrics(entry?.capabilities);
+  const metrics = declaredMetrics(entry?.capabilities ?? capsFallback);
   const selected = metrics.find((m) => m.key === metric) ?? metrics[0];
   if (!selected) {
     return shell(
