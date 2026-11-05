@@ -97,8 +97,8 @@ export interface ChangeCardData {
 }
 
 /**
- * `GET /v1/presence/changes/outcomes?listingId=` (PE-13): what followed each of the listing's newest live changes, in one answer for the whole
- * list. Only what is drawn is typed. The api writes the sentences from the rule that holds the minimum-data, same-length, one-change and holiday
+ * `GET /v1/presence/changes/outcomes?listingId=` (PE-13): what followed each of the listing's NEWEST TEN live changes (on networks that declare
+ * figures), in one answer. A live change past the newest ten is not in it. Only what is drawn is typed. The api writes the sentences from the rule that holds the minimum-data, same-length, one-change and holiday
  * rules; a network that declares no figures is simply not in the answer.
  */
 export interface ChangeOutcomeItem {
@@ -291,18 +291,17 @@ const OUTCOME_HEADLINE: Record<string, string> = {
   window_not_finished: "Too early to tell",
   figures_not_in: "Too early to tell",
   holiday_change: "Not compared: this is a holiday-hours change",
-  holiday_in_window: "Not compared: a holiday period",
   calendar_unknown: "Not compared: your holiday calendar cannot be checked yet",
   other_change: "Not tied to this one change",
   no_baseline: "Not enough figures to compare",
   too_few_days: "Not enough figures to compare",
-  windows_differ: "Not enough figures to compare",
   figures_missing: "Not enough figures to compare",
   too_few_actions: "Too few to compare",
   after_unread: "Cannot compare",
   not_connected: "Cannot compare",
   no_location: "Cannot compare",
   no_figures: "Cannot compare",
+  read_failed: "Could not read this just now",
 };
 
 /**
@@ -316,7 +315,7 @@ export function outcomeWords(item: ChangeOutcomeItem | null | undefined): { head
   return { headline, message: o.message, lines: o.status === "measured" ? o.lines.map((l) => l.text) : [] };
 }
 
-/** The answer for one change from the list's single answer. */
+/** The answer for one change from the single answer. */
 export function outcomeFor(r: ChangeOutcomesResponse | undefined, changeId: string): ChangeOutcomeItem | null {
   return r?.items.find((i) => i.id === changeId) ?? null;
 }
@@ -329,9 +328,51 @@ export function showsOutcome(c: Pick<ChangeCardData, "status" | "network">, caps
   return c.status === "live" && capabilityFor(caps, c.network)?.metrics === true;
 }
 
-/** The ids of the changes in a list that ask for an outcome, sorted, so the request is made once per set and again when the set changes. */
-export function outcomeIds(changes: readonly Pick<ChangeCardData, "id" | "status" | "network">[] | undefined, caps: CapabilitiesResponse | undefined): string[] {
-  return (changes ?? []).filter((c) => showsOutcome(c, caps)).map((c) => c.id).sort();
+/** Whether any change in a list asks for an outcome: the one request is made only then. */
+export function wantsOutcomes(changes: readonly Pick<ChangeCardData, "status" | "network">[] | undefined, caps: CapabilitiesResponse | undefined): boolean {
+  return (changes ?? []).some((c) => showsOutcome(c, caps));
+}
+
+/**
+ * ★THE REQUEST IS KEYED ON WHERE EACH CHANGE IS: the ids and statuses of the sent and live changes on networks that declare figures. The change
+ * list already polls while something is on its way, so a change that goes live, or one that has just been sent, changes this and the outcomes
+ * are asked for again, by whichever path moved it (an approval here, the assistant's card, a worker). Nothing has to remember to invalidate.
+ */
+export function outcomeSignature(changes: readonly Pick<ChangeCardData, "id" | "status" | "network">[] | undefined, caps: CapabilitiesResponse | undefined): string {
+  return (changes ?? [])
+    .filter((c) => (c.status === "live" || c.status === "submitted") && capabilityFor(caps, c.network)?.metrics === true)
+    .map((c) => `${c.id}:${c.status}`)
+    .sort()
+    .join(",");
+}
+
+/** What a change's card draws about what followed it. */
+export type OutcomeSlot =
+  | { kind: "none" }
+  | { kind: "answer"; item: ChangeOutcomeItem }
+  /** A live change past the newest ten: not "no figures", and said so. */
+  | { kind: "older" }
+  | { kind: "failed"; retry: () => void };
+
+export const OUTCOMES_SHOWN = 10;
+export const OUTCOME_OLDER_NOTE = `What followed a change is shown for your ${OUTCOMES_SHOWN} newest live changes. This one is older.`;
+export const OUTCOME_FAILED_NOTE = "We could not load what followed this change.";
+
+/**
+ * One change's slot from the query's state. Nothing for a change that does not ask. While a newer set of changes is being read, the answer for
+ * the older set stands (`isPlaceholderData`), and a change it does not cover is not yet "older": it is simply not read yet.
+ */
+export function outcomeSlot(
+  change: Pick<ChangeCardData, "id" | "status" | "network">,
+  caps: CapabilitiesResponse | undefined,
+  q: { data: ChangeOutcomesResponse | undefined; isError: boolean; isPlaceholderData: boolean; retry: () => void },
+): OutcomeSlot {
+  if (!showsOutcome(change, caps)) return { kind: "none" };
+  const item = outcomeFor(q.data, change.id);
+  if (item) return { kind: "answer", item };
+  if (q.data && !q.isPlaceholderData) return { kind: "older" };
+  if (q.isError && !q.data) return { kind: "failed", retry: q.retry };
+  return { kind: "none" };
 }
 
 const SHORT_OUTCOME_MS = 5 * 60_000;
@@ -344,6 +385,11 @@ export function outcomesStaleTime(r: ChangeOutcomesResponse | undefined): number
   if (!r) return 0;
   const waiting = r.items.some((i) => i.outcome.status === "none" || i.outcome.status === "too_early");
   return waiting ? SHORT_OUTCOME_MS : LONG_OUTCOME_MS;
+}
+
+/** The same rule as a poll: an open tab asks again as often as a waiting answer goes stale, so its "check back" date moves on; a settled one does not poll. */
+export function outcomesRefetchMs(r: ChangeOutcomesResponse | undefined): number | false {
+  return outcomesStaleTime(r) === SHORT_OUTCOME_MS ? SHORT_OUTCOME_MS : false;
 }
 
 // ── Showing a value ──────────────────────────────────────────────────────────
@@ -611,10 +657,8 @@ export function errorWords(err: unknown): string {
 export const presenceEditKeys = {
   capabilities: ["presence", "edit", "capabilities"] as const,
   changes: (listingId: string) => ["presence", "edit", "changes", listingId] as const,
-  /** The prefix of every outcomes answer, for a refresh. */
-  outcomesAll: ["presence", "edit", "outcomes"] as const,
-  /** One answer per listing and per SET of live changes, so a change that has just gone live is asked for. */
-  outcomes: (listingId: string, ids: readonly string[]) => ["presence", "edit", "outcomes", listingId, ids.join(",")] as const,
+  /** One answer per listing and per `outcomeSignature`, so a change that has moved is asked for. */
+  outcomes: (listingId: string, signature: string) => ["presence", "edit", "outcomes", listingId, signature] as const,
   offers: (listingId: string, network: string) => ["presence", "edit", "offers", listingId, network] as const,
   categories: (listingId: string, network: string, q: string) => ["presence", "edit", "categories", listingId, network, q.trim().toLowerCase()] as const,
 };

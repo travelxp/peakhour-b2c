@@ -17,7 +17,10 @@ import {
   offerOutcome,
   offerState,
   outcomeFor,
-  outcomeIds,
+  outcomeSignature,
+  outcomeSlot,
+  outcomesRefetchMs,
+  wantsOutcomes,
   outcomesStaleTime,
   outcomeWords,
   phoneValue,
@@ -436,14 +439,15 @@ describe("what followed a live change (PE-13)", () => {
     // an unreadable calendar is not called a holiday
     expect(head("calendar_unknown")).not.toMatch(/holiday period/i);
     expect(head("calendar_unknown")).toMatch(/cannot be checked/);
-    expect(head("holiday_in_window")).toBe("Not compared: a holiday period");
+    expect(head("holiday_change")).toMatch(/holiday-hours change/);
+    expect(head("read_failed")).toBe("Could not read this just now");
     expect(head("other_change")).toBe("Not tied to this one change");
     for (const r of ["after_unread", "not_connected", "no_location", "no_figures"]) expect(head(r), r).toBe("Cannot compare");
-    for (const r of ["no_baseline", "too_few_days", "windows_differ", "figures_missing"]) expect(head(r), r).toBe("Not enough figures to compare");
+    for (const r of ["no_baseline", "too_few_days", "figures_missing"]) expect(head(r), r).toBe("Not enough figures to compare");
   });
 
   it("every state that is not a comparison draws its sentence and no list of figures", () => {
-    for (const r of ["window_not_finished", "other_change", "holiday_in_window", "too_few_actions", "not_connected"]) {
+    for (const r of ["window_not_finished", "other_change", "holiday_change", "too_few_actions", "not_connected"]) {
       expect(outcomeWords(item(r)), r).toMatchObject({ message: "The sentence.", lines: [] });
     }
   });
@@ -457,7 +461,7 @@ describe("what followed a live change (PE-13)", () => {
   });
 
   it("the headlines claim no cause", () => {
-    const heads = ["compared", "window_not_finished", "too_few_actions", "calendar_unknown", "holiday_in_window", "other_change", "no_baseline", "not_connected"].map((r) => outcomeWords(item(r))!.headline);
+    const heads = ["compared", "window_not_finished", "too_few_actions", "calendar_unknown", "holiday_change", "other_change", "no_baseline", "not_connected"].map((r) => outcomeWords(item(r))!.headline);
     for (const h of heads) expect(h).not.toMatch(/because|caused|due to|thanks to|result of|improved|ranking/i);
   });
 
@@ -480,6 +484,8 @@ describe("what followed a live change (PE-13)", () => {
 describe("which changes ask for what followed them", () => {
   const caps = { items: [{ ...cap({ network: "net_a" }), metrics: true }, { ...cap({ network: "net_b" }), metrics: false }, cap({ network: "net_c" })], can: { propose: true, approve: true } } as never;
   const ch = (id: string, status: string, network: string) => ({ id, status, network }) as never;
+  const answer = (...ids: string[]) => ({ items: ids.map((id) => ({ id, outcome: { status: "measured", reason: "compared", message: "m", lines: [] } })) });
+  const q = (over: Record<string, unknown> = {}) => ({ data: undefined, isError: false, isPlaceholderData: false, retry: () => undefined, ...over }) as never;
 
   it("a live change on a network that declares figures does; nothing else does", () => {
     expect(showsOutcome(ch("1", "live", "net_a"), caps)).toBe(true);
@@ -491,31 +497,68 @@ describe("which changes ask for what followed them", () => {
     expect(showsOutcome(ch("1", "live", "net_a"), undefined)).toBe(false);
   });
 
-  it("the request is for the set of those changes, sorted, and empty when there are none", () => {
-    expect(outcomeIds([ch("b", "live", "net_a"), ch("a", "live", "net_a"), ch("c", "live", "net_b"), ch("d", "proposed", "net_a")], caps)).toEqual(["a", "b"]);
-    expect(outcomeIds([ch("c", "live", "net_b")], caps)).toEqual([]);
-    expect(outcomeIds(undefined, caps)).toEqual([]);
+  it("the request is made only when some change in the list asks", () => {
+    expect(wantsOutcomes([ch("a", "proposed", "net_a"), ch("b", "live", "net_a")], caps)).toBe(true);
+    expect(wantsOutcomes([ch("a", "live", "net_b"), ch("b", "submitted", "net_a")], caps)).toBe(false);
+    expect(wantsOutcomes(undefined, caps)).toBe(false);
   });
 
-  it("one answer per set of live changes, so a change that has just gone live is asked for", () => {
-    expect(presenceEditKeys.outcomes("l1", ["a"])).not.toEqual(presenceEditKeys.outcomes("l1", ["a", "b"]));
-    expect(presenceEditKeys.outcomes("l1", ["a"])).not.toEqual(presenceEditKeys.outcomes("l2", ["a"]));
-    expect(presenceEditKeys.outcomes("l1", ["a"]).slice(0, 3)).toEqual(presenceEditKeys.outcomesAll);
+  it("the key moves when a change is sent, goes live, or leaves live, by whichever path, and not for changes that do not ask", () => {
+    const sig = (...c: unknown[]) => outcomeSignature(c as never, caps);
+    expect(sig(ch("b", "live", "net_a"), ch("a", "live", "net_a"))).toBe("a:live,b:live");
+    // sent, then live: two keys
+    expect(sig(ch("a", "submitted", "net_a"))).toBe("a:submitted");
+    expect(sig(ch("a", "submitted", "net_a"))).not.toBe(sig(ch("a", "live", "net_a")));
+    // a proposed or declined change, and a network with no figures, are not part of it
+    expect(sig(ch("a", "live", "net_a"), ch("p", "proposed", "net_a"), ch("n", "live", "net_b"), ch("r", "rejected", "net_a"))).toBe("a:live");
+    expect(sig()).toBe("");
+    expect(presenceEditKeys.outcomes("l1", "a:live")).not.toEqual(presenceEditKeys.outcomes("l1", "a:live,b:live"));
+    expect(presenceEditKeys.outcomes("l1", "a:live")).not.toEqual(presenceEditKeys.outcomes("l2", "a:live"));
   });
 
-  it("the answer for one change is found in the list's one answer", () => {
-    const r = { items: [{ id: "a", outcome: { status: "measured", reason: "compared", message: "m", lines: [] } }] };
-    expect(outcomeFor(r, "a")!.id).toBe("a");
-    expect(outcomeFor(r, "z")).toBeNull();
+  it("a card draws its answer, a note when it is past the newest ten, a retry when the read failed, and nothing while it loads", () => {
+    const live = ch("a", "live", "net_a");
+    expect(outcomeSlot(live, caps, q({ data: answer("a") }))).toMatchObject({ kind: "answer", item: { id: "a" } });
+    // the read succeeded and does not cover it: past the newest ten, which is not "no figures"
+    expect(outcomeSlot(live, caps, q({ data: answer("z") }))).toEqual({ kind: "older" });
+    expect(outcomeSlot(live, caps, q({ data: answer() }))).toEqual({ kind: "older" });
+    // the last answer standing while the next is read does not make a newly live change "older"
+    expect(outcomeSlot(live, caps, q({ data: answer("z"), isPlaceholderData: true }))).toEqual({ kind: "none" });
+    expect(outcomeSlot(live, caps, q({ data: answer("a"), isPlaceholderData: true }))).toMatchObject({ kind: "answer" });
+    // nothing yet
+    expect(outcomeSlot(live, caps, q())).toEqual({ kind: "none" });
+    // failed with nothing to show: a retry that is the query's
+    let retried = 0;
+    const failed = outcomeSlot(live, caps, q({ isError: true, retry: () => void retried++ }));
+    expect(failed.kind).toBe("failed");
+    if (failed.kind === "failed") failed.retry();
+    expect(retried).toBe(1);
+    // a refresh that failed after an answer keeps the answer
+    expect(outcomeSlot(live, caps, q({ data: answer("a"), isError: true })).kind).toBe("answer");
+  });
+
+  it("a change that does not ask is never given a slot", () => {
+    for (const c of [ch("a", "submitted", "net_a"), ch("b", "live", "net_b"), ch("c", "live", "net_c")]) {
+      expect(outcomeSlot(c, caps, q({ data: answer("a", "b", "c") })).kind).toBe("none");
+      expect(outcomeSlot(c, caps, q({ isError: true })).kind).toBe("none");
+    }
+  });
+
+  it("the answer for one change is found in the single answer", () => {
+    expect(outcomeFor(answer("a"), "a")!.id).toBe("a");
+    expect(outcomeFor(answer("a"), "z")).toBeNull();
     expect(outcomeFor(undefined, "a")).toBeNull();
   });
 
-  it("a settled answer is held a while and one that says check back, or nothing yet, only briefly", () => {
-    const answer = (status: string) => ({ items: [{ id: "a", outcome: { status, reason: "x", message: "m", lines: [] } }] });
+  it("a settled answer is held a while and polls not at all; one that says check back, or nothing yet, only briefly and polls", () => {
+    const one = (status: string) => ({ items: [{ id: "a", outcome: { status, reason: "x", message: "m", lines: [] } }] });
     expect(outcomesStaleTime(undefined)).toBe(0);
-    expect(outcomesStaleTime(answer("measured"))).toBe(30 * 60_000);
-    expect(outcomesStaleTime(answer("too_early"))).toBe(5 * 60_000);
-    expect(outcomesStaleTime(answer("none"))).toBe(5 * 60_000);
+    expect(outcomesStaleTime(one("measured"))).toBe(30 * 60_000);
+    expect(outcomesStaleTime(one("too_early"))).toBe(5 * 60_000);
+    expect(outcomesStaleTime(one("none"))).toBe(5 * 60_000);
     expect(outcomesStaleTime({ items: [] })).toBe(30 * 60_000);
+    expect(outcomesRefetchMs(one("too_early"))).toBe(5 * 60_000);
+    expect(outcomesRefetchMs(one("measured"))).toBe(false);
+    expect(outcomesRefetchMs(undefined)).toBe(false);
   });
 });

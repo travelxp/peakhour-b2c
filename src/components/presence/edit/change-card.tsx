@@ -3,7 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChangeOutcome } from "@/components/presence/edit/change-outcome";
-import { cardActions, errorWords, fieldTitle, statusWords, valueLines, type CapabilitiesResponse, type ChangeCardData, type ChangeOutcomeItem } from "@/lib/presence-edit";
+import { cardActions, errorWords, fieldTitle, statusWords, valueLines, type CapabilitiesResponse, type ChangeCardData, type OutcomeSlot } from "@/lib/presence-edit";
 import type { usePresenceEditMutations } from "@/hooks/use-presence-edit";
 
 const TONE: Record<string, string> = {
@@ -44,8 +44,8 @@ export function ChangeCard({
   label: string;
   /** Something to show with the change (a photo's picture), drawn under the title. */
   extra?: React.ReactNode;
-  /** What followed this change, from the list owner's one request (`outcomeFor`, only for a change that `showsOutcome`). */
-  outcome?: ChangeOutcomeItem | null;
+  /** What followed this change: the list owner's one request answers for every card (`the outcomes hook of the card that lists the changes`). */
+  outcome?: OutcomeSlot;
   can: CapabilitiesResponse["can"] | undefined;
   /** One set of mutations for the whole list, owned by the card that lists the changes. */
   m: Pick<ReturnType<typeof usePresenceEditMutations>, "approve" | "reject" | "undo">;
@@ -88,7 +88,7 @@ export function ChangeCard({
         {words.detail && <p className="text-xs text-muted-foreground">{words.detail}</p>}
       </div>
 
-      <ChangeOutcome outcome={outcome} />
+      <ChangeOutcome slot={outcome} />
 
       {change.notes.map((n, i) => (
         <p key={i} className="text-xs text-warning-on-tint">

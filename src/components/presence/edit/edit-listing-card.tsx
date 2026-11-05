@@ -10,7 +10,7 @@ import { HolidayOffersCard } from "@/components/presence/edit/holiday-offers-car
 import { useChangeOutcomes, useEditCapabilities, useListingChanges, usePresenceEditMutations } from "@/hooks/use-presence-edit";
 import { useListingQuery } from "@/hooks/use-presence-listing";
 import { fetchView, primaryEntry } from "@/lib/presence-panels";
-import { capabilityFor, drawnSections, errorWords, formAccess, outcomeFor, outcomeIds, requestedForm, showsOutcome, writesNote, type EditField } from "@/lib/presence-edit";
+import { capabilityFor, drawnSections, errorWords, formAccess, requestedForm, writesNote, type EditField } from "@/lib/presence-edit";
 
 /** Another card asking for a field's form. A new object each time, so asking twice for one field opens it twice. */
 export type EditRequest = { field: string };
@@ -42,7 +42,7 @@ export function EditListingCard({
   const listing = listingQ.data?.listing ?? null;
   const network = primaryEntry(listingQ.data)?.network;
   const changes = useListingChanges(listing?.id);
-  const outcomes = useChangeOutcomes(listing?.id, outcomeIds(changes.data?.items, caps.data));
+  const outcomes = useChangeOutcomes(listing?.id, changes.data?.items, caps.data);
   const m = usePresenceEditMutations(listing?.id);
   const [open, setOpen] = useState<EditField | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -207,7 +207,7 @@ export function EditListingCard({
             {changes.isError && <p className="text-xs text-warning-on-tint">Could not refresh just now, so this may be out of date.</p>}
             {/* Photo changes are listed with the photos when that card is drawn; otherwise here. */}
             {changes.data.items.filter((c) => !(photoChangesElsewhere && c.field === "media" && c.network === network)).map((c) => (
-              <ChangeCard key={c.id} change={c} label={cap.label} can={caps.data.can} m={m} outcome={showsOutcome(c, caps.data) ? outcomeFor(outcomes.data, c.id) : null} />
+              <ChangeCard key={c.id} change={c} label={cap.label} can={caps.data.can} m={m} outcome={outcomes.slotFor(c)} />
             ))}
           </>
         ) : (
