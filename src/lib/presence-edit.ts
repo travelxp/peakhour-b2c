@@ -111,6 +111,8 @@ export interface HolidayOffersResponse {
   needsRegularHours: boolean;
   openChange: boolean;
   noTimeZone: boolean;
+  /** The network could not be read just now; nothing is offered. */
+  networkUnreadable: boolean;
 }
 
 // ── What to draw ─────────────────────────────────────────────────────────────
@@ -460,18 +462,26 @@ export function offerLine(o: HolidayOffer): string {
 }
 
 /** What an offer card can do. A regional day with no known region asks first; a listing without regular hours cannot take one. */
-export function offerState(r: HolidayOffersResponse): { show: boolean; message: string | null; canAccept: boolean } {
-  if (r.noTimeZone) {
-    return { show: true, message: "We cannot suggest holiday hours yet, because we do not know your time zone.", canAccept: false };
-  }
+export function offerState(r: HolidayOffersResponse, label: string): { show: boolean; message: string | null; canAccept: boolean } {
+  const say = (message: string) => ({ show: true, message, canAccept: false });
+  if (r.noTimeZone) return say("We cannot suggest holiday hours yet, because we do not know your time zone.");
+  if (r.networkUnreadable) return say(`We could not read your listing from ${label} just now, so no holiday days are suggested. Try again in a moment.`);
+  if (r.needsRegularHours) return say("Set your opening hours first. Holiday hours change them for a day.");
+  if (r.openChange) return say("A holiday-hours change is already waiting. Finish it first.");
   if (r.offers.length === 0) return { show: false, message: null, canAccept: false };
-  if (r.needsRegularHours) {
-    return { show: true, message: "Set your opening hours first. Holiday hours change them for a day.", canAccept: false };
-  }
-  if (r.openChange) {
-    return { show: true, message: "A holiday-hours change is already waiting. Finish it first.", canAccept: false };
-  }
   return { show: true, message: null, canAccept: true };
+}
+
+/**
+ * What accepting an offer did, from the rows the api returned with their statuses. A row that was not checked clean is NOT "prepared": a
+ * blocked one says why, and one still waiting for a check says so.
+ */
+export function offerOutcome(items: ReadonlyArray<Pick<ChangeCardData, "status" | "reason">>, name: string, label: string): { ok: boolean; message: string } {
+  const bad = items.find((i) => i.status === "blocked" || i.status === "failed" || i.status === "rejected");
+  if (bad) return { ok: false, message: `${name} could not be prepared. ${bad.reason?.message ?? "No reason was given."} Nothing has been sent to ${label}.` };
+  if (items.length === 0) return { ok: false, message: `${name} was not prepared.` };
+  if (items.some((i) => i.status === "proposed")) return { ok: true, message: `${name} is prepared, but ${label} has not checked it yet. Review it under Changes below. Nothing has been sent to ${label}.` };
+  return { ok: true, message: `${name} is prepared. Review it under Changes below, then approve it. Nothing has been sent to ${label}.` };
 }
 
 export const regionQuestion = (o: HolidayOffer) =>

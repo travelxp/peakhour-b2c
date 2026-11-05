@@ -12,6 +12,7 @@ import {
   formAccess,
   hoursDraft,
   hoursValue,
+  offerOutcome,
   offerState,
   phoneValue,
   proposeBody,
@@ -334,22 +335,48 @@ describe("not wiping or losing what is there", () => {
 
 describe("the holiday offer", () => {
   const offer = (over = {}) => ({ key: "k", date: "2026-12-25", name: "Christmas Day", tentative: false, regionUnknown: false, ...over });
-  const resp = (over = {}) => ({ offers: [offer()], needsRegularHours: false, openChange: false, noTimeZone: false, ...over });
+  const resp = (over = {}) => ({ offers: [offer()], needsRegularHours: false, openChange: false, noTimeZone: false, networkUnreadable: false, ...over });
+  const L = "Testnet";
 
-  it("shows nothing when there is no day to offer", () => {
-    expect(offerState(resp({ offers: [] })).show).toBe(false);
+  it("shows nothing when there is no day to offer and nothing to say", () => {
+    expect(offerState(resp({ offers: [] }), L).show).toBe(false);
   });
   it("says why when there is no calendar to place the days on", () => {
-    const s = offerState(resp({ offers: [], noTimeZone: true }));
+    const s = offerState(resp({ offers: [], noTimeZone: true }), L);
     expect(s).toMatchObject({ show: true, canAccept: false });
     expect(s.message).toContain("time zone");
   });
-  it("can be accepted when nothing stands in the way", () => {
-    expect(offerState(resp())).toEqual({ show: true, message: null, canAccept: true });
+  it("says so when the network could not be read, with its name", () => {
+    const s = offerState(resp({ offers: [], networkUnreadable: true }), L);
+    expect(s).toMatchObject({ show: true, canAccept: false });
+    expect(s.message).toContain("Testnet");
   });
-  it("cannot be accepted without regular hours, or while a holiday change waits, and says why", () => {
-    expect(offerState(resp({ needsRegularHours: true }))).toMatchObject({ show: true, canAccept: false });
-    expect(offerState(resp({ needsRegularHours: true })).message).toContain("opening hours");
-    expect(offerState(resp({ openChange: true }))).toMatchObject({ show: true, canAccept: false });
+  it("can be accepted when nothing stands in the way", () => {
+    expect(offerState(resp(), L)).toEqual({ show: true, message: null, canAccept: true });
+  });
+  it("cannot be accepted without regular hours, or while a holiday change waits, and says why even with no days listed", () => {
+    expect(offerState(resp({ needsRegularHours: true, offers: [] }), L)).toMatchObject({ show: true, canAccept: false });
+    expect(offerState(resp({ needsRegularHours: true }), L).message).toContain("opening hours");
+    expect(offerState(resp({ openChange: true, offers: [] }), L)).toMatchObject({ show: true, canAccept: false });
+    expect(offerState(resp({ openChange: true }), L).message).toContain("already waiting");
+  });
+
+  it("does not call a blocked or failed row prepared, and gives its reason", () => {
+    const blocked = offerOutcome([{ status: "blocked", reason: { code: "control_lost", message: "Testnet has not confirmed that you control this listing." } }], "Christmas Day", L);
+    expect(blocked.ok).toBe(false);
+    expect(blocked.message).toContain("could not be prepared");
+    expect(blocked.message).toContain("has not confirmed");
+    expect(blocked.message).not.toMatch(/is prepared/);
+    expect(offerOutcome([{ status: "failed", reason: null }], "X", L).message).toContain("No reason was given.");
+    expect(offerOutcome([], "X", L).ok).toBe(false);
+  });
+  it("says a checked row is prepared, and an unchecked one has not been checked, and that nothing was sent", () => {
+    const ok = offerOutcome([{ status: "validated", reason: null }], "Christmas Day", L);
+    expect(ok).toMatchObject({ ok: true });
+    expect(ok.message).toContain("is prepared");
+    expect(ok.message).toContain("Nothing has been sent to Testnet");
+    const waiting = offerOutcome([{ status: "proposed", reason: null }], "Christmas Day", L);
+    expect(waiting.ok).toBe(true);
+    expect(waiting.message).toContain("has not checked it yet");
   });
 });

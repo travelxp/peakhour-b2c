@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useHolidayOffers, usePresenceEditMutations } from "@/hooks/use-presence-edit";
 import { fetchView } from "@/lib/presence-panels";
-import { errorWords, offerLine, offerState, regionQuestion, type HolidayOffer } from "@/lib/presence-edit";
+import { errorWords, offerLine, offerOutcome, offerState, regionQuestion, type HolidayOffer } from "@/lib/presence-edit";
 
 const SHOWN = 4;
 
@@ -15,7 +15,7 @@ const SHOWN = 4;
  * asks first rather than guessing. Nothing renders until there is a day to offer, and a failed read is said, not hidden.
  */
 export function HolidayOffersCard({ listingId, network, label }: { listingId: string; network: string; label: string }) {
-  const q = useHolidayOffers(listingId);
+  const q = useHolidayOffers(listingId, network);
   const m = usePresenceEditMutations(listingId);
   const [done, setDone] = useState<string | null>(null);
   const view = fetchView({ hasData: !!q.data, isPending: q.isPending, isError: q.isError, fetchStatus: q.fetchStatus });
@@ -31,7 +31,7 @@ export function HolidayOffersCard({ listingId, network, label }: { listingId: st
       </div>
     );
   }
-  const state = offerState(q.data);
+  const state = offerState(q.data, label);
   if (!state.show) return null;
   // Nothing to offer, but a reason to say: a lone line, not a card with no days in it.
   if (q.data.offers.length === 0) return state.message ? <p className="text-xs text-muted-foreground">{state.message}</p> : null;
@@ -43,7 +43,7 @@ export function HolidayOffersCard({ listingId, network, label }: { listingId: st
     setDone(null);
     m.acceptOffer.mutate(
       { listingId, network, date: o.date, ...(o.regionUnknown ? { confirmRegion } : {}) },
-      { onSuccess: () => setDone(`${o.name} is prepared. Review it under Changes below, then approve it. Nothing has been sent to ${label}.`) },
+      { onSuccess: (r) => setDone(offerOutcome(r.items, o.name, label).message) },
     );
   }
 

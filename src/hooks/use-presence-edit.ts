@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { presenceChangesApi } from "@/lib/api/presence-changes";
 import { presenceEditApi } from "@/lib/api/presence-edit";
 import { categoryQueryReady, presenceEditKeys, type ProposeBody } from "@/lib/presence-edit";
 
@@ -29,11 +30,11 @@ export function useListingChanges(listingId: string | undefined) {
   });
 }
 
-export function useHolidayOffers(listingId: string | undefined) {
+export function useHolidayOffers(listingId: string | undefined, network: string | undefined) {
   return useQuery({
     queryKey: presenceEditKeys.offers(listingId ?? ""),
-    queryFn: () => presenceEditApi.holidayOffers(listingId as string),
-    enabled: !!listingId,
+    queryFn: () => presenceEditApi.holidayOffers(listingId as string, network as string),
+    enabled: !!listingId && !!network,
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
   });
@@ -75,8 +76,8 @@ export function usePresenceEditMutations(listingId: string | undefined) {
   };
   return {
     propose: useMutation({ mutationFn: (b: ProposeBody) => presenceEditApi.propose(b), onSuccess: refresh }),
-    approve: useMutation({ mutationFn: (id: string) => presenceEditApi.approve(id), onSuccess: refresh }),
-    reject: useMutation({ mutationFn: (id: string) => presenceEditApi.reject(id), onSuccess: refresh }),
+    approve: useMutation({ mutationFn: (id: string) => presenceChangesApi.approve(id), onSuccess: refresh }),
+    reject: useMutation({ mutationFn: (id: string) => presenceChangesApi.reject(id), onSuccess: refresh }),
     undo: useMutation({ mutationFn: (id: string) => presenceEditApi.undo(id), onSuccess: refresh }),
     acceptOffer: useMutation({ mutationFn: (b: Parameters<typeof presenceEditApi.proposeOffer>[0]) => presenceEditApi.proposeOffer(b), onSuccess: refresh }),
     dismissOffer: useMutation({ mutationFn: (b: Parameters<typeof presenceEditApi.dismissOffer>[0]) => presenceEditApi.dismissOffer(b), onSuccess: refresh }),

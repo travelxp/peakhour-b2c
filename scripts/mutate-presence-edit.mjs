@@ -68,17 +68,20 @@ const CASES = [
   ["removing every number is not called a wipe", "if (field === \"phone\" && !(value as { primary?: string; additional?: string[] }).primary", "if (false && !(value as { primary?: string; additional?: string[] }).primary"],
   ["a number kept is called a wipe", "&& !(value as { additional?: string[] }).additional?.length) return", "&& true) return"],
   ["removing the website is not called a wipe", "if (field === \"website\" && value === \"\") return", "if (false) return"],
-  ["no calendar is not explained", "return { show: true, message: \"We cannot suggest holiday hours yet, because we do not know your time zone.\", canAccept: false };", "return { show: false, message: null, canAccept: false };"],
   ["a plain-text category reads as nothing", "return [typeof value === \"string\" ? value : ((value as { label?: string }).label ?? \"\")].filter(Boolean);", "return [((value as { label?: string }).label ?? \"\")].filter(Boolean);"],
   // ── submitting ──
   ["a submit carries a second field", "return { listingId, network, changes: [{ field, value }] };", "return { listingId, network, changes: [{ field, value }, { field: \"description\", value: \"\" }] };"],
   ["a risky warning states a rule", "Changing this may mean ${label} asks you to verify", "Changing this means ${label} asks you to verify"],
   ["the postcard warning is lost", "if (field === \"name\" || field === \"address\") {", "if (false) {"],
   // ── the holiday offer ──
-  ["an offer is accepted without regular hours", "if (r.needsRegularHours) {", "if (false) {"],
-  ["an offer is accepted while a holiday change waits", "if (r.openChange) {", "if (false) {"],
-  ["an offer shows with no calendar", "if (r.noTimeZone) {", "if (false) {"],
-  ["an empty offer shows", "if (r.offers.length === 0) return", "if (false) return"],
+  ["an offer is accepted without regular hours", "if (r.needsRegularHours) return say(", "if (false) return say("],
+  ["an offer is accepted while a holiday change waits", "if (r.openChange) return say(", "if (false) return say("],
+  ["an offer shows with no calendar", "if (r.noTimeZone) return say(", "if (false) return say("],
+  ["an unreadable network is not said", "if (r.networkUnreadable) return say(", "if (false) return say("],
+  ["an empty offer shows", "if (r.offers.length === 0) return { show: false", "if (false) return { show: false"],
+  ["a blocked row reads as prepared", "const bad = items.find((i) => i.status === \"blocked\" || i.status === \"failed\" || i.status === \"rejected\");", "const bad = undefined as (typeof items)[number] | undefined;"],
+  ["a blocked row's reason is dropped", "${bad.reason?.message ?? \"No reason was given.\"} ", ""],
+  ["an unchecked row reads as checked", "if (items.some((i) => i.status === \"proposed\")) return", "if (false) return"],
 ];
 
 const dir = mkdtempSync(join(tmpdir(), "mut-pe07-b2c-"));
