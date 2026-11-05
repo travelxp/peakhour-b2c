@@ -7,9 +7,12 @@
  * kinds of link and every choice in a list arrive from the api (`/v1/presence/extras/*`), and the network's name in a sentence is the api's label.
  * Nothing in this file spells a network.
  * ★EVERY SUBMIT PREPARES A CHANGE. Nothing is sent until an admin approves it, and "live" is a word only the api's `live` status earns.
- * ★LISTS ARE WHOLE. A services, details or links change is the complete list the network should hold, built from what the network holds now (the
- * api reads it again and refuses a list built from an old copy), so an entry the person did not touch is kept exactly as read, price and
- * description included.
+ * ★LISTS ARE WHOLE. A services, details or links change is the complete list the network should hold, built from what the network holds now, so an
+ * entry the person did not touch is kept exactly as read, price and description included. The page sends the BASE of the list it was drawn from
+ * (`base` in the api's answer); the api compares it with a fresh read and refuses a change built on a list that has since changed (code
+ * `LIST_CHANGED`), and the panel then reloads and says so, so a stale page cannot delete something added on the network after it was opened.
+ * ★ONLY WHAT THE PERSON ADDED OR CHANGED IS JUDGED. What the network already holds passes whatever its address scheme or kind, so a list sent whole
+ * never fails or blocks on something the person did not do.
  */
 
 import type { CapabilitiesResponse, ChangeCardData, NetworkCapability } from "@/lib/presence-edit";
@@ -46,7 +49,7 @@ export interface PostItem {
   state: "live" | "processing" | "rejected" | "unknown";
   languageCode: string | null;
   action: { type: string; url?: string } | null;
-  event: { title: string; start: string; end?: string } | null;
+  event: { title: string; start: string; end?: string; startTime?: string; endTime?: string } | null;
   offer: { code?: string; redeemUrl?: string; terms?: string } | null;
   createdAt: string | null;
   updatedAt: string | null;
@@ -85,13 +88,18 @@ export interface ServicesResponse {
   /** Null when the network's list could not be read: `optionsNotice` says so. */
   options: ServiceOption[] | null;
   optionsNotice: string | null;
+  /** The network's reference to the business's main category: a service the person names is filed under it. Null when it has none. */
+  categoryRef: string | null;
+  /** The list as it is drawn: sent back with a change so the api can refuse a change built on an old copy. */
+  base: string;
   writes: { released: boolean; notice: string | null };
 }
 
 export type AttributeEntry =
   | { id: string; kind: "yesno"; value: boolean }
-  | { id: string; kind: "choice"; value: string }
-  | { id: string; kind: "link"; value: string }
+  // a repeatable detail holds several values: every one is kept
+  | { id: string; kind: "choice"; values: string[] }
+  | { id: string; kind: "link"; values: string[] }
   | { id: string; kind: "choices"; set: string[]; unset: string[] };
 export interface AttributeOption {
   id: string;
@@ -107,6 +115,7 @@ export interface AttributesResponse {
   current: AttributeEntry[];
   options: AttributeOption[] | null;
   optionsNotice: string | null;
+  base: string;
   writes: { released: boolean; notice: string | null };
 }
 
@@ -119,7 +128,10 @@ export interface LinksResponse {
   network: string;
   label: string;
   types: Array<{ type: string; label: string }>;
+  /** Which kind of link fills the booking address and which the order address on the listing, with the words to show. */
+  canonical?: { booking: { type: string; label: string } | null; order: { type: string; label: string } | null };
   current: ActionLink[];
+  base: string;
   writes: { released: boolean; notice: string | null };
 }
 
@@ -188,6 +200,25 @@ export function pendingForPost(items: readonly ChangeCardData[] | undefined, net
   return inFlightChanges(items, network, "posts").find((c) => (c.after as { ref?: string } | null)?.ref === ref && (c.after as { op?: string } | null)?.op !== "create");
 }
 
+/** What a prepared change says next: an admin approves, so anyone else is told who. */
+export function preparedWords(can: { approve: boolean } | undefined, label: string, checked: boolean): string {
+  const head = checked ? "Your change is prepared and checked." : `Your change is prepared, but ${label} could not check it just now.`;
+  return `${head} ${can?.approve ? "Review it below, then approve it." : "It is waiting below for an admin or owner to approve."}`;
+}
+
+/** The line shown while a change of this panel is waiting. */
+export function waitingWords(what: string, can: { approve: boolean } | undefined): string {
+  return can?.approve
+    ? `A change to your ${what} is waiting below. Approve or decline it before making another.`
+    : `A change to your ${what} is waiting below for an admin or owner to approve or decline. Nothing else can be changed until then.`;
+}
+
+/** The message shown when the api refuses a change built on a list that has since changed. */
+export const LIST_CHANGED_CODE = "LIST_CHANGED";
+export function isListChanged(err: unknown): boolean {
+  return (err as { code?: string } | null)?.code === LIST_CHANGED_CODE;
+}
+
 export function pendingNote(status: string, can: { approve: boolean } | undefined): string {
   if (status === "submitted") return "A change was sent. Waiting for it to show.";
   if (status === "approved") return "Approved, waiting to be sent.";
@@ -217,6 +248,10 @@ export const actionLabel = humanize;
 
 export interface PostDraft {
   kind: PostKind;
+  /** Carried through an edit untouched: the network may have filled it in, and an edit must not clear it. */
+  languageCode: string;
+  startTime: string;
+  endTime: string;
   summary: string;
   actionType: string;
   actionUrl: string;
@@ -228,11 +263,14 @@ export interface PostDraft {
   terms: string;
 }
 
-export const emptyPostDraft = (kind: PostKind = "update"): PostDraft => ({ kind, summary: "", actionType: "", actionUrl: "", eventTitle: "", start: "", end: "", offerCode: "", redeemUrl: "", terms: "" });
+export const emptyPostDraft = (kind: PostKind = "update"): PostDraft => ({ kind, languageCode: "", startTime: "", endTime: "", summary: "", actionType: "", actionUrl: "", eventTitle: "", start: "", end: "", offerCode: "", redeemUrl: "", terms: "" });
 
 export function postDraftOf(p: PostItem): PostDraft {
   return {
     kind: p.kind,
+    languageCode: p.languageCode ?? "",
+    startTime: p.event?.startTime ?? "",
+    endTime: p.event?.endTime ?? "",
     summary: p.summary,
     actionType: p.action?.type ?? "",
     actionUrl: p.action?.url ?? "",
@@ -246,6 +284,7 @@ export function postDraftOf(p: PostItem): PostDraft {
 }
 
 const HTTPS = /^https:\/\/\S+$/i;
+const WEB = /^https?:\/\/\S+$/i;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 export function isDay(v: string): boolean {
   if (!DAY.test(v)) return false;
@@ -255,15 +294,23 @@ export function isDay(v: string): boolean {
 
 export type Built<T> = { ok: true; value: T } | { ok: false; message: string };
 
+/** A fresh id for a new post, made once when the form opens: sent with the post so a double click or a retry is the same post, not two. */
+export function newDraftId(): string {
+  const bytes = new Uint8Array(12);
+  globalThis.crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export type PostValue =
-  | ({ op: "create" } & PostContentValue)
+  | ({ op: "create"; draftId: string } & PostContentValue)
   | ({ op: "update"; ref: string } & PostContentValue)
   | { op: "delete"; ref: string };
 export interface PostContentValue {
   kind: PostKind;
   summary: string;
+  languageCode?: string;
   action?: { type: string; url?: string };
-  event?: { title: string; start: string; end?: string };
+  event?: { title: string; start: string; end?: string; startTime?: string; endTime?: string };
   offer?: { code?: string; redeemUrl?: string; terms?: string };
 }
 
@@ -274,17 +321,27 @@ export const charsLeft = (summary: string, max: number): number => max - summary
  * The value a post form sends, or the plain reason it cannot. These are the api's rules (it checks again, and says the same): the declared kinds
  * and buttons, the longest post (never shortened for you), https addresses, and a title and dates for an event or an offer.
  */
-export function buildPostValue(draft: PostDraft, decl: PostsDeclaration, op: { op: "create" } | { op: "update"; ref: string }): Built<PostValue> {
+export function buildPostValue(
+  draft: PostDraft,
+  decl: PostsDeclaration,
+  op: { op: "create"; draftId: string } | { op: "update"; ref: string },
+  /** The button the post already has, when it is being edited: a button left as it is passes whatever the network offers now. */
+  held?: { type: string; url?: string } | null,
+): Built<PostValue> {
   const summary = draft.summary.trim();
   if (!summary) return { ok: false, message: "Write what you want to say." };
   if (summary.length > decl.limits.summaryMaxLength) {
     return { ok: false, message: `Use at most ${decl.limits.summaryMaxLength} characters. This one is ${summary.length}, and it is not shortened for you.` };
   }
   if (!decl.kinds.includes(draft.kind)) return { ok: false, message: "That kind of post is not offered." };
-  const value: PostContentValue = { kind: draft.kind, summary };
+  const value: PostContentValue = { kind: draft.kind, summary, ...(draft.languageCode.trim() ? { languageCode: draft.languageCode.trim() } : {}) };
 
-  const type = draft.actionType.trim();
-  if (type) {
+  const type = draft.actionType.trim().toUpperCase();
+  const keptButton = !!held && held.type.toUpperCase() === type && (held.url ?? "") === draft.actionUrl.trim();
+  if (type && keptButton) {
+    // Left as it is: not judged again (an edit must not fail on a button the person did not touch).
+    value.action = { type: held!.type, ...(held!.url ? { url: held!.url } : {}) };
+  } else if (type) {
     if (!decl.actions.includes(type)) return { ok: false, message: "That button is not offered." };
     if (type === decl.actionWithoutUrl) {
       // This button calls the listing's number: a web address with it is a mistake, said rather than quietly dropped.
@@ -309,7 +366,13 @@ export function buildPostValue(draft: PostDraft, decl: PostsDeclaration, op: { o
       if (!isDay(end)) return { ok: false, message: "Choose a real end date, or leave it empty." };
       if (end < draft.start.trim()) return { ok: false, message: "The end date is before the start date." };
     }
-    value.event = { title, start: draft.start.trim(), ...(end ? { end } : {}) };
+    value.event = {
+      title,
+      start: draft.start.trim(),
+      ...(end ? { end } : {}),
+      ...(draft.startTime ? { startTime: draft.startTime } : {}),
+      ...(draft.endTime ? { endTime: draft.endTime } : {}),
+    };
   }
   if (draft.kind === "offer") {
     const code = draft.offerCode.trim();
@@ -350,9 +413,25 @@ export function addableServices(current: readonly ServiceEntry[], options: Servi
   return (options ?? []).filter((o) => !held.has(o.id));
 }
 
-/** The list with one network service added. Every entry already there is kept exactly as read. */
-export function withService(current: readonly ServiceEntry[], id: string): ServiceEntry[] {
-  return current.some((s) => s.kind === "listed" && s.id === id) ? [...current] : [...current, { kind: "listed", id }];
+/**
+ * The list with one network service added. Every entry already there is kept exactly as read. A service the network held and the person removed in
+ * this draft comes back from `held` (what the network holds, price and description included), not as a bare one.
+ */
+export function withService(current: readonly ServiceEntry[], id: string, held: readonly ServiceEntry[] = []): ServiceEntry[] {
+  if (current.some((s) => s.kind === "listed" && s.id === id)) return [...current];
+  const back = held.find((s) => s.kind === "listed" && s.id === id);
+  return [...current, back ?? { kind: "listed", id }];
+}
+
+/** The list with a service the person names added, filed under the network's category for the business. Nothing is added without a category or a name. */
+export function withCustomService(current: readonly ServiceEntry[], categoryRef: string | null, name: string): Built<ServiceEntry[]> {
+  const n = name.trim();
+  if (!categoryRef) return { ok: false, message: "We cannot file a service of your own until your main category is set." };
+  if (!n) return { ok: false, message: "Write the name of the service." };
+  if (n.length > 140) return { ok: false, message: "Use at most 140 characters for a service name." };
+  const entry: ServiceEntry = { kind: "custom", categoryId: categoryRef, name: n };
+  if (current.some((s) => serviceKey(s) === serviceKey(entry))) return { ok: false, message: "That service is already on the list." };
+  return { ok: true, value: [...current, entry] };
 }
 
 /** The list without one entry. The others are kept exactly as read (price and description included). */
@@ -400,9 +479,17 @@ export function withChoice(current: readonly AttributeEntry[], id: string, value
   return set.length + unset.length === 0 ? withoutDetail(current, id) : withDetail(current, { id, kind: "choices", set, unset });
 }
 
+const entryKey = (e: AttributeEntry): string => JSON.stringify(e.kind === "choices" ? { ...e, set: [...e.set].sort(), unset: [...e.unset].sort() } : e);
+
 export function detailsValue(before: readonly AttributeEntry[], after: readonly AttributeEntry[]): Built<AttributeEntry[]> {
-  const norm = (l: readonly AttributeEntry[]) => JSON.stringify([...l].sort((x, y) => (x.id < y.id ? -1 : 1)).map((e) => (e.kind === "choices" ? { ...e, set: [...e.set].sort(), unset: [...e.unset].sort() } : e)));
+  const norm = (l: readonly AttributeEntry[]) => JSON.stringify([...l].sort((x, y) => (x.id < y.id ? -1 : 1)).map(entryKey));
   if (norm(before) === norm(after)) return { ok: false, message: "Change a detail first." };
+  // Only an entry the person ADDED OR CHANGED is judged; one the network already holds passes as it is.
+  const held = new Set(before.map(entryKey));
+  for (const e of after) {
+    if (held.has(entryKey(e))) continue;
+    if (e.kind === "link" && e.values.some((v) => !WEB.test(v))) return { ok: false, message: "A web address must start with http:// or https://." };
+  }
   return { ok: true, value: [...after] };
 }
 
@@ -415,9 +502,9 @@ export function detailLine(e: AttributeEntry, options: AttributeOption[] | null)
     case "yesno":
       return `${name}: ${e.value ? "Yes" : "No"}`;
     case "choice":
-      return `${name}: ${valueName(e.value)}`;
+      return `${name}: ${e.values.map(valueName).join(", ")}`;
     case "link":
-      return `${name}: ${e.value}`;
+      return `${name}: ${e.values.join(", ")}`;
     case "choices":
       return `${name}: ${[...e.set.map(valueName), ...e.unset.map((v) => `not ${valueName(v)}`)].join(", ")}`;
   }
@@ -446,9 +533,13 @@ export function withPreferred(current: readonly ActionLink[], index: number): Ac
 }
 
 export function linksValue(before: readonly ActionLink[], after: readonly ActionLink[], types: LinksResponse["types"]): Built<ActionLink[]> {
+  // Only a link the person ADDED is judged: a new one needs a kind the network offers and an https address. One the network already holds keeps
+  // its kind and its scheme (a preference change on it is not a new link).
+  const held = new Set(before.map((l) => `${l.type}|${l.uri}`));
   for (const l of after) {
+    if (held.has(`${l.type}|${l.uri}`)) continue;
     if (!types.some((t) => t.type === l.type)) return { ok: false, message: "That kind of link is not offered." };
-    if (!HTTPS.test(l.uri)) return { ok: false, message: "A web address must start with https://." };
+    if (!HTTPS.test(l.uri)) return { ok: false, message: "A new web address must start with https://." };
   }
   const key = (l: ActionLink) => `${l.type}|${l.uri}|${l.preferred === true}`;
   const preferredTypes = after.filter((l) => l.preferred).map((l) => l.type);

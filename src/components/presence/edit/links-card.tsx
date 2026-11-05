@@ -4,10 +4,10 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ExtraPanel, type PanelContext } from "@/components/presence/edit/extra-panel";
-import { inFlightChanges, linksValue, linkTypeLabel, withLink, withoutLink, withPreferred, type ActionLink, type LinksResponse } from "@/lib/presence-extras";
+import { inFlightChanges, linksValue, linkTypeLabel, waitingWords, withLink, withoutLink, withPreferred, type ActionLink, type LinksResponse } from "@/lib/presence-extras";
 
 function LinksBody({ ctx }: { ctx: PanelContext<LinksResponse> }) {
-  const { data, label, access, busy, submit, changes, network } = ctx;
+  const { data, label, access, busy, submit, changes, network, can } = ctx;
   const [draft, setDraft] = useState<ActionLink[] | null>(null);
   const [type, setType] = useState(data.types[0]?.type ?? "");
   const [uri, setUri] = useState("");
@@ -25,19 +25,32 @@ function LinksBody({ ctx }: { ctx: PanelContext<LinksResponse> }) {
     if (r.ok) {
       setNotice(r.message);
       setDraft(null);
-    } else setMessage(r.message);
+    } else {
+      setMessage(r.message);
+      if (r.stale) setDraft(null);
+    }
   }
 
   return (
     <>
       <p className="text-xs text-muted-foreground">Links that a partner provides are not shown here and are not changed.</p>
+      {data.canonical && (data.canonical.booking || data.canonical.order) && (
+        <p className="text-xs text-muted-foreground">
+          {[
+            data.canonical.booking ? `The booking address on your listing comes from your "${data.canonical.booking.label}" link.` : null,
+            data.canonical.order ? `The order address on your listing comes from your "${data.canonical.order.label}" link.` : null,
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        </p>
+      )}
       {notice && (
         <p role="status" className="text-xs text-muted-foreground">
           {notice}
         </p>
       )}
       {access.mode === "view" && <p className="text-xs text-muted-foreground">{access.why}</p>}
-      {waiting && <p className="text-xs text-muted-foreground">A change to your links is waiting below. Approve or decline it before making another.</p>}
+      {waiting && <p className="text-xs text-muted-foreground">{waitingWords("links", can)}</p>}
       {list.length === 0 ? (
         <p className="text-xs text-muted-foreground">You have no booking or order links on {label} yet.</p>
       ) : (
@@ -82,7 +95,7 @@ function LinksBody({ ctx }: { ctx: PanelContext<LinksResponse> }) {
             <label className="text-xs" htmlFor="link-uri">
               Web address
             </label>
-            <Input id="link-uri" className="w-72" placeholder="https://" value={uri} onChange={(e) => setUri(e.target.value)} />
+            <Input id="link-uri" className="w-72" placeholder="https://  (a new link must use https)" value={uri} onChange={(e) => setUri(e.target.value)} />
           </div>
           <Button size="sm" variant="outline" disabled={!type || !uri.trim() || busy} onClick={() => { setDraft(withLink(list, { type, uri: uri.trim() })); setUri(""); }}>
             Add link

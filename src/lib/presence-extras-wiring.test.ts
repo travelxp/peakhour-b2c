@@ -28,7 +28,10 @@ describe("how the panels are wired", () => {
   });
   it("a proposal carries its place in its variables and is read through outcomeOf; the panel and the change list are refreshed once after it", () => {
     const shell = flat("components/presence/edit/extra-panel.tsx");
-    expect(shell).toContain("outcomeOf(await m.propose.mutateAsync({ ...target!, proposal: { field, value } }))");
+    expect(shell).toContain("outcomeOf(await m.propose.mutateAsync({ ...target!, proposal: { field, value, ...(base ? { base } : {}) } }))");
+    // the list as the page drew it rides with the change, and the api's refusal of a stale one reloads the panel
+    expect(shell).toContain("(data as { base?: string } | undefined)?.base");
+    expect(shell).toContain("isListChanged(err)");
     expect(shell).toContain("await m.refresh(target!);");
     const hook = flat("hooks/use-presence-extras.ts");
     expect(hook).toContain("mutationFn: (v: ExtraTarget & { proposal: ExtraProposal })");
@@ -44,11 +47,22 @@ describe("how the panels are wired", () => {
     const api = flat("lib/api/presence-extras.ts");
     for (const p of ["posts", "services", "attributes", "links"]) expect(api).toContain(`/v1/presence/extras/${p}?`);
     expect(api).toContain('"/v1/presence/changes"');
-    expect(api).toContain("changes: [{ field: p.field, value: p.value }]");
+    expect(api).toContain("changes: [{ field: p.field, value: p.value, ...(p.base ? { base: p.base } : {}) }]");
   });
   it("the posts card reads what waits from the change list, and explains a delete before approval", () => {
     const card = flat("components/presence/edit/posts-card.tsx");
     expect(card).toContain("const pending = pendingForPost(changes, network, p.ref);");
     expect(card).toContain("deleteNote(data.declaration, label)");
+  });
+  it("the post form: one draft id per opening, a cleared button clears its address, and it starts from the first declared kind", () => {
+    const posts = flat("components/presence/edit/posts-card.tsx");
+    expect(posts).toContain("const [draftId] = useState(() => newDraftId());");
+    expect(posts).toContain('e.target.value === "" || e.target.value === decl.actionWithoutUrl ? { actionUrl: "" }');
+    expect(posts).toContain('emptyPostDraft(data.declaration.kinds[0] ?? "update")');
+    expect(posts).toContain("held={p.action}");
+  });
+  it("a links change that settled reloads the listing, whose booking and order addresses it rewrote", () => {
+    const hook = flat("hooks/use-presence-extras.ts");
+    expect(hook).toContain('if (field === "links") void qc.invalidateQueries({ queryKey: ["presence", "listing"] });');
   });
 });

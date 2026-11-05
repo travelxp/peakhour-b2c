@@ -2,18 +2,21 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ExtraPanel, type PanelContext } from "@/components/presence/edit/extra-panel";
-import { addableServices, inFlightChanges, serviceKey, serviceLabel, servicesValue, withService, withoutService, type ServiceEntry, type ServicesResponse } from "@/lib/presence-extras";
+import { addableServices, inFlightChanges, serviceKey, serviceLabel, servicesValue, waitingWords, withCustomService, withService, withoutService, type ServiceEntry, type ServicesResponse } from "@/lib/presence-extras";
 
 function ServicesBody({ ctx }: { ctx: PanelContext<ServicesResponse> }) {
-  const { data, label, access, busy, submit, changes, network } = ctx;
+  const { data, label, access, busy, submit, changes, network, can } = ctx;
   const [draft, setDraft] = useState<ServiceEntry[] | null>(null);
   const [pick, setPick] = useState("");
+  const [own, setOwn] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const list = draft ?? data.current;
   const waiting = inFlightChanges(changes, network, "services").length > 0;
-  // Changing is withheld when the network's choices did not load (nothing can be added), but a service can still be removed.
+  // THE API'S RULE: only an entry the person ADDS is looked up in the network's list. Removing one needs no list, so a service can still be removed
+  // when the network's choices did not load; adding a listed one is what waits for the list, and a service of one's own needs the main category.
   const canEdit = access.mode === "edit" && !waiting;
   const addable = addableServices(list, data.options);
 
@@ -25,19 +28,30 @@ function ServicesBody({ ctx }: { ctx: PanelContext<ServicesResponse> }) {
     if (r.ok) {
       setNotice(r.message);
       setDraft(null);
-    } else setMessage(r.message);
+    } else {
+      setMessage(r.message);
+      if (r.stale) setDraft(null);
+    }
+  }
+
+  function addOwn() {
+    const r = withCustomService(list, data.categoryRef, own);
+    if (!r.ok) return setMessage(r.message);
+    setMessage(null);
+    setDraft(r.value);
+    setOwn("");
   }
 
   return (
     <>
-      {data.optionsNotice && <p className="text-xs text-warning-on-tint">{data.optionsNotice} Adding a service is not available until the list loads.</p>}
+      {data.optionsNotice && <p className="text-xs text-warning-on-tint">{data.optionsNotice} Adding a service from the list is not available until it loads. You can still remove a service{data.categoryRef ? " or add one of your own" : ""}.</p>}
       {notice && (
         <p role="status" className="text-xs text-muted-foreground">
           {notice}
         </p>
       )}
       {access.mode === "view" && <p className="text-xs text-muted-foreground">{access.why}</p>}
-      {waiting && <p className="text-xs text-muted-foreground">A change to your services is waiting below. Approve or decline it before making another.</p>}
+      {waiting && <p className="text-xs text-muted-foreground">{waitingWords("services", can)}</p>}
       {list.length === 0 ? (
         <p className="text-xs text-muted-foreground">You have no services on {label} yet.</p>
       ) : (
@@ -70,10 +84,27 @@ function ServicesBody({ ctx }: { ctx: PanelContext<ServicesResponse> }) {
               </option>
             ))}
           </select>
-          <Button size="sm" variant="outline" disabled={!pick || busy} onClick={() => { setDraft(withService(list, pick)); setPick(""); }}>
+          <Button size="sm" variant="outline" disabled={!pick || busy} onClick={() => { setDraft(withService(list, pick, data.current)); setPick(""); }}>
             Add
           </Button>
         </div>
+      )}
+      {canEdit && (
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="sr-only" htmlFor="service-own">
+            A service of your own
+          </label>
+          <Input id="service-own" className="w-64" placeholder="A service of your own" value={own} disabled={!data.categoryRef} onChange={(e) => setOwn(e.target.value)} />
+          <Button size="sm" variant="outline" disabled={!own.trim() || !data.categoryRef || busy} onClick={addOwn}>
+            Add
+          </Button>
+          {!data.categoryRef && <span className="text-xs text-muted-foreground">Set your main category first to add a service of your own.</span>}
+        </div>
+      )}
+      {!draft && message && (
+        <p role="alert" className="text-xs text-destructive">
+          {message}
+        </p>
       )}
       {draft && (
         <div className="space-y-2">

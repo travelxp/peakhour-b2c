@@ -11,6 +11,11 @@
  *   - links: https, a kind the network offers, one preferred per kind ... the lib spec.
  *   - what waits is read from the change list (a post with a change waiting has no Edit or Delete; a create waits on no post), and the controls
  *     wait for the change list to answer ... the lib and card specs.
+ *   - ROUND ONE: only what the person added or changed is judged (a held http link, a held link of a kind no longer offered, a held detail link
+ *     pass); a removed service comes back from what the network holds; a service of one's own is filed under the category; a post keeps its
+ *     language and event times and a held undeclared button; a new post carries a fresh draft id; the words follow the role; the panel sends the
+ *     base and reloads on the api's refusal; the panel is gated on the chosen network's declaration before the listing is read ... the "round
+ *     one" blocks of the lib, card and wiring specs.
  *   - the lines of a change card (a post shows its words, never raw JSON; each field has a title) ... the lib spec.
  *   - the edit card never lists a change a panel lists, and lists another network's ... the photos wiring spec and this one.
  *
@@ -77,6 +82,20 @@ const NOTE = "what a post says about itself > a delete says before approval whet
 const STATES = "what a post says about itself > states: showing, processing (may not show yet), not published, and not said; the label is the api's";
 const LINES_POST = "the lines of a change card (never raw JSON) > a post shows its kind and words, its button, dates and offer; a delete says it will be removed";
 const LINES_LIST = "the lines of a change card (never raw JSON) > services, details and links list their entries";
+const WIRE_POSTFORM = "how the panels are wired > the post form: one draft id per opening, a cleared button clears its address, and it starts from the first declared kind";
+const WIRE_LINKSLIVE = "how the panels are wired > a links change that settled reloads the listing, whose booking and order addresses it rewrote";
+const R1 = (n) => `round one: only what the person added or changed is judged, and nothing a person did not touch is lost > ${n}`;
+const R1_LINKS_HELD = R1("a held http link passes when the person changes something else; a NEW link needs https");
+const R1_LINKS_KIND = R1("a held link of a kind no longer offered passes; a new one of that kind does not");
+const R1_DETAIL_LINK = R1("a held detail link keeps its scheme; a changed one needs a web address");
+const R1_RESTORE = R1("a removed service comes back from what the network holds, price and description included, not as a bare one");
+const R1_OWN = R1("a service the person names is filed under the network's category; without one, or empty, or twice, nothing is added");
+const R1_KEEP = R1("a post keeps its language and its event times through an edit");
+const R1_BUTTON = R1("a button the network no longer offers is kept as it is when the person leaves it, and refused when they set it anew");
+const R1_EMPTYKIND = R1("a button with an empty kind does not leave an address behind");
+const R1_DRAFT = R1("a new post gets a fresh 24-hex draft id each time");
+const R1_WORDS = R1("success and waiting words follow the role: only an admin is told to approve");
+const R1_STALE = R1("the api's refusal of a stale list is recognised by its code only");
 const TITLES = "the lines of a change card (never raw JSON) > each field has a title";
 const WIRE_HOME = "how the panels are wired > the page draws the four cards for an editable network, each KEYED by place and network";
 const WIRE_SHELL = "how the panels are wired > the shell draws nothing unless the network's declaration offers the panel";
@@ -152,11 +171,11 @@ const MUTANTS = [
   ["settled-never-detected", "kill", LIB, "for (const id of before) if (!flying.has(id)) return true;", "for (const id of before) if (!flying.has(id) && false) return true;", t(T, SETTLED)],
 
   // ── services ──
-  ["service-add-drops-the-rest", "kill", LIB, "[...current, { kind: \"listed\", id }]", "[{ kind: \"listed\", id }]", t(T, SVC_ADD)],
+  ["service-add-drops-the-rest", "kill", LIB, "[...current, back ?? { kind: \"listed\", id }]", "[{ kind: \"listed\", id }]", t(T, SVC_ADD)],
   ["service-remove-strips-price", "kill", LIB, "return current.filter((s) => serviceKey(s) !== key);", "return current.filter((s) => serviceKey(s) !== key).map((s) => { const { price: _p, ...rest } = s; return rest as ServiceEntry; });", t(T, SVC_DEL)],
   ["service-remove-removes-all", "kill", LIB, "return current.filter((s) => serviceKey(s) !== key);", "return [];", t(T, SVC_DEL)],
   ["service-offers-held", "kill", LIB, "return (options ?? []).filter((o) => !held.has(o.id));", "return options ?? [];", t(T, SVC_OFFER).concat(t(T_CARD, C_SVC_LIST))],
-  ["service-added-twice", "kill", LIB, 'return current.some((s) => s.kind === "listed" && s.id === id) ? [...current] : [...current, { kind: "listed", id }];', 'return [...current, { kind: "listed", id }];', t(T, SVC_OFFER)],
+  ["service-added-twice", "kill", LIB, 'if (current.some((s) => s.kind === "listed" && s.id === id)) return [...current];', 'if (false) return [...current];', t(T, SVC_OFFER)],
   ["service-unchanged-is-a-change", "kill", LIB, 'if (a === b) return { ok: false, message: "Add or remove a service first." };', "", t(T, SVC_SAME)],
   ["services-notice-unsaid", "kill", SERVICES, "{data.optionsNotice && <p", "{false && <p", t(T_CARD, C_SVC_NOTICE)],
   ["services-add-without-choices", "kill", SERVICES, "{canEdit && addable.length > 0 && (", "{canEdit && (", t(T_CARD, C_SVC_NOTICE)],
@@ -175,12 +194,39 @@ const MUTANTS = [
   // ── links ──
   ["preferred-kept-on-others", "kill", LIB, "return i === index ? { ...rest, preferred: true } : l.type === type ? rest : l;", "return i === index ? { ...rest, preferred: true } : l;", t(T, LINK_PREF)],
   ["preferred-cleared-everywhere", "kill", LIB, "return i === index ? { ...rest, preferred: true } : l.type === type ? rest : l;", "return i === index ? { ...rest, preferred: true } : rest;", t(T, LINK_PREF)],
-  ["link-not-https", "kill", LIB, 'if (!HTTPS.test(l.uri)) return { ok: false, message: "A web address must start with https://." };', "", t(T, LINK_REFUSE)],
+  ["link-not-https", "kill", LIB, 'if (!HTTPS.test(l.uri)) return { ok: false, message: "A new web address must start with https://." };', "", t(T, LINK_REFUSE, R1_LINKS_HELD)],
   ["link-kind-unchecked", "kill", LIB, 'if (!types.some((t) => t.type === l.type)) return { ok: false, message: "That kind of link is not offered." };', "", t(T, LINK_REFUSE)],
   ["two-preferred-allowed", "kill", LIB, 'if (new Set(preferredTypes).size !== preferredTypes.length) return { ok: false, message: "Only one link of each kind can be the preferred one." };', "", t(T, LINK_REFUSE)],
   ["link-added-twice", "kill", LIB, "return current.some((l) => l.type === link.type && l.uri === link.uri) ? [...current] : [...current, link];", "return [...current, link];", t(T, LINK_ADD)],
   ["link-remove-wrong-one", "kill", LIB, "return current.filter((_, i) => i !== index);", "return current.filter((_, i) => i === index);", t(T, LINK_ADD)],
   ["partner-links-unsaid", "kill", "src/components/presence/edit/links-card.tsx", "Links that a partner provides are not shown here and are not changed.", "", t(T_CARD, C_LINKS)],
+
+
+  // ── round one ──
+  ["held-link-judged", "kill", LIB, "    if (held.has(`${l.type}|${l.uri}`)) continue;\n    if (!types.some", "    if (!types.some", t(T, R1_LINKS_HELD, R1_LINKS_KIND)],
+  ["held-detail-link-judged", "kill", LIB, "    if (held.has(entryKey(e))) continue;\n", "", t(T, R1_DETAIL_LINK)],
+  ["changed-detail-link-unjudged", "kill", LIB, 'if (e.kind === "link" && e.values.some((v) => !WEB.test(v))) return { ok: false, message: "A web address must start with http:// or https://." };', "", t(T, R1_DETAIL_LINK)],
+  ["removed-service-comes-back-bare", "kill", LIB, "const back = held.find((s) => s.kind === \"listed\" && s.id === id);\n  return [...current, back ?? { kind: \"listed\", id }];", "return [...current, { kind: \"listed\", id }];", t(T, R1_RESTORE)],
+  ["own-service-without-category", "kill", LIB, 'if (!categoryRef) return { ok: false, message: "We cannot file a service of your own until your main category is set." };', "", t(T, R1_OWN)],
+  ["own-service-twice", "kill", LIB, "if (current.some((s) => serviceKey(s) === serviceKey(entry))) return", "if (false) return", t(T, R1_OWN)],
+  ["post-language-dropped", "kill", LIB, "...(draft.languageCode.trim() ? { languageCode: draft.languageCode.trim() } : {}) };", "};", t(T, R1_KEEP)],
+  ["post-event-times-dropped", "kill", LIB, "      ...(draft.startTime ? { startTime: draft.startTime } : {}),\n      ...(draft.endTime ? { endTime: draft.endTime } : {}),\n", "", t(T, R1_KEEP)],
+  ["held-button-judged-again", "kill", LIB, "if (type && keptButton) {", "if (false) {", t(T, R1_BUTTON)],
+  ["any-button-kept", "kill", LIB, "const keptButton = !!held && held.type.toUpperCase() === type && (held.url ?? \"\") === draft.actionUrl.trim();", "const keptButton = !!held;", t(T, R1_BUTTON)],
+  ["no-button-keeps-address", "kill", POSTS, '...(e.target.value === "" || e.target.value === decl.actionWithoutUrl ? { actionUrl: "" } : {})', "...(e.target.value === decl.actionWithoutUrl ? { actionUrl: \"\" } : {})", t(T_WIRE, WIRE_POSTFORM)],
+  ["address-without-button-allowed", "kill", LIB, 'return { ok: false, message: "Choose a button for that web address, or clear it." };', 'return { ok: true, value: { ...op, ...value } as PostValue };', t(T, R1_EMPTYKIND, V_BTN)],
+  ["draft-id-constant", "kill", LIB, "globalThis.crypto.getRandomValues(bytes);", "bytes.fill(7);", t(T, R1_DRAFT)],
+  ["draft-id-per-submit", "kill", POSTS, "const [draftId] = useState(() => newDraftId());", "const draftId = newDraftId();", t(T_WIRE, WIRE_POSTFORM)],
+  ["form-starts-from-update", "kill", POSTS, 'emptyPostDraft(data.declaration.kinds[0] ?? "update")', "emptyPostDraft()", t(T_WIRE, WIRE_POSTFORM)],
+  ["prepared-words-ignore-role", "kill", LIB, 'can?.approve ? "Review it below, then approve it." : "It is waiting below for an admin or owner to approve."', '"Review it below, then approve it."', t(T, R1_WORDS)],
+  ["waiting-words-ignore-role", "kill", LIB, "return can?.approve\n    ? `A change to your ${what} is waiting below. Approve or decline it before making another.`", "return true\n    ? `A change to your ${what} is waiting below. Approve or decline it before making another.`", t(T, R1_WORDS)],
+  ["stale-code-any", "kill", LIB, 'return (err as { code?: string } | null)?.code === LIST_CHANGED_CODE;', "return !!err;", t(T, R1_STALE)],
+  ["base-not-sent", "kill", SHELL, "proposal: { field, value, ...(base ? { base } : {}) }", "proposal: { field, value }", t(T_WIRE, WIRE_PROPOSE)],
+  ["stale-refusal-unhandled", "kill", SHELL, "if (isListChanged(err)) {", "if (false) {", t(T_WIRE, WIRE_PROPOSE)],
+  ["shell-gated-on-listing-first", "kill", SHELL, "  if (!declared) return null;\n", "", t(T_CARD, "a panel is drawn only for a network that declares it > a network that declares no panel draws nothing even while its listing has not loaded or failed to load")],
+  ["links-change-keeps-listing", "kill", "src/hooks/use-presence-extras.ts", 'if (field === "links") void qc.invalidateQueries({ queryKey: ["presence", "listing"] });', "", t(T_WIRE, WIRE_LINKSLIVE)],
+  ["links-canonical-unsaid", "kill", "src/components/presence/edit/links-card.tsx", "booking address on your listing comes from your", "address on your listing comes from your", t(T_CARD, "round one > links: says which kind of link the booking and order addresses come from")],
+  ["own-service-needs-no-category", "kill", SERVICES, "disabled={!data.categoryRef}", "", t(T_CARD, "round one > services: a service of your own can be added with a category, and not without one; removal needs no list")],
 
   // ── the lines of a change card ──
   ["card-lines-skip-posts", "kill", EDIT_LIB, '    case "posts":\n    case "services":', '    case "services":', t(T, LINES_POST)],
@@ -195,7 +241,7 @@ const MUTANTS = [
 
   // ── wiring ──
   ["proposal-without-its-place", "kill", "src/hooks/use-presence-extras.ts", "(v: ExtraTarget & { proposal: ExtraProposal })", "(v: { proposal: ExtraProposal })", t(T_WIRE, WIRE_PROPOSE)],
-  ["proposal-counted-unread", "kill", SHELL, "outcomeOf(await m.propose.mutateAsync({ ...target!, proposal: { field, value } }))", '({ kind: "prepared", id: "x" } as const)', t(T_WIRE, WIRE_PROPOSE)],
+  ["proposal-counted-unread", "kill", SHELL, "outcomeOf(await m.propose.mutateAsync({ ...target!, proposal: { field, value, ...(base ? { base } : {}) } }))", '({ kind: "prepared", id: "x" } as const)', t(T_WIRE, WIRE_PROPOSE)],
   ["edit-card-lists-twice", "kill", EDIT_CARD, "|| extraFields.has(c.field))", "|| false)", t(T_WIRE, WIRE_EDIT).concat(t(T_PHOTOS, PH_EDIT))],
   ["edit-card-hides-other-networks", "kill", EDIT_CARD, "c.network === network && ((photoChangesElsewhere", "((photoChangesElsewhere", t(T_WIRE, WIRE_EDIT).concat(t(T_PHOTOS, PH_EDIT))],
 ];

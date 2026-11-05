@@ -70,7 +70,11 @@ export function useRefreshWhenSettled(field: ExtraField, items: ChangeCardData[]
   const seen = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!items || !target) return;
-    if (settledSince(seen.current, items, target.network, field)) void qc.invalidateQueries({ queryKey: presenceExtrasKey(field, target.listingId, target.network) });
+    if (settledSince(seen.current, items, target.network, field)) {
+      void qc.invalidateQueries({ queryKey: presenceExtrasKey(field, target.listingId, target.network) });
+      // a links change that went live rewrote the booking and order addresses on the listing
+      if (field === "links") void qc.invalidateQueries({ queryKey: ["presence", "listing"] });
+    }
     seen.current = new Set(inFlightChanges(items, target.network, field).map((c) => c.id));
   }, [items, target?.listingId, target?.network, field, qc]); // eslint-disable-line react-hooks/exhaustive-deps
 }

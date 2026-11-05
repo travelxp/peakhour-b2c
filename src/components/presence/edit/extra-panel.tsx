@@ -9,7 +9,7 @@ import { useChangeOutcomes, useEditCapabilities, useListingChanges } from "@/hoo
 import { useExtra, useExtraMutations, useRefreshWhenSettled, type ExtraTarget } from "@/hooks/use-presence-extras";
 import { useListingQuery } from "@/hooks/use-presence-listing";
 import { errorWords, type CapabilitiesResponse, type ChangeCardData } from "@/lib/presence-edit";
-import { capabilityOf, drawsPanel, extrasAccess, listedChanges, listView, withChangesKnown, type ExtraField, type ListView } from "@/lib/presence-extras";
+import { capabilityOf, drawsPanel, extrasAccess, isListChanged, listedChanges, listView, preparedWords, withChangesKnown, type ExtraField, type ListView } from "@/lib/presence-extras";
 import { outcomeOf, type PhotoAccess } from "@/lib/presence-photos";
 import { fetchView, primaryEntry } from "@/lib/presence-panels";
 
@@ -24,8 +24,11 @@ export interface PanelContext<D> {
   changes: ChangeCardData[] | undefined;
   can: CapabilitiesResponse["can"] | undefined;
   busy: boolean;
-  /** Prepares a change and answers with the words to show. Never "saved": the change waits for an approval. */
-  submit: (value: unknown) => Promise<{ ok: boolean; message: string }>;
+  /**
+   * Prepares a change and answers with the words to show. Never "saved": the change waits for an approval. `stale` is the api refusing a change
+   * built on a list that has since changed: the panel has already reloaded, and the card drops its draft.
+   */
+  submit: (value: unknown) => Promise<{ ok: boolean; message: string; stale?: boolean }>;
 }
 
 /**
@@ -61,7 +64,11 @@ export function ExtraPanel<D extends { label: string; writes: { notice: string |
   const network = entry?.network;
   const caps = useEditCapabilities();
   const capsView = fetchView({ hasData: !!caps.data, isPending: caps.isPending, isError: caps.isError, fetchStatus: caps.fetchStatus });
+  // WHETHER THE PANEL EXISTS IS DECIDED BY THE CHOSEN NETWORK'S DECLARATION FIRST, before the listing is read: a network with no such panel draws
+  // nothing at all (no skeleton, no "could not load"). Until the capabilities have answered, nothing is drawn either.
+  const wanted = chosenNetwork ?? network;
   const drawn = drawsPanel(capabilityOf(caps.data, network), field);
+  const declared = wanted ? drawsPanel(capabilityOf(caps.data, wanted), field) : !!caps.data?.items.some((c) => drawsPanel(c, field));
   const target: ExtraTarget | null = listing && network ? { listingId: listing.id, network } : null;
   const q = useExtra(field, listing?.id, network, drawn);
   const changes = useListingChanges(drawn ? listing?.id : undefined);
@@ -78,13 +85,14 @@ export function ExtraPanel<D extends { label: string; writes: { notice: string |
     </div>
   );
 
-  if (listingQ.isPending || (capsView === "loading" || capsView === "paused")) {
-    // The listing and the capabilities decide whether the panel exists at all: until both have answered, a skeleton, never a flash of the panel.
+  if (!declared) return null;
+  if (listingQ.isPending) {
+    // The declaration says this panel exists; the listing says which place it is for. Until it answers, a skeleton.
     return (
       <Card className="gap-3 p-5">
         {header}
         <Skeleton className="h-16 w-full" />
-        {(listingQ.fetchStatus === "paused" || capsView === "paused") && <p className="text-xs text-muted-foreground">Waiting for a connection.</p>}
+        {listingQ.fetchStatus === "paused" && <p className="text-xs text-muted-foreground">Waiting for a connection.</p>}
       </Card>
     );
   }
@@ -108,15 +116,21 @@ export function ExtraPanel<D extends { label: string; writes: { notice: string |
   const access: PhotoAccess = withChangesKnown(extrasAccess(capsView, caps.data?.can, what), changesView, what);
   const items = changes.data?.items;
 
-  async function submit(value: unknown): Promise<{ ok: boolean; message: string }> {
+  async function submit(value: unknown): Promise<{ ok: boolean; message: string; stale?: boolean }> {
     setBusy(true);
     try {
-      const out = outcomeOf(await m.propose.mutateAsync({ ...target!, proposal: { field, value } }));
+      // The list as this page drew it: the api refuses the change if the network's list is no longer that.
+      const base = field === "posts" ? undefined : (data as { base?: string } | undefined)?.base;
+      const out = outcomeOf(await m.propose.mutateAsync({ ...target!, proposal: { field, value, ...(base ? { base } : {}) } }));
       await m.refresh(target!);
-      if (out.kind === "prepared") return { ok: true, message: "Your change is prepared and checked. Review it below, then approve it." };
-      if (out.kind === "not_checked") return { ok: true, message: `Your change is prepared, but ${label} could not check it just now. It is waiting below.` };
+      if (out.kind === "prepared") return { ok: true, message: preparedWords(caps.data?.can, label, true) };
+      if (out.kind === "not_checked") return { ok: true, message: preparedWords(caps.data?.can, label, false) };
       return { ok: false, message: out.message };
     } catch (err) {
+      if (isListChanged(err)) {
+        await m.refresh(target!);
+        return { ok: false, stale: true, message: `${errorWords(err)} The list has been reloaded; make your change again from what is there now.` };
+      }
       return { ok: false, message: errorWords(err) };
     } finally {
       setBusy(false);

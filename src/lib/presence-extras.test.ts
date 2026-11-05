@@ -13,6 +13,11 @@ import {
   extrasAccess,
   humanize,
   inFlightChanges,
+  isListChanged,
+  newDraftId,
+  preparedWords,
+  waitingWords,
+  withCustomService,
   linksValue,
   listedChanges,
   listView,
@@ -45,7 +50,7 @@ import { fieldTitle, valueLines, type ChangeCardData } from "@/lib/presence-edit
  */
 
 const DECL: PostsDeclaration = { kinds: ["update", "event", "offer"], actions: ["BOOK", "ORDER", "CALL"], actionWithoutUrl: "CALL", limits: { summaryMaxLength: 100 }, edit: true, removal: { restorable: false } };
-const create = { op: "create" } as const;
+const create = { op: "create", draftId: "0123456789abcdef01234567" } as const;
 const draft = (over: Record<string, string> = {}) => ({ ...emptyPostDraft(), summary: "Open late on Friday.", ...over });
 const change = (over: Partial<ChangeCardData> = {}): ChangeCardData =>
   ({ id: "c1", listingId: "l1", network: "net_a", field: "posts", status: "validated", riskTier: "ordinary", notes: [], source: "form", before: null, after: { op: "delete", ref: "p/1" }, reason: null, held: null, validation: null, createdAt: "", expiresAt: "", submittedAt: null, liveAt: null, liveCheck: null, undone: false, ...over }) as ChangeCardData;
@@ -66,7 +71,7 @@ describe("which panels a network draws", () => {
 
 describe("a post value", () => {
   it("a plain update is built from the words, trimmed", () => {
-    expect(buildPostValue(draft({ summary: "  Hello  " }), DECL, create)).toEqual({ ok: true, value: { op: "create", kind: "update", summary: "Hello" } });
+    expect(buildPostValue(draft({ summary: "  Hello  " }), DECL, create)).toEqual({ ok: true, value: { op: "create", draftId: create.draftId, kind: "update", summary: "Hello" } });
   });
   it("an edit carries the ref, a button with an https address, an event with its dates and an offer with its terms", () => {
     const r = buildPostValue(draft({ kind: "offer", eventTitle: "Sale", start: "2026-12-01", end: "2026-12-05", offerCode: "X1", redeemUrl: "https://a.example/r", terms: "T", actionType: "ORDER", actionUrl: "https://a.example/o" }), DECL, { op: "update", ref: "p/1" });
@@ -105,7 +110,7 @@ describe("a post value", () => {
     expect(buildPostValue(draft({ kind: "event", eventTitle: "T", start: "2026-13-45" }), DECL, create)).toMatchObject({ ok: false });
     expect(buildPostValue(draft({ kind: "event", eventTitle: "T", start: "2026-12-02", end: "2026-12-01" }), DECL, create)).toMatchObject({ ok: false });
     expect(buildPostValue(draft({ kind: "event", eventTitle: "T", start: "2026-12-01", end: "2026-12-01" }), DECL, create).ok).toBe(true);
-    expect(buildPostValue(draft({ eventTitle: "T", start: "2026-12-01" }), DECL, create)).toEqual({ ok: true, value: { op: "create", kind: "update", summary: "Open late on Friday." } });
+    expect(buildPostValue(draft({ eventTitle: "T", start: "2026-12-01" }), DECL, create)).toEqual({ ok: true, value: { op: "create", draftId: create.draftId, kind: "update", summary: "Open late on Friday." } });
   });
   it("the redeem link of an offer must be https", () => {
     const o = { kind: "offer", eventTitle: "T", start: "2026-12-01" };
@@ -229,7 +234,7 @@ describe("services: a whole list that keeps what you did not touch", () => {
 
 describe("details: only what is offered, and clearing removes", () => {
   const option = (over: Partial<AttributeOption> = {}): AttributeOption => ({ id: "a/wifi", label: "Wi-Fi", kind: "yesno", values: [], deprecated: false, ...over });
-  const held: AttributeEntry[] = [{ id: "a/wifi", kind: "yesno", value: true }, { id: "a/seating", kind: "choice", value: "INDOOR" }];
+  const held: AttributeEntry[] = [{ id: "a/wifi", kind: "yesno", value: true }, { id: "a/seating", kind: "choice", values: ["INDOOR"] }];
   it("a deprecated detail is never offered", () => {
     expect(offeredDetails([option(), option({ id: "a/old", deprecated: true })]).map((o) => o.id)).toEqual(["a/wifi"]);
     expect(offeredDetails(null)).toEqual([]);
@@ -257,7 +262,9 @@ describe("details: only what is offered, and clearing removes", () => {
   });
   it("a detail reads as a line with the network's own words", () => {
     const o = [option({ id: "a/seating", label: "Seating", kind: "choice", values: [{ value: "INDOOR", label: "Indoor" }] })];
-    expect(detailLine({ id: "a/seating", kind: "choice", value: "INDOOR" }, o)).toBe("Seating: Indoor");
+    expect(detailLine({ id: "a/seating", kind: "choice", values: ["INDOOR"] }, o)).toBe("Seating: Indoor");
+    // a repeatable detail shows every value it holds
+    expect(detailLine({ id: "a/seating", kind: "choice", values: ["INDOOR", "OTHER"] }, o)).toBe("Seating: Indoor, Other");
     expect(detailLine({ id: "a/wifi", kind: "yesno", value: false }, null)).toBe("Wifi: No");
     expect(detailLine({ id: "a/pay", kind: "choices", set: ["CARD"], unset: ["CASH"] }, null)).toBe("Pay: Card, not Cash");
   });
@@ -310,5 +317,76 @@ describe("the lines of a change card (never raw JSON)", () => {
   });
   it("each field has a title", () => {
     expect([fieldTitle("posts"), fieldTitle("services"), fieldTitle("attributes"), fieldTitle("links")]).toEqual(["Post", "Services", "Details", "Links"]);
+  });
+});
+
+describe("round one: only what the person added or changed is judged, and nothing a person did not touch is lost", () => {
+  const types = [{ type: "BOOK", label: "Book" }];
+  it("a held http link passes when the person changes something else; a NEW link needs https", () => {
+    const held = [{ type: "BOOK", uri: "http://old.example/book" }];
+    expect(linksValue(held, [...held, { type: "BOOK", uri: "https://new.example" }], types)).toMatchObject({ ok: true });
+    expect(linksValue(held, [{ ...held[0]!, preferred: true }], types)).toMatchObject({ ok: true });
+    expect(linksValue(held, [...held, { type: "BOOK", uri: "http://new.example" }], types)).toMatchObject({ ok: false });
+  });
+  it("a held link of a kind no longer offered passes; a new one of that kind does not", () => {
+    const held = [{ type: "RETIRED", uri: "https://old.example" }];
+    expect(linksValue(held, [...held, { type: "BOOK", uri: "https://new.example" }], types)).toMatchObject({ ok: true });
+    expect(linksValue(held, [...held, { type: "RETIRED", uri: "https://other.example" }], types)).toMatchObject({ ok: false });
+  });
+  it("a held detail link keeps its scheme; a changed one needs a web address", () => {
+    const held: AttributeEntry[] = [{ id: "a/menu", kind: "link", values: ["ftp://old.example"] }, { id: "a/wifi", kind: "yesno", value: true }];
+    expect(detailsValue(held, withDetail(held, { id: "a/wifi", kind: "yesno", value: false }))).toMatchObject({ ok: true });
+    expect(detailsValue(held, withDetail(held, { id: "a/menu", kind: "link", values: ["ftp://new.example"] }))).toMatchObject({ ok: false });
+  });
+  it("a removed service comes back from what the network holds, price and description included, not as a bare one", () => {
+    const held: ServiceEntry[] = [{ kind: "listed", id: "svc/coffee", description: "Hot", price: { currencyCode: "INR", units: "0" } }];
+    const removed = withoutService(held, "listed:svc/coffee");
+    expect(withService(removed, "svc/coffee", held)).toEqual(held);
+    expect(withService(removed, "svc/coffee")).toEqual([{ kind: "listed", id: "svc/coffee" }]);
+  });
+  it("a service the person names is filed under the network's category; without one, or empty, or twice, nothing is added", () => {
+    const held: ServiceEntry[] = [{ kind: "listed", id: "svc/coffee" }];
+    expect(withCustomService(held, "cat/cafe", "  Latte art  ")).toEqual({ ok: true, value: [...held, { kind: "custom", categoryId: "cat/cafe", name: "Latte art" }] });
+    expect(withCustomService(held, null, "Latte art")).toMatchObject({ ok: false });
+    expect(withCustomService(held, "cat/cafe", "   ")).toMatchObject({ ok: false });
+    const once = withCustomService(held, "cat/cafe", "Latte art");
+    expect(once.ok && withCustomService(once.value, "cat/cafe", "latte ART")).toMatchObject({ ok: false });
+  });
+  it("a post keeps its language and its event times through an edit", () => {
+    const d = postDraftOf({ ref: "p/1", kind: "event", summary: "S", state: "live", languageCode: "en", action: null, event: { title: "T", start: "2026-12-01", startTime: "18:00", endTime: "21:30" }, offer: null, createdAt: null, updatedAt: null, url: null, hasPhoto: false });
+    expect(buildPostValue(d, DECL, { op: "update", ref: "p/1" })).toEqual({
+      ok: true,
+      value: { op: "update", ref: "p/1", kind: "event", summary: "S", languageCode: "en", event: { title: "T", start: "2026-12-01", startTime: "18:00", endTime: "21:30" } },
+    });
+  });
+  it("a button the network no longer offers is kept as it is when the person leaves it, and refused when they set it anew", () => {
+    const held = { type: "SHOP", url: "https://a.example" };
+    const d = draft({ actionType: "SHOP", actionUrl: "https://a.example" });
+    expect(buildPostValue(d, DECL, { op: "update", ref: "p/1" }, held)).toMatchObject({ ok: true, value: { action: held } });
+    expect(buildPostValue(d, DECL, { op: "update", ref: "p/1" })).toEqual({ ok: false, message: "That button is not offered." });
+    expect(buildPostValue(draft({ actionType: "SHOP", actionUrl: "https://b.example" }), DECL, { op: "update", ref: "p/1" }, held)).toMatchObject({ ok: false });
+    // cleared: no button at all
+    expect(buildPostValue(draft({}), DECL, { op: "update", ref: "p/1" }, held)).toEqual({ ok: true, value: { op: "update", ref: "p/1", kind: "update", summary: "Open late on Friday." } });
+  });
+  it("a button with an empty kind does not leave an address behind", () => {
+    expect(buildPostValue(draft({ actionType: "", actionUrl: "https://a.example" }), DECL, create)).toMatchObject({ ok: false });
+  });
+  it("a new post gets a fresh 24-hex draft id each time", () => {
+    const a = newDraftId();
+    expect(a).toMatch(/^[0-9a-f]{24}$/);
+    expect(newDraftId()).not.toBe(a);
+  });
+  it("success and waiting words follow the role: only an admin is told to approve", () => {
+    expect(preparedWords({ approve: true }, "NetA", true)).toContain("then approve it");
+    expect(preparedWords({ approve: false }, "NetA", true)).toContain("an admin or owner to approve");
+    expect(preparedWords({ approve: false }, "NetA", true)).not.toContain("then approve it");
+    expect(preparedWords({ approve: true }, "NetA", false)).toContain("NetA could not check it");
+    expect(waitingWords("links", { approve: true })).toContain("Approve or decline it");
+    expect(waitingWords("links", { approve: false })).not.toContain("Approve or decline it before");
+  });
+  it("the api's refusal of a stale list is recognised by its code only", () => {
+    expect(isListChanged({ code: "LIST_CHANGED" })).toBe(true);
+    expect(isListChanged({ code: "RULES_FAILED" })).toBe(false);
+    expect(isListChanged(null)).toBe(false);
   });
 });

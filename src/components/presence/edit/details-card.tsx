@@ -10,6 +10,7 @@ import {
   detailsValue,
   inFlightChanges,
   offeredDetails,
+  waitingWords,
   withChoice,
   withDetail,
   withoutDetail,
@@ -41,8 +42,17 @@ function Editor({ option, entry, onSet, onChoice, onClear, disabled }: {
             <option value="false">No</option>
           </select>
         )}
-        {option.kind === "choice" && (
-          <select id={id} className="h-9 rounded-md border bg-background px-2 text-sm" disabled={disabled} value={entry?.kind === "choice" ? entry.value : ""} onChange={(e) => (e.target.value ? onSet({ id: option.id, kind: "choice", value: e.target.value }) : onClear())}>
+        {option.kind === "choice" && entry?.kind === "choice" && entry.values.length > 1 && (
+          // Several values held: every one is kept. Shown, and cleared as a whole; choosing one would drop the rest.
+          <>
+            <span id={id} className="text-sm">{entry.values.map((v) => option.values.find((x) => x.value === v)?.label ?? v).join(", ")}</span>
+            <Button size="sm" variant="outline" disabled={disabled} onClick={onClear}>
+              Clear
+            </Button>
+          </>
+        )}
+        {option.kind === "choice" && !(entry?.kind === "choice" && entry.values.length > 1) && (
+          <select id={id} className="h-9 rounded-md border bg-background px-2 text-sm" disabled={disabled} value={entry?.kind === "choice" ? (entry.values[0] ?? "") : ""} onChange={(e) => (e.target.value ? onSet({ id: option.id, kind: "choice", values: [e.target.value] }) : onClear())}>
             <option value="">Not said</option>
             {option.values.map((v) => (
               <option key={v.value} value={v.value}>
@@ -51,8 +61,16 @@ function Editor({ option, entry, onSet, onChoice, onClear, disabled }: {
             ))}
           </select>
         )}
-        {option.kind === "link" && (
-          <Input id={id} className="w-64" placeholder="https://" disabled={disabled} value={entry?.kind === "link" ? entry.value : ""} onChange={(e) => (e.target.value ? onSet({ id: option.id, kind: "link", value: e.target.value }) : onClear())} />
+        {option.kind === "link" && entry?.kind === "link" && entry.values.length > 1 && (
+          <>
+            <span id={id} className="break-all text-sm">{entry.values.join(", ")}</span>
+            <Button size="sm" variant="outline" disabled={disabled} onClick={onClear}>
+              Clear
+            </Button>
+          </>
+        )}
+        {option.kind === "link" && !(entry?.kind === "link" && entry.values.length > 1) && (
+          <Input id={id} className="w-64" placeholder="https://" disabled={disabled} value={entry?.kind === "link" ? (entry.values[0] ?? "") : ""} onChange={(e) => (e.target.value ? onSet({ id: option.id, kind: "link", values: [e.target.value] }) : onClear())} />
         )}
         {option.kind === "choices" &&
           option.values.map((v) => {
@@ -74,7 +92,7 @@ function Editor({ option, entry, onSet, onChoice, onClear, disabled }: {
 }
 
 function DetailsBody({ ctx }: { ctx: PanelContext<AttributesResponse> }) {
-  const { data, label, access, busy, submit, changes, network } = ctx;
+  const { data, label, access, busy, submit, changes, network, can } = ctx;
   const [draft, setDraft] = useState<AttributeEntry[] | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -93,7 +111,10 @@ function DetailsBody({ ctx }: { ctx: PanelContext<AttributesResponse> }) {
     if (r.ok) {
       setNotice(r.message);
       setDraft(null);
-    } else setMessage(r.message);
+    } else {
+      setMessage(r.message);
+      if (r.stale) setDraft(null);
+    }
   }
 
   const offeredIds = new Set(offered.map((o) => o.id));
@@ -109,7 +130,7 @@ function DetailsBody({ ctx }: { ctx: PanelContext<AttributesResponse> }) {
         </p>
       )}
       {access.mode === "view" && <p className="text-xs text-muted-foreground">{access.why}</p>}
-      {waiting && <p className="text-xs text-muted-foreground">A change to your details is waiting below. Approve or decline it before making another.</p>}
+      {waiting && <p className="text-xs text-muted-foreground">{waitingWords("details", can)}</p>}
       {data.current.length === 0 && !draft && <p className="text-xs text-muted-foreground">You have no details on {label} yet.</p>}
       {canEdit ? (
         <ul className="divide-y">

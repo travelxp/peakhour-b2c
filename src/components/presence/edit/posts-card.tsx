@@ -13,6 +13,7 @@ import {
   deleteNote,
   emptyPostDraft,
   KIND_LABEL,
+  newDraftId,
   pendingForPost,
   pendingNote,
   postControls,
@@ -29,6 +30,7 @@ function PostForm({
   decl,
   initial,
   op,
+  held = null,
   busy,
   onSubmit,
   onCancel,
@@ -36,6 +38,8 @@ function PostForm({
   decl: PostsResponse["declaration"];
   initial: PostDraft;
   op: { op: "create" } | { op: "update"; ref: string };
+  /** The button the post has now, when editing: shown honestly if the network no longer offers it, and kept or cleared by the person. */
+  held?: { type: string; url?: string } | null;
   busy: boolean;
   onSubmit: (value: unknown) => Promise<{ ok: boolean; message: string }>;
   onCancel: () => void;
@@ -43,12 +47,15 @@ function PostForm({
   const [d, setD] = useState<PostDraft>(initial);
   const [message, setMessage] = useState<string | null>(null);
   const editing = op.op === "update";
+  // One id for this form, made when it opens and kept across a double click or a retry: the api treats the same id as the same post.
+  const [draftId] = useState(() => newDraftId());
+  const undeclared = d.actionType !== "" && !decl.actions.includes(d.actionType.toUpperCase());
   const set = (patch: Partial<PostDraft>) => setD((x) => ({ ...x, ...patch }));
   const dated = d.kind === "event" || d.kind === "offer";
   const left = charsLeft(d.summary, decl.limits.summaryMaxLength);
 
   async function go() {
-    const built = buildPostValue(d, decl, op);
+    const built = buildPostValue(d, decl, op.op === "create" ? { op: "create", draftId } : op, held);
     if (!built.ok) return setMessage(built.message);
     const r = await onSubmit(built.value);
     if (r.ok) onCancel();
@@ -128,8 +135,9 @@ function PostForm({
           <label className="text-xs" htmlFor="post-action">
             Button (optional)
           </label>
-          <select id="post-action" className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={d.actionType} onChange={(e) => set({ actionType: e.target.value, ...(e.target.value === decl.actionWithoutUrl ? { actionUrl: "" } : {}) })}>
+          <select id="post-action" className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={d.actionType} onChange={(e) => set({ actionType: e.target.value, ...(e.target.value === "" || e.target.value === decl.actionWithoutUrl ? { actionUrl: "" } : {}) })}>
             <option value="">No button</option>
+            {undeclared && <option value={d.actionType}>{actionLabel(d.actionType)} (no longer offered)</option>}
             {decl.actions.map((a) => (
               <option key={a} value={a}>
                 {actionLabel(a)}
@@ -144,6 +152,11 @@ function PostForm({
             </label>
             <Input id="post-url" value={d.actionUrl} onChange={(e) => set({ actionUrl: e.target.value })} placeholder="https://" />
           </div>
+        )}
+        {undeclared && (
+          <p className="text-xs text-warning-on-tint sm:col-span-2">
+            This post has a &quot;{actionLabel(d.actionType)}&quot; button that is not offered now. Keep it as it is, or choose another button or No button to clear it.
+          </p>
         )}
         {d.actionType && d.actionType === decl.actionWithoutUrl && <p className="self-end text-xs text-muted-foreground">This button calls your listing&apos;s phone number.</p>}
       </div>
@@ -199,7 +212,7 @@ function PostsBody({ ctx }: { ctx: PanelContext<PostsResponse> }) {
         </Button>
       )}
       {access.mode === "view" && <p className="text-xs text-muted-foreground">{access.why}</p>}
-      {form?.op === "create" && <PostForm decl={data.declaration} initial={emptyPostDraft()} op={{ op: "create" }} busy={busy} onSubmit={send} onCancel={() => setForm(null)} />}
+      {form?.op === "create" && <PostForm decl={data.declaration} initial={emptyPostDraft(data.declaration.kinds[0] ?? "update")} op={{ op: "create" }} busy={busy} onSubmit={send} onCancel={() => setForm(null)} />}
 
       <div className="space-y-2">
         <h3 className="text-sm font-medium">On your listing</h3>
@@ -228,7 +241,7 @@ function PostsBody({ ctx }: { ctx: PanelContext<PostsResponse> }) {
                   {p.action && <p className="text-xs text-muted-foreground">Button: {actionLabel(p.action.type)}</p>}
                   {pending && <p className="text-xs text-muted-foreground">{pendingNote(pending.status, can)}</p>}
                   {form?.op === "update" && form.ref === p.ref ? (
-                    <PostForm decl={data.declaration} initial={postDraftOf(p)} op={{ op: "update", ref: p.ref }} busy={busy} onSubmit={send} onCancel={() => setForm(null)} />
+                    <PostForm decl={data.declaration} initial={postDraftOf(p)} op={{ op: "update", ref: p.ref }} held={p.action} busy={busy} onSubmit={send} onCancel={() => setForm(null)} />
                   ) : (
                     <div className="flex flex-wrap gap-2">
                       {ctl.edit && (

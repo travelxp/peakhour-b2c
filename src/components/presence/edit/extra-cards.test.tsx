@@ -42,10 +42,13 @@ const services = (over: Record<string, unknown> = {}) => ({
   network: NET, label: "NetA", writes: WRITES, optionsNotice: null,
   current: [{ kind: "listed", id: "svc/coffee", description: "Hot" }, { kind: "custom", categoryId: "c", name: "Latte art" }],
   options: [{ id: "svc/coffee", label: "Coffee" }, { id: "svc/tea", label: "Tea" }],
+  categoryRef: "cat/cafe",
+  base: "b1",
   ...over,
 });
 const details = (over: Record<string, unknown> = {}) => ({
   network: NET, label: "NetA", writes: WRITES, optionsNotice: null,
+  base: "b2",
   current: [{ id: "a/wifi", kind: "yesno", value: true }, { id: "a/retired", kind: "yesno", value: false }],
   options: [
     { id: "a/wifi", label: "Wi-Fi", kind: "yesno", values: [], deprecated: false },
@@ -57,6 +60,8 @@ const details = (over: Record<string, unknown> = {}) => ({
 const links = (over: Record<string, unknown> = {}) => ({
   network: NET, label: "NetA", writes: WRITES, types: [{ type: "BOOK", label: "Book a table" }],
   current: [{ type: "BOOK", uri: "https://a.example/book", preferred: true }],
+  base: "b3",
+  canonical: { booking: { type: "BOOK", label: "Book a table" }, order: null },
   ...over,
 });
 const change = (over: Record<string, unknown> = {}) => ({
@@ -100,10 +105,15 @@ describe("a panel is drawn only for a network that declares it", () => {
   it("one panel declared does not draw another", () => {
     expect(render(LinksCard as never, "links", { data: links(), panels: { posts: true, links: false, services: false, attributes: false } })).toBe("");
   });
-  it("until the capabilities have answered it shows a skeleton and no panel's controls", () => {
+  it("until the capabilities have answered nothing is drawn: no skeleton to flash, no controls", () => {
     const html = render(PostsCard as never, "posts", { data: posts(), noCaps: true });
-    expect(html).not.toContain(">Write a post<");
-    expect(html).not.toContain(">Delete<");
+    expect(html).toBe("");
+  });
+  it("a network that declares no panel draws nothing even while its listing has not loaded or failed to load", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(presenceEditKeys.capabilities, { items: [cap({ posts: false, links: false, services: false, attributes: false })], can: { propose: true, approve: true } });
+    const html = renderToStaticMarkup(createElement(QueryClientProvider, { client: qc }, createElement(PostsCard as never, { network: NET })));
+    expect(html).toBe("");
   });
 });
 
@@ -180,7 +190,7 @@ describe("the services card", () => {
   it("when the network's list did not load it says so, still shows what is held, and offers no add", () => {
     const html = render(ServicesCard as never, "services", { data: services({ options: null, optionsNotice: "We could not read NetA's list of services just now." }) });
     expect(html).toContain("We could not read NetA&#x27;s list of services just now.");
-    expect(html).toContain("Adding a service is not available until the list loads.");
+    expect(html).toContain("Adding a service from the list is not available until it loads.");
     expect(html).toContain("Latte art");
     expect(html).not.toContain("Add a service");
   });
@@ -221,6 +231,32 @@ describe("the details card", () => {
     const html = render(DetailsCard as never, "attributes", { data: details(), can: { propose: false, approve: false } });
     expect(html).not.toContain("<select");
     expect(html).toContain("Wi-Fi: Yes");
+  });
+});
+
+describe("round one", () => {
+  it("links: says which kind of link the booking and order addresses come from", () => {
+    const html = render(LinksCard as never, "links", { data: links() });
+    expect(html).toContain("booking address on your listing comes from your");
+    expect(html).toContain("Book a table");
+    expect(html).not.toContain("order address on your listing");
+  });
+  it("services: a service of your own can be added with a category, and not without one; removal needs no list", () => {
+    expect(render(ServicesCard as never, "services", { data: services() })).toContain("A service of your own");
+    const none = render(ServicesCard as never, "services", { data: services({ categoryRef: null }) });
+    expect(none).toContain("Set your main category first");
+    const field = (html: string) => /<input[^>]*id="service-own"[^>]*>/.exec(html)?.[0] ?? "";
+    expect(field(none)).toContain(` disabled=""`);
+    expect(field(render(ServicesCard as never, "services", { data: services() }))).not.toContain(` disabled=""`);
+    const noList = render(ServicesCard as never, "services", { data: services({ options: null, optionsNotice: "x" }) });
+    expect(noList).toContain("Remove");
+    expect(noList).toContain("You can still remove a service");
+  });
+  it("the waiting words name who approves", () => {
+    const wait = [change({ field: "links", status: "validated", after: [] })];
+    expect(render(LinksCard as never, "links", { data: links(), changes: wait })).toContain("Approve or decline it before making another");
+    const other = render(LinksCard as never, "links", { data: links(), changes: wait, can: { propose: true, approve: false } });
+    expect(other).toContain("for an admin or owner to approve or decline");
   });
 });
 
