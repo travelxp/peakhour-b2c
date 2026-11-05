@@ -7,7 +7,7 @@ import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { NetworkConnectCard } from "@/components/presence/network-connect-card";
 import { ReviewSummaryCard } from "@/components/presence/review-summary-card";
 import { ReviewPlacesCard } from "@/components/presence/review-places-card";
-import { locationScopeNote, wantsPlacesView } from "@/lib/review-places";
+import { reviewsPlaceIn, wantsPlacesView } from "@/lib/review-places";
 import { ListingPanel } from "@/components/presence/listing-panel";
 import { ListingScoreCard } from "@/components/presence/listing-score-card";
 import { EditListingCard, type EditRequest } from "@/components/presence/edit/edit-listing-card";
@@ -73,8 +73,9 @@ export function PresenceHome() {
   // merchant's choice here, and it resets with the page.
   const [chosen, setChosen] = useState<string | undefined>(undefined);
   const [chosenNetwork, setChosenNetwork] = useState<string | undefined>(undefined);
-  // ★REVIEWS START FROM EVERY LOCATION for a business with several (PE-R); picking one place narrows them, and the page, to it.
-  const [narrowed, setNarrowed] = useState(false);
+  // ★THE REVIEWS' OWN SCOPE (PE-R): every location (undefined) or one place. It is NOT the listing select's value: that one means "which
+  // listing" for the listing, score, edit forms, photos and insights, and nothing there may ever read as applying to "all locations".
+  const [reviewsPicked, setReviewsPicked] = useState<string | undefined>(undefined);
   const [editRequest, setEditRequest] = useState<EditRequest | null>(null);
   // Every network a merchant can connect, from the adapters' declarations: one card each.
   const capsQ = useQuery({
@@ -123,6 +124,8 @@ export function PresenceHome() {
   // falls back to the first listing instead.
   const listAnswer = useListingQuery(undefined, panelNetwork, panelsReady);
   const switcher = locationSwitcher(listAnswer.data?.connection?.locations, chosen);
+  // the reviews' own place, if it is still one the business has
+  const reviewsPlace = reviewsPlaceIn(switcher?.options, reviewsPicked);
   // Panels follow the switcher only when it is shown; a one-listing business is read as before.
   const location = switcher?.value;
   // The listing and insights panels share the default read's cache unless another listing is chosen.
@@ -177,7 +180,7 @@ export function PresenceHome() {
                     setChosenNetwork(e.target.value);
                     // a listing of one network is not a listing of another
                     setChosen(undefined);
-                    setNarrowed(false);
+                    setReviewsPicked(undefined);
                     // a form opened for one network's listing is not a request for another's
                     setEditRequest(null);
                   }}
@@ -202,17 +205,34 @@ export function PresenceHome() {
                 <select
                   id="presence-location"
                   className="h-9 rounded-md border bg-background px-2 text-sm"
-                  value={narrowed ? switcher.value : ALL_LOCATIONS}
-                  onChange={(e) => {
-                    // ★"ALL LOCATIONS" IS A CHOICE OF ITS OWN, so narrowing is always reversible from the select itself.
-                    if (e.target.value === ALL_LOCATIONS) {
-                      setNarrowed(false);
-                      return;
-                    }
-                    setChosen(e.target.value);
-                    // choosing a listing narrows the reviews to it too
-                    setNarrowed(true);
-                  }}
+                  value={switcher.value}
+                  onChange={(e) => setChosen(e.target.value)}
+                >
+                  {switcher.options.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs text-muted-foreground">
+                  The listing, score, edit forms, photos, insights and review link below show this one listing. Figures are never added across listings.
+                </span>
+              </div>
+            ) : null}
+
+            {/* ★WAIT FOR THE LISTING READ that says whether there are several places: drawing the summary first and swapping it for the places
+                view a moment later flashed one view and discarded its read. */}
+            {reviewsOn && listAnswer.isPending ? <Skeleton className="h-40 w-full" /> : null}
+            {reviewsOn && !listAnswer.isPending && switcher ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <label htmlFor="presence-reviews-scope" className="text-sm font-medium">
+                  Reviews for
+                </label>
+                <select
+                  id="presence-reviews-scope"
+                  className="h-9 rounded-md border bg-background px-2 text-sm"
+                  value={reviewsPlace ?? ALL_LOCATIONS}
+                  onChange={(e) => setReviewsPicked(e.target.value === ALL_LOCATIONS ? undefined : e.target.value)}
                 >
                   <option value={ALL_LOCATIONS}>All locations</option>
                   {switcher.options.map((o) => (
@@ -221,28 +241,19 @@ export function PresenceHome() {
                     </option>
                   ))}
                 </select>
-                <span className="text-xs text-muted-foreground">
-                  {locationScopeNote({ narrowed, shownName: switcher.options.find((o) => o.value === switcher.value)?.label ?? null }) ??
-                    "Everything below shows this one listing. Figures are never added across listings."}
-                </span>
+                <span className="text-xs text-muted-foreground">This only changes the reviews. Figures are never added across locations.</span>
               </div>
             ) : null}
-
-            {/* ★WAIT FOR THE LISTING READ that says whether there are several places: drawing the summary first and swapping it for the places
-                view a moment later flashed one view and discarded its read. */}
-            {reviewsOn && listAnswer.isPending ? <Skeleton className="h-40 w-full" /> : null}
             {reviewsOn && !listAnswer.isPending ? (
-              wantsPlacesView({ hasSwitcher: !!switcher, narrowed }) ? (
+              wantsPlacesView({ hasSwitcher: !!switcher, narrowed: reviewsPlace !== undefined }) ? (
                 <ReviewPlacesCard
+                  key={panelNetwork ?? "default"}
                   network={panelNetwork}
                   label={fallbackLabel}
-                  onPick={(place) => {
-                    setChosen(place);
-                    setNarrowed(true);
-                  }}
+                  onPick={(place) => setReviewsPicked(place)}
                 />
               ) : (
-                <ReviewSummaryCard location={location} network={panelNetwork} label={fallbackLabel} onShowAll={switcher ? () => setNarrowed(false) : undefined} />
+                <ReviewSummaryCard location={reviewsPlace ?? location} network={panelNetwork} label={fallbackLabel} onShowAll={switcher ? () => setReviewsPicked(undefined) : undefined} />
               )
             ) : null}
 

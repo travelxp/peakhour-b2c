@@ -43,7 +43,15 @@ const CASES = [
   ["a network that takes no reply is told to contact support", REPLY, REPLY_SPEC, "a network that takes no reply, and a review that names no place, are permanent", "  REPLY_NOT_SUPPORTED: \"not_repliable\",\n  LOCATION_AMBIGUOUS: \"not_repliable\",", "  REPLY_NOT_SUPPORTED: \"retry\",\n  LOCATION_AMBIGUOUS: \"retry\","],
   ["send-it-again is offered on any network", REPLY, REPLY_SPEC, "a network that does NOT replace a reply on a re-send is never promised one", "    return replacesReply\n      ? {", "    return true\n      ? {"],
   ["a published reply is offered for editing on any network", REPLY, REPLY_SPEC, "a network that does NOT replace a reply on a re-send is never promised one", "if (published && item.replyChannel?.replacesReply !== true) {", "if (false) {"],
-  ["a timed-out send is promised to be safe on any network", REPLY, REPLY_SPEC, "a send that timed out on a network that does not replace is 'look first'", "if ((err.code === TRANSPORT_ERROR_CODE || err.code === \"PARSE_ERROR\") && channel?.replacesReply !== true) {", "if (false) {"],
+  ["a timed-out send is promised to be safe on any network", REPLY, REPLY_SPEC, "a send that timed out on a network that does not replace is 'look first'", "if (isUnknownOutcome(err.code) && channel?.replacesReply !== true) {", "if (false) {"],
+  ["an upstream failure is retried on a network that does not replace", REPLY, REPLY_SPEC, "an upstream failure on a network that does not replace is 'look first' too", "  return code === TRANSPORT_ERROR_CODE || code === \"PARSE_ERROR\" || code === \"UPSTREAM_ERROR\";", "  return code === TRANSPORT_ERROR_CODE || code === \"PARSE_ERROR\";"],
+  ["a check-first refusal does not refresh the row", REPLY, REPLY_SPEC, "an upstream failure on a network that does not replace is 'look first' too", "(isUnknownOutcome(code) && !replacesReply)", "false"],
+  ["a reference-less row says the network takes no replies", REPLY, REPLY_SPEC, "a network that takes replies is never described as taking none", "  if (!item.review?.externalReviewId?.trim()) return `We don't", "  if (false) return `We don't"],
+  ["a reply being checked is said to be on the network", REPLY, REPLY_SPEC, "a reply still being checked is not said to be on the network", "      blockedReason: pendingCheck\n", "      blockedReason: false\n"],
+  ["a removed place stays the reviews' scope", PLACES, PLACES_SPEC, "the reviews have their own scope", "return picked !== undefined && options?.some((o) => o.value === picked) ? picked : undefined;", "return picked;"],
+  ["the reviews' pick changes the listing", HOME, WIRING_SPEC, "picking one narrows the whole page", "onPick={(place) => setReviewsPicked(place)}", "onPick={(place) => setChosen(place)}"],
+  ["the places card is not keyed by network", HOME, WIRING_SPEC, "picking one narrows the whole page", "                  key={panelNetwork ?? \"default\"}\n", "\n"],
+  ["a repeated sentence follows the api's own words", REPLY, REPLY_SPEC, "a refusal that the api already worded is not followed by a second sentence", "  LOCATION_NOT_MANAGED: \"Re-pick the location on Presence, or connect the account that manages it.\",", "  LOCATION_NOT_MANAGED: \"Re-pick the location on Presence, or connect the account that manages it.\",\n  REPLY_NOT_SUPPORTED: \"Answer this one on the network itself.\","],
   ["the label is read from a fixed place", REPLY, REPLY_SPEC, "the network's words reach the card", "return item.replyChannel?.label?.trim() || NO_LABEL;", "return \"Google\";"],
   // ── places ──
   ["a place with no rating reads 0.0", SUMMARY, PLACES_SPEC, "a place with no rating has none", "  if (summary.rating === null) return null;\n  // ★ONE DECIMAL ALWAYS", "  // ★ONE DECIMAL ALWAYS"],
@@ -59,10 +67,9 @@ const CASES = [
   // ── per network ──
   ["the window is not carried to each network", SUMMARY, PLACES_SPEC, "each network keeps its own rating and label, carrying the window", "return res.networks.map((n) => ({ ...n, days: res.days, windowStart: res.windowStart }));", "return res.networks.map((n) => ({ ...n } as never));"],
   // ── the page ──
-  ["choosing a listing does not narrow the reviews", HOME, WIRING_SPEC, "picking one narrows the whole page", "                    // choosing a listing narrows the reviews to it too\n                    setNarrowed(true);", "                    // choosing a listing narrows the reviews to it too"],
   ["the reviews do not wait for the listing read", HOME, WIRING_SPEC, "draws the review cards only for a network that declares reviews", "{reviewsOn && listAnswer.isPending ? <Skeleton className=\"h-40 w-full\" /> : null}", "{null}"],
   ["the select has no all-locations option", HOME, WIRING_SPEC, "picking one narrows the whole page", "                  <option value={ALL_LOCATIONS}>All locations</option>\n", "\n"],
-  ["a network change keeps the narrowing", HOME, WIRING_SPEC, "clears a pending form request when the network changes", "                    setChosen(undefined);\n                    setNarrowed(false);", "                    setChosen(undefined);"],
+  ["a network change keeps the narrowing", HOME, WIRING_SPEC, "clears a pending form request when the network changes", "                    setChosen(undefined);\n                    setReviewsPicked(undefined);", "                    setChosen(undefined);"],
   ["the kit is always drawn", HOME, WIRING_SPEC, "draws the review cards only for a network that declares reviews", "hideUnlessReady={!listingOn}", "hideUnlessReady={false}"],
   ["the kit shows its empty state for a network with no listing", KIT, PAGE_SPEC, "with no link on the connection the kit stays hidden", "    if (hideUnlessReady) return null;\n", "\n"],
 ];

@@ -17,6 +17,7 @@ import {
   composerStateFor,
   hasPublishedReply,
   isRepliableReview,
+  cap,
   networkWords,
   replyLimitOf,
   isRetryableRefusal,
@@ -576,6 +577,53 @@ describe("a second network is described by what the api serves, not by this modu
     expect(replyOutcome({ sent: true, recorded: true, replyState: "pending" }).headline).toBe("The network is checking your reply before it goes live.");
   });
 
+  it("★★★an upstream failure on a network that does not replace is 'look first' too, and the row is read again", () => {
+    const r = replyRefusal({ code: "UPSTREAM_ERROR", status: 502 }, { label: "Replyhub", replacesReply: false });
+    expect(r.kind).toBe("check_first");
+    expect(isRetryableRefusal(r)).toBe(false);
+    // where a re-send replaces the reply, the same code is still a plain retry
+    expect(replyRefusal({ code: "UPSTREAM_ERROR", status: 502 }, REPLACES).kind).toBe("retry");
+    // a check_first refusal refreshes the row (the reply may have gone live); a retry does not; a rejection always does
+    for (const code of [TRANSPORT_ERROR_CODE, "PARSE_ERROR", "UPSTREAM_ERROR"]) {
+      expect(shouldRefreshAfterRefusal(code, false), code).toBe(true);
+      expect(shouldRefreshAfterRefusal(code, true), code).toBe(false);
+    }
+    expect(shouldRefreshAfterRefusal("REPLY_REJECTED", true)).toBe(true);
+    expect(shouldRefreshAfterRefusal("RATE_LIMITED", false)).toBe(false);
+  });
+
+  it("★★★a network that takes replies is never described as taking none: the missing reference is named first", () => {
+    const noRef = composerStateFor(row({ review: review({ externalReviewId: undefined }), replyChannel: { label: "Google", canReply: false, maxLength: 4096, replacesReply: true } }));
+    expect(noRef.blockedReason).toContain("reference");
+    expect(noRef.blockedReason).not.toMatch(/can't send replies/);
+    // while a network that truly takes none still says so
+    expect(composerStateFor(row({ replyChannel: { label: "Reviewly", canReply: false, maxLength: 5000, replacesReply: false } })).blockedReason).toContain("can't send replies to Reviewly");
+  });
+
+  it("★★a reply still being checked is not said to be on the network", () => {
+    const NO_REPLACE: ReplyChannel = { label: "Replyhub", canReply: true, maxLength: 120, replacesReply: false };
+    const checking = composerStateFor(row({ replyChannel: NO_REPLACE, review: review({ replyPublished: "Thanks!", replyState: "pending" }) }));
+    expect(checking.blockedReason).toContain("waiting for Replyhub's check");
+    expect(checking.blockedReason).not.toMatch(/is on Replyhub/);
+    expect(composerStateFor(row({ replyChannel: NO_REPLACE, review: review({ replyPublished: "Thanks!" }) })).blockedReason).toContain("is on Replyhub");
+  });
+
+  it("★a refusal that the api already worded is not followed by a second sentence saying the same thing", () => {
+    for (const code of ["REPLY_NOT_SUPPORTED", "LOCATION_AMBIGUOUS", "REPLY_ALREADY_SENT"]) {
+      const r = replyRefusal({ code, status: 409, message: "Answer this one on Replyhub." }, { label: "Replyhub" });
+      expect(r.kind, code).toBe("not_repliable");
+      expect(r.description, code).toBeUndefined();
+      expect(r.headline, code).toBe("Answer this one on Replyhub.");
+      // and with no message from the api the fallback itself carries the instruction
+      expect(replyRefusal({ code, status: 409 }, { label: "Replyhub" }).headline, code).toContain("Replyhub");
+    }
+  });
+
+  it("★the card can start a sentence with the network's label or the plain word", () => {
+    expect(cap("the network")).toBe("The network");
+    expect(cap("Google")).toBe("Google");
+  });
+
   it("★the network's words reach the card: label and cap come from the row's reply channel", () => {
     const item = row({ replyChannel: OTHER });
     expect(networkWords(item)).toBe("Replyhub");
@@ -736,7 +784,7 @@ describe("replyRefusal — whose problem is it", () => {
 
   it("★★★sends a rate limit and an upstream wobble back to the button, not to support", () => {
     expect(replyRefusal({ code: "RATE_LIMITED", status: 429 }).kind).toBe("retry");
-    expect(replyRefusal({ code: "UPSTREAM_ERROR", status: 502 }).kind).toBe("retry");
+    expect(replyRefusal({ code: "UPSTREAM_ERROR", status: 502 }, REPLACES).kind).toBe("retry");
   });
 
   it("★★★never renders Google's own rejection text", () => {

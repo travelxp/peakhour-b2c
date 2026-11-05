@@ -54,7 +54,7 @@ export interface ReplyChannel {
 const NO_LABEL = "the network";
 
 /** A sentence that starts with the label must start with a capital, whether it is a network's name or the plain word. */
-const cap = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
+export const cap = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
 
 /** Where a merchant picks or re-picks the listing, and reconnects. */
 export const PRESENCE_ROUTE = "/dashboard/presence";
@@ -303,8 +303,10 @@ export interface ComposerState {
 function blockedReasonFor(item: ReviewItemLike): string {
   const channel = item.replyChannel;
   if (!channel) return "Replies to this network aren't supported here yet — answer it on the network itself.";
-  if (!channel.canReply) return `Peakhour can't send replies to ${channel.label} reviews — answer this one on ${channel.label}.`;
-  return `We don't have a reference for this review on ${channel.label}, so it has to be answered there.`;
+  // ★THE REFERENCE IS CHECKED FIRST: the api's `canReply` is false for a row with no reference too, and a network that DOES take replies
+  // must never be described as taking none.
+  if (!item.review?.externalReviewId?.trim()) return `We don't have a reference for this review on ${channel.label}, so it has to be answered there.`;
+  return `Peakhour can't send replies to ${channel.label} reviews — answer this one on ${channel.label}.`;
 }
 
 /**
@@ -351,7 +353,9 @@ export function composerStateFor(item: ReviewItemLike): ComposerState {
       pendingCheck,
       rejected,
       canSend: false,
-      blockedReason: `Your reply is on ${networkWords(item)}. A reply can't be changed from Peakhour there, so edit it on ${networkWords(item)} itself.`,
+      blockedReason: pendingCheck
+        ? `Your reply is waiting for ${networkWords(item)}'s check. A reply can't be changed from Peakhour there, so once it is live, edit it on ${networkWords(item)} itself.`
+        : `Your reply is on ${networkWords(item)}. A reply can't be changed from Peakhour there, so edit it on ${networkWords(item)} itself.`,
     };
   }
   return {
@@ -564,8 +568,14 @@ export function shouldRefreshAfter(outcome: ReplyOutcome): boolean {
  * same code also covers a plain Google 4xx, which changes nothing, and a
  * refresh then does no harm.
  */
-export function shouldRefreshAfterRefusal(code: string | undefined): boolean {
-  return code === "REPLY_REJECTED";
+export function shouldRefreshAfterRefusal(code: string | undefined, replacesReply = true): boolean {
+  // a send whose outcome is unknown on a network that does not replace may have gone live: the row is read again so the card shows it
+  return code === "REPLY_REJECTED" || (isUnknownOutcome(code) && !replacesReply);
+}
+
+/** The codes that mean the network may or may not have taken the reply (a timeout, a gateway, or the network's own 5xx). */
+function isUnknownOutcome(code: string | undefined): boolean {
+  return code === TRANSPORT_ERROR_CODE || code === "PARSE_ERROR" || code === "UPSTREAM_ERROR";
 }
 
 // ── What went wrong ──────────────────────────────────────────────────────────
@@ -633,6 +643,8 @@ const KIND_BY_CODE: Record<string, ReplyRefusalKind> = {
   // support ticket and neither is helped by a retry; both say where to answer it.
   REPLY_NOT_SUPPORTED: "not_repliable",
   LOCATION_AMBIGUOUS: "not_repliable",
+  // ★THE SERVER REFUSED A SECOND SEND on a network that does not replace a reply: permanent, and the merchant's to do on the network
+  REPLY_ALREADY_SENT: "not_repliable",
   // ★THE ROW IS GONE. Reachable two ways and neither is a support ticket: a
   // 30-second staleTime with no refetch-on-focus means the list outlives the
   // row, and `app.onError`'s unknown-route handler answers NOT_FOUND — so if
@@ -680,6 +692,7 @@ const KIND_BY_CODE: Record<string, ReplyRefusalKind> = {
  * through promises a background retry that is not happening.
  */
 const API_AUTHORED_MESSAGE = new Set([
+  "REPLY_ALREADY_SENT",
   "REPLY_NOT_SUPPORTED",
   "LOCATION_AMBIGUOUS",
   "NOT_A_REVIEW",
@@ -719,8 +732,9 @@ const FALLBACK_HEADLINE = (n: string, max: number | null): Record<string, string
   NOT_A_REVIEW: "This isn't a review, so there's nothing to reply to on a listing.",
   UNSUPPORTED_NETWORK: "We can't reply to this network from here yet.",
   NO_REVIEW_REFERENCE: `We don't have a reference for this review on ${n}.`,
-  REPLY_NOT_SUPPORTED: `Peakhour can't send replies to ${n} reviews.`,
-  LOCATION_AMBIGUOUS: `We can't tell which of your locations this ${n} review is for.`,
+  REPLY_NOT_SUPPORTED: `Peakhour can't send replies to ${n} reviews. Answer this one on ${n} itself.`,
+  LOCATION_AMBIGUOUS: `We can't tell which of your locations this ${n} review is for. Open it on ${n} to reply.`,
+  REPLY_ALREADY_SENT: `You have already replied to this ${n} review, and it can't be changed from Peakhour. Edit it on ${n} itself.`,
   UNRECOGNISED_REVIEW_REFERENCE: "We don't recognise the reference stored for this review.",
   NOT_FOUND: "This review isn't in your inbox any more.",
   FORBIDDEN: "You don't have permission to reply on this business's behalf.",
@@ -771,8 +785,6 @@ const SECOND_SENTENCE: Record<string, string> = {
   PARSE_ERROR: "Check your connection and try again — re-sending the same words is safe.",
   RATE_LIMITED: "Give it a minute and try again.",
   UPSTREAM_ERROR: "Try again in a moment.",
-  REPLY_NOT_SUPPORTED: "Answer this one on the network itself: there is nothing to fix on your side.",
-  LOCATION_AMBIGUOUS: "Answer this one on the network itself; picking a location here wouldn't tell us which it is.",
 };
 
 /**
@@ -787,7 +799,7 @@ export function replyRefusal(err: ReplyErrorLike, channel?: { label?: string; ma
   const n = channel?.label?.trim() || NO_LABEL;
   // ★A SEND THAT TIMED OUT MAY HAVE GONE THROUGH. "Re-sending the same words is safe" is true only where a re-send replaces the reply; on a
   // network that does not, a second send could post a second one, so there is no retry and the merchant is told to look first.
-  if ((err.code === TRANSPORT_ERROR_CODE || err.code === "PARSE_ERROR") && channel?.replacesReply !== true) {
+  if (isUnknownOutcome(err.code) && channel?.replacesReply !== true) {
     return {
       kind: "check_first",
       headline: "We couldn't confirm your reply was sent.",

@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { presenceApi } from "@/lib/api/presence";
-import { INBOX_REVIEWS_HREF, ratingLabel, ratingSubLabel } from "@/lib/review-summary";
+import { INBOX_REVIEWS_HREF, ratingLabel, ratingSubLabel, REVIEW_SUMMARY_QUERY_KEY } from "@/lib/review-summary";
+import { fetchView } from "@/lib/presence-panels";
 import {
   limitNote,
   placeName,
@@ -50,18 +51,28 @@ export function ReviewPlacesCard({
     queryFn: () => presenceApi.reviewPlaces(undefined, network, limit),
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
-    // "Show all" keeps the rows on screen while the longer list loads, instead of dropping to a skeleton
-    placeholderData: keepPreviousData,
+    // "Show all" keeps the rows on screen while the longer list loads, instead of dropping to a skeleton. ONLY for the same network: rows of
+    // another network are never held up as this one's while it loads.
+    placeholderData: (previous, previousQuery) => (previousQuery?.queryKey[REVIEW_PLACES_QUERY_KEY.length] === (network ?? "default") ? previous : undefined),
   });
+  // ★FETCHED ALONGSIDE, because whether this network can be split by place is only known from the answer above: when it cannot, the ordinary
+  // summary is drawn, and it is already on its way (same key as the summary card), not a third step after the first two.
+  useQuery({
+    queryKey: [...REVIEW_SUMMARY_QUERY_KEY, "all", network ?? "default"],
+    queryFn: () => presenceApi.reviewSummary(undefined, undefined, network),
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+  // an error with rows in hand keeps the rows and says so; a paused query is not a loading one
+  const view = fetchView({ hasData: query.data !== undefined, isPending: query.isPending, isError: query.isError, fetchStatus: query.fetchStatus });
 
-  // ⚠️`isPending`, NOT `isLoading` (react-query v5: a paused query is neither loading nor errored).
-  if (query.isPending) {
+  if (view === "loading" || view === "paused") {
     return (
       <Card className="gap-3 p-5">
         <Skeleton className="h-5 w-40" />
         <Skeleton className="h-16 w-full" />
         <Skeleton className="h-16 w-full" />
-        {query.fetchStatus === "paused" && (
+        {view === "paused" && (
           <p className="text-center text-xs text-muted-foreground">
             Waiting for a connection — your reviews will load when you&apos;re back online.
           </p>
@@ -70,7 +81,7 @@ export function ReviewPlacesCard({
     );
   }
   // ★A FAILED FETCH IS NOT AN EMPTY LIST: say so, and offer the retry.
-  if (query.isError) {
+  if (view === "failed") {
     return (
       <Card className="flex flex-col items-center gap-2 p-8 text-center">
         <p className="text-sm font-medium">Couldn&apos;t load your locations&apos; reviews</p>
@@ -84,7 +95,7 @@ export function ReviewPlacesCard({
     );
   }
 
-  const answer = query.data;
+  const answer = query.data!;
   if (!answer.splittable) return <ReviewSummaryCard network={network} label={label} />;
 
   const note = limitNote(answer);
@@ -109,7 +120,7 @@ export function ReviewPlacesCard({
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="min-w-0 truncate text-sm font-medium">{placeName(p)}</p>
                 <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => onPick(p.locationName)}>
-                  Open this location
+                  Show its reviews
                 </Button>
               </div>
               <div className="mt-2 grid gap-3 sm:grid-cols-3">
@@ -148,6 +159,14 @@ export function ReviewPlacesCard({
         })}
       </ul>
 
+      {view === "data_stale" && (
+        <p className="text-[11px] text-warning-on-tint" role="status">
+          We couldn&apos;t refresh these just now, so this is what we had.{" "}
+          <button type="button" className="underline" onClick={() => query.refetch()}>
+            Try again
+          </button>
+        </p>
+      )}
       {(note || unplaced) && (
         <div className="space-y-1 text-[11px] text-muted-foreground">
           {note && <p>{note}</p>}

@@ -416,8 +416,8 @@ const MUTANTS = [
     // the killer asserts the words that differ.
     where: "rules",
     name: "★★tell a merchant with a missing reference that their network is unsupported",
-    anchor: "  if (!channel.canReply) return",
-    mutated: "  if (true) return",
+    anchor: "  if (!item.review?.externalReviewId?.trim()) return `We don't",
+    mutated: "  if (false) return `We don't",
     killer:
       "★★says a missing reference has to be answered on Google, not that the network is unsupported",
   },

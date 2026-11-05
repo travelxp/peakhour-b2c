@@ -19,6 +19,7 @@ import { canOfferDraft, draftButton, DRAFT_SAVED_NOTE } from "@/lib/review-kit";
 import { useLocale } from "@/hooks/use-locale";
 import {
   checkReplyText,
+  cap,
   composerStateFor,
   networkWords,
   replyLimitOf,
@@ -174,7 +175,7 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
       const detail = err instanceof ApiError ? err : { code: TRANSPORT_ERROR_CODE };
       setRefusal(replyRefusal(detail, channel));
       setOutcome(null);
-      if (shouldRefreshAfterRefusal(detail.code)) onChanged();
+      if (shouldRefreshAfterRefusal(detail.code, replaces)) onChanged();
     },
   });
 
@@ -307,7 +308,7 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
       {state.rejected && (
         <div className="mt-2 rounded-md bg-muted/40 p-2 text-xs">
           <p className="font-medium text-warning-on-tint">
-            {network} rejected your reply, so customers can&apos;t see it
+            {cap(network)} rejected your reply, so customers can&apos;t see it
           </p>
           {state.rejected.note && (
             <p className="mt-0.5 text-muted-foreground">{state.rejected.note}</p>

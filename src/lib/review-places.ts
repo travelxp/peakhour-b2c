@@ -96,10 +96,10 @@ export function wantsPlacesView(args: { hasSwitcher: boolean; narrowed: boolean 
 }
 
 /**
- * Said beside the location select while every location is shown: the reviews above are for all of them, but the listing, the score and the
- * review link below are for ONE place, and which one is not obvious. Null once the merchant has picked a place (everything is then about it).
+ * ★THE REVIEWS HAVE THEIR OWN SCOPE, separate from the listing select. The listing select answers "which listing" for the listing, the
+ * score, the edit forms, the photos and the insights, and an edit must never appear to apply to "all locations". The reviews are either
+ * every location or one place; this returns the place when it is still one the business has, else undefined (every location).
  */
-export function locationScopeNote(args: { narrowed: boolean; shownName: string | null }): string | null {
-  if (args.narrowed || !args.shownName) return null;
-  return `The reviews show every location. The listing, the score and the review link below show ${args.shownName}.`;
+export function reviewsPlaceIn(options: ReadonlyArray<{ value: string }> | undefined, picked: string | undefined): string | undefined {
+  return picked !== undefined && options?.some((o) => o.value === picked) ? picked : undefined;
 }

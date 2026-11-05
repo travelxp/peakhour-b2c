@@ -4,7 +4,7 @@ import {
   placeName,
   placeNeedsAttention,
   placeNoRatingNote,
-  locationScopeNote,
+  reviewsPlaceIn,
   PLACES_MAX,
   showAllLimit,
   unansweredLabel,
@@ -56,11 +56,14 @@ describe("a place's rating is its own, and absent is not zero", () => {
   });
 });
 
-describe("★★which place the other panels show is said", () => {
-  it("says it while every location is shown, naming the place, and nothing once one is picked", () => {
-    expect(locationScopeNote({ narrowed: false, shownName: "Main Street" })).toBe("The reviews show every location. The listing, the score and the review link below show Main Street.");
-    expect(locationScopeNote({ narrowed: true, shownName: "Main Street" })).toBeNull();
-    expect(locationScopeNote({ narrowed: false, shownName: null })).toBeNull();
+describe("★★★the reviews have their own scope, apart from the listing select", () => {
+  const options = [{ value: "locations/1" }, { value: "locations/2" }];
+  it("is the picked place while the business still has it, and every location otherwise", () => {
+    expect(reviewsPlaceIn(options, "locations/2")).toBe("locations/2");
+    expect(reviewsPlaceIn(options, undefined)).toBeUndefined();
+    // a place since removed falls back to every location rather than asking the api for a place it refuses
+    expect(reviewsPlaceIn(options, "locations/9")).toBeUndefined();
+    expect(reviewsPlaceIn(undefined, "locations/1")).toBeUndefined();
   });
 });
 
