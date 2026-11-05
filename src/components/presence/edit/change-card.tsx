@@ -36,9 +36,12 @@ export function ChangeCard({
   label,
   can,
   m,
+  extra,
 }: {
   change: ChangeCardData;
   label: string;
+  /** Something to show with the change (a photo's picture), drawn under the title. */
+  extra?: React.ReactNode;
   can: CapabilitiesResponse["can"] | undefined;
   /** One set of mutations for the whole list, owned by the card that lists the changes. */
   m: Pick<ReturnType<typeof usePresenceEditMutations>, "approve" | "reject" | "undo">;
@@ -62,6 +65,8 @@ export function ChangeCard({
           {change.undone && <Badge variant="secondary">Undone</Badge>}
         </div>
       </div>
+
+      {extra}
 
       <div className="grid gap-3 text-sm sm:grid-cols-2">
         <div>

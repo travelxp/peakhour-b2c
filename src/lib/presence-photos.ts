@@ -11,6 +11,7 @@
 
 import type { PresenceCapabilities } from "@/lib/presence-panels";
 import type { DriveFile } from "@/lib/drive/files";
+import type { ChangeCardData, CapabilitiesResponse } from "@/lib/presence-edit";
 
 // ── Shapes the api returns ───────────────────────────────────────────────────
 
@@ -47,8 +48,9 @@ export interface PhotosResponse {
   label: string;
   declaration: { categories: string[]; limits: PhotoLimits; removal: { restorable: boolean } };
   writes: { released: boolean; notice: string | null };
+  /** False when the network still had photos that were not read: no absence is believed from the list. */
+  complete: boolean;
   items: NetworkPhoto[];
-  waiting: Array<{ id: string; status: string; op: string | null }>;
   held: number;
 }
 
@@ -107,24 +109,90 @@ export function photosView(v: "loading" | "paused" | "failed" | "data" | "data_s
   return { kind: "ready", stale: v === "data_stale", empty: itemCount === 0 };
 }
 
-/** What a person can press. Adding and removing are an editor's; approving is an admin's, on the change card. */
-export function photoControls(
-  can: { propose: boolean } | undefined,
-  photo: Pick<NetworkPhoto, "removable">,
-  waiting: boolean,
-): { remove: boolean; whyNot: string | null } {
-  if (!can?.propose) return { remove: false, whyNot: "Your role can look at your photos but not change them." };
-  if (!photo.removable) return { remove: false, whyNot: null };
-  if (waiting) return { remove: false, whyNot: "A photo change is already waiting. Finish that first." };
-  return { remove: true, whyNot: null };
+// ── What a person may press ──────────────────────────────────────────────────
+
+type Can = CapabilitiesResponse["can"];
+
+/**
+ * What this person can do with photos. `can` undefined is a read that has not answered or has failed, which is NOT "your role cannot": the
+ * first says "checking", the second says the check failed, and only an answer that says no says the role cannot.
+ */
+export type PhotoAccess = { mode: "edit" } | { mode: "view"; why: string };
+
+export function photoAccess(view: "loading" | "paused" | "failed" | "data" | "data_stale", can: Pick<Can, "propose"> | undefined): PhotoAccess {
+  if (can) return can.propose ? { mode: "edit" } : { mode: "view", why: "Your role can look at your photos but not change them. Ask an editor, admin or owner." };
+  if (view === "loading" || view === "paused") return { mode: "view", why: "Checking what you can do here..." };
+  return { mode: "view", why: "We could not check what your role can do, so photos cannot be changed from here right now. Reload the page to try again." };
 }
 
-export function canAddPhoto(can: { propose: boolean } | undefined, p: Pick<PhotosResponse, "waiting" | "declaration" | "held">): { ok: boolean; why: string | null } {
-  if (!can?.propose) return { ok: false, why: "Your role can look at your photos but not change them. Ask an editor, admin or owner." };
-  if (p.waiting.length > 0) return { ok: false, why: "A photo change is already waiting below. Approve or decline it before adding another." };
+/** Statuses in which a photo change is still open: nothing has been sent, and the api's one-open-per-photo rule is in force. */
+const OPEN = ["proposed", "validated", "approved", "applying"];
+
+/** The photo changes of a change list, newest first. */
+export function photoChanges(items: readonly ChangeCardData[] | undefined): ChangeCardData[] {
+  return (items ?? []).filter((c) => c.field === "media");
+}
+
+export function openPhotoChanges(items: readonly ChangeCardData[] | undefined): ChangeCardData[] {
+  return photoChanges(items).filter((c) => OPEN.includes(c.status));
+}
+
+/** The open change about one network photo (a removal of it), from the change list: the ONE source of what is waiting. */
+export function pendingFor(items: readonly ChangeCardData[] | undefined, ref: string): ChangeCardData | undefined {
+  return openPhotoChanges(items).find((c) => (c.after as { op?: string; ref?: string } | null)?.op === "remove" && (c.after as { ref?: string }).ref === ref);
+}
+
+/**
+ * Whether a photo change has just LEFT the open statuses (it was sent, failed, declined or expired), so the photo list is stale and is read
+ * again. `before` is the ids that were open at the last look.
+ */
+export function settledSince(before: ReadonlySet<string>, items: readonly ChangeCardData[] | undefined): boolean {
+  const open = new Set(openPhotoChanges(items).map((c) => c.id));
+  for (const id of before) if (!open.has(id)) return true;
+  return false;
+}
+
+/** What the tile of a photo with a waiting removal says, by the change's own status, so nobody is told to approve what has no button. */
+export function pendingNote(status: string, can: Pick<Can, "approve"> | undefined): string {
+  if (status === "approved") return "Approved, waiting to be sent. It will be removed once it is sent.";
+  if (status === "applying") return "Being removed now.";
+  return can?.approve ? "A removal is waiting below. Approve or decline it there." : "A removal is waiting below for an admin or owner to approve.";
+}
+
+export function photoControls(
+  access: PhotoAccess,
+  photo: Pick<NetworkPhoto, "removable">,
+  pending: ChangeCardData | undefined,
+): { remove: boolean; note: string | null } {
+  if (access.mode !== "edit") return { remove: false, note: photo.removable ? access.why : null };
+  if (!photo.removable) return { remove: false, note: null };
+  if (pending) return { remove: false, note: null };
+  return { remove: true, note: null };
+}
+
+/** How many more photos can be chosen at once: the network's cap less what it holds and what is already being added, never more than ten. */
+export function pickLimit(p: Pick<PhotosResponse, "declaration" | "held" | "items">, openAdds: number): number {
   const max = p.declaration.limits.maxItems;
-  if (max !== undefined && p.held >= max) return { ok: false, why: `A listing can hold at most ${max} photos. Remove one first.` };
+  const left = max === undefined ? 10 : max - Math.max(p.held, p.items.length) - openAdds;
+  return Math.max(0, Math.min(10, left));
+}
+
+export function canAddPhoto(access: PhotoAccess, p: Pick<PhotosResponse, "declaration" | "held" | "items">, openAdds: number): { ok: boolean; why: string | null } {
+  if (access.mode !== "edit") return { ok: false, why: access.why };
+  if (pickLimit(p, openAdds) === 0) return { ok: false, why: `A listing can hold at most ${p.declaration.limits.maxItems} photos. Remove one first.` };
   return { ok: true, why: null };
+}
+
+/** The picture to draw for a photo, or none: a video with no thumbnail draws no (broken) image. */
+export function previewOf(p: Pick<NetworkPhoto, "thumbnailUrl" | "url" | "format">): string | null {
+  return p.thumbnailUrl ?? (p.format === "photo" ? p.url : null);
+}
+
+/** Words for each photo that could not be prepared out of a batch chosen together. */
+export function batchSummary(prepared: number, failed: ReadonlyArray<{ name: string; message: string }>): string {
+  const head = prepared > 0 ? `${prepared} ${prepared === 1 ? "photo is" : "photos are"} prepared below. ` : "";
+  if (failed.length === 0) return `${head}Review each one, then approve it.`.trim();
+  return `${head}${failed.length} could not be prepared: ${failed.map((f) => `${f.name} (${f.message})`).join("; ")}`.trim();
 }
 
 /** A photo change as lines for its before-and-after card. */

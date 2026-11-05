@@ -233,11 +233,16 @@ export function PresenceHome() {
 
                 {editOn ? (
                   <div id="edit-listing">
-                    <EditListingCard location={panelLocation} network={panelNetwork} request={editRequest} />
+                    <EditListingCard location={panelLocation} network={panelNetwork} request={editRequest} photoChangesElsewhere={photosOn} />
                   </div>
                 ) : null}
 
-                {photosOn ? <PhotosCard location={panelLocation} network={panelNetwork} /> : null}
+                {/* The id is on the wrapper, so a score fix scrolls here whatever the card is showing (loading, failed, ready). */}
+                {photosOn ? (
+                  <div id="photos-card">
+                    <PhotosCard location={panelLocation} network={panelNetwork} />
+                  </div>
+                ) : null}
               </>
             ) : null}
 

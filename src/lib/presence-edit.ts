@@ -90,6 +90,8 @@ export interface ChangeCardData {
   liveAt: string | null;
   liveCheck: { checkedAt: string; outcome: string; note: string | null } | null;
   undone: boolean;
+  /** Whether Peakhour can put this change back (the api decides; a photo removal can be undone only when the photo came from Drive). Absent on an older api: treated as true. */
+  undoable?: boolean;
 }
 
 export interface CategoryOption {
@@ -181,13 +183,14 @@ export function formAccess(can: CapabilitiesResponse["can"] | undefined): FormAc
 }
 
 /** What a person can press on a change card. Approve is an admin's; proposing, declining and undoing are an editor's. */
-export function cardActions(c: Pick<ChangeCardData, "status" | "undone">, can: CapabilitiesResponse["can"] | undefined) {
+export function cardActions(c: Pick<ChangeCardData, "status" | "undone"> & { undoable?: boolean | undefined }, can: CapabilitiesResponse["can"] | undefined) {
   const decidable = c.status === "proposed" || c.status === "validated";
   return {
     // A change that was never checked can still be approved: the api checks it again first.
     approve: !!can?.approve && decidable,
     reject: !!can?.propose && decidable,
-    undo: !!can?.propose && (c.status === "submitted" || c.status === "live") && !c.undone,
+    // Only when the api says it can be put back: a button that always fails is not offered.
+    undo: !!can?.propose && (c.status === "submitted" || c.status === "live") && !c.undone && c.undoable !== false,
     // A person who can look but not approve is told who can.
     needsAdmin: !can?.approve && decidable,
   };
