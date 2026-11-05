@@ -18,7 +18,8 @@ export type ReviewKit =
   | { state: "no_listing" | "no_link" }
   | {
       state: "ready";
-      listingId: string;
+      /** Null for a network with no listing, whose link lives on its connection. */
+      listingId: string | null;
       businessName: string;
       link: string;
       network: string;
