@@ -187,10 +187,11 @@ export function EditListingCard({ location, network: chosenNetwork, request }: {
               Try again
             </Button>
           </div>
-        ) : changes.data && changes.data.items.length > 0 ? (
+        ) : changes.data && changes.data.items.some((c) => c.field !== "media") ? (
           <>
             {changes.isError && <p className="text-xs text-warning-on-tint">Could not refresh just now, so this may be out of date.</p>}
-            {changes.data.items.map((c) => (
+            {/* Photo changes are listed with the photos, in their own card. */}
+            {changes.data.items.filter((c) => c.field !== "media").map((c) => (
               <ChangeCard key={c.id} change={c} label={cap.label} can={caps.data.can} m={m} />
             ))}
           </>

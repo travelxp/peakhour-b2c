@@ -10,6 +10,7 @@
  */
 
 import type { HoursPeriod, SpecialHours } from "@/lib/presence-panels";
+import { photoValueLines } from "@/lib/presence-photos";
 
 // ── Shapes the api returns ───────────────────────────────────────────────────
 
@@ -264,10 +265,17 @@ const dayLabel = (iso: string) => {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString("en-GB", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short", year: "numeric" });
 };
 
+/** A change's field as a person reads it. A photo is not a form section, so it has no `SECTIONS` entry. */
+export function fieldTitle(field: string): string {
+  return SECTIONS.find((s) => s.field === field)?.title ?? (field === "media" ? "Photo" : field);
+}
+
 /** A value as plain lines for a before-and-after card. An empty list of lines is "nothing set". */
 export function valueLines(field: string, value: unknown): string[] {
   if (value === null || value === undefined || value === "") return [];
   switch (field) {
+    case "media":
+      return photoValueLines(value);
     case "regularHours": {
       const rows = (Array.isArray(value) ? value : []) as HoursPeriod[];
       return DAY_ORDER.flatMap((d) => {

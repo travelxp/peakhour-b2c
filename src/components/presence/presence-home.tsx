@@ -9,6 +9,7 @@ import { ReviewSummaryCard } from "@/components/presence/review-summary-card";
 import { ListingPanel } from "@/components/presence/listing-panel";
 import { ListingScoreCard } from "@/components/presence/listing-score-card";
 import { EditListingCard, type EditRequest } from "@/components/presence/edit/edit-listing-card";
+import { PhotosCard } from "@/components/presence/edit/photos-card";
 import { InsightsPanel } from "@/components/presence/insights-panel";
 import { ReviewKitCard } from "@/components/presence/review-kit-card";
 import { useListingQuery } from "@/hooks/use-presence-listing";
@@ -16,6 +17,7 @@ import { api } from "@/lib/api";
 import { presenceApi } from "@/lib/api/presence";
 import { Skeleton } from "@/components/ui/skeleton";
 import { connectedNetworks, unreadableNetworks, drawsListing, drawsReviews, locationSwitcher, networkSwitcher, presenceCapabilitiesQueryKey } from "@/lib/presence-panels";
+import { drawsPhotos } from "@/lib/presence-photos";
 
 /**
  * Presence pillar home. The local-presence cockpit — keep a business found,
@@ -104,6 +106,8 @@ export function PresenceHome() {
   const listingOn = drawsListing(aboutNetwork);
   // The edit card needs a network that can be written.
   const editOn = listingOn && aboutNetwork?.capabilities.edit !== false;
+  // The photos panel draws only for a network that DECLARES photos (PE-11).
+  const photosOn = listingOn && drawsPhotos(aboutNetwork);
   // Figures: the panel judges the network's declaration itself (off the listing entry, else the connect declaration handed to it below).
   // A status read that failed is said, not dropped: that network is not in the switcher, and nothing else says why.
   const unreadable = unreadableNetworks(networks, statusQs);
@@ -215,6 +219,11 @@ export function PresenceHome() {
                   location={panelLocation}
                   network={panelNetwork}
                   onOpenForm={(field) => {
+                    // A photos fix opens the photos panel, not a form.
+                    if (field === "media") {
+                      document.getElementById("photos-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      return;
+                    }
                     setEditRequest({ field });
                     document.getElementById("edit-listing")?.scrollIntoView({ behavior: "smooth", block: "start" });
                   }}
@@ -227,6 +236,8 @@ export function PresenceHome() {
                     <EditListingCard location={panelLocation} network={panelNetwork} request={editRequest} />
                   </div>
                 ) : null}
+
+                {photosOn ? <PhotosCard location={panelLocation} network={panelNetwork} /> : null}
               </>
             ) : null}
 

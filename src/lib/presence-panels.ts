@@ -224,6 +224,8 @@ export interface PresenceCapabilities {
   control: boolean;
   networkChanges: boolean;
   searchTerms: boolean;
+  /** The network takes photos from Peakhour (PE-11), so the photos panel draws. Absent on an api that predates the field: not drawn. */
+  media?: boolean;
   metricKeys: NeutralMetricKey[];
 }
 

@@ -75,6 +75,8 @@ export interface DrivePickerProps {
    * built-in generator always is. Leave it off for a generator charged as anything else: the tab then shows no price rather than the wrong one.
    */
   generatePriced?: boolean;
+  /** Which tabs to offer. Default: all three. A screen that must not make a file (a business's own photos) leaves Generate out. */
+  tabs?: readonly PickerTab[];
   /** What the Generate box starts with (a brief the screen already holds). */
   generatePrompt?: string;
   /** False when Generate makes the file from `generatePrompt` alone (the box is read-only). Default true. */
@@ -83,6 +85,7 @@ export interface DrivePickerProps {
 }
 
 const DEFAULT_KINDS: DriveKind[] = ["image"];
+const ALL_TABS: readonly PickerTab[] = ["drive", "upload", "generate"];
 
 export function DrivePicker({ trigger, ...panel }: DrivePickerProps) {
   const [open, setOpen] = useState(false);
@@ -128,6 +131,7 @@ export function DrivePickerPanel({
   unusable,
   addLabel = "Add",
   onGenerate,
+  tabs = ALL_TABS,
   generatePrompt,
   generatePriced = false,
   promptEditable = true,
@@ -221,7 +225,7 @@ export function DrivePickerPanel({
       <div className="flex items-center justify-between gap-3 border-b px-4 py-3 pr-12">
         <h2 className="text-base font-semibold">Add from Drive</h2>
         <div role="tablist" aria-label="Where to get the file" className="flex gap-1 text-sm">
-          {(["drive", "upload", "generate"] as const).map((t) => (
+          {ALL_TABS.filter((t) => tabs.includes(t)).map((t) => (
             <button
               key={t}
               role="tab"

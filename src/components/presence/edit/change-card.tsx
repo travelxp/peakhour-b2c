@@ -2,7 +2,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { SECTIONS, cardActions, errorWords, statusWords, valueLines, type CapabilitiesResponse, type ChangeCardData } from "@/lib/presence-edit";
+import { cardActions, errorWords, fieldTitle, statusWords, valueLines, type CapabilitiesResponse, type ChangeCardData } from "@/lib/presence-edit";
 import type { usePresenceEditMutations } from "@/hooks/use-presence-edit";
 
 const TONE: Record<string, string> = {
@@ -41,11 +41,11 @@ export function ChangeCard({
   label: string;
   can: CapabilitiesResponse["can"] | undefined;
   /** One set of mutations for the whole list, owned by the card that lists the changes. */
-  m: ReturnType<typeof usePresenceEditMutations>;
+  m: Pick<ReturnType<typeof usePresenceEditMutations>, "approve" | "reject" | "undo">;
 }) {
   const words = statusWords(change, label, can);
   const act = cardActions(change, can);
-  const title = SECTIONS.find((s) => s.field === change.field)?.title ?? change.field;
+  const title = fieldTitle(change.field);
   const busy = m.approve.isPending || m.reject.isPending || m.undo.isPending;
   // Only the card the failed press was for shows it, and a new press clears it.
   const mine = (v: unknown) => v === change.id;
