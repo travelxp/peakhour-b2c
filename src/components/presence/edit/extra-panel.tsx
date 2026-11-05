@@ -9,7 +9,7 @@ import { useChangeOutcomes, useEditCapabilities, useListingChanges } from "@/hoo
 import { useExtra, useExtraMutations, useRefreshWhenSettled, type ExtraTarget } from "@/hooks/use-presence-extras";
 import { useListingQuery } from "@/hooks/use-presence-listing";
 import { errorWords, type CapabilitiesResponse, type ChangeCardData } from "@/lib/presence-edit";
-import { capabilityOf, drawsPanel, extrasAccess, isListChanged, listedChanges, listView, preparedWords, withChangesKnown, type ExtraField, type ListView } from "@/lib/presence-extras";
+import { capabilityOf, drawsPanel, extrasAccess, isListChanged, listedChanges, preparedWords, withChangesKnown, type ExtraField } from "@/lib/presence-extras";
 import { outcomeOf, type PhotoAccess } from "@/lib/presence-photos";
 import { fetchView, primaryEntry } from "@/lib/presence-panels";
 
@@ -18,17 +18,15 @@ export interface PanelContext<D> {
   data: D;
   label: string;
   network: string;
-  listingId: string;
   access: PhotoAccess;
-  view: Extract<ListView, { kind: "ready" | "empty" }>;
   changes: ChangeCardData[] | undefined;
   can: CapabilitiesResponse["can"] | undefined;
   busy: boolean;
   /**
    * Prepares a change and answers with the words to show. Never "saved": the change waits for an approval. `stale` is the api refusing a change
-   * built on a list that has since changed: the panel has already reloaded, and the card drops its draft.
+   * built on a list that has since changed: the panel has already reloaded, and the card drops its draft. `base` is the base the draft STARTED from.
    */
-  submit: (value: unknown) => Promise<{ ok: boolean; message: string; stale?: boolean }>;
+  submit: (value: unknown, base?: string) => Promise<{ ok: boolean; message: string; stale?: boolean }>;
 }
 
 /**
@@ -45,7 +43,6 @@ export function ExtraPanel<D extends { label: string; writes: { notice: string |
   title,
   blurb,
   what,
-  itemCount,
   children,
 }: {
   field: ExtraField;
@@ -55,7 +52,6 @@ export function ExtraPanel<D extends { label: string; writes: { notice: string |
   blurb: string;
   /** The plural noun the role sentences use ("posts", "services"). */
   what: string;
-  itemCount: (d: D) => number;
   children: (ctx: PanelContext<D>) => React.ReactNode;
 }) {
   const listingQ = useListingQuery(location, chosenNetwork);
@@ -63,9 +59,9 @@ export function ExtraPanel<D extends { label: string; writes: { notice: string |
   const entry = primaryEntry(listingQ.data);
   const network = entry?.network;
   const caps = useEditCapabilities();
-  const capsView = fetchView({ hasData: !!caps.data, isPending: caps.isPending, isError: caps.isError, fetchStatus: caps.fetchStatus });
   // WHETHER THE PANEL EXISTS IS DECIDED BY THE CHOSEN NETWORK'S DECLARATION FIRST, before the listing is read: a network with no such panel draws
-  // nothing at all (no skeleton, no "could not load"). Until the capabilities have answered, nothing is drawn either.
+  // nothing at all (no skeleton, no "could not load"). Until the capabilities have answered, nothing is drawn either; a read that failed or is paused
+  // draws nothing too, because no declaration says this panel exists (the edit card above states that failure).
   const wanted = chosenNetwork ?? network;
   const drawn = drawsPanel(capabilityOf(caps.data, network), field);
   const declared = wanted ? drawsPanel(capabilityOf(caps.data, wanted), field) : !!caps.data?.items.some((c) => drawsPanel(c, field));
@@ -112,17 +108,19 @@ export function ExtraPanel<D extends { label: string; writes: { notice: string |
 
   const data = q.data;
   const label = data?.label ?? entry?.label ?? "the network";
-  const view = listView(fetchView({ hasData: !!data, isPending: q.isPending, isError: q.isError, fetchStatus: q.fetchStatus }), data ? itemCount(data as unknown as D) : 0);
-  const access: PhotoAccess = withChangesKnown(extrasAccess(capsView, caps.data?.can, what), changesView, what);
+  const readView = fetchView({ hasData: !!data, isPending: q.isPending, isError: q.isError, fetchStatus: q.fetchStatus });
+  const stale = readView === "data_stale";
+  // Drawn only once the capabilities have answered, so what this role can do is known.
+  const access: PhotoAccess = withChangesKnown(extrasAccess(caps.data?.can, what), changesView, what);
   const items = changes.data?.items;
 
-  async function submit(value: unknown): Promise<{ ok: boolean; message: string; stale?: boolean }> {
+  async function submit(value: unknown, base?: string): Promise<{ ok: boolean; message: string; stale?: boolean }> {
     setBusy(true);
     try {
-      // The list as this page drew it: the api refuses the change if the network's list is no longer that.
-      const base = field === "posts" ? undefined : (data as { base?: string } | undefined)?.base;
+      // The base of the list the DRAFT started from (not the one the page holds now): the api refuses the change if the network's list is no longer that.
       const out = outcomeOf(await m.propose.mutateAsync({ ...target!, proposal: { field, value, ...(base ? { base } : {}) } }));
-      await m.refresh(target!);
+      // Only the change list is read again, and not waited for: the card has its answer.
+      void m.refreshChanges(target!);
       if (out.kind === "prepared") return { ok: true, message: preparedWords(caps.data?.can, label, true) };
       if (out.kind === "not_checked") return { ok: true, message: preparedWords(caps.data?.can, label, false) };
       return { ok: false, message: out.message };
@@ -138,12 +136,12 @@ export function ExtraPanel<D extends { label: string; writes: { notice: string |
   }
 
   const body =
-    view.kind === "loading" || view.kind === "paused" ? (
+    readView === "loading" || readView === "paused" ? (
       <>
         <Skeleton className="h-16 w-full" />
-        {view.kind === "paused" && <p className="text-xs text-muted-foreground">Waiting for a connection.</p>}
+        {readView === "paused" && <p className="text-xs text-muted-foreground">Waiting for a connection.</p>}
       </>
-    ) : view.kind === "failed" || !data ? (
+    ) : readView === "failed" || !data ? (
       <>
         <p role="alert" className="text-sm">
           {errorWords(q.error)}
@@ -159,8 +157,8 @@ export function ExtraPanel<D extends { label: string; writes: { notice: string |
             {data.writes.notice}
           </p>
         )}
-        {view.stale && <p className="text-xs text-warning-on-tint">Could not refresh just now, so this may be out of date.</p>}
-        {children({ data: data as unknown as D, label, network, listingId: listing.id, access, view, changes: items, can: caps.data?.can, busy, submit })}
+        {stale && <p className="text-xs text-warning-on-tint">Could not refresh just now, so this may be out of date.</p>}
+        {children({ data: data as unknown as D, label, network, access, changes: items, can: caps.data?.can, busy, submit })}
       </>
     );
 
@@ -169,7 +167,7 @@ export function ExtraPanel<D extends { label: string; writes: { notice: string |
     <Card className="gap-4 p-5">
       {header}
       {body}
-      {access.mode === "view" && view.kind !== "ready" && view.kind !== "empty" && <p className="text-xs text-muted-foreground">{access.why}</p>}
+      {access.mode === "view" && !data && <p className="text-xs text-muted-foreground">{access.why}</p>}
 
       <div className="space-y-3">
         <h3 className="text-sm font-medium">{title} changes</h3>

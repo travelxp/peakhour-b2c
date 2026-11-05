@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  serviceKey,
   addableServices,
   buildPostValue,
   charsLeft,
@@ -20,7 +21,11 @@ import {
   withCustomService,
   linksValue,
   listedChanges,
-  listView,
+  liveDraft,
+  nextDraft,
+  postDraftUnchanged,
+  isTime,
+  draftDroppedWords,
   offeredDetails,
   pendingForPost,
   postControls,
@@ -74,10 +79,10 @@ describe("a post value", () => {
     expect(buildPostValue(draft({ summary: "  Hello  " }), DECL, create)).toEqual({ ok: true, value: { op: "create", draftId: create.draftId, kind: "update", summary: "Hello" } });
   });
   it("an edit carries the ref, a button with an https address, an event with its dates and an offer with its terms", () => {
-    const r = buildPostValue(draft({ kind: "offer", eventTitle: "Sale", start: "2026-12-01", end: "2026-12-05", offerCode: "X1", redeemUrl: "https://a.example/r", terms: "T", actionType: "ORDER", actionUrl: "https://a.example/o" }), DECL, { op: "update", ref: "p/1" });
+    const r = buildPostValue(draft({ kind: "offer", eventTitle: "Sale", start: "2026-12-01", end: "2026-12-05", startTime: "18:00", endTime: "24:00", offerCode: "X1", redeemUrl: "https://a.example/r", terms: "T", actionType: "ORDER", actionUrl: "https://a.example/o" }), DECL, { op: "update", ref: "p/1" });
     expect(r).toEqual({
       ok: true,
-      value: { op: "update", ref: "p/1", kind: "offer", summary: "Open late on Friday.", action: { type: "ORDER", url: "https://a.example/o" }, event: { title: "Sale", start: "2026-12-01", end: "2026-12-05" }, offer: { code: "X1", redeemUrl: "https://a.example/r", terms: "T" } },
+      value: { op: "update", ref: "p/1", kind: "offer", summary: "Open late on Friday.", action: { type: "ORDER", url: "https://a.example/o" }, event: { title: "Sale", start: "2026-12-01", end: "2026-12-05", startTime: "18:00", endTime: "24:00" }, offer: { code: "X1", redeemUrl: "https://a.example/r", terms: "T" } },
     });
   });
   it("the button that calls the listing's number takes no address", () => {
@@ -103,19 +108,51 @@ describe("a post value", () => {
     expect(buildPostValue(draft({ actionType: "BOOK", actionUrl: "http://a.example" }), DECL, create)).toMatchObject({ ok: false });
     expect(buildPostValue(draft({ actionUrl: "https://a.example" }), DECL, create)).toMatchObject({ ok: false });
   });
-  it("an event and an offer need a title and a real start date; the end must not be before the start; an update sends no dates", () => {
+  it("an event and an offer need a title, a real start AND end date and both times; the end must not be before the start; an update sends no dates", () => {
+    const ok = { kind: "event", eventTitle: "T", start: "2026-12-01", end: "2026-12-01", startTime: "18:00", endTime: "21:00" } as const;
+    expect(buildPostValue(draft(ok), DECL, create)).toMatchObject({ ok: true, value: { event: { title: "T", start: "2026-12-01", end: "2026-12-01", startTime: "18:00", endTime: "21:00" } } });
     expect(buildPostValue(draft({ kind: "event" }), DECL, create)).toMatchObject({ ok: false });
-    expect(buildPostValue(draft({ kind: "event", start: "2026-12-01" }), DECL, create)).toEqual({ ok: false, message: "An event needs a title." });
-    expect(buildPostValue(draft({ kind: "offer", start: "2026-12-01" }), DECL, create)).toEqual({ ok: false, message: "An offer needs a title." });
-    expect(buildPostValue(draft({ kind: "event", eventTitle: "T", start: "2026-13-45" }), DECL, create)).toMatchObject({ ok: false });
-    expect(buildPostValue(draft({ kind: "event", eventTitle: "T", start: "2026-12-02", end: "2026-12-01" }), DECL, create)).toMatchObject({ ok: false });
-    expect(buildPostValue(draft({ kind: "event", eventTitle: "T", start: "2026-12-01", end: "2026-12-01" }), DECL, create).ok).toBe(true);
+    expect(buildPostValue(draft({ ...ok, eventTitle: "" }), DECL, create)).toEqual({ ok: false, message: "An event needs a title." });
+    expect(buildPostValue(draft({ ...ok, kind: "offer", eventTitle: "" }), DECL, create)).toEqual({ ok: false, message: "An offer needs a title." });
+    expect(buildPostValue(draft({ ...ok, start: "2026-13-45" }), DECL, create)).toEqual({ ok: false, message: "Choose a start date." });
+    expect(buildPostValue(draft({ ...ok, end: "" }), DECL, create)).toEqual({ ok: false, message: "Choose a real end date." });
+    expect(buildPostValue(draft({ ...ok, start: "2026-12-02", end: "2026-12-01" }), DECL, create)).toEqual({ ok: false, message: "The end date is before the start date." });
+    expect(buildPostValue(draft({ ...ok, startTime: "" }), DECL, create)).toMatchObject({ ok: false, message: expect.stringContaining("start time") });
+    expect(buildPostValue(draft({ ...ok, endTime: "" }), DECL, create)).toMatchObject({ ok: false, message: expect.stringContaining("end time") });
+    expect(buildPostValue(draft({ ...ok, startTime: "7pm" }), DECL, create)).toMatchObject({ ok: false });
     expect(buildPostValue(draft({ eventTitle: "T", start: "2026-12-01" }), DECL, create)).toEqual({ ok: true, value: { op: "create", draftId: create.draftId, kind: "update", summary: "Open late on Friday." } });
   });
+  it("24:00 is the end of the day, everywhere a time is read; 25:00 and 24:01 are not times", () => {
+    for (const t of ["00:00", "09:05", "23:59", "24:00"]) expect(isTime(t), t).toBe(true);
+    for (const t of ["24:01", "25:00", "7:00", "18:60", "", "18"]) expect(isTime(t), t).toBe(false);
+    expect(buildPostValue(draft({ kind: "event", eventTitle: "T", start: "2026-12-01", end: "2026-12-01", startTime: "00:00", endTime: "24:00" }), DECL, create).ok).toBe(true);
+  });
   it("the redeem link of an offer must be https", () => {
-    const o = { kind: "offer", eventTitle: "T", start: "2026-12-01" };
+    const o = { kind: "offer", eventTitle: "T", start: "2026-12-01", end: "2026-12-01", startTime: "10:00", endTime: "12:00" } as const;
     expect(buildPostValue(draft({ ...o, redeemUrl: "http://a.example" }), DECL, create)).toMatchObject({ ok: false });
     expect(buildPostValue(draft(o), DECL, create)).toMatchObject({ ok: true });
+  });
+  it("★on an edit only what the person CHANGED is judged: a held redeem link, an empty summary and an event without times pass when left as they are", () => {
+    const heldPost = { kind: "offer" as const, summary: "", action: { type: "GET_OFFER", url: "http://old.example/x" }, event: { title: "Sale", start: "2026-12-01" }, offer: { redeemUrl: "http://old.example/r", code: "X" } };
+    const same = draft({ kind: "offer", summary: "", actionType: "GET_OFFER", actionUrl: "http://old.example/x", eventTitle: "Sale", start: "2026-12-01", offerCode: "X", redeemUrl: "http://old.example/r" });
+    const r = buildPostValue(same, DECL, { op: "update", ref: "p/1" }, heldPost);
+    expect(r).toMatchObject({ ok: true, value: { summary: "", action: { type: "GET_OFFER", url: "http://old.example/x" }, event: { title: "Sale", start: "2026-12-01" }, offer: { redeemUrl: "http://old.example/r" } } });
+    // the same edit with no held post is judged on every part
+    expect(buildPostValue(same, DECL, { op: "update", ref: "p/1" })).toMatchObject({ ok: false });
+    // change the redeem link to another http one: judged now
+    expect(buildPostValue({ ...same, redeemUrl: "http://other.example/r" }, DECL, { op: "update", ref: "p/1" }, heldPost)).toEqual({ ok: false, message: "The redeem link must start with https://." });
+    // change the event: all four parts are required now
+    expect(buildPostValue({ ...same, eventTitle: "Big sale" }, DECL, { op: "update", ref: "p/1" }, heldPost)).toMatchObject({ ok: false, message: expect.stringContaining("end date") });
+    // change the words: an empty or over-long summary is judged again
+    expect(buildPostValue({ ...same, summary: "x".repeat(101) }, DECL, { op: "update", ref: "p/1" }, heldPost)).toMatchObject({ ok: false });
+  });
+  it("an edit that changes nothing is refused by the form, not prepared", () => {
+    const d = draft({ summary: "Hello" });
+    expect(postDraftUnchanged(d, { ...d })).toBe(true);
+    expect(postDraftUnchanged(d, { ...d, summary: "  Hello  " })).toBe(true);
+    expect(postDraftUnchanged(d, { ...d, summary: "Hello!" })).toBe(false);
+    expect(postDraftUnchanged(d, { ...d, endTime: "21:00" })).toBe(false);
+    expect(postDraftUnchanged(d, { ...d, actionType: "book" })).toBe(false);
   });
   it("an existing post becomes an editable draft", () => {
     expect(postDraftOf({ ref: "p/1", kind: "event", summary: "S", state: "live", languageCode: "en", action: { type: "BOOK", url: "https://a.example" }, event: { title: "T", start: "2026-12-01" }, offer: null, createdAt: null, updatedAt: null, url: null, hasPhoto: false })).toMatchObject({ kind: "event", summary: "S", actionType: "BOOK", actionUrl: "https://a.example", eventTitle: "T", start: "2026-12-01", end: "" });
@@ -142,20 +179,22 @@ describe("what a post says about itself", () => {
 describe("what a person may press", () => {
   const edit = { mode: "edit" } as const;
   it("an editor may edit and delete a post with nothing waiting on it", () => {
-    expect(postControls(edit, DECL, undefined)).toEqual({ edit: true, remove: true, note: null });
+    expect(postControls(edit, DECL, undefined)).toEqual({ edit: true, remove: true });
   });
   it("a network that does not let posts be edited offers delete only", () => {
-    expect(postControls(edit, { edit: false }, undefined)).toEqual({ edit: false, remove: true, note: null });
+    expect(postControls(edit, { edit: false }, undefined)).toEqual({ edit: false, remove: true });
   });
-  it("a post with a change already waiting has neither, and a role that cannot propose has neither and is told why", () => {
-    expect(postControls(edit, DECL, change())).toEqual({ edit: false, remove: false, note: null });
-    expect(postControls({ mode: "view", why: "Ask an editor." }, DECL, undefined)).toEqual({ edit: false, remove: false, note: "Ask an editor." });
+  it("a post with a change already waiting has neither, and a role that cannot propose has neither", () => {
+    expect(postControls(edit, DECL, change())).toEqual({ edit: false, remove: false });
+    expect(postControls({ mode: "view", why: "Ask an editor." }, DECL, undefined)).toEqual({ edit: false, remove: false });
   });
-  it("an answer that says no is the role's; no answer yet is checking; a failed answer is not blamed on the role", () => {
-    expect(extrasAccess("data", { propose: true }, "posts")).toEqual({ mode: "edit" });
-    expect(extrasAccess("data", { propose: false }, "posts")).toMatchObject({ mode: "view", why: expect.stringContaining("Your role can look at your posts") });
-    expect(extrasAccess("loading", undefined, "posts")).toMatchObject({ why: "Checking what you can do here..." });
-    expect(extrasAccess("failed", undefined, "posts").mode === "view" && (extrasAccess("failed", undefined, "posts") as { why: string }).why).not.toContain("Your role can look");
+  it("only an answer that says no is the role's", () => {
+    expect(extrasAccess({ propose: true }, "posts")).toEqual({ mode: "edit" });
+    expect(extrasAccess({ propose: false }, "posts")).toMatchObject({ mode: "view", why: expect.stringContaining("Your role can look at your posts") });
+    // an answer that does not say is not blamed on the role
+    const unsaid = extrasAccess(undefined, "posts");
+    expect(unsaid.mode === "view" && unsaid.why).toContain("We could not check what your role can do");
+    expect(unsaid.mode === "view" && unsaid.why).not.toContain("Your role can look");
   });
   it("adding and removing wait until the change list has answered, keeping the role's own reason", () => {
     expect(withChangesKnown(edit, "data", "posts")).toEqual(edit);
@@ -165,13 +204,15 @@ describe("what a person may press", () => {
     const no = { mode: "view", why: "role" } as const;
     expect(withChangesKnown(no, "loading", "posts")).toBe(no);
   });
-  it("a read is loading, paused, failed, empty or ready; a failed refresh over data is stale, never an empty list", () => {
-    expect(listView("loading", 0)).toEqual({ kind: "loading" });
-    expect(listView("paused", 0)).toEqual({ kind: "paused" });
-    expect(listView("failed", 0)).toEqual({ kind: "failed" });
-    expect(listView("data", 0)).toEqual({ kind: "empty", stale: false });
-    expect(listView("data", 2)).toEqual({ kind: "ready", stale: false });
-    expect(listView("data_stale", 2)).toEqual({ kind: "ready", stale: true });
+  it("★a draft keeps the base of the list it STARTED from: later edits do not move it, and a draft from another list is dropped, never re-based", () => {
+    const first = nextDraft<string[]>(null, ["a"], "base-1");
+    expect(first).toEqual({ value: ["a"], base: "base-1" });
+    // the list was refetched meanwhile: the edit goes on under the base it started from
+    expect(nextDraft(first, ["a", "b"], "base-2")).toEqual({ value: ["a", "b"], base: "base-1" });
+    expect(liveDraft(first, "base-1")).toEqual({ draft: first, dropped: false });
+    expect(liveDraft(first, "base-2")).toEqual({ draft: null, dropped: true });
+    expect(liveDraft(null, "base-2")).toEqual({ draft: null, dropped: false });
+    expect(draftDroppedWords("NetA", "links")).toContain("while you were editing");
   });
 });
 
@@ -352,17 +393,25 @@ describe("round one: only what the person added or changed is judged, and nothin
     const once = withCustomService(held, "cat/cafe", "Latte art");
     expect(once.ok && withCustomService(once.value, "cat/cafe", "latte ART")).toMatchObject({ ok: false });
   });
+  it("a service of the person's own that they removed in this draft comes back as the network held it (description and price)", () => {
+    const own: ServiceEntry = { kind: "custom", categoryId: "cat/cafe", name: "Latte art", description: "Class", price: { currencyCode: "INR", units: "0" } };
+    const removed = withoutService([own], serviceKey(own));
+    expect(withCustomService(removed, "cat/cafe", "latte ART", [own])).toEqual({ ok: true, value: [own] });
+    expect(withCustomService(removed, "cat/cafe", "Latte art")).toEqual({ ok: true, value: [{ kind: "custom", categoryId: "cat/cafe", name: "Latte art" }] });
+  });
   it("a post keeps its language and its event times through an edit", () => {
-    const d = postDraftOf({ ref: "p/1", kind: "event", summary: "S", state: "live", languageCode: "en", action: null, event: { title: "T", start: "2026-12-01", startTime: "18:00", endTime: "21:30" }, offer: null, createdAt: null, updatedAt: null, url: null, hasPhoto: false });
-    expect(buildPostValue(d, DECL, { op: "update", ref: "p/1" })).toEqual({
+    const item = { ref: "p/1", kind: "event" as const, summary: "S", state: "live" as const, languageCode: "en", action: null, event: { title: "T", start: "2026-12-01", startTime: "18:00", endTime: "21:30" }, offer: null, createdAt: null, updatedAt: null, url: null, hasPhoto: false };
+    const d = postDraftOf(item);
+    expect(buildPostValue(d, DECL, { op: "update", ref: "p/1" }, item)).toEqual({
       ok: true,
       value: { op: "update", ref: "p/1", kind: "event", summary: "S", languageCode: "en", event: { title: "T", start: "2026-12-01", startTime: "18:00", endTime: "21:30" } },
     });
   });
   it("a button the network no longer offers is kept as it is when the person leaves it, and refused when they set it anew", () => {
-    const held = { type: "SHOP", url: "https://a.example" };
+    const heldButton = { type: "SHOP", url: "https://a.example" };
+    const held = { action: heldButton };
     const d = draft({ actionType: "SHOP", actionUrl: "https://a.example" });
-    expect(buildPostValue(d, DECL, { op: "update", ref: "p/1" }, held)).toMatchObject({ ok: true, value: { action: held } });
+    expect(buildPostValue(d, DECL, { op: "update", ref: "p/1" }, held)).toMatchObject({ ok: true, value: { action: heldButton } });
     expect(buildPostValue(d, DECL, { op: "update", ref: "p/1" })).toEqual({ ok: false, message: "That button is not offered." });
     expect(buildPostValue(draft({ actionType: "SHOP", actionUrl: "https://b.example" }), DECL, { op: "update", ref: "p/1" }, held)).toMatchObject({ ok: false });
     // cleared: no button at all

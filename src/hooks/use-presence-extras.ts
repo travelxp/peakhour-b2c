@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { presenceChangesApi } from "@/lib/api/presence-changes";
 import { presenceEditApi } from "@/lib/api/presence-edit";
 import { presenceExtrasApi, type ExtraProposal } from "@/lib/api/presence-extras";
 import { presenceEditKeys, type ChangeCardData } from "@/lib/presence-edit";
-import { inFlightChanges, settledSince, type AttributesResponse, type ExtraField, type LinksResponse, type PostsResponse, type ServicesResponse } from "@/lib/presence-extras";
+import { inFlightChanges, liveDraft, nextDraft, settledSince, type BasedDraft, type AttributesResponse, type ExtraField, type LinksResponse, type PostsResponse, type ServicesResponse } from "@/lib/presence-extras";
 
 interface Answers {
   posts: PostsResponse;
@@ -52,11 +52,14 @@ export function useExtraMutations(field: ExtraField, target: ExtraTarget | null)
       qc.invalidateQueries({ queryKey: ["presence", "listing"] }),
     ]);
   };
+  /** After a proposal only the change list is read again (not awaited): the list the panel shows did not change. */
+  const refreshChanges = (t: ExtraTarget) => qc.invalidateQueries({ queryKey: presenceEditKeys.changes(t.listingId) });
   const settled = async () => {
     if (target) await refresh(target);
   };
   return {
     refresh,
+    refreshChanges,
     propose: useMutation({ mutationFn: (v: ExtraTarget & { proposal: ExtraProposal }) => presenceExtrasApi.propose(v.listingId, v.network, v.proposal) }),
     approve: useMutation({ mutationFn: (id: string) => presenceChangesApi.approve(id), onSettled: settled }),
     reject: useMutation({ mutationFn: (id: string) => presenceChangesApi.reject(id), onSettled: settled }),
@@ -77,4 +80,32 @@ export function useRefreshWhenSettled(field: ExtraField, items: ChangeCardData[]
     }
     seen.current = new Set(inFlightChanges(items, target.network, field).map((c) => c.id));
   }, [items, target?.listingId, target?.network, field, qc]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+/**
+ * The draft of a whole list, with the `base` of the list it STARTED from (captured by its first edit, never changed under it). When the list the
+ * panel reads has a different base the draft is dropped, never silently re-based onto a list the person did not see; `dropped` says so, for the words.
+ */
+export function useBasedDraft<T>(baseNow: string) {
+  const [state, setState] = useState<BasedDraft<T> | null>(null);
+  const [dropped, setDropped] = useState(false);
+  const live = liveDraft(state, baseNow);
+  if (state && live.dropped) {
+    // adjusting state while rendering (React's way to reset on a changed input)
+    setState(null);
+    setDropped(true);
+  }
+  return {
+    draft: live.draft?.value ?? null,
+    base: live.draft?.base ?? null,
+    dropped,
+    set: (value: T) => {
+      setDropped(false);
+      setState((prev) => nextDraft(prev, value, baseNow));
+    },
+    clear: () => {
+      setDropped(false);
+      setState(null);
+    },
+  };
 }

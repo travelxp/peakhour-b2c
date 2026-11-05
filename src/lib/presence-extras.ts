@@ -137,25 +137,14 @@ export interface LinksResponse {
 
 // ── States ───────────────────────────────────────────────────────────────────
 
-export type ListView = { kind: "loading" } | { kind: "paused" } | { kind: "failed" } | { kind: "empty"; stale: boolean } | { kind: "ready"; stale: boolean };
-
-/** What a panel's read is: loading, waiting for a connection, failed, empty (read, nothing there) or ready. `stale` is a failed refresh over data. */
-export function listView(v: "loading" | "paused" | "failed" | "data" | "data_stale", itemCount: number): ListView {
-  if (v === "loading") return { kind: "loading" };
-  if (v === "paused") return { kind: "paused" };
-  if (v === "failed") return { kind: "failed" };
-  const stale = v === "data_stale";
-  return itemCount === 0 ? { kind: "empty", stale } : { kind: "ready", stale };
-}
-
 /**
- * What this person can do. `can` undefined is a read that has not answered or has failed, which is NOT "your role cannot": the first says
- * "checking", the second says the check failed, and only an answer that says no says the role cannot.
+ * What this person can do. The panel is drawn only once the capabilities have answered (a read that failed or is paused draws nothing, and the edit
+ * card states that failure), so only an answer that says no says the role cannot.
  */
-export function extrasAccess(view: "loading" | "paused" | "failed" | "data" | "data_stale", can: { propose: boolean } | undefined, what: string): PhotoAccess {
-  if (can) return can.propose ? { mode: "edit" } : { mode: "view", why: `Your role can look at your ${what} but not change them. Ask an editor, admin or owner.` };
-  if (view === "loading" || view === "paused") return { mode: "view", why: "Checking what you can do here..." };
-  return { mode: "view", why: `We could not check what your role can do, so ${what} cannot be changed from here right now. Reload the page to try again.` };
+export function extrasAccess(can: { propose: boolean } | undefined, what: string): PhotoAccess {
+  // The capabilities answered but did not say what this role can do (an older api): that is not the role's doing, and nothing can be changed.
+  if (!can) return { mode: "view", why: `We could not check what your role can do, so ${what} cannot be changed from here right now. Reload the page to try again.` };
+  return can.propose ? { mode: "edit" } : { mode: "view", why: `Your role can look at your ${what} but not change them. Ask an editor, admin or owner.` };
 }
 
 /** A role that may edit is still held until the change list, which says what is waiting, has answered. */
@@ -165,6 +154,28 @@ export function withChangesKnown(access: PhotoAccess, changes: "loading" | "paus
   if (changes === "failed") return { mode: "view", why: `We could not load your ${what} changes, so changing them is off until they load. Try again.` };
   return { mode: "view", why: `Checking your waiting ${what} changes...` };
 }
+
+// ── A draft remembers the list it started from ───────────────────────────────
+
+/** A draft of a whole list and the `base` of the list it was started from. The base is captured when the draft STARTS and never changes under it. */
+export interface BasedDraft<T> {
+  value: T;
+  base: string;
+}
+
+/** The draft to keep given the list's base now: a draft started from another list is DROPPED (never silently re-based onto a list the person did not see). */
+export function liveDraft<T>(d: BasedDraft<T> | null, baseNow: string): { draft: BasedDraft<T> | null; dropped: boolean } {
+  if (!d) return { draft: null, dropped: false };
+  return d.base === baseNow ? { draft: d, dropped: false } : { draft: null, dropped: true };
+}
+
+/** A new value for a draft. The first edit captures `baseNow`; later edits keep the base the draft started from. */
+export function nextDraft<T>(prev: BasedDraft<T> | null, value: T, baseNow: string): BasedDraft<T> {
+  return { value, base: prev?.base ?? baseNow };
+}
+
+export const draftDroppedWords = (label: string, what: string): string =>
+  `Your ${what} changed on ${label} while you were editing, so your draft was dropped. Make the change again from what is there now.`;
 
 // ── The change list of one panel ─────────────────────────────────────────────
 
@@ -284,6 +295,9 @@ export function postDraftOf(p: PostItem): PostDraft {
 }
 
 const HTTPS = /^https:\/\/\S+$/i;
+/** `HH:MM`; `24:00` is the end of the day. */
+const HHMM = /^(?:(?:[01]\d|2[0-3]):[0-5]\d|24:00)$/;
+export const isTime = (v: string): boolean => HHMM.test(v);
 const WEB = /^https?:\/\/\S+$/i;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 export function isDay(v: string): boolean {
@@ -293,6 +307,16 @@ export function isDay(v: string): boolean {
 }
 
 export type Built<T> = { ok: true; value: T } | { ok: false; message: string };
+
+/** What an edited post holds now: only what the person changes is judged, so anything left as it is passes whatever the network offers today. */
+export type HeldPost = Partial<Pick<PostItem, "kind" | "summary" | "action" | "event" | "offer">>;
+
+const trimmed = (d: PostDraft) => ({ ...d, summary: d.summary.trim(), actionType: d.actionType.trim().toUpperCase(), actionUrl: d.actionUrl.trim(), eventTitle: d.eventTitle.trim(), start: d.start.trim(), end: d.end.trim(), startTime: d.startTime.trim(), endTime: d.endTime.trim(), offerCode: d.offerCode.trim(), redeemUrl: d.redeemUrl.trim(), terms: d.terms.trim(), languageCode: d.languageCode.trim() });
+
+/** Whether an edit changes nothing: the form refuses it rather than prepare a change that says what the post already says. */
+export function postDraftUnchanged(initial: PostDraft, now: PostDraft): boolean {
+  return JSON.stringify(trimmed(initial)) === JSON.stringify(trimmed(now));
+}
 
 /** A fresh id for a new post, made once when the form opens: sent with the post so a double click or a retry is the same post, not two. */
 export function newDraftId(): string {
@@ -325,22 +349,24 @@ export function buildPostValue(
   draft: PostDraft,
   decl: PostsDeclaration,
   op: { op: "create"; draftId: string } | { op: "update"; ref: string },
-  /** The button the post already has, when it is being edited: a button left as it is passes whatever the network offers now. */
-  held?: { type: string; url?: string } | null,
+  /** What the post holds now, when it is being edited. Anything the person leaves as it is passes: a button the network no longer offers, a redeem link, an empty summary, an event without times. */
+  held?: HeldPost | null,
 ): Built<PostValue> {
   const summary = draft.summary.trim();
-  if (!summary) return { ok: false, message: "Write what you want to say." };
-  if (summary.length > decl.limits.summaryMaxLength) {
+  const summaryChanged = held?.summary === undefined || summary !== held.summary.trim();
+  if (!summary && summaryChanged) return { ok: false, message: "Write what you want to say." };
+  if (summaryChanged && summary.length > decl.limits.summaryMaxLength) {
     return { ok: false, message: `Use at most ${decl.limits.summaryMaxLength} characters. This one is ${summary.length}, and it is not shortened for you.` };
   }
-  if (!decl.kinds.includes(draft.kind)) return { ok: false, message: "That kind of post is not offered." };
+  if (!(held?.kind === draft.kind) && !decl.kinds.includes(draft.kind)) return { ok: false, message: "That kind of post is not offered." };
   const value: PostContentValue = { kind: draft.kind, summary, ...(draft.languageCode.trim() ? { languageCode: draft.languageCode.trim() } : {}) };
 
   const type = draft.actionType.trim().toUpperCase();
-  const keptButton = !!held && held.type.toUpperCase() === type && (held.url ?? "") === draft.actionUrl.trim();
+  const heldButton = held?.action ?? null;
+  const keptButton = !!heldButton && heldButton.type.toUpperCase() === type && (heldButton.url ?? "") === draft.actionUrl.trim();
   if (type && keptButton) {
     // Left as it is: not judged again (an edit must not fail on a button the person did not touch).
-    value.action = { type: held!.type, ...(held!.url ? { url: held!.url } : {}) };
+    value.action = { type: heldButton!.type, ...(heldButton!.url ? { url: heldButton!.url } : {}) };
   } else if (type) {
     if (!decl.actions.includes(type)) return { ok: false, message: "That button is not offered." };
     if (type === decl.actionWithoutUrl) {
@@ -359,26 +385,29 @@ export function buildPostValue(
 
   if (draft.kind === "event" || draft.kind === "offer") {
     const title = draft.eventTitle.trim();
-    if (!title) return { ok: false, message: `${draft.kind === "offer" ? "An offer" : "An event"} needs a title.` };
-    if (!isDay(draft.start.trim())) return { ok: false, message: "Choose a start date." };
+    const start = draft.start.trim();
     const end = draft.end.trim();
-    if (end) {
-      if (!isDay(end)) return { ok: false, message: "Choose a real end date, or leave it empty." };
-      if (end < draft.start.trim()) return { ok: false, message: "The end date is before the start date." };
+    const startTime = draft.startTime.trim();
+    const endTime = draft.endTime.trim();
+    const he = held?.kind === draft.kind ? held.event : null;
+    const kept = !!he && he.title === title && he.start === start && (he.end ?? "") === end && (he.startTime ?? "") === startTime && (he.endTime ?? "") === endTime;
+    if (!kept) {
+      // A new event or offer (or one whose event was changed) carries a title, both dates and both times: the network's schedule is not valid without all four.
+      if (!title) return { ok: false, message: `${draft.kind === "offer" ? "An offer" : "An event"} needs a title.` };
+      if (!isDay(start)) return { ok: false, message: "Choose a start date." };
+      if (!isDay(end)) return { ok: false, message: "Choose a real end date." };
+      if (end < start) return { ok: false, message: "The end date is before the start date." };
+      if (!isTime(startTime)) return { ok: false, message: "Enter the start time as HH:MM, for example 18:30." };
+      if (!isTime(endTime)) return { ok: false, message: "Enter the end time as HH:MM, for example 21:00 (24:00 is the end of the day)." };
     }
-    value.event = {
-      title,
-      start: draft.start.trim(),
-      ...(end ? { end } : {}),
-      ...(draft.startTime ? { startTime: draft.startTime } : {}),
-      ...(draft.endTime ? { endTime: draft.endTime } : {}),
-    };
+    value.event = { title, start, ...(end ? { end } : {}), ...(startTime ? { startTime } : {}), ...(endTime ? { endTime } : {}) };
   }
   if (draft.kind === "offer") {
     const code = draft.offerCode.trim();
     const redeemUrl = draft.redeemUrl.trim();
     const terms = draft.terms.trim();
-    if (redeemUrl && !HTTPS.test(redeemUrl)) return { ok: false, message: "The redeem link must start with https://." };
+    // A redeem link is judged only when the person changed it.
+    if (redeemUrl && redeemUrl !== (held?.offer?.redeemUrl ?? "") && !HTTPS.test(redeemUrl)) return { ok: false, message: "The redeem link must start with https://." };
     if (code || redeemUrl || terms) value.offer = { ...(code ? { code } : {}), ...(redeemUrl ? { redeemUrl } : {}), ...(terms ? { terms } : {}) };
   }
   return { ok: true, value: { ...op, ...value } as PostValue };
@@ -392,10 +421,9 @@ export function deleteNote(decl: Pick<PostsDeclaration, "removal">, label: strin
 }
 
 /** Whether an edit or a delete is offered for a post: a role that may edit, nothing already waiting on that post, and (for an edit) a network that lets posts be edited. */
-export function postControls(access: PhotoAccess, decl: Pick<PostsDeclaration, "edit">, pending: ChangeCardData | undefined): { edit: boolean; remove: boolean; note: string | null } {
-  if (access.mode !== "edit") return { edit: false, remove: false, note: access.why };
-  if (pending) return { edit: false, remove: false, note: null };
-  return { edit: decl.edit, remove: true, note: null };
+export function postControls(access: PhotoAccess, decl: Pick<PostsDeclaration, "edit">, pending: ChangeCardData | undefined): { edit: boolean; remove: boolean } {
+  if (access.mode !== "edit" || pending) return { edit: false, remove: false };
+  return { edit: decl.edit, remove: true };
 }
 
 // ── Services ─────────────────────────────────────────────────────────────────
@@ -424,14 +452,16 @@ export function withService(current: readonly ServiceEntry[], id: string, held: 
 }
 
 /** The list with a service the person names added, filed under the network's category for the business. Nothing is added without a category or a name. */
-export function withCustomService(current: readonly ServiceEntry[], categoryRef: string | null, name: string): Built<ServiceEntry[]> {
+export function withCustomService(current: readonly ServiceEntry[], categoryRef: string | null, name: string, held: readonly ServiceEntry[] = []): Built<ServiceEntry[]> {
   const n = name.trim();
   if (!categoryRef) return { ok: false, message: "We cannot file a service of your own until your main category is set." };
   if (!n) return { ok: false, message: "Write the name of the service." };
   if (n.length > 140) return { ok: false, message: "Use at most 140 characters for a service name." };
-  const entry: ServiceEntry = { kind: "custom", categoryId: categoryRef, name: n };
-  if (current.some((s) => serviceKey(s) === serviceKey(entry))) return { ok: false, message: "That service is already on the list." };
-  return { ok: true, value: [...current, entry] };
+  const fresh: ServiceEntry = { kind: "custom", categoryId: categoryRef, name: n };
+  if (current.some((s) => serviceKey(s) === serviceKey(fresh))) return { ok: false, message: "That service is already on the list." };
+  // A service of the person's own that the network held and they removed in this draft comes back as it was (description and price included).
+  const back = held.find((s) => s.kind === "custom" && serviceKey(s) === serviceKey(fresh));
+  return { ok: true, value: [...current, back ?? fresh] };
 }
 
 /** The list without one entry. The others are kept exactly as read (price and description included). */

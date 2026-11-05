@@ -18,6 +18,7 @@ import {
   pendingNote,
   postControls,
   postDraftOf,
+  postDraftUnchanged,
   postStateWords,
   type PostDraft,
   type PostItem,
@@ -32,15 +33,18 @@ function PostForm({
   op,
   held = null,
   busy,
+  canEdit,
   onSubmit,
   onCancel,
 }: {
   decl: PostsResponse["declaration"];
   initial: PostDraft;
   op: { op: "create" } | { op: "update"; ref: string };
-  /** The button the post has now, when editing: shown honestly if the network no longer offers it, and kept or cleared by the person. */
-  held?: { type: string; url?: string } | null;
+  /** The post as it is now, when editing: anything left as it is passes, and a button the network no longer offers is shown honestly, kept or cleared by the person. */
+  held?: PostItem | null;
   busy: boolean;
+  /** Whether this person may still prepare a change (a change already waiting, or a role that cannot, turns Review off). */
+  canEdit: boolean;
   onSubmit: (value: unknown) => Promise<{ ok: boolean; message: string }>;
   onCancel: () => void;
 }) {
@@ -55,6 +59,7 @@ function PostForm({
   const left = charsLeft(d.summary, decl.limits.summaryMaxLength);
 
   async function go() {
+    if (editing && postDraftUnchanged(initial, d)) return setMessage("Change something first: this says what the post already says.");
     const built = buildPostValue(d, decl, op.op === "create" ? { op: "create", draftId } : op, held);
     if (!built.ok) return setMessage(built.message);
     const r = await onSubmit(built.value);
@@ -102,10 +107,23 @@ function PostForm({
           </div>
           <div className="space-y-1">
             <label className="text-xs" htmlFor="post-end">
-              Ends (optional)
+              Ends
             </label>
             <Input id="post-end" type="date" value={d.end} onChange={(e) => set({ end: e.target.value })} />
           </div>
+          <div className="space-y-1">
+            <label className="text-xs" htmlFor="post-start-time">
+              Start time (HH:MM)
+            </label>
+            <Input id="post-start-time" placeholder="18:30" value={d.startTime} onChange={(e) => set({ startTime: e.target.value })} />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs" htmlFor="post-end-time">
+              End time (HH:MM, 24:00 is the end of the day)
+            </label>
+            <Input id="post-end-time" placeholder="21:00" value={d.endTime} onChange={(e) => set({ endTime: e.target.value })} />
+          </div>
+          <p className="text-xs text-muted-foreground sm:col-span-3">An event or an offer needs both dates and both times: the network does not take a schedule without all four.</p>
         </div>
       )}
       {d.kind === "offer" && (
@@ -166,7 +184,7 @@ function PostForm({
         </p>
       )}
       <div className="flex gap-2">
-        <Button size="sm" disabled={busy} onClick={() => void go()}>
+        <Button size="sm" disabled={busy || !canEdit} onClick={() => void go()}>
           {busy ? "Preparing..." : "Review change"}
         </Button>
         <Button size="sm" variant="outline" disabled={busy} onClick={onCancel}>
@@ -212,7 +230,7 @@ function PostsBody({ ctx }: { ctx: PanelContext<PostsResponse> }) {
         </Button>
       )}
       {access.mode === "view" && <p className="text-xs text-muted-foreground">{access.why}</p>}
-      {form?.op === "create" && <PostForm decl={data.declaration} initial={emptyPostDraft(data.declaration.kinds[0] ?? "update")} op={{ op: "create" }} busy={busy} onSubmit={send} onCancel={() => setForm(null)} />}
+      {form?.op === "create" && <PostForm decl={data.declaration} initial={emptyPostDraft(data.declaration.kinds[0] ?? "update")} op={{ op: "create" }} busy={busy} canEdit={access.mode === "edit"} onSubmit={send} onCancel={() => setForm(null)} />}
 
       <div className="space-y-2">
         <h3 className="text-sm font-medium">On your listing</h3>
@@ -241,7 +259,7 @@ function PostsBody({ ctx }: { ctx: PanelContext<PostsResponse> }) {
                   {p.action && <p className="text-xs text-muted-foreground">Button: {actionLabel(p.action.type)}</p>}
                   {pending && <p className="text-xs text-muted-foreground">{pendingNote(pending.status, can)}</p>}
                   {form?.op === "update" && form.ref === p.ref ? (
-                    <PostForm decl={data.declaration} initial={postDraftOf(p)} op={{ op: "update", ref: p.ref }} held={p.action} busy={busy} onSubmit={send} onCancel={() => setForm(null)} />
+                    <PostForm decl={data.declaration} initial={postDraftOf(p)} op={{ op: "update", ref: p.ref }} held={p} busy={busy} canEdit={access.mode === "edit"} onSubmit={send} onCancel={() => setForm(null)} />
                   ) : (
                     <div className="flex flex-wrap gap-2">
                       {ctl.edit && (
@@ -278,7 +296,7 @@ function PostsBody({ ctx }: { ctx: PanelContext<PostsResponse> }) {
  */
 export function PostsCard({ location, network }: { location?: string | undefined; network?: string | undefined }) {
   return (
-    <ExtraPanel<PostsResponse> field="posts" location={location} network={network} title="Your posts" blurb="Write a post, or change or delete one that is on your listing." what="posts" itemCount={(d) => d.items.length}>
+    <ExtraPanel<PostsResponse> field="posts" location={location} network={network} title="Your posts" blurb="Write a post, or change or delete one that is on your listing." what="posts">
       {(ctx) => <PostsBody ctx={ctx} />}
     </ExtraPanel>
   );

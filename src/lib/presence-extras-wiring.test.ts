@@ -29,10 +29,23 @@ describe("how the panels are wired", () => {
   it("a proposal carries its place in its variables and is read through outcomeOf; the panel and the change list are refreshed once after it", () => {
     const shell = flat("components/presence/edit/extra-panel.tsx");
     expect(shell).toContain("outcomeOf(await m.propose.mutateAsync({ ...target!, proposal: { field, value, ...(base ? { base } : {}) } }))");
-    // the list as the page drew it rides with the change, and the api's refusal of a stale one reloads the panel
-    expect(shell).toContain("(data as { base?: string } | undefined)?.base");
+    // the base of the list the DRAFT started from rides with the change (the card passes it), and the api's refusal of a stale one reloads the panel
+    expect(shell).toContain("async function submit(value: unknown, base?: string)");
+    expect(shell).not.toContain("(data as { base?: string }");
     expect(shell).toContain("isListChanged(err)");
-    expect(shell).toContain("await m.refresh(target!);");
+    // after a proposal only the change list is read again, and not waited for
+    expect(shell).toContain("void m.refreshChanges(target!);");
+    expect(flat("hooks/use-presence-extras.ts")).toContain("const refreshChanges = (t: ExtraTarget) => qc.invalidateQueries({ queryKey: presenceEditKeys.changes(t.listingId) });");
+    expect(flat("components/presence/edit/services-card.tsx")).toContain("withCustomService(list, data.categoryRef, own, data.current)");
+    for (const card of ["services", "details", "links"]) {
+      const src = flat(`components/presence/edit/${card}-card.tsx`);
+      expect(src, card).toContain("useBasedDraft");
+      expect(src, card).toContain("submit(built.value, d.base ?? data.base)");
+      expect(src, card).toContain("disabled={busy || !canEdit}");
+      expect(src, card).toContain("draftDroppedWords(label,");
+      // the api's refusal is shown after the draft has cleared
+      expect(src, card).toContain("{!draft && message && (");
+    }
     const hook = flat("hooks/use-presence-extras.ts");
     expect(hook).toContain("mutationFn: (v: ExtraTarget & { proposal: ExtraProposal })");
     expect(hook).toContain("refetchOnWindowFocus: false");
@@ -59,7 +72,10 @@ describe("how the panels are wired", () => {
     expect(posts).toContain("const [draftId] = useState(() => newDraftId());");
     expect(posts).toContain('e.target.value === "" || e.target.value === decl.actionWithoutUrl ? { actionUrl: "" }');
     expect(posts).toContain('emptyPostDraft(data.declaration.kinds[0] ?? "update")');
-    expect(posts).toContain("held={p.action}");
+    expect(posts).toContain("held={p}");
+    expect(posts).toContain("canEdit={access.mode === \"edit\"}");
+    expect(posts).toContain("postDraftUnchanged(initial, d)");
+    expect(posts).toContain("disabled={busy || !canEdit} onClick={() => void go()}");
   });
   it("a links change that settled reloads the listing, whose booking and order addresses it rewrote", () => {
     const hook = flat("hooks/use-presence-extras.ts");

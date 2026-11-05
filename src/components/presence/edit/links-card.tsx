@@ -4,11 +4,14 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ExtraPanel, type PanelContext } from "@/components/presence/edit/extra-panel";
-import { inFlightChanges, linksValue, linkTypeLabel, waitingWords, withLink, withoutLink, withPreferred, type ActionLink, type LinksResponse } from "@/lib/presence-extras";
+import { useBasedDraft } from "@/hooks/use-presence-extras";
+import { draftDroppedWords, inFlightChanges, linksValue, linkTypeLabel, waitingWords, withLink, withoutLink, withPreferred, type ActionLink, type LinksResponse } from "@/lib/presence-extras";
 
 function LinksBody({ ctx }: { ctx: PanelContext<LinksResponse> }) {
   const { data, label, access, busy, submit, changes, network, can } = ctx;
-  const [draft, setDraft] = useState<ActionLink[] | null>(null);
+  const d = useBasedDraft<ActionLink[]>(data.base);
+  const draft = d.draft;
+  const setDraft = (next: ActionLink[] | null) => (next ? d.set(next) : d.clear());
   const [type, setType] = useState(data.types[0]?.type ?? "");
   const [uri, setUri] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -21,7 +24,7 @@ function LinksBody({ ctx }: { ctx: PanelContext<LinksResponse> }) {
     const built = linksValue(data.current, list, data.types);
     if (!built.ok) return setMessage(built.message);
     setMessage(null);
-    const r = await submit(built.value);
+    const r = await submit(built.value, d.base ?? data.base);
     if (r.ok) {
       setNotice(r.message);
       setDraft(null);
@@ -44,6 +47,7 @@ function LinksBody({ ctx }: { ctx: PanelContext<LinksResponse> }) {
             .join(" ")}
         </p>
       )}
+      {d.dropped && <p role="status" className="text-xs text-warning-on-tint">{draftDroppedWords(label, "links")}</p>}
       {notice && (
         <p role="status" className="text-xs text-muted-foreground">
           {notice}
@@ -102,6 +106,11 @@ function LinksBody({ ctx }: { ctx: PanelContext<LinksResponse> }) {
           </Button>
         </div>
       )}
+      {!draft && message && (
+        <p role="alert" className="text-xs text-destructive">
+          {message}
+        </p>
+      )}
       {draft && (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">The whole list of links is sent, so any link you leave out is removed.</p>
@@ -111,7 +120,7 @@ function LinksBody({ ctx }: { ctx: PanelContext<LinksResponse> }) {
             </p>
           )}
           <div className="flex gap-2">
-            <Button size="sm" disabled={busy} onClick={() => void review()}>
+            <Button size="sm" disabled={busy || !canEdit} onClick={() => void review()}>
               {busy ? "Preparing..." : "Review change"}
             </Button>
             <Button size="sm" variant="outline" disabled={busy} onClick={() => { setDraft(null); setMessage(null); }}>
@@ -127,7 +136,7 @@ function LinksBody({ ctx }: { ctx: PanelContext<LinksResponse> }) {
 /** Your booking and order links. Drawn only for a network that declares them. */
 export function LinksCard({ location, network }: { location?: string | undefined; network?: string | undefined }) {
   return (
-    <ExtraPanel<LinksResponse> field="links" location={location} network={network} title="Your links" blurb="Where customers go to book or order." what="links" itemCount={(d) => d.current.length}>
+    <ExtraPanel<LinksResponse> field="links" location={location} network={network} title="Your links" blurb="Where customers go to book or order." what="links">
       {(ctx) => <LinksBody ctx={ctx} />}
     </ExtraPanel>
   );

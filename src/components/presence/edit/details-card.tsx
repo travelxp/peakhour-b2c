@@ -4,7 +4,9 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ExtraPanel, type PanelContext } from "@/components/presence/edit/extra-panel";
+import { useBasedDraft } from "@/hooks/use-presence-extras";
 import {
+  draftDroppedWords,
   detailLabel,
   detailLine,
   detailsValue,
@@ -93,7 +95,9 @@ function Editor({ option, entry, onSet, onChoice, onClear, disabled }: {
 
 function DetailsBody({ ctx }: { ctx: PanelContext<AttributesResponse> }) {
   const { data, label, access, busy, submit, changes, network, can } = ctx;
-  const [draft, setDraft] = useState<AttributeEntry[] | null>(null);
+  const d = useBasedDraft<AttributeEntry[]>(data.base);
+  const draft = d.draft;
+  const setDraft = (next: AttributeEntry[] | null) => (next ? d.set(next) : d.clear());
   const [message, setMessage] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const list = draft ?? data.current;
@@ -107,7 +111,7 @@ function DetailsBody({ ctx }: { ctx: PanelContext<AttributesResponse> }) {
     const built = detailsValue(data.current, list);
     if (!built.ok) return setMessage(built.message);
     setMessage(null);
-    const r = await submit(built.value);
+    const r = await submit(built.value, d.base ?? data.base);
     if (r.ok) {
       setNotice(r.message);
       setDraft(null);
@@ -124,6 +128,7 @@ function DetailsBody({ ctx }: { ctx: PanelContext<AttributesResponse> }) {
   return (
     <>
       {data.optionsNotice && <p className="text-xs text-warning-on-tint">{data.optionsNotice} Changing details is not available until the list loads.</p>}
+      {d.dropped && <p role="status" className="text-xs text-warning-on-tint">{draftDroppedWords(label, "details")}</p>}
       {notice && (
         <p role="status" className="text-xs text-muted-foreground">
           {notice}
@@ -170,6 +175,11 @@ function DetailsBody({ ctx }: { ctx: PanelContext<AttributesResponse> }) {
           </ul>
         </div>
       )}
+      {!draft && message && (
+        <p role="alert" className="text-xs text-destructive">
+          {message}
+        </p>
+      )}
       {draft && (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">A detail you clear is removed, and {label} may check it before showing it.</p>
@@ -179,7 +189,7 @@ function DetailsBody({ ctx }: { ctx: PanelContext<AttributesResponse> }) {
             </p>
           )}
           <div className="flex gap-2">
-            <Button size="sm" disabled={busy} onClick={() => void review()}>
+            <Button size="sm" disabled={busy || !canEdit} onClick={() => void review()}>
               {busy ? "Preparing..." : "Review change"}
             </Button>
             <Button size="sm" variant="outline" disabled={busy} onClick={() => { setDraft(null); setMessage(null); }}>
@@ -195,7 +205,7 @@ function DetailsBody({ ctx }: { ctx: PanelContext<AttributesResponse> }) {
 /** Details about your business (accessibility, amenities and so on): only the ones the network offers for your kind of business and country. */
 export function DetailsCard({ location, network }: { location?: string | undefined; network?: string | undefined }) {
   return (
-    <ExtraPanel<AttributesResponse> field="attributes" location={location} network={network} title="Your details" blurb="Facts about your business that customers look for, from the list for your kind of business and country." what="details" itemCount={(d) => d.current.length}>
+    <ExtraPanel<AttributesResponse> field="attributes" location={location} network={network} title="Your details" blurb="Facts about your business that customers look for, from the list for your kind of business and country." what="details">
       {(ctx) => <DetailsBody ctx={ctx} />}
     </ExtraPanel>
   );

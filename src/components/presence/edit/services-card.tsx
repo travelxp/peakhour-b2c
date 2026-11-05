@@ -4,11 +4,14 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ExtraPanel, type PanelContext } from "@/components/presence/edit/extra-panel";
-import { addableServices, inFlightChanges, serviceKey, serviceLabel, servicesValue, waitingWords, withCustomService, withService, withoutService, type ServiceEntry, type ServicesResponse } from "@/lib/presence-extras";
+import { useBasedDraft } from "@/hooks/use-presence-extras";
+import { addableServices, draftDroppedWords, inFlightChanges, serviceKey, serviceLabel, servicesValue, waitingWords, withCustomService, withService, withoutService, type ServiceEntry, type ServicesResponse } from "@/lib/presence-extras";
 
 function ServicesBody({ ctx }: { ctx: PanelContext<ServicesResponse> }) {
   const { data, label, access, busy, submit, changes, network, can } = ctx;
-  const [draft, setDraft] = useState<ServiceEntry[] | null>(null);
+  const d = useBasedDraft<ServiceEntry[]>(data.base);
+  const draft = d.draft;
+  const setDraft = (next: ServiceEntry[] | null) => (next ? d.set(next) : d.clear());
   const [pick, setPick] = useState("");
   const [own, setOwn] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -24,7 +27,7 @@ function ServicesBody({ ctx }: { ctx: PanelContext<ServicesResponse> }) {
     const built = servicesValue(data.current, list);
     if (!built.ok) return setMessage(built.message);
     setMessage(null);
-    const r = await submit(built.value);
+    const r = await submit(built.value, d.base ?? data.base);
     if (r.ok) {
       setNotice(r.message);
       setDraft(null);
@@ -35,7 +38,7 @@ function ServicesBody({ ctx }: { ctx: PanelContext<ServicesResponse> }) {
   }
 
   function addOwn() {
-    const r = withCustomService(list, data.categoryRef, own);
+    const r = withCustomService(list, data.categoryRef, own, data.current);
     if (!r.ok) return setMessage(r.message);
     setMessage(null);
     setDraft(r.value);
@@ -45,6 +48,7 @@ function ServicesBody({ ctx }: { ctx: PanelContext<ServicesResponse> }) {
   return (
     <>
       {data.optionsNotice && <p className="text-xs text-warning-on-tint">{data.optionsNotice} Adding a service from the list is not available until it loads. You can still remove a service{data.categoryRef ? " or add one of your own" : ""}.</p>}
+      {d.dropped && <p role="status" className="text-xs text-warning-on-tint">{draftDroppedWords(label, "services")}</p>}
       {notice && (
         <p role="status" className="text-xs text-muted-foreground">
           {notice}
@@ -115,7 +119,7 @@ function ServicesBody({ ctx }: { ctx: PanelContext<ServicesResponse> }) {
             </p>
           )}
           <div className="flex gap-2">
-            <Button size="sm" disabled={busy} onClick={() => void review()}>
+            <Button size="sm" disabled={busy || !canEdit} onClick={() => void review()}>
               {busy ? "Preparing..." : "Review change"}
             </Button>
             <Button size="sm" variant="outline" disabled={busy} onClick={() => { setDraft(null); setMessage(null); }}>
@@ -131,7 +135,7 @@ function ServicesBody({ ctx }: { ctx: PanelContext<ServicesResponse> }) {
 /** Your services. Drawn only for a network that declares them. The list is whole: services you do not touch are kept exactly as the network holds them. */
 export function ServicesCard({ location, network }: { location?: string | undefined; network?: string | undefined }) {
   return (
-    <ExtraPanel<ServicesResponse> field="services" location={location} network={network} title="Your services" blurb="The services you offer, from the list for your kind of business." what="services" itemCount={(d) => d.current.length}>
+    <ExtraPanel<ServicesResponse> field="services" location={location} network={network} title="Your services" blurb="The services you offer, from the list for your kind of business." what="services">
       {(ctx) => <ServicesBody ctx={ctx} />}
     </ExtraPanel>
   );

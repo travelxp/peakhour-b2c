@@ -56,7 +56,11 @@ const V_CALL = VALUE("the button that calls the listing's number takes no addres
 const V_LEN = VALUE("the length edge: the limit passes, one over is refused and is not shortened for you");
 const V_DECL = VALUE("refuses empty words, a kind or a button the network did not declare");
 const V_BTN = VALUE("a button needs an https address, and an address needs a button");
-const V_EVENT = VALUE("an event and an offer need a title and a real start date; the end must not be before the start; an update sends no dates");
+const V_EVENT = VALUE("an event and an offer need a title, a real start AND end date and both times; the end must not be before the start; an update sends no dates");
+const V_24 = VALUE("24:00 is the end of the day, everywhere a time is read; 25:00 and 24:01 are not times");
+const V_HELD = VALUE("★on an edit only what the person CHANGED is judged: a held redeem link, an empty summary and an event without times pass when left as they are");
+const V_UNCH = VALUE("an edit that changes nothing is refused by the form, not prepared");
+const DRAFT_T = "what a person may press > ★a draft keeps the base of the list it STARTED from: later edits do not move it, and a draft from another list is dropped, never re-based";
 const V_REDEEM = VALUE("the redeem link of an offer must be https");
 const SVC_ADD = "services: a whole list that keeps what you did not touch > adding a service keeps every other entry exactly as read, price and description included";
 const SVC_DEL = "services: a whole list that keeps what you did not touch > removing one keeps the others exactly as read";
@@ -71,10 +75,9 @@ const LINK_REFUSE = "links: https, and one preferred per kind > refuses an addre
 const LINK_ADD = "links: https, and one preferred per kind > adding does not add the same address twice for a kind; removing keeps the others";
 const CTL_EDIT = "what a person may press > an editor may edit and delete a post with nothing waiting on it";
 const CTL_NOEDIT = "what a person may press > a network that does not let posts be edited offers delete only";
-const CTL_WAIT = "what a person may press > a post with a change already waiting has neither, and a role that cannot propose has neither and is told why";
-const ACCESS = "what a person may press > an answer that says no is the role's; no answer yet is checking; a failed answer is not blamed on the role";
+const CTL_WAIT = "what a person may press > a post with a change already waiting has neither, and a role that cannot propose has neither";
+const ACCESS = "what a person may press > only an answer that says no is the role's";
 const KNOWN = "what a person may press > adding and removing wait until the change list has answered, keeping the role's own reason";
-const VIEWS = "what a person may press > a read is loading, paused, failed, empty or ready; a failed refresh over data is stale, never an empty list";
 const LISTED = "the change list of a panel > is one field's, for one network; sent ones are in flight; settled history is capped but every unsettled change is kept";
 const PENDING = "the change list of a panel > what waits on a post is read from the change list, and a create waits on no existing post";
 const SETTLED = "the change list of a panel > the panel is read again when a change leaves the in-flight statuses, and not for one still open or new";
@@ -91,6 +94,7 @@ const R1_DETAIL_LINK = R1("a held detail link keeps its scheme; a changed one ne
 const R1_RESTORE = R1("a removed service comes back from what the network holds, price and description included, not as a bare one");
 const R1_OWN = R1("a service the person names is filed under the network's category; without one, or empty, or twice, nothing is added");
 const R1_KEEP = R1("a post keeps its language and its event times through an edit");
+const R1_CUSTOM_BACK = R1("a service of the person's own that they removed in this draft comes back as the network held it (description and price)");
 const R1_BUTTON = R1("a button the network no longer offers is kept as it is when the person leaves it, and refused when they set it anew");
 const R1_EMPTYKIND = R1("a button with an empty kind does not leave an address behind");
 const R1_DRAFT = R1("a new post gets a fresh 24-hex draft id each time");
@@ -128,37 +132,35 @@ const MUTANTS = [
   ["posts-card-not-keyed", "kill", HOME, '<PostsCard key={`posts|${panelLocation ?? ""}|${panelNetwork ?? ""}`} ', "<PostsCard ", t(T_WIRE, WIRE_HOME)],
 
   // ── the post value ──
-  ["post-length-off-by-one", "kill", LIB, "if (summary.length > decl.limits.summaryMaxLength) {", "if (summary.length >= decl.limits.summaryMaxLength) {", t(T, V_LEN)],
-  ["post-length-unchecked", "kill", LIB, "if (summary.length > decl.limits.summaryMaxLength) {", "if (false) {", t(T, V_LEN)],
-  ["post-empty-words-accepted", "kill", LIB, 'if (!summary) return { ok: false, message: "Write what you want to say." };', "", t(T, V_DECL)],
-  ["post-kind-undeclared", "kill", LIB, 'if (!decl.kinds.includes(draft.kind)) return { ok: false, message: "That kind of post is not offered." };', "", t(T, V_DECL)],
+  ["post-length-off-by-one", "kill", LIB, "if (summaryChanged && summary.length > decl.limits.summaryMaxLength) {", "if (summaryChanged && summary.length >= decl.limits.summaryMaxLength) {", t(T, V_LEN)],
+  ["post-length-unchecked", "kill", LIB, "if (summaryChanged && summary.length > decl.limits.summaryMaxLength) {", "if (false) {", t(T, V_LEN)],
+  ["post-empty-words-accepted", "kill", LIB, 'if (!summary && summaryChanged) return { ok: false, message: "Write what you want to say." };', "", t(T, V_DECL)],
+  ["post-kind-undeclared", "kill", LIB, 'if (!(held?.kind === draft.kind) && !decl.kinds.includes(draft.kind)) return { ok: false, message: "That kind of post is not offered." };', "", t(T, V_DECL)],
   ["post-button-undeclared", "kill", LIB, 'if (!decl.actions.includes(type)) return { ok: false, message: "That button is not offered." };', "", t(T, V_DECL)],
   ["post-button-address-not-https", "kill", LIB, 'if (!HTTPS.test(url)) return { ok: false, message: "The button\'s web address must start with https://." };', "", t(T, V_BTN)],
   ["post-button-without-address", "kill", LIB, 'if (!url) return { ok: false, message: "That button needs a web address." };', "", t(T, V_BTN)],
   ["post-address-without-button", "kill", LIB, 'return { ok: false, message: "Choose a button for that web address, or clear it." };', 'return { ok: true, value: { ...op, kind: draft.kind, summary } as PostValue };', t(T, V_BTN)],
   ["post-call-takes-an-address", "kill", LIB, "if (draft.actionUrl.trim()) return { ok: false, message: \"That button calls your listing's phone number, so it takes no web address.\" };", "", t(T, V_CALL)],
   ["post-event-needs-no-title", "kill", LIB, "    if (!title) return { ok: false, message: `${draft.kind === \"offer\" ? \"An offer\" : \"An event\"} needs a title.` };\n", "", t(T, V_EVENT)],
-  ["post-event-start-unchecked", "kill", LIB, 'if (!isDay(draft.start.trim())) return { ok: false, message: "Choose a start date." };', "", t(T, V_EVENT)],
-  ["post-event-ends-before-start", "kill", LIB, 'if (end < draft.start.trim()) return { ok: false, message: "The end date is before the start date." };', "", t(T, V_EVENT)],
+  ["post-event-start-unchecked", "kill", LIB, 'if (!isDay(start)) return { ok: false, message: "Choose a start date." };', "", t(T, V_EVENT)],
+  ["post-event-ends-before-start", "kill", LIB, 'if (end < start) return { ok: false, message: "The end date is before the start date." };', "", t(T, V_EVENT)],
   ["post-update-sends-dates", "kill", LIB, 'if (draft.kind === "event" || draft.kind === "offer") {\n    const title', "if (true) {\n    const title", t(T, V_PLAIN, V_EVENT)],
-  ["post-redeem-not-https", "kill", LIB, 'if (redeemUrl && !HTTPS.test(redeemUrl)) return { ok: false, message: "The redeem link must start with https://." };', "", t(T, V_REDEEM)],
+  ["post-redeem-not-https", "kill", LIB, 'if (redeemUrl && redeemUrl !== (held?.offer?.redeemUrl ?? "") && !HTTPS.test(redeemUrl)) return { ok: false, message: "The redeem link must start with https://." };', "", t(T, V_REDEEM)],
   ["post-offer-drops-terms", "kill", LIB, "...(terms ? { terms } : {}) };\n  }\n  return { ok: true", "};\n  }\n  return { ok: true", t(T, V_FULL)],
   ["post-edit-loses-its-ref", "kill", LIB, "return { ok: true, value: { ...op, ...value } as PostValue };", "return { ok: true, value: { op: op.op, ...value } as PostValue };", t(T, V_FULL)],
   ["delete-note-swapped", "kill", LIB, "return decl.removal.restorable", "return !decl.removal.restorable", t(T, NOTE)],
   ["post-state-live-unsaid", "kill", LIB, 'if (state === "live") return { text: `Showing on ${label}`, tone: "good" };', "", t(T, STATES)],
 
   // ── what a person may press ──
-  ["edit-offered-where-network-refuses", "kill", LIB, "return { edit: decl.edit, remove: true, note: null };", "return { edit: true, remove: true, note: null };", t(T, CTL_NOEDIT).concat(t(T_CARD, C_NOEDIT))],
-  ["edit-withheld-everywhere", "kill", LIB, "return { edit: decl.edit, remove: true, note: null };", "return { edit: false, remove: true, note: null };", t(T, CTL_EDIT)],
-  ["controls-ignore-waiting-change", "kill", LIB, "  if (pending) return { edit: false, remove: false, note: null };\n", "", t(T, CTL_WAIT)],
-  ["controls-ignore-role", "kill", LIB, 'if (access.mode !== "edit") return { edit: false, remove: false, note: access.why };', "", t(T, CTL_WAIT).concat(t(T_CARD, C_VIEWER))],
-  ["role-no-is-yes", "kill", LIB, "if (can) return can.propose ? { mode: \"edit\" }", "if (can) return true ? { mode: \"edit\" }", t(T, ACCESS).concat(t(T_CARD, C_VIEWER))],
+  ["edit-offered-where-network-refuses", "kill", LIB, "return { edit: decl.edit, remove: true };", "return { edit: true, remove: true };", t(T, CTL_NOEDIT).concat(t(T_CARD, C_NOEDIT))],
+  ["edit-withheld-everywhere", "kill", LIB, "return { edit: decl.edit, remove: true };", "return { edit: false, remove: true };", t(T, CTL_EDIT)],
+  ["controls-ignore-waiting-change", "kill", LIB, 'if (access.mode !== "edit" || pending) return { edit: false, remove: false };', 'if (access.mode !== "edit") return { edit: false, remove: false };', t(T, CTL_WAIT)],
+  ["controls-ignore-role", "kill", LIB, 'if (access.mode !== "edit" || pending) return { edit: false, remove: false };', "if (pending) return { edit: false, remove: false };", t(T, CTL_WAIT).concat(t(T_CARD, C_VIEWER))],
+  ["role-no-is-yes", "kill", LIB, "return can.propose ? { mode: \"edit\" }", "return true ? { mode: \"edit\" }", t(T, ACCESS).concat(t(T_CARD, C_VIEWER))],
   ["role-unknown-blamed-on-role", "kill", LIB, 'return { mode: "view", why: `We could not check what your role can do, so ${what} cannot be changed from here right now. Reload the page to try again.` };', "return { mode: \"view\", why: `Your role can look at your ${what} but not change them. Ask an editor, admin or owner.` };", t(T, ACCESS)],
   ["controls-before-changes-known", "kill", LIB, 'if (changes === "data" || changes === "data_stale") return access;', "return access;", t(T, KNOWN).concat(t(T_CARD, C_CHANGES))],
   ["changes-gate-loses-role-reason", "kill", LIB, 'if (access.mode !== "edit") return access;\n  if (changes ===', "if (changes ===", t(T, KNOWN)],
-  ["shell-skips-changes-gate", "kill", SHELL, "withChangesKnown(extrasAccess(capsView, caps.data?.can, what), changesView, what)", "extrasAccess(capsView, caps.data?.can, what)", t(T_CARD, C_CHANGES)],
-  ["empty-list-reads-as-ready", "kill", LIB, 'return itemCount === 0 ? { kind: "empty", stale } : { kind: "ready", stale };', 'return { kind: "ready", stale };', t(T, VIEWS)],
-  ["failed-refresh-hides-data", "kill", LIB, 'if (v === "failed") return { kind: "failed" };', 'if (v === "failed" || v === "data_stale") return { kind: "failed" };', t(T, VIEWS)],
+  ["shell-skips-changes-gate", "kill", SHELL, "withChangesKnown(extrasAccess(caps.data?.can, what), changesView, what)", "extrasAccess(caps.data?.can, what)", t(T_CARD, C_CHANGES)],
 
   // ── what waits comes from the change list ──
   ["waiting-ignores-network", "kill", LIB, "(c) => c.field === field && c.network === network)", "(c) => c.field === field)", t(T, LISTED).concat(t(T_CARD, C_OTHERNET))],
@@ -208,11 +210,11 @@ const MUTANTS = [
   ["changed-detail-link-unjudged", "kill", LIB, 'if (e.kind === "link" && e.values.some((v) => !WEB.test(v))) return { ok: false, message: "A web address must start with http:// or https://." };', "", t(T, R1_DETAIL_LINK)],
   ["removed-service-comes-back-bare", "kill", LIB, "const back = held.find((s) => s.kind === \"listed\" && s.id === id);\n  return [...current, back ?? { kind: \"listed\", id }];", "return [...current, { kind: \"listed\", id }];", t(T, R1_RESTORE)],
   ["own-service-without-category", "kill", LIB, 'if (!categoryRef) return { ok: false, message: "We cannot file a service of your own until your main category is set." };', "", t(T, R1_OWN)],
-  ["own-service-twice", "kill", LIB, "if (current.some((s) => serviceKey(s) === serviceKey(entry))) return", "if (false) return", t(T, R1_OWN)],
+  ["own-service-twice", "kill", LIB, "if (current.some((s) => serviceKey(s) === serviceKey(fresh))) return", "if (false) return", t(T, R1_OWN)],
   ["post-language-dropped", "kill", LIB, "...(draft.languageCode.trim() ? { languageCode: draft.languageCode.trim() } : {}) };", "};", t(T, R1_KEEP)],
-  ["post-event-times-dropped", "kill", LIB, "      ...(draft.startTime ? { startTime: draft.startTime } : {}),\n      ...(draft.endTime ? { endTime: draft.endTime } : {}),\n", "", t(T, R1_KEEP)],
+  ["post-event-times-dropped", "kill", LIB, "value.event = { title, start, ...(end ? { end } : {}), ...(startTime ? { startTime } : {}), ...(endTime ? { endTime } : {}) };", "value.event = { title, start, ...(end ? { end } : {}) };", t(T, R1_KEEP, V_EVENT)],
   ["held-button-judged-again", "kill", LIB, "if (type && keptButton) {", "if (false) {", t(T, R1_BUTTON)],
-  ["any-button-kept", "kill", LIB, "const keptButton = !!held && held.type.toUpperCase() === type && (held.url ?? \"\") === draft.actionUrl.trim();", "const keptButton = !!held;", t(T, R1_BUTTON)],
+  ["any-button-kept", "kill", LIB, "const keptButton = !!heldButton && heldButton.type.toUpperCase() === type && (heldButton.url ?? \"\") === draft.actionUrl.trim();", "const keptButton = !!heldButton;", t(T, R1_BUTTON)],
   ["no-button-keeps-address", "kill", POSTS, '...(e.target.value === "" || e.target.value === decl.actionWithoutUrl ? { actionUrl: "" } : {})', "...(e.target.value === decl.actionWithoutUrl ? { actionUrl: \"\" } : {})", t(T_WIRE, WIRE_POSTFORM)],
   ["address-without-button-allowed", "kill", LIB, 'return { ok: false, message: "Choose a button for that web address, or clear it." };', 'return { ok: true, value: { ...op, ...value } as PostValue };', t(T, R1_EMPTYKIND, V_BTN)],
   ["draft-id-constant", "kill", LIB, "globalThis.crypto.getRandomValues(bytes);", "bytes.fill(7);", t(T, R1_DRAFT)],
@@ -244,6 +246,33 @@ const MUTANTS = [
   ["proposal-counted-unread", "kill", SHELL, "outcomeOf(await m.propose.mutateAsync({ ...target!, proposal: { field, value, ...(base ? { base } : {}) } }))", '({ kind: "prepared", id: "x" } as const)', t(T_WIRE, WIRE_PROPOSE)],
   ["edit-card-lists-twice", "kill", EDIT_CARD, "|| extraFields.has(c.field))", "|| false)", t(T_WIRE, WIRE_EDIT).concat(t(T_PHOTOS, PH_EDIT))],
   ["edit-card-hides-other-networks", "kill", EDIT_CARD, "c.network === network && ((photoChangesElsewhere", "((photoChangesElsewhere", t(T_WIRE, WIRE_EDIT).concat(t(T_PHOTOS, PH_EDIT))],
+  // ── ROUND TWO: posts follow the same rule (only what changed is judged), a full event schedule, 24:00, a draft keeps its base ──
+  ["held-redeem-judged", "wrong-way", LIB, 'redeemUrl !== (held?.offer?.redeemUrl ?? "") && ', "", t(T, V_HELD)],
+  ["held-summary-judged", "wrong-way", LIB, "const summaryChanged = held?.summary === undefined || summary !== held.summary.trim();", "const summaryChanged = true;", t(T, V_HELD)],
+  ["held-event-judged", "wrong-way", LIB, "const kept = !!he && he.title === title", "const kept = false && !!he && he.title === title", t(T, V_HELD)],
+  ["event-end-date-optional", "kill", LIB, 'if (!isDay(end)) return { ok: false, message: "Choose a real end date." };', "", t(T, V_EVENT)],
+  ["event-start-time-optional", "kill", LIB, 'if (!isTime(startTime)) return { ok: false, message: "Enter the start time as HH:MM, for example 18:30." };', "", t(T, V_EVENT)],
+  ["event-end-time-optional", "kill", LIB, 'if (!isTime(endTime)) return { ok: false, message: "Enter the end time as HH:MM, for example 21:00 (24:00 is the end of the day)." };', "", t(T, V_EVENT)],
+  ["time-24-refused", "wrong-way", LIB, "|24:00)$/", ")$/", t(T, V_24)],
+  ["time-format-loose", "kill", LIB, "export const isTime = (v: string): boolean => HHMM.test(v);", "export const isTime = (v: string): boolean => v.length > 0;", t(T, V_24, V_EVENT)],
+  ["unchanged-edit-passes-lib", "kill", LIB, "return JSON.stringify(trimmed(initial)) === JSON.stringify(trimmed(now));", "return false;", t(T, V_UNCH)],
+  ["unchanged-edit-prepared", "kill", POSTS, 'if (editing && postDraftUnchanged(initial, d)) return setMessage(', "if (false) return setMessage(", t(T_WIRE, WIRE_POSTFORM)],
+  ["review-ignores-can-edit-posts", "kill", POSTS, "disabled={busy || !canEdit} onClick={() => void go()}", "disabled={busy} onClick={() => void go()}", t(T_WIRE, WIRE_POSTFORM)],
+  ["held-post-not-passed", "kill", POSTS, "held={p} busy={busy}", "held={null} busy={busy}", t(T_WIRE, WIRE_POSTFORM)],
+  ["custom-service-comes-back-bare", "kill", LIB, "return { ok: true, value: [...current, back ?? fresh] };", "return { ok: true, value: [...current, fresh] };", t(T, R1_CUSTOM_BACK)],
+  ["custom-service-held-not-passed", "kill", SERVICES, "withCustomService(list, data.categoryRef, own, data.current)", "withCustomService(list, data.categoryRef, own)", t(T_WIRE, WIRE_PROPOSE)],
+  ["draft-never-dropped", "kill", LIB, "return d.base === baseNow ? { draft: d, dropped: false } : { draft: null, dropped: true };", "return { draft: d, dropped: false };", t(T, DRAFT_T)],
+  ["draft-rebased-on-every-edit", "kill", LIB, "return { value, base: prev?.base ?? baseNow };", "return { value, base: baseNow };", t(T, DRAFT_T)],
+  ["draft-base-not-sent-services", "kill", SERVICES, "submit(built.value, d.base ?? data.base)", "submit(built.value, data.base)", t(T_WIRE, WIRE_PROPOSE)],
+  ["draft-base-not-sent-details", "kill", "src/components/presence/edit/details-card.tsx", "submit(built.value, d.base ?? data.base)", "submit(built.value, data.base)", t(T_WIRE, WIRE_PROPOSE)],
+  ["draft-base-not-sent-links", "kill", "src/components/presence/edit/links-card.tsx", "submit(built.value, d.base ?? data.base)", "submit(built.value, data.base)", t(T_WIRE, WIRE_PROPOSE)],
+  ["review-ignores-can-edit-services", "kill", SERVICES, "disabled={busy || !canEdit} onClick={() => void review()}", "disabled={busy} onClick={() => void review()}", t(T_WIRE, WIRE_PROPOSE)],
+  ["review-ignores-can-edit-details", "kill", "src/components/presence/edit/details-card.tsx", "disabled={busy || !canEdit} onClick={() => void review()}", "disabled={busy} onClick={() => void review()}", t(T_WIRE, WIRE_PROPOSE)],
+  ["review-ignores-can-edit-links", "kill", "src/components/presence/edit/links-card.tsx", "disabled={busy || !canEdit} onClick={() => void review()}", "disabled={busy} onClick={() => void review()}", t(T_WIRE, WIRE_PROPOSE)],
+  ["stale-message-hidden-details", "kill", "src/components/presence/edit/details-card.tsx", "{!draft && message && (", "{false && (", t(T_WIRE, WIRE_PROPOSE)],
+  ["stale-message-hidden-links", "kill", "src/components/presence/edit/links-card.tsx", "{!draft && message && (", "{false && (", t(T_WIRE, WIRE_PROPOSE)],
+  ["proposal-waits-for-both-reads", "kill", SHELL, "void m.refreshChanges(target!);", "await m.refresh(target!);", t(T_WIRE, WIRE_PROPOSE)],
+  ["unsaid-role-blamed-on-the-role", "kill", LIB, 'if (!can) return { mode: "view", why: `We could not check', 'if (false) return { mode: "view", why: `We could not check', t(T, ACCESS)],
 ];
 
 // ── plumbing ──────────────────────────────────────────────────────────────────────────────
