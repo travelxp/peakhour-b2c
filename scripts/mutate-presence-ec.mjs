@@ -27,8 +27,9 @@ const TERMS = "src/lib/presence-control-terms.test.ts";
 const STATE_SPEC = "src/components/presence/network-card-state.test.ts";
 
 const CASES = [
-  ["the page reads the first network, not the connection's", LIB, PANELS, "return (want ? list.find((n) => n.network === want) : undefined) ?? list[0] ?? null;", "return list[0] ?? null;"],
-  ["a connection naming no network gets no fallback entry", LIB, PANELS, "?? list[0] ?? null;", "?? null;"],
+  ["the page reads the first network, not the connection's", LIB, PANELS, "if (want) return list.find((n) => n.network === want) ?? null;", "if (want) return list[0] ?? null;"],
+  ["a connection naming no network gets no fallback entry", LIB, PANELS, "return list[0] ?? null;", "return null;"],
+  ["a connection's network with no entry shows another's", LIB, PANELS, "if (want) return list.find((n) => n.network === want) ?? null;", "if (want) return list.find((n) => n.network === want) ?? list[0] ?? null;"],
   ["the label ignores the connection's own", LIB, PANELS, "return primaryEntry(r)?.label ?? r?.connection?.label ?? null;", "return primaryEntry(r)?.label ?? null;"],
   ["the network switcher shows for one network", LIB, PANELS, "if (!networks || networks.length < 2) return null;", "if (!networks || networks.length < 1) return null;"],
   ["a stale network choice is kept", LIB, PANELS, "const value = networks.some((n) => n.network === chosen) ? (chosen as string) : networks[0]!.network;", "const value = (chosen as string) ?? networks[0]!.network;"],

@@ -112,7 +112,9 @@ export interface PresenceNetworkEntry {
 export function primaryEntry(r: Pick<PresenceListingResponse, "connection" | "networks"> | null | undefined): PresenceNetworkEntry | null {
   const list = r?.networks ?? [];
   const want = r?.connection?.network;
-  return (want ? list.find((n) => n.network === want) : undefined) ?? list[0] ?? null;
+  // ★A CONNECTION'S NETWORK WITH NO ENTRY IS NO ENTRY, never another network's: the panels then show their setup states.
+  if (want) return list.find((n) => n.network === want) ?? null;
+  return list[0] ?? null;
 }
 
 /** The network's display name for a page: the entry's, else the connection's, else `null` (say nothing that names one). */

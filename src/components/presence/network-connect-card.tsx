@@ -131,7 +131,7 @@ export function NetworkConnectCard({ network }: { network: ConnectableNetwork })
     // than invalidated: the query is disabled once the picker closes, so an
     // invalidation would not re-fetch it.
     onSuccess: (_data, locationNames) => {
-      toast.success("Listings saved — insights and reviews will start arriving");
+      toast.success("Listings saved");
       setPickerOpen(false);
       qc.setQueryData<LocationsResponse>(LOCATIONS_KEY, (old) =>
         old ? { ...old, selected: locationNames, retired: [] } : old,

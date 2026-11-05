@@ -60,8 +60,9 @@ export function PresenceHome() {
   });
   const networks = capsQ.data?.items ?? [];
   const netSwitcher = networkSwitcher(networks, chosenNetwork);
-  // The first network is the api's default, so only a different choice is sent.
-  const panelNetwork = netSwitcher && !netSwitcher.isDefault ? netSwitcher.value : undefined;
+  // ★ONCE THE SWITCHER IS SHOWN THE CHOICE IS ALWAYS SENT. The api's default is the oldest connection of any network, which need not be
+  // the first card; leaving the first option implicit could show one network under another's name.
+  const panelNetwork = netSwitcher?.value;
   // The list of listings always comes from the default read, so a stale choice (a
   // listing since removed) can never ask the api for a place it refuses: the switcher
   // falls back to the first listing instead.

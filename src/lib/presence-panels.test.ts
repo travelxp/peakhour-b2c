@@ -378,6 +378,8 @@ describe("primaryEntry and networkLabel: a listing with two networks is not read
   });
   it("falls back to the first entry only when the connection names none", () => {
     expect(primaryEntry(response({ networks: [a, b], connection: null }))?.network).toBe("net_a");
+    // a connection whose network has no entry is no entry: never another network's
+    expect(primaryEntry(response({ networks: [a] }))).toBeNull();
     expect(primaryEntry(response({ networks: [] }))).toBeNull();
     expect(primaryEntry(undefined)).toBeNull();
   });

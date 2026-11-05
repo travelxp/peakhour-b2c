@@ -62,7 +62,7 @@ export function InsightsPanel({ location, network }: { location?: string; networ
   const insightsQ = useQuery({
     queryKey: presenceInsightsQueryKey(days, location, network),
     queryFn: () => presenceApi.insights(days, location, network),
-    enabled: canAsk,
+    enabled: canAsk && drawsInsights(primaryEntry(listingQ.data)),
     // Keep the last window on screen while the next loads, rather than blanking.
     placeholderData: keepPreviousData,
     staleTime: 5 * 60_000,
