@@ -9,11 +9,13 @@ import {
   connectedNetworks,
   drawsInsights,
   drawsListing,
+  drawsReviews,
   locationSwitcher,
   networkLabel,
   networkSwitcher,
   presenceCapabilitiesQueryKey,
   presenceInsightsQueryKey,
+  unreadableNetworks,
   presenceListingQueryKey,
   primaryEntry,
   setupMessage,
@@ -23,7 +25,8 @@ import {
 } from "@/lib/presence-panels";
 import { presenceScoreQueryKey, scoreEmptyState } from "@/lib/presence-score";
 import { REVIEW_SUMMARY_QUERY_KEY } from "@/lib/review-summary";
-import { REVIEW_KIT_QUERY_KEY } from "@/lib/review-kit";
+import { REVIEW_KIT_QUERY_KEY, posterHref } from "@/lib/review-kit";
+import { presenceEditKeys } from "@/lib/presence-edit";
 import { networkCardState } from "@/components/presence/network-card-state";
 
 /**
@@ -42,7 +45,6 @@ import { networkCardState } from "@/components/presence/network-card-state";
  */
 
 vi.mock("@/components/upgrade/feature-gate", () => ({ FeatureGate: ({ children }: { children: unknown }) => children }));
-vi.mock("@/components/presence/edit/edit-listing-card", () => ({ EditListingCard: () => createElement("div", { "data-testid": "edit-card" }, "EDIT-CARD") }));
 vi.mock("next/link", () => ({ default: ({ href, children }: { href: string; children: unknown }) => createElement("a", { href }, children as never) }));
 vi.mock("@/hooks/use-locale", () => ({
   useLocale: () => ({ formatDate: (d: unknown) => String(d), formatDateTime: (d: unknown) => String(d), formatCurrency: (n: number) => String(n), formatNumber: (n: number) => String(n), formatRelativeTime: (d: unknown) => String(d) }),
@@ -50,7 +52,9 @@ vi.mock("@/hooks/use-locale", () => ({
 vi.mock("sonner", () => ({ toast: { success: () => undefined, error: () => undefined } }));
 vi.mock("@/lib/api", () => ({ api: { get: async () => { throw new Error("no network in this test"); }, put: async () => undefined, post: async () => undefined } }));
 
-const { PresenceHome } = await import("@/components/presence/presence-home");
+const { PresenceHome, UnreadableNote } = await import("@/components/presence/presence-home");
+const { EditListingCard } = await import("@/components/presence/edit/edit-listing-card");
+const { InsightsPanel } = await import("@/components/presence/insights-panel");
 
 // ── The api answers (shapes of peakhour-api's presence routes) ─────────────────────────────
 
@@ -83,7 +87,7 @@ const scoreAnswer = (n: ConnectableNetwork) => n.capabilities.listing
   : { state: "no_listing" };
 
 /** Render the page with the cache filled as the api would fill it, the api's default connection being `defaultNet`. */
-function render(defaultNet: ConnectableNetwork, nets: ConnectableNetwork[] = NETS, statusOf: (n: ConnectableNetwork) => string = () => "active") {
+function render(defaultNet: ConnectableNetwork, nets: ConnectableNetwork[] = NETS, statusOf: (n: ConnectableNetwork) => string = () => "active", primeDefault = true) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   qc.setQueryData(presenceCapabilitiesQueryKey, { items: nets });
   for (const n of nets) {
@@ -91,7 +95,7 @@ function render(defaultNet: ConnectableNetwork, nets: ConnectableNetwork[] = NET
     qc.setQueryData(["integration-cap", n.network], { provider: n.network, capabilities: null, locationNames: [`${n.network}-place`] });
   }
   // the api's default answer names the connection the panels are about; each network's own answer is keyed by it
-  qc.setQueryData(presenceListingQueryKey(undefined, undefined), listingAnswer(defaultNet));
+  if (primeDefault) qc.setQueryData(presenceListingQueryKey(undefined, undefined), listingAnswer(defaultNet));
   for (const n of nets) {
     qc.setQueryData(presenceListingQueryKey(undefined, n.network), listingAnswer(n));
     qc.setQueryData(presenceInsightsQueryKey(DEFAULT_INSIGHT_DAYS, undefined, n.network), insightsAnswer(n === GOOGLE_NET ? 9 : n === LOCAL_NET ? 4 : null));
@@ -99,14 +103,24 @@ function render(defaultNet: ConnectableNetwork, nets: ConnectableNetwork[] = NET
     qc.setQueryData([...REVIEW_KIT_QUERY_KEY, null, n.network], n.capabilities.listing ? kitAnswer(n) : { state: "no_listing" });
     qc.setQueryData(presenceScoreQueryKey(undefined, n.network), scoreAnswer(n));
   }
+  primeEdit(qc);
   return renderToStaticMarkup(createElement(QueryClientProvider, { client: qc }, createElement(PresenceHome)));
+}
+
+/** What the edit card reads: Google is writable, the others are not in the list at all (the api lists only networks that declare writes). */
+function primeEdit(qc: QueryClient) {
+  qc.setQueryData(presenceEditKeys.capabilities, {
+    items: [{ network: GOOGLE_NET.network, label: "Google", writableFields: ["name", "phone"], riskyFields: ["name"], limits: {}, options: {}, writes: { released: false, reason: "held" } }],
+    can: { propose: true, approve: true },
+  });
+  qc.setQueryData(presenceEditKeys.changes("l1"), { items: [] });
 }
 
 /** The words a merchant reads under another network's label: the page minus the connect cards and the switcher, which name every network on purpose. */
 function panelsOf(html: string): string {
   const afterCards = html.slice(html.indexOf('id="presence-network"'));
   const select = afterCards.slice(0, afterCards.indexOf("</select>"));
-  return afterCards.slice(select.length).replace(/Google Business Profile/g, "");
+  return afterCards.slice(select.length);
 }
 
 describe("the pure helpers, over the three networks' answers", () => {
@@ -129,13 +143,16 @@ describe("the pure helpers, over the three networks' answers", () => {
   });
 
   it("drawsListing and drawsInsights follow each network's declaration; no declaration draws them", () => {
-    expect(drawsListing({ capabilities: REVIEWS_NET.capabilities })).toBe(false);
-    expect(drawsListing({ capabilities: LOCAL_NET.capabilities })).toBe(true);
+    expect(drawsListing(REVIEWS_NET)).toBe(false);
+    expect(drawsListing(LOCAL_NET)).toBe(true);
+    expect(drawsReviews(REVIEWS_NET)).toBe(true);
+    expect(drawsReviews({ capabilities: { reviews: false } })).toBe(false);
+    expect(drawsReviews(undefined)).toBe(true);
     expect(drawsListing({ capabilities: {} })).toBe(true);
     expect(drawsListing({})).toBe(true);
     expect(drawsListing(undefined)).toBe(true);
-    expect(drawsInsights({ capabilities: REVIEWS_NET.capabilities })).toBe(false);
-    expect(drawsInsights({ capabilities: LOCAL_NET.capabilities })).toBe(true);
+    expect(drawsInsights(REVIEWS_NET)).toBe(false);
+    expect(drawsInsights(LOCAL_NET)).toBe(true);
   });
 
   it("primaryEntry is the connection's own network's entry, and a reviews-only network has none (never another's)", () => {
@@ -180,7 +197,8 @@ describe("the page, rendered, with Google as the default network", () => {
     expect(html).toContain("How customers found you");
     expect(html).toContain("Reviews");
     expect(html).toContain("Get more reviews");
-    expect(html).toContain("EDIT-CARD");
+    expect(html).toContain("Change your listing");
+    expect(html).toContain("70 out of 100");
   });
 });
 
@@ -189,6 +207,7 @@ describe("the page, rendered, with the read-only listing network as the default"
   const panels = panelsOf(html);
   it("draws its listing, figures, reviews and kit under its own name", () => {
     expect(panels).toContain("Your listing");
+    expect(panels).toContain("70 out of 100");
     expect(panels).toContain("Localpages Shop");
     expect(panels).toContain("How customers found you");
     expect(panels).toContain("Reviews");
@@ -204,8 +223,13 @@ describe("the page, rendered, with the read-only listing network as the default"
     expect(panels).not.toContain("Profile views");
     expect(panels).not.toContain("Bookings");
   });
-  it("offers no edit form's own fields as if it could write (the edit card is the stub; it is drawn for a listing network)", () => {
-    expect(panels).toContain("EDIT-CARD");
+  it("draws no edit card: the network cannot be written, so no card promises a form", () => {
+    expect(panels).not.toContain("Change your listing");
+    expect(panels).not.toContain("cannot be made from Peakhour");
+  });
+  it("the poster link carries the network the kit was drawn for", () => {
+    const href = /href="(\/dashboard\/presence\/review-poster[^"]*)"/.exec(panels)![1]!.replaceAll("&amp;", "&");
+    expect(new URL(href, "https://x.example").searchParams.get("network")).toBe(LOCAL_NET.network);
   });
 });
 
@@ -215,8 +239,11 @@ describe("the page, rendered, with the reviews-only network as the default", () 
   it("★draws no listing, score or edit panel and no insights, because the network declares none", () => {
     expect(panels).not.toContain("Your listing");
     expect(panels).not.toContain("Your listing score");
-    expect(panels).not.toContain("EDIT-CARD");
+    expect(panels).not.toContain("Change your listing");
     expect(panels).not.toContain("How customers found you");
+    // and no review kit: a link is kept on a listing, and this network has none
+    expect(panels).not.toContain("Get more reviews");
+    expect(panels).not.toContain("Connect your listing");
     expect(panels).not.toMatch(/bringing in your listing/);
   });
   it("draws its reviews, and Reviewly's own figure (1.5), not Google's", () => {
@@ -232,9 +259,74 @@ describe("the page, rendered, with the reviews-only network as the default", () 
 
 describe("a business with only one network connected has no switcher", () => {
   it("draws the connect cards and that network's panels, and no switcher", () => {
-    const html = render(LOCAL_NET, NETS, (n) => (n.network === LOCAL_NET.network ? "active" : "disconnected"));
+    // only the network-keyed answers are filled: the panels must read THE network the page judged, not the api's default
+    const html = render(LOCAL_NET, NETS, (n) => (n.network === LOCAL_NET.network ? "active" : "disconnected"), false);
     expect(html).not.toContain('id="presence-network"');
     expect(html).toContain("Localpages Shop");
+  });
+});
+
+describe("a status read that failed is said, not dropped", () => {
+  // (a server render re-queues an errored query as pending, so the note is tested at its two parts)
+  it("picks out the networks whose read failed, in order, and not the ones still loading", () => {
+    expect(unreadableNetworks(NETS, [{ isError: false }, { isError: true }, { isError: true }])).toEqual([LOCAL_NET, REVIEWS_NET]);
+    expect(unreadableNetworks(NETS, [undefined, { isError: false }])).toEqual([]);
+  });
+  it("names them in words", () => {
+    const html = renderToStaticMarkup(createElement(UnreadableNote, { networks: [REVIEWS_NET] })).replaceAll("<!-- -->", "");
+    expect(html).toContain("check whether Reviewly is connected");
+    expect(renderToStaticMarkup(createElement(UnreadableNote, { networks: [] }))).toBe("");
+  });
+  it("the page says nothing when every read worked, and still draws the connect cards", () => {
+    const html = render(LOCAL_NET);
+    expect(html).not.toContain("check whether");
+    for (const n of NETS) expect(html).toContain(n.title);
+  });
+});
+
+describe("the connect card words follow the declaration", () => {
+  it("a reviews-only network is not asked to connect a listing; a listing network is", () => {
+    const html = render(GOOGLE_NET, NETS, () => "disconnected");
+    expect(html).toContain("Connect Reviewly to get your reviews in one inbox.");
+    expect(html).toContain("Connect your listing to get your Localpages reviews in one inbox and reply to them there.");
+  });
+});
+
+describe("the real edit card, for a network that is not writable", () => {
+  it("says changes cannot be made from Peakhour, and draws no form", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(presenceListingQueryKey(undefined, LOCAL_NET.network), listingAnswer(LOCAL_NET));
+    primeEdit(qc);
+    const html = renderToStaticMarkup(createElement(QueryClientProvider, { client: qc }, createElement(EditListingCard, { network: LOCAL_NET.network })));
+    expect(html).toContain("Changes to this listing cannot be made from Peakhour yet.");
+    expect(html).not.toContain("<form");
+  });
+});
+
+describe("the insights panel with no listing entry uses the network's own declaration", () => {
+  const draw = (capabilities: ConnectableNetwork["capabilities"] | undefined) => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(presenceListingQueryKey(undefined, REVIEWS_NET.network), listingAnswer(REVIEWS_NET));
+    qc.setQueryData(presenceInsightsQueryKey(DEFAULT_INSIGHT_DAYS, undefined, REVIEWS_NET.network), insightsAnswer(3));
+    return renderToStaticMarkup(createElement(QueryClientProvider, { client: qc }, createElement(InsightsPanel, { network: REVIEWS_NET.network, capabilities })));
+  };
+  it("draws only the declared tiles, never all six", () => {
+    const html = draw({ ...REVIEWS_NET.capabilities, metricKeys: ["calls"] });
+    expect(html).toContain("Calls");
+    for (const other of ["Directions", "Website clicks", "Bookings", "Profile views", "Messages"]) expect(html).not.toContain(other);
+  });
+  it("draws nothing for a declaration of no figures", () => {
+    expect(draw(REVIEWS_NET.capabilities)).toBe("");
+  });
+});
+
+describe("the poster link", () => {
+  it("round-trips location and network through its query string", () => {
+    const u = new URL(posterHref("a b&c", "pe16_x"), "https://x.example");
+    expect(u.pathname).toBe("/dashboard/presence/review-poster");
+    expect(u.searchParams.get("location")).toBe("a b&c");
+    expect(u.searchParams.get("network")).toBe("pe16_x");
+    expect(posterHref()).toBe("/dashboard/presence/review-poster");
   });
 });
 

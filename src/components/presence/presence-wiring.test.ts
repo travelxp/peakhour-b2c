@@ -22,7 +22,7 @@ describe("the connect card", () => {
 describe("the insights panel", () => {
   const src = raw("components/presence/insights-panel.tsx");
   it("checks that the network draws insights right after the listing read, before any setup message", () => {
-    const gate = src.indexOf("if (!drawsInsights(entry)) return null;");
+    const gate = src.indexOf("if (!drawsInsights(entry ?? { capabilities: capsFallback })) return null;");
     const message = src.indexOf("const message = setupMessage(");
     const failed = src.indexOf("<Failed what=\"your figures\" onRetry={() => listingQ.refetch()}");
     expect(gate).toBeGreaterThan(-1);
@@ -55,11 +55,21 @@ describe("the Presence home", () => {
     expect(home).toContain("networkSwitcher(connected, chosenNetwork, defaultQ.data?.connection?.network)");
     expect(home).not.toContain("isDefault ? undefined");
   });
-  it("draws the listing, score, edit and insights panels only for a network that declares them (PE-16)", () => {
-    expect(home).toContain("const listingOn = aboutNetwork ? drawsListing({ capabilities: aboutNetwork.capabilities }) : true;");
-    expect(home).toContain("const insightsOn = aboutNetwork ? drawsInsights({ capabilities: aboutNetwork.capabilities }) : true;");
+  it("draws the listing, score, edit, insights and review cards only for the network the panels read, called with the network itself (PE-16)", () => {
+    expect(home).toContain("const reviewsOn = drawsReviews(aboutNetwork);");
+    expect(home).toContain("const listingOn = drawsListing(aboutNetwork);");
+    expect(home).toContain("const editOn = listingOn && aboutNetwork?.capabilities.edit !== false;");
+    // the network judged is the network read
+    expect(home).toContain("const panelNetwork = aboutNetwork?.network;");
     expect(home.indexOf("{listingOn ? (")).toBeLessThan(home.indexOf("<ListingScoreCard"));
-    expect(home.indexOf("<EditListingCard")).toBeLessThan(home.indexOf("{insightsOn ? <InsightsPanel"));
+    expect(home.indexOf("{editOn ? (")).toBeLessThan(home.indexOf("<EditListingCard"));
+    expect(home.indexOf("<EditListingCard")).toBeLessThan(home.indexOf("<InsightsPanel"));
+    expect(home).toContain("capabilities={aboutNetwork?.capabilities}");
+  });
+  it("clears a pending form request when the network changes, and says a status read that failed", () => {
+    expect(home).toMatch(/setChosen\(undefined\); \/\/ a form opened for one network's listing is not a request for another's setEditRequest\(null\);/);
+    expect(home).toContain("unreadableNetworks(networks, statusQs)");
+    expect(home).toContain("<UnreadableNote networks={unreadable} />");
   });
   it("offers connected networks only: cards come from every connectable network, the switcher from the connected", () => {
     expect(home).toContain("networks.map((n) => ( <NetworkConnectCard");
@@ -67,7 +77,7 @@ describe("the Presence home", () => {
   });
   it("draws the review cards only for a network that declares reviews, and passes the network to the kit", () => {
     expect(home).toContain("{reviewsOn ? <ReviewSummaryCard");
-    expect(home).toContain("{reviewsOn ? <ReviewKitCard location={location} network={panelNetwork} />");
+    expect(home).toContain("{reviewsOn && listingOn ? <ReviewKitCard location={location} network={panelNetwork} />");
   });
   it("falls back to the chosen network's label so nothing says 'nothing is connected' beside a connected card", () => {
     expect(home).toContain("label={fallbackLabel}");

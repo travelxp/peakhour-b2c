@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useReviewKit } from "@/hooks/use-review-kit";
-import { askLine, copyLabel, kitEmptyState, svgDataUri } from "@/lib/review-kit";
+import { askLine, copyLabel, kitEmptyState, posterHref, svgDataUri } from "@/lib/review-kit";
 
 /**
  * Get more reviews: a link to copy, a QR code, and a poster to print (PE-05).
@@ -74,7 +74,7 @@ export function ReviewKitCard({ location, network }: { location?: string | undef
               {copyLabel(copied)}
             </Button>
             <Button size="sm" asChild>
-              <Link href={`/dashboard/presence/review-poster${location ? `?location=${encodeURIComponent(location)}` : ""}`}>
+              <Link href={posterHref(location, network)}>
                 <Printer className="mr-1.5 size-3.5" aria-hidden />
                 Print the poster
               </Link>

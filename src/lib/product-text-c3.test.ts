@@ -48,7 +48,7 @@ describe("Presence says what it does", () => {
     expect(home).not.toContain("we keep them in sync across every network");
     expect(home).not.toContain("Explain this");
     expect(home).toContain("<ListingPanel location={panelLocation} network={panelNetwork} label={fallbackLabel} />");
-    expect(home).toContain("<InsightsPanel location={panelLocation} network={panelNetwork} label={fallbackLabel} />");
+    expect(home).toContain("<InsightsPanel location={panelLocation} network={panelNetwork} label={fallbackLabel} capabilities={aboutNetwork?.capabilities} />");
   });
 });
 

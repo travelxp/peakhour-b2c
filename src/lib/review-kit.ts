@@ -27,6 +27,15 @@ export type ReviewKit =
       qrSvg: string;
     };
 
+/** Where "Print the poster" goes: the poster page reads the same `location` and `network` the card was drawn for, so it prints that kit. */
+export function posterHref(location?: string, network?: string): string {
+  const q = new URLSearchParams();
+  if (location) q.set("location", location);
+  if (network) q.set("network", network);
+  const s = q.toString();
+  return `/dashboard/presence/review-poster${s ? `?${s}` : ""}`;
+}
+
 export const REVIEW_KIT_QUERY_KEY = ["presence", "reviews", "kit"] as const;
 
 /** What the kit card shows for a state with no link, in plain words with the next step. */

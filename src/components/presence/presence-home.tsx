@@ -15,7 +15,7 @@ import { useListingQuery } from "@/hooks/use-presence-listing";
 import { api } from "@/lib/api";
 import { presenceApi } from "@/lib/api/presence";
 import { Skeleton } from "@/components/ui/skeleton";
-import { connectedNetworks, drawsInsights, drawsListing, locationSwitcher, networkSwitcher, presenceCapabilitiesQueryKey } from "@/lib/presence-panels";
+import { connectedNetworks, unreadableNetworks, drawsListing, drawsReviews, locationSwitcher, networkSwitcher, presenceCapabilitiesQueryKey } from "@/lib/presence-panels";
 
 /**
  * Presence pillar home. The local-presence cockpit — keep a business found,
@@ -50,6 +50,16 @@ import { connectedNetworks, drawsInsights, drawsListing, locationSwitcher, netwo
  * its empty state — which says nothing has reached US, never that the
  * merchant has no reviews.
  */
+/** Said, not dropped: a network whose connection status could not be read is not in the choices, and nothing else would say why. */
+export function UnreadableNote({ networks }: { networks: readonly { label: string }[] }) {
+  if (networks.length === 0) return null;
+  return (
+    <p className="text-sm text-muted-foreground" role="status">
+      We couldn&rsquo;t check whether {networks.map((n) => n.label).join(", ")} is connected just now, so it is left out of the choices below. Reload to try again.
+    </p>
+  );
+}
+
 export function PresenceHome() {
   // ★A PAGE CHOICE, NOT A SESSION PIN. The session pins one organisation and one
   // business; which of that business's listings this page describes is the
@@ -80,24 +90,23 @@ export function PresenceHome() {
   const defaultQ = useListingQuery(undefined, undefined, baseReady && connected.length >= 2);
   const panelsReady = baseReady && (connected.length < 2 || !defaultQ.isPending);
   const netSwitcher = networkSwitcher(connected, chosenNetwork, defaultQ.data?.connection?.network);
-  // With a switcher the choice is always sent; with fewer than two connected networks the api's default is the only answer.
-  const panelNetwork = netSwitcher?.value;
-  // The network the panels are about, for its words and its declarations before any listing has answered.
-  const aboutNetwork = netSwitcher
-    ? connected.find((n) => n.network === netSwitcher.value)
-    : connected.length === 1
-      ? connected.at(0)
-      : networks.length === 1
-        ? networks.at(0)
-        : undefined;
+  // The network the panels are about, for its words and its declarations before any listing has answered: the switcher's choice, else the one
+  // connected network, else the only network there is.
+  const soleNetwork = connected.length === 1 ? connected.at(0) : networks.length === 1 ? networks.at(0) : undefined;
+  const aboutNetwork = netSwitcher ? connected.find((n) => n.network === netSwitcher.value) : soleNetwork;
+  // ★THE PANELS READ THE NETWORK THE PAGE JUDGES. With a switcher the choice is sent; with one network the api's default would be that
+  // network anyway, but it is sent by name so the declarations applied below and the answers read are for the same network.
+  const panelNetwork = aboutNetwork?.network;
   const fallbackLabel = aboutNetwork?.label ?? null;
-  // Review cards draw only for a network that declares reviews (no declaration to go by, as on an older api, draws them).
-  const reviewsOn = aboutNetwork ? aboutNetwork.capabilities.reviews !== false : true;
+  // Each card draws only for a network that declares what it shows (no declaration to go by, as on an older api, draws them).
+  const reviewsOn = drawsReviews(aboutNetwork);
   // The listing, score and edit panels draw only for a network that declares a listing (a reviews-only network has none to show).
-  const listingOn = aboutNetwork ? drawsListing({ capabilities: aboutNetwork.capabilities }) : true;
-  // Figures draw only for a network that declares metric keys. The panel reads the same declaration off the listing's own entry, and a
-  // network with no listing has no entry to read it from, so the page applies the connect declaration first (PE-16).
-  const insightsOn = aboutNetwork ? drawsInsights({ capabilities: aboutNetwork.capabilities }) : true;
+  const listingOn = drawsListing(aboutNetwork);
+  // The edit card needs a network that can be written.
+  const editOn = listingOn && aboutNetwork?.capabilities.edit !== false;
+  // Figures: the panel judges the network's declaration itself (off the listing entry, else the connect declaration handed to it below).
+  // A status read that failed is said, not dropped: that network is not in the switcher, and nothing else says why.
+  const unreadable = unreadableNetworks(networks, statusQs);
   // The list of listings always comes from the default read of that network, so a stale choice (a
   // listing since removed) can never ask the api for a place it refuses: the switcher
   // falls back to the first listing instead.
@@ -135,6 +144,8 @@ export function PresenceHome() {
           </p>
         ) : null}
 
+        <UnreadableNote networks={unreadable} />
+
         {!panelsReady ? (
           <div className="space-y-8" aria-busy="true">
             <Skeleton className="h-40 w-full" />
@@ -155,6 +166,8 @@ export function PresenceHome() {
                     setChosenNetwork(e.target.value);
                     // a listing of one network is not a listing of another
                     setChosen(undefined);
+                    // a form opened for one network's listing is not a request for another's
+                    setEditRequest(null);
                   }}
                 >
                   {netSwitcher.options.map((o) => (
@@ -194,7 +207,7 @@ export function PresenceHome() {
 
             {reviewsOn ? <ReviewSummaryCard location={location} network={panelNetwork} label={fallbackLabel} /> : null}
 
-            {reviewsOn ? <ReviewKitCard location={location} network={panelNetwork} /> : null}
+            {reviewsOn && listingOn ? <ReviewKitCard location={location} network={panelNetwork} /> : null}
 
             {listingOn ? (
               <>
@@ -209,13 +222,15 @@ export function PresenceHome() {
 
                 <ListingPanel location={panelLocation} network={panelNetwork} label={fallbackLabel} />
 
-                <div id="edit-listing">
-                  <EditListingCard location={panelLocation} network={panelNetwork} request={editRequest} />
-                </div>
+                {editOn ? (
+                  <div id="edit-listing">
+                    <EditListingCard location={panelLocation} network={panelNetwork} request={editRequest} />
+                  </div>
+                ) : null}
               </>
             ) : null}
 
-            {insightsOn ? <InsightsPanel location={panelLocation} network={panelNetwork} label={fallbackLabel} /> : null}
+            <InsightsPanel location={panelLocation} network={panelNetwork} label={fallbackLabel} capabilities={aboutNetwork?.capabilities} />
           </>
         )}
       </div>

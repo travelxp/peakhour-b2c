@@ -283,6 +283,9 @@ export function NetworkConnectCard({ network }: { network: ConnectableNetwork })
                 </>
               ) : card.kind === "needs_reconnect" ? (
                 `${label} stopped accepting our access. Reconnect to resume.`
+              ) : network.capabilities.listing === false ? (
+                // a network with no listing has none to connect: it is connected for what it does give
+                network.capabilities.reviews ? `Connect ${label} to get your reviews in one inbox.` : `Connect ${label}.`
               ) : network.capabilities.reviews ? (
                 `Connect your listing to get your ${label} reviews in one inbox and reply to them there.`
               ) : (
