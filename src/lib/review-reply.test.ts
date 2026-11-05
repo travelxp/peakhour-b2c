@@ -43,7 +43,9 @@ import {
 
 // ★WHAT THE api SERVES for a review whose network declares replies (PE-R): the adapter's own label and cap. This module holds neither.
 const REVIEW_REPLY_MAX_LENGTH = 4096;
-const CHANNEL: ReplyChannel = { label: "Google", canReply: true, maxLength: REVIEW_REPLY_MAX_LENGTH };
+const CHANNEL: ReplyChannel = { label: "Google", canReply: true, maxLength: REVIEW_REPLY_MAX_LENGTH, replacesReply: true };
+/** What the card passes the refusal words: Google replaces a reply on a re-send, so a re-send is a safe thing to promise there. */
+const REPLACES = { label: "Google", maxLength: REVIEW_REPLY_MAX_LENGTH, replacesReply: true };
 const REVIEW_SOURCE = "google_review";
 const REVIEW_NETWORK = "google_business_profile";
 
@@ -65,7 +67,7 @@ const row = (over: Partial<ReviewItemLike> = {}): ReviewItemLike => ({
   ...over,
 });
 
-const outcomeOf = (res: Parameters<typeof replyOutcome>[0]) => replyOutcome(res, "Google");
+const outcomeOf = (res: Parameters<typeof replyOutcome>[0]) => replyOutcome(res, "Google", true);
 const checkOf = (raw: string) => checkReplyText(raw, { max: REVIEW_REPLY_MAX_LENGTH, label: "Google" });
 
 // ── Can this row be replied to at all ────────────────────────────────────────
@@ -430,6 +432,7 @@ describe("composerStateFor — what the merchant is handed", () => {
     expect(state.canSend).toBe(false);
     expect(state.blockedReason).toContain("Google");
     expect(state.blockedReason).not.toContain("isn't supported");
+    expect(state.blockedReason).toContain("reference");
   });
 
   it("★a blank draft is no suggestion at all", () => {
@@ -509,7 +512,7 @@ describe("a second network is described by what the api serves, not by this modu
   it("★★the outcome is said under the network's own label", () => {
     expect(replyOutcome({ sent: true, recorded: true }, "Replyhub").headline).toBe("Your reply is live on Replyhub.");
     expect(replyOutcome({ sent: true, recorded: true, replyState: "pending" }, "Replyhub").headline).toBe("Replyhub is checking your reply before it goes live.");
-    expect(replyOutcome({ sent: false, reason: "unchanged" }, "Replyhub").description).toContain("Replyhub");
+    expect(replyOutcome({ sent: false, reason: "unchanged" }, "Replyhub", true).description).toContain("Replyhub");
     // with no label from the api it names no network rather than guessing one
     expect(replyOutcome({ sent: true, recorded: true }).headline).toBe("Your reply is live on the network.");
   });
@@ -518,6 +521,59 @@ describe("a second network is described by what the api serves, not by this modu
     expect(replyRefusal({ code: "REAUTH_REQUIRED", status: 409 }, { label: "Replyhub" }).headline).toBe("Reconnect Replyhub to reply.");
     expect(replyRefusal({ code: "REPLY_TOO_LONG", status: 400 }, { label: "Replyhub", maxLength: 120 }).headline).toBe("Replyhub allows 120 characters.");
     expect(replyRefusal({ code: "REPLY_TOO_LONG", status: 400 }, { label: "Replyhub", maxLength: null }).headline).toBe("That reply is too long.");
+  });
+
+  it("★★★a network that does NOT replace a reply on a re-send is never promised one", () => {
+    const NO_REPLACE: ReplyChannel = { label: "Replyhub", canReply: true, maxLength: 120, replacesReply: false };
+    // a live reply is not offered for editing: no composer, no prefill, no "update"
+    const published = composerStateFor(row({ replyChannel: NO_REPLACE, review: review({ replyPublished: "Thanks!" }) }));
+    expect(published.canSend).toBe(false);
+    expect(published.initialText).toBe("");
+    expect(published.blockedReason).toContain("Replyhub");
+    // an unanswered review still gets its composer
+    expect(composerStateFor(row({ replyChannel: NO_REPLACE })).canSend).toBe(true);
+    // and an older api that does not say is treated the same way: nothing is promised
+    expect(composerStateFor(row({ replyChannel: { label: "Replyhub", canReply: true, maxLength: 120 }, review: review({ replyPublished: "Thanks!" }) })).canSend).toBe(false);
+    // "send it again" is not offered when nothing was sent because the words had not changed
+    const unchanged = replyOutcome({ sent: false, reason: "unchanged" }, "Replyhub", false);
+    expect(unchanged.offerForce).toBe(false);
+    expect(unchanged.description).not.toMatch(/send it again/i);
+  });
+
+  it("★★★a send that timed out on a network that does not replace is 'look first', with no retry and no promise", () => {
+    for (const code of [TRANSPORT_ERROR_CODE, "PARSE_ERROR"]) {
+      const r = replyRefusal({ code }, { label: "Replyhub", replacesReply: false });
+      expect(r.kind, code).toBe("check_first");
+      expect(r.headline).toBe("We couldn't confirm your reply was sent.");
+      expect(r.description).toContain("Replyhub");
+      expect(r.description).not.toMatch(/safe/i);
+      expect(isRetryableRefusal(r), code).toBe(false);
+      // no channel at all (an older api) promises nothing either
+      expect(replyRefusal({ code }).kind).toBe("check_first");
+    }
+    // where a re-send replaces the reply the old promise stands, and the retry button with it
+    expect(replyRefusal({ code: TRANSPORT_ERROR_CODE }, REPLACES).kind).toBe("retry");
+    expect(replyRefusal({ code: TRANSPORT_ERROR_CODE }, REPLACES).description).toContain("safe");
+  });
+
+  it("★★a network that takes no reply, and a review that names no place, are permanent and self-service: never 'contact support'", () => {
+    for (const code of ["REPLY_NOT_SUPPORTED", "LOCATION_AMBIGUOUS"]) {
+      const r = replyRefusal({ code, status: 409 }, { label: "Replyhub" });
+      expect(r.kind, code).toBe("not_repliable");
+      expect(isRetryableRefusal(r), code).toBe(false);
+      expect(JSON.stringify(r), code).not.toMatch(/support|contact/i);
+      expect(r.headline, code).toContain("Replyhub");
+      expect(shouldRefreshAfterRefusal(code), code).toBe(false);
+    }
+    // the api's own words (they name the network) are used as written
+    expect(replyRefusal({ code: "REPLY_NOT_SUPPORTED", status: 400, message: "Peakhour cannot send replies to Replyhub reviews. Answer this one on Replyhub." }, { label: "Replyhub" }).headline).toBe(
+      "Peakhour cannot send replies to Replyhub reviews. Answer this one on Replyhub.",
+    );
+  });
+
+  it("★a sentence that starts with the plain word starts with a capital", () => {
+    expect(replyRefusal({ code: "RATE_LIMITED", status: 429 }).headline.charAt(0)).toBe(replyRefusal({ code: "RATE_LIMITED", status: 429 }).headline.charAt(0).toUpperCase());
+    expect(replyOutcome({ sent: true, recorded: true, replyState: "pending" }).headline).toBe("The network is checking your reply before it goes live.");
   });
 
   it("★the network's words reach the card: label and cap come from the row's reply channel", () => {
@@ -690,7 +746,7 @@ describe("replyRefusal — whose problem is it", () => {
     const r = replyRefusal({ code: "REPLY_REJECTED", status: 400, message: raw }, { label: "Google" });
     expect(r.headline).toBe("Google wouldn't accept that reply.");
     // with no label from the api the sentence names no network rather than guessing one
-    expect(replyRefusal({ code: "REPLY_REJECTED", status: 400, message: raw }).headline).toBe("the network wouldn't accept that reply.");
+    expect(replyRefusal({ code: "REPLY_REJECTED", status: 400, message: raw }).headline).toBe("The network wouldn't accept that reply.");
     expect(r.headline).not.toContain("REVIEW_REPLY_SPAM");
     expect(r.description).not.toContain("REVIEW_REPLY_SPAM");
     expect(r.kind).toBe("fix_text");
@@ -843,7 +899,7 @@ describe("replyRefusal — whose problem is it", () => {
     // A `fetch` that throws never becomes an ApiError — offline, DNS, CORS.
     // Telling somebody to contact support about their wifi is a ticket no
     // agent can close.
-    const r = replyRefusal({ code: TRANSPORT_ERROR_CODE });
+    const r = replyRefusal({ code: TRANSPORT_ERROR_CODE }, REPLACES);
     expect(r.kind).toBe("retry");
     expect(isRetryableRefusal(r)).toBe(true);
     expect(r.headline).toBe("Couldn't reach Peakhour.");
@@ -855,7 +911,7 @@ describe("replyRefusal — whose problem is it", () => {
     // the `recorded: false` branch exists to avoid; what IS true is that a
     // repeat is harmless, because Google's reply endpoint is a PUT.
     for (const code of [TRANSPORT_ERROR_CODE, "PARSE_ERROR"]) {
-      const r = replyRefusal({ code });
+      const r = replyRefusal({ code }, REPLACES);
       expect(r.description).toBe(
         "Check your connection and try again — re-sending the same words is safe.",
       );
@@ -864,7 +920,7 @@ describe("replyRefusal — whose problem is it", () => {
   });
 
   it("★★a non-JSON body is the gateway wobbling, not our route answering", () => {
-    expect(replyRefusal({ code: "PARSE_ERROR", status: 502 }).kind).toBe("retry");
+    expect(replyRefusal({ code: "PARSE_ERROR", status: 502 }, REPLACES).kind).toBe("retry");
   });
 
   it("★★★never renders zod's own English as merchant copy", () => {

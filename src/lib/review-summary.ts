@@ -216,14 +216,14 @@ export function sampleCaveat(summary: ReviewSummary): string | null {
  * we have nothing for, has an UNKNOWN rating — and "0.0 ★" says its customers
  * rate it at nothing. There is no worse number to put on this card.
  */
-export function ratingLabel(summary: ReviewSummary): string | null {
+export function ratingLabel(summary: Pick<ReviewSummary, "rating">): string | null {
   if (summary.rating === null) return null;
   // ★ONE DECIMAL ALWAYS, so 4 and 4.3 do not sit in a row at different widths.
   return summary.rating.toFixed(1);
 }
 
 /** How many reviews the rating is over — the denominator, said out loud. */
-export function ratingSubLabel(summary: ReviewSummary): string | null {
+export function ratingSubLabel(summary: Pick<ReviewSummary, "rating" | "ratedCount">): string | null {
   if (summary.rating === null) return null;
   return `from ${summary.ratedCount} rated review${summary.ratedCount === 1 ? "" : "s"}`;
 }

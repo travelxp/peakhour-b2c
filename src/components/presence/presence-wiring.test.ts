@@ -76,10 +76,12 @@ describe("the Presence home", () => {
     expect(home).toContain("connectedNetworks(networks, statusOf)");
   });
   it("draws the review cards only for a network that declares reviews, and passes the network to the kit", () => {
-    expect(home).toContain("{reviewsOn ? (");
+    expect(home).toContain("{reviewsOn && !listAnswer.isPending ? (");
+    // the reviews wait for the listing read that says whether there are several places
+    expect(home).toContain("{reviewsOn && listAnswer.isPending ? <Skeleton");
     expect(home).toContain("<ReviewSummaryCard location={location} network={panelNetwork}");
     // PE-R: the kit is drawn for any network with reviews; a network with no listing draws it only when its link exists
-    expect(home).toContain("{reviewsOn ? <ReviewKitCard location={location} network={panelNetwork} hideUnlessReady={!listingOn} /> : null}");
+    expect(home).toContain("{reviewsOn && !listAnswer.isPending ? <ReviewKitCard location={location} network={panelNetwork} hideUnlessReady={!listingOn} /> : null}");
   });
   it("PE-R: a business with several places starts from every place side by side, and picking one narrows the whole page to it", () => {
     expect(home).toContain("wantsPlacesView({ hasSwitcher: !!switcher, narrowed })");
@@ -87,6 +89,10 @@ describe("the Presence home", () => {
     // the places card's pick, and the listing switcher's choice, both narrow
     expect(home).toMatch(/onPick=\{\(place\) => \{ setChosen\(place\); setNarrowed\(true\); \}\}/);
     expect(home).toMatch(/setChosen\(e\.target\.value\); \/\/ choosing a listing narrows the reviews to it too setNarrowed\(true\);/);
+    // the select itself offers "All locations", so narrowing is always reversible, and it says which place the other panels show
+    expect(home).toContain('<option value={ALL_LOCATIONS}>All locations</option>');
+    expect(home).toContain("value={narrowed ? switcher.value : ALL_LOCATIONS}");
+    expect(home).toContain("locationScopeNote({ narrowed,");
     // and a way back to all of them from the narrowed card
     expect(home).toContain("onShowAll={switcher ? () => setNarrowed(false) : undefined}");
   });

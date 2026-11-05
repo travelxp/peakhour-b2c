@@ -126,6 +126,8 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
   // ★THE NETWORK'S WORDS AND CAP ARE THE ADAPTER'S (PE-R), served on the row: this card names no network and counts to no number of its own.
   const network = networkWords(item);
   const limit = replyLimitOf(item);
+  const replaces = item.replyChannel?.replacesReply === true;
+  const channel = { label: network, maxLength: limit, replacesReply: replaces };
   const [text, setText] = useState(state.initialText);
   const [outcome, setOutcome] = useState<ReplyOutcome | null>(null);
   const [refusal, setRefusal] = useState<ReplyRefusal | null>(null);
@@ -153,7 +155,7 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
     mutationFn: ({ comment, force }: { comment: string; force?: boolean }) =>
       inboxApi.reply(item._id, comment, force),
     onSuccess: (res) => {
-      const result = replyOutcome(res, network);
+      const result = replyOutcome(res, network, replaces);
       setOutcome(result);
       setRefusal(null);
       // ⚠️★★NOT ON `published_unrecorded`. `recorded: false` means the api's
@@ -170,7 +172,7 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
       // `unhandled` and told the merchant to contact support about their own
       // wifi. `TRANSPORT_ERROR_CODE` is where the module puts that case.
       const detail = err instanceof ApiError ? err : { code: TRANSPORT_ERROR_CODE };
-      setRefusal(replyRefusal(detail, { label: network, maxLength: limit }));
+      setRefusal(replyRefusal(detail, channel));
       setOutcome(null);
       if (shouldRefreshAfterRefusal(detail.code)) onChanged();
     },
@@ -239,7 +241,7 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
     // and its answer is the one that counts; this only saves a round trip to be
     // told what we already knew.
     if (!checked.ok) {
-      setRefusal(replyRefusal({ code: checked.code, message: checked.message, status: 400 }, { label: network, maxLength: limit }));
+      setRefusal(replyRefusal({ code: checked.code, message: checked.message, status: 400 }, channel));
       setOutcome(null);
       return;
     }
@@ -369,6 +371,7 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
               disabled={sending}
               onInsert={insert}
             />
+            {remaining === null && <span className="ml-auto" />}
             {remaining !== null && (
               <span
                 className={`ml-auto text-[11px] ${

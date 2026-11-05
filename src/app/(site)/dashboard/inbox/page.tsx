@@ -27,6 +27,7 @@ import {
   REVIEW_SUMMARY_QUERY_KEY,
   type InboxTab,
 } from "@/lib/review-summary";
+import { REVIEW_PLACES_QUERY_KEY } from "@/lib/review-places";
 import {
   REVIEW_PAGE_LIMIT,
   reviewQueueOrder,
@@ -273,6 +274,8 @@ function ReviewsPane({ query }: { query: ReturnType<typeof useReviewsQuery> }) {
   const onChanged = () => {
     queryClient.invalidateQueries({ queryKey: ["inbox-reviews"] });
     queryClient.invalidateQueries({ queryKey: REVIEW_SUMMARY_QUERY_KEY });
+    // the all-locations view counts the same unanswered reviews, per place
+    queryClient.invalidateQueries({ queryKey: REVIEW_PLACES_QUERY_KEY });
   };
 
   const state = listFetchState(query, query.data?.items?.length ?? 0);

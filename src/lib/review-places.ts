@@ -51,17 +51,6 @@ export function placeName(p: Pick<PlaceReviewRow, "title" | "locationName">): st
   return p.title?.trim() || p.locationName;
 }
 
-/** The rating as shown, or null when there is none. One decimal always. Never "0.0". */
-export function placeRatingLabel(p: Pick<PlaceReviewRow, "rating">): string | null {
-  return p.rating === null ? null : p.rating.toFixed(1);
-}
-
-/** What the rating is over, said out loud; null when there is no rating. */
-export function placeRatingSub(p: Pick<PlaceReviewRow, "rating" | "ratedCount">, days: number): string | null {
-  if (p.rating === null) return null;
-  return `from ${p.ratedCount} rated review${p.ratedCount === 1 ? "" : "s"} in the last ${days} days`;
-}
-
 /** The line under a place with no rating: why there is none. */
 export function placeNoRatingNote(p: Pick<PlaceReviewRow, "totalEver" | "volume">, days: number): string {
   if (p.totalEver === 0) return "No reviews yet";
@@ -104,4 +93,13 @@ export function unplacedNote(unplaced: number, label: string): string | null {
  */
 export function wantsPlacesView(args: { hasSwitcher: boolean; narrowed: boolean }): boolean {
   return args.hasSwitcher && !args.narrowed;
+}
+
+/**
+ * Said beside the location select while every location is shown: the reviews above are for all of them, but the listing, the score and the
+ * review link below are for ONE place, and which one is not obvious. Null once the merchant has picked a place (everything is then about it).
+ */
+export function locationScopeNote(args: { narrowed: boolean; shownName: string | null }): string | null {
+  if (args.narrowed || !args.shownName) return null;
+  return `The reviews show every location. The listing, the score and the review link below show ${args.shownName}.`;
 }

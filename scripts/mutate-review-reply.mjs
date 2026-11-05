@@ -56,18 +56,18 @@ const MUTANTS = [
   {
     where: "rules",
     name: "★★★offer a listing reply on a row that did not come from a review",
-    anchor: "  if (item.source !== REVIEW_SOURCE) return false;",
+    anchor: "  if (item.replyChannel?.canReply !== true) return false;",
     mutated: "  if (false) return false;",
-    killer: "★★★refuses a row whose source is not a Google review",
+    killer: "★★★refuses a row the api gave no reply channel (not a review of a network the engine knows)",
   },
   {
     // ⚠️A FUTURE NETWORK NORMALISED INTO THE SAME SOURCE would be replied to
     // through Google's API against an id Google never issued.
     where: "rules",
     name: "★★★reply through Google's API to a review Google never saw",
-    anchor: "  if (item.review?.network !== REVIEW_NETWORK) return false;",
-    mutated: "  if (false) return false;",
-    killer: "★★★refuses a row whose network is not Business Profile",
+    anchor: "  return Boolean(item.review?.externalReviewId?.trim());",
+    mutated: "  return true;",
+    killer: "★★★refuses a row with no network reference to reply to",
   },
   {
     where: "rules",
@@ -88,9 +88,9 @@ const MUTANTS = [
     // the provider name and the inbox source are three different strings.
     where: "rules",
     name: "★★conflate the inbox source with the network name",
-    anchor: 'export const REVIEW_NETWORK = "google_business_profile";',
-    mutated: 'export const REVIEW_NETWORK = "google_review";',
-    killer: "★★the source and the network are different strings",
+    anchor: "const NO_LABEL = \"the network\";",
+    mutated: "const NO_LABEL = \"Google\";",
+    killer: "★★★never renders Google's own rejection text",
   },
 
   // ── The badge ────────────────────────────────────────────────────────────
@@ -378,36 +378,29 @@ const MUTANTS = [
     // one-click publish of machine-written words under the merchant's name.
     where: "rules",
     name: "★★★prefill the box with the AI draft, so Send publishes it",
-    anchor:
-      '  return { initialText: published ?? "", suggestion, published, canSend: true };',
-    mutated:
-      '  return { initialText: published ?? suggestion ?? "", suggestion, published, canSend: true };',
+    anchor: "    initialText: published ?? rejected?.text ?? \"\",",
+    mutated: "    initialText: published ?? suggestion ?? rejected?.text ?? \"\",",
     killer: "★★★never prefills the box with the AI draft",
   },
   {
     where: "rules",
     name: "★★★make the draft the send body and drop the suggestion button",
-    anchor:
-      '  return { initialText: published ?? "", suggestion, published, canSend: true };',
-    mutated:
-      '  return { initialText: suggestion ?? "", suggestion: undefined, published, canSend: true };',
+    anchor: "    initialText: published ?? rejected?.text ?? \"\",\n    suggestion,\n",
+    mutated: "    initialText: suggestion ?? \"\",\n    suggestion: undefined,\n",
     killer: "★★★offers the AI draft as a suggestion rather than as the send body",
   },
   {
     where: "rules",
     name: "★★let the AI draft win over the reply already published",
-    anchor:
-      '  return { initialText: published ?? "", suggestion, published, canSend: true };',
-    mutated:
-      '  return { initialText: suggestion ?? published ?? "", suggestion, published, canSend: true };',
+    anchor: "    initialText: published ?? rejected?.text ?? \"\",",
+    mutated: "    initialText: suggestion ?? published ?? \"\",",
     killer: "★★prefills the published reply even when a draft also exists",
   },
   {
     where: "rules",
     name: "★★open an empty box over a published reply, so editing means retyping",
-    anchor:
-      '  return { initialText: published ?? "", suggestion, published, canSend: true };',
-    mutated: '  return { initialText: "", suggestion, published, canSend: true };',
+    anchor: "    initialText: published ?? rejected?.text ?? \"\",",
+    mutated: "    initialText: \"\",",
     killer: "★★prefills the box with the reply already published, so editing means editing",
   },
   {
@@ -423,9 +416,8 @@ const MUTANTS = [
     // the killer asserts the words that differ.
     where: "rules",
     name: "★★tell a merchant with a missing reference that their network is unsupported",
-    anchor:
-      "        item.source !== REVIEW_SOURCE || item.review?.network !== REVIEW_NETWORK",
-    mutated: "        true",
+    anchor: "  if (!channel.canReply) return",
+    mutated: "  if (true) return",
     killer:
       "★★says a missing reference has to be answered on Google, not that the network is unsupported",
   },
@@ -448,15 +440,15 @@ const MUTANTS = [
   {
     where: "rules",
     name: "★★★let an over-long reply through for Google to refuse",
-    anchor: "  if (comment.length > REVIEW_REPLY_MAX_LENGTH) {",
+    anchor: "  if (limit?.max != null && comment.length > limit.max) {",
     mutated: "  if (false) {",
     killer: "★★★refuses a reply longer than Google's 4096",
   },
   {
     where: "rules",
     name: "★★refuse a reply of exactly the limit",
-    anchor: "  if (comment.length > REVIEW_REPLY_MAX_LENGTH) {",
-    mutated: "  if (comment.length >= REVIEW_REPLY_MAX_LENGTH) {",
+    anchor: "  if (limit?.max != null && comment.length > limit.max) {",
+    mutated: "  if (limit?.max != null && comment.length >= limit.max) {",
     killer: "★★accepts a reply of exactly the limit",
   },
   {
@@ -466,9 +458,9 @@ const MUTANTS = [
     // server they cannot argue with.
     where: "rules",
     name: "★★★count down to the 5000 the collection stores, not Google's 4096",
-    anchor: "export const REVIEW_REPLY_MAX_LENGTH = 4096;",
-    mutated: "export const REVIEW_REPLY_MAX_LENGTH = 5000;",
-    killer: "★★★names Google's 4096, not the 5000 the collection stores",
+    anchor: "      message: `${limit.label} allows ${limit.max} characters; this reply is ${comment.length}.`,",
+    mutated: "      message: `Google allows ${limit.max} characters; this reply is ${comment.length}.`,",
+    killer: "★★★the cap is the network's own: 121 characters is over on a 120-character network",
   },
   {
     where: "rules",
@@ -487,8 +479,8 @@ const MUTANTS = [
   {
     where: "rules",
     name: "★★clamp the counter at zero, so an over-long reply says 0 left",
-    anchor: "  return REVIEW_REPLY_MAX_LENGTH - raw.trim().length;",
-    mutated: "  return Math.max(0, REVIEW_REPLY_MAX_LENGTH - raw.trim().length);",
+    anchor: "  return max === null ? null : max - raw.trim().length;",
+    mutated: "  return max === null ? null : Math.max(0, max - raw.trim().length);",
     killer: "★★counts down to Google's limit, and past it",
   },
 
@@ -505,8 +497,8 @@ const MUTANTS = [
   {
     where: "rules",
     name: "★★★drop the sentence that stops the merchant sending it twice",
-    anchor: '        "Don\'t send it again — the customer can already see it.",',
-    mutated: '        "",',
+    anchor: "        `Don't send it again — ${checking ? `${label} already has it` : \"the customer can already see it\"}.`,",
+    mutated: "        \"\",",
     killer: "★★★tells the merchant NOT to send it again when we could not file it",
   },
   {

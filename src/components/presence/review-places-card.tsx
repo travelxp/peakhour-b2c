@@ -2,21 +2,19 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { presenceApi } from "@/lib/api/presence";
-import { INBOX_REVIEWS_HREF } from "@/lib/review-summary";
+import { INBOX_REVIEWS_HREF, ratingLabel, ratingSubLabel } from "@/lib/review-summary";
 import {
   limitNote,
   placeName,
   placeNeedsAttention,
   placeNoRatingNote,
-  placeRatingLabel,
-  placeRatingSub,
   REVIEW_PLACES_QUERY_KEY,
   showAllLimit,
   unansweredLabel,
@@ -44,12 +42,16 @@ export function ReviewPlacesCard({
   /** Narrow the page to this place (its reference, as the location switcher carries it). */
   onPick: (locationName: string) => void;
 }) {
-  const [limit, setLimit] = useState<number | undefined>(undefined);
+  // ★THE LIMIT IS PER NETWORK: "show all" chosen for one network must not widen another's list when the switcher moves.
+  const [limits, setLimits] = useState<Record<string, number>>({});
+  const limit = limits[network ?? "default"];
   const query = useQuery({
     queryKey: [...REVIEW_PLACES_QUERY_KEY, network ?? "default", limit ?? "default"],
     queryFn: () => presenceApi.reviewPlaces(undefined, network, limit),
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
+    // "Show all" keeps the rows on screen while the longer list loads, instead of dropping to a skeleton
+    placeholderData: keepPreviousData,
   });
 
   // ⚠️`isPending`, NOT `isLoading` (react-query v5: a paused query is neither loading nor errored).
@@ -100,8 +102,8 @@ export function ReviewPlacesCard({
 
       <ul className="space-y-2" aria-label="Reviews by location">
         {answer.places.map((p) => {
-          const rating = placeRatingLabel(p);
-          const sub = placeRatingSub(p, answer.days);
+          const rating = ratingLabel(p);
+          const sub = ratingSubLabel(p);
           return (
             <li key={p.locationName} className="rounded-lg border p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -154,7 +156,7 @@ export function ReviewPlacesCard({
       )}
       <div className="flex flex-wrap items-center gap-2">
         {more !== null && (
-          <Button size="sm" variant="outline" className="h-8" onClick={() => setLimit(more)}>
+          <Button size="sm" variant="outline" className="h-8" onClick={() => setLimits((l) => ({ ...l, [network ?? "default"]: more }))}>
             Show all {answer.total} locations
           </Button>
         )}

@@ -7,7 +7,7 @@ import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { NetworkConnectCard } from "@/components/presence/network-connect-card";
 import { ReviewSummaryCard } from "@/components/presence/review-summary-card";
 import { ReviewPlacesCard } from "@/components/presence/review-places-card";
-import { wantsPlacesView } from "@/lib/review-places";
+import { locationScopeNote, wantsPlacesView } from "@/lib/review-places";
 import { ListingPanel } from "@/components/presence/listing-panel";
 import { ListingScoreCard } from "@/components/presence/listing-score-card";
 import { EditListingCard, type EditRequest } from "@/components/presence/edit/edit-listing-card";
@@ -61,6 +61,9 @@ export function UnreadableNote({ networks }: { networks: readonly { label: strin
     </p>
   );
 }
+
+/** The location select's value for "every location" (never a place reference). */
+const ALL_LOCATIONS = "__all__";
 
 export function PresenceHome() {
   // ★A PAGE CHOICE, NOT A SESSION PIN. The session pins one organisation and one
@@ -195,13 +198,19 @@ export function PresenceHome() {
                 <select
                   id="presence-location"
                   className="h-9 rounded-md border bg-background px-2 text-sm"
-                  value={switcher.value}
+                  value={narrowed ? switcher.value : ALL_LOCATIONS}
                   onChange={(e) => {
+                    // ★"ALL LOCATIONS" IS A CHOICE OF ITS OWN, so narrowing is always reversible from the select itself.
+                    if (e.target.value === ALL_LOCATIONS) {
+                      setNarrowed(false);
+                      return;
+                    }
                     setChosen(e.target.value);
                     // choosing a listing narrows the reviews to it too
                     setNarrowed(true);
                   }}
                 >
+                  <option value={ALL_LOCATIONS}>All locations</option>
                   {switcher.options.map((o) => (
                     <option key={o.value} value={o.value}>
                       {o.label}
@@ -209,12 +218,16 @@ export function PresenceHome() {
                   ))}
                 </select>
                 <span className="text-xs text-muted-foreground">
-                  Everything below shows this one listing. Figures are never added across listings.
+                  {locationScopeNote({ narrowed, shownName: switcher.options.find((o) => o.value === switcher.value)?.label ?? null }) ??
+                    "Everything below shows this one listing. Figures are never added across listings."}
                 </span>
               </div>
             ) : null}
 
-            {reviewsOn ? (
+            {/* ★WAIT FOR THE LISTING READ that says whether there are several places: drawing the summary first and swapping it for the places
+                view a moment later flashed one view and discarded its read. */}
+            {reviewsOn && listAnswer.isPending ? <Skeleton className="h-40 w-full" /> : null}
+            {reviewsOn && !listAnswer.isPending ? (
               wantsPlacesView({ hasSwitcher: !!switcher, narrowed }) ? (
                 <ReviewPlacesCard
                   network={panelNetwork}
@@ -231,7 +244,7 @@ export function PresenceHome() {
 
             {/* A network with a listing draws the kit as before. A network with NO listing draws it only when its link exists (it lives on
                 the connection); with none the card is not drawn (PE-16's hiding). */}
-            {reviewsOn ? <ReviewKitCard location={location} network={panelNetwork} hideUnlessReady={!listingOn} /> : null}
+            {reviewsOn && !listAnswer.isPending ? <ReviewKitCard location={location} network={panelNetwork} hideUnlessReady={!listingOn} /> : null}
 
             {listingOn ? (
               <>

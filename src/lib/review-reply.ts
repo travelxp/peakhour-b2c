@@ -41,12 +41,20 @@ export interface ReplyChannel {
   label: string;
   /** The network declares replies and can send one. False: no reply control, and the card says why. */
   canReply: boolean;
-  /** The longest reply the network takes, or null when it declared none (no count is shown then). */
+  /** The longest reply that can be sent (the network's cap, never above what the inbox stores), or null from an older api (no count is shown then). */
   maxLength: number | null;
+  /**
+   * Sending a reply again REPLACES the one on the network. Only then may this module promise that a re-send is harmless, offer to edit a
+   * published reply, or offer "send it again". Absent or false: a second send may post a second reply.
+   */
+  replacesReply?: boolean;
 }
 
 /** The word used where a network's label is not known. Never a guessed network. */
 const NO_LABEL = "the network";
+
+/** A sentence that starts with the label must start with a capital, whether it is a network's name or the plain word. */
+const cap = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
 
 /** Where a merchant picks or re-picks the listing, and reconnects. */
 export const PRESENCE_ROUTE = "/dashboard/presence";
@@ -334,6 +342,18 @@ export function composerStateFor(item: ReviewItemLike): ComposerState {
       blockedReason: blockedReasonFor(item),
     };
   }
+  // ★A NETWORK THAT DOES NOT REPLACE A REPLY ON A RE-SEND GETS NO EDIT-AND-RESEND: sending again could post a second reply under the first.
+  if (published && item.replyChannel?.replacesReply !== true) {
+    return {
+      initialText: "",
+      suggestion,
+      published,
+      pendingCheck,
+      rejected,
+      canSend: false,
+      blockedReason: `Your reply is on ${networkWords(item)}. A reply can't be changed from Peakhour there, so edit it on ${networkWords(item)} itself.`,
+    };
+  }
   return {
     initialText: published ?? rejected?.text ?? "",
     suggestion,
@@ -463,7 +483,7 @@ export type ReplyOutcome =
   /** ★On the listing, and we could not file it. STILL A SUCCESS. */
   | { kind: "published_unrecorded"; headline: string; description: string; offerForce: false }
   /** Nothing was sent because nothing had changed. Not a failure. */
-  | { kind: "unchanged"; headline: string; description: string; offerForce: true };
+  | { kind: "unchanged"; headline: string; description: string; offerForce: boolean };
 
 /**
  * What the api's 200 actually means.
@@ -481,21 +501,29 @@ export type ReplyOutcome =
  * leaves our row still holding the text, and without an override the merchant
  * could never restore it while being told it already worked.
  */
-export function replyOutcome(res: ReplyResponseLike, label: string = NO_LABEL): ReplyOutcome {
+export function replyOutcome(res: ReplyResponseLike, label: string = NO_LABEL, replacesReply = false): ReplyOutcome {
   if (!res.sent) {
-    return {
-      kind: "unchanged",
-      headline: "That's already your reply.",
-      description:
-        "Nothing was sent, because the words haven't changed. If the reply has gone missing from " +
-        `${label}, send it again to put it back.`,
-      offerForce: true,
-    };
+    // ★"SEND IT AGAIN" IS A PROMISE ONLY A NETWORK THAT REPLACES A REPLY CAN KEEP; elsewhere it could post a second one.
+    return replacesReply
+      ? {
+          kind: "unchanged",
+          headline: "That's already your reply.",
+          description:
+            "Nothing was sent, because the words haven't changed. If the reply has gone missing from " +
+            `${label}, send it again to put it back.`,
+          offerForce: true,
+        }
+      : {
+          kind: "unchanged",
+          headline: "That's already your reply.",
+          description: `Nothing was sent, because the words haven't changed. If it has gone missing from ${label}, check there before doing anything else.`,
+          offerForce: false,
+        };
   }
   // ★A REPLY GOOGLE IS CHECKING IS NOT LIVE, and saying so would be untrue beside
   // a card that says "waiting for Google's check".
   const checking = res.replyState === "pending";
-  const headline = checking ? `${label} is checking your reply before it goes live.` : `Your reply is live on ${label}.`;
+  const headline = checking ? cap(`${label} is checking your reply before it goes live.`) : `Your reply is live on ${label}.`;
   if (res.recorded === false) {
     return {
       kind: "published_unrecorded",
@@ -561,6 +589,8 @@ export type ReplyRefusalKind =
   | "reconnect"
   | "pick_location"
   | "retry"
+  /** The send may or may not have gone through and a second one could post a second reply: look on the network first. No retry button. */
+  | "check_first"
   | "unhandled";
 
 export interface ReplyRefusal {
@@ -599,6 +629,10 @@ const KIND_BY_CODE: Record<string, ReplyRefusalKind> = {
   UNSUPPORTED_NETWORK: "not_repliable",
   NO_REVIEW_REFERENCE: "not_repliable",
   UNRECOGNISED_REVIEW_REFERENCE: "not_repliable",
+  // ★PERMANENT, AND THE MERCHANT'S OWN TO DO: the network takes no reply from here, or the review names no place we can pick. Neither is a
+  // support ticket and neither is helped by a retry; both say where to answer it.
+  REPLY_NOT_SUPPORTED: "not_repliable",
+  LOCATION_AMBIGUOUS: "not_repliable",
   // ★THE ROW IS GONE. Reachable two ways and neither is a support ticket: a
   // 30-second staleTime with no refetch-on-focus means the list outlives the
   // row, and `app.onError`'s unknown-route handler answers NOT_FOUND — so if
@@ -646,6 +680,8 @@ const KIND_BY_CODE: Record<string, ReplyRefusalKind> = {
  * through promises a background retry that is not happening.
  */
 const API_AUTHORED_MESSAGE = new Set([
+  "REPLY_NOT_SUPPORTED",
+  "LOCATION_AMBIGUOUS",
   "NOT_A_REVIEW",
   "UNSUPPORTED_NETWORK",
   "NO_REVIEW_REFERENCE",
@@ -683,6 +719,8 @@ const FALLBACK_HEADLINE = (n: string, max: number | null): Record<string, string
   NOT_A_REVIEW: "This isn't a review, so there's nothing to reply to on a listing.",
   UNSUPPORTED_NETWORK: "We can't reply to this network from here yet.",
   NO_REVIEW_REFERENCE: `We don't have a reference for this review on ${n}.`,
+  REPLY_NOT_SUPPORTED: `Peakhour can't send replies to ${n} reviews.`,
+  LOCATION_AMBIGUOUS: `We can't tell which of your locations this ${n} review is for.`,
   UNRECOGNISED_REVIEW_REFERENCE: "We don't recognise the reference stored for this review.",
   NOT_FOUND: "This review isn't in your inbox any more.",
   FORBIDDEN: "You don't have permission to reply on this business's behalf.",
@@ -733,6 +771,8 @@ const SECOND_SENTENCE: Record<string, string> = {
   PARSE_ERROR: "Check your connection and try again — re-sending the same words is safe.",
   RATE_LIMITED: "Give it a minute and try again.",
   UPSTREAM_ERROR: "Try again in a moment.",
+  REPLY_NOT_SUPPORTED: "Answer this one on the network itself: there is nothing to fix on your side.",
+  LOCATION_AMBIGUOUS: "Answer this one on the network itself; picking a location here wouldn't tell us which it is.",
 };
 
 /**
@@ -743,8 +783,17 @@ const SECOND_SENTENCE: Record<string, string> = {
  * times against a permanent failure. The request id is what support needs, and
  * the only technical detail worth showing.
  */
-export function replyRefusal(err: ReplyErrorLike, channel?: { label?: string; maxLength?: number | null }): ReplyRefusal {
+export function replyRefusal(err: ReplyErrorLike, channel?: { label?: string; maxLength?: number | null; replacesReply?: boolean }): ReplyRefusal {
   const n = channel?.label?.trim() || NO_LABEL;
+  // ★A SEND THAT TIMED OUT MAY HAVE GONE THROUGH. "Re-sending the same words is safe" is true only where a re-send replaces the reply; on a
+  // network that does not, a second send could post a second one, so there is no retry and the merchant is told to look first.
+  if ((err.code === TRANSPORT_ERROR_CODE || err.code === "PARSE_ERROR") && channel?.replacesReply !== true) {
+    return {
+      kind: "check_first",
+      headline: "We couldn't confirm your reply was sent.",
+      description: `Look at your reviews on ${n} before sending it again: if it went through, a second send may post a second reply.`,
+    };
+  }
   const code = err.code ?? "";
   const kind = KIND_BY_CODE[code];
   if (!kind) {
@@ -758,7 +807,7 @@ export function replyRefusal(err: ReplyErrorLike, channel?: { label?: string; ma
     };
   }
   const authored = API_AUTHORED_MESSAGE.has(code) ? err.message?.trim() : undefined;
-  const headline = authored || FALLBACK_HEADLINE(n, channel?.maxLength ?? null)[code] || "Couldn't send your reply.";
+  const headline = authored || cap(FALLBACK_HEADLINE(n, channel?.maxLength ?? null)[code] ?? "Couldn't send your reply.");
   const description = SECOND_SENTENCE[code] || undefined;
   const href = kind === "reconnect" || kind === "pick_location" ? PRESENCE_ROUTE : undefined;
   return { kind, headline, ...(description ? { description } : {}), ...(href ? { href } : {}) };

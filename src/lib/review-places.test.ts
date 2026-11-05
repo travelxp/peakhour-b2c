@@ -4,8 +4,7 @@ import {
   placeName,
   placeNeedsAttention,
   placeNoRatingNote,
-  placeRatingLabel,
-  placeRatingSub,
+  locationScopeNote,
   PLACES_MAX,
   showAllLimit,
   unansweredLabel,
@@ -13,7 +12,7 @@ import {
   wantsPlacesView,
   type PlaceReviewRow,
 } from "./review-places";
-import { summariesOf, type ReviewSummaryResponse } from "./review-summary";
+import { ratingLabel, ratingSubLabel, summariesOf, type ReviewSummaryResponse } from "./review-summary";
 
 /**
  * PE-R: the all-locations reviews view's rules. Killer titles are load-bearing: `scripts/mutate-presence-reviews-r.mjs` matches them.
@@ -34,16 +33,16 @@ const row = (over: Partial<PlaceReviewRow> = {}): PlaceReviewRow => ({
 
 describe("a place's rating is its own, and absent is not zero", () => {
   it("★★★a place with no rating has none: never '0.0'", () => {
-    expect(placeRatingLabel(row({ rating: null, ratedCount: 0 }))).toBeNull();
-    expect(placeRatingSub(row({ rating: null, ratedCount: 0 }), 90)).toBeNull();
+    expect(ratingLabel(row({ rating: null, ratedCount: 0 }))).toBeNull();
+    expect(ratingSubLabel(row({ rating: null, ratedCount: 0 }))).toBeNull();
   });
   it("★one decimal always, so 4 and 4.3 line up", () => {
-    expect(placeRatingLabel(row({ rating: 4 }))).toBe("4.0");
-    expect(placeRatingLabel(row({ rating: 4.3 }))).toBe("4.3");
+    expect(ratingLabel(row({ rating: 4 }))).toBe("4.0");
+    expect(ratingLabel(row({ rating: 4.3 }))).toBe("4.3");
   });
   it("★the rating says how many reviews it is over, and pluralises", () => {
-    expect(placeRatingSub(row({ ratedCount: 1 }), 90)).toBe("from 1 rated review in the last 90 days");
-    expect(placeRatingSub(row({ ratedCount: 12 }), 30)).toBe("from 12 rated reviews in the last 30 days");
+    expect(ratingSubLabel(row({ ratedCount: 1 }))).toBe("from 1 rated review");
+    expect(ratingSubLabel(row({ ratedCount: 12 }))).toBe("from 12 rated reviews");
   });
   it("★★why there is no rating is said in the place's own terms, three different ways", () => {
     expect(placeNoRatingNote(row({ totalEver: 0, volume: 0 }), 90)).toBe("No reviews yet");
@@ -54,6 +53,14 @@ describe("a place's rating is its own, and absent is not zero", () => {
     expect(placeName(row())).toBe("Main Street");
     expect(placeName(row({ title: "   " }))).toBe("locations/1");
     expect(placeName(row({ title: null }))).toBe("locations/1");
+  });
+});
+
+describe("★★which place the other panels show is said", () => {
+  it("says it while every location is shown, naming the place, and nothing once one is picked", () => {
+    expect(locationScopeNote({ narrowed: false, shownName: "Main Street" })).toBe("The reviews show every location. The listing, the score and the review link below show Main Street.");
+    expect(locationScopeNote({ narrowed: true, shownName: "Main Street" })).toBeNull();
+    expect(locationScopeNote({ narrowed: false, shownName: null })).toBeNull();
   });
 });
 
