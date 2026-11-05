@@ -33,8 +33,16 @@ export interface WorstReview {
   answered: boolean;
 }
 
-/** `GET /v1/presence/reviews/summary`. */
+/**
+ * One network's figures: an entry of `GET /v1/presence/reviews/summary` (`networks[]`), with the window of the answer merged in by
+ * `summariesOf`. ★A RATING IS PER NETWORK (PE-R): the api returns one entry per network and no total across them, and nothing here adds
+ * two entries together.
+ */
 export interface ReviewSummary {
+  /** The network's key. Never shown. */
+  network?: string;
+  /** How a merchant hears the network's name: the adapter's declaration. */
+  label?: string;
   state: ReviewSummaryState;
   days: number;
   windowStart: string;
@@ -49,6 +57,19 @@ export interface ReviewSummary {
   timedCount: number;
   medianResponseMs: number | null;
   worstRecent: WorstReview[];
+}
+
+/** `GET /v1/presence/reviews/summary`: the window, and one entry per network (none when no network is connected and none has sent a review). */
+export interface ReviewSummaryResponse {
+  days: number;
+  windowStart: string;
+  locationName: string | null;
+  networks: Array<Omit<ReviewSummary, "days" | "windowStart"> & { network: string; label: string }>;
+}
+
+/** The per-network summaries of an answer, each carrying the answer's window. Order is the api's. */
+export function summariesOf(res: ReviewSummaryResponse): ReviewSummary[] {
+  return res.networks.map((n) => ({ ...n, days: res.days, windowStart: res.windowStart }));
 }
 
 /**
@@ -195,14 +216,14 @@ export function sampleCaveat(summary: ReviewSummary): string | null {
  * we have nothing for, has an UNKNOWN rating — and "0.0 ★" says its customers
  * rate it at nothing. There is no worse number to put on this card.
  */
-export function ratingLabel(summary: ReviewSummary): string | null {
+export function ratingLabel(summary: Pick<ReviewSummary, "rating">): string | null {
   if (summary.rating === null) return null;
   // ★ONE DECIMAL ALWAYS, so 4 and 4.3 do not sit in a row at different widths.
   return summary.rating.toFixed(1);
 }
 
 /** How many reviews the rating is over — the denominator, said out loud. */
-export function ratingSubLabel(summary: ReviewSummary): string | null {
+export function ratingSubLabel(summary: Pick<ReviewSummary, "rating" | "ratedCount">): string | null {
   if (summary.rating === null) return null;
   return `from ${summary.ratedCount} rated review${summary.ratedCount === 1 ? "" : "s"}`;
 }

@@ -19,7 +19,10 @@ import { canOfferDraft, draftButton, DRAFT_SAVED_NOTE } from "@/lib/review-kit";
 import { useLocale } from "@/hooks/use-locale";
 import {
   checkReplyText,
+  cap,
   composerStateFor,
+  networkWords,
+  replyLimitOf,
   isRetryableRefusal,
   replyCharsRemaining,
   replyOutcome,
@@ -28,7 +31,6 @@ import {
   shouldAdoptPublishedReply,
   shouldRefreshAfter,
   shouldRefreshAfterRefusal,
-  REVIEW_REPLY_MAX_LENGTH,
   TRANSPORT_ERROR_CODE,
   type ReplyOutcome,
   type ReplyRefusal,
@@ -122,6 +124,11 @@ function OutcomeNote({
 export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChanged: () => void }) {
   const { formatDate } = useLocale();
   const state = composerStateFor(item);
+  // ★THE NETWORK'S WORDS AND CAP ARE THE ADAPTER'S (PE-R), served on the row: this card names no network and counts to no number of its own.
+  const network = networkWords(item);
+  const limit = replyLimitOf(item);
+  const replaces = item.replyChannel?.replacesReply === true;
+  const channel = { label: network, maxLength: limit, replacesReply: replaces };
   const [text, setText] = useState(state.initialText);
   const [outcome, setOutcome] = useState<ReplyOutcome | null>(null);
   const [refusal, setRefusal] = useState<ReplyRefusal | null>(null);
@@ -149,7 +156,7 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
     mutationFn: ({ comment, force }: { comment: string; force?: boolean }) =>
       inboxApi.reply(item._id, comment, force),
     onSuccess: (res) => {
-      const result = replyOutcome(res);
+      const result = replyOutcome(res, network, replaces);
       setOutcome(result);
       setRefusal(null);
       // ⚠️★★NOT ON `published_unrecorded`. `recorded: false` means the api's
@@ -166,9 +173,9 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
       // `unhandled` and told the merchant to contact support about their own
       // wifi. `TRANSPORT_ERROR_CODE` is where the module puts that case.
       const detail = err instanceof ApiError ? err : { code: TRANSPORT_ERROR_CODE };
-      setRefusal(replyRefusal(detail));
+      setRefusal(replyRefusal(detail, channel));
       setOutcome(null);
-      if (shouldRefreshAfterRefusal(detail.code)) onChanged();
+      if (shouldRefreshAfterRefusal(detail.code, replaces)) onChanged();
     },
   });
 
@@ -204,8 +211,8 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
     onError: (err) => toastUnhandledApiError(err, "draft a reply"),
   });
 
-  const remaining = replyCharsRemaining(text);
-  const checked = checkReplyText(text);
+  const remaining = replyCharsRemaining(text, limit);
+  const checked = checkReplyText(text, { max: limit, label: network });
   const sending = send.isPending;
 
   /**
@@ -225,7 +232,7 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
   /** Fill the box without destroying what is in it — `appendReply` refuses
    *  rather than truncating, exactly as the saved-reply picker does. */
   function insert(body: string): boolean {
-    const { text: next, fitted } = appendReply(text, body, REVIEW_REPLY_MAX_LENGTH);
+    const { text: next, fitted } = appendReply(text, body, limit ?? Number.MAX_SAFE_INTEGER);
     if (fitted) edit(next);
     return fitted;
   }
@@ -235,7 +242,7 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
     // and its answer is the one that counts; this only saves a round trip to be
     // told what we already knew.
     if (!checked.ok) {
-      setRefusal(replyRefusal({ code: checked.code, message: checked.message, status: 400 }));
+      setRefusal(replyRefusal({ code: checked.code, message: checked.message, status: 400 }, channel));
       setOutcome(null);
       return;
     }
@@ -250,7 +257,7 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
           <div className="flex flex-wrap items-center gap-2">
             <Stars rating={item.review?.rating} />
             <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
-              Google
+              {network}
             </Badge>
             {state.published ? (
               <Badge variant="outline" className="text-[10px]">
@@ -286,11 +293,11 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
         )}
       </div>
 
-      {/* The reply on the listing, or waiting for Google's check. */}
+      {/* The reply on the listing, or waiting for the network's check. */}
       {state.published && (
         <div className="mt-2 rounded-md bg-muted/40 p-2 text-xs">
           <p className="font-medium">
-            {state.pendingCheck ? "Your reply, waiting for Google's check" : "Your published reply"}
+            {state.pendingCheck ? `Your reply, waiting for ${network}'s check` : "Your published reply"}
             {item.review?.replyPublishedAt ? ` · ${formatDate(item.review.replyPublishedAt)}` : ""}
           </p>
           <p className="mt-0.5 whitespace-pre-wrap text-muted-foreground">{state.published}</p>
@@ -301,7 +308,7 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
       {state.rejected && (
         <div className="mt-2 rounded-md bg-muted/40 p-2 text-xs">
           <p className="font-medium text-warning-on-tint">
-            Google rejected your reply, so customers can&apos;t see it
+            {cap(network)} rejected your reply, so customers can&apos;t see it
           </p>
           {state.rejected.note && (
             <p className="mt-0.5 text-muted-foreground">{state.rejected.note}</p>
@@ -320,7 +327,7 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
             onChange={(e) => edit(e.target.value)}
             rows={3}
             placeholder={
-              state.published ? "Edit your reply…" : "Write a reply — it appears publicly on Google."
+              state.published ? "Edit your reply…" : `Write a reply — it appears publicly on ${network}.`
             }
             aria-label="Reply to this review"
             disabled={sending}
@@ -360,18 +367,21 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
               </Button>
             )}
             <SavedReplyPicker
-              channel="google_review"
+              channel={item.source}
               draft={text}
               disabled={sending}
               onInsert={insert}
             />
-            <span
-              className={`ml-auto text-[11px] ${
-                remaining < 0 ? "text-destructive" : "text-muted-foreground"
-              }`}
-            >
-              {remaining < 0 ? `${-remaining} over` : `${remaining} left`}
-            </span>
+            {remaining === null && <span className="ml-auto" />}
+            {remaining !== null && (
+              <span
+                className={`ml-auto text-[11px] ${
+                  remaining < 0 ? "text-destructive" : "text-muted-foreground"
+                }`}
+              >
+                {remaining < 0 ? `${-remaining} over` : `${remaining} left`}
+              </span>
+            )}
             <Button
               size="sm"
               className="h-7 px-3 text-xs"

@@ -6,6 +6,8 @@ import { MapPin } from "lucide-react";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { NetworkConnectCard } from "@/components/presence/network-connect-card";
 import { ReviewSummaryCard } from "@/components/presence/review-summary-card";
+import { ReviewPlacesCard } from "@/components/presence/review-places-card";
+import { reviewsPlaceIn, wantsPlacesView } from "@/lib/review-places";
 import { ListingPanel } from "@/components/presence/listing-panel";
 import { ListingScoreCard } from "@/components/presence/listing-score-card";
 import { EditListingCard, type EditRequest } from "@/components/presence/edit/edit-listing-card";
@@ -62,12 +64,18 @@ export function UnreadableNote({ networks }: { networks: readonly { label: strin
   );
 }
 
+/** The location select's value for "every location" (never a place reference). */
+const ALL_LOCATIONS = "__all__";
+
 export function PresenceHome() {
   // ★A PAGE CHOICE, NOT A SESSION PIN. The session pins one organisation and one
   // business; which of that business's listings this page describes is the
   // merchant's choice here, and it resets with the page.
   const [chosen, setChosen] = useState<string | undefined>(undefined);
   const [chosenNetwork, setChosenNetwork] = useState<string | undefined>(undefined);
+  // ★THE REVIEWS' OWN SCOPE (PE-R): every location (undefined) or one place. It is NOT the listing select's value: that one means "which
+  // listing" for the listing, score, edit forms, photos and insights, and nothing there may ever read as applying to "all locations".
+  const [reviewsPicked, setReviewsPicked] = useState<string | undefined>(undefined);
   const [editRequest, setEditRequest] = useState<EditRequest | null>(null);
   // Every network a merchant can connect, from the adapters' declarations: one card each.
   const capsQ = useQuery({
@@ -116,6 +124,8 @@ export function PresenceHome() {
   // falls back to the first listing instead.
   const listAnswer = useListingQuery(undefined, panelNetwork, panelsReady);
   const switcher = locationSwitcher(listAnswer.data?.connection?.locations, chosen);
+  // the reviews' own place, if it is still one the business has
+  const reviewsPlace = reviewsPlaceIn(switcher?.options, reviewsPicked);
   // Panels follow the switcher only when it is shown; a one-listing business is read as before.
   const location = switcher?.value;
   // The listing and insights panels share the default read's cache unless another listing is chosen.
@@ -170,6 +180,7 @@ export function PresenceHome() {
                     setChosenNetwork(e.target.value);
                     // a listing of one network is not a listing of another
                     setChosen(undefined);
+                    setReviewsPicked(undefined);
                     // a form opened for one network's listing is not a request for another's
                     setEditRequest(null);
                   }}
@@ -204,14 +215,51 @@ export function PresenceHome() {
                   ))}
                 </select>
                 <span className="text-xs text-muted-foreground">
-                  Everything below shows this one listing. Figures are never added across listings.
+                  The listing, score, edit forms, photos, insights and review link below show this one listing. Figures are never added across listings.
                 </span>
               </div>
             ) : null}
 
-            {reviewsOn ? <ReviewSummaryCard location={location} network={panelNetwork} label={fallbackLabel} /> : null}
+            {/* ★WAIT FOR THE LISTING READ that says whether there are several places: drawing the summary first and swapping it for the places
+                view a moment later flashed one view and discarded its read. */}
+            {reviewsOn && listAnswer.isPending ? <Skeleton className="h-40 w-full" /> : null}
+            {reviewsOn && !listAnswer.isPending && switcher ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <label htmlFor="presence-reviews-scope" className="text-sm font-medium">
+                  Reviews for
+                </label>
+                <select
+                  id="presence-reviews-scope"
+                  className="h-9 rounded-md border bg-background px-2 text-sm"
+                  value={reviewsPlace ?? ALL_LOCATIONS}
+                  onChange={(e) => setReviewsPicked(e.target.value === ALL_LOCATIONS ? undefined : e.target.value)}
+                >
+                  <option value={ALL_LOCATIONS}>All locations</option>
+                  {switcher.options.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs text-muted-foreground">This only changes the reviews. Figures are never added across locations.</span>
+              </div>
+            ) : null}
+            {reviewsOn && !listAnswer.isPending ? (
+              wantsPlacesView({ hasSwitcher: !!switcher, narrowed: reviewsPlace !== undefined }) ? (
+                <ReviewPlacesCard
+                  key={panelNetwork ?? "default"}
+                  network={panelNetwork}
+                  label={fallbackLabel}
+                  onPick={(place) => setReviewsPicked(place)}
+                />
+              ) : (
+                <ReviewSummaryCard location={reviewsPlace ?? location} network={panelNetwork} label={fallbackLabel} onShowAll={switcher ? () => setReviewsPicked(undefined) : undefined} />
+              )
+            ) : null}
 
-            {reviewsOn && listingOn ? <ReviewKitCard location={location} network={panelNetwork} /> : null}
+            {/* A network with a listing draws the kit as before. A network with NO listing draws it only when its link exists (it lives on
+                the connection); with none the card is not drawn (PE-16's hiding). */}
+            {reviewsOn && !listAnswer.isPending ? <ReviewKitCard location={location} network={panelNetwork} hideUnlessReady={!listingOn} /> : null}
 
             {listingOn ? (
               <>
