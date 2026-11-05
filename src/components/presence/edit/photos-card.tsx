@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DrivePicker } from "@/components/drive/drive-picker";
 import { ChangeCard } from "@/components/presence/edit/change-card";
-import { useEditCapabilities, useListingChanges } from "@/hooks/use-presence-edit";
+import { useChangeOutcomes, useEditCapabilities, useListingChanges } from "@/hooks/use-presence-edit";
 import { usePhotoMutations, usePhotos, useRefreshPhotosWhenSettled, type PhotoTarget } from "@/hooks/use-presence-photos";
 import { useListingQuery } from "@/hooks/use-presence-listing";
 import { fetchView, primaryEntry } from "@/lib/presence-panels";
@@ -58,6 +58,7 @@ export function PhotosCard({ location, network: chosenNetwork }: { location?: st
   const capsView = fetchView({ hasData: !!caps.data, isPending: caps.isPending, isError: caps.isError, fetchStatus: caps.fetchStatus });
   const photosQ = usePhotos(listing?.id, network);
   const changes = useListingChanges(listing?.id);
+  const outcomes = useChangeOutcomes(listing?.id, changes.data?.items, caps.data);
   const changesView = fetchView({ hasData: !!changes.data, isPending: changes.isPending, isError: changes.isError, fetchStatus: changes.fetchStatus });
   useRefreshPhotosWhenSettled(changes.data?.items, target);
   const m = usePhotoMutations(target);
@@ -309,6 +310,7 @@ export function PhotosCard({ location, network: chosenNetwork }: { location?: st
                     label={label}
                     can={caps.data?.can}
                     m={m}
+                    outcome={outcomes.slotFor(c)}
                     extra={
                       src ? (
                         // eslint-disable-next-line @next/next/no-img-element

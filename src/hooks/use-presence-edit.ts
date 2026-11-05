@@ -1,10 +1,22 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { presenceChangesApi } from "@/lib/api/presence-changes";
 import { presenceEditApi } from "@/lib/api/presence-edit";
-import { categoryQueryReady, presenceEditKeys, type ProposeBody } from "@/lib/presence-edit";
+import {
+  categoryQueryReady,
+  outcomesRefetchMs,
+  outcomesStaleTime,
+  outcomeSignature,
+  outcomeSlot,
+  presenceEditKeys,
+  wantsOutcomes,
+  type CapabilitiesResponse,
+  type ChangeCardData,
+  type OutcomeSlot,
+  type ProposeBody,
+} from "@/lib/presence-edit";
 
 /** What each network can write, whether writes are switched on, and what this person's role can do. */
 export function useEditCapabilities() {
@@ -28,6 +40,28 @@ export function useListingChanges(listingId: string | undefined) {
       return live ? 20_000 : false;
     },
   });
+}
+
+/**
+ * What followed the listing's newest live changes (PE-13): ONE request, made once for the list and not per card, only when a live change on a
+ * network that declares figures is in it. It is keyed on `outcomeSignature` (so any path that moves a change asks again), keeps the last answer
+ * on screen while the next is read, polls while an answer says "check back", and may retry. Returns a lookup for the cards.
+ */
+export function useChangeOutcomes(listingId: string | undefined, changes: readonly ChangeCardData[] | undefined, caps: CapabilitiesResponse | undefined) {
+  const q = useQuery({
+    queryKey: presenceEditKeys.outcomes(listingId ?? "", outcomeSignature(changes, caps)),
+    queryFn: () => presenceEditApi.outcomes(listingId as string),
+    enabled: !!listingId && wantsOutcomes(changes, caps),
+    staleTime: (query) => outcomesStaleTime(query.state.data),
+    refetchInterval: (query) => outcomesRefetchMs(query.state.data),
+    placeholderData: keepPreviousData,
+    retry: 1,
+    refetchOnWindowFocus: false,
+  });
+  return {
+    slotFor: (change: Pick<ChangeCardData, "id" | "status" | "network">): OutcomeSlot =>
+      outcomeSlot(change, caps, { data: q.data, isError: q.isError, isPlaceholderData: q.isPlaceholderData, retry: () => void q.refetch() }),
+  };
 }
 
 export function useHolidayOffers(listingId: string | undefined, network: string | undefined) {
