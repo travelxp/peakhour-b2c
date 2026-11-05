@@ -32,7 +32,7 @@ export function useListingChanges(listingId: string | undefined) {
 
 export function useHolidayOffers(listingId: string | undefined, network: string | undefined) {
   return useQuery({
-    queryKey: presenceEditKeys.offers(listingId ?? ""),
+    queryKey: presenceEditKeys.offers(listingId ?? "", network ?? ""),
     queryFn: () => presenceEditApi.holidayOffers(listingId as string, network as string),
     enabled: !!listingId && !!network,
     staleTime: 5 * 60_000,
@@ -57,7 +57,7 @@ export function useDebounced<T>(value: T, ms = 350): T {
 export function useCategorySearch(listingId: string | undefined, network: string | undefined, typed: string) {
   const q = useDebounced(typed.trim());
   return useQuery({
-    queryKey: presenceEditKeys.categories(listingId ?? "", q),
+    queryKey: presenceEditKeys.categories(listingId ?? "", network ?? "", q),
     queryFn: () => presenceEditApi.categories(listingId as string, network as string, q),
     enabled: !!listingId && !!network && categoryQueryReady(q),
     staleTime: 24 * 3_600_000,
@@ -70,7 +70,8 @@ export function usePresenceEditMutations(listingId: string | undefined) {
   const qc = useQueryClient();
   const refresh = async () => {
     await qc.invalidateQueries({ queryKey: presenceEditKeys.changes(listingId ?? "") });
-    await qc.invalidateQueries({ queryKey: presenceEditKeys.offers(listingId ?? "") });
+    // every network's offers for this listing: the key prefix stops at the listing
+    await qc.invalidateQueries({ queryKey: ["presence", "edit", "offers", listingId ?? ""] });
     // The "Your listing" panel above reads the same listing a live change rewrites.
     await qc.invalidateQueries({ queryKey: ["presence", "listing"] });
   };

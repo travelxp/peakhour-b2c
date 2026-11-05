@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { MapPin } from "lucide-react";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { NetworkConnectCard } from "@/components/presence/network-connect-card";
@@ -12,8 +12,10 @@ import { EditListingCard, type EditRequest } from "@/components/presence/edit/ed
 import { InsightsPanel } from "@/components/presence/insights-panel";
 import { ReviewKitCard } from "@/components/presence/review-kit-card";
 import { useListingQuery } from "@/hooks/use-presence-listing";
+import { api } from "@/lib/api";
 import { presenceApi } from "@/lib/api/presence";
-import { locationSwitcher, networkSwitcher, presenceCapabilitiesQueryKey } from "@/lib/presence-panels";
+import { Skeleton } from "@/components/ui/skeleton";
+import { connectedNetworks, locationSwitcher, networkSwitcher, presenceCapabilitiesQueryKey } from "@/lib/presence-panels";
 
 /**
  * Presence pillar home. The local-presence cockpit — keep a business found,
@@ -21,6 +23,10 @@ import { locationSwitcher, networkSwitcher, presenceCapabilitiesQueryKey } from 
  *
  * ★NO NETWORK IS NAMED HERE (PE-EC). The connect cards, the network switcher and every panel's words come from the networks the api
  * lists at `/v1/presence/capabilities` and from each listing's `networks[]`, so a network added as an adapter shows up with no edit.
+ *
+ * ★THE SWITCHER OFFERS THE NETWORKS THE MERCHANT IS CONNECTED ON, and its default is the api's own default connection, read from the
+ * default listing answer. An unconnected network stays a connect card. Nothing below the cards is read until the capabilities and the
+ * connection statuses have settled, so no panel flashes one network and then another or reads twice.
  *
  * Gated on `presence.nav` (free pillar).
  *
@@ -51,7 +57,7 @@ export function PresenceHome() {
   const [chosen, setChosen] = useState<string | undefined>(undefined);
   const [chosenNetwork, setChosenNetwork] = useState<string | undefined>(undefined);
   const [editRequest, setEditRequest] = useState<EditRequest | null>(null);
-  // Every network a merchant can connect, from the adapters' declarations: one card each, and a switcher when there is a choice.
+  // Every network a merchant can connect, from the adapters' declarations: one card each.
   const capsQ = useQuery({
     queryKey: presenceCapabilitiesQueryKey,
     queryFn: () => presenceApi.capabilities(),
@@ -59,14 +65,38 @@ export function PresenceHome() {
     refetchOnWindowFocus: false,
   });
   const networks = capsQ.data?.items ?? [];
-  const netSwitcher = networkSwitcher(networks, chosenNetwork);
-  // ★ONCE THE SWITCHER IS SHOWN THE CHOICE IS ALWAYS SENT. The api's default is the oldest connection of any network, which need not be
-  // the first card; leaving the first option implicit could show one network under another's name.
+  // The same keys and reads the connect cards make, so these are shared with them, not repeated.
+  const statusQs = useQueries({
+    queries: networks.map((n) => ({
+      queryKey: ["integration-status", n.network],
+      queryFn: () => api.get<{ status?: string }>(`/v1/integrations/${n.network}/status`),
+      refetchOnWindowFocus: false,
+    })),
+  });
+  const statusOf = (network: string) => statusQs[networks.findIndex((n) => n.network === network)]?.data?.status;
+  const baseReady = !capsQ.isPending && statusQs.every((q) => !q.isPending);
+  const connected = connectedNetworks(networks, statusOf);
+  // The api's own default connection, from the default listing answer: asked once, and only when there is a choice to make.
+  const defaultQ = useListingQuery(undefined, undefined, baseReady && connected.length >= 2);
+  const panelsReady = baseReady && (connected.length < 2 || !defaultQ.isPending);
+  const netSwitcher = networkSwitcher(connected, chosenNetwork, defaultQ.data?.connection?.network);
+  // With a switcher the choice is always sent; with fewer than two connected networks the api's default is the only answer.
   const panelNetwork = netSwitcher?.value;
-  // The list of listings always comes from the default read, so a stale choice (a
+  // The network the panels are about, for its words and its declarations before any listing has answered.
+  const aboutNetwork = netSwitcher
+    ? connected.find((n) => n.network === netSwitcher.value)
+    : connected.length === 1
+      ? connected.at(0)
+      : networks.length === 1
+        ? networks.at(0)
+        : undefined;
+  const fallbackLabel = aboutNetwork?.label ?? null;
+  // Review cards draw only for a network that declares reviews (no declaration to go by, as on an older api, draws them).
+  const reviewsOn = aboutNetwork ? aboutNetwork.capabilities.reviews !== false : true;
+  // The list of listings always comes from the default read of that network, so a stale choice (a
   // listing since removed) can never ask the api for a place it refuses: the switcher
   // falls back to the first listing instead.
-  const listAnswer = useListingQuery(undefined, panelNetwork);
+  const listAnswer = useListingQuery(undefined, panelNetwork, panelsReady);
   const switcher = locationSwitcher(listAnswer.data?.connection?.locations, chosen);
   // Panels follow the switcher only when it is shown; a one-listing business is read as before.
   const location = switcher?.value;
@@ -90,6 +120,7 @@ export function PresenceHome() {
           </p>
         </header>
 
+        {capsQ.isPending ? <Skeleton className="h-24 w-full" /> : null}
         {networks.map((n) => (
           <NetworkConnectCard key={n.network} network={n} />
         ))}
@@ -99,76 +130,85 @@ export function PresenceHome() {
           </p>
         ) : null}
 
-        {netSwitcher ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <label htmlFor="presence-network" className="text-sm font-medium">
-              Network
-            </label>
-            <select
-              id="presence-network"
-              className="h-9 rounded-md border bg-background px-2 text-sm"
-              value={netSwitcher.value}
-              onChange={(e) => {
-                setChosenNetwork(e.target.value);
-                // a listing of one network is not a listing of another
-                setChosen(undefined);
+        {!panelsReady ? (
+          <div className="space-y-8" aria-busy="true">
+            <Skeleton className="h-40 w-full" />
+            <Skeleton className="h-56 w-full" />
+          </div>
+        ) : (
+          <>
+            {netSwitcher ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <label htmlFor="presence-network" className="text-sm font-medium">
+                  Network
+                </label>
+                <select
+                  id="presence-network"
+                  className="h-9 rounded-md border bg-background px-2 text-sm"
+                  value={netSwitcher.value}
+                  onChange={(e) => {
+                    setChosenNetwork(e.target.value);
+                    // a listing of one network is not a listing of another
+                    setChosen(undefined);
+                  }}
+                >
+                  {netSwitcher.options.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs text-muted-foreground">
+                  The listing, reviews and insights below are for this network. Figures are never added across networks.
+                </span>
+              </div>
+            ) : null}
+
+            {switcher ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <label htmlFor="presence-location" className="text-sm font-medium">
+                  Listing
+                </label>
+                <select
+                  id="presence-location"
+                  className="h-9 rounded-md border bg-background px-2 text-sm"
+                  value={switcher.value}
+                  onChange={(e) => setChosen(e.target.value)}
+                >
+                  {switcher.options.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs text-muted-foreground">
+                  Listing, reviews and insights show this one listing. Figures are never added across listings.
+                </span>
+              </div>
+            ) : null}
+
+            {reviewsOn ? <ReviewSummaryCard location={location} network={panelNetwork} label={fallbackLabel} /> : null}
+
+            {reviewsOn ? <ReviewKitCard location={location} network={panelNetwork} /> : null}
+
+            <ListingScoreCard
+              location={panelLocation}
+              network={panelNetwork}
+              onOpenForm={(field) => {
+                setEditRequest({ field });
+                document.getElementById("edit-listing")?.scrollIntoView({ behavior: "smooth", block: "start" });
               }}
-            >
-              {netSwitcher.options.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-            <span className="text-xs text-muted-foreground">
-              The listing, reviews and insights below are for this network. Figures are never added across networks.
-            </span>
-          </div>
-        ) : null}
+            />
 
-        {switcher ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <label htmlFor="presence-location" className="text-sm font-medium">
-              Listing
-            </label>
-            <select
-              id="presence-location"
-              className="h-9 rounded-md border bg-background px-2 text-sm"
-              value={switcher.value}
-              onChange={(e) => setChosen(e.target.value)}
-            >
-              {switcher.options.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-            <span className="text-xs text-muted-foreground">
-              Listing, reviews and insights show this one listing. Figures are never added across listings.
-            </span>
-          </div>
-        ) : null}
+            <ListingPanel location={panelLocation} network={panelNetwork} label={fallbackLabel} />
 
-        <ReviewSummaryCard location={location} network={panelNetwork} />
+            <div id="edit-listing">
+              <EditListingCard location={panelLocation} network={panelNetwork} request={editRequest} />
+            </div>
 
-        <ReviewKitCard location={location} />
-
-        <ListingScoreCard
-          location={panelLocation}
-          network={panelNetwork}
-          onOpenForm={(field) => {
-            setEditRequest({ field });
-            document.getElementById("edit-listing")?.scrollIntoView({ behavior: "smooth", block: "start" });
-          }}
-        />
-
-        <ListingPanel location={panelLocation} network={panelNetwork} />
-
-        <div id="edit-listing">
-          <EditListingCard location={panelLocation} network={panelNetwork} request={editRequest} />
-        </div>
-
-        <InsightsPanel location={panelLocation} network={panelNetwork} />
+            <InsightsPanel location={panelLocation} network={panelNetwork} label={fallbackLabel} />
+          </>
+        )}
       </div>
     </FeatureGate>
   );

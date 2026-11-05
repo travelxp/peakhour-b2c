@@ -150,7 +150,7 @@ function rowValue(
   }
 }
 
-export function ListingPanel({ location, network }: { location?: string; network?: string }) {
+export function ListingPanel({ location, network, label: labelFallback }: { location?: string; network?: string; label?: string | null }) {
   const q = useListingQuery(location, network);
   const { formatDate, formatDateTime } = useLocale();
   const view = fetchView({
@@ -160,7 +160,7 @@ export function ListingPanel({ location, network }: { location?: string; network
     fetchStatus: q.fetchStatus,
   });
 
-  const headerLabel = networkLabel(q.data);
+  const headerLabel = networkLabel(q.data, labelFallback);
   const header = (
     <div>
       <h2 className="font-medium">Your listing</h2>
@@ -204,7 +204,7 @@ export function ListingPanel({ location, network }: { location?: string; network
   }
 
   const data: PresenceListingResponse = q.data;
-  const label = networkLabel(data);
+  const label = networkLabel(data, labelFallback);
   const message = setupMessage(data.setup, !!data.listing, "listing", label);
   const note = staleSyncNote(data.setup, label);
 

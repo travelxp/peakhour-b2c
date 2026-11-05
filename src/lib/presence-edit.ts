@@ -511,6 +511,6 @@ export function errorWords(err: unknown): string {
 export const presenceEditKeys = {
   capabilities: ["presence", "edit", "capabilities"] as const,
   changes: (listingId: string) => ["presence", "edit", "changes", listingId] as const,
-  offers: (listingId: string) => ["presence", "edit", "offers", listingId] as const,
-  categories: (listingId: string, q: string) => ["presence", "edit", "categories", listingId, q.trim().toLowerCase()] as const,
+  offers: (listingId: string, network: string) => ["presence", "edit", "offers", listingId, network] as const,
+  categories: (listingId: string, network: string, q: string) => ["presence", "edit", "categories", listingId, network, q.trim().toLowerCase()] as const,
 };

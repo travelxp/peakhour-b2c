@@ -40,7 +40,7 @@ export const presenceApi = {
   /**
    * The review link, its QR code and what a poster prints. One link for the place, for every customer: it takes no rating or sentiment.
    */
-  reviewKit: (location?: string) => api.get<ReviewKit>(`/v1/presence/reviews/kit${presenceQuery({ location })}`),
+  reviewKit: (location?: string, network?: string) => api.get<ReviewKit>(`/v1/presence/reviews/kit${presenceQuery({ location, network })}`),
 
   /**
    * Draft a reply to one review and save it as the review's suggestion. ★IT NEVER SENDS: the person reads it, edits it and presses Send.

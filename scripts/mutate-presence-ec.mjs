@@ -25,14 +25,40 @@ const STATE = "src/components/presence/network-card-state.ts";
 const PANELS = "src/lib/presence-panels.test.ts";
 const TERMS = "src/lib/presence-control-terms.test.ts";
 const STATE_SPEC = "src/components/presence/network-card-state.test.ts";
+const REVIEW_LIB = "src/lib/review-summary.ts";
+const REVIEW_SPEC = "src/lib/review-summary.test.ts";
+const NEUTRAL_SPEC = "src/lib/presence-network-neutral.test.ts";
+const WIRING_SPEC = "src/components/presence/presence-wiring.test.ts";
+const HOME = "src/components/presence/presence-home.tsx";
+const INSIGHTS = "src/components/presence/insights-panel.tsx";
+const CARD = "src/components/presence/network-connect-card.tsx";
+const EDIT_HOOKS = "src/hooks/use-presence-edit.ts";
+const KIT_HOOK = "src/hooks/use-review-kit.ts";
+const EDIT_LIB = "src/lib/presence-edit.ts";
+const EDIT_SPEC = "src/lib/presence-edit.test.ts";
 
 const CASES = [
   ["the page reads the first network, not the connection's", LIB, PANELS, "if (want) return list.find((n) => n.network === want) ?? null;", "if (want) return list[0] ?? null;"],
   ["a connection naming no network gets no fallback entry", LIB, PANELS, "return list[0] ?? null;", "return null;"],
   ["a connection's network with no entry shows another's", LIB, PANELS, "if (want) return list.find((n) => n.network === want) ?? null;", "if (want) return list.find((n) => n.network === want) ?? list[0] ?? null;"],
-  ["the label ignores the connection's own", LIB, PANELS, "return primaryEntry(r)?.label ?? r?.connection?.label ?? null;", "return primaryEntry(r)?.label ?? null;"],
-  ["the network switcher shows for one network", LIB, PANELS, "if (!networks || networks.length < 2) return null;", "if (!networks || networks.length < 1) return null;"],
-  ["a stale network choice is kept", LIB, PANELS, "const value = networks.some((n) => n.network === chosen) ? (chosen as string) : networks[0]!.network;", "const value = (chosen as string) ?? networks[0]!.network;"],
+  ["the label ignores the connection's own", LIB, PANELS, "return primaryEntry(r)?.label ?? r?.connection?.label ?? fallback ?? null;", "return primaryEntry(r)?.label ?? fallback ?? null;"],
+  ["the network switcher shows for one network", LIB, PANELS, "if (!connected || connected.length < 2) return null;", "if (!connected || connected.length < 1) return null;"],
+  ["a stale network choice is kept", LIB, PANELS, "const value = has(chosen) ? (chosen as string) : has(apiDefault) ? (apiDefault as string) : connected[0]!.network;", "const value = (chosen as string) ?? connected[0]!.network;"],
+  ["the default is the head of the list, not the api's connection", LIB, PANELS, "has(apiDefault) ? (apiDefault as string) : connected[0]!.network;", "connected[0]!.network;"],
+  ["an unconnected network is an option", LIB, PANELS, "return (networks ?? []).filter((n) => isConnectedStatus(statusOf(n.network)));", "return [...(networks ?? [])];"],
+  ["a lapsed connection is not connected", LIB, PANELS, "return status === \"active\" || status === \"error\" || status === \"needs_reauth\" || status === \"expired\";", "return status === \"active\";"],
+  ["the old figures stay across a switch of network", LIB, PANELS, "return !!prevKey && prevKey[3] === nextKey[3] && prevKey[4] === nextKey[4];", "return !!prevKey;"],
+  ["the label has no chosen-network fallback", LIB, PANELS, "return primaryEntry(r)?.label ?? r?.connection?.label ?? fallback ?? null;", "return primaryEntry(r)?.label ?? r?.connection?.label ?? null;"],
+  ["the empty review state names a typed network", REVIEW_LIB, REVIEW_SPEC, "`Once your listing is connected and ${label ?? \"the network\"} starts sending us review ` +", "\"Once your listing is connected and Google starts sending us review \" +"],
+  ["the connect card sends to a typed path", CARD, WIRING_SPEC, "<Link href={network.connectHref}>", "<Link href=\"/dashboard/integrations\">"],
+  ["the figures gate sits after the setup message", INSIGHTS, WIRING_SPEC, "if (!drawsInsights(entry)) return null;\n\n  const message =", "const message ="],
+  ["panels are read before the capabilities settle", HOME, WIRING_SPEC, "const baseReady = !capsQ.isPending && statusQs.every((q) => !q.isPending);", "const baseReady = true;"],
+  ["review cards draw for every network", HOME, WIRING_SPEC, "{reviewsOn ? <ReviewKitCard", "{true ? <ReviewKitCard"],
+  ["the default network is the head of the list", HOME, WIRING_SPEC, "networkSwitcher(connected, chosenNetwork, defaultQ.data?.connection?.network)", "networkSwitcher(connected, chosenNetwork, networks[0]?.network)"],
+  ["the review kit ignores the network", KIT_HOOK, WIRING_SPEC, "presenceApi.reviewKit(location, network)", "presenceApi.reviewKit(location)"],
+  ["offers share a key across networks", EDIT_LIB, EDIT_SPEC, "offers: (listingId: string, network: string) => [\"presence\", \"edit\", \"offers\", listingId, network] as const,", "offers: (listingId: string, _network: string) => [\"presence\", \"edit\", \"offers\", listingId] as const,"],
+  ["categories share a key across networks", EDIT_LIB, EDIT_SPEC, "[\"presence\", \"edit\", \"categories\", listingId, network, q.trim().toLowerCase()] as const,", "[\"presence\", \"edit\", \"categories\", listingId, q.trim().toLowerCase()] as const,"],
+  ["a network name is typed into the home page", HOME, NEUTRAL_SPEC, "Your listing and reviews, in one place", "Your Google listing and reviews, in one place"],
   ["insights draw for a network that declares no figures", LIB, PANELS, "return !Array.isArray(keys) || keys.length > 0;", "return true;"],
   ["insights are hidden when nothing is declared yet", LIB, PANELS, "return !Array.isArray(keys) || keys.length > 0;", "return Array.isArray(keys) && keys.length > 0;"],
   ["not connected names a typed network", LIB, PANELS, "headline: label ? `${label} isn't connected yet` : \"Nothing is connected yet\",", "headline: \"Google isn't connected yet\","],

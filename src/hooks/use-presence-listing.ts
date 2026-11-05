@@ -11,10 +11,11 @@ import { presenceListingQueryKey } from "@/lib/presence-panels";
  * is on - page choices, never a session pin. Undefined asks for the api's default
  * (the oldest connection, its first listing).
  */
-export function useListingQuery(location?: string, network?: string) {
+export function useListingQuery(location?: string, network?: string, enabled = true) {
   return useQuery({
     queryKey: presenceListingQueryKey(location, network),
     queryFn: () => presenceApi.listing(location, network),
+    enabled,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   });

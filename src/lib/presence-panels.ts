@@ -117,9 +117,12 @@ export function primaryEntry(r: Pick<PresenceListingResponse, "connection" | "ne
   return list[0] ?? null;
 }
 
-/** The network's display name for a page: the entry's, else the connection's, else `null` (say nothing that names one). */
-export function networkLabel(r: Pick<PresenceListingResponse, "connection" | "networks"> | null | undefined): string | null {
-  return primaryEntry(r)?.label ?? r?.connection?.label ?? null;
+/**
+ * The network's display name for a page: the entry's, else the connection's, else the chosen connectable network's (so a page never says
+ * "nothing is connected" beside a card that is), else `null` (say nothing that names one).
+ */
+export function networkLabel(r: Pick<PresenceListingResponse, "connection" | "networks"> | null | undefined, fallback?: string | null): string | null {
+  return primaryEntry(r)?.label ?? r?.connection?.label ?? fallback ?? null;
 }
 
 /** One network a merchant can connect, from `GET /v1/presence/capabilities`. */
@@ -135,17 +138,44 @@ export interface ConnectableNetwork {
   capabilities: PresenceCapabilities;
 }
 
+/** A connection in any of these states is the merchant's own, whatever state it is in: the page shows it (a lapsed one says so). */
+export function isConnectedStatus(status: string | undefined): boolean {
+  return status === "active" || status === "error" || status === "needs_reauth" || status === "expired";
+}
+
+/** The connectable networks the merchant is connected on, in the order the api lists them. */
+export function connectedNetworks(
+  networks: readonly ConnectableNetwork[] | undefined,
+  statusOf: (network: string) => string | undefined,
+): ConnectableNetwork[] {
+  return (networks ?? []).filter((n) => isConnectedStatus(statusOf(n.network)));
+}
+
 /**
- * What the network switcher shows, or `null` when it should not be shown (one network, nothing to choose).
- * The first network is the api's default, so asking for it by name is the same read as not asking.
+ * What the network switcher shows, or `null` when it should not be shown (fewer than two CONNECTED networks, so nothing to choose; an
+ * unconnected network stays a connect card and is never an option).
+ *
+ * ★THE DEFAULT IS WHAT THE MERCHANT IS CONNECTED ON, never the head of a sorted list: the merchant's choice if it is connected, else the
+ * network the api's default connection is on (`apiDefault`, read from the default listing answer), else the first connected one.
  */
 export function networkSwitcher(
-  networks: readonly ConnectableNetwork[] | undefined,
+  connected: readonly ConnectableNetwork[] | undefined,
   chosen: string | undefined,
-): { options: Array<{ value: string; label: string }>; value: string; isDefault: boolean } | null {
-  if (!networks || networks.length < 2) return null;
-  const value = networks.some((n) => n.network === chosen) ? (chosen as string) : networks[0]!.network;
-  return { value, isDefault: value === networks[0]!.network, options: networks.map((n) => ({ value: n.network, label: n.label })) };
+  apiDefault?: string | undefined,
+): { options: Array<{ value: string; label: string }>; value: string } | null {
+  if (!connected || connected.length < 2) return null;
+  const has = (n: string | undefined) => !!n && connected.some((c) => c.network === n);
+  const value = has(chosen) ? (chosen as string) : has(apiDefault) ? (apiDefault as string) : connected[0]!.network;
+  return { value, options: connected.map((n) => ({ value: n.network, label: n.label })) };
+}
+
+/**
+ * Whether the previous insights window may stand in while the next loads: only when just the number of days changed. A switch of network or
+ * place must never show the old one's figures under the new one's name.
+ */
+export function keepInsightsWhileLoading(prevKey: readonly unknown[] | undefined, nextKey: readonly unknown[]): boolean {
+  // key: ["presence", "insights", days, location, network]
+  return !!prevKey && prevKey[3] === nextKey[3] && prevKey[4] === nextKey[4];
 }
 
 export type ControlState = "controlled" | "not_controlled" | "unknown";

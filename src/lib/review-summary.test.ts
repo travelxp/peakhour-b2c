@@ -51,7 +51,7 @@ describe("reviewEmptyState — two absences that mean different things", () => {
   it("★★★says nothing has reached us, not that the merchant has no reviews", () => {
     // ⚠️TRUE OF EVERY ACCOUNT TODAY. "You have no reviews" is a claim about
     // their business; what we know is a claim about our pipeline.
-    const state = reviewEmptyState(summary({ state: "awaiting_reviews", totalEver: 0, volume: 0 }));
+    const state = reviewEmptyState(summary({ state: "awaiting_reviews", totalEver: 0, volume: 0 }), "Testnet");
     expect(state?.headline).toBe("No reviews have reached us yet");
     expect(state?.headline).not.toContain("You have no");
   });
@@ -59,6 +59,7 @@ describe("reviewEmptyState — two absences that mean different things", () => {
   it("★★★tells a merchant with 200 reviews about the quiet spell, not that they have none", () => {
     const state = reviewEmptyState(
       summary({ state: "quiet_window", totalEver: 200, volume: 0, days: 30 }),
+      "Testnet",
     );
     expect(state?.headline).toBe("No new reviews in the last 30 days");
     expect(state?.body).toContain("200");
@@ -67,13 +68,21 @@ describe("reviewEmptyState — two absences that mean different things", () => {
   it("★★★the two empty states do not share their words", () => {
     // A test that asserted merely that SOME empty state is returned would be
     // satisfied by a version that answers the same thing for both.
-    const never = reviewEmptyState(summary({ state: "awaiting_reviews" }));
-    const quiet = reviewEmptyState(summary({ state: "quiet_window" }));
+    const never = reviewEmptyState(summary({ state: "awaiting_reviews" }), "Testnet");
+    const quiet = reviewEmptyState(summary({ state: "quiet_window" }), "Testnet");
     expect(never?.headline).not.toBe(quiet?.headline);
   });
 
+  it("names the network by the label it is given, and no network when given none", () => {
+    const named = reviewEmptyState(summary({ state: "awaiting_reviews" }), "Testnet");
+    expect(named?.body).toContain("Testnet starts sending us review notifications");
+    const bare = reviewEmptyState(summary({ state: "awaiting_reviews" }), null);
+    expect(bare?.body).toContain("the network starts sending us review notifications");
+    for (const t of [named, bare]) expect(`${t?.headline} ${t?.body}`).not.toMatch(/Google|Business Profile/);
+  });
+
   it("★★says nothing at all when there is something to show", () => {
-    expect(reviewEmptyState(summary({ state: "ready" }))).toBeNull();
+    expect(reviewEmptyState(summary({ state: "ready" }), "Testnet")).toBeNull();
   });
 });
 

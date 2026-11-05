@@ -8,6 +8,9 @@ import {
   drawsInsights,
   driftStatus,
   fetchView,
+  connectedNetworks,
+  isConnectedStatus,
+  keepInsightsWhileLoading,
   hoursLines,
   insightsView,
   locationSwitcher,
@@ -394,19 +397,65 @@ describe("primaryEntry and networkLabel: a listing with two networks is not read
   });
 });
 
-describe("networkSwitcher: shown only when there is a choice", () => {
+describe("networkSwitcher: connected networks only, defaulting to the api's own connection", () => {
   const n = (network: string, label: string) => ({ network, label, title: label, connectHref: "/x", picker: null, capabilities: { control: false, networkChanges: false, searchTerms: false, metricKeys: [] } });
-  it("is null for none or one network", () => {
+  it("is null for none or one connected network", () => {
     expect(networkSwitcher(undefined, undefined)).toBeNull();
     expect(networkSwitcher([], undefined)).toBeNull();
     expect(networkSwitcher([n("a", "A")], undefined)).toBeNull();
   });
-  it("defaults to the first, and a stale choice falls back to it", () => {
+  it("the default is the api's default connection, not the head of the list", () => {
     const list = [n("a", "A"), n("b", "B")];
-    expect(networkSwitcher(list, undefined)).toMatchObject({ value: "a", isDefault: true });
-    expect(networkSwitcher(list, "b")).toMatchObject({ value: "b", isDefault: false });
-    expect(networkSwitcher(list, "gone")).toMatchObject({ value: "a", isDefault: true });
+    expect(networkSwitcher(list, undefined, "b")).toMatchObject({ value: "b" });
+    expect(networkSwitcher(list, undefined, undefined)).toMatchObject({ value: "a" });
+    // an api default that is not a connected option cannot be the value
+    expect(networkSwitcher(list, undefined, "z")).toMatchObject({ value: "a" });
+  });
+  it("a connected choice wins; a stale choice falls back to the api's default", () => {
+    const list = [n("a", "A"), n("b", "B")];
+    expect(networkSwitcher(list, "a", "b")).toMatchObject({ value: "a" });
+    expect(networkSwitcher(list, "gone", "b")).toMatchObject({ value: "b" });
     expect(networkSwitcher(list, "b")!.options).toEqual([{ value: "a", label: "A" }, { value: "b", label: "B" }]);
+  });
+  it("has no isDefault: the value is always sent", () => {
+    expect(Object.keys(networkSwitcher([n("a", "A"), n("b", "B")], undefined)!)).toEqual(["value", "options"]);
+  });
+});
+
+describe("connectedNetworks: an unconnected network stays a connect card", () => {
+  const n = (network: string) => ({ network, label: network, title: network, connectHref: "/x", picker: null, capabilities: { control: false, networkChanges: false, searchTerms: false, metricKeys: [] } });
+  const statuses: Record<string, string | undefined> = { a: "active", b: undefined, c: "disconnected", d: "needs_reauth", e: "error", f: "expired" };
+  it("keeps the connected ones, lapsed and failing included, in the api's order", () => {
+    const got = connectedNetworks(["f", "a", "b", "c", "d", "e"].map(n), (x) => statuses[x]).map((x) => x.network);
+    expect(got).toEqual(["f", "a", "d", "e"]);
+  });
+  it("is empty before anything is known", () => {
+    expect(connectedNetworks(undefined, () => undefined)).toEqual([]);
+    expect(isConnectedStatus(undefined)).toBe(false);
+  });
+});
+
+describe("keepInsightsWhileLoading: the old figures stand in only when just the days changed", () => {
+  const key = (days: number, loc?: string, net?: string) => presenceInsightsQueryKey(days, loc, net);
+  it("keeps across a change of days", () => {
+    expect(keepInsightsWhileLoading(key(28, "l/1", "a"), key(7, "l/1", "a"))).toBe(true);
+    expect(keepInsightsWhileLoading(key(28), key(90))).toBe(true);
+  });
+  it("drops across a switch of network or place", () => {
+    expect(keepInsightsWhileLoading(key(28, "l/1", "a"), key(28, "l/1", "b"))).toBe(false);
+    expect(keepInsightsWhileLoading(key(28, "l/1", "a"), key(28, "l/2", "a"))).toBe(false);
+    expect(keepInsightsWhileLoading(key(28, undefined, undefined), key(28, undefined, "b"))).toBe(false);
+  });
+  it("keeps nothing when there is no previous query", () => {
+    expect(keepInsightsWhileLoading(undefined, key(7))).toBe(false);
+  });
+});
+
+describe("networkLabel falls back to the chosen connectable network", () => {
+  it("the entry, then the connection, then the fallback, then nothing", () => {
+    expect(networkLabel(response({ networks: [], connection: null }), "Chosen")).toBe("Chosen");
+    expect(networkLabel(response({ networks: [], connection: null }), null)).toBeNull();
+    expect(networkLabel(response({ networks: [] }), "Chosen")).toBe("Net B");
   });
 });
 

@@ -316,7 +316,7 @@ export function NetworkConnectCard({ network }: { network: ConnectableNetwork })
             </Button>
           ) : (
             <Button asChild variant={card.kind === "needs_reconnect" ? "default" : "outline"}>
-              <Link href="/dashboard/integrations">
+              <Link href={network.connectHref}>
                 {card.action}
                 <ArrowRight className="h-4 w-4" />
               </Link>

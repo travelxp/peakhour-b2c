@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -25,6 +25,7 @@ import {
   declaredMetrics,
   coverageNote,
   drawsInsights,
+  keepInsightsWhileLoading,
   networkLabel,
   primaryEntry,
   windowSeries,
@@ -49,22 +50,25 @@ import {
  * A figure the network did not report is "Not available yet", never 0. Search terms
  * (monthly, and only where the network declares them) sit under the chart.
  */
-export function InsightsPanel({ location, network }: { location?: string; network?: string }) {
+export function InsightsPanel({ location, network, label: labelFallback }: { location?: string; network?: string; label?: string | null }) {
   const [days, setDays] = useState(DEFAULT_INSIGHT_DAYS);
   const [metric, setMetric] = useState<InsightKey>("views");
   const { formatDate, formatNumber } = useLocale();
 
   const listingQ = useListingQuery(location, network);
-  const label = networkLabel(listingQ.data);
+  const label = networkLabel(listingQ.data, labelFallback);
+  // computed once: the query gate, the tiles and the search terms all read this entry
+  const entry = primaryEntry(listingQ.data);
   const setup = listingQ.data?.setup;
   // Figures are only asked for once the listing says there is one to ask about.
   const canAsk = setup === "ready" || setup === "sync_failing";
   const insightsQ = useQuery({
     queryKey: presenceInsightsQueryKey(days, location, network),
     queryFn: () => presenceApi.insights(days, location, network),
-    enabled: canAsk && drawsInsights(primaryEntry(listingQ.data)),
-    // Keep the last window on screen while the next loads, rather than blanking.
-    placeholderData: keepPreviousData,
+    enabled: canAsk && drawsInsights(entry),
+    // Keep the last window on screen while the next loads, rather than blanking, but ONLY when just the days changed: a switch of
+    // network or place must not show the old figures under the new name.
+    placeholderData: (prev, prevQuery) => (keepInsightsWhileLoading(prevQuery?.queryKey, presenceInsightsQueryKey(days, location, network)) ? prev : undefined),
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
   });
@@ -126,6 +130,10 @@ export function InsightsPanel({ location, network }: { location?: string; networ
     );
   }
 
+  // ★RIGHT AFTER THE LISTING READ, before any setup message, skeleton or figure: a network that declares no figures has no insights panel,
+  // not an empty one and not a "connect it" prompt for something it cannot show.
+  if (!drawsInsights(entry)) return null;
+
   const message = setupMessage(listingQ.data.setup, !!listingQ.data.listing, "performance", label);
   if (message) {
     return shell(
@@ -159,15 +167,11 @@ export function InsightsPanel({ location, network }: { location?: string; networ
     return shell(<Failed what="your figures" onRetry={() => insightsQ.refetch()} />);
   }
 
-  // A network that declares no figures has no insights to draw: no panel, not an empty one.
-  if (!drawsInsights(primaryEntry(listingQ.data))) return null;
-
   const data = insightsQ.data;
   // The window the data is FOR, which lags the picker while a switch loads.
   const shownDays = data.days;
   const now = new Date();
   const series = windowSeries(data.series, shownDays, now);
-  const entry = primaryEntry(listingQ.data);
   const metrics = declaredMetrics(entry?.capabilities);
   const selected = metrics.find((m) => m.key === metric) ?? metrics[0];
   if (!selected) {
