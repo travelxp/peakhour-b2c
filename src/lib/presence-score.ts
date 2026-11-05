@@ -12,6 +12,8 @@
  * A FIX WITHOUT AN EDIT SHOWS NO EDIT CONTROL. The api decides (control, writable field, writes released); this file only reads `action`.
  */
 
+import type { ListingChangeView } from "@/lib/api/presence-changes";
+
 export type CheckState = "ok" | "gap" | "unknown" | "not_applicable";
 
 export interface ScoreCheck {
@@ -38,7 +40,7 @@ export interface ScoreFix {
 }
 
 export type ScoreOrdering =
-  | { by: "your_figures"; days: number; calls: number; directions: number }
+  | { by: "your_figures"; days: number; measuredDays: number; calls: number; directions: number }
   | { by: "kind_of_business"; reason: "figures_not_read" | "figures_incomplete" | "too_few_days" | "too_few_actions"; callShare: number; group: string };
 
 export interface HealthItem {
@@ -59,7 +61,7 @@ export interface ListingScoreBody {
 }
 
 export type ListingScoreResponse =
-  | { state: "not_connected" | "needs_location" | "importing" }
+  | { state: "not_connected" | "needs_reconnect" | "needs_location" | "sync_failing" | "importing" }
   | { state: "ready"; listingId: string; network: { key: string; label: string }; score: ListingScoreBody; health: HealthItem[] };
 
 export const presenceScoreQueryKey = (location: string | undefined) => ["presence", "score", location ?? "default"] as const;
@@ -69,6 +71,12 @@ export function scoreEmptyState(r: ListingScoreResponse | undefined): { headline
   if (!r || r.state === "ready") return null;
   if (r.state === "not_connected") {
     return { headline: "Connect your listing to see how complete it is", description: "Once it is connected, your score and the next few things to fix appear here." };
+  }
+  if (r.state === "needs_reconnect") {
+    return { headline: "Reconnect your listing to see your score", description: "The connection has expired. Reconnect it above, and your score appears here." };
+  }
+  if (r.state === "sync_failing") {
+    return { headline: "We could not reach your listing", description: "The last checks failed, so we are not scoring it. Nothing is wrong with your listing; try reconnecting above." };
   }
   if (r.state === "needs_location") {
     return { headline: "Choose which listing is yours", description: "Pick your listing in the connection above, and your score appears here." };
@@ -115,11 +123,16 @@ export function visibleFixes<T>(fixes: readonly T[], showAll: boolean): T[] {
 
 /** One line above the fix list that says which order it is in, truthfully. */
 export function orderingSentence(o: ScoreOrdering): string {
-  if (o.by === "your_figures") return `Ordered by what your customers did in the last ${o.days} days: ${o.calls} calls and ${o.directions} requests for directions.`;
+  if (o.by === "your_figures") return `Ordered by what your customers did in the last ${o.days} days: ${countOf(o.calls, "call")} and ${countOf(o.directions, "request")} for directions.`;
   if (o.reason === "figures_not_read") return "Ordered by what usually matters for a business like yours. We have not read your figures yet.";
   if (o.reason === "figures_incomplete") return "Ordered by what usually matters for a business like yours. Your call and direction figures are not all in yet.";
   if (o.reason === "too_few_days") return "Ordered by what usually matters for a business like yours. We have too few days of your figures to go by.";
   return "Ordered by what usually matters for a business like yours. Too few customers have acted on your listing to go by yet.";
+}
+
+/** "no calls", "1 call", "5 calls". */
+function countOf(n: number, noun: string): string {
+  return n === 0 ? `no ${noun}s` : n === 1 ? `1 ${noun}` : `${n} ${noun}s`;
 }
 
 const EFFECT_WORD = { high: "Matters most", medium: "Matters", low: "Smaller" } as const;
@@ -162,17 +175,8 @@ export function sortedHealth(items: readonly HealthItem[]): HealthItem[] {
 
 // ── The change card a prepared fix opens ──────────────────────
 
-export interface ChangeView {
-  id: string;
-  field: string;
-  status: string;
-  riskTier: string;
-  notes: string[];
-  before: unknown;
-  after: unknown;
-  reason: { code: string; message: string } | null;
-  validation: { issues: Array<{ code: string; message: string }> } | null;
-}
+/** One change as the api returns it: the shared view of `presenceChangesApi`. */
+export type ChangeView = ListingChangeView;
 
 /** Statuses in which a person can still decide. */
 export function canDecide(c: Pick<ChangeView, "status">): boolean {

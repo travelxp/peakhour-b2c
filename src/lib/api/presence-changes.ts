@@ -19,9 +19,17 @@ export interface ListingChangeView {
   submittedAt: string | null;
   liveAt: string | null;
   liveCheck: { outcome: string; note: string | null } | null;
+  /** The before and after of the change, and the checks it failed. Present on every view the api returns (PE-10 draws a card from them). */
+  before?: unknown;
+  after?: unknown;
+  validation?: { issues: Array<{ code: string; message: string }> } | null;
 }
 
 export const presenceChangesApi = {
+  /** Propose changes. This only PREPARES them; the api sets the source from the signed-in user and checks each at once. */
+  propose: (body: { listingId: string; network: string; changes: Array<{ field: string; value: unknown }> }) =>
+    api.post<{ items: ListingChangeView[]; notChecked: Array<{ id: string; code: string; message: string }> }>("/v1/presence/changes", body),
+
   get: (id: string) => api.get<{ item: ListingChangeView }>(`/v1/presence/changes/${id}`),
   /** A person approves. The api checks the change first, then queues the write: one press is enough. */
   approve: (id: string) => api.post<{ item: ListingChangeView }>(`/v1/presence/changes/${id}/approve`, {}),

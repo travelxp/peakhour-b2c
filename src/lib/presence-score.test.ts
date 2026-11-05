@@ -52,6 +52,8 @@ describe("empty states say what to do next and never blame the listing", () => {
     expect(scoreEmptyState({ state: "not_connected" })?.headline).toMatch(/Connect your listing/);
     expect(scoreEmptyState({ state: "needs_location" })?.headline).toMatch(/Choose which listing/);
     expect(scoreEmptyState({ state: "importing" })?.description).toMatch(/Nothing is wrong/);
+    expect(scoreEmptyState({ state: "needs_reconnect" })?.headline).toMatch(/Reconnect/);
+    expect(scoreEmptyState({ state: "sync_failing" })?.description).toMatch(/Nothing is wrong/);
     expect(scoreEmptyState(undefined)).toBeNull();
   });
 });
@@ -100,9 +102,10 @@ describe("the list", () => {
 
 describe("the order is said truthfully", () => {
   it("by the merchant's figures", () => {
-    expect(orderingSentence({ by: "your_figures", days: 28, calls: 40, directions: 12 })).toBe(
-      "Ordered by what your customers did in the last 28 days: 40 calls and 12 requests for directions.",
-    );
+    const o = (calls: number, directions: number) => ({ by: "your_figures" as const, days: 28, measuredDays: 9, calls, directions });
+    expect(orderingSentence(o(40, 12))).toBe("Ordered by what your customers did in the last 28 days: 40 calls and 12 requests for directions.");
+    expect(orderingSentence(o(1, 0))).toBe("Ordered by what your customers did in the last 28 days: 1 call and no requests for directions.");
+    expect(orderingSentence(o(0, 1))).toContain("no calls and 1 request for directions");
   });
   it("by the kind of business, and why", () => {
     const s = (reason: "figures_not_read" | "figures_incomplete" | "too_few_days" | "too_few_actions") => orderingSentence({ by: "kind_of_business", reason, callShare: 0.5, group: "general" });

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api";
-import { presenceScoreApi } from "@/lib/api/presence-score";
+import { presenceChangesApi } from "@/lib/api/presence-changes";
 import { useListingScore } from "@/hooks/use-presence-score";
 import {
   canDecide,
@@ -97,7 +97,7 @@ function FixRow({ fix, onOpenForm }: { fix: ScoreFix; onOpenForm?: ((field: stri
   const propose = () =>
     run(async () => {
       if (fix.action.kind !== "card") return null;
-      const res = await presenceScoreApi.propose(proposalBody(fix.action));
+      const res = await presenceChangesApi.propose(proposalBody(fix.action));
       if (res.notChecked.length > 0) setError(res.notChecked[0]!.message);
       return res.items[0] ?? null;
     });
@@ -105,13 +105,14 @@ function FixRow({ fix, onOpenForm }: { fix: ScoreFix; onOpenForm?: ((field: stri
     run(async () => {
       if (!change) return null;
       // The score is NOT refetched here: the fix stays a gap until a later read shows the change live, so the card must stay put.
-      const res = await presenceScoreApi.approve(change.id);
-      return res.item;
+      const res = await presenceChangesApi.approve(change.id);
+      // The approve view carries the new status; keep the before and after the card was drawn from.
+      return { ...change, ...res.item };
     });
   const discard = () =>
     run(async () => {
       if (!change) return null;
-      await presenceScoreApi.reject(change.id);
+      await presenceChangesApi.reject(change.id);
       return null;
     });
 
