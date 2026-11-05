@@ -10,7 +10,10 @@ import { HolidayOffersCard } from "@/components/presence/edit/holiday-offers-car
 import { useEditCapabilities, useListingChanges, usePresenceEditMutations } from "@/hooks/use-presence-edit";
 import { useListingQuery } from "@/hooks/use-presence-listing";
 import { fetchView } from "@/lib/presence-panels";
-import { capabilityFor, drawnSections, errorWords, formAccess, writesNote, type EditField } from "@/lib/presence-edit";
+import { capabilityFor, drawnSections, errorWords, formAccess, requestedForm, writesNote, type EditField } from "@/lib/presence-edit";
+
+/** Another card asking for a field's form. A new object each time, so asking twice for one field opens it twice. */
+export type EditRequest = { field: string };
 
 /**
  * Change your listing (PE-07). Every control here is DRAWN FROM what the network declares it can write, and every submit makes a PROPOSAL.
@@ -19,7 +22,7 @@ import { capabilityFor, drawnSections, errorWords, formAccess, writesNote, type 
  * ★A submit prepares a change. It is not saved, and nothing is sent, until a person approves it; whether it is then sent depends on the
  * operator's switch, which this card reports in plain words. Never "saved", never "live" before the engine says so.
  */
-export function EditListingCard({ location }: { location?: string | undefined }) {
+export function EditListingCard({ location, request }: { location?: string | undefined; request?: EditRequest | null }) {
   const listingQ = useListingQuery(location);
   const caps = useEditCapabilities();
   const listing = listingQ.data?.listing ?? null;
@@ -28,6 +31,16 @@ export function EditListingCard({ location }: { location?: string | undefined })
   const m = usePresenceEditMutations(listing?.id);
   const [open, setOpen] = useState<EditField | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  // Waits for the capabilities, then answers each request once, during render (React's way to adjust state when a prop changes).
+  // Above the early returns, because a hook's order cannot change.
+  const [answered, setAnswered] = useState<EditRequest | null>(null);
+  if (request && request !== answered && caps.data && listing) {
+    const answer = requestedForm(drawnSections(capabilityFor(caps.data, network)), formAccess(caps.data.can), request.field);
+    setAnswered(request);
+    setOpen(answer.open);
+    setNotice(answer.notice);
+  }
 
   const header = (
     <div>

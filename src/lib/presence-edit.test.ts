@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { DrawnSection } from "@/lib/presence-edit";
 import {
   cardActions,
   capabilityFor,
@@ -12,6 +13,7 @@ import {
   formAccess,
   hoursDraft,
   hoursValue,
+  requestedForm,
   offerOutcome,
   offerState,
   phoneValue,
@@ -378,5 +380,19 @@ describe("the holiday offer", () => {
     const waiting = offerOutcome([{ status: "proposed", reason: null }], "Christmas Day", L);
     expect(waiting.ok).toBe(true);
     expect(waiting.message).toContain("has not checked it yet");
+  });
+});
+
+describe("a form asked for by another card", () => {
+  const sections = [{ field: "phone", title: "Phone", blurb: "", risky: false }] as unknown as DrawnSection[];
+
+  it("opens a field the network lets you change", () => {
+    expect(requestedForm(sections, { mode: "edit" }, "phone")).toEqual({ open: "phone", notice: null });
+  });
+  it("says so when the field has no form", () => {
+    expect(requestedForm(sections, { mode: "edit" }, "media")).toEqual({ open: null, notice: "That detail cannot be changed from Peakhour yet." });
+  });
+  it("gives the role's reason and opens nothing for someone who cannot edit", () => {
+    expect(requestedForm(sections, { mode: "view", why: "Ask an editor." }, "phone")).toEqual({ open: null, notice: "Ask an editor." });
   });
 });

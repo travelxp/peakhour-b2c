@@ -148,6 +148,17 @@ export function drawnSections(cap: NetworkCapability | undefined): DrawnSection[
 }
 
 /**
+ * What to do when another card asks for a field's form. A button elsewhere on the page must never appear to do nothing, so a form that
+ * cannot open says why instead.
+ */
+export function requestedForm(sections: DrawnSection[], access: FormAccess, field: string): { open: EditField | null; notice: string | null } {
+  if (access.mode === "view") return { open: null, notice: access.why };
+  const section = sections.find((s) => s.field === field);
+  if (!section) return { open: null, notice: "That detail cannot be changed from Peakhour yet." };
+  return { open: section.field, notice: null };
+}
+
+/**
  * Which network a listing's forms are drawn for: the listing's own, when the api has told us its key, and only if it declares a write.
  * Undefined means "no forms", which is shown as such rather than guessed from another network.
  */
