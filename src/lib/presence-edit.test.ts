@@ -30,6 +30,7 @@ import {
   type ChangeCardData,
   type ChangeStatus,
   type NetworkCapability,
+  presenceEditKeys,
 } from "./presence-edit";
 
 const cap = (over: Partial<NetworkCapability> = {}): NetworkCapability => ({
@@ -394,5 +395,13 @@ describe("a form asked for by another card", () => {
   });
   it("gives the role's reason and opens nothing for someone who cannot edit", () => {
     expect(requestedForm(sections, { mode: "view", why: "Ask an editor." }, "phone")).toEqual({ open: null, notice: "Ask an editor." });
+  });
+});
+
+describe("presenceEditKeys: two networks never share a cached offers or categories answer", () => {
+  it("offers and categories differ by network", () => {
+    expect(presenceEditKeys.offers("l1", "net_a")).not.toEqual(presenceEditKeys.offers("l1", "net_b"));
+    expect(presenceEditKeys.categories("l1", "net_a", "cafe")).not.toEqual(presenceEditKeys.categories("l1", "net_b", "cafe"));
+    expect(presenceEditKeys.categories("l1", "net_a", " Cafe ")).toEqual(presenceEditKeys.categories("l1", "net_a", "cafe"));
   });
 });

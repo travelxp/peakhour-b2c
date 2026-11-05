@@ -9,7 +9,7 @@ import { FieldForm } from "@/components/presence/edit/field-form";
 import { HolidayOffersCard } from "@/components/presence/edit/holiday-offers-card";
 import { useEditCapabilities, useListingChanges, usePresenceEditMutations } from "@/hooks/use-presence-edit";
 import { useListingQuery } from "@/hooks/use-presence-listing";
-import { fetchView } from "@/lib/presence-panels";
+import { fetchView, primaryEntry } from "@/lib/presence-panels";
 import { capabilityFor, drawnSections, errorWords, formAccess, requestedForm, writesNote, type EditField } from "@/lib/presence-edit";
 
 /** Another card asking for a field's form. A new object each time, so asking twice for one field opens it twice. */
@@ -22,11 +22,11 @@ export type EditRequest = { field: string };
  * ★A submit prepares a change. It is not saved, and nothing is sent, until a person approves it; whether it is then sent depends on the
  * operator's switch, which this card reports in plain words. Never "saved", never "live" before the engine says so.
  */
-export function EditListingCard({ location, request }: { location?: string | undefined; request?: EditRequest | null }) {
-  const listingQ = useListingQuery(location);
+export function EditListingCard({ location, network: chosenNetwork, request }: { location?: string | undefined; network?: string | undefined; request?: EditRequest | null }) {
+  const listingQ = useListingQuery(location, chosenNetwork);
   const caps = useEditCapabilities();
   const listing = listingQ.data?.listing ?? null;
-  const network = listingQ.data?.google?.network;
+  const network = primaryEntry(listingQ.data)?.network;
   const changes = useListingChanges(listing?.id);
   const m = usePresenceEditMutations(listing?.id);
   const [open, setOpen] = useState<EditField | null>(null);

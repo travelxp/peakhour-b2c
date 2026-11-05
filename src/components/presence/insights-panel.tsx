@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -24,6 +24,10 @@ import {
   chartPoints,
   declaredMetrics,
   coverageNote,
+  drawsInsights,
+  keepInsightsWhileLoading,
+  networkLabel,
+  primaryEntry,
   windowSeries,
   fetchView,
   metricTotal,
@@ -34,33 +38,37 @@ import {
 } from "@/lib/presence-panels";
 
 /**
- * Customer actions from the Google listing, over a chosen window.
+ * Customer actions from the listing, over a chosen window.
  *
  * MARKUP ONLY; every sentence and every "is there a number" decision is in
  * `lib/presence-panels.ts`.
  *
  * One metric is charted at a time (the tile you pick), so the chart has one
  * series, no legend, and one colour: Presence's pillar token `--chart-5`.
- * A day Google sent nothing for is a gap in the line, never a zero.
+ * A day the network sent nothing for is a gap in the line, never a zero.
  *
- * A figure Google did not report is "Not available yet", never 0. Search terms
+ * A figure the network did not report is "Not available yet", never 0. Search terms
  * (monthly, and only where the network declares them) sit under the chart.
  */
-export function InsightsPanel({ location }: { location?: string }) {
+export function InsightsPanel({ location, network, label: labelFallback }: { location?: string; network?: string; label?: string | null }) {
   const [days, setDays] = useState(DEFAULT_INSIGHT_DAYS);
   const [metric, setMetric] = useState<InsightKey>("views");
   const { formatDate, formatNumber } = useLocale();
 
-  const listingQ = useListingQuery(location);
+  const listingQ = useListingQuery(location, network);
+  const label = networkLabel(listingQ.data, labelFallback);
+  // computed once: the query gate, the tiles and the search terms all read this entry
+  const entry = primaryEntry(listingQ.data);
   const setup = listingQ.data?.setup;
   // Figures are only asked for once the listing says there is one to ask about.
   const canAsk = setup === "ready" || setup === "sync_failing";
   const insightsQ = useQuery({
-    queryKey: presenceInsightsQueryKey(days, location),
-    queryFn: () => presenceApi.insights(days, location),
-    enabled: canAsk,
-    // Keep the last window on screen while the next loads, rather than blanking.
-    placeholderData: keepPreviousData,
+    queryKey: presenceInsightsQueryKey(days, location, network),
+    queryFn: () => presenceApi.insights(days, location, network),
+    enabled: canAsk && drawsInsights(entry),
+    // Keep the last window on screen while the next loads, rather than blanking, but ONLY when just the days changed: a switch of
+    // network or place must not show the old figures under the new name.
+    placeholderData: (prev, prevQuery) => (keepInsightsWhileLoading(prevQuery?.queryKey, presenceInsightsQueryKey(days, location, network)) ? prev : undefined),
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
   });
@@ -69,7 +77,9 @@ export function InsightsPanel({ location }: { location?: string }) {
     <div className="flex flex-wrap items-start justify-between gap-2">
       <div>
         <h2 className="font-medium">How customers found you</h2>
-        <p className="text-xs text-muted-foreground">Google · last {insightsQ.data?.days ?? days} days</p>
+        <p className="text-xs text-muted-foreground">
+          {label ? `${label} · ` : ""}last {insightsQ.data?.days ?? days} days
+        </p>
       </div>
       <div className="flex gap-1" role="group" aria-label="Time window">
         {INSIGHT_WINDOWS.map((w) => (
@@ -120,7 +130,11 @@ export function InsightsPanel({ location }: { location?: string }) {
     );
   }
 
-  const message = setupMessage(listingQ.data.setup, !!listingQ.data.listing, "performance");
+  // ★RIGHT AFTER THE LISTING READ, before any setup message, skeleton or figure: a network that declares no figures has no insights panel,
+  // not an empty one and not a "connect it" prompt for something it cannot show.
+  if (!drawsInsights(entry)) return null;
+
+  const message = setupMessage(listingQ.data.setup, !!listingQ.data.listing, "performance", label);
   if (message) {
     return shell(
       <div className="rounded-lg border border-dashed p-6 text-center">
@@ -158,8 +172,7 @@ export function InsightsPanel({ location }: { location?: string }) {
   const shownDays = data.days;
   const now = new Date();
   const series = windowSeries(data.series, shownDays, now);
-  const google = listingQ.data.google;
-  const metrics = declaredMetrics(google?.capabilities);
+  const metrics = declaredMetrics(entry?.capabilities);
   const selected = metrics.find((m) => m.key === metric) ?? metrics[0];
   if (!selected) {
     return shell(
@@ -170,8 +183,8 @@ export function InsightsPanel({ location }: { location?: string }) {
   }
   const points = chartPoints(series, selected.key, shownDays, now);
   const hasData = chartHasData(points);
-  const coverage = coverageNote(series, shownDays);
-  const syncNote = staleSyncNote(listingQ.data.setup);
+  const coverage = coverageNote(series, shownDays, label);
+  const syncNote = staleSyncNote(listingQ.data.setup, label);
   const chartConfig = {
     value: { label: selected.label, color: "var(--chart-5)" },
   } satisfies ChartConfig;
@@ -187,7 +200,7 @@ export function InsightsPanel({ location }: { location?: string }) {
       )}
       {listingView === "data_stale" && (
         <p className="text-xs text-warning-on-tint">
-          Couldn&apos;t check your Google connection just now, so this may be out of date.
+          Couldn&apos;t check your {label ?? "network"} connection just now, so this may be out of date.
         </p>
       )}
       {syncNote && <p className="text-xs text-warning-on-tint">{syncNote}</p>}
@@ -222,12 +235,12 @@ export function InsightsPanel({ location }: { location?: string }) {
       {!hasData ? (
         <div className="rounded-lg border border-dashed p-6 text-center">
           <p className="text-sm font-medium">
-            {series.length === 0 ? "No figures from Google yet" : `${selected.label}: ${NOT_AVAILABLE_YET.toLowerCase()}`}
+            {series.length === 0 ? `No figures from ${label ?? "the network"} yet` : `${selected.label}: ${NOT_AVAILABLE_YET.toLowerCase()}`}
           </p>
           <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
             {series.length === 0
               ? `We haven't received any daily figures for this listing in the last ${shownDays} days. `
-              : `Google didn't send this figure for any of the last ${shownDays} days. `}
+              : `${label ?? "The network"} didn't send this figure for any of the last ${shownDays} days. `}
             That is different from no customers: nothing has been counted, one way or the other.
           </p>
         </div>
@@ -290,7 +303,7 @@ export function InsightsPanel({ location }: { location?: string }) {
 
       {coverage && <p className="text-[11px] text-muted-foreground">{coverage}</p>}
 
-      <SearchTermsSection google={google} />
+      <SearchTermsSection entry={entry} />
     </>,
   );
 }

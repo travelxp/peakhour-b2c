@@ -16,7 +16,7 @@
  *
  * ⚠️THIS REPO RUNS VITEST WITHOUT JSDOM, so a rule inside the card is a rule
  * nothing asserts — the same split as `lib/review-reply.ts` and
- * `components/presence/gbp-card-state.ts`.
+ * `components/presence/network-card-state.ts`.
  *
  * @package peakhour-b2c
  */
@@ -98,13 +98,13 @@ export interface EmptyState {
  * ★AND NEITHER SAYS "YOU HAVE NO REVIEWS", because we do not know that. We know
  * what has reached us.
  */
-export function reviewEmptyState(summary: ReviewSummary): EmptyState | null {
+export function reviewEmptyState(summary: ReviewSummary, label: string | null): EmptyState | null {
   if (summary.state === "ready") return null;
   if (summary.state === "awaiting_reviews") {
     return {
       headline: "No reviews have reached us yet",
       body:
-        "Once your Business Profile is connected and Google starts sending us review " +
+        `Once your listing is connected and ${label ?? "the network"} starts sending us review ` +
         "notifications, they land here and in your Inbox — worst first, with a reply you " +
         "can publish without leaving Peakhour.",
     };

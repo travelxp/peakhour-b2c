@@ -2,11 +2,10 @@
 
 import { AlertTriangle, CheckCircle2, HelpCircle } from "lucide-react";
 import {
-  PRESENCE_NETWORK_LABEL,
   changesView,
   controlNote,
   type NoteTone,
-  type PresenceListingResponse,
+  type PresenceNetworkEntry,
 } from "@/lib/presence-panels";
 
 const TONE_ICON: Record<NoteTone, React.ReactNode> = {
@@ -23,14 +22,15 @@ const TONE_ICON: Record<NoteTone, React.ReactNode> = {
  * otherwise). "We can't tell" is its own look, never the warning one.
  */
 export function ControlSection({
-  google,
+  entry,
   formatDateTime,
 }: {
-  google: PresenceListingResponse["google"];
+  entry: PresenceNetworkEntry | null;
   formatDateTime: (iso: string | null | undefined) => string;
 }) {
-  const control = controlNote(google, PRESENCE_NETWORK_LABEL);
-  const changes = changesView(google, PRESENCE_NETWORK_LABEL);
+  const label = entry?.label ?? "the network";
+  const control = controlNote(entry, label);
+  const changes = changesView(entry, label);
   if (!control && !changes) return null;
 
   return (
@@ -48,9 +48,9 @@ export function ControlSection({
                 {e}
               </p>
             ))}
-            {google?.control.checkedAt && control.tone !== "unknown" && (
+            {entry?.control.checkedAt && control.tone !== "unknown" && (
               <p className="text-[11px] text-muted-foreground">
-                Checked {formatDateTime(google.control.checkedAt)}.
+                Checked {formatDateTime(entry.control.checkedAt)}.
               </p>
             )}
           </div>

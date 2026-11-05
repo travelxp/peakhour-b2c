@@ -19,7 +19,7 @@
  * ⚠️THIS REPO RUNS VITEST WITHOUT JSDOM. A rule inside a component is a rule
  * nothing asserts, which is why this module holds the rules and
  * `components/inbox/review-reply-card.tsx` holds only the markup — the same
- * split as `presence/gbp-card-state.ts` and `lib/listing-target.ts`.
+ * split as `presence/network-card-state.ts` and `lib/listing-target.ts`.
  *
  * ⏸AND THE RULES NOW EXIST TWICE. `peakhour-api/src/v1/helpers/review-reply.ts`
  * is the authority — it is what actually refuses — and this is a pre-flight so

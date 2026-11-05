@@ -16,16 +16,16 @@ const flat = (rel: string) =>
 
 describe("Presence says what it does", () => {
   const home = flat("components/presence/presence-home.tsx");
-  const card = flat("components/presence/gbp-connect-card.tsx");
+  const card = flat("components/presence/network-connect-card.tsx");
 
   it("the header: what the page does today, and that a change is prepared here and approved by a person", () => {
-    expect(home).toContain("See your Google listing, how customers use it, and your Google reviews. You can prepare changes to your listing here. A person approves each one before it is sent.");
+    expect(home).toContain("See your listing, how customers use it, and your reviews. You can prepare changes to your listing here. A person approves each one before it is sent.");
     expect(home).not.toContain("use Google for now");
     expect(home).not.toContain("Connect your Google Business Profile listing and answer");
   });
 
   it("the header no longer says 'everywhere'", () => {
-    expect(home).toContain("Your Google listing and reviews, in one place");
+    expect(home).toContain("Your listing and reviews, in one place");
     expect(home).not.toContain("Be found, accurate");
   });
 
@@ -36,8 +36,9 @@ describe("Presence says what it does", () => {
   });
 
   it("the connect card promises reviews, not call and click figures nothing shows", () => {
-    expect(card).toContain("Connect your listing to get your Google reviews in one inbox and reply to them there.");
-    expect(card).toContain("Reconnect to resume your reviews.");
+    // the network's name arrives as the adapter's label, never typed in the card
+    expect(card).toContain("Connect your listing to get your ${label} reviews in one inbox and reply to them there.");
+    expect(card).toContain("stopped accepting our access. Reconnect to resume.");
     expect(card).not.toContain("sync calls, direction requests and website clicks");
     expect(card).not.toContain("resume insights and reviews");
   });
@@ -46,8 +47,8 @@ describe("Presence says what it does", () => {
     expect(home).not.toContain("Coming with Presence");
     expect(home).not.toContain("we keep them in sync across every network");
     expect(home).not.toContain("Explain this");
-    expect(home).toContain("<ListingPanel location={panelLocation} />");
-    expect(home).toContain("<InsightsPanel location={panelLocation} />");
+    expect(home).toContain("<ListingPanel location={panelLocation} network={panelNetwork} label={fallbackLabel} />");
+    expect(home).toContain("<InsightsPanel location={panelLocation} network={panelNetwork} label={fallbackLabel} />");
   });
 });
 

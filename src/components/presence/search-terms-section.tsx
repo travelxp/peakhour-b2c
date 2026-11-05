@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale } from "@/hooks/use-locale";
-import { PRESENCE_NETWORK_LABEL, monthStartIso, searchTermsView, termCountText, type PresenceListingResponse } from "@/lib/presence-panels";
+import { monthStartIso, searchTermsView, termCountText, type PresenceNetworkEntry } from "@/lib/presence-panels";
 
 /**
  * What people searched for to find the listing, for one month.
@@ -10,9 +10,9 @@ import { PRESENCE_NETWORK_LABEL, monthStartIso, searchTermsView, termCountText, 
  * threshold reads "Fewer than N searches", never N; a month never asked about says so rather than
  * showing an empty list.
  */
-export function SearchTermsSection({ google }: { google: PresenceListingResponse["google"] }) {
+export function SearchTermsSection({ entry }: { entry: PresenceNetworkEntry | null }) {
   const { formatNumber, formatDate } = useLocale();
-  const view = searchTermsView(google, PRESENCE_NETWORK_LABEL);
+  const view = searchTermsView(entry, entry?.label ?? "the network");
   if (!view) return null;
   const monthText = (month: string) => {
     const iso = monthStartIso(month);

@@ -14,7 +14,7 @@ import {
   termCountText,
   type InsightDay,
   type PresenceControl,
-  type PresenceListingResponse,
+  type PresenceNetworkEntry,
   type PresenceSearchTerms,
 } from "./presence-panels";
 
@@ -24,7 +24,7 @@ import {
  */
 
 const NET = "TestNet";
-type G = NonNullable<PresenceListingResponse["google"]>;
+type G = PresenceNetworkEntry;
 
 const control = (over: Partial<PresenceControl> = {}): PresenceControl => ({
   state: "controlled",
@@ -46,6 +46,8 @@ const caps = (over: Partial<G["capabilities"]> = {}): G["capabilities"] => ({
 });
 const noTerms: PresenceSearchTerms = { month: null, terms: null, truncated: false, checkedAt: null, lastReadFailedAt: null };
 const g = (over: Partial<G> = {}): G => ({
+  network: "testnet",
+  label: NET,
   externalId: "x",
   status: "synced",
   syncMode: "auto",

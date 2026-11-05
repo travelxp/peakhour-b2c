@@ -147,8 +147,8 @@ function FixRow({ fix, onOpenForm }: { fix: ScoreFix; onOpenForm?: ((field: stri
   );
 }
 
-export function ListingScoreCard({ location, onOpenForm }: { location?: string | undefined; onOpenForm?: (field: string) => void }) {
-  const q = useListingScore(location);
+export function ListingScoreCard({ location, network, onOpenForm }: { location?: string | undefined; network?: string | undefined; onOpenForm?: (field: string) => void }) {
+  const q = useListingScore(location, network);
   const queryClient = useQueryClient();
   const [showAll, setShowAll] = useState(false);
 
@@ -159,7 +159,7 @@ export function ListingScoreCard({ location, onOpenForm }: { location?: string |
     return (
       <Card className="flex flex-wrap items-center justify-between gap-2 p-4 text-sm text-muted-foreground">
         <span>We couldn&apos;t work out your listing score just now.</span>
-        <Button size="sm" variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: presenceScoreQueryKey(location) })}>
+        <Button size="sm" variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: presenceScoreQueryKey(location, network) })}>
           Try again
         </Button>
       </Card>

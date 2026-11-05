@@ -8,12 +8,14 @@ import { useListingQuery } from "@/hooks/use-presence-listing";
 import { useLocale } from "@/hooks/use-locale";
 import { ControlSection } from "@/components/presence/control-section";
 import {
-  DRIFT_LABEL,
   LISTING_ROWS,
   addressLines,
+  driftLabel,
   driftStatus,
   fetchView,
   hoursLines,
+  networkLabel,
+  primaryEntry,
   setupMessage,
   specialHoursText,
   staleSyncNote,
@@ -23,18 +25,18 @@ import {
 } from "@/lib/presence-panels";
 
 /**
- * The listing as we hold it, with a mark on each field Google shows differently.
+ * The listing as we hold it, with a mark on each field the network shows differently.
  *
  * MARKUP ONLY. What each state says, and whether a field "matches" Google, come
  * from `lib/presence-panels.ts`. Nothing here edits anything: changes are made in
  * the edit card below (`edit/edit-listing-card.tsx`).
  */
-function DriftMark({ status }: { status: DriftStatus }) {
+function DriftMark({ status, label }: { status: DriftStatus; label: string | null }) {
   if (status === "differs") {
     return (
       <span className="inline-flex items-center gap-1 text-[11px] font-medium text-warning-on-tint">
         <AlertTriangle className="size-3.5" aria-hidden />
-        {DRIFT_LABEL.differs}
+        {driftLabel("differs", label)}
       </span>
     );
   }
@@ -42,14 +44,14 @@ function DriftMark({ status }: { status: DriftStatus }) {
     return (
       <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
         <Check className="size-3.5" aria-hidden />
-        {DRIFT_LABEL.matches}
+        {driftLabel("matches", label)}
       </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
       <Minus className="size-3.5" aria-hidden />
-      {DRIFT_LABEL.not_checked}
+      {driftLabel("not_checked", label)}
     </span>
   );
 }
@@ -59,10 +61,12 @@ const NOT_SET = <span className="text-muted-foreground">Not set</span>;
 function Row({
   label,
   status,
+  networkName,
   children,
 }: {
   label: string;
   status: DriftStatus;
+  networkName: string | null;
   children: React.ReactNode;
 }) {
   return (
@@ -72,7 +76,7 @@ function Row({
       </dt>
       <dd className="min-w-0 text-sm break-words">{children}</dd>
       <div>
-        <DriftMark status={status} />
+        <DriftMark status={status} label={networkName} />
       </div>
     </div>
   );
@@ -146,8 +150,8 @@ function rowValue(
   }
 }
 
-export function ListingPanel({ location }: { location?: string }) {
-  const q = useListingQuery(location);
+export function ListingPanel({ location, network, label: labelFallback }: { location?: string; network?: string; label?: string | null }) {
+  const q = useListingQuery(location, network);
   const { formatDate, formatDateTime } = useLocale();
   const view = fetchView({
     hasData: !!q.data,
@@ -156,11 +160,12 @@ export function ListingPanel({ location }: { location?: string }) {
     fetchStatus: q.fetchStatus,
   });
 
+  const headerLabel = networkLabel(q.data, labelFallback);
   const header = (
     <div>
       <h2 className="font-medium">Your listing</h2>
       <p className="text-xs text-muted-foreground">
-        As Peakhour has it from Google. To change something, use the card below.
+        {headerLabel ? `As Peakhour has it from ${headerLabel}.` : "As Peakhour has it."} To change something, use the card below.
       </p>
     </div>
   );
@@ -199,12 +204,13 @@ export function ListingPanel({ location }: { location?: string }) {
   }
 
   const data: PresenceListingResponse = q.data;
-  const message = setupMessage(data.setup, !!data.listing, "listing");
-  const note = staleSyncNote(data.setup);
+  const label = networkLabel(data, labelFallback);
+  const message = setupMessage(data.setup, !!data.listing, "listing", label);
+  const note = staleSyncNote(data.setup, label);
 
   if (message || !data.listing) {
     const m = message ?? {
-      headline: "Getting your listing from Google",
+      headline: `Getting your listing from ${label ?? "the network"}`,
       body: "We have not received your listing yet.",
     };
     return (
@@ -220,8 +226,8 @@ export function ListingPanel({ location }: { location?: string }) {
 
   const listing = data.listing;
   // A failing sync means nothing was compared recently, so no row may claim "same".
-  const google = data.setup === "ready" ? data.google : null;
-  const checked = !!google?.lastSyncedAt;
+  const entry = data.setup === "ready" ? primaryEntry(data) : null;
+  const checked = !!entry?.lastSyncedAt;
 
   return (
     <Card className="gap-3 p-5">
@@ -234,20 +240,20 @@ export function ListingPanel({ location }: { location?: string }) {
       )}
       {note && <p className="text-xs text-warning-on-tint">{note}</p>}
 
-      <ControlSection google={google} formatDateTime={formatDateTime} />
+      <ControlSection entry={entry} formatDateTime={formatDateTime} />
 
       <dl className="divide-y">
         {LISTING_ROWS.map((r) => (
-          <Row key={r.key} label={r.label} status={driftStatus(r.compares, google)}>
+          <Row key={r.key} label={r.label} status={driftStatus(r.compares, entry)} networkName={label}>
             {rowValue(r.key, listing, formatDate)}
           </Row>
         ))}
       </dl>
 
       <p className="text-[11px] text-muted-foreground">
-        {checked && google
-          ? `Last compared with Google on ${formatDateTime(google.lastSyncedAt)}. Only some fields are compared; the rest say so.`
-          : "We haven't compared this with Google recently."}
+        {checked && entry
+          ? `Last compared with ${label ?? "the network"} on ${formatDateTime(entry.lastSyncedAt)}. Only some fields are compared; the rest say so.`
+          : `We haven't compared this with ${label ?? "the network"} recently.`}
       </p>
     </Card>
   );
