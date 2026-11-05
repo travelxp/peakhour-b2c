@@ -5,7 +5,9 @@ import { api } from "@/lib/api";
 
 export interface AttentionAlert {
   id: string;
-  kind: "webhook_health" | "scheduled_items_blocked" | "x_mentions_unread";
+  // "presence_listing" (PE-14): a place whose control was lost, that the network changed or shows differently, that is flagged as a duplicate,
+  // or whose calls, directions or views fell. One entry per place, network and kind; it links to /dashboard/presence and clears by itself.
+  kind: "webhook_health" | "scheduled_items_blocked" | "x_mentions_unread" | "presence_listing";
   severity: "red" | "yellow";
   title: string;
   description: string;
