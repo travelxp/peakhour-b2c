@@ -18,6 +18,7 @@ import {
   reviewEmptyState,
   REVIEW_SUMMARY_QUERY_KEY,
   sampleCaveat,
+  summariesOf,
   unansweredCta,
   type ReviewSummary,
 } from "@/lib/review-summary";
@@ -102,7 +103,18 @@ function WorstList({ summary }: { summary: ReviewSummary }) {
 }
 
 /** `location` narrows the summary to one listing; absent is the whole business. */
-export function ReviewSummaryCard({ location, network, label }: { location?: string; network?: string; label?: string | null }) {
+export function ReviewSummaryCard({
+  location,
+  network,
+  label,
+  onShowAll,
+}: {
+  location?: string;
+  network?: string;
+  label?: string | null;
+  /** Given when the card is narrowed to one location of several: a way back to all of them. */
+  onShowAll?: () => void;
+}) {
   const query = useQuery({
     queryKey: [...REVIEW_SUMMARY_QUERY_KEY, location ?? "all", network ?? "default"],
     queryFn: () => presenceApi.reviewSummary(undefined, location, network),
@@ -153,7 +165,27 @@ export function ReviewSummaryCard({ location, network, label }: { location?: str
     );
   }
 
-  const summary = query.data;
+  // ★ONE CARD PER NETWORK (PE-R). A rating is a network's own, so a business on two networks sees two cards, each under its network's
+  // label, and nothing here adds them. With none connected the api answers an empty list, which is said as "nothing has reached us".
+  const summaries = summariesOf(query.data);
+  if (summaries.length === 0) {
+    const none: ReviewSummary = {
+      state: "awaiting_reviews", days: query.data.days, windowStart: query.data.windowStart, totalEver: 0, volume: 0, unanswered: 0, unansweredInWindow: 0,
+      sampled: 0, rating: null, ratedCount: 0, respondedCount: 0, timedCount: 0, medianResponseMs: null, worstRecent: [],
+    };
+    return <NetworkReviews summary={none} label={label ?? null} onShowAll={onShowAll} />;
+  }
+  return (
+    <div className="space-y-4">
+      {summaries.map((s) => (
+        <NetworkReviews key={s.network ?? "network"} summary={s} label={s.label ?? label ?? null} onShowAll={onShowAll} />
+      ))}
+    </div>
+  );
+}
+
+/** One network's reviews: its own rating and counts, under its own name. */
+function NetworkReviews({ summary, label, onShowAll }: { summary: ReviewSummary; label: string | null; onShowAll: (() => void) | undefined }) {
   const sections = cardSections(summary);
   const empty = reviewEmptyState(summary, label ?? null);
   const cta = unansweredCta(summary);
@@ -172,11 +204,18 @@ export function ReviewSummaryCard({ location, network, label }: { location?: str
             {label ? `${label} · ` : ""}last {summary.days} days
           </p>
         </div>
-        {cta && (
-          <Button asChild size="sm" variant="outline" className="h-8">
-            <Link href={cta.href}>{cta.label}</Link>
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {onShowAll && (
+            <Button size="sm" variant="ghost" className="h-8" onClick={onShowAll}>
+              All locations
+            </Button>
+          )}
+          {cta && (
+            <Button asChild size="sm" variant="outline" className="h-8">
+              <Link href={cta.href}>{cta.label}</Link>
+            </Button>
+          )}
+        </div>
       </div>
 
       {empty && (

@@ -23,8 +23,10 @@ export type SavedReplyChannel =
   | "instagram"
   | "whatsapp"
   | "linkedin"
-  | "google_review"
-  | "other";
+  | "other"
+  // A network's reviews are filed under the source its adapter declares (PE-R); a review row's `source` is that channel, so it is
+  // passed through as it came from the api rather than listed here network by network.
+  | (string & {});
 
 export interface SavedReply {
   id: string;

@@ -67,7 +67,7 @@ describe("the Presence home", () => {
     expect(home).toContain("capabilities={aboutNetwork?.capabilities}");
   });
   it("clears a pending form request when the network changes, and says a status read that failed", () => {
-    expect(home).toMatch(/setChosen\(undefined\); \/\/ a form opened for one network's listing is not a request for another's setEditRequest\(null\);/);
+    expect(home).toMatch(/setChosen\(undefined\); setReviewsPicked\(undefined\); \/\/ a form opened for one network's listing is not a request for another's setEditRequest\(null\);/);
     expect(home).toContain("unreadableNetworks(networks, statusQs)");
     expect(home).toContain("<UnreadableNote networks={unreadable} />");
   });
@@ -76,8 +76,31 @@ describe("the Presence home", () => {
     expect(home).toContain("connectedNetworks(networks, statusOf)");
   });
   it("draws the review cards only for a network that declares reviews, and passes the network to the kit", () => {
-    expect(home).toContain("{reviewsOn ? <ReviewSummaryCard");
-    expect(home).toContain("{reviewsOn && listingOn ? <ReviewKitCard location={location} network={panelNetwork} />");
+    expect(home).toContain("{reviewsOn && !listAnswer.isPending ? (");
+    // the reviews wait for the listing read that says whether there are several places
+    expect(home).toContain("{reviewsOn && listAnswer.isPending ? <Skeleton");
+    expect(home).toContain("<ReviewSummaryCard location={reviewsPlace ?? location} network={panelNetwork}");
+    // PE-R: the kit is drawn for any network with reviews; a network with no listing draws it only when its link exists
+    expect(home).toContain("{reviewsOn && !listAnswer.isPending ? <ReviewKitCard location={location} network={panelNetwork} hideUnlessReady={!listingOn} /> : null}");
+  });
+  it("PE-R: a business with several places starts from every place side by side, and picking one narrows the whole page to it", () => {
+    expect(home).toContain("wantsPlacesView({ hasSwitcher: !!switcher, narrowed: reviewsPlace !== undefined })");
+    expect(home).toContain("<ReviewPlacesCard");
+    // the places card's pick, and the listing switcher's choice, both narrow
+    // ★THE LISTING SELECT AND THE REVIEWS' SCOPE ARE TWO CONTROLS: picking a place for the reviews never changes the listing, and the
+    // listing select never offers "All locations" (an edit must not appear to apply to all of them)
+    expect(home).toContain("onPick={(place) => setReviewsPicked(place)}");
+    expect(home).toContain("onChange={(e) => setChosen(e.target.value)}");
+    expect(home).not.toMatch(/id="presence-location"[\s\S]{0,400}All locations/);
+    // the select itself offers "All locations", so narrowing is always reversible, and it says which place the other panels show
+    expect(home).toContain('<option value={ALL_LOCATIONS}>All locations</option>');
+    expect(home).toContain("value={reviewsPlace ?? ALL_LOCATIONS}");
+    expect(home).toContain('id="presence-reviews-scope"');
+    expect(home).toContain("show this one listing");
+    // and a way back to all of them from the narrowed card
+    expect(home).toContain("onShowAll={switcher ? () => setReviewsPicked(undefined) : undefined}");
+    // and the places card is keyed by network, so one network's rows are never another's while it loads
+    expect(home).toContain('key={panelNetwork ?? "default"}');
   });
   it("falls back to the chosen network's label so nothing says 'nothing is connected' beside a connected card", () => {
     expect(home).toContain("label={fallbackLabel}");

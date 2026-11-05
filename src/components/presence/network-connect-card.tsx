@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { MapPin, ArrowRight, RefreshCw, AlertTriangle, Check } from "lucide-react";
 import { api } from "@/lib/api";
 import { REVIEW_SUMMARY_QUERY_KEY } from "@/lib/review-summary";
+import { REVIEW_PLACES_QUERY_KEY } from "@/lib/review-places";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -139,6 +140,7 @@ export function NetworkConnectCard({ network }: { network: ConnectableNetwork })
       // The Presence page's switcher and the composer's chooser read the set too.
       void qc.invalidateQueries({ queryKey: ["presence"] });
       void qc.invalidateQueries({ queryKey: REVIEW_SUMMARY_QUERY_KEY });
+      void qc.invalidateQueries({ queryKey: REVIEW_PLACES_QUERY_KEY });
       void qc.invalidateQueries({ queryKey: ["content-hub-integrations"] });
       qc.invalidateQueries({ queryKey: CAP_KEY });
       qc.invalidateQueries({ queryKey: STATUS_KEY });

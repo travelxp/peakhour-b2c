@@ -1,5 +1,5 @@
 import { api } from "@/lib/api";
-import type { ReviewPayload } from "@/lib/review-reply";
+import type { ReplyChannel, ReviewPayload } from "@/lib/review-reply";
 
 /**
  * Unified Inbox client (D-inbox) — the owner-facing /v1/support/inbox
@@ -63,6 +63,11 @@ export interface InboxItem {
    * default a send body to it; see `lib/review-reply.ts`.
    */
   review?: ReviewPayload;
+  /**
+   * Whether a reply can be sent for this review, from its network's adapter (PE-R): the network's own label, `canReply`, and its cap.
+   * Served on review rows only. Null: the row names no network the engine knows.
+   */
+  replyChannel?: ReplyChannel | null;
   sla?: {
     firstResponseDueAt?: string;
     resolveDueAt?: string;
