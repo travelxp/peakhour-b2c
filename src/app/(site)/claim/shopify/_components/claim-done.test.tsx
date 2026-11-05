@@ -14,7 +14,6 @@ describe("the hosted claim's success state", () => {
 
   it("says the tab can be closed and keeps Go to dashboard", () => {
     const html = renderToStaticMarkup(<ClaimDone done={done} />);
-    expect(CLOSE_TAB_HINT).toBe("You can close this tab and go back to Shopify.");
     expect(html).toContain("You can close this tab and go back to Shopify.");
     expect(html).toContain(">Go to dashboard<");
     expect(html).toContain('href="/dashboard"');

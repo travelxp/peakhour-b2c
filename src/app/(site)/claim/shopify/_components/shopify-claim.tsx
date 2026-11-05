@@ -289,7 +289,7 @@ export function ShopifyClaim() {
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
                 Sign in to finish linking <span className="font-medium text-foreground">this store</span> to
-                your Peakhour account. We&apos;ll bring you right back here — no need to return to Shopify.
+                your Peakhour account. We&apos;ll bring you right back here to finish.
               </p>
               <Button asChild>
                 <Link href={signInHref}>Sign in to continue</Link>
