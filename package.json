@@ -2,6 +2,12 @@
   "name": "peakhour-b2c",
   "version": "0.1.0",
   "private": true,
+  "overrides": {
+    "eslint-plugin-react-hooks": "7.0.1"
+  },
+  "engines": {
+    "node": "26.x"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -49,12 +55,12 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^25",
+    "@types/node": "^26",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "dotenv": "^17.0.0",
     "eslint": "^9.39.4",
-    "eslint-config-next": "^16.2.4",
+    "eslint-config-next": "16.2.4",
     "shadcn": "^4.4.0",
     "tailwindcss": "^4",
     "tsx": "^4.20.0",
