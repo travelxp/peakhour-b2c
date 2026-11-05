@@ -25,6 +25,7 @@ import { Separator } from "@/components/ui/separator";
 import { Globe, CalendarDays, Check } from "lucide-react";
 import { AvatarPicker } from "@/components/dashboard/avatar-picker";
 import { InboxAlertsCard } from "@/components/inbox/inbox-alerts-card";
+import { HelpfulEmailsCard } from "@/components/settings/helpful-emails-card";
 
 const DATE_FORMAT_OPTIONS = [
   { value: "__browser__", label: "Browser default" },
@@ -202,6 +203,9 @@ export default function PreferencesPage() {
 
       {/* Inbox phase 1: personal, like everything on this page; owners and admins only, as they are who the emails go to. */}
       <InboxAlertsCard role={role} />
+
+      {/* PE-14: the business's weekly listings summary and tips. A BUSINESS setting (an owner or admin changes it), the one the email's opt-out link also moves. */}
+      <HelpfulEmailsCard role={role} />
     </div>
   );
 }
