@@ -240,7 +240,8 @@ export function PresenceHome() {
                 {/* The id is on the wrapper, so a score fix scrolls here whatever the card is showing (loading, failed, ready). */}
                 {photosOn ? (
                   <div id="photos-card">
-                    <PhotosCard location={panelLocation} network={panelNetwork} />
+                    {/* Keyed by place and network: a card never carries one place's category, batch or error into another's. */}
+                    <PhotosCard key={`${panelLocation ?? ""}|${panelNetwork ?? ""}`} location={panelLocation} network={panelNetwork} />
                   </div>
                 ) : null}
               </>

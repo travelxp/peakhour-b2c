@@ -31,7 +31,10 @@ export function EditListingCard({
   location?: string | undefined;
   network?: string | undefined;
   request?: EditRequest | null;
-  /** True when the photos card is drawn and lists photo changes itself. Otherwise they are listed here, so a change is never out of sight. */
+  /**
+   * True when the photos card is drawn and lists this network's photo changes itself. Otherwise they are listed here, so a change is never out of
+   * sight; and another network's photo changes always are (the photos card shows one network's).
+   */
   photoChangesElsewhere?: boolean;
 }) {
   const listingQ = useListingQuery(location, chosenNetwork);
@@ -198,11 +201,11 @@ export function EditListingCard({
               Try again
             </Button>
           </div>
-        ) : changes.data && changes.data.items.some((c) => !photoChangesElsewhere || c.field !== "media") ? (
+        ) : changes.data && changes.data.items.some((c) => !(photoChangesElsewhere && c.field === "media" && c.network === network)) ? (
           <>
             {changes.isError && <p className="text-xs text-warning-on-tint">Could not refresh just now, so this may be out of date.</p>}
             {/* Photo changes are listed with the photos when that card is drawn; otherwise here. */}
-            {changes.data.items.filter((c) => !photoChangesElsewhere || c.field !== "media").map((c) => (
+            {changes.data.items.filter((c) => !(photoChangesElsewhere && c.field === "media" && c.network === network)).map((c) => (
               <ChangeCard key={c.id} change={c} label={cap.label} can={caps.data.can} m={m} />
             ))}
           </>

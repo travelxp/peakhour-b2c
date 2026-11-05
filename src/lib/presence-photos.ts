@@ -48,8 +48,10 @@ export interface PhotosResponse {
   label: string;
   declaration: { categories: string[]; limits: PhotoLimits; removal: { restorable: boolean } };
   writes: { released: boolean; notice: string | null };
-  /** False when the network still had photos that were not read: no absence is believed from the list. */
+  /** False when the business's own list still had photos that were not read: no absence is believed from the list. */
   complete: boolean;
+  /** False when the customers' photos could not be read: the panel says so and nothing else stops. */
+  customersComplete: boolean;
   items: NetworkPhoto[];
   held: number;
 }
@@ -127,36 +129,69 @@ export function photoAccess(view: "loading" | "paused" | "failed" | "data" | "da
 
 /** Statuses in which a photo change is still open: nothing has been sent, and the api's one-open-per-photo rule is in force. */
 const OPEN = ["proposed", "validated", "approved", "applying"];
+/** Open, or sent and not yet shown or failed: the photo list is stale until each of these settles. */
+const IN_FLIGHT = [...OPEN, "submitted"];
 
-/** The photo changes of a change list, newest first. */
-export function photoChanges(items: readonly ChangeCardData[] | undefined): ChangeCardData[] {
-  return (items ?? []).filter((c) => c.field === "media");
+/**
+ * The photo changes of a change list, newest first, FOR ONE NETWORK: a change belongs to the network it was prepared for, and another network's
+ * changes stay under that network.
+ */
+export function photoChanges(items: readonly ChangeCardData[] | undefined, network: string): ChangeCardData[] {
+  return (items ?? []).filter((c) => c.field === "media" && c.network === network);
 }
 
-export function openPhotoChanges(items: readonly ChangeCardData[] | undefined): ChangeCardData[] {
-  return photoChanges(items).filter((c) => OPEN.includes(c.status));
+export function openPhotoChanges(items: readonly ChangeCardData[] | undefined, network: string): ChangeCardData[] {
+  return photoChanges(items, network).filter((c) => OPEN.includes(c.status));
 }
 
-/** The open change about one network photo (a removal of it), from the change list: the ONE source of what is waiting. */
-export function pendingFor(items: readonly ChangeCardData[] | undefined, ref: string): ChangeCardData | undefined {
-  return openPhotoChanges(items).find((c) => (c.after as { op?: string; ref?: string } | null)?.op === "remove" && (c.after as { ref?: string }).ref === ref);
+/** Open or sent-not-yet-shown: what the photo list has not caught up with. Adds among these count against the cap. */
+export function inFlightPhotoChanges(items: readonly ChangeCardData[] | undefined, network: string): ChangeCardData[] {
+  return photoChanges(items, network).filter((c) => IN_FLIGHT.includes(c.status));
 }
 
 /**
- * Whether a photo change has just LEFT the open statuses (it was sent, failed, declined or expired), so the photo list is stale and is read
- * again. `before` is the ids that were open at the last look.
+ * The photo changes to list: EVERY one that has not settled (open, or sent and not yet shown) and only the most recent `settledCap` of the settled
+ * history. Capping what is listed must never hide a change somebody can still act on.
  */
-export function settledSince(before: ReadonlySet<string>, items: readonly ChangeCardData[] | undefined): boolean {
-  const open = new Set(openPhotoChanges(items).map((c) => c.id));
-  for (const id of before) if (!open.has(id)) return true;
+export function listedPhotoChanges(items: readonly ChangeCardData[] | undefined, network: string, settledCap: number): ChangeCardData[] {
+  const all = photoChanges(items, network);
+  const settled = all.filter((c) => !IN_FLIGHT.includes(c.status)).slice(0, settledCap);
+  const keep = new Set([...all.filter((c) => IN_FLIGHT.includes(c.status)), ...settled].map((c) => c.id));
+  return all.filter((c) => keep.has(c.id));
+}
+
+/** The change about one network photo (a removal of it) that has not settled, from the change list: the ONE source of what is waiting. */
+export function pendingFor(items: readonly ChangeCardData[] | undefined, network: string, ref: string): ChangeCardData | undefined {
+  return inFlightPhotoChanges(items, network).find((c) => (c.after as { op?: string; ref?: string } | null)?.op === "remove" && (c.after as { ref?: string }).ref === ref);
+}
+
+/**
+ * Whether a photo change has just LEFT the in-flight statuses (it went live or failed after being sent, or was declined or expired before), so the
+ * photo list is stale and is read again. `before` is the ids that were in flight at the last look.
+ */
+export function settledSince(before: ReadonlySet<string>, items: readonly ChangeCardData[] | undefined, network: string): boolean {
+  const flying = new Set(inFlightPhotoChanges(items, network).map((c) => c.id));
+  for (const id of before) if (!flying.has(id)) return true;
   return false;
 }
 
-/** What the tile of a photo with a waiting removal says, by the change's own status, so nobody is told to approve what has no button. */
+/** What the tile of a photo with a removal on its way says, by the change's own status, so nobody is told to approve what has no button. */
 export function pendingNote(status: string, can: Pick<Can, "approve"> | undefined): string {
+  if (status === "submitted") return "Removal sent. Waiting for it to show.";
   if (status === "approved") return "Approved, waiting to be sent. It will be removed once it is sent.";
   if (status === "applying") return "Being removed now.";
   return can?.approve ? "A removal is waiting below. Approve or decline it there." : "A removal is waiting below for an admin or owner to approve.";
+}
+
+/**
+ * Whether the change list, which says what is waiting, has answered. Until it has, adding and removing are withheld and the reason is said:
+ * a Remove drawn beside a removal nobody has seen yet would be a second change for the same photo.
+ */
+export function withChangesKnown(access: PhotoAccess, changes: "loading" | "paused" | "failed" | "data" | "data_stale"): PhotoAccess {
+  if (access.mode !== "edit") return access;
+  if (changes === "data" || changes === "data_stale") return access;
+  if (changes === "failed") return { mode: "view", why: "We could not load your photo changes, so adding and removing are off until they load. Try again." };
+  return { mode: "view", why: "Checking your waiting photo changes..." };
 }
 
 export function photoControls(
@@ -171,16 +206,25 @@ export function photoControls(
 }
 
 /** How many more photos can be chosen at once: the network's cap less what it holds and what is already being added, never more than ten. */
-export function pickLimit(p: Pick<PhotosResponse, "declaration" | "held" | "items">, openAdds: number): number {
+export function pickLimit(p: Pick<PhotosResponse, "declaration" | "held" | "items">, waitingAdds: number): number {
   const max = p.declaration.limits.maxItems;
-  const left = max === undefined ? 10 : max - Math.max(p.held, p.items.length) - openAdds;
+  const left = max === undefined ? 10 : max - Math.max(p.held, p.items.length) - waitingAdds;
   return Math.max(0, Math.min(10, left));
 }
 
-export function canAddPhoto(access: PhotoAccess, p: Pick<PhotosResponse, "declaration" | "held" | "items">, openAdds: number): { ok: boolean; why: string | null } {
+/**
+ * Whether more photos can be added, and if not why. The cap and the photos ALREADY WAITING are different reasons: the first says remove one, the
+ * second says finish the ones that are waiting.
+ */
+export function canAddPhoto(access: PhotoAccess, p: Pick<PhotosResponse, "declaration" | "held" | "items">, waitingAdds: number): { ok: boolean; why: string | null } {
   if (access.mode !== "edit") return { ok: false, why: access.why };
-  if (pickLimit(p, openAdds) === 0) return { ok: false, why: `A listing can hold at most ${p.declaration.limits.maxItems} photos. Remove one first.` };
-  return { ok: true, why: null };
+  if (pickLimit(p, waitingAdds) > 0) return { ok: true, why: null };
+  const max = p.declaration.limits.maxItems;
+  const holds = Math.max(p.held, p.items.length);
+  if (max !== undefined && holds < max && waitingAdds > 0) {
+    return { ok: false, why: `The photos already waiting would fill the ${max} this listing can hold. Approve or decline them first.` };
+  }
+  return { ok: false, why: `A listing can hold at most ${max} photos. Remove one first.` };
 }
 
 /** The picture to draw for a photo, or none: a video with no thumbnail draws no (broken) image. */
@@ -188,11 +232,46 @@ export function previewOf(p: Pick<NetworkPhoto, "thumbnailUrl" | "url" | "format
   return p.thumbnailUrl ?? (p.format === "photo" ? p.url : null);
 }
 
-/** Words for each photo that could not be prepared out of a batch chosen together. */
-export function batchSummary(prepared: number, failed: ReadonlyArray<{ name: string; message: string }>): string {
-  const head = prepared > 0 ? `${prepared} ${prepared === 1 ? "photo is" : "photos are"} prepared below. ` : "";
-  if (failed.length === 0) return `${head}Review each one, then approve it.`.trim();
-  return `${head}${failed.length} could not be prepared: ${failed.map((f) => `${f.name} (${f.message})`).join("; ")}`.trim();
+/** What a batch chosen together came to. `prepared` are the ids of the changes that were stored and checked. */
+export interface Batch {
+  prepared: string[];
+  /** Blocked by the checks, or refused: not prepared. */
+  failed: Array<{ name: string; message: string }>;
+  /** Stored but the network could not check them just now: waiting, but NOT counted as prepared. */
+  notChecked: Array<{ name: string; message: string }>;
+}
+
+/**
+ * Words for a batch, or null when there is nothing left to say. The "review and approve" line is for the changes of the batch that are STILL
+ * open, says who approves, and goes once they settle; a photo that could not be prepared or checked stays named until the next batch.
+ */
+export function batchSummary(batch: Batch | null, openIds: ReadonlySet<string>, can: Pick<Can, "approve"> | undefined): string | null {
+  if (!batch) return null;
+  const waiting = batch.prepared.filter((id) => openIds.has(id)).length;
+  const parts: string[] = [];
+  if (waiting > 0) {
+    parts.push(`${waiting} ${waiting === 1 ? "photo is" : "photos are"} prepared below. ${can?.approve ? "Review each one, then approve it." : "An admin or owner has to approve each one."}`);
+  }
+  if (batch.notChecked.length > 0) {
+    parts.push(`${batch.notChecked.length} could not be checked just now and ${batch.notChecked.length === 1 ? "is" : "are"} waiting unchecked: ${batch.notChecked.map((f) => `${f.name} (${f.message})`).join("; ")}.`);
+  }
+  if (batch.failed.length > 0) {
+    parts.push(`${batch.failed.length} could not be prepared: ${batch.failed.map((f) => `${f.name} (${f.message})`).join("; ")}.`);
+  }
+  return parts.length ? parts.join(" ") : null;
+}
+
+/** What one proposal answered: prepared and checked, blocked by the checks (with the reason), or stored unchecked. NEVER "prepared" for the last two. */
+export function outcomeOf(r: { items: Array<Pick<ChangeCardData, "id" | "status" | "reason">>; notChecked: Array<{ id: string; message: string }> }):
+  | { kind: "prepared"; id: string }
+  | { kind: "blocked"; message: string }
+  | { kind: "not_checked"; message: string } {
+  const row = r.items[0];
+  if (!row) return { kind: "blocked", message: "Nothing was prepared." };
+  if (row.status === "blocked") return { kind: "blocked", message: row.reason?.message ?? "It was blocked." };
+  const unchecked = r.notChecked.find((n) => n.id === row.id);
+  if (unchecked) return { kind: "not_checked", message: unchecked.message };
+  return { kind: "prepared", id: row.id };
 }
 
 /** A photo change as lines for its before-and-after card. */

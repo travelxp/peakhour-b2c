@@ -28,6 +28,7 @@ const photos = (over: Partial<PhotosResponse> = {}): PhotosResponse => ({
   declaration: { categories: ["EXTERIOR", "FOOD_AND_DRINK"], limits: LIMITS, removal: { restorable: false } },
   writes: { released: false, notice: NOTICE },
   complete: true,
+  customersComplete: true,
   items: [
     item({ ref: "m/1", category: "EXTERIOR", url: "https://img.example/1.jpg" }) as never,
     item({ ref: "m/2", source: "customer", url: "https://img.example/2.jpg", attribution: { name: "Sam Rao", reportUrl: "https://report.example/x" }, removable: false, notRemovableBecause: "This photo was added by a customer. NetA does not let a business delete a customer's photo." }) as never,
@@ -106,6 +107,46 @@ describe("the photos card", () => {
     expect(approved).not.toContain("Approve or decline it there");
   });
 
+  it("until the change list has answered, Remove and adding are withheld and it says why", () => {
+    const html = render({ changes: null });
+    expect(html).not.toContain(">Remove<");
+    expect(html).toContain("Checking your waiting photo changes...");
+    expect(html).toMatch(/<select id="photo-category"[^>]*disabled/);
+  });
+
+  it("a removal already sent still counts as waiting on its tile, with words that match", () => {
+    const html = render({ changes: [change({ status: "submitted" })] });
+    expect(html.match(/>Remove</g) ?? []).toHaveLength(0);
+    expect(html).toContain("Removal sent. Waiting for it to show.");
+    expect(html).not.toContain("Approve or decline it there");
+  });
+
+  it("another network's photo change is not listed here, and does not hold this network's tile", () => {
+    const html = render({ changes: [change({ network: "net_b", id: "other" })] });
+    expect(html).toContain("No photo changes yet.");
+    expect(html.match(/>Remove</g)).toHaveLength(1);
+  });
+
+  it("says when the customers' photos could not be read, apart from the owner's list", () => {
+    expect(render({ data: photos({ customersComplete: false }) })).toContain("could not read the photos your customers added on NetA");
+    expect(render({ data: photos({ customersComplete: false }) })).not.toContain("We could not read every one of your photos");
+    expect(render()).not.toContain("your customers added");
+  });
+
+  it("waiting adds that would fill the cap are named as such, not blamed on a full listing", () => {
+    const adds = Array.from({ length: 5 }, (_, i) => change({ id: `a${i}`, status: "validated", before: null, after: { op: "add", mediaId: `d${i}`, category: "EXTERIOR", file: { name: "a.jpg" } } }));
+    const html = render({ data: photos({ held: 95 }), changes: adds });
+    expect(html).toContain("The photos already waiting would fill the 100 this listing can hold. Approve or decline them first.");
+  });
+
+  it("every open change is shown even beneath a long settled history", () => {
+    const history = Array.from({ length: 20 }, (_, i) => change({ id: `h${i}`, status: "live", createdAt: `2026-11-06T10:00:${String(i).padStart(2, "0")}.000Z`, after: { op: "remove", ref: `old/${i}` } }));
+    const open = change({ id: "still-open", status: "validated", createdAt: "2026-11-01T10:00:00.000Z" });
+    const html = render({ changes: [...history, open] });
+    expect(html).toContain("Waiting for approval");
+    expect(html.match(/Live on NetA/g)).toHaveLength(8);
+  });
+
   it("a waiting change does not lock adding: the category is still chosen and several photos can be picked", () => {
     const html = render({ changes: [change({ id: "c9", status: "validated", after: { op: "add", mediaId: "d1", category: "EXTERIOR", file: { name: "a.jpg" } }, before: null })] });
     expect(html).not.toContain("is already waiting");
@@ -119,8 +160,8 @@ describe("the photos card", () => {
   });
 
   it("says when the list may be missing photos", () => {
-    expect(render({ data: photos({ complete: false }) })).toContain("We could not read every photo from NetA just now");
-    expect(render()).not.toContain("We could not read every photo");
+    expect(render({ data: photos({ complete: false }) })).toContain("We could not read every one of your photos from NetA just now");
+    expect(render()).not.toContain("We could not read every one of your photos");
   });
 
   it("an empty listing says so and still offers to add", () => {

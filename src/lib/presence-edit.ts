@@ -525,3 +525,13 @@ export const presenceEditKeys = {
   offers: (listingId: string, network: string) => ["presence", "edit", "offers", listingId, network] as const,
   categories: (listingId: string, network: string, q: string) => ["presence", "edit", "categories", listingId, network, q.trim().toLowerCase()] as const,
 };
+
+/**
+ * One change list from the OPEN changes (read on their own, so none is dropped however much history there is) and a capped page of recent history:
+ * every open change is always present, and only the settled ones are capped. De-duplicated by id, newest first.
+ */
+export function mergeChanges(open: readonly ChangeCardData[], history: readonly ChangeCardData[]): ChangeCardData[] {
+  const byId = new Map<string, ChangeCardData>();
+  for (const c of [...history, ...open]) byId.set(c.id, c);
+  return [...byId.values()].sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : a.id < b.id ? 1 : -1));
+}
