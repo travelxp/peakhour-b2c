@@ -3,7 +3,7 @@
  *
  * The decisions live here and the components hold markup, because vitest in this
  * repo runs without JSDOM (same split as `review-summary.ts` and
- * `components/presence/gbp-card-state.ts`).
+ * `components/presence/network-card-state.ts`).
  *
  * Three rules shape everything below:
  *  - Absent is not zero. No data for a metric is `null`, never `0`.
@@ -68,6 +68,10 @@ export interface PresenceListing {
 export interface PresenceListingResponse {
   setup: PresenceSetup;
   connection: {
+    /** The network this connection is on (its adapter's key), which `?network=` selects. Never shown. */
+    network?: string;
+    /** How a merchant hears that network's name: the adapter's declaration. */
+    label?: string;
     status: string;
     /** The listing this answer is about: the one asked for, else the first. */
     locationName: string | null;
@@ -77,22 +81,69 @@ export interface PresenceListingResponse {
     lastError: string | null;
   } | null;
   listing: PresenceListing | null;
-  google: {
-    /** The network's key, sent back with an edit (PE-07). Never shown. */
-    network?: string;
-    externalId: string | null;
-    status: string | null;
-    syncMode: string | null;
-    lastSyncedAt: string | null;
-    driftFields: string[];
-    /** Whether the merchant controls the listing. `unknown` is its own state. */
-    control: PresenceControl;
-    /** What the network changed by itself. `items: null` is "never answered"; `[]` is "nothing changed". */
-    changes: PresenceNetworkChanges;
-    /** What the network can do, from its adapter's declaration. */
-    capabilities: PresenceCapabilities;
-    searchTerms: PresenceSearchTerms;
-  } | null;
+  /** One entry per network on the listing, each shaped the same. A screen draws from this and never names a network. */
+  networks: PresenceNetworkEntry[];
+}
+
+/** One network's entry on a listing (`networks[]` of `GET /v1/presence/listing`). */
+export interface PresenceNetworkEntry {
+  /** The network's key, sent back with an edit (PE-07). Never shown. */
+  network: string;
+  /** How a merchant hears the network's name: the adapter's own declaration. */
+  label: string;
+  externalId: string | null;
+  status: string | null;
+  syncMode: string | null;
+  lastSyncedAt: string | null;
+  driftFields: string[];
+  /** Whether the merchant controls the listing. `unknown` is its own state. */
+  control: PresenceControl;
+  /** What the network changed by itself. `items: null` is "never answered"; `[]` is "nothing changed". */
+  changes: PresenceNetworkChanges;
+  /** What the network can do, from its adapter's declaration. */
+  capabilities: PresenceCapabilities;
+  searchTerms: PresenceSearchTerms;
+}
+
+/**
+ * The entry the page is about: the connection's own network, else the first. `null` when the listing has none.
+ * ★A LISTING CAN CARRY SEVERAL NETWORKS. The page follows the connection it resolved, so a screen never takes `networks[0]` blindly.
+ */
+export function primaryEntry(r: Pick<PresenceListingResponse, "connection" | "networks"> | null | undefined): PresenceNetworkEntry | null {
+  const list = r?.networks ?? [];
+  const want = r?.connection?.network;
+  return (want ? list.find((n) => n.network === want) : undefined) ?? list[0] ?? null;
+}
+
+/** The network's display name for a page: the entry's, else the connection's, else `null` (say nothing that names one). */
+export function networkLabel(r: Pick<PresenceListingResponse, "connection" | "networks"> | null | undefined): string | null {
+  return primaryEntry(r)?.label ?? r?.connection?.label ?? null;
+}
+
+/** One network a merchant can connect, from `GET /v1/presence/capabilities`. */
+export interface ConnectableNetwork {
+  network: string;
+  label: string;
+  /** The product's name as a merchant knows it. */
+  title: string;
+  /** The app page where the connection is made. */
+  connectHref: string;
+  /** Where the places one connection manages are listed and saved; `null` when there is nothing to pick. */
+  picker: { path: string } | null;
+  capabilities: PresenceCapabilities;
+}
+
+/**
+ * What the network switcher shows, or `null` when it should not be shown (one network, nothing to choose).
+ * The first network is the api's default, so asking for it by name is the same read as not asking.
+ */
+export function networkSwitcher(
+  networks: readonly ConnectableNetwork[] | undefined,
+  chosen: string | undefined,
+): { options: Array<{ value: string; label: string }>; value: string; isDefault: boolean } | null {
+  if (!networks || networks.length < 2) return null;
+  const value = networks.some((n) => n.network === chosen) ? (chosen as string) : networks[0]!.network;
+  return { value, isDefault: value === networks[0]!.network, options: networks.map((n) => ({ value: n.network, label: n.label })) };
 }
 
 export type ControlState = "controlled" | "not_controlled" | "unknown";
@@ -132,6 +183,10 @@ export type NeutralMetricKey =
   | "impressions";
 
 export interface PresenceCapabilities {
+  /** The network sends reviews into the inbox. Absent on an api that predates the field. */
+  reviews?: boolean;
+  /** A listing change can be written to the network. Absent on an api that predates the field. */
+  edit?: boolean;
   control: boolean;
   networkChanges: boolean;
   searchTerms: boolean;
@@ -184,10 +239,11 @@ export interface PresenceInsightsResponse {
 }
 
 /** Keyed by listing, so switching listings never shows another's figures from cache. */
-export const presenceListingQueryKey = (location: string | undefined) =>
-  ["presence", "listing", location ?? "default"] as const;
-export const presenceInsightsQueryKey = (days: number, location: string | undefined) =>
-  ["presence", "insights", days, location ?? "default"] as const;
+export const presenceListingQueryKey = (location: string | undefined, network?: string) =>
+  ["presence", "listing", location ?? "default", network ?? "default"] as const;
+export const presenceInsightsQueryKey = (days: number, location: string | undefined, network?: string) =>
+  ["presence", "insights", days, location ?? "default", network ?? "default"] as const;
+export const presenceCapabilitiesQueryKey = ["presence", "capabilities"] as const;
 
 /**
  * What the location switcher shows, or `null` when it should not be shown.
@@ -241,44 +297,50 @@ export interface SetupMessage {
   body: string;
 }
 
-/** What to say when there is nothing to show yet. `null` means: show the data. */
+/**
+ * What to say when there is nothing to show yet. `null` means: show the data.
+ *
+ * @param label the network's display name from the api (the adapter's declaration), or `null` when no network is known yet
+ */
 export function setupMessage(
   setup: PresenceSetup,
   hasListing: boolean,
   subject: "listing" | "performance",
+  label: string | null,
 ): SetupMessage | null {
   const what = subject === "listing" ? "your listing" : "how your listing is doing";
+  const n = label ?? "The network";
   switch (setup) {
     case "not_connected":
       return {
-        headline: "Google isn't connected yet",
-        body: `Connect Google above to see ${what} here.`,
+        headline: label ? `${label} isn't connected yet` : "Nothing is connected yet",
+        body: `Connect ${label ?? "a network"} above to see ${what} here.`,
       };
     case "needs_reconnect":
       // A saved listing stays on screen (as sync_failing does); only the figures,
       // which cannot be read, are replaced by the message.
       if (hasListing && subject === "listing") return null;
       return {
-        headline: "Google needs you to reconnect",
-        body: `Google stopped accepting our access, so we can't read ${what}. Reconnect above.`,
+        headline: `${n} needs you to reconnect`,
+        body: `${n} stopped accepting our access, so we can't read ${what}. Reconnect above.`,
       };
     case "needs_location":
       return {
-        headline: "Choose which Google listing is yours",
+        headline: `Choose which ${label ?? "network"} listing is yours`,
         body: `Nothing is read until you choose a listing above, so there is no ${subject} to show.`,
       };
     case "importing":
       if (hasListing && subject === "listing") return null;
       return {
         headline:
-          subject === "listing" ? "Getting your listing from Google" : "Waiting for your first figures",
+          subject === "listing" ? `Getting your listing from ${label ?? "the network"}` : "Waiting for your first figures",
         body: `We have not received ${subject === "listing" ? "your listing" : "any figures"} yet. This usually takes a few minutes after you choose a listing.`,
       };
     case "sync_failing":
       return hasListing
         ? null
         : {
-            headline: "We couldn't read your listing from Google",
+            headline: `We couldn't read your listing from ${label ?? "the network"}`,
             body: "The last attempt failed and we have nothing saved to show. Try again from the card above.",
           };
     case "ready":
@@ -287,17 +349,18 @@ export function setupMessage(
 }
 
 /** A sentence for a failing sync that still has something to show. */
-export function staleSyncNote(setup: PresenceSetup): string | null {
+export function staleSyncNote(setup: PresenceSetup, label: string | null): string | null {
+  const n = label ?? "the network";
   if (setup === "sync_failing") {
-    return "The last sync with Google failed, so this may be out of date.";
+    return `The last sync with ${n} failed, so this may be out of date.`;
   }
   if (setup === "needs_reconnect") {
-    return "Google needs you to reconnect, so this may be out of date. Reconnect above.";
+    return `${label ?? "The network"} needs you to reconnect, so this may be out of date. Reconnect above.`;
   }
   return null;
 }
 
-// ── Listing: differences from Google ─────────────────────────────────────────
+// ── Listing: differences from the network ─────────────────────────────────────────
 
 export type DriftStatus = "differs" | "matches" | "not_checked";
 
@@ -333,19 +396,26 @@ export const LISTING_ROWS: readonly ListingRowSpec[] = [
  */
 export function driftStatus(
   compares: readonly string[],
-  google: PresenceListingResponse["google"],
+  entry: Pick<PresenceNetworkEntry, "lastSyncedAt" | "driftFields"> | null,
 ): DriftStatus {
   if (compares.length === 0) return "not_checked";
-  if (!google || !google.lastSyncedAt) return "not_checked";
-  const drifted = google.driftFields ?? [];
+  if (!entry || !entry.lastSyncedAt) return "not_checked";
+  const drifted = entry.driftFields ?? [];
   return compares.some((f) => drifted.includes(f)) ? "differs" : "matches";
 }
 
-export const DRIFT_LABEL: Record<DriftStatus, string> = {
-  differs: "Google shows something different",
-  matches: "Same on Google",
-  not_checked: "Not compared with Google",
-};
+/** What a drift badge says, in the network's own name (`null`: no network known, so "the network"). */
+export function driftLabel(status: DriftStatus, label: string | null): string {
+  const n = label ?? "the network";
+  switch (status) {
+    case "differs":
+      return `${label ?? "The network"} shows something different`;
+    case "matches":
+      return `Same on ${n}`;
+    case "not_checked":
+      return `Not compared with ${n}`;
+  }
+}
 
 // ── Listing: values as words ─────────────────────────────────────────────────
 
@@ -404,7 +474,7 @@ export const INSIGHT_METRICS: readonly { key: InsightKey; label: string; neutral
   { key: "calls", label: "Calls", neutral: "calls" },
   { key: "directions", label: "Directions", neutral: "directionRequests" },
   { key: "websiteClicks", label: "Website clicks", neutral: "websiteClicks" },
-  { key: "messagingClicks", label: "WhatsApp and messages", neutral: "messagingClicks" },
+  { key: "messagingClicks", label: "Messages", neutral: "messagingClicks" },
   { key: "bookings", label: "Bookings", neutral: "bookings" },
 ];
 
@@ -420,14 +490,17 @@ export function declaredMetrics(
   return INSIGHT_METRICS.filter((m) => declared.has(m.neutral));
 }
 
+/**
+ * Whether the insights panel is drawn for a network: not when its adapter declares no figures at all (`metricKeys: []`).
+ * With no declaration to go by (an older api, or no entry yet) it is drawn, as `declaredMetrics` does.
+ */
+export function drawsInsights(entry: Pick<PresenceNetworkEntry, "capabilities"> | null | undefined): boolean {
+  const keys = entry?.capabilities?.metricKeys;
+  return !Array.isArray(keys) || keys.length > 0;
+}
+
 /** What a tile or a chart says for a figure that is missing. It is never "0". */
 export const NOT_AVAILABLE_YET = "Not available yet";
-
-/**
- * The display name of the network this page reads. The helpers in this file take a name as an argument and
- * name none, so the one place a name lives is here, passed in by the components.
- */
-export const PRESENCE_NETWORK_LABEL = "Google";
 
 export const INSIGHT_WINDOWS: readonly { days: number; label: string }[] = [
   { days: 7, label: "7 days" },
@@ -472,7 +545,7 @@ export function metricTotal(series: InsightDay[], key: InsightKey): number | nul
 
 export interface ChartPoint {
   date: string;
-  /** `null` is a day Google sent nothing for: a gap in the line, not a zero. */
+  /** `null` is a day the network sent nothing for: a gap in the line, not a zero. */
   value: number | null;
 }
 
@@ -500,9 +573,9 @@ export function chartPoints(
 }
 
 /** Said whenever the window is not full. */
-export function coverageNote(series: InsightDay[], days: number): string | null {
+export function coverageNote(series: InsightDay[], days: number, label: string | null): string | null {
   if (series.length === 0 || series.length >= days) return null;
-  return `Google has sent figures for ${series.length} of the last ${days} days. The other days are left blank, not counted as zero.`;
+  return `${label ?? "The network"} has sent figures for ${series.length} of the last ${days} days. The other days are left blank, not counted as zero.`;
 }
 
 /**
@@ -544,11 +617,11 @@ const NOT_CONTROLLED_BODY: Record<string, (label: string) => string> = {
  * @param label the network's display name, passed in so this file names none
  */
 export function controlNote(
-  google: Pick<NonNullable<PresenceListingResponse["google"]>, "control" | "capabilities"> | null,
+  entry: Pick<PresenceNetworkEntry, "control" | "capabilities"> | null,
   label: string,
 ): ControlNote | null {
-  if (!google || !google.capabilities?.control || !google.control) return null;
-  const c = google.control;
+  if (!entry || !entry.capabilities?.control || !entry.control) return null;
+  const c = entry.control;
   const extras: string[] = [];
   if (c.pendingEdits === true) {
     extras.push(`Some of your edits are waiting for ${label} to publish them.`);
@@ -619,11 +692,11 @@ export type ChangesView =
  * `null` return: the network does not report changes, so there is no section.
  */
 export function changesView(
-  google: Pick<NonNullable<PresenceListingResponse["google"]>, "changes" | "capabilities"> | null,
+  entry: Pick<PresenceNetworkEntry, "changes" | "capabilities"> | null,
   label: string,
 ): ChangesView | null {
-  if (!google || !google.capabilities?.networkChanges || !google.changes) return null;
-  const { items, pendingFields } = google.changes;
+  if (!entry || !entry.capabilities?.networkChanges || !entry.changes) return null;
+  const { items, pendingFields } = entry.changes;
   if (items === null) {
     return {
       kind: "no_answer",
@@ -680,11 +753,11 @@ export type SearchTermsView =
  * NEVER ASKED (`terms: null`) IS NOT "NOBODY SEARCHED": the first says we have no answer.
  */
 export function searchTermsView(
-  google: Pick<NonNullable<PresenceListingResponse["google"]>, "searchTerms" | "capabilities"> | null,
+  entry: Pick<PresenceNetworkEntry, "searchTerms" | "capabilities"> | null,
   label: string,
 ): SearchTermsView | null {
-  if (!google || !google.capabilities?.searchTerms || !google.searchTerms) return null;
-  const st = google.searchTerms;
+  if (!entry || !entry.capabilities?.searchTerms || !entry.searchTerms) return null;
+  const st = entry.searchTerms;
   if (st.terms === null || st.month === null) {
     return {
       kind: "no_answer",

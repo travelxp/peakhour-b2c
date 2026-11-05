@@ -102,10 +102,10 @@ function WorstList({ summary }: { summary: ReviewSummary }) {
 }
 
 /** `location` narrows the summary to one listing; absent is the whole business. */
-export function ReviewSummaryCard({ location }: { location?: string }) {
+export function ReviewSummaryCard({ location, network }: { location?: string; network?: string }) {
   const query = useQuery({
-    queryKey: [...REVIEW_SUMMARY_QUERY_KEY, location ?? "all"],
-    queryFn: () => presenceApi.reviewSummary(undefined, location),
+    queryKey: [...REVIEW_SUMMARY_QUERY_KEY, location ?? "all", network ?? "default"],
+    queryFn: () => presenceApi.reviewSummary(undefined, location, network),
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
   });
@@ -169,7 +169,7 @@ export function ReviewSummaryCard({ location }: { location?: string }) {
         <div>
           <h2 className="font-medium">Reviews</h2>
           <p className="text-xs text-muted-foreground">
-            Google Business Profile · last {summary.days} days
+            Reviews · last {summary.days} days
           </p>
         </div>
         {cta && (

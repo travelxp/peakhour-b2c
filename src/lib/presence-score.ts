@@ -64,7 +64,7 @@ export type ListingScoreResponse =
   | { state: "not_connected" | "needs_reconnect" | "needs_location" | "sync_failing" | "importing" }
   | { state: "ready"; listingId: string; network: { key: string; label: string }; score: ListingScoreBody; health: HealthItem[] };
 
-export const presenceScoreQueryKey = (location: string | undefined) => ["presence", "score", location ?? "default"] as const;
+export const presenceScoreQueryKey = (location: string | undefined, network?: string) => ["presence", "score", location ?? "default", network ?? "default"] as const;
 
 /** What the card says while there is no score to show, in plain words with the next step. */
 export function scoreEmptyState(r: ListingScoreResponse | undefined): { headline: string; description: string } | null {

@@ -4,6 +4,8 @@ import {
   addressLines,
   chartPoints,
   coverageNote,
+  driftLabel,
+  drawsInsights,
   driftStatus,
   fetchView,
   hoursLines,
@@ -13,14 +15,21 @@ import {
   presenceListingQueryKey,
   windowSeries,
   metricTotal,
+  networkLabel,
+  networkSwitcher,
+  primaryEntry,
   setupMessage,
   staleSyncNote,
   type InsightDay,
   type PresenceListingResponse,
+  type PresenceNetworkEntry,
   type PresenceSetup,
 } from "./presence-panels";
+import { presenceQuery } from "./api/presence";
 
-const google = (over: Partial<NonNullable<PresenceListingResponse["google"]>> = {}) => ({
+const google = (over: Partial<PresenceNetworkEntry> = {}) => ({
+  network: "testnet",
+  label: "Testnet",
   externalId: "locations/1",
   status: "synced",
   syncMode: "auto",
@@ -130,29 +139,38 @@ describe("setupMessage", () => {
     "importing",
   ];
   it("each non-ready state has its own distinct headline", () => {
-    const heads = states.map((s) => setupMessage(s, false, "listing")?.headline);
+    const heads = states.map((s) => setupMessage(s, false, "listing", "Testnet")?.headline);
     expect(heads.every(Boolean)).toBe(true);
     expect(new Set(heads).size).toBe(states.length);
   });
   it("ready shows data", () => {
-    expect(setupMessage("ready", true, "listing")).toBeNull();
+    expect(setupMessage("ready", true, "listing", "Testnet")).toBeNull();
   });
   it("a failing sync with a saved listing shows it, with a note", () => {
-    expect(setupMessage("sync_failing", true, "listing")).toBeNull();
-    expect(staleSyncNote("sync_failing")).toMatch(/failed/);
-    expect(staleSyncNote("ready")).toBeNull();
+    expect(setupMessage("sync_failing", true, "listing", "Testnet")).toBeNull();
+    expect(staleSyncNote("sync_failing", "Testnet")).toMatch(/failed/);
+    expect(staleSyncNote("ready", "Testnet")).toBeNull();
   });
   it("a failing sync with nothing saved says so", () => {
-    expect(setupMessage("sync_failing", false, "listing")?.headline).toMatch(/couldn't read/);
+    expect(setupMessage("sync_failing", false, "listing", "Testnet")?.headline).toMatch(/couldn't read/);
   });
-  it("says Google, never GBP, and claims nothing live", () => {
+  it("names the network by the label it is given, and no network when it is given none", () => {
     for (const s of [...states, "sync_failing"] as PresenceSetup[]) {
       for (const subject of ["listing", "performance"] as const) {
-        const m = setupMessage(s, false, subject);
-        const text = `${m?.headline} ${m?.body}`;
-        expect(text).not.toMatch(/GBP|Business Profile|\blive\b/);
+        const withLabel = setupMessage(s, false, subject, "Testnet");
+        const without = setupMessage(s, false, subject, null);
+        // a state whose words never name a network (performance while importing) is fine either way
+        if (/Testnet/.test(`${withLabel?.headline} ${withLabel?.body}`)) {
+          expect(`${without?.headline} ${without?.body}`).not.toMatch(/Testnet/);
+        }
+        const text = `${withLabel?.headline} ${withLabel?.body} ${without?.headline} ${without?.body}`;
+        // never a typed network, and nothing claims to be live
+        expect(text).not.toMatch(/Google|GBP|Business Profile|\blive\b/);
       }
     }
+    expect(setupMessage("not_connected", false, "listing", "Testnet")?.headline).toBe("Testnet isn't connected yet");
+    expect(setupMessage("not_connected", false, "listing", null)?.headline).toBe("Nothing is connected yet");
+    expect(setupMessage("needs_reconnect", false, "listing", "Other")?.headline).toBe("Other needs you to reconnect");
   });
 });
 
@@ -208,17 +226,18 @@ describe("chartPoints", () => {
 
 describe("coverageNote", () => {
   it("is silent for a full window or no data", () => {
-    expect(coverageNote([], 7)).toBeNull();
+    expect(coverageNote([], 7, "Testnet")).toBeNull();
     expect(
       coverageNote(
         Array.from({ length: 7 }, (_, i) => day(`2026-11-0${i + 1}`)),
         7,
+        "Testnet",
       ),
     ).toBeNull();
   });
   it("says how many days have figures, and that the rest are not zero", () => {
-    const n = coverageNote([day("2026-11-01"), day("2026-11-02")], 7);
-    expect(n).toContain("2 of the last 7 days");
+    const n = coverageNote([day("2026-11-01"), day("2026-11-02")], 7, "Testnet");
+    expect(n).toContain("Testnet has sent figures for 2 of the last 7 days");
     expect(n).toContain("not counted as zero");
   });
 });
@@ -264,12 +283,12 @@ describe("windowSeries keeps tiles, chart and coverage on one list", () => {
 
 describe("a saved listing survives a lapsed connection", () => {
   it("reconnect and importing keep a saved listing on the listing panel, with a note", () => {
-    expect(setupMessage("needs_reconnect", true, "listing")).toBeNull();
-    expect(setupMessage("importing", true, "listing")).toBeNull();
-    expect(staleSyncNote("needs_reconnect")).toMatch(/reconnect/);
+    expect(setupMessage("needs_reconnect", true, "listing", "Testnet")).toBeNull();
+    expect(setupMessage("importing", true, "listing", "Testnet")).toBeNull();
+    expect(staleSyncNote("needs_reconnect", "Testnet")).toMatch(/reconnect/);
   });
   it("but the figures panel still says it cannot read them", () => {
-    expect(setupMessage("needs_reconnect", true, "performance")?.headline).toMatch(/reconnect/);
+    expect(setupMessage("needs_reconnect", true, "performance", "Testnet")?.headline).toMatch(/reconnect/);
   });
 });
 
@@ -335,5 +354,91 @@ describe("query keys follow the listing", () => {
     expect(presenceListingQueryKey("locations/1")).not.toEqual(presenceListingQueryKey("locations/2"));
     expect(presenceInsightsQueryKey(28, "locations/1")).not.toEqual(presenceInsightsQueryKey(28, "locations/2"));
     expect(presenceInsightsQueryKey(28, undefined)).toEqual(presenceInsightsQueryKey(28, undefined));
+  });
+});
+
+// ── PE-EC: the screens draw from networks[] and the adapter's words ──────────────────────────────
+
+const entry = (over: Partial<PresenceNetworkEntry> = {}): PresenceNetworkEntry => google(over) as unknown as PresenceNetworkEntry;
+const response = (over: Partial<PresenceListingResponse> = {}): PresenceListingResponse => ({
+  setup: "ready",
+  connection: { network: "net_b", label: "Net B", status: "active", locationName: "l/1", lastSyncAt: null, lastError: null },
+  listing: null,
+  networks: [],
+  ...over,
+});
+
+describe("primaryEntry and networkLabel: a listing with two networks is not read from its first", () => {
+  const a = entry({ network: "net_a", label: "Net A", status: "synced", driftFields: [] });
+  const b = entry({ network: "net_b", label: "Net B", status: "drift", driftFields: ["name"] });
+
+  it("picks the connection's own network, whatever its position", () => {
+    expect(primaryEntry(response({ networks: [a, b] }))?.network).toBe("net_b");
+    expect(primaryEntry(response({ networks: [b, a], connection: { ...response().connection!, network: "net_a", label: "Net A" } }))?.network).toBe("net_a");
+  });
+  it("falls back to the first entry only when the connection names none", () => {
+    expect(primaryEntry(response({ networks: [a, b], connection: null }))?.network).toBe("net_a");
+    expect(primaryEntry(response({ networks: [] }))).toBeNull();
+    expect(primaryEntry(undefined)).toBeNull();
+  });
+  it("the label is the entry's, else the connection's, else nothing", () => {
+    expect(networkLabel(response({ networks: [a, b] }))).toBe("Net B");
+    expect(networkLabel(response({ networks: [] }))).toBe("Net B");
+    expect(networkLabel(response({ networks: [], connection: null }))).toBeNull();
+  });
+  it("drift is judged by that entry's values alone", () => {
+    expect(driftStatus(["name"], primaryEntry(response({ networks: [a, b] })))).toBe("differs");
+    expect(driftStatus(["name"], a)).toBe("matches");
+  });
+});
+
+describe("networkSwitcher: shown only when there is a choice", () => {
+  const n = (network: string, label: string) => ({ network, label, title: label, connectHref: "/x", picker: null, capabilities: { control: false, networkChanges: false, searchTerms: false, metricKeys: [] } });
+  it("is null for none or one network", () => {
+    expect(networkSwitcher(undefined, undefined)).toBeNull();
+    expect(networkSwitcher([], undefined)).toBeNull();
+    expect(networkSwitcher([n("a", "A")], undefined)).toBeNull();
+  });
+  it("defaults to the first, and a stale choice falls back to it", () => {
+    const list = [n("a", "A"), n("b", "B")];
+    expect(networkSwitcher(list, undefined)).toMatchObject({ value: "a", isDefault: true });
+    expect(networkSwitcher(list, "b")).toMatchObject({ value: "b", isDefault: false });
+    expect(networkSwitcher(list, "gone")).toMatchObject({ value: "a", isDefault: true });
+    expect(networkSwitcher(list, "b")!.options).toEqual([{ value: "a", label: "A" }, { value: "b", label: "B" }]);
+  });
+});
+
+describe("drawsInsights: a panel for a figure the network does not declare does not draw", () => {
+  const caps = (metricKeys: PresenceNetworkEntry["capabilities"]["metricKeys"]) => ({ capabilities: { control: false, networkChanges: false, searchTerms: false, metricKeys } });
+  it("is false for a network that declares no figures", () => {
+    expect(drawsInsights(caps([]))).toBe(false);
+  });
+  it("is true when any figure is declared, and when nothing is known yet", () => {
+    expect(drawsInsights(caps(["calls"]))).toBe(true);
+    expect(drawsInsights(null)).toBe(true);
+    expect(drawsInsights(undefined)).toBe(true);
+  });
+});
+
+describe("driftLabel: the network's name comes from the caller", () => {
+  it("says the label, and 'the network' when none is known", () => {
+    expect(driftLabel("differs", "Testnet")).toBe("Testnet shows something different");
+    expect(driftLabel("matches", "Testnet")).toBe("Same on Testnet");
+    expect(driftLabel("not_checked", "Testnet")).toBe("Not compared with Testnet");
+    expect(driftLabel("matches", null)).toBe("Same on the network");
+  });
+});
+
+describe("the network travels in the query and in the cache key", () => {
+  it("a chosen network is sent as ?network=, and left out when none is chosen", () => {
+    expect(presenceQuery({ network: "net_b" })).toBe("?network=net_b");
+    expect(presenceQuery({ days: 7, location: "l/1", network: "net_b" })).toBe("?days=7&location=l%2F1&network=net_b");
+    expect(presenceQuery({ location: "l/1" })).toBe("?location=l%2F1");
+    expect(presenceQuery({})).toBe("");
+  });
+  it("two networks never share a cached listing, insights read or score", () => {
+    expect(presenceListingQueryKey("l/1", "net_a")).not.toEqual(presenceListingQueryKey("l/1", "net_b"));
+    expect(presenceInsightsQueryKey(28, "l/1", "net_a")).not.toEqual(presenceInsightsQueryKey(28, "l/1", "net_b"));
+    expect(presenceListingQueryKey("l/1")).toEqual(presenceListingQueryKey("l/1", undefined));
   });
 });

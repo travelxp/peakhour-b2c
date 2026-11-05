@@ -1,6 +1,6 @@
 /**
  * Two decisions the compose-to-listing panel rests on, kept where they can be
- * tested — the same shape as `components/presence/gbp-card-state.ts`, and for
+ * tested — the same shape as `components/presence/network-card-state.ts`, and for
  * the same reason: this repo runs vitest without jsdom, so a rule that lives
  * inside a component is a rule nothing asserts.
  *

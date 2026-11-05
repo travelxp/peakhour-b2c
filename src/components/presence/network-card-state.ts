@@ -1,5 +1,5 @@
 /**
- * What the Google Business Profile card says, as a pure function.
+ * What a network's connect card says, as a pure function.
  *
  * ★★EXTRACTED BECAUSE THE BRANCH IS THE BUG, NOT THE MARKUP. The failure this
  * card exists to fix was itself a branch nobody could see: a merchant who
@@ -9,7 +9,7 @@
  * unless this decides it does.
  */
 
-export type GbpConnectionStatus =
+export type NetworkConnectionStatus =
   | "active"
   | "disconnected"
   | "expired"
@@ -17,10 +17,10 @@ export type GbpConnectionStatus =
   | "needs_reauth"
   | undefined;
 
-export type GbpCardKind =
+export type NetworkCardKind =
   /** Not connected at all. */
   | "disconnected"
-  /** Google stopped accepting our credentials. */
+  /** The network stopped accepting our credentials. */
   | "needs_reconnect"
   /** The last sync failed. The cron will not retry it — see below. */
   | "sync_failing"
@@ -31,8 +31,8 @@ export type GbpCardKind =
   /** Connected; we have not been able to read WHETHER a listing is chosen. */
   | "connected_unknown";
 
-export interface GbpCardState {
-  kind: GbpCardKind;
+export interface NetworkCardState {
+  kind: NetworkCardKind;
   /** Whether the location picker is reachable from this state. */
   canPick: boolean;
   /** Primary action label. */
@@ -49,7 +49,7 @@ export interface GbpCardState {
  * ★★THE THIRD VALUE IS THE POINT. Collapsing "unknown" into "not selected" told
  * a fully configured merchant "Nothing syncs until you choose" for as long as
  * the capabilities read was in flight - and PERMANENTLY on any deployment whose
- * api predates the field. The route returns the list for a Google connection,
+ * api predates the field. The route returns the list for a connection with a picker,
  * so the key is always present on a new api and always absent on an old one:
  * `undefined` is a reliable "we do not know", not a guess.
  *
@@ -59,10 +59,12 @@ export interface GbpCardState {
  * listings it points at. Rendering it as "Connected - Syncing Bandra" is exactly
  * the healthy-looking dead connection this card exists to remove.
  */
-export function gbpCardState(
-  status: GbpConnectionStatus,
+export function networkCardState(
+  status: NetworkConnectionStatus,
   locationNames: readonly string[] | undefined,
-): GbpCardState {
+  /** Whether the network has places to choose among (its adapter declares a picker). A network with one place has nothing to pick. */
+  hasPicker = true,
+): NetworkCardState {
   if (status === "expired" || status === "needs_reauth") {
     return { kind: "needs_reconnect", canPick: false, action: "Reconnect" };
   }
@@ -80,6 +82,13 @@ export function gbpCardState(
   // listing" over copy blaming the last sync — while its "Try again" enqueues a
   // sync the provider answers `skipped: not_configured`, because the thing
   // actually missing is the pick. Choosing is the fix; say so.
+  // A network with one place has nothing to choose, so the picker states never apply: it is connected, or it is failing.
+  if (!hasPicker) {
+    return status === "error"
+      ? { kind: "sync_failing", canPick: false, action: "Manage connection" }
+      : { kind: "ready", canPick: false, action: "Manage connection" };
+  }
+
   if (locationNames !== undefined && locationNames.length === 0) {
     return { kind: "needs_location", canPick: true, action: "Choose your listing" };
   }

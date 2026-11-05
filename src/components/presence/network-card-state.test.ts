@@ -1,14 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
-  gbpCardState,
+  networkCardState,
   canSaveLocation,
   selectionLabel,
   toggleLocation,
   locationLabel,
   emptyListingReason,
   effectiveDraft,
-  type GbpConnectionStatus,
-} from "./gbp-card-state";
+  type NetworkConnectionStatus,
+} from "./network-card-state";
 
 /**
  * The Presence card's branches.
@@ -20,10 +20,10 @@ import {
  * feature exists to remove; the first draft of this file reproduced two of them.
  */
 
-describe("gbpCardState", () => {
+describe("networkCardState", () => {
   const cases: Array<{
     what: string;
-    status: GbpConnectionStatus;
+    status: NetworkConnectionStatus;
     location: string[] | undefined;
     kind: string;
     canPick: boolean;
@@ -46,7 +46,7 @@ describe("gbpCardState", () => {
 
   for (const c of cases) {
     it(c.what, () => {
-      const s = gbpCardState(c.status, c.location);
+      const s = networkCardState(c.status, c.location);
       expect(s.kind).toBe(c.kind);
       expect(s.canPick).toBe(c.canPick);
     });
@@ -58,42 +58,42 @@ describe("gbpCardState", () => {
     // is not receiving. Rendering "Connected · Syncing Bandra" over that is the
     // healthy-looking dead connection this card exists to remove — and the
     // first version of this file did exactly that.
-    expect(gbpCardState("error", ["locations/1"]).kind).not.toBe("ready");
-    expect(gbpCardState("error", ["locations/1"]).kind).toBe("sync_failing");
+    expect(networkCardState("error", ["locations/1"]).kind).not.toBe("ready");
+    expect(networkCardState("error", ["locations/1"]).kind).toBe("sync_failing");
   });
 
   it("★★`undefined` is 'we have not read it', not 'nothing is selected' (`[]`)", () => {
     // The capabilities read is in flight, failed, or the api predates the
     // field — which is EVERY deployment until it ships. Collapsing that into
     // `null` told a fully configured merchant "Nothing syncs until you choose".
-    expect(gbpCardState("active", undefined).kind).toBe("connected_unknown");
-    expect(gbpCardState("active", []).kind).toBe("needs_location");
+    expect(networkCardState("active", undefined).kind).toBe("connected_unknown");
+    expect(networkCardState("active", []).kind).toBe("needs_location");
   });
 
   it("★★a dead token never offers the picker — that route 409s", () => {
     for (const status of ["expired", "needs_reauth"] as const) {
-      expect(gbpCardState(status, []).canPick).toBe(false);
-      expect(gbpCardState(status, []).action).toBe("Reconnect");
+      expect(networkCardState(status, []).canPick).toBe(false);
+      expect(networkCardState(status, []).action).toBe("Reconnect");
     }
   });
 
   it("★the action label distinguishes first choice from a change", () => {
-    expect(gbpCardState("active", []).action).toBe("Choose your listing");
-    expect(gbpCardState("active", undefined).action).toBe("Choose your listing");
-    expect(gbpCardState("active", ["locations/1"]).action).toBe("Change listings");
+    expect(networkCardState("active", []).action).toBe("Choose your listing");
+    expect(networkCardState("active", undefined).action).toBe("Choose your listing");
+    expect(networkCardState("active", ["locations/1"]).action).toBe("Change listings");
   });
 
   it("★and a failing sync is still pickable — the pick is one of the few fixes", () => {
     // The api restores `active` when a pick lands on an errored connection.
-    expect(gbpCardState("error", ["locations/1"]).canPick).toBe(true);
+    expect(networkCardState("error", ["locations/1"]).canPick).toBe(true);
   });
 
   it("★★an errored connection with NOTHING PICKED is a picking problem", () => {
     // It used to say "Change listing" over copy blaming the last sync, and its
     // "Try again" enqueues a sync the provider answers `skipped:
     // not_configured` — because the thing actually missing is the pick.
-    expect(gbpCardState("error", []).kind).toBe("needs_location");
-    expect(gbpCardState("error", []).action).toBe("Choose your listing");
+    expect(networkCardState("error", []).kind).toBe("needs_location");
+    expect(networkCardState("error", []).action).toBe("Choose your listing");
   });
 });
 
@@ -214,5 +214,27 @@ describe("★★emptyListingReason", () => {
     expect(emptyListingReason(true)).toBe("none");
     expect(emptyListingReason(false)).toBe("unreadable");
     expect(emptyListingReason(undefined)).toBe("unreadable");
+  });
+});
+
+describe("a network with no picker (one place, nothing to choose)", () => {
+  it("is ready when connected and never asks for a listing", () => {
+    expect(networkCardState("active", undefined, false)).toEqual({ kind: "ready", canPick: false, action: "Manage connection" });
+    expect(networkCardState("active", [], false).kind).toBe("ready");
+  });
+
+  it("a failing sync is still failing, and offers no picker", () => {
+    expect(networkCardState("error", undefined, false)).toMatchObject({ kind: "sync_failing", canPick: false });
+  });
+
+  it("not connected and a lapsed grant read the same as with a picker", () => {
+    expect(networkCardState(undefined, undefined, false).kind).toBe("disconnected");
+    expect(networkCardState("needs_reauth", undefined, false).kind).toBe("needs_reconnect");
+    expect(networkCardState("expired", undefined, false).kind).toBe("needs_reconnect");
+  });
+
+  it("a network WITH a picker keeps asking (the default)", () => {
+    expect(networkCardState("active", [], true).kind).toBe("needs_location");
+    expect(networkCardState("active", []).kind).toBe("needs_location");
   });
 });

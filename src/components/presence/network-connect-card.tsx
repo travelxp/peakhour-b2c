@@ -12,18 +12,20 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  gbpCardState,
+  networkCardState,
   canSaveLocation,
   locationLabel,
   emptyListingReason,
   effectiveDraft,
   toggleLocation,
   selectionLabel,
-  type GbpConnectionStatus,
-} from "@/components/presence/gbp-card-state";
+  type NetworkConnectionStatus,
+} from "@/components/presence/network-card-state";
+import type { ConnectableNetwork } from "@/lib/presence-panels";
 
 /**
- * The Google Business Profile connect + location card on the Presence home.
+ * One network's connect + location card on the Presence home, drawn from the adapter's declaration (`GET /v1/presence/capabilities`):
+ * its title, label, where it is connected, and whether it has places to pick. A second network is a second card with no edit here.
  *
  * ★★IT REPLACES A "COMING SOON" BADGE THAT STOPPED BEING TRUE. Google approved
  * Business Profile API access on 2026-08-21 and the provider is `available`, so
@@ -38,14 +40,14 @@ import {
  * that same field. A merchant with two shops had no way to say which one,
  * anywhere in the product.
  *
- * ★THE BRANCHES LIVE IN `gbp-card-state.ts`, WHICH HAS TESTS. This file has
+ * ★THE BRANCHES LIVE IN `network-card-state.ts`, WHICH HAS TESTS. This file has
  * none — b2c renders nothing in vitest — so anything that decides what a
  * merchant is TOLD belongs there rather than inline here.
  */
 
 interface ConnectionStatus {
   provider: string;
-  status?: GbpConnectionStatus;
+  status?: NetworkConnectionStatus;
   account?: { name?: string };
   lastError?: string;
 }
@@ -54,7 +56,7 @@ interface CapabilitiesResponse {
   provider: string;
   /** ★NOT where a Google selection lives — see the api route's note. */
   capabilities: Record<string, unknown> | null;
-  /** Absent entirely on an api that predates the field. See `gbpCardState`. */
+  /** Absent entirely on an api that predates the field. See `networkCardState`. */
   locationNames?: string[];
   account?: {
     extra?: {
@@ -73,12 +75,15 @@ interface LocationsResponse {
   retired?: string[];
 }
 
-const PROVIDER = "google_business_profile";
-const STATUS_KEY = ["integration-status", PROVIDER];
-const CAP_KEY = ["integration-cap", PROVIDER];
-const LOCATIONS_KEY = ["gbp-locations", PROVIDER];
-
-export function GbpConnectCard() {
+export function NetworkConnectCard({ network }: { network: ConnectableNetwork }) {
+  // The network's key is the integration's provider name; the places route is whatever its adapter declares.
+  const PROVIDER = network.network;
+  const label = network.label;
+  const title = network.title;
+  const pickerPath = network.picker?.path ?? null;
+  const STATUS_KEY = ["integration-status", PROVIDER];
+  const CAP_KEY = ["integration-cap", PROVIDER];
+  const LOCATIONS_KEY = ["network-locations", PROVIDER];
   const qc = useQueryClient();
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -91,12 +96,12 @@ export function GbpConnectCard() {
   const isConnected = statusQ.data?.status === "active" || statusQ.data?.status === "error";
   // Computed before the queries because the locations query is gated on it;
   // the full card state needs `selected`, which needs the capabilities read.
-  const pickable = gbpCardState(statusQ.data?.status, undefined).canPick;
+  const pickable = networkCardState(statusQ.data?.status, undefined, pickerPath !== null).canPick;
 
   const capQ = useQuery({
     queryKey: CAP_KEY,
     queryFn: () => api.get<CapabilitiesResponse>(`/v1/integrations/${PROVIDER}/capabilities`),
-    enabled: isConnected,
+    enabled: isConnected && pickerPath !== null,
     refetchOnWindowFocus: false,
   });
 
@@ -106,7 +111,7 @@ export function GbpConnectCard() {
   // costs a call.
   const locationsQ = useQuery({
     queryKey: LOCATIONS_KEY,
-    queryFn: () => api.get<LocationsResponse>(`/v1/integrations/${PROVIDER}/gbp-locations`),
+    queryFn: () => api.get<LocationsResponse>(`/v1/integrations/${PROVIDER}/${pickerPath}`),
     // ★`canPick` TOO, NOT JUST `pickerOpen`. Nothing resets `pickerOpen` when
     // the connection goes to `needs_reauth` under an open picker — so the
     // query stayed enabled behind a hidden panel and went on requesting a
@@ -117,7 +122,7 @@ export function GbpConnectCard() {
 
   const setLocationMut = useMutation({
     mutationFn: (locationNames: string[]) =>
-      api.put(`/v1/integrations/${PROVIDER}/gbp-locations`, { locationNames }),
+      api.put(`/v1/integrations/${PROVIDER}/${pickerPath}`, { locationNames }),
     // ★★THE LOCATIONS CACHE HAS TO MOVE TOO, OR THE SAVE APPEARS TO UNDO ITSELF.
     // `selected` prefers this query over the capabilities read, and a disabled
     // query keeps its cache — so invalidating only CAP_KEY left the stale
@@ -175,20 +180,20 @@ export function GbpConnectCard() {
   // the rest of the session.
   //
   // ★`undefined` MEANS NOT READ, and must not collapse into `null`. See
-  // `gbpCardState`: on an api that predates the field the key is absent
+  // `networkCardState`: on an api that predates the field the key is absent
   // entirely, and treating that as "nothing selected" nags every configured
   // merchant on every deployment that has not shipped it yet.
   const selected = locationsQ.data ? locationsQ.data.selected : capQ.data?.locationNames;
-  const card = gbpCardState(statusQ.data?.status, selected);
+  const card = networkCardState(statusQ.data?.status, selected, pickerPath !== null);
   // The picker's list once it has loaded, else what connect captured — so the
   // selected listing has a name to show without a Google call.
   const known = locationsQ.data?.locations ?? capQ.data?.account?.extra?.locations ?? [];
-  const selectedLabel = selected ? selectionLabel(selected, known) : null;
+  const selectedLabel = selected && pickerPath !== null ? selectionLabel(selected, known) : null;
 
   // ★THE CAPABILITIES READ IS PART OF THE ANSWER, so its loading state is part
   // of the skeleton. Rendering the card first showed "Finish setup" for a
   // moment on every configured merchant's page load.
-  if (statusQ.isLoading || (isConnected && capQ.isLoading)) {
+  if (statusQ.isLoading || (isConnected && pickerPath !== null && capQ.isLoading)) {
     return (
       <div className="rounded-xl border bg-card p-6 shadow-sm">
         <Skeleton className="h-11 w-full" />
@@ -197,7 +202,7 @@ export function GbpConnectCard() {
   }
 
   // ★★A FAILED STATUS READ IS NOT A DISCONNECTED MERCHANT. `statusQ.data` is
-  // `undefined` on error, which `gbpCardState` reads as "not connected" — so a
+  // `undefined` on error, which `networkCardState` reads as "not connected" — so a
   // connected, syncing store would have been shown a Connect button. That is
   // the same unknown-collapsed-into-negative this card fixed for
   // `locationName`, and it belongs here rather than in the state machine
@@ -210,7 +215,7 @@ export function GbpConnectCard() {
     return (
       <div className="rounded-xl border bg-card p-6 shadow-sm">
         <PickerNotice onRetry={() => statusQ.refetch()}>
-          We couldn&rsquo;t check your Google Business Profile connection just now.
+          We couldn&rsquo;t check your {title} connection just now.
         </PickerNotice>
       </div>
     );
@@ -222,13 +227,13 @@ export function GbpConnectCard() {
         <div className="flex items-start gap-4">
           <span
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-white"
-            style={{ backgroundColor: "#34A853" }}
+            style={{ backgroundColor: "var(--primary)" }}
           >
             <MapPin className="h-6 w-6" />
           </span>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="font-semibold">Google Business Profile</h2>
+              <h2 className="font-semibold">{title}</h2>
               {card.kind === "ready" ? (
                 <Badge variant="secondary" className="gap-1">
                   <Check className="h-3 w-3" />
@@ -247,9 +252,13 @@ export function GbpConnectCard() {
 
             <p className="mt-1 text-sm text-muted-foreground">
               {card.kind === "ready" ? (
-                <>
-                  Syncing <span className="font-medium text-foreground">{selectedLabel}</span>.
-                </>
+                selectedLabel ? (
+                  <>
+                    Syncing <span className="font-medium text-foreground">{selectedLabel}</span>.
+                  </>
+                ) : (
+                  "Connected and syncing."
+                )
               ) : card.kind === "connected_unknown" ? (
                 "Connected. Choose which listings this business manages if you haven't already."
               ) : card.kind === "needs_location" ? (
@@ -273,9 +282,11 @@ export function GbpConnectCard() {
                   ) : null}
                 </>
               ) : card.kind === "needs_reconnect" ? (
-                "Google stopped accepting our access. Reconnect to resume your reviews."
+                `${label} stopped accepting our access. Reconnect to resume.`
+              ) : network.capabilities.reviews ? (
+                `Connect your listing to get your ${label} reviews in one inbox and reply to them there.`
               ) : (
-                "Connect your listing to get your Google reviews in one inbox and reply to them there."
+                `Connect your listing to keep it accurate on ${label}.`
               )}
             </p>
           </div>
@@ -322,8 +333,8 @@ export function GbpConnectCard() {
         <div className="mt-5 border-t pt-5">
           <PickerNotice>
             {locationsQ.data.retired.length === 1
-              ? "A listing you had selected is no longer in your Google account, so we’ve removed it."
-              : "Some listings you had selected are no longer in your Google account, so we’ve removed them."}{" "}
+              ? `A listing you had selected is no longer in your ${label} account, so we’ve removed it.`
+              : `Some listings you had selected are no longer in your ${label} account, so we’ve removed them.`}{" "}
             Its past figures and reviews are kept.
           </PickerNotice>
         </div>
@@ -332,6 +343,8 @@ export function GbpConnectCard() {
       {pickerOpen && card.canPick ? (
         <LocationPicker
           query={locationsQ}
+          label={label}
+          title={title}
           selected={selected ?? []}
           saving={setLocationMut.isPending}
           onChoose={(name) => setLocationMut.mutate(name)}
@@ -365,11 +378,15 @@ function PickerNotice({ children, onRetry }: { children: React.ReactNode; onRetr
 
 function LocationPicker({
   query,
+  label,
+  title,
   selected,
   saving,
   onChoose,
 }: {
   query: UseQueryResult<LocationsResponse, Error>;
+  label: string;
+  title: string;
   selected: string[];
   saving: boolean;
   onChoose: (locationNames: string[]) => void;
@@ -395,7 +412,7 @@ function LocationPicker({
         <PickerNotice onRetry={() => query.refetch()}>
           {query.error instanceof Error
             ? query.error.message
-            : "Could not read your listings from Google."}
+            : `Could not read your listings from ${label}.`}
         </PickerNotice>
       </div>
     );
@@ -413,12 +430,11 @@ function LocationPicker({
       <div className="mt-5 border-t pt-5">
         {reason === "none" ? (
           <PickerNotice>
-            This Google account manages no Business Profile listings. Create one in
-            Google Business Profile, then refresh.
+            This {label} account manages no listings. Create one in {title}, then refresh.
           </PickerNotice>
         ) : (
           <PickerNotice onRetry={() => query.refetch()}>
-            Google didn&rsquo;t return any of your listings just now, so we can&rsquo;t
+            {label} didn&rsquo;t return any of your listings just now, so we can&rsquo;t
             show the choices yet.
           </PickerNotice>
         )}
@@ -434,7 +450,7 @@ function LocationPicker({
       </p>
       <ul className="space-y-2">
         {locations.map((l) => {
-          const id = `gbp-loc-${l.locationName}`;
+          const id = `place-${l.locationName}`;
           return (
             <li key={l.locationName} className="flex items-center gap-2">
               <Checkbox
@@ -461,7 +477,7 @@ function LocationPicker({
           is not connectable. */}
       {query.data && !query.data.complete ? (
         <PickerNotice onRetry={() => query.refetch()}>
-          Google didn&rsquo;t return all of your listings just now, so this list may
+          {label} didn&rsquo;t return all of your listings just now, so this list may
           be short.
         </PickerNotice>
       ) : null}

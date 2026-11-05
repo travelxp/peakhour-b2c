@@ -16,7 +16,7 @@
  *
  * ⚠️THIS REPO RUNS VITEST WITHOUT JSDOM, so a rule inside the card is a rule
  * nothing asserts — the same split as `lib/review-reply.ts` and
- * `components/presence/gbp-card-state.ts`.
+ * `components/presence/network-card-state.ts`.
  *
  * @package peakhour-b2c
  */

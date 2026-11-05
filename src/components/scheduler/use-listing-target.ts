@@ -6,7 +6,7 @@
  *
  * ★THE DECISION ITSELF LIVES IN `lib/listing-target.ts`, not here. This repo
  * runs vitest without jsdom, so a rule inside a hook is a rule nothing asserts;
- * the same split as `components/presence/gbp-card-state.ts`. All this file does
+ * the same split as `components/presence/network-card-state.ts`. All this file does
  * is fetch the two facts and hand them over.
  *
  * ⚠️NEITHER FACT IS AUTHORISATION. `commitPlan` re-asks both questions
