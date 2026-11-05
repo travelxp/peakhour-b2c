@@ -11,6 +11,7 @@
 
 import type { HoursPeriod, SpecialHours } from "@/lib/presence-panels";
 import { photoValueLines } from "@/lib/presence-photos";
+import { PANEL_TITLES, extraValueLines, type ExtraField } from "@/lib/presence-extras";
 
 // ── Shapes the api returns ───────────────────────────────────────────────────
 
@@ -42,7 +43,9 @@ export interface NetworkCapability {
   writableFields: string[];
   riskyFields: string[];
   limits: ListingLimits;
-  options: { categories?: boolean };
+  options: { categories?: boolean; attributes?: boolean; services?: boolean };
+  /** Which of the four extra panels (posts, links, services, details) the network offers (PE-12). Absent on an older api: none. */
+  panels?: { posts: boolean; links: boolean; services: boolean; attributes: boolean };
   writes: { released: boolean; reason: string | null };
 }
 
@@ -405,7 +408,7 @@ const dayLabel = (iso: string) => {
 
 /** A change's field as a person reads it. A photo is not a form section, so it has no `SECTIONS` entry. */
 export function fieldTitle(field: string): string {
-  return SECTIONS.find((s) => s.field === field)?.title ?? (field === "media" ? "Photo" : field);
+  return SECTIONS.find((s) => s.field === field)?.title ?? (field === "media" ? "Photo" : (PANEL_TITLES[field as ExtraField] ?? field));
 }
 
 /** A value as plain lines for a before-and-after card. An empty list of lines is "nothing set". */
@@ -414,6 +417,11 @@ export function valueLines(field: string, value: unknown): string[] {
   switch (field) {
     case "media":
       return photoValueLines(value);
+    case "posts":
+    case "services":
+    case "attributes":
+    case "links":
+      return extraValueLines(field, value);
     case "regularHours": {
       const rows = (Array.isArray(value) ? value : []) as HoursPeriod[];
       return DAY_ORDER.flatMap((d) => {

@@ -10,6 +10,7 @@ import { HolidayOffersCard } from "@/components/presence/edit/holiday-offers-car
 import { useChangeOutcomes, useEditCapabilities, useListingChanges, usePresenceEditMutations } from "@/hooks/use-presence-edit";
 import { useListingQuery } from "@/hooks/use-presence-listing";
 import { fetchView, primaryEntry } from "@/lib/presence-panels";
+import { drawnExtraFields } from "@/lib/presence-extras";
 import { capabilityFor, drawnSections, errorWords, formAccess, requestedForm, writesNote, type EditField } from "@/lib/presence-edit";
 
 /** Another card asking for a field's form. A new object each time, so asking twice for one field opens it twice. */
@@ -124,6 +125,9 @@ export function EditListingCard({
     );
   }
   const switchNote = writesNote(cap);
+  // A change is listed by its own panel when that panel is drawn (photos, posts, services, details, links), so it is never listed twice.
+  const extraFields = new Set<string>(drawnExtraFields(cap));
+  const listedElsewhere = (c: { field: string; network: string }) => c.network === network && ((photoChangesElsewhere && c.field === "media") || extraFields.has(c.field));
   const ordinary = sections.filter((s) => !s.risky);
   const risky = sections.filter((s) => s.risky);
 
@@ -202,11 +206,11 @@ export function EditListingCard({
               Try again
             </Button>
           </div>
-        ) : changes.data && changes.data.items.some((c) => !(photoChangesElsewhere && c.field === "media" && c.network === network)) ? (
+        ) : changes.data && changes.data.items.some((c) => !listedElsewhere(c)) ? (
           <>
             {changes.isError && <p className="text-xs text-warning-on-tint">Could not refresh just now, so this may be out of date.</p>}
             {/* Photo changes are listed with the photos when that card is drawn; otherwise here. */}
-            {changes.data.items.filter((c) => !(photoChangesElsewhere && c.field === "media" && c.network === network)).map((c) => (
+            {changes.data.items.filter((c) => !listedElsewhere(c)).map((c) => (
               <ChangeCard key={c.id} change={c} label={cap.label} can={caps.data.can} m={m} outcome={outcomes.slotFor(c)} />
             ))}
           </>

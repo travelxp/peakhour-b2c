@@ -324,7 +324,9 @@ describe("how the panel is wired (pinned as text: b2c vitest renders no DOM)", (
   it("the edit card lists photo changes itself when the photos card is not drawn, and always lists another network's", () => {
     const edit = flat("components/presence/edit/edit-listing-card.tsx");
     // both the test that there is something to list and the list itself
-    expect(edit.match(/!\(photoChangesElsewhere && c\.field === "media" && c\.network === network\)/g)).toHaveLength(2);
+    expect(edit.match(/!listedElsewhere\(c\)/g)).toHaveLength(2);
+    // PE-12 widened the one rule: a photo change by the photos card, and a post, service, detail or link change by its own panel; always this network's only
+    expect(edit).toContain('c.network === network && ((photoChangesElsewhere && c.field === "media") || extraFields.has(c.field))');
   });
   it("the picker is offered no Generate tab: a business's photos are not made by AI and nothing is charged", () => {
     expect(card()).toContain('tabs={["drive", "upload"]}');

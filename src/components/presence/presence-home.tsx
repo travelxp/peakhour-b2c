@@ -10,6 +10,10 @@ import { ListingPanel } from "@/components/presence/listing-panel";
 import { ListingScoreCard } from "@/components/presence/listing-score-card";
 import { EditListingCard, type EditRequest } from "@/components/presence/edit/edit-listing-card";
 import { PhotosCard } from "@/components/presence/edit/photos-card";
+import { PostsCard } from "@/components/presence/edit/posts-card";
+import { ServicesCard } from "@/components/presence/edit/services-card";
+import { DetailsCard } from "@/components/presence/edit/details-card";
+import { LinksCard } from "@/components/presence/edit/links-card";
 import { InsightsPanel } from "@/components/presence/insights-panel";
 import { ReviewKitCard } from "@/components/presence/review-kit-card";
 import { useListingQuery } from "@/hooks/use-presence-listing";
@@ -243,6 +247,16 @@ export function PresenceHome() {
                     {/* Keyed by place and network: a card never carries one place's category, batch or error into another's. */}
                     <PhotosCard key={`${panelLocation ?? ""}|${panelNetwork ?? ""}`} location={panelLocation} network={panelNetwork} />
                   </div>
+                ) : null}
+
+                {/* Posts, services, details and links (PE-12): each card draws only for a network whose declaration offers it, and keyed by place and network. */}
+                {editOn ? (
+                  <>
+                    <PostsCard key={`posts|${panelLocation ?? ""}|${panelNetwork ?? ""}`} location={panelLocation} network={panelNetwork} />
+                    <ServicesCard key={`services|${panelLocation ?? ""}|${panelNetwork ?? ""}`} location={panelLocation} network={panelNetwork} />
+                    <DetailsCard key={`details|${panelLocation ?? ""}|${panelNetwork ?? ""}`} location={panelLocation} network={panelNetwork} />
+                    <LinksCard key={`links|${panelLocation ?? ""}|${panelNetwork ?? ""}`} location={panelLocation} network={panelNetwork} />
+                  </>
                 ) : null}
               </>
             ) : null}
