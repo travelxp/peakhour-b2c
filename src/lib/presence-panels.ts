@@ -537,8 +537,8 @@ export function drawsInsights(entry: Pick<PresenceNetworkEntry, "capabilities"> 
  * Whether the listing, score and edit panels draw for a network. A network that declares no listing (reviews only) has nothing to show in them,
  * and "still bringing in your listing" would promise one. With no declaration to go by (an older api) they are drawn.
  */
-export function drawsListing(capabilities: Pick<PresenceCapabilities, "listing"> | null | undefined): boolean {
-  return capabilities?.listing !== false;
+export function drawsListing(entry: { capabilities?: Pick<PresenceCapabilities, "listing"> | undefined } | null | undefined): boolean {
+  return entry?.capabilities?.listing !== false;
 }
 
 /** What a tile or a chart says for a figure that is missing. It is never "0". */

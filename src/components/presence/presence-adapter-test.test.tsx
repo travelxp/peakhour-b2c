@@ -129,8 +129,9 @@ describe("the pure helpers, over the three networks' answers", () => {
   });
 
   it("drawsListing and drawsInsights follow each network's declaration; no declaration draws them", () => {
-    expect(drawsListing(REVIEWS_NET.capabilities)).toBe(false);
-    expect(drawsListing(LOCAL_NET.capabilities)).toBe(true);
+    expect(drawsListing({ capabilities: REVIEWS_NET.capabilities })).toBe(false);
+    expect(drawsListing({ capabilities: LOCAL_NET.capabilities })).toBe(true);
+    expect(drawsListing({ capabilities: {} })).toBe(true);
     expect(drawsListing({})).toBe(true);
     expect(drawsListing(undefined)).toBe(true);
     expect(drawsInsights({ capabilities: REVIEWS_NET.capabilities })).toBe(false);

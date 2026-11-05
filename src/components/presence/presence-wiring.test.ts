@@ -56,7 +56,7 @@ describe("the Presence home", () => {
     expect(home).not.toContain("isDefault ? undefined");
   });
   it("draws the listing, score, edit and insights panels only for a network that declares them (PE-16)", () => {
-    expect(home).toContain("const listingOn = aboutNetwork ? drawsListing(aboutNetwork.capabilities) : true;");
+    expect(home).toContain("const listingOn = aboutNetwork ? drawsListing({ capabilities: aboutNetwork.capabilities }) : true;");
     expect(home).toContain("const insightsOn = aboutNetwork ? drawsInsights({ capabilities: aboutNetwork.capabilities }) : true;");
     expect(home.indexOf("{listingOn ? (")).toBeLessThan(home.indexOf("<ListingScoreCard"));
     expect(home.indexOf("<EditListingCard")).toBeLessThan(home.indexOf("{insightsOn ? <InsightsPanel"));

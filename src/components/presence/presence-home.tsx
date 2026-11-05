@@ -94,7 +94,7 @@ export function PresenceHome() {
   // Review cards draw only for a network that declares reviews (no declaration to go by, as on an older api, draws them).
   const reviewsOn = aboutNetwork ? aboutNetwork.capabilities.reviews !== false : true;
   // The listing, score and edit panels draw only for a network that declares a listing (a reviews-only network has none to show).
-  const listingOn = aboutNetwork ? drawsListing(aboutNetwork.capabilities) : true;
+  const listingOn = aboutNetwork ? drawsListing({ capabilities: aboutNetwork.capabilities }) : true;
   // Figures draw only for a network that declares metric keys. The panel reads the same declaration off the listing's own entry, and a
   // network with no listing has no entry to read it from, so the page applies the connect declaration first (PE-16).
   const insightsOn = aboutNetwork ? drawsInsights({ capabilities: aboutNetwork.capabilities }) : true;
@@ -164,7 +164,7 @@ export function PresenceHome() {
                   ))}
                 </select>
                 <span className="text-xs text-muted-foreground">
-                  The listing, reviews and insights below are for this network. Figures are never added across networks.
+                  Everything below is for this network. Figures are never added across networks.
                 </span>
               </div>
             ) : null}
@@ -187,7 +187,7 @@ export function PresenceHome() {
                   ))}
                 </select>
                 <span className="text-xs text-muted-foreground">
-                  Listing, reviews and insights show this one listing. Figures are never added across listings.
+                  Everything below shows this one listing. Figures are never added across listings.
                 </span>
               </div>
             ) : null}
