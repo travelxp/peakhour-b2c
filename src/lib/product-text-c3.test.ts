@@ -18,8 +18,9 @@ describe("Presence says what it does", () => {
   const home = flat("components/presence/presence-home.tsx");
   const card = flat("components/presence/gbp-connect-card.tsx");
 
-  it("the header: what the page does today, and that edits are made on Google for now", () => {
-    expect(home).toContain("See your Google listing, how customers use it, and your Google reviews. To change your listing, use Google for now.");
+  it("the header: what the page does today, and that a change is prepared here and approved by a person", () => {
+    expect(home).toContain("See your Google listing, how customers use it, and your Google reviews. You can prepare changes to your listing here. A person approves each one before it is sent.");
+    expect(home).not.toContain("use Google for now");
     expect(home).not.toContain("Connect your Google Business Profile listing and answer");
   });
 
