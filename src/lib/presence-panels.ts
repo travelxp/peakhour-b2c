@@ -78,6 +78,8 @@ export interface PresenceListingResponse {
   } | null;
   listing: PresenceListing | null;
   google: {
+    /** The network's key, sent back with an edit (PE-07). Never shown. */
+    network?: string;
     externalId: string | null;
     status: string | null;
     syncMode: string | null;

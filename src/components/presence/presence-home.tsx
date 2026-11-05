@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { MapPin, MessageSquareText } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { GbpConnectCard } from "@/components/presence/gbp-connect-card";
 import { ReviewSummaryCard } from "@/components/presence/review-summary-card";
 import { ListingPanel } from "@/components/presence/listing-panel";
 import { ListingScoreCard } from "@/components/presence/listing-score-card";
+import { EditListingCard, type EditRequest } from "@/components/presence/edit/edit-listing-card";
 import { InsightsPanel } from "@/components/presence/insights-panel";
 import { ReviewKitCard } from "@/components/presence/review-kit-card";
 import { useListingQuery } from "@/hooks/use-presence-listing";
@@ -26,8 +27,8 @@ import { locationSwitcher } from "@/lib/presence-panels";
  * WHICH listing this business is.
  *
  * ★THE LISTING AND INSIGHTS PANELS ARE REAL NOW (PE-04a), so the "Coming with
- * Presence" section is gone with them. What is NOT built is any way to change
- * the listing from here, and the header says only what the page does today.
+ * Presence" section is gone with them. A merchant changes the listing here
+ * through `EditListingCard` (PE-07); a listing-score fix opens the same form.
  *
  * ★REVIEWS CAME OFF THAT LIST FIRST (S0·4 reply, S0·5 summary), for the same
  * reason: leaving a built thing under 'coming' understates the product exactly
@@ -43,6 +44,7 @@ export function PresenceHome() {
   // business; which of that business's listings this page describes is the
   // merchant's choice here, and it resets with the page.
   const [chosen, setChosen] = useState<string | undefined>(undefined);
+  const [editRequest, setEditRequest] = useState<EditRequest | null>(null);
   // The list of listings always comes from the default read, so a stale choice (a
   // listing since removed) can never ask the api for a place it refuses: the switcher
   // falls back to the first listing instead.
@@ -66,7 +68,7 @@ export function PresenceHome() {
           </h1>
           <p className="max-w-2xl text-muted-foreground">
             See your Google listing, how customers use it, and your Google
-            reviews. To change your listing, use Google for now.
+            reviews. You can prepare changes to your listing here. A person approves each one before it is sent.
           </p>
         </header>
 
@@ -99,16 +101,21 @@ export function PresenceHome() {
 
         <ReviewKitCard location={location} />
 
-        <ListingScoreCard location={panelLocation} />
+        <ListingScoreCard
+          location={panelLocation}
+          onOpenForm={(field) => {
+            setEditRequest({ field });
+            document.getElementById("edit-listing")?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+        />
 
         <ListingPanel location={panelLocation} />
 
-        <InsightsPanel location={panelLocation} />
+        <div id="edit-listing">
+          <EditListingCard location={panelLocation} request={editRequest} />
+        </div>
 
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          <MessageSquareText className="h-4 w-4" />
-          Later: update your listing from WhatsApp — even by voice note.
-        </p>
+        <InsightsPanel location={panelLocation} />
       </div>
     </FeatureGate>
   );
