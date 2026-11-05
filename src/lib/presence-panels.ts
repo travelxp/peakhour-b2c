@@ -215,6 +215,8 @@ export type NeutralMetricKey =
   | "impressions";
 
 export interface PresenceCapabilities {
+  /** The network gives a listing that can be read, so the listing, score and edit panels draw. Absent on an api that predates the field. */
+  listing?: boolean;
   /** The network sends reviews into the inbox. Absent on an api that predates the field. */
   reviews?: boolean;
   /** A listing change can be written to the network. Absent on an api that predates the field. */
@@ -529,6 +531,14 @@ export function declaredMetrics(
 export function drawsInsights(entry: Pick<PresenceNetworkEntry, "capabilities"> | null | undefined): boolean {
   const keys = entry?.capabilities?.metricKeys;
   return !Array.isArray(keys) || keys.length > 0;
+}
+
+/**
+ * Whether the listing, score and edit panels draw for a network. A network that declares no listing (reviews only) has nothing to show in them,
+ * and "still bringing in your listing" would promise one. With no declaration to go by (an older api) they are drawn.
+ */
+export function drawsListing(capabilities: Pick<PresenceCapabilities, "listing"> | null | undefined): boolean {
+  return capabilities?.listing !== false;
 }
 
 /** What a tile or a chart says for a figure that is missing. It is never "0". */

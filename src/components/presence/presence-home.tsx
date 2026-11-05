@@ -15,7 +15,7 @@ import { useListingQuery } from "@/hooks/use-presence-listing";
 import { api } from "@/lib/api";
 import { presenceApi } from "@/lib/api/presence";
 import { Skeleton } from "@/components/ui/skeleton";
-import { connectedNetworks, locationSwitcher, networkSwitcher, presenceCapabilitiesQueryKey } from "@/lib/presence-panels";
+import { connectedNetworks, drawsInsights, drawsListing, locationSwitcher, networkSwitcher, presenceCapabilitiesQueryKey } from "@/lib/presence-panels";
 
 /**
  * Presence pillar home. The local-presence cockpit — keep a business found,
@@ -93,6 +93,11 @@ export function PresenceHome() {
   const fallbackLabel = aboutNetwork?.label ?? null;
   // Review cards draw only for a network that declares reviews (no declaration to go by, as on an older api, draws them).
   const reviewsOn = aboutNetwork ? aboutNetwork.capabilities.reviews !== false : true;
+  // The listing, score and edit panels draw only for a network that declares a listing (a reviews-only network has none to show).
+  const listingOn = aboutNetwork ? drawsListing(aboutNetwork.capabilities) : true;
+  // Figures draw only for a network that declares metric keys. The panel reads the same declaration off the listing's own entry, and a
+  // network with no listing has no entry to read it from, so the page applies the connect declaration first (PE-16).
+  const insightsOn = aboutNetwork ? drawsInsights({ capabilities: aboutNetwork.capabilities }) : true;
   // The list of listings always comes from the default read of that network, so a stale choice (a
   // listing since removed) can never ask the api for a place it refuses: the switcher
   // falls back to the first listing instead.
@@ -191,22 +196,26 @@ export function PresenceHome() {
 
             {reviewsOn ? <ReviewKitCard location={location} network={panelNetwork} /> : null}
 
-            <ListingScoreCard
-              location={panelLocation}
-              network={panelNetwork}
-              onOpenForm={(field) => {
-                setEditRequest({ field });
-                document.getElementById("edit-listing")?.scrollIntoView({ behavior: "smooth", block: "start" });
-              }}
-            />
+            {listingOn ? (
+              <>
+                <ListingScoreCard
+                  location={panelLocation}
+                  network={panelNetwork}
+                  onOpenForm={(field) => {
+                    setEditRequest({ field });
+                    document.getElementById("edit-listing")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                />
 
-            <ListingPanel location={panelLocation} network={panelNetwork} label={fallbackLabel} />
+                <ListingPanel location={panelLocation} network={panelNetwork} label={fallbackLabel} />
 
-            <div id="edit-listing">
-              <EditListingCard location={panelLocation} network={panelNetwork} request={editRequest} />
-            </div>
+                <div id="edit-listing">
+                  <EditListingCard location={panelLocation} network={panelNetwork} request={editRequest} />
+                </div>
+              </>
+            ) : null}
 
-            <InsightsPanel location={panelLocation} network={panelNetwork} label={fallbackLabel} />
+            {insightsOn ? <InsightsPanel location={panelLocation} network={panelNetwork} label={fallbackLabel} /> : null}
           </>
         )}
       </div>
