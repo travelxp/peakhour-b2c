@@ -6,6 +6,7 @@ import type {
   HolidayOffersResponse,
   ProposeBody,
 } from "@/lib/presence-edit";
+import { mergeChanges } from "@/lib/presence-edit";
 
 /**
  * The Presence edit forms' calls (PE-07). Every edit is a PROPOSAL: `propose` stores one and applies nothing, and only `approve`
@@ -14,8 +15,18 @@ import type {
 export const presenceEditApi = {
   capabilities: () => api.get<CapabilitiesResponse>("/v1/presence/changes/capabilities"),
 
-  changes: (listingId: string) =>
-    api.get<{ items: ChangeCardData[] }>(`/v1/presence/changes?listingId=${encodeURIComponent(listingId)}&limit=30`),
+  /**
+   * The listing's changes: EVERY open one (read on its own: a newer page of settled history must never push an open change out of the list) and the
+   * latest 30 of the rest. Merged and de-duplicated.
+   */
+  changes: async (listingId: string) => {
+    const q = encodeURIComponent(listingId);
+    const [history, open] = await Promise.all([
+      api.get<{ items: ChangeCardData[] }>(`/v1/presence/changes?listingId=${q}&limit=30`),
+      api.get<{ items: ChangeCardData[] }>(`/v1/presence/changes?listingId=${q}&status=open&limit=200`),
+    ]);
+    return { items: mergeChanges(open.items, history.items) };
+  },
 
   propose: (body: ProposeBody) =>
     api.post<{ items: ChangeCardData[]; notChecked: Array<{ id: string; code: string; message: string }> }>("/v1/presence/changes", body),
