@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle2, AlertCircle, AlertTriangle, ShoppingBag } from "lucide-react";
+import { AlertCircle, AlertTriangle, ShoppingBag } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +30,7 @@ import {
   errCopy,
   intoNotice,
 } from "./claim-copy";
+import { ClaimDone } from "./claim-done";
 import { AddBusinessDialog } from "@/components/upgrade/add-business-dialog";
 import { boughtForStore, isBusinessLimit, rememberBoughtForStore, sessionStore } from "@/lib/add-business";
 
@@ -288,7 +289,7 @@ export function ShopifyClaim() {
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
                 Sign in to finish linking <span className="font-medium text-foreground">this store</span> to
-                your Peakhour account. We&apos;ll bring you right back here — no need to return to Shopify.
+                your Peakhour account. We&apos;ll bring you right back here to finish.
               </p>
               <Button asChild>
                 <Link href={signInHref}>Sign in to continue</Link>
@@ -525,28 +526,9 @@ export function ShopifyClaim() {
             />
           )}
 
-          {ready && fetchState === "done" && result && (() => {
-            const done = doneCopy(result, result.store?.name || storeName, claimedOrgName || "your account");
-            return (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-sm font-medium text-success-on-tint">
-                  <CheckCircle2 className="size-5" aria-hidden />
-                  {done.title}
-                </div>
-                <p className="text-sm text-muted-foreground">{done.body}</p>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <Button asChild>
-                    <Link href="/dashboard">Go to dashboard</Link>
-                  </Button>
-                  {done.integrationsHint && (
-                    <Button asChild variant="outline">
-                      <Link href="/dashboard/integrations">See it in Integrations</Link>
-                    </Button>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
+          {ready && fetchState === "done" && result && (
+            <ClaimDone done={doneCopy(result, result.store?.name || storeName, claimedOrgName || "your account")} />
+          )}
 
           {ready && fetchState === "error" && (() => {
             const ec = errCopy(errCode, errMsg, { canKeepSeparate: data?.canKeepSeparate });

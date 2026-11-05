@@ -67,12 +67,21 @@ export function fitWarning(fit: ClaimFit | undefined, businessName: string): str
   return null;
 }
 
+export interface DoneCopy {
+  title: string;
+  body: string;
+  integrationsHint: boolean;
+}
+
+/** Under the success message: this tab was opened by the Shopify app, which updates by itself when the merchant returns. */
+export const CLOSE_TAB_HINT = "You can close this tab and go back to Shopify.";
+
 /** Where the store went, said plainly. */
 export function doneCopy(
   result: Pick<ClaimResult, "newBusiness" | "businessName" | "adopted" | "separate">,
   storeName: string,
   orgName: string,
-): { title: string; body: string; integrationsHint: boolean } {
+): DoneCopy {
   if (result.separate) {
     return {
       title: "Kept as its own account",
