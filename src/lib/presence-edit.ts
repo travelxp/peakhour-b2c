@@ -10,6 +10,7 @@
  */
 
 import type { HoursPeriod, SpecialHours } from "@/lib/presence-panels";
+import { photoValueLines } from "@/lib/presence-photos";
 
 // ── Shapes the api returns ───────────────────────────────────────────────────
 
@@ -89,6 +90,8 @@ export interface ChangeCardData {
   liveAt: string | null;
   liveCheck: { checkedAt: string; outcome: string; note: string | null } | null;
   undone: boolean;
+  /** Whether Peakhour can put this change back (the api decides; a photo removal can be undone only when the photo came from Drive). Absent on an older api: treated as true. */
+  undoable?: boolean;
 }
 
 export interface CategoryOption {
@@ -180,13 +183,14 @@ export function formAccess(can: CapabilitiesResponse["can"] | undefined): FormAc
 }
 
 /** What a person can press on a change card. Approve is an admin's; proposing, declining and undoing are an editor's. */
-export function cardActions(c: Pick<ChangeCardData, "status" | "undone">, can: CapabilitiesResponse["can"] | undefined) {
+export function cardActions(c: Pick<ChangeCardData, "status" | "undone"> & { undoable?: boolean | undefined }, can: CapabilitiesResponse["can"] | undefined) {
   const decidable = c.status === "proposed" || c.status === "validated";
   return {
     // A change that was never checked can still be approved: the api checks it again first.
     approve: !!can?.approve && decidable,
     reject: !!can?.propose && decidable,
-    undo: !!can?.propose && (c.status === "submitted" || c.status === "live") && !c.undone,
+    // Only when the api says it can be put back: a button that always fails is not offered.
+    undo: !!can?.propose && (c.status === "submitted" || c.status === "live") && !c.undone && c.undoable !== false,
     // A person who can look but not approve is told who can.
     needsAdmin: !can?.approve && decidable,
   };
@@ -264,10 +268,17 @@ const dayLabel = (iso: string) => {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString("en-GB", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short", year: "numeric" });
 };
 
+/** A change's field as a person reads it. A photo is not a form section, so it has no `SECTIONS` entry. */
+export function fieldTitle(field: string): string {
+  return SECTIONS.find((s) => s.field === field)?.title ?? (field === "media" ? "Photo" : field);
+}
+
 /** A value as plain lines for a before-and-after card. An empty list of lines is "nothing set". */
 export function valueLines(field: string, value: unknown): string[] {
   if (value === null || value === undefined || value === "") return [];
   switch (field) {
+    case "media":
+      return photoValueLines(value);
     case "regularHours": {
       const rows = (Array.isArray(value) ? value : []) as HoursPeriod[];
       return DAY_ORDER.flatMap((d) => {
@@ -514,3 +525,13 @@ export const presenceEditKeys = {
   offers: (listingId: string, network: string) => ["presence", "edit", "offers", listingId, network] as const,
   categories: (listingId: string, network: string, q: string) => ["presence", "edit", "categories", listingId, network, q.trim().toLowerCase()] as const,
 };
+
+/**
+ * One change list from the OPEN changes (read on their own, so none is dropped however much history there is) and a capped page of recent history:
+ * every open change is always present, and only the settled ones are capped. De-duplicated by id, newest first.
+ */
+export function mergeChanges(open: readonly ChangeCardData[], history: readonly ChangeCardData[]): ChangeCardData[] {
+  const byId = new Map<string, ChangeCardData>();
+  for (const c of [...history, ...open]) byId.set(c.id, c);
+  return [...byId.values()].sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : a.id < b.id ? 1 : -1));
+}

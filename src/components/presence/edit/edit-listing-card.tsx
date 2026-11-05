@@ -22,7 +22,21 @@ export type EditRequest = { field: string };
  * ★A submit prepares a change. It is not saved, and nothing is sent, until a person approves it; whether it is then sent depends on the
  * operator's switch, which this card reports in plain words. Never "saved", never "live" before the engine says so.
  */
-export function EditListingCard({ location, network: chosenNetwork, request }: { location?: string | undefined; network?: string | undefined; request?: EditRequest | null }) {
+export function EditListingCard({
+  location,
+  network: chosenNetwork,
+  request,
+  photoChangesElsewhere = false,
+}: {
+  location?: string | undefined;
+  network?: string | undefined;
+  request?: EditRequest | null;
+  /**
+   * True when the photos card is drawn and lists this network's photo changes itself. Otherwise they are listed here, so a change is never out of
+   * sight; and another network's photo changes always are (the photos card shows one network's).
+   */
+  photoChangesElsewhere?: boolean;
+}) {
   const listingQ = useListingQuery(location, chosenNetwork);
   const caps = useEditCapabilities();
   const listing = listingQ.data?.listing ?? null;
@@ -187,10 +201,11 @@ export function EditListingCard({ location, network: chosenNetwork, request }: {
               Try again
             </Button>
           </div>
-        ) : changes.data && changes.data.items.length > 0 ? (
+        ) : changes.data && changes.data.items.some((c) => !(photoChangesElsewhere && c.field === "media" && c.network === network)) ? (
           <>
             {changes.isError && <p className="text-xs text-warning-on-tint">Could not refresh just now, so this may be out of date.</p>}
-            {changes.data.items.map((c) => (
+            {/* Photo changes are listed with the photos when that card is drawn; otherwise here. */}
+            {changes.data.items.filter((c) => !(photoChangesElsewhere && c.field === "media" && c.network === network)).map((c) => (
               <ChangeCard key={c.id} change={c} label={cap.label} can={caps.data.can} m={m} />
             ))}
           </>
