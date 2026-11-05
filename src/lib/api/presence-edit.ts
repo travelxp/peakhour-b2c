@@ -3,6 +3,7 @@ import type {
   CapabilitiesResponse,
   CategoryOption,
   ChangeCardData,
+  ChangeOutcomeResponse,
   HolidayOffersResponse,
   ProposeBody,
 } from "@/lib/presence-edit";
@@ -30,6 +31,9 @@ export const presenceEditApi = {
 
   propose: (body: ProposeBody) =>
     api.post<{ items: ChangeCardData[]; notChecked: Array<{ id: string; code: string; message: string }> }>("/v1/presence/changes", body),
+
+  /** What followed a live change. Asked when its card shows; the api reads it on demand. */
+  outcome: (id: string) => api.get<ChangeOutcomeResponse>(`/v1/presence/changes/${encodeURIComponent(id)}/outcome`),
 
   undo: (id: string) => api.post<{ item: ChangeCardData }>(`/v1/presence/changes/${id}/undo`, {}),
 

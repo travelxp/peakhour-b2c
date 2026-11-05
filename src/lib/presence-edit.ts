@@ -94,6 +94,27 @@ export interface ChangeCardData {
   undoable?: boolean;
 }
 
+/**
+ * `GET /v1/presence/changes/:id/outcome` (PE-13): what followed a live change. The api writes the sentences, from the rule that holds the
+ * minimum-data, same-length, one-change and holiday rules. `outcome` is null for a network that declares no figures: nothing is drawn.
+ */
+export interface ChangeOutcomeLine {
+  metric: string;
+  state: "compared" | "too_few" | "not_reported";
+  direction: "higher" | "lower" | "about_the_same" | null;
+  text: string;
+}
+export interface ChangeOutcomeData {
+  status: "none" | "too_early" | "not_enough_figures" | "mixed_changes" | "season" | "measured";
+  reason: string;
+  message: string;
+  lines: ChangeOutcomeLine[];
+}
+export interface ChangeOutcomeResponse {
+  outcome: ChangeOutcomeData | null;
+  label: string | null;
+}
+
 export interface CategoryOption {
   id: string;
   label: string;
@@ -255,6 +276,31 @@ export function statusWords(c: ChangeCardData, label: string, can: CapabilitiesR
     case "superseded":
       return { headline: "Replaced", detail: "A newer change took its place. Nothing was sent.", tone: "neutral" };
   }
+}
+
+// ── What followed a live change (PE-13) ──────────────────────────────────────
+
+const OUTCOME_HEADLINE: Record<Exclude<ChangeOutcomeData["status"], "none">, string> = {
+  measured: "What followed this change",
+  too_early: "Too early to tell",
+  not_enough_figures: "Not enough figures to compare",
+  mixed_changes: "Not tied to this one change",
+  season: "Not compared: a holiday period",
+};
+
+/**
+ * What to draw under a live change. `null` is nothing at all: a network with no figures, a change that is not live, or an answer that has not
+ * come yet. The sentences are the api's; this adds only a headline. Numbers appear only in `lines`, and the api sends a line with a number
+ * only when it compared one - so a state that is not a comparison draws no list.
+ */
+export function outcomeWords(r: ChangeOutcomeResponse | undefined): { headline: string; message: string; lines: string[] } | null {
+  const o = r?.outcome;
+  if (!o || o.status === "none" || !o.message.trim()) return null;
+  return {
+    headline: OUTCOME_HEADLINE[o.status],
+    message: o.message,
+    lines: o.status === "measured" ? o.lines.map((l) => l.text) : [],
+  };
 }
 
 // ── Showing a value ──────────────────────────────────────────────────────────
@@ -522,6 +568,7 @@ export function errorWords(err: unknown): string {
 export const presenceEditKeys = {
   capabilities: ["presence", "edit", "capabilities"] as const,
   changes: (listingId: string) => ["presence", "edit", "changes", listingId] as const,
+  outcome: (changeId: string) => ["presence", "edit", "outcome", changeId] as const,
   offers: (listingId: string, network: string) => ["presence", "edit", "offers", listingId, network] as const,
   categories: (listingId: string, network: string, q: string) => ["presence", "edit", "categories", listingId, network, q.trim().toLowerCase()] as const,
 };

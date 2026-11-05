@@ -2,6 +2,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ChangeOutcome } from "@/components/presence/edit/change-outcome";
 import { cardActions, errorWords, fieldTitle, statusWords, valueLines, type CapabilitiesResponse, type ChangeCardData } from "@/lib/presence-edit";
 import type { usePresenceEditMutations } from "@/hooks/use-presence-edit";
 
@@ -83,6 +84,8 @@ export function ChangeCard({
         <p className={`text-sm font-medium ${TONE[words.tone]}`}>{words.headline}</p>
         {words.detail && <p className="text-xs text-muted-foreground">{words.detail}</p>}
       </div>
+
+      <ChangeOutcome changeId={change.id} live={change.status === "live" && !change.undone} />
 
       {change.notes.map((n, i) => (
         <p key={i} className="text-xs text-warning-on-tint">

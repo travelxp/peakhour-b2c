@@ -16,6 +16,7 @@ import {
   requestedForm,
   offerOutcome,
   offerState,
+  outcomeWords,
   phoneValue,
   proposeBody,
   riskWarning,
@@ -403,5 +404,45 @@ describe("presenceEditKeys: two networks never share a cached offers or categori
     expect(presenceEditKeys.offers("l1", "net_a")).not.toEqual(presenceEditKeys.offers("l1", "net_b"));
     expect(presenceEditKeys.categories("l1", "net_a", "cafe")).not.toEqual(presenceEditKeys.categories("l1", "net_b", "cafe"));
     expect(presenceEditKeys.categories("l1", "net_a", " Cafe ")).toEqual(presenceEditKeys.categories("l1", "net_a", "cafe"));
+  });
+});
+
+describe("outcomeWords: what followed a live change (PE-13)", () => {
+  const out = (over: Record<string, unknown> = {}) => ({
+    label: "NetA",
+    outcome: { status: "measured", reason: "compared", message: "Here is what followed this change: x.", lines: [{ metric: "calls", state: "compared", direction: "higher", text: "Calls: 40 in the 28 days before, 60 in the 28 days after (higher)." }], ...over },
+  }) as never;
+
+  it("a comparison shows the api's sentence and its lines, under a headline that says what followed", () => {
+    expect(outcomeWords(out())).toEqual({
+      headline: "What followed this change",
+      message: "Here is what followed this change: x.",
+      lines: ["Calls: 40 in the 28 days before, 60 in the 28 days after (higher)."],
+    });
+  });
+
+  it("every state that is not a comparison draws its sentence and no list of figures", () => {
+    for (const status of ["too_early", "not_enough_figures", "mixed_changes", "season"]) {
+      const w = outcomeWords(out({ status, message: "Words." }));
+      expect(w, status).toMatchObject({ message: "Words.", lines: [] });
+    }
+    expect(outcomeWords(out({ status: "season", message: "Words." }))!.headline).toBe("Not compared: a holiday period");
+    expect(outcomeWords(out({ status: "too_early", message: "Words." }))!.headline).toBe("Too early to tell");
+  });
+
+  it("a network with no figures, a change that is not live, no answer yet and an empty sentence draw nothing", () => {
+    expect(outcomeWords({ outcome: null, label: null })).toBeNull();
+    expect(outcomeWords(undefined)).toBeNull();
+    expect(outcomeWords(out({ status: "none", message: "This change is not live yet." }))).toBeNull();
+    expect(outcomeWords(out({ message: "  " }))).toBeNull();
+  });
+
+  it("the headlines claim no cause", () => {
+    const heads = ["measured", "too_early", "not_enough_figures", "mixed_changes", "season"].map((status) => outcomeWords(out({ status, message: "m" }))!.headline);
+    for (const h of heads) expect(h).not.toMatch(/because|caused|due to|thanks to|result of|improved|ranking/i);
+  });
+
+  it("one change's answer is never another's in the cache", () => {
+    expect(presenceEditKeys.outcome("a")).not.toEqual(presenceEditKeys.outcome("b"));
   });
 });

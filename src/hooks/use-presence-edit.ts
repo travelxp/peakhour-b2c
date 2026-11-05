@@ -30,6 +30,18 @@ export function useListingChanges(listingId: string | undefined) {
   });
 }
 
+/** What followed a live change (PE-13). Asked only for a change that is live, once, and held for a while: the figures move a day at a time. */
+export function useChangeOutcome(changeId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: presenceEditKeys.outcome(changeId),
+    queryFn: () => presenceEditApi.outcome(changeId),
+    enabled,
+    staleTime: 30 * 60_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+}
+
 export function useHolidayOffers(listingId: string | undefined, network: string | undefined) {
   return useQuery({
     queryKey: presenceEditKeys.offers(listingId ?? "", network ?? ""),
