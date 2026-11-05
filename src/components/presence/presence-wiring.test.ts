@@ -67,7 +67,7 @@ describe("the Presence home", () => {
     expect(home).toContain("capabilities={aboutNetwork?.capabilities}");
   });
   it("clears a pending form request when the network changes, and says a status read that failed", () => {
-    expect(home).toMatch(/setChosen\(undefined\); \/\/ a form opened for one network's listing is not a request for another's setEditRequest\(null\);/);
+    expect(home).toMatch(/setChosen\(undefined\); setNarrowed\(false\); \/\/ a form opened for one network's listing is not a request for another's setEditRequest\(null\);/);
     expect(home).toContain("unreadableNetworks(networks, statusQs)");
     expect(home).toContain("<UnreadableNote networks={unreadable} />");
   });
@@ -76,8 +76,19 @@ describe("the Presence home", () => {
     expect(home).toContain("connectedNetworks(networks, statusOf)");
   });
   it("draws the review cards only for a network that declares reviews, and passes the network to the kit", () => {
-    expect(home).toContain("{reviewsOn ? <ReviewSummaryCard");
-    expect(home).toContain("{reviewsOn && listingOn ? <ReviewKitCard location={location} network={panelNetwork} />");
+    expect(home).toContain("{reviewsOn ? (");
+    expect(home).toContain("<ReviewSummaryCard location={location} network={panelNetwork}");
+    // PE-R: the kit is drawn for any network with reviews; a network with no listing draws it only when its link exists
+    expect(home).toContain("{reviewsOn ? <ReviewKitCard location={location} network={panelNetwork} hideUnlessReady={!listingOn} /> : null}");
+  });
+  it("PE-R: a business with several places starts from every place side by side, and picking one narrows the whole page to it", () => {
+    expect(home).toContain("wantsPlacesView({ hasSwitcher: !!switcher, narrowed })");
+    expect(home).toContain("<ReviewPlacesCard");
+    // the places card's pick, and the listing switcher's choice, both narrow
+    expect(home).toMatch(/onPick=\{\(place\) => \{ setChosen\(place\); setNarrowed\(true\); \}\}/);
+    expect(home).toMatch(/setChosen\(e\.target\.value\); \/\/ choosing a listing narrows the reviews to it too setNarrowed\(true\);/);
+    // and a way back to all of them from the narrowed card
+    expect(home).toContain("onShowAll={switcher ? () => setNarrowed(false) : undefined}");
   });
   it("falls back to the chosen network's label so nothing says 'nothing is connected' beside a connected card", () => {
     expect(home).toContain("label={fallbackLabel}");

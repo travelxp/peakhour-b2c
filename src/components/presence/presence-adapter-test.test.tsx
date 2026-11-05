@@ -80,14 +80,16 @@ const listingAnswer = (n: ConnectableNetwork): PresenceListingResponse => ({
   networks: n.capabilities.listing ? [entryOf(n) as never] : [],
 });
 const insightsAnswer = (calls: number | null) => ({ days: 28, locationName: "x", totals: { calls, directions: null, websiteClicks: calls === null ? null : 1, messagingClicks: null, bookings: null, views: null }, series: [{ date: "2026-11-01", calls, directions: null, websiteClicks: calls === null ? null : 1, messagingClicks: null, bookings: null, views: null }] });
-const summaryAnswer = (rating: number, n: number) => ({ state: "ready", days: 90, windowStart: "2026-08-07T00:00:00.000Z", totalEver: n, volume: n, unanswered: n, unansweredInWindow: n, sampled: n, rating, ratedCount: n, respondedCount: 0, timedCount: 0, medianResponseMs: null, worstRecent: [] });
+const summaryEntry = (net: ConnectableNetwork, rating: number, n: number) => ({ network: net.network, label: net.label, state: "ready", totalEver: n, volume: n, unanswered: n, unansweredInWindow: n, sampled: n, rating, ratedCount: n, respondedCount: 0, timedCount: 0, medianResponseMs: null, worstRecent: [] });
+/** `GET /v1/presence/reviews/summary` (PE-R): the window, and one entry per network. */
+const summaryAnswer = (net: ConnectableNetwork, rating: number, n: number) => ({ days: 90, windowStart: "2026-08-07T00:00:00.000Z", locationName: null, networks: [summaryEntry(net, rating, n)] });
 const kitAnswer = (n: ConnectableNetwork) => ({ state: "ready", listingId: "l1", businessName: `${n.label} Shop`, link: `https://${n.network}.example/review`, network: n.network, networkLabel: n.label, qrSvg: "<svg xmlns='http://www.w3.org/2000/svg'></svg>" });
 const scoreAnswer = (n: ConnectableNetwork) => n.capabilities.listing
   ? { state: "ready", listingId: "l1", network: { key: n.network, label: n.label }, score: { score: 70, seen: { scored: 5, unknown: 0, notApplicable: 0, total: 5, sentence: "We checked 5 things." }, market: { code: "IN", name: "India" }, business: { group: "shop", noun: "shop" }, checks: [], fixes: [], ordering: { by: "kind_of_business", reason: "figures_not_read", callShare: 0.5, group: "shop" } }, health: [] }
   : { state: "no_listing" };
 
 /** Render the page with the cache filled as the api would fill it, the api's default connection being `defaultNet`. */
-function render(defaultNet: ConnectableNetwork, nets: ConnectableNetwork[] = NETS, statusOf: (n: ConnectableNetwork) => string = () => "active", primeDefault = true) {
+function render(defaultNet: ConnectableNetwork, nets: ConnectableNetwork[] = NETS, statusOf: (n: ConnectableNetwork) => string = () => "active", primeDefault = true, kitFor?: (n: ConnectableNetwork) => unknown) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   qc.setQueryData(presenceCapabilitiesQueryKey, { items: nets });
   for (const n of nets) {
@@ -99,8 +101,8 @@ function render(defaultNet: ConnectableNetwork, nets: ConnectableNetwork[] = NET
   for (const n of nets) {
     qc.setQueryData(presenceListingQueryKey(undefined, n.network), listingAnswer(n));
     qc.setQueryData(presenceInsightsQueryKey(DEFAULT_INSIGHT_DAYS, undefined, n.network), insightsAnswer(n === GOOGLE_NET ? 9 : n === LOCAL_NET ? 4 : null));
-    qc.setQueryData([...REVIEW_SUMMARY_QUERY_KEY, "all", n.network], summaryAnswer(n === GOOGLE_NET ? 5 : n === LOCAL_NET ? 3 : 1.5, n === GOOGLE_NET ? 2 : n === LOCAL_NET ? 1 : 2));
-    qc.setQueryData([...REVIEW_KIT_QUERY_KEY, null, n.network], n.capabilities.listing ? kitAnswer(n) : { state: "no_listing" });
+    qc.setQueryData([...REVIEW_SUMMARY_QUERY_KEY, "all", n.network], summaryAnswer(n, n === GOOGLE_NET ? 5 : n === LOCAL_NET ? 3 : 1.5, n === GOOGLE_NET ? 2 : n === LOCAL_NET ? 1 : 2));
+    qc.setQueryData([...REVIEW_KIT_QUERY_KEY, null, n.network], (kitFor ? kitFor(n) : n.capabilities.listing ? kitAnswer(n) : { state: "no_listing" }));
     qc.setQueryData(presenceScoreQueryKey(undefined, n.network), scoreAnswer(n));
   }
   primeEdit(qc);
@@ -245,6 +247,26 @@ describe("the page, rendered, with the reviews-only network as the default", () 
     expect(panels).not.toContain("Get more reviews");
     expect(panels).not.toContain("Connect your listing");
     expect(panels).not.toMatch(/bringing in your listing/);
+  });
+  it("★PE-R: a network with no listing draws the kit when its link exists on the connection, under its own label, and a single card per network", () => {
+    const withLink = panelsOf(
+      render(REVIEWS_NET, NETS, () => "active", true, (n) =>
+        n.capabilities.listing ? kitAnswer(n) : { state: "ready", listingId: null, businessName: "Shop Co", link: "https://reviewly.example/r/shop", network: n.network, networkLabel: n.label, qrSvg: "<svg xmlns='http://www.w3.org/2000/svg'></svg>" },
+      ),
+    );
+    expect(withLink).toContain("Get more reviews");
+    expect(withLink).toContain("Review us on Reviewly");
+    expect(withLink).toContain("https://reviewly.example/r/shop");
+    expect(withLink).not.toMatch(/google/i);
+    // and still no listing panel, score or edit card
+    expect(withLink).not.toContain("Your listing");
+  });
+  it("★PE-R: with no link on the connection the kit stays hidden, and does not offer to 'connect your listing' to a network with none", () => {
+    for (const state of ["no_listing", "no_link"]) {
+      const hidden = panelsOf(render(REVIEWS_NET, NETS, () => "active", true, (n) => (n.capabilities.listing ? kitAnswer(n) : { state })));
+      expect(hidden).not.toContain("Get more reviews");
+      expect(hidden).not.toContain("Connect your listing");
+    }
   });
   it("draws its reviews, and Reviewly's own figure (1.5), not Google's", () => {
     expect(panels).toContain("Reviews");

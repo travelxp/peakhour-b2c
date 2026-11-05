@@ -6,6 +6,8 @@ import { MapPin } from "lucide-react";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { NetworkConnectCard } from "@/components/presence/network-connect-card";
 import { ReviewSummaryCard } from "@/components/presence/review-summary-card";
+import { ReviewPlacesCard } from "@/components/presence/review-places-card";
+import { wantsPlacesView } from "@/lib/review-places";
 import { ListingPanel } from "@/components/presence/listing-panel";
 import { ListingScoreCard } from "@/components/presence/listing-score-card";
 import { EditListingCard, type EditRequest } from "@/components/presence/edit/edit-listing-card";
@@ -66,6 +68,8 @@ export function PresenceHome() {
   // merchant's choice here, and it resets with the page.
   const [chosen, setChosen] = useState<string | undefined>(undefined);
   const [chosenNetwork, setChosenNetwork] = useState<string | undefined>(undefined);
+  // ★REVIEWS START FROM EVERY LOCATION for a business with several (PE-R); picking one place narrows them, and the page, to it.
+  const [narrowed, setNarrowed] = useState(false);
   const [editRequest, setEditRequest] = useState<EditRequest | null>(null);
   // Every network a merchant can connect, from the adapters' declarations: one card each.
   const capsQ = useQuery({
@@ -166,6 +170,7 @@ export function PresenceHome() {
                     setChosenNetwork(e.target.value);
                     // a listing of one network is not a listing of another
                     setChosen(undefined);
+                    setNarrowed(false);
                     // a form opened for one network's listing is not a request for another's
                     setEditRequest(null);
                   }}
@@ -191,7 +196,11 @@ export function PresenceHome() {
                   id="presence-location"
                   className="h-9 rounded-md border bg-background px-2 text-sm"
                   value={switcher.value}
-                  onChange={(e) => setChosen(e.target.value)}
+                  onChange={(e) => {
+                    setChosen(e.target.value);
+                    // choosing a listing narrows the reviews to it too
+                    setNarrowed(true);
+                  }}
                 >
                   {switcher.options.map((o) => (
                     <option key={o.value} value={o.value}>
@@ -205,9 +214,24 @@ export function PresenceHome() {
               </div>
             ) : null}
 
-            {reviewsOn ? <ReviewSummaryCard location={location} network={panelNetwork} label={fallbackLabel} /> : null}
+            {reviewsOn ? (
+              wantsPlacesView({ hasSwitcher: !!switcher, narrowed }) ? (
+                <ReviewPlacesCard
+                  network={panelNetwork}
+                  label={fallbackLabel}
+                  onPick={(place) => {
+                    setChosen(place);
+                    setNarrowed(true);
+                  }}
+                />
+              ) : (
+                <ReviewSummaryCard location={location} network={panelNetwork} label={fallbackLabel} onShowAll={switcher ? () => setNarrowed(false) : undefined} />
+              )
+            ) : null}
 
-            {reviewsOn && listingOn ? <ReviewKitCard location={location} network={panelNetwork} /> : null}
+            {/* A network with a listing draws the kit as before. A network with NO listing draws it only when its link exists (it lives on
+                the connection); with none the card is not drawn (PE-16's hiding). */}
+            {reviewsOn ? <ReviewKitCard location={location} network={panelNetwork} hideUnlessReady={!listingOn} /> : null}
 
             {listingOn ? (
               <>

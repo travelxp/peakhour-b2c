@@ -16,14 +16,26 @@ import { askLine, copyLabel, kitEmptyState, posterHref, svgDataUri } from "@/lib
  * holds none. One link, the same for every customer: nothing here asks who was pleased.
  * ★NOTHING IS SENT FROM HERE. A person copies the link or prints the poster.
  */
-export function ReviewKitCard({ location, network }: { location?: string | undefined; network?: string | undefined }) {
+export function ReviewKitCard({
+  location,
+  network,
+  hideUnlessReady,
+}: {
+  location?: string | undefined;
+  network?: string | undefined;
+  /**
+   * For a network with no listing (PE-R): its link lives on the connection, and when there is none the card is not drawn at all (PE-16's
+   * hiding stays), rather than offering a "connect your listing" message to a network that has no listing to connect.
+   */
+  hideUnlessReady?: boolean | undefined;
+}) {
   const kit = useReviewKit(location, network);
   const [copied, setCopied] = useState<"idle" | "copied" | "failed">("idle");
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(timer.current), []);
 
   // isPending, not isLoading: a query that is paused (offline) has no data and is not "loading", and is not a failure either
-  if (kit.isPending) return <Skeleton className="h-40 w-full" />;
+  if (kit.isPending) return hideUnlessReady ? null : <Skeleton className="h-40 w-full" />;
   // ⚠️A FAILED READ IS NOT "NO LINK": say the read failed.
   if (kit.isError) {
     return (
@@ -31,6 +43,7 @@ export function ReviewKitCard({ location, network }: { location?: string | undef
     );
   }
   if (kit.data.state !== "ready") {
+    if (hideUnlessReady) return null;
     const empty = kitEmptyState(kit.data);
     return (
       <Card className="space-y-1 p-4">

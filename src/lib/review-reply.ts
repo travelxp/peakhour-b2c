@@ -32,21 +32,21 @@
  */
 
 /**
- * Google's cap on a review reply.
- *
- * ⚠️4096, WHICH IS NOT THE 5000 `sup_inbox.review.replyPublished` STORES. The
- * collection's bound is a storage sanity limit; this is the number Google
- * refuses above. Counting down to 5000 in the composer would let a merchant
- * write 4500 characters and then be refused by a server they cannot argue with.
+ * What the api says about replying to one review (PE-R): the network's own words and whether it takes a reply at all. It is the adapter's
+ * declaration, served on every review row of `GET /v1/support/inbox` as `replyChannel`, so this module holds no network's name, source or
+ * cap. Null (or absent, on an older api) means the row names no network the engine knows, and no reply control is drawn.
  */
-export const REVIEW_REPLY_MAX_LENGTH = 4096;
+export interface ReplyChannel {
+  /** How a merchant hears the network: the adapter's label. */
+  label: string;
+  /** The network declares replies and can send one. False: no reply control, and the card says why. */
+  canReply: boolean;
+  /** The longest reply the network takes, or null when it declared none (no count is shown then). */
+  maxLength: number | null;
+}
 
-/** The one inbox source this lane can reply to, and the network behind it. */
-export const REVIEW_SOURCE = "google_review";
-/** `cfg_integrations.key` / `int_connections.provider`. ⚠️NOT the channel key
- *  `googlebusiness` — a different string, and conflating them is why the Local
- *  Post adapter was complete and unreachable for a whole review round. */
-export const REVIEW_NETWORK = "google_business_profile";
+/** The word used where a network's label is not known. Never a guessed network. */
+const NO_LABEL = "the network";
 
 /** Where a merchant picks or re-picks the listing, and reconnects. */
 export const PRESENCE_ROUTE = "/dashboard/presence";
@@ -79,6 +79,8 @@ export interface ReviewItemLike {
   contact?: { name?: string };
   body?: string;
   review?: ReviewPayload;
+  /** From the network's adapter (PE-R). Absent or null: no reply control. */
+  replyChannel?: ReplyChannel | null;
   createdAt: string;
 }
 
@@ -111,19 +113,26 @@ export function reviewerLabel(item: ReviewItemLike): string {
 
 // ── Can this row be replied to at all ────────────────────────────────────────
 
+/** The network's label for this row, or the plain word when the api named none. */
+export function networkWords(item: ReviewItemLike): string {
+  return item.replyChannel?.label?.trim() || NO_LABEL;
+}
+
+/** The network's cap on a reply for this row, or null when it declared none. */
+export function replyLimitOf(item: ReviewItemLike): number | null {
+  return item.replyChannel?.maxLength ?? null;
+}
+
 /**
- * Does this row carry a Google review we can publish a reply to?
+ * Does this row carry a review we can publish a reply to?
  *
- * ★ALL THREE FACTS, mirroring the api's `classifyReplyTarget`. `source` is how
- * the row reached the inbox, `review.network` is where a reply would have to go,
- * and `externalReviewId` is the thing Google is asked about. A row missing any
- * of them gets an explanation instead of a composer — offering a Send that the
- * api answers 400 to is worse than saying up front that this one has to be
- * answered on Google.
+ * ★TWO FACTS: the api says the row's network declares replies (`replyChannel.canReply`, from the adapter, which is the only place that
+ * knows), and the row holds the network's reference to the review, which is the thing the network is asked about. Either missing gets an
+ * explanation instead of a composer: offering a Send that the api answers 400 to is worse than saying up front that this one has to be
+ * answered on the network.
  */
 export function isRepliableReview(item: ReviewItemLike): boolean {
-  if (item.source !== REVIEW_SOURCE) return false;
-  if (item.review?.network !== REVIEW_NETWORK) return false;
+  if (item.replyChannel?.canReply !== true) return false;
   return Boolean(item.review?.externalReviewId?.trim());
 }
 
@@ -282,6 +291,14 @@ export interface ComposerState {
   blockedReason?: string;
 }
 
+/** Why a row cannot be replied to from here, in the network's own words. */
+function blockedReasonFor(item: ReviewItemLike): string {
+  const channel = item.replyChannel;
+  if (!channel) return "Replies to this network aren't supported here yet — answer it on the network itself.";
+  if (!channel.canReply) return `Peakhour can't send replies to ${channel.label} reviews — answer this one on ${channel.label}.`;
+  return `We don't have a reference for this review on ${channel.label}, so it has to be answered there.`;
+}
+
 /**
  * What the composer opens with.
  *
@@ -314,10 +331,7 @@ export function composerStateFor(item: ReviewItemLike): ComposerState {
       pendingCheck,
       rejected,
       canSend: false,
-      blockedReason:
-        item.source !== REVIEW_SOURCE || item.review?.network !== REVIEW_NETWORK
-          ? "Replies to this network aren't supported here yet — answer it on the network itself."
-          : "We don't have a reference for this review on Google, so it has to be answered in your Business Profile.",
+      blockedReason: blockedReasonFor(item),
     };
   }
   return {
@@ -405,30 +419,30 @@ export type ReplyTextCheck =
  * ★REFUSED, NOT TRUNCATED. Half a sentence beneath a customer's review is worse
  * than a send that stops and says why.
  */
-export function checkReplyText(raw: string): ReplyTextCheck {
+export function checkReplyText(raw: string, limit?: { max: number | null; label: string }): ReplyTextCheck {
   const comment = raw.trim();
   if (!comment) {
     return { ok: false, code: "EMPTY_REPLY", message: "A reply needs something in it." };
   }
-  if (comment.length > REVIEW_REPLY_MAX_LENGTH) {
+  if (limit?.max != null && comment.length > limit.max) {
     return {
       ok: false,
       code: "REPLY_TOO_LONG",
-      message: `Google allows ${REVIEW_REPLY_MAX_LENGTH} characters; this reply is ${comment.length}.`,
+      message: `${limit.label} allows ${limit.max} characters; this reply is ${comment.length}.`,
     };
   }
   return { ok: true, comment };
 }
 
 /**
- * Characters left, counted the way the api counts them.
+ * Characters left, counted the way the api counts them, or null when the network declared no cap (nothing is counted down then).
  *
  * ⚠️NEGATIVE WHEN OVER, deliberately — the composer shows "42 over", which is a
  * number a person can act on. Clamping at zero tells somebody 1200 characters
  * long that they have "0 left" and leaves them deleting blindly.
  */
-export function replyCharsRemaining(raw: string): number {
-  return REVIEW_REPLY_MAX_LENGTH - raw.trim().length;
+export function replyCharsRemaining(raw: string, max: number | null): number | null {
+  return max === null ? null : max - raw.trim().length;
 }
 
 // ── What came back ───────────────────────────────────────────────────────────
@@ -467,28 +481,28 @@ export type ReplyOutcome =
  * leaves our row still holding the text, and without an override the merchant
  * could never restore it while being told it already worked.
  */
-export function replyOutcome(res: ReplyResponseLike): ReplyOutcome {
+export function replyOutcome(res: ReplyResponseLike, label: string = NO_LABEL): ReplyOutcome {
   if (!res.sent) {
     return {
       kind: "unchanged",
       headline: "That's already your reply.",
       description:
         "Nothing was sent, because the words haven't changed. If the reply has gone missing from " +
-        "Google, send it again to put it back.",
+        `${label}, send it again to put it back.`,
       offerForce: true,
     };
   }
   // ★A REPLY GOOGLE IS CHECKING IS NOT LIVE, and saying so would be untrue beside
   // a card that says "waiting for Google's check".
   const checking = res.replyState === "pending";
-  const headline = checking ? "Google is checking your reply before it goes live." : "Your reply is live on Google.";
+  const headline = checking ? `${label} is checking your reply before it goes live.` : `Your reply is live on ${label}.`;
   if (res.recorded === false) {
     return {
       kind: "published_unrecorded",
       headline,
       description:
         "We couldn't file it against this item, so it may still show as unanswered here. " +
-        `Don't send it again — ${checking ? "Google already has it" : "the customer can already see it"}.`,
+        `Don't send it again — ${checking ? `${label} already has it` : "the customer can already see it"}.`,
       offerForce: false,
     };
   }
@@ -665,31 +679,31 @@ const API_AUTHORED_MESSAGE = new Set([
 
 /** Our own words, for the codes whose message must not be shown, and as the
  *  floor for a code that arrives with no message at all. */
-const FALLBACK_HEADLINE: Record<string, string> = {
+const FALLBACK_HEADLINE = (n: string, max: number | null): Record<string, string> => ({
   NOT_A_REVIEW: "This isn't a review, so there's nothing to reply to on a listing.",
   UNSUPPORTED_NETWORK: "We can't reply to this network from here yet.",
-  NO_REVIEW_REFERENCE: "We don't have a reference for this review on Google.",
+  NO_REVIEW_REFERENCE: `We don't have a reference for this review on ${n}.`,
   UNRECOGNISED_REVIEW_REFERENCE: "We don't recognise the reference stored for this review.",
   NOT_FOUND: "This review isn't in your inbox any more.",
   FORBIDDEN: "You don't have permission to reply on this business's behalf.",
   EMPTY_REPLY: "A reply needs something in it.",
-  REPLY_TOO_LONG: `Google allows ${REVIEW_REPLY_MAX_LENGTH} characters.`,
+  REPLY_TOO_LONG: max === null ? "That reply is too long." : `${n} allows ${max} characters.`,
   // ★NOT "Google wouldn't accept that reply" — nothing reached Google. The
   // request never left our own validation, and saying otherwise sends the
   // merchant looking for a problem with their listing.
   VALIDATION_ERROR: "That reply couldn't be sent as written.",
-  REPLY_REJECTED: "Google wouldn't accept that reply.",
-  NOT_CONNECTED: "Google Business Profile isn't connected.",
-  REAUTH_REQUIRED: "Reconnect Google Business Profile to reply.",
+  REPLY_REJECTED: `${n} wouldn't accept that reply.`,
+  NOT_CONNECTED: `${n} isn't connected.`,
+  REAUTH_REQUIRED: `Reconnect ${n} to reply.`,
   LOCATION_UNRESOLVED: "We couldn't work out which listing this review belongs to.",
-  NO_LOCATION_PICKED: "No Business Profile location is selected.",
-  LOCATION_NOT_MANAGED: "This listing isn't under the Business Profile account we're connected to.",
+  NO_LOCATION_PICKED: "No location is selected.",
+  LOCATION_NOT_MANAGED: "This listing isn't under the account we're connected to.",
   LISTING_LOOKUP_INCOMPLETE: "Couldn't check your listing just now.",
-  RATE_LIMITED: "Google is rate-limiting replies just now.",
-  UPSTREAM_ERROR: "Google couldn't accept the reply just now.",
+  RATE_LIMITED: `${n} is rate-limiting replies just now.`,
+  UPSTREAM_ERROR: `${n} couldn't accept the reply just now.`,
   [TRANSPORT_ERROR_CODE]: "Couldn't reach Peakhour.",
   PARSE_ERROR: "Couldn't reach Peakhour.",
-};
+});
 
 const SECOND_SENTENCE: Record<string, string> = {
   NOT_FOUND: "Reload the page to see what's there now.",
@@ -699,10 +713,10 @@ const SECOND_SENTENCE: Record<string, string> = {
   // access — advice that cannot fix either. What is true in every case is who
   // is allowed to publish, so that is what it says.
   FORBIDDEN: "Publishing a reply needs editor access to this business.",
-  REPLY_REJECTED: "Try rewording it — links and contact details are often what Google objects to.",
+  REPLY_REJECTED: "Try rewording it — links and contact details are often what a network objects to.",
   NOT_CONNECTED: "Connect it on Presence, then reply.",
   REAUTH_REQUIRED: "It only takes a click, on Presence.",
-  LOCATION_UNRESOLVED: "Check the Business Profile connection on Presence.",
+  LOCATION_UNRESOLVED: "Check the connection on Presence.",
   NO_LOCATION_PICKED: "Pick which of your locations this is, on Presence.",
   LOCATION_NOT_MANAGED: "Re-pick the location on Presence, or connect the account that manages it.",
   // ★NOT "CHECK YOUR CONNECTION". Nothing is wrong with it — Google's account
@@ -714,7 +728,7 @@ const SECOND_SENTENCE: Record<string, string> = {
   // its connection may well have published the reply — we did not get an answer
   // either way, and claiming it did not go out is the same false certainty the
   // `recorded: false` branch exists to avoid. What IS true is that a repeat is
-  // harmless: Google's reply endpoint is a PUT.
+  // harmless: the same words sent again replace the reply, they do not add one.
   [TRANSPORT_ERROR_CODE]: "Check your connection and try again — re-sending the same words is safe.",
   PARSE_ERROR: "Check your connection and try again — re-sending the same words is safe.",
   RATE_LIMITED: "Give it a minute and try again.",
@@ -729,7 +743,8 @@ const SECOND_SENTENCE: Record<string, string> = {
  * times against a permanent failure. The request id is what support needs, and
  * the only technical detail worth showing.
  */
-export function replyRefusal(err: ReplyErrorLike): ReplyRefusal {
+export function replyRefusal(err: ReplyErrorLike, channel?: { label?: string; maxLength?: number | null }): ReplyRefusal {
+  const n = channel?.label?.trim() || NO_LABEL;
   const code = err.code ?? "";
   const kind = KIND_BY_CODE[code];
   if (!kind) {
@@ -743,7 +758,7 @@ export function replyRefusal(err: ReplyErrorLike): ReplyRefusal {
     };
   }
   const authored = API_AUTHORED_MESSAGE.has(code) ? err.message?.trim() : undefined;
-  const headline = authored || FALLBACK_HEADLINE[code] || "Couldn't send your reply.";
+  const headline = authored || FALLBACK_HEADLINE(n, channel?.maxLength ?? null)[code] || "Couldn't send your reply.";
   const description = SECOND_SENTENCE[code] || undefined;
   const href = kind === "reconnect" || kind === "pick_location" ? PRESENCE_ROUTE : undefined;
   return { kind, headline, ...(description ? { description } : {}), ...(href ? { href } : {}) };

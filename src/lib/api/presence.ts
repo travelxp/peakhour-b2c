@@ -1,5 +1,6 @@
 import { api } from "@/lib/api";
-import type { ReviewSummary } from "@/lib/review-summary";
+import type { ReviewSummaryResponse } from "@/lib/review-summary";
+import type { PlaceReviewsResponse } from "@/lib/review-places";
 import type { ReviewKit } from "@/lib/review-kit";
 import type { ConnectableNetwork, PresenceInsightsResponse, PresenceListingResponse } from "@/lib/presence-panels";
 
@@ -32,7 +33,14 @@ export const presenceApi = {
    *   noise.
    */
   reviewSummary: (days?: number, location?: string, network?: string) =>
-    api.get<ReviewSummary>(`/v1/presence/reviews/summary${presenceQuery({ days, location, network })}`),
+    api.get<ReviewSummaryResponse>(`/v1/presence/reviews/summary${presenceQuery({ days, location, network })}`),
+
+  /**
+   * Each place's rating and counts side by side, the place that needs attention first (PE-R). Nothing is added across places.
+   * `limit` cuts the list (the api defaults to 25 and allows 100) and the answer says when it did.
+   */
+  reviewPlaces: (days?: number, network?: string, limit?: number) =>
+    api.get<PlaceReviewsResponse>(`/v1/presence/reviews/places${presenceQuery({ days, network })}${limit ? `${days || network ? "&" : "?"}limit=${limit}` : ""}`),
 
   /** Every network a merchant can connect, and what each can do. The connect cards are drawn from this. */
   capabilities: () => api.get<{ items: ConnectableNetwork[] }>("/v1/presence/capabilities"),

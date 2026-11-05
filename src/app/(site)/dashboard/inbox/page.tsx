@@ -243,7 +243,7 @@ function LeadsPane() {
 // ── Reviews lane (sup_inbox, kind: review — S0·4) ─────────────────────
 
 /**
- * The Google reviews lane.
+ * The reviews lane.
  *
  * ★★THE ONLY LANE WHOSE REPLY LEAVES PEAKHOUR FOR A PAGE THE MERCHANT'S
  * CUSTOMERS READ. Everything it decides — what the box starts with, what a
@@ -315,9 +315,9 @@ function ReviewsPane({ query }: { query: ReturnType<typeof useReviewsQuery> }) {
         <Sparkles className="size-5 text-muted-foreground" />
         <p className="text-sm font-medium">No reviews here yet</p>
         <p className="max-w-md text-xs text-muted-foreground">
-          Once your Google Business Profile is connected and sending us review notifications, every
-          new review lands here — worst first — with a reply you can publish back to your listing
-          without leaving Peakhour.
+          Once a review network is connected and sending us reviews, every new review lands here
+          — worst first — with a reply you can publish back to its page without leaving Peakhour,
+          where the network takes replies.
         </p>
       </Card>
     );
