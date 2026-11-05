@@ -16,10 +16,14 @@ import {
   requestedForm,
   offerOutcome,
   offerState,
+  outcomeFor,
+  outcomeIds,
+  outcomesStaleTime,
   outcomeWords,
   phoneValue,
   proposeBody,
   riskWarning,
+  showsOutcome,
   specialValue,
   statusWords,
   valueLines,
@@ -407,42 +411,111 @@ describe("presenceEditKeys: two networks never share a cached offers or categori
   });
 });
 
-describe("outcomeWords: what followed a live change (PE-13)", () => {
-  const out = (over: Record<string, unknown> = {}) => ({
-    label: "NetA",
-    outcome: { status: "measured", reason: "compared", message: "Here is what followed this change: x.", lines: [{ metric: "calls", state: "compared", direction: "higher", text: "Calls: 40 in the 28 days before, 60 in the 28 days after (higher)." }], ...over },
-  }) as never;
+describe("what followed a live change (PE-13)", () => {
+  const item = (reason: string, over: Record<string, unknown> = {}) =>
+    ({
+      id: "c1",
+      outcome: { status: reason === "compared" ? "measured" : "x", reason, message: "The sentence.", lines: [{ text: "Calls: 40 in the 28 days before, 60 in the 28 days after (higher)." }], ...over },
+    }) as never;
 
   it("a comparison shows the api's sentence and its lines, under a headline that says what followed", () => {
-    expect(outcomeWords(out())).toEqual({
+    expect(outcomeWords(item("compared"))).toEqual({
       headline: "What followed this change",
-      message: "Here is what followed this change: x.",
+      message: "The sentence.",
       lines: ["Calls: 40 in the 28 days before, 60 in the 28 days after (higher)."],
     });
   });
 
-  it("every state that is not a comparison draws its sentence and no list of figures", () => {
-    for (const status of ["too_early", "not_enough_figures", "mixed_changes", "season"]) {
-      const w = outcomeWords(out({ status, message: "Words." }));
-      expect(w, status).toMatchObject({ message: "Words.", lines: [] });
-    }
-    expect(outcomeWords(out({ status: "season", message: "Words." }))!.headline).toBe("Not compared: a holiday period");
-    expect(outcomeWords(out({ status: "too_early", message: "Words." }))!.headline).toBe("Too early to tell");
+  it("the headline is picked by the reason, and only a running stretch is 'too early'", () => {
+    const head = (reason: string) => outcomeWords(item(reason))!.headline;
+    expect(head("window_not_finished")).toBe("Too early to tell");
+    expect(head("figures_not_in")).toBe("Too early to tell");
+    // a finished stretch with too few is not early
+    expect(head("too_few_actions")).toBe("Too few to compare");
+    expect(head("too_few_actions")).not.toMatch(/early/i);
+    // an unreadable calendar is not called a holiday
+    expect(head("calendar_unknown")).not.toMatch(/holiday period/i);
+    expect(head("calendar_unknown")).toMatch(/cannot be checked/);
+    expect(head("holiday_in_window")).toBe("Not compared: a holiday period");
+    expect(head("other_change")).toBe("Not tied to this one change");
+    for (const r of ["after_unread", "not_connected", "no_location", "no_figures"]) expect(head(r), r).toBe("Cannot compare");
+    for (const r of ["no_baseline", "too_few_days", "windows_differ", "figures_missing"]) expect(head(r), r).toBe("Not enough figures to compare");
   });
 
-  it("a network with no figures, a change that is not live, no answer yet and an empty sentence draw nothing", () => {
-    expect(outcomeWords({ outcome: null, label: null })).toBeNull();
+  it("every state that is not a comparison draws its sentence and no list of figures", () => {
+    for (const r of ["window_not_finished", "other_change", "holiday_in_window", "too_few_actions", "not_connected"]) {
+      expect(outcomeWords(item(r)), r).toMatchObject({ message: "The sentence.", lines: [] });
+    }
+  });
+
+  it("no answer, an empty sentence, a status that says nothing and a reason this screen has no words for draw nothing", () => {
+    expect(outcomeWords(null)).toBeNull();
     expect(outcomeWords(undefined)).toBeNull();
-    expect(outcomeWords(out({ status: "none", message: "This change is not live yet." }))).toBeNull();
-    expect(outcomeWords(out({ message: "  " }))).toBeNull();
+    expect(outcomeWords(item("compared", { message: "  " }))).toBeNull();
+    expect(outcomeWords(item("not_live", { status: "none" }))).toBeNull();
+    expect(outcomeWords(item("a_reason_from_a_newer_api"))).toBeNull();
   });
 
   it("the headlines claim no cause", () => {
-    const heads = ["measured", "too_early", "not_enough_figures", "mixed_changes", "season"].map((status) => outcomeWords(out({ status, message: "m" }))!.headline);
+    const heads = ["compared", "window_not_finished", "too_few_actions", "calendar_unknown", "holiday_in_window", "other_change", "no_baseline", "not_connected"].map((r) => outcomeWords(item(r))!.headline);
     for (const h of heads) expect(h).not.toMatch(/because|caused|due to|thanks to|result of|improved|ranking/i);
   });
 
-  it("one change's answer is never another's in the cache", () => {
-    expect(presenceEditKeys.outcome("a")).not.toEqual(presenceEditKeys.outcome("b"));
+  it("a headline is not repeated in the sentence the api sends under it (fixtures in the api's own wording)", () => {
+    const fixtures: Record<string, string> = {
+      compared: "The 28 days before (12 Sep to 9 Oct) against the 28 days after (11 Oct to 7 Nov). Figures are from NetA. This shows a difference, not proof the change caused it.",
+      window_not_finished: "The 28 days after this change run to 7 Nov, and the figures arrive a day or so later. Check back from 8 Nov.",
+      too_few_actions: "There were fewer than 10 calls in all across the days before and after, which is too few to say anything about this change.",
+      calendar_unknown: "Your holiday calendar cannot be read for these days yet, so a holiday cannot be ruled out and no comparison is shown.",
+      not_connected: "This listing is not connected to NetA any more, so there are no figures to compare.",
+    };
+    for (const [reason, message] of Object.entries(fixtures)) {
+      const w = outcomeWords(item(reason, { message }))!;
+      expect(message.toLowerCase().startsWith(w.headline.toLowerCase()), reason).toBe(false);
+      expect(message.toLowerCase().includes(w.headline.toLowerCase()), reason).toBe(false);
+    }
+  });
+});
+
+describe("which changes ask for what followed them", () => {
+  const caps = { items: [{ ...cap({ network: "net_a" }), metrics: true }, { ...cap({ network: "net_b" }), metrics: false }, cap({ network: "net_c" })], can: { propose: true, approve: true } } as never;
+  const ch = (id: string, status: string, network: string) => ({ id, status, network }) as never;
+
+  it("a live change on a network that declares figures does; nothing else does", () => {
+    expect(showsOutcome(ch("1", "live", "net_a"), caps)).toBe(true);
+    expect(showsOutcome(ch("1", "submitted", "net_a"), caps)).toBe(false);
+    expect(showsOutcome(ch("1", "live", "net_b"), caps)).toBe(false);
+    // an older api that sends no flag, a network the capabilities do not list, and no capabilities yet
+    expect(showsOutcome(ch("1", "live", "net_c"), caps)).toBe(false);
+    expect(showsOutcome(ch("1", "live", "net_z"), caps)).toBe(false);
+    expect(showsOutcome(ch("1", "live", "net_a"), undefined)).toBe(false);
+  });
+
+  it("the request is for the set of those changes, sorted, and empty when there are none", () => {
+    expect(outcomeIds([ch("b", "live", "net_a"), ch("a", "live", "net_a"), ch("c", "live", "net_b"), ch("d", "proposed", "net_a")], caps)).toEqual(["a", "b"]);
+    expect(outcomeIds([ch("c", "live", "net_b")], caps)).toEqual([]);
+    expect(outcomeIds(undefined, caps)).toEqual([]);
+  });
+
+  it("one answer per set of live changes, so a change that has just gone live is asked for", () => {
+    expect(presenceEditKeys.outcomes("l1", ["a"])).not.toEqual(presenceEditKeys.outcomes("l1", ["a", "b"]));
+    expect(presenceEditKeys.outcomes("l1", ["a"])).not.toEqual(presenceEditKeys.outcomes("l2", ["a"]));
+    expect(presenceEditKeys.outcomes("l1", ["a"]).slice(0, 3)).toEqual(presenceEditKeys.outcomesAll);
+  });
+
+  it("the answer for one change is found in the list's one answer", () => {
+    const r = { items: [{ id: "a", outcome: { status: "measured", reason: "compared", message: "m", lines: [] } }] };
+    expect(outcomeFor(r, "a")!.id).toBe("a");
+    expect(outcomeFor(r, "z")).toBeNull();
+    expect(outcomeFor(undefined, "a")).toBeNull();
+  });
+
+  it("a settled answer is held a while and one that says check back, or nothing yet, only briefly", () => {
+    const answer = (status: string) => ({ items: [{ id: "a", outcome: { status, reason: "x", message: "m", lines: [] } }] });
+    expect(outcomesStaleTime(undefined)).toBe(0);
+    expect(outcomesStaleTime(answer("measured"))).toBe(30 * 60_000);
+    expect(outcomesStaleTime(answer("too_early"))).toBe(5 * 60_000);
+    expect(outcomesStaleTime(answer("none"))).toBe(5 * 60_000);
+    expect(outcomesStaleTime({ items: [] })).toBe(30 * 60_000);
   });
 });

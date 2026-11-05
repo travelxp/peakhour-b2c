@@ -37,6 +37,8 @@ export interface NetworkCapability {
   network: string;
   /** How a merchant hears the network's name. */
   label: string;
+  /** Whether the network declares figures (calls, directions, clicks): only then is what followed a live change asked for (PE-13). Absent on an older api: false. */
+  metrics?: boolean;
   writableFields: string[];
   riskyFields: string[];
   limits: ListingLimits;
@@ -95,24 +97,23 @@ export interface ChangeCardData {
 }
 
 /**
- * `GET /v1/presence/changes/:id/outcome` (PE-13): what followed a live change. The api writes the sentences, from the rule that holds the
- * minimum-data, same-length, one-change and holiday rules. `outcome` is null for a network that declares no figures: nothing is drawn.
+ * `GET /v1/presence/changes/outcomes?listingId=` (PE-13): what followed each of the listing's newest live changes, in one answer for the whole
+ * list. Only what is drawn is typed. The api writes the sentences from the rule that holds the minimum-data, same-length, one-change and holiday
+ * rules; a network that declares no figures is simply not in the answer.
  */
-export interface ChangeOutcomeLine {
-  metric: string;
-  state: "compared" | "too_few" | "not_reported";
-  direction: "higher" | "lower" | "about_the_same" | null;
-  text: string;
+export interface ChangeOutcomeItem {
+  id: string;
+  outcome: {
+    /** `measured` is the only status that draws a list of figures. */
+    status: string;
+    /** Picks the headline. */
+    reason: string;
+    message: string;
+    lines: Array<{ text: string }>;
+  };
 }
-export interface ChangeOutcomeData {
-  status: "none" | "too_early" | "not_enough_figures" | "mixed_changes" | "season" | "measured";
-  reason: string;
-  message: string;
-  lines: ChangeOutcomeLine[];
-}
-export interface ChangeOutcomeResponse {
-  outcome: ChangeOutcomeData | null;
-  label: string | null;
+export interface ChangeOutcomesResponse {
+  items: ChangeOutcomeItem[];
 }
 
 export interface CategoryOption {
@@ -280,27 +281,69 @@ export function statusWords(c: ChangeCardData, label: string, can: CapabilitiesR
 
 // ── What followed a live change (PE-13) ──────────────────────────────────────
 
-const OUTCOME_HEADLINE: Record<Exclude<ChangeOutcomeData["status"], "none">, string> = {
-  measured: "What followed this change",
-  too_early: "Too early to tell",
-  not_enough_figures: "Not enough figures to compare",
-  mixed_changes: "Not tied to this one change",
-  season: "Not compared: a holiday period",
+/**
+ * THE HEADLINE IS PICKED BY THE REASON, not the status: two reasons in one status mean different things ("too early" is only for days still
+ * to come; a finished stretch with too few calls is not early). A reason this file does not know draws nothing, so a new reason from the api
+ * is never shown under the wrong words. The api's sentence stands under it and never repeats it.
+ */
+const OUTCOME_HEADLINE: Record<string, string> = {
+  compared: "What followed this change",
+  window_not_finished: "Too early to tell",
+  figures_not_in: "Too early to tell",
+  holiday_change: "Not compared: this is a holiday-hours change",
+  holiday_in_window: "Not compared: a holiday period",
+  calendar_unknown: "Not compared: your holiday calendar cannot be checked yet",
+  other_change: "Not tied to this one change",
+  no_baseline: "Not enough figures to compare",
+  too_few_days: "Not enough figures to compare",
+  windows_differ: "Not enough figures to compare",
+  figures_missing: "Not enough figures to compare",
+  too_few_actions: "Too few to compare",
+  after_unread: "Cannot compare",
+  not_connected: "Cannot compare",
+  no_location: "Cannot compare",
+  no_figures: "Cannot compare",
 };
 
 /**
- * What to draw under a live change. `null` is nothing at all: a network with no figures, a change that is not live, or an answer that has not
- * come yet. The sentences are the api's; this adds only a headline. Numbers appear only in `lines`, and the api sends a line with a number
- * only when it compared one - so a state that is not a comparison draws no list.
+ * What to draw under a live change. `null` is nothing at all: no answer for it (a network with no figures, a loading or failed read), a state
+ * with nothing to say, or a reason this file does not know. Figure lines appear only for a real comparison.
  */
-export function outcomeWords(r: ChangeOutcomeResponse | undefined): { headline: string; message: string; lines: string[] } | null {
-  const o = r?.outcome;
-  if (!o || o.status === "none" || !o.message.trim()) return null;
-  return {
-    headline: OUTCOME_HEADLINE[o.status],
-    message: o.message,
-    lines: o.status === "measured" ? o.lines.map((l) => l.text) : [],
-  };
+export function outcomeWords(item: ChangeOutcomeItem | null | undefined): { headline: string; message: string; lines: string[] } | null {
+  const o = item?.outcome;
+  const headline = o ? OUTCOME_HEADLINE[o.reason] : undefined;
+  if (!o || !headline || !o.message.trim()) return null;
+  return { headline, message: o.message, lines: o.status === "measured" ? o.lines.map((l) => l.text) : [] };
+}
+
+/** The answer for one change from the list's single answer. */
+export function outcomeFor(r: ChangeOutcomesResponse | undefined, changeId: string): ChangeOutcomeItem | null {
+  return r?.items.find((i) => i.id === changeId) ?? null;
+}
+
+/**
+ * WHETHER A CHANGE ASKS FOR WHAT FOLLOWED IT: it is live, and its network declares figures. (Whether it was undone, and when, is the api's to
+ * judge: an undo after the days compared leaves the comparison standing.) One place, beside `cardActions`, so a card and its request agree.
+ */
+export function showsOutcome(c: Pick<ChangeCardData, "status" | "network">, caps: CapabilitiesResponse | undefined): boolean {
+  return c.status === "live" && capabilityFor(caps, c.network)?.metrics === true;
+}
+
+/** The ids of the changes in a list that ask for an outcome, sorted, so the request is made once per set and again when the set changes. */
+export function outcomeIds(changes: readonly Pick<ChangeCardData, "id" | "status" | "network">[] | undefined, caps: CapabilitiesResponse | undefined): string[] {
+  return (changes ?? []).filter((c) => showsOutcome(c, caps)).map((c) => c.id).sort();
+}
+
+const SHORT_OUTCOME_MS = 5 * 60_000;
+const LONG_OUTCOME_MS = 30 * 60_000;
+/**
+ * How long an answer is held. The figures move a day at a time, so a settled answer is held a while; one that says "check back" or "nothing
+ * yet" is held briefly, so its date does not go stale on a screen left open.
+ */
+export function outcomesStaleTime(r: ChangeOutcomesResponse | undefined): number {
+  if (!r) return 0;
+  const waiting = r.items.some((i) => i.outcome.status === "none" || i.outcome.status === "too_early");
+  return waiting ? SHORT_OUTCOME_MS : LONG_OUTCOME_MS;
 }
 
 // ── Showing a value ──────────────────────────────────────────────────────────
@@ -568,7 +611,10 @@ export function errorWords(err: unknown): string {
 export const presenceEditKeys = {
   capabilities: ["presence", "edit", "capabilities"] as const,
   changes: (listingId: string) => ["presence", "edit", "changes", listingId] as const,
-  outcome: (changeId: string) => ["presence", "edit", "outcome", changeId] as const,
+  /** The prefix of every outcomes answer, for a refresh. */
+  outcomesAll: ["presence", "edit", "outcomes"] as const,
+  /** One answer per listing and per SET of live changes, so a change that has just gone live is asked for. */
+  outcomes: (listingId: string, ids: readonly string[]) => ["presence", "edit", "outcomes", listingId, ids.join(",")] as const,
   offers: (listingId: string, network: string) => ["presence", "edit", "offers", listingId, network] as const,
   categories: (listingId: string, network: string, q: string) => ["presence", "edit", "categories", listingId, network, q.trim().toLowerCase()] as const,
 };

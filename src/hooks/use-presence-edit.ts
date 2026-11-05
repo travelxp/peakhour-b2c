@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { presenceChangesApi } from "@/lib/api/presence-changes";
 import { presenceEditApi } from "@/lib/api/presence-edit";
-import { categoryQueryReady, presenceEditKeys, type ProposeBody } from "@/lib/presence-edit";
+import { categoryQueryReady, outcomesStaleTime, presenceEditKeys, type ProposeBody } from "@/lib/presence-edit";
 
 /** What each network can write, whether writes are switched on, and what this person's role can do. */
 export function useEditCapabilities() {
@@ -30,13 +30,16 @@ export function useListingChanges(listingId: string | undefined) {
   });
 }
 
-/** What followed a live change (PE-13). Asked only for a change that is live, once, and held for a while: the figures move a day at a time. */
-export function useChangeOutcome(changeId: string, enabled: boolean) {
+/**
+ * What followed the listing's live changes (PE-13): ONE request for the whole list, made only when a live change on a network that declares
+ * figures is in it (`ids` is `outcomeIds(...)`), and again when that set changes. A settled answer is held a while and a "check back" one briefly.
+ */
+export function useChangeOutcomes(listingId: string | undefined, ids: readonly string[]) {
   return useQuery({
-    queryKey: presenceEditKeys.outcome(changeId),
-    queryFn: () => presenceEditApi.outcome(changeId),
-    enabled,
-    staleTime: 30 * 60_000,
+    queryKey: presenceEditKeys.outcomes(listingId ?? "", ids),
+    queryFn: () => presenceEditApi.outcomes(listingId as string),
+    enabled: !!listingId && ids.length > 0,
+    staleTime: (q) => outcomesStaleTime(q.state.data),
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -86,6 +89,8 @@ export function usePresenceEditMutations(listingId: string | undefined) {
     await qc.invalidateQueries({ queryKey: ["presence", "edit", "offers", listingId ?? ""] });
     // The "Your listing" panel above reads the same listing a live change rewrites.
     await qc.invalidateQueries({ queryKey: ["presence", "listing"] });
+    // a change going live, or being undone, changes what followed it
+    await qc.invalidateQueries({ queryKey: presenceEditKeys.outcomesAll });
   };
   return {
     propose: useMutation({ mutationFn: (b: ProposeBody) => presenceEditApi.propose(b), onSuccess: refresh }),

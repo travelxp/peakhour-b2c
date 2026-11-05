@@ -1,18 +1,17 @@
 "use client";
 
-import { outcomeWords } from "@/lib/presence-edit";
-import { useChangeOutcome } from "@/hooks/use-presence-edit";
+import { outcomeWords, type ChangeOutcomeItem } from "@/lib/presence-edit";
 
 /**
- * What followed a live change (PE-13), under its card. MARKUP ONLY: the words are the api's (`outcomeWords` adds a headline).
+ * What followed a live change (PE-13), under its card. MARKUP ONLY: the words are the api's, the headline is `outcomeWords`'s, and the answer
+ * comes from the list's one request (`useChangeOutcomes`, owned by the card that lists the changes), never from this component.
  *
- * It is asked for only when the change is live, and draws nothing while it loads, when it fails, for a network that declares no figures,
- * or when there is nothing to say. Never a number that was not compared, and never a claim that the change caused anything.
+ * It draws nothing when there is no answer, or one it does not know the words for. Never a number that was not compared, and never a claim
+ * that the change caused anything.
  */
-export function ChangeOutcome({ changeId, live }: { changeId: string; live: boolean }) {
-  const q = useChangeOutcome(changeId, live);
-  const words = outcomeWords(q.data);
-  if (!live || !words) return null;
+export function ChangeOutcome({ outcome }: { outcome: ChangeOutcomeItem | null | undefined }) {
+  const words = outcomeWords(outcome);
+  if (!words) return null;
   return (
     <div className="space-y-1 rounded-md bg-muted/40 p-3" data-testid="change-outcome">
       <p className="text-sm font-medium">{words.headline}</p>
