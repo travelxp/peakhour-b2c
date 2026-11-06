@@ -406,6 +406,11 @@ describe("the phone layout", () => {
 describe("the merged list's state", () => {
   it("rows win: any row shows the list", () => {
     expect(combineListState("ready", "empty", 3)).toBe("ready");
+    // ★a filter that keeps none of the rows read so far is not "empty" while later pages remain; it is empty once they run out
+    expect(combineListState("ready", "empty", 0, true)).toBe("ready");
+    expect(combineListState("ready", "empty", 0, false)).toBe("empty");
+    expect(combineListState("error", "empty", 0, true)).toBe("error");
+    expect(combineListState("loading", "empty", 0, true)).toBe("loading");
     expect(combineListState("loading", "ready", 1)).toBe("ready");
   });
   it("a failed refresh of either half keeps the rows and says so", () => {

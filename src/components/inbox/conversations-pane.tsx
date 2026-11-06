@@ -276,13 +276,14 @@ export function ConversationsPane({
     [waState, wa.conversations, storefront.chats, channel, q],
   );
   // a filter ignores the half it does not show, so a failure there is not this list's
-  const listState = combineListState(channel === "storefront" ? "empty" : waFetch, channel === "all" || channel === "storefront" ? sfFetch : "empty", rows.length);
+  const moreWa = channel !== "storefront" && wa.hasNextPage;
+  const moreSf = (channel === "all" || channel === "storefront") && !q && storefront.hasNextPage;
+  const pagesRemain = Boolean(moreWa || moreSf);
+  const listState = combineListState(channel === "storefront" ? "empty" : waFetch, channel === "all" || channel === "storefront" ? sfFetch : "empty", rows.length, pagesRemain);
   const retryList = () => {
     if (channel !== "storefront") void wa.refetch();
     if ((channel === "all" || channel === "storefront") && !q) void storefront.refetch();
   };
-  const moreWa = channel !== "storefront" && wa.hasNextPage;
-  const moreSf = (channel === "all" || channel === "storefront") && !q && storefront.hasNextPage;
   const loadingMore = wa.isFetchingNextPage || storefront.isFetchingNextPage;
   const notice = channel === "storefront" ? null : <WaNoticeCard state={waState} />;
   const expiry = expiryBanner(wa.expiringCount, wa.expiringFrom);
@@ -553,6 +554,11 @@ export function ConversationsPane({
               <button onClick={retryList} className="underline underline-offset-2">
                 Retry
               </button>
+            </p>
+          )}
+          {listState === "ready" && rows.length === 0 && (
+            <p className="p-4 text-sm text-muted-foreground" data-testid="keep-looking">
+              None of the conversations loaded so far match. Show more conversations below to keep looking.
             </p>
           )}
           {showsRows(listState) &&

@@ -220,8 +220,11 @@ export function mergeRows(whatsapp: readonly InboxRow[], storefront: readonly In
  *  - The caller passes WhatsApp as "empty" when the api said it is not available or not connected (that is a state with its own card,
  *    not an error and not a spinner).
  */
-export function combineListState(wa: ListFetchState, storefront: ListFetchState, rows: number): ListFetchState {
+export function combineListState(wa: ListFetchState, storefront: ListFetchState, rows: number, morePages = false): ListFetchState {
   const parts = [wa, storefront];
+  // ★"EMPTY" ONLY WHEN THERE IS NOTHING LEFT TO LOAD: a channel chip or a saved view can keep none of the rows read so far while a later page holds them,
+  //  and an empty message with no "Show more" would hide them. The list renders (with no rows and its Show more) until the pages run out.
+  if (rows === 0 && morePages && !parts.includes("error") && !parts.includes("loading") && !parts.includes("paused")) return "ready";
   if (rows > 0) return parts.includes("error") || parts.includes("stale") ? "stale" : "ready";
   if (parts.includes("error")) return "error";
   if (parts.includes("loading")) return "loading";
