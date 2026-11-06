@@ -12,7 +12,7 @@ import { createComposerStore } from "@/lib/wa-inbox-reply";
 
 const h = vi.hoisted(() => ({
   refetch: vi.fn(),
-  views: { isError: false, data: undefined as undefined | { views: unknown[] } },
+  views: { isError: false, isSuccess: false, data: undefined as undefined | { views: unknown[] } },
   resume: vi.fn(),
   mutation: { isPending: false, mutate: () => {}, mutateAsync: async () => ({}) },
 }));
@@ -152,6 +152,7 @@ describe("the wired saved-views control", () => {
   const page = { status: "open" as const, assignee: "all" as const, tag: null, topic: null, priority: "all" as const, channel: "all" };
   it("a failed read is said, and Try again asks the query again", () => {
     h.views.isError = true;
+    h.views.isSuccess = false;
     h.views.data = undefined;
     mount(<SavedViews role="viewer" page={page} onApply={() => {}} />);
     expect(has("Saved views could not be loaded.")).toBe(true);
@@ -160,6 +161,7 @@ describe("the wired saved-views control", () => {
   });
   it("views already read stay on screen when a later refresh fails", () => {
     h.views.isError = true;
+    h.views.isSuccess = false;
     h.views.data = { views: [{ id: "v1", name: "Urgent", filters: { status: "open" }, createdAt: "2026-11-06T00:00:00Z" }] };
     mount(<SavedViews role="editor" page={page} onApply={() => {}} />);
     expect(has("Urgent")).toBe(true);
@@ -167,8 +169,26 @@ describe("the wired saved-views control", () => {
   });
   it("a good read says nothing about failure", () => {
     h.views.isError = false;
+    h.views.isSuccess = true;
     h.views.data = { views: [] };
     mount(<SavedViews role="editor" page={page} onApply={() => {}} />);
     expect(has("could not be loaded")).toBe(false);
+  });
+  it("Try again does not make the message vanish while the retry is in flight, and a success clears it", () => {
+    h.views.isError = true;
+    h.views.isSuccess = false;
+    h.views.data = undefined;
+    mount(<SavedViews role="viewer" page={page} onApply={() => {}} />);
+    expect(has("Saved views could not be loaded.")).toBe(true);
+    // react-query v5: a refetch with no data resets the error while it runs
+    h.views.isError = false;
+    act(() => root!.render(<SavedViews role="viewer" page={page} onApply={() => {}} />));
+    expect(has("Saved views could not be loaded.")).toBe(true);
+    // the retry succeeds
+    h.views.isSuccess = true;
+    h.views.data = { views: [{ id: "v1", name: "Urgent", filters: { status: "open" }, createdAt: "2026-11-06T00:00:00Z" }] };
+    act(() => root!.render(<SavedViews role="viewer" page={page} onApply={() => {}} />));
+    expect(has("Saved views could not be loaded.")).toBe(false);
+    expect(has("Urgent")).toBe(true);
   });
 });

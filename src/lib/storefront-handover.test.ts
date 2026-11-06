@@ -75,6 +75,8 @@ describe("refusals", () => {
       expect(c.detail).toMatch(/Check this chat/);
     }
     expect(storefrontReplyError(e("REPLY_IN_PROGRESS", 503)).title).toMatch(/still being handled/);
+    // a website chat has no carrier: a 5xx that happens to say SEND_FAILED is a bare 5xx here, not WhatsApp's refusal
+    expect(storefrontReplyError(e("SEND_FAILED", 502)).title).toMatch(/lost touch/);
     // a bare 5xx stays the lost-touch answer
     expect(storefrontReplyError(e("INTERNAL", 500)).title).toMatch(/lost touch/);
   });

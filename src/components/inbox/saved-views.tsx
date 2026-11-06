@@ -195,6 +195,11 @@ export function SavedViews({ role, page, onApply }: { role: string | null; page:
   const canEdit = canWorkConversation(role);
   // a failed read is said, with a way to ask again, and is never drawn as "no views"; the filters above still work
   const views = query.data?.views ?? [];
+  // ★react-query v5 clears `isError` while a refetch with no data is in flight, so Try again made the message vanish (and, for a viewer, the whole control)
+  //  until the retry answered. The failure is remembered until a read succeeds.
+  const [failedBefore, setFailedBefore] = useState(false);
+  if (query.isError && !failedBefore) setFailedBefore(true);
+  else if (query.isSuccess && failedBefore) setFailedBefore(false);
   return (
     <SavedViewsView
       views={views}
@@ -203,7 +208,7 @@ export function SavedViews({ role, page, onApply }: { role: string | null; page:
       tags={tags.data?.tags}
       busy={admin.save.isPending || admin.remove.isPending}
       error={null}
-      loadFailed={query.isError && !query.data}
+      loadFailed={!query.data && (query.isError || failedBefore)}
       onRetry={() => void query.refetch()}
       onApply={onApply}
       onSave={async (name) => {

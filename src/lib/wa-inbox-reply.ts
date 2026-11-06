@@ -407,8 +407,10 @@ export interface ReplyErrorCopy {
 }
 
 const NOTHING_SENT = "Nothing was sent.";
-/** The codes whose own sentence stands even when the status is a 5xx: the api said what it knows. */
-export const KNOWN_ON_5XX: ReadonlySet<string> = new Set(["SEND_FAILED", "REPLY_OUTCOME_UNKNOWN", "REPLY_IN_PROGRESS"]);
+/** The codes every channel answers with whose own sentence stands even when the status is a 5xx: the api said what it knows. */
+export const OWN_ANSWER_ON_5XX: ReadonlySet<string> = new Set(["REPLY_OUTCOME_UNKNOWN", "REPLY_IN_PROGRESS"]);
+/** WhatsApp's: those two, and a send the carrier refused (`SEND_FAILED`, told apart by `details.outcome`). A website chat has no carrier, so it takes only the shared two. */
+const KNOWN_ON_5XX: ReadonlySet<string> = new Set([...OWN_ANSWER_ON_5XX, "SEND_FAILED"]);
 const SAME_TEXT_IS_SAFE =
   "Pressing Send again without changing anything is safe: if it did reach WhatsApp, it will not go out twice.";
 
