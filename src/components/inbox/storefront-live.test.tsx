@@ -90,6 +90,17 @@ describe("the handover card", () => {
     expect(html).toContain("Refresh summary · 10");
     expect(html).toContain("Suggest a reply · 5");
   });
+  it("a WooCommerce order link opens the store's own wp-admin and says so; without the label it stays hidden", () => {
+    const woo = thread();
+    woo.handover = { ...woo.handover!, adminUrl: "https://shop.example.com/wp-admin/edit.php?post_type=shop_order&s=1001", adminLabel: "WooCommerce" };
+    const html = render(<HandoverCard thread={woo} store={createComposerStore()} role="editor" />);
+    expect(html).toContain('href="https://shop.example.com/wp-admin/edit.php?post_type=shop_order&amp;s=1001"');
+    expect(html).toContain("Open the order in WooCommerce");
+    expect(html).toContain('rel="noopener noreferrer"');
+    const unlabelled = thread();
+    unlabelled.handover = { ...unlabelled.handover!, adminUrl: "https://shop.example.com/wp-admin/edit.php?post_type=shop_order&s=1001" };
+    expect(render(<HandoverCard thread={unlabelled} store={createComposerStore()} role="editor" />)).not.toContain("Open the order in");
+  });
   it("an editor sees the address; a viewer only that one was left", () => {
     expect(render(<HandoverCard thread={thread()} store={createComposerStore()} role="editor" />)).toContain("asha@example.com");
     const viewer = render(<HandoverCard thread={thread({ contactEmail: null })} store={createComposerStore()} role="viewer" />);

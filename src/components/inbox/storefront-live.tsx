@@ -14,6 +14,7 @@ import {
   deliveryLine,
   emailLine,
   noteHeading,
+  adminLabelOf,
   safeAdminUrl,
   storefrontFooter,
   storefrontReplyError,
@@ -182,13 +183,13 @@ export function HandoverCard({ thread, store, role }: { thread: StorefrontThread
   const mem = useComposerMemory(store, thread.threadId);
   const help = canHelpWithChat(thread, role);
   if (!h && !help) return null;
-  const adminUrl = h ? safeAdminUrl(h.adminUrl) : null;
+  const adminUrl = h ? safeAdminUrl(h.adminUrl, h.adminLabel) : null;
   const email = emailLine(thread.contactEmail, thread.hasContactEmail);
   const price = priced("Refresh summary", prices.data?.customerSummary);
   // ONE order link, whether or not the assistant left a note beside it
   const orderLink = adminUrl && (
     <a href={adminUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 underline underline-offset-2">
-      Open the order in Shopify
+      Open the order in {adminLabelOf(h?.adminLabel)}
       <ExternalLink className="size-3" />
     </a>
   );

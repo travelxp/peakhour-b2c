@@ -108,6 +108,17 @@ describe("the handover card words", () => {
   it("opens only the Shopify admin over https", () => {
     expect(safeAdminUrl("https://admin.shopify.com/store/x/orders/1")).toBe("https://admin.shopify.com/store/x/orders/1");
     for (const bad of ["http://admin.shopify.com/x", "https://evil.example/x", "javascript:alert(1)", "", null, undefined]) expect(safeAdminUrl(bad as string | null | undefined)).toBeNull();
+    // a Woo link is allowed only when the api names WooCommerce, and only as the store's own https wp-admin order list
+    const woo = "https://shop.example.com/wp-admin/edit.php?post_type=shop_order&s=1042";
+    expect(safeAdminUrl(woo, "WooCommerce")).toBe(woo);
+    expect(safeAdminUrl("https://shop.example.com/blog/wp-admin/edit.php?post_type=shop_order", "WooCommerce")).not.toBeNull();
+    expect(safeAdminUrl(woo)).toBeNull();
+    expect(safeAdminUrl(woo, "Shopify")).toBeNull();
+    for (const bad of ["http://shop.example.com/wp-admin/edit.php?post_type=shop_order", "https://user:pw@shop.example.com/wp-admin/edit.php?post_type=shop_order", "https://shop.example.com:8443/wp-admin/edit.php?post_type=shop_order", "https://127.0.0.1/wp-admin/edit.php?post_type=shop_order", "https://localhost/wp-admin/edit.php?post_type=shop_order", "https://shop.example.com/wp-admin/edit.php?post_type=shop_order&s=abc", "https://shop.example.com/wp-admin/edit.php?post_type=shop_order#x", "https://shop.example.com/wp-admin/plugins.php", "https://shop.example.com/wp-admin/edit.php?post_type=shop_order&redirect=https://evil.example", "javascript:alert(1)"]) {
+      expect(safeAdminUrl(bad, "WooCommerce"), bad).toBeNull();
+    }
+    // the Woo label never widens the Shopify check the other way
+    expect(safeAdminUrl("https://admin.shopify.com/store/x/orders/1", "WooCommerce")).toBeNull();
   });
   it("the erase copy is about the visitor and the email", () => {
     expect(DELETE_VISITOR_BODY).toContain("including an email");
