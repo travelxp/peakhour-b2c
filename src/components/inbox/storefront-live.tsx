@@ -1,12 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import { toast } from "sonner";
 import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useInboxPrices, useRefreshSummary, useWaHandoff, useWaReply, useWaResume, type StorefrontThread } from "@/hooks/use-wa-conversations";
 import { SuggestedReply, useComposerMemory } from "@/components/inbox/wa-composer";
-import { actionError, priced } from "@/lib/inbox-customer";
+import { actionError, canChangeConversation, priced } from "@/lib/inbox-customer";
+import { ResumeDraftDialog } from "@/components/inbox/resume-draft-dialog";
 import {
   STOREFRONT_REPLY_MAX,
   deliveryLine,
@@ -22,12 +24,14 @@ import {
   attemptAfterError,
   attemptFor,
   clearAfterSend,
+  draftAtRisk,
   errorAfterEdit,
   maySend,
   mintIdempotencyKey,
   needsResendConfirm,
   replySignature,
   replySuccessNote,
+  sentToast,
   statusErrorMessage,
   type ComposerStore,
 } from "@/lib/wa-inbox-reply";
@@ -48,6 +52,15 @@ export function StorefrontComposer({ thread, store }: { thread: StorefrontThread
   const problem = storefrontTextProblem(mem.text);
   const confirm = needsResendConfirm(mem.attempt);
   const line = deliveryLine(thread.delivery);
+  const [confirmResume, setConfirmResume] = useState(false);
+  const doResume = () =>
+    resume.mutate(
+      { threadId, thread },
+      {
+        onSuccess: () => toast.success("Handed back. The assistant will reply again."),
+        onError: (e: Error) => toast.error(statusErrorMessage(e, "hand back")),
+      },
+    );
 
   async function send() {
     const text = store.get(threadId).text;
@@ -57,9 +70,9 @@ export function StorefrontComposer({ thread, store }: { thread: StorefrontThread
     update({ attempt, error: null, note: null, pending: true });
     try {
       const res = await reply.mutateAsync({ payload: { kind: "text", text }, idempotencyKey: attempt.key });
-      const note = replySuccessNote(res);
+      const note = replySuccessNote(res, "storefront");
       update((cur) => ({ ...clearAfterSend(cur, sig), attempt: null, error: null, note, pending: false }));
-      if (!note) toast.success("Reply saved to the chat.");
+      if (!note) toast.success(sentToast("storefront"));
     } catch (e) {
       const copy = storefrontReplyError(e);
       update({ error: copy, attempt: attemptAfterError(attempt, copy, prev), pending: false });
@@ -105,15 +118,7 @@ export function StorefrontComposer({ thread, store }: { thread: StorefrontThread
             size="sm"
             variant="outline"
             disabled={resume.isPending || mem.pending}
-            onClick={() =>
-              resume.mutate(
-                { threadId, thread },
-                {
-                  onSuccess: () => toast.success("Handed back. The assistant will reply again."),
-                  onError: (e: Error) => toast.error(statusErrorMessage(e, "hand back")),
-                },
-              )
-            }
+            onClick={() => (draftAtRisk(mem) ? setConfirmResume(true) : doResume())}
           >
             {resume.isPending ? "Resuming…" : "Resume the assistant"}
           </Button>
@@ -122,6 +127,14 @@ export function StorefrontComposer({ thread, store }: { thread: StorefrontThread
           </Button>
         </div>
       </div>
+      <ResumeDraftDialog
+        open={confirmResume}
+        onKeep={() => setConfirmResume(false)}
+        onConfirm={() => {
+          setConfirmResume(false);
+          doResume();
+        }}
+      />
     </div>
   );
 }
@@ -152,38 +165,46 @@ export function StorefrontFooter({ thread, role, store }: { thread: StorefrontTh
   );
 }
 
-/** The package the assistant prepared when it handed the chat over, at the top of the thread. */
-export function HandoverCard({ thread, store }: { thread: StorefrontThread; store: ComposerStore }) {
+/** Whether the help parts (a summary, a suggested reply) are offered: a person who can act on the chat, and never on the merchant's own test chat. */
+export function canHelpWithChat(thread: Pick<StorefrontThread, "test">, role: string | null | undefined): boolean {
+  return canChangeConversation(role) && thread.test !== true;
+}
+
+/**
+ * The top of a website chat: the package the assistant prepared when it handed the chat over (when it did), and the two help buttons (a
+ * summary, a suggested reply) for ANY chat a person can act on. ★SA-12: they were drawn only under a handed-over chat, so a chat the team
+ * opened while the assistant still held it, or took over from the list, had neither, and the api serves both for every chat of the business.
+ */
+export function HandoverCard({ thread, store, role }: { thread: StorefrontThread; store: ComposerStore; role?: string | null }) {
   const h: StorefrontHandover | null | undefined = thread.handover;
   const prices = useInboxPrices();
   const summary = useRefreshSummary(thread.threadId);
   const mem = useComposerMemory(store, thread.threadId);
-  if (!h) return null;
-  const adminUrl = safeAdminUrl(h.adminUrl);
+  const help = canHelpWithChat(thread, role);
+  if (!h && !help) return null;
+  const adminUrl = h ? safeAdminUrl(h.adminUrl) : null;
   const email = emailLine(thread.contactEmail, thread.hasContactEmail);
   const price = priced("Refresh summary", prices.data?.customerSummary);
+  // ONE order link, whether or not the assistant left a note beside it
+  const orderLink = adminUrl && (
+    <a href={adminUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 underline underline-offset-2">
+      Open the order in Shopify
+      <ExternalLink className="size-3" />
+    </a>
+  );
   return (
-    <section aria-label="Handed over to you" className="space-y-2 rounded-md border bg-background p-3 text-xs" data-testid="handover-card">
-      <p className="text-sm font-medium">{h.reasonLabel}</p>
-      {h.note && (
+    <section aria-label={h ? "Handed over to you" : "About this chat"} className="space-y-2 rounded-md border bg-background p-3 text-xs" data-testid={h ? "handover-card" : "chat-help-card"}>
+      {h && <p className="text-sm font-medium">{h.reasonLabel}</p>}
+      {h?.note ? (
         <div className="space-y-1 rounded-md bg-muted/40 p-2">
           <p className="font-medium">{noteHeading(h.kind, h.orderNumber)}</p>
           <p className="whitespace-pre-wrap">{h.note}</p>
-          {adminUrl && (
-            <a href={adminUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 underline underline-offset-2">
-              Open the order in Shopify
-              <ExternalLink className="size-3" />
-            </a>
-          )}
+          {orderLink}
         </div>
+      ) : (
+        orderLink
       )}
-      {!h.note && adminUrl && (
-        <a href={adminUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 underline underline-offset-2">
-          Open the order in Shopify
-          <ExternalLink className="size-3" />
-        </a>
-      )}
-      {h.lastAsks.length > 0 && (
+      {h && h.lastAsks.length > 0 && (
         <div>
           <p className="font-medium">What the visitor asked last</p>
           <ul className="mt-0.5 list-disc space-y-0.5 pl-4 text-muted-foreground">
@@ -200,22 +221,26 @@ export function HandoverCard({ thread, store }: { thread: StorefrontThread; stor
           <p className="mt-0.5 whitespace-pre-wrap text-muted-foreground">{thread.summary.text}</p>
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          size="xs"
-          variant="outline"
-          disabled={summary.isPending || !price.available}
-          onClick={() => summary.mutate(undefined, { onError: (e) => toast.error(actionError(e, "Refreshing the summary")) })}
-        >
-          {summary.isPending ? "Refreshing…" : price.text}
-        </Button>
-      </div>
-      <SuggestedReply
-        threadId={thread.threadId}
-        hasDraft={mem.text.trim().length > 0}
-        disabled={mem.pending}
-        onUse={(reply) => store.update(thread.threadId, (cur) => ({ text: reply, error: errorAfterEdit(cur.error, cur.attempt) }))}
-      />
+      {help && (
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="xs"
+              variant="outline"
+              disabled={summary.isPending || !price.available}
+              onClick={() => summary.mutate(undefined, { onError: (e) => toast.error(actionError(e, "Refreshing the summary")) })}
+            >
+              {summary.isPending ? "Refreshing…" : price.text}
+            </Button>
+          </div>
+          <SuggestedReply
+            threadId={thread.threadId}
+            hasDraft={mem.text.trim().length > 0}
+            disabled={mem.pending}
+            onUse={(reply) => store.update(thread.threadId, (cur) => ({ text: reply, error: errorAfterEdit(cur.error, cur.attempt) }))}
+          />
+        </>
+      )}
     </section>
   );
 }

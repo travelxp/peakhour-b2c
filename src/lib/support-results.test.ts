@@ -34,7 +34,7 @@ function metrics(over: Partial<SupportMetrics> = {}): SupportMetrics {
     truncated: false,
     firstReply: { count: 4, medianMs: 600_000, p90Ms: 1_800_000 },
     resolution: { count: 0, medianMs: null, p90Ms: null },
-    aiResolved: { count: 3, settled: 6, share: 0.5, measured: true },
+    aiResolved: { count: 3, settled: 6, share: 0.5 },
     handOver: { count: 1, rate: 0.125, reasons: [{ reason: "shopper_asked", label: "The customer asked for a person", count: 1 }] },
     csat: { asked: 5, responses: 3, average: 4.333, distribution: { "1": 0, "2": 0, "3": 1, "4": 0, "5": 2 }, byResolvedBy: { ai: { responses: 2, average: 4.5 }, human: { responses: 1, average: 4 } } },
     volume: { byChannel: { whatsapp: 20, storefront: 5 }, byHour: [] },
@@ -136,10 +136,10 @@ describe("revenue from chats is an estimate and says when it has no total", () =
 describe("what sits under each headline figure", () => {
   it("the assistant's share names the counts it rests on, for every channel (storefront is measured now)", () => {
     expect(resolvedNote(metrics())).toBe("3 of 6 settled conversations were resolved by the assistant.");
-    expect(resolvedNote(metrics({ aiResolved: { count: 0, settled: 0, share: null, measured: true } }))).toBe("No conversation has settled in this range yet.");
+    expect(resolvedNote(metrics({ aiResolved: { count: 0, settled: 0, share: null } }))).toBe("No conversation has settled in this range yet.");
     // a storefront-only range is a real figure, not "not measured"
-    expect(resolvedNote(metrics({ channel: "storefront", aiResolved: { count: 2, settled: 4, share: 0.5, measured: true } }))).toBe("2 of 4 settled conversations were resolved by the assistant.");
-    expect(resolvedNote(metrics({ aiResolved: { count: 2, settled: 4, share: 0.5, measured: true } }))).not.toMatch(/not measured/i);
+    expect(resolvedNote(metrics({ channel: "storefront", aiResolved: { count: 2, settled: 4, share: 0.5 } }))).toBe("2 of 4 settled conversations were resolved by the assistant.");
+    expect(resolvedNote(metrics({ aiResolved: { count: 2, settled: 4, share: 0.5 } }))).not.toMatch(/not measured/i);
   });
 
   it("the first reply names how many replies it rests on", () => {

@@ -202,6 +202,15 @@ export function channelOfThread(threadId: string): Channel {
 }
 
 /**
+ * The channel a thread really is, from its key's first part. ★`channelOfThread` above answers the MOUNT (a Messenger, Instagram or X chat is read
+ * through WhatsApp's); this answers what the person is looking at, for every sentence that names the channel (SA-12).
+ */
+export function channelOfThreadKey(threadId: string | null | undefined): Channel {
+  const head = (threadId ?? "").split(":", 1)[0];
+  return head === "storefront" || head === "messenger" || head === "instagram" || head === "x" ? head : "whatsapp";
+}
+
+/**
  * Both channels as one list: the conversations that NEED YOU first, then the most recently updated. ★A FILTER IS APPLIED HERE,
  * NOT BY HIDING ROWS IN THE MARKUP, so what the count and the empty state say is what the list shows.
  */

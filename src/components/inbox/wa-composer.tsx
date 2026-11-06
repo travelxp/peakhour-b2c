@@ -18,6 +18,7 @@ import { useInboxPrices, useSuggestReply, useWaReply, useWaStudioTemplates } fro
 import { SavedReplyPicker } from "@/components/inbox/saved-reply-picker";
 import { WaRichSend } from "@/components/inbox/wa-rich-send";
 import { actionError, priced } from "@/lib/inbox-customer";
+import { channelOfThreadKey } from "@/lib/inbox-view";
 import { listFetchState, showsSkeleton } from "@/lib/list-fetch-state";
 import { createSharedClock, deadlineDelay } from "@/lib/shared-clock";
 import {
@@ -34,6 +35,7 @@ import {
   replyErrorCopy,
   replySignature,
   replySuccessNote,
+  sentToast,
   replyWindow,
   templateContentProblem,
   templateListTruncated,
@@ -207,9 +209,10 @@ export function WaComposer({
     update({ attempt, error: null, note: null, pending: true });
     try {
       const res = await reply.mutateAsync({ payload, idempotencyKey: attempt.key });
-      const note = replySuccessNote(res);
+      const channel = channelOfThreadKey(threadId);
+      const note = replySuccessNote(res, channel);
       update((cur) => ({ ...clearAfterSend(cur, sig), attempt: null, error: null, note, pending: false }));
-      if (!note) toast.success("Sent to the shopper on WhatsApp.");
+      if (!note) toast.success(sentToast(channel));
       return true;
     } catch (e) {
       const copy = replyErrorCopy(e, payload.kind);

@@ -76,7 +76,7 @@ describe("the footer under a storefront thread", () => {
 
 describe("the handover card", () => {
   it("shows the reason, the note, the asks and an admin link that opens safely in a new tab", () => {
-    const html = render(<HandoverCard thread={thread()} store={createComposerStore()} />);
+    const html = render(<HandoverCard thread={thread()} store={createComposerStore()} role="editor" />);
     expect(html).toContain("Asked for a refund");
     expect(html).toContain("Refund request for order #1001");
     expect(html).toContain("Visitor wants their money back");
@@ -91,15 +91,56 @@ describe("the handover card", () => {
     expect(html).toContain("Suggest a reply · 5");
   });
   it("an editor sees the address; a viewer only that one was left", () => {
-    expect(render(<HandoverCard thread={thread()} store={createComposerStore()} />)).toContain("asha@example.com");
-    const viewer = render(<HandoverCard thread={thread({ contactEmail: null })} store={createComposerStore()} />);
+    expect(render(<HandoverCard thread={thread()} store={createComposerStore()} role="editor" />)).toContain("asha@example.com");
+    const viewer = render(<HandoverCard thread={thread({ contactEmail: null })} store={createComposerStore()} role="viewer" />);
     expect(viewer).toContain("The visitor left an email");
     expect(viewer).not.toContain("@");
   });
   it("draws nothing for a chat that was never handed over, and no link for a non-admin address", () => {
-    expect(render(<HandoverCard thread={thread({ handover: null })} store={createComposerStore()} />)).toBe("");
+    expect(render(<HandoverCard thread={thread({ handover: null })} store={createComposerStore()} role="viewer" />)).toBe("");
     const odd = thread();
     odd.handover = { ...odd.handover!, adminUrl: "https://evil.example/x" };
-    expect(render(<HandoverCard thread={odd} store={createComposerStore()} />)).not.toContain("Open the order in Shopify");
+    expect(render(<HandoverCard thread={odd} store={createComposerStore()} role="editor" />)).not.toContain("Open the order in Shopify");
+  });
+});
+
+describe("the help parts reach every website chat a person can act on (SA-12)", () => {
+  const unhanded = (over: Partial<StorefrontThread> = {}) => thread({ handover: null, summary: undefined, ...over });
+  it("a chat that was never handed over still offers a summary and a suggested reply to an editor", () => {
+    const html = render(<HandoverCard thread={unhanded()} store={createComposerStore()} role="editor" />);
+    expect(html).toContain('data-testid="chat-help-card"');
+    expect(html).toContain("Refresh summary · 10");
+    expect(html).toContain("Suggest a reply · 5");
+    // nothing of a hand-over is drawn when there was none
+    expect(html).not.toContain("handover-card");
+    expect(html).not.toContain("What the visitor asked last");
+  });
+  it("shows the summary it already holds", () => {
+    expect(render(<HandoverCard thread={unhanded({ summary: { text: "Asked about sizing.", at: "2026-11-05T10:01:00Z" } })} store={createComposerStore()} role="admin" />)).toContain("Asked about sizing.");
+  });
+  it("a viewer, no role and the merchant's own test chat get nothing to press", () => {
+    expect(render(<HandoverCard thread={unhanded()} store={createComposerStore()} role="viewer" />)).toBe("");
+    expect(render(<HandoverCard thread={unhanded()} store={createComposerStore()} />)).toBe("");
+    expect(render(<HandoverCard thread={unhanded({ test: true })} store={createComposerStore()} role="owner" />)).toBe("");
+  });
+  it("a viewer still reads a handover but is not offered buttons the api would refuse", () => {
+    const html = render(<HandoverCard thread={thread()} store={createComposerStore()} role="viewer" />);
+    expect(html).toContain("Asked for a refund");
+    expect(html).not.toContain("Refresh summary");
+    expect(html).not.toContain("Suggest a reply");
+  });
+});
+
+describe("the order link is drawn once", () => {
+  const links = (html: string) => (html.match(/Open the order in Shopify/g) ?? []).length;
+  it("with a note beside it", () => {
+    expect(links(render(<HandoverCard thread={thread()} store={createComposerStore()} role="editor" />))).toBe(1);
+  });
+  it("with no note", () => {
+    const t = thread();
+    t.handover = { ...t.handover!, note: null };
+    const html = render(<HandoverCard thread={t} store={createComposerStore()} role="editor" />);
+    expect(links(html)).toBe(1);
+    expect(html).toContain('href="https://admin.shopify.com/store/demo/orders/1001"');
   });
 });

@@ -10,6 +10,7 @@ import {
   codLine,
   creditsLabel,
   deleteContactToast,
+  deleteCopy,
   firstSeenLine,
   lifetimeLine,
   money,
@@ -139,5 +140,27 @@ describe("a refusal", () => {
     const msg = actionError(new Error("fetch failed"), "Drafting a reply");
     expect(msg).toBe("Drafting a reply didn’t work just now. Check your connection and try again.");
     expect(msg).not.toMatch(/fetch failed|undefined|\[object/);
+  });
+});
+
+describe("the delete dialog speaks of the chat that is open (SA-12)", () => {
+  it("WhatsApp keeps its own words, with the contact record", () => {
+    const c = deleteCopy("whatsapp");
+    expect(c.body).toContain("their WhatsApp conversations");
+    expect(c.body).toContain("contact record");
+  });
+  it("Messenger, Instagram and X name their own channel and claim no contact record, number or queue", () => {
+    for (const [ch, name] of [["messenger", "Messenger"], ["instagram", "Instagram"], ["x", "X"]] as const) {
+      const c = deleteCopy(ch);
+      expect(`${c.title} ${c.body} ${c.confirm} ${c.done}`).not.toMatch(/whatsapp|number|contact record|queue/i);
+      expect(c.body).toContain(`this ${name} conversation`);
+    }
+  });
+  it("a website chat is about the visitor and the email", () => {
+    expect(deleteCopy("storefront").body).toContain("including an email");
+  });
+  it("the toast follows the chat, and a held one still says it was kept", () => {
+    expect(deleteContactToast(null, deleteCopy("messenger").done)).toBe("Deleted this conversation.");
+    expect(deleteContactToast({ held: { deferred: 1 } }, deleteCopy("messenger").done)).toMatch(/legal hold/);
   });
 });
