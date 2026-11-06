@@ -194,11 +194,11 @@ export function SupportResultsPanel() {
             <div className="grid gap-4 lg:grid-cols-2">
               <Card className="p-4">
                 <p className="flex items-center gap-2 text-sm font-medium">
-                  <UserRoundCheck aria-hidden="true" className="size-4 text-muted-foreground" /> Handed to your team
+                  <UserRoundCheck aria-hidden="true" className="size-4 text-muted-foreground" /> Handed over
                 </p>
                 <p className="mt-2 text-2xl font-bold">{m.handOver.count.toLocaleString("en-IN")}</p>
                 <p className="text-xs text-muted-foreground">
-                  {m.handOver.rate === null ? "No WhatsApp conversations in this range." : `${formatPercent(m.handOver.rate)} of ${m.conversations.whatsapp.toLocaleString("en-IN")} WhatsApp conversations.`}
+                  {m.handOver.rate === null ? "No conversations in this range." : `${formatPercent(m.handOver.rate)} of ${m.conversations.total.toLocaleString("en-IN")} conversations.`}
                 </p>
                 <ul className="mt-3 space-y-1 text-sm">
                   {m.handOver.reasons.length === 0 && <li className="text-muted-foreground">Nothing was handed over in this range.</li>}

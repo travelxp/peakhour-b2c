@@ -8,6 +8,7 @@ import type { CustomerPanelData, InboxPrices } from "@/lib/inbox-customer";
 import type { InboxState, StatusFilter } from "@/lib/inbox-view";
 import { deskListParams, type AssigneeFilter, type ResponseTimer, type ThreadAssignee, type ThreadCsat } from "@/lib/inbox-desk";
 import type { MessageMedia, ProductHit } from "@/lib/inbox-media";
+import { isStorefrontThread, storefrontMount, storefrontReplyRequest, storefrontResumeBody, type StorefrontDelivery, type StorefrontHandover } from "@/lib/storefront-handover";
 import {
   replyRequest,
   resumeBody,
@@ -74,8 +75,35 @@ export interface StorefrontThread {
   assignee?: ThreadAssignee | null;
   tagIds?: string[];
   timer?: ResponseTimer | null;
-  readOnly: true;
-  messages: Array<{ role: string; content: string; timestamp: string | null }>;
+  /** SA-9: false only while the chat is with the team (escalated). True for an assistant chat and for the merchant's own test chat. */
+  readOnly: boolean;
+  /** SA-9: the compare-and-set version Resume sends. */
+  statusVersion?: number;
+  visitorHere?: boolean;
+  delivery?: StorefrontDelivery;
+  /** Editors and above only. */
+  contactEmail?: string | null;
+  hasContactEmail?: boolean;
+  /** The package the assistant prepared when it handed the chat over; null when it was not handed over. */
+  handover?: StorefrontHandover | null;
+  summary?: { text: string; at: string | null } | null;
+  messages: Array<{ role: string; content: string; timestamp: string | null; source?: "phone" | "inbox"; authorUserId?: string | null }>;
+}
+
+/** The mount a thread id belongs to: a storefront chat has its own tree, not behind the WhatsApp availability gate. */
+function mountOf(threadId: string): string {
+  return isStorefrontThread(threadId) ? storefrontMount(threadId) : `${BASE}/${encodeURIComponent(threadId)}`;
+}
+
+/** The queries to re-read after something changed one thread. */
+function invalidateThread(qc: ReturnType<typeof useQueryClient>, biz: string, threadId: string) {
+  if (isStorefrontThread(threadId)) {
+    void qc.invalidateQueries({ queryKey: ["storefront-chats", biz] });
+    void qc.invalidateQueries({ queryKey: ["storefront-thread", biz, threadId] });
+  } else {
+    void qc.invalidateQueries({ queryKey: ["wa-conversations", biz] });
+    void qc.invalidateQueries({ queryKey: ["wa-thread", biz, threadId] });
+  }
 }
 
 export interface WaMessage {
@@ -299,16 +327,16 @@ export function useWaReply(threadId: string) {
   const biz = business?._id ?? "none";
   return useMutation({
     mutationFn: ({ payload, idempotencyKey }: { payload: ReplyPayload; idempotencyKey: string }) => {
-      const req = replyRequest(threadId, payload, idempotencyKey);
-      return api.post<ReplyResult>(req.path, req.body);
+      // a storefront chat takes text only, through its own mount
+      // (never the WhatsApp mount for a storefront id: anything but text is refused here, before a request is made)
+      if (isStorefrontThread(threadId) && payload.kind !== "text") throw new Error("A website chat takes text replies only.");
+      const req = isStorefrontThread(threadId) ? storefrontReplyRequest(threadId, (payload as { text: string }).text, idempotencyKey) : replyRequest(threadId, payload, idempotencyKey);
+      return api.post<ReplyResult & { delivery?: StorefrontDelivery }>(req.path, req.body);
     },
     // ★EVERY outcome re-reads the thread: a success to show the line, a repeat
     //  (`duplicate: true` carries no message) to show the first one, and a
     //  refusal because most of them are about the thread's state.
-    onSettled: () => {
-      qc.invalidateQueries({ queryKey: ["wa-thread", biz, threadId] });
-      qc.invalidateQueries({ queryKey: ["wa-conversations", biz] });
-    },
+    onSettled: () => invalidateThread(qc, biz, threadId),
   });
 }
 
@@ -328,12 +356,9 @@ export function useWaHandoff() {
   const qc = useQueryClient();
   const { business } = useAuth();
   return useMutation({
-    mutationFn: (threadId: string) => api.post(`${BASE}/${encodeURIComponent(threadId)}/handoff`),
+    mutationFn: (threadId: string) => api.post(`${mountOf(threadId)}/handoff`),
     // ★Settled, as Resume (review R1): a 409 STATUS_CHANGED also re-reads.
-    onSettled: (_r, _e, threadId) => {
-      qc.invalidateQueries({ queryKey: ["wa-conversations", business?._id ?? "none"] });
-      qc.invalidateQueries({ queryKey: ["wa-thread", business?._id ?? "none", threadId] });
-    },
+    onSettled: (_r, _e, threadId) => invalidateThread(qc, business?._id ?? "none", threadId),
   });
 }
 
@@ -344,14 +369,11 @@ export function useWaResume() {
   return useMutation({
     // ★WA T2 follow-up: the rendered `statusVersion` goes with it
     //  (`resumeBody`), so a Resume from a stale view is a 409, not a release.
-    mutationFn: ({ threadId, thread }: { threadId: string; thread?: WaThread | null }) =>
-      api.post(`${BASE}/${encodeURIComponent(threadId)}/resume`, resumeBody(thread)),
+    mutationFn: ({ threadId, thread }: { threadId: string; thread?: WaThread | StorefrontThread | null }) =>
+      api.post(`${mountOf(threadId)}/resume`, isStorefrontThread(threadId) ? storefrontResumeBody(thread) : resumeBody(thread)),
     // ★SETTLED, NOT ONLY SUCCESS: after a stale-view 409 the pane must re-read
     //  the thread, or it keeps the old version and every click is the same 409.
-    onSettled: (_r, _e, { threadId }) => {
-      qc.invalidateQueries({ queryKey: ["wa-conversations", business?._id ?? "none"] });
-      qc.invalidateQueries({ queryKey: ["wa-thread", business?._id ?? "none", threadId] });
-    },
+    onSettled: (_r, _e, { threadId }) => invalidateThread(qc, business?._id ?? "none", threadId),
   });
 }
 
@@ -413,15 +435,22 @@ export function useRefreshSummary(threadId: string) {
   const qc = useQueryClient();
   const { business } = useAuth();
   return useMutation({
-    mutationFn: () => api.post<{ summary: string | null; chargedCredits: number }>(`${BASE}/${encodeURIComponent(threadId)}/customer/summary`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["inbox-customer", business?._id ?? "none", threadId] }),
+    // a storefront chat's summary is the chat's own (POST /summary) and is read back with the thread
+    mutationFn: () =>
+      isStorefrontThread(threadId)
+        ? api.post<{ summary: string | null; updatedAt?: string | null; chargedCredits: number }>(`${storefrontMount(threadId)}/summary`)
+        : api.post<{ summary: string | null; chargedCredits: number }>(`${BASE}/${encodeURIComponent(threadId)}/customer/summary`),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["inbox-customer", business?._id ?? "none", threadId] });
+      if (isStorefrontThread(threadId)) void qc.invalidateQueries({ queryKey: ["storefront-thread", business?._id ?? "none", threadId] });
+    },
   });
 }
 
 /** "Suggest a reply": an editable draft. A draft only: nothing is sent or stored. Priced; a deliberate press. */
 export function useSuggestReply(threadId: string) {
   return useMutation({
-    mutationFn: () => api.post<{ reply: string; rationale: string; chargedCredits: number }>(`${BASE}/${encodeURIComponent(threadId)}/suggest-reply`),
+    mutationFn: () => api.post<{ reply: string; rationale: string; chargedCredits: number }>(`${mountOf(threadId)}/suggest-reply`),
   });
 }
 
@@ -431,10 +460,12 @@ export function useDeleteContactData() {
   const { business } = useAuth();
   const biz = business?._id ?? "none";
   return useMutation({
-    mutationFn: (threadId: string) => api.delete<{ erased: true; held: { deferred: number } }>(`${BASE}/${encodeURIComponent(threadId)}/contact-data`),
+    mutationFn: (threadId: string) => api.delete<{ erased: true; held?: { deferred: number } }>(`${mountOf(threadId)}/contact-data`),
     onSuccess: (_r, threadId) => {
       void qc.invalidateQueries({ queryKey: ["wa-conversations", biz] });
+      void qc.invalidateQueries({ queryKey: ["storefront-chats", biz] });
       qc.removeQueries({ queryKey: ["wa-thread", biz, threadId] });
+      qc.removeQueries({ queryKey: ["storefront-thread", biz, threadId] });
       qc.removeQueries({ queryKey: ["inbox-customer", biz, threadId] });
     },
   });

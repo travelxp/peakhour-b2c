@@ -154,9 +154,8 @@ export function revenueHeadline(r: ChatRevenue): { value: string; note: string }
 
 /** The sub-line under the AI-resolved share. */
 export function resolvedNote(m: SupportMetrics): string {
-  if (!m.aiResolved.measured) return "Not measured for storefront chats. Choose WhatsApp or all channels.";
-  if (m.aiResolved.settled === 0) return "No WhatsApp conversation has settled in this range yet.";
-  return `${m.aiResolved.count.toLocaleString("en-IN")} of ${m.aiResolved.settled.toLocaleString("en-IN")} finished WhatsApp conversations were closed without a person.`;
+  if (m.aiResolved.settled === 0) return "No conversation has settled in this range yet.";
+  return `${m.aiResolved.count.toLocaleString("en-IN")} of ${m.aiResolved.settled.toLocaleString("en-IN")} settled conversations were resolved by the assistant.`;
 }
 
 export function firstReplyNote(s: Spread): string {
@@ -190,8 +189,8 @@ export const DEFINITIONS: ReadonlyArray<{ term: string; text: string }> = [
   { term: "Median and 9 in 10", text: "The median is the middle wait: half the replies were quicker and half slower. \"9 in 10\" is the wait that nine in ten replies were quicker than." },
   { term: "First reply by a person", text: "The time from the customer message a person answered to that person's first reply. Replies from the assistant are not counted." },
   { term: "Time to resolve", text: "From the customer's first message to the moment a person marked the conversation as done, for conversations marked done in this range." },
-  { term: "Resolved by the assistant", text: "A WhatsApp conversation the assistant finished with no person replying. The share is of WhatsApp conversations that have finished: the assistant resolved them, nothing needed resolving, or a person handled them." },
-  { term: "Handed to your team", text: "A WhatsApp conversation the assistant passed to your team because the customer asked for a person or the assistant could not answer twice in a row." },
+  { term: "Resolved by the assistant", text: "A WhatsApp conversation the assistant closed with no person replying (the outcome check billed it), or a storefront chat the assistant answered start to finish: the visitor wrote, the assistant replied, and the chat was never handed to the team, no person wrote in it, and nothing new has come for 24 hours. The share is of the conversations that have settled: the assistant resolved them, or a person handled or closed them, or the chat was handed to the team and has gone quiet for 24 hours. A conversation still open is not counted either way." },
+  { term: "Handed over", text: "A WhatsApp or storefront conversation the assistant passed to the team, because the customer asked for a person, could not be answered twice running, was upset more than once, or raised a payment, refund or discount problem. The rate is of the conversations in the range. A person taking a conversation over on their own is not a hand-over." },
   { term: "Customer rating", text: "Answers received in this range, from 1 (Poor) to 5 (Great)." },
   { term: "Revenue from chats", text: "The value of order items that came through the assistant on your storefront or in WhatsApp. It is an estimate: those shoppers might have bought the items anyway." },
   { term: "Test chats", text: "Your own Test on your store chats are never counted." },
