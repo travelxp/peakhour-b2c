@@ -56,11 +56,12 @@ import { topicFromParam } from "@/lib/insights";
 import { TopicFilterBanner } from "@/components/inbox/topic-filter-banner";
 import { CustomerPanel } from "@/components/inbox/customer-panel";
 import { HandoverCard, StorefrontFooter } from "@/components/inbox/storefront-live";
-import { DELETE_VISITOR_BODY, DELETE_VISITOR_CONFIRM, DELETE_VISITOR_TITLE, DELETE_VISITOR_TOAST } from "@/lib/storefront-handover";
+import { ResumeDraftDialog } from "@/components/inbox/resume-draft-dialog";
 import {
   memberNameLookup,
   replyingAsLine,
   senderLabel,
+  draftAtRisk,
   statusErrorMessage,
   type ComposerStore,
   type ReplyWindow,
@@ -72,9 +73,7 @@ import {
   canChangeConversation,
   canDeleteContactData,
   deleteContactToast,
-  DELETE_CONTACT_BODY,
-  DELETE_CONTACT_CONFIRM,
-  DELETE_CONTACT_TITLE,
+  deleteCopy,
 } from "@/lib/inbox-customer";
 import {
   visibleChannelFilters,
@@ -84,6 +83,7 @@ import {
   SEARCH_DEBOUNCE_MS,
   STATUS_FILTERS,
   channelOfThread,
+  channelOfThreadKey,
   clockLabel,
   combineListState,
   doneAction,
@@ -336,12 +336,14 @@ export function ConversationsPane({
   // ── who else has this open (SA-10): a ping while it is open, "typing" while the composer holds words. Never for yourself. ──
   const pinged = usePresence(selected, composerMemory.pending || composerMemory.text.trim().length > 0);
   const [confirmErase, setConfirmErase] = useState(false);
+  const [confirmHandBack, setConfirmHandBack] = useState(false);
   // below `xl` the customer panel and the conversation are two views of the same card
   const [showCustomer, setShowCustomer] = useState(false);
   const [shownFor, setShownFor] = useState<string | null>(null);
   if (shownFor !== selected) {
     setShownFor(selected);
     setShowCustomer(false);
+    setConfirmHandBack(false);
   }
 
   // ★THE OPEN CONVERSATION IS READ, HOWEVER IT WAS OPENED (a click, an alert email's link, the Manage list) AND WHILE IT STAYS OPEN:
@@ -404,9 +406,21 @@ export function ConversationsPane({
   const openThread = selectedChannel === "storefront" ? sfThread : waThread;
   // the real channel of the open thread (Messenger / Instagram / WhatsApp / Storefront), for the header chip and the WhatsApp-only parts
   const openChannel: Channel = selectedChannel === "storefront" ? "storefront" : dmChannelOf(waThread?.channel ?? rows.find((r) => r.threadId === selected)?.channel);
+  // ★THE DIALOG SPEAKS OF THE CHAT THAT IS OPEN (SA-12): a Messenger or Instagram chat is read through the WhatsApp mount, so the mount is not the channel
+  const eraseWords = deleteCopy(channelOfThreadKey(selected));
   const threadStateOf: InboxState = openThread?.state ?? (waThread?.needsYou ? "needs_you" : "open");
   const done = openThread ? doneAction(threadStateOf, canChange) : null;
   const updatedAtMs = waThread?.updatedAt ? Date.parse(waThread.updatedAt) : undefined;
+
+  function handBack(threadId: string, thread: NonNullable<typeof waThread>) {
+    resume.mutate(
+      { threadId, thread },
+      {
+        onSuccess: () => toast.success("Handed back — the assistant will reply again."),
+        onError: (e: Error) => toast.error(statusErrorMessage(e, "hand back")),
+      },
+    );
+  }
 
   function runDone(threadId: string, makeDone: boolean) {
     if (markDone.isPending) return; // a double click is one request
@@ -660,14 +674,8 @@ export function ConversationsPane({
                         variant: returnToAi.variant,
                         pending: resume.isPending,
                         disabled: resume.isPending || replyInFlight,
-                        onClick: () =>
-                          resume.mutate(
-                            { threadId: selected, thread: waThread },
-                            {
-                              onSuccess: () => toast.success("Handed back — the assistant will reply again."),
-                              onError: (e: Error) => toast.error(statusErrorMessage(e, "hand back")),
-                            },
-                          ),
+                        // ★A reply written and not sent is asked about first (SA-12), as it is under a website chat
+                        onClick: () => (draftAtRisk(composerMemory) ? setConfirmHandBack(true) : handBack(selected, waThread)),
                       }
                     : null
                 }
@@ -680,11 +688,19 @@ export function ConversationsPane({
                 onDeleteContact={((selectedChannel === "whatsapp" && waThread) || (selectedChannel === "storefront" && sfThread && sfThread.test !== true)) && canDeleteContactData(role) ? () => setConfirmErase(true) : null}
               />
               {hold.dialog}
+              <ResumeDraftDialog
+                open={confirmHandBack && Boolean(waThread)}
+                onKeep={() => setConfirmHandBack(false)}
+                onConfirm={() => {
+                  setConfirmHandBack(false);
+                  if (waThread && selected) handBack(selected, waThread);
+                }}
+              />
               <Dialog open={confirmErase} onOpenChange={(o) => (eraseContact.isPending ? undefined : setConfirmErase(o))}>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>{selectedChannel === "storefront" ? DELETE_VISITOR_TITLE : DELETE_CONTACT_TITLE}</DialogTitle>
-                    <DialogDescription>{selectedChannel === "storefront" ? DELETE_VISITOR_BODY : DELETE_CONTACT_BODY}</DialogDescription>
+                    <DialogTitle>{eraseWords.title}</DialogTitle>
+                    <DialogDescription>{eraseWords.body}</DialogDescription>
                   </DialogHeader>
                   <DialogFooter>
                     <Button variant="outline" disabled={eraseContact.isPending} onClick={() => setConfirmErase(false)}>
@@ -696,7 +712,7 @@ export function ConversationsPane({
                       onClick={() =>
                         eraseContact.mutate(selected, {
                           onSuccess: (r) => {
-                            toast.success(selectedChannel === "storefront" && !(r?.held?.deferred) ? DELETE_VISITOR_TOAST : deleteContactToast(r));
+                            toast.success(deleteContactToast(r, eraseWords.done));
                             setConfirmErase(false);
                             onSelect(null);
                           },
@@ -704,7 +720,7 @@ export function ConversationsPane({
                         })
                       }
                     >
-                      {eraseContact.isPending ? "Deleting…" : selectedChannel === "storefront" ? DELETE_VISITOR_CONFIRM : DELETE_CONTACT_CONFIRM}
+                      {eraseContact.isPending ? "Deleting…" : eraseWords.confirm}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -719,7 +735,7 @@ export function ConversationsPane({
                     }}
                     className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-muted/40 p-3"
                   >
-                    {selectedChannel === "storefront" && sfThread && sfThread.threadId === selected && sfThread.handover && <HandoverCard thread={sfThread} store={composerStore} />}
+                    {selectedChannel === "storefront" && sfThread && sfThread.threadId === selected && <HandoverCard thread={sfThread} store={composerStore} role={role} />}
                     {threadState === "loading" && <Skeleton className="h-20 w-full" />}
                     {threadState === "paused" && <WaitingForConnection what="messages" />}
                     {threadState === "error" && <p className="p-4 text-center text-sm text-muted-foreground">Couldn&apos;t load this conversation. Try again in a moment.</p>}

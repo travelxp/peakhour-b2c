@@ -9,6 +9,7 @@ import {
   WHATSAPP_CONNECT_HREF,
   browserStorage,
   channelOfThread,
+  channelOfThreadKey,
   clockLabel,
   combineListState,
   dayLabel,
@@ -428,5 +429,19 @@ describe("the merged list's state", () => {
     expect(combineListState("paused", "empty", 0)).toBe("paused");
     expect(combineListState("waiting", "waiting", 0)).toBe("waiting");
     expect(combineListState("empty", "empty", 0)).toBe("empty");
+  });
+});
+
+describe("channelOfThreadKey: what the person is looking at, not which mount reads it (SA-12)", () => {
+  it("names every channel from its key, WhatsApp for anything it does not know", () => {
+    expect(channelOfThreadKey("whatsapp:123:456")).toBe("whatsapp");
+    expect(channelOfThreadKey("messenger:p:u")).toBe("messenger");
+    expect(channelOfThreadKey("instagram:p:u")).toBe("instagram");
+    expect(channelOfThreadKey("x:a:b")).toBe("x");
+    expect(channelOfThreadKey("storefront:m:v")).toBe("storefront");
+    expect(channelOfThreadKey("")).toBe("whatsapp");
+    expect(channelOfThreadKey(null)).toBe("whatsapp");
+    // the mount, by contrast, is WhatsApp's for a Messenger chat
+    expect(channelOfThread("messenger:p:u")).toBe("whatsapp");
   });
 });

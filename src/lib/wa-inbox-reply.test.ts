@@ -13,6 +13,8 @@ import {
   needsResendConfirm,
   pickableTemplates,
   replyErrorCopy,
+  draftAtRisk,
+  sentToast,
   replySignature,
   replySuccessNote,
   replyWindow,
@@ -328,6 +330,46 @@ describe("one idempotency key per compose attempt", () => {
 const apiErr = (code: string, status: number, message = "Request failed", details?: unknown) =>
   new ApiError(code, message, status, undefined, details);
 
+describe("a 5xx that carries the api's own answer (SA-12)", () => {
+  it("REPLY_OUTCOME_UNKNOWN on a 502 still says it cannot tell, and still marks the attempt", () => {
+    for (const status of [500, 502, 503]) {
+      const c = replyErrorCopy(apiErr("REPLY_OUTCOME_UNKNOWN", status));
+      expect(c.attempt).toBe("unknown");
+      expect(`${c.title} ${c.detail}`).not.toMatch(/is safe|fail|try again/i);
+      expect(c.detail).toMatch(/twice/);
+    }
+  });
+  it("REPLY_IN_PROGRESS on a 503 says it is still being handled, not that the connection was lost", () => {
+    const c = replyErrorCopy(apiErr("REPLY_IN_PROGRESS", 503));
+    expect(c.title).toMatch(/still being handled/);
+  });
+  it("a bare 5xx is still the cannot-tell-yet answer, and a lost connection too", () => {
+    expect(replyErrorCopy(apiErr("INTERNAL", 500)).title).toMatch(/lost touch/);
+    expect(replyErrorCopy(new Error("offline")).title).toMatch(/lost touch/);
+  });
+});
+
+describe("handing back with words in the box", () => {
+  it("only a draft with something in it, or one being sent, is at risk", () => {
+    expect(draftAtRisk({ text: "Hello" })).toBe(true);
+    expect(draftAtRisk({ text: "   " })).toBe(false);
+    expect(draftAtRisk({ text: "\t\n" })).toBe(false);
+    expect(draftAtRisk({ text: "", pending: true })).toBe(true);
+    expect(draftAtRisk(null)).toBe(false);
+    expect(draftAtRisk(undefined)).toBe(false);
+  });
+});
+
+describe("the toast names the channel the reply went out on", () => {
+  it("never says WhatsApp for Messenger, Instagram, X or a website chat", () => {
+    expect(sentToast("whatsapp")).toBe("Sent to the shopper on WhatsApp.");
+    expect(sentToast("messenger")).toBe("Sent to the shopper on Messenger.");
+    expect(sentToast("instagram")).toBe("Sent to the shopper on Instagram.");
+    expect(sentToast("x")).toBe("Sent to the shopper on X.");
+    expect(sentToast("storefront")).toBe("Reply saved to the chat.");
+  });
+});
+
 describe("replyErrorCopy", () => {
   it("an unknown outcome never says failed or try again, and warns of a second copy", () => {
     const c = replyErrorCopy(apiErr("REPLY_OUTCOME_UNKNOWN", 409));
@@ -541,13 +583,21 @@ describe("replySuccessNote", () => {
   it("a repeat says it was not sent again", () => {
     expect(replySuccessNote({ threadId: "t", duplicate: true, sentAt: null })).toMatch(/not sent again/);
   });
-  it("a send the thread did not record says it may take a moment", () => {
-    expect(
-      replySuccessNote({
-        threadId: "t", duplicate: false, status: "escalated", escalated: false, sentAt: "x", recorded: false,
-        message: { role: "merchant", source: "inbox", content: "hi", timestamp: "x" },
-      }),
-    ).toMatch(/^Sent\./);
+  it("a send the thread did not record says it reached the shopper and may not show here, never that it is slow", () => {
+    const note = replySuccessNote({
+      threadId: "t", duplicate: false, status: "escalated", escalated: false, sentAt: "x", recorded: false,
+      message: { role: "merchant", source: "inbox", content: "hi", timestamp: "x" },
+    });
+    expect(note).toMatch(/^Sent to the shopper, but we could not save it in this conversation/);
+    expect(note).toMatch(/may not show here/);
+    expect(note).toMatch(/Don’t send it again/);
+    expect(note).not.toMatch(/moment|soon|appear/i);
+  });
+  it("a website chat has no carrier: its reply is saved, never sent", () => {
+    const plain = { threadId: "t", duplicate: false as const, status: "escalated" as const, escalated: false, sentAt: "x", message: { role: "merchant" as const, source: "inbox" as const, content: "hi", timestamp: "x" } };
+    expect(replySuccessNote({ threadId: "t", duplicate: true, sentAt: null }, "storefront")).toBe("This reply was already saved to the chat, so it was not added again.");
+    expect(replySuccessNote({ ...plain, recorded: false }, "storefront")).not.toMatch(/sent/i);
+    expect(replySuccessNote({ ...plain, recorded: true }, "storefront")).toBeNull();
   });
   it("a plain send needs no note", () => {
     expect(
