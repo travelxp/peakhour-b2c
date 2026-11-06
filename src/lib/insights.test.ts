@@ -134,7 +134,11 @@ describe("the topic filter", () => {
   it("reads a plausible key and refuses the rest", () => {
     expect(topicFromParam("delivery-times")).toBe("delivery-times");
     expect(topicFromParam("a:b.c_d")).toBe("a:b.c_d");
-    for (const v of [null, "", "  ", "a b", "x&y=1", "a".repeat(200), "<script>"]) expect(topicFromParam(v)).toBeNull();
+    for (const v of [null, "", "  ", "a".repeat(201), "a" + String.fromCharCode(0) + "b", "a" + String.fromCharCode(10) + "b"]) expect(topicFromParam(v)).toBeNull();
+  });
+  it("a key with a slash, a space or an accent still filters (the api's key is only sent back to it)", () => {
+    for (const v of ["shoes/size 9", "café", "a&b=1"]) expect(topicFromParam(v)).toBe(v);
+    expect(topicFromParam("a".repeat(200))).toBe("a".repeat(200));
   });
   it("conversationsHref and searchWithTopic round-trip and keep the other keys", () => {
     expect(conversationsHref("delivery-times")).toBe("/dashboard/inbox?tab=conversations&topic=delivery-times");
@@ -175,6 +179,11 @@ describe("insightsState: a failed read is never an empty list", () => {
   const ok = response([item()]);
   it("pending is loading", () => {
     expect(insightsState({ isPending: true, isError: false, error: null, data: undefined })).toEqual({ kind: "loading" });
+  });
+  it("a disabled query (nothing asked) waits instead of spinning, and an offline one claims nothing", () => {
+    expect(insightsState({ isPending: true, isError: false, error: null, data: undefined, fetchStatus: "idle" })).toEqual({ kind: "waiting" });
+    expect(insightsState({ isPending: true, isError: false, error: null, data: undefined, fetchStatus: "paused" })).toEqual({ kind: "error" });
+    expect(insightsState({ isPending: true, isError: false, error: null, data: undefined, fetchStatus: "fetching" })).toEqual({ kind: "loading" });
   });
   it("a 404 or any error with nothing to show is an error", () => {
     expect(insightsState({ isPending: false, isError: true, error: { status: 404 }, data: undefined })).toEqual({ kind: "error" });

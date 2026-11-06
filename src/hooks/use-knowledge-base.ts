@@ -1,5 +1,6 @@
 "use client";
 
+import { INSIGHTS_KEY } from "@/hooks/use-insights";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
@@ -48,7 +49,7 @@ function useRefresh() {
     void qc.invalidateQueries({ queryKey: [ENTRIES_KEY] });
     void qc.invalidateQueries({ queryKey: [REQUESTS_KEY] });
     // an answered question changes what Insights says is still open
-    void qc.invalidateQueries({ queryKey: ["insights"] });
+    void qc.invalidateQueries({ queryKey: [INSIGHTS_KEY] });
   };
 }
 

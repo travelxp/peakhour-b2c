@@ -122,6 +122,17 @@ describe("the list", () => {
     const noShop = html({ kind: "ready", data: data([item({ type: "product_demand", nextStep: { label: "Open the product", kind: "product", adminPath: "/products/1" } })]) }, "needs_action", null);
     expect(noShop).not.toContain("admin.shopify.com");
   });
+  it("a conversations step is one button, not two to the same place", () => {
+    const out = html({ kind: "ready", data: data([item({ nextStep: { label: "Look at them", kind: "conversations" } })]) });
+    expect(out).toContain("Look at them");
+    expect(out).not.toContain("See conversations");
+    expect(out.match(/topic=delivery-times/g)).toHaveLength(1);
+  });
+  it("a read that has not been asked draws the heading and no body", () => {
+    const out = html({ kind: "waiting" });
+    expect(out).toContain(INSIGHTS_HEADING);
+    expect(out).not.toContain('data-insights=');
+  });
   it("closed items sit in a collapsed Recently fixed, not among the cards", () => {
     const out = html({ kind: "ready", data: data([item(), item({ key: "done", title: "Maroon sarees", status: "closed", closedNote: "Now in stock" })]) });
     expect(out).toContain("Recently fixed");

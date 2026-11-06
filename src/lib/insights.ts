@@ -142,12 +142,16 @@ export const DEMAND_REDIRECT_HREF = "/dashboard/inbox?tab=insights&type=product_
 
 // -- the conversation filter (`?topic=`) -------------------------------------------------------------------------------
 
-const TOPIC_MAX = 120;
+const TOPIC_MAX = 200;
 
-/** A topic key from the URL, or null. A key the api could never have made is "no topic" rather than a request it would refuse. */
+/**
+ * A topic key from the URL, or null. The key is the api's own and is only ever sent back to it (URL-encoded), so any printable text is
+ * accepted: narrowing the alphabet here would turn "See conversations" on a key with a slash or an accent into the whole unfiltered
+ * list with no banner. Only the empty, the over-long and control characters are "no topic".
+ */
 export function topicFromParam(v: string | null | undefined): string | null {
   const t = (v ?? "").trim();
-  return t && t.length <= TOPIC_MAX && /^[A-Za-z0-9_.:-]+$/.test(t) ? t : null;
+  return t && t.length <= TOPIC_MAX && ![...t].some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127) ? t : null;
 }
 
 /** "See conversations": the Conversations lane narrowed to one insight. */
@@ -246,6 +250,8 @@ export function actionFor(item: Pick<Insight, "key" | "nextStep">, shop: string 
 /** What the tab can be showing. A failed read is its own state: it must never read as "nothing needs your attention". */
 export type InsightsState =
   | { kind: "loading" }
+  /** Nothing has been asked (the read is disabled until a business is pinned): no skeleton, which would spin for ever, and no claim. */
+  | { kind: "waiting" }
   | { kind: "error" }
   | { kind: "no-assistant" }
   | { kind: "empty"; data: InsightsResponse }
@@ -267,10 +273,15 @@ export function stateOfError(err: unknown): InsightsState {
   return e && e.status === 404 && (e.code === "NO_ASSISTANT" || e.code === "NO_STORE") ? { kind: "no-assistant" } : { kind: "error" };
 }
 
-export function insightsState(q: { isPending: boolean; isError: boolean; error: unknown; data: unknown }): InsightsState {
+export function insightsState(q: { isPending: boolean; isError: boolean; error: unknown; data: unknown; fetchStatus?: "fetching" | "paused" | "idle" }): InsightsState {
   // a failed read is an error even when an older answer is cached behind it only if there is no answer to show
   if (q.isError && !isInsightsResponse(q.data)) return stateOfError(q.error);
-  if (q.isPending) return { kind: "loading" };
+  if (q.isPending) {
+    // react-query v5: a DISABLED query is pending and idle (nothing in flight, nothing coming); a PAUSED one (offline) never resolves
+    if (q.fetchStatus === "idle") return { kind: "waiting" };
+    if (q.fetchStatus === "paused") return { kind: "error" };
+    return { kind: "loading" };
+  }
   if (!isInsightsResponse(q.data)) return { kind: "error" };
   // "empty" means nothing to show on ANY chip: no item at all, not merely none on the chip in view
   return q.data.items.length === 0 ? { kind: "empty", data: q.data } : { kind: "ready", data: q.data };

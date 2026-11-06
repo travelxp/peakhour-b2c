@@ -107,6 +107,8 @@ function Body({ state, filter, onPick, onRetry, shop }: { state: InsightsState; 
           ))}
         </div>
       );
+    case "waiting":
+      return null;
     case "error":
       return (
         <Card data-insights="error" role="alert" className="flex flex-col items-center gap-2 p-8 text-center">
@@ -238,9 +240,12 @@ function InsightCard({ item, windowDays, shop }: { item: Insight; windowDays: nu
                 <Link href={action.href}>{action.label}</Link>
               </Button>
             )}
-            <Button size="sm" variant="outline" asChild>
-              <Link href={conversationsHref(item.key)}>See conversations</Link>
-            </Button>
+            {/* a "conversations" step already opens this same list under its own label: one button, not two */}
+            {action.kind !== "conversations" && (
+              <Button size="sm" variant="outline" asChild>
+                <Link href={conversationsHref(item.key)}>See conversations</Link>
+              </Button>
+            )}
             <Button size="sm" variant="ghost" disabled={dismissal.isPending} onClick={() => dismissal.mutate({ key: item.key })}>
               Dismiss
             </Button>
