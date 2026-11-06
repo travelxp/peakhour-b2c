@@ -114,7 +114,7 @@ export function useReplyWindow(store: ComposerStore, threadId: string, endsAt: s
  * send themselves, and "Dismiss" throws it away. The price is on the button before it is pressed, and the button is off while a
  * request is running (one press, one charge).
  */
-function SuggestedReply({ threadId, onUse, hasDraft, disabled }: { threadId: string; onUse: (reply: string) => void; hasDraft: boolean; disabled: boolean }) {
+export function SuggestedReply({ threadId, onUse, hasDraft, disabled }: { threadId: string; onUse: (reply: string) => void; hasDraft: boolean; disabled: boolean }) {
   const prices = useInboxPrices();
   const suggest = useSuggestReply(threadId);
   const [draft, setDraft] = useState<{ reply: string; rationale: string } | null>(null);

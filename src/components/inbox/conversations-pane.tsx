@@ -55,6 +55,8 @@ import {
 import { topicFromParam } from "@/lib/insights";
 import { TopicFilterBanner } from "@/components/inbox/topic-filter-banner";
 import { CustomerPanel } from "@/components/inbox/customer-panel";
+import { HandoverCard, StorefrontFooter } from "@/components/inbox/storefront-live";
+import { DELETE_VISITOR_BODY, DELETE_VISITOR_CONFIRM, DELETE_VISITOR_TITLE, DELETE_VISITOR_TOAST } from "@/lib/storefront-handover";
 import {
   memberNameLookup,
   replyingAsLine,
@@ -675,14 +677,14 @@ export function ConversationsPane({
                     : null
                 }
                 customer={openThread ? { shown: showCustomer, onToggle: () => setShowCustomer((v) => !v) } : null}
-                onDeleteContact={selectedChannel === "whatsapp" && waThread && canDeleteContactData(role) ? () => setConfirmErase(true) : null}
+                onDeleteContact={((selectedChannel === "whatsapp" && waThread) || (selectedChannel === "storefront" && sfThread && sfThread.test !== true)) && canDeleteContactData(role) ? () => setConfirmErase(true) : null}
               />
               {hold.dialog}
               <Dialog open={confirmErase} onOpenChange={(o) => (eraseContact.isPending ? undefined : setConfirmErase(o))}>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>{DELETE_CONTACT_TITLE}</DialogTitle>
-                    <DialogDescription>{DELETE_CONTACT_BODY}</DialogDescription>
+                    <DialogTitle>{selectedChannel === "storefront" ? DELETE_VISITOR_TITLE : DELETE_CONTACT_TITLE}</DialogTitle>
+                    <DialogDescription>{selectedChannel === "storefront" ? DELETE_VISITOR_BODY : DELETE_CONTACT_BODY}</DialogDescription>
                   </DialogHeader>
                   <DialogFooter>
                     <Button variant="outline" disabled={eraseContact.isPending} onClick={() => setConfirmErase(false)}>
@@ -694,7 +696,7 @@ export function ConversationsPane({
                       onClick={() =>
                         eraseContact.mutate(selected, {
                           onSuccess: (r) => {
-                            toast.success(deleteContactToast(r));
+                            toast.success(selectedChannel === "storefront" && !(r?.held?.deferred) ? DELETE_VISITOR_TOAST : deleteContactToast(r));
                             setConfirmErase(false);
                             onSelect(null);
                           },
@@ -702,7 +704,7 @@ export function ConversationsPane({
                         })
                       }
                     >
-                      {eraseContact.isPending ? "Deleting…" : DELETE_CONTACT_CONFIRM}
+                      {eraseContact.isPending ? "Deleting…" : selectedChannel === "storefront" ? DELETE_VISITOR_CONFIRM : DELETE_CONTACT_CONFIRM}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -717,6 +719,7 @@ export function ConversationsPane({
                     }}
                     className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-muted/40 p-3"
                   >
+                    {selectedChannel === "storefront" && sfThread && sfThread.threadId === selected && sfThread.handover && <HandoverCard thread={sfThread} store={composerStore} />}
                     {threadState === "loading" && <Skeleton className="h-20 w-full" />}
                     {threadState === "paused" && <WaitingForConnection what="messages" />}
                     {threadState === "error" && <p className="p-4 text-center text-sm text-muted-foreground">Couldn&apos;t load this conversation. Try again in a moment.</p>}
@@ -757,14 +760,8 @@ export function ConversationsPane({
                     ))}
                     {threadState === "empty" && notes.length === 0 && <p className="p-4 text-center text-sm text-muted-foreground">No messages.</p>}
                   </div>
-                  {/* A web visitor cannot be messaged back, so a storefront chat has no composer, and says why. */}
-                  {selectedChannel === "storefront" && sfThread && (
-                    <div className="border-t bg-muted/30 p-3">
-                      <p className="text-xs text-muted-foreground">
-                        This chat is on your storefront. The visitor gave no way to reach them, so it is here to read, not to reply to.
-                      </p>
-                    </div>
-                  )}
+                  {/* SA-9: a storefront chat is read-only while the assistant has it; Take over (or the assistant's own hand-over) gives the team the reply box. */}
+                  {selectedChannel === "storefront" && sfThread && sfThread.threadId === selected && <StorefrontFooter key={selected} thread={sfThread} role={role} store={composerStore} />}
                   {/* ✅WA T4: the composer. ★KEYED BY THREAD, so a draft written to one shopper can never be sent to the next one opened.
                       It sits outside the scrolling pane, so on a phone it stays at the bottom while the messages scroll. */}
                   {selectedChannel === "whatsapp" && waThread && waThread.threadId === selected && (
