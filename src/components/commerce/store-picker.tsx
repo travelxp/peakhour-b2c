@@ -16,10 +16,9 @@ const PLATFORM_LABEL: Record<string, string> = { shopify: "Shopify", woocommerce
  *
  * ★AND NOT ON THE ASSISTANT PAGE. Its preview grounds on the business's primary
  * store (the api route takes no store), so a picker there would claim a scope
- * the answers do not have. The same goes for "What shoppers asked for": the
- * api reads the business's own active Shopify store, and the page names it.
+ * the answers do not have.
  */
-const UNSCOPED_PAGES = ["/dashboard/commerce/assistant", "/dashboard/commerce/demand"];
+const UNSCOPED_PAGES = ["/dashboard/commerce/assistant"];
 
 export function StorePicker() {
   const pathname = usePathname();

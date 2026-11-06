@@ -270,7 +270,7 @@ export function unansweredCta(summary: ReviewSummary): UnansweredCta | null {
 }
 
 /** The Inbox's lanes. */
-export type InboxTab = "conversations" | "leads" | "reviews" | "questions" | "ask";
+export type InboxTab = "conversations" | "insights" | "leads" | "reviews" | "ask";
 
 /**
  * Which Inbox lane a `?tab=` value asks for.
@@ -291,6 +291,8 @@ export type InboxTab = "conversations" | "leads" | "reviews" | "questions" | "as
  * meant for something else must not leave the page showing no tab at all.
  */
 export function inboxTabFromParam(value: string | null | undefined): InboxTab {
-  if (value === "reviews" || value === "leads" || value === "questions" || value === "ask") return value;
+  // ★`questions` WAS A LANE; it is now part of Insights, so a saved link to it opens Insights (the page narrows it to missing info).
+  if (value === "questions") return "insights";
+  if (value === "reviews" || value === "leads" || value === "insights" || value === "ask") return value;
   return "conversations";
 }

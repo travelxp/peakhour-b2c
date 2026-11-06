@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { WhatsAppEmbeddedSignup } from "@/components/integrations/whatsapp-embedded-signup";
 import { PageShell } from "@/components/dashboard/page-shell";
 import { WaTemplateApprovals } from "@/components/integrations/wa-template-approvals";
@@ -54,12 +55,12 @@ export default async function WhatsAppConnectPage({ searchParams }: Props) {
         <p className="mt-1 text-sm text-muted-foreground">
           Support results, resolved conversations, and orders your assistant helped with. These are figures for your information.
         </p>
-        <a
-          href="/dashboard/content/whatsapp/analytics"
+        <Link
+          href="/dashboard/inbox?tab=insights"
           className="mt-2 inline-block text-sm font-medium text-primary hover:underline"
         >
-          View support results →
-        </a>
+          See how conversations are going →
+        </Link>
       </div>
     </PageShell>
   );
