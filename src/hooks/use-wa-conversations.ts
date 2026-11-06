@@ -143,10 +143,13 @@ export interface ListView {
   /** Team desk (I3a): Mine / Unassigned (All = none), and one tag. A new value is a new query key, so the list starts again from its first page. */
   assignee?: AssigneeFilter;
   tag?: string | null;
+  /** Insights: one topic key (`metadata.insightTopics`). A new value is a new query key. */
+  topic?: string | null;
 }
 
-const listParams = (view: ListView, cursor: string | undefined): Record<string, string> => ({
+export const listParams = (view: ListView, cursor: string | undefined): Record<string, string> => ({
   ...deskListParams({ assignee: view.assignee ?? "all", tag: view.tag ?? null }),
+  ...(view.topic ? { topic: view.topic } : {}),
   ...(view.expiringOnly ? { expiring: "1" } : {}),
   ...(view.status ? { status: view.status } : {}),
   ...(view.q ? { q: view.q } : {}),
@@ -175,7 +178,7 @@ interface WaListPage {
  */
 export function useWaConversations(view: ListView = {}) {
   const { business } = useAuth();
-  const key = ["wa-conversations", business?._id ?? "none", view.expiringOnly ? "expiring" : "all", view.status ?? "any", view.q ?? "", view.assignee ?? "all", view.tag ?? ""];
+  const key = ["wa-conversations", business?._id ?? "none", view.expiringOnly ? "expiring" : "all", view.status ?? "any", view.q ?? "", view.assignee ?? "all", view.tag ?? "", view.topic ?? ""];
   const query = useInfiniteQuery({
     queryKey: key,
     queryFn: ({ pageParam }) => {
@@ -214,7 +217,7 @@ interface StorefrontListPage {
  */
 export function useStorefrontChats(view: ListView & { enabled?: boolean } = {}) {
   const { business } = useAuth();
-  const key = ["storefront-chats", business?._id ?? "none", view.expiringOnly ? "expiring" : "all", view.status ?? "any", view.assignee ?? "all", view.tag ?? ""];
+  const key = ["storefront-chats", business?._id ?? "none", view.expiringOnly ? "expiring" : "all", view.status ?? "any", view.assignee ?? "all", view.tag ?? "", view.topic ?? ""];
   const query = useInfiniteQuery({
     queryKey: key,
     queryFn: ({ pageParam }) => {

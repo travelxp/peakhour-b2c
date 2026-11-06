@@ -215,7 +215,6 @@ const PILLAR_NAV: NavGroup[] = [
           { href: "/dashboard/commerce/reviews", label: "Reviews" },
           { href: "/dashboard/commerce/assistant", label: "Assistant" },
           { href: "/dashboard/commerce/knowledge", label: "Knowledge base" },
-          { href: "/dashboard/commerce/demand", label: "What shoppers asked for" },
           { href: "/dashboard/commerce/win-back", label: "Win back carts" },
           { href: "/dashboard/commerce/broadcasts", label: "Broadcasts" },
         ],

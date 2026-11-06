@@ -12,7 +12,7 @@ import { CRON_METADATA, summarizeCronBody } from "@/components/dev/cron-metadata
  */
 
 const read = (rel: string) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8").replace(/\s+/g, " ");
-const ANALYTICS = read("./analytics/page.tsx");
+const ANALYTICS = read("../../../../../components/inbox/support-results-panel.tsx");
 const HUB = read("./page.tsx");
 const HOOK = read("../../../../../hooks/use-wa-analytics.ts");
 const PEAKS = read("../../peaks/page.tsx");

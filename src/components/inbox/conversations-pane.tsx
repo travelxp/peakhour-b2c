@@ -46,6 +46,8 @@ import {
   timelineOf,
   type AssigneeFilter,
 } from "@/lib/inbox-desk";
+import { topicFromParam } from "@/lib/insights";
+import { TopicFilterBanner } from "@/components/inbox/topic-filter-banner";
 import { CustomerPanel } from "@/components/inbox/customer-panel";
 import {
   memberNameLookup,
@@ -208,6 +210,9 @@ export function ConversationsPane({
   const pathname = usePathname();
   const urlAssignee = assigneeFilterFromParam(params.get("assignee"));
   const urlTag = tagFromParam(params.get("tag"));
+  // ★THE INSIGHT FILTER IS THE ADDRESS ALONE (`?topic=`): "See conversations" on an Insights card writes it and the banner below removes it,
+  //  so there is no second copy in state to fall out of step with Back.
+  const topic = topicFromParam(params.get("topic"));
   const [assignee, setAssignee] = useState<AssigneeFilter>(urlAssignee);
   const [tag, setTag] = useState<string | null>(urlTag);
   // ★AND THE URL IS FOLLOWED: Back, or a link followed while the Inbox is open, changes the address without touching this state. The
@@ -228,9 +233,9 @@ export function ConversationsPane({
   const deskFiltered = assignee !== "all" || tag !== null;
   const deskTags = useDeskTags().data?.tags;
   // ★A SEARCH LOOKS ACROSS EVERY CONVERSATION, not only the chip's: a customer whose conversation is Done must be found by their order number.
-  const wa = useWaConversations({ expiringOnly, assignee, tag, ...(q ? { q } : { status }) });
+  const wa = useWaConversations({ expiringOnly, assignee, tag, topic, ...(q ? { q } : { status }) });
   // a search can never match a storefront visitor (no name, number or order on the row), so that half is not asked
-  const storefront = useStorefrontChats({ expiringOnly, status, assignee, tag, enabled: !q });
+  const storefront = useStorefrontChats({ expiringOnly, status, assignee, tag, topic, enabled: !q });
   // Messenger / Instagram chips show only for channels this business has a conversation on (read from the unfiltered list)
   const seenChannels = useMemo(() => wa.conversations.map((c) => dmChannelOf(c.channel)), [wa.conversations]);
   const isXl = useIsXl();
@@ -409,6 +414,7 @@ export function ConversationsPane({
       <AiPauseControl role={role} variant="inbox" />
 
       <div className={`mb-3 space-y-2 ${selected ? "max-lg:hidden" : ""}`}>
+        {topic && <TopicFilterBanner topic={topic} />}
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5" role="group" aria-label="Status">
             {STATUS_FILTERS.map((f) => (
@@ -500,7 +506,7 @@ export function ConversationsPane({
               </Button>
             </div>
           )}
-          {listState === "empty" && <p className="p-4 text-sm text-muted-foreground">{emptyListText(channel, waState, { status, search: q, deskFiltered })}</p>}
+          {listState === "empty" && <p className="p-4 text-sm text-muted-foreground">{emptyListText(channel, waState, { status, search: q, deskFiltered: deskFiltered || topic !== null })}</p>}
           {/* ⚠️★★★A FAILED REFRESH SAYS SO WITHOUT TAKING THE ROWS AWAY. This lane polls every thirty seconds, so `error` here is
               usually a failed BACKGROUND refetch with the last good list still behind it. */}
           {listState === "stale" && (

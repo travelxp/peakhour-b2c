@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { BookOpen, ExternalLink, Loader2, MessageCircleQuestion, Plus } from "lucide-react";
+import Link from "next/link";
 import { toast } from "sonner";
+import { insightsHref } from "@/lib/insights";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -59,26 +61,18 @@ export function KnowledgeBase() {
 
 function Questions() {
   const { data, isLoading, isError } = useKbRequests();
-  if (isLoading) return <Skeleton className="h-24 w-full" />;
+  if (isLoading) return <Skeleton className="h-6 w-64" />;
   if (isError) return <p className="text-sm text-destructive">Could not load the questions to answer. Please refresh.</p>;
-  const requests = data?.requests ?? [];
+  const n = data?.requests.length ?? 0;
+  // ONE LINE: the questions themselves are answered under Insights in the Inbox, with the rest of what customers keep raising.
   return (
-    <section aria-labelledby="kb-questions" className="space-y-3">
-      <h2 id="kb-questions" className="flex items-center gap-2 text-lg font-semibold">
-        <MessageCircleQuestion className="size-5" aria-hidden="true" />
-        Questions to answer
-        {requests.length > 0 && <Badge variant="secondary">{requests.length}</Badge>}
-      </h2>
-      {requests.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nothing waiting. When a shopper asks something your assistant cannot answer, it lands here instead of being guessed.</p>
-      ) : (
-        <ul className="space-y-3">
-          {requests.map((r) => (
-            <QuestionCard key={r.id} request={r} />
-          ))}
-        </ul>
-      )}
-    </section>
+    <p data-kb-questions className="flex flex-wrap items-center gap-2 text-sm">
+      <MessageCircleQuestion className="size-4" aria-hidden="true" />
+      {n === 0 ? "No questions are waiting for an answer." : n === 1 ? "1 question is waiting for your answer." : `${n} questions are waiting for your answer.`}
+      <Link href={insightsHref("missing_info")} className="font-medium underline underline-offset-2">
+        See them in Insights
+      </Link>
+    </p>
   );
 }
 

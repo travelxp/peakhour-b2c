@@ -47,6 +47,8 @@ function useRefresh() {
   return () => {
     void qc.invalidateQueries({ queryKey: [ENTRIES_KEY] });
     void qc.invalidateQueries({ queryKey: [REQUESTS_KEY] });
+    // an answered question changes what Insights says is still open
+    void qc.invalidateQueries({ queryKey: ["insights"] });
   };
 }
 

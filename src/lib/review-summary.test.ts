@@ -279,9 +279,13 @@ describe("inboxTabFromParam — where the call to action lands", () => {
     expect(inboxTabFromParam("reviews")).toBe("reviews");
   });
 
-  it("opens the new lanes by name: the questions the assistant could not answer, and Ask your inbox", () => {
-    expect(inboxTabFromParam("questions")).toBe("questions");
+  it("opens the new lanes by name: Insights, and Ask your inbox", () => {
+    expect(inboxTabFromParam("insights")).toBe("insights");
     expect(inboxTabFromParam("ask")).toBe("ask");
+  });
+
+  it("an old ?tab=questions link opens Insights rather than falling back to Conversations", () => {
+    expect(inboxTabFromParam("questions")).toBe("insights");
   });
 
   it("★★opens the default lane for anything it does not recognise", () => {

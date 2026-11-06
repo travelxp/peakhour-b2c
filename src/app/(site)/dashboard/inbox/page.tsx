@@ -15,9 +15,10 @@ import { createComposerStore } from "@/lib/wa-inbox-reply";
 import { ConversationsPane, WaitingForConnection } from "@/components/inbox/conversations-pane";
 import { AllStoresPane } from "@/components/inbox/all-stores-pane";
 import { SCOPE_LABEL, offersAllStores, openAddress, scopeFromParam, type InboxScope } from "@/lib/inbox-all-stores";
-import { QuestionsPane } from "@/components/inbox/questions-pane";
+import { InsightsPane } from "@/components/inbox/insights-pane";
 import { AskYourInbox } from "@/components/whatsapp/ask-your-inbox";
-import { useKbRequests } from "@/hooks/use-knowledge-base";
+import { useInsights } from "@/hooks/use-insights";
+import { insightsBadge } from "@/lib/insights";
 import { INBOX_SUBTITLE, threadFromParam } from "@/lib/inbox-view";
 import { inboxApi, type InboxItem, type InboxPriority } from "@/lib/api/inbox";
 import { ReviewReplyCard } from "@/components/inbox/review-reply-card";
@@ -41,8 +42,8 @@ import { PageShell } from "@/components/dashboard/page-shell";
  * an adapter into the same list. Lanes shipped so far: conversations (WhatsApp
  * live chat and, read-only, storefront chats — `components/inbox/conversations-pane.tsx`),
  * LinkedIn lead-gen leads (G2 — scored by the lead qualifier, priority-ranked,
- * SLA clock running), Google reviews, the questions the assistant could not
- * answer ("Answer once") and "Ask your inbox" (Inbox phase 2). New channels join as adapters, never
+ * SLA clock running), Google reviews, Insights (what customers keep raising, with the
+ * questions the assistant could not answer answered in place) and "Ask your inbox" (Inbox phase 2). New channels join as adapters, never
  * as new pages.
  */
 
@@ -403,10 +404,10 @@ function InboxTabs() {
   // number of reviews waiting on an answer is the thing that makes somebody
   // open the app at all.
   const reviews = useReviewsQuery();
-  // Inbox phase 2: the questions the assistant could not answer. ★A COUNT ONLY ONCE IT IS KNOWN, like the reviews': a failed or in-flight
-  //  fetch shows no badge rather than a zero that claims nothing is waiting.
-  const questions = useKbRequests();
-  const waiting = questions.data?.requests.length ?? 0;
+  // Insights: what customers keep raising. ★A COUNT ONLY ONCE IT IS KNOWN, like the reviews': a failed or in-flight read shows no badge
+  //  rather than a zero that claims nothing is waiting. The api's own `needsAction` is the number; the same read feeds the tab.
+  const insights = useInsights();
+  const waiting = insightsBadge(insights.data);
   // ★★SO A LINK CAN NAME A LANE. Presence's "answer 3 waiting reviews" button
   // dropped somebody on Conversations, with the thing they asked for one
   // unexplained click away. Read once, on mount: the hash is a starting point,
@@ -446,6 +447,8 @@ function InboxTabs() {
     setPicked(next);
     const search = new URLSearchParams(params.toString());
     search.set("tab", next);
+    // a topic filter belongs to the conversation list it was opened on: choosing a lane by hand starts from the whole list
+    search.delete("topic");
     router.push(`${pathname}?${search.toString()}`, { scroll: false });
   }
   // ★★★THE "SHOW IT AT ALL" DECISION IS THE MODULE'S, because it is the one
@@ -486,6 +489,12 @@ function InboxTabs() {
       >
         <TabsList>
           <TabsTrigger value="conversations">Conversations</TabsTrigger>
+          <TabsTrigger value="insights">
+            Insights
+            {waiting > 0 && (
+              <Badge className="ml-1.5 bg-warning/15 px-1.5 text-[10px] text-warning-on-tint">{waiting}</Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="leads">Leads</TabsTrigger>
           <TabsTrigger value="reviews">
             Reviews
@@ -498,17 +507,11 @@ function InboxTabs() {
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="questions">
-            Questions
-            {waiting > 0 && (
-              <Badge className="ml-1.5 bg-warning/15 px-1.5 text-[10px] text-warning-on-tint">{waiting}</Badge>
-            )}
-          </TabsTrigger>
           <TabsTrigger value="ask">Ask your inbox</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="questions" className="mt-4">
-          <QuestionsPane />
+        <TabsContent value="insights" className="mt-4">
+          <InsightsPane />
         </TabsContent>
 
         <TabsContent value="ask" className="mt-4">
