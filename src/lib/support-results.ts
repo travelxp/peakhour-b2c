@@ -23,7 +23,7 @@ export interface SupportMetrics {
   truncated: boolean;
   firstReply: Spread;
   resolution: Spread;
-  aiResolved: { count: number; settled: number; share: number | null; measured: boolean };
+  aiResolved: { count: number; settled: number; share: number | null };
   handOver: { count: number; rate: number | null; reasons: Array<{ reason: string; label: string; count: number }> };
   csat: {
     asked: number;

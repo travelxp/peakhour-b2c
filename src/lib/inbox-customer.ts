@@ -1,5 +1,6 @@
 import { ApiError } from "@/lib/api";
 import { canReply } from "@/lib/wa-inbox-reply";
+import { DELETE_VISITOR_BODY, DELETE_VISITOR_CONFIRM, DELETE_VISITOR_TITLE, DELETE_VISITOR_TOAST } from "@/lib/storefront-handover";
 
 /**
  * What the Inbox's customer panel, Suggest a reply and Refresh summary decide, kept apart from the markup so it can be tested without a
@@ -169,12 +170,29 @@ export const DELETE_CONTACT_BODY =
   "This permanently deletes what Peakhour holds about this customer for your business: their WhatsApp conversations, their contact record (name, number, language and summary) and any messages still waiting to be sent. Orders in your Shopify store are not touched, and a conversation you are keeping under a legal hold stays until you lift the hold. This can’t be undone.";
 export const DELETE_CONTACT_CONFIRM = "Delete their data";
 
+/**
+ * The delete dialog's words for the chat that is OPEN, not for the kind of list row it was opened from (SA-12). A Messenger, Instagram or X
+ * chat is listed with WhatsApp's and reached through the same route, but the api erases only that one conversation and the team's notes on
+ * it: there is no contact record, number or queue behind it, and telling the person there is was a claim about data that is not held.
+ */
+export function deleteCopy(channel: "whatsapp" | "storefront" | "messenger" | "instagram" | "x"): { title: string; body: string; confirm: string; done: string } {
+  if (channel === "whatsapp") return { title: DELETE_CONTACT_TITLE, body: DELETE_CONTACT_BODY, confirm: DELETE_CONTACT_CONFIRM, done: "Deleted this customer’s data." };
+  if (channel === "storefront") return { title: DELETE_VISITOR_TITLE, body: DELETE_VISITOR_BODY, confirm: DELETE_VISITOR_CONFIRM, done: DELETE_VISITOR_TOAST };
+  const name = channel === "x" ? "X" : channel === "instagram" ? "Instagram" : "Messenger";
+  return {
+    title: "Delete this conversation?",
+    body: `This permanently deletes this ${name} conversation and the team’s notes on it. Orders in your Shopify store are not touched, and a conversation you are keeping under a legal hold stays until you lift the hold. This can’t be undone.`,
+    confirm: "Delete the conversation",
+    done: "Deleted this conversation.",
+  };
+}
+
 /** What the api's erase answer means for the person: held conversations are kept, and that is said. */
-export function deleteContactToast(res: { held?: { deferred?: number } } | null | undefined): string {
+export function deleteContactToast(res: { held?: { deferred?: number } } | null | undefined, done = "Deleted this customer’s data."): string {
   const deferred = res?.held?.deferred ?? 0;
   return deferred > 0
     ? `Deleted. ${deferred === 1 ? "One conversation is" : `${deferred} conversations are`} under a legal hold, so ${deferred === 1 ? "it was" : "they were"} kept and will be deleted when you lift the hold.`
-    : "Deleted this customer’s data.";
+    : done;
 }
 
 // ── refusals ───────────────────────────────────────────────────────────────────────────────────────────────────────

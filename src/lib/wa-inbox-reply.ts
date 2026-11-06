@@ -407,6 +407,8 @@ export interface ReplyErrorCopy {
 }
 
 const NOTHING_SENT = "Nothing was sent.";
+/** The codes whose own sentence stands even when the status is a 5xx: the api said what it knows. */
+export const KNOWN_ON_5XX: ReadonlySet<string> = new Set(["SEND_FAILED", "REPLY_OUTCOME_UNKNOWN", "REPLY_IN_PROGRESS"]);
 const SAME_TEXT_IS_SAFE =
   "Pressing Send again without changing anything is safe: if it did reach WhatsApp, it will not go out twice.";
 
@@ -451,7 +453,9 @@ export function sendFailedOutcome(details: unknown): "not_sent" | "unknown" {
  */
 export function replyErrorCopy(err: unknown, kind: ReplyPayload["kind"] = "text"): ReplyErrorCopy {
   const base = { attempt: "keep" as const, refetchTemplates: false, closesWindow: false };
-  if (!(err instanceof ApiError) || err.code === "PARSE_ERROR" || (err.status >= 500 && err.code !== "SEND_FAILED")) {
+  // ★A 5XX THAT CARRIES THE API'S OWN ANSWER IS THAT ANSWER (SA-12). "Outcome unknown" and "still being handled" are the api telling us what it knows;
+  //  read as a bare 5xx they became "pressing Send again is safe", the one sentence an unknown outcome must never say.
+  if (!(err instanceof ApiError) || err.code === "PARSE_ERROR" || (err.status >= 500 && !KNOWN_ON_5XX.has(err.code ?? ""))) {
     return {
       ...base,
       title: "We lost touch before WhatsApp answered",
@@ -636,11 +640,42 @@ export type ReplyResult =
       message: { role: "merchant"; source: "inbox"; content: string; timestamp: string };
     };
 
-/** What a successful send says, or null for the plain case. */
-export function replySuccessNote(r: ReplyResult): string | null {
-  if (r.duplicate) return "This reply had already been sent, so it was not sent again.";
-  if (!r.recorded) return "Sent. It may take a moment to appear in this conversation.";
+/**
+ * What a successful send says, or null for the plain case.
+ *
+ * ★SAYS WHAT REALLY HAPPENED TO THE REPLY (SA-12). `recorded: false` is not "slow to appear": the message reached the shopper and the write
+ * into this conversation did not land, so it may never show here, and sending it again would reach them twice. A website chat has no carrier:
+ * its reply is "saved", and a repeat was "already saved", never "sent".
+ */
+export function replySuccessNote(r: ReplyResult, channel: "whatsapp" | "storefront" | "messenger" | "instagram" | "x" = "whatsapp"): string | null {
+  if (r.duplicate) {
+    return channel === "storefront" ? "This reply was already saved to the chat, so it was not added again." : "This reply had already been sent, so it was not sent again.";
+  }
+  if (!r.recorded) {
+    return channel === "storefront"
+      ? "This reply may not have been saved to the chat. Check the chat before sending it again."
+      : "Sent to the shopper, but we could not save it in this conversation, so it may not show here. Don’t send it again.";
+  }
   return null;
+}
+
+/** The toast for a plain send, naming the channel the reply went out on. */
+export function sentToast(channel: "whatsapp" | "storefront" | "messenger" | "instagram" | "x"): string {
+  if (channel === "storefront") return "Reply saved to the chat.";
+  return `Sent to the shopper on ${channel === "x" ? "X" : channel === "instagram" ? "Instagram" : channel === "messenger" ? "Messenger" : "WhatsApp"}.`;
+}
+
+// ── handing a conversation back with words still in the box (SA-12) ──────────────────────────────────────────────────
+
+export const RESUME_DRAFT_TITLE = "Hand back with a reply unsent?";
+export const RESUME_DRAFT_BODY =
+  "You have a reply written that has not been sent. If you hand this conversation back now, the assistant carries on and your draft will not be sent.";
+export const RESUME_DRAFT_KEEP = "Keep writing";
+export const RESUME_DRAFT_CONFIRM = "Hand back anyway";
+
+/** Whether handing back would walk away from words the person wrote: a draft with anything but whitespace in it, or one being sent. */
+export function draftAtRisk(mem: { text: string; pending?: boolean } | null | undefined): boolean {
+  return Boolean(mem && (mem.pending || mem.text.trim().length > 0));
 }
 
 // ── Templates ────────────────────────────────────────────────────────

@@ -67,6 +67,17 @@ describe("refusals", () => {
     expect(c.attempt).toBe("unknown");
     expect(c.detail).toMatch(/Check this chat/);
   });
+  it("an unknown outcome on a 5xx is still unknown: it never says a resend is safe (SA-12)", () => {
+    for (const status of [500, 502, 503]) {
+      const c = storefrontReplyError(e("REPLY_OUTCOME_UNKNOWN", status));
+      expect(c.attempt).toBe("unknown");
+      expect(`${c.title} ${c.detail}`).not.toMatch(/is safe|fail/i);
+      expect(c.detail).toMatch(/Check this chat/);
+    }
+    expect(storefrontReplyError(e("REPLY_IN_PROGRESS", 503)).title).toMatch(/still being handled/);
+    // a bare 5xx stays the lost-touch answer
+    expect(storefrontReplyError(e("INTERNAL", 500)).title).toMatch(/lost touch/);
+  });
   it("a changed status says nothing was sent, and nothing mentions WhatsApp", () => {
     const c = storefrontReplyError(e("STATUS_CHANGED", 409, "Taken back by a colleague."));
     expect(c.detail).toContain("Taken back by a colleague.");

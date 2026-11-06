@@ -40,6 +40,8 @@ export function SavedViewsView({
   tags,
   busy,
   error,
+  loadFailed = false,
+  onRetry,
   onApply,
   onSave,
   onDelete,
@@ -51,6 +53,9 @@ export function SavedViewsView({
   busy: boolean;
   /** The last save's plain error, or null. */
   error: string | null;
+  /** The read of the views failed: say so, with a way to ask again, rather than draw "no views". */
+  loadFailed?: boolean;
+  onRetry?: () => void;
   onApply: (next: PageFilters) => void;
   /** Resolves to a plain error to show, or null when it was saved. */
   onSave: (name: string) => Promise<string | null>;
@@ -59,8 +64,14 @@ export function SavedViewsView({
   const [name, setName] = useState("");
   const [open, setOpen] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  // a Delete is asked about first: it removes the view for the whole team, and nothing brings it back.
+  // ★KEYED BY THE VIEW ASKED ABOUT, so opening another view or changing a filter withdraws the question instead of carrying it to the wrong view.
+  const [confirmId, setConfirmId] = useState<string | null>(null);
   const active = views.find((v) => isViewActive(v, page)) ?? null;
-  if (views.length === 0 && !canEdit) return null;
+  // the question is withdrawn for good once the page is no longer on that view (state set during render, as React allows for a reset)
+  if (confirmId !== null && confirmId !== (active?.id ?? null)) setConfirmId(null);
+  const confirming = active !== null && confirmId === active.id;
+  if (views.length === 0 && !canEdit && !loadFailed) return null;
 
   async function save() {
     const bad = viewNameError(name, views);
@@ -97,10 +108,39 @@ export function SavedViewsView({
           ))}
         </select>
       )}
-      {canEdit && active && (
-        <Button size="xs" variant="ghost" disabled={busy} aria-label={`Delete the view ${active.name}`} onClick={() => onDelete(active)}>
+      {loadFailed && (
+        <span role="alert" className="flex items-center gap-1 text-xs text-muted-foreground" data-testid="views-load-failed">
+          Saved views could not be loaded.
+          {onRetry && (
+            <Button size="xs" variant="ghost" onClick={onRetry}>
+              Try again
+            </Button>
+          )}
+        </span>
+      )}
+      {canEdit && active && !confirming && (
+        <Button size="xs" variant="ghost" disabled={busy} aria-label={`Delete the view ${active.name}`} onClick={() => setConfirmId(active.id)}>
           <Trash2 />
         </Button>
+      )}
+      {canEdit && active && confirming && (
+        <span role="group" aria-label={`Delete the view ${active.name}?`} className="flex items-center gap-1 text-xs" data-testid="views-delete-confirm">
+          <span>Delete &ldquo;{active.name}&rdquo; for your whole team?</span>
+          <Button
+            size="xs"
+            variant="destructive"
+            disabled={busy}
+            onClick={() => {
+              setConfirmId(null);
+              onDelete(active);
+            }}
+          >
+            Delete
+          </Button>
+          <Button size="xs" variant="ghost" onClick={() => setConfirmId(null)}>
+            Keep it
+          </Button>
+        </span>
       )}
       {canEdit && (
         <Popover open={open} onOpenChange={setOpen}>
@@ -153,7 +193,7 @@ export function SavedViews({ role, page, onApply }: { role: string | null; page:
   const saveGuard = useState(createFlightGuard)[0];
   const deleteGuard = useState(createFlightGuard)[0];
   const canEdit = canWorkConversation(role);
-  // a failed read is shown as nothing rather than as "no views": the filters above still work
+  // a failed read is said, with a way to ask again, and is never drawn as "no views"; the filters above still work
   const views = query.data?.views ?? [];
   return (
     <SavedViewsView
@@ -163,6 +203,8 @@ export function SavedViews({ role, page, onApply }: { role: string | null; page:
       tags={tags.data?.tags}
       busy={admin.save.isPending || admin.remove.isPending}
       error={null}
+      loadFailed={query.isError && !query.data}
+      onRetry={() => void query.refetch()}
       onApply={onApply}
       onSave={async (name) => {
         let failed: string | null = null;

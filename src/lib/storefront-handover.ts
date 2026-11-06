@@ -8,7 +8,7 @@
  */
 
 import { ApiError } from "@/lib/api";
-import { canReply, type ReplyErrorCopy } from "@/lib/wa-inbox-reply";
+import { KNOWN_ON_5XX, canReply, type ReplyErrorCopy } from "@/lib/wa-inbox-reply";
 
 /** The longest reply the api takes on a storefront chat. */
 export const STOREFRONT_REPLY_MAX = 2000;
@@ -95,7 +95,7 @@ function said(err: ApiError, fallback: string): string {
 /** What each way a storefront reply can fail says. Every one says whether the visitor may have got it. */
 export function storefrontReplyError(err: unknown): ReplyErrorCopy {
   const base = { attempt: "keep" as const, refetchTemplates: false, closesWindow: false };
-  if (!(err instanceof ApiError) || err.code === "PARSE_ERROR" || (err.status >= 500 && err.code !== "CHANNEL_UNAVAILABLE")) {
+  if (!(err instanceof ApiError) || err.code === "PARSE_ERROR" || (err.status >= 500 && err.code !== "CHANNEL_UNAVAILABLE" && !KNOWN_ON_5XX.has(err.code ?? ""))) {
     return {
       ...base,
       title: "We lost touch before we heard back",
