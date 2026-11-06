@@ -294,7 +294,7 @@ function InsightCard({ item, windowDays, shop }: { item: Insight; windowDays: nu
           </p>
           <p data-insight-part="why" className="text-sm">
             <span className="font-medium">Why it matters: </span>
-            {item.cause ? <span className="text-muted-foreground">{CAUSE_LABEL[item.cause.kind]}. {item.cause.reason} </span> : null}
+            {item.cause ? <span className="text-muted-foreground">{CAUSE_LABEL[item.cause.kind] ?? "Cause"}. {item.cause.reason} </span> : null}
             {item.why}
           </p>
           <p data-insight-part="next-step" className="text-sm">
@@ -302,9 +302,10 @@ function InsightCard({ item, windowDays, shop }: { item: Insight; windowDays: nu
             {action.kind === "link" && action.external ? <AdminLink href={action.href}>{action.label}</AdminLink> : item.nextStep.label}
             {item.nextStep.where ? <span className="text-muted-foreground"> {item.nextStep.where}</span> : null}
           </p>
-          {second.kind !== "none" && second.kind !== "answer" && (
+          {/* "Read the conversations" is the See conversations button below: drawn once, as a button, never as words */}
+          {second.kind === "link" && (
             <p data-insight-part="second-step" className="text-sm text-muted-foreground">
-              Or: {second.kind === "link" && second.external ? <AdminLink href={second.href}>{second.label}</AdminLink> : second.kind === "link" ? <Link className="underline" href={second.href}>{second.label}</Link> : second.label}
+              Or: {second.external ? <AdminLink href={second.href}>{second.label}</AdminLink> : <Link className="underline" href={second.href}>{second.label}</Link>}
             </p>
           )}
 

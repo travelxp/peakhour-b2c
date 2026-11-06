@@ -184,6 +184,16 @@ describe("SA-16: a card says what happened, why, the impact and the next step", 
     // another chip has no such group
     expect(html({ kind: "ready", data: data([a, b], { topPriorities: ["a"] }) }, "missing_info")).not.toContain("Top priorities");
   });
+  it("a second step that reads the conversations is the one See conversations button, not words that go nowhere", () => {
+    const out = html({ kind: "ready", data: data([rich({ secondStep: { label: "Read the conversations", kind: "conversations" } })]) });
+    expect(out).not.toContain("Or: Read the conversations");
+    expect(out.match(/See conversations/g)).toHaveLength(1);
+  });
+  it("a cause kind this page does not know is named plainly, never printed as undefined", () => {
+    const out = html({ kind: "ready", data: data([rich({ cause: { kind: "policy_gap" as never, reason: "Something new." } })]) });
+    expect(out).not.toContain("undefined");
+    expect(out).toContain("Something new.");
+  });
   it("an item with no conversation to open says why instead of linking to an empty list", () => {
     const out = html({ kind: "ready", data: data([rich({ conversations: { count: 0, linkable: false, reason: "This question was logged without its conversation, so there is nothing to open." } })]) });
     expect(out).not.toContain("See conversations");
