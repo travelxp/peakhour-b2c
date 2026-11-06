@@ -1,6 +1,6 @@
 import { ApiError } from "@/lib/api";
 import type { ListFetchState } from "@/lib/list-fetch-state";
-import type { ResponseTimer, ThreadAssignee } from "@/lib/inbox-desk";
+import type { Priority, ResponseTimer, ThreadAssignee, Viewer } from "@/lib/inbox-desk";
 
 /**
  * What the Inbox's Conversations tab decides, kept apart from the markup so it can be tested without a DOM (Inbox phase 1).
@@ -54,6 +54,8 @@ export type StatusFilter = InboxState;
 export const STATUS_FILTERS: Array<{ value: StatusFilter; label: string }> = [
   { value: "open", label: "Open" },
   { value: "needs_you", label: "Needs you" },
+  // a person holds it and the shopper owes the next message; still part of Open (the api derives it)
+  { value: "waiting", label: "Waiting" },
   { value: "done", label: "Done" },
 ];
 export const DEFAULT_STATUS_FILTER: StatusFilter = "open";
@@ -92,10 +94,13 @@ export interface InboxRow {
   assignee: ThreadAssignee | null;
   tagIds: string[];
   timer: ResponseTimer | null;
+  /** Team desk parity (SA-10): flagged by a person, and who has it open right now. */
+  priority: Priority;
+  viewers: Viewer[];
 }
 
-/** What a conversation is, as the api decides it (Done wins over Needs you; a new shopper message re-opens a Done one). */
-export type InboxState = "open" | "needs_you" | "done";
+/** What a conversation is, as the api decides it (Done wins over Needs you; a new shopper message re-opens a Done one; Waiting = a person holds it and the shopper owes the next message). */
+export type InboxState = "open" | "needs_you" | "waiting" | "done";
 
 interface WaLike {
   threadId: string;
@@ -112,6 +117,8 @@ interface WaLike {
   assignee?: ThreadAssignee | null;
   tagIds?: string[];
   timer?: ResponseTimer | null;
+  priority?: Priority;
+  viewers?: Viewer[];
 }
 interface StorefrontLike {
   threadId: string;
@@ -125,6 +132,8 @@ interface StorefrontLike {
   assignee?: ThreadAssignee | null;
   tagIds?: string[];
   timer?: ResponseTimer | null;
+  priority?: Priority;
+  viewers?: Viewer[];
 }
 
 export function rowOfWhatsApp(c: WaLike): InboxRow {
@@ -146,6 +155,8 @@ export function rowOfWhatsApp(c: WaLike): InboxRow {
     assignee: c.assignee ?? null,
     tagIds: c.tagIds ?? [],
     timer: c.timer ?? null,
+    priority: c.priority === "high" ? "high" : "normal",
+    viewers: c.viewers ?? [],
   };
 }
 
@@ -166,6 +177,8 @@ export function rowOfStorefront(c: StorefrontLike): InboxRow {
     assignee: c.assignee ?? null,
     tagIds: c.tagIds ?? [],
     timer: c.timer ?? null,
+    priority: c.priority === "high" ? "high" : "normal",
+    viewers: c.viewers ?? [],
   };
 }
 
@@ -207,8 +220,11 @@ export function mergeRows(whatsapp: readonly InboxRow[], storefront: readonly In
  *  - The caller passes WhatsApp as "empty" when the api said it is not available or not connected (that is a state with its own card,
  *    not an error and not a spinner).
  */
-export function combineListState(wa: ListFetchState, storefront: ListFetchState, rows: number): ListFetchState {
+export function combineListState(wa: ListFetchState, storefront: ListFetchState, rows: number, morePages = false): ListFetchState {
   const parts = [wa, storefront];
+  // ★"EMPTY" ONLY WHEN THERE IS NOTHING LEFT TO LOAD: a channel chip or a saved view can keep none of the rows read so far while a later page holds them,
+  //  and an empty message with no "Show more" would hide them. The list renders (with no rows and its Show more) until the pages run out.
+  if (rows === 0 && morePages && !parts.includes("error") && !parts.includes("loading") && !parts.includes("paused")) return "ready";
   if (rows > 0) return parts.includes("error") || parts.includes("stale") ? "stale" : "ready";
   if (parts.includes("error")) return "error";
   if (parts.includes("loading")) return "loading";
@@ -294,6 +310,7 @@ export function emptyListText(filter: ChannelFilter, state: WaInboxState, view: 
   }
   if (view.deskFiltered) return "No conversations match these filters. Choose All, or clear the tag, to see more.";
   if (view.status === "needs_you") return "Nothing needs you right now.";
+  if (view.status === "waiting") return "Nothing is waiting on a customer right now.";
   if (view.status === "done") return "No conversations are marked done.";
   if (filter === "storefront") return "No storefront chats yet. When a visitor talks to the assistant on your store, the chat appears here.";
   if (filter === "messenger") return "No Messenger conversations yet.";

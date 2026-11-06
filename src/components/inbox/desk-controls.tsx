@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, Tag, UserRound } from "lucide-react";
+import { Check, Flag, Tag, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { AssigneeBadge, TagChips } from "@/components/inbox/desk-badges";
+import { AssigneeBadge, PriorityBadge, TagChips, ViewersText } from "@/components/inbox/desk-badges";
 import { useAuth } from "@/providers/auth-provider";
-import { useAssignThread, useDeskTags, useDeskTeam, useSetThreadTags, useTagAdmin } from "@/hooks/use-inbox-desk";
+import { useAssignThread, useDeskTags, useDeskTeam, useSetPriority, useSetThreadTags, useTagAdmin } from "@/hooks/use-inbox-desk";
 import { actionError } from "@/lib/inbox-customer";
 import {
   TAGS_PER_THREAD_MAX,
@@ -20,9 +20,12 @@ import {
   createFlightGuard,
   tagNameError,
   toggleTag,
+  viewersLine,
   type DeskTag,
+  type Priority,
   type TeamMemberRef,
   type ThreadAssignee,
+  type Viewer,
 } from "@/lib/inbox-desk";
 
 /**
@@ -43,7 +46,14 @@ export function DeskControlsView({
   onAssign,
   onToggleTag,
   onCreateTag,
+  priority = "normal",
+  onPriority,
+  viewers,
 }: {
+  /** SA-10: flagged by a person, the control that flips it, and who else has the conversation open. All optional so an older caller still renders. */
+  priority?: Priority;
+  onPriority?: (next: Priority) => void;
+  viewers?: readonly Viewer[];
   canWork: boolean;
   canCreateTag: boolean;
   assignee: ThreadAssignee | null;
@@ -61,13 +71,16 @@ export function DeskControlsView({
   const [newTag, setNewTag] = useState("");
   const [tagError, setTagError] = useState<string | null>(null);
   const creating = useRef(false);
+  const viewing = viewersLine(viewers, me);
 
   if (!canWork) {
     return (
       <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground" data-testid="desk-readonly">
         <AssigneeBadge assignee={assignee} />
         <span>{assignee ? `Assigned to ${assignee.name}` : "Not assigned"}</span>
+        <PriorityBadge priority={priority} />
         <TagChips tagIds={tagIds} tags={tags} />
+        <ViewersText line={viewing} />
       </div>
     );
   }
@@ -113,6 +126,19 @@ export function DeskControlsView({
         </DropdownMenuContent>
       </DropdownMenu>
 
+      {onPriority && (
+        <Button
+          size="xs"
+          variant={priority === "high" ? "secondary" : "outline"}
+          aria-pressed={priority === "high"}
+          disabled={busy}
+          aria-label={priority === "high" ? "Remove high priority" : "Flag as high priority"}
+          onClick={() => onPriority(priority === "high" ? "normal" : "high")}
+        >
+          <Flag />
+          {priority === "high" ? "High priority" : "Flag"}
+        </Button>
+      )}
       <TagChips tagIds={tagIds} tags={tags} />
       <Popover>
         <PopoverTrigger asChild>
@@ -161,6 +187,7 @@ export function DeskControlsView({
           )}
         </PopoverContent>
       </Popover>
+      <ViewersText line={viewing} />
     </div>
   );
 }
@@ -171,17 +198,23 @@ export function ThreadDeskControls({
   role,
   assignee,
   tagIds,
+  priority,
+  viewers,
 }: {
   threadId: string;
   role: string | null;
   assignee: ThreadAssignee | null;
   tagIds: string[];
+  priority?: Priority;
+  viewers?: readonly Viewer[];
 }) {
   const canWork = canWorkConversation(role);
   const team = useDeskTeam(canWork);
   const tags = useDeskTags();
   const assign = useAssignThread(threadId);
   const setTags = useSetThreadTags(threadId);
+  const setPriority = useSetPriority(threadId);
+  const priorityGuard = useState(createFlightGuard)[0];
   const admin = useTagAdmin();
   // one guard per control, and per thread: held in a ref so two clicks in one tick are one request
   const assignGuard = useState(createFlightGuard)[0];
@@ -207,6 +240,15 @@ export function ThreadDeskControls({
       tags={tags.data?.tags ?? []}
       tagIds={tagIds}
       busy={assign.isPending || setTags.isPending}
+      priority={priority ?? "normal"}
+      viewers={viewers}
+      onPriority={(next) =>
+        void priorityGuard.run(() =>
+          setPriority.mutateAsync(next).catch((e: unknown) => {
+            toast.error(actionError(e, "Changing the priority"));
+          }),
+        )
+      }
       onAssign={(pick) =>
         void assignGuard.run(() =>
           assign.mutateAsync({ pick, optimistic: assigneeFor(pick, me, list) }).catch((e: unknown) => {

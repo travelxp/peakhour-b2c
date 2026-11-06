@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { Search } from "lucide-react";
+import { Flag, Search } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -29,22 +29,28 @@ import type { MessageMedia } from "@/lib/inbox-media";
 import { ChannelChip, StatusPill, TestChip, UnreadDot } from "@/components/inbox/inbox-badges";
 import { ManagePanel } from "@/components/inbox/manage-panel";
 import { ThreadHeader } from "@/components/inbox/thread-header";
-import { AssigneeBadge, CsatBadge, TagChips, TimerChip } from "@/components/inbox/desk-badges";
+import { AssigneeBadge, CsatBadge, TagChips, TimerChip, ViewersText } from "@/components/inbox/desk-badges";
+import { SavedViews } from "@/components/inbox/saved-views";
 import { ThreadDeskControls } from "@/components/inbox/desk-controls";
 import { NoteCard } from "@/components/inbox/note-card";
 import { NotesPanel } from "@/components/inbox/notes-panel";
 import { AiPauseControl } from "@/components/inbox/ai-pause";
 import { TeamDeskSheet } from "@/components/inbox/team-desk-card";
-import { useDeleteNote, useDeskTags, useThreadNotes } from "@/hooks/use-inbox-desk";
+import { useDeleteNote, useDeskTags, useDeskTeam, usePresence, useThreadNotes } from "@/hooks/use-inbox-desk";
 import {
   ASSIGNEE_FILTERS,
   NOTE_LABEL,
   assigneeFilterFromParam,
   canDeleteNote,
+  mentionNames,
+  priorityFilterFromParam,
   searchWithFilters,
   tagFromParam,
   timelineOf,
+  viewersLine,
   type AssigneeFilter,
+  type PageFilters,
+  type PriorityFilter,
 } from "@/lib/inbox-desk";
 import { topicFromParam } from "@/lib/insights";
 import { TopicFilterBanner } from "@/components/inbox/topic-filter-banner";
@@ -212,36 +218,55 @@ export function ConversationsPane({
   const pathname = usePathname();
   const urlAssignee = assigneeFilterFromParam(params.get("assignee"));
   const urlTag = tagFromParam(params.get("tag"));
+  const urlPriority = priorityFilterFromParam(params.get("priority"));
   // ★THE INSIGHT FILTER IS THE ADDRESS ALONE (`?topic=`): "See conversations" on an Insights card writes it and the banner below removes it,
   //  so there is no second copy in state to fall out of step with Back.
   const topic = topicFromParam(params.get("topic"));
   const [assignee, setAssignee] = useState<AssigneeFilter>(urlAssignee);
   const [tag, setTag] = useState<string | null>(urlTag);
+  const [priority, setPriority] = useState<PriorityFilter>(urlPriority);
   // ★AND THE URL IS FOLLOWED: Back, or a link followed while the Inbox is open, changes the address without touching this state. The
   //  state adopts the address when IT changes (once per change, so our own write, which arrives a render later, is a no-op).
-  const [seenUrl, setSeenUrl] = useState(`${urlAssignee}|${urlTag ?? ""}`);
-  if (seenUrl !== `${urlAssignee}|${urlTag ?? ""}`) {
-    setSeenUrl(`${urlAssignee}|${urlTag ?? ""}`);
+  const [seenUrl, setSeenUrl] = useState(`${urlAssignee}|${urlTag ?? ""}|${urlPriority}`);
+  if (seenUrl !== `${urlAssignee}|${urlTag ?? ""}|${urlPriority}`) {
+    setSeenUrl(`${urlAssignee}|${urlTag ?? ""}|${urlPriority}`);
     setAssignee(urlAssignee);
     setTag(urlTag);
+    setPriority(urlPriority);
   }
-  function setDeskFilters(next: { assignee: AssigneeFilter; tag: string | null }) {
+  function setDeskFilters(next: { assignee: AssigneeFilter; tag: string | null; priority?: PriorityFilter }, topicChange?: { topic: string | null }) {
+    const nextPriority = next.priority ?? priority;
     setAssignee(next.assignee);
     setTag(next.tag);
+    setPriority(nextPriority);
     // the address as it is NOW (a tab click's push may not have reached `params` yet), so the filters never undo it
     const current = typeof window === "undefined" ? params.toString() : window.location.search.replace(/^\?/, "");
-    router.replace(`${pathname}?${searchWithFilters(current, next)}`, { scroll: false });
+    const written = new URLSearchParams(searchWithFilters(current, { ...next, priority: nextPriority }));
+    // a saved view can name an Insights topic, and opening one replaces the topic too (the topic is the address alone)
+    if (topicChange) {
+      if (topicChange.topic) written.set("topic", topicChange.topic);
+      else written.delete("topic");
+    }
+    router.replace(`${pathname}?${written.toString()}`, { scroll: false });
   }
-  const deskFiltered = assignee !== "all" || tag !== null;
+  const deskFiltered = assignee !== "all" || tag !== null || priority !== "all";
   const deskTags = useDeskTags().data?.tags;
   // ★A SEARCH LOOKS ACROSS EVERY CONVERSATION, not only the chip's: a customer whose conversation is Done must be found by their order number.
-  const wa = useWaConversations({ expiringOnly, assignee, tag, topic: q ? null : topic, ...(q ? { q } : { status }) });
+  const wa = useWaConversations({ expiringOnly, assignee, tag, priority, topic: q ? null : topic, ...(q ? { q } : { status }) });
   // a search can never match a storefront visitor (no name, number or order on the row), so that half is not asked
-  const storefront = useStorefrontChats({ expiringOnly, status, assignee, tag, topic, enabled: !q });
+  const storefront = useStorefrontChats({ expiringOnly, status, assignee, tag, priority, topic, enabled: !q });
   // Messenger / Instagram chips show only for channels this business has a conversation on (read from the unfiltered list)
   const seenChannels = useMemo(() => wa.conversations.map((c) => dmChannelOf(c.channel)), [wa.conversations]);
   const isXl = useIsXl();
   const canChange = canChangeConversation(role);
+  // ── saved views (SA-10): the page's filters as a view holds them, and opening one replaces them all ──────────────────────
+  const pageFilters: PageFilters = { status, assignee, tag, topic, priority, channel };
+  function applyPage(next: PageFilters) {
+    setStatus(next.status);
+    setChannel(next.channel as ChannelFilter);
+    setDeskFilters({ assignee: next.assignee, tag: next.tag, priority: next.priority }, { topic: next.topic });
+  }
+  const team = useDeskTeam(canChange);
 
   // ── the list ──────────────────────────────────────────────────────────────────────────────────────────────────────
   const waState = waInboxState({ data: wa.data, error: wa.error });
@@ -253,13 +278,14 @@ export function ConversationsPane({
     [waState, wa.conversations, storefront.chats, channel, q],
   );
   // a filter ignores the half it does not show, so a failure there is not this list's
-  const listState = combineListState(channel === "storefront" ? "empty" : waFetch, channel === "all" || channel === "storefront" ? sfFetch : "empty", rows.length);
+  const moreWa = channel !== "storefront" && wa.hasNextPage;
+  const moreSf = (channel === "all" || channel === "storefront") && !q && storefront.hasNextPage;
+  const pagesRemain = Boolean(moreWa || moreSf);
+  const listState = combineListState(channel === "storefront" ? "empty" : waFetch, channel === "all" || channel === "storefront" ? sfFetch : "empty", rows.length, pagesRemain);
   const retryList = () => {
     if (channel !== "storefront") void wa.refetch();
     if ((channel === "all" || channel === "storefront") && !q) void storefront.refetch();
   };
-  const moreWa = channel !== "storefront" && wa.hasNextPage;
-  const moreSf = (channel === "all" || channel === "storefront") && !q && storefront.hasNextPage;
   const loadingMore = wa.isFetchingNextPage || storefront.isFetchingNextPage;
   const notice = channel === "storefront" ? null : <WaNoticeCard state={waState} />;
   const expiry = expiryBanner(wa.expiringCount, wa.expiringFrom);
@@ -305,7 +331,10 @@ export function ConversationsPane({
   const notes = useMemo(() => (selected ? (notesQuery.data?.notes ?? []) : []), [selected, notesQuery.data]);
   // ★NO HAND-BACK WHILE A REPLY IS IN FLIGHT (review R3): the api escalated before sending, and a Resume landing mid-send gives
   //  the shopper the AI's answer and the person's reply at once.
-  const replyInFlight = useComposerMemory(composerStore, selected ?? "").pending;
+  const composerMemory = useComposerMemory(composerStore, selected ?? "");
+  const replyInFlight = composerMemory.pending;
+  // ── who else has this open (SA-10): a ping while it is open, "typing" while the composer holds words. Never for yourself. ──
+  const pinged = usePresence(selected, composerMemory.pending || composerMemory.text.trim().length > 0);
   const [confirmErase, setConfirmErase] = useState(false);
   // below `xl` the customer panel and the conversation are two views of the same card
   const [showCustomer, setShowCustomer] = useState(false);
@@ -454,12 +483,22 @@ export function ConversationsPane({
               {tag && !(deskTags ?? []).some((t) => t.id === tag) && <option value={tag}>A tag that was removed</option>}
             </select>
           )}
+          <Button
+            size="xs"
+            variant={priority === "high" ? "secondary" : "ghost"}
+            aria-pressed={priority === "high"}
+            onClick={() => setDeskFilters({ assignee, tag, priority: priority === "high" ? "all" : "high" })}
+          >
+            <Flag />
+            High priority
+          </Button>
           {deskFiltered && (
-            <Button size="xs" variant="ghost" onClick={() => setDeskFilters({ assignee: "all", tag: null })}>
+            <Button size="xs" variant="ghost" onClick={() => setDeskFilters({ assignee: "all", tag: null, priority: "all" })}>
               Clear filters
             </Button>
           )}
         </div>
+        <SavedViews role={role} page={pageFilters} onApply={applyPage} />
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Channel">
             {visibleChannelFilters(seenChannels, channel).map((f) => (
@@ -519,6 +558,11 @@ export function ConversationsPane({
               </button>
             </p>
           )}
+          {listState === "ready" && rows.length === 0 && (
+            <p className="p-4 text-sm text-muted-foreground" data-testid="keep-looking">
+              None of the conversations loaded so far match. Show more conversations below to keep looking.
+            </p>
+          )}
           {showsRows(listState) &&
             rows.map((row) => {
               const unread = marks ? isUnread(row, marks) : false;
@@ -534,6 +578,7 @@ export function ConversationsPane({
                       <span className={`truncate text-sm ${unread ? "font-semibold" : "font-medium"}`}>{row.title}</span>
                     </span>
                     <span className="flex shrink-0 items-center gap-1.5">
+                      {row.priority === "high" && <Flag className="size-3.5 text-warning-on-tint" role="img" aria-label="High priority" />}
                       <AssigneeBadge assignee={row.assignee} />
                       <span className="text-[11px] text-muted-foreground">{previewTime(row.updatedAt, now)}</span>
                     </span>
@@ -547,6 +592,7 @@ export function ConversationsPane({
                     <TagChips tagIds={row.tagIds} tags={deskTags} max={3} />
                   </div>
                   <span className="truncate text-xs text-muted-foreground">{row.preview || "…"}</span>
+                  <ViewersText line={viewersLine(row.viewers, user?._id)} />
                 </button>
               );
             })}
@@ -591,7 +637,15 @@ export function ConversationsPane({
                 }
                 desk={
                   openThread && openThread.threadId === selected ? (
-                    <ThreadDeskControls key={selected} threadId={selected} role={role} assignee={openThread.assignee ?? null} tagIds={openThread.tagIds ?? []} />
+                    <ThreadDeskControls
+                      key={selected}
+                      threadId={selected}
+                      role={role}
+                      assignee={openThread.assignee ?? null}
+                      tagIds={openThread.tagIds ?? []}
+                      priority={openThread.priority ?? "normal"}
+                      viewers={pinged ?? openThread.viewers ?? []}
+                    />
                   ) : null
                 }
                 onBack={() => onSelect(null)}
@@ -681,6 +735,7 @@ export function ConversationsPane({
                               time={clockLabel(item.note.createdAt)}
                               label={notesQuery.data?.label ?? NOTE_LABEL}
                               deleting={deleteNote.isPending && deleteNote.variables === item.note.id}
+                              mentions={mentionNames(item.note, team.data?.team ?? [])}
                               onDelete={
                                 canDeleteNote(item.note, notesQuery.data?.me, role)
                                   ? () => {

@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import type { CustomerPanelData, InboxPrices } from "@/lib/inbox-customer";
 import type { InboxState, StatusFilter } from "@/lib/inbox-view";
-import { deskListParams, type AssigneeFilter, type ResponseTimer, type ThreadAssignee, type ThreadCsat } from "@/lib/inbox-desk";
+import { deskListParams, type AssigneeFilter, type Priority, type PriorityFilter, type ResponseTimer, type ThreadAssignee, type ThreadCsat, type Viewer } from "@/lib/inbox-desk";
 import type { MessageMedia, ProductHit } from "@/lib/inbox-media";
 import { isStorefrontThread, storefrontMount, storefrontReplyRequest, storefrontResumeBody, type StorefrontDelivery, type StorefrontHandover } from "@/lib/storefront-handover";
 import {
@@ -39,6 +39,9 @@ export interface WaConversation {
   assignee?: ThreadAssignee | null;
   tagIds?: string[];
   timer?: ResponseTimer | null;
+  /** Team desk parity (SA-10): flagged high by a person, and who has it open now. Absent = an older api. */
+  priority?: Priority;
+  viewers?: Viewer[];
 }
 
 /** A storefront chat summary (list row): a web visitor talking to the assistant on the store. Read-only. */
@@ -59,6 +62,9 @@ export interface StorefrontChat {
   assignee?: ThreadAssignee | null;
   tagIds?: string[];
   timer?: ResponseTimer | null;
+  /** Team desk parity (SA-10): flagged high by a person, and who has it open now. Absent = an older api. */
+  priority?: Priority;
+  viewers?: Viewer[];
 }
 
 /** One storefront chat in full. `readOnly`: a web visitor cannot be messaged back. */
@@ -75,6 +81,9 @@ export interface StorefrontThread {
   assignee?: ThreadAssignee | null;
   tagIds?: string[];
   timer?: ResponseTimer | null;
+  /** Team desk parity (SA-10): flagged high by a person, and who has it open now. Absent = an older api. */
+  priority?: Priority;
+  viewers?: Viewer[];
   /** SA-9: false only while the chat is with the team (escalated). True for an assistant chat and for the merchant's own test chat. */
   readOnly: boolean;
   /** SA-9: the compare-and-set version Resume sends. */
@@ -143,6 +152,9 @@ export interface WaThread {
   assignee?: ThreadAssignee | null;
   tagIds?: string[];
   timer?: ResponseTimer | null;
+  /** Team desk parity (SA-10): flagged high by a person, and who has it open now. Absent = an older api. */
+  priority?: Priority;
+  viewers?: Viewer[];
   /** The shopper's rating of this conversation (Inbox CSAT); null = never asked. */
   csat?: ThreadCsat | null;
   messages: WaMessage[];
@@ -173,10 +185,12 @@ export interface ListView {
   tag?: string | null;
   /** Insights: one topic key (`metadata.insightTopics`). A new value is a new query key. */
   topic?: string | null;
+  /** SA-10: only the conversations a person flagged high priority. */
+  priority?: PriorityFilter;
 }
 
 export const listParams = (view: ListView, cursor: string | undefined): Record<string, string> => ({
-  ...deskListParams({ assignee: view.assignee ?? "all", tag: view.tag ?? null }),
+  ...deskListParams({ assignee: view.assignee ?? "all", tag: view.tag ?? null, priority: view.priority ?? "all" }),
   ...(view.topic ? { topic: view.topic } : {}),
   ...(view.expiringOnly ? { expiring: "1" } : {}),
   ...(view.status ? { status: view.status } : {}),
@@ -206,7 +220,7 @@ interface WaListPage {
  */
 export function useWaConversations(view: ListView = {}) {
   const { business } = useAuth();
-  const key = ["wa-conversations", business?._id ?? "none", view.expiringOnly ? "expiring" : "all", view.status ?? "any", view.q ?? "", view.assignee ?? "all", view.tag ?? "", view.topic ?? ""];
+  const key = ["wa-conversations", business?._id ?? "none", view.expiringOnly ? "expiring" : "all", view.status ?? "any", view.q ?? "", view.assignee ?? "all", view.tag ?? "", view.topic ?? "", view.priority ?? "all"];
   const query = useInfiniteQuery({
     queryKey: key,
     queryFn: ({ pageParam }) => {
@@ -245,7 +259,7 @@ interface StorefrontListPage {
  */
 export function useStorefrontChats(view: ListView & { enabled?: boolean } = {}) {
   const { business } = useAuth();
-  const key = ["storefront-chats", business?._id ?? "none", view.expiringOnly ? "expiring" : "all", view.status ?? "any", view.assignee ?? "all", view.tag ?? "", view.topic ?? ""];
+  const key = ["storefront-chats", business?._id ?? "none", view.expiringOnly ? "expiring" : "all", view.status ?? "any", view.assignee ?? "all", view.tag ?? "", view.topic ?? "", view.priority ?? "all"];
   const query = useInfiniteQuery({
     queryKey: key,
     queryFn: ({ pageParam }) => {

@@ -116,6 +116,11 @@ export function itemsForFilter(items: readonly Insight[], f: InsightFilter): Ins
   return items.filter((i) => i.status === "open" && inFilter(i, f));
 }
 
+/** The items under "Dismissed": ones the merchant set aside, which come back by themselves only when their count at least doubles (SA-10 gives them a Restore). */
+export function dismissedItems(items: readonly Insight[]): Insight[] {
+  return items.filter((i) => i.status === "dismissed");
+}
+
 /** The items under "Recently fixed": closed ones, whatever the chip. */
 export function closedItems(items: readonly Insight[]): Insight[] {
   return items.filter((i) => i.status === "closed");

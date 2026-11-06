@@ -18,7 +18,10 @@ export function StatusPill({ status, needsYou = false, state }: { status: string
       ? { label: "Done", className: "bg-muted text-muted-foreground" }
       : needsYou || state === "needs_you"
         ? { label: "Needs you", className: "bg-destructive/15 text-destructive-on-tint" }
-        : (STATUS_LABEL[status] ?? STATUS_LABEL.active)!;
+        : state === "waiting"
+          ? // a person holds it and the shopper owes the next message (derived by the api; still part of Open)
+            { label: "Waiting on customer", className: "bg-primary/10 text-primary" }
+          : (STATUS_LABEL[status] ?? STATUS_LABEL.active)!;
   return <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${v.className}`}>{v.label}</span>;
 }
 

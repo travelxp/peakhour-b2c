@@ -339,10 +339,11 @@ describe("Mark done and Reopen", () => {
 });
 
 describe("the chips and the search", () => {
-  it("the chips are Open, Needs you and Done, and the page starts on Open", () => {
+  it("the chips are Open, Needs you, Waiting and Done, and the page starts on Open", () => {
     expect(STATUS_FILTERS.map((f) => [f.value, f.label])).toEqual([
       ["open", "Open"],
       ["needs_you", "Needs you"],
+      ["waiting", "Waiting"],
       ["done", "Done"],
     ]);
     expect(DEFAULT_STATUS_FILTER).toBe("open");
@@ -405,6 +406,11 @@ describe("the phone layout", () => {
 describe("the merged list's state", () => {
   it("rows win: any row shows the list", () => {
     expect(combineListState("ready", "empty", 3)).toBe("ready");
+    // ★a filter that keeps none of the rows read so far is not "empty" while later pages remain; it is empty once they run out
+    expect(combineListState("ready", "empty", 0, true)).toBe("ready");
+    expect(combineListState("ready", "empty", 0, false)).toBe("empty");
+    expect(combineListState("error", "empty", 0, true)).toBe("error");
+    expect(combineListState("loading", "empty", 0, true)).toBe("loading");
     expect(combineListState("loading", "ready", 1)).toBe("ready");
   });
   it("a failed refresh of either half keeps the rows and says so", () => {

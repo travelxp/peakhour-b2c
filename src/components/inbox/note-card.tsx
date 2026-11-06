@@ -19,6 +19,7 @@ export function NoteCard({
   label = NOTE_LABEL,
   onDelete,
   deleting = false,
+  mentions = [],
 }: {
   body: string;
   author: string;
@@ -27,6 +28,8 @@ export function NoteCard({
   label?: string;
   onDelete?: (() => void) | null;
   deleting?: boolean;
+  /** The names of the teammates the note @mentions (SA-10). */
+  mentions?: readonly string[];
 }) {
   const [confirming, setConfirming] = useState(false);
   return (
@@ -36,6 +39,11 @@ export function NoteCard({
         <span>{label}</span>
       </p>
       <p className="whitespace-pre-wrap wrap-break-word">{body}</p>
+      {mentions.length > 0 && (
+        <p className="mt-1 text-[11px] text-muted-foreground" data-testid="note-mentions">
+          Mentioned: {mentions.join(", ")}
+        </p>
+      )}
       <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
         <span>
           {author}
