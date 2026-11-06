@@ -328,7 +328,9 @@ export function useWaReply(threadId: string) {
   return useMutation({
     mutationFn: ({ payload, idempotencyKey }: { payload: ReplyPayload; idempotencyKey: string }) => {
       // a storefront chat takes text only, through its own mount
-      const req = isStorefrontThread(threadId) && payload.kind === "text" ? storefrontReplyRequest(threadId, payload.text, idempotencyKey) : replyRequest(threadId, payload, idempotencyKey);
+      // (never the WhatsApp mount for a storefront id: anything but text is refused here, before a request is made)
+      if (isStorefrontThread(threadId) && payload.kind !== "text") throw new Error("A website chat takes text replies only.");
+      const req = isStorefrontThread(threadId) ? storefrontReplyRequest(threadId, (payload as { text: string }).text, idempotencyKey) : replyRequest(threadId, payload, idempotencyKey);
       return api.post<ReplyResult & { delivery?: StorefrontDelivery }>(req.path, req.body);
     },
     // ★EVERY outcome re-reads the thread: a success to show the line, a repeat

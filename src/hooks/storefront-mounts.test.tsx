@@ -47,6 +47,11 @@ describe("a storefront thread is sent to its own mount", () => {
     await grab(() => hooks.useWaReply(SF)).mutateAsync({ payload: { kind: "text", text: " hello " }, idempotencyKey: "key-1" });
     expect(last()).toMatchObject({ path: "/v1/storefront-chats/storefront%3Aabc/reply", body: { text: "hello", idempotencyKey: "key-1" } });
   });
+  it("a non-text reply for a storefront chat is refused before any request (never the WhatsApp mount)", async () => {
+    const before = calls.length;
+    await expect(grab(() => hooks.useWaReply(SF)).mutateAsync({ payload: { kind: "checkout", items: [] } as never, idempotencyKey: "k" })).rejects.toThrow(/text replies only/);
+    expect(calls.length).toBe(before);
+  });
   it("Suggest a reply, Refresh summary and Delete data", async () => {
     await grab(() => hooks.useSuggestReply(SF)).mutateAsync();
     expect(last().path).toBe("/v1/storefront-chats/storefront%3Aabc/suggest-reply");

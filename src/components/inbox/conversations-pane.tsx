@@ -642,7 +642,7 @@ export function ConversationsPane({
                       onClick={() =>
                         eraseContact.mutate(selected, {
                           onSuccess: (r) => {
-                            toast.success(selectedChannel === "storefront" ? DELETE_VISITOR_TOAST : deleteContactToast(r));
+                            toast.success(selectedChannel === "storefront" && !(r?.held?.deferred) ? DELETE_VISITOR_TOAST : deleteContactToast(r));
                             setConfirmErase(false);
                             onSelect(null);
                           },
