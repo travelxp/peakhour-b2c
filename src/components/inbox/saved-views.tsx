@@ -16,6 +16,7 @@ import {
   createFlightGuard,
   isViewActive,
   pageOfView,
+  viewOpensAsSaved,
   viewFiltersOfPage,
   viewNameError,
   viewSummary,
@@ -89,7 +90,8 @@ export function SavedViewsView({
             Saved views
           </option>
           {views.map((v) => (
-            <option key={v.id} value={v.id} title={viewSummary(v.filters, tags)}>
+            // ★a view for one named teammate (made through the api) cannot be drawn as a chip: it is listed but not openable, never opened as something broader
+            <option key={v.id} value={v.id} disabled={!viewOpensAsSaved(v.filters)} title={viewOpensAsSaved(v.filters) ? viewSummary(v.filters, tags) : "This view is for one teammate and cannot be opened here"}>
               {v.name}
             </option>
           ))}

@@ -540,7 +540,7 @@ const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\
 export function mentionsIn(body: string, picked: readonly Pick<TeamMemberRef, "userId" | "name">[]): string[] {
   const out: string[] = [];
   for (const m of picked) {
-    if (new RegExp(`@${escapeRegExp(m.name)}(?![\\p{L}\\p{N}_])`, "u").test(body) && !out.includes(m.userId)) out.push(m.userId);
+    if (new RegExp(`(?<![\\p{L}\\p{N}_])@${escapeRegExp(m.name)}(?![\\p{L}\\p{N}_])`, "u").test(body) && !out.includes(m.userId)) out.push(m.userId);
   }
   return out;
 }

@@ -74,6 +74,11 @@ describe("@mentions", () => {
     expect(mentionsIn("@Ravi and @Ravi again", [ravi])).toEqual(["u2"]);
     expect(mentionsIn("@Ravi.", [ravi])).toEqual(["u2"]);
   });
+  it("★a name inside another word or an address is not a mention", () => {
+    expect(mentionsIn("mail ops@Ravi.example", [ravi])).toEqual([]);
+    expect(mentionsIn("see (@Ravi)", [ravi])).toEqual(["u2"]);
+    expect(mentionsIn("@Ravi", [ravi])).toEqual(["u2"]);
+  });
   it("a name with regex characters is matched as text", () => {
     expect(mentionsIn("hi @A.B. there", [{ userId: "u9", name: "A.B." }])).toEqual(["u9"]);
     expect(mentionsIn("hi @AxBx", [{ userId: "u9", name: "A.B." }])).toEqual([]);

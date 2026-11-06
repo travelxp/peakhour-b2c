@@ -130,6 +130,11 @@ describe("saved views", () => {
     expect(h).not.toContain("Delete the view");
     expect(view({ canEdit: false, views: [] })).toBe("");
   });
+  it("★a view for one named teammate is listed but disabled, so it is never opened as something broader", () => {
+    const h = view({ views: [...views, { id: "v3", name: "One teammate", filters: { status: "open" as const, assignee: "a".repeat(24) }, createdAt: "2026-11-06T00:00:00Z" }] });
+    expect(h).toMatch(/<option[^>]*value="v3"[^>]*disabled|<option[^>]*disabled[^>]*value="v3"/);
+    expect(h).not.toMatch(/<option[^>]*value="v1"[^>]*disabled/);
+  });
   it("marks the view the page is showing, and offers to delete exactly that one", () => {
     const h = view({ page: { ...page, priority: "high", topic: "delivery_times" } });
     expect(h).toMatch(/<option[^>]*value="v1"[^>]*>/);
