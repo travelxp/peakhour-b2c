@@ -134,10 +134,12 @@ describe("revenue from chats is an estimate and says when it has no total", () =
 });
 
 describe("what sits under each headline figure", () => {
-  it("the assistant's share names the counts it rests on, and says when storefront is not measured", () => {
-    expect(resolvedNote(metrics())).toBe("3 of 6 finished WhatsApp conversations were closed without a person.");
-    expect(resolvedNote(metrics({ aiResolved: { count: 0, settled: 0, share: null, measured: true } }))).toBe("No WhatsApp conversation has settled in this range yet.");
-    expect(resolvedNote(metrics({ aiResolved: { count: 0, settled: 0, share: null, measured: false } }))).toBe("Not measured for storefront chats. Choose WhatsApp or all channels.");
+  it("the assistant's share names the counts it rests on, for every channel (storefront is measured now)", () => {
+    expect(resolvedNote(metrics())).toBe("3 of 6 settled conversations were resolved by the assistant.");
+    expect(resolvedNote(metrics({ aiResolved: { count: 0, settled: 0, share: null, measured: true } }))).toBe("No conversation has settled in this range yet.");
+    // a storefront-only range is a real figure, not "not measured"
+    expect(resolvedNote(metrics({ channel: "storefront", aiResolved: { count: 2, settled: 4, share: 0.5, measured: true } }))).toBe("2 of 4 settled conversations were resolved by the assistant.");
+    expect(resolvedNote(metrics({ aiResolved: { count: 2, settled: 4, share: 0.5, measured: true } }))).not.toMatch(/not measured/i);
   });
 
   it("the first reply names how many replies it rests on", () => {
@@ -172,6 +174,13 @@ describe("the copy a merchant reads", () => {
   it("every definition is a plain sentence and the revenue one says it is an estimate", () => {
     expect(DEFINITIONS.every((d) => d.text.endsWith("."))).toBe(true);
     expect(DEFINITIONS.find((d) => d.term === "Revenue from chats")!.text).toContain("It is an estimate");
+    expect(DEFINITIONS.find((d) => d.term === "Resolved by the assistant")!.text).toBe(
+      "A WhatsApp conversation the assistant closed with no person replying (the outcome check billed it), or a storefront chat the assistant answered start to finish: the visitor wrote, the assistant replied, and the chat was never handed to the team, no person wrote in it, and nothing new has come for 24 hours. The share is of the conversations that have settled: the assistant resolved them, or a person handled or closed them, or the chat was handed to the team and has gone quiet for 24 hours. A conversation still open is not counted either way.",
+    );
+    expect(DEFINITIONS.find((d) => d.term === "Handed over")!.text).toBe(
+      "A WhatsApp or storefront conversation the assistant passed to the team, because the customer asked for a person, could not be answered twice running, was upset more than once, or raised a payment, refund or discount problem. The rate is of the conversations in the range. A person taking a conversation over on their own is not a hand-over.",
+    );
+    expect(all).not.toMatch(/grounded/i);
     expect(DEFINITIONS.find((d) => d.term === "Test chats")!.text).toBe("Your own Test on your store chats are never counted.");
   });
 });
