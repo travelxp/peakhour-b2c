@@ -294,7 +294,7 @@ function InsightCard({ item, windowDays, shop }: { item: Insight; windowDays: nu
           </p>
           <p data-insight-part="why" className="text-sm">
             <span className="font-medium">Why it matters: </span>
-            {item.cause ? <span className="text-muted-foreground">{CAUSE_LABEL[item.cause.kind] ?? "Cause"}. {item.cause.reason} </span> : null}
+            {item.cause ? <span className="text-muted-foreground">{CAUSE_LABEL[item.cause.kind] ?? "Cause"}. {item.cause.reason.replace(/\.?\s*$/, ".")} </span> : null}
             {item.why}
           </p>
           <p data-insight-part="next-step" className="text-sm">

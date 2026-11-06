@@ -176,7 +176,8 @@ function wooOrderUrl(u: URL): string | null {
 
 /**
  * The order link opens only when it is the Shopify admin over https, or (when the api says `adminLabel` is WooCommerce) the store's own wp-admin order list
- * over https. The label decides which shape is allowed, so a Shopify chat can never open a link to a host of its own choosing.
+ * over https. The label decides which shape is allowed. The host itself is the api's: it builds the link from the store's own address and no visitor text
+ * reaches it; this app does not know the store's WordPress host, so it checks the SHAPE (https, plain host, the order-list page, two known query forms).
  */
 export function safeAdminUrl(url: string | null | undefined, label?: unknown): string | null {
   if (!url) return null;
