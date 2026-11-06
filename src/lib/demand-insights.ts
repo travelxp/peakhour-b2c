@@ -46,8 +46,12 @@ export type DemandState =
   | { kind: "no-store" }
   | { kind: "ready"; data: DemandInsights };
 
-/** A path the api built inside the Shopify admin: `/products`, `/products/new` or `/products/<digits>`. */
-export const ADMIN_PATH = /^\/products(\/new|\/[0-9]+)?$/;
+/**
+ * A path the api built inside the Shopify admin: `/products`, `/products/new`, `/products/<digits>`, `/orders` or `/settings`. The Shopify docs name
+ * products, orders and settings as pages an app may link to; they do not document each Settings section's own address, so the api sends `/settings` and
+ * says in words which section to open.
+ */
+export const ADMIN_PATH = /^\/(products(\/new|\/[0-9]+)?|orders|settings)$/;
 
 /** `<handle>.myshopify.com`, nothing more (no scheme, port, path or userinfo). */
 export const SHOP_DOMAIN = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/;

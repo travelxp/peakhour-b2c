@@ -24,6 +24,8 @@ export interface StorefrontHandover {
   kind: HandoverKind | null;
   orderNumber: string | null;
   adminUrl: string | null;
+  /** SA-13: the system `adminUrl` opens ("Shopify" or "WooCommerce"). Absent from an older api: Shopify. */
+  adminLabel?: "Shopify" | "WooCommerce" | null;
   lastAsks: string[];
 }
 
@@ -154,11 +156,34 @@ export function emailLine(contactEmail: string | null | undefined, hasContactEma
   return null;
 }
 
-/** The order link opens only when it is the Shopify admin over https. */
-export function safeAdminUrl(url: string | null | undefined): string | null {
+
+/**
+ * The system an order link opens, as the api names it (`adminLabel`). Absent (an older api) is Shopify, as it always was.
+ */
+export type AdminLabel = "Shopify" | "WooCommerce";
+export const adminLabelOf = (label: unknown): AdminLabel => (label === "WooCommerce" ? "WooCommerce" : "Shopify");
+
+/** A WooCommerce order list: the store's own wp-admin over https, nothing more (the api builds exactly this shape from the store's own address). */
+const WOO_ORDER_PATH = /^(?:\/[^?#\s]*)?\/wp-admin\/edit\.php$/;
+const WOO_ORDER_QUERY = /^\?post_type=shop_order(?:&s=\d{1,10})?$/;
+
+function wooOrderUrl(u: URL): string | null {
+  // https, a plain host (no userinfo, no port, no IP literal), the order-list page and its two known query shapes, no fragment
+  if (u.protocol !== "https:" || u.username !== "" || u.password !== "" || u.port !== "" || u.hash !== "") return null;
+  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i.test(u.hostname) || /^[0-9.]+$/.test(u.hostname)) return null;
+  return WOO_ORDER_PATH.test(u.pathname) && WOO_ORDER_QUERY.test(u.search) ? u.toString() : null;
+}
+
+/**
+ * The order link opens only when it is the Shopify admin over https, or (when the api says `adminLabel` is WooCommerce) the store's own wp-admin order list
+ * over https. The label decides which shape is allowed. The host itself is the api's: it builds the link from the store's own address and no visitor text
+ * reaches it; this app does not know the store's WordPress host, so it checks the SHAPE (https, plain host, the order-list page, two known query forms).
+ */
+export function safeAdminUrl(url: string | null | undefined, label?: unknown): string | null {
   if (!url) return null;
   try {
     const u = new URL(url);
+    if (adminLabelOf(label) === "WooCommerce") return wooOrderUrl(u);
     return u.protocol === "https:" && u.hostname === "admin.shopify.com" ? u.toString() : null;
   } catch {
     return null;

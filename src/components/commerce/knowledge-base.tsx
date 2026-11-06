@@ -79,7 +79,7 @@ function Questions() {
 }
 
 /** One question a shopper asked that the assistant could not answer. `answerLabel`: the Inbox calls the button "Answer once" (the answer is saved and used from then on). */
-export function QuestionCard({ request, answerLabel = "Answer" }: { request: KbRequest; answerLabel?: string }) {
+export function QuestionCard({ request, answerLabel = "Answer", dismissLabel = "Dismiss" }: { request: KbRequest; answerLabel?: string; dismissLabel?: string | null }) {
   const [answer, setAnswer] = useState("");
   const [error, setError] = useState<string | null>(null);
   const answerMut = useAnswerKbRequest();
@@ -118,14 +118,16 @@ export function QuestionCard({ request, answerLabel = "Answer" }: { request: KbR
               {answerMut.isPending && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />}
               {answerLabel}
             </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={busy}
-              onClick={() => dismissMut.mutate(request.id, { onError: (e) => setError(kbErrorMessage(e)) })}
-            >
-              Dismiss
-            </Button>
+            {dismissLabel !== null && (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={busy}
+                onClick={() => dismissMut.mutate(request.id, { onError: (e) => setError(kbErrorMessage(e)) })}
+              >
+                {dismissLabel}
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
