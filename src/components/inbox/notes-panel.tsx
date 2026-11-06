@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { AtSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { NoteCard } from "@/components/inbox/note-card";
-import { useAddNote, useDeleteNote, useThreadNotes } from "@/hooks/use-inbox-desk";
+import { useAddNote, useDeleteNote, useDeskTeam, useThreadNotes } from "@/hooks/use-inbox-desk";
 import { actionError } from "@/lib/inbox-customer";
-import { NOTE_LABEL, NOTE_MAX, canDeleteNote, canWorkConversation, createFlightGuard, noteDraft, type DeskNote } from "@/lib/inbox-desk";
+import { NOTE_LABEL, NOTE_MAX, canDeleteNote, canWorkConversation, createFlightGuard, insertMention, mentionNames, mentionsIn, noteDraft, type DeskNote, type TeamMemberRef } from "@/lib/inbox-desk";
 import { previewTime } from "@/lib/inbox-view";
 
 /**
@@ -27,7 +29,12 @@ export function NotesPanelView({
   onDelete,
   deletingId,
   error,
+  team = [],
+  onMention,
 }: {
+  /** SA-10: the teammates a note can @mention, and what picking one does. Both optional: without them the panel is the plain one. */
+  team?: readonly TeamMemberRef[];
+  onMention?: (member: TeamMemberRef) => void;
   notes: readonly DeskNote[];
   label: string;
   me: string | null;
@@ -59,6 +66,7 @@ export function NotesPanelView({
             time={previewTime(n.createdAt, now)}
             label={label}
             deleting={deletingId === n.id}
+            mentions={mentionNames(n, team)}
             onDelete={canDeleteNote(n, me, role) ? () => onDelete(n.id) : null}
           />
         ))}
@@ -77,6 +85,25 @@ export function NotesPanelView({
             <span className={`text-[11px] ${draft.remaining < 0 ? "text-destructive" : "text-muted-foreground"}`}>
               {draft.remaining} left of {NOTE_MAX}
             </span>
+            {onMention && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="xs" variant="ghost" disabled={saving || team.filter((m) => m.userId !== me).length === 0} aria-label="Mention a teammate">
+                    <AtSign />
+                    Mention
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {team
+                    .filter((m) => m.userId !== me)
+                    .map((m) => (
+                      <DropdownMenuItem key={m.userId} onSelect={() => onMention(m)}>
+                        {m.name}
+                      </DropdownMenuItem>
+                    ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
             <Button size="sm" disabled={!draft.canSave} onClick={onAdd}>
               {saving ? "Saving…" : "Add note"}
             </Button>
@@ -101,6 +128,9 @@ export function NotesPanel({ threadId, role }: { threadId: string; role: string 
   const [body, setBody] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // SA-10: the teammates picked with Mention. Only those whose @Name is still in the text when the note is saved are sent.
+  const [picked, setPicked] = useState<TeamMemberRef[]>([]);
+  const team = useDeskTeam(canWorkConversation(role));
   const addGuard = useState(createFlightGuard)[0];
   const delGuard = useState(createFlightGuard)[0];
 
@@ -110,6 +140,12 @@ export function NotesPanel({ threadId, role }: { threadId: string; role: string 
       label={query.data?.label ?? NOTE_LABEL}
       me={query.data?.me ?? null}
       role={role}
+      team={team.data?.team ?? []}
+      onMention={(m) => {
+        setBody((b) => insertMention(b, m));
+        setPicked((p) => (p.some((x) => x.userId === m.userId) ? p : [...p, m]));
+        setError(null);
+      }}
       state={query.data ? "ready" : query.isError ? "error" : "loading"}
       body={body}
       onBody={(v) => {
@@ -125,8 +161,9 @@ export function NotesPanel({ threadId, role }: { threadId: string; role: string 
         void addGuard.run(async () => {
           if (!noteDraft(body, false).canSave) return;
           try {
-            await add.mutateAsync(body.trim());
+            await add.mutateAsync({ body: body.trim(), mentions: mentionsIn(body, picked) });
             setBody("");
+            setPicked([]);
             setError(null);
           } catch (e) {
             setError(actionError(e, "Saving the note"));

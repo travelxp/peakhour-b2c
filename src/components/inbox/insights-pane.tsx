@@ -22,6 +22,7 @@ import {
   chipCount,
   closedItems,
   conversationsHref,
+  dismissedItems,
   countLine,
   expiredNote,
   insightFilterFromSearch,
@@ -146,6 +147,7 @@ function Body({ state, filter, onPick, onRetry, shop }: { state: InsightsState; 
 function Ready({ data, filter, onPick, shop }: { data: InsightsResponse; filter: InsightFilter; onPick: (f: InsightFilter) => void; shop: string | null }) {
   const shown = itemsForFilter(data.items, filter);
   const fixed = closedItems(data.items);
+  const setAside = dismissedItems(data.items);
   return (
     <div data-insights="ready" className="space-y-4">
       <div className="flex flex-wrap gap-1.5" role="group" aria-label="Show">
@@ -172,7 +174,43 @@ function Ready({ data, filter, onPick, shop }: { data: InsightsResponse; filter:
       )}
 
       {fixed.length > 0 && <RecentlyFixed items={fixed} />}
+      {setAside.length > 0 && <DismissedItems items={setAside} />}
     </div>
+  );
+}
+
+/**
+ * What the merchant dismissed, with a way back (SA-10). A dismissed item returns on its own only when its count at least doubles, so without
+ * this a dismissal by mistake could not be undone. Restore is the api's own call (`POST /v1/insights/:key/restore`), the same the Shopify app makes.
+ */
+export function DismissedItems({ items, defaultOpen = false }: { items: Insight[]; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const restore = useInsightDismissal();
+  return (
+    <section data-insights="dismissed" className="rounded-md border">
+      <button type="button" className="flex w-full items-center gap-2 p-3 text-left text-sm font-medium" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        {open ? <ChevronDown className="size-4" aria-hidden="true" /> : <ChevronRight className="size-4" aria-hidden="true" />}
+        Dismissed
+        <Badge variant="secondary">{items.length}</Badge>
+      </button>
+      {open && (
+        <ul className="space-y-2 border-t p-3">
+          {items.map((i) => (
+            <li key={i.key} data-insight-key={i.key} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+              <span className="min-w-0 font-medium wrap-break-word">{i.title}</span>
+              <Button size="sm" variant="outline" disabled={restore.isPending && restore.variables?.key === i.key} onClick={() => restore.mutate({ key: i.key, restore: true })}>
+                {restore.isPending && restore.variables?.key === i.key ? "Restoring…" : "Restore"}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {restore.isError && (
+        <p role="alert" className="border-t p-3 text-sm text-destructive">
+          That did not save. Please try again.
+        </p>
+      )}
+    </section>
   );
 }
 

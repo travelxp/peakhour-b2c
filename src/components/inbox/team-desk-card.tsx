@@ -10,10 +10,14 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useDeskSettings, useDeskTags, useDeskTeam, useSaveDeskSettings, useTagAdmin } from "@/hooks/use-inbox-desk";
+import { useInsights } from "@/hooks/use-insights";
 import { actionError } from "@/lib/inbox-customer";
 import { useAuth } from "@/providers/auth-provider";
 import {
   AWAY_MAX,
+  AUTO_CLOSE_MAX_DAYS,
+  ROUTING_CHANNELS,
+  ROUTING_CHANNEL_LABEL,
   TAG_LIMIT,
   TAG_NAME_MAX,
   WEEK,
@@ -49,6 +53,8 @@ export function TeamDeskFormView({
   saving,
   onSave,
   zones,
+  tags,
+  topics,
 }: {
   form: DeskForm;
   onChange: (next: DeskForm) => void;
@@ -60,8 +66,16 @@ export function TeamDeskFormView({
   saving: boolean;
   onSave: () => void;
   zones: readonly string[];
+  /** SA-10: the business's tags and the Insights topics a rule can name. Optional, so a caller that predates them still renders. */
+  tags?: readonly DeskTag[];
+  topics?: ReadonlyArray<{ key: string; title: string }>;
 }) {
   const set = (patch: Partial<DeskForm>) => onChange({ ...form, ...patch });
+  const tagList = tags ?? [];
+  // the topics Insights has seen, plus any a saved rule already names (so a rule never shows blank)
+  const topicList = [...(topics ?? []), ...form.smartTagRules.filter((r) => r.topic && !(topics ?? []).some((t) => t.key === r.topic)).map((r) => ({ key: r.topic, title: r.topic }))];
+  const usedChannels = new Set(form.routingRules.map((r) => r.channel));
+  const freeChannels = ROUTING_CHANNELS.filter((c) => !usedChannels.has(c));
   const disabled = !canEdit || saving;
   const preview = awayPreview(form.awayMessage, defaults.awayMessage, defaults.opensToken);
   return (
@@ -175,6 +189,150 @@ export function TeamDeskFormView({
             ))}
             {form.availableUserIds.length === 0 && <p className="text-xs text-muted-foreground">Choose at least one teammate, or conversations stay unassigned.</p>}
           </fieldset>
+        )}
+      </div>
+
+      <div className="space-y-2 border-t pt-4" data-testid="routing-section">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <Label htmlFor="desk-routing">Route by channel</Label>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Send a channel&apos;s new conversations to its own people, taking turns among them. A channel with no people named uses the turns above. Off by default.
+            </p>
+          </div>
+          <Switch id="desk-routing" checked={form.routing} disabled={disabled} onCheckedChange={(v) => set({ routing: v })} />
+        </div>
+        {form.routing && (
+          <div className="space-y-2">
+            {form.routingRules.map((rule, i) => (
+              <fieldset key={rule.channel} className="space-y-1 rounded-md border p-2">
+                <legend className="px-1 text-xs font-medium">{ROUTING_CHANNEL_LABEL[rule.channel]}</legend>
+                {team.map((m) => (
+                  <label key={m.userId} className="flex items-center gap-2 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={rule.userIds.includes(m.userId)}
+                      disabled={disabled}
+                      onChange={() => set({ routingRules: form.routingRules.map((r, j) => (j === i ? { ...r, userIds: toggleAvailable(r.userIds, m.userId) } : r)) })}
+                    />
+                    {m.name}
+                  </label>
+                ))}
+                {rule.userIds.length === 0 && <p className="text-xs text-muted-foreground">Choose at least one teammate, or remove this channel.</p>}
+                {canEdit && (
+                  <Button size="xs" variant="ghost" disabled={disabled} onClick={() => set({ routingRules: form.routingRules.filter((_, j) => j !== i) })}>
+                    Remove {ROUTING_CHANNEL_LABEL[rule.channel]}
+                  </Button>
+                )}
+              </fieldset>
+            ))}
+            {canEdit && freeChannels.length > 0 && (
+              <select
+                aria-label="Add a channel"
+                value=""
+                disabled={disabled}
+                onChange={(e) => {
+                  const channel = ROUTING_CHANNELS.find((c) => c === e.target.value);
+                  if (channel) set({ routingRules: [...form.routingRules, { channel, userIds: [] }] });
+                }}
+                className="h-8 rounded-md border bg-background px-2 text-xs"
+              >
+                <option value="">Add a channel…</option>
+                {freeChannels.map((c) => (
+                  <option key={c} value={c}>
+                    {ROUTING_CHANNEL_LABEL[c]}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2 border-t pt-4" data-testid="autoclose-section">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <Label htmlFor="desk-autoclose">Close quiet conversations</Label>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Mark a conversation Done when nobody has written in it for a number of days. The customer is told nothing, and if they write again it opens again. Off by default.
+            </p>
+          </div>
+          <Switch id="desk-autoclose" checked={form.autoClose} disabled={disabled} onCheckedChange={(v) => set({ autoClose: v })} />
+        </div>
+        {form.autoClose && (
+          <div className="flex items-center gap-2 text-xs">
+            <Label htmlFor="desk-autoclose-days">Close after</Label>
+            <Input
+              id="desk-autoclose-days"
+              inputMode="numeric"
+              value={form.autoCloseDays}
+              disabled={disabled}
+              onChange={(e) => set({ autoCloseDays: e.target.value.replace(/[^0-9]/g, "").slice(0, 3) })}
+              className="h-8 w-20"
+              aria-describedby="desk-autoclose-max"
+            />
+            <span id="desk-autoclose-max">days (1 to {AUTO_CLOSE_MAX_DAYS})</span>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-2 border-t pt-4" data-testid="smarttags-section">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <Label htmlFor="desk-smarttags">Tag conversations by topic</Label>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              When Insights finds a topic in a conversation, add the tag you pick. It only adds tags: removing one by hand sticks. Off by default.
+            </p>
+          </div>
+          <Switch id="desk-smarttags" checked={form.smartTags} disabled={disabled} onCheckedChange={(v) => set({ smartTags: v })} />
+        </div>
+        {form.smartTags && (
+          <div className="space-y-2">
+            {tagList.length === 0 && <p className="text-xs text-muted-foreground">Create a tag below first, then pick it here.</p>}
+            {form.smartTagRules.map((rule, i) => (
+              <div key={`${rule.topic}-${i}`} className="flex flex-wrap items-center gap-1.5">
+                <select
+                  aria-label="Topic"
+                  value={rule.topic}
+                  disabled={disabled}
+                  onChange={(e) => set({ smartTagRules: form.smartTagRules.map((r, j) => (j === i ? { ...r, topic: e.target.value } : r)) })}
+                  className="h-8 max-w-48 rounded-md border bg-background px-2 text-xs"
+                >
+                  <option value="">Pick a topic…</option>
+                  {topicList.map((t) => (
+                    <option key={t.key} value={t.key} disabled={t.key !== rule.topic && form.smartTagRules.some((r) => r.topic === t.key)}>
+                      {t.title}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs text-muted-foreground">gets</span>
+                <select
+                  aria-label="Tag"
+                  value={rule.tagId}
+                  disabled={disabled}
+                  onChange={(e) => set({ smartTagRules: form.smartTagRules.map((r, j) => (j === i ? { ...r, tagId: e.target.value } : r)) })}
+                  className="h-8 max-w-40 rounded-md border bg-background px-2 text-xs"
+                >
+                  <option value="">Pick a tag…</option>
+                  {tagList.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+                {canEdit && (
+                  <Button size="xs" variant="ghost" disabled={disabled} aria-label="Remove this automatic tag" onClick={() => set({ smartTagRules: form.smartTagRules.filter((_, j) => j !== i) })}>
+                    Remove
+                  </Button>
+                )}
+              </div>
+            ))}
+            {canEdit && form.smartTagRules.length < 50 && (
+              <Button size="xs" variant="outline" disabled={disabled} onClick={() => set({ smartTagRules: [...form.smartTagRules, { topic: "", tagId: "" }] })}>
+                Add an automatic tag
+              </Button>
+            )}
+          </div>
         )}
       </div>
 
@@ -329,6 +487,9 @@ export function TeamDeskCard({ role }: { role: string | null }) {
   const save = useSaveDeskSettings();
   const admin = useTagAdmin();
   const zones = useZones();
+  // the topics Insights has found, for the automatic-tag rules (SA-10). A failed read just leaves the list short.
+  const insights = useInsights();
+  const topics = useMemo(() => (insights.data?.items ?? []).map((i) => ({ key: i.key, title: i.title })), [insights.data]);
   const canEdit = canManageDesk(role);
   // ★DEFAULTS TO THE PERSON'S OWN Settings > Preferences TIMEZONE, then the browser's, for a business that has set none
   const fallbackZone = user?.preferences?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
@@ -390,6 +551,8 @@ export function TeamDeskCard({ role }: { role: string | null }) {
         saving={save.isPending}
         onSave={() => void onSave()}
         zones={zones}
+        tags={tags.data?.tags ?? []}
+        topics={topics}
       />
       <TagManagerView
         tags={tags.data?.tags ?? []}

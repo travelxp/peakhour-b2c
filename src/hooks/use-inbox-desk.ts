@@ -1,10 +1,11 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
-import type { DeskNote, DeskSettings, DeskSettingsResponse, DeskTag, TeamMemberRef, ThreadAssignee } from "@/lib/inbox-desk";
-import { patchFromForm } from "@/lib/inbox-desk";
+import type { DeskNote, DeskSettings, DeskSettingsResponse, DeskTag, Priority, SavedView, SavedViewFilters, TeamMemberRef, ThreadAssignee, Viewer } from "@/lib/inbox-desk";
+import { PING_EVERY_MS, patchFromForm } from "@/lib/inbox-desk";
 
 /** The Inbox team desk's client (I3a): `/v1/inbox-desk/*`. One settings query, so the Inbox, Autopilot and the form read the same pause. */
 
@@ -16,6 +17,7 @@ export const deskKeys = {
   team: (org: string) => ["inbox-desk", "team", org] as const,
   tags: (biz: string) => ["inbox-desk", "tags", biz] as const,
   notes: (biz: string, threadId: string) => ["inbox-desk", "notes", biz, threadId] as const,
+  views: (biz: string) => ["inbox-desk", "views", biz] as const,
 };
 
 export function useDeskSettings() {
@@ -56,6 +58,7 @@ export function useDeskTags() {
 interface Patchable {
   assignee?: ThreadAssignee | null;
   tagIds?: string[];
+  priority?: Priority;
 }
 
 /**
@@ -74,6 +77,7 @@ async function patchThreadCaches(qc: QueryClient, biz: string, threadId: string,
     const was: Patchable = {};
     if (data && "assignee" in patch) was.assignee = data.assignee ?? null;
     if (data && "tagIds" in patch) was.tagIds = data.tagIds ?? [];
+    if (data && "priority" in patch) was.priority = data.priority ?? "normal";
     return [k, data ? was : undefined] as const;
   });
   for (const k of keys) qc.setQueryData<Patchable | undefined>(k, (data) => (data ? { ...data, ...patch } : data));
@@ -121,6 +125,86 @@ export function useSetThreadTags(threadId: string) {
   });
 }
 
+/** Flag a conversation high priority, or back to normal (SA-10). Optimistic, and put back on a failure. */
+export function useSetPriority(threadId: string) {
+  const qc = useQueryClient();
+  const { business } = useAuth();
+  const biz = business?._id ?? "none";
+  return useMutation({
+    mutationFn: (priority: Priority) => api.put<{ ok: boolean; priority: Priority; changed: boolean }>(`${threadPath(threadId)}/priority`, { priority }),
+    onMutate: async (priority) => ({ previous: await patchThreadCaches(qc, biz, threadId, { priority }) }),
+    onError: (_e, _v, ctx) => restore(qc, ctx?.previous),
+    onSettled: () => refreshLists(qc, biz, threadId),
+  });
+}
+
+/**
+ * Who else has this conversation open (SA-10). While `threadId` is set and the tab is visible it pings every {@link PING_EVERY_MS}, tells the api
+ * whether the person is typing, and returns the OTHER people the api names. ★A HIDDEN TAB DOES NOT PING (a tab left open overnight is not
+ * "viewing"), the ping stops when the conversation closes, and closing sends a best-effort leave. A failed ping keeps the last answer and is not an error.
+ */
+export function usePresence(threadId: string | null, replying: boolean): Viewer[] | null {
+  const { business } = useAuth();
+  const [seen, setSeen] = useState<{ threadId: string; viewers: Viewer[] } | null>(null);
+  const replyingRef = useRef(replying);
+  // read by the next ping, so typing does not restart the interval
+  useEffect(() => {
+    replyingRef.current = replying;
+  }, [replying]);
+  const biz = business?._id;
+  useEffect(() => {
+    if (!threadId || !biz) return;
+    let stopped = false;
+    const ping = async () => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      try {
+        const r = await api.put<{ viewers: Viewer[] }>(`${threadPath(threadId)}/presence`, { replying: replyingRef.current });
+        if (!stopped) setSeen({ threadId, viewers: r.viewers ?? [] });
+      } catch {
+        // keep what was shown: a missed ping is not worth a message
+      }
+    };
+    void ping();
+    const timer = setInterval(() => void ping(), PING_EVERY_MS);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void ping();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+      void api.delete(`${threadPath(threadId)}/presence`).catch(() => undefined);
+    };
+  }, [threadId, biz]);
+  // ★never another conversation's people: the answer is kept with the thread it was for. null = not answered yet (the thread's own list stands in)
+  return seen && seen.threadId === threadId ? seen.viewers : null;
+}
+
+// ── saved views (SA-10) ─────────────────────────────────────────────────────────────────────────────────────────────
+
+export function useSavedViews() {
+  const { business } = useAuth();
+  const biz = business?._id ?? "none";
+  return useQuery({
+    queryKey: deskKeys.views(biz),
+    queryFn: () => api.get<{ views: SavedView[]; max: number }>(`${BASE}/views`),
+    enabled: Boolean(business?._id),
+    staleTime: 60_000,
+  });
+}
+
+export function useViewAdmin() {
+  const qc = useQueryClient();
+  const { business } = useAuth();
+  const biz = business?._id ?? "none";
+  const done = () => void qc.invalidateQueries({ queryKey: deskKeys.views(biz) });
+  return {
+    save: useMutation({ mutationFn: (v: { name: string; filters: SavedViewFilters }) => api.post<SavedView>(`${BASE}/views`, v), onSuccess: done }),
+    remove: useMutation({ mutationFn: (id: string) => api.delete<{ deleted: boolean }>(`${BASE}/views/${encodeURIComponent(id)}`), onSuccess: done }),
+  };
+}
+
 // ── notes ───────────────────────────────────────────────────────────────────────────────────────────────────────────
 
 export interface NotesResponse {
@@ -145,7 +229,10 @@ export function useAddNote(threadId: string) {
   const { business } = useAuth();
   const biz = business?._id ?? "none";
   return useMutation({
-    mutationFn: (body: string) => api.post<{ note: DeskNote; duplicate: boolean }>(`${threadPath(threadId)}/notes`, { body }),
+    mutationFn: (note: string | { body: string; mentions?: string[] }) => {
+      const { body, mentions } = typeof note === "string" ? { body: note, mentions: undefined } : note;
+      return api.post<{ note: DeskNote; duplicate: boolean }>(`${threadPath(threadId)}/notes`, { body, ...(mentions && mentions.length > 0 ? { mentions } : {}) });
+    },
     onSettled: () => void qc.invalidateQueries({ queryKey: deskKeys.notes(biz, threadId) }),
   });
 }

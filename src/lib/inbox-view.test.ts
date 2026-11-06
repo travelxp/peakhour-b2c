@@ -339,10 +339,11 @@ describe("Mark done and Reopen", () => {
 });
 
 describe("the chips and the search", () => {
-  it("the chips are Open, Needs you and Done, and the page starts on Open", () => {
+  it("the chips are Open, Needs you, Waiting and Done, and the page starts on Open", () => {
     expect(STATUS_FILTERS.map((f) => [f.value, f.label])).toEqual([
       ["open", "Open"],
       ["needs_you", "Needs you"],
+      ["waiting", "Waiting"],
       ["done", "Done"],
     ]);
     expect(DEFAULT_STATUS_FILTER).toBe("open");

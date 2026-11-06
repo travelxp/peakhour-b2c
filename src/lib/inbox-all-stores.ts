@@ -86,6 +86,9 @@ export function rowOfAllStores(c: AllStoresConversation): AllStoresRow {
     assignee: c.assignee,
     tagIds: c.tagIds,
     timer: c.timer,
+    // the all-stores list is read-only and carries neither (SA-10): normal, and nobody shown
+    priority: "normal",
+    viewers: [],
     businessId: c.businessId,
     businessName: c.businessName,
   };

@@ -73,13 +73,14 @@ describe("the list filters build the right query", () => {
     expect(deskListParams({ assignee: "unassigned", tag: "t1" })).toEqual({ assignee: "unassigned", tag: "t1" });
     expect(deskListParams({ assignee: "all", tag: "t1" })).toEqual({ tag: "t1" });
   });
-  it("the three chips are All, Mine, Unassigned", () => {
-    expect(ASSIGNEE_FILTERS.map((f) => f.label)).toEqual(["All", "Mine", "Unassigned"]);
+  it("the chips are All, Mine, Unassigned and Assigned (Assigned came with the saved views, so a view made in the Shopify app opens as it was saved)", () => {
+    expect(ASSIGNEE_FILTERS.map((f) => f.label)).toEqual(["All", "Mine", "Unassigned", "Assigned"]);
   });
   it("a URL value is read back, and anything odd is All / no tag", () => {
     expect(assigneeFilterFromParam("mine")).toBe("mine");
     expect(assigneeFilterFromParam("unassigned")).toBe("unassigned");
-    for (const v of ["assigned", "someone", "", null, undefined]) expect(assigneeFilterFromParam(v), String(v)).toBe("all");
+    expect(assigneeFilterFromParam("assigned")).toBe("assigned");
+    for (const v of ["someone", "", null, undefined]) expect(assigneeFilterFromParam(v), String(v)).toBe("all");
     expect(tagFromParam("abc123")).toBe("abc123");
     for (const v of ["", " ", null, "a b", "x".repeat(65), "<script>"]) expect(tagFromParam(v), String(v)).toBeNull();
   });

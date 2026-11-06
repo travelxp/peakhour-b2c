@@ -1,4 +1,5 @@
-import { csatView, initialsOf, timerView, type DeskTag, type ResponseTimer, type ThreadAssignee, type ThreadCsat } from "@/lib/inbox-desk";
+import { Flag } from "lucide-react";
+import { csatView, initialsOf, timerView, type DeskTag, type Priority, type ResponseTimer, type ThreadAssignee, type ThreadCsat } from "@/lib/inbox-desk";
 
 /** The team desk's small labels on a conversation, shared by the list row and the thread header (I3a). */
 
@@ -13,6 +14,27 @@ export function AssigneeBadge({ assignee }: { assignee: ThreadAssignee | null | 
       data-testid="assignee-badge"
     >
       {initialsOf(assignee.name)}
+    </span>
+  );
+}
+
+/** A conversation a person flagged high priority (SA-10). Nothing when it is normal, which is nearly all of them. */
+export function PriorityBadge({ priority }: { priority: Priority | undefined }) {
+  if (priority !== "high") return null;
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-[11px] font-medium text-warning-on-tint" data-testid="priority-badge">
+      <Flag className="size-3" aria-hidden="true" />
+      High priority
+    </span>
+  );
+}
+
+/** "Asha is viewing" (SA-10). The words come from `viewersLine`; nothing when nobody else is there. */
+export function ViewersText({ line }: { line: string | null }) {
+  if (!line) return null;
+  return (
+    <span className="text-[11px] italic text-muted-foreground" role="status" data-testid="viewers-line">
+      {line}
     </span>
   );
 }
