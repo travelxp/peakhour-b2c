@@ -63,7 +63,9 @@ function Questions() {
   const { data, isLoading, isError } = useKbRequests();
   if (isLoading) return <Skeleton className="h-6 w-64" />;
   if (isError) return <p className="text-sm text-destructive">Could not load the questions to answer. Please refresh.</p>;
-  const n = data?.requests.length ?? 0;
+  // no answer yet (offline, or nothing asked): say nothing rather than "no questions are waiting"
+  if (!data) return null;
+  const n = data.requests.length;
   // ONE LINE: the questions themselves are answered under Insights in the Inbox, with the rest of what customers keep raising.
   return (
     <p data-kb-questions className="flex flex-wrap items-center gap-2 text-sm">

@@ -233,7 +233,7 @@ export function ConversationsPane({
   const deskFiltered = assignee !== "all" || tag !== null;
   const deskTags = useDeskTags().data?.tags;
   // ★A SEARCH LOOKS ACROSS EVERY CONVERSATION, not only the chip's: a customer whose conversation is Done must be found by their order number.
-  const wa = useWaConversations({ expiringOnly, assignee, tag, topic, ...(q ? { q } : { status }) });
+  const wa = useWaConversations({ expiringOnly, assignee, tag, topic: q ? null : topic, ...(q ? { q } : { status }) });
   // a search can never match a storefront visitor (no name, number or order on the row), so that half is not asked
   const storefront = useStorefrontChats({ expiringOnly, status, assignee, tag, topic, enabled: !q });
   // Messenger / Instagram chips show only for channels this business has a conversation on (read from the unfiltered list)

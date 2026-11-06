@@ -139,6 +139,8 @@ describe("the topic filter", () => {
   it("a key with a slash, a space or an accent still filters (the api's key is only sent back to it)", () => {
     for (const v of ["shoes/size 9", "café", "a&b=1"]) expect(topicFromParam(v)).toBe(v);
     expect(topicFromParam("a".repeat(200))).toBe("a".repeat(200));
+    // verbatim: the api matches the key exactly
+    expect(topicFromParam(" x ")).toBe(" x ");
   });
   it("conversationsHref and searchWithTopic round-trip and keep the other keys", () => {
     expect(conversationsHref("delivery-times")).toBe("/dashboard/inbox?tab=conversations&topic=delivery-times");

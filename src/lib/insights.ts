@@ -150,8 +150,9 @@ const TOPIC_MAX = 200;
  * list with no banner. Only the empty, the over-long and control characters are "no topic".
  */
 export function topicFromParam(v: string | null | undefined): string | null {
-  const t = (v ?? "").trim();
-  return t && t.length <= TOPIC_MAX && ![...t].some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127) ? t : null;
+  // NOT trimmed in what is returned: the key goes back to the api verbatim
+  const t = v ?? "";
+  return t.trim() && t.length <= TOPIC_MAX && ![...t].some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127) ? t : null;
 }
 
 /** "See conversations": the Conversations lane narrowed to one insight. */
