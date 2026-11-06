@@ -312,9 +312,16 @@ export function conversationsLinkable(item: Pick<Insight, "conversations">): { l
   return c.linkable ? { linkable: true, reason: null } : { linkable: false, reason: c.reason ?? "There is no conversation to open for this." };
 }
 
+/** The two lines that stand for questions without a topic: never a priority, and always drawn under the list. */
+export const QUESTION_LINE_KEYS: ReadonlySet<string> = new Set(["new_questions", "unsorted_questions"]);
+/** Items in the api's order, with the question lines moved to the end. */
+export function linesLast<T extends { key: string }>(items: readonly T[]): T[] {
+  return [...items.filter((i) => !QUESTION_LINE_KEYS.has(i.key)), ...items.filter((i) => QUESTION_LINE_KEYS.has(i.key))];
+}
+
 /** The (at most three) open items the api ranked first, in its order. */
 export function topPriorityItems(data: Pick<InsightsResponse, "items" | "topPriorities">): Insight[] {
-  const keys = (data.topPriorities ?? []).slice(0, 3);
+  const keys = [...new Set(data.topPriorities ?? [])].filter((k) => !QUESTION_LINE_KEYS.has(k)).slice(0, 3);
   return keys.map((k) => data.items.find((i) => i.key === k && i.status === "open")).filter((i): i is Insight => Boolean(i));
 }
 

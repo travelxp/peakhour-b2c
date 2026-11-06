@@ -13,7 +13,10 @@ vi.mock("@/hooks/use-knowledge-base", () => ({
   useKbRequests: () => ({
     isPending: false,
     isError: false,
-    data: { requests: [{ id: "r1", question: "Do you ship to Goa?", timesAsked: 4, lastAskedAt: null, createdAt: null, status: "open", answeredEntryId: null }] },
+    data: { requests: [
+      { id: "r1", question: "Do you ship to Goa?", timesAsked: 4, lastAskedAt: null, createdAt: null, status: "open", answeredEntryId: null },
+      { id: "r2", question: "Another stored question", timesAsked: 1, lastAskedAt: null, createdAt: null, status: "open", answeredEntryId: null },
+    ] },
   }),
   useAnswerKbRequest: () => ({ isPending: false, mutate: () => {} }),
   useDismissKbRequest: () => ({ isPending: false, mutate: () => {} }),
@@ -216,6 +219,42 @@ describe("SA-16: a card says what happened, why, the impact and the next step", 
     expect(out).toContain("Asked 14 times on 6 shopper-days, last 30 days");
     expect(out).not.toContain("Top priorities");
     expect(out).toContain("See conversations");
+  });
+});
+
+describe("SA-16 polish", () => {
+  const withCause = (over: Partial<Insight> = {}) =>
+    item({ why: "Shoppers asked which places you deliver to and nothing written says.", cause: { kind: "missing_store_info", reason: "Nothing written in your store information answers this." }, ...over });
+  it("Why is ONE sentence: the cause when there is one, else the topic's why", () => {
+    const a = html({ kind: "ready", data: data([withCause()]) });
+    expect(a).toContain("Missing store info. Nothing written in your store information answers this.");
+    expect(a).not.toContain("Shoppers asked which places you deliver to");
+    const b = html({ kind: "ready", data: data([withCause({ cause: undefined })]) });
+    expect(b).toContain("Shoppers asked which places you deliver to");
+  });
+  it("the question lines are never a top priority and are drawn under the list", () => {
+    const line = item({ key: "new_questions", title: "3 new questions, sorted within a few hours", nextStep: { label: "Answer them here", kind: "answer", requestIds: ["r1"] } });
+    const other = item({ key: "b", title: "Beta topic" });
+    const out = html({ kind: "ready", data: data([line, other], { topPriorities: ["new_questions", "b"] }) });
+    const top = out.slice(out.indexOf("Top priorities"), out.indexOf("Beta topic") + 20);
+    expect(top).not.toContain("new questions");
+    expect(out.indexOf("Beta topic")).toBeLessThan(out.indexOf("3 new questions"));
+    // listed before it by the api, drawn after it
+    const out2 = html({ kind: "ready", data: data([line, other]) });
+    expect(out2.indexOf("Beta topic")).toBeLessThan(out2.indexOf("3 new questions"));
+  });
+  it("an item with no conversations prints ONE aged-out line", () => {
+    const out = html({ kind: "ready", data: data([item({ conversations: { count: 0, linkable: false, reason: "These conversations are no longer kept." }, evidence: { available: 0, expired: 3 } })]) });
+    expect(out).toContain("These conversations are no longer kept.");
+    expect(out).not.toContain("aged out");
+  });
+  it("the answer box has no Dismiss of its own for one question, and a named one where several stand behind a line", () => {
+    const one = html({ kind: "ready", data: data([item({ nextStep: { label: "Answer", kind: "answer", requestIds: ["r1"] } })]) });
+    expect(one.match(/>Dismiss</g)).toHaveLength(1);
+    const many = html({ kind: "ready", data: data([item({ nextStep: { label: "Answer", kind: "answer", requestIds: ["r1", "r2"] } })]) });
+    expect(many).toContain("Dismiss question 1");
+    expect(many).toContain("Dismiss question 2");
+    expect(many.match(/>Dismiss</g)).toHaveLength(1);
   });
 });
 

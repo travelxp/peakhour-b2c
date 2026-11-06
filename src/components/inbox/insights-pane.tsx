@@ -30,6 +30,7 @@ import {
   insightFilterFromSearch,
   insightsState,
   itemsForFilter,
+  linesLast,
   secondActionFor,
   shopOf,
   surfacesLine,
@@ -152,7 +153,7 @@ function Ready({ data, filter, onPick, shop }: { data: InsightsResponse; filter:
   const inChip = itemsForFilter(data.items, filter);
   // TOP PRIORITIES: the api's three (a shopper left on it, then customers, then rising), on the default view, drawn once and not again below
   const top = filter === "needs_action" ? topPriorityItems(data).filter((i) => inChip.some((c) => c.key === i.key)) : [];
-  const shown = inChip.filter((i) => !top.some((t) => t.key === i.key));
+  const shown = linesLast(inChip.filter((i) => !top.some((t) => t.key === i.key)));
   const fixed = closedItems(data.items);
   const setAside = dismissedItems(data.items);
   return (
@@ -269,8 +270,9 @@ function InsightCard({ item, windowDays, shop }: { item: Insight; windowDays: nu
   const second = secondActionFor(item, shop);
   const trend = trendText(item.trend);
   const where = surfacesLine(item.surfaces);
-  const aged = expiredNote(item.evidence.expired);
   const convo = conversationsLinkable(item);
+  // ONE aged-out line: the api's own reason when it gave one, else the count of aged-out conversations
+  const aged = convo.reason ? null : expiredNote(item.evidence.expired);
   // a "conversations" step with no conversation to open is words, not a button to an empty list
   const primaryIsDeadList = action.kind === "conversations" && !convo.linkable;
   return (
@@ -294,8 +296,14 @@ function InsightCard({ item, windowDays, shop }: { item: Insight; windowDays: nu
           </p>
           <p data-insight-part="why" className="text-sm">
             <span className="font-medium">Why it matters: </span>
-            {item.cause ? <span className="text-muted-foreground">{CAUSE_LABEL[item.cause.kind] ?? "Cause"}. {item.cause.reason.replace(/\.?\s*$/, ".")} </span> : null}
-            {item.why}
+            {/* ONE sentence: the cause (its label and reason) when there is one, else the topic's why. They said the same thing twice. */}
+            {item.cause && typeof item.cause.reason === "string" ? (
+              <span className="text-muted-foreground">
+                {CAUSE_LABEL[item.cause.kind] ?? "Cause"}. {item.cause.reason.replace(/\.?\s*$/, ".")}
+              </span>
+            ) : (
+              item.why
+            )}
           </p>
           <p data-insight-part="next-step" className="text-sm">
             <span className="font-medium">Next step: </span>
@@ -369,7 +377,13 @@ function AnswerInline({ requestIds, heading }: { requestIds: string[]; heading: 
   return (
     <ul className="space-y-3">
       {open.map((r, i) => (
-        <QuestionCard key={r.id} request={{ ...r, question: open.length > 1 ? `${heading} (${i + 1} of ${open.length})` : heading }} answerLabel="Answer once" />
+        <QuestionCard
+          key={r.id}
+          request={{ ...r, question: open.length > 1 ? `${heading} (${i + 1} of ${open.length})` : heading }}
+          answerLabel="Answer once"
+          // the card's own Dismiss is the card's; this one stays only where several questions stand behind a line, and then says which one it sets aside
+          dismissLabel={open.length > 1 ? `Dismiss question ${i + 1}` : null}
+        />
       ))}
     </ul>
   );
