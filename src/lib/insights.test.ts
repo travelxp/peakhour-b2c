@@ -2,8 +2,13 @@ import { describe, it, expect } from "vitest";
 import {
   INSIGHT_FILTERS,
   actionFor,
+  CAUSE_LABEL,
   chipCount,
   closedItems,
+  conversationsLinkable,
+  impactLine,
+  secondActionFor,
+  topPriorityItems,
   conversationsHref,
   countLine,
   expiredNote,
@@ -127,6 +132,45 @@ describe("actionFor: the primary action by nextStep.kind", () => {
   it("conversations opens the topic filter; none is nothing", () => {
     expect(actionFor(item({ key: "k1", nextStep: { label: "Look", kind: "conversations" } }), shop)).toEqual({ kind: "conversations", label: "Look", href: "/dashboard/inbox?tab=conversations&topic=k1" });
     expect(actionFor(item({ nextStep: { label: "x", kind: "none" } }), shop)).toEqual({ kind: "none" });
+  });
+});
+
+describe("SA-16: destinations, the second option, impact and priority", () => {
+  const shop = "table-story.myshopify.com";
+  it("an admin step links to Settings or Orders through the allow-list, and nothing deeper", () => {
+    const settings = actionFor(item({ nextStep: { label: "Review shipping details", kind: "admin", adminPath: "/settings", where: "Open Settings, then Shipping and delivery." } }), shop);
+    expect(settings).toEqual({ kind: "link", label: "Review shipping details", href: "https://admin.shopify.com/store/table-story/settings", external: true });
+    expect(actionFor(item({ nextStep: { label: "Check your orders", kind: "admin", adminPath: "/orders" } }), shop)).toMatchObject({ href: "https://admin.shopify.com/store/table-story/orders" });
+    for (const adminPath of ["/settings/shipping", "/orders/1", "/settings/../x", "//evil.example", undefined]) {
+      expect(actionFor(item({ nextStep: { label: "x", kind: "admin", adminPath } }), shop), String(adminPath)).toEqual({ kind: "none" });
+    }
+    expect(actionFor(item({ nextStep: { label: "x", kind: "admin", adminPath: "/settings" } }), null)).toEqual({ kind: "none" });
+  });
+  it("the second option follows the same rules as the first", () => {
+    expect(secondActionFor(item({ secondStep: { label: "Answer it here", kind: "answer", requestIds: ["r1"] } }), shop)).toEqual({ kind: "answer", label: "Answer it here", requestIds: ["r1"] });
+    expect(secondActionFor(item({ secondStep: { label: "Add it", kind: "knowledge" } }), shop)).toMatchObject({ kind: "link", href: "/dashboard/commerce/knowledge" });
+    expect(secondActionFor(item(), shop)).toEqual({ kind: "none" });
+  });
+  it("the impact line is the api's, with the window; an older api falls back to asks and shopper-days", () => {
+    expect(impactLine(item({ impact: { basis: "conversations", customers: 2, asks: 5, line: "2 customers" } }), 30)).toBe("2 customers, last 30 days");
+    expect(impactLine(item({ impact: { basis: "asks", asks: 3, line: "Asked 3 times" } }), 30)).toBe("Asked 3 times, last 30 days");
+    expect(impactLine(item(), 30)).toBe("Asked 14 times on 6 shopper-days, last 30 days");
+  });
+  it("conversations are linkable unless the api says they are not, and then it says why", () => {
+    expect(conversationsLinkable(item())).toEqual({ linkable: true, reason: null });
+    expect(conversationsLinkable(item({ conversations: { count: 4, linkable: true } }))).toEqual({ linkable: true, reason: null });
+    expect(conversationsLinkable(item({ conversations: { count: 0, linkable: false, reason: "These conversations are no longer kept." } }))).toEqual({ linkable: false, reason: "These conversations are no longer kept." });
+    expect(conversationsLinkable(item({ conversations: { count: 0, linkable: false } })).reason).toMatch(/no conversation/i);
+  });
+  it("top priorities are the api's first three open items, in its order, never invented here", () => {
+    const items = ["a", "b", "c", "d"].map((k) => item({ key: k }));
+    expect(topPriorityItems({ items, topPriorities: ["c", "a", "b", "d"] }).map((i) => i.key)).toEqual(["c", "a", "b"]);
+    expect(topPriorityItems({ items: [item({ key: "a", status: "dismissed" })], topPriorities: ["a", "zzz"] })).toEqual([]);
+    expect(topPriorityItems({ items, topPriorities: undefined })).toEqual([]);
+  });
+  it("every cause has a plain name", () => {
+    expect(Object.keys(CAUSE_LABEL).sort()).toEqual(["integration_limit", "missing_product_info", "missing_store_info", "not_in_catalog"]);
+    expect(Object.values(CAUSE_LABEL).join(" ")).not.toMatch(/integration|api|webhook/i);
   });
 });
 

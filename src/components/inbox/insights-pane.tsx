@@ -18,18 +18,22 @@ import { useCommerceStores } from "@/hooks/use-commerce-stores";
 import {
   INSIGHT_FILTERS,
   TYPE_LABEL,
+  CAUSE_LABEL,
   actionFor,
   chipCount,
   closedItems,
   conversationsHref,
   dismissedItems,
-  countLine,
+  conversationsLinkable,
   expiredNote,
+  impactLine,
   insightFilterFromSearch,
   insightsState,
   itemsForFilter,
+  secondActionFor,
   shopOf,
   surfacesLine,
+  topPriorityItems,
   trendText,
   type Insight,
   type InsightFilter,
@@ -145,7 +149,10 @@ function Body({ state, filter, onPick, onRetry, shop }: { state: InsightsState; 
 }
 
 function Ready({ data, filter, onPick, shop }: { data: InsightsResponse; filter: InsightFilter; onPick: (f: InsightFilter) => void; shop: string | null }) {
-  const shown = itemsForFilter(data.items, filter);
+  const inChip = itemsForFilter(data.items, filter);
+  // TOP PRIORITIES: the api's three (a shopper left on it, then customers, then rising), on the default view, drawn once and not again below
+  const top = filter === "needs_action" ? topPriorityItems(data).filter((i) => inChip.some((c) => c.key === i.key)) : [];
+  const shown = inChip.filter((i) => !top.some((t) => t.key === i.key));
   const fixed = closedItems(data.items);
   const setAside = dismissedItems(data.items);
   return (
@@ -161,16 +168,35 @@ function Ready({ data, filter, onPick, shop }: { data: InsightsResponse; filter:
         ))}
       </div>
 
-      {shown.length === 0 ? (
+      {top.length > 0 && (
+        <section data-insights="top-priorities" aria-labelledby="top-priorities-heading" className="space-y-2">
+          <h3 id="top-priorities-heading" className="text-sm font-semibold tracking-tight">
+            Top priorities
+          </h3>
+          <ul className="space-y-3">
+            {top.map((item) => (
+              <InsightCard key={item.key} item={item} windowDays={data.windowDays} shop={shop} />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {shown.length === 0 && top.length === 0 ? (
         <p data-insights="chip-empty" className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           {filter === "needs_action" ? INSIGHTS_EMPTY : "Nothing here right now."}
         </p>
-      ) : (
+      ) : shown.length > 0 ? (
         <ul className="space-y-3">
           {shown.map((item) => (
             <InsightCard key={item.key} item={item} windowDays={data.windowDays} shop={shop} />
           ))}
         </ul>
+      ) : null}
+
+      {data.assistantMistakes?.line && (
+        <p data-insights="assistant-mistakes" className="text-xs text-muted-foreground">
+          {data.assistantMistakes.line}
+        </p>
       )}
 
       {fixed.length > 0 && <RecentlyFixed items={fixed} />}
@@ -240,9 +266,13 @@ function RecentlyFixed({ items }: { items: Insight[] }) {
 function InsightCard({ item, windowDays, shop }: { item: Insight; windowDays: number; shop: string | null }) {
   const dismissal = useInsightDismissal();
   const action = actionFor(item, shop);
+  const second = secondActionFor(item, shop);
   const trend = trendText(item.trend);
   const where = surfacesLine(item.surfaces);
   const aged = expiredNote(item.evidence.expired);
+  const convo = conversationsLinkable(item);
+  // a "conversations" step with no conversation to open is words, not a button to an empty list
+  const primaryIsDeadList = action.kind === "conversations" && !convo.linkable;
   return (
     <li data-insight-key={item.key} data-insight-type={item.type}>
       <Card>
@@ -250,22 +280,41 @@ function InsightCard({ item, windowDays, shop }: { item: Insight; windowDays: nu
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-medium">{item.title}</p>
             <Badge variant="outline">{TYPE_LABEL[item.type]}</Badge>
+            {item.priority?.blocked && <Badge variant="destructive">A shopper left after this</Badge>}
             {trend && <Badge variant="secondary">{trend}</Badge>}
           </div>
-          <p className="text-xs text-muted-foreground">
-            {countLine(item, windowDays)}
+          {item.summary && (
+            <p data-insight-part="what-happened" className="text-sm">
+              {item.summary}
+            </p>
+          )}
+          <p data-insight-part="impact" className="text-xs text-muted-foreground">
+            {impactLine(item, windowDays)}
             {where ? ` · ${where}` : ""}
           </p>
-          <p className="text-sm">
+          <p data-insight-part="why" className="text-sm">
             <span className="font-medium">Why it matters: </span>
+            {item.cause ? <span className="text-muted-foreground">{CAUSE_LABEL[item.cause.kind]}. {item.cause.reason} </span> : null}
             {item.why}
           </p>
-          <p className="text-sm">
+          <p data-insight-part="next-step" className="text-sm">
             <span className="font-medium">Next step: </span>
             {action.kind === "link" && action.external ? <AdminLink href={action.href}>{action.label}</AdminLink> : item.nextStep.label}
+            {item.nextStep.where ? <span className="text-muted-foreground"> {item.nextStep.where}</span> : null}
           </p>
+          {second.kind !== "none" && second.kind !== "answer" && (
+            <p data-insight-part="second-step" className="text-sm text-muted-foreground">
+              Or: {second.kind === "link" && second.external ? <AdminLink href={second.href}>{second.label}</AdminLink> : second.kind === "link" ? <Link className="underline" href={second.href}>{second.label}</Link> : second.label}
+            </p>
+          )}
 
-          {action.kind === "answer" && <AnswerInline requestIds={action.requestIds} />}
+          {action.kind === "answer" && <AnswerInline requestIds={action.requestIds} heading={item.title} />}
+          {second.kind === "answer" && (
+            <div data-insight-part="answer-here" className="space-y-2">
+              <p className="text-sm text-muted-foreground">Or answer it here:</p>
+              <AnswerInline requestIds={second.requestIds} heading={item.title} />
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-2">
             {action.kind === "link" && !action.external && (
@@ -273,13 +322,13 @@ function InsightCard({ item, windowDays, shop }: { item: Insight; windowDays: nu
                 <Link href={action.href}>{action.label}</Link>
               </Button>
             )}
-            {action.kind === "conversations" && (
+            {action.kind === "conversations" && !primaryIsDeadList && (
               <Button size="sm" asChild>
                 <Link href={action.href}>{action.label}</Link>
               </Button>
             )}
             {/* a "conversations" step already opens this same list under its own label: one button, not two */}
-            {action.kind !== "conversations" && (
+            {action.kind !== "conversations" && convo.linkable && (
               <Button size="sm" variant="outline" asChild>
                 <Link href={conversationsHref(item.key)}>See conversations</Link>
               </Button>
@@ -288,6 +337,11 @@ function InsightCard({ item, windowDays, shop }: { item: Insight; windowDays: nu
               Dismiss
             </Button>
           </div>
+          {!convo.linkable && convo.reason && (
+            <p data-insight-part="no-conversations" className="text-xs text-muted-foreground">
+              {convo.reason}
+            </p>
+          )}
           {dismissal.isError && (
             <p role="alert" className="text-sm text-destructive">
               That did not save. Please try again.
@@ -302,9 +356,10 @@ function InsightCard({ item, windowDays, shop }: { item: Insight; windowDays: nu
 
 /**
  * The questions behind an insight, answered where they are shown. It is the Knowledge base's own card and answer call, so the two
- * cannot answer differently. A request that is no longer open (answered in the Knowledge base meanwhile) simply is not drawn.
+ * cannot answer differently. ★THE STORED QUESTION IS NEVER PRINTED: it is a scrubbed keyword string, and as a heading it read as raw shopper text. Each card is
+ * headed with the insight's own title (and "1 of 2" when several questions stand behind it), and the answer is saved against each as before. A request that is no longer open (answered in the Knowledge base meanwhile) simply is not drawn.
  */
-function AnswerInline({ requestIds }: { requestIds: string[] }) {
+function AnswerInline({ requestIds, heading }: { requestIds: string[]; heading: string }) {
   const q = useKbRequests();
   if (q.isPending) return <Skeleton className="h-24 w-full" />;
   if (q.isError) return <p role="alert" className="text-sm text-destructive">The questions could not be loaded. Please refresh.</p>;
@@ -312,8 +367,8 @@ function AnswerInline({ requestIds }: { requestIds: string[] }) {
   if (open.length === 0) return <p className="text-sm text-muted-foreground">These questions have been answered.</p>;
   return (
     <ul className="space-y-3">
-      {open.map((r) => (
-        <QuestionCard key={r.id} request={r} answerLabel="Answer once" />
+      {open.map((r, i) => (
+        <QuestionCard key={r.id} request={{ ...r, question: open.length > 1 ? `${heading} (${i + 1} of ${open.length})` : heading }} answerLabel="Answer once" />
       ))}
     </ul>
   );

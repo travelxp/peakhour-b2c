@@ -9,12 +9,15 @@ import { adminUrl } from "@/lib/demand-insights";
 
 export type InsightType = "product_demand" | "missing_product_info" | "missing_store_info" | "purchase_concern" | "support_issue" | "top_question";
 export type InsightTrend = "new" | "up" | "down" | "flat";
-export type InsightNextKind = "answer" | "knowledge" | "product" | "add_product" | "products" | "conversations" | "none";
+export type InsightNextKind = "answer" | "knowledge" | "product" | "add_product" | "products" | "admin" | "conversations" | "none";
+export type InsightCauseKind = "missing_store_info" | "missing_product_info" | "not_in_catalog" | "integration_limit";
 
 export interface InsightNextStep {
   label: string;
   kind: InsightNextKind;
   adminPath?: string;
+  /** kind "admin" with `/settings`: which section to open once there. */
+  where?: string;
   requestIds?: string[];
 }
 
@@ -26,7 +29,14 @@ export interface Insight {
   shopperDays: number;
   trend: InsightTrend;
   why: string;
+  /** SA-16. Optional here so a page still draws against an api that has not shipped them. */
+  summary?: string;
   nextStep: InsightNextStep;
+  secondStep?: InsightNextStep;
+  cause?: { kind: InsightCauseKind; reason: string };
+  impact?: { basis: "conversations" | "asks"; customers?: number; asks: number; line: string };
+  conversations?: { count: number; linkable: boolean; reason?: string };
+  priority?: { blocked: boolean; top: boolean };
   status: "open" | "closed" | "dismissed";
   closedNote?: string;
   evidence: { available: number; expired: number };
@@ -41,6 +51,8 @@ export interface InsightsResponse {
   counts: Record<InsightType, number>;
   quietCount: number;
   items: Insight[];
+  topPriorities?: string[];
+  assistantMistakes?: { count: number; line: string | null };
   results?: unknown;
 }
 
@@ -239,7 +251,8 @@ export function actionFor(item: Pick<Insight, "key" | "nextStep">, shop: string 
       return { kind: "link", label: s.label, href: KNOWLEDGE_HREF, external: false };
     case "product":
     case "add_product":
-    case "products": {
+    case "products":
+    case "admin": {
       // adminUrl is the allow-list: the store handle must be a myshopify.com one and the path one the api builds
       const href = adminUrl(shop, s.adminPath);
       return href ? { kind: "link", label: s.label, href, external: true } : { kind: "none" };
@@ -249,6 +262,43 @@ export function actionFor(item: Pick<Insight, "key" | "nextStep">, shop: string 
     default:
       return { kind: "none" };
   }
+}
+
+/** The second option (answer it here, or write it in Knowledge, or read the conversations), with the same rules as the first. */
+export function secondActionFor(item: Pick<Insight, "key" | "secondStep">, shop: string | null | undefined): InsightAction {
+  return item.secondStep ? actionFor({ key: item.key, nextStep: item.secondStep }, shop) : { kind: "none" };
+}
+
+/** What each cause is called on a card. */
+export const CAUSE_LABEL: Record<InsightCauseKind, string> = {
+  missing_store_info: "Missing store info",
+  missing_product_info: "Missing product info",
+  not_in_catalog: "Not in your catalog",
+  integration_limit: "A limit of the assistant",
+};
+
+/**
+ * The impact line. The api says whether it counted customers (by conversation) or only asks, and prints which; an older api that says neither falls
+ * back to the asks-and-shopper-days line it always had.
+ */
+export function impactLine(item: Pick<Insight, "count" | "shopperDays" | "impact">, windowDays: number): string {
+  return item.impact?.line ? `${item.impact.line}, last ${windowDays} days` : countLine(item, windowDays);
+}
+
+/**
+ * Whether "See conversations" can be a link. The api says (an item built from logged questions has no conversation to open); an older api says nothing, and the
+ * link is drawn as it always was.
+ */
+export function conversationsLinkable(item: Pick<Insight, "conversations">): { linkable: boolean; reason: string | null } {
+  const c = item.conversations;
+  if (!c) return { linkable: true, reason: null };
+  return c.linkable ? { linkable: true, reason: null } : { linkable: false, reason: c.reason ?? "There is no conversation to open for this." };
+}
+
+/** The (at most three) open items the api ranked first, in its order. */
+export function topPriorityItems(data: Pick<InsightsResponse, "items" | "topPriorities">): Insight[] {
+  const keys = (data.topPriorities ?? []).slice(0, 3);
+  return keys.map((k) => data.items.find((i) => i.key === k && i.status === "open")).filter((i): i is Insight => Boolean(i));
 }
 
 // -- the read ----------------------------------------------------------------------------------------------------------
