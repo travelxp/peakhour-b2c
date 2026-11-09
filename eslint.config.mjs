@@ -13,7 +13,7 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     // Local scratch (git-ignored): mutation harnesses and one-off probes.
-    ".tmp-*",
+    "**/.tmp-*",
   ]),
 ]);
 

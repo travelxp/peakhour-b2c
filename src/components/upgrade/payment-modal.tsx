@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { onePress } from "@/lib/one-press";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { mobileSnapshot, subscribeMobile } from "@/hooks/use-mobile";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -192,18 +193,11 @@ export function PaymentModal({ checkout, onOpenChange, onSuccess }: PaymentModal
 // ── Stripe: embedded Checkout inside our responsive shell ────────────────────
 
 // The shell (Dialog vs Drawer) is read from the media query SYNCHRONOUSLY, on
-// the very render that first mounts the Stripe iframe. `useIsMobile` resolves
-// false→real inside an effect, so on a phone it would mount the iframe in the
-// Dialog and then remount it in the Drawer ("multiple Embedded Checkout
-// objects"). The modal only ever mounts after a click, on the client; the
-// server snapshot (null) renders nothing. Same 768px breakpoint as use-mobile.
-const MOBILE_QUERY = "(max-width: 767px)";
-function subscribeMobile(onChange: () => void) {
-  const mql = window.matchMedia(MOBILE_QUERY);
-  mql.addEventListener("change", onChange);
-  return () => mql.removeEventListener("change", onChange);
-}
-const mobileSnapshot = () => window.matchMedia(MOBILE_QUERY).matches;
+// the very render that first mounts the Stripe iframe, and then KEPT: a shell
+// that followed the query would unmount the iframe mid-payment when a tablet
+// rotates or a window is resized across the breakpoint (card details lost,
+// "multiple Embedded Checkout objects"). The modal only ever mounts after a
+// click, on the client; on the server the snapshot is null and nothing renders.
 const noShellOnServer = () => null;
 
 function StripeEmbedded({
@@ -215,8 +209,9 @@ function StripeEmbedded({
   summary?: CheckoutSummary;
   onOpenChange: (open: boolean) => void;
 }) {
-  // null on the server; the real shell from the first client render on.
-  const isMobile = useSyncExternalStore<boolean | null>(subscribeMobile, mobileSnapshot, noShellOnServer);
+  // null on the server; on the client, the shell of the first render, kept.
+  const live = useSyncExternalStore<boolean | null>(subscribeMobile, mobileSnapshot, noShellOnServer);
+  const [isMobile] = useState(live);
 
   // Missing keys (e.g. STRIPE_PUBLISHABLE_KEY unset) would make loadStripe('')
   // reject into a blank modal — fail friendly instead.

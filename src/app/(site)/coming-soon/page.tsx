@@ -16,8 +16,10 @@ export const metadata: Metadata = {
  * /coming-soon, or set COMING_SOON=true to exercise the full gate in dev.
  *
  * Positioning: one plan, Peakhour Suite, with five modules, shown as two
- * entry points (the store modules and the marketing modules). Links use plain <a> so they resolve straight
- * through the coming-soon gate — /launch-partner is allowlisted in
+ * entry points (the store modules and the marketing modules). Links are
+ * next/link with prefetch={false}: every gated URL renders this page, so a
+ * viewport prefetch would server-render /auth and /launch-partner for each
+ * teaser view. They resolve straight through the coming-soon gate — /launch-partner is allowlisted in
  * middleware alongside the legal routes; #commerce / #marketing are
  * in-page anchors (no separate gated routes to loop back on).
  */
@@ -35,7 +37,7 @@ export default function ComingSoonPage() {
           allowlists /auth (see middleware.ts). The magic-link endpoint only
           sends a real link to ops-approved emails; everyone else is routed to
           the waitlist from the sign-in page itself. */}
-      <Link
+      <Link prefetch={false}
         href="/auth"
         className="absolute right-6 top-6 z-10 inline-flex items-center rounded-full border bg-background/80 px-4 py-2 text-sm font-medium text-foreground backdrop-blur transition-colors hover:bg-muted/60"
       >
@@ -64,7 +66,7 @@ export default function ComingSoonPage() {
           </p>
 
           <div className="mt-2 flex flex-col items-center gap-3 sm:flex-row">
-            <Link
+            <Link prefetch={false}
               href="/launch-partner"
               className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
             >
@@ -107,7 +109,7 @@ export default function ComingSoonPage() {
             </p>
             {/* Pre-launch, "Learn more" routes to the launch-partner capture.
                 Swap to /commerce once the solution page ships post-launch. */}
-            <Link
+            <Link prefetch={false}
               href="/launch-partner"
               className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-foreground transition-colors group-hover:gap-2.5"
             >
@@ -131,7 +133,7 @@ export default function ComingSoonPage() {
               For publishers, brands and marketing teams: content written in
               your voice, and ads and LinkedIn growth that you approve.
             </p>
-            <Link
+            <Link prefetch={false}
               href="/launch-partner"
               className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-foreground transition-colors group-hover:gap-2.5"
             >
@@ -148,16 +150,16 @@ export default function ComingSoonPage() {
             allowlists the legal routes for prefetch/RSC requests as well as
             full-document ones. */}
         <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
-          <Link href="/privacy-policy" className="transition-colors hover:text-foreground">
+          <Link prefetch={false} href="/privacy-policy" className="transition-colors hover:text-foreground">
             Privacy Policy
           </Link>
-          <Link href="/terms" className="transition-colors hover:text-foreground">
+          <Link prefetch={false} href="/terms" className="transition-colors hover:text-foreground">
             Terms of Service
           </Link>
-          <Link href="/cookie-policy" className="transition-colors hover:text-foreground">
+          <Link prefetch={false} href="/cookie-policy" className="transition-colors hover:text-foreground">
             Cookie Policy
           </Link>
-          <Link href="/data-deletion" className="transition-colors hover:text-foreground">
+          <Link prefetch={false} href="/data-deletion" className="transition-colors hover:text-foreground">
             Data Deletion
           </Link>
         </nav>
