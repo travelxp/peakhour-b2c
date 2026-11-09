@@ -7,7 +7,6 @@ import { toast } from "sonner";
 
 import { api } from "@/lib/api";
 import { onePress } from "@/lib/one-press";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
@@ -192,11 +191,20 @@ export function PaymentModal({ checkout, onOpenChange, onSuccess }: PaymentModal
 
 // ── Stripe: embedded Checkout inside our responsive shell ────────────────────
 
-// No external store to follow: the snapshot is false on the server and during
-// hydration, true afterwards.
-function subscribeNever() {
-  return () => {};
+// The shell (Dialog vs Drawer) is read from the media query SYNCHRONOUSLY, on
+// the very render that first mounts the Stripe iframe. `useIsMobile` resolves
+// false→real inside an effect, so on a phone it would mount the iframe in the
+// Dialog and then remount it in the Drawer ("multiple Embedded Checkout
+// objects"). The modal only ever mounts after a click, on the client; the
+// server snapshot (null) renders nothing. Same 768px breakpoint as use-mobile.
+const MOBILE_QUERY = "(max-width: 767px)";
+function subscribeMobile(onChange: () => void) {
+  const mql = window.matchMedia(MOBILE_QUERY);
+  mql.addEventListener("change", onChange);
+  return () => mql.removeEventListener("change", onChange);
 }
+const mobileSnapshot = () => window.matchMedia(MOBILE_QUERY).matches;
+const noShellOnServer = () => null;
 
 function StripeEmbedded({
   embed,
@@ -207,16 +215,8 @@ function StripeEmbedded({
   summary?: CheckoutSummary;
   onOpenChange: (open: boolean) => void;
 }) {
-  const isMobile = useIsMobile();
-  // useIsMobile resolves false→real inside an effect; gate the first paint on a
-  // `mounted` flag (false during SSR/hydration, true once on the client) so the correct shell (Dialog vs Drawer) is chosen ONCE —
-  // otherwise the Stripe embedded iframe mounts in Dialog then remounts in
-  // Drawer on mobile ("multiple Embedded Checkout objects").
-  const mounted = useSyncExternalStore(
-    subscribeNever,
-    () => true,
-    () => false,
-  );
+  // null on the server; the real shell from the first client render on.
+  const isMobile = useSyncExternalStore<boolean | null>(subscribeMobile, mobileSnapshot, noShellOnServer);
 
   // Missing keys (e.g. STRIPE_PUBLISHABLE_KEY unset) would make loadStripe('')
   // reject into a blank modal — fail friendly instead.
@@ -236,7 +236,7 @@ function StripeEmbedded({
   );
   const options = useMemo(() => ({ clientSecret: embed.clientSecret }), [embed.clientSecret]);
 
-  if (invalid || !mounted) return null;
+  if (invalid || isMobile === null) return null;
 
   const body = (
     <>
