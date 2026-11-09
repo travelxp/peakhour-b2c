@@ -144,8 +144,9 @@ export default function ComingSoonPage() {
 
       {/* ── Footer (normal flow — page now scrolls past one viewport) ── */}
       <footer className="mt-auto flex flex-col items-center gap-3 px-6 pb-8 text-center text-xs text-muted-foreground">
-        {/* Plain <a> (not next/link) so these resolve straight through the
-            coming-soon gate, which allowlists the legal routes. */}
+        {/* next/link is safe here: the coming-soon gate in middleware.ts
+            allowlists the legal routes for prefetch/RSC requests as well as
+            full-document ones. */}
         <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
           <Link href="/privacy-policy" className="transition-colors hover:text-foreground">
             Privacy Policy

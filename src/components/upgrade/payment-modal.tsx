@@ -209,7 +209,7 @@ function StripeEmbedded({
 }) {
   const isMobile = useIsMobile();
   // useIsMobile resolves false→real inside an effect; gate the first paint on a
-  // `mounted` flag so the correct shell (Dialog vs Drawer) is chosen ONCE —
+  // `mounted` flag (false during SSR/hydration, true once on the client) so the correct shell (Dialog vs Drawer) is chosen ONCE —
   // otherwise the Stripe embedded iframe mounts in Dialog then remounts in
   // Drawer on mobile ("multiple Embedded Checkout objects").
   const mounted = useSyncExternalStore(
