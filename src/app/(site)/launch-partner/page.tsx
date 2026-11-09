@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { ArrowLeft } from "lucide-react";
@@ -77,13 +78,13 @@ export default async function LaunchPartnerPage({
 
         <LaunchPartnerForm source={signupSource} country={country} />
 
-        <a
+        <Link
           href="/coming-soon"
           className="mt-2 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft className="size-4" aria-hidden />
           Back
-        </a>
+        </Link>
       </div>
     </main>
   );

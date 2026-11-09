@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { SITE } from "@/lib/utils";
 import { Header } from "@/components/shared/header";
@@ -29,9 +30,9 @@ export default function CookiePolicyPage() {
               technologies on the{" "}
               {SITE.name} platform (the &quot;Service&quot;). It should be read
               together with our{" "}
-              <a href="/privacy-policy" className="text-foreground underline">
+              <Link href="/privacy-policy" className="text-foreground underline">
                 Privacy Policy
-              </a>
+              </Link>
               .
             </p>
             <p className="mt-2">

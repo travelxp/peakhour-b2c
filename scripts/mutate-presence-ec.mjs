@@ -32,7 +32,6 @@ const WIRING_SPEC = "src/components/presence/presence-wiring.test.ts";
 const HOME = "src/components/presence/presence-home.tsx";
 const INSIGHTS = "src/components/presence/insights-panel.tsx";
 const CARD = "src/components/presence/network-connect-card.tsx";
-const EDIT_HOOKS = "src/hooks/use-presence-edit.ts";
 const KIT_HOOK = "src/hooks/use-review-kit.ts";
 const EDIT_LIB = "src/lib/presence-edit.ts";
 const EDIT_SPEC = "src/lib/presence-edit.test.ts";

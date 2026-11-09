@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { loadStripe, type Stripe } from "@stripe/stripe-js";
 import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
 import { toast } from "sonner";
 
 import { api } from "@/lib/api";
 import { onePress } from "@/lib/one-press";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { mobileSnapshot, subscribeMobile } from "@/hooks/use-mobile";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -192,6 +192,14 @@ export function PaymentModal({ checkout, onOpenChange, onSuccess }: PaymentModal
 
 // ── Stripe: embedded Checkout inside our responsive shell ────────────────────
 
+// The shell (Dialog vs Drawer) is read from the media query SYNCHRONOUSLY, on
+// the very render that first mounts the Stripe iframe, and then KEPT: a shell
+// that followed the query would unmount the iframe mid-payment when a tablet
+// rotates or a window is resized across the breakpoint (card details lost,
+// "multiple Embedded Checkout objects"). The modal only ever mounts after a
+// click, on the client; on the server the snapshot is null and nothing renders.
+const noShellOnServer = () => null;
+
 function StripeEmbedded({
   embed,
   summary,
@@ -201,13 +209,9 @@ function StripeEmbedded({
   summary?: CheckoutSummary;
   onOpenChange: (open: boolean) => void;
 }) {
-  const isMobile = useIsMobile();
-  // useIsMobile resolves false→real inside an effect; gate the first paint on a
-  // `mounted` flag so the correct shell (Dialog vs Drawer) is chosen ONCE —
-  // otherwise the Stripe embedded iframe mounts in Dialog then remounts in
-  // Drawer on mobile ("multiple Embedded Checkout objects").
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  // null on the server; on the client, the shell of the first render, kept.
+  const live = useSyncExternalStore<boolean | null>(subscribeMobile, mobileSnapshot, noShellOnServer);
+  const [isMobile] = useState(live);
 
   // Missing keys (e.g. STRIPE_PUBLISHABLE_KEY unset) would make loadStripe('')
   // reject into a blank modal — fail friendly instead.
@@ -227,7 +231,7 @@ function StripeEmbedded({
   );
   const options = useMemo(() => ({ clientSecret: embed.clientSecret }), [embed.clientSecret]);
 
-  if (invalid || !mounted) return null;
+  if (invalid || isMobile === null) return null;
 
   const body = (
     <>

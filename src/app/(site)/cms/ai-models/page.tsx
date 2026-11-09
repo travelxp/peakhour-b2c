@@ -74,7 +74,7 @@ export default function AiModelsPage() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight">AI Model Registry</h2>
           <p className="text-muted-foreground mt-1">
-            Synced from Vercel AI Gateway. Powers the evaluator's recommendations.
+            Synced from Vercel AI Gateway. Powers the evaluator&apos;s recommendations.
           </p>
         </div>
         {canSync && (
