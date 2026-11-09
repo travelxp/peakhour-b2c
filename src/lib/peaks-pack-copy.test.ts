@@ -78,7 +78,7 @@ describe("the country notice comes first, for every org", () => {
 
 describe("pack-checkout refusals shown as written", () => {
   it("a refusal written for the buyer is shown as is", () => {
-    for (const code of ["COUNTRY_COMING_SOON", "PLAN_REQUIRED", "WALLET_UNLIMITED", "PACK_NOT_PURCHASABLE"]) {
+    for (const code of ["COUNTRY_COMING_SOON", "PLAN_REQUIRED", "WALLET_UNLIMITED", "PACK_NOT_PURCHASABLE", "TAX_CALCULATION_FAILED"]) {
       expect(packRefusalShownAsIs(code), code).toBe(true);
     }
   });
