@@ -127,7 +127,7 @@ export function middleware(req: NextRequest) {
   // launch partners (e.g. quests.travel). The page itself reveals nothing
   // sensitive; the magic-link endpoint only sends a real link to ops-approved
   // emails (see peakhour-api auth/magic-link.ts), so exposing the form is safe.
-  // (4) /pricing (hub + per-pillar + /pricing/teams) — the plans are a public
+  // (4) /pricing (hub + /pricing/teams) — the plans are a public
   // marketing asset; prospects and launch partners evaluate them pre-launch, and
   // the CTAs already resolve to "Join the waitlist" while signups aren't open
   // (see signupCta + the pricing pages). It surfaces no gated data.
@@ -149,6 +149,12 @@ export function middleware(req: NextRequest) {
   // reinstalled site permanently unable to approve its pairing code — sessionBypass
   // does not help, since it is scoped to /dashboard, /onboarding and /cms.
   //
+  // (6) /growth/confirm — the page behind the signed link in the `growth_mandate_confirm_v1`
+  // WhatsApp message (https://peakhour.ai/growth/confirm/{token}). The owner opens it from
+  // WhatsApp, often with no Peakhour session on that device, and confirms with the one-time
+  // code sent to their verified number. With the gate on it would rewrite to the teaser and a
+  // mandate could never be confirmed. Only this prefix: `/growth` itself is a marketing page.
+  //
   // That is the whole set: enumerating every B2C_URL/DASHBOARD_URL the API hands
   // out gives /auth, /claim/*, /reconnect/wordpress, /shopify/connect and
   // /dashboard/*. These are the pages whose entire job is to work for someone who
@@ -161,9 +167,25 @@ export function middleware(req: NextRequest) {
     "/launch-partner",
     "/auth",
     "/pricing",
+    // ★★`/peaks` RIDES WITH `/pricing`, BECAUSE THE HEADER NOW OFFERS BOTH AND
+    // A NAV WHOSE LINKS DISAGREE ABOUT WHETHER THE SITE IS LIVE IS WORSE THAN
+    // ONE THAT HIDES BOTH. `/pricing` is on this list so a prospect can
+    // evaluate us before launch; Peaks is the currency every price on that page
+    // is quoted in, so a visitor who clicks Pricing, reads "500 Peaks", clicks
+    // Peaks and lands on the teaser has been stopped exactly where the
+    // allowlist exists to let them through.
+    "/peaks",
+    // The "Peakhour for Shopify" page. A visitor reaches it from the App Store
+    // listing and from /pricing, before there is any account to sign in to.
+    "/shopify",
     "/shopify/connect",
     "/claim",
     "/reconnect",
+    "/growth/confirm",
+    // (7) /share, where a Drive share link lands. The person opening it has no Peakhour account and is reached from an email or a
+    // message; with the gate on it would show the teaser and the file could never be opened. Only this prefix: it holds nothing but
+    // the share page, which says what opening the link records before it serves the file.
+    "/share",
   ];
   const isPublicPath = PUBLIC_PATHS.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),

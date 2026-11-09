@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { displayBusinessName } from "@/lib/business-name";
 import { useRouter } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
 import { api, ApiError } from "@/lib/api";
-import { linkedInContentApi, SUGGESTED_DRAFTS_QUERY_KEY } from "@/lib/api/linkedin-content";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -17,6 +16,7 @@ import {
 } from "@/components/ui/card";
 import { CheckCircle2, ArrowRight, Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { HOME_ROUTE } from "@/lib/nav-home";
 
 interface DiscoveryStatus {
   status: "pending" | "running" | "done" | "failed";
@@ -54,7 +54,7 @@ const POLL_INTERVAL_MS = 3000;
 
 export default function LaunchPage() {
   const router = useRouter();
-  const { org, business, refreshUser } = useAuth();
+  const { org, refreshUser } = useAuth();
   // Read sessionStorage in the initializer so we don't render the
   // "We're working on it" hero for one tick before redirecting a
   // returning user. Guard `typeof window` for SSR safety even though
@@ -72,7 +72,7 @@ export default function LaunchPage() {
   // in sessionStorage from a prior session whose job has been TTL'd.
   useEffect(() => {
     if (!jobId) {
-      router.replace("/dashboard/overview");
+      router.replace(HOME_ROUTE);
     }
   }, [jobId, router]);
 
@@ -102,7 +102,7 @@ export default function LaunchPage() {
           // bounce to the dashboard.
           if (status?.status === "done" || status?.status === "failed") return;
           sessionStorage.removeItem("onboarding:jobId");
-          router.replace("/dashboard/overview");
+          router.replace(HOME_ROUTE);
           return;
         }
         setPollError(
@@ -135,60 +135,9 @@ export default function LaunchPage() {
     }
   }, [isDone, isFailed, refreshUser]);
 
-  // Fire-and-forget the LinkedIn suggested-drafts generation when
-  // discovery finishes successfully. The result is stashed in the
-  // TanStack Query cache under SUGGESTED_DRAFTS_QUERY_KEY so the
-  // SuggestedDraftsPanel on the LinkedIn dashboard renders the drafts
-  // immediately when the user navigates there.
-  //
-  // No LinkedIn OAuth required for this call — the server-side endpoint
-  // generates from BusinessContext + voice card alone. Drafts persist
-  // in cnt_drafts regardless of whether the user has connected
-  // LinkedIn; they're publishable once the connection lands.
-  //
-  // A ref tracks whether we've already fired so polling-driven
-  // re-renders of isDone (refreshUser → user-doc state churn → status
-  // re-renders) don't accidentally fire generate twice.
-  //
-  // Gated on `business?._id` (not just `org`). The api endpoint requires
-  // a selected businessId on the server-side principal; the AuthProvider
-  // auto-resolves single-business users by calling switchBusiness AFTER
-  // refreshUser returns, and switchBusiness in turn calls
-  // queryClient.clear() to wipe stale cache. If we fire generate before
-  // business?._id has stabilised, we hit two races:
-  // 1. The api 403s with FORBIDDEN ("Active business required")
-  // 2. Even on success, the in-flight setQueryData lands BEFORE the
-  // auto-resolve's queryClient.clear(), which then wipes the cache
-  // and the LinkedIn dashboard sees nothing.
-  // Gating on business?._id ensures the auto-resolve has completed
-  // before we fire — both races avoided.
-  //
-  // No toast / no progress UI on this page — keeping it silent because
-  // the dashboard is the better place to surface the result, and a
-  // mid-flight toast on the launch page distracts from the "you're
-  // all set" hero.
-  const queryClient = useQueryClient();
-  const generateFiredRef = useRef(false);
-  useEffect(() => {
-    if (!isDone) return;
-    if (!business?._id) return;
-    if (generateFiredRef.current) return;
-    generateFiredRef.current = true;
-    linkedInContentApi
-      .generateFromProfile()
-      .then((response) => {
-        queryClient.setQueryData(SUGGESTED_DRAFTS_QUERY_KEY, response);
-      })
-      .catch((err) => {
-        // Non-blocking — the rest of onboarding completes regardless.
-        // Drafts are a nice-to-have at launch; the user can ask for
-        // fresh drafts later from the LinkedIn dashboard.
-        console.warn(
-          "[onboarding/launch] generateFromProfile failed:",
-          err instanceof Error ? err.message : err,
-        );
-      });
-  }, [isDone, business?._id, queryClient]);
+  // ★NOTHING IS GENERATED HERE (owner, 2026-11-04: no charge without the merchant's say-so). This page used to start the
+  //  LinkedIn suggested-drafts generation itself when discovery finished, which spent the merchant's Peaks on an action they
+  //  never asked for. The drafts are now an explicit button on the LinkedIn dashboard (SuggestedDraftsPanel).
 
   const completedSet = useMemo(
     () => new Set(status?.phasesCompleted ?? []),
@@ -210,11 +159,27 @@ export default function LaunchPage() {
         </h1>
         <p className="text-lg text-muted-foreground max-w-md mx-auto">
           {isDone
-            ? `Welcome to peakhour, ${org?.name ?? "friend"}. Your dashboard is ready.`
+            ? // ★THE NAME IS PRETTIFIED AND THE BRAND IS CAPITALISED. Onboarding
+              // saves whatever the pasted link resolved to, so this greeted
+              // people as "quests.travel" — and it spelled its own product
+              // "peakhour" while doing it. Same helper the Overview greeting
+              // uses, so the two cannot drift.
+              `Welcome to Peakhour, ${displayBusinessName(org?.name) || "friend"}. Your dashboard is ready.`
             : isFailed
               ? "Don't worry — you can still use the dashboard. We'll try again automatically."
               : "Feel free to close this tab. We'll keep going in the background."}
         </p>
+        {/* ★THE BRAND LINE, AND THIS IS THE SLOT IT WAS WRITTEN FOR. It is a
+            payoff, not a descriptor: it explains the NAME rather than the
+            offering, so it teaches a first-time owner nothing about what the
+            product does — which is why the sidebar carries "The AI business
+            platform" instead. Here it is read ONCE, at the moment setup
+            succeeds, where a flourish lands and cannot wear out. Shown only on
+            `isDone` for the same reason: it would be glib over a failure and
+            premature over a progress bar. */}
+        {isDone && (
+          <p className="text-sm font-medium text-brand-label">Every hour is Peakhour.</p>
+        )}
       </div>
 
       <Card className="border-2">
@@ -254,7 +219,7 @@ export default function LaunchPage() {
             className="w-full"
             onClick={() => {
               sessionStorage.removeItem("onboarding:jobId");
-              router.push("/dashboard/overview");
+              router.push(HOME_ROUTE);
             }}
           >
             <span className="flex items-center gap-2">

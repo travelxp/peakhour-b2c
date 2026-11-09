@@ -54,6 +54,11 @@ export function routeKeyFromPath(pathname: string): string {
   return rest.join(".");
 }
 
+/** Whether a route key is a Presence page: the pages the server's Presence engine activates on (`presence`, `presence.*`). */
+export function isPresenceRoute(routeKey: string): boolean {
+  return routeKey === "presence" || routeKey.startsWith("presence.");
+}
+
 export function AskContextProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [entityIds, setEntityIdsState] = useState<Record<string, string>>({});

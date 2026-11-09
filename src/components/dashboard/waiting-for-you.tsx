@@ -19,13 +19,37 @@ import { cn } from "@/lib/utils";
 /**
  * "Waiting for you" — every decision the platform is holding, in one list.
  *
- * Backed by the `needsYou` rail on GET /v1/home/summary, which is now
+ * Backed by the `needsYou` rail on GET /v1/home/summary, which is
  * cross-pillar: a failed post and an unread pricing recommendation sit in the
  * same queue because they ask the same thing of the same person.
  *
  * Each row carries its pillar, so the origin reads at a glance without the
  * label having to say it. Colour comes from --chart-*, the same tokens the
  * pillar series use in charts, so a row and a bar for one pillar agree.
+ *
+ * ── ★★WHAT BELONGS IN IT, AND WHAT DOES NOT
+ *
+ * The rule is one question: does this need a HUMAN DECISION that only this
+ * person can make? Approvals, blocked or failed work, unanswered conversations
+ * and broken connections all qualify — each is stopped until someone says
+ * something. The api's three row types (`approve`, `failed`, `reconnect`)
+ * are exactly that set.
+ *
+ * 🚫Integration status and AI-engine progress are NOT that, which is why they
+ * now live in their own section further down the Overview rather than in or
+ * beside this queue. Neither is stuck: a channel you have not connected is a
+ * standing option, and a setup step you have not finished is a state, not a
+ * decision. Mixing them in made the count meaningless — a merchant with a
+ * genuinely clear queue still read "5 waiting", learned the number did not mean
+ * anything urgent, and stopped reading it. A queue you can safely ignore is
+ * worse than no queue.
+ *
+ * ── ★★AND IT COLLAPSES WHEN IT IS EMPTY
+ *
+ * An empty queue is the GOOD outcome, so it gets one quiet line rather than a
+ * full card with a heading, a count and a dashed placeholder box. It still says
+ * something — silence here would read as a component that failed to load — but
+ * it takes a row, not a panel, and the space goes to the business.
  */
 
 const PILLAR_ICON: Record<Pillar, React.ElementType> = {
@@ -70,6 +94,26 @@ export function WaitingForYou({
   const rows = items ?? [];
   const count = total ?? rows.length;
 
+  // ★COLLAPSED, NOT HIDDEN. Removing it entirely would make the section appear
+  //  and disappear between page loads, and an owner who saw an item yesterday
+  //  would have no way to tell "nothing is waiting" from "that panel is gone".
+  if (!isLoading && rows.length === 0) {
+    return (
+      <p
+        className={cn(
+          "flex items-center gap-2 rounded-xl border border-dashed px-4 py-3 text-sm text-muted-foreground",
+          className,
+        )}
+      >
+        <Check className="size-4 shrink-0 text-success" aria-hidden />
+        <span>
+          <span className="font-medium text-foreground">Nothing waiting on you.</span> Your pillars
+          keep working — approvals, failures and unanswered messages land here.
+        </span>
+      </p>
+    );
+  }
+
   return (
     <Card className={cn("overflow-hidden", className)}>
       <CardHeader className="pb-3">
@@ -88,12 +132,6 @@ export function WaitingForYou({
             <span className="h-14 animate-pulse rounded-xl bg-muted" />
             <span className="h-14 animate-pulse rounded-xl bg-muted" />
           </>
-        ) : rows.length === 0 ? (
-          // The honest empty state: nothing is stuck, and the AI has not
-          // stopped. "No items" alone reads like something failed to load.
-          <p className="rounded-xl border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
-            Queue clear. Your pillars keep working — new decisions land here.
-          </p>
         ) : (
           rows.map((item) => {
             const PillarIcon = PILLAR_ICON[item.pillar] ?? PenLine;

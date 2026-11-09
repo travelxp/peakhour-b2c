@@ -49,3 +49,11 @@ next-env.d.ts
 # agent skills (installed via `npx skills`, kept local)
 .agents/
 skills-lock.json
+
+# Scratch codemods and mutation harnesses. peakhour-api carries the same rule
+# and records why: two have reached ITS master this way (#1122, #1123). ★The
+# sharper risk here is a harness that writes a MUTANT into a source file and
+# restores it afterwards — a `git add -A` mid-run commits the mutant, and a
+# harness whose own header claimed this rule existed was running in this repo
+# with the rule absent.
+.tmp-*

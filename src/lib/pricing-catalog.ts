@@ -1,17 +1,27 @@
 import { PILLARS, type PillarSlug } from "@/lib/pillars";
+import { pillarProducts, productBundleTier, type PricingResponse } from "@/lib/pricing";
 
 /**
  * Presentational metadata for the pricing surface — the bits marketing tunes
- * without a DB write (order, one-line promise, which channels a pillar runs in,
- * the upgrade hook). It layers ON TOP of the live catalog: prices, tiers,
- * features and Peaks allowances all come from the pricing API — never from here.
+ * without a DB write: the order the hub lists the modules in and the one-line
+ * promise each one makes, plus the channels the hub's strip names (below).
+ *
+ * It layers ON TOP of the live catalog: prices, plans and Peaks allowances all
+ * come from the pricing API — never from here.
+ *
+ * ★ONE CATALOG (billing plan D19, P4.7). The per-module plans (each a Free and
+ * a Pro tier) are scrapped: Peakhour Suite sells all five modules, Agency and
+ * Enterprise sell them to teams, and there is no free tier. What this file held
+ * for the per-module pricing pages (their headlines, the Free and Pro card
+ * bullets, the "what changes on Pro" blocks) went with those pages.
  *
  * Pillar identity (icon, name, lede) is reused from `@/lib/pillars` so the
  * pricing pages and the pillar marketing pages can never drift apart.
  */
 
-/** Pricing shows the FREE pillar first (the on-ramp), then the paid pillars.
- *  This deliberately differs from PILLAR_ORDER (which leads with Commerce). */
+/** The order the hub lists the modules Peakhour Suite includes. Presence leads
+ *  as the simplest promise; this deliberately differs from PILLAR_ORDER
+ *  (which leads with Commerce). */
 export const PRICING_PILLAR_ORDER = [
   "presence",
   "commerce",
@@ -20,68 +30,32 @@ export const PRICING_PILLAR_ORDER = [
   "growth",
 ] as const;
 
-/** The paid pillars, in the order the hub lists them under "add as you grow". */
-export const PAID_PILLAR_ORDER: PillarSlug[] = [
-  "commerce",
-  "content",
-  "support",
-  "growth",
-];
-
 export interface PricingPillarMeta {
   slug: PillarSlug;
   /** One plain sentence a browsing buyer instantly gets. */
   promise: string;
-  /** The single reason to move from Free to Paid. */
-  upgradeHook: string;
-  /**
-   * Channels this pillar runs inside (keys into CHANNELS).
-   *
-   * Renamed off `channels` deliberately. pricingPillar() spreads this meta
-   * OVER PillarContent, which has a `channels` of its own — the marketing
-   * chips, a different shape entirely — and the spread silently resolved the
-   * collision in this object's favour. Two shapes under one name, merged
-   * without a word from the compiler, is a trap; the names are distinct now.
-   */
-  runsIn: ChannelKey[];
 }
 
 export const PRICING_PILLARS: Record<PillarSlug, PricingPillarMeta> = {
   presence: {
     slug: "presence",
-    promise: "Get found on Google, Maps and AI search — and keep every listing right.",
-    upgradeHook: "Go Pro for multiple locations and competitor insights.",
-    runsIn: ["native"],
+    promise: "Connect your Google Business Profile and see how people find you.",
   },
   commerce: {
     slug: "commerce",
     promise: "An AI shop assistant that answers buyers from your real catalog — 24/7.",
-    upgradeHook: "Upgrade for more stores, human handoff and analytics.",
-    // WhatsApp belongs here: it is the one commerce channel the catalog calls
-    // live today, and leaving it out made the page say "answers shoppers on
-    // WhatsApp" in the lede while the pill below read "Coming to Shopify,
-    // WooCommerce, BigCommerce". Keep this in step with PILLARS.commerce
-    // .channels in lib/pillars.ts — they are two hand-kept lists describing
-    // the same product, and nothing but this comment ties them together.
-    runsIn: ["shopify", "woocommerce", "whatsapp", "bigcommerce"],
   },
   content: {
     slug: "content",
     promise: "AI content for social, blog and newsletters — drafted in your voice, on schedule.",
-    upgradeHook: "Upgrade for scheduling, newsletters and brand-voice training.",
-    runsIn: ["wordpress", "native"],
   },
   support: {
     slug: "support",
-    promise: "Every support message — email, chat, WhatsApp, DMs — in one inbox.",
-    upgradeHook: "Upgrade for WhatsApp, social DMs and auto-routing.",
-    runsIn: ["native", "whatsapp"],
+    promise: "Your WhatsApp and storefront chat conversations in one inbox.",
   },
   growth: {
     slug: "growth",
-    promise: "Ads and LinkedIn on autopilot — campaigns, audiences and leads, handled.",
-    upgradeHook: "Upgrade for the full optimizer and lead inbox.",
-    runsIn: ["native"],
+    promise: "Meta, Google and LinkedIn campaigns, drafted for you and launched when you approve.",
   },
 };
 
@@ -89,22 +63,30 @@ export const PRICING_PILLARS: Record<PillarSlug, PricingPillarMeta> = {
  * Merge the pricing meta with the shared pillar identity (icon, name, lede).
  *
  * PillarContent's own `channels` — the homepage's marketing chips — is
- * dropped rather than carried through. Nothing here wants it, and leaving it
- * on the result would put a `PillarChannel[]` under a name the pricing pages
- * used to read as `ChannelKey[]`: it still compiles in `.length` and `.map()`
- * positions, so the trap survives the rename unless the field does not.
- * `runsIn` is the platform list these pages want.
+ * dropped rather than carried through: nothing here wants it.
  */
 export function pricingPillar(slug: PillarSlug) {
   const { channels, ...identity } = PILLARS[slug];
   // Referenced only so the omission is explicit: this `channels` is the
-  // HOMEPAGE's marketing chips, not this file's platform list.
+  // HOMEPAGE's marketing chips.
   void channels;
   return { ...identity, ...PRICING_PILLARS[slug] };
 }
 
-export function isPillarSlug(value: string): value is PillarSlug {
-  return value in PRICING_PILLARS;
+/**
+ * The modules Peakhour Suite includes AND this site renders, in hub order.
+ *
+ * ★ASKED OF EACH PRODUCT (`productBundleTier`), NOT OF THE STATIC ORDER. The
+ * resolver groups a plan under every product its `products[]` composes, so
+ * Suite's presence in a product's tiers IS the statement "Suite includes this
+ * module"; the order constant is only what the site knows about, and Suite's
+ * `products` has drifted from the served set before. Empty when the
+ * environment sells no Suite.
+ */
+export function suiteModuleSlugs(pricing: PricingResponse | null): PillarSlug[] {
+  return PRICING_PILLAR_ORDER.filter((slug) =>
+    Boolean(productBundleTier(pillarProducts(pricing, slug)[0], "suite")),
+  );
 }
 
 /* ── Channels ──────────────────────────────────────────────────────────── */
@@ -143,10 +125,26 @@ export interface ChannelMeta {
   color: string;
   /** Plain sentence: what running Peakhour here gets you. */
   blurb: string;
-  /** Where billing happens for this channel. */
-  billed: string;
+  /**
+   * Where billing happens — set ONLY when that is somewhere other than
+   * peakhour.ai.
+   *
+   * It used to be set on every channel, and five of the six said the same
+   * "Billed on peakhour.ai". Six cards in a row carrying one identical sentence
+   * is not information, it is furniture: it pushed the line that differs (the
+   * one channel billed through Shopify) into the same visual weight as the five
+   * that don't. Absent means the default, and the card renders nothing.
+   */
+  billed?: string;
   /** Primary link for the channel's card. */
   href: string;
+  /**
+   * Set when the channel has a page of its own on this site. The /pricing
+   * strip links here instead of `href`, so a visitor reads about the channel
+   * before leaving for its listing. `href` stays the listing (Shopify: the App
+   * Store), which the page itself sends the install button to.
+   */
+  pageHref?: string;
 }
 
 const SHOPIFY_APP_STORE_URL =
@@ -162,9 +160,10 @@ export const CHANNELS: Record<ChannelKey, ChannelMeta> = {
     // A value proposition, not an instruction. "Install from the Shopify App
     // Store" is a step a visitor cannot take while the connector is still
     // coming_soon, and it sat directly under the chip saying so.
-    blurb: "Your catalog-grounded assistant, answering shoppers on your storefront.",
+    blurb: "Your AI team inside Shopify: assistant, Smart Rails, COD confirmation and more.",
     billed: "Billed through Shopify",
     href: SHOPIFY_APP_STORE_URL,
+    pageHref: "/shopify",
   },
   wordpress: {
     key: "wordpress",
@@ -173,7 +172,6 @@ export const CHANNELS: Record<ChannelKey, ChannelMeta> = {
     tag: "WP",
     color: "#21759B",
     blurb: "Publish AI content straight into your site — no copy-paste.",
-    billed: "Billed on peakhour.ai",
     href: "/content",
   },
   woocommerce: {
@@ -187,7 +185,6 @@ export const CHANNELS: Record<ChannelKey, ChannelMeta> = {
     // Woo's current brand purple — matches the supplied official mark.
     color: "#873EFF",
     blurb: "Connect your WooCommerce catalog to the shop assistant.",
-    billed: "Billed on peakhour.ai",
     href: "/commerce",
   },
   bigcommerce: {
@@ -200,8 +197,7 @@ export const CHANNELS: Record<ChannelKey, ChannelMeta> = {
     name: "BigCommerce",
     tag: "BC",
     color: "#121118",
-    blurb: "Bring your BigCommerce products into catalog-grounded answers.",
-    billed: "Billed on peakhour.ai",
+    blurb: "Bring your BigCommerce products into the shop assistant's answers.",
     href: "/commerce",
   },
   whatsapp: {
@@ -211,7 +207,6 @@ export const CHANNELS: Record<ChannelKey, ChannelMeta> = {
     tag: "Wa",
     color: "#25D366",
     blurb: "Answer shoppers and support requests right on WhatsApp.",
-    billed: "Billed on peakhour.ai",
     href: "/support",
   },
   native: {
@@ -221,8 +216,7 @@ export const CHANNELS: Record<ChannelKey, ChannelMeta> = {
     name: "Peakhour web app",
     tag: "Ph",
     color: "#d97a06",
-    blurb: "Every pillar works in the Peakhour dashboard out of the box.",
-    billed: "Billed on peakhour.ai",
+    blurb: "Every module works in the Peakhour dashboard out of the box.",
     href: "/auth",
   },
 };

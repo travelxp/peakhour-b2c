@@ -34,7 +34,7 @@ import type {
 } from "@/lib/api/linkedin-content";
 import { SuggestedDraftsPanel } from "./_components/suggested-drafts-panel";
 import { ScheduledPanel } from "./_components/scheduled-panel";
-import { PageSwitcher } from "./_components/page-switcher";
+import { WorkspaceScopeBadge } from "./_components/workspace-scope-badge";
 
 /**
  * Who the Feed replies AS.
@@ -382,7 +382,20 @@ function LinkedInPageShell({
         {/* ★In the HEADER, not in a tab. This governs every tab below it and
             the Growth pillar besides; a control sitting inside one tab would
             read as belonging to that tab alone. */}
-        <PageSwitcher identity={identity} />
+        {/* ★AND THERE IS NO SECOND BUSINESS SELECTOR HERE, DELIBERATELY.
+            Two controls for one concept in one viewport is the classic
+            conflicting-selector bug: the user changes one, the other does not
+            move, and neither reads as authoritative. Switching business is a
+            SESSION-WIDE act — it re-scopes the library, the calendar, the
+            inbox, the ad accounts — so it belongs in the shell, once, where it
+            visibly governs everything.
+            What this page does need is for the reader to know WHICH business
+            they are looking at without going to check, so the workspace is
+            NAMED here and only named. The control beside it changes the
+            LinkedIn Page, which is a different object one level down: it is
+            labelled as such, and the two can never be mistaken for each other
+            because only one of them is a control. */}
+        <WorkspaceScopeBadge identity={identity} />
       </div>
       {loading ? (
         <div className="space-y-4">

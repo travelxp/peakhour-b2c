@@ -33,18 +33,17 @@ import { TimeRangeSelector } from "@/components/cms/ai/time-range-selector";
 import { formatDateTime } from "@/components/cms/ai/format";
 import { StatusBadge } from "@/components/molecules/status-badge";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
-import { useCmsJobs, useCmsJobDetail } from "@/hooks/use-jobs";
-
-// Limit to the kinds the runner currently handles. Adding a new handler
-// in peakhour-api means adding it here too — drives the filter dropdown.
-const KIND_OPTIONS = [
-  "content_analyse",
-  "tag_drafts",
-  "voice_card_refresh",
-  "beehiiv_sync_full",
-  "workflow_mirror",
-  "onboarding_discovery",
-] as const;
+import { useCmsJobs, useCmsJobDetail, useCmsJobKinds } from "@/hooks/use-jobs";
+import {
+  childrenModeFor,
+  effectiveKind,
+  failedWithoutData,
+  ignoredKind,
+  kindSelectOptions,
+  kindsStateOf,
+  resolveShowChildren,
+  type ChildrenMode,
+} from "./kind-filter";
 
 const STATUS_OPTIONS = ["pending", "running", "done", "failed", "cancelled"] as const;
 
@@ -53,7 +52,17 @@ const PAGE_SIZE = 50;
 export default function CmsJobsPage() {
   const queryClient = useQueryClient();
   const [days, setDays] = useState("7");
-  const [kind, setKind] = useState("all");
+  // The kinds the api serves (its registered handlers plus the kinds bg_jobs
+  // holds within the list's reach) — no list kept here. Each state of the
+  // query is handled (`./kind-filter`, the same rules as cms#174).
+  const kindsQuery = useCmsJobKinds();
+  const kindsState = kindsStateOf(kindsQuery);
+  const [kindChoice, setKind] = useState("all");
+  // A chosen kind a refetch dropped is ignored, not reset: it may be back in
+  // the next answer (round 2). The hint below says so and offers a clear.
+  const kind = effectiveKind(kindChoice, kindsState);
+  const ignored = ignoredKind(kindChoice, kindsState);
+  const kindOptions = kindSelectOptions(kindsState);
   const [status, setStatus] = useState("all");
   const [orgId, setOrgId] = useState("");
   const [businessId, setBusinessId] = useState("");
@@ -62,20 +71,35 @@ export default function CmsJobsPage() {
   // aren't valid 24-hex ids anyway).
   const [orgIdQuery, setOrgIdQuery] = useState("");
   const [businessIdQuery, setBusinessIdQuery] = useState("");
-  const [showChildren, setShowChildren] = useState(false);
+  // `auto`: ON for a chosen kind (some only run as children), OFF with "All
+  //  kinds"; `on`/`off` are the operator's explicit choice and survive a kind
+  //  change (round 1: picking a kind used to force it back on).
+  const [childrenMode, setChildrenMode] = useState<ChildrenMode>("auto");
+  const showChildren = resolveShowChildren(childrenMode, kind);
   const [page, setPage] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // ★ONE PAGE RESET, keyed on everything the list is filtered by (round 3):
+  //  a filter can change without a handler (a refetch drops or returns the
+  //  chosen kind, and auto children follow it), and the old offset would read
+  //  a different result set. Adjusted during render, not in an effect.
+  const listFilter = JSON.stringify([days, kind, status, orgIdQuery, businessIdQuery, showChildren]);
+  const [prevListFilter, setPrevListFilter] = useState(listFilter);
+  if (prevListFilter !== listFilter) {
+    setPrevListFilter(listFilter);
+    setPage(0);
+  }
 
   useEffect(() => {
     const t = setTimeout(() => {
       setOrgIdQuery(orgId.trim());
       setBusinessIdQuery(businessId.trim());
-      setPage(0);
     }, 300);
     return () => clearTimeout(t);
   }, [orgId, businessId]);
 
-  const { data, isLoading, error } = useCmsJobs({
+  // `isPending`, not `isLoading` (cms#175): a paused list query (offline) is
+  // pending with no data but not "loading", and must not read as empty.
+  const { data, isPending, isPaused: listPaused, error, errorUpdatedAt } = useCmsJobs({
     days,
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
@@ -86,11 +110,19 @@ export default function CmsJobsPage() {
     showChildren,
   });
 
+  // ★Never loaded, and failed at least once (round 1): `error` alone is reset
+  //  by each 30s retry, which flickered the failed row back to skeletons.
+  const listFailed = failedWithoutData({ data, errorUpdatedAt });
+  // The last error, held through a retry that resets `error` (round 3), so the
+  // banner keeps saying what failed. Adjusted during render, not in an effect.
+  const [lastListError, setLastListError] = useState<Error | null>(null);
+  if (error && error !== lastListError) setLastListError(error as Error);
+  // Paused with nothing loaded: waiting, not loading (round 1). Rows already
+  // on screen during a paused refresh need no notice.
+  const listWaiting = !data && listPaused && !listFailed;
   const rows = data?.rows || [];
   const total = data?.total || 0;
   const lastPage = Math.max(0, Math.ceil(total / PAGE_SIZE) - 1);
-
-  const resetPage = () => setPage(0);
 
   return (
     <div className="space-y-6">
@@ -108,9 +140,12 @@ export default function CmsJobsPage() {
         </p>
       </div>
 
-      {error && (
+      {(error || listFailed) && (
         <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-on-tint">
-          Failed to load jobs: {(error as Error).message}
+          {data
+            ? <>Couldn&apos;t refresh the jobs: {(error as Error).message}. Showing the last copy.</>
+            : <>Failed to load jobs: {(error ?? lastListError)?.message ?? "unknown error"}.{" "}
+                {error ? null : listPaused ? "Waiting for the network, or for this tab to be in focus, to try again." : "Trying again…"}</>}
         </div>
       )}
 
@@ -118,7 +153,7 @@ export default function CmsJobsPage() {
         <CardContent className="grid grid-cols-1 gap-3 pt-6 md:grid-cols-6">
           <TimeRangeSelector
             value={days}
-            onChange={(v) => { setDays(v); resetPage(); }}
+            onChange={setDays}
             options={[
               { value: "1", label: "Last 24 hours" },
               { value: "3", label: "Last 3 days" },
@@ -127,18 +162,27 @@ export default function CmsJobsPage() {
               { value: "90", label: "Last 90 days" },
             ]}
           />
-          <Select value={kind} onValueChange={(v) => { setKind(v); resetPage(); }}>
+          <Select
+            value={kind}
+            onValueChange={setKind}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Kind" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All kinds</SelectItem>
-              {KIND_OPTIONS.map((k) => (
+              {kindsState.status === "pending" && (
+                <SelectItem value="__loading" disabled>Loading kinds…</SelectItem>
+              )}
+              {kindsState.status === "paused" && (
+                <SelectItem value="__waiting" disabled>Kinds will load when this tab can fetch…</SelectItem>
+              )}
+              {kindOptions.map((k) => (
                 <SelectItem key={k} value={k}>{k}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-          <Select value={status} onValueChange={(v) => { setStatus(v); resetPage(); }}>
+          <Select value={status} onValueChange={setStatus}>
             <SelectTrigger>
               <SelectValue placeholder="Status" />
             </SelectTrigger>
@@ -161,12 +205,43 @@ export default function CmsJobsPage() {
           />
           <Button
             variant={showChildren ? "default" : "outline"}
-            onClick={() => { setShowChildren((v) => !v); resetPage(); }}
+            onClick={() => setChildrenMode(childrenModeFor(!showChildren, kind))}
           >
             {showChildren ? "Children shown ✓" : "Show children"}
           </Button>
+          {ignored && (
+            <div className="col-span-full flex items-center gap-2 text-sm text-muted-foreground">
+              <span>
+                {ignored === "unknown" ? (
+                  <>&ldquo;{kindChoice}&rdquo; isn&apos;t in the latest list of job kinds, so all kinds are shown.</>
+                ) : (
+                  <>&ldquo;{kindChoice}&rdquo; isn&apos;t among the job kinds read just now (the full list couldn&apos;t be read), so all kinds are shown.</>
+                )}
+              </span>
+              <Button variant="link" size="sm" className="h-auto p-0" onClick={() => setKind("all")}>
+                Clear
+              </Button>
+            </div>
+          )}
+          {!ignored && kindsState.status === "success" && !kindsState.complete && (
+            <div className="col-span-full text-sm text-muted-foreground">
+              The full list of job kinds couldn&apos;t be read just now, so the kind filter may be missing some; it is checked again every minute while this tab is in view.
+            </div>
+          )}
+          {/* Paused kinds (round 2): reachable here with no kind chosen — the
+              list says its own wait in its table row. */}
+          {kindsState.status === "paused" && (
+            <div className="col-span-full text-sm text-muted-foreground">
+              The job kinds will load once the network is back, or this tab is in focus.
+            </div>
+          )}
+          {kindsState.status === "error" && (
+            <div className="col-span-full text-sm text-muted-foreground">
+              Couldn&apos;t load the job kinds, so the kind filter is unavailable.
+            </div>
+          )}
           <div className="col-span-full flex items-center justify-end text-sm text-muted-foreground">
-            {isLoading ? "Loading…" : `${total.toLocaleString()} matches`}
+            {listFailed ? "—" : listWaiting ? "Waiting…" : isPending ? "Loading…" : `${total.toLocaleString()} matches`}
           </div>
         </CardContent>
       </Card>
@@ -187,7 +262,21 @@ export default function CmsJobsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isLoading ? (
+              {listFailed ? (
+                // Never read is not empty: the banner above says why. Kept
+                // through the 30s retries (round 1), which reset `error`.
+                <TableRow>
+                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                    The jobs couldn&apos;t be loaded.
+                  </TableCell>
+                </TableRow>
+              ) : listWaiting ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
+                    Waiting for the network, or for this tab to be in focus.
+                  </TableCell>
+                </TableRow>
+              ) : isPending ? (
                 [0, 1, 2, 3, 4].map((i) => (
                   <TableRow key={i}>
                     <TableCell colSpan={8}><Skeleton className="h-5 w-full" /></TableCell>
@@ -254,13 +343,22 @@ export default function CmsJobsPage() {
 // ── Drilldown ──────────────────────────────────────────────────
 
 function JobDrilldown({ id }: { id: string }) {
-  const { data, isLoading, error } = useCmsJobDetail(id);
+  // `isPending` (round 1): a paused detail query is not "loading", and fell
+  // through to a blank sheet. A failure with nothing loaded stays one through
+  // a focus refetch, which resets `error` (round 2).
+  const { data, isPending, isPaused, error, errorUpdatedAt } = useCmsJobDetail(id);
+  const failed = failedWithoutData({ data, errorUpdatedAt });
+  // The last error, held through a retry (round 3): a purged job's 404 keeps
+  // its wording instead of reading "trying again".
+  const [lastError, setLastError] = useState<Error | null>(null);
+  if (error && error !== lastError) setLastError(error as Error);
+  const shownError = (error ?? lastError) as Error | null;
 
-  if (isLoading) {
+  if (isPending && !failed) {
     return (
       <>
         <SheetHeader>
-          <SheetTitle>Loading job…</SheetTitle>
+          <SheetTitle>{isPaused ? "Waiting for the network, or for this tab to be in focus…" : "Loading job…"}</SheetTitle>
           <SheetDescription className="font-mono text-xs">{id}</SheetDescription>
         </SheetHeader>
         <div className="mt-6 space-y-3">
@@ -271,7 +369,7 @@ function JobDrilldown({ id }: { id: string }) {
       </>
     );
   }
-  if (error) {
+  if (failed) {
     return (
       <>
         <SheetHeader>
@@ -279,9 +377,11 @@ function JobDrilldown({ id }: { id: string }) {
           <SheetDescription className="font-mono text-xs">{id}</SheetDescription>
         </SheetHeader>
         <div className="mt-6 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-on-tint">
-          {(error as Error).message.includes("404")
+          {shownError?.message.includes("404")
             ? "This job has been purged or rolled off (TTL: 90 days for finished jobs)."
-            : `Failed to load job: ${(error as Error).message}`}
+            : `Failed to load job: ${shownError?.message ?? "unknown error"}.${
+                error ? "" : isPaused ? " Waiting for the network, or for this tab to be in focus, to try again." : " Trying again…"
+              }`}
         </div>
       </>
     );
@@ -296,6 +396,13 @@ function JobDrilldown({ id }: { id: string }) {
           <span className="font-mono text-xs">{data._id}</span> · created {formatDateTime(data.createdAt)}
         </SheetDescription>
       </SheetHeader>
+      {/* A failed refresh over a loaded job (round 3): the sheet keeps the last
+          copy, and its 5s poll stops on an error — say both. */}
+      {error && (
+        <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive-on-tint">
+          Couldn&apos;t refresh this job: {(error as Error).message}. Showing the last copy; it no longer updates on its own.
+        </div>
+      )}
 
       <div className="mt-6 space-y-4 text-sm">
         {/* Status block */}

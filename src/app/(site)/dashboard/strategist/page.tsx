@@ -3,9 +3,10 @@
 import { useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { api } from "@/lib/api";
+import { api, newActionKey } from "@/lib/api";
 import { API_BASE_URL } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { ActionCost } from "@/components/dashboard/action-cost";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { KanbanBoard } from "./components/kanban-board";
@@ -142,7 +143,7 @@ export default function StrategistPage() {
       const body: { topic?: string; contentFormat?: Exclude<ContentFormatChoice, "any"> } = {};
       if (topic?.trim()) body.topic = topic.trim();
       if (format && format !== "any") body.contentFormat = format;
-      const res = await api.streamPost("/v1/content/suggest", Object.keys(body).length > 0 ? body : undefined);
+      const res = await api.streamPost("/v1/content/suggest", Object.keys(body).length > 0 ? body : undefined, newActionKey());
       await readSSEStream(res, setGenProgress, setGenResult, (msg) => toast.error(msg));
       queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] });
     } catch (err) {
@@ -302,7 +303,8 @@ export default function StrategistPage() {
             <p className="text-xs text-muted-foreground">
               AI will check latest news, analyse your library, and suggest 7 prioritised ideas
             </p>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
+              <ActionCost action="contentIdeas" className="text-xs" />
               <Button variant="ghost" size="sm" onClick={() => { setShowTopicInput(false); setIdeaTopic(""); setContentFormatChoice("any"); }}>Cancel</Button>
               <Button size="sm" onClick={() => handleGetIdeas(ideaTopic, contentFormatChoice)} className="gap-1.5">
                 <Send className="h-3.5 w-3.5" />

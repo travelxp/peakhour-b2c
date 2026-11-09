@@ -5,6 +5,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Zap, History, ArrowUpRight, RefreshCw } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ChargeRecordCard } from "@/components/peaks/charge-record-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -23,41 +25,29 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import Link from "next/link";
-import { useCreditsBalance, useCreditsRateCard, useCreditsHistory } from "@/hooks/use-credits";
+import {
+  useCreditsBalance,
+  useCreditsRateCard,
+  useCreditsHistory,
+  getCapStatus,
+  spendableCap,
+  capRecoveryCta,
+} from "@/hooks/use-credits";
+import { peaksPrice } from "@/lib/peaks-price-label";
 import {
   usePeaksPacks,
   buyPack,
   confirmPackPurchase,
   type PeaksPack,
-  type PackBlockedReason,
 } from "@/hooks/use-peaks-packs";
+import { cardReason, packReason, packRefusalShownAsIs } from "@/lib/peaks-pack-copy";
 import { PaymentModal, type CheckoutResult } from "@/components/upgrade/payment-modal";
 import { ApiError } from "@/lib/api";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { toastUnhandledApiError } from "@/lib/toast-errors";
-
-/**
- * Refusals from POST /v1/billing/packs/checkout whose `message` is written for
- * the buyer and is the most useful thing we can show. Everything NOT on this
- * list — transport failures, auth expiry, parse errors, config errors — goes
- * through the shared handler, which never renders a raw message.
- *
- * An allowlist rather than a denylist on purpose: a new api error code should
- * default to the safe generic copy, not to whatever string it happens to carry.
- */
-const BUYER_FACING_CODES = new Set([
-  "ORG_NOT_BILLABLE",
-  "COUNTRY_UNAVAILABLE",
-  "COUNTRY_COMING_SOON",
-  "PACK_UNAVAILABLE",
-  "PACK_CURRENCY_UNAVAILABLE",
-  "PACK_TAX_CONFIG_INVALID",
-  "PACK_NOT_PURCHASABLE",
-  "WALLET_UNLIMITED",
-  "PLAN_REQUIRED",
-  "GATEWAY_UNAVAILABLE",
-  "BILLING_UNAVAILABLE",
-]);
+import { onePress } from "@/lib/one-press";
+import { StoragePeaksCard } from "@/components/media/storage-peaks-card";
+import { ShopperCapCard } from "@/components/dashboard/shopper-cap-card";
 
 // ── Formatting helpers ────────────────────────────────────────────────────
 
@@ -158,50 +148,16 @@ function UsageHistorySheet({ open, onOpenChange }: { open: boolean; onOpenChange
 
 // ── Buy more Peaks ─────────────────────────────────────────────────────────
 
-/** Why a pack can't be bought, in the buyer's words. EVERY reason the api can
- *  return is named — an unexplained row of greyed-out Buy buttons under a sales
- *  pitch is worse than not showing the section at all. */
-function blockedCopy(reason: PackBlockedReason | null): string | null {
-  switch (reason) {
-    case "unlimited":
-      return "Your plan already includes unlimited Peaks.";
-    case "plan_required":
-      return "Peaks packs need an active paid plan.";
-    case "not_priced_here":
-      // Real, not hypothetical: a pack priced only in USD viewed by an Indian
-      // org resolves a currency the gateway for that country can't charge.
-      return "These packs aren't priced for your region yet.";
-    case "no_wallet":
-      return "We couldn't load your Peaks wallet. Please contact support.";
-    case null:
-      return null;
-    default: {
-      // A fifth reason added on the api side is a BUILD failure here, not a
-      // silent regression to the original defect (a greyed button with no
-      // explanation). The union is hand-mirrored from the api, so nothing else
-      // enforces that they stay in step.
-      const _exhaustive: never = reason;
-      return _exhaustive;
-    }
-  }
-}
-
-/** The card-level reason, only when NOTHING is buyable. A real reduction, not
- *  `packs[0]` — `planRequired` and the pricing row are both per-pack, so a
- *  catalogue mixing two reasons would otherwise show copy for neither. */
-function cardBlockedCopy(packs: PeaksPack[]): string | null {
-  if (packs.length === 0 || packs.some((p) => p.purchasable)) return null;
-  const reasons = new Set(packs.map((p) => p.blockedReason));
-  if (reasons.size === 1) return blockedCopy(packs[0].blockedReason);
-  return "None of these packs is available on your account right now.";
-}
-
 function BuyPeaks() {
   const qc = useQueryClient();
   const search = useSearchParams();
   const { data, isLoading, isError } = usePeaksPacks();
   const [checkout, setCheckout] = useState<CheckoutResult | null>(null);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  // ★ONE PRESS (owner answer 4: a double click on Pay never pays twice):
+  //  lib/one-press.ts, while the purchase POST is in flight; while a payment
+  //  payload is open, Buy is disabled and refuses by STATE (`checkout`).
+  const [press] = useState(onePress);
 
   // The pack a link-out asked for (Shopify and the WordPress plugin both send
   // `?pack=`), highlighted so a merchant who already chose doesn't have to
@@ -292,6 +248,7 @@ function BuyPeaks() {
   }, [qc]);
 
   const start = async (packKey: string) => {
+    if (checkout || !press.take()) return;
     setBusyKey(packKey);
     try {
       setCheckout(await buyPack(packKey));
@@ -302,12 +259,13 @@ function BuyPeaks() {
       // offline tab, "Missing authentication. Provide Authorization header…"
       // from an expired session, even "NEXT_PUBLIC_API_URL is not configured".
       // toast-errors.ts exists because of exactly this trap and says so.
-      if (err instanceof ApiError && BUYER_FACING_CODES.has(err.code)) {
+      if (err instanceof ApiError && packRefusalShownAsIs(err.code)) {
         toast.error(err.message);
       } else {
         toastUnhandledApiError(err, "start checkout");
       }
     } finally {
+      press.release();
       setBusyKey(null);
     }
   };
@@ -348,7 +306,7 @@ function BuyPeaks() {
       : data.countryStatus !== "live"
         ? "Peaks packs are coming soon in your country."
         : null;
-  const cardBlocked = countryBlocked ?? cardBlockedCopy(data.packs);
+  const cardBlocked = cardReason(countryBlocked, data.packs);
   const canBuy = (p: PeaksPack) => p.purchasable && countryBlocked === null;
 
   return (
@@ -381,8 +339,8 @@ function BuyPeaks() {
               // same reason the card already says it once — repeating it under
               // each button turned one message into N+1 identical sentences,
               // which is what the card-level line existed to avoid.
-              const packReason = countryBlocked ?? blockedCopy(p.blockedReason);
-              const reason = packReason === cardBlocked ? null : packReason;
+              const reasonText = packReason(countryBlocked, p.blockedReason);
+              const reason = reasonText === cardBlocked ? null : reasonText;
               const reasonId = `pack-reason-${p.key.replace(/[^a-z0-9]/gi, "-")}`;
               return (
                 <div
@@ -406,7 +364,7 @@ function BuyPeaks() {
                     </span>
                     <Button
                       size="sm"
-                      disabled={!canBuy(p) || busyKey !== null}
+                      disabled={!canBuy(p) || busyKey !== null || checkout !== null}
                       aria-busy={busyKey === p.key}
                       {...(reason && !canBuy(p) ? { "aria-describedby": reasonId } : {})}
                       onClick={() => void start(p.key)}
@@ -439,14 +397,22 @@ export default function PeaksPage() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const pageQc = useQueryClient();
 
+  // ⚠️★AGAINST THE SPENDABLE CAP, AND THE PAUSE COMES FROM THE SERVER. This page
+  //  is where every cap CTA now lands, and it was the last surface still deriving
+  //  both from `used / hardCap`: a paid, unblocked org clicked "Buy Peaks" and
+  //  arrived at "AI features are paused" beside an "Upgrade" button — the exact
+  //  false pause and dead-end CTA fixed in the banner and the chip. See
+  //  `getCapStatus` for why `used` cannot answer this question.
+  const cap = balance && !balance.unlimited ? spendableCap(balance) : 0;
   const pct =
-    balance && !balance.unlimited && balance.hardCap > 0
-      ? Math.min(100, Math.round((balance.used / balance.hardCap) * 100))
+    balance && !balance.unlimited && cap > 0
+      ? Math.min(100, Math.round((balance.used / cap) * 100))
       : 0;
+  const capStatus = getCapStatus(balance);
 
   const capColor =
     balance && !balance.unlimited
-      ? pct >= 100
+      ? capStatus === "hard"
         ? "bg-destructive"
         : pct >= 80
           ? "bg-warning"
@@ -481,7 +447,7 @@ export default function PeaksPage() {
               Peaks
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              AI credits that power every feature. Resets monthly on your billing date.
+              The AI credits that power every feature. Resets monthly on your billing date.
             </p>
           </div>
           <Button
@@ -523,7 +489,11 @@ export default function PeaksPage() {
                       {fmtPeaks(balance.remaining)}
                     </span>
                     <span className="ml-2 text-muted-foreground">
-                      / {fmtPeaks(balance.hardCap)} remaining
+                      {/* `remaining` already counts purchased Peaks, so the
+                          denominator must too — against `hardCap` this card read
+                          "7,000 / 5,000 remaining" for a top-up holder while the
+                          chip in the top bar showed the other denominator. */}
+                      / {fmtPeaks(cap)} remaining
                     </span>
                   </div>
                   <span className="text-sm tabular-nums text-muted-foreground">
@@ -537,18 +507,27 @@ export default function PeaksPage() {
                     style={{ width: `${pct}%` }}
                   />
                 </div>
-                {pct >= 80 && (
+                {capStatus !== "none" && (
                   <div className="flex items-center justify-between">
                     <p className="text-sm text-muted-foreground">
-                      {pct >= 100
-                        ? "AI features are paused until your Peaks reset."
-                        : "Getting close — AI features pause when you hit the limit."}
+                      {capStatus === "hard"
+                        ? "Your store's assistant is not answering shoppers, and new AI work will not start, until your Peaks reset."
+                        : "Getting close — your store's assistant stops answering shoppers when you hit the limit."}
                     </p>
-                    <Button size="sm" variant="outline" asChild className="gap-1">
-                      <Link href="/dashboard/settings/billing">
-                        Upgrade <ArrowUpRight className="size-3" />
-                      </Link>
-                    </Button>
+                    {/* ⚠️★NO BUTTON ON THE PAID PATH, because the action IS this
+                        page: "Buy more Peaks" renders directly below. The old
+                        hardcoded "Upgrade" sent a Suite customer to billing with
+                        nothing above them to buy; a Buy-Peaks button here would
+                        just link to the page they are already on. Only a free
+                        tier has somewhere else to go. */}
+                    {!balance.topUpUsable && (
+                      <Button size="sm" variant="outline" asChild className="gap-1">
+                        <Link href={capRecoveryCta(balance).href}>
+                          {capRecoveryCta(balance).label}
+                          <ArrowUpRight className="size-3" />
+                        </Link>
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
@@ -563,6 +542,13 @@ export default function PeaksPage() {
           <BuyPeaks />
         </Suspense>
 
+        {/* ── Storage: its own line, apart from AI work ────────────── */}
+        <StoragePeaksCard />
+        <ShopperCapCard />
+
+        {/* ── What was charged, charge by charge ────────────────────── */}
+        <ChargeRecordCard />
+
         {/* ── Rate card ─────────────────────────────────────────────── */}
         <Card>
           <CardHeader className="pb-3">
@@ -570,8 +556,14 @@ export default function PeaksPage() {
               <div>
                 <CardTitle className="text-base">Rate Card</CardTitle>
                 <CardDescription className="mt-1">
-                  How many Peaks each AI feature uses per activation.
-                  Actual usage varies by output length.
+                  {/* ⚠️"Actual usage varies by output length" was here, and
+                      it is false: `peaksForUsageRow` charges the row's price
+                      flat — or the quote the merchant accepted — and reads no
+                      token count at all. */}
+                  The Peaks each task costs when it runs — or, for a task
+                  that happens as an event (a boost, an X message), each time
+                  it happens. The price does not depend on how long the output
+                  is.
                 </CardDescription>
               </div>
               {rateLoading && (
@@ -595,19 +587,41 @@ export default function PeaksPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Feature</TableHead>
-                    <TableHead className="text-right">Min Peaks / call</TableHead>
-                    <TableHead className="text-right">Rate multiplier</TableHead>
+                    {/* ★ONE PRICE COLUMN. This was "Min Peaks / call" beside
+                        "Rate multiplier", and the first read a field no priced
+                        row sets — so it said 0 for every paid act — while the
+                        second held the real price under a name implying it
+                        multiplies something. The rollup charges the
+                        multiplier flat, per act; see `peaksPrice`. */}
+                    <TableHead className="text-right">Peaks</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {rateCard.useCases.map((u) => (
                     <TableRow key={u.useCase}>
-                      <TableCell className="font-medium">{u.label}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {u.minCreditsPerCall > 0 ? u.minCreditsPerCall.toLocaleString() : "—"}
+                      <TableCell className="font-medium">
+                        {u.label}
+                        {u.description && (
+                          <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
+                            {u.description}
+                          </span>
+                        )}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums text-muted-foreground">
-                        {u.creditMultiplier}×
+                      <TableCell className="text-right">
+                        {/* ★"Free", not "—" and not "0". The api derives `free`
+                            precisely so this branch exists: a zero price and a
+                            free task are the same number and a different
+                            promise. A dash reads as "not applicable", which on
+                            the safety check — the one thing we most want a
+                            merchant to know costs nothing — is the opposite of
+                            what it says. */}
+                        {peaksPrice(u).free ? (
+                          <Badge variant="secondary" className="font-medium">
+                            {peaksPrice(u).label}
+                          </Badge>
+                        ) : (
+                          <span className="tabular-nums">{peaksPrice(u).label}</span>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -619,8 +633,9 @@ export default function PeaksPage() {
 
         {/* ── Explainer ─────────────────────────────────────────────── */}
         <p className="text-xs text-muted-foreground">
-          1 Peak ≈ $0.001 in AI compute. Peaks are consumed when the AI runs — not when you write
-          or edit. Unused Peaks reset each month and do not roll over.
+          1,000 Peaks is about $1. Peaks are consumed when the AI runs — not when you
+          write or edit. Your plan&apos;s monthly Peaks reset each month; Peaks you buy
+          never expire.
         </p>
       </div>
     </>

@@ -1,10 +1,17 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import ts from "typescript";
 import {
   ADS_CHANNELS,
   isAdsChannelKey,
   getAdsChannel,
   nextAdsHubSearch,
   resolveAdsChannel,
+  connectedAdsProviderKeys,
+  metaAdsConnectionState,
+  adsChannelConnectionState,
+  panelConnection,
 } from "./ads-channels";
 
 const NONE = new Set<string>();
@@ -31,7 +38,8 @@ describe("resolveAdsChannel", () => {
   });
 
   it("ignores an unknown or empty param instead of rendering a blank hub", () => {
-    expect(resolveAdsChannel("meta", new Set(["x_ads"]))).toBe("x");
+    // `google` is a channel since G-15; `tiktok` is not one.
+    expect(resolveAdsChannel("tiktok", new Set(["x_ads"]))).toBe("x");
     expect(resolveAdsChannel("", new Set(["x_ads"]))).toBe("x");
     // Keys are matched exactly — no case folding.
     expect(resolveAdsChannel("LinkedIn", new Set(["x_ads"]))).toBe("x");
@@ -42,7 +50,8 @@ describe("isAdsChannelKey", () => {
   it("accepts registered keys only", () => {
     expect(isAdsChannelKey("linkedin")).toBe(true);
     expect(isAdsChannelKey("x")).toBe(true);
-    expect(isAdsChannelKey("google")).toBe(false);
+    expect(isAdsChannelKey("google")).toBe(true);
+    expect(isAdsChannelKey("tiktok")).toBe(false);
     expect(isAdsChannelKey(null)).toBe(false);
     expect(isAdsChannelKey(undefined)).toBe(false);
   });
@@ -63,7 +72,7 @@ describe("ADS_CHANNELS registry", () => {
   it("carries the provider keys the Content hub catalog routes from", () => {
     // Regression guard: these must match cfg_integrations.key /
     // int_connections.provider, or the hub can't tell connected from not.
-    expect(ADS_CHANNELS.map((c) => c.providerKey)).toEqual(["linkedin_ads", "x_ads"]);
+    expect(ADS_CHANNELS.map((c) => c.providerKey)).toEqual(["linkedin_ads", "x_ads", "meta_ads", "google_ads"]);
   });
 });
 
@@ -91,7 +100,7 @@ describe("nextAdsHubSearch", () => {
   });
 
   it("overwrites an invalid or absent channel", () => {
-    expect(nextAdsHubSearch(search("channel=meta"), "x")).toBe("channel=x");
+    expect(nextAdsHubSearch(search("channel=tiktok"), "x")).toBe("channel=x");
     expect(nextAdsHubSearch(search(""), "x")).toBe("channel=x");
   });
 
@@ -99,5 +108,322 @@ describe("nextAdsHubSearch", () => {
     expect(nextAdsHubSearch({ toString: () => "channel=x&account=a1" }, "linkedin")).toBe(
       "channel=linkedin",
     );
+  });
+});
+
+/**
+ * ★★M-16 — the hub must EXPAND the `facebook` row before it matches.
+ *
+ * The api reports Meta as one `facebook` connection. The ads capability is the
+ * virtual `meta_ads` row `flattenMetaIntegration` derives from it — connected
+ * only when the parent is, the Ads capability is not switched off, and at least
+ * one ad account exists. Fixtures are the api's shape: `account.extra` carrying
+ * `capabilities` and `adAccounts`.
+ */
+describe("★★M-16 connectedAdsProviderKeys", () => {
+  const facebook = (over: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) => ({
+    provider: "facebook",
+    connected: true,
+    status: "active",
+    account: { extra: { adAccounts: [{ id: "act_1", name: "Main" }], capabilities: {}, ...extra } },
+    ...over,
+  });
+
+  it("★★M-16 a Facebook connection with an ad account counts as meta_ads", () => {
+    expect(connectedAdsProviderKeys([facebook()]).has("meta_ads")).toBe(true);
+  });
+
+  it("★★M-16 and so a Meta-only org opens on the Meta tab, not an empty LinkedIn one", () => {
+    // THE DEFECT, END TO END. Matching the raw list, the set is {facebook} and
+    // resolveAdsChannel falls back to the first registered channel.
+    expect(resolveAdsChannel(null, connectedAdsProviderKeys([facebook()]))).toBe("meta");
+  });
+
+  it("★M-16 no ad account is not an ads connection", () => {
+    expect(connectedAdsProviderKeys([facebook({}, { adAccounts: [] })]).has("meta_ads")).toBe(false);
+  });
+
+  it("★M-16 the Ads capability switched off is not an ads connection", () => {
+    const off = facebook({}, { capabilities: { ads: { enabled: false } } });
+    expect(connectedAdsProviderKeys([off]).has("meta_ads")).toBe(false);
+  });
+
+  it("★★M-16 a STALE Facebook connection still selects the Meta tab — the panel shows reconnect", () => {
+    const stale = facebook({ connected: false, status: "needs_reauth" });
+    expect(connectedAdsProviderKeys([stale]).has("meta_ads")).toBe(true);
+  });
+
+  it("★M-16 other providers pass through untouched", () => {
+    const keys = connectedAdsProviderKeys([
+      { provider: "x_ads", connected: true },
+      { provider: "linkedin_ads", connected: false, status: "active" },
+    ]);
+    expect([...keys]).toEqual(["x_ads"]);
+  });
+
+  it("★★M-16 R1.2 a STALE connection with Ads switched off is NOT a Meta ads connection", () => {
+    // `flattenMetaIntegration` copies the parent's status onto every virtual
+    // row, so this came out as a `needs_reauth` meta_ads and the hub opened a
+    // Pages-only merchant on the Meta tab behind a reconnect banner.
+    const stale = facebook(
+      { connected: false, status: "needs_reauth" },
+      { capabilities: { ads: { enabled: false } } },
+    );
+    expect(connectedAdsProviderKeys([stale]).has("meta_ads")).toBe(false);
+    expect(metaAdsConnectionState([stale])).toBe("absent");
+  });
+
+  it("★★M-16 R1.2 nor is a stale connection with no ad account", () => {
+    const stale = facebook({ connected: false, status: "needs_reauth" }, { adAccounts: [] });
+    expect(connectedAdsProviderKeys([stale]).has("meta_ads")).toBe(false);
+    expect(metaAdsConnectionState([stale])).toBe("absent");
+  });
+
+  it("★★M-16 R1.2 but a stale Pages capability still counts for PAGES — the rule is per capability", () => {
+    const stale = facebook(
+      { connected: false, status: "needs_reauth" },
+      { adAccounts: [], pages: [{ pageId: "p1", pageName: "Shop" }] },
+    );
+    const keys = connectedAdsProviderKeys([stale]);
+    expect(keys.has("facebook_pages")).toBe(true);
+    expect(keys.has("meta_ads")).toBe(false);
+  });
+
+  it("★M-16 the panel's gate: connected wins over a stale sibling row, and reauth is reported", () => {
+    const live = facebook();
+    const stale = facebook({ connected: false, status: "needs_reauth" });
+    expect(metaAdsConnectionState([stale, live])).toBe("connected");
+    expect(metaAdsConnectionState([stale])).toBe("needs_reauth");
+    expect(metaAdsConnectionState([])).toBe("absent");
+    expect(metaAdsConnectionState([{ provider: "x_ads", connected: true }])).toBe("absent");
+  });
+
+  /**
+   * ★★b2c#573 round 2: ONE helper, EVERY channel, BOTH directions (it
+   * replaces M-16's Meta-only R1.6 case, round 3). A key the registry refreshes
+   * but no panel reads is a rename nobody followed.
+   *
+   * ⚠️SCOPE, STATED (round 3): the panel FILE's literal keys. Queries in
+   * child components (the LinkedIn account picker, lead forms, targeting
+   * dialog) are theirs to refresh, and a non-literal key (`xKeys.all`) is
+   * invisible here.
+   */
+  const panelQueryPrefixes = (key: string) =>
+    queryPrefixesIn(
+      readFileSync(fileURLToPath(new URL(`./_components/${key}-ads-panel.tsx`, import.meta.url)), "utf8"),
+    );
+  /**
+   * The keys a panel file MAKES queries with. ★THE TYPESCRIPT PARSER, NOT A
+   * HAND LEXER (review of b2c#575 round 3): an apostrophe in JSX text or a
+   * quote in a regex literal made the hand lexer swallow real queries. Each
+   * `queryKey: [...]` belongs to its nearest enclosing call: one of the
+   * query-CACHE operations below reads or clears queries made elsewhere;
+   * anything else — useQuery, useQueries, fetchQuery, prefetchQuery, a
+   * wrapper hook — makes one.
+   */
+  const CACHE_OPS = new Set([
+    "invalidateQueries", "refetchQueries", "cancelQueries", "removeQueries", "resetQueries",
+    "setQueryData", "setQueriesData", "getQueryData", "getQueriesData", "getQueryState",
+    "useIsFetching", "useIsMutating", "isFetching", "isMutating",
+  ]);
+  const queryPrefixesIn = (src: string) => {
+    const file = ts.createSourceFile("panel.tsx", src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+    const callee = (e: ts.Expression) =>
+      ts.isIdentifier(e) ? e.text : ts.isPropertyAccessExpression(e) ? e.name.text : undefined;
+    const out = new Set<string>();
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isPropertyAssignment(node) &&
+        ts.isIdentifier(node.name) &&
+        node.name.text === "queryKey" &&
+        ts.isArrayLiteralExpression(node.initializer)
+      ) {
+        const first = node.initializer.elements[0];
+        if (first && ts.isStringLiteralLike(first)) {
+          let owner: ts.Node | undefined = node.parent;
+          while (owner && !ts.isCallExpression(owner)) owner = owner.parent;
+          const name = owner && ts.isCallExpression(owner) ? callee(owner.expression) : undefined;
+          if (!name || !CACHE_OPS.has(name)) out.add(first.text);
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(file);
+    return [...out];
+  };
+  it("★the scrape counts queries a panel MAKES, not keys it only invalidates", () => {
+    const src = [
+      'useQuery({ queryKey: ["x-ads-live"], queryFn })',
+      "useQuery({",
+      '  queryKey: [',
+      '    "x-ads-multi", id],',
+      "})",
+      'useQueries({ queries: ids.map((id) => ({ queryKey: ["x-ads-stats", id], queryFn })) })',
+      'queryClient.invalidateQueries({ queryKey: ["x-ads-stale"] });',
+      "queryClient.invalidateQueries({",
+      '  queryKey: ["x-ads-stale-2"],',
+      "});",
+      'queryClient.invalidateQueries({ exact: true, queryKey: ["x-ads-stale-3"] });',
+      'queryClient.refetchQueries({ refetchType: "all", queryKey: ["x-ads-stale-4"] });',
+      "queryClient.invalidateQueries({",
+      "  // a comment (with parens) between the brace and the key",
+      '  queryKey: ["x-ads-stale-5"],',
+      "});",
+      'queryClient.invalidateQueries({ queryKey: ["x-ads-stale-6", { accountId }] });',
+      'queryClient.setQueriesData({ queryKey: ["x-ads-stale-7"] }, updater);',
+      'const busy = useIsFetching({ queryKey: ["x-ads-stale-8"] });',
+      '// useQuery({ queryKey: ["x-ads-commented"] })',
+      // Round 3: an apostrophe in JSX text and a quote in a regex literal
+      // swallowed the hand lexer's next real query.
+      "const Note = () => <p>We can't reach X right now.</p>;",
+      'const ok = /["(]/.test(s);',
+      'useQuery({ queryKey: ["x-ads-after-jsx"], queryFn })',
+      // Round 3: fetch/prefetch and wrapper hooks MAKE queries.
+      'queryClient.fetchQuery({ queryKey: ["x-ads-fetched"], queryFn });',
+      'useAdsQuery({ queryKey: ["x-ads-wrapped"] });',
+    ].join("\n");
+    expect(queryPrefixesIn(src)).toEqual([
+      "x-ads-live",
+      "x-ads-multi",
+      "x-ads-stats",
+      "x-ads-after-jsx",
+      "x-ads-fetched",
+      "x-ads-wrapped",
+    ]);
+  });
+  /**
+   * ★A FLOOR PER PANEL (review of b2c#573 round 3), as M-16's Meta case had:
+   * a panel whose queries moved into a child component would otherwise pass
+   * on an almost empty set, with the registry trimmed to match.
+   */
+  const MIN_PANEL_QUERIES: Record<string, number> = { linkedin: 2, meta: 7, x: 5, google: 3 };
+  for (const channel of ADS_CHANNELS) {
+    it(`★★b2c#573 the ${channel.key} toolbar refreshes exactly the queries its panel file makes`, () => {
+      const prefixes = panelQueryPrefixes(channel.key);
+      expect(prefixes, "the panel's query keys").toContain("content-hub-integrations");
+      // A new channel needs its own floor, and is told so (review of b2c#575).
+      const floor = MIN_PANEL_QUERIES[channel.key];
+      expect(floor, `add a MIN_PANEL_QUERIES floor for "${channel.key}"`).toBeTypeOf("number");
+      expect(prefixes.length, "too few query keys — did they move to a child?").toBeGreaterThanOrEqual(floor!);
+      const refreshed: readonly string[] = channel.invalidateQueryKeys.map((k) => k[0]);
+      expect(prefixes.filter((p) => !refreshed.includes(p)), "made but not refreshed").toEqual([]);
+      expect(refreshed.filter((p) => !prefixes.includes(p)), "refreshed but never made").toEqual([]);
+    });
+  }
+
+  it("★G-15 leaving the Google tab drops its customer param", () => {
+    expect(nextAdsHubSearch(new URLSearchParams("channel=google&customer=1234567890"), "meta")).toBe("channel=meta");
+  });
+
+  it("★M-16 leaving the Meta tab drops its ad-account param", () => {
+    expect(nextAdsHubSearch(new URLSearchParams("channel=meta&adAccount=act_1"), "x")).toBe(
+      "channel=x",
+    );
+  });
+});
+
+describe("★D-03b adsChannelConnectionState — the one rule every panel reads", () => {
+  const li = getAdsChannel("linkedin");
+  const x = getAdsChannel("x");
+
+  it("a live row is connected; a stale one needs reauth; none is absent", () => {
+    expect(adsChannelConnectionState([{ provider: "linkedin_ads", connected: true, status: "active" }], li)).toBe("connected");
+    expect(adsChannelConnectionState([{ provider: "linkedin_ads", status: "needs_reauth" }], li)).toBe("needs_reauth");
+    expect(adsChannelConnectionState([], li)).toBe("absent");
+    expect(adsChannelConnectionState([{ provider: "linkedin_ads", status: "error" }], li)).toBe("absent");
+  });
+
+  it("★a live row outranks a stale sibling, whichever comes first", () => {
+    const rows = [
+      { provider: "x_ads", status: "needs_reauth" },
+      { provider: "x_ads", connected: true, status: "active" },
+    ];
+    expect(adsChannelConnectionState(rows, x)).toBe("connected");
+    expect(adsChannelConnectionState([...rows].reverse(), x)).toBe("connected");
+  });
+
+  it("★a channel reads only its own provider — the organic LinkedIn row is not LinkedIn Ads", () => {
+    expect(adsChannelConnectionState([{ provider: "linkedin", status: "needs_reauth" }], li)).toBe("absent");
+    expect(adsChannelConnectionState([{ provider: "linkedin_ads", connected: true }], x)).toBe("absent");
+  });
+
+  it("Meta is read through its ads capability", () => {
+    const withAds = { provider: "facebook", status: "needs_reauth", account: { extra: { adAccounts: [{ id: "a" }] } } };
+    const pagesOnly = { provider: "facebook", status: "needs_reauth", account: { extra: { pages: [{ id: "p" }] } } };
+    expect(adsChannelConnectionState([withAds], getAdsChannel("meta"))).toBe("needs_reauth");
+    expect(adsChannelConnectionState([pagesOnly], getAdsChannel("meta"))).toBe("absent");
+  });
+
+  /**
+   * ★★THE PANELS ASK IT, and none re-derives the state from a row's `status`
+   * (b2c#581 rounds 2 and 3 found the LinkedIn and X panels doing their own,
+   * so a change to the rule never reached them). Read with the TypeScript
+   * parser, so a comment that mentions the old shape does not count.
+   */
+  const panelSource = (key: string) =>
+    ts.createSourceFile(
+      "panel.tsx",
+      readFileSync(fileURLToPath(new URL(`./_components/${key}-ads-panel.tsx`, import.meta.url)), "utf8"),
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TSX,
+    );
+  const scanText = (text: string) =>
+    scanFile(ts.createSourceFile("t.tsx", text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)).statusCompares;
+  const scan = (key: string) => scanFile(panelSource(key));
+  const scanFile = (file: ts.SourceFile) => {
+    const calls = new Set<string>();
+    const statusCompares: string[] = [];
+    const visit = (node: ts.Node): void => {
+      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) calls.add(node.expression.text);
+      // ★ANY USE, NOT ONLY ===/!== (reviews R1, R2): a `needs_reauth` literal
+      //  or a row's `connected` flag anywhere in a panel is the state
+      //  re-derived — truthiness, `.includes`, a `switch`, `row["connected"]`
+      //  or a destructured `{ connected }` all count. The panels need neither:
+      //  `panelConnection` answers both questions.
+      if (ts.isStringLiteralLike(node) && (node.text === "needs_reauth" || node.text === "connected")) {
+        statusCompares.push(node.parent.getText());
+      }
+      if (ts.isPropertyAccessExpression(node) && node.name.text === "connected") statusCompares.push(node.getText());
+      if (ts.isBindingElement(node) && (node.propertyName ?? node.name).getText() === "connected") {
+        statusCompares.push(node.getText());
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(file);
+    return { calls, statusCompares };
+  };
+
+  it.each(["linkedin", "x", "meta", "google"])(
+    "★★the %s panel asks panelConnection and reads no row's status or connected flag itself",
+    (key) => {
+      const { calls, statusCompares } = scan(key);
+      expect(calls.has("panelConnection")).toBe(true);
+      expect(statusCompares).toEqual([]);
+    },
+  );
+
+  it("★★panelConnection: a stale connection shows the panel behind a banner; none shows Connect", () => {
+    const li = getAdsChannel("linkedin");
+    expect(panelConnection([{ provider: "linkedin_ads", connected: true, status: "active" }], li)).toEqual({ isConnected: true, needsReauth: false });
+    expect(panelConnection([{ provider: "linkedin_ads", status: "needs_reauth" }], li)).toEqual({ isConnected: true, needsReauth: true });
+    expect(panelConnection([], li)).toEqual({ isConnected: false, needsReauth: false });
+    // Meta's R1.2: a stale Pages-only row is "Connect Meta", not a banner.
+    const pagesOnly = { provider: "facebook", status: "needs_reauth", account: { extra: { pages: [{ id: "p" }] } } };
+    expect(panelConnection([pagesOnly], getAdsChannel("meta"))).toEqual({ isConnected: false, needsReauth: false });
+  });
+
+  it("PASS: the scan sees the old shape when it is there (it is not blind)", () => {
+    // The pre-D-03b LinkedIn panel's own line, through the same scan.
+    expect(
+      scanText('const isConnected = adsConnection?.connected === true || adsConnection?.status === "needs_reauth";'),
+    ).toHaveLength(2);
+    expect(scanText('const live = campaign.status === "active";')).toEqual([]);
+    // Truthiness and membership are re-derivations too.
+    expect(scanText("const live = !!row?.connected;")).toHaveLength(1);
+    expect(scanText('const stale = ["needs_reauth"].includes(row.status);')).toHaveLength(1);
+    expect(scanText('switch (row.status) { case "needs_reauth": break; }')).toHaveLength(1);
+    expect(scanText('const live = row["connected"];')).toHaveLength(1);
+    expect(scanText('const { connected, status } = row;')).toHaveLength(1);
   });
 });

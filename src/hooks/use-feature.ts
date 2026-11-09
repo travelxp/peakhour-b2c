@@ -28,7 +28,7 @@ export interface UseFeatureResult {
   allowed: boolean;
   /** True while the entitlements snapshot is still loading. */
   loading: boolean;
-  /** Active plan key (e.g., "free", "pro") — useful for upgrade-drawer copy. */
+  /** Active plan key (e.g., "suite", "agency") — useful for upgrade-drawer copy. */
   plan: string | null;
   /** Active country (ISO 3166-1 alpha-2) — for region-aware plan cards. */
   country: string | null;

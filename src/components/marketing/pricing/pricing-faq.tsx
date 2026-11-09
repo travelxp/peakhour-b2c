@@ -4,23 +4,20 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { trialFaq } from "@/lib/trial-copy";
 
 const FAQS: { q: string; a: string }[] = [
   {
     q: "What are Peaks?",
-    a: "Peaks are your AI credits — one shared wallet across every pillar. Free tiers include an allowance each month; paid pillars include more. You'll never hit a surprise paywall mid-task; we warn you before you run low.",
+    a: "Peaks are your AI credits — one shared wallet across all five modules. Every plan includes a monthly allowance — the cards above show it — and you can top up any time. We tell you before you run low.",
   },
   {
-    q: "Do I have to buy everything?",
-    a: "No. Start free with Presence, then switch on only the pillars you want. Each is billed on its own — turn one off any time.",
+    q: "Do I have to buy every module?",
+    a: "There is nothing to assemble. Peakhour Suite is one plan and one price for all five modules — Commerce, Content, Growth, Support and Presence — so you are never picking which parts of your business to leave out. Use the ones you need; the rest are there when you want them.",
   },
   {
     q: "Can I use it inside Shopify or WordPress?",
-    a: "Yes. Install the Shopify App or WordPress plugin and the relevant pillar runs right there. Shopify billing goes through Shopify; everywhere else you're billed on peakhour.ai.",
-  },
-  {
-    q: "What's the difference between Free and Paid?",
-    a: "Same product, same polish. Paid simply lifts your monthly limits, unlocks more channels, and adds pro features like scheduling, routing and analytics.",
+    a: "Install the Shopify app and the assistant, Smart Rails, COD confirmation, catalogue fixes and more run inside your Shopify admin; the rest of Peakhour is in your peakhour.ai dashboard. The WordPress plugin works the same way for your WordPress site. Buy Peakhour Suite inside the Shopify admin and Shopify bills you; buy it on peakhour.ai and you're billed here, whatever you have connected.",
   },
   {
     q: "Which prices will I see?",
@@ -29,11 +26,14 @@ const FAQS: { q: string; a: string }[] = [
 ];
 
 /** Plain-language pricing FAQ. The accordion is a client component; this
- *  wrapper stays data-only so the copy lives in one place. */
-export function PricingFaq() {
+ *  wrapper stays data-only so the copy lives in one place. ★The trial entry
+ *  is the catalog's (`trialFaq`: Suite's `trialDays`, or how to start when
+ *  there is no trial; owner rule 2026-10-06), placed where it always stood. */
+export function PricingFaq({ trialDays }: { trialDays: number | null }) {
+  const faqs = [...FAQS.slice(0, 3), trialFaq(trialDays), ...FAQS.slice(3)];
   return (
     <Accordion type="single" collapsible className="w-full">
-      {FAQS.map((faq) => (
+      {faqs.map((faq) => (
         <AccordionItem key={faq.q} value={faq.q}>
           <AccordionTrigger className="text-left text-base font-semibold">
             {faq.q}

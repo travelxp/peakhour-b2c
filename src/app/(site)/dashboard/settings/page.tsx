@@ -1,20 +1,25 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
 import { api, ApiError } from "@/lib/api";
 import { useLocale } from "@/hooks/use-locale";
+import type { DashboardOrgPlanSummary } from "@/hooks/use-dashboard-org";
+import { activeBusiness, planRowLabel } from "@/lib/plan-status";
 // Shared with every other surface the OAuth callback can return to
 // (?returnTo=), so a new provider is labelled once, not per page.
 import { formatProviderName } from "@/lib/provider-names";
 import { IntegrationFitAttention } from "@/components/integrations/integration-fit-attention";
+import { MeasurementHealthPanel } from "@/components/growth/measurement-health-panel";
 import { RequestReviewButton } from "@/components/integrations/request-review-button";
 import { CreateWorkspaceButton } from "@/components/integrations/create-workspace-button";
 import { ContactSupportDialog } from "@/components/support/contact-support-dialog";
 import { Badge } from "@/components/ui/badge";
+import { DrivePrivacyCard } from "@/components/drive/drive-privacy-card";
+import { driveAbilities } from "@/lib/drive/files-state";
 import { Input } from "@/components/ui/input";
 import {
   Card,
@@ -43,7 +48,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-interface OrgDetails {
+/** `/v1/dashboard/org`; the plan row reads its `subscription` / `products`
+ *  through `planRowLabel` (`planDisplayName`), as the top-bar badge does (D19, P4.7). */
+interface OrgDetails extends Pick<DashboardOrgPlanSummary, "subscription" | "products"> {
   _id: string;
   name: string;
   slug: string;
@@ -67,9 +74,6 @@ interface OrgDetails {
     maxDailySpend?: number;
     maxCAC?: number;
     minAIScore?: number;
-  };
-  billing?: {
-    plan?: string;
   };
   taxonomy?: {
     sectors?: string[];
@@ -101,7 +105,8 @@ function SettingsLoading() {
 }
 
 function SettingsContent() {
-  const { org } = useAuth();
+  const { org, orgs, business, entitlements } = useAuth();
+  const active = activeBusiness(entitlements, business);
   const { formatCurrency } = useLocale();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -124,6 +129,8 @@ function SettingsContent() {
 
   // Edit state
   const [editingBusiness, setEditingBusiness] = useState(false);
+  // Which /v1/dashboard/org fetch is the latest (the details effect).
+  const detailsRequest = useRef(0);
   const [saving, setSaving] = useState(false);
   const [rescanning, setRescanning] = useState(false);
   const [editName, setEditName] = useState("");
@@ -208,6 +215,9 @@ function SettingsContent() {
       // the LinkedIn identity/me read.
       queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] });
       queryClient.invalidateQueries({ queryKey: ["linkedin-me"] });
+      // D-03b: the outcomes page's reconnect card is the api's, in /outcomes
+      //  — left stale, it invites the same needless reconnect.
+      queryClient.invalidateQueries({ queryKey: ["growth-outcomes"] });
     } else if (searchParams?.get("integration") === "error") {
       const provider = searchParams.get("provider");
       const msg = searchParams.get("msg");
@@ -224,14 +234,31 @@ function SettingsContent() {
 
   useEffect(() => {
     if (!org?._id) return;
+    // ★Per business (P4.3b): the plan row reads this business's own lines
+    //  (api#1510), so a switch to a sibling business refetches, and ★only
+    //  the LATEST request lands: a response for the business switched away
+    //  from, arriving after the new one, would name the sibling's plan
+    //  (review R1). A request superseded by no other (the next run returned
+    //  early) still lands, so `loading` always clears (review R3).
+    const request = ++detailsRequest.current;
+    const latest = () => request === detailsRequest.current;
+    // ★An edit open on the previous business is closed: its fields hold
+    //  that business's values, and Save would PUT them to this one (R3).
+    setEditingBusiness(false);
     setLoading(true);
     setError("");
     api
       .get<OrgDetails>("/v1/dashboard/org")
-      .then(setOrgDetails)
-      .catch(() => setError("Failed to load settings. Please try again."))
-      .finally(() => setLoading(false));
-  }, [org?._id]);
+      .then((d) => {
+        if (latest()) setOrgDetails(d);
+      })
+      .catch(() => {
+        if (latest()) setError("Failed to load settings. Please try again.");
+      })
+      .finally(() => {
+        if (latest()) setLoading(false);
+      });
+  }, [org?._id, business?._id]);
 
   if (loading) {
     return <SettingsLoading />;
@@ -311,6 +338,11 @@ function SettingsContent() {
         {/* Wrong-brand integrations flagged by the fit-reconcile cron. Renders
             nothing when there's no pollution. */}
         <IntegrationFitAttention />
+        {/* ★THE SAME PANEL AS THE INTEGRATIONS PAGE, and the same component so
+            the two cannot drift. This is where a merchant comes back to when
+            something looks wrong rather than when they have just connected
+            something — the findings are the same either way. */}
+        <MeasurementHealthPanel manageHref="/dashboard/integrations" />
         {/* Business Details */}
         <Card>
           <CardHeader>
@@ -379,8 +411,11 @@ function SettingsContent() {
                 <SettingRow
                   label="Plan"
                   value={
-                    <Badge variant="outline" className="capitalize">
-                      {orgDetails?.billing?.plan || "free"}
+                    <Badge variant="outline">
+                      {/* The plan's NAME, not the raw billing key with a
+                          "free" fallback: there is no free tier (D19), and
+                          no plan reads "No plan". */}
+                      {planRowLabel(orgDetails ?? undefined, active)}
                     </Badge>
                   }
                 />
@@ -411,8 +446,11 @@ function SettingsContent() {
                 <SettingRow
                   label="Plan"
                   value={
-                    <Badge variant="outline" className="capitalize">
-                      {orgDetails?.billing?.plan || "free"}
+                    <Badge variant="outline">
+                      {/* The plan's NAME, not the raw billing key with a
+                          "free" fallback: there is no free tier (D19), and
+                          no plan reads "No plan". */}
+                      {planRowLabel(orgDetails ?? undefined, active)}
                     </Badge>
                   }
                 />
@@ -507,6 +545,8 @@ function SettingsContent() {
             </CardContent>
           </Card>
         </Link>
+
+        <DrivePrivacyCard canChange={driveAbilities(orgs.find((o) => o._id === org?._id)?.role).isAdmin} />
       </div>
     </div>
   );

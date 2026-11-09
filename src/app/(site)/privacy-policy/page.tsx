@@ -21,7 +21,7 @@ export default function PrivacyPolicyPage() {
 
         <div className="mt-8 space-y-8 text-sm leading-relaxed text-muted-foreground">
           <section>
-            <h2 className="text-lg font-semibold text-foreground">1. Introduction</h2>
+            <h2 id="introduction" className="text-lg font-semibold text-foreground scroll-mt-24">1. Introduction</h2>
             <p className="mt-2">
               This Privacy Policy explains how {SITE.company.legalName} (&quot;{SITE.name}&quot;,
               &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) — the companies that operate the {SITE.name}{" "}
@@ -53,9 +53,9 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">2. Information We Collect</h2>
+            <h2 id="information-we-collect" className="text-lg font-semibold text-foreground scroll-mt-24">2. Information We Collect</h2>
 
-            <h3 className="mt-4 font-medium text-foreground">2.1 Information You Provide</h3>
+            <h3 id="information-you-provide" className="mt-4 font-medium text-foreground scroll-mt-24">2.1 Information You Provide</h3>
             <ul className="mt-2 list-disc space-y-1 pl-6">
               <li>
                 <strong>Account information:</strong> name, email address, and password when
@@ -76,7 +76,7 @@ export default function PrivacyPolicyPage() {
               </li>
             </ul>
 
-            <h3 className="mt-4 font-medium text-foreground">2.2 Information from Third-Party Platforms</h3>
+            <h3 id="information-from-third-party-platforms" className="mt-4 font-medium text-foreground scroll-mt-24">2.2 Information from Third-Party Platforms</h3>
             <p className="mt-2">
               When you connect a third-party account, you authorize that platform — through
               its OAuth consent screen — to share specific data with us. We request only the
@@ -101,10 +101,14 @@ export default function PrivacyPolicyPage() {
                 X Developer Agreement and Policy.
               </li>
               <li>
-                <strong>LinkedIn:</strong> basic profile information, organization/company
-                page information, ad account details, campaign performance metrics, and lead
-                generation form responses, as authorized through OAuth and subject to the
-                LinkedIn API Terms of Use.
+                <strong>LinkedIn:</strong> basic profile information; organization/company
+                page information; the Company Pages you are authorized to administer,
+                including their posts and the comments, reactions and other engagement on
+                those posts; Page and post analytics such as impressions, engagement,
+                follower and demographic metrics; ad account details, campaign performance
+                metrics, and lead generation form responses — each only as authorized
+                through LinkedIn&apos;s OAuth consent screen and subject to the LinkedIn API
+                Terms of Use. See Section 12.4 for how this data is used and retained.
               </li>
               <li>
                 <strong>Google:</strong> where you connect Google services (e.g., analytics
@@ -115,10 +119,16 @@ export default function PrivacyPolicyPage() {
               <li>
                 <strong>Shopify and other commerce platforms:</strong> where you connect a
                 store, its profile, product catalog, inventory and published storefront
-                content. If you additionally enable order-based features and grant the
-                permission they need, we also receive order records, which can include your
-                shopper&apos;s name and phone number — processed on your behalf and described
-                in Section 12.5.
+                content. Because the order permissions are part of the same install grant, we
+                also receive order records from the moment your store is connected — these
+                can include your shopper&apos;s name, phone number and email address, and
+                the <strong>postcode and country</strong> of the order (never the street
+                lines), processed on your behalf and described in{" "}
+                <a href="#shopify" className="text-foreground underline">Section 12.5</a>. The
+                app can also <strong>write back</strong> to your store — publishing a blog
+                article you approved, or updating SEO text when you ask it to. The install
+                grant also covers creating discount codes, for a markdown feature described in
+                that section.
               </li>
               <li>
                 <strong>Beehiiv and other publishing tools:</strong> newsletter content,
@@ -126,7 +136,7 @@ export default function PrivacyPolicyPage() {
               </li>
             </ul>
 
-            <h3 className="mt-4 font-medium text-foreground">2.3 Automatically Collected Information</h3>
+            <h3 id="automatically-collected-information" className="mt-4 font-medium text-foreground scroll-mt-24">2.3 Automatically Collected Information</h3>
             <ul className="mt-2 list-disc space-y-1 pl-6">
               <li>
                 <strong>Usage data:</strong> pages visited, features used, and actions taken
@@ -144,7 +154,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">3. How We Use Your Information</h2>
+            <h2 id="how-we-use-your-information" className="text-lg font-semibold text-foreground scroll-mt-24">3. How We Use Your Information</h2>
             <p className="mt-2">We use collected information to:</p>
             <ul className="mt-2 list-disc space-y-1 pl-6">
               <li>Provide, maintain, and improve the Service.</li>
@@ -162,7 +172,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">4. AI Processing</h2>
+            <h2 id="ai-processing" className="text-lg font-semibold text-foreground scroll-mt-24">4. AI Processing</h2>
             <p className="mt-2">
               Our Service uses artificial intelligence — including our proprietary AI/ML
               models and third-party AI providers — to analyze your content, generate ad
@@ -179,9 +189,20 @@ export default function PrivacyPolicyPage() {
               </li>
               <li>AI-generated outputs (tags, creatives, recommendations) are stored in your account.</li>
               <li>You retain ownership of your original content and AI-generated outputs.</li>
+              <li>
+                <strong>LinkedIn member data is never used to train or improve any AI
+                model.</strong> Data obtained through the LinkedIn APIs — including LinkedIn
+                member profiles, Company Page content, comments, reactions, engagement and
+                analytics — is processed only to deliver the LinkedIn features you enabled,
+                in your account and for your organization. It is never used to train,
+                fine-tune, evaluate or otherwise improve our proprietary models or any
+                shared platform model, and it is never submitted to a third-party AI
+                provider for training purposes. This applies on every plan tier, including
+                Community and free trial accounts.
+              </li>
             </ul>
 
-            <h3 className="mt-6 font-medium text-foreground">
+            <h3 id="how-anonymized-data-improves-the-platform-for-everyone" className="mt-6 font-medium text-foreground scroll-mt-24">
               4.1 How Anonymized Data Improves the Platform for Everyone
             </h3>
             <p className="mt-2">
@@ -224,9 +245,19 @@ export default function PrivacyPolicyPage() {
                 Your individual content is never shown to other customers, used in
                 outputs for other accounts, or made publicly available.
               </li>
+              <li>
+                <strong>LinkedIn data is excluded entirely.</strong> Data obtained through
+                the LinkedIn APIs is out of scope for everything described in this section.
+                It does not enter the training pipeline in any form — not raw, not
+                aggregated, and not anonymized or de-identified — and it does not contribute
+                to the shared platform model on any plan tier. Nothing in this section, and
+                nothing in the plan-tier terms in Section 4.2, permits LinkedIn member or
+                Company Page data to be used to train or improve our models. See Section
+                12.4.
+              </li>
             </ul>
 
-            <h3 className="mt-6 font-medium text-foreground">
+            <h3 id="plan-tiers-and-data-processing" className="mt-6 font-medium text-foreground scroll-mt-24">
               4.2 Plan Tiers and Data Processing
             </h3>
             <p className="mt-2">
@@ -290,7 +321,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">5. How We Share Your Information</h2>
+            <h2 id="how-we-share-your-information" className="text-lg font-semibold text-foreground scroll-mt-24">5. How We Share Your Information</h2>
             <p className="mt-2">We do not sell your personal information. We share information only as follows:</p>
             <ul className="mt-2 list-disc space-y-1 pl-6">
               <li>
@@ -374,7 +405,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">6. Data Security</h2>
+            <h2 id="data-security" className="text-lg font-semibold text-foreground scroll-mt-24">6. Data Security</h2>
             <p className="mt-2">
               We implement appropriate technical and organizational measures to protect your
               information, including:
@@ -392,7 +423,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">7. Cookies</h2>
+            <h2 id="cookies" className="text-lg font-semibold text-foreground scroll-mt-24">7. Cookies</h2>
             <p className="mt-2">We use the following types of cookies:</p>
             <ul className="mt-2 list-disc space-y-1 pl-6">
               <li>
@@ -416,7 +447,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">8. Data Retention</h2>
+            <h2 id="data-retention" className="text-lg font-semibold text-foreground scroll-mt-24">8. Data Retention</h2>
             <p className="mt-2">
               We retain your information for as long as your account is active or as needed
               to provide the Service. Upon account deletion:
@@ -432,11 +463,19 @@ export default function PrivacyPolicyPage() {
               <li>
                 Data required for legal compliance may be retained for the legally required period.
               </li>
+              <li>
+                <strong>Platform Data may be subject to shorter retention periods</strong>{" "}
+                required by the applicable platform&apos;s developer terms. Where a
+                platform&apos;s terms impose a shorter retention or a faster deletion
+                obligation than the periods above, that shorter period applies to data
+                obtained from that platform&apos;s APIs. See Section 12 — and, for LinkedIn
+                specifically, Section 12.4.
+              </li>
             </ul>
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">9. Your Rights</h2>
+            <h2 id="your-rights" className="text-lg font-semibold text-foreground scroll-mt-24">9. Your Rights</h2>
             <p className="mt-2">
               Depending on your location, you may have the following rights regarding your
               personal data:
@@ -472,7 +511,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">10. International Data Transfers</h2>
+            <h2 id="international-data-transfers" className="text-lg font-semibold text-foreground scroll-mt-24">10. International Data Transfers</h2>
             <p className="mt-2">
               Your information may be transferred to and processed in countries other than
               your country of residence. We ensure appropriate safeguards are in place for
@@ -481,7 +520,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">11. Children&apos;s Privacy</h2>
+            <h2 id="childrens-privacy" className="text-lg font-semibold text-foreground scroll-mt-24">11. Children&apos;s Privacy</h2>
             <p className="mt-2">
               The Service is not intended for individuals under the age of 18. We do not
               knowingly collect personal information from children. If we learn that we have
@@ -490,7 +529,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">
+            <h2 id="third-party-platform-data-and-developer-program-compliance" className="text-lg font-semibold text-foreground scroll-mt-24">
               12. Third-Party Platform Data &amp; Developer-Program Compliance
             </h2>
             <p className="mt-2">
@@ -520,7 +559,7 @@ export default function PrivacyPolicyPage() {
               and contacts set out here apply to that data.
             </p>
 
-            <h3 className="mt-4 font-medium text-foreground">12.1 Meta Platform (Facebook, Instagram, Ads, WhatsApp)</h3>
+            <h3 id="meta-platform-facebook-instagram-ads-whatsapp" className="mt-4 font-medium text-foreground scroll-mt-24">12.1 Meta Platform (Facebook, Instagram, Ads, WhatsApp)</h3>
             <p className="mt-2">
               Our use and transfer of information received from Meta APIs adheres to the{" "}
               <a href="https://developers.facebook.com/terms/" className="text-foreground underline" target="_blank" rel="noopener noreferrer">
@@ -537,7 +576,7 @@ export default function PrivacyPolicyPage() {
               page.
             </p>
 
-            <h3 className="mt-4 font-medium text-foreground">12.2 Google</h3>
+            <h3 id="google" className="mt-4 font-medium text-foreground scroll-mt-24">12.2 Google</h3>
             <p className="mt-2">
               Where you connect Google services, our use and transfer of information received
               from Google APIs adheres to the{" "}
@@ -550,20 +589,100 @@ export default function PrivacyPolicyPage() {
               for security, or to comply with law).
             </p>
 
-            <h3 className="mt-4 font-medium text-foreground">12.3 X (formerly Twitter)</h3>
+            <h3 id="x-formerly-twitter" className="mt-4 font-medium text-foreground scroll-mt-24">12.3 X (formerly Twitter)</h3>
             <p className="mt-2">
               Our access to and use of X content and data complies with the X Developer
               Agreement and Policy. We use X data only to provide the features you enable and
               cease using, and delete, such data when you revoke access or as required by X.
             </p>
 
-            <h3 className="mt-4 font-medium text-foreground">12.4 LinkedIn</h3>
+            <h3 id="linkedin" className="mt-4 font-medium text-foreground scroll-mt-24">12.4 LinkedIn</h3>
             <p className="mt-2">
-              Our use of LinkedIn data complies with the LinkedIn API Terms of Use and is
-              limited to the authorized purposes for which you connected your LinkedIn account.
+              Our use of LinkedIn data complies with the{" "}
+              <a href="https://legal.linkedin.com/api-terms-of-use" className="text-foreground underline" target="_blank" rel="noopener noreferrer">
+                LinkedIn API Terms of Use
+              </a>{" "}
+              and the LinkedIn Developer Program policies, and is limited to the authorized
+              purposes for which you connected your LinkedIn account.
+            </p>
+            <p className="mt-2">
+              <strong>Community management.</strong> Where you connect LinkedIn, the Service
+              lets an authorized business manage the LinkedIn <strong>Company Pages it
+              administers</strong> from within {SITE.name}. Specifically, and only for Pages
+              on which the connecting member holds an administrator role granted by your
+              organization, we use the LinkedIn APIs on your instruction to:
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-6">
+              <li>publish, schedule, edit and delete posts on your Company Page;</li>
+              <li>
+                read Page and post analytics — impressions, engagement, clicks, follower
+                counts and the aggregate follower/viewer demographics LinkedIn provides — and
+                present them to you in reports and dashboards;
+              </li>
+              <li>
+                monitor the comments and reactions on your Page&apos;s posts, so that your
+                team sees new activity in one place; and
+              </li>
+              <li>
+                reply to, moderate and delete comments on your own Page&apos;s posts, as your
+                organization&apos;s authorized representative.
+              </li>
+            </ul>
+            <p className="mt-2">
+              To do this we receive and store the LinkedIn content and engagement data
+              described in Section 2.2 — including your Page&apos;s posts and the comments
+              and reactions on them, which contain the commenting member&apos;s name, public
+              profile headline, profile picture and profile link. That data is shown only to
+              the users of your {SITE.name} account who are authorized to manage that Page.
+            </p>
+            <p className="mt-2">
+              <strong>What we do not do with LinkedIn data.</strong> LinkedIn member and
+              community data is used solely to deliver the community management features
+              above. We do <strong>not</strong>:
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-6">
+              <li>sell, rent, license or otherwise share it with any third party;</li>
+              <li>
+                use it for advertising or ad targeting — including creating, enriching or
+                syncing custom, matched or lookalike audiences;
+              </li>
+              <li>
+                treat members who engage with your Page as leads, or add them to lead lists,
+                outreach sequences or prospecting tools;
+              </li>
+              <li>
+                export it into, or use it to enrich, a CRM or any other contact, marketing or
+                data-broker database;
+              </li>
+              <li>
+                build independent profiles of LinkedIn members, or combine LinkedIn data with
+                data from other sources to profile, score, segment or track individuals for
+                any purpose unrelated to managing your Page; or
+              </li>
+              <li>
+                use it to train, fine-tune or improve any AI model, whether ours or a third
+                party&apos;s — see Sections 4 and 4.1.
+              </li>
+            </ul>
+            <p className="mt-2">
+              <strong>Retention and deletion.</strong> We keep LinkedIn Platform Data only for
+              as long as it is needed to provide the features you enabled, and no longer than
+              the LinkedIn API Terms of Use and Developer Program policies permit; where those
+              terms require a shorter retention period than the general periods in Section 8,
+              the shorter period applies. We refresh stored LinkedIn content and engagement
+              data against LinkedIn so that our copy reflects the current state, and where
+              content is edited or deleted on LinkedIn we reflect that change or delete our
+              copy. We delete the LinkedIn data we hold — and revoke the stored access tokens
+              — when you disconnect the LinkedIn integration, when you close your{" "}
+              {SITE.name} account, when LinkedIn instructs us to, or when you ask us to at{" "}
+              <a href={`mailto:${SITE.contactPrivacy}`} className="text-foreground underline">
+                {SITE.contactPrivacy}
+              </a>
+              . You can revoke our access at any time from your LinkedIn account&apos;s
+              permitted-services settings.
             </p>
 
-            <h3 className="mt-4 font-medium text-foreground">12.5 Shopify</h3>
+            <h3 id="shopify" className="mt-4 font-medium text-foreground scroll-mt-24">12.5 Shopify</h3>
             <p className="mt-2">
               If you install our Shopify app, we access data from your Shopify store through
               the Shopify Admin API under the permissions you grant at install, and our use of
@@ -574,23 +693,77 @@ export default function PrivacyPolicyPage() {
               and the Shopify Protected Customer Data requirements.
             </p>
             <p className="mt-2">
-              <strong>What we access today.</strong> Your store profile, product catalog,
-              inventory, and published storefront content such as pages and blog posts. The app
-              currently requests <strong>catalog permissions only</strong>. It does{" "}
-              <strong>not</strong> request access to your orders or to your customer list, so
-              today we hold no personal data about your shoppers from Shopify at all.
+              <strong>What we access.</strong> Your store profile, product catalog,
+              inventory, and published storefront content such as pages and blog posts. Those
+              catalog permissions contain no personal data about your shoppers. Separately,
+              the app requests the <strong>protected customer data</strong> permissions that
+              order-based features need — order records, and the customer name, phone number,
+              email address, the <strong>postcode and country</strong> of the order&apos;s
+              delivery and billing addresses, and whether that shopper has{" "}
+              <strong>opted in or out of marketing</strong> by email and by SMS, as recorded on
+              their Shopify customer account. Shopify reviews and approves those permissions.
+              You grant them <strong>when you install the app</strong>, together with the
+              catalog permissions and in the same prompt — they are not a separate, later
+              opt-in. (If your store was connected before we added a permission, Shopify asks
+              you to approve the addition the next time you open the app, and the features that
+              need it do not run until you do.) Once your store is connected we sync your
+              orders, so the fields listed here reach us from that point, whether or not you
+              have switched on a feature that uses them.
             </p>
             <p className="mt-2">
-              <strong>What changes if you enable order-based features.</strong> Features such as
-              cash-on-delivery confirmation need your <strong>order records</strong> — line
-              items, quantities, totals, currency, dates, and whether the order is
-              cash-on-delivery. Those features require you to grant order access, and Shopify
-              asks you to approve that separately. Everything in the rest of this section
-              describes what happens once you do; until then it does not apply to your store.
+              <strong>What we write back to your store.</strong> With your permission the app
+              does not only read — it can <strong>publish and edit content on your live
+              storefront</strong> on your instruction: creating a blog article you composed and
+              approved in {SITE.name}, and updating the SEO title and description on a blog
+              post, page or product when you press Fix. The install grant also includes
+              permission to create <strong>discount codes</strong>, for a markdown feature you
+              approve item by item. These writes are made with the permissions you granted at
+              install, only to the store you connected, and only when you ask for them — we do
+              not publish or change anything on a schedule you did not set. Content we publish
+              is content you reviewed. Nothing we write contains your shoppers&apos; personal
+              data.
+            </p>
+            <p className="mt-2">
+              <strong>What order-based features use.</strong> Features such as
+              cash-on-delivery confirmation and delivery-area analysis use your{" "}
+              <strong>order records</strong> — line items, quantities, totals, currency,
+              dates, whether the order is cash-on-delivery, the order&apos;s status including
+              returns and cancellations, and the postcode and country on it. Switching a
+              feature on changes what we <strong>do</strong> with that data, not whether we
+              receive it: the permissions are granted at install and the order sync follows
+              from the connection itself.
+            </p>
+            <p className="mt-2">
+              <strong>How far back we look.</strong> Shopify has approved Peakhour to read
+              your store&apos;s <strong>full order history</strong>, not only the most recent
+              60 days. Each store confirms this permission when it installs or updates the
+              app; until your store has confirmed it, Shopify limits us to your last 60 days
+              of orders, and the app tells you so.
+            </p>
+            <p className="mt-2">
+              We use older orders for three purposes only.{" "}
+              <strong>Merchandising:</strong> from older orders we read line items, dates and
+              order status (never the shopper&apos;s name, phone number, email address or
+              postcode) to tell seasonal patterns from real changes in demand, and slow-moving
+              stock from stock that has stopped selling. <strong>Order status:</strong> when a
+              signed-in shopper asks the storefront assistant about their own order, we look up
+              that shopper&apos;s orders of any age and show the status, delivery estimate and
+              tracking to that shopper only. The reply is kept only as part of the
+              conversation, which is deleted 180 days after its last message, and it is never
+              used for advertising, sale or profiling. <strong>Customer support:</strong> when
+              someone on your team opens a conversation in the Peakhour Inbox, we show that
+              customer&apos;s orders with your store, of any age, so the person answering knows
+              the customer&apos;s history. This is shown only to your team, inside your own
+              Peakhour account, and is never used for advertising, sale or profiling.
             </p>
             <p className="mt-2">
               <strong>Your customers&apos; data, and our role.</strong> An order record can
-              include your customer&apos;s <strong>name and phone number</strong>. We process
+              include your customer&apos;s <strong>name, phone number, email address, and the
+              postcode and country</strong> of the delivery or billing address, and a contact
+              phone number recorded on it. We do <strong>not</strong> receive street lines,
+              building names or anything else that identifies a specific address — our request
+              asks Shopify for the postcode, the country and the phone, and nothing more of
+              either address block. We process
               those <strong>on your behalf and on your instructions</strong>: for your
               shoppers&apos; personal data you are the controller / Data Fiduciary and we act
               as your processor. We use it only to deliver the features you switched on — for
@@ -602,53 +775,92 @@ export default function PrivacyPolicyPage() {
               customer contact details.
             </p>
             <p className="mt-2">
-              <strong>What we deliberately do not take.</strong> We do not request or store
-              shopper <strong>email addresses</strong>, and we do not request shipping
-              addresses. We ask for the narrowest permissions the features need.
+              <strong>Why we need the postcode, and what we do with it.</strong> We use the
+              postcode and country on an order for <strong>delivery-area analysis</strong>:
+              aggregating your orders, returns and cancellations by postcode area and country
+              so that you can see where your demand and your returns are concentrated, and use
+              those patterns to plan your marketing, targeting and merchandising. The analysis
+              is about <strong>places, not people</strong> — it is presented to you as counts
+              and trends per area, never as a list of shoppers. The postcode is also used,
+              where a feature you enabled needs it, to deliver that feature for the order it
+              belongs to. We do not use it for our own advertising, we do not sell or share it,
+              and we do not use it to train AI models.
             </p>
             <p className="mt-2">
-              <strong>How long we keep it.</strong> The copy of a shopper&apos;s name and phone
-              number that sits <strong>on each order</strong> is <strong>erased after 90
-              days</strong> — the purpose it serves, such as confirming that order, is measured
-              in days rather than years. The rest of the order record is retained as your
-              business data, because it is what makes inventory, seasonality and merchandising
-              analysis work; it carries no shopper contact details once that window has passed.
+              <strong>What we deliberately do not take.</strong> We never receive your
+              shoppers&apos; <strong>payment details</strong> — Shopify does not expose card or
+              bank information to apps, and we do not ask for it. We ask for the narrowest
+              permissions the features need, and we request protected customer data only for the
+              features described here.
+            </p>
+            <p className="mt-2">
+              <strong>How long we keep it.</strong> The copy of a shopper&apos;s name, phone
+              number, email address and <strong>postcode</strong> that sits{" "}
+              <strong>on each order</strong> is <strong>erased after 90 days</strong> — the
+              purpose it serves, such as confirming that order, is measured in days rather than
+              years. What survives that window is the order&apos;s <strong>country</strong> and
+              a <strong>one-way scrambled form of the postcode</strong>, which lets us keep
+              matching orders from the same delivery area without holding the postcode itself.
+              It cannot be turned back into an address and it names no shopper. The rest of the
+              order record is retained as your business data, because it is what makes
+              inventory, seasonality, delivery-area and merchandising analysis work; it carries
+              no shopper contact details once that window has passed. It also keeps a{" "}
+              <strong>pseudonymous reference</strong> — a one-way scrambled value derived from
+              the phone number — so that a later deletion request can still find every order
+              belonging to that shopper. It is not readable as a phone number and is not used
+              to contact anyone.
             </p>
             <p className="mt-2">
               Separately, we keep one <strong>customer record per shopper</strong> holding their
-              name and phone number, so that repeat orders are recognised as the same person and
+              name, phone number and email address, so that repeat orders are recognised as the
+              same person and
               so you can still reach a customer about an order placed months ago. That record is
-              kept for as long as your store stays connected, and is erased when the shopper asks
-              you to delete their data, when the store is redacted after you uninstall the app,
-              or when you close your {SITE.name} account — whichever happens first. It is not on
-              a 90-day timer.
+              kept for as long as your store stays connected. When the shopper asks you to
+              delete their data, when the store is redacted after you uninstall the app, or when
+              you close your {SITE.name} account — whichever happens first — we remove the
+              identifying details from it (name, phone, email) and keep only the pseudonymous
+              reference described above, so that the same erasure can still be applied to
+              anything that arrives afterwards. It is not on a 90-day timer.
             </p>
             <p className="mt-2">
               <strong>Deletion requests.</strong> We support Shopify&apos;s mandatory privacy
               webhooks. When a shopper asks you to delete their data, Shopify notifies us and we
-              erase the personal details we received from Shopify about them — the name and phone
-              on their orders, and the customer record described above. If you uninstall the app,
+              erase the personal details we received from Shopify about them — the name, phone,
+              email and postcode on their orders, including the scrambled form of the postcode
+              described above, and the customer record. Where we can identify the same shopper
+              on another channel of yours — for example a WhatsApp conversation reachable at the
+              same phone number — that contact and its messages are erased too, so a deletion
+              request is not answered only within Shopify. If you
+              uninstall the app,
               Shopify sends us a shop-redaction notice about <strong>48 hours later</strong>, and
               that is when we erase the store data we hold; the delay is Shopify&apos;s, and it
-              exists so that reinstalling within that window does not cost you your history. Data
-              that
-              reached us through a different channel — for example, a shopper who messaged your
-              business on WhatsApp — belongs to that channel&apos;s record and is erased through
-              it, not by a Shopify notification. You can ask us to erase anything we hold at{" "}
+              exists so that reinstalling within that window does not cost you your history.
+            </p>
+            <p className="mt-2">
+              <strong>The one thing an erasure deliberately keeps.</strong> If a shopper has{" "}
+              <strong>opted out</strong> of marketing, we keep that opt-out — and nothing else —
+              after erasing everything described above. It is stored as a one-way scrambled
+              value with no name, phone number or email attached, so it cannot be used to
+              identify or contact anyone; it exists only so that we can recognise a
+              &quot;no&quot; if the same shopper reappears. Erasing it would mean forgetting
+              that someone asked not to be messaged, and then messaging them. Retaining the
+              minimum needed to honour an objection is a recognised exception to erasure, and
+              holding it in this form is what keeps it minimal. When you close your account
+              entirely, it goes too. You can ask us to erase anything we hold at{" "}
               <a href={`mailto:${SITE.contactPrivacy}`} className="text-foreground underline">
                 {SITE.contactPrivacy}
               </a>
               .
             </p>
 
-            <h3 className="mt-4 font-medium text-foreground">12.6 Microsoft and other providers</h3>
+            <h3 id="microsoft-and-other-providers" className="mt-4 font-medium text-foreground scroll-mt-24">12.6 Microsoft and other providers</h3>
             <p className="mt-2">
               Where you connect Microsoft or other third-party services, we comply with the
               applicable provider&apos;s API terms and use the data only to deliver the features
               you have enabled.
             </p>
 
-            <h3 className="mt-4 font-medium text-foreground">12.7 Revoking access</h3>
+            <h3 id="revoking-access" className="mt-4 font-medium text-foreground scroll-mt-24">12.7 Revoking access</h3>
             <p className="mt-2">
               You can disconnect any integration at any time from your account settings or
               from the relevant platform&apos;s app/connected-apps settings. On disconnection we
@@ -657,7 +869,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">13. Legal Bases for Processing (EEA / UK)</h2>
+            <h2 id="legal-bases-for-processing-eea-uk" className="text-lg font-semibold text-foreground scroll-mt-24">13. Legal Bases for Processing (EEA / UK)</h2>
             <p className="mt-2">
               If you are in the European Economic Area or the United Kingdom, we process your
               personal data on one or more of the following legal bases under the GDPR:
@@ -685,9 +897,9 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">14. Region-Specific Privacy Rights</h2>
+            <h2 id="region-specific-privacy-rights" className="text-lg font-semibold text-foreground scroll-mt-24">14. Region-Specific Privacy Rights</h2>
 
-            <h3 className="mt-4 font-medium text-foreground">14.1 European Economic Area &amp; United Kingdom (GDPR)</h3>
+            <h3 id="european-economic-area-and-united-kingdom-gdpr" className="mt-4 font-medium text-foreground scroll-mt-24">14.1 European Economic Area &amp; United Kingdom (GDPR)</h3>
             <p className="mt-2">
               In addition to the rights in Section 9, you have the right to lodge a complaint
               with your local supervisory authority (in the UK, the Information
@@ -695,7 +907,7 @@ export default function PrivacyPolicyPage() {
               carried out by automated means, you also have the right to data portability.
             </p>
 
-            <h3 className="mt-4 font-medium text-foreground">14.2 California (CCPA / CPRA)</h3>
+            <h3 id="california-ccpa-cpra" className="mt-4 font-medium text-foreground scroll-mt-24">14.2 California (CCPA / CPRA)</h3>
             <p className="mt-2">
               If you are a California resident, you have the right to know what personal
               information we collect and how we use and disclose it, to request access and
@@ -710,7 +922,7 @@ export default function PrivacyPolicyPage() {
               and we have not done so in the preceding twelve months.
             </p>
 
-            <h3 className="mt-4 font-medium text-foreground">14.3 India (DPDP Act, 2023)</h3>
+            <h3 id="india-dpdp-act-2023" className="mt-4 font-medium text-foreground scroll-mt-24">14.3 India (DPDP Act, 2023)</h3>
             <p className="mt-2">
               If you are in India, you have the right to access a summary of your personal data
               and our processing, to correction and erasure of your data, to nominate another
@@ -723,7 +935,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">15. Grievance Redressal (India)</h2>
+            <h2 id="grievance-redressal-india" className="text-lg font-semibold text-foreground scroll-mt-24">15. Grievance Redressal (India)</h2>
             <p className="mt-2">
               In accordance with the DPDP Act, 2023 and applicable Information Technology
               rules, {SITE.company.legalName} has appointed a Grievance Officer to address
@@ -747,7 +959,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">16. Governing Law &amp; Jurisdiction</h2>
+            <h2 id="governing-law-and-jurisdiction" className="text-lg font-semibold text-foreground scroll-mt-24">16. Governing Law &amp; Jurisdiction</h2>
             <p className="mt-2">
               This Privacy Policy and any dispute arising out of or relating to it or the
               processing of your personal data are governed by the laws of India, and the
@@ -758,7 +970,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">17. Changes to This Policy</h2>
+            <h2 id="changes-to-this-policy" className="text-lg font-semibold text-foreground scroll-mt-24">17. Changes to This Policy</h2>
             <p className="mt-2">
               We may update this Privacy Policy from time to time. We will notify you of
               material changes by posting the new policy on this page and updating the
@@ -768,7 +980,7 @@ export default function PrivacyPolicyPage() {
           </section>
 
           <section>
-            <h2 className="text-lg font-semibold text-foreground">18. Contact Us</h2>
+            <h2 id="contact-us" className="text-lg font-semibold text-foreground scroll-mt-24">18. Contact Us</h2>
             <p className="mt-2">
               If you have questions about this Privacy Policy or our data practices, contact:
             </p>

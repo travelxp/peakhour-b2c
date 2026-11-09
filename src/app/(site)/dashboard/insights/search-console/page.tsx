@@ -39,6 +39,7 @@ import { TrendChart } from "@/components/viz/trend-chart";
 import { ExplainCard } from "@/components/dashboard/explain-card";
 import { useSetAskEntityIds } from "@/providers/ask-context-provider";
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
+import { describeActionPage, stripUnsafeText } from "@/lib/search-action-page";
 
 // ── Types (mirror peakhour-api search-insights service) ─────────────────────
 interface ConnectionStatus {
@@ -71,6 +72,16 @@ interface SearchAction {
   headline: string;
   detail: string;
   recommendation: string;
+  /**
+   * The page this action applies to.
+   *
+   * ★OPTIONAL, AND ABSENT IS ORDINARY. The api pairs only the top ~30 terms by
+   * upside and refreshes them about daily, so a freshly connected property has
+   * a full worklist and no addresses for up to a day, and the tail of a long
+   * worklist legitimately has none. A card without one is the card we shipped
+   * before this existed — never an error state.
+   */
+  url?: string;
 }
 
 type MovementKind = "new_winner" | "slipped" | "dropped" | "rising" | "falling";
@@ -476,15 +487,15 @@ export default function SearchConsoleInsightsPage() {
                         {data.health.issues.map((iss, i) => (
                           <li key={`${iss.kind}-${iss.url}-${i}`} className="rounded-md border p-3">
                             <div className="flex items-start justify-between gap-3">
-                              <a
-                                href={iss.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="truncate font-mono text-xs underline"
-                                title={iss.url}
-                              >
-                                {iss.title || iss.url}
-                              </a>
+                              {/* ★SANITISED THROUGH THE SAME LIB AS THE WORKLIST LINK.
+                                  Pre-existing, and untouched by this feature — but
+                                  `cnt_site_graph.health.index` is written by the same
+                                  raw-insert path from the same unvalidated source, so
+                                  once one link on this page is documented as defended
+                                  and the one above it is not, the defence is decorative.
+                                  A URL we cannot vouch for renders as plain text, which
+                                  still tells the customer which page has the problem. */}
+                              <HealthIssueLink url={iss.url} title={iss.title} />
                               <Badge variant="outline" className="shrink-0 text-xs">
                                 {HEALTH_ISSUE_LABEL[iss.kind]}
                               </Badge>
@@ -517,7 +528,13 @@ export default function SearchConsoleInsightsPage() {
                     body="Once your pages gather enough search impressions, we'll surface the highest-impact things to do here."
                   />
                 ) : (
-                  data.actions.map((a, i) => <ActionCard key={`${a.query}-${i}`} action={a} />)
+                  data.actions.map((a, i) => (
+                    <ActionCard
+                      key={`${a.query}-${i}`}
+                      action={a}
+                      property={data.siteUrl ?? property}
+                    />
+                  ))
                 )}
 
                 {data.locked > 0 && (
@@ -693,7 +710,42 @@ function PositionTile({ now, delta }: { now: number; delta: number | null }) {
   );
 }
 
-function ActionCard({ action: a }: { action: SearchAction }) {
+/**
+ * A health-issue URL, linked only when it is safe to link.
+ *
+ * Same rule as the worklist's page link: an href we did not author, from a
+ * collection with no validator, must be an http(s) URL or it is not an href at
+ * all. Unlinkable, the title or the raw string still identifies the page.
+ */
+function HealthIssueLink({ url, title }: { url: string; title?: string }) {
+  const page = describeActionPage(url);
+  // ★THE TEXT IS SANITISED TOO, NOT ONLY THE href. A first version of this
+  // component checked the URL and then printed `title || url` raw — so a
+  // right-to-left override in a page TITLE reordered the visible label over a
+  // link pointing somewhere else, which is precisely the attack readablePath
+  // exists to stop, left open on the very link added to close the gap.
+  // A title is not a path, so it is stripped but never percent-decoded.
+  const text = title ? stripUnsafeText(title) : (page?.label ?? stripUnsafeText(url));
+  if (!page) {
+    return <span className="truncate font-mono text-xs text-muted-foreground">{text}</span>;
+  }
+  return (
+    <a
+      href={page.href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="truncate font-mono text-xs underline"
+      title={page.href}
+    >
+      {text}
+    </a>
+  );
+}
+
+function ActionCard({ action: a, property }: { action: SearchAction; property?: string }) {
+  // Safety and readability both live in the lib — see its header. The card
+  // renders what it returns and decides nothing.
+  const page = describeActionPage(a.url, property);
   return (
     <Card>
       <CardContent className="space-y-2 py-4">
@@ -714,6 +766,38 @@ function ActionCard({ action: a }: { action: SearchAction }) {
           <span className="font-medium">Do this: </span>
           {a.recommendation}
         </p>
+        {/* ── The page this applies to ──
+            ★DIRECTLY UNDER "Do this", because it is part of the instruction
+            rather than another statistic — "rewrite the title" and "on THIS
+            page" are one thought. Absent, the card is exactly what it was. */}
+        {page && (
+          <p className="flex flex-wrap items-center gap-x-1.5 text-sm">
+            <span className="font-medium">On this page: </span>
+            <a
+              href={page.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-sm text-[#458CF7] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#458CF7]"
+              title={page.href}
+            >
+              {/* ★ONE ADDRESS, NOT TWO WORDS. `gap` on the anchor put a visible
+                  space between the host and the path — `elsewhere.com /post`.
+                  Host and label share a span with no gap between them.
+                  ★AND IT TRUNCATES: the label is a 48-character unbreakable mono
+                  string, which at min-content width overflows a card interior on
+                  a 360px phone. `min-w-0` lets the flex child shrink; the
+                  sibling link above solves it the same way. */}
+              <span className="truncate font-mono text-xs">
+                {page.foreignHost && (
+                  <span className="text-muted-foreground">{page.foreignHost}</span>
+                )}
+                {page.label}
+              </span>
+              <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
+              <span className="sr-only">(opens in a new tab)</span>
+            </a>
+          </p>
+        )}
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
           <span>Position {a.position}</span>
           <span>{num(a.impressions)} impressions</span>

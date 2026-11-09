@@ -16,7 +16,11 @@ import type { CheckoutResult } from "@/components/upgrade/payment-modal";
 
 /** Every reason the api's `blockedReason` can carry. `no_wallet` and
  *  `not_priced_here` are hosted-rail states the POST also refuses; omitting them
- *  from this union is how a blocked card ends up with no explanation. */
+ *  from this union is how a blocked card ends up with no explanation.
+ *  There is no Shopify reason: Peaks are always bought here, whatever the org
+ *  has linked (billing plan D18 revised 2026-10-06, P4.10a/P4.10b), so the
+ *  api's retired `shopify_billed` marker is not a member, and `blockedCopy`
+ *  answers it like any reason it does not know. */
 export type PackBlockedReason =
   | "plan_required"
   | "unlimited"

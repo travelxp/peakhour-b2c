@@ -3,6 +3,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
+import { useActiveStore } from "@/providers/active-store-provider";
 
 /**
  * Commerce inventory-intelligence hooks (WS3). `useInventory` reads the free
@@ -32,10 +33,11 @@ export interface InventorySummary {
 const INVENTORY_KEY = "commerce-inventory";
 
 export function useInventory() {
+  const store = useActiveStore();
   const { isAuthenticated, org } = useAuth();
   return useQuery<InventorySummary>({
-    queryKey: [INVENTORY_KEY, org?._id ?? null],
-    queryFn: () => api.get<InventorySummary>("/v1/commerce/inventory"),
+    queryKey: [INVENTORY_KEY, org?._id ?? null, store.merchantId ?? null],
+    queryFn: () => api.get<InventorySummary>(store.path("/v1/commerce/inventory")),
     enabled: isAuthenticated && !!org?._id,
     staleTime: 5 * 60_000,
     // A missing store / unsynced catalog returns a 4xx — don't hammer it.
@@ -49,7 +51,8 @@ export interface InventoryDiagnosis {
 }
 
 export function useInventoryDiagnosis() {
+  const store = useActiveStore();
   return useMutation<InventoryDiagnosis, Error>({
-    mutationFn: () => api.post<InventoryDiagnosis>("/v1/commerce/inventory/diagnose", {}),
+    mutationFn: () => api.post<InventoryDiagnosis>(store.path("/v1/commerce/inventory/diagnose"), {}),
   });
 }

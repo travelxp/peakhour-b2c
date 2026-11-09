@@ -53,6 +53,8 @@ export function OAuthConnectResult() {
     // Same keys the settings page invalidates on connect.
     queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] });
     queryClient.invalidateQueries({ queryKey: ["linkedin-me"] });
+    // D-03b: the outcomes page's reconnect card is the api's, in /outcomes.
+    queryClient.invalidateQueries({ queryKey: ["growth-outcomes"] });
 
     // Drop only OUR params — a returnTo carrying its own query (e.g.
     // /dashboard/ads?channel=linkedin) must keep it, or the page reloads

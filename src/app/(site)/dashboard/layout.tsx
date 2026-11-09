@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,11 +29,11 @@ import {
   SidebarMenuSubItem,
   SidebarProvider,
   SidebarRail,
-  SidebarSeparator,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { OrgSwitcher } from "@/components/dashboard/org-switcher";
-import { BusinessSwitcher } from "@/components/dashboard/business-switcher";
+import { WorkspaceSwitcher } from "@/components/dashboard/workspace-switcher";
+import { PeakhourMark } from "@/components/shared/peakhour-logo";
+import { UserAvatar } from "@/components/dashboard/user-avatar";
 import { PlanBadge } from "@/components/dashboard/plan-badge";
 import { AttentionBell } from "@/components/dashboard/attention-bell";
 import { TrialExpiryBanner } from "@/components/dashboard/trial-expiry-banner";
@@ -41,12 +41,18 @@ import { BalanceChip } from "@/components/dashboard/balance-chip";
 import { CreditCapBanner } from "@/components/dashboard/credits-cap-banner";
 import { CommandMenu } from "@/components/molecules/command-menu";
 import { SidebarStorageMeter } from "@/components/dashboard/sidebar-storage-meter";
+import { AddSpaceDialog } from "@/components/media/add-space-dialog";
+import { UploadTrayHost } from "@/components/drive/upload-tray";
 import { FeedbackWidget } from "@/components/molecules/feedback-widget";
 import { ChatPanel } from "@/components/molecules/chat-panel";
 import { AskContextProvider } from "@/providers/ask-context-provider";
 import { AskLauncher } from "@/components/ask/ask-launcher";
 import { ASK_ENABLED } from "@/lib/flags";
+import { HOME_ROUTE, OUTCOMES_HOME, funnelNav } from "@/lib/nav-home";
+import { GROWTH_HOME, activeSubHref, growthNav, mandateStateOf } from "@/lib/growth-v2-nav";
+import { useGrowthV2Rules } from "@/lib/api/growth-v2";
 import {
+  Gauge,
   LayoutDashboard,
   Sparkles,
   FileText,
@@ -63,6 +69,7 @@ import {
   ShoppingBag,
   MapPin,
   LineChart,
+  HardDrive,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -92,7 +99,7 @@ interface NavItem {
    * ungated items. See LockedNavItem.
    */
   upsellTagline?: string;
-  subItems?: { href: string; label: string; badge?: () => React.ReactNode }[];
+  subItems?: { href: string; label: string; matches?: string[]; badge?: () => React.ReactNode }[];
 }
 
 interface NavGroup {
@@ -107,14 +114,41 @@ interface NavGroup {
 // page route enforces the same gate server-trip-free via a redirect.
 const SHOW_AUTOPILOT = process.env.NEXT_PUBLIC_VERCEL_ENV !== "production";
 
-const NAV_GROUPS: NavGroup[] = [
+/**
+ * ★THE ORDER IS THE WEEK, NOT THE ORG CHART. It runs
+ * Overview → Integrations → Inbox → Content → Growth → Commerce → Presence →
+ * Insights, then everything else.
+ *
+ * Integrations sits second because it is the prerequisite for all of it: an
+ * owner whose channels are not connected cannot do a single thing in the five
+ * pillars below, and burying the connect step under Settings is what made a
+ * half-connected account look like a broken product. Inbox is third because a
+ * customer waiting on a reply outranks anything Peakhour might publish. Then
+ * the five pillars in their canonical order, then Insights, which is where you
+ * go to see how the six above went.
+ *
+ * Ask Peakhour, Tasks, Drive, Peaks and Settings drop below that line. None of
+ * them is a place you go to DO the business — they are the assistant, the
+ * machine's own work log, the shelf of files every pillar reads from, the meter
+ * and the controls — and mixing them into the pillar run made the list read as
+ * thirteen equal things.
+ *
+ * Drive sits directly above Peaks (plan DR2): it is the one place for every
+ * image, video, document and brand kit, so it cannot live under Content, which
+ * is only one of the pillars that reads from it. It replaced "Media", a
+ * Content sub-item, and its old route is gone.
+ *
+ * There is deliberately ONE group with no label. A label per cluster would add
+ * four headings and three rules to a list of thirteen items, which is more chrome
+ * than the grouping is worth; the ordering carries the meaning on its own.
+ */
+const PILLAR_NAV: NavGroup[] = [
   {
     label: "",
     items: [
       { href: "/dashboard/overview", label: "Overview", icon: LayoutDashboard },
-      ...(ASK_ENABLED
-        ? [{ href: "/dashboard/ask", label: "Ask Peakhour", icon: Sparkles }]
-        : []),
+      { href: "/dashboard/integrations", label: "Integrations", icon: Plug },
+      { href: "/dashboard/inbox", label: "Inbox", icon: MessagesSquare },
       {
         href: "/dashboard/content",
         label: "Content",
@@ -138,34 +172,26 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/dashboard/content/news", label: "News Desk" },
           { href: "/dashboard/strategist", label: "Strategist" },
           { href: "/dashboard/calendar", label: "Calendar" },
-          { href: "/dashboard/media", label: "Media" },
+          // Ledger closes the chain the order above describes: ingest → ground
+          // → plan → publish → what it EARNED. It sits after Calendar because
+          // it is the only screen here about what came back rather than what
+          // goes out, and it is meaningless before something has gone out.
+          { href: "/dashboard/content/ledger", label: "Ledger" },
           { href: "/dashboard/content/seasonal-events", label: "Seasonal Events" },
         ],
       },
       {
-        href: "/dashboard/ads",
+        // ★GROWTH IS FIVE SCREENS AND A FIRST RUN, NOT A LIST OF TOOLS. The
+        // sub-items depend on whether a mandate exists (First run shows only
+        // without one), so they are filled in by DashboardShell from
+        // `growthNav` rather than written out here. Audiences, Your Business,
+        // Ad creatives and Signals are tabs inside Rules and Learning;
+        // campaign management stays at /dashboard/ads, reached from Channels &
+        // money.
+        href: GROWTH_HOME,
         label: "Growth",
         icon: TrendingUp,
-        subItems: [
-          // Your Business leads, and Audiences follows it, because that is the
-          // order the engine actually works in: what we understand about the
-          // customer produces the audiences, and the audiences are what the
-          // campaigns spend against. Ads is where the money goes; these two are
-          // what it goes on.
-          { href: "/dashboard/growth/business", label: "Your Business" },
-          { href: "/dashboard/growth/audiences", label: "Audiences" },
-          // ★SIGNALS SITS UNDER AUDIENCES BECAUSE IT IS WHAT MAKES ONE OF THEM
-          // POSSIBLE. A retargeting audience IS website visitors, and without a
-          // tag on the site there is nobody to retarget — so this is a
-          // prerequisite of the list above it, not a settings page. It is under
-          // Growth rather than Integrations deliberately: Integrations is where
-          // a CONNECTION to somebody else's account lives, and this is code on
-          // the customer's own site.
-          { href: "/dashboard/growth/signals", label: "Signals" },
-          { href: "/dashboard/ads", label: "Ads" },
-          { href: "/dashboard/outcomes", label: "Outcomes" },
-          { href: "/dashboard/optimizer", label: "Optimizer" },
-        ],
+        subItems: growthNav("unknown"),
       },
       // Commerce — the third pillar. Gated on `commerce.nav` (granted to every
       // plan bundling a Commerce product; migration 144), so only Commerce
@@ -188,6 +214,9 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/dashboard/commerce/pricing", label: "Pricing" },
           { href: "/dashboard/commerce/reviews", label: "Reviews" },
           { href: "/dashboard/commerce/assistant", label: "Assistant" },
+          { href: "/dashboard/commerce/knowledge", label: "Knowledge base" },
+          { href: "/dashboard/commerce/win-back", label: "Win back carts" },
+          { href: "/dashboard/commerce/broadcasts", label: "Broadcasts" },
         ],
       },
       // Presence — the local-presence pillar (Google Business Profile anchor).
@@ -217,9 +246,11 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/dashboard/insights/search-console", label: "Search Console" },
         ],
       },
-      { href: "/dashboard/inbox", label: "Inbox", icon: MessagesSquare },
+      ...(ASK_ENABLED
+        ? [{ href: "/dashboard/ask", label: "Ask Peakhour", icon: Sparkles }]
+        : []),
       { href: "/dashboard/tasks", label: "Tasks", icon: ListChecks, badge: () => <RunningJobsBadge /> },
-      { href: "/dashboard/integrations", label: "Integrations", icon: Plug },
+      { href: "/dashboard/drive", label: "Drive", icon: HardDrive },
       { href: "/dashboard/peaks", label: "Peaks", icon: Zap },
       {
         href: "/dashboard/settings",
@@ -229,6 +260,11 @@ const NAV_GROUPS: NavGroup[] = [
           { href: "/dashboard/settings", label: "General" },
           { href: "/dashboard/settings/preferences", label: "Preferences" },
           { href: "/dashboard/settings/team", label: "Team" },
+          // ★"Peakhour on WhatsApp" — Flow A, and the label says whose side it
+          //  is on. /dashboard/content/whatsapp is the OTHER plane, the
+          //  merchant's own shoppers, and a bare "WhatsApp" entry here would
+          //  read as a second copy of it.
+          { href: "/dashboard/settings/whatsapp", label: "Peakhour on WhatsApp" },
           { href: "/dashboard/settings/billing", label: "Billing" },
           { href: "/dashboard/settings/tickets", label: "Tickets", badge: () => <OpenTicketBadge /> },
         ],
@@ -236,6 +272,63 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 ];
+
+/**
+ * ★THE FUNNEL NAVIGATION IS DERIVED, NOT WRITTEN OUT AGAIN. `funnelNav`
+ * partitions the pillar list — every item comes out exactly once, and a pillar
+ * added next month lands in the tail rather than vanishing from a navigation
+ * nobody has switched on to notice. The grouping itself, and why there is no
+ * "Bought" heading, are argued in lib/nav-home.ts.
+ *
+ * ★GROWTH HOME LEADS THE LIST. The Outcomes page it used to promote is gone;
+ * Growth home answers the same question ("is it working?") and the real Growth
+ * pillar wins over this stub, so it keeps its sub-items.
+ */
+const GROWTH_HOME_ITEM: NavItem = {
+  href: GROWTH_HOME,
+  label: "Growth",
+  // ★NOT `TrendingUp`, WHICH IS GROWTH'S ICON IN THE PILLAR LIST. The stub only
+  // matters if the pillar is missing, and then it must not be mistaken for it.
+  icon: Gauge,
+};
+
+/**
+ * ★THE DEFAULT IS TODAY'S NAVIGATION. `NEXT_PUBLIC_OUTCOMES_HOME` is unset in
+ * every environment until somebody decides otherwise, so this resolves to
+ * PILLAR_NAV and no merchant sees a changed sidebar.
+ */
+const NAV_GROUPS: NavGroup[] = OUTCOMES_HOME
+  ? funnelNav(PILLAR_NAV, GROWTH_HOME_ITEM)
+  : PILLAR_NAV;
+
+/**
+ * A sidebar count that says what it is counting.
+ *
+ * ★A BARE NUMBER IN A NAV IS A RIDDLE. "Tasks · 3" does not say whether three
+ * things are running, three have failed, or three are waiting on the reader —
+ * and the difference between "working" and "broken" is the only thing the badge
+ * is there to convey. Worse, the number was previously invisible to assistive
+ * tech in any useful form: a screen reader announced "Tasks 3" and a truncated
+ * "9+" announced "Tasks 9 plus".
+ *
+ * So the digit stays (it is a glanceable shape, which is the point of a badge)
+ * and the sentence rides along in `title` for the pointer and in visually-hidden
+ * text for the reader. The exact figure goes in both, because "9+" is a display
+ * convenience and should never be the only number anyone can get.
+ */
+function NavCountBadge({ count, description }: { count: number; description: string }) {
+  return (
+    <span className="ml-auto flex items-center" title={description}>
+      <span
+        aria-hidden
+        className="flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground"
+      >
+        {count > 9 ? "9+" : count}
+      </span>
+      <span className="sr-only">{description}</span>
+    </span>
+  );
+}
 
 /** Badge showing count of open tickets — fetches lazily */
 function OpenTicketBadge() {
@@ -245,9 +338,10 @@ function OpenTicketBadge() {
   ).length;
   if (!openCount) return null;
   return (
-    <span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
-      {openCount > 9 ? "9+" : openCount}
-    </span>
+    <NavCountBadge
+      count={openCount}
+      description={`${openCount} support ${openCount === 1 ? "ticket" : "tickets"} still open — open Tickets to read the replies`}
+    />
   );
 }
 
@@ -256,9 +350,10 @@ function RunningJobsBadge() {
   const count = useRunningJobCount();
   if (!count) return null;
   return (
-    <span className="ml-auto flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground">
-      {count > 9 ? "9+" : count}
-    </span>
+    <NavCountBadge
+      count={count}
+      description={`${count} ${count === 1 ? "job is" : "jobs are"} running for you right now — open Tasks to watch progress. Nothing is waiting on you.`}
+    />
   );
 }
 
@@ -273,6 +368,14 @@ export default function DashboardLayout({
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, org, logout, isLoading, isAuthenticated, entitlements } = useAuth();
+  // Whether a mandate exists decides whether Growth shows First run. The same
+  // query feeds the Rules screen, so this is one request, not two.
+  const rules = useGrowthV2Rules();
+  const mandateState = mandateStateOf(rules.data);
+  const navGroups = NAV_GROUPS.map((g) => ({
+    ...g,
+    items: g.items.map((i) => (i.href === GROWTH_HOME ? { ...i, subItems: growthNav(mandateState) } : i)),
+  }));
 
   if (isLoading) {
     return (
@@ -297,15 +400,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const initials = user?.name
-    ? user.name
-        .split(" ")
-        .filter(Boolean)
-        .map((n) => n[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase()
-    : user?.email?.[0]?.toUpperCase() || "?";
+  // Initials are no longer derived here: <UserAvatar> resolves the user's
+  // chosen avatar (which may be an illustrated character, not a monogram at
+  // all) and falls back to initials from @/lib/avatars — where the derivation
+  // splits on astral characters properly, which this one did not.
 
   return (
     <AskContextProvider>
@@ -339,39 +437,88 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         `body { overflow: hidden }`, so moving the scroller off the document
         does not let the background scroll behind a Dialog or Sheet. */}
     <SidebarProvider className="h-svh">
+      {/* The ONE "Add space" dialog: opened by the storage meter and by a 402 on an upload, on any dashboard page. */}
+      <AddSpaceDialog />
       <Sidebar collapsible="icon" variant="sidebar">
-        {/* ── Header: Logo + Switchers ──────────────────────── */}
-        <SidebarHeader>
+        {/* ── Header: brand block + workspace ────────────────── */}
+        {/* ★MARK IN ONE COLUMN, NAME OVER DESCRIPTION IN THE OTHER — the shape
+            the shell always had, finally with the real artwork in it. It shipped
+            for a long time as a hand-rolled "P" square labelled "Peakhour / AI
+            Marketing" while the marketing header two clicks away used the actual
+            mark.
+
+            ⚠️AND THE NAME IS TEXT, NOT THE WORDMARK IMAGE. An intermediate
+            version put `PeakhourLogo` here, which drew the mark TWICE:
+            `peakhour-logo.png` is the full lockup — mark AND wordmark — so it
+            already contains what sits beside it. Cropping an image would not
+            fix that; using type does, and it buys the things an image cannot:
+            it scales with the reader's font settings, recolours per theme with
+            no `dark:invert` hack, and truncates. The PNG stays on the marketing
+            header and footer, where it IS the whole lockup and nothing is
+            next to it.
+
+            ★The disc is its own asset rather than the lockup scaled down,
+            because they are different artwork: the lockup draws the mark as
+            outline strokes — legible at 32px inside a 200px lockup, a grey
+            smudge once it is the only thing in a 32px box — and the disc is the
+            solid cut that survives rail size. It is the one element present in
+            BOTH states, which is why it is not duplicated by anything.
+
+            🚫THE DESCRIPTOR IS A DESCRIPTOR, NOT A SLOGAN, and the slot decides
+            that. It is on screen every visit, and a brand line at that
+            frequency stops registering inside a fortnight — so its job is to
+            say what the product IS to someone who does not know yet. "Every
+            hour is Peakhour" is the better LINE, and it lives on the onboarding
+            payoff where it is read once and something has just been achieved.
+
+            "AI Marketing" was too narrow for the job: Commerce, Presence, Inbox
+            and Insights are all shipped pillars, and a nav promising marketing
+            while listing a storefront undersells itself in its own chrome.
+
+            ⚠️LENGTH IS A HARD CONSTRAINT HERE, not a preference. An earlier
+            attempt used a 39-character positioning statement, which ran past
+            the rail and truncated to "Your Smart Autonomous Bus…". The text
+            column is about 224px — roughly 40 characters at 11px with ZERO
+            margin — so anything near that breaks on a larger OS font, a
+            narrower rail or a translation. */}
+        <SidebarHeader className="gap-2">
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton size="lg" asChild>
-                <Link href="/dashboard/overview">
-                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                    <span className="text-sm font-bold">P</span>
-                  </div>
-                  <div className="grid flex-1 text-left leading-tight">
-                    <span className="truncate text-sm font-semibold">
-                      Peakhour
+              <SidebarMenuButton size="lg" asChild className="hover:bg-transparent">
+                <Link href={HOME_ROUTE} aria-label="Peakhour.ai — dashboard home">
+                  {/* ★TWO COLUMNS: THE MARK, THEN THE NAME OVER ITS DESCRIPTION.
+                      The mark is present in BOTH states — it is the one element
+                      that survives the collapse — so it is not duplicated the
+                      way the lockup duplicated it. */}
+                  <PeakhourMark className="size-8 shrink-0 group-data-[collapsible=icon]:size-6" />
+                  <span className="grid min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+                    {/* ★SET AS TEXT, NOT THE WORDMARK PNG. The lockup image
+                        carries the mark inside it, so pairing it with the mark
+                        drew the mark twice — and cropping an image is not a fix.
+                        Live text also scales with the reader's font settings,
+                        recolours per theme without a `dark:invert` hack, and can
+                        be truncated. The wordmark PNG stays where it belongs:
+                        the marketing header, where it IS the whole lockup and
+                        nothing sits beside it. */}
+                    <span className="truncate text-base font-semibold leading-tight">
+                      Peakhour.ai
                     </span>
-                    <span className="truncate text-xs text-muted-foreground">
-                      AI Marketing
+                    <span className="truncate text-[11px] leading-tight text-muted-foreground">
+                      Your AI business engine.
                     </span>
-                  </div>
+                  </span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
           <div className="group-data-[collapsible=icon]:hidden">
-            <OrgSwitcher />
-            <BusinessSwitcher />
+            <WorkspaceSwitcher />
           </div>
         </SidebarHeader>
 
-        <SidebarSeparator />
-
         {/* ── Navigation ────────────────────────────────────── */}
         <SidebarContent>
-          {NAV_GROUPS.map((group, idx) => (
+          {navGroups.map((group, idx) => (
             <SidebarGroup key={group.label || `group-${idx}`}>
               {group.label && (
                 <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
@@ -399,7 +546,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                     }
                     const Icon = item.icon;
                     const isActive = item.subItems
-                      ? item.subItems.some((s) => pathname === s.href || pathname?.startsWith(s.href + "/"))
+                      ? activeSubHref(pathname ?? "", item.subItems) !== undefined
                       : pathname === item.href || pathname?.startsWith(item.href + "/");
 
                     if (item.subItems) {
@@ -416,23 +563,13 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                             <CollapsibleContent>
                               <SidebarMenuSub>
                                 {item.subItems.map((sub) => {
-                                  // Active when URL exactly matches OR is
-                                  // nested under sub.href, but only when no
-                                  // sibling sub-item has a more-specific
-                                  // match. Example: on /dashboard/settings/team
-                                  // we want only "Team" lit, not "General"
-                                  // (which has href /dashboard/settings).
-                                  const matches =
-                                    pathname === sub.href ||
-                                    pathname.startsWith(sub.href + "/");
-                                  const hasMoreSpecificSibling = item.subItems!.some(
-                                    (other) =>
-                                      other.href !== sub.href &&
-                                      other.href.length > sub.href.length &&
-                                      (pathname === other.href ||
-                                        pathname.startsWith(other.href + "/")),
-                                  );
-                                  const subActive = matches && !hasMoreSpecificSibling;
+                                  // Exactly one sub-item is lit: the one with the
+                                  // longest matching prefix (its href or its
+                                  // `matches`). On /dashboard/settings/team that is
+                                  // "Team", not "General" (href /dashboard/settings),
+                                  // and on /dashboard/growth/rules/audiences it is
+                                  // "Rules", not "Growth home".
+                                  const subActive = activeSubHref(pathname ?? "", item.subItems!) === sub.href;
                                   return (
                                     <SidebarMenuSubItem key={sub.href}>
                                       <SidebarMenuSubButton asChild isActive={subActive}>
@@ -484,11 +621,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                     size="lg"
                     className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                   >
-                    <Avatar className="size-8 rounded-lg">
-                      <AvatarFallback className="rounded-lg text-xs">
-                        {initials}
-                      </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar className="size-8" glyphClassName="text-xs" />
                     <div className="grid flex-1 text-left leading-tight">
                       <span className="truncate text-sm font-medium">
                         {user?.name || "User"}
@@ -507,11 +640,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                   sideOffset={4}
                 >
                   <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                    <Avatar className="size-8 rounded-lg">
-                      <AvatarFallback className="rounded-lg text-xs">
-                        {initials}
-                      </AvatarFallback>
-                    </Avatar>
+                    <UserAvatar className="size-8" glyphClassName="text-xs" />
                     <div className="grid flex-1 text-left leading-tight">
                       <span className="truncate text-sm font-semibold">
                         {user?.name || "User"}
@@ -552,6 +681,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
       {/* ── Cmd+K Command Menu ─────────────────────────────── */}
       <CommandMenu />
+      <UploadTrayHost />
 
       {/* ── Main Content ──────────────────────────────────── */}
       <SidebarInset>

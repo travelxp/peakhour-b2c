@@ -113,6 +113,13 @@ export default function AnalyticsInsightsPage() {
       toast.success("Property selected — syncing analytics now");
       qc.invalidateQueries({ queryKey: ["integration-cap"] });
       qc.invalidateQueries({ queryKey: [ANALYTICS_INSIGHTS_KEY] });
+      // ★★AND THE MEASUREMENT HEALTH PANEL, which is every verdict this picker
+      // can change. It caches for half an hour and is garbage-collected after
+      // an hour, so a merchant who picks the RIGHT property here and walks back
+      // to Settings would keep reading the pre-fix findings — and their repair
+      // steps — for something they have already fixed. Unconditional: every
+      // check on that panel is judged against the property chosen right here.
+      qc.invalidateQueries({ queryKey: ["measurement-health"] });
       syncMut.mutate();
     },
     onError: (e: Error) =>

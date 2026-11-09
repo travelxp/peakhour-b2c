@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/sidebar";
 import { OrgSwitcher } from "@/components/dashboard/org-switcher";
 import { BusinessSwitcher } from "@/components/dashboard/business-switcher";
+import { HOME_ROUTE } from "@/lib/nav-home";
 import {
   LayoutDashboard,
   TicketCheck,
@@ -128,7 +129,7 @@ function CmsShell({ children }: { children: React.ReactNode }) {
   // Guard: redirect non-CMS users
   useEffect(() => {
     if (!isLoading && isAuthenticated && !user?.cmsUser) {
-      router.replace("/dashboard/overview");
+      router.replace(HOME_ROUTE);
     }
     if (!isLoading && !isAuthenticated) {
       router.replace("/auth");
@@ -235,7 +236,7 @@ function CmsShell({ children }: { children: React.ReactNode }) {
               <SidebarMenu>
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild tooltip="Switch to Dashboard">
-                    <Link href="/dashboard/overview">
+                    <Link href={HOME_ROUTE}>
                       <ArrowLeftRight />
                       <span>Switch to Dashboard</span>
                     </Link>
@@ -295,7 +296,7 @@ function CmsShell({ children }: { children: React.ReactNode }) {
                   </div>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href="/dashboard/overview">
+                    <Link href={HOME_ROUTE}>
                       <ArrowLeftRight className="mr-2 size-4" />
                       Switch to Dashboard
                     </Link>

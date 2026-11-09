@@ -3,7 +3,7 @@ import { ApiError } from "@/lib/api";
 import {
   listErrorState,
   writeErrorMessage,
-} from "@/app/(site)/dashboard/growth/signals/page";
+} from "@/app/(site)/dashboard/growth/learning/signals/page";
 
 /**
  * ★EVERY CODE THE SIGNALS ROUTES CAN RETURN, MAPPED TO A MESSAGE THAT IS NOT

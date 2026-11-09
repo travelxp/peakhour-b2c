@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { approveWordpressReconnect } from "@/lib/api/wordpress-reconnect";
+import { HOME_ROUTE } from "@/lib/nav-home";
 
 type Phase = "idle" | "approving" | "done" | "error";
 
@@ -181,7 +182,7 @@ export function WordpressReconnect() {
                   : `${host || "Your site"} is linked again. You can close this tab — WordPress will pick it up automatically.`}
               </p>
               <Button asChild>
-                <Link href="/dashboard/overview">Go to dashboard</Link>
+                <Link href={HOME_ROUTE}>Go to dashboard</Link>
               </Button>
             </div>
           )}

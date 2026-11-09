@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
+import { useActiveStore } from "@/providers/active-store-provider";
 
 /**
  * Commerce consent dial (GET/PUT /v1/commerce/autonomy, api#834). The board is
@@ -50,10 +51,11 @@ export interface AutonomyBoard {
 export const AUTONOMY_KEY = "commerce-autonomy";
 
 export function useCommerceAutonomy() {
+  const store = useActiveStore();
   const { isAuthenticated, org } = useAuth();
   return useQuery<AutonomyBoard>({
-    queryKey: [AUTONOMY_KEY, org?._id ?? null],
-    queryFn: () => api.get<AutonomyBoard>("/v1/commerce/autonomy"),
+    queryKey: [AUTONOMY_KEY, org?._id ?? null, store.merchantId ?? null],
+    queryFn: () => api.get<AutonomyBoard>(store.path("/v1/commerce/autonomy")),
     enabled: isAuthenticated && !!org?._id,
     staleTime: 60_000,
     retry: false,
@@ -61,9 +63,10 @@ export function useCommerceAutonomy() {
 }
 
 export function useSetAutonomy() {
+  const store = useActiveStore();
   const qc = useQueryClient();
   const { org } = useAuth();
-  const key = [AUTONOMY_KEY, org?._id ?? null];
+  const key = [AUTONOMY_KEY, org?._id ?? null, store.merchantId ?? null];
 
   return useMutation({
     mutationFn: ({
@@ -74,7 +77,7 @@ export function useSetAutonomy() {
       agent: string;
       channel: string;
       level: AutonomyLevel;
-    }) => api.put<AutonomyEntry>("/v1/commerce/autonomy", { agent, channel, level }),
+    }) => api.put<AutonomyEntry>(store.path("/v1/commerce/autonomy"), { agent, channel, level }),
     // Optimistically move the dial for this agent.
     onMutate: async ({ agent, level }) => {
       await qc.cancelQueries({ queryKey: key });
@@ -98,12 +101,13 @@ export function useSetAutonomy() {
 
 /** Toggle the global execution kill switch (PUT /v1/commerce/settings). */
 export function useSetKillSwitch() {
+  const store = useActiveStore();
   const qc = useQueryClient();
   const { org } = useAuth();
-  const key = [AUTONOMY_KEY, org?._id ?? null];
+  const key = [AUTONOMY_KEY, org?._id ?? null, store.merchantId ?? null];
   return useMutation<{ killSwitch: boolean }, Error, boolean>({
     mutationFn: (killSwitch: boolean) =>
-      api.put<{ killSwitch: boolean }>("/v1/commerce/settings", { killSwitch }),
+      api.put<{ killSwitch: boolean }>(store.path("/v1/commerce/settings"), { killSwitch }),
     onMutate: async (killSwitch) => {
       await qc.cancelQueries({ queryKey: key });
       const prev = qc.getQueryData<AutonomyBoard>(key);
@@ -119,12 +123,13 @@ export function useSetKillSwitch() {
 
 /** Dismiss an agent's graduation invite (POST /v1/commerce/graduation/dismiss). */
 export function useDismissGraduation() {
+  const store = useActiveStore();
   const qc = useQueryClient();
   const { org } = useAuth();
-  const key = [AUTONOMY_KEY, org?._id ?? null];
+  const key = [AUTONOMY_KEY, org?._id ?? null, store.merchantId ?? null];
   return useMutation<unknown, Error, { agent: string; channel: string }>({
     mutationFn: ({ agent, channel }) =>
-      api.post("/v1/commerce/graduation/dismiss", { agent, channel }),
+      api.post(store.path("/v1/commerce/graduation/dismiss"), { agent, channel }),
     // Optimistically clear the invite so it disappears immediately.
     onMutate: async ({ agent }) => {
       await qc.cancelQueries({ queryKey: key });

@@ -336,7 +336,7 @@ export function PillarCards({
                       The dark step is the one /auth and /pricing already use
                       for this exact pair. */}
                   <span className="self-start rounded-full bg-brand-soft px-2.5 py-1 text-[0.65rem] font-bold uppercase tracking-wide text-brand-ink dark:bg-brand/12 dark:text-brand-soft">
-                    {pillar.freeLabel}
+                    {pillar.planLabel}
                   </span>
                 </div>
               </div>

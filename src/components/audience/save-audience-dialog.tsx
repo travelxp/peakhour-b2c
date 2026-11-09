@@ -83,7 +83,7 @@ export function SaveAudienceDialog({
           // `router.push`, not `window.location` — this is an in-app route, and
           // a full document reload of the SPA to reach it throws away every
           // cache the customer just filled.
-          onClick: () => router.push(`/dashboard/growth/audiences/${res.set.id}`),
+          onClick: () => router.push(`/dashboard/growth/rules/audiences/${res.set.id}`),
         },
       });
     },
@@ -120,7 +120,7 @@ export function SaveAudienceDialog({
           </DialogTitle>
           <DialogDescription>
             Keep this campaign&apos;s targeting in your{" "}
-            <Link href="/dashboard/growth/audiences" className="underline">
+            <Link href="/dashboard/growth/rules/audiences" className="underline">
               audience library
             </Link>{" "}
             so you can put it on another campaign — or on another channel — later. It

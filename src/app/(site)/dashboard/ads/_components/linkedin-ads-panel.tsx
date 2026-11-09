@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
+import { getAdsChannel, panelConnection, type AdsIntegrationRow } from "../ads-channels";
 import {
   toastUnhandledApiError,
   toastAdAccountNotAuthorized,
@@ -77,12 +78,6 @@ import { UseSavedAudienceDialog } from "@/components/audience/use-saved-audience
  * Manager are out of scope here (no import yet).
  */
 
-interface ApiIntegration {
-  provider: string;
-  connected?: boolean;
-  status?: string;
-}
-
 /** Reconnect CTAs come back HERE, not to /dashboard/settings — this is the
  *  surface whose work the reconnect was meant to unblock. */
 const RECONNECT_HREF = reconnectHref(ADS_LINKEDIN_PATH, LINKEDIN_ADS_PROVIDER);
@@ -119,16 +114,17 @@ export function LinkedInAdsPanel() {
   const integrations = useQuery({
     queryKey: ["content-hub-integrations"],
     queryFn: () =>
-      api.get<{ integrations: ApiIntegration[] }>("/v1/integrations"),
+      api.get<{ integrations: AdsIntegrationRow[] }>("/v1/integrations"),
     staleTime: 30_000,
   });
 
-  const adsConnection = useMemo(
-    () => integrations.data?.integrations?.find((i) => i.provider === "linkedin_ads"),
+  // ★THE HUB'S RULE (D-03b), not a copy of it: `panelConnection` reads
+  //  `adsChannelConnectionState`, the rule the hub picks this tab by, so the panel and the hub cannot
+  //  disagree about whether LinkedIn Ads is connected.
+  const { isConnected, needsReauth } = useMemo(
+    () => panelConnection(integrations.data?.integrations ?? [], getAdsChannel("linkedin")),
     [integrations.data],
   );
-  const isConnected =
-    adsConnection?.connected === true || adsConnection?.status === "needs_reauth";
 
   return (
     <div className="space-y-6">
@@ -140,10 +136,9 @@ export function LinkedInAdsPanel() {
       <FlightEndBanner canUseRowControls={isConnected} />
       {/* Above the gate for the same reason, plus one of its own: the
           declaration governs every campaign create including the autonomous
-          ones, and a business can make it before it connects. Not on
-          /dashboard/optimizer — that page is FeatureGate'd on
-          growth.optimizer, so a business entitled to ads but not the
-          optimizer could boost campaigns and never be able to declare. */}
+          ones, and a business can make it before it connects. It lives
+          here and not on a Growth screen, so a business entitled to ads
+          but not the engine could boost campaigns and still declare. */}
       <AdvertisingDeclarationCard />
       {integrations.isLoading ? (
         <Card>
@@ -168,7 +163,7 @@ export function LinkedInAdsPanel() {
         />
       ) : (
         <>
-          {adsConnection?.status === "needs_reauth" ? (
+          {needsReauth ? (
             <Card className="border-warning/30 bg-warning/5">
               <CardContent className="flex items-center justify-between gap-4 p-4 text-sm">
                 <span>
@@ -414,7 +409,7 @@ function CampaignsPanel() {
 
   // ROI strip: blended CPQL across campaigns sharing the first row's
   // currency (defensive — a mixed-currency edge must not make the sum
-  // lie). Qualified leads are the billable, conservatively-scored ones.
+  // lie). Qualified leads are the conservatively-scored ones. They are counted, never charged.
   const stripCurrency = rows.find((r) => r.performance?.qualifiedLeads)?.currency;
   const stripRows = rows.filter((r) => r.currency === stripCurrency);
   const totalQualified = stripRows.reduce(
@@ -467,7 +462,7 @@ function CampaignsPanel() {
               <TableHead className="text-right">CTR</TableHead>
               <TableHead
                 className="text-right"
-                title="Billable qualified leads · cost per qualified lead (spend ÷ qualified leads)"
+                title="Qualified leads · cost per qualified lead (spend ÷ qualified leads)"
               >
                 Leads · CPQL
               </TableHead>

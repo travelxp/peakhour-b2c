@@ -1,0 +1,931 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Megaphone, Plus, RefreshCw } from "lucide-react";
+import { api } from "@/lib/api";
+import { useAuth } from "@/providers/auth-provider";
+import { AddDriveUrls } from "@/components/drive/add-drive-urls";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { EmptyState } from "@/components/molecules/empty-state";
+import {
+  googleAdsApi,
+  type GoogleAdAccount,
+  type GoogleCampaign,
+  type GoogleChannelType,
+  type GoogleConversionActionState,
+  type GoogleSettableStatus,
+  type GoogleYoutubeChannel,
+} from "@/lib/api/google-ads";
+import {
+  GOOGLE_DEMAND_GEN_BUDGET_NOTE,
+  GOOGLE_DEMAND_GEN_DESCRIPTION,
+  GOOGLE_DEMAND_GEN_REPORTING_NOTE,
+  GOOGLE_LAUNCH_NOTE,
+  GOOGLE_PMAX_DESCRIPTION,
+  GOOGLE_PMAX_REPORTING_NOTE,
+  GOOGLE_YOUTUBE_CHANNELS,
+  formatGoogleMoney,
+  googleChannelControlsSentence,
+  googleChannelPlaces,
+  googleChannelTypeLabel,
+  googleDemandGenCreateProblem,
+  googlePmaxCreateProblem,
+  googleAdsErrorMessage,
+  googleAdsNeedsReconnect,
+  googleCreateMayExist,
+  googleCreateProblem,
+  localIsoDay,
+  googleCreateNote,
+  googleStatusAction,
+  googleStatusLabel,
+  googleCampaignSettable,
+  linesOf,
+} from "@/lib/google-ads-view";
+import {
+  GOOGLE_CONVERSION_CONSENT_NOTE,
+  GOOGLE_CONVERSION_PRIMARY_NOTE,
+  PEAKHOUR_CONVERSION_ACTION_LABEL,
+  googleConversionCanUse,
+  googleConversionCardState,
+  googleConversionCreateConfirmation,
+  googleConversionDefaultChoice,
+  googleConversionErrorMessage,
+  googleConversionErrorSelection,
+  googleConversionMayHaveBeenCreated,
+  googleConversionNeedsReconnect,
+  googleConversionSavedSentence,
+  googleConversionStateSentence,
+} from "@/lib/google-conversion-view";
+import { googleStartTargetingHint } from "@/lib/google-targeting-view";
+import { ADS_CHANNEL_PARAM, getAdsChannel, panelConnection, type AdsChannelKey } from "../ads-channels";
+import { GoogleTargetingDialog } from "./google-targeting-dialog";
+import { GoogleBiddingDialog } from "./google-bidding-dialog";
+import { GoogleCampaignManageDialog } from "./google-campaign-manage-dialog";
+import { GoogleAdGroupNameField } from "./google-ad-group-name-field";
+import { googleAdGroupNameOf, googleAdGroupNameProblem } from "@/lib/google-management-view";
+import { GoogleCreateBiddingFields } from "./google-bidding-fields";
+import { EMPTY_BIDDING_DRAFT, googleBiddingChoiceOf, googleBiddingProblem } from "@/lib/google-bidding-view";
+import { GoogleReportsSection } from "./google-reports-section";
+import { GoogleWebsiteConversionSection } from "./google-website-conversion-section";
+import { GoogleCalloutsSection } from "./google-callouts-section";
+
+/**
+ * ★★G-15 — the Google Ads panel, inside the shared Ads hub
+ * (`/dashboard/ads?channel=google`). The hub owns the header, selector and
+ * CronToolbar; this owns everything below them.
+ *
+ * ── WHAT IT DOES ─────────────────────────────────────────────────────────
+ *
+ * Creates a Google **Search** campaign (one Responsive Search Ad), from G19 a
+ * **Performance Max** campaign (its text, images, business name and logo), or
+ * from G20 a **YouTube video (Demand Gen)** campaign (the merchant's own
+ * YouTube videos, text, business name, logo and YouTube placements) — always
+ * PAUSED — lists the business's Google campaigns, and starts or pauses them.
+ * Every call goes through the managed routes (`lib/google-ads-surface.ts`),
+ * so each campaign is an `ad_campaigns` row the monitor, the spend caps and
+ * the kill switch see from the start (G-09).
+ *
+ * ★THE LIST IS OUR ROWS, like LinkedIn's, not a live read from Google: a
+ * create that Google has not confirmed is a row here before it is a campaign
+ * there, and the panel says so ("don't create it again").
+ *
+ * ★★NOTHING HERE INVITES A SECOND CREATE (review rounds 1–2). A 202, or a
+ * failure the api marks as possibly sent (`googleCreateMayExist`), closes and
+ * clears the form; every create refreshes the list, so the row — and its "don't create it again"
+ * note — is what the merchant sees next. A second create would be a second
+ * campaign on Google.
+ *
+ * ★STARTING IS THE LAUNCH, and is confirmed first (round 1, as LinkedIn's):
+ * it starts spend (and costs nothing itself: Peaks are charged for tasks the merchant asks for, never for a launch or a result). Google refuses a Search campaign
+ * with no location or keyword, and a Performance Max campaign with no location or enabled asset group; each row's
+ * Targeting step (G-14a, `google-targeting-dialog.tsx`) sets them, and the start confirmation names it.
+ *
+ * ★SEARCH, PERFORMANCE MAX AND YOUTUBE VIDEO (DEMAND GEN) ONLY: the three
+ * types the api creates, and no other is named (the plan's G-15 row). ★EACH
+ * SIGNAL-TARGETED TYPE CARRIES D3(b)'s SENTENCE wherever it is offered, listed
+ * or started (`GOOGLE_PMAX_REPORTING_NOTE`, `GOOGLE_DEMAND_GEN_REPORTING_NOTE`):
+ * Google does not report who saw its ads, and the audience is a hint, so the
+ * panel claims neither. A YouTube video ad's placements are said only as
+ * Google confirmed them (`googleChannelControlsSentence`).
+ */
+
+const ACCOUNT_PARAM = "customer";
+const LIST_STALE_MS = 60_000;
+
+interface ApiIntegration {
+  provider: string;
+  connected?: boolean;
+  status?: string;
+  account?: { extra?: Record<string, unknown> };
+}
+
+export function GoogleAdsPanel({ channelKey }: { channelKey: AdsChannelKey }) {
+  const integrations = useQuery({
+    queryKey: ["content-hub-integrations"],
+    queryFn: () => api.get<{ integrations: ApiIntegration[] }>("/v1/integrations"),
+    staleTime: 30_000,
+  });
+  // The one rule every panel reads (D-03b): shown when connected or stale.
+  const { isConnected, needsReauth } = useMemo(
+    () => panelConnection(integrations.data?.integrations ?? [], getAdsChannel("google")),
+    [integrations.data],
+  );
+
+  if (integrations.isLoading) return <SkeletonStack />;
+  if (integrations.isError) {
+    return (
+      <EmptyState
+        icon={Megaphone}
+        title="Couldn't check your connections"
+        description="We couldn't load your integration status just now. Refresh in a moment — your campaigns are unaffected."
+      />
+    );
+  }
+  if (!isConnected) {
+    return (
+      <EmptyState
+        icon={Megaphone}
+        title="Connect Google Ads to run campaigns"
+        description="Connect the Google account that manages your Google Ads, and you can create Search, Performance Max and YouTube video (Demand Gen) campaigns here — always paused until you start them."
+        action={{ label: "Connect Google Ads", href: "/dashboard/integrations" }}
+      />
+    );
+  }
+  return (
+    <div className="space-y-6">
+      {needsReauth ? <ReconnectBanner /> : null}
+      <ConnectedView channelKey={channelKey} />
+    </div>
+  );
+}
+
+function ReconnectBanner() {
+  return (
+    <Card className="border-warning/30 bg-warning/5">
+      <CardContent className="flex items-center justify-between gap-4 p-4 text-sm">
+        <span>
+          Your Google Ads connection is <span className="font-medium">stale</span>. Starting, pausing and creating
+          campaigns need it reconnected.
+        </span>
+        <Link href="/dashboard/integrations" className="font-medium text-warning-on-tint underline underline-offset-4">
+          Reconnect
+        </Link>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const queryAccountId = params.get(ACCOUNT_PARAM);
+
+  const accounts = useQuery({
+    queryKey: ["google-ads-accounts"],
+    queryFn: () => googleAdsApi.listAdAccounts(),
+    retry: false,
+    staleTime: LIST_STALE_MS,
+  });
+
+  // The X and Meta panels' rule: build the URL from useSearchParams, and write
+  // nothing until the hub has pinned `?channel=`.
+  const isActiveChannel = params.get(ADS_CHANNEL_PARAM) === channelKey;
+  const setAccountParam = useCallback(
+    (next: string) => {
+      const search = new URLSearchParams(params.toString());
+      search.set(ACCOUNT_PARAM, next);
+      router.replace(`${pathname}?${search.toString()}`, { scroll: false });
+    },
+    [params, pathname, router],
+  );
+
+  // An account with no id cannot be chosen (a Select item may not be empty).
+  const list = accounts.data?.adAccounts.filter((a) => a.id.length > 0);
+  const firstAccountId = list?.[0]?.id;
+  // A `?customer=` that is not in the list is ignored, not trusted.
+  const known = list?.some((a) => a.id === queryAccountId) ? queryAccountId : null;
+  useEffect(() => {
+    if (isActiveChannel && !known && firstAccountId) setAccountParam(firstAccountId);
+  }, [isActiveChannel, known, firstAccountId, setAccountParam]);
+  const accountId = known ?? firstAccountId ?? null;
+  const account = list?.find((a) => a.id === accountId);
+
+  if (accounts.isLoading) return <SkeletonStack />;
+  // A failed read is NOT "no ad accounts".
+  if (accounts.isError) {
+    return (
+      <EmptyState
+        icon={RefreshCw}
+        title="Couldn't load your Google Ads accounts"
+        description={googleAdsErrorMessage(accounts.error, "Google Ads didn't return your accounts. Try again in a moment.")}
+        action={googleAdsNeedsReconnect(accounts.error) ? { label: "Check connection", href: "/dashboard/integrations" } : undefined}
+      />
+    );
+  }
+  if ((list ?? []).length === 0) {
+    return (
+      <EmptyState
+        icon={Megaphone}
+        title="No Google Ads accounts found"
+        description="The Google account you connected manages no Google Ads accounts. Create one in Google Ads, then reconnect."
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-1.5">
+        <Label className="text-xs uppercase tracking-wide text-muted-foreground">Google Ads account</Label>
+        <Select value={accountId ?? undefined} onValueChange={setAccountParam}>
+          <SelectTrigger className="w-80">
+            <SelectValue placeholder="Choose an account" />
+          </SelectTrigger>
+          <SelectContent>
+            {(list ?? []).map((a) => (
+              <SelectItem key={a.id} value={a.id}>
+                {a.name}
+                {a.currencyCode ? ` (${a.currencyCode})` : ""}
+                {a.testAccount ? " — test account" : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {account ? (
+        <>
+          {/* Keyed by account: a pick made for one account never carries to another. */}
+          <ConversionTrackingSection key={`conv-${account.id}`} account={account} />
+          {/* G-14f: the website conversion tag (RMF C.65), in its own file. */}
+          <GoogleWebsiteConversionSection key={`web-conv-${account.id}`} account={account} />
+          <CampaignsSection account={account} />
+          {/* Keyed by account: switching accounts starts a fresh, empty form. */}
+          <CreateCampaignCard key={account.id} account={account} />
+          {/* G-14e: account-level callouts (RMF C.75), in their own file. */}
+          <GoogleCalloutsSection key={`callouts-${account.id}`} account={account} />
+          {/* G-14d: Google's own reports (RMF R.10–R.130), in their own file. */}
+          <GoogleReportsSection key={`reports-${account.id}`} account={account} />
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+// ── Conversion tracking (G-17b) ──────────────────────────────────────────
+
+function ConversionTrackingSection({ account }: { account: GoogleAdAccount }) {
+  const queryClient = useQueryClient();
+  const { business } = useAuth();
+  // ★BUSINESS-SCOPED: a session that switches business must not see the last one's choice.
+  const queryKey = ["google-conversion-action", business?._id ?? "none", account.id];
+  const query = useQuery({
+    queryKey,
+    queryFn: () => googleAdsApi.getConversionAction(account.id),
+    // Not before the business is known: the "none" key would cache a NO_BUSINESS refusal.
+    enabled: !!business,
+    retry: false,
+    staleTime: LIST_STALE_MS,
+  });
+  const state = googleConversionCardState({ data: query.data, isError: query.isError, fetchStatus: query.fetchStatus });
+  const [picked, setPicked] = useState<string | undefined>(undefined);
+  const [confirmingCreate, setConfirmingCreate] = useState(false);
+  // ★A pick that is no longer offered (disabled in Google Ads since) falls back to the stored default.
+  const choice = picked && query.data?.actions.some((a) => a.id === picked) ? picked : googleConversionDefaultChoice(query.data);
+  const confirmation = googleConversionCreateConfirmation(account.name);
+
+  const choose = useMutation({
+    mutationFn: (id: string | undefined) => {
+      // Choosing an existing action reads it and changes nothing, so it needs no currency.
+      if (id !== undefined) return googleAdsApi.setConversionAction(account.id, { conversionActionId: id });
+      // ★NEVER A GUESSED CURRENCY: it becomes the action's default-value currency in the merchant's account.
+      if (!account.currencyCode) throw new Error("We don't know this Google Ads account's currency yet. Reconnect Google Ads and try again.");
+      // "value": uploads carry the order's value either way, so a count mandate's bidding is unaffected; First-run
+      // (which knows the mandate) sets "count" where it applies.
+      return googleAdsApi.setConversionAction(account.id, { signal: { currency: account.currencyCode, optimizeFor: "value" } });
+    },
+    onSuccess: (res) => {
+      setPicked(undefined);
+      // ★Show the result now, so the card never contradicts the toast while the re-read is in flight or fails.
+      //  The api validated the choice against a live read, so it is live.
+      if (res.selected) {
+        queryClient.setQueryData<GoogleConversionActionState>(queryKey, (old) =>
+          old
+            ? {
+                ...old,
+                selected: res.selected,
+                selectedIsLive: true,
+                // A created action is not in the list read before it existed; offer it, or the select reads empty.
+                actions: old.actions.some((a) => a.id === res.selected!.conversionActionId)
+                  ? old.actions
+                  : [...old.actions, { id: res.selected!.conversionActionId, name: res.selected!.name ?? `Conversion action ${res.selected!.conversionActionId}` }],
+              }
+            : old,
+        );
+      }
+      toast.success(googleConversionSavedSentence(res.created, res.selected?.name));
+    },
+    onError: (err) => {
+      const message = googleConversionErrorMessage(err, "We couldn't save that. Try again in a moment.");
+      // A create that may have landed is not a failure to retry blindly.
+      if (googleConversionMayHaveBeenCreated(err)) toast.warning(message);
+      else toast.error(message);
+    },
+    // Whatever happened, re-read: a create may have landed even when the answer was lost.
+    onSettled: () => void queryClient.invalidateQueries({ queryKey }),
+  });
+
+  const errorSelection = googleConversionErrorSelection(query.error);
+  const busy = choose.isPending;
+  const actions = query.data?.actions ?? [];
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Conversion tracking</CardTitle>
+        <CardDescription>
+          Tell Google which of your sales came from its ads, so it can learn what works. Peakhour reports them to the
+          conversion action you choose here, once a day.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {state.kind === "loading" ? (
+          <Skeleton className="h-10 w-full" />
+        ) : (
+          <p className={state.kind === "error" || state.kind === "chosen_not_live" ? "text-sm text-destructive-on-tint" : "text-sm"}>
+            {googleConversionStateSentence(state)}
+          </p>
+        )}
+        {/* Only when there is nothing read to show: a failed background refetch keeps the last good read, and the two must not contradict. */}
+        {query.isError && !query.data ? (
+          <p className="text-sm text-muted-foreground">
+            {googleConversionErrorMessage(query.error, "Google Ads didn't answer. Try again in a moment.")}
+            {errorSelection ? ` Chosen so far: “${errorSelection}” — we can't check it right now.` : ""}{" "}
+            {googleConversionNeedsReconnect(query.error) ? (
+              <Link href="/dashboard/integrations" className="font-medium underline underline-offset-4">
+                Check connection
+              </Link>
+            ) : (
+              <Button variant="link" className="h-auto p-0 text-sm" onClick={() => void query.refetch()} disabled={query.isFetching}>
+                Try again
+              </Button>
+            )}
+          </p>
+        ) : null}
+        {query.data ? (
+          <div className="space-y-3">
+            {actions.length > 0 ? (
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Use an existing import-from-clicks action</Label>
+                  <Select value={choice ?? ""} onValueChange={setPicked} disabled={busy}>
+                    <SelectTrigger className="w-80">
+                      <SelectValue placeholder="Choose a conversion action" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {actions.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button disabled={busy || !googleConversionCanUse(query.data, choice)} onClick={() => choose.mutate(choice)}>
+                  Use this one
+                </Button>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                This Google Ads account has no enabled import-from-clicks conversion action yet.
+              </p>
+            )}
+            <div className="space-y-1">
+              <Button variant="outline" disabled={busy} onClick={() => setConfirmingCreate(true)}>
+                Create &ldquo;{PEAKHOUR_CONVERSION_ACTION_LABEL}&rdquo;
+              </Button>
+              <p className="text-xs text-muted-foreground">{GOOGLE_CONVERSION_PRIMARY_NOTE}</p>
+            </div>
+          </div>
+        ) : null}
+        <p className="text-xs text-muted-foreground">{GOOGLE_CONVERSION_CONSENT_NOTE}</p>
+      </CardContent>
+
+      <AlertDialog open={confirmingCreate} onOpenChange={setConfirmingCreate}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmation.title}</AlertDialogTitle>
+            <AlertDialogDescription>{confirmation.body}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Not now</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmingCreate(false);
+                choose.mutate(undefined);
+              }}
+            >
+              Add it
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Card>
+  );
+}
+
+// ── Campaigns ────────────────────────────────────────────────────────────
+
+function CampaignsSection({ account }: { account: GoogleAdAccount }) {
+  const queryClient = useQueryClient();
+  const [confirming, setConfirming] = useState<GoogleCampaign | null>(null);
+  // G-14a: the campaign whose targeting step is open.
+  const [targeting, setTargeting] = useState<GoogleCampaign | null>(null);
+  // G-14b: the campaign whose bidding dialog is open.
+  const [bidding, setBidding] = useState<GoogleCampaign | null>(null);
+  // G14c: the campaign whose management dialog is open.
+  const [managing, setManaging] = useState<GoogleCampaign | null>(null);
+
+  const campaigns = useQuery({
+    queryKey: ["google-ads-campaigns"],
+    queryFn: () => googleAdsApi.listCampaigns(),
+    retry: false,
+    staleTime: LIST_STALE_MS,
+  });
+  const rows = useMemo(
+    // ★THIS ACCOUNT'S ROWS ONLY (round 3): a row with no account would show
+    //  under every account, in whichever currency was selected.
+    () => (campaigns.data?.campaigns ?? []).filter((c) => c.adAccountId === account.id),
+    [campaigns.data, account.id],
+  );
+
+  // ★PER ROW (round 1): one campaign's request in flight must not hold
+  //  another's Pause — the one a merchant reaches for when it overspends.
+  const [pendingIds, setPendingIds] = useState<ReadonlySet<string>>(new Set());
+  const setStatus = useMutation({
+    mutationFn: (v: { id: string; status: GoogleSettableStatus }) => googleAdsApi.setStatus(v.id, v.status),
+    onMutate: (v) => setPendingIds((s) => new Set(s).add(v.id)),
+    onSettled: (_d, _e, v) => {
+      setPendingIds((s) => {
+        const next = new Set(s);
+        next.delete(v.id);
+        return next;
+      });
+      void queryClient.invalidateQueries({ queryKey: ["google-ads-campaigns"] });
+    },
+    onSuccess: (_d, v) => toast.success(v.status === "ACTIVE" ? "Campaign started on Google Ads." : "Campaign paused on Google Ads."),
+    onError: (err) => toast.error(googleAdsErrorMessage(err, "Google Ads didn't take that change. Try again in a moment.")),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Google campaigns</CardTitle>
+        <CardDescription>{GOOGLE_LAUNCH_NOTE}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {campaigns.isLoading ? (
+          <SkeletonStack />
+        ) : campaigns.isError ? (
+          <p className="text-sm text-destructive-on-tint">
+            {googleAdsErrorMessage(campaigns.error, "We couldn't load your Google campaigns. Try again in a moment.")}
+          </p>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No Google campaigns yet. Create one below — it starts paused.</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Campaign</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Daily budget</TableHead>
+                <TableHead className="text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((c) => {
+                const action = googleStatusAction(c);
+                const note = googleCreateNote(c);
+                const busy = pendingIds.has(c.id);
+                const channels = c.channelType === "DEMAND_GEN" ? googleChannelControlsSentence(c.channelControls) : null;
+                return (
+                  <TableRow key={c.id}>
+                    <TableCell>
+                      <div className="font-medium">{c.name}</div>
+                      {note ? <div className="text-xs text-muted-foreground">{note}</div> : null}
+                      {c.channelType === "PERFORMANCE_MAX" ? (
+                        <div className="text-xs text-muted-foreground">{GOOGLE_PMAX_REPORTING_NOTE}</div>
+                      ) : null}
+                      {channels ? <div className="text-xs text-muted-foreground">{channels}</div> : null}
+                      {c.channelType === "DEMAND_GEN" ? (
+                        <div className="text-xs text-muted-foreground">{GOOGLE_DEMAND_GEN_REPORTING_NOTE}</div>
+                      ) : null}
+                    </TableCell>
+                    <TableCell>{googleChannelTypeLabel(c.channelType)}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">{busy ? "Updating…" : googleStatusLabel(c)}</Badge>
+                    </TableCell>
+                    <TableCell>{formatGoogleMoney(c.budget?.daily, c.currency ?? account.currencyCode)}</TableCell>
+                    <TableCell className="space-x-2 text-right">
+                      {googleCampaignSettable(c) ? (
+                        <>
+                          <Button size="sm" variant="ghost" onClick={() => setTargeting(c)}>
+                            Targeting
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => setBidding(c)}>
+                            Bidding
+                          </Button>
+                        </>
+                      ) : null}
+                      {c.platformCampaignId ? (
+                        <Button size="sm" variant="ghost" onClick={() => setManaging(c)}>
+                          Manage
+                        </Button>
+                      ) : null}
+                      {action.status ? (
+                        <Button
+                          size="sm"
+                          variant={action.status === "ACTIVE" ? "default" : "outline"}
+                          disabled={busy}
+                          onClick={() =>
+                            action.status === "ACTIVE" ? setConfirming(c) : setStatus.mutate({ id: c.id, status: "PAUSED" })
+                          }
+                        >
+                          {action.label}
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">{action.reason}</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+
+      <AlertDialog open={confirming !== null} onOpenChange={(o) => (o ? null : setConfirming(null))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Start spending on this campaign?</AlertDialogTitle>
+            <AlertDialogDescription>
+              &ldquo;{confirming?.name}&rdquo; starts showing on{" "}
+              {confirming?.channelType === "PERFORMANCE_MAX"
+                ? "Google's channels"
+                : confirming?.channelType === "DEMAND_GEN"
+                  ? (googleChannelPlaces(confirming.channelControls) ?? "YouTube")
+                  : "Google Search"}{" "}
+              at{" "}
+              <span className="font-medium">
+                {formatGoogleMoney(confirming?.budget?.daily, confirming?.currency ?? account.currencyCode)}/day
+              </span>
+              . {GOOGLE_LAUNCH_NOTE}{" "}
+              {googleStartTargetingHint(confirming?.channelType)}
+              {confirming?.channelType === "PERFORMANCE_MAX"
+                ? ` ${GOOGLE_PMAX_REPORTING_NOTE}`
+                : confirming?.channelType === "DEMAND_GEN"
+                  ? ` ${GOOGLE_DEMAND_GEN_REPORTING_NOTE}`
+                  : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Not yet</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (confirming) setStatus.mutate({ id: confirming.id, status: "ACTIVE" });
+                setConfirming(null);
+              }}
+            >
+              Start &amp; spend
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      {/* G-14a: keyed by campaign, so one campaign's unsaved step never shows on another. */}
+      {targeting ? (
+        <GoogleTargetingDialog key={targeting.id} campaign={targeting} account={account} open onOpenChange={(o) => (o ? null : setTargeting(null))} />
+      ) : null}
+      {/* G-14b: keyed by campaign, as the targeting step is. */}
+      {bidding ? <GoogleBiddingDialog key={bidding.id} campaign={bidding} account={account} open onOpenChange={(o) => (o ? null : setBidding(null))} /> : null}
+      {/* G14c: keyed by campaign, as the others are. */}
+      {managing ? (
+        <GoogleCampaignManageDialog key={managing.id} campaign={managing} account={account} open onOpenChange={(o) => (o ? null : setManaging(null))} />
+      ) : null}
+    </Card>
+  );
+}
+
+// ── Create ───────────────────────────────────────────────────────────────
+
+const EMPTY_FORM = {
+  channelType: "SEARCH" as GoogleChannelType,
+  name: "",
+  budget: "",
+  typedCurrency: "",
+  headlines: "",
+  descriptions: "",
+  finalUrl: "",
+  endDate: "",
+  notPolitical: false,
+  // G19: Performance Max's own fields, one item per line.
+  longHeadlines: "",
+  businessName: "",
+  marketingImages: "",
+  squareImages: "",
+  logos: "",
+  // G20: a YouTube video ad's own fields. All three YouTube placements to start.
+  videos: "",
+  youtubeChannels: ["youtube_in_stream", "youtube_in_feed", "youtube_shorts"] as GoogleYoutubeChannel[],
+};
+
+function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState(EMPTY_FORM);
+  // G-14b: the bidding control's draft; DEFAULT sends no choice.
+  const [bidding, setBidding] = useState(EMPTY_BIDDING_DRAFT);
+  // G14c: the ad group's name, as typed; empty names it after the campaign.
+  const [adGroupName, setAdGroupName] = useState("");
+  const set = <K extends keyof typeof EMPTY_FORM>(k: K, v: (typeof EMPTY_FORM)[K]) => setForm((f) => ({ ...f, [k]: v }));
+  // ★CLEARED, NOT JUST CLOSED (round 1): a reopened form held the last
+  //  campaign — the declaration tick included — one click from a duplicate.
+  const closeAndClear = () => {
+    setOpen(false);
+    setForm(EMPTY_FORM);
+    setBidding(EMPTY_BIDDING_DRAFT);
+    setAdGroupName("");
+  };
+
+  // The account's own billing currency when the connection recorded it (the
+  // api refuses any other, CURRENCY_MISMATCH); typed only when it did not.
+  // `||`, not `??` (round 3): an account recorded with "" must be typeable.
+  const currency = account.currencyCode || form.typedCurrency;
+  const pmax = form.channelType === "PERFORMANCE_MAX";
+  const demandGen = form.channelType === "DEMAND_GEN";
+  const searchAd = { headlines: linesOf(form.headlines), descriptions: linesOf(form.descriptions), finalUrl: form.finalUrl.trim() };
+  const performanceMax = {
+    headlines: linesOf(form.headlines),
+    longHeadlines: linesOf(form.longHeadlines),
+    descriptions: linesOf(form.descriptions),
+    businessName: form.businessName.trim(),
+    finalUrl: form.finalUrl.trim(),
+    images: { marketing: linesOf(form.marketingImages), square: linesOf(form.squareImages), logos: linesOf(form.logos) },
+  };
+  const youtubeAd = {
+    videos: linesOf(form.videos),
+    headlines: linesOf(form.headlines),
+    longHeadlines: linesOf(form.longHeadlines),
+    descriptions: linesOf(form.descriptions),
+    businessName: form.businessName.trim(),
+    finalUrl: form.finalUrl.trim(),
+    logos: linesOf(form.logos),
+    channels: GOOGLE_YOUTUBE_CHANNELS.map((c) => c.value).filter((v) => form.youtubeChannels.includes(v)),
+  };
+  const amount = Number(form.budget);
+  const today = localIsoDay(new Date());
+  const shared = { name: form.name, budget: form.budget, currency, endDate: form.endDate };
+  const problem = pmax
+    ? googlePmaxCreateProblem({ ...shared, performanceMax }, today)
+    : demandGen
+      ? googleDemandGenCreateProblem({ ...shared, demandGen: youtubeAd }, today)
+      : googleCreateProblem({ ...shared, searchAd }, today);
+  const biddingProblem = googleBiddingProblem(form.channelType, bidding, true);
+
+  const biddingChoice = biddingProblem ? undefined : googleBiddingChoiceOf(bidding);
+  const create = useMutation({
+    // The type rides with the request, so the toast names what was SENT, not what the select says now.
+    mutationFn: (type: GoogleChannelType) =>
+      googleAdsApi.createCampaign({
+        adAccountId: account.id,
+        name: form.name.trim(),
+        dailyBudget: { amount, currencyCode: currency.toUpperCase() },
+        ...(type === "PERFORMANCE_MAX"
+          ? { channelType: "PERFORMANCE_MAX" as const, performanceMax }
+          : type === "DEMAND_GEN"
+            ? { channelType: "DEMAND_GEN" as const, demandGen: youtubeAd }
+            : { searchAd }),
+        ...(form.endDate ? { endsAt: new Date(`${form.endDate}T23:59:59`).toISOString() } : {}),
+        ...(form.notPolitical ? { notPolitical: true } : {}),
+        ...(biddingChoice ? { bidding: biddingChoice } : {}),
+        ...googleAdGroupNameOf(type, adGroupName),
+      }),
+    onSuccess: (res, sentType) => {
+      if (res.pending) {
+        toast.warning(res.message ?? "Google Ads didn't confirm the campaign yet. We'll check within the hour — don't create it again.");
+      } else {
+        toast.success(`${googleChannelTypeLabel(sentType)} campaign created, paused. Start it when you're ready.`);
+      }
+      // A 202 too: the row is in the list, with its "don't create it again".
+      closeAndClear();
+    },
+    onError: (err) => {
+      toast.error(googleAdsErrorMessage(err, "We couldn't create the campaign. Try again in a moment."));
+      // ★It may exist on Google (rounds 1–2, the api's own marker): close and
+      //  clear, so nothing invites the second create. Any other refusal keeps
+      //  the form, to fix and retry as its message asks.
+      if (googleCreateMayExist(err)) closeAndClear();
+    },
+    // Whatever happened, the list is re-read: a create inserts its row first.
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: ["google-ads-campaigns"] }),
+  });
+
+  if (!open) {
+    return (
+      <Button variant="outline" onClick={() => setOpen(true)}>
+        <Plus className="mr-2 h-4 w-4" />
+        New campaign
+      </Button>
+    );
+  }
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>New {googleChannelTypeLabel(form.channelType)} campaign</CardTitle>
+        <CardDescription>
+          {pmax ? GOOGLE_PMAX_DESCRIPTION : demandGen ? GOOGLE_DEMAND_GEN_DESCRIPTION : "One text ad shown on Google Search."} It is
+          created paused and spends nothing until you start it.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <Field label="Campaign type">
+          <Select value={form.channelType} onValueChange={(v) => set("channelType", v as GoogleChannelType)} disabled={create.isPending}>
+            <SelectTrigger className="w-60">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="SEARCH">Search</SelectItem>
+              <SelectItem value="PERFORMANCE_MAX">Performance Max</SelectItem>
+              <SelectItem value="DEMAND_GEN">YouTube video (Demand Gen)</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+        {pmax ? <p className="text-sm text-muted-foreground">{GOOGLE_PMAX_REPORTING_NOTE}</p> : null}
+        {demandGen ? <p className="text-sm text-muted-foreground">{GOOGLE_DEMAND_GEN_REPORTING_NOTE}</p> : null}
+        {demandGen ? <p className="text-xs text-muted-foreground">{GOOGLE_DEMAND_GEN_BUDGET_NOTE}</p> : null}
+        <Field label="Campaign name">
+          <Input value={form.name} onChange={(e) => set("name", e.target.value)} maxLength={200} />
+        </Field>
+        <div className="flex gap-4">
+          <Field label="Daily budget">
+            <Input type="number" min="0" step="0.01" value={form.budget} onChange={(e) => set("budget", e.target.value)} className="w-40" />
+          </Field>
+          <Field label="Currency">
+            <Input
+              value={currency}
+              onChange={(e) => set("typedCurrency", e.target.value)}
+              maxLength={3}
+              className="w-24"
+              disabled={!!account.currencyCode}
+              aria-readonly={!!account.currencyCode}
+            />
+          </Field>
+          <Field label="End date (optional)">
+            <Input type="date" min={today} value={form.endDate} onChange={(e) => set("endDate", e.target.value)} className="w-44" />
+          </Field>
+        </div>
+        {demandGen ? (
+          <Field label="YouTube videos — one link or video id per line, 1 to 5, already on YouTube (public or unlisted)">
+            <Textarea rows={2} value={form.videos} onChange={(e) => set("videos", e.target.value)} placeholder="https://www.youtube.com/watch?v=…" />
+          </Field>
+        ) : null}
+        <Field label={demandGen ? "Headlines — one per line, 1 to 5, up to 40 characters each" : "Headlines — one per line, 3 to 15, up to 30 characters each"}>
+          <Textarea rows={4} value={form.headlines} onChange={(e) => set("headlines", e.target.value)} />
+        </Field>
+        {pmax || demandGen ? (
+          <Field label="Long headlines — one per line, 1 to 5, up to 90 characters each">
+            <Textarea rows={2} value={form.longHeadlines} onChange={(e) => set("longHeadlines", e.target.value)} />
+          </Field>
+        ) : null}
+        <Field label={`Descriptions — one per line, ${demandGen ? 1 : 2} to ${pmax || demandGen ? 5 : 4}, up to 90 characters each`}>
+          <Textarea rows={3} value={form.descriptions} onChange={(e) => set("descriptions", e.target.value)} />
+        </Field>
+        {pmax || demandGen ? (
+          // One field each for both types (round 2): the same state, so a type switch keeps what was typed.
+          <>
+            <Field label="Business name — up to 25 characters">
+              <Input value={form.businessName} onChange={(e) => set("businessName", e.target.value)} />
+            </Field>
+            <Field
+              label={
+                demandGen
+                  ? "Square logos (1:1, at least 128x128, at most 150 KB each; checked when you create) — one https:// address per line, 1 to 5"
+                  : "Logos (1:1) — one https:// address per line, 1 to 5"
+              }
+            >
+              <Textarea rows={2} value={form.logos} onChange={(e) => set("logos", e.target.value)} />
+              <AddDriveUrls label="logos" value={form.logos} onChange={(v) => set("logos", v)} max={5} />
+            </Field>
+          </>
+        ) : null}
+        {pmax ? (
+          <>
+            <Field label="Landscape images (1.91:1) — one https:// address per line, 1 to 20">
+              <Textarea rows={2} value={form.marketingImages} onChange={(e) => set("marketingImages", e.target.value)} />
+              <AddDriveUrls label="landscape images" value={form.marketingImages} onChange={(v) => set("marketingImages", v)} max={20} />
+            </Field>
+            <Field label="Square images (1:1) — one https:// address per line, 1 to 20">
+              <Textarea rows={2} value={form.squareImages} onChange={(e) => set("squareImages", e.target.value)} />
+              <AddDriveUrls label="square images" value={form.squareImages} onChange={(v) => set("squareImages", v)} max={20} />
+            </Field>
+          </>
+        ) : null}
+        {demandGen ? (
+          <>
+            <Field label="Where on YouTube">
+              <div className="space-y-2">
+                {GOOGLE_YOUTUBE_CHANNELS.map((c) => (
+                  <label key={c.value} className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={form.youtubeChannels.includes(c.value)}
+                      onCheckedChange={(v) =>
+                        set(
+                          "youtubeChannels",
+                          v === true ? [...form.youtubeChannels.filter((x) => x !== c.value), c.value] : form.youtubeChannels.filter((x) => x !== c.value),
+                        )
+                      }
+                    />
+                    <span>{c.label}</span>
+                  </label>
+                ))}
+              </div>
+            </Field>
+          </>
+        ) : null}
+        <GoogleAdGroupNameField channelType={form.channelType} value={adGroupName} onChange={setAdGroupName} disabled={create.isPending} />
+        <GoogleCreateBiddingFields
+          account={account}
+          channelType={form.channelType}
+          currency={currency}
+          value={bidding}
+          onChange={setBidding}
+          disabled={create.isPending}
+        />
+        <Field label="Landing page">
+          <Input value={form.finalUrl} onChange={(e) => set("finalUrl", e.target.value)} placeholder="https://" />
+        </Field>
+        <label className="flex items-start gap-2 text-sm">
+          <Checkbox checked={form.notPolitical} onCheckedChange={(v) => set("notPolitical", v === true)} />
+          <span>
+            This campaign is not political advertising. Google asks every campaign to declare it; we never declare it for
+            you.
+          </span>
+        </label>
+        {problem ? <p className="text-sm text-muted-foreground">{problem}</p> : null}
+        <div className="flex gap-2">
+          <Button
+            disabled={!!problem || !!biddingProblem || (!pmax && !!googleAdGroupNameProblem(adGroupName)) || create.isPending}
+            onClick={() => create.mutate(form.channelType)}
+          >
+            Create paused
+          </Button>
+          {/* Not while a create is in flight (round 3): its answer decides
+              whether the form is kept or cleared. */}
+          <Button variant="ghost" onClick={closeAndClear} disabled={create.isPending}>
+            Cancel
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+function SkeletonStack() {
+  return (
+    <div className="space-y-3">
+      <Skeleton className="h-10 w-80" />
+      <Skeleton className="h-40 w-full" />
+    </div>
+  );
+}

@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SourcesPanel } from "./components/sources-panel";
 import { ApproveNewsSheet } from "./components/approve-news-sheet";
+import { EmptyNewsDesk } from "./components/empty-news-desk";
 import type { NewsIdea } from "./types";
 
 /**
@@ -71,11 +72,11 @@ export default function NewsDeskPage() {
           {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-40" />)}
         </div>
       ) : ideas.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            No news drafts in the queue. As your sources are classified and corroborated, the Wire Desk composes drafts here for approval.
-          </CardContent>
-        </Card>
+        // ★NOT A RESTATEMENT OF THE FACT. The old copy said the queue was empty
+        //  and then described the pipeline that would eventually fill it — which
+        //  is wrong for the common case, where the business has no trusted
+        //  sources and nothing is running at all. See EmptyNewsDesk.
+        <EmptyNewsDesk />
       ) : (
         <div className="space-y-4">
           {ideas.map((idea) => (

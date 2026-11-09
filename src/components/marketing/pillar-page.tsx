@@ -3,6 +3,8 @@ import { ArrowRight, Check } from "lucide-react";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { getPublicCatalog, signupCta } from "@/lib/catalog";
+import { marketingTrialDays } from "@/lib/pricing";
+import { pillarTrialCopy } from "@/lib/trial-copy";
 import { PILLARS, PILLAR_ORDER, type PillarSlug } from "@/lib/pillars";
 
 /**
@@ -11,12 +13,21 @@ import { PILLARS, PILLAR_ORDER, type PillarSlug } from "@/lib/pillars";
  * catalog (same resolver + fallback as the homepage), so the CTA can never
  * disagree with the signup flow. Polish is CSS-only.
  */
-export async function PillarPage({ slug }: { slug: PillarSlug }) {
+export async function PillarPage({
+  slug,
+  aside,
+}: {
+  slug: PillarSlug;
+  /** An extra line under the hero's trial note (e.g. /commerce's link to /shopify). */
+  aside?: React.ReactNode;
+}) {
   const pillar = PILLARS[slug];
   const Icon = pillar.icon;
 
-  const catalog = await getPublicCatalog();
-  const cta = signupCta(catalog?.platform?.signupMode ?? "open");
+  const [catalog, trialDays] = await Promise.all([getPublicCatalog(), marketingTrialDays()]);
+  const cta = signupCta(catalog?.platform?.signupMode ?? "open", trialDays);
+  // The trial is said only when the catalog gives one (owner rule 2026-10-06).
+  const trialCopy = pillarTrialCopy(pillar.planLabel, pillar.name, trialDays);
 
   const others = PILLAR_ORDER.filter((s) => s !== slug).map((s) => PILLARS[s]);
 
@@ -80,8 +91,9 @@ export async function PillarPage({ slug }: { slug: PillarSlug }) {
                 <span aria-hidden className="font-bold text-brand-label">
                   ✓
                 </span>{" "}
-                {pillar.freeLabel} — no credit card
+                {trialCopy.note}
               </p>
+              {aside}
             </div>
 
             {/* "What you get back" — outcomes in a dark panel */}
@@ -118,7 +130,7 @@ export async function PillarPage({ slug }: { slug: PillarSlug }) {
                 What it does
               </span>
               <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
-                Everything the {pillar.name} pillar handles for you.
+                Everything Peakhour {pillar.name} handles for you.
               </h2>
             </div>
             <div className="mt-10 grid gap-4 md:grid-cols-3">
@@ -144,13 +156,13 @@ export async function PillarPage({ slug }: { slug: PillarSlug }) {
             <div className="max-w-3xl">
               <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
                 <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-                One platform, five pillars
+                One plan, five modules
               </span>
               <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
                 {pillar.name} shares one brain with the rest.
               </h2>
               <p className="mt-3 text-muted-foreground">
-                Your catalog, your brand voice, your customers — every pillar
+                Your catalog, your brand voice, your customers — every module
                 learns from the same place. Add the others when you&rsquo;re ready.
               </p>
             </div>
@@ -180,13 +192,13 @@ export async function PillarPage({ slug }: { slug: PillarSlug }) {
           <div className="mx-auto max-w-6xl px-4 sm:px-6">
             <div className="overflow-hidden rounded-3xl border border-ink-line bg-ink px-6 py-16 text-center text-on-ink shadow-2xl">
               <h2 className="mx-auto max-w-2xl text-3xl font-extrabold tracking-tight text-pretty sm:text-4xl">
-                Try {pillar.name}{" "}
+                {trialCopy.closingLead}{" "}
                 <span className="font-serif font-normal italic text-brand-gradient">
-                  free.
+                  {trialCopy.closingAccent}
                 </span>
               </h2>
               <p className="mx-auto mt-4 max-w-xl text-on-ink-dim">
-                {pillar.freeLabel} — no credit card. Your first Peaks are on us.
+                {trialCopy.closing}
               </p>
               {!cta.disabled && (
                 <Link

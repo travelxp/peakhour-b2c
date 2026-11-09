@@ -7,7 +7,7 @@ import { CHANNELS, type ChannelKey } from "@/lib/pricing-catalog";
  * ONE availability rule, shared by every marketing surface that states it:
  * the "Channels & platforms" chips inside a homepage pillar card, the
  * catalog-driven integrations grid further down that page, and the channel
- * cards on /pricing and /pricing/[pillar].
+ * cards on /pricing.
  *
  * They disagreed by construction. The grid resolved every card against
  * /v1/platform/catalog and badged it; the chips were plain strings that could
@@ -44,7 +44,7 @@ export const PILLAR_CONNECTOR_KEYS: readonly string[] = [
 ];
 
 /**
- * The same, for the channel cards on /pricing and /pricing/[pillar]. Separate
+ * The same, for the channel cards on /pricing. Separate
  * constant because the two lists genuinely differ — `bigcommerce` is claimed
  * only by pricing, `linkedin_ads` only by the pillar chips — and knowing which
  * surface put a key in the fail-closed set is worth keeping.
@@ -147,10 +147,9 @@ export function badgedComingSoonKeys({
 /**
  * Does this pricing channel need marking?
  *
- * Exported because three surfaces ask it — the /pricing strip, the /pricing
- * hub cards and /pricing/[pillar] — and they were each writing the same two
- * lines, one of them negated. Three copies of a predicate agree by inspection;
- * one agrees by construction.
+ * Exported so every surface that names a pricing channel asks it rather than
+ * writing the same two lines, one of them negated. Copies of a predicate agree
+ * by inspection; one agrees by construction.
  *
  * `native` has no connectorKey and is never badged: the Peakhour web app is
  * where the pillars run, not something connected to.

@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
+import { useActiveStore } from "@/providers/active-store-provider";
 
 /**
  * Commerce catalog + per-listing health (GET /v1/commerce/catalog, api#837).
@@ -37,10 +38,11 @@ export interface CatalogPage {
 const CATALOG_KEY = "commerce-catalog";
 
 export function useCommerceCatalog(page = 1, limit = 100) {
+  const store = useActiveStore();
   const { isAuthenticated, org } = useAuth();
   return useQuery<CatalogPage>({
-    queryKey: [CATALOG_KEY, org?._id ?? null, page, limit],
-    queryFn: () => api.get<CatalogPage>(`/v1/commerce/catalog?page=${page}&limit=${limit}`),
+    queryKey: [CATALOG_KEY, org?._id ?? null, page, limit, store.merchantId ?? null],
+    queryFn: () => api.get<CatalogPage>(store.path(`/v1/commerce/catalog?page=${page}&limit=${limit}`)),
     enabled: isAuthenticated && !!org?._id,
     staleTime: 5 * 60_000,
     retry: false,

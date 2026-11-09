@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ActionCost } from "@/components/dashboard/action-cost";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
@@ -22,6 +23,8 @@ import { useLocale } from "@/hooks/use-locale";
 import { minorToMajor } from "@/lib/money";
 import { PageShell } from "@/components/dashboard/page-shell";
 import { emptyPlanCopy, partialPlanCopy } from "@/lib/pricing-empty-copy";
+import { proposeErrorToast } from "@/lib/commerce-action-status";
+import { showToast } from "@/lib/show-toast";
 import {
   usePricer,
   usePricerBrief,
@@ -176,7 +179,7 @@ function PricingBrief({ hasProposals }: { hasProposals: boolean }) {
         ) : (
           <p className="text-sm text-muted-foreground">
             A prioritised, plain-language markdown plan — what to clear this week and at
-            what discount. Uses Peaks.
+            what discount. <ActionCost action="pricerBrief" />
           </p>
         )}
       </CardContent>
@@ -209,8 +212,11 @@ function PriceGrid({
             description: `${p.title || "Product"} — the Pricer logged the intent.`,
           });
         },
-        onError: () =>
-          toast.error("Couldn't propose markdown", { description: "Please try again shortly." }),
+        onError: (e) => {
+          // ★A product with a live markdown answers 409 LIVE_MARKDOWN, which
+          //  a retry never fixes (api#1434): say so, in the server's words.
+          showToast(proposeErrorToast(e));
+        },
       });
     },
     [propose],

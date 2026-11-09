@@ -22,6 +22,8 @@ import { Reveal } from "@/components/marketing/reveal";
 import { RevealNoScript } from "@/components/marketing/reveal-noscript";
 import { pageMetadata } from "@/lib/seo";
 import { getPublicCatalog, signupCta } from "@/lib/catalog";
+import { marketingTrialDays } from "@/lib/pricing";
+import { trialNote } from "@/lib/trial-copy";
 import { HOW_IT_WORKS_STEPS } from "@/lib/how-it-works";
 import {
   CONNECTED_SIGNALS,
@@ -80,8 +82,10 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
 }
 
 export default async function HowItWorks() {
-  const catalog = await getPublicCatalog();
-  const cta = signupCta(catalog?.platform?.signupMode ?? "open");
+  const [catalog, trialDays] = await Promise.all([getPublicCatalog(), marketingTrialDays()]);
+  const cta = signupCta(catalog?.platform?.signupMode ?? "open", trialDays);
+  // No trial, no line (owner rule 2026-10-06, `lib/trial-copy`).
+  const note = trialNote(trialDays);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -628,16 +632,14 @@ export default async function HowItWorks() {
                   href={cta.href}
                   className="group mt-8 inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-7 py-3.5 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 motion-reduce:transition-none"
                 >
-                  {cta.label} — all five pillars
+                  {cta.label} — all five modules
                   <ArrowRight
                     className="size-4 transition-transform group-hover:translate-x-1 motion-reduce:transition-none"
                     aria-hidden
                   />
                 </Link>
               )}
-              <p className="mt-5 text-sm text-on-ink-dim">
-                A free plan on every pillar. No credit card.
-              </p>
+              {note ? <p className="mt-5 text-sm text-on-ink-dim">{note}</p> : null}
             </Reveal>
           </div>
         </section>

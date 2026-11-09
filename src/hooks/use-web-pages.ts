@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, newActionKey } from "@/lib/api";
 import type { PageBlock, MarketingPageSeo } from "@/lib/marketing-pages";
 
 // ── Types (mirror the /v1/content/web-pages API) ─────────────────────────────
@@ -64,6 +64,17 @@ export interface GenerateOutcome {
   unsupportedClaims?: string[];
   skippedReason?: string;
   error?: string;
+  /**
+   * True when this REWROTE a draft already waiting for review rather than
+   * adding one — generation is idempotent per slug.
+   *
+   * ★THE REVIEW QUEUE DOES NOT GROW IN THIS CASE, which is why the flag has to
+   * reach the UI. Reporting a rewrite as "Created 1 page for review" left the
+   * owner watching a list that had not moved, with no way to tell that from a
+   * failure. Absent on an older api: treated as a create, which is what the
+   * client assumed for every outcome before this existed.
+   */
+  replaced?: boolean;
 }
 
 export interface GenerateResult {
@@ -128,7 +139,7 @@ export function useGenerateWebPages() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body?: { segments?: GenerateSegmentInput[]; dryRun?: boolean }) =>
-      api.post<GenerateResult>("/v1/content/web-pages/generate", body ?? {}),
+      api.post<GenerateResult>("/v1/content/web-pages/generate", body ?? {}, newActionKey()),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: webPagesKeys.all }),
   });
 }

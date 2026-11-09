@@ -55,6 +55,14 @@ export function useSchedulePreview(
   useEffect(() => {
     if (key === null) {
       seqRef.current++;
+      // ⚠️AND THE SPINNER HAS TO STOP. Going from a real key to null — which
+      // happens the moment a composer's only target is switched off — left
+      // `loading` latched true, and every caller that disables its submit
+      // button on `loading` stayed disabled with nothing in flight. Harmless
+      // until a surface could have zero channels; the compose-to-listing panel
+      // is the first that can.
+      setLoading(false);
+      setError(null);
       return;
     }
     const mySeq = ++seqRef.current;

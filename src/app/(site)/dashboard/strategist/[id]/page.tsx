@@ -5,12 +5,19 @@ import DOMPurify from "isomorphic-dompurify";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { api } from "@/lib/api";
+import { api, ApiError, newActionKey } from "@/lib/api";
+import { usePeaksQuote, quoteTokenFor } from "@/hooks/use-peaks-quote";
+import { PEAKS_ACTIONS } from "@/lib/api/peaks";
+import { PriceLine } from "@/components/audience/discover-audiences-dialog";
+import { chargedTaskRefusal } from "@/hooks/use-audience-plan";
 import { cn } from "@/lib/utils";
 import { useLocale } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";
+import { ActionCost } from "@/components/dashboard/action-cost";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { LibraryMediaPicker } from "@/components/media/library-media-picker";
+import { DrivePicker } from "@/components/drive/drive-picker";
+import { SaveToDriveButton } from "@/components/drive/save-to-drive";
+import type { SaveToDriveSource } from "@/lib/api/media";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ChannelIcon } from "@/components/brand/channel-icon";
@@ -626,7 +633,7 @@ function BriefTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
     setGenerating(true);
     setProgress(null);
     try {
-      const res = await api.streamPost(`/v1/content/ideas/${ideaId}/generate-brief`);
+      const res = await api.streamPost(`/v1/content/ideas/${ideaId}/generate-brief`, undefined, newActionKey());
       const result = await consumeSSE(res, setProgress);
       if (result.event === "complete") {
         toast.success("Brief generated");
@@ -661,6 +668,7 @@ function BriefTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
                 <Sparkles className="mr-1.5 h-4 w-4" />
                 Generate Brief
               </Button>
+              <ActionCost action="contentBrief" className="mt-2 block text-xs" />
             </>
           )}
         </CardContent>
@@ -871,7 +879,8 @@ function ImagePlaceholderRail({
 }: {
   placeholders: ImagePlaceholder[];
   onDelete: (index: number) => void;
-  onGenerate: (index: number) => void;
+  /** `quoteToken` is the receipt for the price the merchant was shown beside the buttons (absent while none is held). */
+  onGenerate: (index: number, quoteToken?: string) => void;
   /** Resolve a placeholder from an external URL (status "supplied"). */
   onSupplyUrl: (index: number, url: string) => void;
   /** Resolve from the media library / an upload (status "uploaded"). */
@@ -881,6 +890,8 @@ function ImagePlaceholderRail({
   generatingIndex: number | null;
   resolvingIndex: number | null;
 }) {
+  // The price of one image, asked for while the buttons are usable and shown before any is pressed (C7: the cost is known upfront).
+  const price = usePeaksQuote(PEAKS_ACTIONS.generateImage, finalized && placeholders.length > 0);
   if (!placeholders.length) return null;
   return (
     <Card>
@@ -888,9 +899,15 @@ function ImagePlaceholderRail({
         <CardTitle className="text-sm flex items-center gap-2"><ImageIcon className="h-4 w-4" /> Image placeholders <span className="text-muted-foreground font-normal">({placeholders.length})</span></CardTitle>
         <CardDescription className="text-xs">
           {finalized
-            ? "Text finalized — per placeholder: Generate with AI, paste an image URL, or pick from your media library (Library also uploads). Delete what you don't want first."
+            ? "Text finalized — per placeholder: Generate with AI, paste an image URL, or choose from Drive (you can upload or generate there too). Delete what you don't want first."
             : "Delete what you don't want; Finalize text to unlock image generation."}
         </CardDescription>
+        {finalized ? (
+          <div className="text-xs text-muted-foreground">
+            <span>Each AI image: </span>
+            <PriceLine price={price} />
+          </div>
+        ) : null}
       </CardHeader>
       <CardContent>
         <ul className="grid gap-2 sm:grid-cols-2">
@@ -900,7 +917,7 @@ function ImagePlaceholderRail({
               p={p}
               index={i}
               onDelete={onDelete}
-              onGenerate={onGenerate}
+              onGenerate={(idx) => onGenerate(idx, quoteTokenFor(price).quoteToken)}
               onSupplyUrl={onSupplyUrl}
               onPickFromLibrary={onPickFromLibrary}
               busy={busy}
@@ -920,10 +937,17 @@ function ImagePlaceholderRail({
  * parent rail stays stateless. Resolution paths:
  *   - Generate  → AI image pipeline (status "generated"), gated on finalize
  *   - Paste URL → external URL        (status "supplied"),  gated on finalize
- *   - Library   → pick from cnt_media OR upload (status "uploaded" + mediaId),
- *                 gated on finalize — via <LibraryMediaPicker> (Media Manager
- *                 / R2). Closes the newsletter image-placeholder gap.
+ *   - Drive     → pick from Drive, upload or generate (status "uploaded" +
+ *                 mediaId), gated on finalize — via <DrivePicker>.
  */
+/** What Save to Drive is given for a placeholder's image: the AI image as data or as a link, or the address that was pasted. Anything else (a blob, a data URL that is not an AI image) is not offered. */
+function saveSource(p: ImagePlaceholder): SaveToDriveSource | null {
+  const url = p.resolvedImageUrl;
+  if (!url) return null;
+  if (p.status === "generated") return url.startsWith("data:") ? { from: "ai_image", dataUrl: url } : /^https:\/\//i.test(url) ? { from: "ai_image", imageUrl: url } : null;
+  return /^https:\/\//i.test(url) ? { from: "draft_asset", url } : null;
+}
+
 function PlaceholderCard({
   p,
   index,
@@ -952,10 +976,11 @@ function PlaceholderCard({
   const resolved = !!p.resolvedImageUrl &&
     (p.status === "generated" || p.status === "supplied" || p.status === "uploaded");
   const rowBusy = busy || isGenerating || isResolving;
+  const saveSrc = saveSource(p);
 
   const statusLabel = p.status === "generated" ? "Generated"
     : p.status === "supplied" ? "From URL"
-    : p.status === "uploaded" ? "From library"
+    : p.status === "uploaded" ? "From Drive"
     : null;
 
   function submitUrl() {
@@ -983,6 +1008,12 @@ function PlaceholderCard({
             <img src={p.resolvedImageUrl} alt={p.suggestedAltText} className="block w-full h-auto" />
           </div>
         )}
+        {/* An image Drive does not hold yet (an AI image kept as data, or a picture from a pasted address): keep it (D8). */}
+        {resolved && p.resolvedImageUrl && !p.mediaId && saveSrc && (
+          <div className="mt-2">
+            <SaveToDriveButton key={p.resolvedImageUrl} source={saveSrc} />
+          </div>
+        )}
         <div className="mt-2 flex items-center gap-2 flex-wrap">
           <button
             type="button"
@@ -1006,8 +1037,18 @@ function PlaceholderCard({
           >
             {isResolving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link2 className="h-3 w-3" />} Paste URL
           </button>
-          <LibraryMediaPicker
+          <DrivePicker
             maxSelection={1}
+            kinds={["image"]}
+            target={{ channel: "newsletter", label: "a newsletter" }}
+            addLabel="Use this image"
+            // Generate makes THIS spot's image from its description (the same call as the Generate button); the card shows the result.
+            generatePrompt={p.description}
+            generatePriced
+            promptEditable={false}
+            onGenerate={async () => {
+              onGenerate(index);
+            }}
             onSelect={(assets) => {
               const a = assets[0];
               if (a) onPickFromLibrary(index, a.url, a.id);
@@ -1017,9 +1058,9 @@ function PlaceholderCard({
                 type="button"
                 disabled={rowBusy || !finalized}
                 className="text-xs font-medium px-2.5 py-1 rounded border bg-background hover:bg-accent disabled:opacity-40 flex items-center gap-1"
-                title={finalized ? "Choose from your media library or upload" : "Finalize text first to unlock"}
+                title={finalized ? "Choose from Drive, upload, or generate" : "Finalize text first to unlock"}
               >
-                <ImageIcon className="h-3 w-3" /> Library
+                <ImageIcon className="h-3 w-3" /> Drive
               </button>
             }
           />
@@ -1138,6 +1179,7 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
   // other hooks at the top — MUST be unconditional (it previously sat
   // after this component's early returns, a react-hooks/rules-of-hooks
   // violation).
+  const queryClient = useQueryClient();
   const [generatingPlaceholderIdx, setGeneratingPlaceholderIdx] = useState<number | null>(null);
   // Per-placeholder resolution busy index (paste-URL / library pick).
   const [resolvingPlaceholderIdx, setResolvingPlaceholderIdx] = useState<number | null>(null);
@@ -1281,7 +1323,7 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
     setGenerating(true);
     setProgress(null);
     try {
-      const res = await api.streamPost(`/v1/content/ideas/${ideaId}/generate-content`);
+      const res = await api.streamPost(`/v1/content/ideas/${ideaId}/generate-content`, undefined, newActionKey());
       const result = await consumeSSE(res, setProgress);
       if (result.event === "complete") {
         toast.success("Draft generated");
@@ -1372,14 +1414,25 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
   // user clicks Generate before Finalize). UI also disables the
   // button when !finalized so the gate is enforced both sides.
   // (state declared with the other hooks at the top — see note there.)
-  async function handleGeneratePlaceholder(index: number) {
+  async function handleGeneratePlaceholder(index: number, quoteToken?: string) {
     setGeneratingPlaceholderIdx(index);
     try {
-      await api.post(`/v1/content/ideas/${ideaId}/placeholders/${index}/generate`, {});
+      // One key per click: a retry or a double click of this click is one charge (the api derives the charge id from it).
+      await api.post(`/v1/content/ideas/${ideaId}/placeholders/${index}/generate`, {}, { ...newActionKey(), ...(quoteToken ? { "x-peaks-quote": quoteToken } : {}) });
       toast.success(`Image ${index + 1} generated`);
       onRefresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Image generation failed");
+      // Refused before it started (too few credits, already running): nothing was charged, and the api says what to do.
+      const refusal = err instanceof ApiError ? chargedTaskRefusal(err.code, err.message) : undefined;
+      if (refusal) toast.error(refusal.title, { description: refusal.description });
+      else if (err instanceof ApiError && err.code === "QUOTE_NOT_HONOURED") {
+        // The receipt for the price shown has lapsed: nothing ran. Drop it so the price is asked for again, then press again.
+        queryClient.resetQueries({ queryKey: ["peaks-quote"] });
+        toast.error("That price has changed.", { description: err.message || "Ask for a fresh quote and confirm the new price." });
+      } else if (err instanceof ApiError) {
+        // The api answered with a failure: a held charge is released only on success, so nothing was charged.
+        toast.error(err.message || "Image generation failed.", { description: "You were not charged." });
+      } else toast.error(err instanceof Error ? err.message : "Image generation failed.");
     }
     setGeneratingPlaceholderIdx(null);
   }
@@ -1534,6 +1587,7 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
             {generating ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1.5 h-4 w-4" />}
             Regenerate
           </Button>
+          <ActionCost action="contentDraft" className="text-xs" />
           {/* Emoji insert — only in Edit mode (operates on the textarea
               caret) and before finalize. */}
           {!preview && !finalized && <EmojiPickerTrigger onInsert={insertSnippet} />}

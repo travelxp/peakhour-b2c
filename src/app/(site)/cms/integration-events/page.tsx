@@ -63,7 +63,9 @@ interface EventsResponse {
 }
 
 const PROVIDERS = [
-  "linkedin_content", "linkedin_ads", "beehiiv", "facebook", "x", "x_ads",
+  // x_ads is not offered: nothing emits its ingest events since the X cron
+  // was retired (api#1417) — the monitor is not a feed.
+  "linkedin_content", "linkedin_ads", "beehiiv", "facebook", "x",
   "instagram", "meta_ads", "google_ads", "google_analytics",
   "google_search_console", "google_business_profile", "youtube", "substack",
   "mailchimp", "kit", "shopify", "wordpress", "ghost",
@@ -156,7 +158,6 @@ function IntegrationEventsInner() {
           "performance-sync",
           "x-metrics-sync",
           "x-mentions-sync",
-          "x-ads-metrics-sync",
         ]}
         onTriggered={() =>
           queryClient.invalidateQueries({ queryKey: ["cms-integration-events"] })

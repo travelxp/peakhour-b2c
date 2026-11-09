@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { SITE } from "@/lib/utils";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
+import { FEES_REFUND_SENTENCE, PEAKS_REFUND_SENTENCE, REFUND_LAW_SENTENCE } from "@/lib/peaks-refund-terms";
 
 export const metadata: Metadata = {
   title: "Terms of Service - Peakhour.ai",
@@ -225,8 +226,7 @@ export default function TermsPage() {
                 invoice or receipt you receive.
               </li>
               <li>
-                All fees are non-refundable except as required by applicable law or as
-                explicitly stated in these Terms.
+                {FEES_REFUND_SENTENCE} {PEAKS_REFUND_SENTENCE} {REFUND_LAW_SENTENCE}
               </li>
               <li>
                 We may offer free tiers, trials, or promotional pricing at our discretion.

@@ -49,7 +49,10 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { LibraryMediaPicker } from "@/components/media/library-media-picker";
+import { DrivePicker } from "@/components/drive/drive-picker";
+import { SaveToDriveButton } from "@/components/drive/save-to-drive";
+import { isSavableAddress } from "@/lib/drive/copy";
+import { targetLabel } from "@/lib/drive/fit";
 import { ScheduleTimePicker } from "@/components/scheduler/schedule-time-picker";
 import { PlatformCharCounter } from "@/components/composer/platform-char-counter";
 import { scheduler } from "@/lib/scheduler/client";
@@ -440,8 +443,31 @@ export function ScheduledPostEditor({
         ) : (
           supportsMedia && <p className="text-xs text-muted-foreground">No attachments.</p>
         )}
+        {mediaUrls.some(isSavableAddress) && (
+          // Only a picture that is NOT a Drive file yet (a pasted address, an older post) is offered; a Drive file's own address is skipped (D8).
+          <details className="text-xs text-muted-foreground">
+            <summary className="cursor-pointer">Keep these in Drive</summary>
+            <ul className="mt-1.5 space-y-1">
+              {mediaUrls.map((url, i) =>
+                isSavableAddress(url) ? (
+                  <li key={`save-${i}-${url}`} className="flex items-center gap-2">
+                    <span>Attachment {i + 1}</span>
+                    <SaveToDriveButton
+                      source={{ from: "draft_asset", url }}
+                      // The post then holds the Drive file's own address, not the outside one that can expire or be blocked. (A Private file has no public address: the post keeps what it had.)
+                      onSaved={(saved) => saved.publicUrl && setMediaUrls((prev) => prev.map((u) => (u === url ? saved.publicUrl! : u)))}
+                    />
+                  </li>
+                ) : null,
+              )}
+            </ul>
+          </details>
+        )}
         {supportsMedia ? (
-          <LibraryMediaPicker
+          <DrivePicker
+            // Files that fit this channel come first (the api's `channelFit`).
+            target={{ channel: item.channel, label: targetLabel(channelDisplayName(item.channel)) }}
+            addLabel="Add to post"
             // Remaining slots against the payload schema's cap, not a guessed
             // per-platform number: the channel's real `maxMediaCount` lives in
             // the server's constraints adapter and is enforced there

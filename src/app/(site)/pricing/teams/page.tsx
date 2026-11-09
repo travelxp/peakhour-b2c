@@ -3,14 +3,14 @@ import Link from "next/link";
 import { Check } from "lucide-react";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
-import { getPricing, findBundleTier, formatMonthly, formatPeaks } from "@/lib/pricing";
+import { getPricing, findBundleTier, agencyCardPrice, formatPeaks, suiteTrialDays } from "@/lib/pricing";
 import { getPublicCatalog, signupCta } from "@/lib/catalog";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata = pageMetadata({
   title: "Agency & Enterprise plans",
   description:
-    "Every Peakhour pillar across many businesses — one unit per client, volume Peaks and central billing on Agency, plus SSO, SLAs and a dedicated team on Enterprise.",
+    "Every Peakhour module across many businesses — one unit per client, volume Peaks and central billing on Agency, plus SLAs and a dedicated team on Enterprise.",
   path: "/pricing/teams",
 });
 
@@ -19,7 +19,7 @@ function countryFrom(header: string | null): string {
 }
 
 const AGENCY_FEATURES = [
-  "All five pillars, fully unlocked",
+  "All five modules, fully unlocked",
   "One unit = one client business",
   "Central billing across every client",
   "Priority support & onboarding",
@@ -27,7 +27,6 @@ const AGENCY_FEATURES = [
 
 const ENTERPRISE_FEATURES = [
   "Everything in Agency",
-  "SSO & advanced roles",
   "SLAs & uptime guarantees",
   "Dedicated success manager",
   "Security review & DPA",
@@ -49,20 +48,24 @@ export default async function TeamsPricingPage() {
   ]);
   const signupMode = catalog?.platform?.signupMode ?? "open";
   const openSignup = signupMode === "open";
-  const cta = signupCta(signupMode);
+  const cta = signupCta(signupMode, suiteTrialDays(pricing));
 
+  const suite = findBundleTier(pricing, "suite");
   const agency = findBundleTier(pricing, "agency");
   const enterprise = findBundleTier(pricing, "enterprise");
 
-  const agencyPrice = agency ? formatMonthly(agency.pricing) : "$299";
+  // Agency is sold quarterly and yearly, never monthly (D5): the card quotes
+  // the year (`agencyCardPrice`), and with no Agency row says it is priced at
+  // checkout instead of the invented "$299/month" it used to fall back to.
+  const agencyPrice = agencyCardPrice(agency);
   const agencyPeaks =
     typeof agency?.peaksIncluded === "number"
       ? formatPeaks(agency.peaksIncluded)
-      : "25,000";
+      : "250,000";
   const enterprisePeaks =
     typeof enterprise?.peaksIncluded === "number"
       ? formatPeaks(enterprise.peaksIncluded)
-      : "100,000";
+      : "1,000,000";
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -102,9 +105,33 @@ export default async function TeamsPricingPage() {
             </h1>
             <p className="mx-auto mt-5 max-w-xl text-lg text-muted-foreground">
               Whether you manage a roster of clients or run a large brand, get
-              every pillar under one roof — with the billing, credits and controls
-              that scale.
+              every module under one roof — with the billing, credits and
+              controls that scale.
             </p>
+            {/* ★THIS PAGE SOLD THE TOP OF A LADDER WHOSE MIDDLE RUNG IT NEVER
+                MENTIONED. Peakhour Suite now sits directly below Agency, so a
+                visitor who lands here from a search and does not need many
+                businesses was being shown ₹24,999 as the entry point. Naming
+                the rung below is the difference between a price list and a
+                ladder. */}
+            {/* ★AND ONLY WHEN THE CATALOG SELLS IT. This file already degrades
+                through `findBundleTier` everywhere else; an unconditional
+                paragraph names a plan that does not exist on an environment
+                that has not run migration 258, and links to an `#suite` anchor
+                the hub does not render there. */}
+            {suite && (
+              <p className="mx-auto mt-4 max-w-xl text-sm text-muted-foreground">
+                Running one business?{" "}
+                <Link
+                  href="/pricing#suite"
+                  className="font-bold text-brand-strong underline underline-offset-2"
+                >
+                  Peakhour Suite
+                </Link>{" "}
+                is the same five modules for a single business, at a fraction of
+                this. These two are for running many.
+              </p>
+            )}
           </div>
         </section>
 
@@ -122,12 +149,22 @@ export default async function TeamsPricingPage() {
                   className="text-4xl font-extrabold tracking-tight"
                   style={{ fontFamily: "var(--font-space-grotesk)" }}
                 >
-                  {agencyPrice}
+                  {agencyPrice ? agencyPrice.price : "Priced at checkout"}
                 </span>
-                <span className="text-sm text-muted-foreground">
-                  / month, per business unit
-                </span>
+                {agencyPrice?.list && (
+                  <span className="text-base font-bold text-muted-foreground line-through decoration-2">
+                    {agencyPrice.list}
+                  </span>
+                )}
               </div>
+              {agencyPrice && (
+                <p className="mt-1 text-sm text-muted-foreground">{agencyPrice.per}</p>
+              )}
+              {/* The campaign behind the struck-through price: its own name
+                  beside its percent, as the Suite badge says it. */}
+              {agencyPrice?.offer && (
+                <p className="mt-1 text-xs font-bold text-brand-ink dark:text-brand">{agencyPrice.offer}</p>
+              )}
               <p className="mt-3 text-sm text-muted-foreground">
                 Every product, for one business — one unit per client. Add units
                 as your roster grows.

@@ -1,3 +1,19 @@
+/**
+ * Paths where a 401 must NOT trigger the auto-refresh retry.
+ *
+ * `/auth/refresh` is the obvious one — retrying it would recurse.
+ *
+ * ⚠️★★`/auth/test-login` is the subtler one. A 401 there means WRONG PASSWORD,
+ * never "your access token expired" — so refreshing and replaying it is
+ * meaningless, and it is worse than meaningless: the API counts failed attempts
+ * against the credential and locks it at ten. With any still-valid session
+ * cookie present `tryRefresh()` succeeds, so each typo silently burned TWO
+ * attempts and five mistypes locked a reviewer's credential mid-certification.
+ */
+function skipsAuthRetry(path: string): boolean {
+  return path.includes("/auth/refresh") || path.includes("/auth/test-login");
+}
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 /** Exported for cases where a raw URL is needed (e.g., OAuth redirects) */
@@ -45,9 +61,32 @@ export async function getCsrfToken(): Promise<string | null> {
   }
 }
 
+/**
+ * A fresh key for ONE click on a paid action (owner, 2026-11-04: one action, one charge). Send it as `Idempotency-Key`;
+ * the api turns it into the charge id, so a double click or a retry of that click is charged once. Make a new one per
+ * click, never per page: two deliberate runs are two actions.
+ */
+export function newActionKey(): Record<string, string> {
+  return { "Idempotency-Key": `click-${typeof globalThis.crypto?.randomUUID === "function" ? globalThis.crypto.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`}` };
+}
+
 /** Clear the cached CSRF token (e.g. after a CSRF rejection). */
 export function clearCsrfToken(): void {
   csrfToken = null;
+}
+
+/**
+ * Remove any CSRF header a caller supplied, in whatever casing.
+ *
+ * WARN `headers` IS A PLAIN OBJECT AND THE MERGE INTO IT IS CASE-SENSITIVE,
+ * so `x-csrf-token` and `X-CSRF-Token` are two keys -- and `fetch` joins
+ * duplicate header names with a comma rather than picking one. Setting ours
+ * without clearing theirs sends `x-csrf-token: forged, real`.
+ */
+function stripCsrfHeader(headers: Record<string, string>): void {
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === "x-csrf-token") delete headers[key];
+  }
 }
 
 class ApiClient {
@@ -96,6 +135,17 @@ class ApiClient {
 
     // Add CSRF token for state-changing requests
     if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
+      // WARN STRIPPED UNCONDITIONALLY, NOT ONLY WHEN WE HOLD A TOKEN (review
+      // round 2). Round 1 put this inside `if (token)` -- and `getCsrfToken`
+      // is best-effort and answers null on any failure, so on exactly that
+      // path a caller forged `x-csrf-token` survived into the request. That
+      // is the ONE path where nothing of ours would have overwritten it, and
+      // it is the path the guard skipped.
+      //
+      // STAR A CALLER NEVER SUPPLIES THIS HEADER, in any casing, whatever we
+      // hold. That is the guarantee which justified the `headers` parameter,
+      // and it cannot be conditional on our own success.
+      stripCsrfHeader(headers);
       const token = await getCsrfToken();
       if (token) {
         headers["X-CSRF-Token"] = token;
@@ -140,6 +190,13 @@ class ApiClient {
         clearCsrfToken();
         const retryToken = await getCsrfToken();
         if (retryToken) {
+          // STAR NO STRIP HERE, AND THAT IS DELIBERATE (review round 2).
+          // `stripCsrfHeader` above runs for every non-GET request before
+          // the first attempt, so anything reaching this retry has already
+          // had a caller CSRF header removed. A second strip could never
+          // fire, and a guard that cannot fire is worse than none: it reads
+          // as protection and mutation-tests as INERT. The invariant it
+          // would restate is named here instead.
           headers["X-CSRF-Token"] = retryToken;
           const retryRes = await fetch(url, {
             credentials: "include",
@@ -162,7 +219,7 @@ class ApiClient {
       }
 
       // Auto-refresh on 401: call /auth/refresh to renew access_token, then retry once
-      if (finalRes.status === 401 && !path.includes("/auth/refresh")) {
+      if (finalRes.status === 401 && !skipsAuthRetry(path)) {
         const refreshed = await this.tryRefresh();
         if (refreshed) {
           // Retry the original request with fresh access_token cookie
@@ -245,7 +302,7 @@ class ApiClient {
     const doFetch = () => fetch(url, { credentials: "include" });
 
     let res = await doFetch();
-    if (res.status === 401 && !path.includes("/auth/refresh")) {
+    if (res.status === 401 && !skipsAuthRetry(path)) {
       const refreshed = await this.tryRefresh();
       if (refreshed) res = await doFetch();
     }
@@ -272,10 +329,27 @@ class ApiClient {
     return { data: json.data as T, meta: (json.meta as Record<string, unknown>) ?? {} };
   }
 
-  post<T>(path: string, body?: unknown) {
+  /**
+   * POST JSON.
+   *
+   * ★`headers` IS OPTIONAL AND IS NOT A GENERAL ESCAPE HATCH. It exists for
+   * `x-peaks-quote` (P-10): a signed receipt of the price a merchant was shown,
+   * which has to travel WITH the act it prices and cannot go in the body —
+   * every quoted route's body is its own shape, and a price field inside it
+   * would be a number the client could edit.
+   *
+   * ⏸ORDERING, STATED PRECISELY BECAUSE "it merges" is not precise enough:
+   * `request` applies caller headers OVER the content type and then sets the
+   * CSRF token, so CSRF cannot be overridden from here — in ANY casing,
+   * which review round 1 found was true of only one — and the content type
+   * can. Neither matters for a quote receipt; both would matter to whoever
+   * reaches for this next.
+   */
+  post<T>(path: string, body?: unknown, headers?: Record<string, string>) {
     return this.request<T>(path, {
       method: "POST",
       body: body ? JSON.stringify(body) : undefined,
+      ...(headers ? { headers } : {}),
     });
   }
 
@@ -319,7 +393,7 @@ class ApiClient {
       });
 
     let res = await doFetch();
-    if (res.status === 401 && !path.includes("/auth/refresh")) {
+    if (res.status === 401 && !skipsAuthRetry(path)) {
       const refreshed = await this.tryRefresh();
       if (refreshed) res = await doFetch();
     }
@@ -351,12 +425,13 @@ class ApiClient {
    * Handles CSRF + credentials like other methods, but
    * does NOT parse JSON — caller reads the stream.
    */
-  async streamPost(path: string, body?: unknown): Promise<Response> {
+  async streamPost(path: string, body?: unknown, callerHeaders?: Record<string, string>): Promise<Response> {
     const method = "POST";
-    const headers: Record<string, string> = {};
+    const headers: Record<string, string> = { ...(callerHeaders ?? {}) };
     if (body) headers["Content-Type"] = "application/json";
 
     const token = await getCsrfToken();
+    stripCsrfHeader(headers); // a caller header can never stand in for the real token, in any casing
     if (token) headers["X-CSRF-Token"] = token;
 
     const fetchOpts: RequestInit = {
@@ -385,7 +460,12 @@ class ApiClient {
     }
 
     // Auto-refresh on 401 (same as request())
-    if (res.status === 401) {
+    //
+    // ★Uses the same exclusion helper as the other three retry sites. No caller
+    //  of `streamPost` hits an excluded path today — its three callers are all
+    //  /v1/content/* streaming routes — but "the one retry site that decides
+    //  this for itself" is exactly how the next one gets it wrong.
+    if (res.status === 401 && !skipsAuthRetry(path)) {
       const refreshed = await this.tryRefresh();
       if (refreshed) {
         res = await fetch(`${this.baseUrl}${path}`, fetchOpts);

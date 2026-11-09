@@ -1,8 +1,8 @@
 /**
  * Server-side helper for fetching country-resolved pricing from the
  * peakhour-api `/v1/platform/pricing` endpoint. Used by the marketing
- * /pricing pages, the landing hero and /auth — the last two for the free-Peaks
- * figure only, not for prices.
+ * /pricing pages and /auth — the last for the Suite trial's length only, not
+ * for prices.
  *
  * Country precedence on the API side:
  *   1. `?country=XX` query — passed explicitly when we already know it.
@@ -29,35 +29,29 @@ import { unstable_cache as cache } from "next/cache";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
-export type PlanKey = "free" | "starter" | "growth" | "agency" | "enterprise";
-
 export interface PricingEntry {
   currency: string;
   monthly: number;
   yearly: number;
   trialDays: number;
-  foundingDiscountPct: number;
+  /** Percent off the MONTHLY price from the live campaign (api `cfg_campaigns`,
+   *  billing plan D8), or 0. `monthly` stays the list price. Named for the
+   *  term, never for one campaign: any campaign fills it. */
+  monthlyDiscountPct: number;
+  /** The same for the YEARLY price: a campaign can be sold on one term only. */
+  yearlyDiscountPct: number;
+  /** The label of the campaign behind `monthlyDiscountPct` (`cfg_campaigns.label`,
+   *  e.g. "Founding price: Peakhour Suite"), or null. The page shows it in
+   *  place of copy of its own (owner, 2026-10-06: offers come from campaigns). */
+  monthlyCampaignLabel: string | null;
+  /** The same for the YEARLY term, whose campaign may be another one. */
+  yearlyCampaignLabel: string | null;
   billingProviderKey: string;
   taxIncluded: boolean;
   gstApplicable: boolean;
   vatApplicable: boolean;
   displayPrefix?: string;
   tagline?: string;
-  /** Per-Business add-on price (paid plans). Absent = single-Business plan. */
-  additionalBusinessMonthly?: number;
-  additionalBusinessYearly?: number;
-}
-
-export interface ResolvedPlan {
-  key: PlanKey;
-  name: string;
-  tagline?: string;
-  description?: string;
-  features: string[];
-  limits: Record<string, number | undefined>;
-  highlightAsRecommended: boolean;
-  version: number;
-  pricing: PricingEntry;
 }
 
 /** A cfg_feature granted by a tier, enriched with its catalog display copy. */
@@ -70,7 +64,7 @@ export interface ResolvedFeature {
   useCases?: string[];
 }
 
-/** A single tier within a product (e.g. commerce_assistant.lens). */
+/** A catalog plan as it is listed under one product it composes (e.g. suite). */
 export interface ResolvedProductTier {
   key: string;
   name: string;
@@ -101,7 +95,7 @@ export interface ResolvedChannel {
   purchaseMode: string;
 }
 
-/** A product with its resolved tiers (e.g. Commerce Assistant: [Lens, Commerce]). */
+/** A product (module) with the catalog plans that compose it (e.g. Commerce: [suite, agency, enterprise]). */
 export interface ResolvedProduct {
   key: string;
   name: string;
@@ -116,8 +110,7 @@ export interface ResolvedProduct {
 
 export interface PricingResponse {
   country: string;
-  plans: ResolvedPlan[];
-  /** Product-scoped tiers (env-gated: empty in prod when product is in_development). */
+  /** Products, each with the plans that compose it (env-gated: empty in prod when a product is in_development). */
   products: ResolvedProduct[];
 }
 
@@ -144,6 +137,13 @@ async function fetchPricing(country: string): Promise<PricingResponse | null> {
   }
 }
 
+/** The visitor's country for a pricing read: the edge geo header when it is a
+ *  two-letter code, else the pinned "DEFAULT" key (see the note above). One
+ *  copy, so /pricing and /shopify cannot quote two currencies to one visitor. */
+export function countryFromHeader(header: string | null): string {
+  return header && /^[A-Za-z]{2}$/.test(header) ? header.toUpperCase() : "DEFAULT";
+}
+
 export const getPricing = cache(
   fetchPricing,
   ["platform-pricing"],
@@ -157,9 +157,8 @@ export const getPricing = cache(
  * `displayPrefix` for the currency symbol so the API stays in charge
  * of i18n strings rather than the b2c hardcoding rupee vs dollar.
  *
- * Free / Enterprise both ship `monthly: 0` — they're differentiated by
- * the entry's `tagline` ("Free forever" / "Contact sales") which the
- * caller decides whether to render in place of the price.
+ * Enterprise ships `monthly: 0` (sales-led, "Contact sales"); the caller
+ * renders that in place of a price.
  */
 export function formatMonthly(p: PricingEntry): string {
   if (p.monthly === 0) return `${p.displayPrefix ?? ""}0`;
@@ -171,115 +170,211 @@ export function formatYearly(p: PricingEntry): string {
   return `${p.displayPrefix ?? ""}${formatNumber(p.yearly)}`;
 }
 
-/**
- * Account-level bundle plans (`cfg_plans` rows that compose every product).
- * The resolver surfaces these as a tier *under each product* they list, keyed
- * by the bare plan key (`agency`/`enterprise`) rather than a `<product>.<tier>`
- * key. The pricing surface separates them out: they never belong in a single
- * pillar's Free-vs-Paid table — they get their own Agency & Enterprise page.
- */
-export const BUNDLE_PLAN_KEYS = new Set(["agency", "enterprise"]);
+/* ── The campaign offer ─────────────────────────────────────────────────── */
 
-/** True when a tier is an account-level bundle (Agency/Enterprise), not a
- *  product-specific Free/Paid tier. */
-export function isBundleTier(tier: ResolvedProductTier): boolean {
-  return BUNDLE_PLAN_KEYS.has(tier.key);
+/**
+ * An offer is a CAMPAIGN (billing plan D8): `/v1/platform/pricing` reports
+ * each term's percent and label from the api's campaign resolver — the same
+ * resolver web checkout and Shopify subscribe charge by, so this page and the
+ * charge cannot disagree. The api reports only discounts the web checkout
+ * honours (life-of-subscription ones), and floors exactly as `applyDiscount`.
+ *
+ * ★NAMED FOR THE TERM, NEVER FOR ONE CAMPAIGN (owner, 2026-10-06: offers come
+ * from campaigns and are never hard-coded). These were `hasFoundingOffer` and
+ * `formatFoundingMonthly`, although any campaign fills them; what the page
+ * calls the offer is the campaign's own `label`.
+ *
+ * ★EACH TERM HAS ITS OWN PERCENT AND LABEL. A campaign can be sold on monthly
+ * or yearly terms only; the yearly price reads `yearlyDiscountPct`, never the
+ * monthly one.
+ */
+export function hasMonthlyOffer(p: PricingEntry): boolean {
+  return p.monthlyDiscountPct > 0 && p.monthlyDiscountPct < 100 && p.monthly > 0;
+}
+
+/** Is an offer live on the YEARLY price? Its own percent, its own price. */
+export function hasYearlyOffer(p: PricingEntry): boolean {
+  return p.yearlyDiscountPct > 0 && p.yearlyDiscountPct < 100 && p.yearly > 0;
 }
 
 /**
- * The product's own Free/Paid tiers — bundle plans (Agency/Enterprise) removed —
- * sorted cheapest-first so Free leads and the paid tier(s) follow. This is what
- * a single pillar's comparison table renders as its columns.
+ * The discounted amount, floored to a whole unit of currency.
+ *
+ * Every price in this catalog is quoted in whole units (₹4,999, $59), so a
+ * rendered "₹2,499.50" would be a price no invoice will ever show. Something
+ * has to round.
+ *
+ * ★AND FLOOR IS NOT THE CONSERVATIVE CHOICE — an earlier version of this
+ * comment claimed it was, which was backwards and worth correcting rather than
+ * deleting. Flooring displays the LOWEST candidate, so if the gateway ever
+ * rounds to nearest it charges ₹2,500 against a page promising ₹2,499. The
+ * safe-by-construction fix is not a rounding rule here, it is a list price
+ * that halves cleanly: ₹4,999 × 50% = 2499.5 is the only reason any of this
+ * arithmetic is load-bearing.
+ *
+ * Floor is chosen because ₹2,499 is the price the owner set out to offer and
+ * the one the catalog's 50% is reverse-engineered from. The obligation that
+ * follows is on the server: whatever computes the charge MUST floor too, and
+ * it does — the api's `discountedAmount` floors identically.
  */
-export function productTiers(product: ResolvedProduct): ResolvedProductTier[] {
-  return product.tiers
-    .filter((t) => !isBundleTier(t))
-    .sort((a, b) => a.pricing.monthly - b.pricing.monthly);
+function applyDiscount(amount: number, pct: number): number {
+  return Math.floor((amount * (100 - pct)) / 100);
+}
+
+/** The monthly price with the monthly term's campaign taken off. */
+export function offerMonthly(p: PricingEntry): number {
+  return applyDiscount(p.monthly, p.monthlyDiscountPct);
+}
+
+/** The yearly price with the yearly term's campaign taken off. */
+export function offerYearly(p: PricingEntry): number {
+  return applyDiscount(p.yearly, p.yearlyDiscountPct);
+}
+
+/** "₹2,499" — the offer's monthly price, formatted like every other price. */
+export function formatOfferMonthly(p: PricingEntry): string {
+  return `${p.displayPrefix ?? ""}${formatNumber(offerMonthly(p))}`;
+}
+
+export function formatOfferYearly(p: PricingEntry): string {
+  return `${p.displayPrefix ?? ""}${formatNumber(offerYearly(p))}`;
+}
+
+/** A campaign label worth printing: trimmed, or null for none or a blank one. */
+function shownLabel(label: string | null | undefined): string | null {
+  return typeof label === "string" && label.trim() !== "" ? label.trim() : null;
+}
+
+/** The label of the campaign on each term, or null where that term has no
+ *  offer: a label is said only beside the percent it explains. */
+export function offerLabels(p: PricingEntry): { monthly: string | null; yearly: string | null } {
+  return {
+    monthly: hasMonthlyOffer(p) ? shownLabel(p.monthlyCampaignLabel) : null,
+    yearly: hasYearlyOffer(p) ? shownLabel(p.yearlyCampaignLabel) : null,
+  };
+}
+
+/** "<label> · <what>", or `what` alone when the campaign has no label. */
+function withLabel(label: string | null, what: string): string {
+  return label ? `${label} · ${what}` : what;
 }
 
 /**
- * A product's own free tier, or undefined if it has none.
+ * The offer badge: the campaign's OWN label and each term's percent, or null
+ * when neither term has an offer (review R1: a monthly-only badge sat beside a
+ * yearly price discounted by another percent).
  *
- * The one definition of "free" — reach for this rather than
- * `product.tiers.find(t => t.pricing.monthly === 0)`, which is wrong twice
- * over.
- *
- * First, it searches the raw tier list, which includes the account-level
- * bundles. Enterprise is sales-led: it carries no matrix price, so it reads as
- * `monthly: 0, yearly: 0` while granting 100k Peaks. (Agency is NOT a price
- * trap — it is fully priced, ₹24,999/mo on live data — but it is still not a
- * product's free tier, so both are excluded by key via `isBundleTier`.)
- *
- * Second, the resolver sorts tiers by price and breaks ties alphabetically, so
- * among the zero-priced ones `"enterprise"` sorts BEFORE `"growth.free"` and
- * `"support_inbox.free"` — though AFTER `"commerce_assistant.free"`. The naive
- * find therefore lands on Enterprise for some products and the real free tier
- * for others, which is what makes the bug so easy to miss.
- *
- * Both intervals must be zero: a yearly-only plan is not free.
+ * ★THE NAME IS THE CAMPAIGN'S, never the page's ("Founding price: Peakhour
+ * Suite · 50% off"). It said "Launch offer" for every campaign, which is copy
+ * no campaign wrote. A term whose campaign has no label says its percent
+ * alone, and two terms sold by two campaigns are each named by their own.
  */
-export function freeTiers(product: ResolvedProduct): ResolvedProductTier[] {
-  return productTiers(product).filter(
-    (t) => t.pricing.monthly === 0 && t.pricing.yearly === 0,
-  );
-}
-
-/** The product's free tier — the cheapest one first, for surfaces that show a
- *  single Free column. Products carry one today; `freeTiers` is the honest
- *  plural for callers that must not assume that (see minFreePeaksPerMonth). */
-export function freeTier(product: ResolvedProduct): ResolvedProductTier | undefined {
-  return freeTiers(product)[0];
-}
-
-/**
- * The smallest monthly Peaks grant on any free plan — i.e. the amount every
- * free plan is guaranteed to include at minimum.
- *
- * Deliberately the MINIMUM, not the sum. The wallet is one pool and grants do
- * stack (peakhour-api's `stackCreditAllowance` adds up every plan an org
- * holds), so someone on all five free pillars really does get five grants —
- * but quoting that total would promise a five-pillar signup to a visitor who
- * may only ever take one. The floor is true for everybody.
- *
- * Bundles are excluded (see `freeTier`), which is load-bearing rather than
- * tidiness — Enterprise is sales-led, priced at 0/0, and grants 100k Peaks.
- *
- * Only `live` products count. The resolver does NOT narrow to live for us: in
- * prod it merely suppresses in_development/hidden (so `coming_soon` still
- * arrives), and outside prod it applies no status filter at all. Since this
- * number sits beside "free plan on every pillar" as something you get on
- * signup, a pillar you can't sign up for yet must not set the floor — nor
- * should a half-built dev product quietly move the figure on devapi.
- *
- * Returns null when pricing is unavailable (the caller falls back to
- * FREE_PEAKS_FALLBACK) or when no free tier advertises a grant. A grant of 0
- * counts as nothing to advertise rather than as a minimum of zero — otherwise
- * one credit-less free tier would drag the headline to "0+ free Peaks/mo",
- * which `?? FREE_PEAKS_FALLBACK` could not rescue (0 is not nullish).
- */
-export function minFreePeaksPerMonth(pricing: PricingResponse | null): number | null {
-  if (!pricing) return null;
-  let min: number | null = null;
-  for (const product of pricing.products) {
-    if (product.status !== "live") continue;
-    // Every free tier, not just the first: if a product ever ships two, the
-    // floor is the smaller grant, and picking one would overstate it.
-    for (const tier of freeTiers(product)) {
-      const peaks = tier.peaksIncluded;
-      if (typeof peaks !== "number" || peaks <= 0) continue;
-      min = min === null ? peaks : Math.min(min, peaks);
+export function offerBadge(p: PricingEntry): string | null {
+  const m = hasMonthlyOffer(p) ? p.monthlyDiscountPct : 0;
+  const y = hasYearlyOffer(p) ? p.yearlyDiscountPct : 0;
+  if (!m && !y) return null;
+  const labels = offerLabels(p);
+  if (m && y) {
+    if (labels.monthly === labels.yearly) {
+      return withLabel(labels.monthly, m === y ? `${m}% off` : `${m}% off monthly, ${y}% yearly`);
     }
+    return `${withLabel(labels.monthly, `${m}% off monthly`)}; ${withLabel(labels.yearly, `${y}% off yearly`)}`;
   }
-  return min;
+  return m ? withLabel(labels.monthly, `${m}% off monthly`) : withLabel(labels.yearly, `${y}% off yearly`);
 }
 
 /**
- * Shown when the pricing API is unreachable, mirroring how the landing page
- * keeps a static integrations list for the same case. Matches the catalog at
- * the time of writing (every free tier grants 500); it is a degraded mode, not
- * a source of truth — `minFreePeaksPerMonth` is.
+ * The yearly price line every card renders: the price charged, and the list
+ * price to strike through beside it when the YEARLY term has its own offer
+ * (`list` null otherwise), and `offer`: that offer as the badge says it, the
+ * campaign's label beside its percent and term ("Agency launch · 20% off yearly"; the
+ * term, because the Agency card also sells quarterly, which this offer does not
+ * cover), or null
+ * without an offer. Never the label alone: a name is said only beside the
+ * percent it explains (review R1 on b2c#594). Null when there is no yearly
+ * price at all. One helper, so the Suite card and the plan cards cannot read
+ * the term two ways.
  */
-export const FREE_PEAKS_FALLBACK = 500;
+export function yearlyPrice(
+  p: PricingEntry,
+): { price: string; list: string | null; offer: string | null } | null {
+  if (!(p.yearly > 0)) return null;
+  return hasYearlyOffer(p)
+    ? {
+        price: formatOfferYearly(p),
+        list: formatYearly(p),
+        offer: withLabel(offerLabels(p).yearly, `${p.yearlyDiscountPct}% off yearly`),
+      }
+    : { price: formatYearly(p), list: null, offer: null };
+}
+
+/**
+ * The plans the catalog sells (billing plan D19): Peakhour Suite, Agency and
+ * Enterprise, each a `cfg_plans` row that composes every module. The resolver
+ * surfaces each as a tier *under every product it lists*, keyed by the bare
+ * plan key.
+ *
+ * ★THERE IS NO PER-PRODUCT TIER ANY MORE. The per-module Free and Pro plans
+ * (`commerce_assistant.free` / `.paid` and the rest) are scrapped, so the
+ * helpers that picked a module's own free or paid tier went with them, and
+ * migration 394 (P4.5) deleted the rows.
+ */
+export const BUNDLE_PLAN_KEY_LIST = ["agency", "enterprise", "suite"] as const;
+
+/** A catalog plan's key, derived from the list so the two cannot drift. */
+export type BundlePlanKey = (typeof BUNDLE_PLAN_KEY_LIST)[number];
+
+/**
+ * How a new account's first business starts (D19; once per person, P3.1d): a
+ * Peakhour Suite trial of Suite's own
+ * `trialDays`. Null when this environment sells no Suite, or sells it with no
+ * trial, so a caller never promises a trial the catalog does not give.
+ *
+ * ★THE ONE RULE FOR A TRIAL PROMISE (official review R1 on b2c#591): /auth and
+ * /pricing both read it, and null is never replaced by a number. /auth once
+ * did (`?? 14`, a "pricing API unreachable" fallback), so an environment that
+ * sells no Suite trial, on purpose, was promised "free for your first 14
+ * days" there while /pricing promised nothing. An unreachable pricing API
+ * promises nothing either: a degraded page says less, never a guess.
+ */
+export function suiteTrialDays(pricing: PricingResponse | null): number | null {
+  const days = findBundleTier(pricing, "suite")?.pricing.trialDays;
+  return typeof days === "number" && days > 0 ? days : null;
+}
+
+/**
+ * The Suite trial for a marketing page that states no price (the homepage,
+ * the module pages, /how-it-works, /peaks, the header): one cached read under
+ * the pinned "DEFAULT" key /auth uses, reading only `trialDays` (owner rule
+ * 2026-10-06, `lib/trial-copy`). Null when the catalog gives no trial or the
+ * api is unreachable: the page then promises none.
+ */
+export async function marketingTrialDays(): Promise<number | null> {
+  return suiteTrialDays(await getPricing("DEFAULT"));
+}
+
+/** The Suite card's signup button: the trial it starts, when the catalog
+ *  gives one (D19: a new account's first business starts on a Suite trial,
+ *  once per person, P3.1d). */
+export function suiteCtaLabel(trialDays: number): string {
+  return trialDays > 0 ? `Start your ${trialDays}-day free trial` : "Get Peakhour Suite";
+}
+
+/**
+ * The Agency card's price. Agency is sold QUARTERLY and YEARLY, never monthly
+ * (D5: RBI's cap on OTP-free recurring debits), so its monthly figure is a
+ * price nobody is charged and is never shown. The public pricing entry carries
+ * the yearly price (the quarterly one is priced at checkout), so the card
+ * quotes the year, with the list price struck through under a yearly campaign.
+ * Null without an Agency row or a yearly price: the card then says it is priced
+ * at checkout rather than inventing a figure.
+ */
+export function agencyCardPrice(
+  agency: ResolvedProductTier | undefined,
+): { price: string; list: string | null; offer: string | null; per: string } | null {
+  const y = agency ? yearlyPrice(agency.pricing) : null;
+  return y ? { ...y, per: "/ year per business, or billed quarterly" } : null;
+}
 
 /**
  * Grouping separators for every number on the pricing surface — prices and
@@ -307,14 +402,39 @@ export function formatNumber(value: number): string {
 export const formatPeaks = formatNumber;
 
 /**
- * Find a bundle tier (Agency/Enterprise) anywhere in the response. Bundle plans
- * appear as a tier under every product they compose, so the first occurrence
- * carries the canonical price + Peaks allowance (identical across products).
- * Returns undefined when the bundle isn't publicly listed in this env.
+ * The bundle tier as it is offered FOR ONE PRODUCT — or undefined.
+ *
+ * ★★THE PER-PRODUCT ANSWER, NOT THE GLOBAL ONE, AND THE DIFFERENCE IS WHETHER
+ * THE PLAN ACTUALLY GRANTS THE MODULE. The resolver groups a bundle under every
+ * product its `products[]` composes, so its presence in `product.tiers` IS the
+ * statement "this plan includes this module". `findBundleTier` answers a
+ * different question — "does a Suite row exist anywhere in this response" — and
+ * gating that on the module being SERVED still conflates the two: Suite's
+ * `products` was copied from the Agency row (mongodb migration 258) and that
+ * list has drifted from the served set before.
+ *
+ * A served-but-not-composed module rendered "Peakhour X is part of Peakhour
+ * Suite" above a Suite price card with zero bullets, every highlight having
+ * been filtered out as not-granted. peakhour-api's equivalent surface uses
+ * exactly this lookup (`feature-matrix.ts`), and so should this one.
+ */
+export function productBundleTier(
+  product: ResolvedProduct | undefined,
+  key: BundlePlanKey,
+): ResolvedProductTier | undefined {
+  return product?.tiers.find((t) => t.key === key);
+}
+
+/**
+ * Find a catalog plan (Suite/Agency/Enterprise) anywhere in the response — the
+ * first product that composes it wins, and carries the canonical price and
+ * Peaks allowance (identical across products). Use it to answer "does this
+ * environment sell Suite at all"; for "does Suite include THIS module", use
+ * `productBundleTier`. Undefined when the plan is not publicly listed here.
  */
 export function findBundleTier(
   pricing: PricingResponse | null,
-  key: "agency" | "enterprise",
+  key: BundlePlanKey,
 ): ResolvedProductTier | undefined {
   if (!pricing) return undefined;
   for (const product of pricing.products) {
@@ -333,15 +453,8 @@ export function pillarProducts(
   return (pricing?.products ?? []).filter((p) => p.pillar === pillar);
 }
 
-/** The lowest paid monthly price across a product's own tiers, or null when the
- *  product has no paid tier (free-only). Drives the hub card's "from" price. */
-export function fromMonthly(product: ResolvedProduct): ResolvedProductTier | null {
-  const paid = productTiers(product).filter((t) => t.pricing.monthly > 0);
-  return paid[0] ?? null;
-}
-
 /**
- * Display labels for cfg_feature keys used in product tier comparison cards.
+ * Display labels for cfg_feature keys (the billing page's "Features included").
  * Keyed by the feature key stored in cfg_features / cfg_plans.features[].
  * Kept client-side so marketing can tune copy without a DB write.
  *
@@ -382,6 +495,24 @@ export const FEATURE_LABELS: Record<string, string> = {
 const PLATFORM_SEGMENTS = new Set(["shopify", "woocommerce"]);
 
 /**
+ * The platform-agnostic form of a feature key —
+ * `commerce.woocommerce.assistant` → `commerce.assistant`, everything else
+ * unchanged.
+ *
+ * Exported because it is an IDENTITY, not a formatting detail: two keys that
+ * collapse to the same canonical form are the same capability wearing two
+ * connector badges, and every surface that keys a map, a set or a comparison
+ * row off a feature has to agree on that or it renders the same row twice.
+ */
+export function canonicalFeatureKey(key: string): string {
+  const parts = key.split(".");
+  if (parts.length >= 3 && PLATFORM_SEGMENTS.has(parts[1])) {
+    return [parts[0], ...parts.slice(2)].join(".");
+  }
+  return key;
+}
+
+/**
  * Resolve a cfg_feature key to a human-readable label, platform-namespace
  * agnostic. Tries an exact match, then collapses a platform segment
  * (`commerce.woocommerce.assistant` → `commerce.assistant`), and finally falls
@@ -390,12 +521,10 @@ const PLATFORM_SEGMENTS = new Set(["shopify", "woocommerce"]);
 export function featureLabel(key: string): string {
   if (FEATURE_LABELS[key]) return FEATURE_LABELS[key];
 
-  const parts = key.split(".");
-  if (parts.length >= 3 && PLATFORM_SEGMENTS.has(parts[1])) {
-    const collapsed = [parts[0], ...parts.slice(2)].join(".");
-    if (FEATURE_LABELS[collapsed]) return FEATURE_LABELS[collapsed];
-  }
+  const collapsed = canonicalFeatureKey(key);
+  if (collapsed !== key && FEATURE_LABELS[collapsed]) return FEATURE_LABELS[collapsed];
 
+  const parts = key.split(".");
   const leaf = parts[parts.length - 1] ?? key;
   return leaf
     .split("_")

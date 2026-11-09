@@ -121,6 +121,40 @@ describe("summarizeCronBody", () => {
     expect(summary?.level).toBe("success");
   });
 
+  it("★the version watch names the platforms it is warning about", () => {
+    const body = JSON.stringify({
+      ok: true,
+      data: { warnings: 2, detail: [{ platform: "meta" }, { platform: "x" }] },
+    });
+    const summary = summarizeCronBody("platform-api-version-watch", body);
+    expect(summary?.message).toContain("meta");
+    expect(summary?.message).toContain("x");
+    // ★★AND NOT IN GREEN. A bare string is a success toast, and N platform
+    // sunsets are not a success — this cron logs some of them at `error`
+    // severity. Asserting only on `message` is what let that through.
+    expect(summary?.level).toBe("warning");
+  });
+
+  it("★says nothing needs attention on a real zero", () => {
+    // What this cron has to say most weeks. Rendering nothing would read as a
+    // run that failed to produce anything.
+    const body = JSON.stringify({ ok: true, data: { warnings: 0, detail: [] } });
+    const summary = summarizeCronBody("platform-api-version-watch", body);
+    expect(summary?.message).toMatch(/no platform version deadlines/i);
+    // ★A real zero IS a success — that is the distinction the level carries.
+    expect(summary?.level).not.toBe("warning");
+  });
+
+  it("★★but says NOTHING when the count is absent — that is not a zero", () => {
+    // ⚠️`num()` turns an absent or non-numeric count into 0, and this cron's
+    // zero case is a CONFIDENT CLAIM — "no platform version deadlines need
+    // attention". Making it from a response that carried no count at all is
+    // the one sentence it must never print on no evidence. Every other
+    // summarizer in this file checks the shape first.
+    const body = JSON.stringify({ ok: true, data: { detail: [] } });
+    expect(summarizeCronBody("platform-api-version-watch", body)?.message).toBeFalsy();
+  });
+
   it("warns rather than congratulating when the rollup charged nothing", () => {
     const body = JSON.stringify({ success: true, processed: 0, failed: 0, skipped: 0 });
     const summary = summarizeCronBody("ai-credits-rollup", body);
@@ -173,7 +207,7 @@ describe("ad-campaign-monitor summary", () => {
     // worst-first; all of them said.
     expect(summarize({ ticked: 5, refreshed: 5, failed: 35, flightEndBlocked: 1 })).toEqual({
       message:
-        "1 passed the end date and could NOT be stopped \u2014 check Campaign Manager; 35 errored.",
+        "1 passed the end date and could NOT be stopped \u2014 check the ad platform; 35 errored. 5 campaigns checked.",
       level: "warning",
     });
   });
@@ -181,7 +215,7 @@ describe("ad-campaign-monitor summary", () => {
   it("\u2605leads with campaigns it could not stop", () => {
     expect(summarize({ ticked: 40, refreshed: 40, flightEndBlocked: 2, unmonitorable: 1 })).toEqual({
       message:
-        "2 passed the end date and could NOT be stopped \u2014 check Campaign Manager; 1 could not be checked at all.",
+        "2 passed the end date and could NOT be stopped \u2014 check the ad platform; 1 could not be checked at all. 40 campaigns checked.",
       level: "warning",
     });
   });
@@ -197,17 +231,22 @@ describe("ad-campaign-monitor summary", () => {
   });
 
   it("\u2605surfaces each remaining counter on its own, so none can be dropped unseen", () => {
-    // Asserted one at a time: with two set, the higher-priority branch answers
-    // and deleting the lower one entirely would still pass.
-    expect(msg({ ticked: 40, refreshed: 40, unmonitorable: 3 })).toBe("3 could not be checked at all.");
-    expect(msg({ ticked: 3, refreshed: 3, rowNotUpdated: 2 })).toBe(
+    // Asserted one at a time: every problem is joined into one message, so a
+    // line with two counters set could not say which one a deletion dropped. (`refreshed: 0`
+    // since b2c#573 round 3, which appends the good news after the problems:
+    // the problem sentence alone is what each line isolates.)
+    expect(msg({ ticked: 40, refreshed: 0, unmonitorable: 3 })).toBe("3 could not be checked at all.");
+    expect(msg({ ticked: 3, refreshed: 0, rowNotUpdated: 2 })).toBe(
       "2 stopped on the platform but not updated here.",
     );
-    expect(msg({ ticked: 5, refreshed: 5, unswept: 2 })).toBe("2 in a status nothing monitors.");
-    expect(msg({ ticked: 5, refreshed: 5, notFound: 1 })).toBe("1 could not be read.");
-    expect(msg({ ticked: 5, refreshed: 5, skippedUnreadable: 2 })).toBe("2 could not be read.");
-    expect(msg({ ticked: 5, refreshed: 5, notFound: 1, skippedUnreadable: 2 })).toBe(
-      "3 could not be read.",
+    expect(msg({ ticked: 5, refreshed: 0, unswept: 2 })).toBe("2 in a status nothing monitors.");
+    expect(msg({ ticked: 5, refreshed: 0, notFound: 1 })).toBe("1 campaign record could not be loaded.");
+    expect(msg({ ticked: 5, refreshed: 0, skippedUnreadable: 2 })).toBe("2 campaign records could not be loaded.");
+    expect(msg({ ticked: 5, refreshed: 0, notFound: 1, skippedUnreadable: 2 })).toBe(
+      "3 campaign records could not be loaded.",
+    );
+    expect(msg({ ticked: 5, refreshed: 0, healthStatusUnread: 2 })).toBe(
+      "2 could not be looked up on the platform \u2014 spend may not have been read.",
     );
   });
 
@@ -249,15 +288,205 @@ describe("ad-campaign-monitor summary", () => {
     });
   });
 
-  it("\u2605counts an all-X batch as work, not as an empty one", () => {
-    // `skippedOtherWriter` is one of the six mutually-exclusive per-row
-    // outcomes. Omitting it from the batch total made a tick of forty X
-    // campaigns report "No campaigns needed checking." — and swallowed
-    // `truncated` with it, because the empty answer returns first.
-    expect(summarize({ ticked: 0, refreshed: 0, skippedOtherWriter: 40, truncated: true })).toEqual({
+  it("\u2605counts an all-unreadable batch as work, not as an empty one", () => {
+    // A batch of unreadable rows is work, not an empty tick: each such row is
+    // a problem, and `truncated` is said beside it.
+    expect(summarize({ ticked: 0, refreshed: 0, skippedUnreadable: 40, truncated: true })).toEqual({
+      message: "40 campaign records could not be loaded. More remain \u2014 run again.",
+      level: "warning",
+    });
+  });
+
+  it("\u2605counts every per-row outcome in the batch \u2014 each one alone at ticked:0 (b2c#573 round 1)", () => {
+    // Pinning one counter proved one. Each of the four non-ticked outcomes,
+    // alone, must still be a batch that did something, with `truncated` said.
+    for (const [key, sentence] of [
+      ["skippedUnreadable", "40 campaign records could not be loaded."],
+      ["notFound", "40 campaign records could not be loaded."],
+      ["unmonitorable", "40 could not be checked at all."],
+      ["failed", "40 errored."],
+    ] as const) {
+      expect(summarize({ ticked: 0, refreshed: 0, [key]: 40, truncated: true }), key).toEqual({
+        message: `${sentence} More remain \u2014 run again.`,
+        level: "warning",
+      });
+      // \u2605AND UNTRUNCATED: `truncated` skips the empty answer by itself, so
+      // only this form proves the counter is SAID (it is a problem) at ticked 0.
+      expect(summarize({ ticked: 0, refreshed: 0, [key]: 40 }), `${key}, untruncated`).toEqual({
+        message: sentence,
+        level: "warning",
+      });
+    }
+  });
+
+  it("\u2605\u2605a halted business whose campaigns could not be stopped leads, and is never green (b2c#573 round 1)", () => {
+    expect(summarize({ ticked: 5, refreshed: 5, haltBlocked: 2, flightEndBlocked: 1 })).toEqual({
+      message:
+        "2 belong to a HALTED business and could NOT be stopped \u2014 they may still be spending; 1 passed the end date and could NOT be stopped \u2014 check the ad platform. 5 campaigns checked.",
+      level: "warning",
+    });
+  });
+
+  it("\u2605\u2605no spend read means no cap checked \u2014 said as that, from api#1419's spendUnread", () => {
+    // statusOnlyUnread is disjoint from spendUnread: the 40 are counted once.
+    expect(summarize({ ticked: 70, refreshed: 30, spendUnread: 40, healthStatusUnread: 40, statusOnlyUnread: 0 })).toEqual({
+      message: "40 had no spend read this run \u2014 any budget cap was checked only against stored spend. 30 campaigns checked.",
+      level: "warning",
+    });
+    expect(msg({ ticked: 1, refreshed: 0, spendUnread: 1 })).toBe(
+      "1 had no spend read this run \u2014 any budget cap was checked only against stored spend.",
+    );
+  });
+
+  it("\u2605\u2605an api without spendUnread still warns, in the older hedged words (review of b2c#575)", () => {
+    expect(summarize({ ticked: 40, refreshed: 30, healthStatusUnread: 10 })).toEqual({
+      message: "10 could not be looked up on the platform \u2014 spend may not have been read. 30 campaigns checked.",
+      level: "warning",
+    });
+  });
+
+  it("\u2605an unread status on a row whose spend WAS read is an open finding, not a fault", () => {
+    expect(summarize({ ticked: 40, refreshed: 40, spendUnread: 0, healthStatusUnread: 1, statusOnlyUnread: 1 })).toBe(
+      "40 campaigns checked. Open findings: 1 with an unread platform status.",
+    );
+  });
+
+  it("\u2605\u2605the Sentinel's open findings are said, and do not turn a clean run amber (review of b2c#575)", () => {
+    // Standing advice, carried tick to tick: running again cannot clear it.
+    expect(summarize({ ticked: 40, refreshed: 40, spendUnread: 0, health: { statusDrift: 3, noDelivery: 6, zeroConversions: 2 } })).toBe(
+      "40 campaigns checked. Open findings: 3 have a status that differs from the ad platform's; 6 not delivering; 2 with no conversions.",
+    );
+    // Drift is counted in BOTH directions, so its words must be true both ways.
+    expect(msg({ ticked: 1, refreshed: 1, health: { statusDrift: 1 } })).toBe(
+      "1 campaign checked. Open findings: 1 has a status that differs from the ad platform's.",
+    );
+    expect(summarize({ ticked: 40, refreshed: 40, health: { statusDrift: 0, noDelivery: 0, zeroConversions: 0 } })).toBe(
+      "40 campaigns checked.",
+    );
+  });
+
+  it("\u2605\u2026but beside a fault they follow it, in the amber toast", () => {
+    expect(summarize({ ticked: 5, refreshed: 4, failed: 1, health: { noDelivery: 2 } })).toEqual({
+      message: "1 errored. 4 campaigns checked. Open findings: 2 not delivering.",
+      level: "warning",
+    });
+  });
+
+  it("\u2605worst first: money leaving, caps unchecked, rows unread, then our record behind", () => {
+    expect(msg({ ticked: 30, refreshed: 20, rowNotUpdated: 1, notFound: 10, spendUnread: 2, flightEndBlocked: 1 })).toBe(
+      "1 passed the end date and could NOT be stopped \u2014 check the ad platform; 2 had no spend read this run \u2014 any budget cap was checked only against stored spend; 10 campaign records could not be loaded; 1 stopped on the platform but not updated here. 20 campaigns checked.",
+    );
+  });
+
+  it("\u2605\u2605drift that is serving uncapped is a problem; the other direction is a finding (api#1419)", () => {
+    expect(summarize({ ticked: 40, refreshed: 38, spendUnread: 0, driftUncapped: 1, health: { statusDrift: 3 } })).toEqual({
+      message:
+        "1 is not active here but serving on the ad platform \u2014 no budget cap or end date is enforced. 38 campaigns checked. Open findings: 2 have a status that differs from the ad platform's.",
+      level: "warning",
+    });
+    expect(msg({ ticked: 2, refreshed: 2, driftUncapped: 0, health: { statusDrift: 1 } })).toBe(
+      "2 campaigns checked. Open findings: 1 has a status that differs from the ad platform's.",
+    );
+  });
+
+  it("\u2605\u2605a row not active here whose status could not be read is a problem \u2014 nobody knows if it serves", () => {
+    expect(summarize({ ticked: 10, refreshed: 8, spendUnread: 0, statusUnwatched: 2 })).toEqual({
+      message: "2 not active here could not be checked on the ad platform \u2014 whether they are serving is unknown. 8 campaigns checked.",
+      level: "warning",
+    });
+    expect(msg({ ticked: 1, refreshed: 0, spendUnread: 0, statusUnwatched: 1 })).toBe(
+      "1 not active here could not be checked on the ad platform \u2014 whether it is serving is unknown.",
+    );
+  });
+
+  it("\u2605\u2605rows of an unknown outcome are said from visited \u2014 even on a capped run (round 3)", () => {
+    // Under load every run is capped (truncated); visited is what was reached.
+    expect(msg({ batch: 40, visited: 40, ticked: 37, refreshed: 37, truncated: true })).toBe(
+      "3 rows had an outcome this summary does not recognise. 37 campaigns checked. More remain \u2014 run again.",
+    );
+    expect(msg({ batch: 40, visited: 30, ticked: 30, refreshed: 30, truncated: true })).toBe(
+      "30 campaigns checked. More remain \u2014 run again.",
+    );
+  });
+
+  it("\u2605rows of an unknown outcome are said, but not on a truncated run", () => {
+    expect(msg({ batch: 40, ticked: 35, refreshed: 35, failed: 2 })).toBe(
+      "2 errored; 3 rows had an outcome this summary does not recognise. 35 campaigns checked.",
+    );
+    // The clock left rows unvisited: the batch overcounts, "More remain" says it.
+    expect(msg({ batch: 40, ticked: 35, refreshed: 35, truncated: true })).toBe(
+      "35 campaigns checked. More remain \u2014 run again.",
+    );
+  });
+
+  it("\u2605\u2605empty is ticked, no problem, no finding \u2014 and a batch row of unknown outcome is a problem, not emptiness", () => {
+    // A row with an outcome this code does not know is still a row \u2014 and said.
+    expect(msg({ batch: 3, ticked: 0, refreshed: 0 })).toBe("3 rows had an outcome this summary does not recognise.");
+    expect(msg({ batch: 0, ticked: 0, refreshed: 0 })).toBe("No campaigns needed checking.");
+    // An older api has no batch: ticked stands in.
+    expect(msg({ ticked: 0, refreshed: 0 })).toBe("No campaigns needed checking.");
+  });
+
+  it("\u2605\u2605\u2026and a problem does not hide the pauses and stops beside it (b2c#573 round 3)", () => {
+    expect(summarize({ ticked: 40, refreshed: 40, autoPaused: 2, ended: 3, spendUnread: 1 })).toEqual({
+      message:
+        "1 had no spend read this run \u2014 any budget cap was checked only against stored spend. 40 campaigns checked, 2 paused at their budget caps, 3 finished.",
+      level: "warning",
+    });
+  });
+
+  it("\u2605\u2605a partial halt says both halves (b2c#573 round 3)", () => {
+    expect(summarize({ ticked: 12, refreshed: 12, haltStopped: 11, haltBlocked: 1 })).toEqual({
+      message:
+        "1 belongs to a HALTED business and could NOT be stopped \u2014 it may still be spending. 12 campaigns checked, 11 stopped by the advertising kill switch.",
+      level: "warning",
+    });
+  });
+
+  it("\u2605a problem beside nothing done does not add \u201c0 campaigns checked\u201d (b2c#573 round 3)", () => {
+    expect(summarize({ ticked: 0, refreshed: 0, failed: 40 })).toEqual({
+      message: "40 errored.",
+      level: "warning",
+    });
+  });
+
+  it("\u2605a problem beside an unrefreshed finish still says the finish (b2c#573 round 3)", () => {
+    // Reachable: a row the platform never heard of ends without refreshing.
+    expect(summarize({ ticked: 3, refreshed: 0, ended: 2, failed: 1 })).toEqual({
+      message: "1 errored. 2 finished.",
+      level: "warning",
+    });
+  });
+
+  it("\u2605\u2605an empty batch is only empty if nothing is truncated or unswept (b2c#573 round 3)", () => {
+    expect(summarize({ ticked: 0, refreshed: 0, truncated: true })).toEqual({
       message: "0 campaigns checked. More remain \u2014 run again.",
       level: "warning",
     });
+    expect(summarize({ ticked: 0, refreshed: 0, unswept: 3 })).toEqual({
+      message: "3 in a status nothing monitors.",
+      level: "warning",
+    });
+  });
+
+  it("\u2605\u2605the kill switch working is reported, not \u201c0 campaigns checked\u201d (b2c#573 round 2)", () => {
+    // The api's halt return sets refreshed:true (round 3: the payload this
+    // test first pinned, refreshed:0, is one the api cannot produce).
+    expect(summarize({ ticked: 12, refreshed: 12, haltStopped: 12 })).toBe(
+      "12 campaigns checked, 12 stopped by the advertising kill switch.",
+    );
+  });
+
+  it("\u2605one halted campaign is singular (b2c#573 round 2)", () => {
+    expect(summarize({ ticked: 1, refreshed: 1, haltBlocked: 1 })).toEqual({
+      message: "1 belongs to a HALTED business and could NOT be stopped \u2014 it may still be spending. 1 campaign checked.",
+      level: "warning",
+    });
+  });
+
+  it("\u2605the description no longer says X is handled elsewhere \u2014 its sync is deleted", () => {
+    expect(CRON_METADATA["ad-campaign-monitor"]!.description).not.toMatch(/own sync/);
+    expect(CRON_METADATA["ad-campaign-monitor"]!.description).toMatch(/\bX\b/);
   });
 
   it("distinguishes an empty batch from a batch that did nothing", () => {
@@ -557,5 +786,464 @@ describe("linkedin-post-sync summary", () => {
   it("still surfaces an account that needs reconnecting", () => {
     const s = summarizeCronBody("linkedin-post-sync", body({ failed: 1 }));
     expect(s?.message).toMatch(/reconnect/i);
+  });
+});
+
+/**
+ * ★★M-16 — THE META CONVERSION SWEEP, whose missing label had master red.
+ *
+ * The fixture is the api's `MetaConversionSweepResult` field for field
+ * (`services/meta/conversion-sweep.ts`), not a shape invented to fit the
+ * summarizer: an invented fixture is how a summarizer ends up agreeing with
+ * itself about a field the api never sends.
+ */
+describe("meta-conversion-sweep summary", () => {
+  const clean = {
+    businessesConsidered: 3,
+    businessesConfigured: 2,
+    ordersConsidered: 9,
+    eventsUploaded: 9,
+    ordersMarked: 9,
+    skipped: {
+      no_click: 0, no_click_time: 0, outside_window: 0, future_dated: 0,
+      no_value: 0, no_currency: 0, no_order_time: 0, no_source_url: 0,
+    },
+    batches: 2,
+    budgetHit: false,
+    perBusinessCapHit: false,
+  };
+  const run = (over: Record<string, unknown>) =>
+    summarizeCronBody("meta-conversion-sweep", JSON.stringify({ ok: true, data: { ...clean, ...over } }));
+
+  it("★M-16 a clean run is green and says what it sent", () => {
+    const s = run({});
+    expect(s?.level).not.toBe("warning");
+    expect(s?.message).toContain("9 purchases sent for 2 businesses");
+  });
+
+  it("★M-16 no chosen dataset is a plain no-op, not a failure", () => {
+    const s = run({ businessesConsidered: 0, businessesConfigured: 0, eventsUploaded: 0, ordersMarked: 0 });
+    expect(s?.message).toMatch(/no business has chosen a Meta dataset/);
+    expect(s?.level).not.toBe("warning");
+  });
+
+  it("★★M-16 R3.2 businesses that chose a dataset but switched ads off are NOT 'none chose'", () => {
+    // considered counts a dataset on ANY active facebook row; configured only
+    // those whose ADS connection carries it. The first cut read configured
+    // alone and told the operator nobody had chosen a dataset.
+    const s = run({ businessesConsidered: 2, businessesConfigured: 0, eventsUploaded: 0, ordersMarked: 0 });
+    expect(s?.message).not.toMatch(/no business has chosen/);
+    expect(s?.message).toMatch(/2 businesses have a dataset but no active Meta ads connection/);
+    // ⏸Neutral: honouring the merchant's switch is correct behaviour.
+    expect(s?.level).not.toBe("warning");
+  });
+
+  it("★★M-16 R3.2 a run that hit its budget before ANY configured business still warns", () => {
+    const s = run({ businessesConsidered: 4, businessesConfigured: 0, eventsUploaded: 0, ordersMarked: 0, budgetHit: true });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toMatch(/time budget/);
+  });
+
+  it("★★M-16 a filled per-business cap WARNS — the tail is lost, not delayed", () => {
+    const s = run({ perBusinessCapHit: true });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toMatch(/7-day window/);
+  });
+
+  it("★M-16 a run cut short by its budget warns", () => {
+    expect(run({ budgetHit: true })?.level).toBe("warning");
+  });
+
+  it("★M-16 uploaded-but-unmarked warns — those orders go again", () => {
+    const s = run({ ordersMarked: 7 });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toMatch(/sent again/);
+  });
+
+  it("★★M-16 a structurally-zero skip reason that moved warns, naming it", () => {
+    const s = run({ skipped: { ...clean.skipped, no_currency: 2 } });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toContain("no_currency");
+  });
+
+  it("★★M-16 but `no_source_url` is the one reason MEANT to move, and does not warn", () => {
+    // ⚠️THE ALARM DIRECTION. The api's own comment: "the only count here that
+    // is MEANT to move is `no_source_url`". A summarizer warning on every
+    // non-zero skip would cry wolf on an ordinary storefront outcome.
+    const s = run({ skipped: { ...clean.skipped, no_source_url: 4 } });
+    expect(s?.level).not.toBe("warning");
+  });
+
+  it.skipIf(scheduled === null)(
+    "★★M-16 R1.1 the frequency says the hour vercel.json actually schedules",
+    () => {
+      // ⚠️It said "3:15pm UTC" against `0 15 * * *` — 15:00. A label read off
+      // the schedule by eye is the defect; pin the pair so neither can move alone.
+      const config = JSON.parse(readFileSync(VERCEL_JSON, "utf8")) as {
+        crons: Array<{ path: string; schedule: string }>;
+      };
+      const entry = config.crons.find((c) => c.path === "/v1/cron/meta-conversion-sweep");
+      expect(entry, "meta-conversion-sweep is not scheduled in vercel.json").toBeDefined();
+      const m = /^(\d+) (\d+) \* \* \*$/.exec(entry!.schedule);
+      expect(m, `not a daily schedule: ${entry!.schedule}`).not.toBeNull();
+      const [minute, hour] = [Number(m![1]), Number(m![2])];
+      const h12 = hour % 12 === 0 ? 12 : hour % 12;
+      const clock = `${h12}${minute ? `:${String(minute).padStart(2, "0")}` : ""}${hour < 12 ? "am" : "pm"}`;
+      expect(CRON_METADATA["meta-conversion-sweep"].frequency).toBe(`Runs daily at ${clock} UTC`);
+    },
+  );
+
+  it("★M-16 a body without the counter defers to the generic toast", () => {
+    expect(
+      summarizeCronBody("meta-conversion-sweep", JSON.stringify({ ok: true, data: {} })),
+    ).toBeNull();
+  });
+});
+
+describe("approval-expiry summary", () => {
+  const meta = CRON_METADATA["approval-expiry"]!;
+  const quiet = { expired: {}, recovered: {}, boostsExpired: {}, boostsRecovered: {} };
+  it("★counts closed approvals across both flows, and approved publishes or launches queued", () => {
+    expect(
+      meta.summarize!({
+        expired: { edit_requested: 1, no_reply: 2, not_asked: 0 },
+        recovered: { enqueued: 1, failed: 0, gaveUp: 0 },
+        boostsExpired: { approval_timeout: 1, not_asked: 1, launch_never_started: 0, launch_stuck: 0 },
+        boostsRecovered: { enqueued: 0, failed: 0, gaveUp: 0 },
+      }),
+    ).toBe("Closed 5 expired approvals; 1 approved publish or launch not yet started is queued.");
+  });
+  it("says so when there was nothing to do", () => {
+    expect(meta.summarize!(quiet)).toBe("Nothing to expire or restart.");
+  });
+  it("★★a failed or given-up restart is a warning, never 'nothing to do' (round 2), worded as a state (round 3)", () => {
+    expect(
+      meta.summarize!({
+        ...quiet,
+        recovered: { enqueued: 0, failed: 3, gaveUp: 1 },
+        boostsRecovered: { enqueued: 0, failed: 0, gaveUp: 0 },
+      }),
+    ).toEqual({
+      message: "3 could not be queued; 1 approved publish still unpublished after repeated failures.",
+      level: "warning",
+    });
+  });
+  it("★★a launch closed is not an expired approval (round 2)", () => {
+    expect(
+      meta.summarize!({
+        expired: { no_reply: 1 },
+        recovered: {},
+        boostsExpired: { approval_timeout: 0, not_asked: 0, launch_never_started: 1, launch_stuck: 1 },
+        boostsRecovered: { enqueued: 0, failed: 0, gaveUp: 1 },
+      }),
+    ).toEqual({
+      message:
+        "2 boost launches closed as failed (nothing was created); 1 boost launch closed unfinished (a LinkedIn draft may exist); closed 1 expired approval.",
+      level: "warning",
+    });
+  });
+  it("★★a give-up close that failed, missed or was deferred is a warning (api#1441)", () => {
+    expect(
+      meta.summarize!({
+        ...quiet,
+        boostsRecovered: { enqueued: 0, failed: 0, gaveUp: 0, closeFailed: 2, closeMissed: 2, closeDeferred: 1 },
+      }),
+    ).toEqual({
+      message:
+        "2 given-up boost launches could not be closed; " +
+        "2 given-up boost launches no longer matched the close (moved on, or, if this repeats every run, the close's filter has drifted); " +
+        "1 given-up boost launch not tried this run: too many closes failed or missed first.",
+      level: "warning",
+    });
+    expect(meta.summarize!({ ...quiet, boostsRecovered: { closeFailed: 1 } })).toEqual({
+      message: "1 given-up boost launch could not be closed.",
+      level: "warning",
+    });
+  });
+  it("★★a close count from the newsletter side is not read as a boost: it is unread, and said (b2c#578 round 3)", () => {
+    expect(meta.summarize!({ ...quiet, recovered: { closeFailed: 1 } })).toEqual({
+      message: "It also reported what this summary does not describe (newsletter recovery: closeFailed).",
+      level: "warning",
+    });
+  });
+  it("★★anything the run reported that the summary did not read is a warning, never a clean run (b2c#578 rounds 1-3)", () => {
+    expect(
+      meta.summarize!({
+        expired: { no_reply: 0, skipped: 2 },
+        recovered: { enqueued: 0, closeSomethingNew: 1, quietNew: 0, offFlag: false, zeros: { a: 0 }, empties: [0] },
+        boostsExpired: { approval_timeout: 0, launch_vanished: 2 },
+        boostsRecovered: { enqueued: 0, closeSomethingNew: 3, byReason: { threw: 1 }, note: "x" },
+        digestsRecovered: { closeFailed: 4 },
+        budgetHit: true,
+      }),
+    ).toEqual({
+      message:
+        "It also reported what this summary does not describe (newsletter expiry: skipped; newsletter recovery: closeSomethingNew; " +
+        "boost expiry: launch_vanished; boost recovery: closeSomethingNew, byReason, note; digestsRecovered: closeFailed; budgetHit).",
+      level: "warning",
+    });
+  });
+  it("★★a read key whose value is not a number is reported, not read as 0 (round 3)", () => {
+    expect(meta.summarize!({ ...quiet, boostsRecovered: { closeFailed: ["a", "b"] } })).toEqual({
+      message: "It also reported what this summary does not describe (boost recovery: closeFailed).",
+      level: "warning",
+    });
+  });
+  it("★★a sweep that did not report is said, not read as zeros (round 3)", () => {
+    expect(meta.summarize!({ expired: {}, recovered: {}, boostsExpired: {}, boostsRecovered: null })).toEqual({
+      message: "The run did not report boost recovery.",
+      level: "warning",
+    });
+  });
+  it("★a non-number count is read as 0, not concatenated, and reported", () => {
+    expect(meta.summarize!({ ...quiet, recovered: { enqueued: "1" }, boostsRecovered: { enqueued: 2 } })).toEqual({
+      message: "2 approved publishes or launches not yet started are queued; it also reported what this summary does not describe (newsletter recovery: enqueued).",
+      level: "warning",
+    });
+  });
+});
+
+/** mandate-debits returns the api's flat `MandateDebitTotals`. A run that did
+ *  nothing because a rail is not configured, whose debits were refused, or
+ *  that ran out of time, must not read as a green "complete". */
+describe("mandate-debits summary", () => {
+  const body = (d: Record<string, unknown>) =>
+    JSON.stringify({ ok: true, scanned: 0, unconfigured: 0, errors: 0, deferred: 0, malformed: 0, outcomes: {}, durationMs: 5, ...d });
+
+  it("★nothing due is a plain success", () => {
+    expect(summarizeCronBody("mandate-debits", body({}))).toEqual({ message: "No mandates due.", level: "success" });
+  });
+
+  it("★a rail not configured is a warning, not a success", () => {
+    expect(summarizeCronBody("mandate-debits", body({ scanned: 3, unconfigured: 3 }))).toEqual({
+      message: "3 skipped (payment rail not configured).",
+      level: "warning",
+    });
+  });
+
+  it("★a refused debit beside a collected one is a warning naming both", () => {
+    expect(summarizeCronBody("mandate-debits", body({ scanned: 2, outcomes: { rejected: 1, captured: 1 } }))).toEqual({
+      message: "1 payment call refused by the rail, 1 payment collected.",
+      level: "warning",
+    });
+  });
+
+  // Written out here, not read from the summarizer's table, so moving a part
+  // to the other bucket (or dropping one) turns a case red. Every api `Tick`
+  // and every flat total but `scanned` is listed.
+  const WARN_TOTALS = ["unconfigured", "errors", "malformed", "deferred"];
+  const WARN_TICKS = ["notice_failed", "failed", "halted", "rejected", "lost", "revoke_failed"];
+  const OK_TICKS = ["noticed", "sent", "captured", "pending", "ended", "waiting", "peak"];
+  it.each(WARN_TOTALS)("★%s alone is a warning that counts it", (field) => {
+    const s = summarizeCronBody("mandate-debits", body({ scanned: 2, [field]: 2 }));
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toMatch(/^2 /);
+  });
+  it.each(WARN_TICKS)("★outcome %s alone is a warning that counts it", (tick) => {
+    const s = summarizeCronBody("mandate-debits", body({ scanned: 2, outcomes: { [tick]: 2 } }));
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toMatch(/^2 /);
+  });
+  it.each(OK_TICKS)("★outcome %s alone is a success that counts it", (tick) => {
+    const s = summarizeCronBody("mandate-debits", body({ scanned: 2, outcomes: { [tick]: 2 } }));
+    expect(s?.level).toBe("success");
+    expect(s?.message).toMatch(/^2 /);
+  });
+
+  it("★a blackout-held debit is not folded into waiting", () => {
+    expect(summarizeCronBody("mandate-debits", body({ scanned: 2, outcomes: { waiting: 1, peak: 1 } }))?.message).toBe(
+      "1 waiting, 1 held by a debit blackout window.",
+    );
+  });
+
+  it("★a clean run counts what it did", () => {
+    expect(summarizeCronBody("mandate-debits", body({ scanned: 4, outcomes: { noticed: 2, captured: 1, waiting: 1 } }))).toEqual({
+      message: "2 notices sent, 1 payment collected, 1 waiting.",
+      level: "success",
+    });
+  });
+
+  // The four crons added with Smart Rails v2 and Growth Engine v2. Each fixture is the api's REAL
+  // response shape, because a summarizer keyed on a field the api does not send is dead code.
+  it("★both optimizer crons summarise the sweep's `runs`, and a failure or backlog warns", () => {
+    for (const cron of ["growth-optimizer", "growth-optimizer-drain"]) {
+      const body = JSON.stringify({ ok: true, data: { runs: 3, created: 2, skipped: 0, failed: 1, truncated: true } });
+      const s = summarizeCronBody(cron, body);
+      expect(s?.message, cron).toContain("3 business-channel runs");
+      expect(s?.message, cron).toContain("More runs pending");
+      expect(s?.level, cron).toBe("warning");
+    }
+    const clean = summarizeCronBody(
+      "growth-optimizer-drain",
+      JSON.stringify({ ok: true, data: { runs: 1, created: 1, skipped: 0, failed: 0, truncated: false } }),
+    );
+    expect(clean?.level).toBe("success");
+  });
+
+  it("★rails-refresh warns when every due rail was skipped, and when the tick hit its cap", () => {
+    const base = { changed: 0, kept: 0, unchanged: 0, skipped_merchant: 0, skipped_orders: 0, raced: 0, errors: 0, truncated: false };
+    const allSkipped = JSON.stringify({ ok: true, data: { ...base, due: 40, skipped_merchant: 40 } });
+    expect(summarizeCronBody("rails-refresh", allSkipped)?.level).toBe("warning");
+    const capped = summarizeCronBody("rails-refresh", JSON.stringify({ ok: true, data: { ...base, due: 300, changed: 300 } }));
+    expect(capped?.message).toContain("More rails pending");
+    expect(capped?.level).toBe("warning");
+    const clean = JSON.stringify({ ok: true, data: { ...base, due: 5, changed: 2, kept: 1, unchanged: 2 } });
+    expect(summarizeCronBody("rails-refresh", clean)?.level).toBe("success");
+  });
+
+  it("★rails-improve counts the proposals it stored and the merchants it did not judge", () => {
+    const body = JSON.stringify({
+      ok: true,
+      data: {
+        merchants: 5, rails: 40, skipped_merchant: 4, busy: 1, errors: 0, truncated: false,
+        proposed_retire: 1, proposed_switch: 2, proposed_switch_urgent: 0, proposed_title: 0, proposed_add_rail: 0,
+      },
+    });
+    const s = summarizeCronBody("rails-improve", body);
+    expect(s?.message).toContain("3 proposals");
+    expect(s?.message).toContain("5 not judged");
+  });
+
+  it("★growth-watchdog warns on an undelivered alert", () => {
+    const body = JSON.stringify({
+      ok: true,
+      data: { businesses: 10, engineOff: 2, processed: 8, alerted: 1, quiet: 5, unmeasurable: 1, suppressed: 0, undelivered: 1, failed: 0, truncated: false },
+    });
+    const s = summarizeCronBody("growth-watchdog", body);
+    expect(s?.message).toContain("8 businesses checked");
+    expect(s?.level).toBe("warning");
+  });
+
+  it("★an unexpected shape defers to the generic toast", () => {
+    expect(summarizeCronBody("mandate-debits", JSON.stringify({ ok: true }))).toBeNull();
+  });
+});
+
+describe("growth crons that change live ad platforms say so", () => {
+  it("the allocator says budgets move by themselves at L2 and L3", () => {
+    expect(getCronMetadata("growth-allocator").description).toMatch(/L2[\s\S]*real ad budgets change/);
+  });
+
+  it("lift says it reconciles holdouts on the live ad platforms", () => {
+    expect(getCronMetadata("growth-lift").description).toContain("live ad platforms");
+  });
+});
+
+describe("growth cron summaries read the api's real result shapes", () => {
+  const sum = (cron: string, data: unknown) => summarizeCronBody(cron, JSON.stringify({ ok: true, data }));
+
+  it("observations: refits and skip reasons; a cut-short run warns", () => {
+    const s = sum("growth-observations", { businesses: 3, lift: 2, attributed: 4, refit: 5, skipped: { no_spend: 1 }, failed: 0, truncated: false });
+    expect(s?.level).toBe("success");
+    expect(s?.message).toContain("5 channel models refit");
+    expect(s?.message).toContain("no spend 1");
+    expect(sum("growth-observations", { businesses: 3, refit: 0, skipped: {}, failed: 0, truncated: true })?.level).toBe("warning");
+  });
+
+  it("allocator: says proposals apply themselves at L2/L3; a failure warns", () => {
+    const s = sum("growth-allocator", { businesses: 4, proposed: 2, skipped: { not_enough_weeks: 2 }, failed: 1, truncated: false });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toContain("a move applies by itself at L2, a move or a raise at L3");
+    expect(sum("growth-allocator", { businesses: 2, proposed: 0, skipped: { not_enough_weeks: 2 }, failed: 0, truncated: false })?.message).not.toContain("applies by itself");
+    expect(s?.message).toContain("1 failed");
+  });
+
+  it("holdouts: counts by state", () => {
+    const s = sum("growth-holdouts", { businesses: 2, rolledOut: 1, waiting: 1, abandoned: 0, flipped: 0, released: 0, failed: 0, truncated: false });
+    expect(s).toEqual({ message: expect.stringContaining("This run: 1 finished rolling out, 1 still waiting"), level: "success" });
+    const fellBack = sum("growth-holdouts", { businesses: 1, rolledOut: 0, waiting: 0, abandoned: 1, flipped: 6, released: 12, failed: 0, truncated: false });
+    expect(fellBack?.level).toBe("warning");
+    expect(fellBack?.message).toContain("6 campaigns flipped, 12 campaigns released");
+  });
+
+  it("lift: a reading that cannot be made warns; a fresh reading already written does not", () => {
+    expect(sum("growth-lift", { holdouts: 2, written: 0, lowPower: 0, reapplied: 0, skipped: { fresh_reading_exists: 2 }, failed: 0, truncated: false })?.level).toBe("success");
+    expect(sum("growth-lift", { holdouts: 1, written: 0, lowPower: 0, reapplied: 0, skipped: { no_longer_running: 1 }, failed: 0, truncated: false })?.level).toBe("warning");
+    const s = sum("growth-lift", { holdouts: 3, written: 0, lowPower: 0, reapplied: 1, skipped: { campaigns_not_holding_the_list: 3 }, failed: 0, truncated: false });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toContain("campaigns not holding the list 3");
+  });
+
+  it("playbook upgrade: numbers-only upgrades named", () => {
+    const s = sum("growth-playbook-upgrade", { checked: 5, proposed: 2, numeric: 1, alreadyOpen: 1, refused: 0, failed: 0, truncated: false });
+    expect(s?.message).toContain("1 numbers-only, which apply themselves at L2+");
+    expect(s?.level).toBe("success");
+    expect(sum("growth-playbook-upgrade", { checked: 3, proposed: 0, numeric: 0, alreadyOpen: 0, refused: 3, failed: 0, truncated: false })?.level).toBe("warning");
+  });
+
+  it("playbook learning: a disabled PIN store is a warning, not a green no-op", () => {
+    const flat = summarizeCronBody("growth-playbook-learning", JSON.stringify({ ok: true, skipped: "pin_disabled" }));
+    expect(flat).toEqual({ message: expect.stringContaining("not configured"), level: "warning" });
+    const s = sum("growth-playbook-learning", {
+      pinCohorts: 4, assigned: 3, unassigned: 1, ambiguous: 0,
+      playbooks: [{ playbookId: "a", action: "auto_published" }, { playbookId: "b", action: "proposed" }], drafts: [],
+    });
+    expect(s?.message).toContain("1 published itself, 1 proposed for a person");
+    const failed = sum("growth-playbook-learning", {
+      pinCohorts: 2, assigned: 2, unassigned: 0, ambiguous: 0,
+      playbooks: [{ playbookId: "a", action: "skipped", reason: "failed" }], drafts: [{ playbookId: "c", action: "skipped", reason: "failed" }],
+    });
+    expect(failed?.level).toBe("warning");
+    expect(failed?.message).toContain("0 new drafts");
+    expect(failed?.message).toContain("2 did not go as planned");
+    const refusedPublish = sum("growth-playbook-learning", { pinCohorts: 1, assigned: 1, unassigned: 0, ambiguous: 0, playbooks: [{ playbookId: "a", action: "proposed", reason: "the publish failed (lint)" }], drafts: [] });
+    expect(refusedPublish?.level).toBe("warning");
+  });
+
+  it("tripwire judge: errors (its failure field) warn", () => {
+    const s = sum("growth-tripwire-judge", { considered: 10, cleared: 6, tripped: 2, reversed: 2, inconclusive: 1, waiting: 1, resumed: 0, demoted: 1, promotionsOffered: 1, unstructured: 0, skipped: 0, errors: 2 });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toContain("2 errors");
+    const armed = sum("growth-tripwire-judge", { considered: 10, cleared: 0, tripped: 0, reversed: 0, inconclusive: 0, waiting: 0, resumed: 0, demoted: 0, promotionsOffered: 0, unstructured: 10, skipped: 0, errors: 0 });
+    expect(armed?.level).toBe("success");
+    expect(armed?.message).toContain("10 free-text bets not judged (by design)");
+  });
+
+  it("decision batch: failed is a per-code record, and receipts count too", () => {
+    const s = sum("growth-decision-batch", {
+      batch: { sent: 0, noRecipient: 0, deferred: 0, failed: { RECORD_FAILED: 3 } },
+      receipts: { sent: 1, noRecipient: 0, deferred: 0, failed: {} },
+    });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toContain("3 failed (RECORD FAILED 3)");
+    expect(s?.message).toContain("Receipts: 1 receipt sent");
+    expect(sum("growth-decision-batch", { skipped: "another run holds the lock" })?.level).toBe("warning");
+  });
+
+  it("weekly report: a number `skipped` is not a held lock", () => {
+    expect(sum("growth-weekly-report", { businesses: 2, sent: 6, skipped: 0, failed: 0 })).toEqual({ message: expect.stringContaining("2 businesses due: 6 report messages sent"), level: "success" });
+    expect(sum("growth-weekly-report", { skipped: "another run holds the lock" })?.level).toBe("warning");
+  });
+
+  it("council review: not released, and stopped early, both warn", () => {
+    expect(sum("growth-council-review", { checked: 1, committed: 0, declined: 0, unavailable: 0, notReleased: true })?.level).toBe("warning");
+    const s = sum("growth-council-review", { checked: 4, committed: 1, declined: 0, unavailable: 3, notReleased: false, stoppedEarly: "seats_unavailable" });
+    expect(s?.level).toBe("warning");
+    expect(s?.message).toContain("review seats kept failing");
+  });
+
+  it("decisions expiry: the expiry is reported even when the review pass was skipped or failed", () => {
+    const skipped = sum("decisions-expiry", { expired: 12, reviews: { skipped: "another run holds the lock" } });
+    expect(skipped?.message).toContain("12 unanswered decisions expired");
+    expect(skipped?.level).toBe("warning");
+    const failed = sum("decisions-expiry", { expired: 0, reviews: { failed: true } });
+    expect(failed?.message).toContain("nothing was retried or set aside");
+    const clean = sum("decisions-expiry", { expired: 2, reviews: { waiting: 1, retried: 1, reviewed: 1, stillWaiting: 0, closed: 0, setAside: 0, noTime: 0, whatsappSent: 0, whatsappSkipped: 0 } });
+    expect(clean?.level).toBe("success");
+    const unsent = sum("decisions-expiry", { expired: 0, reviews: { waiting: 1, retried: 1, reviewed: 0, stillWaiting: 0, closed: 1, setAside: 1, noTime: 0, whatsappSent: 0, whatsappSkipped: 1 } });
+    expect(unsent?.level).toBe("warning");
+    expect(unsent?.message).toContain("1 closed");
+    expect(unsent?.message).toContain("not told — no approved template yet");
+    const capped = sum("decisions-expiry", { expired: 500, reviews: { waiting: 0, retried: 0, reviewed: 0, stillWaiting: 0, closed: 0, setAside: 0, noTime: 0, whatsappSent: 0, whatsappSkipped: 0 } });
+    expect(capped?.level).toBe("warning");
+    expect(capped?.message).toContain("trigger again");
+  });
+
+  it("wa-template-sync: a quiet run is a success, a merchant Meta could not be reached for is a warning", () => {
+    expect(sum("wa-template-sync", { processed: 0, failed: 0 })).toEqual({ message: "0 merchants handled", level: "success" });
+    expect(sum("wa-template-sync", { processed: 1, failed: 0 })?.message).toBe("1 merchant handled");
+    const bad = sum("wa-template-sync", { processed: 3, failed: 1 });
+    expect(bad?.level).toBe("warning");
+    expect(bad?.message).toContain("1 could not reach Meta");
   });
 });

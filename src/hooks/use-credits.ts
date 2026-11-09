@@ -1,31 +1,83 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
+import type { ChargePage } from "@/lib/charge-record";
 
 // ── Response types ─────────────────────────────────────────────────────────
 
-export type CreditsBalance =
-  | { unlimited: true; plan: string }
-  | {
-      unlimited: false;
-      plan: string;
-      metric: string;
-      hardCap: number;
-      softCap: number;
-      used: number;
-      remaining: number;
-      windowStartAt: string;
-      resetAt: string;
-      boostAddonKey: string | null;
-    };
+export type MeteredBalance = {
+  unlimited: false;
+  plan: string;
+  metric: string;
+  hardCap: number;
+  softCap: number;
+  /** Peaks consumed this window: the charging ledger PLUS consumption the
+   *  rollup has not charged yet. Deliberately LEADS the gate by that tail —
+   *  which is why it must never be the basis for saying AI is paused. */
+  used: number;
+  /** `used` without that tail — the ledger alone, which is what the gate
+   *  enforces on. Shown nowhere; kept so the two figures can be compared. */
+  chargedUsed: number;
+  /** ⚠️★THE API'S OWN ANSWER to "would the next AI call be refused?" — the
+   *  fair-use gate's predicate, on the gate's input, computed server-side.
+   *  Read this to render a pause; never re-derive it from the numbers. */
+  blocked: boolean;
+  remaining: number;
+  windowStartAt: string;
+  resetAt: string;
+  boostAddonKey: string | null;
+  /** Depleting Peaks bought as a top-up pack. Durable — NOT part of the
+   *  rolling window, and consumed only once the window allowance is spent.
+   *  ⚠️Half the pack's story: the api DEBITS this as over-cap spend is charged,
+   *  so it shrinks as the customer spends. Always pair it with `topUpDrawn`. */
+  topUpBalance: number;
+  /** ★The other half: purchased Peaks ALREADY SPENT this window, and therefore
+   *  already gone from `topUpBalance`. Added back to the denominator so a pack
+   *  is not counted twice — once in `used`, once by the debit. */
+  topUpDrawn: number;
+  /** Whether that balance is actually spendable: true when any tier the org
+   *  holds costs money. A business on its trial or with no plan (D19) may HOLD
+   *  top-up Peaks and not spend them, so the flag is not `topUpBalance > 0`. */
+  topUpUsable: boolean;
+};
+
+export type CreditsBalance = { unlimited: true; plan: string } | MeteredBalance;
 
 export interface RateCardUseCase {
   useCase: string;
   label: string;
+  /**
+   * ★THE PRICE — Peaks charged per act (per event, for an outcome row). The
+   * rollup's `peaksForUsageRow` charges exactly this, flat.
+   *
+   * ⚠️The api also sends `minCreditsPerCall`, and it is DELIBERATELY NOT
+   * DECLARED HERE: no billing path reads it and no priced row sets it, so it
+   * arrives as 0 — and `peaksPrice` rendered that 0 as the price of every paid
+   * act on the rate card. A field this type cannot name is one no surface can
+   * mistake for the price again.
+   */
   creditMultiplier: number;
-  minCreditsPerCall: number;
+  /** cfg_products.pillar; null = cross-product. */
+  pillar: string | null;
+  /**
+   * ★RENDER "Free", NEVER "0 Peaks" AND NEVER A DASH.
+   *
+   * The api derives this (`customerBillable === false`, or no multiplier) and
+   * its own field comment instructs callers to branch on THIS rather than on
+   * the number — because a zero price and a free task are the same figure and
+   * a different promise. "0 Peaks" reads as a price somebody forgot to set;
+   * "—" reads as not-applicable. On a safety feature both read worse than the
+   * truth, which is that being told why we stopped something costs nothing.
+   *
+   * ⚠️ THIS FIELD WAS ADDED TO THE API AND NOT TO THIS TYPE, so for a while
+   * the rate card rendered every free task as "—" — the exact "never absent"
+   * failure the requirement forbids, in the one place it is supposed to hold.
+   */
+  free: boolean;
+  /** Merchant-facing sentence from `cfg_ai_models`; null when the row has none. */
+  description: string | null;
 }
 
 export interface CreditsHistoryDay {
@@ -35,17 +87,80 @@ export interface CreditsHistoryDay {
 
 // ── Cap status helper ──────────────────────────────────────────────────────
 
-/** Returns "hard" | "soft" | "none". Unlimited plans always return "none". */
+/**
+ * Every Peak the org may still spend before the api refuses a call: the plan's
+ * window allowance PLUS any purchased top-up it is allowed to draw on.
+ *
+ * The DENOMINATOR for what this client displays — the percentage, the "X of Y"
+ * tooltip, the soft nudge. 🚫Reading `hardCap` alone is what produced "you've
+ * used 102% of your monthly Peaks" and "7,000 of 5,000 Peaks remaining" for a
+ * customer holding a top-up pack.
+ *
+ * ⚠️★IT IS NOT WHAT DECIDES A PAUSE — `balance.blocked` is. See `getCapStatus`.
+ *
+ * ★AND `topUpDrawn` IS WHY IT NO LONGER WALKS DOWNWARD. The rollup meters
+ * over-cap calls into `used` AND debits them from `topUpBalance`, so the balance
+ * alone sags by exactly what has been spent: at hardCap 5,000 with a 2,000 pack,
+ * 6,000 spent used to read "0 of 6,000" while 1,000 purchased Peaks remained, and
+ * the soft band narrowed with it. Adding back what was drawn holds the
+ * denominator at 7,000 for the life of the pack. Mirrors the api's own
+ * `spendableCap` — the figure `remaining` and `blocked` are computed from.
+ */
+export function spendableCap(balance: MeteredBalance): number {
+  return (
+    balance.hardCap +
+    (balance.topUpUsable ? balance.topUpBalance + balance.topUpDrawn : 0)
+  );
+}
+
+/**
+ * Returns "hard" | "soft" | "none". Unlimited plans always return "none".
+ *
+ * ⚠️★★"hard" IS THE SERVER'S `blocked`, NOT A COMPARISON MADE HERE. This used
+ * to be `used >= hardCap`, which was wrong twice over: it had no top-up term,
+ * and `used` deliberately leads the gate by the un-charged tail. Together those
+ * told a Peakhour Suite customer "Monthly Peaks limit reached. AI features are
+ * paused until Sep 12. Upgrade to resume immediately." the day after they bought
+ * a 2,000-Peak pack — while `remaining` on that same response read 1,900 and the
+ * api refused nothing. 🚫Whether a customer can work is the api's answer to
+ * give; this client's job is to render it, not to recompute it.
+ *
+ * "soft" stays local and stays on the LEADING `used`, which is right for a
+ * nudge: it is a statement about the customer's own spend, not a claim about
+ * what the api will do.
+ */
 export function getCapStatus(balance: CreditsBalance | undefined): "hard" | "soft" | "none" {
   if (!balance || balance.unlimited) return "none";
-  if (balance.used >= balance.hardCap) return "hard";
-  if (balance.used >= balance.softCap) return "soft";
+  if (balance.blocked) return "hard";
+  // The plan's own warning band (hardCap − softCap), carried up to sit just
+  // below the REAL wall. Warning at the bare `softCap` would tell a merchant
+  // holding thousands of purchased Peaks that "AI will pause when the limit is
+  // reached" while none of them had been touched.
+  const cap = spendableCap(balance);
+  if (balance.used >= cap - (balance.hardCap - balance.softCap)) return "soft";
   return "none";
+}
+
+/**
+ * Where a capped org should be sent to get moving again.
+ *
+ * ⚠️🚫★"Upgrade" is a DEAD END on a paid plan. Peakhour Suite is the top
+ * self-serve tier and the api's escalation for it is `boost_or_wait` — the
+ * action that actually resumes AI is buying Peaks, not changing plan. Only a
+ * business with no paid plan (D19: on its trial, or none) has a plan to buy,
+ * and `topUpUsable` is precisely the api's own "this org is on something that
+ * costs money" answer, so the CTA and the gate that honours the purchase cannot
+ * drift apart.
+ */
+export function capRecoveryCta(balance: MeteredBalance): { href: string; label: string; verb: string } {
+  return balance.topUpUsable
+    ? { href: "/dashboard/peaks", label: "Buy Peaks", verb: "Buy Peaks" }
+    : { href: "/dashboard/settings/billing", label: "Buy a plan", verb: "Buy a plan" };
 }
 
 // ── Cache keys ─────────────────────────────────────────────────────────────
 
-const CREDITS_KEY = "/v1/dashboard/credits";
+export const CREDITS_KEY = "/v1/dashboard/credits";
 const RATE_CARD_KEY = "/v1/dashboard/credits/rate-card";
 const HISTORY_KEY = "/v1/dashboard/credits/history";
 
@@ -93,5 +208,22 @@ export function useCreditsHistory() {
     queryFn: () => api.get<{ days: CreditsHistoryDay[]; total: number }>("/v1/dashboard/credits/history"),
     enabled: isAuthenticated && !!org?._id,
     staleTime: 5 * 60_000,
+  });
+}
+
+/**
+ * The charge-by-charge record (`GET /v1/dashboard/credits/charges`), a page at a
+ * time, newest first. One line per charge; a refunded charge stays one line.
+ */
+export function useCreditCharges() {
+  const { isAuthenticated, org } = useAuth();
+  return useInfiniteQuery({
+    queryKey: [CREDITS_KEY, "charges", org?._id ?? null],
+    queryFn: ({ pageParam }) =>
+      api.get<ChargePage>("/v1/dashboard/credits/charges", pageParam ? { before: pageParam } : undefined),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.next ?? undefined,
+    enabled: isAuthenticated && !!org?._id,
+    staleTime: 60_000,
   });
 }

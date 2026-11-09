@@ -12,8 +12,13 @@ import type { UIMessage } from "ai";
 import { Bot, Send, Loader2, Check, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { ActionCost } from "@/components/dashboard/action-cost";
 import { cn } from "@/lib/utils";
 import { useAsk } from "@/hooks/use-ask";
+import { usePathname } from "next/navigation";
+import { isPresenceRoute, routeKeyFromPath } from "@/providers/ask-context-provider";
+import { ListingChangeCard } from "@/components/ask/listing-change-card";
+import { uniqueCards } from "@/lib/presence-change-card";
 
 /** Friendly labels for the analytics tools (falls back to a prettified name). */
 const TOOL_LABELS: Record<string, string> = {
@@ -25,7 +30,15 @@ const TOOL_LABELS: Record<string, string> = {
   ga4_top_pages: "Reading top pages",
   ga4_acquisition_channels: "Reading traffic sources",
   ga4_run_report: "Running a custom GA4 report",
+  presence_places: "Reading your listings",
+  presence_reviews: "Reading your reviews",
+  presence_insights: "Reading how customers used your listing",
+  presence_waiting: "Checking what is waiting for you",
+  propose_listing_change: "Preparing a change for you to approve",
 };
+
+/** The Presence engine's tools that return change cards (PE-09). */
+const CARD_TOOLS = new Set(["propose_listing_change", "presence_waiting"]);
 
 function toolLabel(name: string): string {
   return TOOL_LABELS[name] ?? name.replace(/_/g, " ");
@@ -37,11 +50,19 @@ const SUGGESTIONS = [
   "Which pages get the most visitors?",
 ];
 
+/** On the Presence pages, Ask can prepare listing changes. The first two are the examples the feature is for. */
+const PRESENCE_SUGGESTIONS = [
+  "Close Monday for Diwali",
+  "Bandra shop kal 10 baje khulega",
+  "How are my reviews doing?",
+];
+
 interface AskPart {
   type: string;
   text?: string;
   toolName?: string;
   state?: string;
+  output?: unknown;
 }
 
 /** A tool-call part rendered as a status chip. */
@@ -80,6 +101,14 @@ function MessageView({ message }: { message: UIMessage }) {
           })}
         </div>
       )}
+      {/* Change cards (assistant only): built by the api from the stored change, with Approve. One per change, however many tool calls name it. */}
+      {!isUser &&
+        uniqueCards(
+          toolParts.flatMap((p) => {
+            const name = p.type === "dynamic-tool" ? (p.toolName ?? "tool") : p.type.slice("tool-".length);
+            return CARD_TOOLS.has(name) && p.state === "output-available" ? [p.output] : [];
+          }),
+        ).map((c) => <ListingChangeCard key={c.id} card={c} />)}
       {textParts.map((p, i) => (
         <div
           key={i}
@@ -110,6 +139,9 @@ export function AskConversation({
   initialInput?: string;
 }) {
   const { messages, sendMessage, status, error } = useAsk(threadId);
+  // The Presence pages get their own examples (the same route key the server's engine activates on).
+  const onPresence = isPresenceRoute(routeKeyFromPath(usePathname() ?? ""));
+  const suggestions = onPresence ? PRESENCE_SUGGESTIONS : SUGGESTIONS;
   const [input, setInput] = useState(initialInput ?? "");
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -145,9 +177,13 @@ export function AskConversation({
         {messages.length === 0 && !busy && (
           <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-muted-foreground">
             <Bot className="size-8 opacity-30" />
-            <p className="text-sm">Ask about your analytics, search, and pages — grounded in your real data.</p>
+            <p className="text-sm">
+              {onPresence
+                ? "Ask about your listings and reviews, or ask for a change. You approve every change before anything is sent."
+                : "Ask about your analytics, search, and pages — grounded in your real data."}
+            </p>
             <div className="mt-2 flex flex-wrap justify-center gap-1.5">
-              {SUGGESTIONS.map((q) => (
+              {suggestions.map((q) => (
                 <button
                   key={q}
                   onClick={() => {
@@ -206,6 +242,7 @@ export function AskConversation({
         <p className="mt-1.5 px-1 text-[10px] text-muted-foreground">
           Ask Peakhour answers only from your connected data — it won&apos;t make numbers up.
         </p>
+        <ActionCost action="ask" className="mt-0.5 block px-1 text-[10px]" />
       </div>
     </div>
   );

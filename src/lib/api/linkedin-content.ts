@@ -1,4 +1,4 @@
-import { api } from "@/lib/api";
+import { api, newActionKey } from "@/lib/api";
 
 export type LinkedInVisibility = "PUBLIC" | "CONNECTIONS" | "LOGGED_IN";
 
@@ -378,13 +378,14 @@ export const linkedInContentApi = {
   /** Generate N initial LinkedIn post drafts grounded in the active
    *  business's profile + voice card + cohort archetype. Persists each
    *  as a cnt_drafts row server-side and returns them in the response.
-   *  Designed to fire once on onboarding completion (and on-demand
-   *  from a "generate more" button later). Server clamps count to
+   *  Fires only when the merchant presses "Draft posts from my profile"
+   *  (never on its own: it uses Peaks). Server clamps count to
    *  [1, 10]; defaults to 5 when omitted. */
   generateFromProfile: (count?: number) =>
     api.post<GenerateFromProfileResponse>(
       "/v1/linkedin/content/generate-from-profile",
       count !== undefined ? { count } : {},
+      newActionKey(),
     ),
 
   /** Boost-this-post candidates. Read-only ranking of the business's
@@ -750,9 +751,25 @@ export interface LinkedInCommentPage {
   total?: number;
   /** Pass as `start` for the next page; absent = end of thread. */
   nextStart?: number;
-  /** Whether names were actually fetched. False means "we are not showing
-   *  names", which is different from "nobody has one". */
+  /** The kill switch: is commenter identity switched on at all? False means
+   *  "we are not showing names", which is different from "nobody has one". */
   identityEnabled: boolean;
+  /**
+   * Whether LinkedIn actually expanded any actor on THIS page.
+   *
+   * ★FALSE IS NOT AN ERROR AND NOT THE SWITCH. LinkedIn resolves the
+   * profile expansion through a service with its own per-day cap; when
+   * that is spent the comments still arrive, each one carrying a refusal
+   * marker instead of a profile. It is also false for a thread whose only
+   * commenter is an organization, whose profile fields we deliberately do
+   * not request — asking for them made LinkedIn refuse the expansion for
+   * every human on the page too.
+   *
+   * Optional for the same reason as `identityEnabled` on
+   * {@link EngagersResponse}: b2c and api deploy independently, so test
+   * `=== false` rather than falsiness.
+   */
+  decorated?: boolean;
 }
 
 export interface LinkedInReaction {

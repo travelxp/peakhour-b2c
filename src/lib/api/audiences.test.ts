@@ -81,9 +81,43 @@ describe("audiencesApi", () => {
   it("plans a portfolio on the platform-agnostic path", async () => {
     h.post.mockResolvedValue({ planId: "p1", sets: [], refusal: null });
     await audiencesApi.plan({ objective: "lead_generation" });
-    expect(h.post).toHaveBeenCalledWith("/v1/audiences/plan", {
-      objective: "lead_generation",
-    });
+    // ⏸THE THIRD ARGUMENT IS `undefined`, NOT ABSENT (P-10). A caller that
+    // showed no price sends no receipt, and the api then charges the live
+    // rate card — the behaviour every caller had before quotes existed.
+    expect(h.post).toHaveBeenCalledWith(
+      "/v1/audiences/plan",
+      { objective: "lead_generation" },
+      undefined,
+    );
+  });
+
+  it("★★sends the quote receipt as `x-peaks-quote` when it has one", async () => {
+    // §7.9's second obstacle: *"a quoted price must be honoured. Once a
+    // merchant is shown '20 Peaks', they must pay 20 even if ops edits the
+    // rate card between the quote and the act."* The token is that receipt,
+    // and it has to travel WITH the act — a price in the body would be a
+    // number the client could edit.
+    h.post.mockResolvedValue({ planId: "p1", sets: [], refusal: null });
+    await audiencesApi.plan({ objective: "lead_generation" }, "signed.receipt.here");
+    expect(h.post).toHaveBeenCalledWith(
+      "/v1/audiences/plan",
+      { objective: "lead_generation" },
+      { "x-peaks-quote": "signed.receipt.here" },
+    );
+  });
+
+  it("★sends NO header for an empty token rather than an empty one", async () => {
+    // ⚠️An empty `x-peaks-quote` is not "no quote" to the api — it is a
+    // malformed receipt, and the difference between being charged the live
+    // card and being refused. `""` is falsy, which is what makes this work;
+    // it is pinned because a `!== undefined` check would not.
+    h.post.mockResolvedValue({ planId: "p1", sets: [], refusal: null });
+    await audiencesApi.plan({ objective: "lead_generation" }, "");
+    expect(h.post).toHaveBeenCalledWith(
+      "/v1/audiences/plan",
+      { objective: "lead_generation" },
+      undefined,
+    );
   });
 
   it("★does not send a `geo` key when the caller has none", async () => {

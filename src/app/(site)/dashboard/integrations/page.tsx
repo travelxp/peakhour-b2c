@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
+import { PlanLimitDialog } from "@/components/upgrade/plan-limit-dialog";
 import { invalidateLinkedInContentQueries } from "@/lib/linkedin-cache";
 import { CreateWorkspaceButton } from "@/components/integrations/create-workspace-button";
 import { useLocale } from "@/hooks/use-locale";
@@ -16,7 +17,11 @@ import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { ConfirmDialog } from "@/components/molecules/confirm-dialog";
 import { WhatsAppEmbeddedSignup } from "@/components/integrations/whatsapp-embedded-signup";
 import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
+import { MetaDmConnect } from "@/components/integrations/meta-dm-connect";
+import { XDmConnect } from "@/components/integrations/x-dm-connect";
 import { WordPressConnectModal } from "@/components/integrations/wordpress-connect-modal";
+import { MeasurementHealthPanel } from "@/components/growth/measurement-health-panel";
+import { affectsMeasurementHealth } from "@/lib/measurement-health";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -80,6 +85,16 @@ interface Integration {
   authType: string;
   availability: string;
   description?: string;
+  /** Meta cards only: what a connect from this card asks Meta for. */
+  grantNote?: string | null;
+  /** api: on the `facebook` row, which Meta purposes have their own Login for
+   *  Business configuration in this environment. Absent from an older api. */
+  metaLogin?: MetaLoginInfo["metaLogin"];
+  /** api: on the `facebook` row, the live web rows that serve the Meta cards
+   *  (`purpose: null` is the shared all-purpose row). */
+  metaConnections?: MetaLoginInfo["metaConnections"];
+  /** Meta cards only: which Meta cards are connected right now. */
+  metaConnectedCards?: string[];
   group?: string | null;
   groupDisplayName?: string | null;
   subLabel?: string | null;
@@ -93,6 +108,16 @@ interface Integration {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     extra?: Record<string, any>; // TODO: type provider-specific extras (pages, adAccounts, capabilities, etc.)
   };
+  /** Every live account on this provider, primary first (api: GET
+   *  /v1/integrations `accounts`). A business may hold several stores on one
+   *  channel; `account` above is only the primary. Absent from an older api. */
+  accounts?: Array<{
+    connectionId: string;
+    externalId?: string;
+    name?: string;
+    status: string;
+    primary: boolean;
+  }>;
   connectedAt?: string;
   lastSyncAt?: string;
   lastError?: string;
@@ -186,6 +211,15 @@ import {
   flattenMetaIntegration as flattenMetaIntegrationBase,
   resolveProvider,
   isMetaVirtual,
+  metaActionPurpose,
+  metaCardServedBy,
+  metaCardStatus,
+  metaCardsDisconnectedBy,
+  metaDisconnectCopy,
+  metaGrantNote,
+  metaLoginPurposeFor,
+  withMetaLoginPurpose,
+  type MetaLoginInfo,
   type MetaVirtualCard,
 } from "@/lib/integrations-meta";
 import {
@@ -194,11 +228,26 @@ import {
 } from "@/lib/integration-card-state";
 
 function flattenMetaIntegration(integrations: Integration[]): Integration[] {
-  return flattenMetaIntegrationBase<Integration>(integrations, (item, card) => {
+  const flat = flattenMetaIntegrationBase<Integration>(integrations, (item, card) => {
     const extra = item.account?.extra || {};
+    const info: MetaLoginInfo = { metaLogin: item.metaLogin, metaConnections: item.metaConnections };
+    // ★The card's OWN row decides whether it needs reconnecting: the merged
+    // facebook row prefers an active row, so a broken Growth row beside a
+    // working shared row would otherwise show Meta Ads as connected.
+    const rowStatus = card.loginPurpose ? metaCardStatus(info, card.virtualProvider) : undefined;
+    const ownRowBroken = rowStatus !== undefined && rowStatus !== "active";
+    // And a card NO row serves (the api said so) is not connected, whatever
+    // the merged extras of another purpose's row contain.
+    const unserved =
+      card.loginPurpose !== undefined &&
+      item.metaConnections !== undefined &&
+      metaCardServedBy(info, card.virtualProvider) === "none";
     return {
       name: card.name,
       description: card.description,
+      grantNote: metaGrantNote(card.virtualProvider, item.metaLogin, metaActionPurpose(info, card.virtualProvider)),
+      ...(ownRowBroken ? { connected: false, status: rowStatus } : {}),
+      ...(unserved ? { connected: false } : {}),
       category: card.category,
       account: item.connected
         ? {
@@ -211,6 +260,10 @@ function flattenMetaIntegration(integrations: Integration[]): Integration[] {
       subLabel: null,
     } as Partial<Integration>;
   });
+  // Each Meta card's Disconnect copy names what STAYS connected, so it needs
+  // the other Meta cards' state — known only once all four are flattened.
+  const connectedMeta = flat.filter((i) => isMetaVirtual(i.provider) && i.connected).map((i) => i.provider);
+  return flat.map((i) => (isMetaVirtual(i.provider) ? { ...i, metaConnectedCards: connectedMeta } : i));
 }
 
 type ConnectionTab = "all" | "connected" | "disconnected";
@@ -370,6 +423,12 @@ export default function IntegrationsPage() {
     }
   }
 
+  /** The api's Meta login facts, as carried on a flattened Meta card. */
+  function metaInfoFor(provider: string): MetaLoginInfo {
+    const row = integrations.find((i) => i.provider === provider);
+    return { metaLogin: row?.metaLogin, metaConnections: row?.metaConnections };
+  }
+
   async function handleConnect(provider: string, authType: string) {
     const realProvider = resolveProvider(provider);
     // WhatsApp can ONLY be connected via Meta's Embedded Signup (the v4 flow
@@ -407,9 +466,15 @@ export default function IntegrationsPage() {
         !returnFor || returnFor === realProvider || returnFor === provider
           ? returnTo
           : DEFAULT_RETURN_TO;
-      window.location.href =
+      // A Meta card names its product (`purpose=content|ads`), so the api
+      // opens that product's own Login for Business configuration — except a
+      // reconnect of a broken shared row, which must replace that row's
+      // token (metaActionPurpose).
+      window.location.href = withMetaLoginPurpose(
         `${API_BASE_URL}/v1/integrations/${realProvider}/authorize` +
-        `?returnTo=${encodeURIComponent(landing)}`;
+          `?returnTo=${encodeURIComponent(landing)}`,
+        metaActionPurpose(metaInfoFor(provider), provider),
+      );
     } else if (authType === "api_key") {
       setConnectModal(realProvider);
     }
@@ -432,7 +497,7 @@ export default function IntegrationsPage() {
     setError("");
     try {
       await api.post<{ account: Integration["account"] }>(
-        `/v1/integrations/${realProvider}/refresh`,
+        withMetaLoginPurpose(`/v1/integrations/${realProvider}/refresh`, metaLoginPurposeFor(provider)),
         {}
       );
       // Reload all integrations so virtual Meta cards update correctly
@@ -570,15 +635,38 @@ export default function IntegrationsPage() {
     const realProvider = resolveProvider(provider);
     setDisconnecting(provider);
     try {
-      await api.delete(`/v1/integrations/${realProvider}`);
-      // Disconnecting facebook removes all virtual Meta cards too
-      setIntegrations((prev) =>
-        prev.map((i) =>
-          resolveProvider(i.provider) === realProvider
-            ? { ...i, connected: false, status: "disconnected", account: undefined }
-            : i
-        )
-      );
+      await api.delete(withMetaLoginPurpose(`/v1/integrations/${realProvider}`, metaLoginPurposeFor(provider)));
+      if (metaLoginPurposeFor(provider)) {
+        // ★A Meta card disconnects the row that serves it, and only the cards
+        // that row serves go with it — the Meta Ads card leaves a separately
+        // connected Pages alone. Flipped at once, then confirmed by the api.
+        const going = new Set(metaCardsDisconnectedBy(metaInfoFor(provider), provider));
+        setIntegrations((prev) =>
+          prev.map((i) =>
+            going.has(i.provider)
+              ? { ...i, connected: false, status: "disconnected", account: undefined }
+              : i
+          )
+        );
+        await loadIntegrations();
+      } else {
+        setIntegrations((prev) =>
+          prev.map((i) =>
+            resolveProvider(i.provider) === realProvider
+              ? { ...i, connected: false, status: "disconnected", account: undefined }
+              : i
+          )
+        );
+      }
+      // ★★AND THE HEALTH PANEL ABOVE HAS TO BE TOLD. It caches for half an hour,
+      // so without this a merchant who disconnects Google Analytics keeps
+      // reading green analytics verdicts directly above the card that now says
+      // "not connected" — the panel contradicting the page it is printed on,
+      // which is worse than either answer alone. Only for the providers the
+      // check actually reads: three live Google calls sit behind a refetch.
+      if (affectsMeasurementHealth(realProvider)) {
+        queryClient.invalidateQueries({ queryKey: ["measurement-health"] });
+      }
     } catch (err) {
       if (err instanceof ApiError) setError(err.message);
     } finally {
@@ -648,6 +736,16 @@ export default function IntegrationsPage() {
         title="Integrations"
         description="Connect your platforms to power AI-driven content and ads"
       />
+
+      {/* ★★CAN THE NUMBERS BE BELIEVED — HERE, BECAUSE THIS IS WHERE A MERCHANT
+          LANDS AFTER CONNECTING. `returnTo` defaults to this page, so the panel
+          is the first thing after "it worked": the moment a property is
+          attached is the moment to say whether it is pointed at the right site,
+          and every screen in the product renders whether it is or not.
+
+          It renders nothing for a business with nothing connected, and nothing
+          when it cannot load. */}
+      <MeasurementHealthPanel />
 
       {/* Search + Tabs bar */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -790,6 +888,12 @@ export default function IntegrationsPage() {
           </div>
         ))
       )}
+
+      {/* Messenger and Instagram messages (Inbox lane I3e): renders nothing until the api says a channel is released. */}
+      <MetaDmConnect />
+
+      {/* X messages (Inbox lane I3g): renders nothing until the api says they are released. */}
+      <XDmConnect />
 
       {/* Beehiiv connect modal */}
       <BeehiivConnectModal
@@ -1161,6 +1265,30 @@ function IntegrationCard({
               </div>
             )}
 
+            {/* ★EVERY ACCOUNT, NOT ONLY THE PRIMARY. A business may hold several
+                stores on one channel (a second Shopify shop added to this
+                workspace); the card above shows the primary, and these are the
+                rest, so a store added here is visible here. */}
+            {(integration.accounts?.length ?? 0) > 1 && (
+              <ul className="space-y-1 rounded-md border px-2.5 py-2" aria-label={`${integration.name} accounts`}>
+                <li className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  {integration.accounts!.length} connected
+                </li>
+                {integration.accounts!
+                  .filter((a) => !a.primary)
+                  .map((a) => (
+                    <li key={a.connectionId} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="truncate">{a.name || a.externalId || "Account"}</span>
+                      {a.status !== "active" && (
+                        <span className="shrink-0 text-[10px] text-warning-on-tint">
+                          {a.status === "needs_reauth" ? "Needs reconnect" : a.status}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+              </ul>
+            )}
+
             {/* LinkedIn Ads — compact status badge + detail dialog */}
             {integration.provider === "linkedin_ads" && integration.account?.extra && (
               <LinkedInAdsStatus
@@ -1230,7 +1358,11 @@ function IntegrationCard({
                 integration.provider === "whatsapp"
                   ? "This disconnects only WhatsApp Business. Your Facebook Pages, Instagram and Meta Ads stay connected."
                   : isMetaVirtual(integration.provider)
-                    ? "This will disconnect all Meta services (Facebook Pages, Instagram, Meta Ads, WhatsApp). You'll need to reconnect to sync data again."
+                    ? metaDisconnectCopy(
+                        { metaLogin: integration.metaLogin, metaConnections: integration.metaConnections },
+                        integration.provider,
+                        integration.metaConnectedCards,
+                      )
                     : `Are you sure you want to disconnect ${integration.name}? You'll need to reconnect to sync data again.`
               }
               confirmLabel="Disconnect"
@@ -1299,9 +1431,14 @@ function IntegrationCard({
                 {isMetaVirtual(integration.provider) ? "Connect with Meta" : "Connect"}
               </Button>
             )}
-            {isMetaVirtual(integration.provider) && (
+            {integration.grantNote && (offerReconnect || !isRecoverable) && (
+              // ★What THIS card's connect asks Meta for — only under a button
+              // that connects (not beside "isn't open for new connections"). "One login connects
+              // all Meta services" stopped being true when each product got
+              // its own Login for Business configuration — and was never true
+              // of WhatsApp, which connects through Embedded Signup.
               <p className="text-[10px] text-center text-muted-foreground">
-                One login connects all Meta services
+                {integration.grantNote}
               </p>
             )}
           </div>
@@ -2031,6 +2168,21 @@ function ManagePagesDialog({
   const [pending, setPending] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [pendingToggle, setPendingToggle] = useState<PendingToggle | null>(null);
+  /**
+   * The Page whose switch was clicked while the plan was already full.
+   *
+   * ★A DISABLED SWITCH WITH A TOOLTIP WAS NOT AN ANSWER. The cap used to be
+   * expressed as a dead control explained on HOVER — which is unreachable on a
+   * phone, unreachable by tap, and invisible to anyone who does not think to
+   * hover a thing that looks broken. So the honest reading of the UI was "this
+   * page cannot be enabled", full stop, with the fact that it is a purchasable
+   * limit hidden behind a gesture half the users cannot make.
+   *
+   * The switch stays live at the cap and clicking it opens the same
+   * PlanLimitDialog the workspace switcher uses. Same rule, same surface,
+   * whether the thing being sized is a business or a Page.
+   */
+  const [capBlocked, setCapBlocked] = useState<string | null>(null);
   /** Which answer to a held 409 is currently in flight. */
   const [answeringWith, setAnsweringWith] = useState<"cancel" | "keep" | null>(null);
 
@@ -2160,6 +2312,7 @@ function ManagePagesDialog({
   const brandAnchor = fitQuery.data?.brandAnchor ?? null;
 
   return (
+    <>
     <Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : closeDialog())}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
@@ -2233,15 +2386,22 @@ function ManagePagesDialog({
             {pages.map((p) => {
               const isOn = enabledIds.has(p.organizationId);
               const isPending = pending.has(p.organizationId);
-              // Disable toggle-on when at cap AND this page is currently
-              // OFF. A page that's already ON keeps its switch active so
-              // the user can turn it off (always allowed).
-              const switchDisabled = isPending || (atCap && !isOn);
+              // At the cap, turning a page ON is a purchase rather than a
+              // toggle — the switch stays live and routes to the plan dialog.
+              // A page that is already ON always keeps a working switch, since
+              // turning things off is never gated.
+              const capReached = atCap && !isOn;
               const switchEl = (
                 <Switch
                   checked={isOn}
-                  disabled={switchDisabled}
-                  onCheckedChange={(v) => togglePage(p.organizationId, v)}
+                  disabled={isPending}
+                  onCheckedChange={(v) => {
+                    if (capReached) {
+                      setCapBlocked(p.organizationName || `Page ${p.organizationId}`);
+                      return;
+                    }
+                    togglePage(p.organizationId, v);
+                  }}
                   aria-label={`Toggle ${p.organizationName || p.organizationId}`}
                 />
               );
@@ -2296,14 +2456,20 @@ function ManagePagesDialog({
                       </a>
                     </div>
                   </div>
-                  {switchDisabled && atCap && !isOn ? (
+                  {capReached ? (
                     <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span tabIndex={0}>{switchEl}</span>
-                      </TooltipTrigger>
+                      {/* ★THE SWITCH IS THE TRIGGER, NOT A SPAN AROUND IT. The
+                          wrapper existed because the switch used to be
+                          `disabled` — a disabled control takes no focus and
+                          fires no pointer events, so something else had to. Now
+                          that it is live, the wrapper's `tabIndex={0}` would add
+                          a second, unlabelled tab stop on every capped row: the
+                          keyboard user lands on an anonymous box, then on the
+                          switch, for one control. */}
+                      <TooltipTrigger asChild>{switchEl}</TooltipTrigger>
                       <TooltipContent side="left" className="max-w-[220px] text-[11px]">
-                        Plan cap reached. Disable another page or upgrade your plan
-                        to enable more.
+                        Your plan covers {cap} {cap === 1 ? "page" : "pages"}. Turn another off, or
+                        add this one to your plan.
                       </TooltipContent>
                     </Tooltip>
                   ) : (
@@ -2333,6 +2499,26 @@ function ManagePagesDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    {/* ★THE SAME DIALOG THE WORKSPACE SWITCHER OPENS. One plan sizes what you
+        can run — a business, a Page — so reaching either edge has to land on
+        one surface saying one thing. A bespoke message here would be a second
+        answer to the same question, and the two would drift.
+        A SIBLING of the Manage dialog rather than a child: nesting one Radix
+        Dialog.Root inside another puts the inner one's context in front of the
+        outer's for everything below it, and there is no reason to reason about
+        that when both portal to the body regardless. The Manage dialog stays
+        OPEN behind it on purpose — the likeliest next move after reading the
+        cap is turning a different page off, which is the list underneath. */}
+    <PlanLimitDialog
+      open={capBlocked !== null}
+      onOpenChange={(next) => !next && setCapBlocked(null)}
+      title={`${capBlocked ?? "That page"} isn't on your plan`}
+      description={`Your ${planLabel} plan covers ${cap} LinkedIn ${cap === 1 ? "page" : "pages"} for this business. Turn another one off to free a slot, or add this page to your plan.`}
+      benefit="Each enabled page gets its own posting queue, audience and reporting — nothing is shared or mixed between them."
+      ctaLabel="Add a page to my plan"
+    />
+    </>
   );
 }
 

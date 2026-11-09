@@ -10,29 +10,42 @@ import { useAuth } from "@/providers/auth-provider";
 export interface DashboardOrgPlanSummary {
   name?: string;
   subscription?: {
-    plan?: string;
+    /** The org's base row's tier key, or null when no live base row covers
+     *  the signed-in business (none, a Suite trial that has ended, api#1510;
+     *  or one on another business, api#1553: the Suite trial and a hand-set
+     *  contract are the first business's, an Enterprise contract every
+     *  business's). The trial fields below follow it: an added business reads
+     *  no trial. */
+    plan?: string | null;
     /** Customer-facing plan name from cfg_plans. ALWAYS prefer this for display —
-     *  `plan` is a machine tier key ("commerce_assistant.free"), and rendering it
-     *  is what showed customers "Commerce_assistant.Free" as their plan name. */
-    planName?: string;
-    planVersion?: number;
+     *  `plan` is a machine tier key, and rendering it is what once showed
+     *  customers "Commerce_assistant.Free" as their plan name. Read through
+     *  `lib/plan-status`. Null exactly when `plan` is. */
+    planName?: string | null;
+    /** Null exactly when `plan` is (api#1553). */
+    planVersion?: number | null;
     trialEndsAt?: string | null;
     trialActive?: boolean;
     trialDaysRemaining?: number;
     selfServeExtensionUsed?: boolean;
   };
+  /** The signed-in business's grant, as its gates read it (api#1553); it was
+   *  the org's snapshot, the union of every business. */
   entitlements?: {
     plan?: string;
-    planVersion?: number;
+    /** Falls back to `subscription.planVersion`, so null when it is (api#1553). */
+    planVersion?: number | null;
     computedAt?: string | null;
     features?: string[];
   } | null;
-  /** Paid products held beyond the base plan — the active/trial product-portfolio
-   *  subscriptions (T4 native billing). Empty for a base-plan-only org. Surfaced
-   *  so the billing page reflects what the org actually owns (e.g. a Commerce
-   *  Assistant purchase) instead of only the legacy base plan. */
+  /** Bought lines beyond the base row — the active/trial subscriptions (Suite,
+   *  Agency) of the SIGNED-IN BUSINESS (api#1510): its own rows, plus unstamped
+   *  legacy rows. Empty for a business on its Suite trial or with no plan. */
   products?: Array<{
     productKey?: string | null;
+    /** The business holding the line, or null for an unstamped legacy row,
+     *  which every business of the org lists until its owner is known. */
+    businessId: string | null;
     tier: string;
     tierVersion?: number | null;
     state: string;
@@ -42,12 +55,14 @@ export interface DashboardOrgPlanSummary {
      *  shares one date — that shared date is what lets the page say they are
      *  billed together. Null until a gateway event has established it. */
     renewsAt?: string | null;
+    /** When a scheduled cancel or plan change ends the line (D21); it then
+     *  renews never, and `renewsAt` is null. */
+    endsAt?: string | null;
     /** Set only on a pending-attach trial (a product added to an existing
      *  subscription): the date it starts billing. A gateway-native trial carries
      *  none, so absence does NOT mean "not trialing". */
     trialEndsAt?: string | null;
   }>;
-  billing?: { plan?: string };
   createdAt?: string;
 }
 
@@ -59,24 +74,35 @@ export interface TrialExtendResponse {
 /** Shared cache key — every consumer of /v1/dashboard/org reads through
  *  this so a single fetch (and the extend mutation's invalidation)
  *  refreshes the badge, the banner, and the billing page atomically. */
-const DASHBOARD_ORG_KEY = "/v1/dashboard/org";
+export const DASHBOARD_ORG_KEY = "/v1/dashboard/org";
+
+/**
+ * The cache key of one business's `/v1/dashboard/org`. ★BY BUSINESS, not only
+ * by org (P4.3b): the response's lines are the signed-in business's
+ * (api#1510), so the key names whose answer an entry is. `switchBusiness`
+ * also clears the whole cache, so this is not what isolates a switch; it
+ * keeps an entry from being read as another business's on any path that
+ * does not clear (and lets the hook wait for a business, `enabled`).
+ */
+export function dashboardOrgKey(orgId: string | null | undefined, businessId: string | null | undefined) {
+  return [DASHBOARD_ORG_KEY, orgId ?? null, businessId ?? null] as const;
+}
 
 /**
  * Read `/v1/dashboard/org` via react-query so the PlanBadge, the
  * trial-expiry banner, and the billing page share one network round-trip
- * + one cache entry. Refetched on org-id change (agency operators
- * flipping between client orgs see each one's plan).
+ * + one cache entry per business (`dashboardOrgKey`).
  *
  * `enabled` guards prevent the fetch from firing before /me resolves
- * — the auth context's org is the gate for "we know which org to fetch
- * for."
+ * — the auth context's business is the gate for "we know which business
+ * to fetch for" (the endpoint answers for the signed-in business).
  */
 export function useDashboardOrg() {
-  const { org, isAuthenticated } = useAuth();
+  const { org, business, isAuthenticated } = useAuth();
   return useQuery<DashboardOrgPlanSummary>({
-    queryKey: [DASHBOARD_ORG_KEY, org?._id ?? null],
+    queryKey: dashboardOrgKey(org?._id, business?._id),
     queryFn: () => api.get<DashboardOrgPlanSummary>("/v1/dashboard/org"),
-    enabled: isAuthenticated && !!org?._id,
+    enabled: isAuthenticated && !!org?._id && !!business?._id,
     // 60s staleTime — plan/trial state changes infrequently. Banner +
     // badge re-render against the cached value; the extend mutation
     // invalidates the cache to force a fresh fetch immediately after

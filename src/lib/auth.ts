@@ -6,6 +6,20 @@ export interface UserPreferences {
   currency?: string;
   language?: string;
   numberFormat?: string;
+  /**
+   * Chosen dashboard avatar as one `<family>:<variant>` token —
+   * `monogram:amber`, `character:fox`. Typed as a bare string on purpose: the
+   * variant set is artwork and grows, and a union here would have to be edited
+   * in lockstep with the api's regex and the collection validator's. `null`
+   * clears it. Resolve it through `resolveAvatar` in @/lib/avatars, which
+   * falls back to the initials monogram for anything it does not recognise.
+   */
+  avatar?: string | null;
+  /**
+   * Which inbox alert emails this person wants (Inbox phase 1). Absent = on; only an explicit `false` switches one off. Saved
+   * whole (all four keys): the api replaces the object. See @/lib/inbox-alerts.
+   */
+  inboxAlerts?: { needsHuman?: boolean; newLead?: boolean; badReview?: boolean; assigned?: boolean };
 }
 
 export interface AuthUser {
@@ -52,6 +66,17 @@ export interface BusinessSummary {
   name: string;
   slug: string;
   businessCategory?: string | null;
+  /**
+   * Is this business covered by the org's plan? One Peakhour Suite plan
+   * activates a fixed number of Businesses; the api assigns that coverage in
+   * creation order and fails OPEN when no cap is configured.
+   *
+   * ★ABSENT MEANS COVERED, AND THAT DEFAULT IS DELIBERATE. The field is served
+   * by a newer api than some deployed b2c builds talk to, and treating a
+   * missing value as "locked" would put an upgrade wall in front of the only
+   * workspace a customer has. Every read site therefore uses `!== false`.
+   */
+  planActive?: boolean;
 }
 
 export interface EntitlementLimits {
@@ -61,7 +86,6 @@ export interface EntitlementLimits {
   maxBusinesses?: number;
   maxSeats?: number;
   monthlyAdSpendCap?: number;
-  maxStorageGb?: number;
   maxAiTokensPerMonth?: number;
   /** Max LinkedIn company Pages a single business can have enabled for
    *  posting. Counted against `int_connections.config.capabilities.pages.enabledResourceIds`.
@@ -89,6 +113,14 @@ export interface Entitlements {
   country?: string;
   currency?: string;
   computedAt: string;
+  /**
+   * Why the ACTIVE business is usable, served when `/me` resolved a business
+   * (the api's `ComputedBusinessEntitlements`): `trial` (the first business on
+   * its Suite trial), `paid` (its own line, or a contract), `none`
+   * (padlocked, D19). An api older than P4.3a serves `free`. `plan-status`
+   * reads it as the business's plan state, over the org-wide summary.
+   */
+  coverage?: string;
 }
 
 export interface MeResponse {
@@ -145,6 +177,44 @@ export async function sendMagicLink(
       ...(opts?.shopifyClaim ? { shopifyClaim: opts.shopifyClaim } : {}),
     },
   );
+}
+
+/** The grant's response. See {@link signInWithPassword}. */
+export interface TestLoginResult {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
+  expiresIn: number;
+  user: { _id: string; email: string; name: string | null; profileCompleted: boolean };
+  orgId: string;
+  businessId: string | null;
+  redirectTo: string;
+  /** Minted alongside the session cookies, because setting them arms csrfGuard. */
+  csrfToken: string;
+  credential: { label: string; expiresAt: string };
+}
+
+/**
+ * Reviewer password sign-in — the dev-only grant.
+ *
+ * ★Exists because every platform that certifies us (LinkedIn, Meta, Google,
+ * TikTok, Shopify) asks for a username and password a stranger can use in an
+ * incognito window, and will not accept "we'll forward the magic link to you".
+ *
+ * ⚠️★The server refuses this outright on production. The environment decides;
+ * there is no opt-in flag on either side that could change that, and nothing the
+ * UI does about visibility is a boundary.
+ *
+ * ★A 401 here means WRONG PASSWORD, never "token expired", and the API counts
+ * failed attempts against a ten-attempt lockout — which is why `api.ts` excludes
+ * this path from the auto-refresh retry (`skipsAuthRetry`). A caller that
+ * reimplements the request must do the same or each typo costs two attempts.
+ */
+export async function signInWithPassword(
+  email: string,
+  password: string,
+): Promise<TestLoginResult> {
+  return api.post<TestLoginResult>("/v1/auth/test-login", { email, password });
 }
 
 export async function verifyMagicLink(

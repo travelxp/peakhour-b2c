@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { WhatsAppEmbeddedSignup } from "@/components/integrations/whatsapp-embedded-signup";
 import { PageShell } from "@/components/dashboard/page-shell";
+import { WaTemplateApprovals } from "@/components/integrations/wa-template-approvals";
 
 type ConnectSource = "peakhour" | "shopify" | "wordpress";
 
@@ -33,6 +35,8 @@ export default async function WhatsAppConnectPage({ searchParams }: Props) {
         source={normalizeSource(source)}
       />
 
+      <WaTemplateApprovals />
+
       <div className="rounded-lg border p-4">
         <h2 className="text-sm font-medium">Message templates</h2>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -47,16 +51,16 @@ export default async function WhatsAppConnectPage({ searchParams }: Props) {
       </div>
 
       <div className="rounded-lg border p-4">
-        <h2 className="text-sm font-medium">Outcomes</h2>
+        <h2 className="text-sm font-medium">Results</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Resolved conversations, assisted orders, and Peaks spent — you’re billed on outcomes, not chatter.
+          Support results, resolved conversations, and orders your assistant helped with. These are figures for your information.
         </p>
-        <a
-          href="/dashboard/content/whatsapp/analytics"
+        <Link
+          href="/dashboard/inbox?tab=insights"
           className="mt-2 inline-block text-sm font-medium text-primary hover:underline"
         >
-          View WhatsApp analytics →
-        </a>
+          See how conversations are going →
+        </Link>
       </div>
     </PageShell>
   );

@@ -2,7 +2,7 @@
 
 /**
  * Ads hub — ONE surface for every ad channel, selected with a tab filter
- * rather than a route per platform (`?channel=linkedin|x`). Each channel
+ * rather than a route per platform (`?channel=linkedin|x|meta|google`). Each channel
  * contributes a panel under `_components/` and an entry in
  * `ads-channels.ts`; the Content hub's "Manage" deep-links here with the
  * channel pre-selected.
@@ -24,11 +24,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
 import { BusinessProfileSummary } from "@/components/audience/business-profile-summary";
+import { GuardrailsCard } from "@/components/ads/guardrails-card";
+import { CreativesReviewEntry } from "@/components/ads/creatives-review-entry";
+import { AudienceExclusionsCard } from "@/components/ads/audience-exclusions-card";
 import { LinkedInAdsPanel } from "./_components/linkedin-ads-panel";
 import { XAdsPanel } from "./_components/x-ads-panel";
+import { MetaAdsPanel } from "./_components/meta-ads-panel";
+import { GoogleAdsPanel } from "./_components/google-ads-panel";
 import {
   ADS_CHANNELS,
   ADS_CHANNEL_PARAM,
+  connectedAdsProviderKeys,
   getAdsChannel,
   isAdsChannelKey,
   nextAdsHubSearch,
@@ -40,6 +46,8 @@ interface ApiIntegration {
   provider: string;
   connected?: boolean;
   status?: string;
+  /** Carries the Meta capability toggles and ad accounts the expansion reads. */
+  account?: { extra?: Record<string, unknown> };
 }
 
 /**
@@ -54,6 +62,8 @@ const PANELS: Record<
 > = {
   linkedin: LinkedInAdsPanel,
   x: XAdsPanel,
+  meta: MetaAdsPanel,
+  google: GoogleAdsPanel,
 };
 
 /** Every channel's crons — used while the resolved channel isn't known yet. */
@@ -98,14 +108,13 @@ function AdsHub() {
 
   // needs_reauth counts as connected for channel-picking: the connection
   // exists, and the panel shows a reconnect banner rather than a dead end.
+  // ★M-16: the Meta `facebook` row is EXPANDED into its capability rows first,
+  //  or `meta_ads` is never found — see `connectedAdsProviderKeys`.
   const integrationList = integrations.data?.integrations;
-  const connectedProviderKeys = useMemo(() => {
-    const set = new Set<string>();
-    for (const i of integrationList ?? []) {
-      if (i.connected === true || i.status === "needs_reauth") set.add(i.provider);
-    }
-    return set;
-  }, [integrationList]);
+  const connectedProviderKeys = useMemo(
+    () => connectedAdsProviderKeys(integrationList ?? []),
+    [integrationList],
+  );
 
   // Errored (not merely pending) means we can't assert connected-ness either
   // way; `isPending` is false on error in TanStack v5, so check both.
@@ -162,7 +171,7 @@ function AdsHub() {
 
   // Pin the resolved channel into the URL once connections are KNOWN. Buys
   // three things: the panel can't silently switch under the user when a
-  // focus-refetch changes connection state, an invalid `?channel=meta` gets
+  // focus-refetch changes connection state, an invalid `?channel=tiktok` gets
   // normalised away instead of lingering, and the tab highlight stops depending
   // on a pending router transition.
   //
@@ -207,13 +216,24 @@ function AdsHub() {
           ADS thing either: Content, Support and Commerce all want to read it,
           and burying the one correctable surface in the engine under Ads is
           why nobody has ever corrected one. It moved to
-          /dashboard/growth/business.
+          /dashboard/growth/rules/business.
 
           Still above the channel tabs, for the original reason — inside a
           channel panel it would read as a LinkedIn setting and would need
           copying for every channel added afterwards — and still not a new route
           off the hub (ads-hub-single-surface). */}
       <BusinessProfileSummary />
+
+      {/* D-05: the merchant's guardrails. Channel-neutral, so above the tabs
+          for BusinessProfileSummary's reason. */}
+      <GuardrailsCard />
+
+      {/* D-05c: the way into creative review, which approved-assets-only needs. */}
+      <CreativesReviewEntry />
+
+      {/* D-06: who the audiences should leave out, and which compete. Beside
+          the guardrails, channel-neutral for the same reason. */}
+      <AudienceExclusionsCard />
 
       {/* <Tabs> renders only once a channel is known, so it stays controlled
           for its whole life — a value that starts undefined and later becomes

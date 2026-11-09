@@ -4,7 +4,7 @@
  * <UpgradeCallout /> — small amber callout the composer renders when
  * the user has selected an option their plan doesn't unlock. The
  * UpgradeDrawer pattern (link to /pricing or open in-app drawer) is
- * the bigger surface; this is the compact "Pro feature" hint that
+ * the bigger surface; this is the compact "not on your plan" hint that
  * sits next to the gated control.
  */
 
@@ -14,7 +14,8 @@ import { cn } from "@/lib/utils";
 
 export interface UpgradeCalloutProps {
   /** Plain-English explanation of what the user needs to upgrade to.
-   *  Example: "Auto-approve publishing is on Growth+ plans." */
+   *  Example: "Auto-approve publishing isn't included for this business
+   *  yet." Name no plan: the catalog says which plan carries a feature. */
   message: string;
   /** Optional href to the pricing / upgrade page. Defaults to
    *  /dashboard/settings (peakhour-b2c hosts the upgrade flow there). */

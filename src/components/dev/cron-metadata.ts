@@ -46,16 +46,413 @@ export interface CronMetadata {
   summarize?: (data: unknown) => CronSummary | null;
 }
 
+/** `growth-optimizer` and `growth-optimizer-drain` run one handler (peakhour-api
+ *  `cron/growth-optimizer.ts` `sweep`), so they share one summary. Its unit is a
+ *  RUN — one business on one channel — not a business, which is why the api
+ *  names the field `runs`. */
+function summarizeOptimizerSweep(data: unknown): CronSummary | null {
+  const d = data as {
+    runs?: number; created?: number; skipped?: number; failed?: number; truncated?: boolean;
+  } | null;
+  if (!d || typeof d.runs !== "number") return null;
+  let msg = `${d.created ?? 0} review${(d.created ?? 0) === 1 ? "" : "s"} created from ${d.runs} business-channel run${d.runs === 1 ? "" : "s"} (${d.skipped ?? 0} already done, ${d.failed ?? 0} failed).`;
+  if (d.truncated) msg += " More runs pending — trigger again to continue.";
+  return (d.failed ?? 0) > 0 || d.truncated ? { message: msg, level: "warning" } : msg;
+}
+
+// ── Growth engine summaries ─────────────────────────────────────────────
+// One per cron, each against the api result it names: these crons report a failure or a no-op in different fields
+// (`errors`, `failed` as a per-code record, `stoppedEarly`, `notReleased`, a lock's `skipped` string), and a
+// run that did nothing or less than all of it must never be a green toast.
+
+/** Sum a `{ reason: count }` record. */
+function total(v: unknown): number {
+  const r = asRecord(v);
+  return r ? Object.values(r).reduce<number>((t, n) => t + num(n), 0) : 0;
+}
+
+/** `{ reason: count }` as "a 3, b 1", largest first, or "" when empty. */
+function reasons(v: unknown): string {
+  const r = asRecord(v);
+  if (!r) return "";
+  return Object.entries(r)
+    .filter(([, n]) => num(n) > 0)
+    .sort((a, b) => num(b[1]) - num(a[1]))
+    .map(([k, n]) => `${k.replace(/_/g, " ")} ${num(n)}`)
+    .join(", ");
+}
+
+/** The sweep's own tail: failures and a cut-short run, as a warning. */
+function sweepTail(d: Record<string, unknown>, msg: string, warnAlso = false): CronSummary {
+  const failed = num(d.failed);
+  let out = msg;
+  if (failed > 0) out += ` ${failed} failed.`;
+  if (d.truncated === true) out += " More runs pending — trigger again to continue.";
+  return failed > 0 || d.truncated === true || warnAlso ? { message: out, level: "warning" } : out;
+}
+
+/** A held lock or a disabled source: `{ skipped: "<why>" }`. */
+function skippedRun(d: Record<string, unknown> | null): CronSummary | null {
+  return d && typeof d.skipped === "string" ? { message: `Nothing ran: ${d.skipped}.`, level: "warning" } : null;
+}
+
+/** growth-observations: `{ businesses, lift, attributed, refit, skipped: {reason:n}, failed, truncated }`. */
+function summarizeObservations(data: unknown): CronSummary | null {
+  const d = asRecord(data);
+  if (!d || typeof d.businesses !== "number") return null;
+  const skip = reasons(d.skipped);
+  return sweepTail(
+    d,
+    `${d.businesses} ${plural(d.businesses, "business", "es")}: ${num(d.refit)} channel ${plural(num(d.refit), "model")} refit, ` +
+      `${num(d.lift)} lift and ${num(d.attributed)} attributed ${plural(num(d.lift) + num(d.attributed), "week")} recorded.` +
+      (skip ? ` Skipped: ${skip}.` : ""),
+  );
+}
+
+/** growth-allocator: `{ businesses, proposed, skipped: {reason:n}, failed, truncated }`. */
+function summarizeAllocator(data: unknown): CronSummary | null {
+  const d = asRecord(data);
+  if (!d || typeof d.businesses !== "number") return null;
+  const skip = reasons(d.skipped);
+  const proposed = num(d.proposed);
+  return sweepTail(
+    d,
+    `${proposed} budget ${plural(proposed, "proposal")} from ${d.businesses} ${plural(d.businesses, "business", "es")}` +
+      (proposed > 0 ? " (a move applies by itself at L2, a move or a raise at L3)." : ".") +
+      (skip ? ` No proposal: ${skip}.` : ""),
+  );
+}
+
+/** growth-holdouts: `{ businesses, rolledOut, waiting, abandoned, flipped, released, failed, truncated }`, each a transition THIS run made (`TickSummary`). */
+function summarizeHoldouts(data: unknown): CronSummary | null {
+  const d = asRecord(data);
+  if (!d || typeof d.businesses !== "number") return null;
+  return sweepTail(
+    d,
+    `${d.businesses} ${plural(d.businesses, "business", "es")} with holdouts. This run: ${num(d.rolledOut)} finished rolling out, ` +
+      `${num(d.waiting)} still waiting to roll out, ${num(d.abandoned)} abandoned (or fell back to a switchback); ` +
+      `${num(d.flipped)} ${plural(num(d.flipped), "campaign")} flipped, ${num(d.released)} ${plural(num(d.released), "campaign")} released.`,
+    num(d.abandoned) > 0,
+  );
+}
+
+/** Lift skips that are routine: a reading under 20h old, or a holdout too young to read. `no_longer_running` is NOT:
+ *  in a lift run it usually means this run's reconcile just gave the holdout up (a geo list the platform cannot keep). */
+const LIFT_ROUTINE_SKIPS = new Set(["fresh_reading_exists", "not_running", "empty_window", "no_complete_pair_of_periods"]);
+
+/** growth-lift: `{ holdouts, written, lowPower, reapplied, skipped: {reason:n}, failed, truncated }`. */
+function summarizeLift(data: unknown): CronSummary | null {
+  const d = asRecord(data);
+  if (!d || typeof d.holdouts !== "number") return null;
+  const skip = reasons(d.skipped);
+  // A holdout whose campaigns do not hold the list, or whose cells or arms cannot be read, is worth a look.
+  const worrying = Object.entries(asRecord(d.skipped) ?? {}).some(([k, n]) => num(n) > 0 && !LIFT_ROUTINE_SKIPS.has(k));
+  return sweepTail(
+    d,
+    `${d.holdouts} running ${plural(d.holdouts, "holdout")}: ${num(d.written)} lift ${plural(num(d.written), "reading")} ` +
+      `(${num(d.lowPower)} low-power), ${num(d.reapplied)} exclusion ${plural(num(d.reapplied), "list")} re-applied.` +
+      (skip ? ` Not measured: ${skip}.` : ""),
+    worrying,
+  );
+}
+
+/** growth-playbook-upgrade: `UpgradeSweepResult { checked, proposed, numeric, alreadyOpen, refused, failed, truncated }`. */
+function summarizePlaybookUpgrade(data: unknown): CronSummary | null {
+  const d = asRecord(data);
+  if (!d || typeof d.checked !== "number") return null;
+  return sweepTail(
+    d,
+    `${d.checked} ${plural(d.checked, "business", "es")} with a newer playbook: ${num(d.proposed)} ${plural(num(d.proposed), "upgrade")} offered ` +
+      `(${num(d.numeric)} numbers-only, which apply themselves at L2+), ${num(d.alreadyOpen)} already open, ${num(d.refused)} refused.`,
+    num(d.refused) > 0,
+  );
+}
+
+/** growth-playbook-learning: `{ skipped: "pin_disabled" }`, or `LearningResult { pinCohorts, unassigned, ambiguous, playbooks[], drafts[] }` of `LearningOutcome { action, reason? }`. */
+function summarizePlaybookLearning(data: unknown): CronSummary | null {
+  const d = asRecord(data);
+  if (d?.skipped === "pin_disabled") {
+    return { message: "Nothing ran: the pooled-insights (PIN) store is not configured here.", level: "warning" };
+  }
+  if (!d || typeof d.pinCohorts !== "number") return null;
+  const outcomes = (v: unknown) => (Array.isArray(v) ? v.map(asRecord).filter((o): o is Record<string, unknown> => o !== null) : []);
+  const playbooks = outcomes(d.playbooks);
+  const drafts = outcomes(d.drafts);
+  const count = (list: Record<string, unknown>[], action: string) => list.filter((o) => o.action === action).length;
+  // The api says a pass went wrong only in `reason`: "failed" for a caught error, "invalid: …" for a version that
+  // failed validation, and a publish that threw or was refused comes back as `proposed` with "the publish failed (…)".
+  const failed = [...playbooks, ...drafts].filter((o) => typeof o.reason === "string" && /fail|invalid|refus/i.test(o.reason)).length;
+  const published = count(playbooks, "auto_published");
+  const newDrafts = count(drafts, "proposed");
+  const ambiguous = num(d.ambiguous);
+  const msg =
+    `${d.pinCohorts} PIN ${plural(d.pinCohorts, "cohort")} (${num(d.unassigned)} unassigned): ${published} published ` +
+    `${published === 1 ? "itself" : "themselves"}, ${count(playbooks, "proposed")} proposed for a person, ${newDrafts} new ${plural(newDrafts, "draft")}.` +
+    (ambiguous > 0 ? ` ${ambiguous} ${plural(ambiguous, "cohort")} matched two playbooks equally.` : "") +
+    (failed > 0 ? ` ${failed} did not go as planned (failed, invalid or a publish refused) — see the job result.` : "");
+  return ambiguous > 0 || failed > 0 ? { message: msg, level: "warning" } : msg;
+}
+
+/** growth-tripwire-judge: `JudgeSummary { considered, cleared, tripped, reversed, inconclusive, waiting, resumed, demoted, promotionsOffered, unstructured, skipped, errors }`. */
+function summarizeTripwireJudge(data: unknown): CronSummary | null {
+  const d = asRecord(data);
+  if (!d || typeof d.considered !== "number") return null;
+  const errors = num(d.errors);
+  // Allocator and council bets carry a free-text tripwire by design (tripwire-judge.ts), so this is reported, not warned.
+  const unstructured = num(d.unstructured);
+  const msg =
+    `${d.considered} ${plural(d.considered, "tripwire")} considered: ${num(d.cleared)} cleared, ${num(d.tripped)} tripped ` +
+    `(${num(d.reversed)} reversed, ${num(d.demoted)} demoted), ${num(d.inconclusive)} inconclusive, ${num(d.waiting)} waiting, ` +
+    `${num(d.resumed)} resumed, ${num(d.skipped)} skipped; ${num(d.promotionsOffered)} ${plural(num(d.promotionsOffered), "promotion")} offered.` +
+    (unstructured > 0 ? ` ${unstructured} free-text ${plural(unstructured, "bet")} not judged (by design).` : "") +
+    (errors > 0 ? ` ${errors} ${plural(errors, "error")}.` : "");
+  return errors > 0 ? { message: msg, level: "warning" } : msg;
+}
+
+/** One `DeliverySummary { sent, noRecipient, deferred, failed: { code: n } }` as words. */
+function delivery(v: unknown, noun: string): { text: string; bad: boolean } {
+  const d = asRecord(v) ?? {};
+  const failed = total(d.failed);
+  const codes = reasons(d.failed);
+  const text =
+    `${num(d.sent)} ${plural(num(d.sent), noun)} sent, ${num(d.deferred)} deferred, ${num(d.noRecipient)} with no recipient` +
+    (failed > 0 ? `, ${failed} failed (${codes})` : "");
+  return { text, bad: failed > 0 || num(d.noRecipient) > 0 };
+}
+
+/** growth-decision-batch: `{ skipped }` when the lock is held, else `{ batch: DeliverySummary, receipts: DeliverySummary }`. */
+function summarizeDecisionBatch(data: unknown): CronSummary | null {
+  const d = asRecord(data);
+  const skipped = skippedRun(d);
+  if (skipped) return skipped;
+  if (!d || (!d.batch && !d.receipts)) return null;
+  const batch = delivery(d.batch, "decision");
+  const receipts = delivery(d.receipts, "receipt");
+  const msg = `Decisions: ${batch.text}. Receipts: ${receipts.text}.`;
+  return batch.bad || receipts.bad ? { message: msg, level: "warning" } : msg;
+}
+
+/** growth-weekly-report: `{ skipped: "<why>" }` when the lock is held, else `{ businesses, sent, skipped, failed }`: `businesses` and
+ *  `skipped` count businesses that were due; `sent` and `failed` count messages (one per approver). */
+function summarizeWeeklyReport(data: unknown): CronSummary | null {
+  const d = asRecord(data);
+  const skipped = skippedRun(d);
+  if (skipped) return skipped;
+  if (!d || typeof d.businesses !== "number") return null;
+  const failed = num(d.failed);
+  const notReached = num(d.skipped);
+  const msg =
+    `${d.businesses} ${plural(d.businesses, "business", "es")} due: ${num(d.sent)} report ${plural(num(d.sent), "message")} sent` +
+    (notReached > 0 ? `, ${notReached} ${plural(notReached, "business", "es")} with no reachable approver or already sent this week` : "") +
+    (failed > 0 ? `, ${failed} failed (a message, or a business with no card image or an error)` : "") +
+    ".";
+  return failed > 0 ? { message: msg, level: "warning" } : msg;
+}
+
+/** growth-council-review: `MonthlyResult { checked, committed, declined, unavailable, notReleased, stoppedEarly? }`. */
+function summarizeCouncilReview(data: unknown): CronSummary | null {
+  const d = asRecord(data);
+  if (!d || typeof d.checked !== "number") return null;
+  if (d.notReleased === true) {
+    return { message: "Nothing reviewed: Peakhour Summit is not released here (its templates are not active).", level: "warning" };
+  }
+  const stopped =
+    d.stoppedEarly === "seats_unavailable"
+      ? " Stopped early: the review seats kept failing."
+      : d.stoppedEarly === "time_budget"
+        ? " Stopped early at the time budget — trigger again to continue."
+        : "";
+  const unavailable = num(d.unavailable);
+  const msg =
+    `${d.checked} ${plural(d.checked, "business", "es")} checked: ${num(d.committed)} ${plural(num(d.committed), "recommendation")}, ` +
+    `${num(d.declined)} declined, ${unavailable} could not be reviewed.` + stopped;
+  return stopped || unavailable > 0 ? { message: msg, level: "warning" } : msg;
+}
+
+/** `expireDecisions` closes at most this many a run (peakhour-api services/growth/decisions.ts). */
+const DECISIONS_EXPIRY_LIMIT = 500;
+
+/** decisions-expiry: `{ expired: n, reviews: ReviewSweepSummary | { skipped } | { failed: true } }`. The expiry ran even when the review pass did not. */
+function summarizeDecisionsExpiry(data: unknown): CronSummary | null {
+  const d = asRecord(data);
+  if (!d || typeof d.expired !== "number") return null;
+  const capped = d.expired >= DECISIONS_EXPIRY_LIMIT;
+  const head =
+    `${d.expired} unanswered ${plural(d.expired, "decision")} expired.` +
+    (capped ? " More may be overdue — trigger again to continue." : "");
+  const r = asRecord(d.reviews);
+  if (!r) return capped ? { message: head, level: "warning" } : head;
+  if (typeof r.skipped === "string") return { message: `${head} The Peakhour Summit retries were skipped: ${r.skipped}.`, level: "warning" };
+  if (r.failed === true) {
+    return { message: `${head} The Peakhour Summit retry pass failed — nothing was retried or set aside.`, level: "warning" };
+  }
+  const notTold = num(r.whatsappSkipped);
+  const msg =
+    `${head} Waiting for review: ${num(r.waiting)}; ${num(r.retried)} retried, ${num(r.reviewed)} reviewed, ` +
+    `${num(r.stillWaiting)} still waiting, ${num(r.closed)} closed, ${num(r.setAside)} set aside ` +
+    `(${num(r.whatsappSent)} approver ${plural(num(r.whatsappSent), "message")} sent` +
+    (notTold > 0 ? `, ${notTold} not told — no approved template yet, no recipient, or throttled` : "") +
+    ")." +
+    (num(r.noTime) > 0 ? ` ${num(r.noTime)} left for the next run (no time for a review).` : "");
+  // An approver whose change was set aside and was not told is worth a look; set-asides are rare (48h), so this stays quiet.
+  return capped || notTold > 0 || num(r.noTime) > 0 ? { message: msg, level: "warning" } : msg;
+}
+
+/** peakhour-api `cron/rails-refresh.ts` reads at most this many due rails a tick. */
+const RAILS_REFRESH_DUE_LIMIT = 300;
+
+/** The approval-expiry cron's sweeps (peakhour-api `cron/approval-expiry.ts`), by label. */
+const APPROVAL_EXPIRY_SWEEPS = {
+  expired: "newsletter expiry",
+  recovered: "newsletter recovery",
+  boostsExpired: "boost expiry",
+  boostsRecovered: "boost recovery",
+} as const;
+type ApprovalExpirySweep = keyof typeof APPROVAL_EXPIRY_SWEEPS;
+
+/**
+ * The mandate-debits summary's parts, in toast order: where the count is
+ * (`totals` = the api's flat `MandateDebitTotals`, `outcomes` = its per-`Tick`
+ * counts), the singular and plural wording, and whether it is a warning.
+ * Every `Tick` in peakhour-api `services/billing/mandate-debits.ts` has a row.
+ * ★The copy names no rail: `unconfigured` counts any rail whose gateway is
+ * missing, and `failed` is a declined debit OR a notice refused past its
+ * grace, so neither says "PayU" or "payment".
+ */
+const MANDATE_DEBIT_PARTS: ReadonlyArray<
+  readonly [from: "totals" | "outcomes", field: string, one: string, many: string, warn: boolean]
+> = [
+  ["totals", "unconfigured", "skipped (payment rail not configured)", "skipped (payment rail not configured)", true],
+  ["totals", "errors", "error", "errors", true],
+  ["totals", "malformed", "malformed mandate row", "malformed mandate rows", true],
+  ["totals", "deferred", "left for the next run (out of time)", "left for the next run (out of time)", true],
+  ["outcomes", "notice_failed", "notice refused", "notices refused", true],
+  ["outcomes", "failed", "failed attempt", "failed attempts", true],
+  ["outcomes", "halted", "mandate out of retries", "mandates out of retries", true],
+  ["outcomes", "rejected", "payment call refused by the rail", "payment calls refused by the rail", true],
+  ["outcomes", "lost", "payment lost in sending", "payments lost in sending", true],
+  ["outcomes", "revoke_failed", "cancellation refused", "cancellations refused", true],
+  ["outcomes", "noticed", "notice sent", "notices sent", false],
+  ["outcomes", "sent", "payment sent", "payments sent", false],
+  ["outcomes", "captured", "payment collected", "payments collected", false],
+  ["outcomes", "pending", "pending at the rail", "pending at the rail", false],
+  ["outcomes", "ended", "mandate cancelled", "mandates cancelled", false],
+  ["outcomes", "waiting", "waiting", "waiting", false],
+  ["outcomes", "peak", "held by a debit blackout window", "held by a debit blackout window", false],
+];
+
+/**
+ * Whether a value a cron reported says something: a non-zero number, true, a
+ * non-empty string, or a container with something present inside it (so an
+ * all-zero breakdown is as quiet as a bare 0).
+ */
+function present(v: unknown): boolean {
+  if (typeof v === "number") return v !== 0;
+  if (typeof v === "string") return v !== "";
+  if (Array.isArray(v)) return v.some(present);
+  const rec = asRecord(v);
+  if (rec) return Object.values(rec).some(present);
+  return v === true;
+}
+
 export const CRON_METADATA: Record<string, CronMetadata> = {
+  "approval-expiry": {
+    label: "Expire approvals",
+    frequency: "Runs hourly (at :35 past)",
+    description:
+      "Closes WhatsApp approvals left undecided past their window — newsletter post batches and BOOST ad offers — and starts again any approved publish or launch that never started. A batch the merchant answered with EDIT closes as an edit request (re-running with changes isn't built); one whose prompt may have reached the merchant closes as unanswered; one nobody was asked about closes as not asked.",
+    // The api's sweeps (`src/v1/cron/approval-expiry.ts`): `expired` and
+    // `boostsExpired` count rows closed, by reason; `recovered` and
+    // `boostsRecovered` count re-enqueues as { enqueued, failed, gaveUp,
+    // closeFailed, closeMissed, closeDeferred } (api#1441).
+    // ★A LAUNCH CLOSED IS NOT AN EXPIRED APPROVAL, and a failed or given-up
+    //  restart is a warning, never "nothing to do" (round 2).
+    // ★EVERY KEY READ IS RECORDED, AND ANYTHING ELSE THE RUN REPORTED IS A
+    //  WARNING (b2c#578 rounds 1-2): no hand-kept list of known keys, so a
+    //  counter or a sweep the api adds is never read as a clean run.
+    summarize: (data) => {
+      const d = asRecord(data);
+      if (!d) return null;
+      const read = new Set<string>();
+      // ★A KEY COUNTS AS READ ONLY IF IT HELD A NUMBER, or nothing (b2c#578
+      //  round 3): one whose value changed type stays unread, so it warns
+      //  instead of reading as 0.
+      const field = (sweep: ApprovalExpirySweep, key: string) => {
+        const v = asRecord(d[sweep])?.[key];
+        if (v === undefined || typeof v === "number") read.add(`${sweep}.${key}`);
+        return num(v);
+      };
+      const approvals =
+        field("expired", "edit_requested") +
+        field("expired", "no_reply") +
+        field("expired", "not_asked") +
+        field("boostsExpired", "approval_timeout") +
+        field("boostsExpired", "not_asked");
+      // ★NOT "RESTARTED" (round 3): the enqueue is idempotent, so a job already
+      //  queued and not yet claimed is counted again on every run.
+      const queued = field("recovered", "enqueued") + field("boostsRecovered", "enqueued");
+      // A boost given up on is closed `launch_failed`, as is one never started
+      // past the recovery window (disjoint: inside vs past the window).
+      const launchesFailed = field("boostsExpired", "launch_never_started") + field("boostsRecovered", "gaveUp");
+      const launchesUnknown = field("boostsExpired", "launch_stuck");
+      const notQueued = field("recovered", "failed") + field("boostsRecovered", "failed");
+      // ★A STANDING STATE, NOT AN EVENT (round 3): a newsletter batch given up
+      //  on stays approved, so every run within a week of the approval counts it.
+      const publishesStuck = field("recovered", "gaveUp");
+      // A boost given up on whose close threw, matched nothing, or was not tried
+      // (api#1441). Only the BOOST sweep closes on give-up (b2c#578 round 3); a
+      // close count from the newsletter side is unread, so it warns on its own.
+      // ★NO RETRY IS PROMISED, here or for `failed`: the sweep walks newest
+      //  first under two budgets, so a row may not be reached.
+      const closes: Array<[number, string]> = [
+        [field("boostsRecovered", "closeFailed"), "could not be closed"],
+        // ★NOT "STAYS OPEN" (b2c#578 round 1): a row also misses when it
+        //  moved on first (a launch claimed it), and is then launching.
+        [field("boostsRecovered", "closeMissed"), "no longer matched the close (moved on, or, if this repeats every run, the close's filter has drifted)"],
+        [field("boostsRecovered", "closeDeferred"), "not tried this run: too many closes failed or missed first"],
+      ];
+      const done: string[] = [];
+      if (approvals > 0) done.push(`closed ${approvals} expired ${plural(approvals, "approval")}`);
+      if (queued > 0) done.push(`${queued} approved ${plural(queued, "publish", "es")} or ${plural(queued, "launch", "es")} not yet started ${queued === 1 ? "is" : "are"} queued`);
+      const problems: string[] = [];
+      if (launchesFailed > 0) problems.push(`${launchesFailed} boost ${plural(launchesFailed, "launch", "es")} closed as failed (nothing was created)`);
+      if (launchesUnknown > 0) problems.push(`${launchesUnknown} boost ${plural(launchesUnknown, "launch", "es")} closed unfinished (a LinkedIn draft may exist)`);
+      if (notQueued > 0) problems.push(`${notQueued} could not be queued`);
+      if (publishesStuck > 0) problems.push(`${publishesStuck} approved ${plural(publishesStuck, "publish", "es")} still unpublished after repeated failures`);
+      for (const [n, what] of closes)
+        if (n > 0) problems.push(`${n} given-up boost ${plural(n, "launch", "es")} ${what}`);
+      // ★EVERY KEY READ IS RECORDED, AND ANYTHING ELSE THE RUN REPORTED IS A
+      //  WARNING (b2c#578 rounds 1-3): no hand-kept list of known keys, so a
+      //  counter or a sweep the api adds is never read as a clean run; and a
+      //  sweep that did not report at all is said, not read as zeros.
+      const label = (sweep: string) => APPROVAL_EXPIRY_SWEEPS[sweep as ApprovalExpirySweep] ?? sweep;
+      const missing = (Object.keys(APPROVAL_EXPIRY_SWEEPS) as ApprovalExpirySweep[]).filter((sweep) => !asRecord(d[sweep]));
+      const unread: string[] = [];
+      for (const [sweep, value] of Object.entries(d)) {
+        const rec = asRecord(value);
+        const keys = rec ? Object.entries(rec).filter(([k, v]) => !read.has(`${sweep}.${k}`) && present(v)).map(([k]) => k) : [];
+        if (keys.length > 0) unread.push(`${label(sweep)}: ${keys.join(", ")}`);
+        else if (!rec && present(value)) unread.push(label(sweep));
+      }
+      const tail: string[] = [];
+      if (missing.length > 0) tail.push(`the run did not report ${missing.map(label).join(", ")}`);
+      if (unread.length > 0) tail.push(`it also reported what this summary does not describe (${unread.join("; ")})`);
+      const sentence = (parts: string[]) => parts.join("; ").replace(/^./, (c) => c.toUpperCase()) + ".";
+      if (problems.length + tail.length > 0) return { message: sentence([...problems, ...done, ...tail]), level: "warning" as const };
+      return done.length === 0 ? "Nothing to expire or restart." : sentence(done);
+    },
+  },
   "ad-campaign-monitor": {
     label: "Check ad campaigns",
     frequency: "Runs hourly (at :15 past)",
     description:
-      "Refreshes ad campaigns' spend from the platform, pauses one that has reached the total budget you set, and stops one that has passed its end date. Up to 40 campaigns per run; X campaigns are handled by their own sync.",
+      "Refreshes ad campaigns' spend from the platform, pauses one that has reached the total budget you set, and stops one that has passed its end date. Up to 40 campaigns per run, on every platform Peakhour manages ads on (LinkedIn, Meta and X today); a campaign on any other platform is reported as one that could not be checked.",
     summarize: (data) => {
       const d = data as
         | {
             ticked?: number;
+            batch?: number;
+            visited?: number;
             refreshed?: number;
             autoPaused?: number;
             ended?: number;
@@ -66,80 +463,141 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
             notFound?: number;
             unswept?: number;
             skippedUnreadable?: number;
-            skippedOtherWriter?: number;
+            haltBlocked?: number;
+            haltStopped?: number;
+            spendUnread?: number;
+            healthStatusUnread?: number;
+            statusOnlyUnread?: number;
+            statusUnwatched?: number;
+            driftUncapped?: number;
+            health?: { statusDrift?: number; noDelivery?: number; zeroConversions?: number };
             truncated?: boolean;
           }
         | null;
       const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
       if (typeof d?.ticked !== "number") return null;
 
-      // ★ALL SIX MUTUALLY-EXCLUSIVE PER-ROW OUTCOMES. Reading the sweep's loop:
-      // exactly one of {skippedUnreadable, skippedOtherWriter}, one of
-      // {notFound, unmonitorable, ticked}, or `failed` increments per row. A
-      // first cut summed five and omitted `skippedOtherWriter`, so a batch of
-      // forty X campaigns reported "No campaigns needed checking." — and
-      // swallowed `truncated` with it, because the empty-batch answer returns
-      // before the truncation check.
-      const batch =
-        num(d.ticked) +
-        num(d.unmonitorable) +
-        num(d.failed) +
-        num(d.notFound) +
-        num(d.skippedUnreadable) +
-        num(d.skippedOtherWriter);
-      if (batch === 0) return "No campaigns needed checking.";
+      // ★ONE PLURAL RULE FOR EVERY COUNT IN THIS TOAST (review of b2c#575):
+      // `pick` chooses the singular or plural phrase, `count` prefixes the number.
+      const pick = (n: number, one: string, many: string) => (n === 1 ? one : many);
+      const count = (n: number, one: string, many: string) => `${n} ${pick(n, one, many)}`;
 
-      const plural = (n: number) => (n === 1 ? "" : "s");
-
-      // ★EVERY OUTCOME THAT MEANS "NOBODY IS WATCHING THIS CAMPAIGN" IS
-      // COLLECTED, NOT JUST THE WORST ONE. Each of them otherwise hides inside a
-      // green "40 campaigns checked." A first cut read two of the seven, so a
-      // tick where every single row threw reported {ticked: 0, failed: 40} as
-      // "0 campaigns checked." — a success toast over forty logged errors. A
-      // later cut read all of them but returned on the FIRST, so thirty-five
-      // errored rows went unmentioned beside one blocked flight end. Ordered
-      // worst-first; all of them said.
+      // ★TWO KINDS OF NEWS, TWO LEVELS (review of b2c#575). A PROBLEM is a
+      // fault in THIS run, or money that may be leaving with nothing enforcing
+      // a cap, and turns the toast amber. An OPEN FINDING is the Sentinel's
+      // standing advice about a campaign that is watched — carried tick to
+      // tick, not cleared by running again — and does not.
+      //
+      // Problems, in this order: money that may be leaving; caps not checked
+      // against fresh spend; rows nobody looked at; our record behind.
       const problems: string[] = [];
-      if (num(d.flightEndBlocked) > 0) {
+      const h = d.health ?? {};
+      if (num(d.haltBlocked) > 0) {
+        const n = num(d.haltBlocked);
         problems.push(
-          `${d.flightEndBlocked} passed the end date and could NOT be stopped — check Campaign Manager`,
+          `${count(n, "belongs", "belong")} to a HALTED business and could NOT be stopped — ${pick(n, "it", "they")} may still be spending`,
+        );
+      }
+      // "The ad platform", not Campaign Manager: X and Meta reach this too.
+      if (num(d.flightEndBlocked) > 0) {
+        problems.push(`${d.flightEndBlocked} passed the end date and could NOT be stopped — check the ad platform`);
+      }
+      // ★DRIFT IN THE DANGEROUS DIRECTION IS A PROBLEM (api#1419's
+      // driftUncapped): not active here, serving there, and nothing here
+      // enforces a cap or an end date.
+      if (num(d.driftUncapped) > 0) {
+        const n = num(d.driftUncapped);
+        problems.push(
+          `${count(n, "is", "are")} not active here but serving on the ad platform — no budget cap or end date is enforced`,
+        );
+      }
+      // ★NO FRESH SPEND (api#1419's spendUnread). "Checked only against
+      // stored spend", not "not checked": every path that sets it still asks
+      // the cap question of the stored numbers and escalates an over-cap row.
+      // An api without the field still gets the older, hedged warning.
+      const hasSpendUnread = typeof d.spendUnread === "number";
+      if (hasSpendUnread && num(d.spendUnread) > 0) {
+        const n = num(d.spendUnread);
+        // "Any" budget cap (round 3): not every campaign has one.
+        problems.push(`${n} had no spend read this run — any budget cap was checked only against stored spend`);
+      } else if (!hasSpendUnread && num(d.healthStatusUnread) > 0) {
+        problems.push(`${d.healthStatusUnread} could not be looked up on the platform — spend may not have been read`);
+      }
+      // ★AN UNREAD STATUS IS THE ONLY CHECK ON A ROW NOT ACTIVE HERE (api#1419's
+      // statusUnwatched): its spend is never read, so nobody knows if it serves.
+      if (num(d.statusUnwatched) > 0) {
+        const n = num(d.statusUnwatched);
+        problems.push(
+          `${n} not active here could not be checked on the ad platform — whether ${pick(n, "it is", "they are")} serving is unknown`,
         );
       }
       if (num(d.failed) > 0) problems.push(`${d.failed} errored`);
       if (num(d.unmonitorable) > 0) problems.push(`${d.unmonitorable} could not be checked at all`);
-      if (num(d.rowNotUpdated) > 0) {
-        // The OPPOSITE failure: spend has stopped, our record has not caught up.
-        problems.push(`${d.rowNotUpdated} stopped on the platform but not updated here`);
+      const unloadable = num(d.notFound) + num(d.skippedUnreadable);
+      if (unloadable > 0) problems.push(`${count(unloadable, "campaign record", "campaign records")} could not be loaded`);
+      // ★A ROW WITH AN OUTCOME THIS TOAST DOES NOT KNOW IS STILL A ROW (review
+      // of b2c#575): the rows the api REACHED (`visited`) minus the outcomes
+      // read here. ★NOT SKIPPED ON A CAPPED RUN (round 3): under load every run
+      // is capped, and skipping it there skipped it when it mattered. An older
+      // api has only `batch`, which counts rows the clock never reached — so
+      // that fallback still stands down when truncated.
+      const reached =
+        typeof d.visited === "number" ? d.visited : typeof d.batch === "number" && !d.truncated ? d.batch : undefined;
+      if (reached !== undefined) {
+        const known = num(d.ticked) + num(d.failed) + num(d.unmonitorable) + unloadable;
+        const unknown = reached - known;
+        if (unknown > 0) problems.push(`${count(unknown, "row", "rows")} had an outcome this summary does not recognise`);
       }
       if (num(d.unswept) > 0) problems.push(`${d.unswept} in a status nothing monitors`);
-      const unreadable = num(d.notFound) + num(d.skippedUnreadable);
-      if (unreadable > 0) problems.push(`${unreadable} could not be read`);
+      // The OPPOSITE failure: spend has stopped, our record has not caught up.
+      if (num(d.rowNotUpdated) > 0) problems.push(`${d.rowNotUpdated} stopped on the platform but not updated here`);
 
-      // ★`refreshed`, NOT `ticked`, IS THE NUMBER THAT MEANS ANYTHING: a tick
-      // that returned early evaluated no budget at all. But zero refreshed is
-      // NOT a fault on its own — a business whose campaigns are all drafts is
-      // the normal newly-onboarded state, and `/boost` creates drafts. So it
-      // reports rather than warns, and it does not lead when there is nothing
-      // to report: "0 campaigns checked, 12 finished." is a sentence that
-      // contradicts itself, and it is reachable — the rows the platform has
-      // never heard of end without ever refreshing.
+      // Open findings: about campaigns that ARE watched.
+      const findings: string[] = [];
+      // ★THE REST OF THE DRIFT IN WORDS TRUE BOTH WAYS (round 3): it is not
+      // only "active here, not delivering". A claim merely HELD this tick can
+      // point either way, and naming it the harmless way filed a paused row
+      // that may be serving uncapped as a green finding. (Its row, if unread,
+      // is also statusUnwatched — the amber problem above.)
+      const driftRest = num(h.statusDrift) - num(d.driftUncapped);
+      if (driftRest > 0) {
+        findings.push(`${count(driftRest, "has a status", "have a status")} that differs from the ad platform's`);
+      }
+      if (num(h.noDelivery) > 0) findings.push(`${h.noDelivery} not delivering`);
+      if (num(h.zeroConversions) > 0) findings.push(`${h.zeroConversions} with no conversions`);
+      // Disjoint from spendUnread and statusUnwatched: a live row whose spend
+      // WAS read and whose cap was checked; only its drift is unjudged.
+      if (num(d.statusOnlyUnread) > 0) findings.push(`${d.statusOnlyUnread} with an unread platform status`);
+
+      // ★`refreshed`, NOT `ticked`, IS THE NUMBER THAT MEANS ANYTHING. Zero
+      // refreshed is NOT a fault — a business whose campaigns are all drafts is
+      // the normal newly-onboarded state — so it reports rather than warns.
       const refreshed = num(d.refreshed);
       const done: string[] = [];
-      if (refreshed > 0 || (num(d.ended) === 0 && num(d.autoPaused) === 0)) {
-        done.push(`${refreshed} campaign${plural(refreshed)} checked`);
-      }
+      if (refreshed > 0) done.push(`${count(refreshed, "campaign", "campaigns")} checked`);
       if (num(d.autoPaused) > 0) {
-        done.push(
-          `${d.autoPaused} paused at ${num(d.autoPaused) === 1 ? "its budget cap" : "their budget caps"}`,
-        );
+        done.push(`${d.autoPaused} paused at ${pick(num(d.autoPaused), "its budget cap", "their budget caps")}`);
       }
       if (num(d.ended) > 0) done.push(`${d.ended} finished`);
+      // The kill switch working is news: the operator who pulled it presses this chip.
+      if (num(d.haltStopped) > 0) done.push(`${d.haltStopped} stopped by the advertising kill switch`);
 
       const tail = d.truncated ? " More remain — run again." : "";
-      if (problems.length > 0) {
-        return { message: `${problems.join("; ")}.${tail}`, level: "warning" as const };
+      const open = findings.length > 0 ? ` Open findings: ${findings.join("; ")}.` : "";
+      // ★EMPTY IS DECIDED LAST: no row ticked, no problem, no finding, no
+      // truncation. `ticked` suffices because every other row is a problem —
+      // including one of an outcome this summary does not know, which `batch`
+      // reveals above. (A `batch` term here sat behind that problem and could
+      // be deleted unseen; the mutation run said so.)
+      if (num(d.ticked) === 0 && problems.length === 0 && findings.length === 0 && !d.truncated) {
+        return "No campaigns needed checking.";
       }
-      const message = `${done.join(", ")}.${tail}`;
+      if (problems.length > 0) {
+        // The good news follows the problems: a partial halt says both halves.
+        const good = done.length > 0 ? ` ${done.join(", ")}.` : "";
+        return { message: `${problems.join("; ")}.${good}${open}${tail}`, level: "warning" as const };
+      }
+      const message = `${(done.length > 0 ? done : ["0 campaigns checked"]).join(", ")}.${open}${tail}`;
       // A capped tick is not hourly enforcement for the tail of the queue.
       return d.truncated ? { message, level: "warning" as const } : message;
     },
@@ -148,7 +606,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     label: "Find cleanup suggestions",
     frequency: "Runs weekly (Sun 4:00 AM UTC)",
     description:
-      "Scans your media library for unused, duplicate, oversized, or never-used AI images and flags them for the Smart Delete review (advisory only — nothing is deleted automatically).",
+      "Scans Drive for unused, duplicate, oversized, or never-used AI images and flags them for Smart Cleanup (advisory only — nothing is removed automatically).",
     summarize: (data) => {
       const d = data as { totalTagged?: number } | null;
       return typeof d?.totalTagged === "number"
@@ -156,11 +614,22 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
         : null;
     },
   },
+  "media-describe-sweep": {
+    label: "Name new Drive files",
+    frequency: "Runs every 2 minutes",
+    description:
+      "Finds files added to Drive that Peakhour has not named yet and queues them to be named and described (the tiles that say \"Studying your image…\").",
+    summarize: (data) => {
+      const d = data as { queued?: number; off?: boolean } | null;
+      if (d?.off) return { message: "Naming is switched off, so nothing was queued.", level: "warning" };
+      return typeof d?.queued === "number" ? `${d.queued} file${d.queued === 1 ? "" : "s"} queued to be named.` : null;
+    },
+  },
   "media-hard-delete": {
     label: "Purge expired deletions",
     frequency: "Runs nightly (3:00 AM UTC)",
     description:
-      "Permanently removes media that has been in the trash past its 30-day recovery window, freeing the storage for good.",
+      "Permanently removes media that has been in the trash past its 30-day recovery window, freeing the storage for good. The same run removes a share-link visitor's IP address and device from access records older than the retention window set in the CMS.",
     summarize: (data) => {
       const d = data as { purged?: number; skipped?: string } | null;
       // The handler early-returns `{success:true, skipped:"storage_not_configured",
@@ -647,15 +1116,7 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     frequency: "Runs Mondays 03:00 UTC",
     description:
       "Reviews each opted-in business's week of posts and campaigns and proposes up to three small, evidence-backed adjustments for approval.",
-    summarize: (data) => {
-      const d = data as {
-        businesses?: number; created?: number; skipped?: number; failed?: number; truncated?: boolean;
-      } | null;
-      if (!d || typeof d.businesses !== "number") return null;
-      let msg = `${d.created ?? 0} review${(d.created ?? 0) === 1 ? "" : "s"} created across ${d.businesses} business${d.businesses === 1 ? "" : "es"} (${d.skipped ?? 0} already done, ${d.failed ?? 0} failed).`;
-      if (d.truncated) msg += " More businesses pending — trigger again to continue.";
-      return (d.failed ?? 0) > 0 || d.truncated ? { message: msg, level: "warning" } : msg;
-    },
+    summarize: summarizeOptimizerSweep,
   },
   "outcome-backfill": {
     label: "Backfill post outcomes",
@@ -714,16 +1175,6 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       return "Mentions refreshed.";
     },
   },
-  "x-ads-metrics-sync": {
-    label: "Sync X ad metrics",
-    frequency: "Runs every hour",
-    description: "Refreshes performance numbers on your active X ad campaigns.",
-    summarize: (data) => {
-      const synced = num(asRecord(data)?.synced);
-      if (synced === 0) return "X ad metrics refreshed — no active campaigns yet.";
-      return "X ad metrics refreshed.";
-    },
-  },
   "ask-weekly-digest": {
     label: "Send weekly digest",
     frequency: "Runs weekly (Monday 6:00 AM UTC)",
@@ -750,26 +1201,343 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       return `${parts.join(", ")}.${tail}`;
     },
   },
-  "wa-outcome-billing": {
-    label: "Bill resolved chats",
+  "wa-conversation-outcomes": {
+    label: "Review quiet chats",
     frequency: "Runs every 3 hours",
     description:
-      "Reviews WhatsApp conversations that have gone quiet, works out which ones actually reached an outcome (resolved, lead qualified, appointment booked), and charges Peaks once per outcome. Ongoing chat turns are always free.",
+      "Reviews WhatsApp conversations that have gone quiet, works out which ones reached an outcome (resolved, lead qualified, appointment booked) and records it for the results page, then asks for a rating where that is switched on. Nothing is charged for an outcome.",
     summarize: (data) => {
       const d = asRecord(data);
       if (!d) return null;
       const scanned = num(d.scanned);
       if (scanned === 0) return "No quiet conversations to review yet.";
-      const billed = num(d.billed);
+      const recorded = num(d.recorded);
       const parts = [
-        billed === 0
-          ? `${scanned} ${plural(scanned, "conversation")} reviewed — none reached a billable outcome`
-          : `${billed} of ${scanned} ${plural(scanned, "conversation")} billed`,
+        recorded === 0
+          ? `${scanned} ${plural(scanned, "conversation")} reviewed — none reached an outcome`
+          : `${recorded} of ${scanned} ${plural(scanned, "conversation")} reached an outcome`,
       ];
       if (num(d.humanTakeover) > 0) parts.push(`${num(d.humanTakeover)} handed to a human`);
       if (num(d.errors) > 0) parts.push(`${num(d.errors)} failed`);
       return `${parts.join(", ")}.`;
     },
+  },
+
+  "platform-api-version-watch": {
+    label: "Watch for platform API sunsets",
+    frequency: "Runs weekly, Mondays at 4am UTC",
+    description:
+      "Checks the versions we pin for LinkedIn, Meta and X against their published sunset and " +
+      "cutoff dates, and logs one line per platform that needs attention. It changes nothing — " +
+      "the deadlines it watches move on the calendar rather than on a commit, so a repository " +
+      "with no changes this month is exactly when they bite.",
+    summarize: (data) => {
+      const d = asRecord(data);
+      if (!d) return null;
+      // ⚠️★AN ABSENT COUNT IS NOT ZERO, and `num()` turns one into zero. Every
+      // other summarizer in this file checks the shape first (see the X
+      // campaign sweep above) for the same reason: this cron's zero case is a
+      // CONFIDENT CLAIM — "no platform version deadlines need attention" — and
+      // making it from a response that carried no count at all is the one
+      // sentence it must never print on no evidence.
+      if (typeof d.warnings !== "number") return null;
+      const n = num(d.warnings);
+      // ★ZERO IS THE ANSWER, NOT THE ABSENCE OF ONE. "Nothing to report" is
+      // what this cron exists to tell you most weeks; rendering nothing would
+      // read as a run that failed to produce anything.
+      if (n === 0) return "No platform version deadlines need attention.";
+      const detail = Array.isArray(d.detail) ? (d.detail as Array<Record<string, unknown>>) : [];
+      const platforms = detail
+        .map((w) => (typeof w.platform === "string" ? w.platform : null))
+        .filter(Boolean);
+      // ⚠️★A BARE STRING IS A GREEN SUCCESS TOAST, and N platform sunsets are
+      // not a success. This cron logs at `error` severity for some of these
+      // and the whole reason it exists is that its deadlines move on the
+      // CALENDAR while nobody commits — surfacing them in the same green as
+      // "nothing needed doing" is the confusion `CronSummary`'s `level` was
+      // added for.
+      return {
+        message:
+          `${n} platform version warning${n === 1 ? "" : "s"}` +
+          (platforms.length > 0 ? `: ${platforms.join(", ")}.` : "."),
+        level: "warning" as const,
+      };
+    },
+  },
+
+  // ── Google Ads quota (G-10) ─────────────────────────────────────────
+
+  "google-ads-ops-watch": {
+    label: "Watch Google Ads API usage (daily)",
+    frequency: "Runs daily at 00:20 UTC",
+    description:
+      "Sums the Google Ads API operations PeakHour sent in the last 24 hours (Google's own 'per day') " +
+      "against the project's access level — warn at 60%, alarm at 80% — and logs a line when the total " +
+      "crosses a line or Google refused requests for quota. Once a day it also reads the 30-day trend and says when to apply for the next access level. It changes nothing.",
+    summarize: (data) => summarizeGoogleAdsOps(data, { daily: true }),
+  },
+
+  "google-ads-ops-watch-intraday": {
+    label: "Watch Google Ads API usage (intraday)",
+    frequency: "Runs at 06:20, 12:20 and 18:20 UTC",
+    description:
+      "Sums the Google Ads API operations PeakHour sent in the last 24 hours (Google's own 'per day') " +
+      "against the project's access level — warn at 60%, alarm at 80% — and logs a line when the total " +
+      "crosses a line or Google refused requests for quota. It changes nothing.",
+    summarize: (data) => summarizeGoogleAdsOps(data),
+  },
+
+  "google-conversion-sweep": {
+    label: "Send sales to Google Ads",
+    frequency: "Runs daily at 15:30 UTC",
+    description:
+      "Sends orders that came from a Google ad click to the conversion action the merchant chose, through " +
+      "Google's Data Manager API, and records a receipt on each order. It sends nothing for a business that " +
+      "has not chosen a conversion action, and it charges nothing.",
+  },
+
+  "attribute-outcome-sweep": {
+    label: "Credit orders to an ad channel",
+    frequency: "Runs daily at 16:00 UTC",
+    description:
+      "For each settled order, decides from its stored click ids and the business's campaigns whether Meta, " +
+      "Google or neither is credited, and records one verdict per order. An order with no click id, or with " +
+      "click ids from both channels, is left uncredited. It tells no platform anything and charges nothing.",
+  },
+
+  "rails-copurchase": {
+    label: "Build bought-together rails",
+    frequency: "Runs daily at 02:45 UTC",
+    description:
+      "For each Shopify store whose orders PeakHour can read, works out which products are bought together, " +
+      "saves one rail per product and syncs it to the product's metafield, removing rails that no longer " +
+      "qualify. A store whose orders cannot be read is skipped, never cleared. It reads no customer field.",
+  },
+
+  "rails-refresh": {
+    label: "Refresh due product rails",
+    frequency: "Runs hourly (at :55 past)",
+    description:
+      "Refills each due storefront rail that is set to refresh automatically, on its own 24-hour clock, " +
+      "keeping the strategy the merchant approved. Product-page, bought-together and campaign rails, and " +
+      "manual rails, are not touched. A refresh that would change strategy keeps the old products and leaves " +
+      "a note for the improvement job, which proposes it on that merchant's weekly day (sooner for a " +
+      "time-windowed rail).",
+    summarize: (data) => {
+      const d = data as {
+        due?: number; changed?: number; kept?: number; unchanged?: number; skipped_merchant?: number;
+        skipped_orders?: number; raced?: number; errors?: number; truncated?: boolean;
+      } | null;
+      if (!d || typeof d.due !== "number") return null;
+      const skipped = (d.skipped_merchant ?? 0) + (d.skipped_orders ?? 0);
+      let msg =
+        `${d.due} rail${d.due === 1 ? "" : "s"} due: ${d.changed ?? 0} refreshed, ${d.unchanged ?? 0} unchanged, ` +
+        `${d.kept ?? 0} kept with a note, ${skipped} skipped, ${d.raced ?? 0} stood down, ${d.errors ?? 0} failed.`;
+      const capped = d.due >= RAILS_REFRESH_DUE_LIMIT;
+      if (d.truncated || capped) msg += " More rails pending — trigger again to continue.";
+      const nothingDone = d.due > 0 && skipped === d.due;
+      return (d.errors ?? 0) > 0 || d.truncated || capped || nothingDone ? { message: msg, level: "warning" } : msg;
+    },
+  },
+
+  "rails-improve": {
+    label: "Propose rail improvements",
+    frequency: "Runs daily at 3:30 AM UTC",
+    description:
+      "Reads each merchant's live rails and stores at most one change proposal per rail, for the merchant to " +
+      "approve on the card or in chat. Rails whose time window emptied are handled every day; other rules " +
+      "run for each merchant once a week.",
+    summarize: (data) => {
+      const d = data as {
+        merchants?: number; rails?: number; skipped_merchant?: number; busy?: number; errors?: number; truncated?: boolean;
+        proposed_retire?: number; proposed_switch?: number; proposed_switch_urgent?: number;
+        proposed_title?: number; proposed_add_rail?: number;
+      } | null;
+      if (!d || typeof d.merchants !== "number") return null;
+      const proposed =
+        (d.proposed_retire ?? 0) + (d.proposed_switch ?? 0) + (d.proposed_switch_urgent ?? 0) +
+        (d.proposed_title ?? 0) + (d.proposed_add_rail ?? 0);
+      const notJudged = (d.skipped_merchant ?? 0) + (d.busy ?? 0);
+      let msg =
+        `${proposed} proposal${proposed === 1 ? "" : "s"} stored from ${d.rails ?? 0} rail${(d.rails ?? 0) === 1 ? "" : "s"} ` +
+        `across ${d.merchants} judged merchant${d.merchants === 1 ? "" : "s"} (${notJudged} not judged, ${d.errors ?? 0} failed).`;
+      if (d.truncated) msg += " More merchants pending — trigger again to continue.";
+      return (d.errors ?? 0) > 0 || d.truncated ? { message: msg, level: "warning" } : msg;
+    },
+  },
+
+  // ── Growth Engine v2 (R2) ────────────────────────────────────────────
+
+  "growth-optimizer-drain": {
+    label: "Finish the weekly growth review",
+    frequency: "Runs hourly on Mondays, 04:00–23:00 UTC",
+    description:
+      "Continues the Monday 03:00 growth review for the runs it did not reach — one per business and " +
+      "connected channel. A large backlog can still be left after the last tick; the result says so.",
+    summarize: summarizeOptimizerSweep,
+  },
+
+  "growth-watchdog": {
+    label: "Check growth signals for sudden drops",
+    frequency: "Runs daily at 7:00 AM UTC",
+    description:
+      "For each business with the growth engine on and Analytics or Search Console connected, compares recent " +
+      "visits and search demand with earlier periods and alerts the owner when one falls sharply — at most once " +
+      "per business every seven days.",
+    summarize: (data) => {
+      const d = data as {
+        processed?: number; alerted?: number; unmeasurable?: number; undelivered?: number; failed?: number; truncated?: boolean;
+      } | null;
+      if (!d || typeof d.processed !== "number") return null;
+      let msg = `${d.processed} business${d.processed === 1 ? "" : "es"} checked: ${d.alerted ?? 0} alerted, ${d.unmeasurable ?? 0} unmeasurable, ${d.undelivered ?? 0} undelivered, ${d.failed ?? 0} failed.`;
+      if (d.truncated) msg += " More businesses pending — they wait for tomorrow's run unless you trigger it again.";
+      return (d.failed ?? 0) > 0 || (d.undelivered ?? 0) > 0 || d.truncated ? { message: msg, level: "warning" } : msg;
+    },
+  },
+
+  "growth-observations": {
+    label: "Record channel results and refit the models",
+    frequency: "Runs Mondays at 3:30 and 4:30 AM UTC",
+    description:
+      "For each business on the growth engine, records each ad channel's completed weeks of spend and outcomes, " +
+      "then refits that channel's model from them. It runs before the allocator, so the allocator proposes from " +
+      "fresh models.",
+    summarize: summarizeObservations,
+  },
+
+  "growth-allocator": {
+    label: "Split the budget across channels",
+    frequency: "Runs hourly on Mondays, 5:00–8:00 AM UTC",
+    description:
+      "Proposes how to split the budget across channels from the channel models. At autonomy L1 a person " +
+      "decides. At L2 it applies a budget move by itself, and at L3 a move or a raise, each with a receipt — " +
+      "real ad budgets change. It does not refit the models; Record channel results does.",
+    summarize: summarizeAllocator,
+  },
+
+  "growth-holdouts": {
+    label: "Run the holdout groups",
+    frequency: "Runs every 6 hours, at twenty past",
+    description:
+      "Starts, rolls out and ends the holdout groups that measure the engine's real effect. Rolling one out " +
+      "changes targeting on the live ad platforms.",
+    summarize: summarizeHoldouts,
+  },
+
+  "growth-lift": {
+    label: "Reconcile holdouts and read lift",
+    frequency: "Runs daily at 6:30 AM UTC",
+    description:
+      "First reconciles each geo holdout on the live ad platforms, re-applying its exclusion lists and ending " +
+      "it if it can no longer be kept. Then reads its lift: the extra outcomes against the held-out group. A " +
+      "reading with too little data is recorded as low-power, not as a result.",
+    summarize: summarizeLift,
+  },
+
+  "growth-playbook-upgrade": {
+    label: "Offer playbook upgrades",
+    frequency: "Runs Mondays at 5:00 AM UTC",
+    description:
+      "Offers each business a newer published version of its industry playbook as an upgrade decision. At " +
+      "autonomy L2 and above, a numbers-only upgrade applies itself, with a receipt.",
+    summarize: summarizePlaybookUpgrade,
+  },
+
+  "growth-playbook-learning": {
+    label: "Learn playbooks from pooled benchmarks",
+    frequency: "Runs Sundays at 6:00 AM UTC",
+    description:
+      "Proposes playbook updates from opt-in, pooled benchmarks of at least 20 businesses. A numbers-only " +
+      "change within 15% of the last version a person published publishes itself; anything else waits for a " +
+      "person. It does nothing when the pooled-insights store is not configured.",
+    summarize: summarizePlaybookLearning,
+  },
+
+  "growth-tripwire-judge": {
+    label: "Judge tripwires and offer promotions",
+    frequency: "Runs hourly, at twenty to",
+    description:
+      "When an applied decision's check window ends, clears its tripwire or reverses the change. A trip on a " +
+      "change the engine made by itself also lowers the business's autonomy; a person-approved change is " +
+      "reversed without a demotion. It also closes bets as inconclusive after 14 days and offers the autonomy " +
+      "promotions whose evidence is in.",
+    summarize: summarizeTripwireJudge,
+  },
+
+  "growth-decision-batch": {
+    label: "Send decisions and receipts on WhatsApp",
+    frequency: "Runs hourly, at five past",
+    description:
+      "Sends each business's waiting growth decisions to its approver on WhatsApp as one message, then sends " +
+      "receipts, with Undo, for decisions applied since the last run — so it can message even when nothing is " +
+      "waiting. Nothing is sent until the WhatsApp templates are approved.",
+    summarize: summarizeDecisionBatch,
+  },
+
+  "growth-weekly-report": {
+    label: "Send the weekly growth report",
+    frequency: "Runs hourly, at twenty-five to",
+    description:
+      "Sends the weekly growth report on WhatsApp to each business whose local send time has come.",
+    summarize: summarizeWeeklyReport,
+  },
+
+  "growth-council-review": {
+    label: "Monthly Peakhour Summit review",
+    frequency: "Runs at 5:00 AM UTC on the 1st–7th of each month",
+    description:
+      "Reviews the last 28 days of each business whose growth mandate is above autonomy L0 and that has no review " +
+      "this month, as many as fit in one run; the next day's run picks up the rest, and a review that could not " +
+      "run is retried. Up to three model calls per business, so AI spend. A recommendation becomes a decision " +
+      "under the business's autonomy rules.",
+    summarize: summarizeCouncilReview,
+  },
+
+  "wa-marketing": {
+    label: "Send WhatsApp cart reminders and due broadcasts",
+    frequency: "Runs every 10 minutes",
+    description:
+      "Reminds shoppers who opted in about carts they left, and sends the next batch of any broadcast that is due. " +
+      "Only stores that switched it on are read, a shopper who opted out or hit the message limit is skipped, and the emergency stop silences it.",
+  },
+
+  "demand-weekly-digest": {
+    label: "Email the weekly shopper-demand digest",
+    frequency: "Runs Mondays at 4:30 AM UTC, retried Tuesdays",
+    description:
+      "Emails each store a weekly summary of what its shoppers asked for. Tuesday's run only catches stores " +
+      "Monday missed: a store gets one email a week, and running it again does not resend.",
+  },
+
+  // ── Reconnect alerts (D-04b) ─────────────────────────────────────────
+
+  "connection-reauth-alerts": {
+    label: "Send reconnect alerts",
+    frequency: "Runs hourly at :40",
+    description:
+      "Tells a business once each time one of its connections needs reconnecting (connection_needs_reauth), " +
+      "oldest first. It reads only connections whose entry into needs-reauth has not been alerted, claims each " +
+      "before sending, and stops starting new sends after three minutes.",
+  },
+
+  "decisions-expiry": {
+    label: "Close unanswered decisions",
+    frequency: "Runs hourly, at ten past",
+    description:
+      "Marks any growth decision that nobody answered within its 72 hours as expired, so a stale budget move " +
+      "or pause can no longer be approved. The same run retries the changes waiting for a Peakhour Summit " +
+      "review (model calls, so AI spend) and sets aside any that has waited 48 hours, with one WhatsApp " +
+      "message once its template is approved.",
+    summarize: summarizeDecisionsExpiry,
+  },
+
+  "decision-steps": {
+    label: "Apply the later steps of a budget move",
+    frequency: "Runs hourly, at twenty past",
+    description:
+      "A big budget raise is made in steps of at most 20%, three days apart. This applies the next step of any " +
+      "move that is still in force, after checking the ceiling and your guardrails again. It stops for a move " +
+      "that was undone, and it changes real ad budgets.",
   },
 
   // ── Billing + money ────────────────────────────────────────────────
@@ -800,6 +1568,31 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     frequency: "Runs hourly",
     description:
       "Ends the grace period for subscriptions whose payment failed, freezing access once the retry window has run out. Revokes entitlements from real organisations — dev has real stores on it.",
+  },
+  "mandate-debits": {
+    label: "Collect PayU mandate payments",
+    frequency: "Runs hourly (at :20 past)",
+    description:
+      "Sends the advance notice for each PayU mandate due soon, then takes the payment (a renewal, or the first payment when a trial ends) once the notice has had its 48 hours, and records the outcome of any payment already attempted. Cancels the PayU mandate of a subscription that no longer bills. Takes real money from real buyers — dev has real stores on it.",
+    // ⚠️A green "complete" toast would hide the runs that did nothing: a rail
+    // not configured, a step that threw, a refused notice or debit, a tick out
+    // of time. Those read as a warning (MANDATE_DEBIT_PARTS).
+    summarize: (data) => {
+      const d = asRecord(data);
+      if (!d || typeof d.scanned !== "number") return null;
+      const o = asRecord(d.outcomes) ?? {};
+      const problems: string[] = [];
+      const done: string[] = [];
+      for (const [from, field, one, many, warn] of MANDATE_DEBIT_PARTS) {
+        const n = num((from === "totals" ? d : o)[field]);
+        if (n > 0) (warn ? problems : done).push(`${n} ${n === 1 ? one : many}`);
+      }
+      if (problems.length > 0) {
+        return { message: `${[...problems, ...done].join(", ")}.`, level: "warning" };
+      }
+      if (done.length === 0) return "No mandates due.";
+      return `${done.join(", ")}.`;
+    },
   },
   "billing-reconcile": {
     label: "Re-check card subscriptions",
@@ -832,6 +1625,12 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     frequency: "Runs every 6 hours",
     description:
       "Scans a batch of the least-recently-checked pages for broken links and redirects, so the site graph reflects what visitors actually hit.",
+  },
+  "site-graph-shopify": {
+    label: "Read your Shopify content",
+    frequency: "Runs daily at 3am UTC",
+    description:
+      "Walks your store's blog posts, pages and collections and records what each one says about itself — its SEO title and description, when it was published, and whether it is still live — so the content audit can tell a gap from a page it has never seen.",
   },
   "site-graph-inspection": {
     label: "Sync URL inspection",
@@ -903,17 +1702,193 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     description:
       "Scores each Shopify store's catalog for stock that isn't selling and writes the diagnosis the Commerce insights read from. Uses AI, so it costs Peaks.",
   },
-  "media-overage-snapshot": {
-    label: "Snapshot storage overage",
-    frequency: "Runs monthly (1st, 6:00 AM UTC)",
+  "storage-packs-renew": {
+    label: "Renew storage packs",
+    frequency: "Runs daily at 6:00 AM UTC",
     description:
-      "Captures how much storage each organisation used beyond its plan for the month that just closed, which is what any overage is billed from.",
+      "Charges the Peaks for every storage pack that is due, removes packs that were cancelled and have run out, and emails about packs and full storage. A pack the wallet cannot pay for is paused, never removed. Charges Peaks.",
   },
   "meta-token-keepalive": {
     label: "Keep Meta tokens alive",
     frequency: "Runs daily at 4am UTC",
     description:
       "Refreshes long-lived Meta tokens for connections nothing has touched recently, so a dormant account doesn't quietly expire and need reconnecting.",
+  },
+  /**
+   * ★★M-16 — THIS WAS THE RED TEST ON b2c MASTER, for the reason the block below
+   * records for three others: api#1373 (M-09) scheduled the cron, the coverage
+   * test reads the api's cron directory off disk, and b2c has no PR CI, so the
+   * notification went unread. It is also the Meta ads tab's own cron.
+   */
+  "meta-conversion-sweep": {
+    label: "Send purchases to Meta",
+    frequency: "Runs daily at 3pm UTC",
+    description:
+      "Sends orders that came from a Meta ad click to the conversions dataset each business chose, so Meta can credit its ads. Does nothing for a business that has not chosen a dataset. Charges no Peaks.",
+    /**
+     * ⚠️★THREE OUTCOMES THAT MUST NOT TOAST GREEN, from the api's own result
+     * type: `perBusinessCapHit` is M-09's R3.1 — a daily cron against a
+     * seven-day window LOSES the tail rather than delaying it; `budgetHit` is a
+     * run cut short; and every mapper skip reason except `no_source_url` is
+     * structurally zero, so a non-zero one means the query and the mapper have
+     * drifted apart. `eventsUploaded > ordersMarked` is the fourth: those
+     * orders are at Meta and will be sent again.
+     */
+    summarize: (data) => {
+      const d = asRecord(data);
+      if (!d || typeof d.eventsUploaded !== "number") return null;
+      const configured = num(d.businessesConfigured);
+      const considered = num(d.businessesConsidered);
+      // ⚠️REVIEW R3.2 — `configured === 0` alone said "no business has chosen
+      //  a dataset" when some HAD (considered > 0, but Meta ads switched off),
+      //  and returned green before the `budgetHit` check below could run.
+      if (considered === 0 && d.budgetHit !== true) {
+        return "Nothing to send — no business has chosen a Meta dataset.";
+      }
+      const sent = `${num(d.eventsUploaded)} ${plural(num(d.eventsUploaded), "purchase")} sent for ${configured} ${configured === 1 ? "business" : "businesses"}`;
+      const skipped = asRecord(d.skipped) ?? {};
+      const drifted = Object.entries(skipped).filter(
+        ([reason, n]) => reason !== "no_source_url" && typeof n === "number" && n > 0,
+      );
+      const warnings: string[] = [];
+      if (d.perBusinessCapHit === true) warnings.push("a business hit the per-run cap, so its oldest purchases may age out of Meta's 7-day window");
+      if (d.budgetHit === true) warnings.push("the run stopped at its time budget");
+      if (num(d.eventsUploaded) > num(d.ordersMarked)) warnings.push("some sent purchases were not marked and will be sent again");
+      if (drifted.length > 0) warnings.push(`unexpected skips (${drifted.map(([r]) => r).join(", ")}) — the sweep's query and mapper disagree`);
+      // ⏸NEUTRAL, NOT A WARNING: a business with a dataset and no ads
+      //  connection to send it with is usually a merchant who switched Meta
+      //  ads off, and the sweep honours that on purpose. When the budget cut
+      //  the run short, that warning already accounts for the gap.
+      const idle = considered - configured;
+      const note =
+        idle > 0 && d.budgetHit !== true
+          ? ` ${idle} ${idle === 1 ? "business has" : "businesses have"} a dataset but no active Meta ads connection to send it with.`
+          : "";
+      if (warnings.length === 0) return `${sent}.${note}`;
+      return { message: `${sent}, but ${warnings.join("; ")}.${note}`, level: "warning" as const };
+    },
+  },
+  /**
+   * ★★THESE THREE WERE THE RED TEST ON MASTER, and the test was right.
+   * `cron-metadata.test.ts` reads peakhour-api's cron directory OFF DISK and
+   * asserts every scheduled cron has a friendly label here — so the api adding
+   * three crons made this repo's suite fail, in a repo that had not changed.
+   * ★It is the cross-repo coupling the 08-24 trap file warns about, working
+   * exactly as designed: the failure IS the notification, and it had been
+   * ignored long enough that three crons accumulated behind it.
+   */
+  "commerce-cod-sweep": {
+    label: "Close out unanswered COD confirmations",
+    frequency: "Runs hourly at 48 past",
+    description:
+      "Ends the cash-on-delivery lane. A shopper who was asked and did not answer within their window becomes 'unconfirmed' — the queue a merchant checks before shipping. A claim that never got a verdict becomes 'unreachable', because nobody can tell whether that message was ever sent.",
+    /**
+     * ★★"0 expired" IS A NORMAL HOUR, NOT A FAILURE — the lane is quiet by
+     * design most of the time, so that alone stays a success.
+     *
+     * 🚫★★BUT `abandoned` IS NOT, AND A BARE STRING WOULD HAVE TOASTED IT
+     * GREEN. A summarizer that returns a string renders success whatever it
+     * says, so `{expired: 0, abandoned: 120}` — the api's own comment calls a
+     * burst of these a send path that froze mid-flight — would have read as a
+     * clean hour. The two numbers mean opposite things: one is a shopper who
+     * went quiet, the other is a message that may never have been sent.
+     */
+    summarize: (data) => {
+      const d = data as { expired?: number; abandoned?: number } | null;
+      if (!d || typeof d.expired !== "number") return null;
+      const expired = `${d.expired} order${d.expired === 1 ? "" : "s"} now unconfirmed`;
+      if (!d.abandoned) return expired;
+      return {
+        message: `${expired}, and ${d.abandoned} claim${d.abandoned === 1 ? "" : "s"} abandoned — those sends may never have gone out.`,
+        level: "warning" as const,
+      };
+    },
+  },
+  "wa-template-sync": {
+    label: "Send merchants' WhatsApp messages to Meta",
+    frequency: "Runs every 30 minutes, at 7 and 37 past",
+    description:
+      "Sends each connected merchant's missing WhatsApp templates to their own WhatsApp account, tries again on ones Meta rejected (a few times, then it is left for support), and reads Meta's answer for any left waiting six hours. Never touches Peakhour's own number. Fired by hand it creates templates on the dev merchant's real Meta account.",
+    summarize: (data) => {
+      const d = data as { processed?: number; failed?: number } | null;
+      if (!d || typeof d.processed !== "number") return null;
+      const ran = `${d.processed} merchant${d.processed === 1 ? "" : "s"} handled`;
+      if (!d.failed) return ran;
+      return {
+        message: `${ran}, and ${d.failed} could not reach Meta; each is retried after a wait.`,
+        level: "warning" as const,
+      };
+    },
+  },
+  "commerce-campaign-expiry": {
+    label: "Take finished promotions back down",
+    frequency: "Runs hourly at 25 past",
+    description:
+      "Ends promotions that have reached their deadline and puts the prices back. A campaign whose teardown fails is left marked so somebody can see the discount may still be live on the store.",
+    /**
+     * 🚫★★WITHOUT THIS, A FAILED TEARDOWN TOASTED GREEN. The dev route sets
+     * `ok` from the HTTP status and this handler returns 200 whatever
+     * happened — the payload's own `ok:false` only reaches `console.debug`.
+     * So a tick that could not take a discount back off the store rendered
+     * as "Take finished promotions back down complete".
+     *
+     * ★AND TRUNCATION IS A WARNING, NOT AN ERROR. The api says so in terms:
+     * a burst of campaigns ending together drains over the next few ticks.
+     * What matters is that nobody reads it as complete.
+     */
+    summarize: (data) => {
+      const d = data as { expired?: number; failed?: number; truncated?: boolean } | null;
+      if (!d || typeof d.expired !== "number") return null;
+      const done = `${d.expired} promotion${d.expired === 1 ? "" : "s"} taken down`;
+      if (d.failed) {
+        return {
+          message: `${done}, but ${d.failed} could not be — those discounts may still be live.`,
+          level: "warning" as const,
+        };
+      }
+      if (d.truncated) {
+        return {
+          message: `${done}, with more still due — run it again or wait for the next tick.`,
+          level: "warning" as const,
+        };
+      }
+      return done;
+    },
+  },
+  "commerce-stop-loss": {
+    label: "Watch running promotions for trouble",
+    frequency: "Runs hourly at 40 past",
+    description:
+      "Checks live promotions against their stop-loss rule and alerts the merchant once — not once an hour — when one is going badly. It does not stop the campaign itself; that stays the merchant's decision.",
+    /**
+     * 🚫★★`undelivered` IS A MERCHANT WHO WAS NEVER TOLD their promotion is
+     * going badly — the alert was raised and nothing that reaches a human
+     * accepted it. Green over that is the worst available answer, and it is
+     * what a missing summarizer produced.
+     *
+     * ★`unmeasurable` IS DELIBERATELY NOT A WARNING. The api's own comment
+     * says why: it means the store's order sync cannot support a "no orders"
+     * claim, which is a scope or a sync state rather than a fault of this
+     * sweep — and flagging it red would make the signal meaningless on any
+     * fleet with a store mid-onboarding. It is stated, not escalated.
+     */
+    summarize: (data) => {
+      const d = data as {
+        evaluated?: number;
+        alerted?: number;
+        undelivered?: number;
+        unmeasurable?: number;
+      } | null;
+      if (!d || typeof d.evaluated !== "number") return null;
+      const base = `${d.evaluated} promotion${d.evaluated === 1 ? "" : "s"} checked, ${d.alerted ?? 0} alerted`;
+      if (d.undelivered) {
+        return {
+          message: `${base} — but ${d.undelivered} alert${d.undelivered === 1 ? " " : "s "}reached nobody.`,
+          level: "warning" as const,
+        };
+      }
+      return d.unmeasurable ? `${base} · ${d.unmeasurable} not measurable yet` : base;
+    },
   },
   "commerce-order-pii-sweep": {
     label: "Erase expired shopper details",
@@ -940,6 +1915,24 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
             level: "warning" as const,
           }
         : `${erased}. Nothing is left past the retention window.`;
+    },
+  },
+  "legal-hold-sweep": {
+    label: "Keep held conversations held",
+    frequency: "Runs hourly at 20 minutes past",
+    description:
+      "Holds any conversation created after a business-wide legal hold was placed, releases ones a half-finished lift left behind, and finishes a shopper's deletion that was waiting on a hold which has since been lifted.",
+    summarize: (data) => {
+      const d = data as { held?: number; released?: number; reasserted?: number; erased?: number } | null;
+      if (!d || typeof d.held !== "number") return null;
+      const parts = [
+        d.held ? `${d.held} new conversation${d.held === 1 ? "" : "s"} held` : "",
+        d.released ? `${d.released} released` : "",
+        d.erased ? `${d.erased} waiting deletion${d.erased === 1 ? "" : "s"} completed` : "",
+      ].filter(Boolean);
+      // A re-asserted expiry date means something else changed a held conversation's deadline: worth saying, never a plain success.
+      if (d.reasserted) return { message: `${[...parts, `${d.reasserted} expiry date${d.reasserted === 1 ? "" : "s"} put back`].join(", ")}.`, level: "warning" as const };
+      return parts.length ? `${parts.join(", ")}.` : "Nothing needed changing.";
     },
   },
   "org-deletion-executor": {
@@ -984,6 +1977,35 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
     description:
       "Feeds each merchant's approvals, edits and rejections of AI suggestions back into their voice card, so future suggestions sound more like them. Skips a store until it has enough new verdicts to learn from. Uses AI, so it costs Peaks.",
   },
+  "seo-tracking": {
+    label: "Run search visibility tracking",
+    frequency: "Runs every hour, at 20 minutes past",
+    description:
+      "Checks the stores that switched search visibility tracking on: a Google rank check each week and an AI-answer check each month. " +
+      "A store that has never run is checked first. It spends AI credits and the vendor's money, so it asks before it runs.",
+  },
+  "conversation-expiry-notice": {
+    label: "Email the conversation deletion notice",
+    frequency: "Runs Mondays and Tuesdays at 4:45 AM UTC",
+    description:
+      "Emails a store when conversations are about to be deleted under its retention period. A store with nothing expiring in the next 14 days, or one that opted out of this notice, is sent nothing. " +
+      "Tuesday's run only catches stores Monday missed: a store gets one email a week, and running it again does not resend.",
+  },
+  "commerce-stockout-alerts": {
+    label: "Send stock-out alerts",
+    frequency: "Runs daily at 5:00 AM UTC",
+    description:
+      "Tells each store about products forecast to run out before a reorder could arrive, on WhatsApp where it is connected. A product is never alerted twice in a week, " +
+      "and the emergency stop silences it.",
+  },
+  "x-dm-resume": {
+    label: "Resume X message listening for a new month",
+    frequency: "Runs daily at 12:40 AM UTC",
+    description:
+      "Starts a new month for a connected X account whose monthly message limit was reached earlier, and switches its message feed back on. " +
+      "It also stops any feed that should not be running (X messages switched off, over this month's limit, or left behind by a disconnect), because X charges for every message it delivers. " +
+      "Does nothing while X messages are not released.",
+  },
 };
 
 /** Fallback for a cron name not yet documented in CRON_METADATA. The UI
@@ -1017,9 +2039,9 @@ function num(v: unknown): number {
   return typeof v === "number" && Number.isFinite(v) ? v : 0;
 }
 
-/** Naive singular/plural — every noun we pluralize here just takes -s. */
-function plural(count: number, noun: string): string {
-  return count === 1 ? noun : `${noun}s`;
+/** Naive singular/plural — the noun takes `suffix` (-s unless told -es). */
+function plural(count: number, noun: string, suffix: "s" | "es" = "s"): string {
+  return count === 1 ? noun : `${noun}${suffix}`;
 }
 
 /**
@@ -1073,4 +2095,30 @@ export function summarizeCronBody(
     // Malformed / truncated body — defer to the generic toast.
     return null;
   }
+}
+
+/**
+ * G-10's watch, in one line: the last 24 hours against the ceiling, and the
+ * forecast when the daily run read it. ★An absent figure is not zero: a
+ * response without `last24h.operations` says nothing (null).
+ */
+export function summarizeGoogleAdsOps(data: unknown, run: { daily: boolean } = { daily: false }): CronSummary | null {
+  const d = asRecord(data);
+  const last = d ? asRecord(d.last24h) : null;
+  if (!d || !last || typeof last.operations !== "number" || typeof d.ceiling !== "number") return null;
+  const ops = last.operations;
+  const level = typeof d.level === "string" ? d.level : "the current level";
+  const pct = d.ceiling > 0 && Number.isFinite(d.ceiling) ? ` (${Math.round((ops / d.ceiling) * 100)}% of ${level}'s ${d.ceiling.toLocaleString("en-US")})` : "";
+  const forecast = asRecord(d.forecast);
+  // ★Only the daily run says the forecast (review round 2), as the watch
+  //  does — read from the response's own `dailyRun` when it says (round 3).
+  const daily = typeof d.dailyRun === "boolean" ? d.dailyRun : run.daily;
+  const trigger = daily && forecast?.status === "trigger";
+  const message =
+    `${ops.toLocaleString("en-US")} Google Ads operations in the last 24 hours${pct}.` +
+    (trigger ? " The 30-day trend says it is time to apply for the next access level." : "");
+  const band = last.band;
+  return band === "alarm" || band === "warn" || trigger || (typeof d.refusedThisRun === "number" && d.refusedThisRun > 0)
+    ? { message, level: "warning" as const }
+    : message;
 }

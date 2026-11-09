@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Check, Loader2, Sparkles } from "lucide-react";
 import { api } from "@/lib/api";
@@ -15,6 +15,17 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { PaymentModal, type CheckoutResult } from "./payment-modal";
+import { checkoutAction, type CheckoutPreview } from "@/lib/checkout-preview";
+import { onePress } from "@/lib/one-press";
+import {
+  TERM_LABEL,
+  currentOnTerm,
+  priceForTerm,
+  termOptions,
+  termSuffix,
+  type BillingTerm,
+  type TermPrice,
+} from "@/lib/billing-terms";
 
 /**
  * UpgradePlanDialog — the plan-picker that replaces the old mailto on
@@ -35,10 +46,16 @@ interface PurchasablePlan {
   yearly: number | null;
   currency: string;
   interval: "month";
+  /** Every term the plan sells, priced as checkout charges it (P3.1a): Suite
+   *  monthly and yearly, Agency quarterly and yearly. Absent on an older api. */
+  termPrices?: TermPrice[];
   trialDays: number;
   taxIncluded: boolean;
   recommended: boolean;
   isCurrent: boolean;
+  /** The term the business holds this plan on (a billed line), or null: the
+   *  plan is current on that term only; another term is a plan change (P4.2). */
+  heldTerm?: BillingTerm | null;
   /** Will THIS purchase include the plan's free trial? True when the plan offers
    *  trial days AND the org has never held the product (one trial per product,
    *  ever). The trial always collects a card — it runs at the gateway and defers
@@ -89,7 +106,29 @@ export function UpgradePlanDialog({
   onPurchased?: () => void;
 }) {
   const [selected, setSelected] = useState<string | null>(null);
+  // The billing term the buyer picked; null = the default below.
+  const [termPick, setTermPick] = useState<BillingTerm | null>(null);
   const [checkout, setCheckout] = useState<CheckoutResult | null>(null);
+  // ★ONE CHECKOUT AT A TIME (owner answer 4: a double click on Pay never pays
+  //  twice). `isPending` disables the button once React re-renders; the latch
+  //  also ignores a second click in the same frame (lib/one-press.ts), for
+  //  as long as the POST is in flight. ★WHILE A PAYMENT PAYLOAD IS OPEN the
+  //  button is disabled and the handler refuses by STATE (`checkout`), not by
+  //  the latch (review R1 and R2): a Razorpay or PayU overlay shows nothing
+  //  while its script loads, and a click then would mint a second
+  //  subscription; state needs no release on each way the overlay ends.
+  const [press] = useState(onePress);
+  const queryClient = useQueryClient();
+  // After ANY purchase: what is current, and what each plan would now do, has
+  // changed. Forget the selection and both answers, so reopening the picker
+  // never offers "Switch to" the plan just bought (review R2 on b2c#589).
+  const purchased = () => {
+    setSelected(null);
+    void queryClient.invalidateQueries({ queryKey: ["billing-plans"] });
+    void queryClient.invalidateQueries({ queryKey: ["billing-checkout-preview"] });
+    onOpenChange(false);
+    onPurchased?.();
+  };
 
   const plansQ = useQuery({
     queryKey: ["billing-plans"],
@@ -109,7 +148,7 @@ export function UpgradePlanDialog({
   // top-up was charged off-session against the saved mandate.
   //   • "invoice_required" — India RBI, total above the auto-mandate cap.
   const checkoutMut = useMutation({
-    mutationFn: (tier: string) =>
+    mutationFn: ({ tier, term }: { tier: string; term: BillingTerm }) =>
       api.post<
         | CheckoutResult
         | { mode: "added"; tier: string; tierLabel?: string }
@@ -121,20 +160,18 @@ export function UpgradePlanDialog({
             trialEndsAt: string;
           }
         | { mode: "invoice_required"; tier: string; tierLabel?: string }
-      >("/v1/billing/checkout", { tier }),
+      >("/v1/billing/checkout", { tier, term }),
     onSuccess: (res) => {
       if (res && "mode" in res && res.mode === "trial_started") {
         toast.success(`${res.tierLabel || res.tier} added to your subscription`, {
           description: `Free for ${res.trialDays} days — nothing to pay now. Billed with your other products from ${new Date(res.trialEndsAt).toLocaleDateString()}.`,
         });
-        onOpenChange(false);
-        onPurchased?.();
+        purchased();
         return;
       }
       if (res && "mode" in res && res.mode === "added") {
         toast.success(`${res.tierLabel || res.tier} added to your subscription`);
-        onOpenChange(false);
-        onPurchased?.();
+        purchased();
         return;
       }
       // India RBI: a total above the auto-mandate cap (₹1L) can't be auto-debited,
@@ -143,14 +180,19 @@ export function UpgradePlanDialog({
         toast.success(`${res.tierLabel || res.tier} — we'll email you an invoice to pay`, {
           description: "This plan is billed by invoice (bank rules cap auto-debit amounts).",
         });
-        onOpenChange(false);
-        onPurchased?.();
+        purchased();
         return;
       }
+      // Holds the button (state) until the overlay closes.
       setCheckout(res as CheckoutResult);
     },
     onError: (e: Error) => toast.error(e.message ?? "Couldn't start checkout"),
+    onSettled: () => press.release(),
   });
+  const startCheckout = (tier: string, term: BillingTerm) => {
+    if (checkout || !press.take()) return;
+    checkoutMut.mutate({ tier, term });
+  };
 
   // NOTE: there is deliberately no separate "start trial" mutation. The old
   // POST /v1/billing/trial granted a gateway-less no-card trial and now returns
@@ -160,13 +202,43 @@ export function UpgradePlanDialog({
   const plans = plansQ.data?.plans ?? [];
   const purchasable = plansQ.data?.purchasable ?? true;
   const selectedPlan = plans.find((p) => p.tier === selected) ?? null;
+  // The terms any plan sells; monthly first when sold, as before terms existed.
+  const terms = termOptions(plans);
+  const term: BillingTerm = termPick ?? (terms.includes("monthly") ? "monthly" : terms[0] ?? "monthly");
+  // What the selected card charges, and so the term checkout sends: Agency
+  // under "Monthly" checks out quarterly, the price its card shows.
+  const selectedPrice = selectedPlan ? priceForTerm(selectedPlan, term) : null;
+  // What checkout would do with the selection (D21): a plain purchase, a
+  // switch from the plan held (and when it is first charged), or a refusal.
+  // Advisory: checkout decides again, so a failed preview still lets the buyer
+  // continue, and checkout's own error is what they then see.
+  const previewQ = useQuery({
+    queryKey: ["billing-checkout-preview", selectedPlan?.tier, selectedPrice?.term],
+    queryFn: () =>
+      api.get<CheckoutPreview>("/v1/billing/checkout/preview", {
+        tier: selectedPlan!.tier,
+        term: selectedPrice!.term,
+      }),
+    enabled: open && !!selectedPlan && !!selectedPrice,
+    refetchOnWindowFocus: false,
+  });
+  const preview = previewQ.data ?? null;
+  // Waiting on THIS selection's answer, so the button never says "Continue"
+  // and then turns into a switch. A failed preview is `error`, not pending: it
+  // never holds Continue shut.
+  const previewWaiting = !!selectedPlan && !!selectedPrice && previewQ.isPending;
+  const fmtDate = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  const action = checkoutAction(selectedPlan, preview, fmtDate);
+  // The term toggle can make the selected card the plan held on that term:
+  // its card closes, and so does Continue, whatever the preview says
+  // (review R3 on b2c#589).
+  const selectedCurrent = !!selectedPlan && !!selectedPrice && currentOnTerm(selectedPlan, selectedPrice.term);
   const busy = checkoutMut.isPending;
 
-  // Three sections answering three different questions: what should I add next,
-  // what else exists, and what if I've outgrown per-product pricing. Bundles are
-  // SEPARATED rather than sorted down — Agency at ₹24,999 next to a ₹1,499
-  // product reads as a mistake rather than a choice, which is what the team saw
-  // when everything shared one flat grid.
+  // Three sections: what fits what I've connected, what else exists, and the
+  // plans for many businesses. One catalog (D19): Peakhour Suite, then Agency
+  // and Enterprise SEPARATED rather than sorted down, so a plan for a roster of
+  // clients does not read as the next step up for one business.
   //
   // The server groups; this falls back to deriving them so an older api (or a
   // cached response) still renders something sensible instead of nothing.
@@ -186,14 +258,14 @@ export function UpgradePlanDialog({
       key: "others",
       // Only call them "other" when something was recommended above; with no
       // connections there is no "other" to be other than.
-      title: groups.recommended.length > 0 ? "Other products" : "Products",
+      title: groups.recommended.length > 0 ? "Other plans" : "Plans",
       blurb: undefined as string | undefined,
       items: groups.others,
     },
     {
       key: "bundles",
       title: "For larger teams",
-      blurb: "Every product in one plan — for agencies and multi-brand businesses.",
+      blurb: "For agencies and multi-brand businesses: many businesses on one plan.",
       items: groups.bundles,
     },
   ];
@@ -201,9 +273,8 @@ export function UpgradePlanDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        {/* Wide enough for two comfortable columns (plan names run long, e.g.
-            "Peakhour.ai Commerce: Paid") and capped in height so a growing
-            catalogue scrolls inside the dialog instead of overflowing it. */}
+        {/* Wide enough for two comfortable columns and capped in height so
+            the catalogue scrolls inside the dialog instead of overflowing it. */}
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Choose a plan</DialogTitle>
@@ -228,6 +299,25 @@ export function UpgradePlanDialog({
             </p>
           ) : (
             <div className="space-y-5">
+              {terms.length > 1 && (
+                <div role="radiogroup" aria-label="Billing term" className="inline-flex rounded-lg border p-0.5">
+                  {terms.map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      role="radio"
+                      aria-checked={term === t}
+                      onClick={() => setTermPick(t)}
+                      className={cn(
+                        "rounded-md px-3 py-1 text-xs font-medium transition",
+                        term === t ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {TERM_LABEL[t]}
+                    </button>
+                  ))}
+                </div>
+              )}
               {sections.map((section) =>
                 section.items.length === 0 ? null : (
                   <div key={section.key}>
@@ -240,10 +330,15 @@ export function UpgradePlanDialog({
                     <div className="grid gap-3 sm:grid-cols-2">
                       {section.items.map((p) => {
                         const active = selected === p.tier;
+                        const price = p.contactSales ? null : priceForTerm(p, term);
+                        // The plan held on this very term is not for sale again;
+                        // the same plan on another term is a switch (D21).
+                        const current = currentOnTerm(p, price?.term);
                         // A contact-sales plan has nothing to select — its action
                         // is an email, not a checkout — so it is never disabled
-                        // for being unpurchasable, only for being current.
-                        const disabled = p.isCurrent || (!purchasable && !p.contactSales);
+                        // for being unpurchasable, only for being current. A plan
+                        // with no sellable term has nothing to check out.
+                        const disabled = current || (!purchasable && !p.contactSales) || (!p.contactSales && !price);
                         return (
                           <button
                             key={p.tier}
@@ -307,21 +402,30 @@ export function UpgradePlanDialog({
                               <div className="text-lg font-semibold">
                                 {p.contactSales ? (
                                   <span className="text-base">Contact sales</span>
-                                ) : (
+                                ) : price ? (
                                   <>
-                                    {formatPrice(p.amount, p.currency)}
+                                    {formatPrice(price.amount, p.currency)}
                                     <span className="text-xs font-normal text-muted-foreground">
-                                      /mo
+                                      {termSuffix(price.term)}
                                     </span>
                                   </>
+                                ) : (
+                                  <span className="text-base">Not available</span>
                                 )}
                               </div>
+                              {/* Not sold on the picked term (Agency is quarterly
+                                  and yearly only): say which term this price is. */}
+                              {price?.fallback && (
+                                <div className="text-xs text-muted-foreground">
+                                  Billed {TERM_LABEL[price.term].toLowerCase()}
+                                </div>
+                              )}
                               {!p.contactSales && p.trialDays > 0 && p.trialApplies && (
                                 <div className="text-xs text-success-on-tint">
                                   {p.trialDays}-day free trial · card required
                                 </div>
                               )}
-                              {p.isCurrent && (
+                              {current && (
                                 <span className="mt-2 inline-block rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">
                                   Current plan
                                 </span>
@@ -342,24 +446,22 @@ export function UpgradePlanDialog({
               and defers the first charge. The copy states both facts up front so
               the card request on the next step is never a surprise. */}
           <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
-            {selectedPlan?.trialApplies && (
-              <span className="mr-auto text-xs text-muted-foreground">
-                We&rsquo;ll ask for a card now and charge nothing for{" "}
-                {selectedPlan.trialDays} days. Cancel anytime.
+            {action.note ? (
+              <span
+                role={action.refused ? "alert" : undefined}
+                className={cn("mr-auto text-xs", action.refused ? "text-destructive" : "text-muted-foreground")}
+              >
+                {action.note}
               </span>
-            )}
+            ) : null}
             <Button variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button
-              disabled={!selected || !purchasable || busy}
-              onClick={() => selected && checkoutMut.mutate(selected)}
+              disabled={!selected || !selectedPrice || !purchasable || busy || !!checkout || selectedCurrent || previewWaiting || action.refused}
+              onClick={() => selected && selectedPrice && startCheckout(selected, selectedPrice.term)}
             >
-              {checkoutMut.isPending
-                ? "Starting…"
-                : selectedPlan?.trialApplies
-                  ? `Start ${selectedPlan.trialDays}-day free trial`
-                  : "Continue to payment"}
+              {checkoutMut.isPending ? "Starting…" : action.label}
             </Button>
           </div>
         </DialogContent>
@@ -372,8 +474,7 @@ export function UpgradePlanDialog({
         }}
         onSuccess={() => {
           setCheckout(null);
-          onOpenChange(false);
-          onPurchased?.();
+          purchased();
         }}
       />
     </>

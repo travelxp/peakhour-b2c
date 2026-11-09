@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, XCircle, Loader2, Mail } from "lucide-react";
 import { Suspense } from "react";
+import { HOME_ROUTE } from "@/lib/nav-home";
 
 export default function AcceptInvitePage() {
   return (
@@ -57,7 +58,7 @@ function AcceptInviteContent() {
           setStatus("joined");
           setMessage(res.message);
           await refreshUser();
-          redirectTimer = setTimeout(() => router.push("/dashboard/overview"), 2000);
+          redirectTimer = setTimeout(() => router.push(HOME_ROUTE), 2000);
         } else if (res.status === "signup_required") {
           setStatus("signup");
           setMessage(res.message);

@@ -15,6 +15,13 @@ const FOOTER_GROUPS = [
     ],
   },
   {
+    heading: "Works with",
+    links: [
+      { href: "/shopify", label: "Shopify" },
+      { href: "/content", label: "WordPress" },
+    ],
+  },
+  {
     heading: "Product",
     links: [
       { href: "/pricing", label: "Pricing" },
@@ -49,8 +56,8 @@ export function Footer() {
               <PeakhourLogo className="h-7 w-auto" />
             </Link>
             <p className="mt-4 text-sm text-muted-foreground">
-              The AI business platform for growing brands. Five pillars, one
-              brain, free to start.
+              The AI business platform for growing brands. Five modules, one
+              brain.
             </p>
             <span
               className="mt-4 inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold text-muted-foreground"

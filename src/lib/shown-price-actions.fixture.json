@@ -1,0 +1,28 @@
+{
+  "_note": "The rate-card rows each priced button in the web app and the Shopify app reads, by the client's own key. peakhour-b2c (src/lib/shown-price-actions.fixture.json) and peakhour-shopify (src/lib/shown-price-actions.fixture.json) hold byte-identical copies and test their ACTION_USE_CASES against it; tests/unit/shown-price-matches-billing.test.ts proves here that each route bills these rows. Change one, change all three.",
+  "b2c": {
+    "ask": ["ask_peakhour"],
+    "webPages": ["compose_web_page"],
+    "askInbox": ["whatsapp.inbox_intelligence"],
+    "pricerBrief": ["commerce.pricer.brief"],
+    "replenisherBrief": ["commerce.replenisher.brief"],
+    "reviewReply": ["commerce.reputation.respond"],
+    "presenceReviewReply": ["presence_review_reply"],
+    "reviewAnalysis": ["commerce.reputation.analyze"],
+    "findSources": ["trusted_sources.competitor_recommender"],
+    "linkedinRewrite": ["content_editor"],
+    "linkedinCarousel": ["linkedin_repurpose_newsletter"],
+    "linkedinReply": ["linkedin.suggest_reply"],
+    "contentIdeas": ["content_editor", "skill_execution"],
+    "contentBrief": ["content_editor"],
+    "contentDraft": ["content_editor"],
+    "composerRewrite": ["content_editor"],
+    "repurpose": ["skill_execution", "write_blog_article", "content_editor", "linkedin_repurpose_newsletter"],
+    "xReply": ["skill_execution"],
+    "waTemplateStudio": ["whatsapp.template_studio"]
+  },
+  "shopify": {
+    "contentIdeas": ["content_ideas"],
+    "contentCompose": ["content_compose"]
+  }
+}

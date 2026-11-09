@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
@@ -9,52 +10,42 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ChevronDown, ChevronUp, Sparkles } from "lucide-react";
-import {
-  useWaConversations,
-  useWaThread,
-  useWaHandoff,
-  useWaResume,
-  type WaConversation,
-} from "@/hooks/use-wa-conversations";
+import { useAuth } from "@/providers/auth-provider";
+import { createComposerStore } from "@/lib/wa-inbox-reply";
+import { ConversationsPane, WaitingForConnection } from "@/components/inbox/conversations-pane";
+import { AllStoresPane } from "@/components/inbox/all-stores-pane";
+import { SCOPE_LABEL, offersAllStores, openAddress, scopeFromParam, type InboxScope } from "@/lib/inbox-all-stores";
+import { InsightsPane } from "@/components/inbox/insights-pane";
+import { AskYourInbox } from "@/components/whatsapp/ask-your-inbox";
+import { useInsights } from "@/hooks/use-insights";
+import { insightsBadge } from "@/lib/insights";
+import { INBOX_SUBTITLE, threadFromParam } from "@/lib/inbox-view";
 import { inboxApi, type InboxItem, type InboxPriority } from "@/lib/api/inbox";
+import { ReviewReplyCard } from "@/components/inbox/review-reply-card";
+import { listFetchState, showsSkeleton } from "@/lib/list-fetch-state";
+import {
+  inboxTabFromParam,
+  REVIEW_SUMMARY_QUERY_KEY,
+  type InboxTab,
+} from "@/lib/review-summary";
+import { REVIEW_PLACES_QUERY_KEY } from "@/lib/review-places";
+import {
+  REVIEW_PAGE_LIMIT,
+  reviewQueueOrder,
+  reviewsAreTruncated,
+  unansweredBadge,
+} from "@/lib/review-reply";
 import { PageShell } from "@/components/dashboard/page-shell";
 
 /**
  * Inbox — ONE queue for everything inbound (D-inbox): every channel is
- * an adapter into the same list. Lanes shipped so far: WhatsApp
- * conversations (live chat) and LinkedIn lead-gen leads (G2 — scored
- * by the lead qualifier, priority-ranked, SLA clock running). New
- * channels join as adapters, never as new pages.
+ * an adapter into the same list. Lanes shipped so far: conversations (WhatsApp
+ * live chat and, read-only, storefront chats — `components/inbox/conversations-pane.tsx`),
+ * LinkedIn lead-gen leads (G2 — scored by the lead qualifier, priority-ranked,
+ * SLA clock running), Google reviews, Insights (what customers keep raising, with the
+ * questions the assistant could not answer answered in place) and "Ask your inbox" (Inbox phase 2). New channels join as adapters, never
+ * as new pages.
  */
-
-const STATUS_LABEL: Record<string, { label: string; className: string }> = {
-  active: { label: "Active", className: "bg-success/15 text-success-on-tint" },
-  resolved: { label: "Resolved", className: "bg-muted text-muted-foreground" },
-  escalated: { label: "With a human", className: "bg-warning/15 text-warning-on-tint" },
-};
-
-function StatusPill({ status }: { status: string }) {
-  const v = STATUS_LABEL[status] ?? STATUS_LABEL.active;
-  return <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${v.className}`}>{v.label}</span>;
-}
-
-function Bubble({ role, content }: { role: string; content: string }) {
-  const mine = role === "assistant" || role === "merchant";
-  return (
-    <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-      <div
-        className={`max-w-[80%] rounded-lg p-2.5 text-sm ${
-          mine
-            ? "rounded-tr-none bg-[#dcf8c6] text-foreground"
-            : "rounded-tl-none bg-white text-foreground shadow-sm"
-        }`}
-      >
-        {role === "merchant" && <p className="mb-0.5 text-[11px] font-medium opacity-70">You (from your phone)</p>}
-        <p className="whitespace-pre-wrap">{content}</p>
-      </div>
-    </div>
-  );
-}
 
 // ── Leads lane (sup_inbox, kind: lead) ────────────────────────────────
 
@@ -188,7 +179,13 @@ function LeadsPane() {
   });
   const onChanged = () => queryClient.invalidateQueries({ queryKey: ["inbox-leads"] });
 
-  if (leads.isLoading) {
+  const state = listFetchState(leads, leads.data?.items?.length ?? 0);
+  // ⚠️★★★`showsSkeleton`, NOT `loading || waiting` — AND THE DIFFERENCE IS THE
+  //  BUG THE HELPER EXISTS FOR. `waiting` means the query is DISABLED: nobody
+  //  has asked, so nothing is in flight and nothing will arrive. A skeleton
+  //  there spins for ever. The helper says `loading` alone; hand-rolling the
+  //  pair beside it re-introduced exactly what it was written to prevent.
+  if (showsSkeleton(state)) {
     return (
       <div className="space-y-2">
         {[0, 1, 2].map((i) => (
@@ -197,9 +194,13 @@ function LeadsPane() {
       </div>
     );
   }
+  // ★NOTHING ASKED, SO NOTHING CLAIMED. Not the empty state — that one asserts
+  //  the list came back with no rows, which we have not established.
+  if (state === "waiting") return null;
+  if (state === "paused") return <WaitingForConnection what="leads" />;
   // A failed fetch must never masquerade as "no leads" — leads keep
   // arriving (and billing) server-side whether or not this list loads.
-  if (leads.isError) {
+  if (state === "error") {
     return (
       <Card className="flex flex-col items-center gap-2 p-8 text-center">
         <p className="text-sm font-medium">Couldn&apos;t load your leads</p>
@@ -241,118 +242,319 @@ function LeadsPane() {
   );
 }
 
+// ── Reviews lane (sup_inbox, kind: review — S0·4) ─────────────────────
+
+/**
+ * The reviews lane.
+ *
+ * ★★THE ONLY LANE WHOSE REPLY LEAVES PEAKHOUR FOR A PAGE THE MERCHANT'S
+ * CUSTOMERS READ. Everything it decides — what the box starts with, what a
+ * refusal means, whether a `recorded: false` is a success — is in
+ * `lib/review-reply.ts`, tested; `ReviewReplyCard` is the markup.
+ *
+ * ⚠️ZERO ROWS TODAY, AND THAT IS NOT A BUG. `sup_inbox` holds no
+ * `google_review` items until the Pub/Sub notification topic is provisioned
+ * (plan S0·1, unassigned). The empty state has to say what will fill it rather
+ * than implying the merchant has no reviews — nobody has told us either way.
+ */
+function useReviewsQuery() {
+  return useQuery({
+    queryKey: ["inbox-reviews"],
+    queryFn: () => inboxApi.list({ kind: "review", limit: REVIEW_PAGE_LIMIT }),
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+function ReviewsPane({ query }: { query: ReturnType<typeof useReviewsQuery> }) {
+  const queryClient = useQueryClient();
+  // ★★ANSWERING A REVIEW CHANGES PRESENCE TOO. That card has a five-minute
+  // staleTime and no refetch on focus, so without this a merchant who
+  // answered their last waiting review and walked back to Presence was still
+  // offered "Answer 1 waiting review" for the one they had just answered.
+  const onChanged = () => {
+    queryClient.invalidateQueries({ queryKey: ["inbox-reviews"] });
+    queryClient.invalidateQueries({ queryKey: REVIEW_SUMMARY_QUERY_KEY });
+    // the all-locations view counts the same unanswered reviews, per place
+    queryClient.invalidateQueries({ queryKey: REVIEW_PLACES_QUERY_KEY });
+  };
+
+  const state = listFetchState(query, query.data?.items?.length ?? 0);
+  // ⚠️`showsSkeleton` — see the leads lane above. `waiting` is a DISABLED
+  //  query: nothing is in flight, so a skeleton there spins for ever.
+  if (showsSkeleton(state)) {
+    return (
+      <div className="space-y-2">
+        {[0, 1, 2].map((i) => (
+          <Skeleton key={i} className="h-28 w-full" />
+        ))}
+      </div>
+    );
+  }
+  // ★NOTHING ASKED, SO NOTHING CLAIMED — and emphatically not the empty state:
+  //  "you are all caught up" about reviews we never requested is the sentence
+  //  this lane most needs to avoid.
+  if (state === "waiting") return null;
+  if (state === "paused") return <WaitingForConnection what="reviews" />;
+  // ★★A FAILED FETCH MUST NEVER READ AS "NO REVIEWS". An unanswered one-star
+  // review is the most expensive row in this app, and "you're all caught up"
+  // is the worst possible thing to say about one we simply could not load.
+  if (state === "error") {
+    return (
+      <Card className="flex flex-col items-center gap-2 p-8 text-center">
+        <p className="text-sm font-medium">Couldn&apos;t load your reviews</p>
+        <p className="max-w-md text-xs text-muted-foreground">
+          This is a problem loading the list, not an empty inbox. Try again in a moment.
+        </p>
+        <Button size="sm" variant="outline" onClick={() => query.refetch()}>
+          Retry
+        </Button>
+      </Card>
+    );
+  }
+  const items = reviewQueueOrder(query.data?.items ?? []);
+  if (items.length === 0) {
+    return (
+      <Card className="flex flex-col items-center gap-2 p-8 text-center">
+        <Sparkles className="size-5 text-muted-foreground" />
+        <p className="text-sm font-medium">No reviews here yet</p>
+        <p className="max-w-md text-xs text-muted-foreground">
+          Once a review network is connected and sending us reviews, every new review lands here
+          — worst first — with a reply you can publish back to its page without leaving Peakhour,
+          where the network takes replies.
+        </p>
+      </Card>
+    );
+  }
+  return (
+    <div className="space-y-2">
+      {items.map((item) => (
+        <ReviewReplyCard key={item._id} item={item} onChanged={onChanged} />
+      ))}
+      {/* ⚠️A CAPPED LIST SAYS SO. `GET /inbox` maxes out at 100 and sorts
+          newest-first with no cursor, so the rows dropped are the OLDEST —
+          exactly where an unanswered review has been waiting longest. */}
+      {reviewsAreTruncated(query.data?.items) && (
+        <p className="px-1 text-xs text-muted-foreground">
+          Showing your {REVIEW_PAGE_LIMIT} most recent reviews. Older ones aren&apos;t listed here
+          yet — answer these and they&apos;ll come into view.
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────
 
 export default function InboxPage() {
-  const { conversations, isLoading } = useWaConversations();
-  const [selected, setSelected] = useState<string | null>(null);
-  const { data: thread, isLoading: threadLoading } = useWaThread(selected);
-  const handoff = useWaHandoff();
-  const resume = useWaResume();
+  // useSearchParams needs a Suspense boundary or the route bails out of
+  // static rendering at build time — the same wrapper dashboard/ads uses, for
+  // the same reason.
+  //
+  // ⚠️AND THE FALLBACK CARRIES THE HEADER, as that precedent's own comment
+  // says it must: an empty shell renders blank on a hard load and then shifts
+  // the whole page down when the real content arrives.
+  return (
+    <Suspense
+      fallback={
+        <PageShell>
+          <InboxHeader />
+          <Skeleton className="h-64 w-full" />
+        </PageShell>
+      }
+    >
+      <InboxTabs />
+    </Suspense>
+  );
+}
+
+/** ★ONE HEADER, so the fallback and the page cannot describe the screen
+ *  differently — which is exactly how a loading state comes to shift the
+ *  page it is standing in for. */
+function InboxHeader() {
+  return (
+    <div>
+      <h1 className="text-2xl font-semibold tracking-tight">Inbox</h1>
+      <p className="mt-1 text-sm text-muted-foreground">{INBOX_SUBTITLE}</p>
+    </div>
+  );
+}
+
+function InboxTabs() {
+  // ★A search param, as the tab is (see below): an alert email links to `?tab=conversations&thread=<key>` and lands on that conversation.
+  const params = useSearchParams();
+  const threadParam = threadFromParam(params.get("thread"));
+  const [selected, setSelected] = useState<string | null>(threadParam);
+  // a second alert link followed while the Inbox is already open names another conversation: follow it (once per link, so choosing a
+  // different conversation afterwards is not undone)
+  const [seenThreadParam, setSeenThreadParam] = useState(threadParam);
+  if (threadParam !== seenThreadParam) {
+    setSeenThreadParam(threadParam);
+    if (threadParam) setSelected(threadParam);
+  }
+  // ✅WA T4: the composer's inputs. (The ticking clock is read inside the badge and the composer, so a tick does not re-render the
+  //  whole Inbox.)
+  const { org, orgs, businesses } = useAuth();
+  const role = orgs.find((o) => o._id === org?._id)?.role ?? null;
+  // ★ONE STORE FOR THE PAGE'S LIFE: a draft, its key, its last warning and its in-flight flag per thread, kept across switching
+  //  threads or tabs, and written by a send that settles after its composer unmounted.
+  const [composerStore] = useState(createComposerStore);
+  // ★★HOISTED SO THE BADGE EXISTS BEFORE THE TAB IS OPENED. A count that only
+  // appears once you have already looked at the lane is not a count — the
+  // number of reviews waiting on an answer is the thing that makes somebody
+  // open the app at all.
+  const reviews = useReviewsQuery();
+  // Insights: what customers keep raising. ★A COUNT ONLY ONCE IT IS KNOWN, like the reviews': a failed or in-flight read shows no badge
+  //  rather than a zero that claims nothing is waiting. The api's own `needsAction` is the number; the same read feeds the tab.
+  const insights = useInsights();
+  const waiting = insightsBadge(insights.data);
+  // ★★SO A LINK CAN NAME A LANE. Presence's "answer 3 waiting reviews" button
+  // dropped somebody on Conversations, with the thing they asked for one
+  // unexplained click away. Read once, on mount: the hash is a starting point,
+  // not a controlled value, so clicking a tab afterwards still just works.
+  // ★★★A SEARCH PARAM, NOT A HASH, AND THAT IS THE WHOLE OF THE FIX. A hash
+  // read in a `useState` initializer is read DURING RENDER, while the App
+  // Router only writes the new URL in HistoryUpdater's `useInsertionEffect` —
+  // and with no `loading.tsx` on this route the page mounts in the same
+  // commit, so the initializer saw the PREVIOUS page's hash. Clicking
+  // "Answer N waiting reviews" on Presence therefore landed on Conversations:
+  // the exact bug the link exists to fix, working on a hard load and broken on
+  // the only path anybody takes. `useSearchParams` is subscribed to the router
+  // rather than read off `window`, so it is right on both.
+  const router = useRouter();
+  const pathname = usePathname();
+  const fromUrl = inboxTabFromParam(params.get("tab"));
+  // ★THE LANE THE USER JUST CLICKED, held until the URL catches up:
+  // `router.push` commits in a transition, during which `useSearchParams`
+  // still returns the OLD params — so without this the tab visibly lags the
+  // click. The same reason `dashboard/ads` holds a `pendingChannel`.
+  const [picked, setPicked] = useState<InboxTab | null>(null);
+  // ★★AND IT IS RELEASED AS SOON AS THE URL AGREES, which is what makes Back
+  // work: a held value that outlived the navigation would override the lane
+  // the user just went back to, for ever.
+  if (picked !== null && picked === fromUrl) setPicked(null);
+  const tab = picked ?? fromUrl;
+
+  /**
+   * ★★★THE URL IS WRITTEN, NOT JUST READ. Holding the lane in local state
+   * alone meant a reload, a bookmark or a Back returned somebody to the lane
+   * they had LEFT — and a merchant who switches to Reviews and refreshes is
+   * doing the most ordinary thing there is.
+   *
+   * `push`, because a tab click is a user gesture and Back should undo it.
+   */
+  function selectTab(next: InboxTab) {
+    setPicked(next);
+    const search = new URLSearchParams(params.toString());
+    search.set("tab", next);
+    // a topic filter belongs to the conversation list it was opened on: choosing a lane by hand starts from the whole list
+    search.delete("topic");
+    router.push(`${pathname}?${search.toString()}`, { scroll: false });
+  }
+  // ★★★THE "SHOW IT AT ALL" DECISION IS THE MODULE'S, because it is the one
+  // that can claim something untrue. `unanswered > 0` hid the badge on a
+  // TRUNCATED page whose hundred newest reviews were all answered — a silent
+  // tab asserting nothing is waiting, about older rows we never fetched.
+  const badge = unansweredBadge(reviews.data?.items);
+
+  // "All my stores" (I3f): a read-only list across the person's stores, offered only to someone with more than one. The scope is in the
+  // URL (`?scope=all`) so a reload keeps it; opening a row switches the session to that store (see AllStoresPane), drops the scope and
+  // names the thread, so the address always describes the pinned store.
+  const scope: InboxScope = offersAllStores(businesses.length) ? scopeFromParam(params.get("scope")) : "store";
+  function selectScope(next: InboxScope) {
+    const search = new URLSearchParams(params.toString());
+    search.set("tab", "conversations");
+    if (next === "all") search.set("scope", "all");
+    else search.delete("scope");
+    router.replace(`${pathname}?${search.toString()}`, { scroll: false });
+  }
+  function openFromAllStores(threadId: string) {
+    router.replace(openAddress(pathname, params.toString(), threadId), { scroll: false });
+    setSelected(threadId);
+  }
 
   return (
     <PageShell>
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Inbox</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          One queue for everything inbound — conversations and leads, whichever channel they came from.
-        </p>
-      </div>
+      <InboxHeader />
 
-      <Tabs defaultValue="conversations">
+      {/* ⚠️★★MANUAL ACTIVATION, because `onValueChange` now NAVIGATES. With
+          Radix's default "automatic", arrowing across the tab list selects on
+          every focus move — so each keypress would push a history entry and
+          Back would walk through tabs instead of leaving the page. The
+          `dashboard/ads` precedent sets this for exactly the same reason. */}
+      <Tabs
+        value={tab}
+        activationMode="manual"
+        onValueChange={(v) => selectTab(inboxTabFromParam(v))}
+      >
         <TabsList>
           <TabsTrigger value="conversations">Conversations</TabsTrigger>
+          <TabsTrigger value="insights">
+            Insights
+            {waiting > 0 && (
+              <Badge className="ml-1.5 bg-warning/15 px-1.5 text-[10px] text-warning-on-tint">{waiting}</Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="leads">Leads</TabsTrigger>
+          <TabsTrigger value="reviews">
+            Reviews
+            {/* ⚠️NO BADGE AT ZERO, and none while the count is unknown. A "0"
+                is a claim that there is nothing waiting, which a failed or
+                in-flight fetch has not earned. */}
+            {badge && (
+              <Badge className="ml-1.5 bg-warning/15 px-1.5 text-[10px] text-warning-on-tint">
+                {badge.label}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="ask">Ask your inbox</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="insights" className="mt-4">
+          <InsightsPane />
+        </TabsContent>
+
+        <TabsContent value="ask" className="mt-4">
+          <AskYourInbox />
+        </TabsContent>
 
         <TabsContent value="leads" className="mt-4">
           <LeadsPane />
         </TabsContent>
 
-        <TabsContent value="conversations" className="mt-4">
-          <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
-            {/* Thread list */}
-            <Card className="max-h-[70vh] overflow-y-auto p-2">
-              {isLoading && (
-                <div className="space-y-2 p-2">
-                  {[0, 1, 2].map((i) => <Skeleton key={i} className="h-14 w-full" />)}
-                </div>
-              )}
-              {!isLoading && conversations.length === 0 && (
-                <p className="p-4 text-sm text-muted-foreground">No conversations yet.</p>
-              )}
-              {conversations.map((conv: WaConversation) => (
-                <button
-                  key={conv.threadId}
-                  onClick={() => setSelected(conv.threadId)}
-                  className={`flex w-full flex-col gap-0.5 rounded-lg p-2.5 text-left hover:bg-muted ${
-                    selected === conv.threadId ? "bg-muted" : ""
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-sm font-medium">{conv.contactName || conv.waId}</span>
-                    <StatusPill status={conv.status} />
-                  </div>
-                  <span className="truncate text-xs text-muted-foreground">{conv.preview || "…"}</span>
-                </button>
-              ))}
-            </Card>
+        {/* ⚠️★★`forceMount`, BECAUSE RADIX UNMOUNTS AN INACTIVE PANE. This is
+            the one tab holding a composer, and a merchant who glances at Leads
+            mid-reply came back to an empty box — a public reply they had
+            written, gone, with no undo. The same data loss `appendReply` was
+            written to prevent, arrived at by a different route.
+            ⚠️★★★AND `forceMount` ALONE LEAVES IT VISIBLE ON EVERY TAB. Radix
+            computes `hidden={!present}` with `present = forceMount || isSelected`,
+            so forcing the mount also forces `hidden` off — the reviews pane
+            rendered underneath Conversations and Leads. `data-state` is set
+            independently of `present`, so the hiding has to be ours. */}
+        <TabsContent
+          value="reviews"
+          className="mt-4 data-[state=inactive]:hidden"
+          forceMount
+        >
+          <ReviewsPane query={reviews} />
+        </TabsContent>
 
-            {/* Thread view */}
-            <Card className="flex max-h-[70vh] flex-col p-0">
-              {!selected && (
-                <div className="flex flex-1 items-center justify-center p-8 text-sm text-muted-foreground">
-                  Select a conversation to view it.
-                </div>
-              )}
-              {selected && (
-                <>
-                  <div className="flex items-center justify-between border-b p-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{thread?.contactName || selected.split(":").slice(2).join(":")}</p>
-                      {thread && <StatusPill status={thread.status} />}
-                    </div>
-                    {thread?.status === "escalated" ? (
-                      <Button
-                        size="sm"
-                        variant="default"
-                        disabled={resume.isPending}
-                        onClick={() =>
-                          resume.mutate(selected, {
-                            onSuccess: () => toast.success("Handed back — the assistant will reply again."),
-                            onError: (e: Error) => toast.error(e?.message || "Couldn't hand back"),
-                          })
-                        }
-                      >
-                        {resume.isPending ? "…" : "Return to AI"}
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={handoff.isPending}
-                        onClick={() =>
-                          handoff.mutate(selected, {
-                            onSuccess: () => toast.success("Flagged for you — the assistant will hold off."),
-                            onError: (e: Error) => toast.error(e?.message || "Couldn't hand off"),
-                          })
-                        }
-                      >
-                        {handoff.isPending ? "…" : "Take over"}
-                      </Button>
-                    )}
-                  </div>
-                  <div className="flex-1 space-y-2 overflow-y-auto bg-[#e5ddd5] p-3">
-                    {threadLoading && <Skeleton className="h-20 w-full" />}
-                    {thread?.messages.map((m, i) => <Bubble key={i} role={m.role} content={m.content} />)}
-                    {thread && thread.messages.length === 0 && (
-                      <p className="p-4 text-center text-sm text-muted-foreground">No messages.</p>
-                    )}
-                  </div>
-                </>
-              )}
-            </Card>
-          </div>
+        <TabsContent value="conversations" className="mt-4">
+          {offersAllStores(businesses.length) && (
+            <div className="mb-3 flex items-center gap-1.5" role="group" aria-label="Stores">
+              {(["store", "all"] as const).map((v) => (
+                <Button key={v} size="xs" variant={scope === v ? "secondary" : "ghost"} aria-pressed={scope === v} onClick={() => selectScope(v)}>
+                  {SCOPE_LABEL[v]}
+                </Button>
+              ))}
+            </div>
+          )}
+          {scope === "all" ? (
+            <AllStoresPane onOpen={openFromAllStores} />
+          ) : (
+            <ConversationsPane role={role} selected={selected} onSelect={setSelected} composerStore={composerStore} />
+          )}
         </TabsContent>
       </Tabs>
     </PageShell>
