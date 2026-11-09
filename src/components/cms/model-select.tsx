@@ -67,7 +67,7 @@ export function ModelSelect({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const { data, isLoading } = useModelRegistry();
-  const models = data?.rows ?? [];
+  const models = useMemo(() => data?.rows ?? [], [data]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

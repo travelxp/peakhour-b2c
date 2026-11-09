@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Store } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -117,7 +118,7 @@ function D2CTab() {
           Your direct storefront — catalog, inventory and the assistant are live.
         </p>
         <Button asChild variant="outline" size="sm">
-          <a href="/dashboard/integrations">Manage</a>
+          <Link href="/dashboard/integrations">Manage</Link>
         </Button>
       </CardContent>
     </Card>

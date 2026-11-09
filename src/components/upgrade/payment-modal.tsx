@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { loadStripe, type Stripe } from "@stripe/stripe-js";
 import { EmbeddedCheckoutProvider, EmbeddedCheckout } from "@stripe/react-stripe-js";
 import { toast } from "sonner";
@@ -192,6 +192,12 @@ export function PaymentModal({ checkout, onOpenChange, onSuccess }: PaymentModal
 
 // ── Stripe: embedded Checkout inside our responsive shell ────────────────────
 
+// No external store to follow: the snapshot is false on the server and during
+// hydration, true afterwards.
+function subscribeNever() {
+  return () => {};
+}
+
 function StripeEmbedded({
   embed,
   summary,
@@ -206,8 +212,11 @@ function StripeEmbedded({
   // `mounted` flag so the correct shell (Dialog vs Drawer) is chosen ONCE —
   // otherwise the Stripe embedded iframe mounts in Dialog then remounts in
   // Drawer on mobile ("multiple Embedded Checkout objects").
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useSyncExternalStore(
+    subscribeNever,
+    () => true,
+    () => false,
+  );
 
   // Missing keys (e.g. STRIPE_PUBLISHABLE_KEY unset) would make loadStripe('')
   // reject into a blank modal — fail friendly instead.

@@ -186,7 +186,7 @@ export default function LaunchPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
-            What we're doing
+            What we&apos;re doing
           </CardTitle>
           <CardDescription>
             Three quick steps. They usually finish in under a minute.

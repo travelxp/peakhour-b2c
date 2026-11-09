@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 vi.mock("next/link", () => ({ default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
 
 const { ClaimDone } = await import("./claim-done");
-const { CLOSE_TAB_HINT, doneCopy } = await import("./claim-copy");
+const { doneCopy } = await import("./claim-copy");
 
 /**
  * The hosted success state tells the merchant they can go back to Shopify, and keeps Go to dashboard.

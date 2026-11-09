@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { Sparkles, ShoppingBag, Megaphone, ArrowRight } from "lucide-react";
 import { SITE } from "@/lib/utils";
@@ -34,12 +35,12 @@ export default function ComingSoonPage() {
           allowlists /auth (see middleware.ts). The magic-link endpoint only
           sends a real link to ops-approved emails; everyone else is routed to
           the waitlist from the sign-in page itself. */}
-      <a
+      <Link
         href="/auth"
         className="absolute right-6 top-6 z-10 inline-flex items-center rounded-full border bg-background/80 px-4 py-2 text-sm font-medium text-foreground backdrop-blur transition-colors hover:bg-muted/60"
       >
         Sign in
-      </a>
+      </Link>
 
       {/* ── Hero ─────────────────────────────────────────────── */}
       <section className="flex min-h-screen flex-col items-center justify-center px-6 text-center">
@@ -63,13 +64,13 @@ export default function ComingSoonPage() {
           </p>
 
           <div className="mt-2 flex flex-col items-center gap-3 sm:flex-row">
-            <a
+            <Link
               href="/launch-partner"
               className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
             >
               Become a Launch Partner
               <ArrowRight className="size-4" aria-hidden />
-            </a>
+            </Link>
             <a
               href="#commerce"
               className="inline-flex items-center justify-center gap-2 rounded-full border px-6 py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted/60"
@@ -106,13 +107,13 @@ export default function ComingSoonPage() {
             </p>
             {/* Pre-launch, "Learn more" routes to the launch-partner capture.
                 Swap to /commerce once the solution page ships post-launch. */}
-            <a
+            <Link
               href="/launch-partner"
               className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-foreground transition-colors group-hover:gap-2.5"
             >
               Learn more
               <ArrowRight className="size-4" aria-hidden />
-            </a>
+            </Link>
           </div>
 
           {/* Marketing */}
@@ -130,13 +131,13 @@ export default function ComingSoonPage() {
               For publishers, brands and marketing teams: content written in
               your voice, and ads and LinkedIn growth that you approve.
             </p>
-            <a
+            <Link
               href="/launch-partner"
               className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-foreground transition-colors group-hover:gap-2.5"
             >
               Learn more
               <ArrowRight className="size-4" aria-hidden />
-            </a>
+            </Link>
           </div>
         </div>
       </section>
@@ -146,18 +147,18 @@ export default function ComingSoonPage() {
         {/* Plain <a> (not next/link) so these resolve straight through the
             coming-soon gate, which allowlists the legal routes. */}
         <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
-          <a href="/privacy-policy" className="transition-colors hover:text-foreground">
+          <Link href="/privacy-policy" className="transition-colors hover:text-foreground">
             Privacy Policy
-          </a>
-          <a href="/terms" className="transition-colors hover:text-foreground">
+          </Link>
+          <Link href="/terms" className="transition-colors hover:text-foreground">
             Terms of Service
-          </a>
-          <a href="/cookie-policy" className="transition-colors hover:text-foreground">
+          </Link>
+          <Link href="/cookie-policy" className="transition-colors hover:text-foreground">
             Cookie Policy
-          </a>
-          <a href="/data-deletion" className="transition-colors hover:text-foreground">
+          </Link>
+          <Link href="/data-deletion" className="transition-colors hover:text-foreground">
             Data Deletion
-          </a>
+          </Link>
         </nav>
         <p>
           © {new Date().getFullYear()} {SITE.company.legalName}. All rights reserved.
