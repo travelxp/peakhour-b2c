@@ -102,8 +102,9 @@ const BUYER_FACING_CODES = new Set([
   "GATEWAY_UNAVAILABLE",
   "BILLING_UNAVAILABLE",
   // Stripe could not tax the pack at the buyer's billing address (api: Stripe's
-  // `failed_tax_calculation`, 422). The message asks them to check the address,
-  // which only they can fix; the generic "try again" would never cure it.
+  // `failed_tax_calculation`, 422). The message sends them to support, the
+  // one next step that cures it (no self-serve address edit exists); the
+  // generic "try again" never would.
   "TAX_CALCULATION_FAILED",
 ]);
 
