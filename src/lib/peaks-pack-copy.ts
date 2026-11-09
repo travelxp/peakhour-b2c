@@ -101,10 +101,11 @@ const BUYER_FACING_CODES = new Set([
   "PLAN_REQUIRED",
   "GATEWAY_UNAVAILABLE",
   "BILLING_UNAVAILABLE",
-  // Stripe could not tax the pack at the buyer's billing address (api: Stripe's
-  // `failed_tax_calculation`, 422). The message sends them to support, the
-  // one next step that cures it (no self-serve address edit exists); the
-  // generic "try again" never would.
+  // The rail could not tax the pack at the buyer's billing address (api:
+  // GatewayTaxCalculationError, rail-agnostic; today Stripe's
+  // `failed_tax_calculation`), 422. The message sends them to support, the one
+  // next step that cures it (no self-serve address edit exists); the generic
+  // "try again" never would.
   "TAX_CALCULATION_FAILED",
 ]);
 
