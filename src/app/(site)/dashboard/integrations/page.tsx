@@ -220,7 +220,6 @@ import {
   metaLoginPurposeFor,
   withMetaLoginPurpose,
   type MetaLoginInfo,
-  type MetaVirtualCard,
 } from "@/lib/integrations-meta";
 import {
   isRecoverableStatus,
@@ -1709,14 +1708,15 @@ function LinkedInContentPages({
     onRefreshRef.current = onRefresh;
   });
 
+  // Reset attempt count once names land — if the user later
+  // disconnects + reconnects, the pending state re-opens with a
+  // fresh budget. Done during render (React's derive-state pattern)
+  // rather than in the effect below, which must not set state
+  // synchronously.
+  if (!namesPending && attempts !== 0) setAttempts(0);
+
   useEffect(() => {
-    // Reset attempt count once names land — if the user later
-    // disconnects + reconnects, the pending state re-opens with a
-    // fresh budget.
-    if (!namesPending) {
-      if (attempts !== 0) setAttempts(0);
-      return;
-    }
+    if (!namesPending) return;
     if (refreshing) return; // don't pile on while a refresh is in-flight
     if (attempts >= NAMES_POLL_MAX_ATTEMPTS) return;
 
@@ -2097,7 +2097,10 @@ function ManagePagesDialog({
   onChanged?: () => void;
 }) {
   const { entitlements } = useAuth();
-  const pages: AdminPage[] = Array.isArray(extra?.pages) ? extra.pages : [];
+  const pages: AdminPage[] = useMemo(
+    () => (Array.isArray(extra?.pages) ? extra.pages : []),
+    [extra],
+  );
   const cap = entitlements?.limits.maxLinkedInPagesPerBusiness;
   const planLabel = entitlements?.plan ?? "your";
 

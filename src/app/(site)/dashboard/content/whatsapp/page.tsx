@@ -42,12 +42,12 @@ export default async function WhatsAppConnectPage({ searchParams }: Props) {
         <p className="mt-1 text-sm text-muted-foreground">
           Draft, policy-check, and submit WhatsApp templates for approval — with a live preview.
         </p>
-        <a
+        <Link
           href="/dashboard/content/whatsapp/templates"
           className="mt-2 inline-block text-sm font-medium text-primary hover:underline"
         >
           Open the Template Studio →
-        </a>
+        </Link>
       </div>
 
       <div className="rounded-lg border p-4">

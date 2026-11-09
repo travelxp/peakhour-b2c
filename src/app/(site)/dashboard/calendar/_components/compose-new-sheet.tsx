@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import {
   Sheet,
@@ -127,12 +128,12 @@ function LinkedInCompose() {
     return (
       <div className="rounded-md border bg-muted/30 p-4 text-sm text-muted-foreground">
         Connect LinkedIn to compose here.{" "}
-        <a
+        <Link
           href="/dashboard/integrations"
           className="font-medium text-primary underline underline-offset-2 hover:no-underline"
         >
           Manage integrations
-        </a>
+        </Link>
         .
       </div>
     );

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { SITE } from "@/lib/utils";
 import { Header } from "@/components/shared/header";
@@ -439,9 +440,9 @@ export default function PrivacyPolicyPage() {
               We do not use advertising or tracking cookies. You can configure your browser
               to block cookies, but this may prevent you from using the Service. For full
               details of the cookies we set and their purposes, see our{" "}
-              <a href="/cookie-policy" className="text-foreground underline">
+              <Link href="/cookie-policy" className="text-foreground underline">
                 Cookie Policy
-              </a>
+              </Link>
               .
             </p>
           </section>
@@ -570,9 +571,9 @@ export default function PrivacyPolicyPage() {
               is never sold, and it is not used for any purpose other than delivering those
               features to you. You may revoke our access at any time from your Meta account
               settings, and you may request deletion of data we hold via our{" "}
-              <a href="/data-deletion" className="text-foreground underline">
+              <Link href="/data-deletion" className="text-foreground underline">
                 Data Deletion
-              </a>{" "}
+              </Link>{" "}
               page.
             </p>
 
