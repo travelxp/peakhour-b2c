@@ -214,10 +214,10 @@ describe("the tray's title and pill", () => {
 describe("nothing in the app still points at the old Media page", () => {
   const read = (f: string) => readFileSync(join(process.cwd(), f), "utf8");
   it("the navigation, the command menu and the storage meter name Drive at /dashboard/drive", () => {
-    for (const f of ["src/app/(site)/dashboard/layout.tsx", "src/components/molecules/command-menu.tsx", "src/components/dashboard/sidebar-storage-meter.tsx"]) {
+    for (const f of ["src/app/(site)/dashboard/layout.tsx", "src/components/molecules/command-menu.tsx", "src/components/molecules/command-menu-dialog.tsx", "src/components/dashboard/sidebar-storage-meter.tsx"]) {
       expect(read(f), f).not.toContain("/dashboard/media");
     }
-    expect(read("src/components/molecules/command-menu.tsx")).toContain('"/dashboard/drive"');
+    expect(read("src/components/molecules/command-menu-dialog.tsx")).toContain('"/dashboard/drive"');
     expect(read("src/components/dashboard/sidebar-storage-meter.tsx")).toContain("/dashboard/drive");
   });
   it("Drive is a top-level item directly above Peaks, not under Content", () => {

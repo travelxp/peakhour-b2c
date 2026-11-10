@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
@@ -41,12 +42,8 @@ import { BalanceChip } from "@/components/dashboard/balance-chip";
 import { CreditCapBanner } from "@/components/dashboard/credits-cap-banner";
 import { CommandMenu } from "@/components/molecules/command-menu";
 import { SidebarStorageMeter } from "@/components/dashboard/sidebar-storage-meter";
-import { AddSpaceDialog } from "@/components/media/add-space-dialog";
-import { UploadTrayHost } from "@/components/drive/upload-tray";
-import { FeedbackWidget } from "@/components/molecules/feedback-widget";
-import { ChatPanel } from "@/components/molecules/chat-panel";
 import { AskContextProvider } from "@/providers/ask-context-provider";
-import { AskLauncher } from "@/components/ask/ask-launcher";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ASK_ENABLED } from "@/lib/flags";
 import { HOME_ROUTE, OUTCOMES_HOME, funnelNav } from "@/lib/nav-home";
 import { GROWTH_HOME, activeSubHref, growthNav, mandateStateOf } from "@/lib/growth-v2-nav";
@@ -80,6 +77,31 @@ import {
 import { useMyTickets } from "@/hooks/use-feedback";
 import { useRunningJobCount } from "@/hooks/use-jobs";
 import { LockedNavItem } from "@/components/dashboard/locked-nav-item";
+
+// Client-only widgets that are not needed for first paint. Each is its own
+// chunk, fetched after hydration, so the dashboard's shared first-load JS does
+// not carry them (AI SDK, upload machinery, Stripe-adjacent dialogs). They
+// render nothing until loaded, so layout does not shift.
+const AddSpaceDialog = dynamic(
+  () => import("@/components/media/add-space-dialog").then((m) => m.AddSpaceDialog),
+  { ssr: false },
+);
+const UploadTrayHost = dynamic(
+  () => import("@/components/drive/upload-tray").then((m) => m.UploadTrayHost),
+  { ssr: false },
+);
+const FeedbackWidget = dynamic(
+  () => import("@/components/molecules/feedback-widget").then((m) => m.FeedbackWidget),
+  { ssr: false },
+);
+const ChatPanel = dynamic(
+  () => import("@/components/molecules/chat-panel").then((m) => m.ChatPanel),
+  { ssr: false },
+);
+const AskLauncher = dynamic(
+  () => import("@/components/ask/ask-launcher").then((m) => m.AskLauncher),
+  { ssr: false },
+);
 
 interface NavItem {
   href: string;
@@ -365,6 +387,55 @@ export default function DashboardLayout({
   return <DashboardShell>{children}</DashboardShell>;
 }
 
+/**
+ * First-paint structure while auth resolves: sidebar rail, header bar and
+ * content blocks, so the screen is never blank and nothing jumps when the
+ * real shell mounts (same 14-rem-ish rail, h-14 header, p-6 content inset).
+ */
+function DashboardShellSkeleton() {
+  return (
+    <div
+      className="flex h-svh w-full"
+      role="status"
+      aria-busy="true"
+      aria-label="Loading dashboard"
+    >
+      <aside className="hidden w-64 shrink-0 flex-col gap-4 border-r p-3 md:flex">
+        <div className="flex items-center gap-2">
+          <Skeleton className="size-8 rounded-md" />
+          <Skeleton className="h-5 w-28" />
+        </div>
+        <Skeleton className="h-9 w-full" />
+        <div className="space-y-2 pt-2">
+          {Array.from({ length: 8 }, (_, i) => (
+            <Skeleton key={i} className="h-8 w-full" />
+          ))}
+        </div>
+        <Skeleton className="mt-auto h-12 w-full" />
+      </aside>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
+          <Skeleton className="size-7 rounded-md" />
+          <div className="ml-auto flex items-center gap-3">
+            <Skeleton className="h-7 w-20" />
+            <Skeleton className="h-7 w-16" />
+            <Skeleton className="size-7 rounded-full" />
+          </div>
+        </header>
+        <div className="space-y-6 p-4 md:p-6">
+          <Skeleton className="h-10 w-56" />
+          <Skeleton className="h-24 w-full" />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Skeleton className="h-32" />
+            <Skeleton className="h-32" />
+            <Skeleton className="h-32" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, org, logout, isLoading, isAuthenticated, entitlements } = useAuth();
@@ -378,11 +449,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   }));
 
   if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-sm text-muted-foreground">Loading...</p>
-      </div>
-    );
+    return <DashboardShellSkeleton />;
   }
 
   if (!isAuthenticated) {
