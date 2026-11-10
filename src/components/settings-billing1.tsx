@@ -296,7 +296,7 @@ const SettingsBilling1 = ({
               actions={() => (
                 <Button
                   variant="ghost"
-                  size="icon-sm"
+                  size="icon-sm" aria-label="Download invoice"
                   className="cursor-pointer"
                 >
                   <Download />

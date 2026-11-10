@@ -47,7 +47,7 @@ export function EfficiencyBullet({ metric, you, target, industry, currency, unit
 
   return (
     <div className={cn("space-y-2", className)}>
-      <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+      <p className="font-mono text-micro uppercase tracking-[0.2em] text-muted-foreground">
         {heading}: you, your target and the industry
       </p>
       <div role="img" aria-label={`${heading}. ${summary}`} className="relative h-12 pt-5">

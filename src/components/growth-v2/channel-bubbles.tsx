@@ -54,21 +54,21 @@ export function ChannelBubbles({ bubbles, unitPlural, metric = "cost_per_outcome
           {yTicks.map((v) => (
             <g key={`y${v}`}>
               <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} />
-              <text x={L - 8} y={y(v) + 4} textAnchor="end" className="fill-muted-foreground stroke-none text-[11px]">
+              <text x={L - 8} y={y(v) + 4} textAnchor="end" className="fill-muted-foreground stroke-none text-micro">
                 {formatCount(v)}
               </text>
             </g>
           ))}
         </g>
         {xTicks.map((v) => (
-          <text key={`x${v}`} x={x(v)} y={H - 16} textAnchor="middle" className="fill-muted-foreground text-[11px]">
+          <text key={`x${v}`} x={x(v)} y={H - 16} textAnchor="middle" className="fill-muted-foreground text-micro">
             {currency ? formatMoney(v, currency) : formatCount(v)}
           </text>
         ))}
-        <text x={W - R} y={H - 2} textAnchor="end" className="fill-muted-foreground text-[11px]">
+        <text x={W - R} y={H - 2} textAnchor="end" className="fill-muted-foreground text-micro">
           spend in this period
         </text>
-        <text x={L} y={T - 6} className="fill-muted-foreground text-[11px]">
+        <text x={L} y={T - 6} className="fill-muted-foreground text-micro">
           credited {unitPlural}
         </text>
         {plotted.map(({ b, spend, outcomes }) => {
@@ -79,7 +79,7 @@ export function ChannelBubbles({ bubbles, unitPlural, metric = "cost_per_outcome
               <circle cx={x(spend)} cy={y(outcomes)} r={14} fill={color} fillOpacity={0.35} stroke={color} strokeWidth={2}>
                 <title>{`${PLATFORM_LABEL[b.platform]}: ${currency ? formatMoney(spend, currency) : formatCount(spend)} for ${formatCount(outcomes)} credited ${unitPlural}`}</title>
               </circle>
-              <text x={x(spend)} y={y(outcomes) - 20} textAnchor="middle" className="fill-foreground text-[11px] font-semibold">
+              <text x={x(spend)} y={y(outcomes) - 20} textAnchor="middle" className="fill-foreground text-micro font-semibold">
                 {PLATFORM_LABEL[b.platform]}
                 {eff !== undefined ? ` · ${metric === "roas" ? `${eff.toFixed(1)}x` : `${currency ? formatMoney(eff, currency) : formatCount(eff)}/each`}` : ""}
               </text>

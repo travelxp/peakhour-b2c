@@ -234,7 +234,7 @@ export function SavedReplyPicker({
                     {/* Two lines of the body, so someone can tell two
                         similarly-titled replies apart before inserting
                         one into a message to a customer. */}
-                    <span className="mt-0.5 block line-clamp-2 text-[11px] text-muted-foreground">
+                    <span className="mt-0.5 block line-clamp-2 text-micro text-muted-foreground">
                       {r.body}
                     </span>
                   </button>
@@ -249,7 +249,7 @@ export function SavedReplyPicker({
             deploy away from being a confident lie. The flag is the fact;
             the count is the server's business. */}
         {query.data?.truncated && (
-          <p className="border-t p-2 text-[10px] text-muted-foreground">
+          <p className="border-t p-2 text-micro text-muted-foreground">
             Not all of your saved replies are shown. Archive the ones you no
             longer use.
           </p>
@@ -271,7 +271,7 @@ export function SavedReplyPicker({
                   <Button
                     type="button"
                     size="sm"
-                    className="h-6 px-2 text-[11px]"
+                    className="h-6 px-2 text-micro"
                     disabled={!newTitle.trim() || create.isPending}
                     aria-busy={create.isPending}
                     onClick={() => create.mutate(newTitle.trim())}
@@ -285,7 +285,7 @@ export function SavedReplyPicker({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-6 px-2 text-[11px]"
+                    className="h-6 px-2 text-micro"
                     onClick={() => setSaving(false)}
                   >
                     Cancel
@@ -297,7 +297,7 @@ export function SavedReplyPicker({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-6 w-full justify-start gap-1.5 px-1 text-[11px]"
+                className="h-6 w-full justify-start gap-1.5 px-1 text-micro"
                 onClick={() => setSaving(true)}
               >
                 <Plus className="size-3" />

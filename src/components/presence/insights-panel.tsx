@@ -216,7 +216,7 @@ export function InsightsPanel({ location, network, label: labelFallback, capabil
                 active ? "border-foreground/40 bg-muted/40" : ""
               }`}
             >
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <p className="text-micro font-medium uppercase tracking-wide text-muted-foreground">
                 {m.label}
               </p>
               {total === null ? (
@@ -248,7 +248,7 @@ export function InsightsPanel({ location, network, label: labelFallback, capabil
         </div>
       )}
 
-      {coverage && <p className="text-[11px] text-muted-foreground">{coverage}</p>}
+      {coverage && <p className="text-micro text-muted-foreground">{coverage}</p>}
 
       <SearchTermsSection entry={entry} />
     </>,

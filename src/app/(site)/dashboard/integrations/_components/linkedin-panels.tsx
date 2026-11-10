@@ -91,7 +91,7 @@ export function LinkedInContentPages({
   return (
     <div className="space-y-1.5 rounded-md border border-border/40 p-2">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-micro text-muted-foreground">
           {pages.length === 0
             ? "No company pages found"
             : `${pages.length} company page${pages.length === 1 ? "" : "s"}`}
@@ -102,7 +102,7 @@ export function LinkedInContentPages({
               size="sm"
               variant="ghost"
               onClick={() => setManageOpen(true)}
-              className="h-6 gap-1 px-1.5 text-[10px]"
+              className="h-6 gap-1 px-1.5 text-micro"
             >
               <Settings2 className="h-2.5 w-2.5" />
               Manage
@@ -113,7 +113,7 @@ export function LinkedInContentPages({
             variant="ghost"
             onClick={onRefresh}
             disabled={refreshing}
-            className="h-6 gap-1 px-1.5 text-[10px]"
+            className="h-6 gap-1 px-1.5 text-micro"
           >
             <RefreshCw className={`h-2.5 w-2.5 ${refreshing ? "animate-spin" : ""}`} />
             {refreshing ? "Refreshing" : "Refresh"}
@@ -132,7 +132,7 @@ export function LinkedInContentPages({
         <div
           role="status"
           aria-live="polite"
-          className="flex items-center gap-1.5 text-[10px] text-muted-foreground"
+          className="flex items-center gap-1.5 text-micro text-muted-foreground"
         >
           <Loader2 className="h-2.5 w-2.5 animate-spin" />
           <span>
@@ -144,7 +144,7 @@ export function LinkedInContentPages({
       )}
 
       {pages.length > 0 && (
-        <ul className="space-y-0.5 text-[10px] text-muted-foreground">
+        <ul className="space-y-0.5 text-micro text-muted-foreground">
           {pages.slice(0, 3).map((p: { organizationId: string; organizationName?: string }) => (
             <li key={p.organizationId} className="truncate">
               • {p.organizationName || `Page ${p.organizationId}`}
@@ -212,7 +212,7 @@ export function LinkedInAdsStatus({
   // All good — compact green summary
   if (issues.length === 0) {
     return (
-      <div className="flex items-center gap-1.5 text-[10px] text-success-on-tint">
+      <div className="flex items-center gap-1.5 text-micro text-success-on-tint">
         <CheckCircle className="h-3 w-3 shrink-0" />
         <span>{adAccounts.length} ad account{adAccounts.length !== 1 ? "s" : ""} ready</span>
       </div>
@@ -225,14 +225,14 @@ export function LinkedInAdsStatus({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex w-full items-center gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-[10px] text-warning-on-tint transition-colors hover:bg-warning/20"
+        className="flex w-full items-center gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-micro text-warning-on-tint transition-colors hover:bg-warning/20"
       >
         <AlertCircle className="h-3 w-3 shrink-0" />
         <span className="flex-1 text-left font-medium">
           {issues.length} issue{issues.length !== 1 ? "s" : ""} pending action
         </span>
         {readyCount > 0 && (
-          <Badge className="bg-success/90 text-[9px] px-1 py-0 shrink-0">
+          <Badge className="bg-success/90 text-micro px-1 py-0 shrink-0">
             {readyCount} ready
           </Badge>
         )}
@@ -277,7 +277,7 @@ export function LinkedInAdsStatus({
                   <span className="font-medium truncate">{issue.accountName}</span>
                   <Badge
                     variant="outline"
-                    className="text-[10px] text-warning-on-tint border-warning/30 px-1.5 py-0 shrink-0"
+                    className="text-micro text-warning-on-tint border-warning/30 px-1.5 py-0 shrink-0"
                   >
                     Action needed
                   </Badge>

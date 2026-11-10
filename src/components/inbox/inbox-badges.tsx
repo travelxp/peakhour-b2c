@@ -22,13 +22,13 @@ export function StatusPill({ status, needsYou = false, state }: { status: string
           ? // a person holds it and the shopper owes the next message (derived by the api; still part of Open)
             { label: "Waiting on customer", className: "bg-primary/10 text-primary" }
           : (STATUS_LABEL[status] ?? STATUS_LABEL.active)!;
-  return <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${v.className}`}>{v.label}</span>;
+  return <span className={`shrink-0 rounded-full px-2 py-0.5 text-micro font-medium ${v.className}`}>{v.label}</span>;
 }
 
 /** Which channel a conversation came in on. */
 export function ChannelChip({ channel }: { channel: Channel }) {
   return (
-    <span className="shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium text-muted-foreground" data-channel={channel}>
+    <span className="shrink-0 rounded-full border px-2 py-0.5 text-micro font-medium text-muted-foreground" data-channel={channel}>
       {CHANNEL_LABEL[channel]}
     </span>
   );
@@ -37,7 +37,7 @@ export function ChannelChip({ channel }: { channel: Channel }) {
 /** The merchant's own "Test on your store" chat: it is theirs, not a shopper's. */
 export function TestChip() {
   return (
-    <span className="shrink-0 rounded-full border border-dashed px-2 py-0.5 text-[11px] font-medium text-muted-foreground" data-testid="test-chip">
+    <span className="shrink-0 rounded-full border border-dashed px-2 py-0.5 text-micro font-medium text-muted-foreground" data-testid="test-chip">
       Test
     </span>
   );

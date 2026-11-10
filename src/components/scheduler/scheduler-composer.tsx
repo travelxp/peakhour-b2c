@@ -385,7 +385,7 @@ export function SchedulerComposer({
               <ChannelIconCompact channel={c.channel} size={14} />
               <span className="font-medium">{channelDisplayName(c.channel)}</span>
               {c.publishViaReminder && (
-                <span className="rounded-full bg-muted px-1.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                <span className="rounded-full bg-muted px-1.5 text-micro uppercase tracking-wide text-muted-foreground">
                   Reminder
                 </span>
               )}
@@ -458,7 +458,7 @@ export function SchedulerComposer({
           count belongs on the calendar page, not the composer
           (composer doesn't have list-items query state). */}
       {queueCap !== undefined && !entitlementsLoading && (
-        <div className="text-[11px] text-muted-foreground">
+        <div className="text-micro text-muted-foreground">
           {`Your plan caps active scheduled items at ${queueCap}. `}
           See your{" "}
           <Link href="/dashboard/calendar" className="underline-offset-2 hover:underline">

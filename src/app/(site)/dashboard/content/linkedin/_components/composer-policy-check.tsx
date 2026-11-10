@@ -150,7 +150,7 @@ export function PolicyChip({ state }: { state: ComposerPolicyAdvisory | null | u
             <li key={`${f.category}-${i}`} className="text-xs">
               <span
                 className={cn(
-                  "mr-1.5 rounded-sm px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+                  "mr-1.5 rounded-sm px-1 py-0.5 text-micro font-medium uppercase tracking-wide",
                   f.verdict === "block"
                     ? "bg-destructive/10 text-destructive"
                     : "bg-warning/10 text-warning-on-tint",
@@ -162,7 +162,7 @@ export function PolicyChip({ state }: { state: ComposerPolicyAdvisory | null | u
             </li>
           ))}
         </ul>
-        <p className="mt-2 border-t pt-2 text-[10px] text-muted-foreground">
+        <p className="mt-2 border-t pt-2 text-micro text-muted-foreground">
           Advisory only — you can still publish. The same check runs when you post.
         </p>
       </HoverCardContent>

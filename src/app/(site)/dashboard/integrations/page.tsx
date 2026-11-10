@@ -575,19 +575,19 @@ export default function IntegrationsPage() {
           <TabsList>
             <TabsTrigger value="all">
               All
-              <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0">
+              <Badge variant="secondary" className="ml-1.5 text-micro px-1.5 py-0">
                 {integrations.length}
               </Badge>
             </TabsTrigger>
             <TabsTrigger value="connected">
               Connected
-              <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0 bg-success/15 text-success-on-tint">
+              <Badge variant="secondary" className="ml-1.5 text-micro px-1.5 py-0 bg-success/15 text-success-on-tint">
                 {connectedCount}
               </Badge>
             </TabsTrigger>
             <TabsTrigger value="disconnected">
               Available
-              <Badge variant="secondary" className="ml-1.5 text-[10px] px-1.5 py-0">
+              <Badge variant="secondary" className="ml-1.5 text-micro px-1.5 py-0">
                 {disconnectedCount}
               </Badge>
             </TabsTrigger>

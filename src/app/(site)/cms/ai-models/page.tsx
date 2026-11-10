@@ -163,7 +163,7 @@ export default function AiModelsPage() {
                           Object.entries(row.capabilities)
                             .filter(([, v]) => v)
                             .map(([k]) => (
-                              <Badge key={k} variant="secondary" className="text-[10px]">
+                              <Badge key={k} variant="secondary" className="text-micro">
                                 {k}
                               </Badge>
                             ))}

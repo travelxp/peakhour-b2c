@@ -707,7 +707,7 @@ export function AdvertisingDeclarationCard() {
                     />
                     <Label
                       htmlFor="ads-confirm-notice"
-                      className="text-[11px] font-normal leading-relaxed text-muted-foreground"
+                      className="text-micro font-normal leading-relaxed text-muted-foreground"
                     >
                       {notice}
                     </Label>
@@ -746,7 +746,7 @@ export function AdvertisingDeclarationCard() {
                   className="h-8 text-xs"
                   autoComplete="off"
                 />
-                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                <p className="text-micro leading-relaxed text-muted-foreground">
                   {SPECIAL_AD_CATEGORY_COUNTRY_HELP}
                 </p>
                 {/* ⚠️★WHAT DID NOT PARSE IS NAMED, not silently dropped.
@@ -754,7 +754,7 @@ export function AdvertisingDeclarationCard() {
                     narrower declaration than the merchant wrote and tell them
                     nothing. */}
                 {blocked === "country_invalid" ? (
-                  <p className="text-[11px] leading-relaxed text-destructive">
+                  <p className="text-micro leading-relaxed text-destructive">
                     {parsedCountries.invalid.join(", ")} — country codes are two
                     letters, like GB or IE.
                   </p>
@@ -765,7 +765,7 @@ export function AdvertisingDeclarationCard() {
                     without saying so would collect consent for something we
                     already know cannot run. */}
                 {euVerdict.banned.length > 0 ? (
-                  <p className="text-[11px] leading-relaxed text-warning-on-tint">
+                  <p className="text-micro leading-relaxed text-warning-on-tint">
                     {/* ⚠️★THE FALLBACK WAS A SECOND STATEMENT OF THE DATE
                         (review round 3). *"October 2025"* sat beside a served
                         `since`, so the sentence read one way or the other
@@ -792,7 +792,7 @@ export function AdvertisingDeclarationCard() {
                     Meta's — and dropping them would under-warn on countries
                     Meta may well refuse. */}
                 {euVerdict.uncertain.length > 0 ? (
-                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  <p className="text-micro leading-relaxed text-muted-foreground">
                     Meta&apos;s ban covers &quot;the EU and associated
                     territories&quot; and it doesn&apos;t publish which those
                     are, so we can&apos;t tell you whether{" "}
@@ -805,7 +805,7 @@ export function AdvertisingDeclarationCard() {
                     must never be read as, and there is no served list that
                     would justify one. */}
                 {!euVerdict.known && countries.length > 0 ? (
-                  <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  <p className="text-micro leading-relaxed text-muted-foreground">
                     We can&apos;t check these against Meta&apos;s restrictions
                     right now.
                   </p>
@@ -854,7 +854,7 @@ export function AdvertisingDeclarationCard() {
                       <div className="min-w-0 flex-1">
                         <Label
                           htmlFor={`sac-${key}`}
-                          className="text-[11px] font-normal leading-relaxed text-muted-foreground"
+                          className="text-micro font-normal leading-relaxed text-muted-foreground"
                         >
                           {label}
                         </Label>
@@ -874,7 +874,7 @@ export function AdvertisingDeclarationCard() {
                             five unticked boxes is a wall nobody reads, and the
                             one that matters is the one they just chose. */}
                         {selected.includes(key) && consequence ? (
-                          <p className="mt-1 text-[11px] leading-relaxed text-warning-on-tint">
+                          <p className="mt-1 text-micro leading-relaxed text-warning-on-tint">
                             {consequence}
                           </p>
                         ) : null}
@@ -882,7 +882,7 @@ export function AdvertisingDeclarationCard() {
                     </div>
                   ))}
                 </div>
-                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                <p className="text-micro leading-relaxed text-muted-foreground">
                   {SPECIAL_AD_CATEGORY_NONE_NOTE}
                 </p>
                 {/* ⏸THE SHARED CONSEQUENCE PARAGRAPH IS GONE, and its guard
@@ -913,7 +913,7 @@ export function AdvertisingDeclarationCard() {
                 ⏸`no_answer` and `not_confirmed` return null on purpose — the
                 empty radio and the unticked box ARE the message. */}
             {state.kind !== "unknown" && declarationBlockedMessage(blocked) ? (
-              <p className="text-[11px] leading-relaxed text-muted-foreground">
+              <p className="text-micro leading-relaxed text-muted-foreground">
                 {declarationBlockedMessage(blocked)}
               </p>
             ) : null}

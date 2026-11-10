@@ -163,7 +163,7 @@ function PanelShell({
           </h3>
           <Badge
             variant="outline"
-            className="text-[10px] uppercase tracking-wide"
+            className="text-micro uppercase tracking-wide"
             title="Velocity · Audience quality · Hook DNA · Freshness — composite 0-100. Posts are scored from 24 hours to 14 days after publication; for personal-feed posts the effective ceiling is 48 hours under LinkedIn's Members' Social Activity rule. Autonomous ad-spend is on the roadmap; today this is a recommendation surface."
           >
             Recommender
@@ -219,7 +219,7 @@ function FilteredOutFootnote({
   }
   if (parts.length === 0) return null;
   return (
-    <p className="mt-3 border-t pt-2 text-[11px] text-muted-foreground">
+    <p className="mt-3 border-t pt-2 text-micro text-muted-foreground">
       Of {totalConsidered} recent posts examined: {parts.join(", ")}.
     </p>
   );
@@ -261,7 +261,7 @@ function BoostCandidateRow({
             {candidate.hookExcerpt}
           </p>
         </button>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-micro text-muted-foreground">
           <span className="inline-flex items-center gap-1">
             <ActorIcon className="size-3 shrink-0" />
             {candidate.authorType === "org" ? "Company page" : "Personal feed"}
@@ -286,10 +286,10 @@ function BoostCandidateRow({
             </span>
           </span>
         </div>
-        <p className="text-[11px] italic text-muted-foreground" title={candidate.rationale}>
+        <p className="text-micro italic text-muted-foreground" title={candidate.rationale}>
           {candidate.rationale}
         </p>
-        <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[10px] uppercase tracking-wide">
+        <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-micro uppercase tracking-wide">
           <ComponentBadge
             label="Velocity"
             value={candidate.breakdown.velocity}
@@ -320,7 +320,7 @@ function BoostCandidateRow({
           >
             {candidate.score}
           </div>
-          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+          <div className="text-micro uppercase tracking-wide text-muted-foreground">
             / 100
           </div>
         </div>
@@ -368,7 +368,7 @@ function ComponentBadge({
         : "bg-muted/40 text-muted-foreground";
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[10px] ${heat}`}
+      className={`inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-micro ${heat}`}
       title={`${label}: ${value} / ${max}`}
     >
       <TrendingUp className="size-2.5" />

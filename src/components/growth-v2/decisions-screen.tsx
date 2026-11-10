@@ -242,7 +242,7 @@ export function Inbox({
 
         {!isBlocked ? (
           <aside className="grid min-w-0 content-start gap-2.5 border-t p-3.5 lg:col-span-2 xl:col-span-1 xl:border-l xl:border-t-0" aria-label="Same decision on WhatsApp">
-            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Same decision on WhatsApp</p>
+            <p className="font-mono text-micro uppercase tracking-[0.2em] text-muted-foreground">Same decision on WhatsApp</p>
             {selectedDecision ? <WhatsAppPhone d={selectedDecision} businessName={businessName} /> : null}
             <p className="text-xs text-muted-foreground">
               Sent as a utility message, worded as an account action. Spend needs a CONFIRM reply from a verified number. If there&apos;s no answer within
@@ -370,7 +370,7 @@ function WhatsAppPhone({ d, businessName }: { d: DecisionView; businessName: str
         <span className="grid size-6 place-items-center rounded-full bg-white text-xs font-bold text-[#075e54]">P</span>
         <span>
           <b className="block leading-tight">Peakhour</b>
-          <span className="text-[11px] opacity-80">Business account</span>
+          <span className="text-micro opacity-80">Business account</span>
         </span>
       </div>
       <div className="grid gap-2 p-2.5">

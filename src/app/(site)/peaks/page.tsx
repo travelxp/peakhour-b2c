@@ -41,7 +41,7 @@ export default async function PeaksPage() {
   const packs = peaks?.packs ?? [];
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
       <Header />
 
       <main>
@@ -117,7 +117,7 @@ export default async function PeaksPage() {
                   ))}
                 </div>
                 {peaks && peaks.country !== "DEFAULT" && (
-                  <p className="mt-8 text-center text-[11px] text-muted-foreground">
+                  <p className="mt-8 text-center text-micro text-muted-foreground">
                     Prices shown for <code className="font-mono">{peaks.country}</code>, detected
                     from your IP.
                   </p>

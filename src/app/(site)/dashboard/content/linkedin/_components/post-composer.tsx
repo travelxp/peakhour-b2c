@@ -825,7 +825,7 @@ export function PostComposer({ identity, seedText }: Props) {
             )}
             {carousel.isPending ? "Generating preview…" : "Carousel"}
           </Button>
-          <ActionCost action="linkedinCarousel" className="text-[10px]" />
+          <ActionCost action="linkedinCarousel" className="text-micro" />
           <Button onClick={onSubmit} disabled={publishDisabled} aria-busy={publish.isPending}>
             <Send className="size-4 mr-1.5" />
             {publish.isPending ? "Publishing…" : "Publish"}

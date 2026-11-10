@@ -15,7 +15,7 @@ import Link from "next/link";
  */
 export function RetentionFootnote({ children }: { children: React.ReactNode }) {
   return (
-    <p className="mt-3 border-t pt-2 text-[11px] text-muted-foreground">
+    <p className="mt-3 border-t pt-2 text-micro text-muted-foreground">
       {children}{" "}
       <Link
         href="/help/data-retention"

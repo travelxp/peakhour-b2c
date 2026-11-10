@@ -107,7 +107,7 @@ export function IntegrationCard({
               {integration.name}
             </CardTitle>
             {integration.connected && (
-              <Badge className="bg-success/90 gap-0.5 text-[10px] px-1.5 py-0 shrink-0">
+              <Badge className="bg-success/90 gap-0.5 text-micro px-1.5 py-0 shrink-0">
                 <CheckCircle className="h-2.5 w-2.5" />
                 Live
               </Badge>
@@ -121,13 +121,13 @@ export function IntegrationCard({
               />
             )}
             {showComingSoon && (
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
+              <Badge variant="outline" className="text-micro px-1.5 py-0 shrink-0">
                 Soon
               </Badge>
             )}
           </div>
           {integration.description && (
-            <CardDescription className="mt-0.5 text-[11px] leading-snug line-clamp-2">
+            <CardDescription className="mt-0.5 text-micro leading-snug line-clamp-2">
               {integration.description}
             </CardDescription>
           )}
@@ -142,14 +142,14 @@ export function IntegrationCard({
               <div className="flex items-center gap-2.5 rounded-md bg-muted/50 px-2.5 py-2">
                 {integration.account.avatarUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <img width={28} height={28} loading="lazy"
                     src={integration.account.avatarUrl}
                     alt=""
                     className="h-7 w-7 rounded-full ring-1 ring-success/30 shrink-0"
                   />
                 ) : (
                   <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 ring-1 ring-success/30 shrink-0">
-                    <span className="text-[10px] font-medium text-primary">
+                    <span className="text-micro font-medium text-primary">
                       {integration.account.name?.[0]?.toUpperCase() || "?"}
                     </span>
                   </div>
@@ -157,7 +157,7 @@ export function IntegrationCard({
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-medium truncate">{integration.account.name}</p>
                   {integration.account.extra?.email && (
-                    <p className="text-[10px] text-muted-foreground truncate">
+                    <p className="text-micro text-muted-foreground truncate">
                       {integration.account.extra.email}
                     </p>
                   )}
@@ -171,7 +171,7 @@ export function IntegrationCard({
                 rest, so a store added here is visible here. */}
             {(integration.accounts?.length ?? 0) > 1 && (
               <ul className="space-y-1 rounded-md border px-2.5 py-2" aria-label={`${integration.name} accounts`}>
-                <li className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                <li className="text-micro uppercase tracking-wide text-muted-foreground">
                   {integration.accounts!.length} connected
                 </li>
                 {integration.accounts!
@@ -180,7 +180,7 @@ export function IntegrationCard({
                     <li key={a.connectionId} className="flex items-center justify-between gap-2 text-xs">
                       <span className="truncate">{a.name || a.externalId || "Account"}</span>
                       {a.status !== "active" && (
-                        <span className="shrink-0 text-[10px] text-warning-on-tint">
+                        <span className="shrink-0 text-micro text-warning-on-tint">
                           {a.status === "needs_reauth" ? "Needs reconnect" : a.status}
                         </span>
                       )}
@@ -225,13 +225,13 @@ export function IntegrationCard({
 
             {/* Last sync for non-beehiiv */}
             {integration.provider !== "beehiiv" && integration.lastSyncAt && (
-              <p className="text-[10px] text-muted-foreground">
+              <p className="text-micro text-muted-foreground">
                 Synced {formatDate(integration.lastSyncAt, { month: "short", day: "numeric" })}
               </p>
             )}
 
             {integration.lastError && (
-              <p className="text-[10px] text-destructive truncate">{integration.lastError}</p>
+              <p className="text-micro text-destructive truncate">{integration.lastError}</p>
             )}
 
             {/* Disconnect */}
@@ -240,7 +240,7 @@ export function IntegrationCard({
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="w-full gap-1.5 text-[11px] text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-7"
+                  className="w-full gap-1.5 text-micro text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-7"
                   disabled={disconnecting}
                 >
                   <Unplug className="h-3 w-3" />
@@ -271,7 +271,7 @@ export function IntegrationCard({
             />
           </div>
         ) : showComingSoon ? (
-          <p className="text-[11px] text-muted-foreground">Coming soon</p>
+          <p className="text-micro text-muted-foreground">Coming soon</p>
         ) : (
           <div className="space-y-1.5">
             {offerReconnect ? (
@@ -301,7 +301,7 @@ export function IntegrationCard({
                   onConfirm={onConnect}
                 />
                 {integration.lastError && (
-                  <p className="text-[10px] text-destructive truncate">{integration.lastError}</p>
+                  <p className="text-micro text-destructive truncate">{integration.lastError}</p>
                 )}
               </>
             ) : isRecoverable ? (
@@ -313,12 +313,12 @@ export function IntegrationCard({
               // the error visible — the card is still undimmed and unbadged,
               // which is what tells them this is a fault and not a signpost.
               <>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-micro text-muted-foreground">
                   {integration.name} needs reconnecting, but isn&apos;t open for
                   new connections yet. Contact support and we&apos;ll restore it.
                 </p>
                 {integration.lastError && (
-                  <p className="text-[10px] text-destructive truncate">{integration.lastError}</p>
+                  <p className="text-micro text-destructive truncate">{integration.lastError}</p>
                 )}
               </>
             ) : (
@@ -337,7 +337,7 @@ export function IntegrationCard({
               // all Meta services" stopped being true when each product got
               // its own Login for Business configuration — and was never true
               // of WhatsApp, which connects through Embedded Signup.
-              <p className="text-[10px] text-center text-muted-foreground">
+              <p className="text-micro text-center text-muted-foreground">
                 {integration.grantNote}
               </p>
             )}
@@ -432,12 +432,12 @@ function WebhookHealthChip({
           <Badge
             variant="outline"
             tabIndex={0}
-            className={`gap-0.5 text-[10px] px-1.5 py-0 shrink-0 cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${className}`}
+            className={`gap-0.5 text-micro px-1.5 py-0 shrink-0 cursor-help focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${className}`}
           >
             {label}
           </Badge>
         </TooltipTrigger>
-        <TooltipContent side="bottom" className="max-w-[280px] text-[11px] space-y-1.5">
+        <TooltipContent side="bottom" className="max-w-[280px] text-micro space-y-1.5">
           <p>{longExplanation}</p>
           {health.lastWebhookAt && (
             <p className="text-muted-foreground">
@@ -451,7 +451,7 @@ function WebhookHealthChip({
           type="button"
           size="sm"
           variant="outline"
-          className="h-5 text-[10px] px-1.5 shrink-0"
+          className="h-5 text-micro px-1.5 shrink-0"
           onClick={() => {
             void onRepair!();
           }}
@@ -486,13 +486,13 @@ function BeehiivSyncControls({
   return (
     <div className="space-y-2">
       {integration.lastSyncAt && (
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-micro text-muted-foreground">
           Last synced {formatDateTime(integration.lastSyncAt)}
         </p>
       )}
 
       {backfillResult && (
-        <div className={`rounded-md border px-2.5 py-1.5 text-[10px] flex items-center gap-1.5 ${
+        <div className={`rounded-md border px-2.5 py-1.5 text-micro flex items-center gap-1.5 ${
           backfillResult.hasErrors
             ? "border-warning/40 bg-warning/10 text-warning-on-tint"
             : "border-success/30 bg-success/10 text-success-on-tint"
@@ -510,7 +510,7 @@ function BeehiivSyncControls({
         <Button
           size="sm"
           variant="outline"
-          className="flex-1 gap-1 text-[10px] h-7"
+          className="flex-1 gap-1 text-micro h-7"
           onClick={onSync}
           disabled={syncing || backfilling}
         >
@@ -521,7 +521,7 @@ function BeehiivSyncControls({
           <Button
             size="sm"
             variant="outline"
-            className="flex-1 gap-1 text-[10px] h-7"
+            className="flex-1 gap-1 text-micro h-7"
             onClick={onBackfillSync}
             disabled={syncing || backfilling}
           >
@@ -535,7 +535,7 @@ function BeehiivSyncControls({
         )}
       </div>
       {backfilling && (
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-micro text-muted-foreground">
           This may take a minute. Please don&apos;t close this page.
         </p>
       )}

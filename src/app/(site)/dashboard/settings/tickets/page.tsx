@@ -70,7 +70,7 @@ export default function MyTicketsPage() {
     <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild>
-          <Link href="/dashboard/settings">
+          <Link aria-label="Back to settings" href="/dashboard/settings">
             <ArrowLeft className="size-4" />
           </Link>
         </Button>

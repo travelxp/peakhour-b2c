@@ -293,12 +293,12 @@ function CommentRow({
               </span>
             )}
             {isOurs && (
-              <Badge variant="outline" className="text-[10px]">
+              <Badge variant="outline" className="text-micro">
                 You
               </Badge>
             )}
             {comment.edited && (
-              <span className="text-[10px] text-muted-foreground">edited</span>
+              <span className="text-micro text-muted-foreground">edited</span>
             )}
             {comment.createdAt && (
               <span className="ml-auto text-xs text-muted-foreground">

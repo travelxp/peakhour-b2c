@@ -20,7 +20,7 @@ export function MentionsStrip({
   return (
     <div className="space-y-1">
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Mentions</span>
+        <span className="text-micro uppercase tracking-wide text-muted-foreground">Mentions</span>
         {mentions.map((m) => (
           <span
             key={m.urn}
@@ -39,7 +39,7 @@ export function MentionsStrip({
           </span>
         ))}
       </div>
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-micro text-muted-foreground">
         Mentions link when you publish now. Scheduled posts send them as plain text.
       </p>
     </div>

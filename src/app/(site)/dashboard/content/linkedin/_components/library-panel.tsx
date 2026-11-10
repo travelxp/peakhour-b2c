@@ -207,11 +207,11 @@ function FeedRow({ post }: { post: LinkedInFeedPost }) {
         <CardContent className="space-y-3 p-4">
           <div className="flex flex-wrap items-center gap-2">
             {post.authorType === "org" ? (
-              <Badge variant="outline" className="gap-1 text-[10px]">
+              <Badge variant="outline" className="gap-1 text-micro">
                 <Building2 className="size-3" /> Company page
               </Badge>
             ) : (
-              <Badge variant="outline" className="gap-1 text-[10px]">
+              <Badge variant="outline" className="gap-1 text-micro">
                 <User className="size-3" /> Personal
               </Badge>
             )}
@@ -219,7 +219,7 @@ function FeedRow({ post }: { post: LinkedInFeedPost }) {
               <span className="text-xs text-muted-foreground">{formatRelativeTime(post.publishedAt)}</span>
             )}
             {deleted && (
-              <Badge variant="outline" className="gap-1 border-dashed text-[10px]">
+              <Badge variant="outline" className="gap-1 border-dashed text-micro">
                 <Trash2 className="size-3" /> Deleted on LinkedIn
               </Badge>
             )}
@@ -404,7 +404,7 @@ function CommentBox({
         autoFocus
       />
       <div className="flex items-center justify-between">
-        <span className={`text-[11px] tabular-nums ${tooLong ? "text-destructive" : "text-muted-foreground"}`}>
+        <span className={`text-micro tabular-nums ${tooLong ? "text-destructive" : "text-muted-foreground"}`}>
           {text.length}/{COMMENT_MAX_LEN}
         </span>
         <div className="flex items-center gap-1.5">

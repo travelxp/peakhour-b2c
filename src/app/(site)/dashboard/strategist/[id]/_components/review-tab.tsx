@@ -102,7 +102,7 @@ export function DataCitationsPanel({ citations }: { citations: NonNullable<IdeaD
       <CardHeader>
         <CardTitle className="text-sm flex items-center gap-2">
           Data Sources
-          <Badge variant={estimated === 0 ? "default" : "secondary"} className="text-[10px]">
+          <Badge variant={estimated === 0 ? "default" : "secondary"} className="text-micro">
             {verified} verified · {inferred} inferred · {estimated} unverified
           </Badge>
         </CardTitle>
@@ -116,7 +116,7 @@ export function DataCitationsPanel({ citations }: { citations: NonNullable<IdeaD
               <li key={i} className={`border-l-2 pl-3 text-sm ${borderColor}`}>
                 <p>{c.claim}</p>
                 <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                  <Badge variant={c.confidence === "verified" ? "default" : c.confidence === "inferred" ? "secondary" : "destructive"} className="text-[10px]">{c.confidence}</Badge>
+                  <Badge variant={c.confidence === "verified" ? "default" : c.confidence === "inferred" ? "secondary" : "destructive"} className="text-micro">{c.confidence}</Badge>
                   {c.source && c.sourceUrl ? (
                     <a href={c.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">{c.source} <ExternalLink className="h-3 w-3" /></a>
                   ) : c.source ? (

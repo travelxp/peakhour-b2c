@@ -310,7 +310,7 @@ export function ManagePagesDialog({
         </DialogHeader>
 
         {offBrandEnabled.length > 0 && (
-          <div className="space-y-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2.5 text-[11px] text-warning-on-tint">
+          <div className="space-y-2 rounded-md border border-warning/40 bg-warning/10 px-3 py-2.5 text-micro text-warning-on-tint">
             <p className="font-medium">
               {offBrandEnabled.length === 1
                 ? `${offBrandEnabled[0]!.organizationName || "One page"} looks like a different brand`
@@ -336,7 +336,7 @@ export function ManagePagesDialog({
         )}
 
         {overCap && (
-          <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-[11px] text-warning-on-tint">
+          <div className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-micro text-warning-on-tint">
             You have more pages enabled than your plan allows. They keep
             posting for now, but new toggles are blocked until you disable a
             page or upgrade.
@@ -344,7 +344,7 @@ export function ManagePagesDialog({
         )}
 
         {error && (
-          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-[11px] text-destructive">
+          <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-micro text-destructive">
             {error}
           </div>
         )}
@@ -407,12 +407,12 @@ export function ManagePagesDialog({
                           <TooltipTrigger asChild>
                             <span
                               tabIndex={0}
-                              className="shrink-0 rounded bg-warning/20 px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-warning-on-tint"
+                              className="shrink-0 rounded bg-warning/20 px-1.5 py-0.5 text-micro font-medium uppercase tracking-wide text-warning-on-tint"
                             >
                               Other brand
                             </span>
                           </TooltipTrigger>
-                          <TooltipContent side="left" className="max-w-60 text-[11px]">
+                          <TooltipContent side="left" className="max-w-60 text-micro">
                             This page doesn&apos;t look like
                             {brandAnchor ? ` ${brandAnchor}` : " this workspace's brand"}.
                             You can still use it, but AI drafts here are written in
@@ -421,7 +421,7 @@ export function ManagePagesDialog({
                         </Tooltip>
                       )}
                     </p>
-                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                    <div className="flex items-center gap-2 text-micro text-muted-foreground">
                       {p.role && (
                         <span className="rounded bg-muted px-1.5 py-0.5 font-mono">
                           {p.role}
@@ -449,7 +449,7 @@ export function ManagePagesDialog({
                           keyboard user lands on an anonymous box, then on the
                           switch, for one control. */}
                       <TooltipTrigger asChild>{switchEl}</TooltipTrigger>
-                      <TooltipContent side="left" className="max-w-[220px] text-[11px]">
+                      <TooltipContent side="left" className="max-w-[220px] text-micro">
                         Your plan covers {cap} {cap === 1 ? "page" : "pages"}. Turn another off, or
                         add this one to your plan.
                       </TooltipContent>
@@ -553,7 +553,7 @@ function QueuedPostsPrompt({
       aria-label="Scheduled posts would fail"
       tabIndex={-1}
       ref={(el) => el?.focus()}
-      className="space-y-2.5 rounded-md border border-warning/50 bg-warning/10 px-3 py-2.5 text-[11px] text-warning-on-tint focus:outline-none focus-visible:ring-2 focus-visible:ring-warning"
+      className="space-y-2.5 rounded-md border border-warning/50 bg-warning/10 px-3 py-2.5 text-micro text-warning-on-tint focus:outline-none focus-visible:ring-2 focus-visible:ring-warning"
     >
       <div className="flex items-start gap-2">
         <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />

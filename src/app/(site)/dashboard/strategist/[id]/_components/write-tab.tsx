@@ -161,9 +161,9 @@ function PlaceholderCard({
     <li className={`rounded-md border p-3 text-sm flex items-start justify-between gap-2 ${resolved ? "bg-success/10 border-success/30" : "bg-muted/20"}`}>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-          <Badge variant="outline" className="text-[10px]">{p.position}</Badge>
-          <Badge variant="secondary" className="text-[10px]">{p.dimensions}</Badge>
-          {statusLabel && <Badge variant="default" className="text-[10px]">{statusLabel}</Badge>}
+          <Badge variant="outline" className="text-micro">{p.position}</Badge>
+          <Badge variant="secondary" className="text-micro">{p.dimensions}</Badge>
+          {statusLabel && <Badge variant="default" className="text-micro">{statusLabel}</Badge>}
         </div>
         <p className="font-medium truncate" title={p.purpose}>{p.purpose}</p>
         <p className="text-xs text-muted-foreground line-clamp-2">{p.description}</p>
@@ -171,7 +171,7 @@ function PlaceholderCard({
         {resolved && p.resolvedImageUrl && (
           <div className="mt-2 rounded-md overflow-hidden border bg-background">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={p.resolvedImageUrl} alt={p.suggestedAltText} className="block w-full h-auto" />
+            <img loading="lazy" src={p.resolvedImageUrl} alt={p.suggestedAltText} className="block w-full h-auto" />
           </div>
         )}
         {/* An image Drive does not hold yet (an AI image kept as data, or a picture from a pasted address): keep it (D8). */}
@@ -667,7 +667,7 @@ export function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId
               {/* On-demand quality score */}
               {quality && (
                 <Badge
-                  className={cn("h-5 gap-1 px-1.5 text-[10px] font-semibold border-0", scoreTone(quality.score))}
+                  className={cn("h-5 gap-1 px-1.5 text-micro font-semibold border-0", scoreTone(quality.score))}
                   title={quality.notes}
                 >
                   <Gauge className="size-3" /> {quality.score}/10

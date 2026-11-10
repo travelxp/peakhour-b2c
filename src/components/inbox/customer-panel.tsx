@@ -99,7 +99,7 @@ function MoreOrders({ threadId, after }: { threadId: string; after: string }) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-1.5">
-      <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</h3>
+      <h3 className="text-micro font-semibold uppercase tracking-wide text-muted-foreground">{title}</h3>
       {children}
     </section>
   );
@@ -191,7 +191,7 @@ export function CustomerPanel({ threadId, role }: { threadId: string; role: stri
               {[sentiment, d.summary.topics.length ? `Topics: ${d.summary.topics.slice(0, 5).join(", ")}` : null].filter(Boolean).join(" · ")}
             </p>
           )}
-          {d.summary.updatedAt && <p className="text-[11px] text-muted-foreground">Updated {orderDate(d.summary.updatedAt)}</p>}
+          {d.summary.updatedAt && <p className="text-micro text-muted-foreground">Updated {orderDate(d.summary.updatedAt)}</p>}
           {canRefresh && (
             <div className="space-y-1 pt-1">
               <Button
@@ -207,8 +207,8 @@ export function CustomerPanel({ threadId, role }: { threadId: string; role: stri
               >
                 {refresh.isPending ? "Refreshing…" : price.text}
               </Button>
-              {!price.available && <p className="text-[11px] text-muted-foreground">Refreshing the summary isn&apos;t available right now.</p>}
-              <p className="text-[11px] text-muted-foreground">Only runs when you press it.</p>
+              {!price.available && <p className="text-micro text-muted-foreground">Refreshing the summary isn&apos;t available right now.</p>}
+              <p className="text-micro text-muted-foreground">Only runs when you press it.</p>
             </div>
           )}
         </Section>
@@ -218,7 +218,7 @@ export function CustomerPanel({ threadId, role }: { threadId: string; role: stri
         <Section title="Orders">
           {orders.lifetime && <p className="text-xs font-medium">{lifetimeLine(orders.lifetime)}</p>}
           {note && <p className="text-xs text-muted-foreground">{note}</p>}
-          {orders.state === "ok" && orders.windowLimited && <p className="text-[11px] text-muted-foreground">{WINDOW_LIMITED_NOTE}</p>}
+          {orders.state === "ok" && orders.windowLimited && <p className="text-micro text-muted-foreground">{WINDOW_LIMITED_NOTE}</p>}
           {orders.state === "ok" && orders.items.length === 0 && <p className="text-xs text-muted-foreground">{ORDERS_EMPTY}</p>}
           {orders.state === "unavailable" && (
             <Button size="xs" variant="outline" onClick={() => void q.refetch()}>

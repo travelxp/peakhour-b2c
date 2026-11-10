@@ -74,11 +74,11 @@ export function ChangeCard({
 
       <div className="grid gap-3 text-sm sm:grid-cols-2">
         <div>
-          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Now</p>
+          <p className="text-micro font-medium uppercase tracking-wide text-muted-foreground">Now</p>
           <Lines field={change.field} value={change.before} />
         </div>
         <div>
-          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">After this change</p>
+          <p className="text-micro font-medium uppercase tracking-wide text-muted-foreground">After this change</p>
           <Lines field={change.field} value={change.after} />
         </div>
       </div>

@@ -52,7 +52,7 @@ function Stat({
 }) {
   return (
     <div className="rounded-lg border p-3">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <p className="text-micro font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </p>
       {value === null ? (
@@ -60,7 +60,7 @@ function Stat({
       ) : (
         <p className="mt-1 text-xl font-semibold tabular-nums">{value}</p>
       )}
-      {value !== null && sub && <p className="mt-0.5 text-[11px] text-muted-foreground">{sub}</p>}
+      {value !== null && sub && <p className="mt-0.5 text-micro text-muted-foreground">{sub}</p>}
     </div>
   );
 }
@@ -70,7 +70,7 @@ function WorstList({ summary }: { summary: ReviewSummary }) {
   if (summary.worstRecent.length === 0) return null;
   return (
     <div className="space-y-2">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <p className="text-micro font-medium uppercase tracking-wide text-muted-foreground">
         Worst recent
       </p>
       {summary.worstRecent.map((r) => (
@@ -82,11 +82,11 @@ function WorstList({ summary }: { summary: ReviewSummary }) {
             </span>
             <span className="text-muted-foreground">{formatDate(r.receivedAt)}</span>
             {r.answered ? (
-              <Badge variant="outline" className="text-[10px]">
+              <Badge variant="outline" className="text-micro">
                 replied
               </Badge>
             ) : (
-              <span className="text-[11px] font-medium text-warning-on-tint">unanswered</span>
+              <span className="text-micro font-medium text-warning-on-tint">unanswered</span>
             )}
           </div>
           {/* ⚠️THE CUSTOMER'S OWN WORDS, and a review with no comment is a star
@@ -262,7 +262,7 @@ function NetworkReviews({ summary, label, onShowAll }: { summary: ReviewSummary;
       )}
 
       {(responseNote || sampleNote) && (
-        <div className="space-y-1 text-[11px] text-muted-foreground">
+        <div className="space-y-1 text-micro text-muted-foreground">
           {responseNote && <p>{responseNote}</p>}
           {sampleNote && <p>{sampleNote}</p>}
         </div>

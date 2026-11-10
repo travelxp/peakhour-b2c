@@ -251,7 +251,7 @@ export function FileDetail({
       <div className="relative h-40 overflow-hidden rounded-lg bg-muted">
         {preview ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={preview} alt={item.altText ?? item.name} className="size-full object-contain" />
+          <img loading="lazy" src={preview} alt={item.altText ?? item.name} className="size-full object-contain" />
         ) : (
           <FileThumb item={item} />
         )}

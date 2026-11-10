@@ -89,24 +89,24 @@ function LeadRow({ item, onChanged }: { item: InboxItem; onChanged: () => void }
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`inline-flex rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${PRIORITY_BADGE[item.priority]}`}>
+            <span className={`inline-flex rounded-sm px-1.5 py-0.5 text-micro font-medium uppercase tracking-wide ${PRIORITY_BADGE[item.priority]}`}>
               {item.priority}
             </span>
-            <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+            <Badge variant="outline" className="text-micro uppercase tracking-wide">
               {SOURCE_LABEL[item.source] ?? item.source}
             </Badge>
             {typeof lead?.score === "number" && (
-              <Badge variant="outline" className="text-[10px]">
+              <Badge variant="outline" className="text-micro">
                 score {lead.score}
                 {lead.qualified ? " · qualified" : ""}
               </Badge>
             )}
             {item.status !== "queued" && (
-              <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+              <Badge variant="outline" className="text-micro uppercase tracking-wide">
                 {item.status.replaceAll("_", " ")}
               </Badge>
             )}
-            {sla && <span className="text-[11px] text-warning-on-tint">{sla}</span>}
+            {sla && <span className="text-micro text-warning-on-tint">{sla}</span>}
           </div>
           <p className="truncate text-sm font-medium">
             {item.contact?.name || item.contact?.email || item.subject || "Lead"}
@@ -495,7 +495,7 @@ function InboxTabs() {
           <TabsTrigger value="insights">
             Insights
             {waiting > 0 && (
-              <Badge className="ml-1.5 bg-warning/15 px-1.5 text-[10px] text-warning-on-tint">{waiting}</Badge>
+              <Badge className="ml-1.5 bg-warning/15 px-1.5 text-micro text-warning-on-tint">{waiting}</Badge>
             )}
           </TabsTrigger>
           <TabsTrigger value="leads">Leads</TabsTrigger>
@@ -505,7 +505,7 @@ function InboxTabs() {
                 is a claim that there is nothing waiting, which a failed or
                 in-flight fetch has not earned. */}
             {badge && (
-              <Badge className="ml-1.5 bg-warning/15 px-1.5 text-[10px] text-warning-on-tint">
+              <Badge className="ml-1.5 bg-warning/15 px-1.5 text-micro text-warning-on-tint">
                 {badge.label}
               </Badge>
             )}

@@ -77,7 +77,7 @@ function PlaceholderPreviewBlock({ p }: { p: ImagePlaceholder }) {
     return (
       <figure className="not-prose my-5">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <img loading="lazy"
           src={p.resolvedImageUrl}
           alt={p.suggestedAltText}
           className="w-full rounded-lg border"
@@ -95,11 +95,11 @@ function PlaceholderPreviewBlock({ p }: { p: ImagePlaceholder }) {
     <div className="not-prose my-5 flex flex-col items-center gap-1.5 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/30 px-4 py-8 text-center">
       <ImageIcon className="size-6 text-muted-foreground/40" />
       <div className="flex items-center gap-1.5">
-        <Badge variant="outline" className="text-[10px]">{p.position}</Badge>
-        <Badge variant="secondary" className="text-[10px]">{p.dimensions}</Badge>
+        <Badge variant="outline" className="text-micro">{p.position}</Badge>
+        <Badge variant="secondary" className="text-micro">{p.dimensions}</Badge>
       </div>
       <p className="max-w-md text-xs font-medium text-foreground">{p.purpose}</p>
-      <p className="max-w-md text-[11px] leading-snug text-muted-foreground">{p.description}</p>
+      <p className="max-w-md text-micro leading-snug text-muted-foreground">{p.description}</p>
     </div>
   );
 }

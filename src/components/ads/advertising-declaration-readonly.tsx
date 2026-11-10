@@ -239,7 +239,7 @@ export function DeclaredReadOnly({
           settingsData?.settings.advertisingDeclaration,
         ) ? (
           <div className="space-y-1 rounded-md border border-warning/30 bg-warning/15 p-2">
-            <p className="text-[11px] leading-relaxed text-warning-on-tint">
+            <p className="text-micro leading-relaxed text-warning-on-tint">
               Meta campaigns also need the special-ad-category answer,
               which this declaration doesn&apos;t have yet. Until it does,
               Meta campaigns can&apos;t be created. LinkedIn is unaffected.

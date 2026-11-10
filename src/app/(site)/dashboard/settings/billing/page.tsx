@@ -503,7 +503,7 @@ export default function BillingPage() {
                         to its customer-facing label via the shared featureLabel()
                         helper — the same resolver the upgrade drawer and plan cards
                         use — so Billing never shows internal developer keys. */}
-                    <Badge variant="outline" className="text-[11px]">
+                    <Badge variant="outline" className="text-micro">
                       {featureLabel(f)}
                     </Badge>
                   </li>

@@ -54,7 +54,7 @@ export default async function LaunchPartnerPage({
   const signupSource = normalizeSource(source);
   const country = geoCountry(h.get("x-vercel-ip-country"));
   return (
-    <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 py-16 text-center">
+    <main className="relative flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col items-center justify-center overflow-hidden px-6 py-16 text-center">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-1/2 bg-linear-to-b from-primary/5 to-transparent"

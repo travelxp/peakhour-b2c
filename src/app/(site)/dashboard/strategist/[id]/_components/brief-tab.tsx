@@ -96,7 +96,7 @@ export function BriefTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId
                 </div>
                 {isObj && (
                   <div className="ml-4 mt-1 flex items-center gap-2">
-                    <Badge variant={confidence === "verified" ? "default" : confidence === "inferred" ? "secondary" : "destructive"} className="text-[10px]">{confidence}</Badge>
+                    <Badge variant={confidence === "verified" ? "default" : confidence === "inferred" ? "secondary" : "destructive"} className="text-micro">{confidence}</Badge>
                     {p.source && p.sourceUrl ? (
                       <a href={p.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">{p.source} <ExternalLink className="h-3 w-3" /></a>
                     ) : p.source ? (
@@ -146,7 +146,7 @@ function BriefFormatMetaPanel({
           {m.byline && <div><p className="text-xs text-muted-foreground">Byline</p><p className="text-sm font-medium">{m.byline}</p></div>}
           {m.slug && <div><p className="text-xs text-muted-foreground">Slug</p><p className="text-sm font-mono">{m.slug}</p></div>}
           {m.metaDescription && <div className="sm:col-span-2"><p className="text-xs text-muted-foreground">Meta description (≤160 chars)</p><p className="text-sm">{m.metaDescription}</p></div>}
-          {m.seoKeywords?.length ? <div className="sm:col-span-2"><p className="text-xs text-muted-foreground">SEO keywords</p><div className="flex flex-wrap gap-1.5 mt-1">{m.seoKeywords.map((k) => <Badge key={k} variant="secondary" className="text-[10px]">{k}</Badge>)}</div></div> : null}
+          {m.seoKeywords?.length ? <div className="sm:col-span-2"><p className="text-xs text-muted-foreground">SEO keywords</p><div className="flex flex-wrap gap-1.5 mt-1">{m.seoKeywords.map((k) => <Badge key={k} variant="secondary" className="text-micro">{k}</Badge>)}</div></div> : null}
         </CardContent>
       </Card>
     );
@@ -191,7 +191,7 @@ function BriefFormatMetaPanel({
                     <li key={i} className="rounded-md border bg-muted/30 p-3 text-sm">
                       <div className="flex items-center justify-between gap-2 mb-1">
                         <span className="font-medium">{q.attributedTo}</span>
-                        <Badge variant={statusTone} className="text-[10px]">{q.status}</Badge>
+                        <Badge variant={statusTone} className="text-micro">{q.status}</Badge>
                       </div>
                       <p className="text-xs text-muted-foreground mb-1">{q.role}</p>
                       {q.suggestedQuote

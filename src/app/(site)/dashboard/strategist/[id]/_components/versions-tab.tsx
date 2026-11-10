@@ -207,8 +207,8 @@ function VersionColumn({
     <Card>
       <CardHeader className={`${tone} border-b rounded-t-lg py-3`}>
         <CardTitle className="text-sm">{label}</CardTitle>
-        {sublabel && <CardDescription className="text-[11px]">{sublabel}</CardDescription>}
-        <div className="text-[10px] text-muted-foreground mt-1 flex items-center gap-2">
+        {sublabel && <CardDescription className="text-micro">{sublabel}</CardDescription>}
+        <div className="text-micro text-muted-foreground mt-1 flex items-center gap-2">
           {typeof wordCount === "number" && <span>{wordCount} words</span>}
           {timestamp && (
             <>

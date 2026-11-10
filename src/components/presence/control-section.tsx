@@ -49,7 +49,7 @@ export function ControlSection({
               </p>
             ))}
             {entry?.control.checkedAt && control.tone !== "unknown" && (
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-micro text-muted-foreground">
                 Checked {formatDateTime(entry.control.checkedAt)}.
               </p>
             )}

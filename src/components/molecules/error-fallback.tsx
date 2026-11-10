@@ -81,7 +81,7 @@ export function ErrorFallback({
         {/* `digest` lets ops correlate this exact error with the server log
             entry. Hidden visually but selectable for support. */}
         {digest && (
-          <p className="text-[10px] text-muted-foreground/60 tabular-nums select-all">
+          <p className="text-micro text-muted-foreground/60 tabular-nums select-all">
             ref: {digest}
           </p>
         )}

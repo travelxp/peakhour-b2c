@@ -97,7 +97,7 @@ export function ScheduleConfirmCard({
                     {r.audit.map((note) => (
                       <span
                         key={note}
-                        className="rounded-full bg-muted px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground"
+                        className="rounded-full bg-muted px-2 py-0.5 text-micro uppercase tracking-wide text-muted-foreground"
                       >
                         {note.replaceAll("_", " ")}
                       </span>
@@ -117,7 +117,7 @@ export function ScheduleConfirmCard({
                 Your weekly optimizer suggests:
               </span>{" "}
               {preview.cadenceAdjustment.summary}
-              <span className="block text-[11px]">
+              <span className="block text-micro">
                 {preview.cadenceAdjustment.expectedEffect}
               </span>
             </div>

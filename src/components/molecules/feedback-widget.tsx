@@ -82,7 +82,7 @@ export function FeedbackWidget() {
         <Button variant="ghost" size="icon" className="relative size-8">
           <MessageSquarePlus className="size-4" />
           {!!openCount && openCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 flex size-3.5 items-center justify-center rounded-full bg-primary text-[9px] font-medium text-primary-foreground">
+            <span className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-primary text-micro leading-none font-medium text-primary-foreground">
               {openCount > 9 ? "9+" : openCount}
             </span>
           )}
@@ -168,7 +168,7 @@ export function FeedbackWidget() {
                 required
                 className="resize-none"
               />
-              <p className="text-[11px] text-muted-foreground text-right tabular-nums">
+              <p className="text-micro text-muted-foreground text-right tabular-nums">
                 {description.length.toLocaleString()}/8,192
               </p>
             </div>
