@@ -61,7 +61,9 @@ describe("type floor", () => {
     expect(belowFloor("text-[12px] text-[12.5px] text-[0.75rem] text-[13px] text-micro text-xs")).toEqual([]);
   });
 
-  it("no source file under src/ uses a sub-12px text size", () => {
+  it("no source file under src/ uses a sub-12px text size", { timeout: 60_000 }, () => {
+    // Explicit timeout: this reads every source file under src/. The cost is file I/O (a full tree walk), not a
+    // hang, and under CPU load (several builds at once) it exceeds the 5s default. The scan is unchanged.
     const hits: string[] = [];
     for (const file of sourceFiles(SRC)) {
       const rel = relative(ROOT, file).replace(/\\/g, "/");

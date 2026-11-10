@@ -48,7 +48,9 @@ describe("★★G-15 — no b2c file names a Google ads path but the client", ()
     expect(all.map(rel).filter((p) => ALLOWED.includes(p)).sort()).toEqual([...ALLOWED].sort());
   });
 
-  it("★★no other file names a Google ads path — the panel included", () => {
+  it("★★no other file names a Google ads path — the panel included", { timeout: 60_000 }, () => {
+    // Explicit timeout: this reads every source file under src/. The cost is file I/O (a full tree walk), not a
+    // hang, and under CPU load (several builds at once) it exceeds the 5s default. The scan is unchanged.
     const named = scanned
       .map((f) => ({ file: rel(f), paths: findGoogleAdsPaths(readFileSync(f, "utf8")).filter((p) => !isBareGoogleAdsMount(p)) }))
       .filter((x) => x.paths.length > 0);
