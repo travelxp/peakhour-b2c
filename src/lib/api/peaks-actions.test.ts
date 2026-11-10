@@ -8,7 +8,7 @@ import { PEAKS_ACTIONS } from "./peaks";
  * and sends the receipt back; a refusal before the task starts (too few credits, already running) is shown in the api's words.
  */
 describe("the content image price is shown before the click", () => {
-  const page = readFileSync(fileURLToPath(new URL("../../app/(site)/dashboard/strategist/[id]/page.tsx", import.meta.url)), "utf8");
+  const page = readFileSync(fileURLToPath(new URL("../../app/(site)/dashboard/strategist/[id]/_components/write-tab.tsx", import.meta.url)), "utf8");
 
   it("names the api's registered action", () => {
     expect(PEAKS_ACTIONS.generateImage).toBe("content.generate_image");

@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import Link from "next/link";
@@ -28,10 +29,6 @@ import {
 } from "lucide-react";
 import { LinkedinIcon } from "@/components/brand/brand-icons";
 import { DiscoveryProgressStrip } from "@/components/dashboard/discovery-progress-strip";
-import { FootprintReviewCard } from "@/components/dashboard/footprint-review-card";
-import { RecommendationsCard } from "@/components/dashboard/recommendations-card";
-import { BrandMirrorCard } from "@/components/dashboard/brand-mirror-card";
-import { AskCard } from "@/components/dashboard/ask-card";
 import { PageShell } from "@/components/dashboard/page-shell";
 import { OvernightRibbon } from "@/components/dashboard/overnight-ribbon";
 import { OverviewGreeting } from "@/components/dashboard/overview-greeting";
@@ -44,6 +41,12 @@ import {
   GlanceCard,
 } from "@/components/dashboard/business-at-a-glance";
 import { useHomeSummary } from "@/hooks/use-home-summary";
+
+// Below the first screen (or shown only when there is something to review), so they load on demand.
+const FootprintReviewCard = dynamic(() => import("@/components/dashboard/footprint-review-card").then((mod) => mod.FootprintReviewCard));
+const RecommendationsCard = dynamic(() => import("@/components/dashboard/recommendations-card").then((mod) => mod.RecommendationsCard));
+const BrandMirrorCard = dynamic(() => import("@/components/dashboard/brand-mirror-card").then((mod) => mod.BrandMirrorCard));
+const AskCard = dynamic(() => import("@/components/dashboard/ask-card").then((mod) => mod.AskCard));
 
 interface DashboardStats {
   content: {
