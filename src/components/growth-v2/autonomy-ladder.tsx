@@ -80,11 +80,11 @@ export function AutonomyLadder({ level, clearedDecisions, since, offeredPromotio
       </ol>
       {offeredPromotion ? (
         <p className="mt-3 text-sm">
-          The engine has offered to move up to L{offeredPromotion.to}. It is waiting in Decisions.
+          Peakhour has offered to move up to L{offeredPromotion.to}. It is waiting in Decisions.
         </p>
       ) : null}
       {lastDemotion ? (
-        <p className="mt-3 text-sm text-muted-foreground">The engine stepped back a level on its own: {lastDemotion.reason}</p>
+        <p className="mt-3 text-sm text-muted-foreground">Peakhour stepped back a level on its own: {lastDemotion.reason}</p>
       ) : null}
     </div>
   );

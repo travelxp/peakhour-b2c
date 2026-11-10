@@ -561,7 +561,7 @@ function RailSelect({
   }
   return (
     <Select value={value} onValueChange={(v) => onChange(v as SignalRail)}>
-      <SelectTrigger>
+      <SelectTrigger aria-label="How it reaches your site">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

@@ -27,7 +27,7 @@ export function AutopilotEmpty() {
         </EmptyMedia>
         <EmptyTitle>Your autopilot is warming up</EmptyTitle>
         <EmptyDescription>
-          Connect your first channel and the engine starts drafting, scheduling,
+          Connect your first channel and Peakhour starts drafting, scheduling,
           and surfacing what needs your approval — right here.
         </EmptyDescription>
       </EmptyHeader>

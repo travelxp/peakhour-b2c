@@ -138,7 +138,7 @@ export function getTaskColumns(ctx: TaskColumnsCtx): ColumnDef<Job, unknown>[] {
                   {done}/{total}
                 </span>
               </div>
-              <Progress value={pct} className="h-1.5" />
+              <Progress value={pct} aria-label="Task progress" className="h-1.5" />
             </div>
           );
         }

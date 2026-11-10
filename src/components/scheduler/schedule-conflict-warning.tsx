@@ -61,7 +61,7 @@ export function ScheduleConflictWarning({
       >
         <Info className="h-4 w-4 shrink-0" />
         <span className="flex-1">
-          Smart-time engine adjusted{" "}
+          Smart timing adjusted{" "}
           <b>
             {rowsWithNotes.length} channel
             {rowsWithNotes.length === 1 ? "" : "s"}

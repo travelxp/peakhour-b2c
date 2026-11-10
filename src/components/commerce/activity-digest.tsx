@@ -40,7 +40,7 @@ export function ActivityDigest() {
           </div>
         ) : items.length === 0 ? (
           <p className="px-4 py-8 text-center text-sm text-muted-foreground">
-            No activity yet. As you approve proposals, the engine&apos;s work shows up here.
+            No activity yet. As you approve proposals, Peakhour&apos;s work shows up here.
           </p>
         ) : (
           <ul className="divide-y">

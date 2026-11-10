@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/molecules";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
+import { navLabel } from "@/lib/nav-copy";
 
 interface CalendarIdea {
   _id: string;
@@ -35,7 +36,7 @@ const STATUS_COLORS: Record<string, string> = {
   planned: "bg-state-info/10 border-state-info/30",
   in_progress: "bg-warning/10 border-warning/30",
   published: "bg-success/10 border-success/30",
-  archived: "bg-destructive/10 border-destructive/30 opacity-50",
+  archived: "bg-muted border-border",
 };
 
 export default function IdeasCalendarPage() {
@@ -78,7 +79,11 @@ export default function IdeasCalendarPage() {
   }
 
   // Ideas without dates
-  const unscheduled = (ideas || []).filter((i) => !i.targetDate);
+  // Archived ideas are done with: they never belong in the working list.
+  const unscheduled = (ideas || []).filter(
+    (i) => !i.targetDate && i.status !== "archived",
+  );
+  const archived = (ideas || []).filter((i) => i.status === "archived");
 
   return (
     <PageShell width="full">
@@ -89,7 +94,7 @@ export default function IdeasCalendarPage() {
         }
       />
       <PageHeader
-        title="Content Calendar"
+        title={navLabel("/dashboard/calendar")}
         description="Your scheduled and planned content"
         actions={
           <>
@@ -189,6 +194,20 @@ export default function IdeasCalendarPage() {
             ))}
           </div>
         </div>
+      )}
+
+      {/* Archived ideas: collapsed, muted but full-contrast text. */}
+      {archived.length > 0 && (
+        <details className="space-y-3">
+          <summary className="cursor-pointer text-base font-semibold text-muted-foreground">
+            Archived ({archived.length})
+          </summary>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 md:grid-cols-3 2xl:grid-cols-4">
+            {archived.map((idea) => (
+              <CalendarCard key={idea._id} idea={idea} />
+            ))}
+          </div>
+        </details>
       )}
     </PageShell>
   );

@@ -323,13 +323,13 @@ export const FIXTURE_CHANNELS: ChannelsResponse = {
     ],
   })),
   pacing: { spentThisMonth: inr(13940), monthlyCeiling: inr(20000), daysLeft: 9 },
-  campaignsBasis: "The campaigns Peakhour runs for you, whose daily budget the engine can change within your rules. Campaigns you run directly on an ad platform are not listed.",
+  campaignsBasis: "The campaigns Peakhour runs for you, whose daily budget Peakhour can change within your rules. Campaigns you run directly on an ad platform are not listed.",
   campaigns: [
     { id: "preview-c1", platform: "meta", name: "Trip videos (Advantage+ Leads)", status: "Serving", dailyBudget: inr(590), spend: inr(4120), outcomes: fig(9), efficiency: fig(458) },
     { id: "preview-c2", platform: "meta", name: "Price-first carousel", status: "Serving", dailyBudget: inr(400), spend: inr(2780), outcomes: fig(4), efficiency: fig(695) },
     { id: "preview-c3", platform: "google_ads", name: "Trip names Search", status: "Serving", dailyBudget: inr(560), spend: inr(3960), outcomes: fig(8), efficiency: fig(495) },
     { id: "preview-c4", platform: "x", name: "Spiti thread promotion", status: "Reduced", dailyBudget: inr(140), spend: inr(3080), outcomes: fig(1), efficiency: fig(3080) },
-    { id: "preview-c5", platform: "meta", name: "Spiti generic photo", status: "Paused by engine", dailyBudget: inr(0), spend: inr(0), outcomes: { absent: "Paused before it had a reading" }, efficiency: { absent: "Paused before it had a reading" } },
+    { id: "preview-c5", platform: "meta", name: "Spiti generic photo", status: "Paused by Peakhour", dailyBudget: inr(0), spend: inr(0), outcomes: { absent: "Paused before it had a reading" }, efficiency: { absent: "Paused before it had a reading" } },
   ],
 };
 

@@ -94,7 +94,7 @@ export function NeedsYouRail({
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{item.title}</p>
                       <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <span className="font-medium text-foreground/70">
+                        <span className="font-medium text-muted-foreground">
                           {meta.verb}
                         </span>
                         {item.channel && (

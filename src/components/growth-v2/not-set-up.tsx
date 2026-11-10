@@ -18,7 +18,7 @@ export function NotSetUp({ code }: { code: HomeRefusalCode }) {
         <CardTitle>{noMandate ? "Growth isn't set up yet" : "Set your business time zone"}</CardTitle>
         <CardDescription>
           {noMandate
-            ? "Tell us what you want more of and what you can spend, and the engine will start reporting here."
+            ? "Tell us what you want more of and what you can spend, and Peakhour will start reporting here."
             : "Your figures cover whole days on your own clock. Set the time zone in Rules and this page will fill in."}
         </CardDescription>
       </CardHeader>

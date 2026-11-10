@@ -1,5 +1,6 @@
 "use client";
 
+import { TabPanelStubs } from "@/components/dashboard/tab-panel-stubs";
 import {
   type Column,
   type ColumnDef,
@@ -231,7 +232,7 @@ export const DataTablePagination = <TData,>({
             }}
             disabled={totalRows === 0}
           >
-            <SelectTrigger className="h-8 w-[70px]">
+            <SelectTrigger className="h-8 w-[70px]" aria-label="Rows per page">
               <SelectValue placeholder={pageSize} />
             </SelectTrigger>
             <SelectContent side="top">
@@ -1066,6 +1067,9 @@ export const DataTable14 = ({ className }: { className?: string }) => {
               );
             })}
           </TabsList>
+          <TabPanelStubs
+            values={["all", ...orderStatuses.map((s) => s.value)]}
+          />
         </Tabs>
       )}
     </DataTableTabbar>

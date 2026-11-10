@@ -160,7 +160,7 @@ const InviteUserForm = () => {
             <div className="space-y-1">
               <Label className="text-xs">Select role</Label>
               <Select defaultValue="editor">
-                <SelectTrigger className="w-full bg-background">
+                <SelectTrigger className="w-full bg-background" aria-label="Select role">
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
                 <SelectContent>
@@ -225,7 +225,7 @@ const UserCard = ({ user }: UserCardProps) => {
 
       <div className="flex items-center justify-between gap-3 sm:flex-1/3">
         <Select defaultValue={user.accessLevel}>
-          <SelectTrigger className="min-w-24">
+          <SelectTrigger className="min-w-24" aria-label={`Role for ${user.name}`}>
             <SelectValue placeholder="Select a role" />
           </SelectTrigger>
           <SelectContent>

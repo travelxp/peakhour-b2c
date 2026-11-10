@@ -1,5 +1,6 @@
 "use client";
 
+import { TabPanelStubs } from "@/components/dashboard/tab-panel-stubs";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -122,6 +123,7 @@ export function GoogleReportsSection({ account }: { account: GoogleAdAccount }) 
               </TabsTrigger>
             ))}
           </TabsList>
+          <TabPanelStubs values={GOOGLE_REPORT_TABS.map((t) => t.key)} />
         </Tabs>
 
         {/* Only the table on screen is read: its query key is the account, the table and the range. */}

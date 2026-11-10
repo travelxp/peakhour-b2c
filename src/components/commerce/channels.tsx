@@ -27,7 +27,7 @@ export function CommerceChannels() {
         <header className="mb-6">
           <h1 className="text-xl font-semibold">Sales channels</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Where you sell. Peakhour runs the same engine across every channel —
+            Where you sell. Peakhour works the same way across every channel —
             connect them here as each one comes online.
           </p>
         </header>
@@ -47,7 +47,7 @@ export function CommerceChannels() {
             <PendingItemsCard
               title="Marketplace — on the roadmap"
               items={[
-                { title: "Amazon", caption: "Listing quality, buy-box and retail-media, managed by the engine." },
+                { title: "Amazon", caption: "Listing quality, buy-box and retail-media, managed by Peakhour." },
                 { title: "Flipkart", caption: "Share-of-search and price competitiveness — coming as an adapter." },
                 { title: "Myntra · Nykaa", caption: "Category marketplaces for fashion & beauty — on the roadmap." },
               ]}
