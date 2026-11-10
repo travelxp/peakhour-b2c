@@ -15,7 +15,7 @@ import { XDmConnect } from "@/components/integrations/x-dm-connect";
 import { WordPressConnectModal } from "@/components/integrations/wordpress-connect-modal";
 import { MeasurementHealthPanel } from "@/components/growth/measurement-health-panel";
 import { affectsMeasurementHealth } from "@/lib/measurement-health";
-import { Input } from "@/components/ui/input";
+import { DataToolbar, DataToolbarSearch } from "@/components/molecules/data-table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertCircle, Search } from "lucide-react";
 import { flattenMetaIntegration as flattenMetaIntegrationBase, resolveProvider, isMetaVirtual, metaActionPurpose, metaCardServedBy, metaCardStatus, metaCardsDisconnectedBy, metaGrantNote, metaLoginPurposeFor, withMetaLoginPurpose, type MetaLoginInfo } from "@/lib/integrations-meta";
@@ -571,47 +571,48 @@ export default function IntegrationsPage() {
       <MeasurementHealthPanel />
 
       {/* Search + Tabs bar */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
+      <DataToolbar
+        search={
+          <DataToolbarSearch
             placeholder="Search integrations..."
+            aria-label="Search integrations"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
           />
-        </div>
-        <Tabs
-          value={connectionTab}
-          onValueChange={(v) => setConnectionTab(v as ConnectionTab)}
-        >
-          <TabsList>
-            <TabsTrigger value="all">
-              All
-              <Badge variant="secondary" className="ml-1.5 text-micro px-1.5 py-0">
-                {integrations.length}
-              </Badge>
-            </TabsTrigger>
-            <TabsTrigger value="connected">
-              Connected
-              <Badge variant="secondary" className="ml-1.5 text-micro px-1.5 py-0 bg-success/15 text-success-on-tint">
-                {connectedCount}
-              </Badge>
-            </TabsTrigger>
-            <TabsTrigger value="disconnected">
-              Available
-              <Badge variant="secondary" className="ml-1.5 text-micro px-1.5 py-0">
-                {disconnectedCount}
-              </Badge>
-            </TabsTrigger>
-          </TabsList>
-          {/* Filter tabs: the list below is the shared panel. Empty, force-mounted
-              panels keep each trigger's aria-controls pointing at a real id. */}
-          {(["all", "connected", "disconnected"] as const).map((v) => (
-            <TabsContent key={v} value={v} forceMount hidden />
-          ))}
-        </Tabs>
-      </div>
+        }
+        tabs={
+            <Tabs
+              value={connectionTab}
+              onValueChange={(v) => setConnectionTab(v as ConnectionTab)}
+            >
+              <TabsList>
+                <TabsTrigger value="all">
+                  All
+                  <Badge variant="secondary" className="ml-1.5 text-micro px-1.5 py-0">
+                    {integrations.length}
+                  </Badge>
+                </TabsTrigger>
+                <TabsTrigger value="connected">
+                  Connected
+                  <Badge variant="secondary" className="ml-1.5 text-micro px-1.5 py-0 bg-success/15 text-success-on-tint">
+                    {connectedCount}
+                  </Badge>
+                </TabsTrigger>
+                <TabsTrigger value="disconnected">
+                  Available
+                  <Badge variant="secondary" className="ml-1.5 text-micro px-1.5 py-0">
+                    {disconnectedCount}
+                  </Badge>
+                </TabsTrigger>
+              </TabsList>
+              {/* Filter tabs: the list below is the shared panel. Empty, force-mounted
+                  panels keep each trigger's aria-controls pointing at a real id. */}
+              {(["all", "connected", "disconnected"] as const).map((v) => (
+                <TabsContent key={v} value={v} forceMount hidden />
+              ))}
+            </Tabs>
+        }
+      />
 
       {/* Category chips */}
       <div className="flex flex-wrap gap-2">

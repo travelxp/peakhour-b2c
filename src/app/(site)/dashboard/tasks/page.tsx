@@ -6,7 +6,6 @@ import { useSearchParams } from "next/navigation";
 import { flexRender } from "@tanstack/react-table";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -22,6 +21,8 @@ import { StatusBadge } from "@/components/molecules/status-badge";
 import {
   useDataTable,
   FacetedFilter,
+  DataToolbar,
+  DataToolbarSearch,
   DataTablePagination,
   type FacetedFilterOption,
 } from "@/components/molecules/data-table";
@@ -169,32 +170,39 @@ export default function TasksPage() {
       ) : (
         <div className="space-y-3">
           {/* Toolbar: search + Type filter chip */}
-          <div className="flex flex-wrap items-center gap-2">
-            <Input
-              placeholder="Search tasks..."
-              value={globalFilter}
-              onChange={(e) => setGlobalFilter(e.target.value)}
-              className="h-8 w-full lg:w-64"
-            />
-            {typeOptions.length > 1 && (
-              <FacetedFilter
-                column={table.getColumn("kind")}
-                title="Type"
-                options={typeOptions}
-                align="start"
-              />
-            )}
-            {table.getState().columnFilters.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
+          <DataToolbar
+            search={
+              <DataToolbarSearch
+                aria-label="Search tasks"
+                placeholder="Search tasks..."
+                value={globalFilter}
+                onChange={(e) => setGlobalFilter(e.target.value)}
                 className="h-8"
-                onClick={() => table.resetColumnFilters()}
-              >
-                Clear
-              </Button>
-            )}
-          </div>
+              />
+            }
+            filters={
+              <>
+                {typeOptions.length > 1 && (
+                  <FacetedFilter
+                    column={table.getColumn("kind")}
+                    title="Type"
+                    options={typeOptions}
+                    align="start"
+                  />
+                )}
+                {table.getState().columnFilters.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8"
+                    onClick={() => table.resetColumnFilters()}
+                  >
+                    Clear
+                  </Button>
+                )}
+              </>
+            }
+          />
 
           <div className="rounded-md border">
             <Table>
