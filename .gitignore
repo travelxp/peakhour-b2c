@@ -57,3 +57,6 @@ skills-lock.json
 # harness whose own header claimed this rule existed was running in this repo
 # with the rule absent.
 .tmp-*
+
+# a11y smoke screenshots
+/a11y-shots/

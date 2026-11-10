@@ -62,7 +62,7 @@ export function ChannelsStrip({
             className={`group ${shell} transition-all hover:-translate-y-1 hover:border-foreground hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2`}
           >
             {inner}
-            <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-bold text-brand-strong">
+            <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-bold text-brand-label">
               See what runs here
               <ArrowRight
                 className="size-3.5 transition-transform group-hover:translate-x-1"

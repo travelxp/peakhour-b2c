@@ -597,7 +597,7 @@ export function AuthFlow({
                 <span className="size-2 shrink-0 rounded-full bg-success" aria-hidden />
                 <span className="w-20 shrink-0 font-bold text-on-ink">{row.name}</span>
                 <span className="min-w-0 flex-1 truncate text-on-ink-dim">{row.status}</span>
-                <span className="shrink-0 rounded-full bg-success/15 px-2.5 py-0.5 text-micro font-bold uppercase tracking-wide text-success">
+                <span className="shrink-0 rounded-full bg-success/15 px-2.5 py-0.5 text-micro font-bold uppercase tracking-wide text-[color-mix(in_oklch,var(--success)_75%,white)]">
                   Free
                 </span>
               </div>
