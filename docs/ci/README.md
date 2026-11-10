@@ -45,15 +45,21 @@ reason) are in `scripts/shadcnblocks-drift.config.json`.
 ## 3. Accessibility smoke
 
 ```
-npm i -D playwright @axe-core/playwright && npx playwright install chromium
+npm ci
+npx playwright install chromium
 npm run build && npm start &
 BASE_URL=http://localhost:3000 node scripts/a11y-smoke.mjs
 ```
 
-Checks `/`, `/pricing`, `/auth` (override with `A11Y_ROUTES`) and fails on
-serious or critical axe violations. Playwright is not a dependency yet
-because of the browser download; the script exits 2 with the install line
-if it is missing.
+`playwright` (1.64.1) and `@axe-core/playwright` (4.14.0) are now
+devDependencies, so `npm ci` installs them; only the browser download is a
+separate step. Checks `/`, `/pricing`, `/auth`, `/how-it-works`, `/shopify`,
+`/contact` (override with `A11Y_ROUTES`) and fails on serious or critical
+axe violations, and on horizontal overflow
+(`scrollWidth > innerWidth`). Options: `A11Y_VIEWPORTS=375,1440` runs axe at
+those widths (default 1280); `A11Y_SHOTS_DIR=a11y-shots` also writes
+full-page screenshots at 375, 768, 1280 and 1920 (the folder is
+gitignored). The dashboard needs a signed-in account and is not covered.
 
 ## Workflows
 
@@ -104,7 +110,7 @@ jobs:
 
 ### a11y-smoke.yml
 
-Requires the one-line install above to be committed to `package.json` first.
+Runnable as is: copy `docs/ci/a11y-smoke.yml` to `.github/workflows/a11y-smoke.yml`. The install step it needs is `npx playwright install --with-deps chromium` after `npm ci` (already in the YAML; the npm packages come from `package.json`).
 
 ```yaml
 name: A11y smoke
