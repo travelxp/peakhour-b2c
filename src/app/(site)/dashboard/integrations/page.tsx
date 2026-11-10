@@ -15,7 +15,7 @@ import { XDmConnect } from "@/components/integrations/x-dm-connect";
 import { WordPressConnectModal } from "@/components/integrations/wordpress-connect-modal";
 import { MeasurementHealthPanel } from "@/components/growth/measurement-health-panel";
 import { affectsMeasurementHealth } from "@/lib/measurement-health";
-import { DataToolbar, DataToolbarSearch } from "@/components/molecules/data-table";
+import { DataToolbar, DataToolbarSearch } from "@/components/molecules/data-table/data-toolbar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertCircle, Search } from "lucide-react";
 import { flattenMetaIntegration as flattenMetaIntegrationBase, resolveProvider, isMetaVirtual, metaActionPurpose, metaCardServedBy, metaCardStatus, metaCardsDisconnectedBy, metaGrantNote, metaLoginPurposeFor, withMetaLoginPurpose, type MetaLoginInfo } from "@/lib/integrations-meta";

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Sparkles, Users } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { DataToolbar, DataToolbarSearch } from "@/components/molecules/data-table";
+import { DataToolbar, DataToolbarSearch } from "@/components/molecules/data-table/data-toolbar";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,

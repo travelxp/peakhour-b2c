@@ -18,11 +18,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/molecules/status-badge";
+import { DataToolbar, DataToolbarSearch } from "@/components/molecules/data-table/data-toolbar";
 import {
   useDataTable,
   FacetedFilter,
-  DataToolbar,
-  DataToolbarSearch,
   DataTablePagination,
   type FacetedFilterOption,
 } from "@/components/molecules/data-table";
