@@ -98,6 +98,11 @@ export interface PresenceNetworkEntry {
   driftFields: string[];
   /** Whether the merchant controls the listing. `unknown` is its own state. */
   control: PresenceControl;
+  /**
+   * Whether approved changes reach the network, from the api's send gates (`publishingOf`). Null for a network that writes nothing; absent on
+   * an api that predates it, which draws no publishing status.
+   */
+  publishing?: PresencePublishing | null;
   /** What the network changed by itself. `items: null` is "never answered"; `[]` is "nothing changed". */
   changes: PresenceNetworkChanges;
   /** What the network can do, from its adapter's declaration. */
@@ -179,6 +184,18 @@ export function keepInsightsWhileLoading(prevKey: readonly unknown[] | undefined
 }
 
 export type ControlState = "controlled" | "not_controlled" | "unknown";
+
+/** `networks[].publishing` (the api's `PublishingView`). */
+export interface PresencePublishing {
+  /** on: approved changes are sent. held: Peakhour has not started sending yet. blocked: something on the merchant's side stops every send. */
+  state: "on" | "held" | "blocked";
+  /** Peakhour's own sentence while held. */
+  heldReason: string | null;
+  /** What on the merchant's side stops a send, and where it is fixed. Given in `held` too, so it can be fixed while they wait. */
+  blocker: { reason: string; action: "reconnect" | "fix_on_network"; href: string | null } | null;
+  /** How long a prepared change waits before it is dropped. */
+  keptForHours: number;
+}
 
 export interface PresenceControl {
   state: ControlState;
@@ -693,7 +710,9 @@ export function controlNote(
     if (failedAfterAnswer) extras.push("Our latest check didn't get an answer, so this may be out of date.");
     return {
       tone: "good",
-      headline: "Your edits can go live",
+      // ★ABOUT MANAGING, NOT PUBLISHING. Whether changes are sent is the publishing status's one answer (`publishingBanner`); this line
+      // said "can go live" while that status said nothing is sent yet.
+      headline: "You manage this listing",
       body: `${label} shows you as managing this listing.`,
       extras,
     };
@@ -711,10 +730,11 @@ export function controlNote(
   }
   return {
     tone: "unknown",
-    headline: "We can't tell yet whether your edits can go live",
+    headline: "We can't tell yet whether you manage this listing",
+    // ★NOT "nothing is wrong": the send blocks on unknown (the api's `controlOf`), so a page must not reassure while it holds every change.
     body: c.lastReadFailedAt
-      ? `We asked ${label} and didn't get an answer. This is not a sign that anything is wrong.`
-      : `We haven't asked ${label} yet. This is not a sign that anything is wrong.`,
+      ? `We asked ${label} and didn't get an answer. Nothing is sent to ${label} until we know.`
+      : `We haven't asked ${label} yet. Nothing is sent to ${label} until we know.`,
     extras,
   };
 }

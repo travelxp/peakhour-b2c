@@ -58,9 +58,10 @@ function render(opts: { data?: PhotosResponse | null; can?: { propose: boolean; 
 }
 
 describe("the photos card", () => {
-  it("shows the api's switch-off words (with the 72 hours), the limits and the declared categories, in the network's own label", () => {
+  it("shows the limits and the declared categories in the network's own label, and never repeats the switch-off notice", () => {
     const html = render();
-    expect(html).toContain("a change expires 72 hours after you prepare it");
+    // GBP Issue 1: whether changes are sent is the page's one publishing status, never a paragraph per panel.
+    expect(html).not.toContain("a change expires 72 hours after you prepare it");
     expect(html).toContain("NetA takes photos that are JPG or PNG, 10 KB to 5 MB");
     expect(html).toContain(">Exterior<");
     expect(html).toContain(">Food and drink<");

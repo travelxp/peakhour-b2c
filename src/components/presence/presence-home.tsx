@@ -12,6 +12,7 @@ import { reviewsPlaceIn, wantsPlacesView } from "@/lib/review-places";
 import { ListingPanel } from "@/components/presence/listing-panel";
 import { ListingScoreCard } from "@/components/presence/listing-score-card";
 import { EditListingCard, type EditRequest } from "@/components/presence/edit/edit-listing-card";
+import { PublishingStatus } from "@/components/presence/publishing-status";
 import { PhotosCard } from "@/components/presence/edit/photos-card";
 import { PostsCard } from "@/components/presence/edit/posts-card";
 import { ServicesCard } from "@/components/presence/edit/services-card";
@@ -265,6 +266,10 @@ export function PresenceHome() {
 
             {listingOn ? (
               <>
+                {/* ★ONE publishing status for the panels below, never one per panel (GBP Issue 1). Wherever a change can be made: the edit
+                    forms, or the photos card, which is drawn on its own declaration. */}
+                {editOn || photosOn ? <PublishingStatus location={panelLocation} network={panelNetwork} /> : null}
+
                 <ListingScoreCard
                   location={panelLocation}
                   network={panelNetwork}

@@ -6,10 +6,11 @@
  * adapter. Nothing in this file spells one.
  *
  * ★SUBMITTED IS NOT LIVE. "Live" is a word only the `live` status earns; every other state says what is true instead.
- * ★WRITES ARE OFF until the operator switches a network on (`writes.released`). The form says so plainly and never says "saved".
+ * ★WRITES ARE OFF until the operator switches a network on (`writes.released`). The page says so ONCE, in `publishingBanner`, and never
+ * says "saved".
  */
 
-import type { HoursPeriod, SpecialHours } from "@/lib/presence-panels";
+import type { HoursPeriod, PresenceNetworkEntry, PresencePublishing, SpecialHours } from "@/lib/presence-panels";
 import { photoValueLines } from "@/lib/presence-photos";
 import { PANEL_TITLES, extraValueLines, type ExtraField } from "@/lib/presence-extras";
 
@@ -221,10 +222,100 @@ export function cardActions(c: Pick<ChangeCardData, "status" | "undone"> & { und
   };
 }
 
-/** Plain words about the switch. Null when writes are on. */
-export function writesNote(cap: NetworkCapability | undefined): string | null {
-  if (!cap || cap.writes.released) return null;
-  return `Sending changes to ${cap.label} is switched off for now. You can prepare a change and have it approved, but nothing is sent to ${cap.label} until Peakhour switches it on.${cap.writes.reason ? ` ${cap.writes.reason}` : ""}`;
+/**
+ * What a person reads after preparing a change. While writes are held the network's own dry run is skipped (it needs the release), so
+ * "checked" must say by whom: Peakhour checked it against the network's rules, and the network checks it again when it is sent.
+ *
+ * ★ONE SOURCE FOR "held": the listing's `publishing`, the same answer the publishing status draws, so the two never disagree while their
+ * caches refresh at different times. Only an api that predates it falls back to the capabilities' `writes.released`.
+ */
+export function preparedWords(
+  notChecked: number,
+  cap: Pick<NetworkCapability, "label" | "writes">,
+  publishing?: Pick<PresencePublishing, "state"> | null,
+): string {
+  if (notChecked > 0) return `Your change is prepared, but ${cap.label} could not check it just now. It is waiting below.`;
+  const released = publishing ? publishing.state !== "held" : cap.writes.released;
+  if (released) return "Your change is prepared and checked. Review it below, then approve it.";
+  return `Your change is prepared and checked against ${cap.label}'s rules. ${cap.label} checks it again when it is sent. Review it below, then approve it.`;
+}
+
+// ── The one publishing status ────────────────────────────────────────────────
+
+export interface PublishingBanner {
+  tone: "good" | "warn" | "bad";
+  headline: string;
+  /** Separate facts, in the order to read them. */
+  lines: string[];
+  /** The one thing to press, when the merchant can fix what stops a send. `external` opens the network's own site. */
+  action: { label: string; href: string; external: boolean } | null;
+}
+
+const unit = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
+const keptFor = (hours: number) => (hours > 0 && hours % 24 === 0 ? unit(hours / 24, "day") : unit(hours, "hour"));
+
+/**
+ * GBP Issue 1: the ONE answer to "can I publish, what is stopping me, and what do I do?", shown once above the panels. It replaced a
+ * "switched off ... until Peakhour switches it on" paragraph drawn under six panels that never said whether the merchant had to act.
+ *
+ * Built from the api's `publishing` (the send's own gates) and the person's role. Null when the network writes nothing, or on an api that
+ * predates the field: no status is drawn rather than a guessed one.
+ */
+export function publishingBanner(
+  entry: Pick<PresenceNetworkEntry, "label" | "publishing"> | null | undefined,
+  can: CapabilitiesResponse["can"] | undefined,
+): PublishingBanner | null {
+  const p = entry?.publishing;
+  if (!entry || !p) return null;
+  const label = entry.label;
+  // The one button, only for someone whose role can change the listing: a viewer is told what is wrong, never sent to a page they cannot
+  // use. A link off this site opens in a new tab; that is a property of where it goes, not of the action's kind.
+  const href = p.blocker?.href ?? null;
+  const fix =
+    p.blocker && href && can?.propose
+      ? { label: p.blocker.action === "reconnect" ? `Reconnect ${label}` : `Fix this on ${label}`, href, external: /^https?:\/\//i.test(href) }
+      : null;
+  // Who approves: said once here, so an editor is not surprised by an Approve button they do not have.
+  const editorOnly = !!can?.propose && !can.approve;
+  const role = editorOnly ? ["You can prepare changes. An admin or owner approves them before anything is sent."] : [];
+  // ★WHAT THIS PERSON CAN DO WHILE THEY WAIT, by role: a viewer is never told to prepare, nor an editor to approve.
+  const meanwhile = can?.approve
+    ? "You can prepare and approve changes now."
+    : can?.propose
+      ? "You can prepare changes now, and an admin or owner approves them."
+      : "Changes your team prepares and approves now are kept.";
+  const kept = `A change that has not been sent ${keptFor(p.keptForHours)} after it was prepared is dropped, and has to be made again.`;
+
+  if (p.state === "held") {
+    const why = [p.heldReason, p.blocker ? null : "You don't need to do anything."].filter(Boolean).join(" ");
+    return {
+      tone: "warn",
+      headline: `Publishing to ${label} hasn't started yet`,
+      lines: [
+        // Peakhour's sentence is WHY (a fact; mig 985 and the api's HELD). Whether the merchant must act is said here, because only this
+        // status knows whether something on their side also stops a send: never both "nothing to do" and "fix this".
+        ...(why ? [why] : []),
+        `${meanwhile} They are sent to ${label} once publishing starts. ${kept}`,
+        ...(p.blocker ? [`One thing needs you first: ${p.blocker.reason}`] : []),
+      ],
+      action: fix,
+    };
+  }
+  if (p.state === "blocked") {
+    // Prepared changes still expire while blocked, so the lifetime is said here too.
+    return {
+      tone: "bad",
+      headline: `Peakhour can't publish to ${label} right now`,
+      lines: [p.blocker?.reason ?? `Something on ${label} is stopping changes.`, `Changes are sent once this is fixed. ${kept}`, ...role],
+      action: fix,
+    };
+  }
+  return {
+    tone: "good",
+    headline: `Publishing to ${label} is on`,
+    lines: [`Approved changes are sent to ${label}. ${label} can take a little while to show them.`, ...role],
+    action: null,
+  };
 }
 
 // ── What a state says ────────────────────────────────────────────────────────

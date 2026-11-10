@@ -61,10 +61,11 @@ const g = (over: Partial<G> = {}): G => ({
 });
 
 describe("controlNote: the three states are three different things", () => {
-  it("controlled says edits can go live", () => {
+  it("controlled says you manage the listing, never that edits go live (the publishing status answers that)", () => {
     const n = controlNote(g(), NET)!;
     expect(n.tone).toBe("good");
-    expect(n.headline).toBe("Your edits can go live");
+    expect(n.headline).toBe("You manage this listing");
+    expect(n.headline).not.toMatch(/go live/);
   });
 
   it("not controlled is a warning, and always says may", () => {
@@ -87,9 +88,11 @@ describe("controlNote: the three states are three different things", () => {
     const n = controlNote(g({ control: control({ state: "unknown", checkedAt: null }) }), NET)!;
     expect(n.tone).toBe("unknown");
     expect(n.headline).toMatch(/can't tell/);
-    expect(n.headline).not.toBe("Your edits can go live");
+    expect(n.headline).not.toBe("You manage this listing");
     expect(n.headline).not.toBe("Your edits may not go live");
-    expect(n.body).toMatch(/not a sign that anything is wrong/);
+    // ★The send blocks on unknown, so it never reassures; it says nothing is sent until we know.
+    expect(n.body).not.toMatch(/not a sign that anything is wrong/);
+    expect(n.body).toMatch(/Nothing is sent to .+ until we know/);
     expect(n.body).toMatch(/haven't asked/);
   });
 

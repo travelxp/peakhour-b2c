@@ -152,11 +152,7 @@ export function ExtraPanel<D extends { label: string; writes: { notice: string |
       </>
     ) : (
       <>
-        {data.writes.notice && (
-          <p role="status" className="rounded-md border border-warning/40 p-3 text-xs text-warning-on-tint">
-            {data.writes.notice}
-          </p>
-        )}
+        {/* Whether changes are sent is said ONCE, by the publishing status above the panels (GBP Issue 1), never per panel. */}
         {stale && <p className="text-xs text-warning-on-tint">Could not refresh just now, so this may be out of date.</p>}
         {children({ data: data as unknown as D, label, network, access, changes: items, can: caps.data?.can, busy, submit })}
       </>

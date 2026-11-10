@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { DrawnSection } from "@/lib/presence-edit";
+import type { PresencePublishing } from "@/lib/presence-panels";
 import {
   cardActions,
   capabilityFor,
@@ -33,7 +34,8 @@ import {
   websiteValue,
   wipeNote,
   withCategory,
-  writesNote,
+  preparedWords,
+  publishingBanner,
   type CapabilitiesResponse,
   type ChangeCardData,
   type ChangeStatus,
@@ -103,7 +105,8 @@ describe("the form is drawn from declared capabilities", () => {
 
   it("never lets a screen name a network: the word comes from the label", () => {
     expect(statusWords(change({ status: "submitted" }), "Elsewhere", ADMIN).headline).toBe("Sent to Elsewhere, not live yet");
-    expect(writesNote(cap({ label: "Elsewhere" }))).toContain("Elsewhere");
+    expect(preparedWords(0, cap({ label: "Elsewhere" }))).toContain("Elsewhere");
+    expect(publishingBanner({ label: "Elsewhere", publishing: { state: "on", heldReason: null, blocker: null, keptForHours: 72 } }, undefined)!.headline).toContain("Elsewhere");
   });
 });
 
@@ -191,17 +194,117 @@ describe("the state words", () => {
   });
 });
 
-describe("the switch", () => {
-  it("says plainly that sending is off, with the reason, and never says saved", () => {
-    const n = writesNote(cap())!;
-    expect(n).toContain("switched off");
-    expect(n).toContain("nothing is sent to Testnet");
-    expect(n).toContain("Held for review.");
-    expect(n.toLowerCase()).not.toContain("saved");
+describe("the one publishing status (GBP Issue 1)", () => {
+  const ADMIN_CAN = { propose: true, approve: true };
+  const EDITOR_CAN = { propose: true, approve: false };
+  const pub = (over: Partial<PresencePublishing> = {}): PresencePublishing => ({ state: "held", heldReason: "Peakhour is finishing its setup with Testnet.", blocker: null, keptForHours: 72, ...over });
+  const entry = (p: PresencePublishing | null | undefined) => ({ label: "Testnet", publishing: p });
+
+  it("held says what is off, why, that the merchant need not act, and for how long a change keeps, with no button", () => {
+    const b = publishingBanner(entry(pub()), ADMIN_CAN)!;
+    expect(b.tone).toBe("warn");
+    expect(b.headline).toBe("Publishing to Testnet hasn't started yet");
+    expect(b.lines[0]).toBe("Peakhour is finishing its setup with Testnet. You don't need to do anything.");
+    expect(b.lines.join(" ")).toMatch(/You can prepare and approve changes now/);
+    expect(b.lines.join(" ")).toMatch(/3 days after it was prepared is dropped/);
+    expect(b.action).toBeNull();
   });
-  it("says nothing when writes are on, or there is no network", () => {
-    expect(writesNote(cap({ writes: { released: true, reason: null } }))).toBeNull();
-    expect(writesNote(undefined)).toBeNull();
+
+  it("★never tells a merchant about a switch they cannot press", () => {
+    for (const state of ["on", "held", "blocked"] as const) {
+      const b = publishingBanner(entry(pub({ state, blocker: state === "blocked" ? { reason: "x", action: "reconnect", href: "/i" } : null })), ADMIN_CAN)!;
+      expect([b.headline, ...b.lines].join(" "), state).not.toMatch(/switch/i);
+    }
+  });
+
+  it("held with a merchant-side blocker names it and gives its fix, so it can be done while they wait", () => {
+    const b = publishingBanner(entry(pub({ blocker: { reason: "Testnet has suspended this listing.", action: "fix_on_network", href: "https://t.example" } })), ADMIN_CAN)!;
+    expect(b.lines).toContain("One thing needs you first: Testnet has suspended this listing.");
+    // never "you don't need to do anything" beside "fix this"; the why is still said
+    expect(b.lines.join(" ")).not.toMatch(/don't need to do anything/);
+    expect(b.lines[0]).toBe("Peakhour is finishing its setup with Testnet.");
+    expect(b.action).toEqual({ label: "Fix this on Testnet", href: "https://t.example", external: true });
+  });
+
+  it("blocked is the warning look, with the reason and a reconnect inside the app", () => {
+    const b = publishingBanner(entry(pub({ state: "blocked", heldReason: null, blocker: { reason: "We could not tell.", action: "reconnect", href: "/dashboard/integrations" } })), ADMIN_CAN)!;
+    expect(b.tone).toBe("bad");
+    expect(b.headline).toBe("Peakhour can't publish to Testnet right now");
+    expect(b.lines[0]).toBe("We could not tell.");
+    expect(b.action).toEqual({ label: "Reconnect Testnet", href: "/dashboard/integrations", external: false });
+  });
+
+  it("a blocker with no place to fix it gives its reason and no button that leads nowhere", () => {
+    expect(publishingBanner(entry(pub({ state: "blocked", blocker: { reason: "r", action: "fix_on_network", href: null } })), ADMIN_CAN)!.action).toBeNull();
+  });
+
+  it("on says changes are sent, and never promises they are live", () => {
+    const b = publishingBanner(entry(pub({ state: "on", heldReason: null })), ADMIN_CAN)!;
+    expect(b.tone).toBe("good");
+    expect(b.headline).toBe("Publishing to Testnet is on");
+    expect(b.lines.join(" ")).not.toMatch(/live/i);
+  });
+
+  it("an editor is told an admin approves; an admin is not", () => {
+    expect(publishingBanner(entry(pub()), EDITOR_CAN)!.lines.join(" ")).toMatch(/an admin or owner approves them/i);
+    expect(publishingBanner(entry(pub({ state: "on", heldReason: null })), EDITOR_CAN)!.lines.join(" ")).toMatch(/An admin or owner approves them/);
+    expect(publishingBanner(entry(pub()), ADMIN_CAN)!.lines.join(" ")).not.toMatch(/admin or owner/);
+  });
+
+  it("★while held, nobody is told they can do what their role cannot", () => {
+    const editor = publishingBanner(entry(pub()), EDITOR_CAN)!.lines.join(" ");
+    expect(editor).toMatch(/You can prepare changes now, and an admin or owner approves them/);
+    expect(editor).not.toMatch(/prepare and approve/);
+    const viewer = publishingBanner(entry(pub()), { propose: false, approve: false })!.lines.join(" ");
+    expect(viewer).not.toMatch(/You can prepare/);
+    expect(viewer).toMatch(/Changes your team prepares and approves now are kept/);
+  });
+
+  it("draws nothing for a network that writes nothing, or an api that predates the field", () => {
+    expect(publishingBanner(entry(null), ADMIN_CAN)).toBeNull();
+    expect(publishingBanner(entry(undefined), ADMIN_CAN)).toBeNull();
+    expect(publishingBanner(null, ADMIN_CAN)).toBeNull();
+  });
+
+  it("blocked also says how long a prepared change keeps, since it still expires", () => {
+    const b = publishingBanner(entry(pub({ state: "blocked", heldReason: null, blocker: { reason: "r", action: "reconnect", href: "/i" } })), ADMIN_CAN)!;
+    expect(b.lines.join(" ")).toMatch(/Changes are sent once this is fixed\. A change that has not been sent 3 days after/);
+  });
+
+  it("★a viewer is told what is wrong but offered no button they cannot use", () => {
+    const viewer = { propose: false, approve: false };
+    expect(publishingBanner(entry(pub({ state: "blocked", blocker: { reason: "r", action: "reconnect", href: "/i" } })), viewer)!.action).toBeNull();
+    expect(publishingBanner(entry(pub({ blocker: { reason: "r", action: "fix_on_network", href: "https://t.example" } })), viewer)!.action).toBeNull();
+    expect(publishingBanner(entry(pub({ state: "blocked", blocker: { reason: "r", action: "reconnect", href: "/i" } })), EDITOR_CAN)!.action).not.toBeNull();
+  });
+
+  it("a new tab follows the link, not the action: an in-app fix stays in the app, an off-site reconnect opens a tab", () => {
+    expect(publishingBanner(entry(pub({ state: "blocked", blocker: { reason: "r", action: "fix_on_network", href: "/dashboard/x" } })), ADMIN_CAN)!.action!.external).toBe(false);
+    expect(publishingBanner(entry(pub({ state: "blocked", blocker: { reason: "r", action: "reconnect", href: "https://auth.example" } })), ADMIN_CAN)!.action!.external).toBe(true);
+  });
+
+  it("says a day or hours when the lifetime is not whole days", () => {
+    expect(publishingBanner(entry(pub({ keptForHours: 1 })), ADMIN_CAN)!.lines.join(" ")).toMatch(/1 hour after/);
+    expect(publishingBanner(entry(pub({ keptForHours: 48 })), ADMIN_CAN)!.lines.join(" ")).toMatch(/2 days after/);
+    expect(publishingBanner(entry(pub({ keptForHours: 24 })), ADMIN_CAN)!.lines.join(" ")).toMatch(/1 day after/);
+    expect(publishingBanner(entry(pub({ keptForHours: 36 })), ADMIN_CAN)!.lines.join(" ")).toMatch(/36 hours after/);
+  });
+});
+
+describe("what a person reads after preparing a change", () => {
+  it("while writes are held, says who checked it: the network checks it again when it is sent", () => {
+    expect(preparedWords(0, cap())).toBe("Your change is prepared and checked against Testnet's rules. Testnet checks it again when it is sent. Review it below, then approve it.");
+  });
+  it("while writes are on, the network checked it", () => {
+    expect(preparedWords(0, cap({ writes: { released: true, reason: null } }))).toBe("Your change is prepared and checked. Review it below, then approve it.");
+  });
+  it("the listing's publishing answer wins over the capabilities' cache, so it never disagrees with the status", () => {
+    expect(preparedWords(0, cap(), { state: "on" })).toBe("Your change is prepared and checked. Review it below, then approve it.");
+    expect(preparedWords(0, cap({ writes: { released: true, reason: null } }), { state: "held" })).toMatch(/checked against Testnet's rules/);
+    expect(preparedWords(0, cap({ writes: { released: true, reason: null } }), { state: "blocked" })).toMatch(/^Your change is prepared and checked\./);
+  });
+  it("a change the network could not check says so, whatever the switch", () => {
+    expect(preparedWords(1, cap())).toMatch(/could not check it just now/);
   });
 });
 

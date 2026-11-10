@@ -165,10 +165,10 @@ describe("the posts card", () => {
     expect(html).toContain("may be missing some");
     expect(html).toContain(">Write a post<");
   });
-  it("an empty list says there are no posts yet, and the switch-off notice is the api's words", () => {
+  it("an empty list says there are no posts yet, and never repeats the switch-off notice (the page's one publishing status says it)", () => {
     const html = render(PostsCard as never, "posts", { data: posts({ items: [], writes: { released: false, notice: "Nothing is sent to NetA yet." } }) });
     expect(html).toContain("You have no posts on NetA yet.");
-    expect(html).toContain("Nothing is sent to NetA yet.");
+    expect(html).not.toContain("Nothing is sent to NetA yet.");
   });
   it("with no read yet it shows a skeleton and, with nothing to show, no controls", () => {
     const html = render(PostsCard as never, "posts", {});

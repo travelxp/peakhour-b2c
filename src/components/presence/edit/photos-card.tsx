@@ -162,11 +162,7 @@ export function PhotosCard({ location, network: chosenNetwork }: { location?: st
       </>
     ) : (
       <>
-        {data.writes.notice && (
-          <p role="status" className="rounded-md border border-warning/40 p-3 text-xs text-warning-on-tint">
-            {data.writes.notice}
-          </p>
-        )}
+        {/* Whether changes are sent is said ONCE, by the publishing status above the panels (GBP Issue 1), never per panel. */}
         {view.stale && <p className="text-xs text-warning-on-tint">Could not refresh just now, so this may be out of date.</p>}
         {!data.complete && <p className="text-xs text-warning-on-tint">We could not read every one of your photos from {label} just now, so this list may be missing some.</p>}
         {data.customersComplete === false && <p className="text-xs text-warning-on-tint">We could not read the photos your customers added on {label} just now, so they may be missing here.</p>}
