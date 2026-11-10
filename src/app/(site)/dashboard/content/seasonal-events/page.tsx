@@ -458,7 +458,7 @@ export default function SeasonalEventsPage() {
     <PageShell>
       <PageHeader
         icon={<CalendarDays className="h-6 w-6 text-muted-foreground" />}
-        title="Seasonal Events"
+        title="Holidays & events"
         description="Cultural, national, and commercial moments the AI uses to plan seasonal content. Onboarding seeds these from your country's calendar; add, edit, or remove events to fine-tune what the seasonal generator sees. Exact dates show for the current year when a moving holiday (Diwali, Eid, Easter, …) has been mapped."
         actions={
           <Button size="sm" onClick={() => openEditor(null)} className="gap-1.5">

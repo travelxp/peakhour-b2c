@@ -39,7 +39,7 @@ import type { SourceStatus, TrustedSource } from "./types";
  */
 
 const FEATURE_KEY = "content.trusted_sources";
-const FEATURE_NAME = "Trusted Sources";
+const FEATURE_NAME = "Content sources";
 const FEATURE_TAGLINE =
   "Ground every brief, idea, and post in your brand's voice. Add the sites, feeds, channels, and creators your AI should read, watch, and cite.";
 
@@ -168,7 +168,7 @@ function TrustedSourcesSurface() {
         }}
       />
       <PageHeader
-        title="Trusted Sources"
+        title="Content sources"
         description="What your AI reads, watches, and cites."
         actions={<AddSourceDrawer />}
       />
@@ -407,13 +407,13 @@ function TrustedSourcesLockedFallback() {
   return (
     <PageShell>
       <PageHeader
-        title="Trusted Sources"
+        title="Content sources"
         description="What your AI reads, watches, and cites."
       />
       <Card className="border-warning/30 bg-linear-to-br from-warning/8 to-white dark:to-transparent">
         <CardContent className="space-y-3 p-8 text-center">
           <Sparkles aria-hidden="true" className="mx-auto size-8 text-warning-on-tint" />
-          <h3 className="text-lg font-semibold tracking-tight">Trusted Sources is rolling out</h3>
+          <h3 className="text-lg font-semibold tracking-tight">Content sources is rolling out</h3>
           <p className="mx-auto max-w-md text-sm text-muted-foreground">
             {FEATURE_TAGLINE}
           </p>

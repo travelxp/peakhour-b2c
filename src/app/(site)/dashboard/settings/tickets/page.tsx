@@ -77,7 +77,7 @@ export default function MyTicketsPage() {
             </Link>
           </Button>
         }
-        title="My Tickets"
+        title="Support tickets"
         description="Track your feedback submissions and their status."
       />
 

@@ -125,7 +125,7 @@ export default function TasksPage() {
         onTriggered={() => queryClient.invalidateQueries({ queryKey: ["jobs"] })}
       />
       <PageHeader
-        title="Tasks"
+        title="Activity"
         description="Background work running on your library — analysis, syncs, and more."
       />
 

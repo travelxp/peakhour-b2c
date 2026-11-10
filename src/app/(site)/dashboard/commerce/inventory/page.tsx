@@ -4,7 +4,7 @@ import { ReplenisherPanel } from "@/components/commerce/replenisher-panel";
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 
 export const metadata: Metadata = {
-  title: "Inventory & Supply · Commerce",
+  title: "Stock · Commerce",
 };
 
 /**
@@ -20,7 +20,7 @@ export default function CommerceInventoryPage() {
   return (
     <PageShell width="standard">
       <PageHeader
-        title="Inventory & Supply"
+        title="Stock"
         description="See which products are at risk of stocking out, which are tying up capital, and exactly what to reorder — graded from your live stock and the last 30 days of sales."
       />
       {/* `space-y-10` was the only 40px rhythm in the dashboard; tracks the

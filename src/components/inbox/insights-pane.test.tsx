@@ -276,7 +276,7 @@ describe("the old Questions lane is gone", () => {
     expect(PAGE).toContain('search.delete("topic")');
   });
   it("Commerce no longer lists What shoppers asked for", () => {
-    const LAYOUT = read("../../app/(site)/dashboard/layout.tsx");
+    const LAYOUT = read("../../lib/dashboard-nav.ts");
     expect(LAYOUT).not.toContain("What shoppers asked for");
     expect(LAYOUT).not.toContain("/dashboard/commerce/demand");
     expect(LAYOUT).toContain("/dashboard/commerce/knowledge");

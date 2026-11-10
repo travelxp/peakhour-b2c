@@ -178,7 +178,7 @@ export function RulesBody({ rules, preview }: { rules: RulesResponse; preview: b
             </tbody>
           </table>
           <p className="mt-3 text-xs text-muted-foreground">
-            Manage connections in <Link href="/dashboard/integrations" className="underline underline-offset-2">Integrations</Link>.
+            Manage connections in <Link href="/dashboard/integrations" className="underline underline-offset-2">Connected accounts</Link>.
           </p>
         </CardContent>
       </Card>

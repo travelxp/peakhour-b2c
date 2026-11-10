@@ -41,7 +41,8 @@ import {
   type PeaksPack,
 } from "@/hooks/use-peaks-packs";
 import { cardReason, packReason, packRefusalShownAsIs } from "@/lib/peaks-pack-copy";
-import { PaymentModal, type CheckoutResult } from "@/components/upgrade/payment-modal";
+import type { CheckoutResult } from "@/components/upgrade/payment-modal";
+import { PaymentModal } from "@/components/upgrade/payment-modal-lazy";
 import { ApiError } from "@/lib/api";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { toastUnhandledApiError } from "@/lib/toast-errors";

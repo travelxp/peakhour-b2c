@@ -28,7 +28,7 @@ import {
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { useSetAskEntityIds } from "@/providers/ask-context-provider";
 import { ASK_ENABLED } from "@/lib/flags";
-import { TrendChart } from "@/components/viz/trend-chart";
+import { TrendChart } from "@/components/viz/trend-chart-lazy";
 import { ExplainCard } from "@/components/dashboard/explain-card";
 import {
   useAnalyticsInsights,
@@ -211,8 +211,8 @@ export default function AnalyticsInsightsPage() {
             <LineChart className="h-5 w-5 text-white" />
           </div>
         }
-        title="Analytics 4"
-        description="Conversion funnel + top page performance — drives Optimizer budget allocation and Strategist content suggestions."
+        title="Website traffic"
+        description="Conversion funnel + top page performance — drives Optimizer budget allocation and Content plan suggestions."
       />
 
       {!isWorking ? (

@@ -138,7 +138,7 @@ export function WinBackView({ data }: { data: WaOverview }) {
       </Card>
       <p className="text-sm">
         Want to send an offer to everyone who opted in?{" "}
-        <Link className="underline" href="/dashboard/commerce/broadcasts">Open Broadcasts</Link>.
+        <Link className="underline" href="/dashboard/commerce/broadcasts">Open Promo messages</Link>.
       </p>
     </div>
   );

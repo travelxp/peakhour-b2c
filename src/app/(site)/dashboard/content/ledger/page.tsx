@@ -67,7 +67,7 @@ export default function ContentLedgerPage() {
   return (
     <PageShell>
       <PageHeader
-        title="Ledger"
+        title="Results"
         description="What you published through Peakhour, and what each page earned."
         actions={
           <div className="flex shrink-0 gap-1 rounded-md border p-0.5">

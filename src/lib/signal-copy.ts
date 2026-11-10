@@ -166,7 +166,7 @@ export function stateCopy(
   // ★THE REMEDY NAMES ALL THREE CAUSES, because "reactivate the plugin" is the
   // wrong instruction for a site that was disconnected or re-bound.
   const FIX_HINT =
-    "Check the plugin is active and this site is still connected under Integrations — or switch this signal to pasting the snippet in yourself.";
+    "Check the plugin is active and this site is still connected under Connected accounts — or switch this signal to pasting the snippet in yourself.";
   switch (signal.state) {
     case "firing":
       return {

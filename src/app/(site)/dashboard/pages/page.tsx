@@ -124,7 +124,7 @@ export default function PagesDashboard() {
     <PageShell width="standard">
       {/* Header */}
       <PageHeader
-        title="Pages"
+        title="Web pages"
         description="Ready-made landing pages for your business, written for you. Review each one and approve to publish — nothing goes live until you say so."
         actions={
           <div className="flex flex-col items-start gap-1 sm:items-end">

@@ -205,7 +205,7 @@ export default function StrategistPage() {
         }
       />
       <PageHeader
-        title="Content Pipeline"
+        title="Content plan"
         description="From idea to published — drag cards to move through stages"
         actions={
           <>

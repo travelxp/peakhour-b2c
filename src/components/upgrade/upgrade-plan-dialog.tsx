@@ -14,7 +14,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { PaymentModal, type CheckoutResult } from "./payment-modal";
+import type { CheckoutResult } from "./payment-modal";
+import { PaymentModal } from "./payment-modal-lazy";
 import { checkoutAction, type CheckoutPreview } from "@/lib/checkout-preview";
 import { onePress } from "@/lib/one-press";
 import {

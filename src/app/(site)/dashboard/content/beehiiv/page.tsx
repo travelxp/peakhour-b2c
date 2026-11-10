@@ -299,7 +299,7 @@ export default function ContentPage() {
           queryClient.invalidateQueries({ queryKey: ["content-stats"] });
           queryClient.invalidateQueries({ queryKey: ["content-library-all"] });
           queryClient.invalidateQueries({ queryKey: ["content-gaps"] });
-          toast.success("Analysis queued — track progress in Tasks.");
+          toast.success("Analysis queued — track progress in Activity.");
           router.push(`/dashboard/tasks?jobId=${data.jobId}`);
         },
         onError: (err: Error) => {
