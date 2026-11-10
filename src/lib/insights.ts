@@ -154,22 +154,6 @@ export function insightsHref(filter: InsightFilter = DEFAULT_INSIGHT_FILTER): st
   return filter === DEFAULT_INSIGHT_FILTER ? "/dashboard/inbox?tab=insights" : `/dashboard/inbox?tab=insights&type=${filter}`;
 }
 
-/**
- * A redirect's target with the old address's own query string carried over (SA-12). ★The target's keys win: `tab` and `type` say which
- * view the old page became, and a stale `?tab=` on the old address must not send the person somewhere else. Everything else (a store
- * filter, a date range, a campaign tag) rides along, repeated keys included, so a saved or emailed link loses nothing by being old.
- */
-export function carryQuery(target: string, incoming: Record<string, string | string[] | undefined> | null | undefined): string {
-  const [path, query = ""] = target.split("?", 2);
-  const out = new URLSearchParams(query);
-  const own = new Set(out.keys());
-  for (const [key, value] of Object.entries(incoming ?? {})) {
-    if (own.has(key) || value === undefined) continue;
-    for (const v of Array.isArray(value) ? value : [value]) out.append(key, v);
-  }
-  const qs = out.toString();
-  return qs ? `${path}?${qs}` : path;
-}
 
 // -- the conversation filter (`?topic=`) -------------------------------------------------------------------------------
 
