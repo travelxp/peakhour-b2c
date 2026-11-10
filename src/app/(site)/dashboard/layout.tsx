@@ -606,7 +606,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             padding-box edge, so without a matching scroll-padding every
             sidebar navigation from a scrolled position parked the page's
             first element flush against the header, eating this inset. */}
-        <div className="flex min-w-0 flex-1 flex-col overflow-auto p-4 scroll-pt-4 sm:p-6 sm:scroll-pt-6">
+        <div className="flex min-w-0 flex-1 flex-col overflow-auto p-4 scroll-pt-4 sm:p-6 sm:scroll-pt-6" data-slot="dashboard-scroll">
           {/* Banner slot — sits above the route content. Trial-expiry shows
               only inside the final 3 days of a trial; the credit-cap banner
               only once usage crosses its cap. Both render nothing otherwise

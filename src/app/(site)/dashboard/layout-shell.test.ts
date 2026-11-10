@@ -18,7 +18,7 @@ describe("dashboard shell can shrink below its widest child", () => {
   });
 
   it("the scroll container carries min-w-0 beside overflow-auto", () => {
-    const m = src.match(/<div className="([^"]*\boverflow-auto\b[^"]*)">/);
+    const m = src.match(/<div className="([^"]*\boverflow-auto\b[^"]*)"[^>]*>/);
     expect(m, "scroll container not found").not.toBeNull();
     expect(m![1]).toMatch(/\bmin-w-0\b/);
     expect(m![1]).toMatch(/\bflex-1\b/);
