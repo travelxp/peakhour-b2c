@@ -251,7 +251,8 @@ export interface PublishingBanner {
   action: { label: string; href: string; external: boolean } | null;
 }
 
-const keptFor = (hours: number) => (hours % 24 === 0 ? (hours === 24 ? "1 day" : `${hours / 24} days`) : `${hours} hours`);
+const unit = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
+const keptFor = (hours: number) => (hours > 0 && hours % 24 === 0 ? unit(hours / 24, "day") : unit(hours, "hour"));
 
 /**
  * GBP Issue 1: the ONE answer to "can I publish, what is stopping me, and what do I do?", shown once above the panels. It replaced a
@@ -267,15 +268,13 @@ export function publishingBanner(
   const p = entry?.publishing;
   if (!entry || !p) return null;
   const label = entry.label;
-  const fix = p.blocker
-    ? p.blocker.href
-      ? {
-          label: p.blocker.action === "reconnect" ? `Reconnect ${label}` : `Fix this on ${label}`,
-          href: p.blocker.href,
-          external: p.blocker.action === "fix_on_network",
-        }
-      : null
-    : null;
+  // The one button, only for someone whose role can change the listing: a viewer is told what is wrong, never sent to a page they cannot
+  // use. A link off this site opens in a new tab; that is a property of where it goes, not of the action's kind.
+  const href = p.blocker?.href ?? null;
+  const fix =
+    p.blocker && href && can?.propose
+      ? { label: p.blocker.action === "reconnect" ? `Reconnect ${label}` : `Fix this on ${label}`, href, external: /^https?:\/\//i.test(href) }
+      : null;
   // Who approves: said once here, so an editor is not surprised by an Approve button they do not have.
   const editorOnly = !!can?.propose && !can.approve;
   const role = editorOnly ? ["You can prepare changes. An admin or owner approves them before anything is sent."] : [];
@@ -285,23 +284,31 @@ export function publishingBanner(
     : can?.propose
       ? "You can prepare changes now, and an admin or owner approves them."
       : "Changes your team prepares and approves now are kept.";
+  const kept = `A change that has not been sent ${keptFor(p.keptForHours)} after it was prepared is dropped, and has to be made again.`;
 
   if (p.state === "held") {
+    const why = [p.heldReason, p.blocker ? null : "You don't need to do anything."].filter(Boolean).join(" ");
     return {
       tone: "warn",
       headline: `Publishing to ${label} hasn't started yet`,
       lines: [
         // Peakhour's sentence is WHY (a fact; mig 985 and the api's HELD). Whether the merchant must act is said here, because only this
         // status knows whether something on their side also stops a send: never both "nothing to do" and "fix this".
-        ...[[p.heldReason, p.blocker ? null : "You don't need to do anything."].filter(Boolean).join(" ")].filter(Boolean),
-        `${meanwhile} They are sent to ${label} once publishing starts. A change that has not been sent ${keptFor(p.keptForHours)} after it was prepared is dropped, and has to be made again.`,
+        ...(why ? [why] : []),
+        `${meanwhile} They are sent to ${label} once publishing starts. ${kept}`,
         ...(p.blocker ? [`One thing needs you first: ${p.blocker.reason}`] : []),
       ],
       action: fix,
     };
   }
   if (p.state === "blocked") {
-    return { tone: "bad", headline: `Peakhour can't publish to ${label} right now`, lines: [p.blocker?.reason ?? `Something on ${label} is stopping changes.`, ...role], action: fix };
+    // Prepared changes still expire while blocked, so the lifetime is said here too.
+    return {
+      tone: "bad",
+      headline: `Peakhour can't publish to ${label} right now`,
+      lines: [p.blocker?.reason ?? `Something on ${label} is stopping changes.`, `Changes are sent once this is fixed. ${kept}`, ...role],
+      action: fix,
+    };
   }
   return {
     tone: "good",

@@ -266,7 +266,26 @@ describe("the one publishing status (GBP Issue 1)", () => {
     expect(publishingBanner(null, ADMIN_CAN)).toBeNull();
   });
 
+  it("blocked also says how long a prepared change keeps, since it still expires", () => {
+    const b = publishingBanner(entry(pub({ state: "blocked", heldReason: null, blocker: { reason: "r", action: "reconnect", href: "/i" } })), ADMIN_CAN)!;
+    expect(b.lines.join(" ")).toMatch(/Changes are sent once this is fixed\. A change that has not been sent 3 days after/);
+  });
+
+  it("★a viewer is told what is wrong but offered no button they cannot use", () => {
+    const viewer = { propose: false, approve: false };
+    expect(publishingBanner(entry(pub({ state: "blocked", blocker: { reason: "r", action: "reconnect", href: "/i" } })), viewer)!.action).toBeNull();
+    expect(publishingBanner(entry(pub({ blocker: { reason: "r", action: "fix_on_network", href: "https://t.example" } })), viewer)!.action).toBeNull();
+    expect(publishingBanner(entry(pub({ state: "blocked", blocker: { reason: "r", action: "reconnect", href: "/i" } })), EDITOR_CAN)!.action).not.toBeNull();
+  });
+
+  it("a new tab follows the link, not the action: an in-app fix stays in the app, an off-site reconnect opens a tab", () => {
+    expect(publishingBanner(entry(pub({ state: "blocked", blocker: { reason: "r", action: "fix_on_network", href: "/dashboard/x" } })), ADMIN_CAN)!.action!.external).toBe(false);
+    expect(publishingBanner(entry(pub({ state: "blocked", blocker: { reason: "r", action: "reconnect", href: "https://auth.example" } })), ADMIN_CAN)!.action!.external).toBe(true);
+  });
+
   it("says a day or hours when the lifetime is not whole days", () => {
+    expect(publishingBanner(entry(pub({ keptForHours: 1 })), ADMIN_CAN)!.lines.join(" ")).toMatch(/1 hour after/);
+    expect(publishingBanner(entry(pub({ keptForHours: 48 })), ADMIN_CAN)!.lines.join(" ")).toMatch(/2 days after/);
     expect(publishingBanner(entry(pub({ keptForHours: 24 })), ADMIN_CAN)!.lines.join(" ")).toMatch(/1 day after/);
     expect(publishingBanner(entry(pub({ keptForHours: 36 })), ADMIN_CAN)!.lines.join(" ")).toMatch(/36 hours after/);
   });
