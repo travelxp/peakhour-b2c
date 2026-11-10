@@ -173,6 +173,12 @@ export function QuestionCard({ request, answerLabel = "Answer", dismissLabel = "
 function Suggestions() {
   const q = useKbSuggestions();
   const [approved, setApproved] = useState(false);
+  // the one-line confirmation is for the moment after the click, not for the rest of the visit
+  useEffect(() => {
+    if (!approved) return;
+    const t = setTimeout(() => setApproved(false), 8000);
+    return () => clearTimeout(t);
+  }, [approved]);
   // honest states: a failed read says so and offers a retry; it never shows the empty sentence in its place.
   // A paused query (offline) is not isLoading, and has no data: say nothing rather than guess.
   let body: React.ReactNode = null;
@@ -217,7 +223,7 @@ export function SuggestionsView({ data, now, onApproved }: { data: KbSuggestions
       ) : (
         <ul className="space-y-3">
           {list.map((s) => (
-            <SuggestionCard key={s.id} suggestion={s} now={now} onApproved={onApproved} />
+            <SuggestionCard key={`${s.id}|${s.title}|${s.content}`} suggestion={s} now={now} onApproved={onApproved} />
           ))}
         </ul>
       )}
@@ -258,7 +264,7 @@ function SuggestionCard({ suggestion, now, onApproved }: { suggestion: KbSuggest
   const [title, setTitle] = useState(suggestion.title);
   const [content, setContent] = useState(suggestion.content);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [confirmDismiss, setConfirmDismiss] = useState(false);
   const approve = useApproveSuggestion();
   const dismiss = useDismissSuggestion();
   const save = useSaveSuggestion();
@@ -276,15 +282,17 @@ function SuggestionCard({ suggestion, now, onApproved }: { suggestion: KbSuggest
   };
   const doSave = async () => {
     setError(null);
-    setSaved(false);
     const r = await runAction(() => save.mutateAsync({ id: suggestion.id, title: title.trim(), content: content.trim() }));
-    if (r.ok) setSaved(true);
+    if (r.ok) toast.success("Saved. It is not approved yet.");
     else setError(r.error);
   };
   const doDismiss = async () => {
     setError(null);
     const r = await runAction(() => dismiss.mutateAsync(suggestion.id));
-    if (!r.ok) setError(r.error);
+    if (!r.ok) {
+      setConfirmDismiss(false);
+      setError(r.error);
+    }
   };
 
   return (
@@ -297,10 +305,7 @@ function SuggestionCard({ suggestion, now, onApproved }: { suggestion: KbSuggest
             <Input
               value={title}
               maxLength={KB_TITLE_MAX}
-              onChange={(e) => {
-                setTitle(e.target.value);
-                setSaved(false);
-              }}
+              onChange={(e) => setTitle(e.target.value)}
             />
           </label>
           <label className="block space-y-1 text-sm">
@@ -309,23 +314,25 @@ function SuggestionCard({ suggestion, now, onApproved }: { suggestion: KbSuggest
               rows={5}
               value={content}
               maxLength={KB_CONTENT_MAX}
-              onChange={(e) => {
-                setContent(e.target.value);
-                setSaved(false);
-              }}
+              onChange={(e) => setContent(e.target.value)}
             />
           </label>
           {placeholdersIn(edited).length > 0 && (
-            <p data-kb-preview className="whitespace-pre-line rounded-md border p-2 text-sm">
-              <Highlighted text={edited} />
-            </p>
+            <div data-kb-preview className="space-y-1 rounded-md border p-2 text-sm">
+              <p className="font-medium">
+                <Highlighted text={title} />
+              </p>
+              <p className="whitespace-pre-line">
+                <Highlighted text={content} />
+              </p>
+            </div>
           )}
           {suggestion.needsFacts.length > 0 && (
             <div className="text-sm">
               <p className="font-medium">Your assistant needs you to say:</p>
               <ul className="list-disc pl-5 text-muted-foreground">
-                {suggestion.needsFacts.map((n) => (
-                  <li key={n}>{n}</li>
+                {suggestion.needsFacts.map((n, i) => (
+                  <li key={`${i}-${n}`}>{n}</li>
                 ))}
               </ul>
             </div>
@@ -341,11 +348,6 @@ function SuggestionCard({ suggestion, now, onApproved }: { suggestion: KbSuggest
               {error}
             </p>
           )}
-          {saved && (
-            <p role="status" className="text-sm text-muted-foreground">
-              Saved. It is not approved yet.
-            </p>
-          )}
           <div className="flex flex-wrap gap-2">
             <Button size="sm" onClick={() => void doApprove()} disabled={busy || !state.enabled} aria-describedby={state.enabled ? undefined : reasonId}>
               {approve.isPending && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />}
@@ -355,9 +357,20 @@ function SuggestionCard({ suggestion, now, onApproved }: { suggestion: KbSuggest
               {save.isPending && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />}
               Save without approving
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => void doDismiss()} disabled={busy}>
-              Dismiss
-            </Button>
+            {confirmDismiss ? (
+              <>
+                <Button size="sm" variant="destructive" onClick={() => void doDismiss()} disabled={busy}>
+                  Yes, dismiss it
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setConfirmDismiss(false)} disabled={busy}>
+                  Keep it
+                </Button>
+              </>
+            ) : (
+              <Button size="sm" variant="ghost" onClick={() => setConfirmDismiss(true)} disabled={busy} aria-label="Dismiss this suggestion">
+                Dismiss
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -438,8 +451,11 @@ function FindingCard({ finding: f, dismissed, entry, shop }: { finding: KbFindin
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(f.suggestion);
+      setError(null);
       setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
     } catch {
+      setCopied(false);
       setError("Could not copy. Select the text and copy it instead.");
     }
   };
@@ -489,7 +505,10 @@ function FindingCard({ finding: f, dismissed, entry, shop }: { finding: KbFindin
                     Edit in Shopify
                   </a>
                 )}
-                <Button size="sm" variant="outline" disabled={takeOver.isPending} onClick={() => takeOver.mutate({ id: entry!.id, action: "take-over" }, { onError: (e) => setError(kbErrorMessage(e)) })}>
+                <Button size="sm" variant="outline" disabled={takeOver.isPending} onClick={() => {
+                    setError(null);
+                    takeOver.mutate({ id: entry!.id, action: "take-over" }, { onError: (e) => setError(kbErrorMessage(e)) });
+                  }}>
                   Take over in Peakhour
                 </Button>
               </>
