@@ -7,7 +7,7 @@ import { useAdminTickets, type FeedbackTicket } from "@/hooks/use-feedback";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DataToolbar } from "@/components/molecules/data-table";
+import { DataToolbar } from "@/components/molecules/data-table/data-toolbar";
 import {
   Card,
   CardContent,

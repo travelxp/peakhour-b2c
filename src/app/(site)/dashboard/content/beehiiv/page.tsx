@@ -14,7 +14,8 @@ import { SENTIMENT_CONFIG, SHELF_LIFE_LABELS, label } from "@/lib/content-labels
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/molecules/confirm-dialog";
 import { EmptyState } from "@/components/molecules/empty-state";
-import { useDataTable, FacetedFilter, DataTablePagination, DataToolbar, DataToolbarSearch } from "@/components/molecules/data-table";
+import { useDataTable, FacetedFilter, DataTablePagination } from "@/components/molecules/data-table";
+import { DataToolbar, DataToolbarSearch } from "@/components/molecules/data-table/data-toolbar";
 import type { FacetedFilterOption } from "@/components/molecules/data-table";
 import { getContentColumns, type Draft } from "./columns";
 import { Button } from "@/components/ui/button";

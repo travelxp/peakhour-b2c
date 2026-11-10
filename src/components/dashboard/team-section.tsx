@@ -16,7 +16,7 @@ import { useLocale } from "@/hooks/use-locale";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DataToolbar, DataToolbarSearch } from "@/components/molecules/data-table";
+import { DataToolbar, DataToolbarSearch } from "@/components/molecules/data-table/data-toolbar";
 import { Label } from "@/components/ui/label";
 import {
   Select,

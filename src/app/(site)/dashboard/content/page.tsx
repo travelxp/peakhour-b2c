@@ -10,7 +10,7 @@ import { resolveBrandLogo } from "@/lib/brand-logos";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DataToolbar, DataToolbarSearch } from "@/components/molecules/data-table";
+import { DataToolbar, DataToolbarSearch } from "@/components/molecules/data-table/data-toolbar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollableTabsList } from "@/components/scrollable-tabslist";
