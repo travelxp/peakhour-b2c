@@ -1,5 +1,6 @@
 "use client";
 
+import { MediaImage } from "@/components/shared/media-image";
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
@@ -250,8 +251,7 @@ export function FileDetail({
     <aside aria-label="File details" className="flex flex-col gap-4 rounded-xl border bg-card p-4">
       <div className="relative h-40 overflow-hidden rounded-lg bg-muted">
         {preview ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img loading="lazy" src={preview} alt={item.altText ?? item.name} className="size-full object-contain" />
+          <MediaImage src={preview} alt={item.altText ?? item.name} width={1200} height={1200} sizes="(min-width: 768px) 50vw, 100vw" className="size-full object-contain" />
         ) : (
           <FileThumb item={item} />
         )}
