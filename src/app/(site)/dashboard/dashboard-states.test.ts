@@ -6,7 +6,9 @@ import { NOT_FOUND_DESTINATIONS } from "@/lib/dashboard-not-found";
 import { navLabel } from "@/lib/nav-copy";
 
 const DASH = __dirname;
-const pillars = readdirSync(DASH).filter((n) => statSync(path.join(DASH, n)).isDirectory());
+// Pillar folders only: a dynamic segment such as the `[...missing]` catch-all
+// is a route, not a section, and is covered by dashboard/error.tsx.
+const pillars = readdirSync(DASH).filter((n) => statSync(path.join(DASH, n)).isDirectory() && !n.startsWith("["));
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const n of readdirSync(dir)) {
