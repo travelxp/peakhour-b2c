@@ -6,7 +6,7 @@ import { useAuth } from "@/providers/auth-provider";
 import { useActiveStore } from "@/providers/active-store-provider";
 
 /**
- * Commerce Command Center summary (GET /v1/commerce/summary). Honest outcomes
+ * Store overview summary (GET /v1/commerce/summary). Honest outcomes
  * grounded in the connected store's catalog + inventory + our own assisted-order
  * and storefront data — no order scope required. Order-derived outcomes are
  * flagged `orderDerived.switchingOn` until order access lands (WooCommerce has it

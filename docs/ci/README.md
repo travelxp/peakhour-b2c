@@ -39,7 +39,11 @@ Fetches the registry item for each file in `src/components/blocks`
 (tries `name` then `<first-segment>-name`), normalises CRLF, whitespace,
 `from "cn"` and the `shadcnblocks`/`diceui` import paths, and prints
 identical / differs / allowlisted / local-only. Exits non-zero only on
-`differs`. Local-only blocks and intentional differences (each with a
+`differs`. With no `SHADCNBLOCKS_API_KEY` (unset or blank, as an unset
+GitHub secret arrives) it prints one `::notice::` annotation saying the
+check was skipped and exits 0; the owner has chosen not to configure the
+key, so the weekly workflow stays green. With a key it still fails on real
+drift. Local-only blocks and intentional differences (each with a
 reason) are in `scripts/shadcnblocks-drift.config.json`.
 
 ## 3. Accessibility smoke

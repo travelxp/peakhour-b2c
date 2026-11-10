@@ -26,6 +26,8 @@ export const RETIRED: Record<string, RegExp> = {
   Strategist: /\bstrategist\b/i, // now "Content plan"
   "News Desk": /\bnews desk\b/i, // now "Industry news"
   "Command Center": /\bcommand cent(?:er|re)\b/i, // now "Store overview"
+  "Commerce Command Center": /commerce command cent(?:er|re)/i, // now "Store overview"
+  "Commerce Autopilot": /commerce autopilot/i, // now "Auto-merchandising"
   "Win back carts": /\bwin back carts\b/i, // now "Abandoned carts"
   "Knowledge base": /\bknowledge base\b/i, // now "Assistant answers"
   "Trusted Sources": /\btrusted sources?\b/i, // now "Content sources"
@@ -49,10 +51,6 @@ export const ALLOWED: Record<string, { names: string[]; why: string }> = {
   "src/components/dev/cron-metadata.ts": {
     names: ["News Desk", "Trusted Sources"],
     why: "internal /cms cron descriptions for operators, not merchant-visible",
-  },
-  "src/components/commerce/command-center.tsx": {
-    names: ["Command Center"],
-    why: "'Commerce Command Center' is the plan feature name on the upgrade gate (owner decision pending)",
   },
   "src/components/support/contact-support-dialog.tsx": {
     names: ["Integrations"],
