@@ -111,14 +111,6 @@ export default function IdeasCalendarPage() {
         />
       )}
 
-      {(ideasView === "error" || ideasView === "offline") && (
-        <QueryError
-          what="your planned ideas"
-          kind={ideasView}
-          onRetry={() => void ideasQuery.refetch()}
-        />
-      )}
-
       {/* Week navigation */}
       <div className="flex items-center justify-between">
         <Button variant="outline" size="sm" onClick={() => setWeekOffset((w) => w - 1)}>

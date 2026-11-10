@@ -115,17 +115,6 @@ export default function ArticleDetailPage() {
     );
   }
 
-  if (view === "offline" || view === "error") {
-    return (
-      <QueryError
-        what="this article"
-        kind={view}
-        onRetry={() => void articleQuery.refetch()}
-        className="my-16"
-      />
-    );
-  }
-
   if (!article) {
     return (
       <PageShell width="wide" className="py-16 text-center">
