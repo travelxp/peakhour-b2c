@@ -139,7 +139,7 @@ export function SuggestedReply({ threadId, onUse, hasDraft, disabled }: { thread
         >
           {suggest.isPending ? "Drafting…" : price.text}
         </Button>
-        {!price.available && prices.isSuccess && <span className="text-[11px] text-muted-foreground">Suggested replies aren&apos;t available right now.</span>}
+        {!price.available && prices.isSuccess && <span className="text-micro text-muted-foreground">Suggested replies aren&apos;t available right now.</span>}
       </div>
       {error && (
         <p role="alert" className="text-xs text-warning-on-tint">
@@ -149,7 +149,7 @@ export function SuggestedReply({ threadId, onUse, hasDraft, disabled }: { thread
       {draft && (
         <div className="space-y-1.5 rounded-md border bg-muted/30 p-2" data-testid="suggested-reply">
           <p className="whitespace-pre-wrap text-xs">{draft.reply}</p>
-          <p className="text-[11px] text-muted-foreground">{draft.rationale}</p>
+          <p className="text-micro text-muted-foreground">{draft.rationale}</p>
           <div className="flex gap-2">
             <Button
               size="xs"
@@ -164,7 +164,7 @@ export function SuggestedReply({ threadId, onUse, hasDraft, disabled }: { thread
               Dismiss
             </Button>
           </div>
-          <p className="text-[11px] text-muted-foreground">Read it and change anything before you send. Nothing is sent until you press Send.</p>
+          <p className="text-micro text-muted-foreground">Read it and change anything before you send. Nothing is sent until you press Send.</p>
         </div>
       )}
     </div>
@@ -249,8 +249,8 @@ export function WaComposer({
     };
     return (
       <div className="space-y-2 border-t p-3">
-        <p className="text-[11px] text-muted-foreground">{replyingAs}</p>
-        {mode.takesOver && <p className="text-[11px] text-muted-foreground">{TAKES_OVER_NOTE}</p>}
+        <p className="text-micro text-muted-foreground">{replyingAs}</p>
+        {mode.takesOver && <p className="text-micro text-muted-foreground">{TAKES_OVER_NOTE}</p>}
         {status_}
         <Textarea
           value={mem.text}
@@ -277,7 +277,7 @@ export function WaComposer({
           <WaRichSend threadId={threadId} disabled={mem.pending} unknownSig={mem.attempt?.unknown ? mem.attempt.sig : null} onSend={send} />
         )}
         <div className="flex items-center justify-between gap-2">
-          <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
+          <span className="flex items-center gap-2 text-micro text-muted-foreground">
             {/* ★SAVED REPLIES ARE FREE TEXT, SO THEY ARE OFFERED ONLY HERE, INSIDE THE 24-HOUR WINDOW: outside it the box is the template picker. */}
             <SavedReplyPicker
               channel="whatsapp"
@@ -317,8 +317,8 @@ export function WaComposer({
   return (
     <div className="space-y-2 border-t p-3">
       <p className="text-xs text-muted-foreground">{mode.reason}</p>
-      <p className="text-[11px] text-muted-foreground">{replyingAs}</p>
-      {mode.takesOver && <p className="text-[11px] text-muted-foreground">{TAKES_OVER_NOTE}</p>}
+      <p className="text-micro text-muted-foreground">{replyingAs}</p>
+      {mode.takesOver && <p className="text-micro text-muted-foreground">{TAKES_OVER_NOTE}</p>}
       {status_}
       {showsSkeleton(state) && <Skeleton className="h-9 w-full" />}
       {state === "paused" && (
@@ -367,21 +367,21 @@ export function WaComposer({
             </SelectContent>
           </Select>
           {unsendable > 0 && (
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-micro text-muted-foreground">
               {unsendable} approved template{unsendable === 1 ? "" : "s"} can&apos;t be sent from the Inbox and {unsendable === 1 ? "isn't" : "aren't"} listed.
             </p>
           )}
         </>
       )}
       {truncated && state !== "empty" && (
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-micro text-muted-foreground">
           Only your {STUDIO_LIST_CAP} most recently updated templates are checked here; older approved ones may be missing.
         </p>
       )}
       {picked && (
         <div className="space-y-2">
           {picked.template.category === "MARKETING" && (
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-micro text-muted-foreground">
               A marketing template is only sent to a shopper who agreed to marketing messages.
             </p>
           )}
@@ -415,7 +415,7 @@ export function WaComposer({
             {preview}
           </p>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] text-muted-foreground">{valueProblem ?? ""}</span>
+            <span className="text-micro text-muted-foreground">{valueProblem ?? ""}</span>
             <Button
               size="sm"
               disabled={Boolean(valueProblem) || mem.pending || !payload}

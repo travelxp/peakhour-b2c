@@ -133,7 +133,7 @@ export default function ContentChannelsHubPage() {
 
   if (isLoading) {
     return (
-      <PageShell>
+      <PageShell width="wide">
         {cronToolbar}
         <HubSkeleton />
       </PageShell>
@@ -141,12 +141,12 @@ export default function ContentChannelsHubPage() {
   }
 
   return (
-    <PageShell>
+    <PageShell width="wide">
       {cronToolbar}
       <header className="space-y-2 border-b pb-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 space-y-2">
-            <h1 className="text-2xl font-semibold tracking-tight">Content channels</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">All content</h1>
             <p className="text-sm text-muted-foreground">
               Connect content sources to ingest, repurpose, and publish across every channel.
             </p>
@@ -267,7 +267,7 @@ function ChannelGroups({
                 {group.empty}
               </p>
             ) : (
-              <div className="space-y-3">
+              <div className="grid gap-3 2xl:grid-cols-2">
                 {group.channels.map((channel) => (
                   <ChannelRow
                     key={channel.slug}

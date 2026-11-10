@@ -143,14 +143,14 @@ export function CarouselPreviewDialog({
           />
           <div className="flex items-center justify-between">
             {tooLong ? (
-              <span className="text-[11px] text-destructive">
+              <span className="text-micro text-destructive">
                 Trim to {COMMENTARY_MAX} characters to publish.
               </span>
             ) : (
               <span />
             )}
             <span
-              className={`text-[11px] tabular-nums ${tooLong ? "text-destructive" : "text-muted-foreground"}`}
+              className={`text-micro tabular-nums ${tooLong ? "text-destructive" : "text-muted-foreground"}`}
             >
               {commentary.length}/{COMMENTARY_MAX}
             </span>

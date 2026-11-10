@@ -122,7 +122,7 @@ function FixRow({ fix, onOpenForm }: { fix: ScoreFix; onOpenForm?: ((field: stri
         <p className="text-sm font-medium">
           {fix.rank.position}. {fix.title}
         </p>
-        <span className="text-[11px] uppercase tracking-wide text-muted-foreground">{effectWord(fix.rank.effect)}</span>
+        <span className="text-micro uppercase tracking-wide text-muted-foreground">{effectWord(fix.rank.effect)}</span>
       </div>
       <p className="text-sm text-muted-foreground">{fix.why}</p>
       {fix.note ? <p className="text-xs text-muted-foreground">{fix.note}</p> : null}

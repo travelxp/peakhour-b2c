@@ -12,6 +12,7 @@ import type { PageBlock } from "@/lib/marketing-pages";
 import { useWebPageDraft } from "@/hooks/use-web-pages";
 import { WebPageActions } from "../components/web-page-actions";
 import { WebPagePreview } from "../components/web-page-preview";
+import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 
 export default function WebPageReview({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -29,25 +30,27 @@ export default function WebPageReview({ params }: { params: Promise<{ id: string
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <PageShell width="standard">
         {back}
+        <h1 className="sr-only">Page draft</h1>
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-96 w-full rounded-lg" />
-      </div>
+      </PageShell>
     );
   }
 
   if (isError || !draft) {
     return (
-      <div className="space-y-6">
+      <PageShell width="standard">
         {back}
+        <h1 className="sr-only">Page draft</h1>
         <EmptyState
           icon={FileStack}
           title="Page not found"
           description="This page may have already been published or sent back. Head back to your review queue."
           action={{ label: "Back to Pages", href: "/dashboard/pages" }}
         />
-      </div>
+      </PageShell>
     );
   }
 
@@ -62,26 +65,28 @@ export default function WebPageReview({ params }: { params: Promise<{ id: string
   const blocks = (draft.webPage.blocks ?? []) as PageBlock[];
 
   return (
-    <div className="space-y-6">
+    <PageShell width="standard">
       {back}
 
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-2xl font-bold tracking-tight">{name}</h2>
+      <PageHeader
+        title={
+          <span className="flex flex-wrap items-center gap-2">
+            {name}
             {verified ? (
               <StatusBadge status="Ready" variant="success" />
             ) : (
               <StatusBadge status="Needs a look" variant="warning" />
             )}
-          </div>
-          <p className="mt-1 text-sm text-muted-foreground">
+          </span>
+        }
+        description={
+          <>
             {audience ? `${audience} · ` : ""}Will publish at <span className="font-mono text-xs">/{draft.webPage.slug}</span>
-          </p>
-        </div>
-        <WebPageActions draftId={draft._id} name={name} size="default" onDone={() => router.push("/dashboard/pages")} />
-      </div>
+          </>
+        }
+        actions={<WebPageActions draftId={draft._id} name={name} size="default" onDone={() => router.push("/dashboard/pages")} />}
+      />
 
       {/* Things to double-check */}
       {!verified && claims.length > 0 && (
@@ -105,6 +110,6 @@ export default function WebPageReview({ params }: { params: Promise<{ id: string
           <WebPagePreview blocks={blocks} seo={draft.webPage.seo} />
         </div>
       </div>
-    </div>
+    </PageShell>
   );
 }

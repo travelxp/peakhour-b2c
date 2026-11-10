@@ -107,7 +107,7 @@ function EvidenceBadge({ sources }: { sources?: ProfileSource[] }) {
   if (!tier) return null;
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${TIER_CLASS[tier]}`}
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-micro font-medium ${TIER_CLASS[tier]}`}
     >
       {/* The tier is carried as TEXT, not colour alone — the badge has to mean
           the same thing to a colour-blind reader and a screen reader. */}

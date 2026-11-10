@@ -1,5 +1,6 @@
 "use client";
 
+import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { useState } from "react";
 import Link from "next/link";
 import { useAdminTickets, type FeedbackTicket } from "@/hooks/use-feedback";
@@ -18,6 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ArrowLeft, ExternalLink, Inbox } from "lucide-react";
+import { QueryError } from "@/components/dashboard/query-error";
+import { queryViewState } from "@/lib/query-view-state";
 
 const STATUS_STYLES: Record<string, string> = {
   pending: "bg-warning/15 text-warning-on-tint",
@@ -52,28 +55,25 @@ export default function FeedbackAdminPage() {
   if (statusFilter !== "all") params.status = statusFilter;
   if (severityFilter !== "all") params.severity = severityFilter;
 
-  const { data: tickets, isLoading } = useAdminTickets(
+  const ticketsQuery = useAdminTickets(
     Object.keys(params).length > 0 ? params : undefined
   );
+  const { data: tickets } = ticketsQuery;
+  const view = queryViewState(ticketsQuery);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/dashboard/settings">
-            <ArrowLeft className="size-4" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Feedback Tickets
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Review user feedback with AI-powered triage.
-          </p>
-        </div>
-      </div>
+    <PageShell width="standard">
+      <PageHeader
+        icon={
+          <Button variant="ghost" size="icon" asChild>
+            <Link aria-label="Back to settings" href="/dashboard/settings">
+              <ArrowLeft className="size-4" />
+            </Link>
+          </Button>
+        }
+        title="Feedback Tickets"
+        description="Review user feedback with AI-powered triage."
+      />
 
       {/* Filters */}
       <div className="flex gap-3">
@@ -107,12 +107,16 @@ export default function FeedbackAdminPage() {
       </div>
 
       {/* Ticket List */}
-      {isLoading ? (
+      {view === "loading" ? (
         <div className="space-y-3">
           {[...Array(5)].map((_, i) => (
             <Skeleton key={i} className="h-24 w-full" />
           ))}
         </div>
+      ) : view === "offline" ? (
+        <QueryError what="the tickets" kind="offline" />
+      ) : view === "error" ? (
+        <QueryError what="the tickets" onRetry={() => void ticketsQuery.refetch()} />
       ) : !tickets || tickets.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-12">
@@ -129,7 +133,7 @@ export default function FeedbackAdminPage() {
           ))}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }
 

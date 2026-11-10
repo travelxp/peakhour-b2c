@@ -37,10 +37,10 @@ export function Bubble({
         }`}
       >
         {/* ✅WA T4: every line says who wrote it: the shopper, the AI, the business phone, or a named team member from the Inbox. */}
-        <p className="mb-0.5 text-[11px] font-medium opacity-70">{sender}</p>
+        <p className="mb-0.5 text-micro font-medium opacity-70">{sender}</p>
         {media && threadId ? <BubbleMedia threadId={threadId} media={media} /> : null}
         {placeholderOnly && media && threadId ? null : <p className="whitespace-pre-wrap wrap-break-word">{content}</p>}
-        {time ? <p className="mt-1 text-right text-[10px] text-muted-foreground">{time}</p> : null}
+        {time ? <p className="mt-1 text-right text-micro text-muted-foreground">{time}</p> : null}
       </div>
     </div>
   );
@@ -50,7 +50,7 @@ export function DaySeparator({ label }: { label: string }) {
   if (!label) return null;
   return (
     <div className="flex justify-center py-1" role="separator" aria-label={label}>
-      <span className="rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-medium text-muted-foreground">{label}</span>
+      <span className="rounded-full bg-muted px-2.5 py-0.5 text-micro font-medium text-muted-foreground">{label}</span>
     </div>
   );
 }

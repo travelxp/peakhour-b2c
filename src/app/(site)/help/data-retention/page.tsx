@@ -19,7 +19,7 @@ export const metadata: Metadata = {
  */
 export default function DataRetentionPage() {
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
       <Header />
 
       <main className="mx-auto max-w-3xl px-4 py-12">

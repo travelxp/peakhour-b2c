@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendChart } from "@/components/viz/trend-chart";
+import { TrendChart } from "@/components/viz/trend-chart-lazy";
 import { useCreditsHistory } from "@/hooks/use-credits";
 
 /**

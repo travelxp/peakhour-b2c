@@ -28,7 +28,7 @@ import {
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { useSetAskEntityIds } from "@/providers/ask-context-provider";
 import { ASK_ENABLED } from "@/lib/flags";
-import { TrendChart } from "@/components/viz/trend-chart";
+import { TrendChart } from "@/components/viz/trend-chart-lazy";
 import { ExplainCard } from "@/components/dashboard/explain-card";
 import {
   useAnalyticsInsights,
@@ -37,7 +37,7 @@ import {
   type Ga4Digest,
 } from "@/hooks/use-analytics-insights";
 import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
-import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
+import { PageGrid, PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { WhatCountsAsAWinDialog } from "@/components/growth/what-counts-as-a-win-dialog";
 import { growthApi, type WinDefinition } from "@/lib/api/growth";
 import { analyticsActions, type AnalyticsAction } from "@/lib/analytics-actions";
@@ -211,8 +211,8 @@ export default function AnalyticsInsightsPage() {
             <LineChart className="h-5 w-5 text-white" />
           </div>
         }
-        title="Analytics 4"
-        description="Conversion funnel + top page performance — drives Optimizer budget allocation and Strategist content suggestions."
+        title="Website traffic"
+        description="Conversion funnel + top page performance — drives Optimizer budget allocation and Content plan suggestions."
       />
 
       {!isWorking ? (
@@ -654,7 +654,7 @@ function AnalyticsData({
       {funnel && (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">Totals · {funnelWindow}</p>
-          <div className="grid grid-cols-2 gap-3">
+          <PageGrid variant="kpi">
             <FunnelTile icon={<Users className="h-4 w-4" />} label="People" value={funnel.totalUsers} />
             <FunnelTile
               icon={<Activity className="h-4 w-4" />}
@@ -669,7 +669,7 @@ function AnalyticsData({
                 value={funnel.conversions}
               />
             )}
-          </div>
+          </PageGrid>
         </div>
       )}
 
@@ -691,7 +691,7 @@ function AnalyticsData({
       </Card>
 
       {/* ── Channels + top pages ── */}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">

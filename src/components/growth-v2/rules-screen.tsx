@@ -27,17 +27,20 @@ import {
 } from "@/lib/growth-v2-rules";
 import { AutonomyLadder } from "./autonomy-ladder";
 import { PageHead } from "./page-head";
+import { PageShell } from "@/components/dashboard/page-shell";
 import { QueryBoundary } from "./query-boundary";
 import { ToneBadge } from "./tone";
 
 /** Rules: "What may the engine do?" Your mandate, how much it may do alone, and the lines it never crosses (plan 1, H5). */
-export function RulesScreen() {
+export function RulesScreen({ intro }: { intro?: React.ReactNode } = {}) {
   const query = useGrowthV2Rules();
   return (
-    <div className="grid gap-4">
+    <PageShell width="standard">
       <PageHead title="What may the engine do?" description="Your mandate, how much the engine may do on its own, and the lines it never crosses." />
+      {/* The route's "What is this page?" strip: under the title, inside the shell. */}
+      {intro}
       <QueryBoundary query={query}>{(r) => <RulesBody rules={r.data} preview={r.preview} />}</QueryBoundary>
-    </div>
+    </PageShell>
   );
 }
 
@@ -177,7 +180,7 @@ export function RulesBody({ rules, preview }: { rules: RulesResponse; preview: b
             </tbody>
           </table>
           <p className="mt-3 text-xs text-muted-foreground">
-            Manage connections in <Link href="/dashboard/integrations" className="underline underline-offset-2">Integrations</Link>.
+            Manage connections in <Link href="/dashboard/integrations" className="underline underline-offset-2">Connected accounts</Link>.
           </p>
         </CardContent>
       </Card>

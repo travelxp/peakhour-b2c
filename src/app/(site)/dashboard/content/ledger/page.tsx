@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { ContentLedgerTable } from "@/components/growth/content-ledger-table";
 import { useAuth } from "@/providers/auth-provider";
+import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 import { growthApi, type ContentLedgerResponse } from "@/lib/api/growth";
 import {
   analyticsTotalLine,
@@ -20,6 +21,7 @@ import {
   searchTotalLine,
   summaryHeadline,
 } from "@/lib/content-ledger";
+import { PageIntro } from "@/components/dashboard/page-intro";
 
 /**
  * The content ledger — what we published, and what it earned.
@@ -64,15 +66,12 @@ export default function ContentLedgerPage() {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Ledger</h2>
-          <p className="text-muted-foreground">
-            What you published through Peakhour, and what each page earned.
-          </p>
-        </div>
-        <div className="flex shrink-0 gap-1 rounded-md border p-0.5">
+    <PageShell>
+      <PageHeader
+        title="Results"
+        description="What you published through Peakhour, and what each page earned."
+        actions={
+          <div className="flex shrink-0 gap-1 rounded-md border p-0.5">
           {WINDOWS.map((w) => (
             <Button
               key={w.days}
@@ -86,8 +85,10 @@ export default function ContentLedgerPage() {
               {w.label}
             </Button>
           ))}
-        </div>
-      </div>
+          </div>
+        }
+      />
+      <PageIntro id="ledger" />
 
       {/* ★`isPending` ALONE, never `isPending && !isError` — the two statuses
           are mutually exclusive in Query v5, so the second is a guard after a
@@ -107,7 +108,7 @@ export default function ContentLedgerPage() {
       ) : (
         <LedgerBody data={ledger.data} />
       )}
-    </div>
+    </PageShell>
   );
 }
 

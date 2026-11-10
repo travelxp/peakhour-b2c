@@ -18,7 +18,7 @@ import { ActivityDigest } from "@/components/commerce/activity-digest";
 import { useLocale } from "@/hooks/use-locale";
 import { minorToMajor } from "@/lib/money";
 import { useCommerceSummary } from "@/hooks/use-commerce-summary";
-import { PageShell } from "@/components/dashboard/page-shell";
+import { PageGrid, PageShell } from "@/components/dashboard/page-shell";
 
 /**
  * Commerce → Command Center (Phase 0). The outcome home for the Commerce pillar:
@@ -53,9 +53,19 @@ function CommandCenterBody() {
   };
 
   return (
-    <PageShell width="standard">
+    <PageShell
+      width="wide"
+      rail={
+        data && !isLoading ? (
+          <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-1">
+            <CommerceNeedsYou />
+            <ActivityDigest />
+          </div>
+        ) : undefined
+      }
+    >
       <header className="mb-6">
-        <h1 className="text-xl font-semibold">Command Center</h1>
+        <h1 className="text-xl font-semibold">Store overview</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           What your store is doing and what Peakhour has done for it — grounded in
           your live catalog, inventory and conversations.
@@ -68,13 +78,13 @@ function CommandCenterBody() {
         <EmptyState
           icon={Store}
           title="Connect a store to get started"
-          description="Command Center lights up once a Shopify or WooCommerce store is connected to this business."
+          description="Store overview lights up once a Shopify or WooCommerce store is connected to this business."
           action={{ label: "Connect a store", href: "/dashboard/integrations" }}
         />
       )}
 
       {data && !isLoading && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <PageGrid>
           <KpiCard
             title="Stock value (retail)"
             value={money(data.inventory.stockValueRetailMinor, data.store.currency)}
@@ -125,14 +135,7 @@ function CommandCenterBody() {
             description="Agent actions waiting for your go-ahead"
             icon={ClipboardCheck}
           />
-        </div>
-      )}
-
-      {data && !isLoading && (
-        <div className="mt-6 grid gap-4 lg:grid-cols-2">
-          <CommerceNeedsYou />
-          <ActivityDigest />
-        </div>
+        </PageGrid>
       )}
     </PageShell>
   );
@@ -140,10 +143,10 @@ function CommandCenterBody() {
 
 function SummarySkeleton() {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <PageGrid>
       {Array.from({ length: 6 }).map((_, i) => (
         <Skeleton key={i} className="h-28 rounded-lg" />
       ))}
-    </div>
+    </PageGrid>
   );
 }

@@ -159,7 +159,7 @@ export default async function Home({
       });
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
       {platform?.banner?.enabled && platform.banner.copy ? (
         <div
           role="status"
@@ -467,7 +467,7 @@ export default async function Home({
                     <p className="flex items-center gap-2 text-sm font-bold">
                       <span className="truncate">{item.name}</span>
                       {item.comingSoon && (
-                        <span className="shrink-0 rounded-full border px-1.5 py-0 text-[10px] font-medium text-muted-foreground">
+                        <span className="shrink-0 rounded-full border px-1.5 py-0 text-micro font-medium text-muted-foreground">
                           Coming soon
                         </span>
                       )}

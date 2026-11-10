@@ -113,7 +113,7 @@ export function SetupChecklist({ steps }: { steps: SetupStep[] }) {
                         {step.label}
                       </span>
                       {!step.done && (
-                        <span className="block text-[11px] leading-snug text-muted-foreground">
+                        <span className="block text-micro leading-snug text-muted-foreground">
                           {step.detail}
                         </span>
                       )}

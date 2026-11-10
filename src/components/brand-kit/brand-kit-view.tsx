@@ -463,7 +463,7 @@ export function BrandKitView(p: BrandKitViewProps) {
                       </span>
                     )}
                   </div>
-                  <span className="font-mono text-[11px] text-muted-foreground">{c.hex}</span>
+                  <span className="font-mono text-micro text-muted-foreground">{c.hex}</span>
                   {editing ? (
                     <RoleSelect<ColorRole>
                       value={c.role}

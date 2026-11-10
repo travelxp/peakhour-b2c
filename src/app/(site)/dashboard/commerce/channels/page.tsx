@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { CommerceChannels } from "@/components/commerce/channels";
 
 export const metadata: Metadata = {
-  title: "Channels · Commerce",
+  title: "Sales channels · Commerce",
 };
 
 /**

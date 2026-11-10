@@ -27,6 +27,7 @@ import { LiftBand } from "./lift-band";
 import { OutcomeFunnel } from "./outcome-funnel";
 import { PacingBadge, PacingChart } from "./pacing-chart";
 import { PageHead } from "./page-head";
+import { PageShell } from "@/components/dashboard/page-shell";
 import { QueryBoundary } from "./query-boundary";
 import { cn } from "@/lib/utils";
 import { WhyWaterfall } from "./why-waterfall";
@@ -45,7 +46,7 @@ export function HomeScreen() {
   // The prototype's sample is one fixed window: controls that cannot change it would only contradict the page.
   const preview = query.data?.preview === true;
   return (
-    <div className="grid gap-4">
+    <PageShell width="wide">
       {preview ? null : (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Choice label="Window" value={window} options={WINDOWS} onChange={setWindow} text={(o) => o.choice} />
@@ -56,7 +57,7 @@ export function HomeScreen() {
         {/* A refusal returned above, so what the boundary hands on is a page. */}
         <QueryBoundary query={query as UseQueryResult<HomeScreenData>}>{(r) => <HomeBody result={r} openDecisions={open} />}</QueryBoundary>
       </div>
-    </div>
+    </PageShell>
   );
 }
 
@@ -123,7 +124,7 @@ export function HomeBody({ result, openDecisions }: { result: HomeScreenData; op
       <Card>
         <CardContent className="grid items-center gap-6 lg:grid-cols-[1.1fr_1fr]">
           <div className="min-w-0">
-            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Your outcome &middot; {home.outcome.label}</p>
+            <p className="font-mono text-micro uppercase tracking-[0.2em] text-muted-foreground">Your outcome &middot; {home.outcome.label}</p>
             <p className="mt-2 text-4xl font-semibold leading-none tracking-tight sm:text-5xl">
               <FigureValue figure={outcomes} showReason />
               <small className="ml-2 text-lg font-medium text-muted-foreground">in {words.title}</small>

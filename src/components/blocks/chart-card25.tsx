@@ -103,7 +103,7 @@ const ChartCard25 = ({
                 value: `Target: ${target}`,
                 position: "right",
                 fill: "var(--muted-foreground)",
-                fontSize: 11,
+                fontSize: 12,
               }}
             />
             <ChartTooltip content={<ChartTooltipContent />} />

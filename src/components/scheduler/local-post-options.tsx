@@ -198,7 +198,7 @@ export function LocalPostOptions({
                 the first couple of sentences behind a "More" link anyway. */}
             <p
               className={cn(
-                "mt-1 text-right text-[11px] tabular-nums",
+                "mt-1 text-right text-micro tabular-nums",
                 summaryLength > LISTING_SUMMARY_MAX
                   ? "font-medium text-destructive"
                   : "text-muted-foreground",
@@ -367,7 +367,7 @@ function Field({
 
 function ErrorLine({ children }: { children: React.ReactNode }) {
   return (
-    <p role="alert" className="flex items-start gap-1.5 text-[11px] text-destructive">
+    <p role="alert" className="flex items-start gap-1.5 text-micro text-destructive">
       <AlertCircle className="mt-px size-3 shrink-0" />
       <span>{children}</span>
     </p>

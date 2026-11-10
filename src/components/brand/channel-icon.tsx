@@ -47,7 +47,7 @@ export function ChannelIcon({ channel, size = 16 }: { channel: string; size?: nu
 
 export function ChannelIconCompact({ channel, size = 14 }: { channel: string; size?: number }) {
   const ch = CHANNELS.get(channel.toLowerCase());
-  if (!ch) return <span className="text-[10px]">{channel}</span>;
+  if (!ch) return <span className="text-micro">{channel}</span>;
   const Icon = ch.icon;
 
   return (

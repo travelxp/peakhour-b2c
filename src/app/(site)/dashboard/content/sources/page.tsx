@@ -16,8 +16,10 @@ import { ApiError } from "@/lib/api";
 import { getCitations, listSources } from "./api";
 import { AddSourceDrawer } from "./components/add-source-drawer";
 import { InsightsPanel } from "./components/insights-panel";
+import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 import { SourceRow } from "./components/source-row";
 import type { SourceStatus, TrustedSource } from "./types";
+import { PageIntro } from "@/components/dashboard/page-intro";
 
 /**
  * Trusted Sources — Phase 0 priority per the LinkedIn 360 plan §3.
@@ -38,7 +40,7 @@ import type { SourceStatus, TrustedSource } from "./types";
  */
 
 const FEATURE_KEY = "content.trusted_sources";
-const FEATURE_NAME = "Trusted Sources";
+const FEATURE_NAME = "Content sources";
 const FEATURE_TAGLINE =
   "Ground every brief, idea, and post in your brand's voice. Add the sites, feeds, channels, and creators your AI should read, watch, and cite.";
 
@@ -155,7 +157,7 @@ function TrustedSourcesSurface() {
   }, [byStatus, tab, search]);
 
   return (
-    <div className="space-y-6">
+    <PageShell>
       {/* jobs-runner drains the source_fetch / discovery jobs these crons
           enqueue (they don't inline-drain on dev) — click the scheduler/runner
           first, then jobs-runner to actually fetch source content. */}
@@ -166,15 +168,12 @@ function TrustedSourcesSurface() {
           void queryClient.invalidateQueries({ queryKey: ["citations"] });
         }}
       />
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Trusted Sources</h2>
-          <p className="text-muted-foreground">
-            What your AI reads, watches, and cites.
-          </p>
-        </div>
-        <AddSourceDrawer />
-      </header>
+      <PageHeader
+        title="Content sources"
+        description="What your AI reads, watches, and cites."
+        actions={<AddSourceDrawer />}
+      />
+      <PageIntro id="sources" />
 
       <KpiStrip rows={rows} loading={isLoading} />
 
@@ -184,7 +183,7 @@ function TrustedSourcesSurface() {
             {STATUS_TABS.map((t) => (
               <TabsTrigger key={t.value} value={t.value} className="gap-1.5">
                 {t.label}
-                <Badge variant="secondary" className="rounded-sm px-1.5 text-[10px]">
+                <Badge variant="secondary" className="rounded-sm px-1.5 text-micro">
                   {byStatus[t.value].length}
                 </Badge>
               </TabsTrigger>
@@ -225,7 +224,7 @@ function TrustedSourcesSurface() {
           )}
         </div>
       </Tabs>
-    </div>
+    </PageShell>
   );
 }
 
@@ -265,7 +264,7 @@ function KpiStrip({ rows, loading }: { rows: TrustedSource[]; loading: boolean }
 
   if (loading) {
     return (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <Skeleton key={i} className="h-24" />
         ))}
@@ -284,7 +283,7 @@ function KpiStrip({ rows, loading }: { rows: TrustedSource[]; loading: boolean }
     : "AI citations across all sources, last 30 days";
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
       <KpiCard
         title="Active sources"
         value={activeCount}
@@ -408,17 +407,15 @@ function EmptyState({
 
 function TrustedSourcesLockedFallback() {
   return (
-    <div className="space-y-6">
-      <header>
-        <h2 className="text-2xl font-bold tracking-tight">Trusted Sources</h2>
-        <p className="text-muted-foreground">
-          What your AI reads, watches, and cites.
-        </p>
-      </header>
+    <PageShell>
+      <PageHeader
+        title="Content sources"
+        description="What your AI reads, watches, and cites."
+      />
       <Card className="border-warning/30 bg-linear-to-br from-warning/8 to-white dark:to-transparent">
         <CardContent className="space-y-3 p-8 text-center">
           <Sparkles aria-hidden="true" className="mx-auto size-8 text-warning-on-tint" />
-          <h3 className="text-lg font-semibold tracking-tight">Trusted Sources is rolling out</h3>
+          <h3 className="text-lg font-semibold tracking-tight">Content sources is rolling out</h3>
           <p className="mx-auto max-w-md text-sm text-muted-foreground">
             {FEATURE_TAGLINE}
           </p>
@@ -433,6 +430,6 @@ function TrustedSourcesLockedFallback() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </PageShell>
   );
 }

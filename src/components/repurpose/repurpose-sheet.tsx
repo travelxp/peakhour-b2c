@@ -608,7 +608,7 @@ function EmptyState({ count }: { count: number }) {
           <p className="font-medium text-foreground">No channels connected yet.</p>
           <p className="mt-1 text-xs">
             Connect at least one channel (LinkedIn, X, etc.) before repurposing.
-            Head to <em>Settings → Integrations</em>.
+            Head to <em>Connected accounts</em>.
           </p>
         </>
       ) : (
@@ -659,11 +659,11 @@ function RecommendationList({
                 <span className={`size-2 rounded-full ${band.dot}`} aria-hidden />
                 <span className="text-sm font-medium">{display.label}</span>
                 {display.isBlog && (
-                  <Badge variant="outline" className="text-[10px]">
+                  <Badge variant="outline" className="text-micro">
                     Blog article
                   </Badge>
                 )}
-                <Badge variant="outline" className={`text-[10px] ${band.chip}`}>
+                <Badge variant="outline" className={`text-micro ${band.chip}`}>
                   {band.label}
                 </Badge>
                 {/* No raw fitScore/% — plan §4.5 keeps the score internal
@@ -672,7 +672,7 @@ function RecommendationList({
               <p className="text-xs text-muted-foreground">
                 {r.rationale}
                 {isHardBlocked && r.hardBlocks && r.hardBlocks.length > 0 && (
-                  <span className="ml-1 text-[10px] uppercase tracking-wide opacity-70">
+                  <span className="ml-1 text-micro uppercase tracking-wide opacity-70">
                     [{r.hardBlocks.join(", ")}]
                   </span>
                 )}
@@ -687,7 +687,7 @@ function RecommendationList({
               {/* Grey but not hard-blocked = selectable with a warning
                   (plan §4.1: grey is "repurpose anyway?", not fix-first). */}
               {!isHardBlocked && r.band === "grey" && (
-                <p className="text-[10px] text-warning-on-tint">
+                <p className="text-micro text-warning-on-tint">
                   Usually doesn&apos;t land well here — repurpose anyway?
                 </p>
               )}
@@ -726,7 +726,7 @@ function VariantPreview({ variant: v }: { variant: RepurposeResponse["adaptation
   const [expanded, setExpanded] = useState(false);
   return (
     <div className="space-y-1">
-      <div className="flex items-center gap-2 text-[11px] uppercase text-muted-foreground">
+      <div className="flex items-center gap-2 text-micro uppercase text-muted-foreground">
         {v.contentType}
         {v.estimatedEngagement > 0 && (
           <span className="tabular-nums">
@@ -743,7 +743,7 @@ function VariantPreview({ variant: v }: { variant: RepurposeResponse["adaptation
         <button
           type="button"
           onClick={() => setExpanded((s) => !s)}
-          className="text-[11px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
+          className="text-micro text-muted-foreground hover:text-foreground underline-offset-2 hover:underline"
         >
           {expanded ? "Show less" : "Show more"}
         </button>
@@ -778,7 +778,7 @@ function DoneState({ response }: { response: RepurposeResponse }) {
             <div className="flex items-center gap-2 border-b px-3 py-2">
               <CheckCircle2 className="size-4 text-success" />
               <span className="text-sm font-medium">{display.label}</span>
-              <Badge variant="outline" className="text-[10px]">
+              <Badge variant="outline" className="text-micro">
                 {variants.length} variant{variants.length === 1 ? "" : "s"}
               </Badge>
             </div>
@@ -829,7 +829,7 @@ function BlogDraftCard({ draft }: { draft: BlogDraftResult }) {
       <div className="flex items-center gap-2 border-b px-3 py-2">
         <FileText className="size-4 text-primary" />
         <span className="text-sm font-medium">{display.label}</span>
-        <Badge variant="outline" className="text-[10px]">
+        <Badge variant="outline" className="text-micro">
           Article draft
         </Badge>
       </div>

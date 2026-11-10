@@ -79,7 +79,7 @@ function CatalogBody() {
             <div className="flex items-center gap-3">
               {item.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <img width={36} height={36} loading="lazy"
                   src={item.imageUrl}
                   alt=""
                   className="size-9 shrink-0 rounded-md object-cover"
@@ -207,7 +207,7 @@ function CatalogBody() {
 function Header() {
   return (
     <header className="mb-6">
-      <h1 className="text-xl font-semibold">Catalog &amp; Listings</h1>
+      <h1 className="text-xl font-semibold">Products</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Your products and how well each one is listed. Fix the weak spots to sell
         more — Peakhour&apos;s Merchandiser can do it for you.
@@ -256,7 +256,7 @@ function ListingDrawer({
             <div className="space-y-4 px-4">
               {item.imageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <img loading="lazy"
                   src={item.imageUrl}
                   alt=""
                   className="aspect-square w-full rounded-lg object-cover"

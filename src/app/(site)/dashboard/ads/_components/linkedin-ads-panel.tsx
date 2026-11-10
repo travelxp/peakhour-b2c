@@ -428,7 +428,7 @@ function CampaignsPanel() {
           <h3 className="text-base font-semibold leading-none">Managed campaigns</h3>
           <Badge
             variant="outline"
-            className="text-[10px] uppercase tracking-wide"
+            className="text-micro uppercase tracking-wide"
             title="Campaigns Peakhour created from your organic posts. All start as non-spending LinkedIn drafts; Activate is the only action that starts spend."
           >
             Draft-first
@@ -453,13 +453,13 @@ function CampaignsPanel() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Campaign</TableHead>
+              <TableHead className="sticky left-0 z-10 bg-background">Campaign</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Daily budget</TableHead>
               <TableHead className="text-right">Spent</TableHead>
-              <TableHead className="text-right">Impressions</TableHead>
-              <TableHead className="text-right">Clicks</TableHead>
-              <TableHead className="text-right">CTR</TableHead>
+              <TableHead className="hidden md:table-cell text-right">Impressions</TableHead>
+              <TableHead className="hidden md:table-cell text-right">Clicks</TableHead>
+              <TableHead className="hidden md:table-cell text-right">CTR</TableHead>
               <TableHead
                 className="text-right"
                 title="Qualified leads · cost per qualified lead (spend ÷ qualified leads)"
@@ -475,7 +475,7 @@ function CampaignsPanel() {
             ))}
           </TableBody>
         </Table>
-        <p className="mt-3 border-t pt-2 text-[11px] text-muted-foreground">
+        <p className="mt-3 border-t pt-2 text-micro text-muted-foreground">
           Campaigns are created in LinkedIn as drafts under a draft group —
           they cannot spend until you activate them. Set the audience with the
           Audience button before activating. Every campaign is then checked
@@ -618,19 +618,19 @@ function CampaignRow({
   return (
     <>
     <TableRow className={showAudience ? "border-b-0" : undefined}>
-      <TableCell className="max-w-[260px]">
+      <TableCell className="sticky left-0 z-10 bg-background max-w-[260px]">
         <p className="truncate text-sm font-medium" title={campaign.name}>
           {campaign.name}
         </p>
         {campaign.schedule?.durationDays ? (
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-micro text-muted-foreground">
             {campaign.schedule.durationDays}-day flight
           </p>
         ) : null}
       </TableCell>
       <TableCell>
         <span
-          className={`inline-flex rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${STATUS_BADGE[campaign.status] ?? STATUS_BADGE.draft}`}
+          className={`inline-flex rounded-sm px-1.5 py-0.5 text-micro font-medium uppercase tracking-wide ${STATUS_BADGE[campaign.status] ?? STATUS_BADGE.draft}`}
         >
           {campaign.status}
         </span>
@@ -641,13 +641,13 @@ function CampaignRow({
       <TableCell className="text-right text-sm tabular-nums">
         {formatMoney(campaign.budget?.spent ?? perf?.spend, campaign.currency)}
       </TableCell>
-      <TableCell className="text-right text-sm tabular-nums">
+      <TableCell className="hidden md:table-cell text-right text-sm tabular-nums">
         {perf ? perf.impressions.toLocaleString() : "—"}
       </TableCell>
-      <TableCell className="text-right text-sm tabular-nums">
+      <TableCell className="hidden md:table-cell text-right text-sm tabular-nums">
         {perf ? perf.clicks.toLocaleString() : "—"}
       </TableCell>
-      <TableCell className="text-right text-sm tabular-nums">
+      <TableCell className="hidden md:table-cell text-right text-sm tabular-nums">
         {perf ? `${(perf.ctr * 100).toFixed(2)}%` : "—"}
       </TableCell>
       <TableCell className="text-right text-sm tabular-nums">

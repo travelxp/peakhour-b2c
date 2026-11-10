@@ -1,5 +1,6 @@
 "use client";
 
+import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { flexRender } from "@tanstack/react-table";
@@ -38,6 +39,14 @@ import {
 import { getTaskColumns, formatKind } from "./columns";
 
 type TaskFilter = "active" | "completed" | "all";
+
+/** Phone: the first column sticks while the table scrolls sideways, and the
+ *  low-priority "started" column is dropped until md. */
+function columnClass(id: string) {
+  if (id === "task") return "sticky left-0 z-10 bg-background";
+  if (id === "started") return "hidden md:table-cell";
+  return undefined;
+}
 
 export default function TasksPage() {
   const queryClient = useQueryClient();
@@ -110,17 +119,15 @@ export default function TasksPage() {
   }, [rows]);
 
   return (
-    <div className="space-y-6">
+    <PageShell width="wide">
       <CronToolbar
         crons={["jobs-runner"]}
         onTriggered={() => queryClient.invalidateQueries({ queryKey: ["jobs"] })}
       />
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Tasks</h2>
-        <p className="text-muted-foreground">
-          Background work running on your library — analysis, syncs, and more.
-        </p>
-      </div>
+      <PageHeader
+        title="Activity"
+        description="Background work running on your library — analysis, syncs, and more."
+      />
 
       {/* Button tabs: ongoing vs completed */}
       <div className="flex flex-wrap items-center gap-3">
@@ -190,7 +197,7 @@ export default function TasksPage() {
                 {table.getHeaderGroups().map((hg) => (
                   <TableRow key={hg.id}>
                     {hg.headers.map((header) => (
-                      <TableHead key={header.id}>
+                      <TableHead key={header.id} className={columnClass(header.column.id)}>
                         {header.isPlaceholder
                           ? null
                           : flexRender(
@@ -213,7 +220,7 @@ export default function TasksPage() {
                       colSpan={row.getVisibleCells().length}
                     >
                       {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id} className="align-top">
+                        <TableCell key={cell.id} className={cn("align-top", columnClass(cell.column.id))}>
                           {flexRender(
                             cell.column.columnDef.cell,
                             cell.getContext(),
@@ -239,7 +246,7 @@ export default function TasksPage() {
           <DataTablePagination table={table} />
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }
 

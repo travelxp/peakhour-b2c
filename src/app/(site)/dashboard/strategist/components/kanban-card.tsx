@@ -137,12 +137,12 @@ function KanbanCardBody({ idea, onChanged }: { idea: PipelineIdea; onChanged?: (
       {/* Tags + priority row */}
       <div className="mt-2 flex flex-wrap items-center gap-1">
         {priority && (
-          <Badge variant="secondary" className={cn("h-5 px-1.5 text-[10px] font-medium border-0", priority.className)}>
+          <Badge variant="secondary" className={cn("h-5 px-1.5 text-micro font-medium border-0", priority.className)}>
             {priority.label}
           </Badge>
         )}
         {idea.sector && (
-          <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+          <Badge variant="outline" className="h-5 px-1.5 text-micro">
             {idea.sector}
           </Badge>
         )}
@@ -162,7 +162,7 @@ function KanbanCardBody({ idea, onChanged }: { idea: PipelineIdea; onChanged?: (
         const breaking = idea.sourceProvenance.some((p) => p.freshnessClass === "breaking");
         return (
           <div
-            className="mt-2 flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground"
+            className="mt-2 flex flex-wrap items-center gap-1 text-micro text-muted-foreground"
             // Keep the whole sources row inert to the card's drag + click-to-open.
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
@@ -183,7 +183,7 @@ function KanbanCardBody({ idea, onChanged }: { idea: PipelineIdea; onChanged?: (
             )}
             {host && total > 1 && <span>+{total - 1} more</span>}
             {breaking && (
-              <Badge variant="secondary" className="h-4 px-1 text-[9px] font-medium border-0 bg-destructive/15 text-destructive-on-tint">
+              <Badge variant="secondary" className="h-4 px-1 text-micro font-medium border-0 bg-destructive/15 text-destructive-on-tint">
                 Breaking
               </Badge>
             )}
@@ -198,7 +198,7 @@ function KanbanCardBody({ idea, onChanged }: { idea: PipelineIdea; onChanged?: (
 
       {/* Progress bar + metrics footer */}
       <div className="mt-2.5 space-y-1.5">
-        <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+        <div className="flex items-center justify-between text-micro text-muted-foreground">
           <span>{progress}/{TOTAL_STEPS} steps</span>
           <span>{progressPct}%</span>
         </div>

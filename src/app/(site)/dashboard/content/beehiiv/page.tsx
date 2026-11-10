@@ -2,106 +2,42 @@
 
 import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 import { useSyncProvider } from "@/hooks/use-sync-provider";
 import { useEnqueueJob, useJobs } from "@/hooks/use-jobs";
 import { useAuth } from "@/providers/auth-provider";
-import {
-  SENTIMENT_CONFIG,
-  SHELF_LIFE_LABELS,
-  label,
-} from "@/lib/content-labels";
+import { SENTIMENT_CONFIG, SHELF_LIFE_LABELS, label } from "@/lib/content-labels";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/molecules/confirm-dialog";
 import { EmptyState } from "@/components/molecules/empty-state";
-import { formatDate } from "@/lib/locale";
-import {
-  useDataTable,
-  FacetedFilter,
-  DataTablePagination,
-} from "@/components/molecules/data-table";
+import { useDataTable, FacetedFilter, DataTablePagination } from "@/components/molecules/data-table";
 import type { FacetedFilterOption } from "@/components/molecules/data-table";
 import { getContentColumns, type Draft } from "./columns";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { FileX, LayoutGrid, List, Library, BrainCircuit, Share2, Info, Plus } from "lucide-react";
+import { FileX, LayoutGrid, List, Library, BrainCircuit, Plus } from "lucide-react";
 import { RepurposeSheet } from "@/components/repurpose/repurpose-sheet";
 import type { RepurposeSource } from "@/lib/api/repurpose";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { flexRender } from "@tanstack/react-table";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { CONTENT_FETCH_LIMIT, ContentStats, GapAnalysis } from "./_components/shared";
+import { AdScoreBar, ArticleCard, KpiCard } from "./_components/cards";
+
+// The Intelligence tab is not the first one shown, so its charts load on demand.
+const SectorHeatmap = dynamic(() => import("./_components/insight-charts").then((m) => m.SectorHeatmap));
+const AudienceBars = dynamic(() => import("./_components/insight-charts").then((m) => m.AudienceBars));
 
 // ── Types ────────────────────────────────────────────────────────
-
-interface ContentStats {
-  total: number;
-  tagged: number;
-  taggedPercent: number;
-  /** Drafts at status="partial_tagged" — landed but a critical field
-   *  (audienceRelevance / contentType) was missing. The targeted
-   *  "Re-analyse N incomplete" button re-processes these. */
-  partialTagged?: number;
-  /** Drafts with errorClass=transient unprocessable stamp (AI infra
-   *  blip; permanent stamps stay since they need manual intervention). */
-  transientUnprocessable?: number;
-  /** partialTagged + transientUnprocessable — the re-eligible count
-   *  the targeted re-analyse button targets. */
-  incomplete?: number;
-  highPotential: number;
-  avgAdScore: number;
-  evergreenPercent: number;
-  sectorDiversity: number;
-  contentReadinessScore: number;
-  shelfLifeDistribution: Record<string, number>;
-  sentimentDistribution: Record<string, number>;
-}
-
-interface GapAnalysis {
-  sectorCoverage: { _id: string; count: number; avgWeight: number }[];
-  audienceCoverage: { _id: string; count: number; avgRelevance: number }[];
-  highPotentialUnused: {
-    contentId: string;
-    contentTitle: string;
-    adPotential: { score: number; bestAngle?: string; bestHook?: string };
-    sectors: { name: string; weight: number }[];
-  }[];
-  keywordFrequency: { _id: string; count: number }[];
-  contentTypeDistribution: { _id: string; count: number }[];
-  shelfLifeDistribution: { _id: string; count: number }[];
-  recommendations: string[];
-}
-
-// ── Constants ────────────────────────────────────────────────────
-
-const CONTENT_FETCH_LIMIT = 500;
-
-// ── Main Page ────────────────────────────────────────────────────
 
 export default function ContentPage() {
   const router = useRouter();
@@ -298,7 +234,7 @@ export default function ContentPage() {
           queryClient.invalidateQueries({ queryKey: ["content-stats"] });
           queryClient.invalidateQueries({ queryKey: ["content-library-all"] });
           queryClient.invalidateQueries({ queryKey: ["content-gaps"] });
-          toast.success("Analysis queued — track progress in Tasks.");
+          toast.success("Analysis queued — track progress in Activity.");
           router.push(`/dashboard/tasks?jobId=${data.jobId}`);
         },
         onError: (err: Error) => {
@@ -315,7 +251,7 @@ export default function ContentPage() {
 
   return (
     <TooltipProvider>
-      <div className="space-y-6">
+      <PageShell width="wide">
         {/* Cron toolbar — non-prod only. Always visible at the top of
             pages whose data depends on a cron (the canonical
             architecture pattern; see components/dev/cron-toolbar.tsx).
@@ -333,16 +269,11 @@ export default function ContentPage() {
           }}
         />
         {/* Header */}
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">
-              Content Intelligence
-            </h2>
-            <p className="text-muted-foreground">
-              Your newsletters, AI-tagged and scored for ad potential
-            </p>
-          </div>
-          <div className="flex gap-2 items-center flex-wrap">
+        <PageHeader
+          title="Content Intelligence"
+          description="Your newsletters, AI-tagged and scored for ad potential"
+          actions={
+            <>
             <Button
               onClick={handleWriteFromScratch}
               disabled={creatingDraft || !businessReady}
@@ -431,8 +362,9 @@ export default function ContentPage() {
                 }}
               />
             )}
-          </div>
-        </div>
+            </>
+          }
+        />
 
         {/* KPI Strip */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -820,7 +752,7 @@ export default function ContentPage() {
             </div>
           </TabsContent>
         </Tabs>
-      </div>
+      </PageShell>
       <RepurposeSheet
         open={repurposeSource !== null}
         onOpenChange={(o) => {
@@ -833,426 +765,3 @@ export default function ContentPage() {
 }
 
 // ── Sub-Components ───────────────────────────────────────────────
-
-function KpiCard({
-  title,
-  value,
-  subtitle,
-  loading,
-  progress: progressValue,
-}: {
-  title: string;
-  value?: string | number;
-  subtitle?: string;
-  loading?: boolean;
-  progress?: number;
-}) {
-  return (
-    <Card>
-      <CardContent className="p-5">
-        {loading ? (
-          <div className="space-y-2">
-            <Skeleton className="h-3 w-24" />
-            <Skeleton className="h-8 w-16" />
-            <Skeleton className="h-3 w-32" />
-          </div>
-        ) : (
-          <>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              {title}
-            </p>
-            <p className="text-2xl font-bold mt-1">{value ?? "—"}</p>
-            {progressValue !== undefined && (
-              <Progress value={progressValue} className="h-1.5 mt-2" />
-            )}
-            {subtitle && (
-              <p className="text-xs text-muted-foreground mt-1">
-                {subtitle}
-              </p>
-            )}
-          </>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-
-function ArticleCard({
-  draft,
-  onClick,
-  onRepurpose,
-}: {
-  draft: Draft;
-  onClick: () => void;
-  onRepurpose: () => void;
-}) {
-  const t = draft.tags;
-  return (
-    <Card
-      className="cursor-pointer transition-shadow hover:shadow-md"
-      onClick={onClick}
-    >
-      {draft.thumbnailUrl && (
-        <div className="h-32 overflow-hidden rounded-t-lg">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={draft.thumbnailUrl}
-            alt=""
-            loading="lazy"
-            className="h-full w-full object-cover"
-          />
-        </div>
-      )}
-      <CardContent className="p-4 space-y-2">
-        <h3 className="font-semibold text-sm line-clamp-2 leading-snug">
-          {draft.title}
-        </h3>
-        {draft.subtitle && (
-          <p className="text-xs text-muted-foreground line-clamp-1">
-            {draft.subtitle}
-          </p>
-        )}
-
-        {/* Tags row */}
-        <div className="flex flex-wrap gap-1">
-          {t?.contentType && (
-            <Badge variant="outline" className="text-xs">
-              {label(undefined,t.contentType)}
-            </Badge>
-          )}
-          <SentimentBadge value={t?.sentiment} />
-          {t?.sectors?.slice(0, 2).map((s) => (
-            <Badge key={s.name} variant="secondary" className="text-xs">
-              {label(undefined,s.name)}
-            </Badge>
-          ))}
-        </div>
-
-        {/* Ad score bar */}
-        <div className="flex items-center justify-between">
-          <AdScoreBar score={t?.adPotentialScore} unprocessable={draft.unprocessable} />
-          <span className="text-xs text-muted-foreground">
-            {formatDate(draft.publishedAt, null)}
-          </span>
-        </div>
-
-        {/* Repurpose action — coloured by the row's repurposeFit band,
-            same as the table-view RepurposeActionCell. The card view and
-            the table view sit in front of the same Draft data; keeping
-            their treatments consistent avoids "the table says green but
-            the card says nothing" confusion when the user toggles
-            between views. stopPropagation prevents the card's onClick
-            (router.push) firing on a Repurpose click. */}
-        <div className="flex justify-end pt-1">
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className={`h-7 text-xs ${
-              draft.repurposeFit?.topBand === "green"
-                ? "text-success-on-tint hover:bg-success/10"
-                : draft.repurposeFit?.topBand === "amber"
-                  ? "text-warning-on-tint hover:bg-warning/10"
-                  : ""
-            }`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onRepurpose();
-            }}
-            title={
-              draft.repurposeFit
-                ? `Top fit: ${draft.repurposeFit.topChannel} (${draft.repurposeFit.topBand}) — ${draft.repurposeFit.topRationale}`
-                : "Score connected platforms and generate variants"
-            }
-          >
-            <Share2 className="mr-1 size-3" />
-            Repurpose
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function AdScoreBar({
-  score,
-  unprocessable,
-}: {
-  score?: number;
-  unprocessable?: { message: string };
-}) {
-  if (score == null) {
-    // Reason set by the API (AI cap hit, preflight gate, etc.) —
-    // show why instead of an indefinite "Not scored". `message` is
-    // pre-rendered server-side; display as-is. Guard against an
-    // empty message so we don't render an empty hover bubble if the
-    // API ever ships partial data.
-    if (unprocessable && unprocessable.message) {
-      return (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            {/* tabIndex makes the span focusable so keyboard users
-                can reach the tooltip — Radix auto-opens on focus
-                once the trigger is focusable. stopPropagation on
-                click + pointerdown — card is wired to navigate on
-                click; without both, tapping the Info routes away and
-                closes the tooltip the user was trying to read.
-                Mirrors the Repurpose button pattern below. */}
-            <span
-              className="flex items-center gap-1 rounded-sm text-xs text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              tabIndex={0}
-              onClick={(e) => e.stopPropagation()}
-              onPointerDown={(e) => e.stopPropagation()}
-            >
-              Can&apos;t score
-              <Info className="size-3 text-warning" aria-label="Why not scored?" />
-            </span>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-xs">
-            <p>{unprocessable.message}</p>
-          </TooltipContent>
-        </Tooltip>
-      );
-    }
-    return (
-      <span className="text-xs text-muted-foreground">Not scored</span>
-    );
-  }
-
-  const color =
-    score >= 8
-      ? "bg-success"
-      : score >= 6
-        ? "bg-warning"
-        : score >= 4
-          ? "bg-warning"
-          : "bg-destructive";
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <div className="flex items-center gap-2">
-          <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
-            <div
-              className={`h-full rounded-full ${color}`}
-              style={{ width: `${score * 10}%` }}
-            />
-          </div>
-          <span className="text-xs font-medium">{score}</span>
-        </div>
-      </TooltipTrigger>
-      <TooltipContent>
-        <p>Ad Potential Score: {score}/10</p>
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
-function SentimentBadge({ value }: { value?: string }) {
-  if (!value) return null;
-  const config = SENTIMENT_CONFIG[value];
-  if (!config) return <Badge variant="outline" className="text-xs">{value}</Badge>;
-  return (
-    <Badge className={`text-xs ${config.bg} ${config.color} border-0`}>
-      {config.label}
-    </Badge>
-  );
-}
-
-/** Normalize a string for comparison: lowercase, strip special chars */
-function normalize(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
-}
-
-/** Check if two strings match by normalized form or substring containment */
-function fuzzyMatch(a: string, b: string): boolean {
-  const na = normalize(a);
-  const nb = normalize(b);
-  return na === nb || na.includes(nb) || nb.includes(na);
-}
-
-function SectorHeatmap({
-  data,
-  allSectors,
-}: {
-  data: { _id: string; count: number; avgWeight: number }[];
-  allSectors: string[];
-}) {
-  // Taxonomy is the single source of truth. Match tag data to taxonomy entries
-  // using fuzzy matching (e.g., tag "aviation" matches taxonomy "Airlines & Aviation").
-  // Unmatched tag data gets its own entry at the end.
-  const usedTagIds = new Set<string>();
-
-  function findTagData(taxonomyValue: string) {
-    const total = { count: 0, avgWeight: 0, matched: 0 };
-    for (const d of data) {
-      if (fuzzyMatch(taxonomyValue, d._id)) {
-        total.count += d.count;
-        total.avgWeight += d.avgWeight * d.count;
-        total.matched++;
-        usedTagIds.add(d._id);
-      }
-    }
-    if (total.matched === 0) return null;
-    return { count: total.count, avgWeight: total.avgWeight / total.count };
-  }
-
-  const sectors = allSectors.length > 0 ? allSectors : data.map((d) => d._id);
-
-  // Deduplicate taxonomy entries
-  const seen = new Set<string>();
-  const uniqueSectors = sectors.filter((s) => {
-    const norm = normalize(s);
-    if (seen.has(norm)) return false;
-    seen.add(norm);
-    return true;
-  });
-
-  // Pre-compute tag data FIRST — this populates usedTagIds via findTagData calls
-  const sectorData = uniqueSectors.map((sector) => ({
-    name: sector,
-    data: findTagData(sector),
-  }));
-
-  // THEN find unmatched — usedTagIds is now populated
-  const unmatched = data.filter((d) => !usedTagIds.has(d._id));
-
-  const maxCount = Math.max(...data.map((d) => d.count), 1);
-
-  if (sectorData.length === 0 && unmatched.length === 0) {
-    return <p className="text-sm text-muted-foreground">No sectors configured or tagged yet.</p>;
-  }
-
-  // Append unmatched tag data
-  for (const d of unmatched) {
-    sectorData.push({ name: d._id, data: { count: d.count, avgWeight: d.avgWeight } });
-  }
-
-  return (
-    <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
-      {sectorData.map(({ name: sector, data: d }) => {
-        const count = d?.count ?? 0;
-        const intensity = count > 0 ? Math.max(0.1, count / maxCount) : 0;
-        const bg =
-          count === 0
-            ? "bg-destructive/10 border-destructive/30"
-            : intensity > 0.6
-              ? "bg-success/15 border-success/30"
-              : intensity > 0.3
-                ? "bg-warning/10 border-warning/30"
-                : "bg-warning/10 border-warning/30";
-
-        return (
-          <Tooltip key={sector}>
-            <TooltipTrigger asChild>
-              <div
-                className={`rounded-lg border p-2 text-center transition-colors ${bg}`}
-              >
-                <p className="text-xs font-medium leading-tight">
-                  {label(undefined,sector)}
-                </p>
-                <p className="text-lg font-bold mt-0.5">{count}</p>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>
-                {label(undefined,sector)}: {count} article
-                {count !== 1 ? "s" : ""}
-                {d ? `, avg weight ${(d.avgWeight * 100).toFixed(0)}%` : ""}
-              </p>
-            </TooltipContent>
-          </Tooltip>
-        );
-      })}
-    </div>
-  );
-}
-
-function AudienceBars({
-  data,
-  allAudiences,
-}: {
-  data: { _id: string; count: number; avgRelevance: number }[];
-  allAudiences: string[];
-}) {
-  const usedTagIds = new Set<string>();
-
-  function findTagData(taxonomyValue: string) {
-    const total = { count: 0, avgRelevance: 0, matched: 0 };
-    for (const d of data) {
-      if (fuzzyMatch(taxonomyValue, d._id)) {
-        total.count += d.count;
-        total.avgRelevance += d.avgRelevance * d.count;
-        total.matched++;
-        usedTagIds.add(d._id);
-      }
-    }
-    if (total.matched === 0) return null;
-    return { count: total.count, avgRelevance: total.avgRelevance / total.count };
-  }
-
-  const segments = allAudiences.length > 0 ? allAudiences : data.map((d) => d._id);
-
-  const seen = new Set<string>();
-  const uniqueSegments = segments.filter((s) => {
-    const norm = normalize(s);
-    if (seen.has(norm)) return false;
-    seen.add(norm);
-    return true;
-  });
-
-  // Pre-compute FIRST — populates usedTagIds
-  const segmentData = uniqueSegments.map((seg) => ({
-    name: seg,
-    data: findTagData(seg),
-  }));
-
-  // THEN find unmatched
-  const unmatched = data.filter((d) => !usedTagIds.has(d._id));
-  const maxCount = Math.max(...data.map((d) => d.count), 1);
-
-  for (const d of unmatched) {
-    segmentData.push({ name: d._id, data: { count: d.count, avgRelevance: d.avgRelevance } });
-  }
-
-  if (segmentData.length === 0) {
-    return <p className="text-sm text-muted-foreground">No audience segments configured or tagged yet.</p>;
-  }
-
-  return (
-    <div className="space-y-3">
-      {segmentData.map(({ name: segment, data: d }) => {
-        const count = d?.count ?? 0;
-        const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
-        const color =
-          count === 0
-            ? "bg-destructive"
-            : pct > 60
-              ? "bg-success"
-              : pct > 30
-                ? "bg-warning"
-                : "bg-warning";
-
-        return (
-          <div key={segment} className="space-y-1">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium">
-                {label(undefined, segment)}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {count} article{count !== 1 ? "s" : ""}
-              </span>
-            </div>
-            <div className="h-2 rounded-full bg-muted overflow-hidden">
-              <div
-                className={`h-full rounded-full ${color} transition-all`}
-                style={{ width: `${Math.max(pct, count > 0 ? 4 : 0)}%` }}
-              />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}

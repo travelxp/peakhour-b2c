@@ -34,7 +34,7 @@ export default async function ShopifyPage() {
   const signup = signupCta(catalog?.platform?.signupMode ?? "open", suiteTrialDays(pricing));
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
       <Header />
       <ShopifyPageView pricing={pricing} comingSoon={comingSoon} signup={signup} />
       <Footer />

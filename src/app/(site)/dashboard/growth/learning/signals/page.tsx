@@ -34,6 +34,7 @@ import {
   railLabel,
   stateCopy,
 } from "@/lib/signal-copy";
+import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 
 /**
  * Signals — the tracking tags on the customer's own website, and the evidence
@@ -79,15 +80,10 @@ export default function SignalsPage() {
   const showRemoved = removed && !data?.signals.some((s) => s.provider === removed) ? removed : null;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Signals</h2>
-        <p className="text-muted-foreground">
-          A small piece of code on your website that lets LinkedIn recognise the people
+    <PageShell width="standard">
+      <PageHeader title="Signals" description="A small piece of code on your website that lets LinkedIn recognise the people
           who visit it. It&apos;s what makes retargeting — advertising to people who
-          already came to your site — possible at all.
-        </p>
-      </div>
+          already came to your site — possible at all." />
 
       {showRemoved && (
         <p className="rounded-md border bg-muted/40 p-3 text-sm">
@@ -141,7 +137,7 @@ export default function SignalsPage() {
           })}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }
 

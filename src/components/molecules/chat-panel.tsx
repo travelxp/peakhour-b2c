@@ -51,7 +51,7 @@ export function ChatPanel() {
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed bottom-6 right-6 z-50 flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95"
+          className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-50 md:bottom-6 md:right-6 flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95"
           aria-label="Open AI assistant"
         >
           <Bot className="size-5" />
@@ -60,7 +60,7 @@ export function ChatPanel() {
 
       {/* Chat panel */}
       {open && (
-        <div className="fixed bottom-6 right-6 z-50 flex h-[520px] w-[380px] flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl">
+        <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-50 md:bottom-6 md:right-6 flex h-[520px] w-[380px] flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl">
           {/* Header */}
           <div className="flex items-center gap-3 border-b px-4 py-3">
             <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10">
@@ -68,12 +68,12 @@ export function ChatPanel() {
             </div>
             <div className="flex-1">
               <p className="text-sm font-semibold leading-none">Peakhour AI</p>
-              <p className="text-[11px] text-muted-foreground">Ask me anything about your content strategy</p>
+              <p className="text-micro text-muted-foreground">Ask me anything about your content strategy</p>
             </div>
             <Button variant="ghost" size="icon" className="size-7" onClick={clearChat} title="Clear chat">
               <Trash2 className="size-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" className="size-7" onClick={() => setOpen(false)}>
+            <Button variant="ghost" size="icon" aria-label="Close chat" className="size-7" onClick={() => setOpen(false)}>
               <X className="size-4" />
             </Button>
           </div>
@@ -130,7 +130,7 @@ export function ChatPanel() {
                 disabled={isLoading}
               />
               <Button
-                size="icon"
+                size="icon" aria-label="Send message"
                 className="size-9 shrink-0"
                 onClick={handleSend}
                 disabled={!input.trim() || isLoading}

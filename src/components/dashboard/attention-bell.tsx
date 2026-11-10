@@ -50,7 +50,7 @@ export function AttentionBell() {
           <Bell className="h-4 w-4" />
           <span
             aria-hidden="true"
-            className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground"
+            className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-micro font-medium leading-none text-destructive-foreground"
           >
             {count > 9 ? "9+" : count}
           </span>
@@ -63,7 +63,7 @@ export function AttentionBell() {
       >
         <div className="border-b px-3 py-2">
           <p className="text-sm font-semibold">Needs your attention</p>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-micro text-muted-foreground">
             {count} item{count === 1 ? "" : "s"} need a quick fix. They&apos;ll clear automatically once resolved.
           </p>
         </div>
@@ -86,21 +86,21 @@ export function AttentionBell() {
                   <div className="flex items-center gap-1.5">
                     <p className="text-xs font-medium truncate">{alert.title}</p>
                     {alert.count !== undefined && alert.count > 1 && (
-                      <span className="text-[10px] text-muted-foreground shrink-0">
+                      <span className="text-micro text-muted-foreground shrink-0">
                         × {alert.count}
                       </span>
                     )}
                   </div>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground line-clamp-2">
+                  <p className="mt-0.5 text-micro text-muted-foreground line-clamp-2">
                     {alert.description}
                   </p>
                   {alert.noticedAt && (
-                    <p className="mt-1 text-[10px] text-muted-foreground">
+                    <p className="mt-1 text-micro text-muted-foreground">
                       First noticed {formatRelativeTime(alert.noticedAt)}
                     </p>
                   )}
                 </div>
-                <div className="mt-1 inline-flex items-center gap-0.5 text-[10px] font-medium text-primary shrink-0">
+                <div className="mt-1 inline-flex items-center gap-0.5 text-micro font-medium text-primary shrink-0">
                   {alert.actionLabel}
                   <ArrowRight className="h-3 w-3" />
                 </div>

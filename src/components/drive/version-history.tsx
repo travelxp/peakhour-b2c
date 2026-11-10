@@ -19,7 +19,7 @@ export function VersionRow({ version, now, canRestore, restoring, onRestore }: {
     <li className="flex items-center gap-2.5">
       {version.publicUrl && version.mimeType.startsWith("image/") ? (
         // eslint-disable-next-line @next/next/no-img-element -- a stored file's own address, not an optimised asset
-        <img src={version.publicUrl} alt="" className="size-10 shrink-0 rounded-md border object-cover" />
+        <img width={40} height={40} loading="lazy" src={version.publicUrl} alt="" className="size-10 shrink-0 rounded-md border object-cover" />
       ) : (
         <div aria-hidden className="size-10 shrink-0 rounded-md border bg-muted" />
       )}

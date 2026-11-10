@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { MessageSquarePlus, CheckCircle2, Loader2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { useFeedbackContext } from "@/hooks/use-feedback-context";
+import { OPEN_FEEDBACK_EVENT } from "@/lib/dashboard-events";
 import { useCreateTicket, useMyTickets } from "@/hooks/use-feedback";
 
 const CATEGORIES = [
@@ -45,6 +46,13 @@ export function FeedbackWidget() {
   const openCount = tickets?.filter(
     (t) => t.status !== "resolved" && t.status !== "closed"
   ).length;
+
+  // Error screens and the 404 page open this sheet via a window event.
+  useEffect(() => {
+    const show = () => setOpen(true);
+    window.addEventListener(OPEN_FEEDBACK_EVENT, show);
+    return () => window.removeEventListener(OPEN_FEEDBACK_EVENT, show);
+  }, []);
 
   function resetForm() {
     setCategory("");
@@ -82,7 +90,7 @@ export function FeedbackWidget() {
         <Button variant="ghost" size="icon" className="relative size-8">
           <MessageSquarePlus className="size-4" />
           {!!openCount && openCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 flex size-3.5 items-center justify-center rounded-full bg-primary text-[9px] font-medium text-primary-foreground">
+            <span className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-primary text-micro leading-none font-medium text-primary-foreground">
               {openCount > 9 ? "9+" : openCount}
             </span>
           )}
@@ -168,7 +176,7 @@ export function FeedbackWidget() {
                 required
                 className="resize-none"
               />
-              <p className="text-[11px] text-muted-foreground text-right tabular-nums">
+              <p className="text-micro text-muted-foreground text-right tabular-nums">
                 {description.length.toLocaleString()}/8,192
               </p>
             </div>

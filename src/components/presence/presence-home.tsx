@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { MapPin } from "lucide-react";
+import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { NetworkConnectCard } from "@/components/presence/network-connect-card";
 import { ReviewSummaryCard } from "@/components/presence/review-summary-card";
@@ -137,20 +138,17 @@ export function PresenceHome() {
 
   return (
     <FeatureGate feature="presence.nav" featureName="Presence" mode="hide">
-      <div className="mx-auto w-full max-w-5xl space-y-8 p-4 md:p-6">
-        <header className="space-y-2">
+      <PageShell width="standard" className="space-y-8">
+        <div className="space-y-2">
           <div className="flex items-center gap-2 text-muted-foreground">
             <MapPin className="h-5 w-5" />
             <span className="text-sm font-medium uppercase tracking-wide">Presence</span>
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
-            Your listing and reviews, in one place
-          </h1>
-          <p className="max-w-2xl text-muted-foreground">
-            See your listing, how customers use it, and your reviews.
-            You can prepare changes to your listing here. A person approves each one before it is sent.
-          </p>
-        </header>
+          <PageHeader
+            title="Your listing and reviews, in one place"
+            description="See your listing, how customers use it, and your reviews. You can prepare changes to your listing here. A person approves each one before it is sent."
+          />
+        </div>
 
         {capsQ.isPending ? <Skeleton className="h-24 w-full" /> : null}
         {networks.map((n) => (
@@ -312,7 +310,7 @@ export function PresenceHome() {
             <InsightsPanel location={panelLocation} network={panelNetwork} label={fallbackLabel} capabilities={aboutNetwork?.capabilities} />
           </>
         )}
-      </div>
+      </PageShell>
     </FeatureGate>
   );
 }

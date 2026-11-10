@@ -17,7 +17,7 @@ export function UpgradeBadge({ className, label }: { className?: string; label?:
       className={cn(
         "absolute -top-2 -right-2 z-10 inline-flex items-center gap-1",
         "rounded-full border border-brand/30 bg-brand/10 px-2 py-0.5",
-        "text-[10px] font-medium text-brand-label shadow-sm",
+        "text-micro font-medium text-brand-label shadow-sm",
         className,
       )}
     >

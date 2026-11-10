@@ -20,6 +20,7 @@ import { platformLabel, LIBRARY_CHANNELS } from "@/lib/audience-library-rules";
 import type { AudienceSetsQuery } from "@/lib/api/audiences";
 import { AudienceSetCard } from "./_components/audience-set-card";
 import { ALL, MAX_OFFSET, PAGE_SIZE, SEARCH_MAX, SOURCES, STATUSES } from "./filters";
+import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 
 /**
  * The audience library (G1).
@@ -153,25 +154,22 @@ export default function AudienceLibraryPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Audiences</h2>
-          <p className="text-muted-foreground">
-            Every audience we&apos;ve suggested, read off your past campaigns, or you&apos;ve
-            built by hand — reusable on any campaign, on any channel.
-          </p>
-        </div>
-        {/* ★THE PRIMARY ACTION ON THIS PAGE IS NOT "ADD ONE". A library a
-            customer has to fill themselves is a filing cabinet; the engine's
-            whole claim is that it can tell them who to target from what it
-            already knows about the business, with no campaign history at all.
-            That call existed and nothing on any screen made it. */}
-        <Button className="shrink-0" onClick={() => setDiscoverOpen(true)}>
-          <Sparkles className="mr-1.5 size-4" aria-hidden="true" />
-          Find audiences
-        </Button>
-      </div>
+    <PageShell width="standard">
+      {/* ★THE PRIMARY ACTION ON THIS PAGE IS NOT "ADD ONE". A library a
+          customer has to fill themselves is a filing cabinet; the engine's
+          whole claim is that it can tell them who to target from what it
+          already knows about the business, with no campaign history at all.
+          That call existed and nothing on any screen made it. */}
+      <PageHeader
+        title="Audiences"
+        description="Every audience we've suggested, read off your past campaigns, or you've built by hand — reusable on any campaign, on any channel."
+        actions={
+          <Button className="shrink-0" onClick={() => setDiscoverOpen(true)}>
+            <Sparkles className="mr-1.5 size-4" aria-hidden="true" />
+            Find audiences
+          </Button>
+        }
+      />
 
       {discoverOpen && (
         <DiscoverAudiencesDialog open={discoverOpen} onOpenChange={setDiscoverOpen} />
@@ -338,6 +336,6 @@ export default function AudienceLibraryPage() {
           )}
         </>
       )}
-    </div>
+    </PageShell>
   );
 }

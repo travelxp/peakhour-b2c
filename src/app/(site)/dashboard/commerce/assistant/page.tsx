@@ -3,7 +3,7 @@ import { CommerceAssistantPreview } from "@/components/commerce/assistant-previe
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 
 export const metadata: Metadata = {
-  title: "Assistant preview · Commerce",
+  title: "Shopper assistant · Commerce",
 };
 
 /**
@@ -15,7 +15,7 @@ export default function CommerceAssistantPreviewPage() {
   return (
     <PageShell width="standard">
       <PageHeader
-        title="Assistant preview"
+        title="Shopper assistant"
         description="This is the same catalog-grounded assistant that answers your customers on WhatsApp, running against your connected store. Ask it anything a shopper might — in any language. It only states facts from your real product catalog."
       />
       <CommerceAssistantPreview />
