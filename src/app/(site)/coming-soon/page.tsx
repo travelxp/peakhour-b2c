@@ -25,7 +25,7 @@ export const metadata: Metadata = {
  */
 export default function ComingSoonPage() {
   return (
-    <main className="relative flex min-h-screen flex-col overflow-hidden">
+    <main className="relative flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col overflow-hidden">
       {/* Subtle backdrop (standard utilities — no brittle arbitrary theme()). */}
       <div
         aria-hidden
@@ -45,7 +45,7 @@ export default function ComingSoonPage() {
       </Link>
 
       {/* ── Hero ─────────────────────────────────────────────── */}
-      <section className="flex min-h-screen flex-col items-center justify-center px-6 text-center">
+      <section className="flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col items-center justify-center px-6 text-center">
         <div className="mx-auto flex max-w-2xl flex-col items-center gap-7">
           <span className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
             <Sparkles className="size-3.5" aria-hidden />

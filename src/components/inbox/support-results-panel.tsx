@@ -252,7 +252,7 @@ export function SupportResultsPanel() {
                     </div>
                   ))}
                 </div>
-                <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+                <div className="mt-1 flex justify-between text-micro text-muted-foreground">
                   <span>{hourLabel(0)}</span>
                   <span>{hourLabel(12)}</span>
                   <span>{hourLabel(23)}</span>

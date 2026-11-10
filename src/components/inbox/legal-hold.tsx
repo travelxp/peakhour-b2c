@@ -130,7 +130,7 @@ function ReasonDialog({
 /** The badge on a thread: "On legal hold" / "On hold (all conversations)". Nothing when it is not held. */
 export function HeldBadge({ held }: { held: HeldBy }) {
   const label = heldBadge(held);
-  return label ? <Badge className="bg-warning/15 text-[10px] text-warning-on-tint">{label}</Badge> : null;
+  return label ? <Badge className="bg-warning/15 text-micro text-warning-on-tint">{label}</Badge> : null;
 }
 
 /**

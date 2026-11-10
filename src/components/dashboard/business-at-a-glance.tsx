@@ -117,7 +117,7 @@ export function GlanceCard({
           {/* Pinned to the bottom with `mt-auto` so the next-step line sits on
               one baseline across the row, however tall each card's meaning
               wraps. Without it a four-card row reads as four different objects. */}
-          <p className="mt-auto inline-flex items-center gap-1 pt-1 text-[11px] font-semibold text-brand-label">
+          <p className="mt-auto inline-flex items-center gap-1 pt-1 text-micro font-semibold text-brand-label">
             {action}
             <ArrowRight
               className="size-3 transition-transform duration-300 ease-brand group-hover:translate-x-0.5 motion-reduce:transition-none"

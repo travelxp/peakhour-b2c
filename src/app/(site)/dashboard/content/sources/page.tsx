@@ -186,7 +186,7 @@ function TrustedSourcesSurface() {
             {STATUS_TABS.map((t) => (
               <TabsTrigger key={t.value} value={t.value} className="gap-1.5">
                 {t.label}
-                <Badge variant="secondary" className="rounded-sm px-1.5 text-[10px]">
+                <Badge variant="secondary" className="rounded-sm px-1.5 text-micro">
                   {byStatus[t.value].length}
                 </Badge>
               </TabsTrigger>

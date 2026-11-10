@@ -202,7 +202,7 @@ function RuleCard({
             <span className="text-sm font-medium">
               {rule.name?.trim() || "Untitled rule"}
             </span>
-            <Badge variant="outline" className={cn("text-[10px]", status.chip)}>
+            <Badge variant="outline" className={cn("text-micro", status.chip)}>
               {status.label}
             </Badge>
             <div className="ml-auto flex items-center gap-1.5">

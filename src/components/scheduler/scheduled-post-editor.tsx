@@ -353,14 +353,14 @@ export function ScheduledPostEditor({
                 key={`${i}-${part.slice(0, 24)}`}
                 className="rounded-md border bg-muted/30 p-2.5 text-sm"
               >
-                <span className="mr-1.5 text-[11px] tabular-nums text-muted-foreground">
+                <span className="mr-1.5 text-micro tabular-nums text-muted-foreground">
                   {i + 1}.
                 </span>
                 <span className="whitespace-pre-wrap wrap-break-word">{part}</span>
               </li>
             ))}
           </ol>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-micro text-muted-foreground">
             A thread publishes from its parts, so its wording can&apos;t be
             edited here yet — cancel and recompose to change it. You can still
             move it, publish it early, or call it off.
@@ -396,7 +396,7 @@ export function ScheduledPostEditor({
             {hashtags.map((h) => (
               <span
                 key={h}
-                className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
+                className="rounded bg-muted px-1.5 py-0.5 text-micro text-muted-foreground"
               >
                 #{h}
               </span>
@@ -422,7 +422,7 @@ export function ScheduledPostEditor({
                     configured for, and a scheduled post's thumbnail is not
                     worth a remotePatterns change. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <img loading="lazy"
                   src={url}
                   alt={`Attachment ${i + 1}`}
                   className="size-16 rounded-md border object-cover"
@@ -643,12 +643,12 @@ export function ScheduledPostEditor({
       </div>
 
       {publishBlocked && !contentDirty && (
-        <p className="text-[11px] text-muted-foreground">{publishBlocked}</p>
+        <p className="text-micro text-muted-foreground">{publishBlocked}</p>
       )}
 
       {/* The one thing this editor can't change, said plainly rather than
           offered as a control the server would reject. */}
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-micro text-muted-foreground">
         Publishing as the page and audience this post was scheduled with. To
         change those, cancel it and compose again.
       </p>

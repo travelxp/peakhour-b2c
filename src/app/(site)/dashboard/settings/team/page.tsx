@@ -330,7 +330,7 @@ export default function TeamPage() {
                   {isOwner && !m.isOwner && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Button variant="ghost" size="icon" aria-label="Member actions" className="h-8 w-8">
                           <MoreVertical className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -413,7 +413,7 @@ export default function TeamPage() {
                     trigger={
                       <Button
                         variant="ghost"
-                        size="icon"
+                        size="icon" aria-label="Revoke invite"
                         className="h-8 w-8 text-muted-foreground hover:text-destructive-on-tint"
                       >
                         <X className="h-4 w-4" />

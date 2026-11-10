@@ -32,7 +32,7 @@ function MoneyLoopCard({ data }: { data: CommerceLaneData }) {
         <h2 className="text-sm font-semibold text-success-on-tint">
           Content → Sales
         </h2>
-        <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-medium text-success-on-tint">
+        <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-micro font-medium text-success-on-tint">
           <Store className="size-3" /> Store connected
         </span>
       </div>

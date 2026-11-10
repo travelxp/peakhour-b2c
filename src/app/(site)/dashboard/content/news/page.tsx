@@ -111,10 +111,10 @@ function NewsCard({ idea, onApprove }: { idea: NewsIdea; onApprove: () => void }
         <h3 className="font-semibold leading-snug">{idea.content?.subject || idea.title}</h3>
         <div className="flex shrink-0 items-center gap-1.5">
           {idea.channels?.map((ch) => (
-            <Badge key={ch} variant="outline" className="text-[10px] uppercase">{ch}</Badge>
+            <Badge key={ch} variant="outline" className="text-micro uppercase">{ch}</Badge>
           ))}
           {confidence !== undefined && (
-            <Badge variant="secondary" className="text-[10px]">Confidence {confidence}%</Badge>
+            <Badge variant="secondary" className="text-micro">Confidence {confidence}%</Badge>
           )}
         </div>
       </CardHeader>

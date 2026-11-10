@@ -254,7 +254,7 @@ export function PillarCards({
               <div className="min-h-0 overflow-hidden">
                 <div className="flex flex-col gap-3.5 px-5 pb-5">
                   <div>
-                    <p className="text-[0.65rem] font-bold uppercase tracking-[0.18em] text-brand-label">
+                    <p className="text-micro font-bold uppercase tracking-[0.18em] text-brand-label">
                       Key capabilities
                     </p>
                     <ul className="mt-2 flex flex-col gap-1.5">
@@ -272,7 +272,7 @@ export function PillarCards({
                   </div>
 
                   <div>
-                    <p className="text-[0.65rem] font-bold uppercase tracking-[0.18em] text-brand-label">
+                    <p className="text-micro font-bold uppercase tracking-[0.18em] text-brand-label">
                       Channels &amp; platforms
                     </p>
                     <ul className="mt-2 flex flex-wrap gap-1.5">
@@ -325,7 +325,7 @@ export function PillarCards({
                       on a dark ground and drops the label to 2.7:1. The dark
                       step is the one the pricing pages already use. */}
                   <div className="rounded-xl border border-brand/25 bg-brand-soft/40 px-3.5 py-2.5 dark:bg-brand/5">
-                    <p className="text-[0.65rem] font-bold uppercase tracking-[0.18em] text-brand-label">
+                    <p className="text-micro font-bold uppercase tracking-[0.18em] text-brand-label">
                       The outcome
                     </p>
                     <p className="mt-1.5 text-sm font-medium">{pillar.outcomes[0]}</p>
@@ -335,7 +335,7 @@ export function PillarCards({
                       opacity this chip is the brightest object on a dark page.
                       The dark step is the one /auth and /pricing already use
                       for this exact pair. */}
-                  <span className="self-start rounded-full bg-brand-soft px-2.5 py-1 text-[0.65rem] font-bold uppercase tracking-wide text-brand-ink dark:bg-brand/12 dark:text-brand-soft">
+                  <span className="self-start rounded-full bg-brand-soft px-2.5 py-1 text-micro font-bold uppercase tracking-wide text-brand-ink dark:bg-brand/12 dark:text-brand-soft">
                     {pillar.planLabel}
                   </span>
                 </div>

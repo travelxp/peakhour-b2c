@@ -24,7 +24,7 @@ const Example = () => (
       <InputGroupAddon align="block-end">
         <InputGroupButton
           className="rounded-full"
-          size="icon-xs"
+          size="icon-xs" aria-label="Add attachment"
           variant="outline"
         >
           <PlusIcon />

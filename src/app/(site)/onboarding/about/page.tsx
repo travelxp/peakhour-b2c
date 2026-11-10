@@ -391,7 +391,7 @@ function Avatar({ avatarUrl, initials }: { avatarUrl?: string; initials: string 
   if (avatarUrl) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img
+      <img width={56} height={56} loading="lazy"
         src={avatarUrl}
         alt=""
         className="h-14 w-14 rounded-full object-cover ring-1 ring-border"

@@ -161,7 +161,7 @@ function ItemChip({ item, onClick, draggable, onDragStart }: ItemChipProps) {
         {item.payload.text.split("\n")[0]!.slice(0, 60) ||
           channelDisplayName(item.channel)}
       </span>
-      <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+      <span className="shrink-0 text-micro tabular-nums text-muted-foreground">
         {formatTimeLabel(item.scheduledAtUtc, item.audienceTimezone)}
       </span>
       <Icon
@@ -257,7 +257,7 @@ export function CalendarView({
               </div>
               <div className="space-y-1">
                 {dayItems.length === 0 ? (
-                  <div className="text-[11px] italic text-muted-foreground/60">
+                  <div className="text-micro italic text-muted-foreground/60">
                     nothing scheduled
                   </div>
                 ) : (
@@ -320,8 +320,8 @@ export function CalendarView({
                 className={cn(
                   "tabular-nums",
                   isToday
-                    ? "rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground"
-                    : "text-[10px] text-muted-foreground",
+                    ? "rounded-full bg-primary px-1.5 py-0.5 text-micro font-semibold text-primary-foreground"
+                    : "text-micro text-muted-foreground",
                 )}
               >
                 {new Intl.DateTimeFormat(undefined, {
@@ -330,7 +330,7 @@ export function CalendarView({
                 }).format(day)}
               </span>
               {dayItems.length > 0 && (
-                <span className="text-[10px] tabular-nums text-muted-foreground">
+                <span className="text-micro tabular-nums text-muted-foreground">
                   {dayItems.length}
                 </span>
               )}
@@ -361,7 +361,7 @@ export function CalendarView({
                 <button
                   type="button"
                   onClick={() => onItemClick?.(dayItems[0]!)}
-                  className="text-[10px] text-muted-foreground underline-offset-2 hover:underline"
+                  className="text-micro text-muted-foreground underline-offset-2 hover:underline"
                 >
                   +{dayItems.length - 3} more
                 </button>

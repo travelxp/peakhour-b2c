@@ -483,7 +483,7 @@ function KindBadge({ kind }: { kind: LinkedInInteraction["kind"] }) {
   } as const;
   const { icon: Icon, label } = map[kind];
   return (
-    <Badge variant="outline" className="gap-1 text-[10px]">
+    <Badge variant="outline" className="gap-1 text-micro">
       <Icon className="size-3" /> {label}
     </Badge>
   );
@@ -493,20 +493,20 @@ function StatusBadges({ row }: { row: LinkedInInteraction }) {
   return (
     <>
       {!row.seenAt && (
-        <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+        <Badge variant="outline" className="text-micro uppercase tracking-wide">
           New
         </Badge>
       )}
       {row.status === "needs_reply" && (
         <Badge
           variant="outline"
-          className="border-warning text-[10px] uppercase tracking-wide text-warning-on-tint"
+          className="border-warning text-micro uppercase tracking-wide text-warning-on-tint"
         >
           Needs reply
         </Badge>
       )}
       {row.status === "replied" && (
-        <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
+        <Badge variant="secondary" className="text-micro uppercase tracking-wide">
           Replied
           {typeof row.firstResponseMs === "number" && (
             <span className="ml-1 tabular-nums opacity-70">
@@ -516,7 +516,7 @@ function StatusBadges({ row }: { row: LinkedInInteraction }) {
         </Badge>
       )}
       {row.snoozedUntil && new Date(row.snoozedUntil) > new Date() && (
-        <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+        <Badge variant="outline" className="text-micro uppercase tracking-wide">
           Snoozed
         </Badge>
       )}

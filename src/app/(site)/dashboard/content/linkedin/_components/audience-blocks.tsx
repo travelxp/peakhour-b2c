@@ -303,7 +303,7 @@ export function CommunityTopics({
       <div className="flex items-center gap-2">
         <h3 className="text-sm font-semibold">What people talked about</h3>
         {partial && (
-          <Badge variant="outline" className="text-[10px] font-normal">
+          <Badge variant="outline" className="text-micro font-normal">
             {c.classifiedDays} {c.classifiedDays === 1 ? "day" : "days"} classified
           </Badge>
         )}
@@ -493,7 +493,7 @@ function BlockHeading({
     <div className="flex items-center gap-2">
       <h3 className="text-sm font-semibold">{title}</h3>
       {partial && (
-        <Badge variant="outline" className="text-[10px] font-normal">
+        <Badge variant="outline" className="text-micro font-normal">
           {coverageDays} {coverageDays === 1 ? "day" : "days"} measured
         </Badge>
       )}

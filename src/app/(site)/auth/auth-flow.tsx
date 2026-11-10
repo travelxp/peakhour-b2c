@@ -581,7 +581,7 @@ export function AuthFlow({
           role="img"
           aria-label={PILLAR_CONSOLE_LABEL}
         >
-          <div className="flex items-center justify-between px-1 pb-2 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-on-ink-dim">
+          <div className="flex items-center justify-between px-1 pb-2 text-micro font-bold uppercase tracking-[0.18em] text-on-ink-dim">
             <span>Your business, at a glance</span>
             <span className="flex items-center gap-1.5 text-success">
               <span className="size-1.5 rounded-full bg-success" aria-hidden />
@@ -597,7 +597,7 @@ export function AuthFlow({
                 <span className="size-2 shrink-0 rounded-full bg-success" aria-hidden />
                 <span className="w-20 shrink-0 font-bold text-on-ink">{row.name}</span>
                 <span className="min-w-0 flex-1 truncate text-on-ink-dim">{row.status}</span>
-                <span className="shrink-0 rounded-full bg-success/15 px-2.5 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide text-success">
+                <span className="shrink-0 rounded-full bg-success/15 px-2.5 py-0.5 text-micro font-bold uppercase tracking-wide text-success">
                   Free
                 </span>
               </div>

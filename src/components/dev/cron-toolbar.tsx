@@ -444,7 +444,7 @@ export function CronToolbar({
           <span>Cron triggers</span>
         </span>
         <span className="text-muted-foreground/60">·</span>
-        <span className="text-[10px] uppercase tracking-wide text-muted-foreground/80">
+        <span className="text-micro uppercase tracking-wide text-muted-foreground/80">
           dev only
         </span>
         <div className="flex flex-wrap gap-1">
@@ -504,7 +504,7 @@ export function CronToolbar({
                         : "⚠️ Reaches outside Peakhour — asks before running."}
                     </p>
                   ) : null}
-                  <p className="text-[10px] text-muted-foreground mt-1 font-mono">
+                  <p className="text-micro text-muted-foreground mt-1 font-mono">
                     cron: {cron}
                   </p>
                 </TooltipContent>

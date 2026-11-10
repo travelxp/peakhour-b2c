@@ -148,7 +148,7 @@ export default function CmsFeedbackDetailPage() {
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild>
-          <Link href="/cms/feedback">
+          <Link aria-label="Back to feedback" href="/cms/feedback">
             <ArrowLeft className="size-4" />
           </Link>
         </Button>
@@ -242,11 +242,11 @@ export default function CmsFeedbackDetailPage() {
                           {comment.createdByName || "System"}
                         </span>
                         {comment.internal && (
-                          <Badge variant="outline" className="text-[10px] px-1">
+                          <Badge variant="outline" className="text-micro px-1">
                             internal
                           </Badge>
                         )}
-                        <Badge variant="secondary" className="text-[10px] px-1">
+                        <Badge variant="secondary" className="text-micro px-1">
                           {comment.type}
                         </Badge>
                       </div>
@@ -311,7 +311,7 @@ export default function CmsFeedbackDetailPage() {
                   </CardTitle>
                   <Button
                     variant="ghost"
-                    size="icon"
+                    size="icon" aria-label="Re-analyze ticket"
                     className="size-7"
                     onClick={() => reanalyze.mutate()}
                     disabled={reanalyze.isPending}
@@ -366,11 +366,11 @@ export default function CmsFeedbackDetailPage() {
                       <div key={i} className="rounded-md border p-2 space-y-1">
                         <p className="text-sm">{action.action}</p>
                         <div className="flex gap-1.5">
-                          <Badge variant="secondary" className="text-[10px]">
+                          <Badge variant="secondary" className="text-micro">
                             {PRIORITY_LABELS[action.priority] ?? action.priority}
                           </Badge>
                           {action.effort && (
-                            <Badge variant="outline" className="text-[10px]">
+                            <Badge variant="outline" className="text-micro">
                               {EFFORT_LABELS[action.effort] ?? action.effort}
                             </Badge>
                           )}

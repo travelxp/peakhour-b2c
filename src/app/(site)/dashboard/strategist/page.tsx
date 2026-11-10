@@ -291,7 +291,7 @@ export default function StrategistPage() {
                         <Icon className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
                         <div className="flex flex-col">
                           <span className="font-medium leading-tight">{label}</span>
-                          <span className="text-[10px] text-muted-foreground leading-tight">{hint}</span>
+                          <span className="text-micro text-muted-foreground leading-tight">{hint}</span>
                         </div>
                       </div>
                     </SelectItem>
@@ -303,7 +303,7 @@ export default function StrategistPage() {
               <span className="font-medium">Destination:</span>
               <span>Newsletter (Beehiiv)</span>
               <span aria-hidden className="text-muted-foreground/50">·</span>
-              <span className="text-[10px]">more platforms coming</span>
+              <span className="text-micro">more platforms coming</span>
             </div>
           </div>
           <div className="flex items-center justify-between">

@@ -307,7 +307,7 @@ export default function CmsJobsPage() {
                     <TableCell><StatusBadge status={row.status} dot={row.status === "running" || row.status === "pending"} /></TableCell>
                     <TableCell className="text-right text-xs tabular-nums">{row.priority}</TableCell>
                     <TableCell className="text-right text-xs tabular-nums">{row.attempts}/{row.maxAttempts}</TableCell>
-                    <TableCell className="font-mono text-[11px] leading-tight">
+                    <TableCell className="font-mono text-micro leading-tight">
                       <div className="truncate max-w-45" title={row.orgId}>{row.orgId?.slice(-8) || "—"}</div>
                       <div className="truncate max-w-45 text-muted-foreground" title={row.businessId}>{row.businessId?.slice(-8) || "—"}</div>
                     </TableCell>
@@ -453,7 +453,7 @@ function JobDrilldown({ id }: { id: string }) {
               {data.children.map((c) => (
                 <div key={c._id} className="flex items-center gap-2 rounded border p-2 text-xs">
                   <StatusBadge status={c.status} dot={c.status === "running" || c.status === "pending"} />
-                  <span className="font-mono text-[11px]">{c._id.slice(-8)}</span>
+                  <span className="font-mono text-micro">{c._id.slice(-8)}</span>
                   <span className="min-w-0 flex-1 truncate" title={c.displayName}>{c.displayName || c.kind}</span>
                   <span className="tabular-nums text-muted-foreground">
                     {c.progress ? `${c.progress.processedUnits}/${c.progress.totalUnits}` : "—"}

@@ -606,7 +606,7 @@ export function TweetComposer() {
             >
               {isThread && (
                 <div className="mb-1 flex items-center justify-between px-1">
-                  <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <span className="text-micro font-medium uppercase tracking-wide text-muted-foreground">
                     {index === 0 ? "Tweet 1 (root)" : `Tweet ${index + 1}`}
                   </span>
                   <Button

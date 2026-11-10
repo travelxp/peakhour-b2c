@@ -7,16 +7,7 @@ import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { ActionCost } from "@/components/dashboard/action-cost";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -25,144 +16,15 @@ import { Separator } from "@/components/ui/separator";
 import { PageShell } from "@/components/dashboard/page-shell";
 import { WaTemplateApprovals } from "@/components/integrations/wa-template-approvals";
 import { STUDIO_LIST_CAP } from "@/lib/wa-studio-limits";
-import {
-  addLanguageProblem,
-  groupByName,
-  mostRecentVariant,
-  unanimousStatus,
-  type TemplateGroup,
-} from "./_components/template-groups";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { addLanguageProblem, groupByName, mostRecentVariant, unanimousStatus, type TemplateGroup } from "./_components/template-groups";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { BizTemplate, Category, Components, EMPTY_EDITOR, Editor, LintIssue, STUDIO, TemplateStatus, dismissPinnedNotices, pinnedNotices } from "./_components/shared";
+import { StatusBadge, WhatsAppPreview } from "./_components/template-preview";
 
-// ── Types (mirror /v1/meta/whatsapp/studio responses) ───────────────────────
-type TemplateStatus = "draft" | "submitted" | "approved" | "rejected" | "paused" | "disabled";
-type Category = "MARKETING" | "UTILITY" | "AUTHENTICATION";
-interface WAButton {
-  type: "QUICK_REPLY" | "URL" | "PHONE_NUMBER";
-  text: string;
-  url?: string;
-  phone_number?: string;
-}
-interface Components {
-  header?: { format: "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT"; text?: string };
-  body: { text: string };
-  footer?: { text: string };
-  buttons?: WAButton[];
-}
-interface BizTemplate {
-  _id: string;
-  name: string;
-  language: string;
-  category: Category;
-  status: TemplateStatus;
-  quality?: string;
-  components?: Components;
-  rejectionReason?: string;
-  attempts?: number;
-  updatedAt?: string;
-}
-interface LintIssue { severity: "error" | "warning"; field: string; message: string }
-
-interface Editor {
-  id?: string;
-  name: string;
-  language: string;
-  category: Category;
-  components: Components;
-}
-
-const STUDIO = "/v1/meta/whatsapp/studio";
-const EMPTY_EDITOR: Editor = {
-  name: "",
-  language: "en",
-  category: "UTILITY",
-  components: { body: { text: "" } },
-};
-
-const STATUS_VARIANT: Record<TemplateStatus, { label: string; className: string }> = {
-  draft: { label: "Draft", className: "bg-muted text-muted-foreground" },
-  submitted: { label: "In review", className: "bg-warning/15 text-warning-on-tint" },
-  approved: { label: "Approved", className: "bg-success/15 text-success-on-tint" },
-  rejected: { label: "Rejected", className: "bg-destructive/15 text-destructive-on-tint" },
-  paused: { label: "Paused", className: "bg-warning/15 text-warning-on-tint" },
-  disabled: { label: "Disabled", className: "bg-muted text-muted-foreground" },
-};
-
-// ── ★★THE PINNED WARNINGS THIS PAGE HAS RAISED — MODULE STATE, NOT COMPONENT
-//    STATE ──────────────────────────────────────────────────────────────────
-//
-// 🚫★★A `duration: Infinity` TOAST OUTLIVES THE COMPONENT THAT RAISED IT. The
-//  `Toaster` lives in the site layout, so these survive a route change — while
-//  refs inside the page do not. Navigating away and back reset the bookkeeping
-//  and left the warning on screen with nothing tracking it: a later clean
-//  resubmit no longer retired it, and a later business switch no longer
-//  dismissed it. The tracking has to have the same lifetime as the thing it
-//  tracks, which is the page load.
-//
-// ★KEYED BY TEMPLATE, VALUED BY THE TOAST'S OWN ID — the two differ because
-//  each raising gets a fresh toast id, which is what stops a dismissal of the
-//  old one landing on the new one.
-const pinnedNotices = new Map<string, string>();
 let noticeSeq = 0;
+
 /** The business those warnings belong to, so a SWITCH is distinguishable. */
 let noticeBusiness: string | undefined;
-
-/** Retire every pinned warning this page raised, and forget them. */
-function dismissPinnedNotices() {
-  for (const id of pinnedNotices.values()) toast.dismiss(id);
-  pinnedNotices.clear();
-}
-
-// ⏸★★AND THE RETIREMENT ONLY RUNS WHILE THIS PAGE IS MOUNTED, which is a
-//  residual rather than an oversight. The `Toaster` is in the `(site)` layout
-//  and never unmounts, so switching business — or signing out — from ANOTHER
-//  route leaves a pinned warning naming a template that is not in the list any
-//  more.
-//
-// 🚫★★DRIVING IT FROM THE AUTH PROVIDER IS NOT THE ANSWER: it would put one
-//  page's toast bookkeeping into the thing every page depends on, and the next
-//  page with a pinned toast would add a second entry to it.
-//
-// ⏸★THE ANSWER IS THAT A FACT THIS DURABLE DOES NOT BELONG IN A TOAST AT ALL.
-//  It is a property of the ROW — Meta holds a category this template's record
-//  disagrees with — and the api already reports it per submit as
-//  `categoryApplied`. Surfacing it on the card retires the pinned toast, the
-//  bookkeeping and this residual together. ★The toast has a close button in the
-//  meantime.
-
-function StatusBadge({ status }: { status: TemplateStatus }) {
-  const v = STATUS_VARIANT[status] ?? STATUS_VARIANT.draft;
-  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${v.className}`}>{v.label}</span>;
-}
-
-// Live WhatsApp bubble preview.
-function WhatsAppPreview({ components }: { components: Components }) {
-  const { header, body, footer, buttons } = components;
-  return (
-    <div className="rounded-xl bg-[#e5ddd5] p-4">
-      <div className="ml-auto max-w-[85%] rounded-lg rounded-tr-none bg-[#dcf8c6] p-3 text-sm text-foreground shadow-sm">
-        {header?.text && <p className="mb-1 font-semibold">{header.text}</p>}
-        <p className="whitespace-pre-wrap">{body.text || <span className="text-muted-foreground">Your message body…</span>}</p>
-        {footer?.text && <p className="mt-1 text-xs text-muted-foreground">{footer.text}</p>}
-      </div>
-      {!!buttons?.length && (
-        <div className="mt-2 space-y-1">
-          {buttons.map((b, i) => (
-            <div key={i} className="rounded-lg bg-white/90 py-2 text-center text-sm font-medium text-[#00a5f4] shadow-sm">
-              {b.text || "Button"}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default function WhatsAppTemplatesPage() {
   const { business } = useAuth();

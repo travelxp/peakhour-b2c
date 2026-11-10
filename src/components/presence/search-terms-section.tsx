@@ -37,7 +37,7 @@ export function SearchTermsSection({ entry }: { entry: PresenceNetworkEntry | nu
               </li>
             ))}
           </ul>
-          {view.note && <p className="text-[11px] text-muted-foreground">{view.note}</p>}
+          {view.note && <p className="text-micro text-muted-foreground">{view.note}</p>}
         </>
       ) : (
         <p className="rounded-lg border border-dashed p-4 text-xs text-muted-foreground">{view.text}</p>

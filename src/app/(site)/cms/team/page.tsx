@@ -240,7 +240,7 @@ export default function CmsTeamPage() {
                       {isSuperAdmin && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="size-8">
+                            <Button variant="ghost" size="icon" aria-label="Member actions" className="size-8">
                               <MoreHorizontal className="size-4" />
                             </Button>
                           </DropdownMenuTrigger>

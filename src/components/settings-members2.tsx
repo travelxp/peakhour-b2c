@@ -208,7 +208,7 @@ const UserCard = ({ user }: UserCardProps) => {
         <div className="flex size-10 items-center justify-center overflow-hidden rounded-full bg-muted">
           {user.image ? (
             // eslint-disable-next-line @next/next/no-img-element -- mock data with external host; matches team-section.tsx pattern
-            <img
+            <img loading="lazy"
               src={user.image}
               alt={user.name}
               className="size-full object-cover"

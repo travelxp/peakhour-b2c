@@ -609,7 +609,7 @@ export function BoostCampaignDialog({
             />
             <Label
               htmlFor="boost-not-political"
-              className="text-[11px] font-normal leading-relaxed text-muted-foreground"
+              className="text-micro font-normal leading-relaxed text-muted-foreground"
             >
               {/* ★NO LOCAL FALLBACK ANY MORE. A hardcoded "latest" notice was
                   a second copy that could differ from the one being stamped;
@@ -668,7 +668,7 @@ export function BoostCampaignDialog({
               />
               <Label
                 htmlFor="boost-apply-future"
-                className="text-[11px] font-normal leading-relaxed text-muted-foreground"
+                className="text-micro font-normal leading-relaxed text-muted-foreground"
               >
                 Also apply this to my future campaigns, including ones created
                 automatically from WhatsApp or by the optimizer. You can
@@ -677,7 +677,7 @@ export function BoostCampaignDialog({
             </div>
           ) : null}
 
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-micro text-muted-foreground">
             Currency must match your LinkedIn ad account&apos;s billing
             currency.
             {total !== null ? (

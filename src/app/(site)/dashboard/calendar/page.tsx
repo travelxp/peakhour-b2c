@@ -29,6 +29,7 @@
  *   - Esc: close drawer
  */
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -58,10 +59,12 @@ import type {
   ListItemsResponse,
   ScheduledItemStatus,
 } from "@/lib/scheduler/types";
-import { CalendarItemDrawer } from "./_components/calendar-item-drawer";
-import { ComposeNewSheet } from "./_components/compose-new-sheet";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { PageShell } from "@/components/dashboard/page-shell";
+
+// Opened on demand (item click / compose button), so neither ships in the first load.
+const CalendarItemDrawer = dynamic(() => import("./_components/calendar-item-drawer").then((mod) => mod.CalendarItemDrawer));
+const ComposeNewSheet = dynamic(() => import("./_components/compose-new-sheet").then((mod) => mod.ComposeNewSheet));
 
 type Mode = "week" | "month";
 
@@ -712,7 +715,7 @@ export default function CalendarPage() {
       )}
 
       {/* Keyboard hint */}
-      <div className="text-[11px] text-muted-foreground">
+      <div className="text-micro text-muted-foreground">
         Shortcuts: <kbd className="rounded border bg-muted px-1">←</kbd> /{" "}
         <kbd className="rounded border bg-muted px-1">→</kbd> nav ·{" "}
         <kbd className="rounded border bg-muted px-1">T</kbd> today ·{" "}

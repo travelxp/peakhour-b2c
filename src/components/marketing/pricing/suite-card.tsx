@@ -73,11 +73,11 @@ export function SuiteCard({
         {/* ── The offer ─────────────────────────────────────────────── */}
         <div>
           <div className="flex flex-wrap items-center gap-2.5">
-            <span className="inline-flex items-center rounded-full bg-brand-gradient px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-brand-contrast shadow-sm">
+            <span className="inline-flex items-center rounded-full bg-brand-gradient px-3 py-1 text-micro font-bold uppercase tracking-wide text-brand-contrast shadow-sm">
               Everything, one price
             </span>
             {badge && (
-              <span className="inline-flex items-center rounded-full border border-brand/40 bg-brand-soft/60 px-2.5 py-1 text-[11px] font-bold text-brand-ink dark:bg-brand/10 dark:text-brand">
+              <span className="inline-flex items-center rounded-full border border-brand/40 bg-brand-soft/60 px-2.5 py-1 text-micro font-bold text-brand-ink dark:bg-brand/10 dark:text-brand">
                 {badge}
               </span>
             )}
@@ -176,7 +176,7 @@ export function SuiteCard({
               (D19), which collects none. "Card required" was the rule for a
               trial bought at checkout, and this button goes to signup. */}
           {p.trialDays > 0 && (
-            <p className="mt-2.5 text-[11px] text-muted-foreground">
+            <p className="mt-2.5 text-micro text-muted-foreground">
               {shopify
                 ? shopifyTrialNote(p.trialDays)
                 : `${p.trialDays}-day free trial · no card to start`}

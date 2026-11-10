@@ -290,7 +290,7 @@ export function MentionTypeahead({
         // Linear) never steal focus mid-edit. Arrow keys handled above.
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
-        <div className="border-b px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        <div className="border-b px-3 py-2 text-micro font-medium uppercase tracking-wide text-muted-foreground">
           People
         </div>
         <ul role="listbox" className="max-h-64 overflow-y-auto p-1">
@@ -333,7 +333,7 @@ export function MentionTypeahead({
               >
                 <Avatar className="size-7 shrink-0">
                   {c.avatarUrl && <AvatarImage src={c.avatarUrl} alt="" />}
-                  <AvatarFallback className="text-[10px]">
+                  <AvatarFallback className="text-micro">
                     {(c.displayName ?? c.handle).slice(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
@@ -341,7 +341,7 @@ export function MentionTypeahead({
                   <div className="flex items-center gap-1 text-sm font-medium">
                     <span className="truncate">{c.displayName ?? c.handle}</span>
                     {c.verified && (
-                      <Badge variant="secondary" className="h-4 px-1 text-[9px]">
+                      <Badge variant="secondary" className="h-4 px-1 text-micro">
                         ✓
                       </Badge>
                     )}

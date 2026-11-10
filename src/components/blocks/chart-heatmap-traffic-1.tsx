@@ -18,7 +18,7 @@ const max = Math.max(...values.flat());
 const Example = () => (
   <div className="w-full max-w-xl overflow-x-auto rounded-md border bg-background p-4">
     <div className="min-w-[360px] space-y-2">
-      <div className="grid grid-cols-[40px_repeat(6,minmax(0,1fr))] gap-1 text-[10px] text-muted-foreground">
+      <div className="grid grid-cols-[40px_repeat(6,minmax(0,1fr))] gap-1 text-micro text-muted-foreground">
         <span />
         {hours.map((hour) => (
           <span key={hour} className="text-center">
@@ -31,7 +31,7 @@ const Example = () => (
           key={day}
           className="grid grid-cols-[40px_repeat(6,minmax(0,1fr))] gap-1"
         >
-          <span className="self-center text-[10px] text-muted-foreground">
+          <span className="self-center text-micro text-muted-foreground">
             {day}
           </span>
           {values[dayIndex].map((value, hourIndex) => (

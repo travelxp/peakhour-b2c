@@ -113,7 +113,7 @@ export default async function MarketingCatchAll({
   const url = `${SITE.url.replace(/\/$/, "")}/${path}`;
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
       <Header />
       {jsonLd(page, url).map((graph, i) => (
         <script
