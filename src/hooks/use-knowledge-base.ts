@@ -4,7 +4,7 @@ import { INSIGHTS_KEY } from "@/hooks/use-insights";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
-import type { KbEntry, KbPayload, KbRequest } from "@/lib/knowledge-base";
+import type { KbEntry, KbFindingsResponse, KbPayload, KbRequest, KbSuggestionsResponse } from "@/lib/knowledge-base";
 
 /**
  * Knowledge base hooks (GET/POST/PATCH /v1/kb/*). The api scopes every call to
@@ -13,6 +13,8 @@ import type { KbEntry, KbPayload, KbRequest } from "@/lib/knowledge-base";
 
 const ENTRIES_KEY = "kb-entries";
 const REQUESTS_KEY = "kb-requests";
+const SUGGESTIONS_KEY = "kb-suggestions";
+const FINDINGS_KEY = "kb-findings";
 
 export type EntryFilter = { source: "" | "owner" | "import" | "learned"; status: "active" | "archived"; q: string };
 
@@ -48,6 +50,9 @@ function useRefresh() {
   return () => {
     void qc.invalidateQueries({ queryKey: [ENTRIES_KEY] });
     void qc.invalidateQueries({ queryKey: [REQUESTS_KEY] });
+    // an edit changes what the policy check says; an approval or a dismissal changes what is still suggested
+    void qc.invalidateQueries({ queryKey: [SUGGESTIONS_KEY] });
+    void qc.invalidateQueries({ queryKey: [FINDINGS_KEY] });
     // an answered question changes what Insights says is still open
     void qc.invalidateQueries({ queryKey: [INSIGHTS_KEY] });
   };
@@ -89,6 +94,63 @@ export function useDismissKbRequest() {
   const refresh = useRefresh();
   return useMutation({
     mutationFn: (id: string) => api.post<{ request: KbRequest }>(`/v1/kb/requests/${id}/dismiss`),
+    onSuccess: refresh,
+  });
+}
+
+/** GET /v1/kb/suggestions: the drafted answers (most-asked first) and what was routed to Catalog Manager and the Inbox. */
+export function useKbSuggestions() {
+  const { isAuthenticated, org, business } = useAuth();
+  return useQuery<KbSuggestionsResponse>({
+    queryKey: [SUGGESTIONS_KEY, org?._id ?? null, business?._id ?? null],
+    queryFn: () => api.get("/v1/kb/suggestions"),
+    enabled: isAuthenticated && !!org?._id,
+    retry: false,
+  });
+}
+
+/** The edited words are sent as they are; the api refuses (409/400, with its own sentence) while a [placeholder] remains or the entry limit is reached. */
+export function useApproveSuggestion() {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: ({ id, title, content }: { id: string; title: string; content: string }) =>
+      api.post<{ entry: KbEntry; answered: number }>(`/v1/kb/suggestions/${id}/approve`, { title, content }),
+    onSuccess: refresh,
+  });
+}
+
+export function useDismissSuggestion() {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: (id: string) => api.post<{ dismissed: number }>(`/v1/kb/suggestions/${id}/dismiss`),
+    onSuccess: refresh,
+  });
+}
+
+/** Save the edited words on the suggestion without approving it (the entry update). */
+export function useSaveSuggestion() {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: ({ id, title, content }: { id: string; title: string; content: string }) => api.patch<{ entry: KbEntry }>(`/v1/kb/entries/${id}`, { title, content }),
+    onSuccess: refresh,
+  });
+}
+
+/** GET /v1/kb/findings?state=open|dismissed: what the policy check found. */
+export function useKbFindings(state: "open" | "dismissed") {
+  const { isAuthenticated, org, business } = useAuth();
+  return useQuery<KbFindingsResponse>({
+    queryKey: [FINDINGS_KEY, org?._id ?? null, business?._id ?? null, state],
+    queryFn: () => api.get("/v1/kb/findings", { state, limit: "100" }),
+    enabled: isAuthenticated && !!org?._id,
+    retry: false,
+  });
+}
+
+export function useFindingAction() {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: ({ id, action }: { id: string; action: "dismiss" | "reopen" }) => api.post<{ finding: { id: string; state: string } }>(`/v1/kb/findings/${id}/${action}`),
     onSuccess: refresh,
   });
 }

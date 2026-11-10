@@ -74,6 +74,17 @@ export const SHOPIFY_GROUPS: ShopifyGroup[] = [
         ],
       },
       {
+        id: "suggested-answers",
+        title: "Suggested answers and policy check",
+        does: "Peakhour drafts an answer to what shoppers asked that the assistant could not answer, and checks your policies against official consumer guidance for your store's market.",
+        benefit: "You approve an answer in one click, and the assistant answers from your own approved facts. The policy check shows what is worth a second look. It is guidance, not legal advice.",
+        steps: [
+          "Open Knowledge and read the suggested answers.",
+          "Fill in any missing detail, then approve.",
+          "Read the policy check and use the wording it suggests, if you like.",
+        ],
+      },
+      {
         id: "shopper-asks",
         title: "What shoppers ask for",
         does: "A list of what shoppers asked for and could not find, with a weekly email that sums it up.",

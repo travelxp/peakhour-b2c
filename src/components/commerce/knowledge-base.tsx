@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BookOpen, ExternalLink, Loader2, MessageCircleQuestion, Plus } from "lucide-react";
+import { BookOpen, Check, ClipboardCheck, ExternalLink, Loader2, MessageCircleQuestion, Plus } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { insightsHref } from "@/lib/insights";
@@ -15,34 +15,64 @@ import { DataToolbar, DataToolbarSearch } from "@/components/molecules/data-tabl
 import { EmptyState } from "@/components/molecules/empty-state";
 import {
   useAnswerKbRequest,
+  useApproveSuggestion,
   useCreateKbEntry,
   useDismissKbRequest,
+  useDismissSuggestion,
+  useFindingAction,
   useKbEntries,
   useKbEntryAction,
+  useKbFindings,
   useKbRequests,
+  useKbSuggestions,
+  useSaveSuggestion,
   useUpdateKbEntry,
   type EntryFilter,
 } from "@/hooks/use-knowledge-base";
+import { useCommerceStores } from "@/hooks/use-commerce-stores";
 import {
+  APPROVED_LINE,
   EMPTY_FORM,
   KB_CHANNELS,
   KB_CONTENT_MAX,
   KB_TITLE_MAX,
   askedLine,
   answerToPayload,
+  approveState,
+  basedOnLine,
   channelLabel,
   channelsLine,
   charsLeft,
   entryToForm,
+  findingFooter,
+  FINDINGS_DISMISSED_EMPTY,
+  FINDINGS_EMPTY,
   formToPayload,
+  groupFindings,
+  isImportedPolicy,
   kbErrorMessage,
+  placeholdersIn,
   readOnlyNote,
+  realityLine,
+  routedLines,
+  runAction,
+  runApprove,
   safeUrl,
+  severityHeading,
+  shopifyPoliciesHref,
+  sortSuggestions,
   sourceLabel,
+  splitPlaceholders,
+  SUGGESTIONS_EMPTY,
+  suggestionAskedLine,
   type KbEntry,
+  type KbFinding,
   type KbForm,
   type KbRequest,
+  type KbSuggestion,
+  type KbSuggestionsResponse,
 } from "@/lib/knowledge-base";
+import { shopOf } from "@/lib/insights";
 
 /**
  * Commerce -> Knowledge base. What your assistant knows beyond the catalog: the
@@ -55,6 +85,8 @@ export function KnowledgeBase() {
   return (
     <div className="space-y-8">
       <Questions />
+      <Suggestions />
+      <PolicyHealth />
       <Entries />
     </div>
   );
@@ -129,6 +161,342 @@ export function QuestionCard({ request, answerLabel = "Answer", dismissLabel = "
                 {dismissLabel}
               </Button>
             )}
+          </div>
+        </CardContent>
+      </Card>
+    </li>
+  );
+}
+
+// -- Suggested answers ------------------------------------------------------------------------------------------------
+
+function Suggestions() {
+  const q = useKbSuggestions();
+  const [approved, setApproved] = useState(false);
+  // honest states: a failed read says so and offers a retry; it never shows the empty sentence in its place.
+  // A paused query (offline) is not isLoading, and has no data: say nothing rather than guess.
+  let body: React.ReactNode = null;
+  if (q.isLoading) body = <Skeleton className="h-24 w-full" />;
+  else if (q.isError && !q.data)
+    body = (
+      <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">
+        Could not load the suggested answers.
+        <Button size="sm" variant="outline" onClick={() => void q.refetch()}>
+          Try again
+        </Button>
+      </div>
+    );
+  else if (q.data) body = <SuggestionsView data={q.data} now={q.dataUpdatedAt} onApproved={() => setApproved(true)} />;
+  if (body === null) return null;
+  return (
+    <section aria-labelledby="kb-suggestions" className="space-y-3">
+      <h2 id="kb-suggestions" className="flex items-center gap-2 text-lg font-semibold">
+        <ClipboardCheck className="size-5" aria-hidden="true" />
+        Suggested answers
+      </h2>
+      {approved && (
+        <p role="status" className="flex items-center gap-2 text-sm">
+          <Check className="size-4" aria-hidden="true" />
+          {APPROVED_LINE}
+        </p>
+      )}
+      {body}
+    </section>
+  );
+}
+
+export function SuggestionsView({ data, now, onApproved }: { data: KbSuggestionsResponse; now: number; onApproved: () => void }) {
+  const list = sortSuggestions(data.suggestions);
+  const routed = routedLines(data.routed);
+  return (
+    <>
+      {list.length === 0 ? (
+        <p data-kb-suggestions-empty className="text-sm text-muted-foreground">
+          {SUGGESTIONS_EMPTY}
+        </p>
+      ) : (
+        <ul className="space-y-3">
+          {list.map((s) => (
+            <SuggestionCard key={s.id} suggestion={s} now={now} onApproved={onApproved} />
+          ))}
+        </ul>
+      )}
+      {routed.length > 0 && (
+        <ul data-kb-routed className="space-y-1 text-sm">
+          {routed.map((r) => (
+            <li key={r.href}>
+              {r.text}{" "}
+              <Link href={r.href} className="font-medium underline underline-offset-2">
+                {r.linkLabel}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
+/** The text with each [bracketed] detail still to fill in highlighted. */
+export function Highlighted({ text }: { text: string }) {
+  return (
+    <>
+      {splitPlaceholders(text).map((p, i) =>
+        p.placeholder ? (
+          <mark key={i} data-kb-placeholder className="rounded bg-warning/20 px-0.5 text-warning-on-tint">
+            {p.text}
+          </mark>
+        ) : (
+          <span key={i}>{p.text}</span>
+        ),
+      )}
+    </>
+  );
+}
+
+function SuggestionCard({ suggestion, now, onApproved }: { suggestion: KbSuggestion; now: number; onApproved: () => void }) {
+  const [title, setTitle] = useState(suggestion.title);
+  const [content, setContent] = useState(suggestion.content);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const approve = useApproveSuggestion();
+  const dismiss = useDismissSuggestion();
+  const save = useSaveSuggestion();
+  const busy = approve.isPending || dismiss.isPending || save.isPending;
+  const state = approveState(title, content);
+  const based = basedOnLine(suggestion.evidence);
+  const reasonId = `kb-sg-${suggestion.id}-reason`;
+  const edited = `${title}\n${content}`;
+
+  const doApprove = async () => {
+    setError(null);
+    const r = await runApprove((p) => approve.mutateAsync({ id: suggestion.id, ...p }), title, content);
+    if (r.ok) onApproved();
+    else setError(r.error);
+  };
+  const doSave = async () => {
+    setError(null);
+    setSaved(false);
+    const r = await runAction(() => save.mutateAsync({ id: suggestion.id, title: title.trim(), content: content.trim() }));
+    if (r.ok) setSaved(true);
+    else setError(r.error);
+  };
+  const doDismiss = async () => {
+    setError(null);
+    const r = await runAction(() => dismiss.mutateAsync(suggestion.id));
+    if (!r.ok) setError(r.error);
+  };
+
+  return (
+    <li>
+      <Card>
+        <CardContent className="space-y-3 p-4">
+          <p className="text-xs text-muted-foreground">{suggestionAskedLine(suggestion, now)}</p>
+          <label className="block space-y-1 text-sm">
+            <span className="font-medium">Title</span>
+            <Input
+              value={title}
+              maxLength={KB_TITLE_MAX}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                setSaved(false);
+              }}
+            />
+          </label>
+          <label className="block space-y-1 text-sm">
+            <span className="font-medium">Suggested answer</span>
+            <Textarea
+              rows={5}
+              value={content}
+              maxLength={KB_CONTENT_MAX}
+              onChange={(e) => {
+                setContent(e.target.value);
+                setSaved(false);
+              }}
+            />
+          </label>
+          {placeholdersIn(edited).length > 0 && (
+            <p data-kb-preview className="whitespace-pre-line rounded-md border p-2 text-sm">
+              <Highlighted text={edited} />
+            </p>
+          )}
+          {suggestion.needsFacts.length > 0 && (
+            <div className="text-sm">
+              <p className="font-medium">Your assistant needs you to say:</p>
+              <ul className="list-disc pl-5 text-muted-foreground">
+                {suggestion.needsFacts.map((n) => (
+                  <li key={n}>{n}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {based && <p className="text-xs text-muted-foreground">{based}</p>}
+          {!state.enabled && (
+            <p id={reasonId} className="text-sm text-muted-foreground">
+              {state.reason}
+            </p>
+          )}
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+          {saved && (
+            <p role="status" className="text-sm text-muted-foreground">
+              Saved. It is not approved yet.
+            </p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => void doApprove()} disabled={busy || !state.enabled} aria-describedby={state.enabled ? undefined : reasonId}>
+              {approve.isPending && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />}
+              Approve
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => void doSave()} disabled={busy}>
+              {save.isPending && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />}
+              Save without approving
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => void doDismiss()} disabled={busy}>
+              Dismiss
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </li>
+  );
+}
+
+// -- Policy health ----------------------------------------------------------------------------------------------------
+
+function PolicyHealth() {
+  const [view, setView] = useState<"open" | "dismissed">("open");
+  const q = useKbFindings(view);
+  const imported = useKbEntries({ source: "import", status: "active", q: "" });
+  const stores = useCommerceStores();
+  const shop = shopOf(stores.data);
+  let body: React.ReactNode = null;
+  if (q.isLoading) body = <Skeleton className="h-24 w-full" />;
+  else if (q.isError && !q.data)
+    body = (
+      <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">
+        Could not load the policy check.
+        <Button size="sm" variant="outline" onClick={() => void q.refetch()}>
+          Try again
+        </Button>
+      </div>
+    );
+  else if (q.data) body = <FindingsView data={q.data} view={view} entries={imported.data?.entries ?? []} shop={shop} />;
+  if (body === null) return null;
+  return (
+    <section aria-labelledby="kb-health" className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id="kb-health" className="text-lg font-semibold">
+          Policy health
+        </h2>
+        <select aria-label="Show findings" className="rounded-md border bg-background px-2 text-sm" value={view} onChange={(e) => setView(e.target.value as "open" | "dismissed")}>
+          <option value="open">To look at</option>
+          <option value="dismissed">Dismissed</option>
+        </select>
+      </div>
+      {body}
+    </section>
+  );
+}
+
+export function FindingsView({ data, view, entries, shop }: { data: { findings: KbFinding[] }; view: "open" | "dismissed"; entries: KbEntry[]; shop: string | null }) {
+  if (data.findings.length === 0) {
+    return (
+      <p data-kb-findings-empty className="text-sm text-muted-foreground">
+        {view === "open" ? FINDINGS_EMPTY : FINDINGS_DISMISSED_EMPTY}
+      </p>
+    );
+  }
+  const byId = new Map(entries.map((e) => [e.id, e]));
+  return (
+    <div className="space-y-5">
+      {groupFindings(data.findings).map((g) => (
+        <div key={g.severity} data-kb-severity={g.severity} className="space-y-2">
+          <h3 className="text-sm font-semibold">{severityHeading(g.severity)}</h3>
+          <ul className="space-y-3">
+            {g.findings.map((f) => (
+              <FindingCard key={f.id} finding={f} dismissed={view === "dismissed"} entry={f.entryId ? byId.get(f.entryId) : undefined} shop={shop} />
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FindingCard({ finding: f, dismissed, entry, shop }: { finding: KbFinding; dismissed: boolean; entry: KbEntry | undefined; shop: string | null }) {
+  const action = useFindingAction();
+  const takeOver = useKbEntryAction();
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const footer = findingFooter(f);
+  const reality = realityLine(f);
+  const policiesHref = shopifyPoliciesHref(shop);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(f.suggestion);
+      setCopied(true);
+    } catch {
+      setError("Could not copy. Select the text and copy it instead.");
+    }
+  };
+  const run = async () => {
+    setError(null);
+    const r = await runAction(() => action.mutateAsync({ id: f.id, action: dismissed ? "reopen" : "dismiss" }));
+    if (!r.ok) setError(r.error);
+  };
+  return (
+    <li>
+      <Card>
+        <CardContent className="space-y-2 p-4">
+          {f.entryTitle && <p className="text-xs text-muted-foreground">In: {f.entryTitle}</p>}
+          {f.quote && <blockquote className="border-l-2 pl-3 text-sm italic">{f.quote}</blockquote>}
+          {reality && <p className="text-sm">{reality}</p>}
+          <p className="text-sm">{f.why}</p>
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">A way to put it</p>
+            <p className="whitespace-pre-line text-sm">{f.suggestion}</p>
+          </div>
+          {footer.legalLine && (
+            <p className="text-xs text-muted-foreground">
+              {footer.sourceHref && (
+                <>
+                  <a href={footer.sourceHref} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline">
+                    {footer.sourceLabel} <ExternalLink className="size-3" aria-hidden="true" />
+                  </a>
+                  {" · "}
+                </>
+              )}
+              {footer.legalLine}
+            </p>
+          )}
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Button size="sm" variant="outline" onClick={() => void copy()}>
+              {copied ? "Copied" : "Copy"}
+            </Button>
+            {isImportedPolicy(entry) && (
+              <>
+                {policiesHref && (
+                  <a href={policiesHref} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-md border px-3 text-sm font-medium">
+                    Edit in Shopify
+                  </a>
+                )}
+                <Button size="sm" variant="outline" disabled={takeOver.isPending} onClick={() => takeOver.mutate({ id: entry!.id, action: "take-over" }, { onError: (e) => setError(kbErrorMessage(e)) })}>
+                  Take over in Peakhour
+                </Button>
+              </>
+            )}
+            <Button size="sm" variant="ghost" disabled={action.isPending} onClick={() => void run()}>
+              {dismissed ? "Reopen" : "Dismiss"}
+            </Button>
           </div>
         </CardContent>
       </Card>
