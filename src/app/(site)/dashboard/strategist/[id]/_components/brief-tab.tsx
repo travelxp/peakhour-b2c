@@ -8,6 +8,7 @@ import { ActionCost } from "@/components/dashboard/action-cost";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Sparkles, FileText, ExternalLink } from "lucide-react";
+import { safeHref } from "@/lib/demand-insights";
 import { IdeaDetail, StreamProgress, consumeSSE } from "./shared";
 
 export function BriefTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: string; onRefresh: () => void }) {
@@ -225,7 +226,16 @@ function BriefFormatMetaPanel({
             {m.ctaBlock && (
               <div>
                 <p className="text-xs text-muted-foreground">CTA</p>
-                <p className="text-sm">{m.ctaBlock.label} → <a href={m.ctaBlock.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{m.ctaBlock.url}</a></p>
+                {/* The CTA URL is model/merchant-supplied: only an http(s) URL becomes a
+                    link, so a `javascript:` value can never run on click. */}
+                <p className="text-sm">
+                  {m.ctaBlock.label} →{" "}
+                  {safeHref(m.ctaBlock.url) ? (
+                    <a href={safeHref(m.ctaBlock.url)!} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{m.ctaBlock.url}</a>
+                  ) : (
+                    <span className="break-all">{m.ctaBlock.url}</span>
+                  )}
+                </p>
               </div>
             )}
           </div>
