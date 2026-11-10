@@ -260,19 +260,33 @@ class ApiClient {
     return json.data as T;
   }
 
-  /** Attempt to refresh the access_token using the refresh_token cookie. Deduped. */
+  /**
+   * Attempt to refresh the access_token using the refresh_token cookie. Deduped.
+   *
+   * Resolves true when refreshed, false when the refresh ENDPOINT ANSWERED 401/403
+   * (the session really is over: callers keep the original 401). Any other outcome
+   * -- network failure, timeout, 5xx, 429, status 0 -- says nothing about the
+   * session, so it THROWS an ApiError whose status is not 401/403 (0 for a
+   * transport failure, else the HTTP status). Rethrowing the original 401 there
+   * made a flaky connection on an expired 15-minute token look like a logout.
+   */
   private async tryRefresh(): Promise<boolean> {
     if (!refreshPromise) {
       refreshPromise = (async () => {
         try {
-          const res = await fetch(`${this.baseUrl}/v1/auth/refresh`, {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-          });
-          return res.ok;
-        } catch {
-          return false;
+          let res: Response;
+          try {
+            res = await fetch(`${this.baseUrl}/v1/auth/refresh`, {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+            });
+          } catch {
+            throw new ApiError("REFRESH_UNAVAILABLE", "Could not reach the server to renew the session", 0);
+          }
+          if (res.ok) return true;
+          if (res.status === 401 || res.status === 403) return false;
+          throw new ApiError("REFRESH_UNAVAILABLE", `Session renewal failed (${res.status})`, res.status);
         } finally {
           refreshPromise = null;
         }
