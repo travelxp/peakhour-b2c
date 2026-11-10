@@ -45,29 +45,20 @@ import { SidebarStorageMeter } from "@/components/dashboard/sidebar-storage-mete
 import { AskContextProvider } from "@/providers/ask-context-provider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ASK_ENABLED } from "@/lib/flags";
-import { HOME_ROUTE, OUTCOMES_HOME, funnelNav } from "@/lib/nav-home";
-import { GROWTH_HOME, activeSubHref, growthNav, mandateStateOf } from "@/lib/growth-v2-nav";
+import { useState } from "react";
+import { HOME_ROUTE } from "@/lib/nav-home";
+import { activeSubHref, mandateStateOf } from "@/lib/growth-v2-nav";
+import { navGroupsFor, pillarForPath, type NavBadgeKey } from "@/lib/dashboard-nav";
+import { PillarTabs } from "@/components/dashboard/pillar-tabs";
+import { MobileTabBar } from "@/components/dashboard/mobile-tab-bar";
 import { useGrowthV2Rules } from "@/lib/api/growth-v2";
 import {
-  Gauge,
-  LayoutDashboard,
-  Sparkles,
-  FileText,
-  TrendingUp,
-  Plug,
   Settings,
   LogOut,
   ChevronsUpDown,
   ArrowLeftRight,
   ChevronRight,
-  ListChecks,
-  Zap,
-  MessagesSquare,
-  ShoppingBag,
-  MapPin,
-  LineChart,
-  HardDrive,
-  type LucideIcon,
+  MoreHorizontal,
 } from "lucide-react";
 import {
   Collapsible,
@@ -103,225 +94,9 @@ const AskLauncher = dynamic(
   { ssr: false },
 );
 
-interface NavItem {
-  href: string;
-  label: string;
-  icon: LucideIcon;
-  badge?: () => React.ReactNode;
-  /**
-   * Optional entitlement gate (a cfg_features.key). When set, the item renders
-   * only if the key is present in the org's entitlements snapshot — the same
-   * check `useFeature` runs. Absent = always visible (the default for the core
-   * Content/Growth items). Used to gate the Commerce pillar on `commerce.nav`.
-   */
-  feature?: string;
-  /**
-   * One-line value prop shown in the upgrade drawer when a `feature`-gated
-   * pillar is rendered locked (unentitled) instead of hidden. Ignored for
-   * ungated items. See LockedNavItem.
-   */
-  upsellTagline?: string;
-  subItems?: { href: string; label: string; matches?: string[]; badge?: () => React.ReactNode }[];
-}
-
-interface NavGroup {
-  label: string;
-  items: NavItem[];
-}
-
-// Autopilot Home ships dark: surfaced only in non-prod (mirrors the
-// content.autopilot_home feature's in_development state) so it can run
-// side-by-side with Library for comparison before launch. NEXT_PUBLIC_*
-// is build-inlined, so this static const is safe at module scope. The
-// page route enforces the same gate server-trip-free via a redirect.
-const SHOW_AUTOPILOT = process.env.NEXT_PUBLIC_VERCEL_ENV !== "production";
-
-/**
- * ★THE ORDER IS THE WEEK, NOT THE ORG CHART. It runs
- * Overview → Integrations → Inbox → Content → Growth → Commerce → Presence →
- * Insights, then everything else.
- *
- * Integrations sits second because it is the prerequisite for all of it: an
- * owner whose channels are not connected cannot do a single thing in the five
- * pillars below, and burying the connect step under Settings is what made a
- * half-connected account look like a broken product. Inbox is third because a
- * customer waiting on a reply outranks anything Peakhour might publish. Then
- * the five pillars in their canonical order, then Insights, which is where you
- * go to see how the six above went.
- *
- * Ask Peakhour, Tasks, Drive, Peaks and Settings drop below that line. None of
- * them is a place you go to DO the business — they are the assistant, the
- * machine's own work log, the shelf of files every pillar reads from, the meter
- * and the controls — and mixing them into the pillar run made the list read as
- * thirteen equal things.
- *
- * Drive sits directly above Peaks (plan DR2): it is the one place for every
- * image, video, document and brand kit, so it cannot live under Content, which
- * is only one of the pillars that reads from it. It replaced "Media", a
- * Content sub-item, and its old route is gone.
- *
- * There is deliberately ONE group with no label. A label per cluster would add
- * four headings and three rules to a list of thirteen items, which is more chrome
- * than the grouping is worth; the ordering carries the meaning on its own.
- */
-const PILLAR_NAV: NavGroup[] = [
-  {
-    label: "",
-    items: [
-      { href: "/dashboard/overview", label: "Overview", icon: LayoutDashboard },
-      { href: "/dashboard/integrations", label: "Integrations", icon: Plug },
-      { href: "/dashboard/inbox", label: "Inbox", icon: MessagesSquare },
-      {
-        href: "/dashboard/content",
-        label: "Content",
-        icon: FileText,
-        // Order encodes the mental model: Library → Sources → Strategist
-        // → Calendar → Seasonal Events = ingest → ground → plan →
-        // publish → background calendar. Seasonal events sit at the
-        // end because they're a long-tail config the strategist + the
-        // supervisor's seasonal generator stream consume — most
-        // owners visit them rarely. Per the LinkedIn 360 plan §3.3 IA
-        // decision (with the Seasonal Events addition).
-        subItems: [
-          // Autopilot leads the mental model: status → act, then the
-          // existing ingest → ground → plan → publish chain below.
-          ...(SHOW_AUTOPILOT
-            ? [{ href: "/dashboard/content/autopilot", label: "Autopilot" }]
-            : []),
-          { href: "/dashboard/content", label: "Library" },
-          { href: "/dashboard/pages", label: "Pages" },
-          { href: "/dashboard/content/sources", label: "Sources" },
-          { href: "/dashboard/content/news", label: "News Desk" },
-          { href: "/dashboard/strategist", label: "Strategist" },
-          { href: "/dashboard/calendar", label: "Calendar" },
-          // Ledger closes the chain the order above describes: ingest → ground
-          // → plan → publish → what it EARNED. It sits after Calendar because
-          // it is the only screen here about what came back rather than what
-          // goes out, and it is meaningless before something has gone out.
-          { href: "/dashboard/content/ledger", label: "Ledger" },
-          { href: "/dashboard/content/seasonal-events", label: "Seasonal Events" },
-        ],
-      },
-      {
-        // ★GROWTH IS FIVE SCREENS AND A FIRST RUN, NOT A LIST OF TOOLS. The
-        // sub-items depend on whether a mandate exists (First run shows only
-        // without one), so they are filled in by DashboardShell from
-        // `growthNav` rather than written out here. Audiences, Your Business,
-        // Ad creatives and Signals are tabs inside Rules and Learning;
-        // campaign management stays at /dashboard/ads, reached from Channels &
-        // money.
-        href: GROWTH_HOME,
-        label: "Growth",
-        icon: TrendingUp,
-        subItems: growthNav("unknown"),
-      },
-      // Commerce — the third pillar. Gated on `commerce.nav` (granted to every
-      // plan bundling a Commerce product; migration 144), so only Commerce
-      // customers carry the extra sidebar weight. Sub-items are added as each
-      // surface ships — Command Center (outcomes home), Assistant + Inventory
-      // exist today; Autopilot and Channels land in later Phase-0 PRs.
-      {
-        href: "/dashboard/commerce",
-        label: "Commerce",
-        icon: ShoppingBag,
-        feature: "commerce.nav",
-        upsellTagline:
-          "Autonomous merchandising, inventory and pricing across your storefronts.",
-        subItems: [
-          { href: "/dashboard/commerce", label: "Command Center" },
-          { href: "/dashboard/commerce/channels", label: "Channels" },
-          { href: "/dashboard/commerce/autopilot", label: "Autopilot" },
-          { href: "/dashboard/commerce/catalog", label: "Catalog" },
-          { href: "/dashboard/commerce/inventory", label: "Inventory" },
-          { href: "/dashboard/commerce/pricing", label: "Pricing" },
-          { href: "/dashboard/commerce/reviews", label: "Reviews" },
-          { href: "/dashboard/commerce/assistant", label: "Assistant" },
-          { href: "/dashboard/commerce/knowledge", label: "Knowledge base" },
-          { href: "/dashboard/commerce/win-back", label: "Win back carts" },
-          { href: "/dashboard/commerce/broadcasts", label: "Broadcasts" },
-        ],
-      },
-      // Presence — the local-presence pillar (Google Business Profile anchor).
-      // Gated on `presence.nav` (granted free to every plan that bundles the
-      // Presence product). Surfaces render coming_soon until Google API access
-      // lands; the pillar is visible so owners can find it.
-      {
-        href: "/dashboard/presence",
-        label: "Presence",
-        icon: MapPin,
-        feature: "presence.nav",
-        upsellTagline:
-          "Own your Google Business Profile, listings and local reviews from one place.",
-      },
-      // Insights — GA4 + Search Console dashboards. Ungated (no `feature`):
-      // the pages self-gate on the relevant Google integration being
-      // connected, so the pillar stays discoverable for everyone and acts
-      // as the connect prompt. Previously these routes existed but were
-      // unreachable from the nav — only deep-linked from the Overview
-      // recommendations card / Ask Peakhour.
-      {
-        href: "/dashboard/insights/analytics",
-        label: "Insights",
-        icon: LineChart,
-        subItems: [
-          { href: "/dashboard/insights/analytics", label: "Web Analytics" },
-          { href: "/dashboard/insights/search-console", label: "Search Console" },
-        ],
-      },
-      ...(ASK_ENABLED
-        ? [{ href: "/dashboard/ask", label: "Ask Peakhour", icon: Sparkles }]
-        : []),
-      { href: "/dashboard/tasks", label: "Tasks", icon: ListChecks, badge: () => <RunningJobsBadge /> },
-      { href: "/dashboard/drive", label: "Drive", icon: HardDrive },
-      { href: "/dashboard/peaks", label: "Peaks", icon: Zap },
-      {
-        href: "/dashboard/settings",
-        label: "Settings",
-        icon: Settings,
-        subItems: [
-          { href: "/dashboard/settings", label: "General" },
-          { href: "/dashboard/settings/preferences", label: "Preferences" },
-          { href: "/dashboard/settings/team", label: "Team" },
-          // ★"Peakhour on WhatsApp" — Flow A, and the label says whose side it
-          //  is on. /dashboard/content/whatsapp is the OTHER plane, the
-          //  merchant's own shoppers, and a bare "WhatsApp" entry here would
-          //  read as a second copy of it.
-          { href: "/dashboard/settings/whatsapp", label: "Peakhour on WhatsApp" },
-          { href: "/dashboard/settings/billing", label: "Billing" },
-          { href: "/dashboard/settings/tickets", label: "Tickets", badge: () => <OpenTicketBadge /> },
-        ],
-      },
-    ],
-  },
-];
-
-/**
- * ★THE FUNNEL NAVIGATION IS DERIVED, NOT WRITTEN OUT AGAIN. `funnelNav`
- * partitions the pillar list — every item comes out exactly once, and a pillar
- * added next month lands in the tail rather than vanishing from a navigation
- * nobody has switched on to notice. The grouping itself, and why there is no
- * "Bought" heading, are argued in lib/nav-home.ts.
- *
- * ★GROWTH HOME LEADS THE LIST. The Outcomes page it used to promote is gone;
- * Growth home answers the same question ("is it working?") and the real Growth
- * pillar wins over this stub, so it keeps its sub-items.
- */
-const GROWTH_HOME_ITEM: NavItem = {
-  href: GROWTH_HOME,
-  label: "Growth",
-  // ★NOT `TrendingUp`, WHICH IS GROWTH'S ICON IN THE PILLAR LIST. The stub only
-  // matters if the pillar is missing, and then it must not be mistaken for it.
-  icon: Gauge,
-};
-
-/**
- * ★THE DEFAULT IS TODAY'S NAVIGATION. `NEXT_PUBLIC_OUTCOMES_HOME` is unset in
- * every environment until somebody decides otherwise, so this resolves to
- * PILLAR_NAV and no merchant sees a changed sidebar.
- */
-const NAV_GROUPS: NavGroup[] = OUTCOMES_HOME
-  ? funnelNav(PILLAR_NAV, GROWTH_HOME_ITEM)
-  : PILLAR_NAV;
+// The navigation itself (pillars, sub-links, their words) lives in
+// @/lib/dashboard-nav and @/lib/nav-copy so the sidebar, the pillar tabs, the
+// mobile bar and the tests read one list.
 
 /**
  * A sidebar count that says what it is counting.
@@ -343,7 +118,7 @@ function NavCountBadge({ count, description }: { count: number; description: str
     <span className="ml-auto flex items-center" title={description}>
       <span
         aria-hidden
-        className="flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-medium text-primary-foreground"
+        className="flex size-5 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground"
       >
         {count > 9 ? "9+" : count}
       </span>
@@ -378,6 +153,11 @@ function RunningJobsBadge() {
     />
   );
 }
+
+const NAV_BADGES: Record<NavBadgeKey, () => React.ReactNode> = {
+  "running-jobs": () => <RunningJobsBadge />,
+  "open-tickets": () => <OpenTicketBadge />,
+};
 
 export default function DashboardLayout({
   children,
@@ -443,10 +223,12 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   // query feeds the Rules screen, so this is one request, not two.
   const rules = useGrowthV2Rules();
   const mandateState = mandateStateOf(rules.data);
-  const navGroups = NAV_GROUPS.map((g) => ({
-    ...g,
-    items: g.items.map((i) => (i.href === GROWTH_HOME ? { ...i, subItems: growthNav(mandateState) } : i)),
-  }));
+  const navGroups = navGroupsFor(mandateState);
+  // Which pillars the reader has opened or closed by hand. Unset = follow the
+  // route: the pillar you are in is open, the rest are collapsed, so the first
+  // view is the pillars, not every sub-link of every pillar.
+  const [toggled, setToggled] = useState<Record<string, boolean>>({});
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
 
   if (isLoading) {
     return <DashboardShellSkeleton />;
@@ -466,6 +248,13 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
+
+  // The multi-page pillar the reader is in gets in-page tabs, so its sub-pages
+  // are reachable without opening the sidebar (essential on a phone). A gated
+  // pillar the org is not entitled to has no sub-pages to show.
+  const inPillar = pillarForPath(pathname ?? "", navGroups);
+  const pillarTabs =
+    inPillar && (!inPillar.feature || entitlements?.features?.includes(inPillar.feature)) ? inPillar : undefined;
 
   // Initials are no longer derived here: <UserAvatar> resolves the user's
   // chosen avatar (which may be an illustrated character, not a monogram at
@@ -570,7 +359,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                     <span className="truncate text-base font-semibold leading-tight">
                       Peakhour.ai
                     </span>
-                    <span className="truncate text-[11px] leading-tight text-muted-foreground">
+                    <span className="truncate text-xs leading-tight text-muted-foreground">
                       Your AI business engine.
                     </span>
                   </span>
@@ -606,6 +395,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                           key={item.href}
                           icon={item.icon}
                           label={item.label}
+                          description={item.description}
                           featureKey={item.feature}
                           tagline={item.upsellTagline}
                         />
@@ -618,10 +408,19 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
                     if (item.subItems) {
                       return (
-                        <Collapsible key={item.href} asChild defaultOpen={isActive} className="group/collapsible">
+                        <Collapsible
+                          key={item.href}
+                          asChild
+                          open={toggled[item.href] ?? isActive}
+                          onOpenChange={(o) => setToggled((t) => ({ ...t, [item.href]: o }))}
+                          className="group/collapsible"
+                        >
                           <SidebarMenuItem>
                             <CollapsibleTrigger asChild>
-                              <SidebarMenuButton tooltip={item.label} isActive={isActive}>
+                              <SidebarMenuButton
+                                tooltip={item.description ? `${item.label}: ${item.description}` : item.label}
+                                isActive={isActive}
+                              >
                                 <Icon />
                                 <span>{item.label}</span>
                                 <ChevronRight className="ml-auto size-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
@@ -640,9 +439,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                                   return (
                                     <SidebarMenuSubItem key={sub.href}>
                                       <SidebarMenuSubButton asChild isActive={subActive}>
-                                        <Link href={sub.href}>
+                                        <Link href={sub.href} title={sub.description}>
                                           <span>{sub.label}</span>
-                                          {sub.badge?.()}
+                                          {sub.badge && NAV_BADGES[sub.badge]()}
                                         </Link>
                                       </SidebarMenuSubButton>
                                     </SidebarMenuSubItem>
@@ -660,12 +459,12 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                         <SidebarMenuButton
                           asChild
                           isActive={isActive}
-                          tooltip={item.label}
+                          tooltip={item.description ? `${item.label}: ${item.description}` : item.label}
                         >
-                          <Link href={item.href}>
+                          <Link href={item.href} title={item.description}>
                             <Icon />
                             <span>{item.label}</span>
-                            {item.badge?.()}
+                            {item.badge && NAV_BADGES[item.badge]()}
                           </Link>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
@@ -754,13 +553,35 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       <SidebarInset>
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
-          <div className="ml-auto flex items-center gap-3">
+          {/* From md up the four chips sit in the header. Below it they would
+              crowd a 375px bar (a plan badge alone is up to 10rem), so one
+              button opens them as a strip under the header instead. */}
+          <div className="ml-auto hidden items-center gap-3 md:flex">
             <BalanceChip />
             <PlanBadge />
             <AttentionBell />
             <FeedbackWidget />
           </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="ml-auto size-8 md:hidden"
+            aria-expanded={headerMenuOpen}
+            aria-controls="header-overflow"
+            onClick={() => setHeaderMenuOpen((o) => !o)}
+          >
+            <MoreHorizontal className="size-4" aria-hidden />
+            <span className="sr-only">{headerMenuOpen ? "Hide balance, plan and alerts" : "Show balance, plan and alerts"}</span>
+          </Button>
         </header>
+        {headerMenuOpen && (
+          <div id="header-overflow" className="flex shrink-0 flex-wrap items-center gap-3 border-b px-4 py-2 md:hidden">
+            <BalanceChip />
+            <PlanBadge />
+            <AttentionBell />
+            <FeedbackWidget />
+          </div>
+        )}
         {/* The shell is the SINGLE owner of dashboard page padding — routes
             must not re-declare `p-*` on their root (see
             @/components/dashboard/page-shell). Steps down to 16px on mobile:
@@ -816,9 +637,23 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             <TrialExpiryBanner />
             <CreditCapBanner />
           </div>
+          {pillarTabs && (
+            <PillarTabs
+              tabs={pillarTabs.subItems ?? []}
+              pathname={pathname ?? ""}
+              label={pillarTabs.label}
+            />
+          )}
           {children}
+          {/* Room for the fixed bottom bar (h-14 plus the home-indicator inset). */}
+          <div aria-hidden className="h-[calc(3.5rem+env(safe-area-inset-bottom))] shrink-0 md:hidden" />
         </div>
       </SidebarInset>
+
+      <MobileTabBar
+        pathname={pathname ?? ""}
+        hasCommerce={!!entitlements?.features?.includes("commerce.nav")}
+      />
 
       {/* ── AI Chat FAB ──────────────────────────────────── */}
       {/* Ask Peakhour (grounded) runs behind a flag; legacy ChatPanel until PR-11 cutover. */}

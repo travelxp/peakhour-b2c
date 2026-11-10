@@ -28,7 +28,9 @@ import {
   Lightbulb,
   ShieldCheck,
   HardDrive,
+  ChevronRight,
 } from "lucide-react";
+import { PILLAR_COPY, SUB_COPY, type NavCopy } from "@/lib/nav-copy";
 
 const PAGES = [
   { label: "Overview", href: "/dashboard/overview", icon: LayoutDashboard, group: "Navigation" },
@@ -52,6 +54,51 @@ const PAGES = [
   { label: "Settings", href: "/dashboard/settings", icon: Settings, group: "Settings" },
 ] as const;
 
+interface PageEntry {
+  label: string;
+  href: string;
+  icon: typeof LayoutDashboard;
+  group: string;
+  description?: string;
+  keywords: string[];
+}
+
+const copyFor = (href: string): NavCopy | undefined => SUB_COPY[href] ?? PILLAR_COPY[href];
+
+/**
+ * The hand-written PAGES above keep their icons and order, but show the
+ * plain-language label from nav-copy and keep the old name searchable. Every
+ * other sub-page in nav-copy that PAGES does not list (Ledger, News Desk, Win
+ * back carts ...) is appended, so searching a name the screen used to carry
+ * still finds it.
+ */
+const ENTRIES: PageEntry[] = (() => {
+  const seen = new Set<string>();
+  const listed: PageEntry[] = PAGES.map((p) => {
+    seen.add(p.href);
+    const c = copyFor(p.href);
+    return {
+      label: c?.label ?? p.label,
+      href: p.href,
+      icon: p.icon,
+      group: p.group,
+      description: c?.description,
+      keywords: [p.label, ...(c?.aliases ?? [])],
+    };
+  });
+  const extra: PageEntry[] = Object.entries({ ...PILLAR_COPY, ...SUB_COPY })
+    .filter(([href]) => !seen.has(href))
+    .map(([href, c]) => ({
+      label: c.label,
+      href,
+      icon: ChevronRight,
+      group: "Navigation",
+      description: c.description,
+      keywords: c.aliases ?? [],
+    }));
+  return [...listed, ...extra];
+})();
+
 export function CommandMenuDialog({
   open,
   onOpenChange,
@@ -66,7 +113,7 @@ export function CommandMenuDialog({
     router.push(href);
   };
 
-  const groups = [...new Set(PAGES.map((p) => p.group))];
+  const groups = [...new Set(ENTRIES.map((p) => p.group))];
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
@@ -77,16 +124,22 @@ export function CommandMenuDialog({
           <div key={group}>
             {idx > 0 && <CommandSeparator />}
             <CommandGroup heading={group}>
-              {PAGES.filter((p) => p.group === group).map((page) => {
+              {ENTRIES.filter((p) => p.group === group).map((page) => {
                 const Icon = page.icon;
                 return (
                   <CommandItem
                     key={page.href}
-                    value={page.label}
+                    value={page.href}
+                    keywords={[page.label, ...page.keywords, ...(page.description ? [page.description] : [])]}
                     onSelect={() => runCommand(page.href)}
                   >
                     <Icon className="mr-2 size-4" />
                     <span>{page.label}</span>
+                    {page.description && (
+                      <span className="ml-2 hidden truncate text-xs text-muted-foreground sm:inline">
+                        {page.description}
+                      </span>
+                    )}
                   </CommandItem>
                 );
               })}
