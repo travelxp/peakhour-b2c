@@ -33,7 +33,7 @@ import { PageGrid, PageShell } from "@/components/dashboard/page-shell";
  */
 export function CommandCenter() {
   return (
-    <FeatureGate feature="commerce.command_center" featureName="Commerce Command Center">
+    <FeatureGate feature="commerce.command_center" featureName="Store overview">
       <CommandCenterBody />
     </FeatureGate>
   );

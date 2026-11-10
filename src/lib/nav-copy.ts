@@ -172,7 +172,7 @@ export const SUB_COPY: Record<string, NavCopy> = {
   "/dashboard/commerce": {
     label: "Store overview",
     description: "Your store at a glance and what Peakhour did for it.",
-    aliases: ["Command Center"],
+    aliases: ["Command Center", "Commerce Command Center"],
   },
   "/dashboard/commerce/channels": {
     label: "Sales channels",
