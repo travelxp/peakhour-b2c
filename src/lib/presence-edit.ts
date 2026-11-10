@@ -10,7 +10,7 @@
  * says "saved".
  */
 
-import type { HoursPeriod, PresenceNetworkEntry, SpecialHours } from "@/lib/presence-panels";
+import type { HoursPeriod, PresenceNetworkEntry, PresencePublishing, SpecialHours } from "@/lib/presence-panels";
 import { photoValueLines } from "@/lib/presence-photos";
 import { PANEL_TITLES, extraValueLines, type ExtraField } from "@/lib/presence-extras";
 
@@ -225,10 +225,18 @@ export function cardActions(c: Pick<ChangeCardData, "status" | "undone"> & { und
 /**
  * What a person reads after preparing a change. While writes are held the network's own dry run is skipped (it needs the release), so
  * "checked" must say by whom: Peakhour checked it against the network's rules, and the network checks it again when it is sent.
+ *
+ * ★ONE SOURCE FOR "held": the listing's `publishing`, the same answer the publishing status draws, so the two never disagree while their
+ * caches refresh at different times. Only an api that predates it falls back to the capabilities' `writes.released`.
  */
-export function preparedWords(notChecked: number, cap: Pick<NetworkCapability, "label" | "writes">): string {
+export function preparedWords(
+  notChecked: number,
+  cap: Pick<NetworkCapability, "label" | "writes">,
+  publishing?: Pick<PresencePublishing, "state"> | null,
+): string {
   if (notChecked > 0) return `Your change is prepared, but ${cap.label} could not check it just now. It is waiting below.`;
-  if (cap.writes.released) return "Your change is prepared and checked. Review it below, then approve it.";
+  const released = publishing ? publishing.state !== "held" : cap.writes.released;
+  if (released) return "Your change is prepared and checked. Review it below, then approve it.";
   return `Your change is prepared and checked against ${cap.label}'s rules. ${cap.label} checks it again when it is sent. Review it below, then approve it.`;
 }
 
@@ -269,7 +277,14 @@ export function publishingBanner(
       : null
     : null;
   // Who approves: said once here, so an editor is not surprised by an Approve button they do not have.
-  const role = can?.propose && !can.approve ? ["You can prepare changes. An admin or owner approves them before anything is sent."] : [];
+  const editorOnly = !!can?.propose && !can.approve;
+  const role = editorOnly ? ["You can prepare changes. An admin or owner approves them before anything is sent."] : [];
+  // ★WHAT THIS PERSON CAN DO WHILE THEY WAIT, by role: a viewer is never told to prepare, nor an editor to approve.
+  const meanwhile = can?.approve
+    ? "You can prepare and approve changes now."
+    : can?.propose
+      ? "You can prepare changes now, and an admin or owner approves them."
+      : "Changes your team prepares and approves now are kept.";
 
   if (p.state === "held") {
     return {
@@ -279,9 +294,8 @@ export function publishingBanner(
         // ★Peakhour's sentence says the merchant need do nothing, which is false the moment something on their side also stops a send:
         // with a blocker it is left out, so one status never says both "nothing to do" and "fix this".
         ...(p.heldReason && !p.blocker ? [p.heldReason] : []),
-        `You can prepare and approve changes now. They are sent to ${label} once publishing starts. A change that has not been sent ${keptFor(p.keptForHours)} after you prepare it is dropped, and you would need to make it again.`,
+        `${meanwhile} They are sent to ${label} once publishing starts. A change that has not been sent ${keptFor(p.keptForHours)} after it was prepared is dropped, and has to be made again.`,
         ...(p.blocker ? [`One thing needs you first: ${p.blocker.reason}`] : []),
-        ...role,
       ],
       action: fix,
     };

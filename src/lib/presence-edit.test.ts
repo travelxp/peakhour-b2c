@@ -206,7 +206,7 @@ describe("the one publishing status (GBP Issue 1)", () => {
     expect(b.headline).toBe("Publishing to Testnet hasn't started yet");
     expect(b.lines[0]).toMatch(/You don't need to do anything/);
     expect(b.lines.join(" ")).toMatch(/You can prepare and approve changes now/);
-    expect(b.lines.join(" ")).toMatch(/3 days after you prepare it is dropped/);
+    expect(b.lines.join(" ")).toMatch(/3 days after it was prepared is dropped/);
     expect(b.action).toBeNull();
   });
 
@@ -245,8 +245,18 @@ describe("the one publishing status (GBP Issue 1)", () => {
   });
 
   it("an editor is told an admin approves; an admin is not", () => {
-    expect(publishingBanner(entry(pub()), EDITOR_CAN)!.lines.join(" ")).toMatch(/An admin or owner approves them/);
+    expect(publishingBanner(entry(pub()), EDITOR_CAN)!.lines.join(" ")).toMatch(/an admin or owner approves them/i);
+    expect(publishingBanner(entry(pub({ state: "on", heldReason: null })), EDITOR_CAN)!.lines.join(" ")).toMatch(/An admin or owner approves them/);
     expect(publishingBanner(entry(pub()), ADMIN_CAN)!.lines.join(" ")).not.toMatch(/admin or owner/);
+  });
+
+  it("★while held, nobody is told they can do what their role cannot", () => {
+    const editor = publishingBanner(entry(pub()), EDITOR_CAN)!.lines.join(" ");
+    expect(editor).toMatch(/You can prepare changes now, and an admin or owner approves them/);
+    expect(editor).not.toMatch(/prepare and approve/);
+    const viewer = publishingBanner(entry(pub()), { propose: false, approve: false })!.lines.join(" ");
+    expect(viewer).not.toMatch(/You can prepare/);
+    expect(viewer).toMatch(/Changes your team prepares and approves now are kept/);
   });
 
   it("draws nothing for a network that writes nothing, or an api that predates the field", () => {
@@ -267,6 +277,11 @@ describe("what a person reads after preparing a change", () => {
   });
   it("while writes are on, the network checked it", () => {
     expect(preparedWords(0, cap({ writes: { released: true, reason: null } }))).toBe("Your change is prepared and checked. Review it below, then approve it.");
+  });
+  it("the listing's publishing answer wins over the capabilities' cache, so it never disagrees with the status", () => {
+    expect(preparedWords(0, cap(), { state: "on" })).toBe("Your change is prepared and checked. Review it below, then approve it.");
+    expect(preparedWords(0, cap({ writes: { released: true, reason: null } }), { state: "held" })).toMatch(/checked against Testnet's rules/);
+    expect(preparedWords(0, cap({ writes: { released: true, reason: null } }), { state: "blocked" })).toMatch(/^Your change is prepared and checked\./);
   });
   it("a change the network could not check says so, whatever the switch", () => {
     expect(preparedWords(1, cap())).toMatch(/could not check it just now/);

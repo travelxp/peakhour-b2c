@@ -29,7 +29,8 @@ export function PublishingStatus({ location, network }: { location?: string | un
   const look = LOOK[banner.tone];
 
   return (
-    <section aria-label="Publishing status" role="status" className={`flex gap-3 rounded-lg ${look.box} p-4`}>
+    // A landmark, not a live region: it holds a heading and a button, and a refetch must not re-announce it.
+    <section aria-label="Publishing status" className={`flex gap-3 rounded-lg ${look.box} p-4`}>
       {look.icon}
       <div className="min-w-0 space-y-1">
         <h2 className={`text-sm font-medium ${look.head}`}>{banner.headline}</h2>

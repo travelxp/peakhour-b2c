@@ -266,8 +266,9 @@ export function PresenceHome() {
 
             {listingOn ? (
               <>
-                {/* ★ONE publishing status for the panels below, never one per panel (GBP Issue 1). Only where changes can be made. */}
-                {editOn ? <PublishingStatus location={panelLocation} network={panelNetwork} /> : null}
+                {/* ★ONE publishing status for the panels below, never one per panel (GBP Issue 1). Wherever a change can be made: the edit
+                    forms, or the photos card, which is drawn on its own declaration. */}
+                {editOn || photosOn ? <PublishingStatus location={panelLocation} network={panelNetwork} /> : null}
 
                 <ListingScoreCard
                   location={panelLocation}

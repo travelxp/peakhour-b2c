@@ -137,7 +137,7 @@ export function EditListingCard({
       {
         onSuccess: (r) => {
           setOpen(null);
-          setNotice(preparedWords(r.notChecked.length, cap!));
+          setNotice(preparedWords(r.notChecked.length, cap!, primaryEntry(listingQ.data)?.publishing));
         },
       },
     );

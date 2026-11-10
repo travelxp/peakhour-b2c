@@ -125,7 +125,8 @@ describe("the one publishing status (GBP Issue 1)", () => {
   const home = flat("components/presence/presence-home.tsx");
   it("is drawn once, where changes can be made, above every panel it speaks for", () => {
     expect(home.match(/<PublishingStatus /g)).toHaveLength(1);
-    expect(home).toContain("{editOn ? <PublishingStatus location={panelLocation} network={panelNetwork} /> : null}");
+    // photos are drawn on their own declaration, so a network with photos and no edit forms still gets the status
+    expect(home).toContain("{editOn || photosOn ? <PublishingStatus location={panelLocation} network={panelNetwork} /> : null}");
     for (const panel of ["<ListingScoreCard", "<EditListingCard", "<PhotosCard", "<PostsCard", "<ServicesCard", "<DetailsCard", "<LinksCard"]) {
       expect(home.indexOf("<PublishingStatus "), panel).toBeLessThan(home.indexOf(panel));
     }
@@ -142,5 +143,9 @@ describe("the one publishing status (GBP Issue 1)", () => {
     const s = flat("components/presence/publishing-status.tsx");
     expect(s).toContain("useListingQuery(location, network)");
     expect(s).toContain("publishingBanner(primaryEntry(listingQ.data), caps.data.can)");
+    expect(s).not.toContain('role="status"');
+  });
+  it("the prepared notice reads held from the same publishing answer as the status", () => {
+    expect(flat("components/presence/edit/edit-listing-card.tsx")).toContain("preparedWords(r.notChecked.length, cap!, primaryEntry(listingQ.data)?.publishing)");
   });
 });
