@@ -220,6 +220,8 @@ describe("the one publishing status (GBP Issue 1)", () => {
   it("held with a merchant-side blocker names it and gives its fix, so it can be done while they wait", () => {
     const b = publishingBanner(entry(pub({ blocker: { reason: "Testnet has suspended this listing.", action: "fix_on_network", href: "https://t.example" } })), ADMIN_CAN)!;
     expect(b.lines).toContain("One thing needs you first: Testnet has suspended this listing.");
+    // never "you don't need to do anything" beside "fix this"
+    expect(b.lines.join(" ")).not.toMatch(/don't need to do anything/);
     expect(b.action).toEqual({ label: "Fix this on Testnet", href: "https://t.example", external: true });
   });
 
