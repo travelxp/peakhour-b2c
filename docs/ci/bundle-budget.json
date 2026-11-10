@@ -1,5 +1,6 @@
 {
-  "sharedFloorKB": 950,
+  "dashboardFloorKB": 950,
+  "allRoutesFloorKB": 950,
   "dashboardRouteKB": 1600,
   "growthPercent": 10,
   "dashboardAllowlist": {

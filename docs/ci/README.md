@@ -16,13 +16,14 @@ npm run budget:update   # regenerate docs/ci/bundle-baseline.json
 Reads `.next/diagnostics/route-bundle-stats.json` (uncompressed first-load
 JS per route). Fails when:
 
-- the shared floor (chunks common to every route) exceeds 950KB,
+- the dashboard floor (sum of chunks present in at least 90% of /dashboard routes) exceeds 950KB, or the looser all-routes floor (chunks common to every route) exceeds 950KB,
 - any `/dashboard` route exceeds 1600KB, unless it is listed in
   `dashboardAllowlist` in `bundle-budget.json` (11 routes were already over
   when the guard was added; each is still held by the growth check),
 - any route (or the floor) grows more than 10% against
   `bundle-baseline.json`.
 
+After peakhour-b2c#709 merges, refresh the baseline with `npm run budget:update`.
 Run `budget:update` and commit the baseline when a size change is
 intentional, and tighten or remove allowlist entries as routes get split.
 Limits live in `bundle-budget.json`. Logic is in `scripts/lib/bundle-budget.mjs`

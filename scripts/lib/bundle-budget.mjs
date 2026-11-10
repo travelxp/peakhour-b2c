@@ -4,16 +4,28 @@ const KB = 1024;
 
 const normPath = (p) => String(p).split("\\").join("/");
 
-/** Bytes shared by every route: the sum of chunk sizes in the intersection of all routes' first-load chunks. */
-export function sharedFloorBytes(stats, chunkSize) {
-  let inter = null;
-  for (const r of stats) {
-    const set = new Set((r.firstLoadChunkPaths ?? []).map(normPath));
-    inter = inter ? new Set([...inter].filter((x) => set.has(x))) : set;
+/**
+ * Bytes shared by routes: sum of sizes of chunks present in at least `minShare`
+ * of the (optionally filtered) routes. minShare 1 = intersection of all.
+ */
+export function sharedFloorBytes(stats, chunkSize, { prefix = "", minShare = 1 } = {}) {
+  const routes = stats.filter((r) => r.route.startsWith(prefix));
+  if (!routes.length) return 0;
+  const counts = new Map();
+  for (const r of routes) {
+    for (const p of new Set((r.firstLoadChunkPaths ?? []).map(normPath))) counts.set(p, (counts.get(p) ?? 0) + 1);
   }
   let total = 0;
-  for (const p of inter ?? []) total += chunkSize(p);
+  for (const [p, n] of counts) if (n >= routes.length * minShare) total += chunkSize(p);
   return total;
+}
+
+/** Both floors the budget uses. */
+export function floors(stats, chunkSize) {
+  return {
+    dashboardFloorBytes: sharedFloorBytes(stats, chunkSize, { prefix: "/dashboard", minShare: 0.9 }),
+    allRoutesFloorBytes: sharedFloorBytes(stats, chunkSize),
+  };
 }
 
 /** route -> bytes map, for the baseline file. */
@@ -33,18 +45,18 @@ export function fmt(bytes) {
  * budgets: { sharedFloorKB, dashboardRouteKB, growthPercent, dashboardAllowlist: {route: reason} }
  * baseline: { floorBytes, routes: {route: bytes} } | null
  */
-export function evaluate({ stats, floorBytes, budgets, baseline }) {
+export function evaluate({ stats, floors: fl, budgets, baseline }) {
   const violations = [];
   const allow = budgets.dashboardAllowlist ?? {};
-  const floorLimit = budgets.sharedFloorKB * KB;
-  if (floorBytes > floorLimit) {
-    violations.push({
-      kind: "floor",
-      route: "(shared)",
-      bytes: floorBytes,
-      limit: floorLimit,
-      msg: `shared floor ${fmt(floorBytes)} > ${budgets.sharedFloorKB}KB`,
-    });
+  const floorChecks = [
+    ["dashboardFloorBytes", "dashboard floor", budgets.dashboardFloorKB],
+    ["allRoutesFloorBytes", "all-routes floor", budgets.allRoutesFloorKB],
+  ];
+  for (const [key, label, kb] of floorChecks) {
+    if (fl[key] > kb * KB) {
+      violations.push({ kind: "floor", route: `(${label})`, bytes: fl[key], limit: kb * KB,
+        msg: `${label} ${fmt(fl[key])} > ${kb}KB` });
+    }
   }
   const growth = 1 + budgets.growthPercent / 100;
   const rows = [];
@@ -73,14 +85,12 @@ export function evaluate({ stats, floorBytes, budgets, baseline }) {
       });
     }
   }
-  if (baseline?.floorBytes && floorBytes > baseline.floorBytes * growth) {
-    violations.push({
-      kind: "growth",
-      route: "(shared)",
-      bytes: floorBytes,
-      limit: Math.floor(baseline.floorBytes * growth),
-      msg: `shared floor grew ${fmt(baseline.floorBytes)} -> ${fmt(floorBytes)}, limit ${budgets.growthPercent}%`,
-    });
+  for (const [key, label] of floorChecks) {
+    const base = baseline?.[key];
+    if (base && fl[key] > base * growth) {
+      violations.push({ kind: "growth", route: `(${label})`, bytes: fl[key], limit: Math.floor(base * growth),
+        msg: `${label} grew ${fmt(base)} -> ${fmt(fl[key])}, limit ${budgets.growthPercent}%` });
+    }
   }
   rows.sort((a, b) => b.bytes - a.bytes);
   return { violations, rows };

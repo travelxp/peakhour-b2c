@@ -1,5 +1,6 @@
 {
-  "floorBytes": 500693,
+  "dashboardFloorBytes": 1385176,
+  "allRoutesFloorBytes": 500693,
   "routes": {
     "/": 706266,
     "/_not-found": 500693,
