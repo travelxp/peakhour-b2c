@@ -85,9 +85,12 @@ export function AutopilotStatus({
       </span>
       <Icon className={cn("size-4 shrink-0", s.text)} />
       <span className={cn("text-sm font-semibold", s.text)}>{s.label}</span>
-      <span className="text-sm text-muted-foreground">— {reason}</span>
+      {/* Foreground, not muted: this sits on the state's tint (red, amber,
+          green), where muted text measured 4.46:1 on the red one. Weight and
+          size carry the hierarchy instead. */}
+      <span className="text-sm font-normal text-foreground">— {reason}</span>
       {lastRun && (
-        <span className="ml-auto text-xs text-muted-foreground">
+        <span className="ml-auto text-xs text-foreground">
           last run {lastRun}
         </span>
       )}
