@@ -17,7 +17,10 @@
     "errors:ai:1d": "npm --prefix ../peakhour-api run errors:ai:1d",
     "errors:ai:7d": "npm --prefix ../peakhour-api run errors:ai:7d",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "budget": "node scripts/check-bundle-budget.mjs",
+    "budget:update": "node scripts/check-bundle-budget.mjs --update",
+    "blocks:drift": "tsx scripts/check-shadcnblocks-drift.ts"
   },
   "dependencies": {
     "@ai-sdk/react": "^4.0.32",

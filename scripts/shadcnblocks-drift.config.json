@@ -1,0 +1,17 @@
+{
+  "localOnly": {
+    "direction": "no shadcnblocks registry item",
+    "filter-panel-status-1": "no shadcnblocks registry item",
+    "input-group-ai-1": "no shadcnblocks registry item",
+    "input-group": "no shadcnblocks registry item",
+    "item": "no shadcnblocks registry item",
+    "list-activity-feed": "no shadcnblocks registry item",
+    "list-with-switch": "no shadcnblocks registry item",
+    "stepper": "from diceui, not shadcnblocks"
+  },
+  "allowlist": {
+    "stepper-onboarding-1": "deliberately changed Skip button",
+    "chart-card15": "local lint fixes",
+    "settings-integrations9": "local lint fixes"
+  }
+}
