@@ -206,7 +206,7 @@ export default function StrategistPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Content Pipeline</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Content plan</h2>
           <p className="text-muted-foreground">
             From idea to published — drag cards to move through stages
           </p>

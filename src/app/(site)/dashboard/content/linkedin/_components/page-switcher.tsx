@@ -89,7 +89,7 @@ export function PageSwitcher({ identity }: { identity: LinkedInIdentity | undefi
       // nothing they can act on.
       toast.error(
         err instanceof ApiError && err.code === "PAGE_NOT_ENABLED"
-          ? "That Page is no longer enabled for this workspace. Re-enable it under Integrations."
+          ? "That Page is no longer enabled for this workspace. Re-enable it under Connected accounts."
           : "Couldn't switch Page. Try again in a moment.",
       );
     } finally {

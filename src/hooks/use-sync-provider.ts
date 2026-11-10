@@ -80,7 +80,7 @@ export function useSyncProvider(
       onEnqueue?.(res);
 
       toast.success(`${humanProvider(provider)} sync queued`, {
-        description: "Track progress on the Tasks page.",
+        description: "Track progress on the Activity page.",
       });
 
       if (redirectToTasks) {
@@ -90,7 +90,7 @@ export function useSyncProvider(
     } catch (err) {
       if (err instanceof ApiError && err.code === "NOT_CONNECTED") {
         toast.error(`${humanProvider(provider)} is not connected`, {
-          description: "Reconnect from the Integrations page.",
+          description: "Reconnect from the Connected accounts page.",
         });
       } else if (err instanceof ApiError && err.code === "SYNC_NOT_SUPPORTED") {
         toast.error(`${humanProvider(provider)} doesn't support sync.`);
