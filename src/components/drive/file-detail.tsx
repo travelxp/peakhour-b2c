@@ -369,7 +369,7 @@ export function FileDetail({
         )}
       </div>
       <VersionHistory fileId={item.id} now={now} canEdit={canEdit} onRestored={onReplaced} />
-      {item.visibility === "private" && canEdit && <ShareLinksPanel mediaId={item.id} />}
+      {item.visibility === "private" && canEdit && <ShareLinksPanel mediaId={item.id} now={now} />}
     </aside>
   );
 }
