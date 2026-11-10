@@ -1,5 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { b2cAccessCookieName, b2cRefreshCookieName } from "@/lib/auth-cookies";
+import {
+  DASHBOARD_REQUEST_HEADER,
+  accessTokenExpired,
+  refreshSessionServer,
+} from "@/lib/session-server";
 
 const isDev = process.env.NODE_ENV !== "production";
 
@@ -85,7 +90,7 @@ function buildCsp(req: NextRequest): { csp: string; reqHeaders: Headers } {
   return { csp, reqHeaders };
 }
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname, searchParams } = req.nextUrl;
 
   // Next.js prefetch / RSC / server-action requests. The CSP nonce dance must
@@ -217,6 +222,30 @@ export function middleware(req: NextRequest) {
     !grantPreview &&
     !hasPreviewCookie;
 
+  // ── /dashboard session renewal ──────────────────────────────────────
+  // The access cookie lives 15 minutes, so on a return visit it is usually gone
+  // while the 30-day refresh cookie is still there. A Server Component cannot set
+  // cookies, so renew here (middleware can) BEFORE the page renders, which lets
+  // the server fetch /me for the first paint. Document navigations only: the
+  // client's own refresh-and-retry still covers every other request. Fail open:
+  // any problem and the request continues exactly as it did before.
+  const isDashboard = pathname === "/dashboard" || pathname.startsWith("/dashboard/");
+  const isDashboardDocument =
+    isDashboard && !gated && !isPassthrough && (req.method === "GET" || req.method === "HEAD");
+  let renewed: Awaited<ReturnType<typeof refreshSessionServer>> = null;
+  if (isDashboardDocument) {
+    const refreshToken = req.cookies.get(b2cRefreshCookieName())?.value;
+    const accessToken = req.cookies.get(b2cAccessCookieName())?.value;
+    if (refreshToken && accessTokenExpired(accessToken)) {
+      renewed = await refreshSessionServer({
+        apiUrl: process.env.NEXT_PUBLIC_API_URL,
+        refreshCookieName: b2cRefreshCookieName(),
+        refreshToken,
+        requestCookieHeader: req.headers.get("cookie") ?? "",
+      });
+    }
+  }
+
   let res: NextResponse;
   if (gated) {
     const url = req.nextUrl.clone();
@@ -235,8 +264,23 @@ export function middleware(req: NextRequest) {
     res = NextResponse.next();
   } else {
     const { csp, reqHeaders } = buildCsp(req);
+    reqHeaders.delete(DASHBOARD_REQUEST_HEADER);
+    if (isDashboardDocument) reqHeaders.set(DASHBOARD_REQUEST_HEADER, "1");
+    // The render that follows must see the renewed cookies, not the stale ones.
+    if (renewed) reqHeaders.set("cookie", renewed.cookieHeader);
     res = NextResponse.next({ request: { headers: reqHeaders } });
     res.headers.set("Content-Security-Policy", csp);
+  }
+
+  if (renewed) {
+    // Exactly the api's Set-Cookie lines (name, value, Domain, Path, Max-Age,
+    // HttpOnly, Secure, SameSite), appended so each stays its own header.
+    for (const line of renewed.setCookies) res.headers.append("set-cookie", line);
+  }
+  if (isDashboardDocument) {
+    // These responses carry identity (server-fetched /me) and may carry
+    // Set-Cookie: never store them in a shared cache.
+    res.headers.set("Cache-Control", "private, no-store");
   }
 
   if (grantPreview) {

@@ -3,8 +3,10 @@ import { Geist, Geist_Mono, Space_Grotesk, Fraunces } from "next/font/google";
 import { connection } from "next/server";
 import { preconnect } from "react-dom";
 import { getLocale } from "next-intl/server";
+import { HydrationBoundary } from "@tanstack/react-query";
 import { SITE } from "@/lib/utils";
 import { API_BASE_URL } from "@/lib/api";
+import { dashboardMeSeed } from "@/lib/server-me";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { QueryProvider } from "@/providers/query-provider";
 import { AuthProvider } from "@/providers/auth-provider";
@@ -104,15 +106,22 @@ export default async function SiteLayout({
 
   // Resolve via next-intl (English-only today) so <html lang> tracks the
   // active locale automatically once more languages are added.
-  const locale = await getLocale();
+  //
+  // On a /dashboard document request the identity is fetched here too, in
+  // parallel, so the server renders the real shell instead of the skeleton (null
+  // everywhere else, and on any failure -- see dashboardMeSeed).
+  const [locale, meSeed] = await Promise.all([getLocale(), dashboardMeSeed()]);
 
   return (
-    <html lang={locale} suppressHydrationWarning>
+    <html lang={locale} data-me-seeded={meSeed ? "1" : undefined} suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} ${fraunces.variable} font-sans antialiased`}
       >
         <ThemeProvider>
           <QueryProvider>
+            {/* Above AuthProvider on purpose: its useQuery reads ['me'] on
+                the first render, so the seed has to be hydrated before it. */}
+            <HydrationBoundary state={meSeed}>
             <AuthProvider>
               <TooltipProvider>
                 {children}
@@ -123,6 +132,7 @@ export default async function SiteLayout({
                   pointer swipe — unusable by keyboard or AT. */}
               <Toaster richColors closeButton position="bottom-right" />
             </AuthProvider>
+            </HydrationBoundary>
           </QueryProvider>
         </ThemeProvider>
       </body>

@@ -138,6 +138,19 @@ describe("primeMe (early start)", () => {
     await fetchMe(); // the second call (a retry) is a real request
     expect(getMeMock).toHaveBeenCalledTimes(2);
   });
+  it("does not start a request when the server already seeded the me query", () => {
+    vi.stubGlobal("window", {});
+    vi.stubGlobal("document", { documentElement: { dataset: { meSeeded: "1" } } });
+    primeMe();
+    expect(getMeMock).not.toHaveBeenCalled();
+  });
+  it("starts one when the page was not seeded", () => {
+    vi.stubGlobal("window", {});
+    vi.stubGlobal("document", { documentElement: { dataset: {} } });
+    getMeMock.mockResolvedValue(ME as never);
+    primeMe();
+    expect(getMeMock).toHaveBeenCalledTimes(1);
+  });
   it("a failed early request surfaces through fetchMe, classified", async () => {
     vi.stubGlobal("window", {});
     getMeMock.mockRejectedValueOnce(new ApiError("UNAUTHORIZED", "no", 401));

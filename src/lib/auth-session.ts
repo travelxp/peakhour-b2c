@@ -66,6 +66,9 @@ let early: { at: number; promise: Promise<MeResponse> } | null = null;
 /** Start /me now. Browser only; idempotent; never throws or leaves an unhandled rejection. */
 export function primeMe(): void {
   if (typeof window === "undefined" || early) return;
+  // The server already put /me in the page (html[data-me-seeded], set by the site
+  // layout): the query starts fresh from that and must not refetch.
+  if (typeof document !== "undefined" && document.documentElement?.dataset?.meSeeded === "1") return;
   const promise = getMe();
   promise.catch(() => {}); // the consumer reports the failure; this branch only silences it
   early = { at: Date.now(), promise };

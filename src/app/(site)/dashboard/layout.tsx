@@ -202,7 +202,8 @@ function DashboardShellSkeleton() {
             <Skeleton className="size-7 rounded-full" />
           </div>
         </header>
-        <div className="space-y-6 p-4 md:p-6">
+        {/* The one main landmark while auth resolves (the real shell's is SidebarInset). */}
+        <main className="space-y-6 p-4 md:p-6">
           <Skeleton className="h-10 w-56" />
           <Skeleton className="h-24 w-full" />
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -210,7 +211,7 @@ function DashboardShellSkeleton() {
             <Skeleton className="h-32" />
             <Skeleton className="h-32" />
           </div>
-        </div>
+        </main>
       </div>
     </div>
   );

@@ -12,23 +12,23 @@ afterEach(() => {
   else process.env.COMING_SOON = original;
 });
 
-const rewrittenTo = (path: string) => {
+const rewrittenTo = async (path: string) => {
   process.env.COMING_SOON = "true";
-  return middleware(new NextRequest(`http://localhost:3000${path}`)).headers.get("x-middleware-rewrite");
+  return (await middleware(new NextRequest(`http://localhost:3000${path}`))).headers.get("x-middleware-rewrite");
 };
 
 describe("the coming-soon gate", () => {
-  it("lets the share page through", () => {
-    expect(rewrittenTo(`/share/${"t".repeat(43)}`)).toBeNull();
+  it("lets the share page through", async () => {
+    expect(await rewrittenTo(`/share/${"t".repeat(43)}`)).toBeNull();
   });
 
-  it("still gates an ordinary page, so the check above is not vacuous", () => {
-    expect(rewrittenTo("/dashboard/drive")).toContain("/coming-soon");
-    expect(rewrittenTo("/some-private-page")).toContain("/coming-soon");
+  it("still gates an ordinary page, so the check above is not vacuous", async () => {
+    expect(await rewrittenTo("/dashboard/drive")).toContain("/coming-soon");
+    expect(await rewrittenTo("/some-private-page")).toContain("/coming-soon");
   });
 
-  it("does not let a look-alike prefix through", () => {
-    expect(rewrittenTo("/shared")).toContain("/coming-soon");
-    expect(rewrittenTo("/share-me")).toContain("/coming-soon");
+  it("does not let a look-alike prefix through", async () => {
+    expect(await rewrittenTo("/shared")).toContain("/coming-soon");
+    expect(await rewrittenTo("/share-me")).toContain("/coming-soon");
   });
 });
