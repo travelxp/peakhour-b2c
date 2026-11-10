@@ -221,11 +221,11 @@ describe("nothing in the app still points at the old Media page", () => {
     expect(read("src/components/dashboard/sidebar-storage-meter.tsx")).toContain("/dashboard/drive");
   });
   it("Drive is a top-level item directly above Peaks, not under Content", () => {
-    const layout = read("src/app/(site)/dashboard/layout.tsx").replace(/\s+/g, " ");
-    expect(layout).toMatch(/\{ href: "\/dashboard\/drive", label: "Drive", icon: HardDrive \}, \{ href: "\/dashboard\/peaks", label: "Peaks"/);
+    const layout = read("src/lib/dashboard-nav.ts").replace(/\s+/g, " ");
+    expect(layout).toMatch(/pillar\("\/dashboard\/drive", "Drive", HardDrive\), pillar\("\/dashboard\/peaks", "Peaks"/);
     // the Content sub-items no longer carry a Media entry
-    const content = layout.slice(layout.indexOf('label: "Content"'), layout.indexOf('label: "Growth"'));
-    expect(content).not.toMatch(/label: "Media"/);
+    const content = layout.slice(layout.indexOf('pillar("/dashboard/content"'), layout.indexOf("pillar(GROWTH_HOME"));
+    expect(content).not.toMatch(/"Media"/);
     expect(content).not.toMatch(/dashboard\/drive/);
   });
 });

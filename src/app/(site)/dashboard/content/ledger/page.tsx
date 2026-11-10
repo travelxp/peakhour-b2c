@@ -67,7 +67,7 @@ export default function ContentLedgerPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Ledger</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Results</h2>
           <p className="text-muted-foreground">
             What you published through Peakhour, and what each page earned.
           </p>

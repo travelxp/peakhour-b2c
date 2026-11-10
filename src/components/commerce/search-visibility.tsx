@@ -251,10 +251,10 @@ function PanelHeader() {
  */
 function notReadyCopy(arm: string | undefined): string {
   if (arm === "not_connected") {
-    return "Connect Google Search Console in Integrations to see how your products appear in Google.";
+    return "Connect Google Search Console in Connected accounts to see how your products appear in Google.";
   }
   if (arm === "not_configured") {
-    return "No Search Console site is set for this business yet. Pick the site this store sells from in Integrations.";
+    return "No Search Console site is set for this business yet. Pick the site this store sells from in Connected accounts.";
   }
   if (arm === "pending") {
     return "We read Google Search Console about once a day. This fills in after the first pass finds your store.";

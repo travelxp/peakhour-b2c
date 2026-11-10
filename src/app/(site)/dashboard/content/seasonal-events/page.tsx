@@ -457,7 +457,7 @@ export default function SeasonalEventsPage() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <CalendarDays className="h-6 w-6 text-muted-foreground" />
-            Seasonal Events
+            Holidays &amp; events
           </h2>
           <p className="text-muted-foreground mt-1 max-w-prose">
             Cultural, national, and commercial moments the AI uses to plan

@@ -25,7 +25,7 @@ export function CommerceChannels() {
     <FeatureGate feature="commerce.nav" featureName="Commerce">
       <PageShell width="standard">
         <header className="mb-6">
-          <h1 className="text-xl font-semibold">Channels</h1>
+          <h1 className="text-xl font-semibold">Sales channels</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Where you sell. Peakhour runs the same engine across every channel —
             connect them here as each one comes online.
