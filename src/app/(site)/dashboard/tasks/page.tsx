@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/molecules/status-badge";
@@ -141,6 +141,11 @@ export default function TasksPage() {
             </TabsTrigger>
             <TabsTrigger value="all">All</TabsTrigger>
           </TabsList>
+          {/* Filter tabs: the table below is the shared panel. Empty, force-mounted
+              panels keep each trigger's aria-controls pointing at a real id. */}
+          {(["active", "completed", "all"] as const).map((v) => (
+            <TabsContent key={v} value={v} forceMount hidden />
+          ))}
         </Tabs>
         {(activeLoading || recentLoading) && (
           <Loader2 className="size-3 animate-spin text-muted-foreground" />

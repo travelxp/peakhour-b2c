@@ -141,7 +141,7 @@
      3.3:1, under AA. Dark-on-green is 5.1:1 and keeps --success usable as a
      fill. Same trade --warning makes below. */
   --success-foreground: oklch(0.22 0.014 68);
-  --success-on-tint: oklch(0.5 0.13 158);
+  --success-on-tint: oklch(0.46 0.12 158);
   --warning: oklch(0.72 0.155 68);
   --warning-foreground: oklch(0.22 0.014 68);
   --warning-on-tint: oklch(0.5 0.115 62);

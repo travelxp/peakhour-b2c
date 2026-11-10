@@ -69,7 +69,7 @@ export function GoogleBiddingFields({
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground">Bidding</Label>
           <Select value={value.pick} onValueChange={(v) => onChange(googleBiddingWithPick(value, v as GoogleBiddingPick))} disabled={disabled}>
-            <SelectTrigger className="w-64">
+            <SelectTrigger aria-label="Bidding" className="w-64">
               <SelectValue>{pickLabel(value.pick)}</SelectValue>
             </SelectTrigger>
             <SelectContent>
@@ -86,7 +86,7 @@ export function GoogleBiddingFields({
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Strategy kept as</Label>
             <Select value={value.form} onValueChange={(v) => onChange({ ...value, form: v as GoogleBiddingForm })} disabled={disabled}>
-              <SelectTrigger className="w-40">
+              <SelectTrigger aria-label="Strategy kept as" className="w-40">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

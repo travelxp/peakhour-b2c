@@ -360,7 +360,7 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
             Ad account
           </Label>
           <Select value={accountId ?? undefined} onValueChange={setAccountParam}>
-            <SelectTrigger className="w-72">
+            <SelectTrigger aria-label="Ad account" className="w-72">
               <SelectValue placeholder="Choose an ad account" />
             </SelectTrigger>
             <SelectContent>

@@ -15,7 +15,7 @@ import { WordPressConnectModal } from "@/components/integrations/wordpress-conne
 import { MeasurementHealthPanel } from "@/components/growth/measurement-health-panel";
 import { affectsMeasurementHealth } from "@/lib/measurement-health";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertCircle, Search } from "lucide-react";
 import { flattenMetaIntegration as flattenMetaIntegrationBase, resolveProvider, isMetaVirtual, metaActionPurpose, metaCardServedBy, metaCardStatus, metaCardsDisconnectedBy, metaGrantNote, metaLoginPurposeFor, withMetaLoginPurpose, type MetaLoginInfo } from "@/lib/integrations-meta";
 import { Integration } from "./_components/shared";
@@ -592,6 +592,11 @@ export default function IntegrationsPage() {
               </Badge>
             </TabsTrigger>
           </TabsList>
+          {/* Filter tabs: the list below is the shared panel. Empty, force-mounted
+              panels keep each trigger's aria-controls pointing at a real id. */}
+          {(["all", "connected", "disconnected"] as const).map((v) => (
+            <TabsContent key={v} value={v} forceMount hidden />
+          ))}
         </Tabs>
       </div>
 

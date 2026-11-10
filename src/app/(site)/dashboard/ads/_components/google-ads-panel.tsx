@@ -261,7 +261,7 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
       <div className="space-y-1.5">
         <Label className="text-xs uppercase tracking-wide text-muted-foreground">Google Ads account</Label>
         <Select value={accountId ?? undefined} onValueChange={setAccountParam}>
-          <SelectTrigger className="w-80">
+          <SelectTrigger aria-label="Google Ads account" className="w-80">
             <SelectValue placeholder="Choose an account" />
           </SelectTrigger>
           <SelectContent>
@@ -400,7 +400,7 @@ function ConversionTrackingSection({ account }: { account: GoogleAdAccount }) {
                 <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground">Use an existing import-from-clicks action</Label>
                   <Select value={choice ?? ""} onValueChange={setPicked} disabled={busy}>
-                    <SelectTrigger className="w-80">
+                    <SelectTrigger aria-label="Conversion action" className="w-80">
                       <SelectValue placeholder="Choose a conversion action" />
                     </SelectTrigger>
                     <SelectContent>
@@ -772,7 +772,7 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
       <CardContent className="space-y-4">
         <Field label="Campaign type">
           <Select value={form.channelType} onValueChange={(v) => set("channelType", v as GoogleChannelType)} disabled={create.isPending}>
-            <SelectTrigger className="w-60">
+            <SelectTrigger aria-label="Campaign type" className="w-60">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

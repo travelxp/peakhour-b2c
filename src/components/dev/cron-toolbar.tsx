@@ -444,7 +444,7 @@ export function CronToolbar({
           <span>Cron triggers</span>
         </span>
         <span className="text-muted-foreground/60">·</span>
-        <span className="text-micro uppercase tracking-wide text-muted-foreground/80">
+        <span className="text-micro uppercase tracking-wide text-muted-foreground">
           dev only
         </span>
         <div className="flex flex-wrap gap-1">

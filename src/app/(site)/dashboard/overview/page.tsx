@@ -340,7 +340,7 @@ function ConnectedAccountsCard({
                     )}
                   </div>
                   {a.state === "live" ? (
-                    <Badge className="shrink-0 gap-1 bg-success/90 text-micro font-medium">
+                    <Badge className="shrink-0 gap-1 bg-success text-success-foreground text-micro font-medium">
                       <CheckCircle className="h-2.5 w-2.5" />
                       Live
                     </Badge>

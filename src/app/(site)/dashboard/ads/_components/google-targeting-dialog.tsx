@@ -436,7 +436,7 @@ function RadiiSection({ draft, edit, disabled }: { draft: TargetingDraft; edit: 
         <Input value={form.countryCode} onChange={(e) => setForm({ ...form, countryCode: e.target.value })} placeholder="Country (ES)" maxLength={2} className="w-28" />
         <Input type="number" min="1" step="any" value={form.radius} onChange={(e) => setForm({ ...form, radius: e.target.value })} placeholder="Radius" className="w-24" />
         <Select value={form.unit} onValueChange={(v) => setForm({ ...form, unit: v as GoogleRadiusUnit })}>
-          <SelectTrigger className="w-28">
+          <SelectTrigger aria-label="Radius unit" className="w-28">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -502,7 +502,7 @@ function LanguagesSection({
           }}
           disabled={disabled || options.length === 0}
         >
-          <SelectTrigger className="w-60">
+          <SelectTrigger aria-label="Language" className="w-60">
             <SelectValue placeholder="Add a language" />
           </SelectTrigger>
           <SelectContent>

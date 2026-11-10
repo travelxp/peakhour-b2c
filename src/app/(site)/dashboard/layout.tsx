@@ -341,7 +341,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton size="lg" asChild className="hover:bg-transparent">
-                <Link href={HOME_ROUTE} aria-label="Peakhour.ai — dashboard home">
+                <Link href={HOME_ROUTE}>
                   {/* ★TWO COLUMNS: THE MARK, THEN THE NAME OVER ITS DESCRIPTION.
                       The mark is present in BOTH states — it is the one element
                       that survives the collapse — so it is not duplicated the
@@ -550,7 +550,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       <UploadTrayHost />
 
       {/* ── Main Content ──────────────────────────────────── */}
-      <SidebarInset>
+      <SidebarInset className="min-w-0">
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           {/* From md up the four chips sit in the header. Below it they would
@@ -606,7 +606,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             padding-box edge, so without a matching scroll-padding every
             sidebar navigation from a scrolled position parked the page's
             first element flush against the header, eating this inset. */}
-        <div className="flex flex-1 flex-col overflow-auto p-4 scroll-pt-4 sm:p-6 sm:scroll-pt-6">
+        <div className="flex min-w-0 flex-1 flex-col overflow-auto p-4 scroll-pt-4 sm:p-6 sm:scroll-pt-6">
           {/* Banner slot — sits above the route content. Trial-expiry shows
               only inside the final 3 days of a trial; the credit-cap banner
               only once usage crosses its cap. Both render nothing otherwise
@@ -645,8 +645,10 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             />
           )}
           {children}
-          {/* Room for the fixed bottom bar (h-14 plus the home-indicator inset). */}
-          <div aria-hidden className="h-[calc(3.5rem+env(safe-area-inset-bottom))] shrink-0 md:hidden" />
+          {/* Room for the fixed bottom bar (h-14 plus the home-indicator inset)
+              AND the Ask button that floats above it (bottom 4.5rem + h-12 =
+              7.5rem). Scrolled to the end, the last card's actions clear both. */}
+          <div aria-hidden className="h-[calc(8rem+env(safe-area-inset-bottom))] shrink-0 md:hidden" />
         </div>
       </SidebarInset>
 

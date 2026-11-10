@@ -12,9 +12,10 @@ import { activeTab, nextTabIndex, type PillarTab } from "@/lib/pillar-tabs";
  * scrolls it into view on load, and moves focus with the arrow keys, Home and
  * End. Every tab is a real link, so Tab, Enter and middle-click all work.
  *
- * The line under the strip is the active page's one-line description (from
- * nav-copy.ts): the same sentence the sidebar shows as a tooltip, so a merchant
- * on a page they do not recognise can read what it is for.
+ * A tab's one-line description (from nav-copy.ts) is its `title` tooltip only.
+ * It is NOT printed under the strip: the page's own PageHeader prints its
+ * description right below its h1, and two near-identical lines stacked there
+ * read as a bug.
  */
 export function PillarTabs({
   tabs,
@@ -84,7 +85,6 @@ export function PillarTabs({
           </ul>
         </div>
       </nav>
-      {active?.description && <p className="mt-2 text-xs text-muted-foreground">{active.description}</p>}
     </div>
   );
 }

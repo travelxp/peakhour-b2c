@@ -26,7 +26,6 @@ export function SidebarStorageMeter() {
     <Link
       href="/dashboard/drive?tab=storage"
       className="block rounded-md px-2 py-1.5 transition-colors hover:bg-sidebar-accent group-data-[collapsible=icon]:hidden"
-      aria-label="Storage usage — open Drive storage"
     >
       <StorageMeter usage={data} compact />
     </Link>

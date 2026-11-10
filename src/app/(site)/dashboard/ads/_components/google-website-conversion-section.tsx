@@ -196,7 +196,7 @@ function TagView({ name, primaryForGoal, snippets }: { name: string; primaryForG
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground">Which tag</Label>
           <Select value={googleWebsiteSnippetKey(snippet, index)} onValueChange={setPicked}>
-            <SelectTrigger className="w-80">
+            <SelectTrigger aria-label="Which tag" className="w-80">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

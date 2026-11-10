@@ -581,6 +581,13 @@ export default function PeaksPage() {
                 Rate card not available. Contact support if this persists.
               </p>
             ) : (
+              <div
+                role="region"
+                aria-label="Peaks per task"
+                tabIndex={0}
+                className="w-full overflow-x-auto focus-visible:outline-2 focus-visible:outline-ring [&_[data-slot=table-container]]:overflow-visible"
+              >
+              {/* Scroller is this wrapper, not ui/table's container (made overflow-visible), so it can take focus. */}
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -625,6 +632,7 @@ export default function PeaksPage() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             )}
           </CardContent>
         </Card>
