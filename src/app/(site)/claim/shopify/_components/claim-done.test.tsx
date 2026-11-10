@@ -20,8 +20,8 @@ describe("the hosted claim's success state", () => {
   });
 
   it("PASS: the integrations button still follows the outcome", () => {
-    expect(renderToStaticMarkup(<ClaimDone done={done} />)).toContain("See it in Integrations");
+    expect(renderToStaticMarkup(<ClaimDone done={done} />)).toContain("See it in Connected accounts");
     const own = doneCopy({ newBusiness: false, businessName: null, adopted: false, separate: true }, "silk", "Silk Co");
-    expect(renderToStaticMarkup(<ClaimDone done={own} />)).not.toContain("See it in Integrations");
+    expect(renderToStaticMarkup(<ClaimDone done={own} />)).not.toContain("See it in Connected accounts");
   });
 });

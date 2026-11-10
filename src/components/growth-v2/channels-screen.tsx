@@ -179,15 +179,15 @@ export function ChannelsBody({ channels, pacingSeries, unitPlural, unitOne }: { 
             </CardDescription>
           </CardHeader>
           <CardContent className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-sm">
+            <table className="w-full text-sm md:min-w-[560px]">
               <thead>
                 <tr className="border-b text-left text-xs font-medium text-muted-foreground">
-                  <th className="px-2 py-2">Campaign</th>
+                  <th className="sticky left-0 z-10 bg-background px-2 py-2">Campaign</th>
                   <th className="px-2 py-2">Status</th>
                   <th className="px-2 py-2 text-right">Daily budget</th>
                   <th className="px-2 py-2 text-right">Spend</th>
-                  {campaignResults ? <th className="px-2 py-2 text-right">Credited {unitPlural}</th> : null}
-                  {campaignResults ? <th className="px-2 py-2 text-right">{effName}</th> : null}
+                  {campaignResults ? <th className="hidden px-2 py-2 text-right md:table-cell">Credited {unitPlural}</th> : null}
+                  {campaignResults ? <th className="hidden px-2 py-2 text-right md:table-cell">{effName}</th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -201,7 +201,7 @@ export function ChannelsBody({ channels, pacingSeries, unitPlural, unitOne }: { 
                   channels.campaigns.map((c) => {
                     return (
                       <tr key={c.id} className="border-b last:border-0">
-                        <td className="px-2 py-2.5">
+                        <td className="sticky left-0 z-10 bg-background px-2 py-2.5">
                           <span className="inline-flex items-center gap-2 font-medium">
                             <i aria-hidden className="inline-block size-2.5 rounded-sm" style={{ background: PLATFORM_COLOR[c.platform] }} />
                             <span className="sr-only">{PLATFORM_LABEL[c.platform]}: </span>
@@ -225,12 +225,12 @@ export function ChannelsBody({ channels, pacingSeries, unitPlural, unitOne }: { 
                           <MoneyValue money={c.spend} />
                         </td>
                         {campaignResults ? (
-                          <td className="px-2 py-2.5 text-right">
+                          <td className="hidden px-2 py-2.5 text-right md:table-cell">
                             <FigureValue figure={c.outcomes} />
                           </td>
                         ) : null}
                         {campaignResults ? (
-                          <td className="px-2 py-2.5 text-right">
+                          <td className="hidden px-2 py-2.5 text-right md:table-cell">
                             <FigureValue figure={c.efficiency} format={eff} />
                           </td>
                         ) : null}

@@ -1,0 +1,24 @@
+name: A11y smoke
+on:
+  pull_request:
+jobs:
+  a11y:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      # One step: the server and the smoke share a shell, so the server is
+      # guaranteed alive for the run, and no unpinned wait-on download.
+      - name: Start the app and run the a11y smoke
+        run: |
+          npm start &
+          for i in $(seq 1 60); do curl -sf -o /dev/null http://localhost:3000 && break; sleep 2; done
+          node scripts/a11y-smoke.mjs
+        env:
+          BASE_URL: http://localhost:3000

@@ -50,7 +50,7 @@ describe("doneCopy: where the store went", () => {
     const d = doneCopy({ newBusiness: false, businessName: "Silk Store" }, "Table Story", "Silk Co");
     expect(d.title).toBe("Added to Silk Store");
     expect(d.body).toBe(
-      "Table Story was added to Silk Store as another store. It shows under Integrations, next to the stores Silk Store already has.",
+      "Table Story was added to Silk Store as another store. It shows under Connected accounts, next to the stores Silk Store already has.",
     );
     expect(d.integrationsHint).toBe(true);
   });

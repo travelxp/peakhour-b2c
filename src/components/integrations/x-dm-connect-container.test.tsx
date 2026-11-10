@@ -48,10 +48,36 @@ async function mount() {
     );
   });
   // let the query settle (one retry for a non-404 failure)
-  await act(async () => {
-    await new Promise((r) => setTimeout(r, 30));
-  });
+  // The query must exist and have an answer (success or error): an empty cache is trivially "idle".
+  await until(() => {
+    const q = client.getQueryCache().find({ queryKey: ["x-dm-status"] });
+    return q !== undefined && q.state.status !== "pending" && idle();
+  }, "the status query to settle");
 }
+
+// Wait for a state transition, never for a fixed sleep: a 30ms real-timer sleep raced the retry chain and
+// the mutation re-read, and under CPU load the assertion ran first (flaky). Polls inside act so React flushes.
+async function until(cond: () => boolean, what = "condition") {
+  const deadline = Date.now() + 10_000;
+  for (;;) {
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    if (cond()) {
+      // react-query hands its notifications to React on a later task, so the cache can be settled a tick
+      // before the DOM shows it: one more flush, so the caller reads the rendered result.
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 0));
+      });
+      return;
+    }
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
+  }
+}
+// "Idle" is every query's fetchStatus, not isFetching(): isFetching() counts only "fetching", and a query waiting
+// out its retry delay can read "paused" for a moment, which would end the wait with the retry still to come.
+const idle = () =>
+  client.getQueryCache().getAll().every((q) => q.state.fetchStatus === "idle") && client.isMutating() === 0;
 
 describe("reading the status", () => {
   it("a 404 (not released) renders NOTHING", async () => {
@@ -87,8 +113,8 @@ describe("after the panel is on screen", () => {
     h.get.mockRejectedValue(notFound());
     await act(async () => {
       await client.invalidateQueries({ queryKey: ["x-dm-status"] });
-      await new Promise((r) => setTimeout(r, 30));
     });
+    await until(() => host.innerHTML === "" && idle(), "the panel to hide");
     expect(host.innerHTML).toBe("");
   });
   it("an action whose re-read fails says the change was saved and the page could not refresh", async () => {
@@ -99,8 +125,8 @@ describe("after the panel is on screen", () => {
     const turnOn = [...host.querySelectorAll("button")].find((b) => b.textContent === "Turn on X messages")!;
     await act(async () => {
       turnOn.click();
-      await new Promise((r) => setTimeout(r, 30));
     });
+    await until(() => host.textContent!.includes(REFRESH_FAILED) && idle(), "the refresh-failed sentence");
     expect(h.post).toHaveBeenCalledWith("/v1/x/dm/enable", {});
     expect(host.textContent).toContain(REFRESH_FAILED);
   });
@@ -112,8 +138,8 @@ describe("after the panel is on screen", () => {
     const turnOn = [...host.querySelectorAll("button")].find((b) => b.textContent === "Turn on X messages")!;
     await act(async () => {
       turnOn.click();
-      await new Promise((r) => setTimeout(r, 30));
     });
+    await until(() => host.textContent!.includes("Turn off") && idle(), "the new On state");
     expect(host.textContent).toContain("Turn off");
     expect(host.querySelector('[data-testid="x-dm-error"]')).toBeNull();
   });
@@ -124,8 +150,8 @@ describe("after the panel is on screen", () => {
     const turnOn = [...host.querySelectorAll("button")].find((b) => b.textContent === "Turn on X messages")!;
     await act(async () => {
       turnOn.click();
-      await new Promise((r) => setTimeout(r, 30));
     });
+    await until(() => host.querySelector('[data-testid="x-dm-error"]') !== null && idle(), "the api's sentence");
     expect(host.querySelector('[data-testid="x-dm-error"]')!.textContent).toContain("Grant message access to your X account first");
   });
 });

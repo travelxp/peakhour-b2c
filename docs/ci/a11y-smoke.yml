@@ -13,8 +13,12 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run build
-      - run: npm start &
-      - run: npx wait-on http://localhost:3000
-      - run: node scripts/a11y-smoke.mjs
+      # One step: the server and the smoke share a shell, so the server is
+      # guaranteed alive for the run, and no unpinned wait-on download.
+      - name: Start the app and run the a11y smoke
+        run: |
+          npm start &
+          for i in $(seq 1 60); do curl -sf -o /dev/null http://localhost:3000 && break; sleep 2; done
+          node scripts/a11y-smoke.mjs
         env:
           BASE_URL: http://localhost:3000

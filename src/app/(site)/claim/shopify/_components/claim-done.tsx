@@ -24,7 +24,7 @@ export function ClaimDone({ done }: { done: DoneCopy }) {
         </Button>
         {done.integrationsHint && (
           <Button asChild variant="outline">
-            <Link href="/dashboard/integrations">See it in Integrations</Link>
+            <Link href="/dashboard/integrations">See it in Connected accounts</Link>
           </Button>
         )}
       </div>

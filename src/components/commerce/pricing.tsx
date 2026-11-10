@@ -248,11 +248,11 @@ function PriceGrid({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-xs text-muted-foreground">
-                  <th className="px-4 py-2 font-medium">Product</th>
-                  <th className="px-4 py-2 text-right font-medium">Now</th>
+                  <th className="sticky left-0 z-10 bg-background px-4 py-2 font-medium">Product</th>
+                  <th className="hidden px-4 py-2 text-right font-medium md:table-cell">Now</th>
                   <th className="px-4 py-2 text-right font-medium">Off</th>
                   <th className="px-4 py-2 text-right font-medium">New</th>
-                  <th className="px-4 py-2 text-right font-medium">Frees</th>
+                  <th className="hidden px-4 py-2 text-right font-medium md:table-cell">Frees</th>
                   <th className="px-4 py-2" />
                 </tr>
               </thead>
@@ -262,13 +262,13 @@ function PriceGrid({
                   const isBusy = propose.isPending && propose.variables === p.sourceProductId;
                   return (
                     <tr key={p.sourceProductId}>
-                      <td className="max-w-[16rem] px-4 py-3">
+                      <td className="sticky left-0 z-10 max-w-[9rem] bg-background px-4 py-3 md:max-w-[16rem]">
                         <p className="line-clamp-1 font-medium">{p.title || "Untitled product"}</p>
                         <p className="text-xs text-muted-foreground">
                           {p.stock ?? "?"} in stock · {p.unitsSold} sold
                         </p>
                       </td>
-                      <td className="px-4 py-3 text-right tabular-nums text-muted-foreground line-through">
+                      <td className="hidden px-4 py-3 text-right tabular-nums text-muted-foreground line-through md:table-cell">
                         {money(p.currentPriceMinor, p.currency)}
                       </td>
                       <td className="px-4 py-3 text-right">
@@ -277,7 +277,7 @@ function PriceGrid({
                       <td className="px-4 py-3 text-right font-medium tabular-nums">
                         {money(p.newPriceMinor, p.currency)}
                       </td>
-                      <td className="px-4 py-3 text-right tabular-nums">
+                      <td className="hidden px-4 py-3 text-right tabular-nums md:table-cell">
                         {money(p.recoveredCapitalMinor, p.currency)}
                       </td>
                       <td className="px-4 py-3 text-right">

@@ -234,7 +234,7 @@ export function WorkCompletedCard({
             <TrendChart
               data={series}
               height={132}
-              series={[{ key: "actions", label: "Tasks", color: "var(--brand-strong)" }]}
+              series={[{ key: "actions", label: "Actions", color: "var(--brand-strong)" }]}
               emptyLabel="Not enough history yet to chart a trend."
             />
 

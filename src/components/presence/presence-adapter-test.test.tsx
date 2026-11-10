@@ -360,7 +360,9 @@ describe("the diff rule, for the screens", () => {
       return statSync(f).isDirectory() ? walk(f) : /\.(ts|tsx)$/.test(f) && !/\.test\.tsx?$/.test(f) ? [f] : [];
     });
   }
-  it("no screen file spells a test network's key: the three networks above exist only in this test file", () => {
+  it("no screen file spells a test network's key: the three networks above exist only in this test file", { timeout: 60_000 }, () => {
+    // Explicit timeout: this walks and reads every non-test source file in src/. The cost is file I/O, not a
+    // hang, and under CPU load (several builds at once) it exceeds the 5s default. The scan is unchanged.
     const bad = walk(SRC)
       .filter((f) => /pe16_/.test(readFileSync(f, "utf8")))
       .map((f) => relative(SRC, f));

@@ -364,7 +364,7 @@ function ChannelRow({ channel, integration, connectionStateUnknown }: ChannelRow
         )}
         {manageViaIntegrations && (
           <p className="text-xs text-muted-foreground">
-            Managed from Integrations — this channel has no screen of its own.
+            Managed from Connected accounts — this channel has no screen of its own.
           </p>
         )}
       </div>
