@@ -40,6 +40,7 @@ import { ExplainCard } from "@/components/dashboard/explain-card";
 import { useSetAskEntityIds } from "@/providers/ask-context-provider";
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { describeActionPage, stripUnsafeText } from "@/lib/search-action-page";
+import { brandTileStyle } from "@/components/brand/brand-colors";
 
 // ── Types (mirror peakhour-api search-insights service) ─────────────────────
 interface ConnectionStatus {
@@ -265,7 +266,7 @@ export default function SearchConsoleInsightsPage() {
 
       <PageHeader
         icon={
-          <div className="rounded-lg bg-[#458CF7] p-2">
+          <div className="rounded-lg p-2" style={brandTileStyle("googleSearchConsole")}>
             <Search className="h-5 w-5 text-white" />
           </div>
         }
@@ -751,7 +752,7 @@ function ActionCard({ action: a, property }: { action: SearchAction; property?: 
       <CardContent className="space-y-2 py-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-[#458CF7]" />
+            <Sparkles className="h-4 w-4 text-chart-4" />
             <span className="text-sm font-semibold">{a.headline}</span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -777,7 +778,7 @@ function ActionCard({ action: a, property }: { action: SearchAction; property?: 
               href={page.href}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-sm text-[#458CF7] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#458CF7]"
+              className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-sm text-chart-4 underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chart-4"
               title={page.href}
             >
               {/* ★ONE ADDRESS, NOT TWO WORDS. `gap` on the anchor put a visible

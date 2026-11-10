@@ -1,6 +1,8 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { Mail, Megaphone } from "lucide-react";
+import { brandTileStyle } from "@/components/brand/brand-colors";
 import { LinkedinIcon, FacebookIcon, InstagramIcon, GoogleIcon, YoutubeIcon, BeehiivIcon, SubstackIcon, MailchimpIcon, ShopifyIcon, WordPressIcon, WooCommerceIcon, GhostIcon, TwitterIcon, WhatsAppIcon, SlackIcon, DiscordIcon, TelegramIcon, TeamsIcon } from "@/components/brand/brand-icons";
 import { type MetaLoginInfo } from "@/lib/integrations-meta";
 
@@ -91,30 +93,32 @@ export const PROVIDER_ICONS: Record<string, React.ComponentType<{ className?: st
   teams: TeamsIcon,
 };
 
-export const PROVIDER_COLORS: Record<string, string> = {
-  linkedin_content: "bg-[#0A66C2]",
-  linkedin_ads: "bg-[#0A66C2]",
-  facebook: "bg-[#0668E1]",
-  facebook_pages: "bg-[#1877F2]",
-  instagram: "bg-[#E4405F]",
-  meta_ads: "bg-[#0668E1]",
-  whatsapp: "bg-[#25D366]",
-  google_ads: "bg-[#4285F4]",
-  google_analytics: "bg-[#E37400]",
-  google_search_console: "bg-[#458CF7]",
-  google_business_profile: "bg-[#34A853]",
-  youtube: "bg-[#FF0000]",
-  beehiiv: "bg-[#FFD100] text-black",
-  substack: "bg-[#FF6719]",
-  mailchimp: "bg-[#FFE01B] text-black",
-  kit: "bg-[#FB6970]",
-  shopify: "bg-[#96BF48]",
-  wordpress: "bg-[#21759B]",
-  woocommerce: "bg-[#873EFF]",
-  ghost: "bg-[#15171A]",
-  x: "bg-black",
-  slack: "bg-[#4A154B]",
-  discord: "bg-[#5865F2]",
-  telegram: "bg-[#26A5E4]",
-  teams: "bg-[#6264A7]",
+/** Brand tile style per provider; colours live in brand-colors.ts. A provider
+ *  with no entry falls back to a neutral tile at the call site. */
+export const PROVIDER_TILES: Record<string, CSSProperties> = {
+  linkedin_content: brandTileStyle("linkedin"),
+  linkedin_ads: brandTileStyle("linkedin"),
+  facebook: brandTileStyle("meta"),
+  facebook_pages: brandTileStyle("facebook"),
+  instagram: brandTileStyle("instagram"),
+  meta_ads: brandTileStyle("meta"),
+  whatsapp: brandTileStyle("whatsapp"),
+  google_ads: brandTileStyle("google"),
+  google_analytics: brandTileStyle("googleAnalytics"),
+  google_search_console: brandTileStyle("googleSearchConsole"),
+  google_business_profile: brandTileStyle("googleBusinessProfile"),
+  youtube: brandTileStyle("youtube"),
+  beehiiv: brandTileStyle("beehiiv", "dark"),
+  substack: brandTileStyle("substack"),
+  mailchimp: brandTileStyle("mailchimp", "dark"),
+  kit: brandTileStyle("kit"),
+  shopify: brandTileStyle("shopify"),
+  wordpress: brandTileStyle("wordpress"),
+  woocommerce: brandTileStyle("woocommerce"),
+  ghost: brandTileStyle("ghost"),
+  x: brandTileStyle("x"),
+  slack: brandTileStyle("slack"),
+  discord: brandTileStyle("discord"),
+  telegram: brandTileStyle("telegram"),
+  teams: brandTileStyle("teams"),
 };

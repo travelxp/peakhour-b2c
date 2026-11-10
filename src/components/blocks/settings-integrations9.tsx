@@ -199,7 +199,7 @@ const SettingsIntegrations9 = ({
     switch (status) {
       case "active":
         return (
-          <Badge variant="secondary" className="bg-green-100 text-green-800">
+          <Badge variant="secondary" className="bg-success/10 text-success-on-tint">
             Active
           </Badge>
         );
@@ -207,7 +207,7 @@ const SettingsIntegrations9 = ({
         return <Badge variant="secondary">Paused</Badge>;
       case "error":
         return (
-          <Badge variant="secondary" className="bg-red-100 text-red-800">
+          <Badge variant="secondary" className="bg-destructive/10 text-destructive-on-tint">
             Error
           </Badge>
         );

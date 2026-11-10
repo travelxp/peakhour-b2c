@@ -8,6 +8,7 @@ import {
   YoutubeIcon,
   FacebookIcon,
 } from "./brand-icons";
+import { BRAND_COLORS } from "./brand-colors";
 
 type IconComponent = LucideIcon | ((props: { className?: string }) => React.JSX.Element);
 
@@ -17,18 +18,18 @@ type IconComponent = LucideIcon | ((props: { className?: string }) => React.JSX.
  *  fired for it and the component tried to render `Object` as an icon. */
 const CHANNELS = new Map<string, { icon: IconComponent; color: string; label: string }>(
   Object.entries({
-  newsletter: { icon: Mail, color: "#6366f1", label: "Newsletter" },
-  linkedin: { icon: LinkedinIcon, color: "#0A66C2", label: "LinkedIn" },
-  x: { icon: TwitterIcon, color: "#000000", label: "X" },
-  twitter: { icon: TwitterIcon, color: "#000000", label: "X" },
-  instagram: { icon: InstagramIcon, color: "#E4405F", label: "Instagram" },
-  blog: { icon: PenLine, color: "#f59e0b", label: "Blog" },
-  youtube: { icon: YoutubeIcon, color: "#FF0000", label: "YouTube" },
-  facebook: { icon: FacebookIcon, color: "#1877F2", label: "Facebook" },
-  tiktok: { icon: Music2, color: "#000000", label: "TikTok" },
+  newsletter: { icon: Mail, color: "var(--chart-2)", label: "Newsletter" },
+  linkedin: { icon: LinkedinIcon, color: BRAND_COLORS.linkedin, label: "LinkedIn" },
+  x: { icon: TwitterIcon, color: BRAND_COLORS.x, label: "X" },
+  twitter: { icon: TwitterIcon, color: BRAND_COLORS.x, label: "X" },
+  instagram: { icon: InstagramIcon, color: BRAND_COLORS.instagram, label: "Instagram" },
+  blog: { icon: PenLine, color: "var(--chart-1)", label: "Blog" },
+  youtube: { icon: YoutubeIcon, color: BRAND_COLORS.youtube, label: "YouTube" },
+  facebook: { icon: FacebookIcon, color: BRAND_COLORS.facebook, label: "Facebook" },
+  tiktok: { icon: Music2, color: BRAND_COLORS.tiktok, label: "TikTok" },
   // ★A MAP PIN, NOT A GOOGLE GLYPH. The destination is the merchant's listing
   // on Maps and Search, and the brand-icons module carries no Google mark.
-  googlebusiness: { icon: MapPin, color: "#4285F4", label: "Google Business Profile" },
+  googlebusiness: { icon: MapPin, color: BRAND_COLORS.google, label: "Google Business Profile" },
   }),
 );
 

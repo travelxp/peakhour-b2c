@@ -366,22 +366,22 @@ function BlockDetail({ block }: { block: GuardrailBlockView }) {
 function WhatsAppPhone({ d, businessName }: { d: DecisionView; businessName: string }) {
   const wa = whatsappPreview(d, businessName);
   return (
-    <div className="mx-auto w-full max-w-[300px] overflow-hidden rounded-3xl border bg-[#efeae2] dark:bg-[#0b141a]">
-      <div className="flex items-center gap-2 bg-[#075e54] px-3 py-2.5 text-[13px] text-white">
-        <span className="grid size-6 place-items-center rounded-full bg-white text-xs font-bold text-[#075e54]">P</span>
+    <div className="mx-auto w-full max-w-[300px] overflow-hidden rounded-3xl border bg-wa-wallpaper">
+      <div className="flex items-center gap-2 bg-wa-header px-3 py-2.5 text-[13px] text-white">
+        <span className="grid size-6 place-items-center rounded-full bg-white text-xs font-bold text-wa-header">P</span>
         <span>
           <b className="block leading-tight">Peakhour</b>
           <span className="text-micro opacity-80">Business account</span>
         </span>
       </div>
       <div className="grid gap-2 p-2.5">
-        <div className="max-w-[92%] rounded-[10px] bg-white p-2 text-[12.5px] text-[#111b21] shadow-sm dark:bg-[#202c33] dark:text-[#e9edef]">
+        <div className="max-w-[92%] rounded-[10px] bg-wa-bubble-in p-2 text-[12.5px] text-wa-text shadow-sm">
           <b className="font-semibold">{wa.header}</b>
           <p className="mt-1 whitespace-pre-line">{wa.body}</p>
           {wa.confirmNote ? <p className="mt-1.5 opacity-80">{wa.confirmNote}</p> : null}
           <div className="mt-2 grid gap-1">
             {wa.buttons.map((b) => (
-              <span key={b} className="block border-t border-black/10 pt-1.5 text-center font-medium text-[#0a7cff] dark:border-white/10 dark:text-[#53bdeb]">
+              <span key={b} className="block border-t border-black/10 pt-1.5 text-center font-medium text-wa-link dark:border-white/10">
                 {b}
               </span>
             ))}

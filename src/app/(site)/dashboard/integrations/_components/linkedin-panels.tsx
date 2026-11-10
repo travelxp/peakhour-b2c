@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { CheckCircle, AlertCircle, ExternalLink, RefreshCw, Loader2, Settings2 } from "lucide-react";
 import { LinkedinIcon } from "@/components/brand/brand-icons";
 import { ManagePagesDialog } from "./manage-pages-dialog";
+import { BRAND_COLORS } from "@/components/brand/brand-colors";
 
 // Auto-poll cadence for the names-pending state: 10 sec between
 // attempts, max ~8 attempts (~80 sec) before giving up. peakhour-api's
@@ -242,7 +243,9 @@ export function LinkedInAdsStatus({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <LinkedinIcon className="h-5 w-5 text-[#0A66C2]" />
+              <span className="inline-flex" style={{ color: BRAND_COLORS.linkedin }}>
+                <LinkedinIcon className="h-5 w-5" />
+              </span>
               LinkedIn Ad Accounts
             </DialogTitle>
             <DialogDescription>

@@ -15,20 +15,20 @@ interface StatsCard8Props {
 const statusConfig = {
   healthy: {
     icon: CheckCircle,
-    color: "text-green-500",
-    bgColor: "bg-green-500/10",
+    color: "text-success-on-tint",
+    bgColor: "bg-success/10",
     label: "Healthy",
   },
   warning: {
     icon: AlertCircle,
-    color: "text-yellow-500",
-    bgColor: "bg-yellow-500/10",
+    color: "text-warning-on-tint",
+    bgColor: "bg-warning/10",
     label: "Warning",
   },
   critical: {
     icon: XCircle,
-    color: "text-red-500",
-    bgColor: "bg-red-500/10",
+    color: "text-destructive-on-tint",
+    bgColor: "bg-destructive/10",
     label: "Critical",
   },
 };

@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { WordPressIcon } from "@/components/brand/brand-icons";
 import { toast } from "sonner";
+import { brandTileStyle } from "@/components/brand/brand-colors";
 import {
   Loader2,
   Copy,
@@ -106,7 +107,7 @@ export function WordPressConnectModal({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#21759B] text-white">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={brandTileStyle("wordpress")}>
               <WordPressIcon className="h-5 w-5" />
             </div>
             <div>

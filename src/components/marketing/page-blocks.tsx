@@ -201,7 +201,7 @@ function Cta({ b }: { b: CtaBlock }) {
           </h2>
           {b.body && <p className="mx-auto mt-4 max-w-xl text-on-ink-dim">{b.body}</p>}
           {b.ctaLabel && safeHref(b.ctaHref) && (
-            <Link href={safeHref(b.ctaHref)!} className={`${ctaClass} mt-8 focus-visible:ring-offset-zinc-900`}>
+            <Link href={safeHref(b.ctaHref)!} className={`${ctaClass} mt-8 focus-visible:ring-offset-ink`}>
               {b.ctaLabel}
               <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" aria-hidden />
             </Link>

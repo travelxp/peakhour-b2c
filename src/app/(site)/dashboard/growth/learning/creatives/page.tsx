@@ -52,8 +52,8 @@ import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 const ALL_PLATFORMS = "__all__";
 
 const TONE_CLASS: Record<BadgeTone, string> = {
-  approved: "border-emerald-600/40 bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
-  changed: "border-amber-600/40 bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
+  approved: "border-success/40 bg-success/10 text-success-on-tint",
+  changed: "border-warning/40 bg-warning/10 text-warning-on-tint",
   pending: "border-border bg-background text-foreground",
   muted: "border-border bg-muted text-muted-foreground",
 };
@@ -315,7 +315,7 @@ function CreativeCard({ item, onChanged }: { item: CreativeReviewItem; onChanged
             className={
               item.preflight.decision === "block"
                 ? "rounded-md border border-destructive/40 p-3 text-sm"
-                : "rounded-md border border-amber-600/40 p-3 text-sm"
+                : "rounded-md border border-warning/40 p-3 text-sm"
             }
           >
             <span className="font-medium">Ad-policy check: </span>
