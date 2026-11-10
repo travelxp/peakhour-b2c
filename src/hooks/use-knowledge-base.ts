@@ -1,10 +1,10 @@
 "use client";
 
 import { INSIGHTS_KEY } from "@/hooks/use-insights";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
-import type { KbEntry, KbPayload, KbRequest } from "@/lib/knowledge-base";
+import { FINDINGS_PAGE, KB_LIST_LIMIT, type KbFinding, type KbEntry, type KbFindingsResponse, type KbPayload, type KbRequest, type KbSuggestionsResponse } from "@/lib/knowledge-base";
 
 /**
  * Knowledge base hooks (GET/POST/PATCH /v1/kb/*). The api scopes every call to
@@ -13,6 +13,8 @@ import type { KbEntry, KbPayload, KbRequest } from "@/lib/knowledge-base";
 
 const ENTRIES_KEY = "kb-entries";
 const REQUESTS_KEY = "kb-requests";
+const SUGGESTIONS_KEY = "kb-suggestions";
+const FINDINGS_KEY = "kb-findings";
 
 export type EntryFilter = { source: "" | "owner" | "import" | "learned"; status: "active" | "archived"; q: string };
 
@@ -23,7 +25,7 @@ export function useKbEntries(filter: EntryFilter) {
     // keep the list on screen while the next search is fetched, rather than a skeleton per keystroke
     placeholderData: keepPreviousData,
     queryFn: () => {
-      const params: Record<string, string> = { status: filter.status, limit: "100" };
+      const params: Record<string, string> = { status: filter.status, limit: String(KB_LIST_LIMIT) };
       if (filter.source) params.source = filter.source;
       if (filter.q.trim()) params.q = filter.q.trim();
       return api.get("/v1/kb/entries", params);
@@ -48,6 +50,9 @@ function useRefresh() {
   return () => {
     void qc.invalidateQueries({ queryKey: [ENTRIES_KEY] });
     void qc.invalidateQueries({ queryKey: [REQUESTS_KEY] });
+    // an edit changes what the policy check says; an approval or a dismissal changes what is still suggested
+    void qc.invalidateQueries({ queryKey: [SUGGESTIONS_KEY] });
+    void qc.invalidateQueries({ queryKey: [FINDINGS_KEY] });
     // an answered question changes what Insights says is still open
     void qc.invalidateQueries({ queryKey: [INSIGHTS_KEY] });
   };
@@ -89,6 +94,73 @@ export function useDismissKbRequest() {
   const refresh = useRefresh();
   return useMutation({
     mutationFn: (id: string) => api.post<{ request: KbRequest }>(`/v1/kb/requests/${id}/dismiss`),
+    onSuccess: refresh,
+  });
+}
+
+/** GET /v1/kb/suggestions: the drafted answers (most-asked first) and what was routed to Catalog Manager and the Inbox. */
+export function useKbSuggestions() {
+  const { isAuthenticated, org, business } = useAuth();
+  return useQuery<KbSuggestionsResponse>({
+    queryKey: [SUGGESTIONS_KEY, org?._id ?? null, business?._id ?? null],
+    queryFn: () => api.get("/v1/kb/suggestions"),
+    enabled: isAuthenticated && !!org?._id,
+    retry: false,
+  });
+}
+
+/** The edited words are sent as they are; the api refuses (409/400, with its own sentence) while a [placeholder] remains or the entry limit is reached. */
+export function useApproveSuggestion() {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: ({ id, title, content }: { id: string; title: string; content: string }) =>
+      api.post<{ entry: KbEntry; answered: number }>(`/v1/kb/suggestions/${id}/approve`, { title, content }),
+    onSuccess: refresh,
+  });
+}
+
+export function useDismissSuggestion() {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: (id: string) => api.post<{ dismissed: number }>(`/v1/kb/suggestions/${id}/dismiss`),
+    onSuccess: refresh,
+  });
+}
+
+/** Save the edited words on the suggestion without approving it (the entry update). */
+export function useSaveSuggestion() {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: ({ id, title, content }: { id: string; title: string; content: string }) => api.patch<{ entry: KbEntry }>(`/v1/kb/entries/${id}`, { title, content }),
+    onSuccess: refresh,
+  });
+}
+
+/** GET /v1/kb/findings?state=open|dismissed, a page at a time (skip): the api orders them by severity then recency across pages, so a later page continues the order. */
+export function useKbFindings(state: "open" | "dismissed") {
+  const { isAuthenticated, org, business } = useAuth();
+  return useInfiniteQuery({
+    queryKey: [FINDINGS_KEY, org?._id ?? null, business?._id ?? null, state],
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => api.get<KbFindingsResponse>("/v1/kb/findings", { state, limit: String(FINDINGS_PAGE), skip: String(pageParam) }),
+    getNextPageParam: (last, all) => {
+      const loaded = all.reduce((n, p) => n + p.findings.length, 0);
+      return last.findings.length > 0 && loaded < last.total ? loaded : undefined;
+    },
+    select: (d): { findings: KbFinding[]; total: number } => {
+      const seen = new Set<string>();
+      const findings = d.pages.flatMap((p) => p.findings).filter((f) => !seen.has(f.id) && seen.add(f.id));
+      return { findings, total: d.pages[d.pages.length - 1]?.total ?? findings.length };
+    },
+    enabled: isAuthenticated && !!org?._id,
+    retry: false,
+  });
+}
+
+export function useFindingAction() {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: ({ id, action }: { id: string; action: "dismiss" | "reopen" }) => api.post<{ finding: { id: string; state: string } }>(`/v1/kb/findings/${id}/${action}`),
     onSuccess: refresh,
   });
 }

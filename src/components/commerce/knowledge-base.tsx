@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BookOpen, ExternalLink, Loader2, MessageCircleQuestion, Plus } from "lucide-react";
+import { BookOpen, Check, ClipboardCheck, ExternalLink, Loader2, MessageCircleQuestion, Plus } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { insightsHref } from "@/lib/insights";
@@ -15,34 +15,70 @@ import { DataToolbar, DataToolbarSearch } from "@/components/molecules/data-tabl
 import { EmptyState } from "@/components/molecules/empty-state";
 import {
   useAnswerKbRequest,
+  useApproveSuggestion,
   useCreateKbEntry,
   useDismissKbRequest,
+  useDismissSuggestion,
+  useFindingAction,
   useKbEntries,
   useKbEntryAction,
+  useKbFindings,
   useKbRequests,
+  useKbSuggestions,
+  useSaveSuggestion,
   useUpdateKbEntry,
   type EntryFilter,
 } from "@/hooks/use-knowledge-base";
+import { useCommerceStores } from "@/hooks/use-commerce-stores";
 import {
+  APPROVED_LINE,
   EMPTY_FORM,
   KB_CHANNELS,
   KB_CONTENT_MAX,
   KB_TITLE_MAX,
   askedLine,
   answerToPayload,
+  approveState,
+  basedOnLine,
   channelLabel,
   channelsLine,
   charsLeft,
   entryToForm,
+  findingFooter,
+  FINDINGS_DISMISSED_EMPTY,
+  FINDINGS_EMPTY,
   formToPayload,
+  groupFindings,
+  isImportedPolicy,
   kbErrorMessage,
+  placeholdersIn,
   readOnlyNote,
+  claimsLine,
+  otherEntryLine,
+  canEditInShopify,
+  reconcileWords,
+  runSave,
+  showingLine,
+  SUGGESTION_UPDATED,
+  routedLines,
+  runAction,
+  runApprove,
   safeUrl,
+  severityHeading,
+  shopifyPoliciesHref,
   sourceLabel,
+  splitPlaceholders,
+  SUGGESTIONS_EMPTY,
+  suggestionAskedLine,
   type KbEntry,
+  type KbFinding,
   type KbForm,
   type KbRequest,
+  type KbSuggestion,
+  type KbSuggestionsResponse,
+  type CardWords,
 } from "@/lib/knowledge-base";
+import { shopOf } from "@/lib/insights";
 
 /**
  * Commerce -> Knowledge base. What your assistant knows beyond the catalog: the
@@ -55,6 +91,8 @@ export function KnowledgeBase() {
   return (
     <div className="space-y-8">
       <Questions />
+      <Suggestions />
+      <PolicyHealth />
       <Entries />
     </div>
   );
@@ -129,6 +167,402 @@ export function QuestionCard({ request, answerLabel = "Answer", dismissLabel = "
                 {dismissLabel}
               </Button>
             )}
+          </div>
+        </CardContent>
+      </Card>
+    </li>
+  );
+}
+
+// -- Suggested answers ------------------------------------------------------------------------------------------------
+
+function Suggestions() {
+  const q = useKbSuggestions();
+  const [approvedAt, setApprovedAt] = useState<number | null>(null);
+  // the one-line confirmation is for the moment after the click, not for the rest of the visit
+  useEffect(() => {
+    if (approvedAt === null) return;
+    const t = setTimeout(() => setApprovedAt(null), 8000);
+    return () => clearTimeout(t);
+  }, [approvedAt]);
+  // honest states: a failed read says so and offers a retry; it never shows the empty sentence in its place.
+  // A paused query (offline) is not isLoading, and has no data: say nothing rather than guess.
+  let body: React.ReactNode = null;
+  if (q.isLoading) body = <Skeleton className="h-24 w-full" />;
+  else if (q.isError && !q.data)
+    body = (
+      <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">
+        Could not load the suggested answers.
+        <Button size="sm" variant="outline" onClick={() => void q.refetch()}>
+          Try again
+        </Button>
+      </div>
+    );
+  else if (q.data) body = <SuggestionsView data={q.data} now={q.dataUpdatedAt} onApproved={() => setApprovedAt(Date.now())} onFailed={() => setApprovedAt(null)} />;
+  if (body === null) return null;
+  return (
+    <section aria-labelledby="kb-suggestions" className="space-y-3">
+      <h2 id="kb-suggestions" className="flex items-center gap-2 text-lg font-semibold">
+        <ClipboardCheck className="size-5" aria-hidden="true" />
+        Suggested answers
+      </h2>
+      {approvedAt !== null && (
+        <p role="status" className="flex items-center gap-2 text-sm">
+          <Check className="size-4" aria-hidden="true" />
+          {APPROVED_LINE}
+        </p>
+      )}
+      {body}
+    </section>
+  );
+}
+
+export function SuggestionsView({ data, now, onApproved, onFailed }: { data: KbSuggestionsResponse; now: number; onApproved: () => void; onFailed: () => void }) {
+  // the api's order, as it arrives (most asked, then most recent, then id)
+  const list = data.suggestions;
+  const routed = routedLines(data.routed);
+  return (
+    <>
+      {list.length === 0 ? (
+        <p data-kb-suggestions-empty className="text-sm text-muted-foreground">
+          {SUGGESTIONS_EMPTY}
+        </p>
+      ) : (
+        <ul className="space-y-3">
+          {list.map((s) => (
+            <SuggestionCard key={s.id} suggestion={s} now={now} onApproved={onApproved} onFailed={onFailed} />
+          ))}
+        </ul>
+      )}
+      {routed.length > 0 && (
+        <ul data-kb-routed className="space-y-1 text-sm">
+          {routed.map((r) => (
+            <li key={r.href}>
+              {r.text}{" "}
+              <Link href={r.href} className="font-medium underline underline-offset-2">
+                {r.linkLabel}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
+/** The text with each [bracketed] detail still to fill in highlighted. */
+export function Highlighted({ text }: { text: string }) {
+  return (
+    <>
+      {splitPlaceholders(text).map((p, i) =>
+        p.placeholder ? (
+          <mark key={i} data-kb-placeholder className="rounded bg-warning/20 px-0.5 text-warning-on-tint">
+            {p.text}
+          </mark>
+        ) : (
+          <span key={i}>{p.text}</span>
+        ),
+      )}
+    </>
+  );
+}
+
+function SuggestionCard({ suggestion, now, onApproved, onFailed }: { suggestion: KbSuggestion; now: number; onApproved: () => void; onFailed: () => void }) {
+  // The boxes hold the merchant's words. They follow the server's words only while untouched; edits are never dropped (reconcileWords).
+  const [card, setCard] = useState<CardWords>({ base: { title: suggestion.title, content: suggestion.content }, title: suggestion.title, content: suggestion.content });
+  const synced = reconcileWords(card, { title: suggestion.title, content: suggestion.content });
+  if (synced.card !== card) setCard(synced.card);
+  const stale = synced.stale;
+  const { title, content } = card;
+  const [error, setError] = useState<string | null>(null);
+  const [confirmDismiss, setConfirmDismiss] = useState(false);
+  // a dismiss that worked has already deleted the suggestion: the card goes at once, so it cannot be sent twice before the refetch removes it
+  const [gone, setGone] = useState(false);
+  const approve = useApproveSuggestion();
+  const dismiss = useDismissSuggestion();
+  const save = useSaveSuggestion();
+  const busy = approve.isPending || dismiss.isPending || save.isPending;
+  const state = approveState(title, content);
+  const based = basedOnLine(suggestion.evidence);
+  const reasonId = `kb-sg-${suggestion.id}-reason`;
+  const fail = (message: string) => {
+    setError(message);
+    onFailed();
+  };
+
+  const doApprove = async () => {
+    setError(null);
+    const r = await runApprove((p) => approve.mutateAsync({ id: suggestion.id, ...p }), title, content);
+    if (r.ok) onApproved();
+    else fail(r.error);
+  };
+  const doSave = async () => {
+    setError(null);
+    const r = await runSave((p) => save.mutateAsync({ id: suggestion.id, ...p }), title, content);
+    if (r.ok) toast.success("Saved. It is not approved yet.");
+    else fail(r.error);
+  };
+  const doDismiss = async () => {
+    setError(null);
+    const r = await runAction(() => dismiss.mutateAsync(suggestion.id));
+    if (r.ok) setGone(true);
+    else {
+      setConfirmDismiss(false);
+      fail(r.error);
+    }
+  };
+  if (gone) return null;
+
+  return (
+    <li>
+      <Card>
+        <CardContent className="space-y-3 p-4">
+          <p className="text-xs text-muted-foreground">{suggestionAskedLine(suggestion, now)}</p>
+          {stale && (
+            <p role="status" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              {SUGGESTION_UPDATED}
+              <Button size="sm" variant="outline" onClick={() => setCard({ base: { title: suggestion.title, content: suggestion.content }, title: suggestion.title, content: suggestion.content })}>
+                Use the new version
+              </Button>
+            </p>
+          )}
+          <label className="block space-y-1 text-sm">
+            <span className="font-medium">Title</span>
+            <Input value={title} maxLength={KB_TITLE_MAX} onChange={(e) => setCard({ ...card, title: e.target.value })} />
+          </label>
+          <label className="block space-y-1 text-sm">
+            <span className="font-medium">Suggested answer</span>
+            <Textarea rows={5} value={content} maxLength={KB_CONTENT_MAX} onChange={(e) => setCard({ ...card, content: e.target.value })} />
+          </label>
+          {placeholdersIn(`${title}\n${content}`).length > 0 && (
+            <div data-kb-preview className="space-y-1 rounded-md border p-2 text-sm">
+              <p className="font-medium">
+                <Highlighted text={title} />
+              </p>
+              <p className="whitespace-pre-line">
+                <Highlighted text={content} />
+              </p>
+            </div>
+          )}
+          {suggestion.needsFacts.length > 0 && (
+            <div className="text-sm">
+              <p className="font-medium">Your assistant needs you to say:</p>
+              <ul className="list-disc pl-5 text-muted-foreground">
+                {suggestion.needsFacts.map((n, i) => (
+                  <li key={`${i}-${n}`}>{n}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {based && <p className="text-xs text-muted-foreground">{based}</p>}
+          {!state.enabled && (
+            <p id={reasonId} className="text-sm text-muted-foreground">
+              {state.reason}
+            </p>
+          )}
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" onClick={() => void doApprove()} disabled={busy || !state.enabled} aria-describedby={state.enabled ? undefined : reasonId}>
+              {approve.isPending && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />}
+              Approve
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => void doSave()} disabled={busy}>
+              {save.isPending && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />}
+              Save without approving
+            </Button>
+            {confirmDismiss ? (
+              <>
+                <Button size="sm" variant="destructive" onClick={() => void doDismiss()} disabled={busy}>
+                  Yes, dismiss it
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setConfirmDismiss(false)} disabled={busy}>
+                  Keep it
+                </Button>
+              </>
+            ) : (
+              <Button size="sm" variant="ghost" onClick={() => setConfirmDismiss(true)} disabled={busy} aria-label="Dismiss this suggestion">
+                Dismiss
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </li>
+  );
+}
+
+// -- Policy health ----------------------------------------------------------------------------------------------------
+
+function PolicyHealth() {
+  const [view, setView] = useState<"open" | "dismissed">("open");
+  const q = useKbFindings(view);
+  const imported = useKbEntries({ source: "import", status: "active", q: "" });
+  const stores = useCommerceStores();
+  const shop = shopOf(stores.data);
+  let body: React.ReactNode = null;
+  if (q.isLoading) body = <Skeleton className="h-24 w-full" />;
+  else if (q.isError && !q.data)
+    body = (
+      <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">
+        Could not load the policy check.
+        <Button size="sm" variant="outline" onClick={() => void q.refetch()}>
+          Try again
+        </Button>
+      </div>
+    );
+  else if (q.data)
+    body = (
+      <>
+        <FindingsView data={q.data} view={view} entries={imported.data?.entries ?? []} shop={shop} />
+        <MoreFindings shown={q.data.findings.length} total={q.data.total} hasMore={q.hasNextPage} loading={q.isFetchingNextPage} failed={q.isFetchNextPageError} onMore={() => void q.fetchNextPage()} />
+      </>
+    );
+  if (body === null) return null;
+  return (
+    <section aria-labelledby="kb-health" className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id="kb-health" className="text-lg font-semibold">
+          Policy health
+        </h2>
+        <select aria-label="Show findings" className="rounded-md border bg-background px-2 text-sm" value={view} onChange={(e) => setView(e.target.value as "open" | "dismissed")}>
+          <option value="open">To look at</option>
+          <option value="dismissed">Dismissed</option>
+        </select>
+      </div>
+      {body}
+    </section>
+  );
+}
+
+/** "Showing 100 of N" and a way to the rest. The api's order is kept across pages, so tips (the last group) are reached by paging on. */
+export function MoreFindings({ shown, total, hasMore, loading, failed, onMore }: { shown: number; total: number; hasMore: boolean; loading: boolean; failed: boolean; onMore: () => void }) {
+  const line = showingLine(shown, total);
+  if (!line) return null;
+  return (
+    <div data-kb-more className="flex flex-wrap items-center gap-2 text-sm">
+      <span>{line}</span>
+      {failed && (
+        <span role="alert" className="text-destructive">
+          Could not load more.
+        </span>
+      )}
+      {hasMore && (
+        <Button size="sm" variant="outline" onClick={onMore} disabled={loading}>
+          {loading && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />}
+          Show more
+        </Button>
+      )}
+    </div>
+  );
+}
+
+export function FindingsView({ data, view, entries, shop }: { data: { findings: KbFinding[] }; view: "open" | "dismissed"; entries: KbEntry[]; shop: string | null }) {
+  if (data.findings.length === 0) {
+    return (
+      <p data-kb-findings-empty className="text-sm text-muted-foreground">
+        {view === "open" ? FINDINGS_EMPTY : FINDINGS_DISMISSED_EMPTY}
+      </p>
+    );
+  }
+  const byId = new Map(entries.map((e) => [e.id, e]));
+  return (
+    <div className="space-y-5">
+      {groupFindings(data.findings).map((g) => (
+        <div key={g.severity} data-kb-severity={g.severity} className="space-y-2">
+          <h3 className="text-sm font-semibold">{severityHeading(g.severity)}</h3>
+          <ul className="space-y-3">
+            {g.findings.map((f) => (
+              <FindingCard key={f.id} finding={f} dismissed={view === "dismissed"} entry={f.entryId ? byId.get(f.entryId) : undefined} shop={shop} />
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FindingCard({ finding: f, dismissed, entry, shop }: { finding: KbFinding; dismissed: boolean; entry: KbEntry | undefined; shop: string | null }) {
+  const action = useFindingAction();
+  const takeOver = useKbEntryAction();
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const footer = findingFooter(f);
+  const claims = claimsLine(f);
+  const other = otherEntryLine(f);
+  const policiesHref = shopifyPoliciesHref(shop);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(f.suggestion);
+      setError(null);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      setCopied(false);
+      setError("Could not copy. Select the text and copy it instead.");
+    }
+  };
+  const run = async () => {
+    setError(null);
+    const r = await runAction(() => action.mutateAsync({ id: f.id, action: dismissed ? "reopen" : "dismiss" }));
+    if (!r.ok) setError(r.error);
+  };
+  return (
+    <li>
+      <Card>
+        <CardContent className="space-y-2 p-4">
+          {f.entryTitle && <p className="text-xs text-muted-foreground">In: {f.entryTitle}</p>}
+          {f.quote && <blockquote className="border-l-2 pl-3 text-sm italic">{f.quote}</blockquote>}
+          {claims && <p className="text-sm">{claims}</p>}
+          {other && <p className="text-sm">{other}</p>}
+          <p className="text-sm">{f.why}</p>
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-muted-foreground">A way to put it</p>
+            <p className="whitespace-pre-line text-sm">{f.suggestion}</p>
+          </div>
+          {footer.legalLine && (
+            <p className="text-xs text-muted-foreground">
+              {footer.sourceHref && (
+                <>
+                  <a href={footer.sourceHref} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline">
+                    {footer.sourceLabel} <ExternalLink className="size-3" aria-hidden="true" />
+                  </a>
+                  {" · "}
+                </>
+              )}
+              {footer.legalLine}
+            </p>
+          )}
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Button size="sm" variant="outline" onClick={() => void copy()}>
+              {copied ? "Copied" : "Copy"}
+            </Button>
+            {isImportedPolicy(entry) && (
+              <>
+                {policiesHref && canEditInShopify(entry) && (
+                  <a href={policiesHref} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-md border px-3 text-sm font-medium">
+                    Edit in Shopify
+                  </a>
+                )}
+                <Button size="sm" variant="outline" disabled={takeOver.isPending} onClick={() => {
+                    setError(null);
+                    takeOver.mutate({ id: entry!.id, action: "take-over" }, { onError: (e) => setError(kbErrorMessage(e)) });
+                  }}>
+                  Take over in Peakhour
+                </Button>
+              </>
+            )}
+            <Button size="sm" variant="ghost" disabled={action.isPending} onClick={() => void run()}>
+              {dismissed ? "Reopen" : "Dismiss"}
+            </Button>
           </div>
         </CardContent>
       </Card>
