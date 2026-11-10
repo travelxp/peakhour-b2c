@@ -13,6 +13,7 @@ import { SourcesPanel } from "./components/sources-panel";
 import { ApproveNewsSheet } from "./components/approve-news-sheet";
 import { EmptyNewsDesk } from "./components/empty-news-desk";
 import type { NewsIdea } from "./types";
+import { PageIntro } from "@/components/dashboard/page-intro";
 
 /**
  * /dashboard/content/news — News Desk (N5). The autonomous newsroom's approval
@@ -56,6 +57,7 @@ export default function NewsDeskPage() {
         onTriggered={invalidateQueue}
       />
 
+      <PageIntro id="news" />
       <header>
         <h2 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
           <Newspaper className="size-6" aria-hidden /> News Desk

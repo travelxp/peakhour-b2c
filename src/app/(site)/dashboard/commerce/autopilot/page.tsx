@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { CommerceAutopilot } from "@/components/commerce/autopilot";
+import { PageIntro } from "@/components/dashboard/page-intro";
 
 export const metadata: Metadata = {
   title: "Autopilot · Commerce",
@@ -10,5 +11,10 @@ export const metadata: Metadata = {
  * autonomy consent dial. Gated on `commerce.autopilot` inside the component.
  */
 export default function CommerceAutopilotPage() {
-  return <CommerceAutopilot />;
+  return (
+    <div className="space-y-4">
+      <PageIntro id="commerce-autopilot" />
+      <CommerceAutopilot />
+    </div>
+  );
 }

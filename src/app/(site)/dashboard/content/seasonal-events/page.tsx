@@ -48,6 +48,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { withHolidayFields, type SeasonalEventType } from "./seasonal-event-wire";
+import { PageIntro } from "@/components/dashboard/page-intro";
 
 // ── Types ───────────────────────────────────────────────────────
 
@@ -453,6 +454,7 @@ export default function SeasonalEventsPage() {
 
   return (
     <div className="space-y-6">
+      <PageIntro id="seasonal-events" />
       <header className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">

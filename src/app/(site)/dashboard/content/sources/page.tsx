@@ -18,6 +18,7 @@ import { AddSourceDrawer } from "./components/add-source-drawer";
 import { InsightsPanel } from "./components/insights-panel";
 import { SourceRow } from "./components/source-row";
 import type { SourceStatus, TrustedSource } from "./types";
+import { PageIntro } from "@/components/dashboard/page-intro";
 
 /**
  * Trusted Sources — Phase 0 priority per the LinkedIn 360 plan §3.
@@ -166,6 +167,7 @@ function TrustedSourcesSurface() {
           void queryClient.invalidateQueries({ queryKey: ["citations"] });
         }}
       />
+      <PageIntro id="sources" />
       <header className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Trusted Sources</h2>

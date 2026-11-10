@@ -36,6 +36,7 @@ import {
   unansweredBadge,
 } from "@/lib/review-reply";
 import { PageShell } from "@/components/dashboard/page-shell";
+import { EmptyState } from "@/components/molecules/empty-state";
 
 /**
  * Inbox — ONE queue for everything inbound (D-inbox): every channel is
@@ -222,15 +223,13 @@ function LeadsPane() {
   });
   if (items.length === 0) {
     return (
-      <Card className="flex flex-col items-center gap-2 p-8 text-center">
-        <Sparkles className="size-5 text-muted-foreground" />
-        <p className="text-sm font-medium">No leads yet</p>
-        <p className="max-w-md text-xs text-muted-foreground">
-          When someone submits a LinkedIn Lead Gen form on one of your campaigns, it lands here —
-          scored, prioritised, and on an SLA clock. Run a lead-generation campaign from the Ads
-          Manager to start the flow.
-        </p>
-      </Card>
+      <EmptyState
+        icon={Sparkles}
+        title="No leads yet"
+        description="When someone fills in a LinkedIn lead form on one of your campaigns, they land here, sorted by how ready they look to buy. Start a lead-generation campaign to get the first one."
+        action={{ label: "Open Ads", href: "/dashboard/ads" }}
+        className="min-h-0 py-12"
+      />
     );
   }
   return (
@@ -315,15 +314,13 @@ function ReviewsPane({ query }: { query: ReturnType<typeof useReviewsQuery> }) {
   const items = reviewQueueOrder(query.data?.items ?? []);
   if (items.length === 0) {
     return (
-      <Card className="flex flex-col items-center gap-2 p-8 text-center">
-        <Sparkles className="size-5 text-muted-foreground" />
-        <p className="text-sm font-medium">No reviews here yet</p>
-        <p className="max-w-md text-xs text-muted-foreground">
-          Once a review network is connected and sending us reviews, every new review lands here
-          — worst first — with a reply you can publish back to its page without leaving Peakhour,
-          where the network takes replies.
-        </p>
-      </Card>
+      <EmptyState
+        icon={Sparkles}
+        title="No reviews here yet"
+        description="Once a review site is connected, every new review lands here, worst first, with a reply you can publish without leaving Peakhour. Connect a review site to begin."
+        action={{ label: "Connect a review site", href: "/dashboard/integrations" }}
+        className="min-h-0 py-12"
+      />
     );
   }
   return (

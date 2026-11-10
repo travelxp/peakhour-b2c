@@ -14,6 +14,7 @@ import { ChannelWidgets } from "./_components/channel-widgets";
 import { AutopilotEmpty } from "./_components/autopilot-empty";
 import { CommerceLane } from "./_components/commerce-lane";
 import { PageShell } from "@/components/dashboard/page-shell";
+import { PageIntro } from "@/components/dashboard/page-intro";
 
 /**
  * Content > Autopilot — the entitlement-composed content command center.
@@ -75,6 +76,7 @@ export default function AutopilotHomePage() {
         }
       />
 
+      <PageIntro id="content-autopilot" />
       {/* Header */}
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold tracking-tight">Autopilot</h1>

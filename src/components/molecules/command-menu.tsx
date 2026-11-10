@@ -30,6 +30,7 @@ import {
   ShieldCheck,
   HardDrive,
 } from "lucide-react";
+import { OPEN_COMMAND_MENU_EVENT } from "@/lib/dashboard-events";
 
 const PAGES = [
   { label: "Overview", href: "/dashboard/overview", icon: LayoutDashboard, group: "Navigation" },
@@ -64,8 +65,13 @@ export function CommandMenu() {
         setOpen((o) => !o);
       }
     };
+    const show = () => setOpen(true);
     document.addEventListener("keydown", down);
-    return () => document.removeEventListener("keydown", down);
+    window.addEventListener(OPEN_COMMAND_MENU_EVENT, show);
+    return () => {
+      document.removeEventListener("keydown", down);
+      window.removeEventListener(OPEN_COMMAND_MENU_EVENT, show);
+    };
   }, []);
 
   const runCommand = (href: string) => {

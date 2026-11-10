@@ -26,6 +26,8 @@ interface CalendarIdea {
 }
 
 import { ChannelIconCompact } from "@/components/brand/channel-icon";
+import { QueryError } from "@/components/dashboard/query-error";
+import { queryViewState } from "@/lib/query-view-state";
 
 const STATUS_COLORS: Record<string, string> = {
   brainstorm: "bg-muted border-border",
@@ -41,10 +43,12 @@ export default function IdeasCalendarPage() {
   const [view, setView] = useState<"week" | "month">("week");
   const [weekOffset, setWeekOffset] = useState(0);
 
-  const { data: ideas } = useQuery({
+  const ideasQuery = useQuery({
     queryKey: ["content-ideas"],
     queryFn: () => api.get<CalendarIdea[]>("/v1/content/ideas"),
   });
+  const { data: ideas } = ideasQuery;
+  const ideasView = queryViewState(ideasQuery);
 
   // Calculate week dates
   const today = new Date();
@@ -100,6 +104,14 @@ export default function IdeasCalendarPage() {
           </Button>
         </div>
       </div>
+
+      {(ideasView === "error" || ideasView === "offline") && (
+        <QueryError
+          what="your planned ideas"
+          kind={ideasView}
+          onRetry={() => void ideasQuery.refetch()}
+        />
+      )}
 
       {/* Week navigation */}
       <div className="flex items-center justify-between">
