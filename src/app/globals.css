@@ -281,10 +281,11 @@
   --accent: oklch(0.27 0.012 70);
   --accent-foreground: oklch(0.97 0.008 85);
   --destructive: oklch(0.704 0.191 22.216);
-  /* On dark grounds the base red already clears AA on the tint (~5.5:1), so
-     the on-tint step is the same colour — declared rather than inherited so
-     the token never falls back to the light value. */
-  --destructive-on-tint: var(--destructive);
+  /* A lighter, slightly calmer red for text ON a red tint. The base red on a
+     10% red tint measured 5.51:1 over --card and 6.12:1 over --background, but
+     only 4.53:1 over --muted, a hair above AA. This step gives >= 5.65:1 on all
+     three (computed 2026-11-10, OKLCH -> sRGB, tint = 10% --destructive). */
+  --destructive-on-tint: oklch(0.76 0.15 22.216);
   --border: oklch(0.85 0.05 80 / 14%);
   --input: oklch(0.85 0.05 80 / 18%);
   --ring: oklch(0.77 0.146 67);
