@@ -55,7 +55,7 @@ function CommandCenterBody() {
   return (
     <PageShell width="standard">
       <header className="mb-6">
-        <h1 className="text-xl font-semibold">Command Center</h1>
+        <h1 className="text-xl font-semibold">Store overview</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           What your store is doing and what Peakhour has done for it — grounded in
           your live catalog, inventory and conversations.
@@ -68,7 +68,7 @@ function CommandCenterBody() {
         <EmptyState
           icon={Store}
           title="Connect a store to get started"
-          description="Command Center lights up once a Shopify or WooCommerce store is connected to this business."
+          description="Store overview lights up once a Shopify or WooCommerce store is connected to this business."
           action={{ label: "Connect a store", href: "/dashboard/integrations" }}
         />
       )}

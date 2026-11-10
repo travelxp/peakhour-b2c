@@ -75,7 +75,7 @@ export default function MyTicketsPage() {
           </Link>
         </Button>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">My Tickets</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Support tickets</h1>
           <p className="text-sm text-muted-foreground">
             Track your feedback submissions and their status.
           </p>

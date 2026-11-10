@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { PresenceHome } from "@/components/presence/presence-home";
 
 export const metadata: Metadata = {
-  title: "Presence",
+  title: "Local presence",
 };
 
 /**

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { CommerceAutopilot } from "@/components/commerce/autopilot";
 
 export const metadata: Metadata = {
-  title: "Autopilot · Commerce",
+  title: "Auto-merchandising · Commerce",
 };
 
 /**

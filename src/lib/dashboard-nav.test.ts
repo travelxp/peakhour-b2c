@@ -202,3 +202,37 @@ describe("mobile bottom bar", () => {
     expect(isTabActive("/dashboard/contentious", content)).toBe(false);
   });
 });
+
+describe("no two destinations share a label where a merchant sees them together", () => {
+  it("the command menu list", async () => {
+    const { ENTRIES } = await import("@/components/molecules/command-menu-dialog");
+    const labels = ENTRIES.map((e) => e.label);
+    const dupes = labels.filter((l, i) => labels.indexOf(l) !== i);
+    expect(dupes).toEqual([]);
+  });
+
+  it("the sidebar's top level, and each pillar's tab strip, in every Growth state", () => {
+    for (const s of ["present", "absent", "not_built", "unknown"] as const) {
+      const all = items(navGroupsFor(s));
+      const top = all.map((i) => i.label);
+      expect(new Set(top).size, `top level (${s})`).toBe(top.length);
+      for (const i of all) {
+        const labels = (i.subItems ?? []).map((x) => x.label);
+        expect(new Set(labels).size, `${i.href} (${s})`).toBe(labels.length);
+      }
+    }
+  });
+
+  it("the sidebar as a whole (pillars and sub-links together)", () => {
+    const labels = items(navGroupsFor("absent")).flatMap((i) => [i.label, ...(i.subItems ?? []).map((s) => s.label)]);
+    const dupes = labels.filter((l, i) => labels.indexOf(l) !== i);
+    expect(dupes).toEqual([]);
+  });
+
+  it("the mobile bar", () => {
+    for (const hasCommerce of [true, false]) {
+      const labels = [...primaryTabs({ hasCommerce, homeHref: "/dashboard/overview" }).map((t) => PILLAR_COPY[t.copyHref].label), "More"];
+      expect(new Set(labels).size).toBe(labels.length);
+    }
+  });
+});

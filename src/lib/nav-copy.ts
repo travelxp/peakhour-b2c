@@ -73,9 +73,9 @@ export const PILLAR_COPY: Record<string, NavCopy> = {
     aliases: ["Tasks"],
   },
   "/dashboard/drive": {
-    label: "Files",
+    label: "Drive",
     description: "Your images, videos, documents and brand kit.",
-    aliases: ["Drive"],
+    aliases: ["Files"],
   },
   "/dashboard/peaks": {
     label: "Peaks",
@@ -138,7 +138,7 @@ export const SUB_COPY: Record<string, NavCopy> = {
 
   // Growth
   "/dashboard/growth": {
-    label: "Overview",
+    label: "Growth overview",
     description: "Is your growth working? The short answer, first.",
     aliases: ["Growth home"],
   },
@@ -170,7 +170,7 @@ export const SUB_COPY: Record<string, NavCopy> = {
 
   // Commerce
   "/dashboard/commerce": {
-    label: "Overview",
+    label: "Store overview",
     description: "Your store at a glance and what Peakhour did for it.",
     aliases: ["Command Center"],
   },

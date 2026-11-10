@@ -149,7 +149,7 @@ function RunningJobsBadge() {
   return (
     <NavCountBadge
       count={count}
-      description={`${count} ${count === 1 ? "job is" : "jobs are"} running for you right now — open Tasks to watch progress. Nothing is waiting on you.`}
+      description={`${count} ${count === 1 ? "job is" : "jobs are"} running for you right now — open Activity to watch progress. Nothing is waiting on you.`}
     />
   );
 }

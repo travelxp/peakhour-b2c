@@ -72,7 +72,7 @@ const copyFor = (href: string): NavCopy | undefined => SUB_COPY[href] ?? PILLAR_
  * back carts ...) is appended, so searching a name the screen used to carry
  * still finds it.
  */
-const ENTRIES: PageEntry[] = (() => {
+export const ENTRIES: PageEntry[] = (() => {
   const seen = new Set<string>();
   const listed: PageEntry[] = PAGES.map((p) => {
     seen.add(p.href);
