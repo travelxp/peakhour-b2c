@@ -1,5 +1,6 @@
 "use client";
 
+import { MediaImage } from "@/components/shared/media-image";
 import { useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { FileText, Loader2, Search, Type } from "lucide-react";
@@ -105,8 +106,7 @@ export function KitFileResults({
               >
                 <span className="flex h-16 items-center justify-center overflow-hidden rounded-md bg-muted">
                   {f.kind === "image" && f.publicUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- a Drive file's public URL, already on our CDN
-                    <img src={f.publicUrl} alt="" className="max-h-full max-w-full object-contain" loading="lazy" />
+                    <MediaImage src={f.publicUrl} alt="" width={256} height={128} sizes="128px" className="max-h-full max-w-full object-contain" />
                   ) : f.kind === "font" ? (
                     <Type className="size-6 text-muted-foreground" aria-hidden="true" />
                   ) : (

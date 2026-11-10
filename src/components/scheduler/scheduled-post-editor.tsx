@@ -33,6 +33,7 @@
  * the form, the three mutations, and the confirmations.
  */
 
+import { MediaImage } from "@/components/shared/media-image";
 import { useEffect, useId, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -418,12 +419,11 @@ export function ScheduledPostEditor({
                 about duplicate keys. */}
             {mediaUrls.map((url, i) => (
               <li key={`${i}-${url}`} className="relative">
-                {/* Plain <img>: these are R2 URLs on a host next/image is not
-                    configured for, and a scheduled post's thumbnail is not
-                    worth a remotePatterns change. */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img loading="lazy"
+                <MediaImage
                   src={url}
+                  width={64}
+                  height={64}
+                  sizes="64px"
                   alt={`Attachment ${i + 1}`}
                   className="size-16 rounded-md border object-cover"
                 />

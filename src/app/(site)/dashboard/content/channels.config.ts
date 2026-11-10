@@ -236,7 +236,6 @@ export const CHANNELS: readonly ChannelConfig[] = [
     category: "Ads",
     providerKey: "x_ads",
     status: "live",
-    // Moved out of /dashboard/content/x-ads (that route now redirects here).
     dashboardPath: "/dashboard/ads?channel=x",
     logoUrl: `${SHADCN_LOGOS}/x-icon.svg`,
     logoInvertOnDark: true,

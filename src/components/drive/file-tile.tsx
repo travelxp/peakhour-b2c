@@ -1,5 +1,6 @@
 "use client";
 
+import { MediaImage } from "@/components/shared/media-image";
 import { FileText, Play } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
@@ -17,8 +18,7 @@ import { badgeText, isBeingDescribed, tileLine } from "@/lib/drive/copy";
 export function FileThumb({ item, className }: { item: MediaItem; className?: string }) {
   if (item.kind === "image" && item.publicUrl) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={item.publicUrl} alt={item.altText ?? item.name} loading="lazy" className={cn("size-full object-cover", className)} />
+      <MediaImage src={item.publicUrl} alt={item.altText ?? item.name} width={320} height={320} sizes="160px" className={cn("size-full object-cover", className)} />
     );
   }
   return (

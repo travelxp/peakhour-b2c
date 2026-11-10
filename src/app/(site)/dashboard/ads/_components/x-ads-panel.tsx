@@ -70,8 +70,6 @@ import {
  * (`/dashboard/ads?channel=x`). The hub owns the page header, channel
  * selector, and CronToolbar; this component owns everything below it,
  * including its own connection gate and ad-account selector.
- *
- * Was `/dashboard/content/x-ads` — that route now redirects here.
  */
 
 const ACCOUNT_PARAM = "account";

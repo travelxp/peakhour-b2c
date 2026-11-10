@@ -193,7 +193,9 @@ const rendersJsx = (sf: ts.SourceFile) => {
 const callsRedirect = (sf: ts.SourceFile) => {
   let found = false;
   const visit = (n: ts.Node) => {
-    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && /^(redirect|permanentRedirect)$/.test(n.expression.text)) found = true;
+    // notFound() counts too: a page that only hands over to not-found.tsx (the
+    // dashboard catch-all) renders no frame of its own, exactly like a redirect.
+    if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && /^(redirect|permanentRedirect|notFound)$/.test(n.expression.text)) found = true;
     if (!found) ts.forEachChild(n, visit);
   };
   visit(sf);
@@ -262,6 +264,7 @@ describe("the checks themselves", () => {
     expect(shellKind(page(`<PageShell>x</PageShell>`))).toBe("shell");
     expect(shellKind(`export default function P() { redirect("/x"); }`)).toBe("redirect");
     expect(shellKind(`export default async function P() { permanentRedirect("/x"); }`)).toBe("redirect");
+    expect(shellKind(`export default function P() { notFound(); }`)).toBe("redirect");
     expect(shellKind(page(`<div className="space-y-6">x</div>`))).toBe("none");
     expect(shellKind(page(`<Delegated />`))).toBe("none");
     // a redirect that also renders is not a bare redirect
