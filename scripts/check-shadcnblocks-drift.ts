@@ -2,6 +2,7 @@
  * Compares every file in src/components/blocks with its shadcnblocks registry
  * item and reports identical / differs / local-only / allowlisted.
  * Exit code is non-zero only when a block `differs` and is not allowlisted.
+ * With no key configured it prints one `::notice::` line and exits 0 (skipped).
  *
  * Run: `npm run blocks:drift` (needs SHADCNBLOCKS_API_KEY in the environment
  * or .env; the key is read from process.env only and never printed).
@@ -72,11 +73,21 @@ async function fetchItem(name: string, apiKey: string): Promise<RegistryItem | n
   return (await res.json()) as RegistryItem;
 }
 
+/** GitHub Actions annotation printed when no key is configured (the check is skipped, not failed). */
+export const NO_KEY_NOTICE =
+  "::notice::shadcnblocks drift check skipped: no SHADCNBLOCKS_API_KEY is configured. Set it to enable the check.";
+
+/** The key, or null when it is unset or blank (an unset GitHub secret arrives as an empty string). */
+export function readApiKey(env: Record<string, string | undefined>): string | null {
+  const key = env.SHADCNBLOCKS_API_KEY?.trim();
+  return key ? key : null;
+}
+
 async function main() {
-  const apiKey = process.env.SHADCNBLOCKS_API_KEY;
+  const apiKey = readApiKey(process.env);
   if (!apiKey) {
-    console.error("SHADCNBLOCKS_API_KEY missing - set it in .env or the environment");
-    process.exit(2);
+    console.log(NO_KEY_NOTICE);
+    return;
   }
   const here = dirname(fileURLToPath(import.meta.url));
   const dir = resolve(here, "..", "src/components/blocks");
