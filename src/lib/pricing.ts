@@ -144,6 +144,116 @@ export function countryFromHeader(header: string | null): string {
   return header && /^[A-Za-z]{2}$/.test(header) ? header.toUpperCase() : "DEFAULT";
 }
 
+/**
+ * The country a pricing page quotes: an explicit `?country=XX` (the visitor's
+ * own correction of a wrong geo: VPN, travel) beats the edge geo header, which
+ * beats the pinned "DEFAULT" key. The query is validated exactly as the header
+ * is (two letters A-Z, uppercased) and an invalid one is ignored, not
+ * trusted. ★ONE FUNCTION FOR /pricing AND /shopify, so one visitor can never
+ * be quoted two currencies by the two pages.
+ */
+export function resolveCountry(
+  query: string | string[] | undefined,
+  header: string | null,
+): string {
+  const q = Array.isArray(query) ? query[0] : query;
+  if (typeof q === "string" && /^[A-Za-z]{2}$/.test(q)) return q.toUpperCase();
+  return countryFromHeader(header);
+}
+
+/** True when the visitor chose the country (a valid `?country=`), so links
+ *  between the pricing pages carry the choice and a geo-detected visitor's
+ *  URLs stay clean. */
+export function hasCountryOverride(query: string | string[] | undefined): boolean {
+  const q = Array.isArray(query) ? query[0] : query;
+  return typeof q === "string" && /^[A-Za-z]{2}$/.test(q);
+}
+
+/** `href` with `?country=XX` carried (before any #fragment). */
+export function withCountry(href: string, country: string | null): string {
+  if (!country) return href;
+  const hash = href.indexOf("#");
+  const path = hash === -1 ? href : href.slice(0, hash);
+  const frag = hash === -1 ? "" : href.slice(hash);
+  return `${path}${path.includes("?") ? "&" : "?"}country=${encodeURIComponent(country)}${frag}`;
+}
+
+/** The markets that have their own price row, for the country switcher. The
+ *  Eurozone is represented by Germany; "ZZ" selects the USD fallback. The
+ *  prices themselves are data and live in the API, not here. */
+export const PRICE_MARKETS: ReadonlyArray<{ code: string; label: string }> = [
+  { code: "IN", label: "India (INR)" },
+  { code: "US", label: "United States (USD)" },
+  { code: "GB", label: "United Kingdom (GBP)" },
+  { code: "DE", label: "Eurozone (EUR)" },
+  { code: "CA", label: "Canada (CAD)" },
+  { code: "AU", label: "Australia (AUD)" },
+  { code: "NZ", label: "New Zealand (NZD)" },
+  { code: "AE", label: "United Arab Emirates (AED)" },
+  { code: "SG", label: "Singapore (SGD)" },
+  { code: "SA", label: "Saudi Arabia (SAR)" },
+  { code: "BR", label: "Brazil (BRL)" },
+  { code: "ZZ", label: "Other (USD)" },
+];
+
+/** What a page says when the API returned no Suite price. Honest, and true of
+ *  every product the catalogue marks live. */
+export const PRICE_AT_SIGNUP = "You'll see your price for your country at sign-up.";
+
+/** The badge on a module in the /pricing hero list: "Included" where Suite
+ *  composes it, "Soon" where Suite is listed without it, and NO badge when no
+ *  Suite came back at all (the catalogue said nothing about any module, and
+ *  "Soon" on a live product is false). */
+export function moduleBadge(hasSuite: boolean, included: boolean): "Included" | "Soon" | null {
+  if (!hasSuite) return null;
+  return included ? "Included" : "Soon";
+}
+
+/** How the quoted price treats tax, in the words the page prints. One pure
+ *  decision from the entry's own flags. */
+export function taxLabel(p: Pick<PricingEntry, "taxIncluded" | "gstApplicable" | "vatApplicable">): string {
+  if (p.gstApplicable && p.taxIncluded) return "incl. GST";
+  if (p.vatApplicable && p.taxIncluded) return "incl. VAT";
+  if (p.vatApplicable) return "VAT added at checkout";
+  if (p.taxIncluded) return "incl. tax";
+  return "plus applicable tax";
+}
+
+/** The English name of a region code, or null when Intl does not know it. */
+function regionName(code: string): string | null {
+  try {
+    const name = new Intl.DisplayNames(["en"], { type: "region" }).of(code);
+    return name && name !== code && name !== "Unknown Region" ? name : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The country the price row is for, named, or null for the "DEFAULT" key and
+ *  for a code the API fell back to USD for: naming the visitor's country there
+ *  would claim a price row it does not have. */
+export function pricedCountryName(p: PricingEntry, country: string): string | null {
+  const own = country !== "DEFAULT" && (p.currency !== "USD" || country === "US");
+  return own ? regionName(country) : null;
+}
+
+/** "Prices for India in INR · incl. GST", or "Prices in USD · plus applicable
+ *  tax" where no country can be named. */
+export function priceScopeLine(p: PricingEntry, country: string): string {
+  const name = pricedCountryName(p, country);
+  const head = name ? `Prices for ${name} in ${p.currency}` : `Prices in ${p.currency}`;
+  return `${head} · ${taxLabel(p)}`;
+}
+
+/** The switcher's selected value: the country when it has its own row, "ZZ"
+ *  for the USD fallback. */
+export function marketSelection(p: PricingEntry, country: string): string {
+  const own = country !== "DEFAULT" && (p.currency !== "USD" || country === "US");
+  if (!own) return "ZZ";
+  const eurozone = p.currency === "EUR";
+  return eurozone && !PRICE_MARKETS.some((m) => m.code === country) ? "DE" : country;
+}
+
 export const getPricing = cache(
   fetchPricing,
   ["platform-pricing"],

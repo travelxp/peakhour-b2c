@@ -20,6 +20,7 @@ import {
   formatPeaks,
   hasMonthlyOffer,
   offerMonthly,
+  PRICE_AT_SIGNUP,
   suiteTrialDays,
   type PricingResponse,
 } from "@/lib/pricing";
@@ -50,10 +51,13 @@ const primaryBtn =
  */
 export function ShopifyPageView({
   pricing,
+  country = "DEFAULT",
   comingSoon,
   signup,
 }: {
   pricing: PricingResponse | null;
+  /** The country `pricing` was fetched for (`resolveCountry`). */
+  country?: string;
   /** The catalog marks the shopify connector coming soon (pillar-channels). */
   comingSoon: boolean;
   /** `signupCta(...)`: what the hero shows in place of Install while coming soon. */
@@ -314,10 +318,12 @@ export function ShopifyPageView({
               // Coming soon, the button is the peakhour.ai signup, so the card is
               // the plain Suite card: its trial is not billed through Shopify.
               channel={comingSoon ? undefined : "shopify"}
+              country={country}
+              scopeAction="/shopify#pricing"
             />
           ) : (
             <p className="text-muted-foreground">
-              Pricing is not available right now. Check back soon.
+              {PRICE_AT_SIGNUP}
             </p>
           )}
         </div>

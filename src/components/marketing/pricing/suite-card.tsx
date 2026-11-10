@@ -10,6 +10,7 @@ import {
   yearlyPrice,
   type ResolvedProductTier,
 } from "@/lib/pricing";
+import { PriceScope } from "@/components/marketing/pricing/price-scope";
 import type { SignupCta } from "@/lib/catalog";
 import { pricingPillar } from "@/lib/pricing-catalog";
 import { shopifyTrialNote } from "@/lib/shopify-features";
@@ -40,6 +41,8 @@ export function SuiteCard({
   cta,
   openSignup,
   channel,
+  country,
+  scopeAction,
 }: {
   tier: ResolvedProductTier;
   /** ★THE MODULES THIS PLAN ACTUALLY COMPOSES, resolved by the caller from the
@@ -58,6 +61,12 @@ export function SuiteCard({
    * Shopify trial is billed through Shopify, not started on peakhour.ai.
    */
   channel?: "shopify";
+  /** The country this price was fetched for (`resolveCountry`). With
+   *  `scopeAction`, the card says which country and tax the price is for and
+   *  offers the country switcher. */
+  country?: string;
+  /** Where the switcher returns to, fragment included: "/pricing#suite". */
+  scopeAction?: string;
 }) {
   const shopify = channel === "shopify";
   const external = shopify && cta.href.startsWith("http");
@@ -131,6 +140,9 @@ export function SuiteCard({
               <>{yearly.price} billed yearly</>
             )}
           </p>
+          )}
+          {country && scopeAction && (
+            <PriceScope pricing={p} country={country} action={scopeAction} />
           )}
 
           {typeof peaks === "number" && (
