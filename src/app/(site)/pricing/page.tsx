@@ -214,13 +214,7 @@ export default async function PricingPage() {
                   one the moment it opens. Each card shows what runs there.
                 </p>
               </div>
-              {/* One badge position for every card: the "Coming soon" chip
-                  sits on its own row under the name, and the heading keeps
-                  that row's height even on a card with no chip (WhatsApp), so
-                  the four descriptions start at the same height. Set here
-                  because the strip's own file is being edited by another
-                  open PR; fold into ChannelsStrip once it lands. */}
-              <div className="mt-8 [&_h3]:min-h-[4.25rem] [&_h3]:flex-col [&_h3]:flex-nowrap [&_h3]:items-start [&_h3]:gap-2">
+              <div className="mt-8">
                 <ChannelsStrip comingSoonKeys={comingSoonKeys} />
               </div>
             </div>

@@ -35,7 +35,10 @@ export function ChannelsStrip({
         const inner = (
           <>
             <ChannelTile channel={key} className="size-10 rounded-xl text-sm" />
-            <h3 className="mt-3.5 flex flex-wrap items-center gap-2 font-bold">
+            {/* The chip is always on its own row under the name, and the row
+                keeps its height on a card with no chip, so every description
+                starts at the same height. */}
+            <h3 className="mt-3.5 flex min-h-[4.25rem] flex-col items-start gap-2 font-bold">
               {ch.name}
               {soon && <StatusChip status="coming_soon" />}
             </h3>
