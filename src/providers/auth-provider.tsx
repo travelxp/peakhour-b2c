@@ -5,11 +5,11 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
-  useState,
 } from "react";
-import { useRouter } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
+import { usePathname, useRouter } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   type AuthUser,
   type AuthOrg,
@@ -17,11 +17,27 @@ import {
   type OrgSummary,
   type BusinessSummary,
   type Entitlements,
-  getMe,
   logout as apiLogout,
   switchOrg as apiSwitchOrg,
   switchBusiness as apiSwitchBusiness,
 } from "@/lib/auth";
+import {
+  ME_KEY,
+  ME_STALE_MS,
+  cancelScopedQueries,
+  fetchMe,
+  meRefetchInterval,
+  meRetryDelay,
+  meShouldRetry,
+  primeMe,
+  removeScopedQueries,
+} from "@/lib/auth-session";
+import { Button } from "@/components/ui/button";
+
+// Start /me as soon as this chunk is evaluated -- before React hydrates and
+// before the QueryClient exists. fetchMe() hands the in-flight request to the
+// query. No-op on the server.
+primeMe();
 
 interface AuthState {
   user: AuthUser | null;
@@ -37,6 +53,11 @@ interface AuthState {
 }
 
 interface AuthContextValue extends AuthState {
+  /** The last /me attempt failed for a reason that is NOT "signed out" (5xx,
+   *  timeout, offline). The last known identity, if any, is kept. */
+  isUnreachable: boolean;
+  /** Try /me again now (also retried automatically, with backoff). */
+  retry: () => void;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   switchOrg: (orgId: string) => Promise<void>;
@@ -45,52 +66,50 @@ interface AuthContextValue extends AuthState {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+/** Routes that cannot render without an identity: a blocked /me must not look like a logout there. */
+const GATED_PREFIXES = ["/dashboard", "/cms", "/onboarding"];
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const queryClient = useQueryClient();
-  const [state, setState] = useState<AuthState>({
-    user: null,
-    org: null,
-    orgs: [],
-    business: null,
-    businesses: [],
-    entitlements: null,
-    isLoading: true,
-    isAuthenticated: false,
+
+  const me = useQuery({
+    queryKey: ME_KEY,
+    queryFn: fetchMe,
+    staleTime: ME_STALE_MS,
+    // A paused (offline) query would sit in "loading" forever; let it fail
+    // fast into the unreachable state instead.
+    networkMode: "always",
+    retry: meShouldRetry,
+    retryDelay: meRetryDelay,
+    refetchInterval: meRefetchInterval,
   });
 
-  const refreshUser = useCallback(async () => {
-    try {
-      const { user, org, orgs, business, businesses, entitlements } = await getMe();
-      setState({
-        user,
-        org,
-        orgs: orgs || [],
-        business: business || null,
-        businesses: businesses || [],
-        entitlements: entitlements ?? null,
-        isLoading: false,
-        isAuthenticated: true,
-      });
-    } catch {
-      setState({
-        user: null,
-        org: null,
-        orgs: [],
-        business: null,
-        businesses: [],
-        entitlements: null,
-        isLoading: false,
-        isAuthenticated: false,
-      });
-    }
-  }, []);
+  const data = me.data ?? null;
+  const state = useMemo<AuthState>(
+    () => ({
+      user: data?.user ?? null,
+      org: data?.org ?? null,
+      orgs: data?.orgs || [],
+      business: data?.business || null,
+      businesses: data?.businesses || [],
+      entitlements: data?.entitlements ?? null,
+      isLoading: me.isPending,
+      isAuthenticated: data !== null,
+    }),
+    [data, me.isPending]
+  );
+  const isUnreachable = me.isError;
 
-  // Check auth on mount
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- bootstrap auth from server cookie on mount; setState inside refreshUser is required to populate context
-    refreshUser();
-  }, [refreshUser]);
+  const { refetch } = me;
+  const refreshUser = useCallback(async () => {
+    // Errors land in the query state (isUnreachable), never thrown to callers.
+    await refetch();
+  }, [refetch]);
+  const retry = useCallback(() => {
+    void refetch();
+  }, [refetch]);
 
   // Auto-resolve a single-business org. If the JWT cookie has no
   // businessId (or a stale one) but the user has exactly one business
@@ -124,11 +143,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     (async () => {
       try {
-        await queryClient.cancelQueries();
+        await cancelScopedQueries(queryClient);
         if (cancelled) return;
         await apiSwitchBusiness(state.businesses[0]._id);
         if (cancelled) return;
-        queryClient.clear();
+        removeScopedQueries(queryClient);
         await refreshUser();
       } catch {
         // Latched — see comment block above. Re-mount to retry.
@@ -152,21 +171,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Best-effort — clear local state regardless
     }
-    queryClient.clear();
+    // Drop the scoped caches and answer "signed out" in the me query itself --
+    // clear() would also drop the me query its observer is still holding.
+    await queryClient.cancelQueries({ queryKey: ME_KEY });
+    removeScopedQueries(queryClient);
+    queryClient.setQueryData(ME_KEY, null);
     // Reset the auto-resolve latch so the next login (which may share
     // this provider instance if the layout doesn't unmount) gets a
     // clean attempt. router.push("/auth") doesn't guarantee remount.
     autoResolveAttempted.current = false;
-    setState({
-      user: null,
-      org: null,
-      orgs: [],
-      business: null,
-      businesses: [],
-      entitlements: null,
-      isLoading: false,
-      isAuthenticated: false,
-    });
     router.push("/auth");
   }, [router, queryClient]);
 
@@ -180,9 +193,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // pulls the new auth state which the next render's queries pick up.
   const switchOrg = useCallback(
     async (orgId: string) => {
-      await queryClient.cancelQueries();
+      await cancelScopedQueries(queryClient);
       await apiSwitchOrg(orgId);
-      queryClient.clear();
+      removeScopedQueries(queryClient);
       // Reset the auto-resolve latch — the new org may be a single-
       // business org that needs its own pinning round-trip.
       autoResolveAttempted.current = false;
@@ -193,9 +206,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const switchBusiness = useCallback(
     async (businessId: string) => {
-      await queryClient.cancelQueries();
+      await cancelScopedQueries(queryClient);
       await apiSwitchBusiness(businessId);
-      queryClient.clear();
+      removeScopedQueries(queryClient);
       // Symmetric with switchOrg: if the backend later invalidates
       // this pin and refreshUser returns business=null while the lone
       // business remains, auto-resolve should be free to recover.
@@ -205,11 +218,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [refreshUser, queryClient]
   );
 
+  const blocked =
+    isUnreachable &&
+    !state.user &&
+    GATED_PREFIXES.some((p) => pathname === p || pathname?.startsWith(p + "/"));
+
   return (
     <AuthContext.Provider
-      value={{ ...state, logout, refreshUser, switchOrg, switchBusiness }}
+      value={{
+        ...state,
+        isUnreachable,
+        retry,
+        logout,
+        refreshUser,
+        switchOrg,
+        switchBusiness,
+      }}
     >
-      {children}
+      {blocked ? (
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="space-y-4 text-center" role="alert">
+            <p className="text-sm text-muted-foreground">
+              We could not reach Peakhour. Your session is fine — we are
+              trying again automatically.
+            </p>
+            <Button onClick={retry} disabled={me.isFetching}>
+              {me.isFetching ? "Retrying..." : "Retry now"}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        children
+      )}
+      {isUnreachable && state.user ? (
+        <div
+          role="status"
+          className="fixed bottom-4 left-4 z-50 flex items-center gap-3 rounded-md border bg-background px-3 py-2 text-sm shadow-md"
+        >
+          <span className="text-muted-foreground">
+            Reconnecting to Peakhour...
+          </span>
+          <Button size="sm" variant="outline" onClick={retry} disabled={me.isFetching}>
+            Retry
+          </Button>
+        </div>
+      ) : null}
     </AuthContext.Provider>
   );
 }
