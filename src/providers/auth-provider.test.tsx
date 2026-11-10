@@ -67,8 +67,9 @@ function tree() {
   );
 }
 
-async function mount() {
+async function mount(seed?: (qc: QueryClient) => void) {
   qc = new QueryClient({ defaultOptions: { queries: { retryDelay: 1 } } });
+  seed?.(qc); // before the first render, so seeded data cannot land after the provider has already acted
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
@@ -76,9 +77,21 @@ async function mount() {
     root.render(tree());
   });
 }
+// Settle on the state transition, never on a fixed sleep. This used to be a 30ms real-timer sleep, which
+// is a race against the retry chain (3 fetches for the 500 case): under CPU load the chain outlasted it
+// and the assertion ran mid-retry. react-query keeps a query non-idle ("fetching", or "paused" while it waits out a retry
+// delay) for the whole retry chain, so "every query idle" is the real settled state; the ticks around it let the mocked promises and the
+// provider's effects (auto-resolve a lone business, refreshUser) run to completion.
+const tick = () => new Promise<void>((r) => setTimeout(r, 0));
 const flush = () =>
   act(async () => {
-    await new Promise((r) => setTimeout(r, 30));
+    await tick();
+    const deadline = Date.now() + 10_000;
+    while (!qc.getQueryCache().getAll().every((q) => q.state.fetchStatus === "idle")) {
+      if (Date.now() > deadline) throw new Error("flush: queries still fetching after 10s");
+      await tick();
+    }
+    await tick();
   });
 
 beforeEach(() => {
@@ -194,8 +207,10 @@ describe("AuthProvider", () => {
     it("pins the lone business, drops scoped caches, and refetches me", async () => {
       getMeMock.mockResolvedValueOnce(meOf(null)).mockResolvedValue(meOf(BIZ));
       switchMock.mockResolvedValue(undefined as never);
-      await mount();
-      qc.setQueryData(["jobs"], ["stale-empty"]);
+      // Seeded BEFORE the first render. It used to be set after mount() returned, but mount()'s act can run
+      // the whole pin-and-drop chain first (under CPU load it did), so the "stale" entry was written after
+      // the drop and survived: the test raced its own subject.
+      await mount((c) => c.setQueryData(["jobs"], ["stale-empty"]));
       await flush();
       await flush();
       expect(switchMock).toHaveBeenCalledWith("b1");

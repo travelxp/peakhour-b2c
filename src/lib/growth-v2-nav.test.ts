@@ -114,11 +114,13 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 describe("the retired Outcomes and Optimizer routes", () => {
-  it("have no page left", { timeout: 30_000 }, () => {
+  // The 120s timeouts below: each case walks all of src/. The cost is file I/O, not a hang; it took 31s under heavy
+  // CPU load, past the earlier 30s. The assertions are unchanged.
+  it("have no page left", { timeout: 120_000 }, () => {
     for (const dir of ["outcomes", "optimizer"]) expect(existsSync(path.join(DASH, dir)), `dashboard/${dir}`).toBe(false);
   });
 
-  it("are linked from nowhere in src", { timeout: 30_000 }, () => {
+  it("are linked from nowhere in src", { timeout: 120_000 }, () => {
     // Built from parts so this file does not match itself.
     const dead = [["dashboard", "outcomes"], ["dashboard", "optimizer"]].map((parts) => `/${parts.join("/")}`);
     const hits = walk(SRC)
@@ -130,7 +132,7 @@ describe("the retired Outcomes and Optimizer routes", () => {
     expect(hits).toEqual([]);
   });
 
-  it("left no reader of the four retired growth settings", { timeout: 30_000 }, () => {
+  it("left no reader of the four retired growth settings", { timeout: 120_000 }, () => {
     const retired = ["optimizerEnabled", "autonomyLevel", "weeklyBudgetEnvelope", "winTarget"];
     const hits = walk(SRC)
       .filter((f) => !f.endsWith("growth-v2-nav.test.ts") && !f.includes(`${path.sep}components${path.sep}blocks${path.sep}`))
