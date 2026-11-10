@@ -17,7 +17,7 @@ import { PageShell } from "@/components/dashboard/page-shell";
  */
 export function CommerceAutopilot({ intro }: { intro?: React.ReactNode } = {}) {
   return (
-    <FeatureGate feature="commerce.autopilot" featureName="Commerce Autopilot">
+    <FeatureGate feature="commerce.autopilot" featureName="Auto-merchandising">
       <CommerceAutopilotBody intro={intro} />
     </FeatureGate>
   );
