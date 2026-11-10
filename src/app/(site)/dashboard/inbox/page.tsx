@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { Suspense, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,15 +14,11 @@ import { ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
 import { createComposerStore } from "@/lib/wa-inbox-reply";
 import { ConversationsPane, WaitingForConnection } from "@/components/inbox/conversations-pane";
-import { AllStoresPane } from "@/components/inbox/all-stores-pane";
 import { SCOPE_LABEL, offersAllStores, openAddress, scopeFromParam, type InboxScope } from "@/lib/inbox-all-stores";
-import { InsightsPane } from "@/components/inbox/insights-pane";
-import { AskYourInbox } from "@/components/whatsapp/ask-your-inbox";
 import { useInsights } from "@/hooks/use-insights";
 import { insightsBadge } from "@/lib/insights";
 import { INBOX_SUBTITLE, threadFromParam } from "@/lib/inbox-view";
 import { inboxApi, type InboxItem, type InboxPriority } from "@/lib/api/inbox";
-import { ReviewReplyCard } from "@/components/inbox/review-reply-card";
 import { listFetchState, showsSkeleton } from "@/lib/list-fetch-state";
 import {
   inboxTabFromParam,
@@ -36,6 +33,12 @@ import {
   unansweredBadge,
 } from "@/lib/review-reply";
 import { PageShell } from "@/components/dashboard/page-shell";
+
+// Tabs other than Conversations (and the all-stores scope) load on demand.
+const AllStoresPane = dynamic(() => import("@/components/inbox/all-stores-pane").then((mod) => mod.AllStoresPane));
+const InsightsPane = dynamic(() => import("@/components/inbox/insights-pane").then((mod) => mod.InsightsPane));
+const AskYourInbox = dynamic(() => import("@/components/whatsapp/ask-your-inbox").then((mod) => mod.AskYourInbox));
+const ReviewReplyCard = dynamic(() => import("@/components/inbox/review-reply-card").then((mod) => mod.ReviewReplyCard));
 
 /**
  * Inbox — ONE queue for everything inbound (D-inbox): every channel is
