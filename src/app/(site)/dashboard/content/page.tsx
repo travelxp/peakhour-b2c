@@ -146,7 +146,7 @@ export default function ContentChannelsHubPage() {
       <header className="space-y-2 border-b pb-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 space-y-2">
-            <h1 className="text-2xl font-semibold tracking-tight">Content channels</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">All content</h1>
             <p className="text-sm text-muted-foreground">
               Connect content sources to ingest, repurpose, and publish across every channel.
             </p>

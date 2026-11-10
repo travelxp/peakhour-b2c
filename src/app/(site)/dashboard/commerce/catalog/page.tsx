@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { CommerceCatalog } from "@/components/commerce/catalog";
 
 export const metadata: Metadata = {
-  title: "Catalog · Commerce",
+  title: "Products · Commerce",
 };
 
 /**

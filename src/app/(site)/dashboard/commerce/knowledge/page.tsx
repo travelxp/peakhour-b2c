@@ -3,7 +3,7 @@ import { KnowledgeBase } from "@/components/commerce/knowledge-base";
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 
 export const metadata: Metadata = {
-  title: "Knowledge base · Commerce",
+  title: "Assistant answers · Commerce",
 };
 
 /**
@@ -15,7 +15,7 @@ export default function CommerceKnowledgePage() {
   return (
     <PageShell width="standard">
       <PageHeader
-        title="Knowledge base"
+        title="Assistant answers"
         description="What your assistant knows about your business beyond the catalog. It answers shoppers from these entries and, when it does not know, asks you here instead of guessing."
       />
       <KnowledgeBase />

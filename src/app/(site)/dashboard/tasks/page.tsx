@@ -116,7 +116,7 @@ export default function TasksPage() {
         onTriggered={() => queryClient.invalidateQueries({ queryKey: ["jobs"] })}
       />
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Tasks</h2>
+        <h2 className="text-2xl font-bold tracking-tight">Activity</h2>
         <p className="text-muted-foreground">
           Background work running on your library — analysis, syncs, and more.
         </p>

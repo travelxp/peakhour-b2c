@@ -124,7 +124,7 @@ export default function PagesDashboard() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Pages</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Web pages</h2>
           <p className="mt-1 max-w-prose text-sm text-muted-foreground">
             Ready-made landing pages for your business, written for you. Review each one and
             approve to publish — nothing goes live until you say so.

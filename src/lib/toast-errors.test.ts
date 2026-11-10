@@ -90,7 +90,7 @@ describe("user-fixable codes keep their own advice", () => {
   const cases: Array<[string, number, RegExp]> = [
     ["RATE_LIMITED", 429, /rate-limiting/i],
     ["NEEDS_REAUTH", 409, /reconnect/i],
-    ["NOT_CONNECTED", 400, /Integrations/],
+    ["NOT_CONNECTED", 400, /Connected accounts/],
     ["NO_AD_ACCOUNT", 400, /ad account/i],
     ["FORBIDDEN", 403, /business/i],
     ["INVALID_TRANSITION", 409, /current state/i],
