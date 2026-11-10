@@ -140,7 +140,7 @@ export default async function PricingPage() {
                     <li key={slug}>
                       <Link
                         href={`/${slug}`}
-                        className="flex items-center gap-3.5 rounded-xl px-4 py-3 transition-colors hover:bg-white/5"
+                        className="flex items-start gap-3.5 rounded-xl px-4 py-3 transition-colors hover:bg-white/5"
                       >
                         <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white/10">
                           <Icon className="size-4" strokeWidth={2} aria-hidden />
@@ -149,7 +149,7 @@ export default async function PricingPage() {
                           <span className="block text-sm font-bold">
                             {pillar.name}
                           </span>
-                          <span className="block truncate text-xs text-on-ink-dim">
+                          <span className="block text-xs text-on-ink-dim">
                             {pillar.promise}
                           </span>
                         </span>
@@ -157,7 +157,7 @@ export default async function PricingPage() {
                             (`suiteModuleSlugs`); a module Suite does not
                             compose here reads "Soon", never a price. */}
                         <span
-                          className={`ml-auto shrink-0 text-sm font-bold tabular-nums ${
+                          className={`ml-auto shrink-0 pt-0.5 text-sm font-bold tabular-nums ${
                             isIn ? "text-success" : "text-on-ink-dim"
                           }`}
                           style={{ fontFamily: "var(--font-space-grotesk)" }}
@@ -214,7 +214,13 @@ export default async function PricingPage() {
                   one the moment it opens. Each card shows what runs there.
                 </p>
               </div>
-              <div className="mt-8">
+              {/* One badge position for every card: the "Coming soon" chip
+                  sits on its own row under the name, and the heading keeps
+                  that row's height even on a card with no chip (WhatsApp), so
+                  the four descriptions start at the same height. Set here
+                  because the strip's own file is being edited by another
+                  open PR; fold into ChannelsStrip once it lands. */}
+              <div className="mt-8 [&_h3]:min-h-[4.25rem] [&_h3]:flex-col [&_h3]:flex-nowrap [&_h3]:items-start [&_h3]:gap-2">
                 <ChannelsStrip comingSoonKeys={comingSoonKeys} />
               </div>
             </div>
