@@ -11,7 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DataToolbar, DataToolbarSearch } from "@/components/molecules/data-table";
+import { DataToolbar, DataToolbarSearch } from "@/components/molecules/data-table/data-toolbar";
 import { EmptyState } from "@/components/molecules/empty-state";
 import {
   useAnswerKbRequest,
