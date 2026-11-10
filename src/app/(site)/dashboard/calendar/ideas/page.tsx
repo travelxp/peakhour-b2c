@@ -27,6 +27,8 @@ interface CalendarIdea {
 }
 
 import { ChannelIconCompact } from "@/components/brand/channel-icon";
+import { QueryError } from "@/components/dashboard/query-error";
+import { queryViewState } from "@/lib/query-view-state";
 
 const STATUS_COLORS: Record<string, string> = {
   brainstorm: "bg-muted border-border",
@@ -42,10 +44,12 @@ export default function IdeasCalendarPage() {
   const [view, setView] = useState<"week" | "month">("week");
   const [weekOffset, setWeekOffset] = useState(0);
 
-  const { data: ideas } = useQuery({
+  const ideasQuery = useQuery({
     queryKey: ["content-ideas"],
     queryFn: () => api.get<CalendarIdea[]>("/v1/content/ideas"),
   });
+  const { data: ideas } = ideasQuery;
+  const ideasView = queryViewState(ideasQuery);
 
   // Calculate week dates
   const today = new Date();
@@ -98,6 +102,14 @@ export default function IdeasCalendarPage() {
           </>
         }
       />
+
+      {(ideasView === "error" || ideasView === "offline") && (
+        <QueryError
+          what="your planned ideas"
+          kind={ideasView}
+          onRetry={() => void ideasQuery.refetch()}
+        />
+      )}
 
       {/* Week navigation */}
       <div className="flex items-center justify-between">
@@ -210,9 +222,9 @@ function CalendarCard({ idea, compact }: { idea: CalendarIdea; compact?: boolean
 
       {!compact && (
         <div className="flex flex-wrap gap-1 mt-1.5">
-          {idea.sector && <Badge variant="secondary" className="text-[10px] h-5">{idea.sector}</Badge>}
-          {idea.contentType && <Badge variant="outline" className="text-[10px] h-5">{idea.contentType}</Badge>}
-          <StatusBadge status={idea.status} className="text-[10px] h-5" />
+          {idea.sector && <Badge variant="secondary" className="text-micro h-5">{idea.sector}</Badge>}
+          {idea.contentType && <Badge variant="outline" className="text-micro h-5">{idea.contentType}</Badge>}
+          <StatusBadge status={idea.status} className="text-micro h-5" />
         </div>
       )}
     </div>
@@ -258,7 +270,7 @@ function MonthView({ ideasByDate, today }: { ideasByDate: Map<string, CalendarId
               </span>
               {dayIdeas.slice(0, 2).map((idea) => (
                 <div key={idea._id} className="mt-0.5">
-                  <p className="text-[10px] leading-tight line-clamp-1 font-medium">{idea.title}</p>
+                  <p className="text-micro leading-tight line-clamp-1 font-medium">{idea.title}</p>
                   <div className="flex gap-0.5">
                     {idea.channels?.slice(0, 3).map((ch) => (
                       <ChannelIconCompact key={ch} channel={ch} size={10} />
@@ -267,7 +279,7 @@ function MonthView({ ideasByDate, today }: { ideasByDate: Map<string, CalendarId
                 </div>
               ))}
               {dayIdeas.length > 2 && (
-                <p className="text-[9px] text-muted-foreground">+{dayIdeas.length - 2} more</p>
+                <p className="text-micro text-muted-foreground">+{dayIdeas.length - 2} more</p>
               )}
             </div>
           );

@@ -14,6 +14,7 @@
  * additionally needs an ad account, so a stale connection lists nothing.
  */
 
+import dynamic from "next/dynamic";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -28,10 +29,6 @@ import { BusinessProfileSummary } from "@/components/audience/business-profile-s
 import { GuardrailsCard } from "@/components/ads/guardrails-card";
 import { CreativesReviewEntry } from "@/components/ads/creatives-review-entry";
 import { AudienceExclusionsCard } from "@/components/ads/audience-exclusions-card";
-import { LinkedInAdsPanel } from "./_components/linkedin-ads-panel";
-import { XAdsPanel } from "./_components/x-ads-panel";
-import { MetaAdsPanel } from "./_components/meta-ads-panel";
-import { GoogleAdsPanel } from "./_components/google-ads-panel";
 import {
   ADS_CHANNELS,
   ADS_CHANNEL_PARAM,
@@ -42,6 +39,12 @@ import {
   resolveAdsChannel,
   type AdsChannelKey,
 } from "./ads-channels";
+
+// Only the selected channel's panel is mounted, so each one loads on demand.
+const LinkedInAdsPanel = dynamic<{ channelKey: AdsChannelKey }>(() => import("./_components/linkedin-ads-panel").then((mod) => mod.LinkedInAdsPanel));
+const XAdsPanel = dynamic<{ channelKey: AdsChannelKey }>(() => import("./_components/x-ads-panel").then((mod) => mod.XAdsPanel));
+const MetaAdsPanel = dynamic<{ channelKey: AdsChannelKey }>(() => import("./_components/meta-ads-panel").then((mod) => mod.MetaAdsPanel));
+const GoogleAdsPanel = dynamic<{ channelKey: AdsChannelKey }>(() => import("./_components/google-ads-panel").then((mod) => mod.GoogleAdsPanel));
 
 interface ApiIntegration {
   provider: string;
@@ -59,7 +62,7 @@ interface ApiIntegration {
  */
 const PANELS: Record<
   AdsChannelKey,
-  (props: { channelKey: AdsChannelKey }) => React.JSX.Element
+  React.ComponentType<{ channelKey: AdsChannelKey }>
 > = {
   linkedin: LinkedInAdsPanel,
   x: XAdsPanel,
@@ -258,7 +261,7 @@ function AdsHub() {
                 {/* Only claim "not connected" when connection state is actually
                     known — on a failed load we don't know either way. */}
                 {connectionStateKnown && !connectedProviderKeys.has(c.providerKey) && (
-                  <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-normal">
+                  <Badge variant="outline" className="px-1.5 py-0 text-micro font-normal">
                     Not connected
                   </Badge>
                 )}

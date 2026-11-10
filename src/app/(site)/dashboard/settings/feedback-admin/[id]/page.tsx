@@ -151,7 +151,7 @@ export default function FeedbackAdminDetailPage() {
       <PageHeader
         icon={
           <Button variant="ghost" size="icon" asChild>
-            <Link href="/dashboard/settings/feedback-admin">
+            <Link aria-label="Back to feedback" href="/dashboard/settings/feedback-admin">
               <ArrowLeft className="size-4" />
             </Link>
           </Button>
@@ -253,12 +253,12 @@ export default function FeedbackAdminDetailPage() {
                         {comment.internal && (
                           <Badge
                             variant="outline"
-                            className="text-[10px] px-1"
+                            className="text-micro px-1"
                           >
                             internal
                           </Badge>
                         )}
-                        <Badge variant="secondary" className="text-[10px] px-1">
+                        <Badge variant="secondary" className="text-micro px-1">
                           {comment.type}
                         </Badge>
                       </div>
@@ -325,7 +325,7 @@ export default function FeedbackAdminDetailPage() {
                   </CardTitle>
                   <Button
                     variant="ghost"
-                    size="icon"
+                    size="icon" aria-label="Re-analyze ticket"
                     className="size-7"
                     onClick={() => reanalyze.mutate()}
                     disabled={reanalyze.isPending}
@@ -394,11 +394,11 @@ export default function FeedbackAdminDetailPage() {
                       >
                         <p className="text-sm">{action.action}</p>
                         <div className="flex gap-1.5">
-                          <Badge variant="secondary" className="text-[10px]">
+                          <Badge variant="secondary" className="text-micro">
                             {PRIORITY_LABELS[action.priority] ?? action.priority}
                           </Badge>
                           {action.effort && (
-                            <Badge variant="outline" className="text-[10px]">
+                            <Badge variant="outline" className="text-micro">
                               {EFFORT_LABELS[action.effort] ?? action.effort}
                             </Badge>
                           )}

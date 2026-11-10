@@ -36,7 +36,7 @@ export function UpgradeCallout({
     <div
       className={cn(
         "inline-flex items-start gap-1.5 rounded-md border border-brand/30 bg-brand/10 text-brand-label",
-        variant === "compact" ? "px-2 py-1 text-[11px]" : "px-3 py-2 text-xs w-full",
+        variant === "compact" ? "px-2 py-1 text-micro" : "px-3 py-2 text-xs w-full",
         className,
       )}
     >

@@ -350,7 +350,7 @@ function PanelShell({
           </h3>
           <Badge
             variant="outline"
-            className="text-[10px] uppercase tracking-wide"
+            className="text-micro uppercase tracking-wide"
             title="Tier C floor — frequency, recency, and comment reactions, scored over the lookback window LinkedIn's data-retention rules permit (48 hours by default). Profile enrichment (job title, seniority, ICP match) ships next."
           >
             AQS · rules
@@ -484,7 +484,7 @@ function EngagerRow({
               headline says nothing — it is only worth showing while the row
               is anonymous, where it is the one thing we do know. */}
           {engager.actorType === "org" || !named ? (
-            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+            <span className="inline-flex items-center gap-1 text-micro text-muted-foreground">
               <ActorIcon className="size-3 shrink-0" />
               {actorLabel}
             </span>
@@ -493,7 +493,7 @@ function EngagerRow({
               noise, and two rows for the same person are no longer a risk
               worth spending a line on. */}
           {named ? null : (
-            <span className="font-mono text-[10px] text-muted-foreground">
+            <span className="font-mono text-micro text-muted-foreground">
               · {shortId}
             </span>
           )}
@@ -511,7 +511,7 @@ function EngagerRow({
             “{engager.signals.lastCommentText}”
           </p>
         ) : null}
-        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-micro text-muted-foreground">
           <span>
             <span className="font-medium text-foreground">
               {engager.signals.commentCount}
@@ -587,7 +587,7 @@ function EngagerRow({
                   className="h-7 w-auto gap-1 border-none px-2 text-xs text-muted-foreground shadow-none"
                   aria-label="Engage as"
                 >
-                  <span className="text-[11px]">as</span>
+                  <span className="text-micro">as</span>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -614,7 +614,7 @@ function EngagerRow({
               aria-label="Reply to this comment"
             />
             <div className="flex items-center justify-between">
-              <span className="text-[10px] tabular-nums text-muted-foreground">
+              <span className="text-micro tabular-nums text-muted-foreground">
                 {replyText.length}/{COMMENT_MAX}
               </span>
               <div className="flex items-center gap-1">
@@ -652,7 +652,7 @@ function EngagerRow({
         >
           {engager.score}
         </div>
-        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+        <div className="text-micro uppercase tracking-wide text-muted-foreground">
           / 100
         </div>
       </div>

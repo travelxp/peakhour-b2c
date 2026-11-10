@@ -19,6 +19,7 @@ import { InsightsPanel } from "./components/insights-panel";
 import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 import { SourceRow } from "./components/source-row";
 import type { SourceStatus, TrustedSource } from "./types";
+import { PageIntro } from "@/components/dashboard/page-intro";
 
 /**
  * Trusted Sources — Phase 0 priority per the LinkedIn 360 plan §3.
@@ -172,6 +173,7 @@ function TrustedSourcesSurface() {
         description="What your AI reads, watches, and cites."
         actions={<AddSourceDrawer />}
       />
+      <PageIntro id="sources" />
 
       <KpiStrip rows={rows} loading={isLoading} />
 
@@ -181,7 +183,7 @@ function TrustedSourcesSurface() {
             {STATUS_TABS.map((t) => (
               <TabsTrigger key={t.value} value={t.value} className="gap-1.5">
                 {t.label}
-                <Badge variant="secondary" className="rounded-sm px-1.5 text-[10px]">
+                <Badge variant="secondary" className="rounded-sm px-1.5 text-micro">
                   {byStatus[t.value].length}
                 </Badge>
               </TabsTrigger>

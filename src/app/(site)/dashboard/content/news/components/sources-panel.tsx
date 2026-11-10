@@ -34,7 +34,7 @@ export function SourcesPanel({ provenance }: { provenance?: NewsSourceProvenance
           <li key={p.sourceId ?? p.externalUrl ?? i} className="flex items-center gap-2 text-sm">
             <Badge
               variant={p.contribution === "primary" ? "default" : "secondary"}
-              className="shrink-0 text-[10px] capitalize"
+              className="shrink-0 text-micro capitalize"
             >
               {p.contribution}
             </Badge>

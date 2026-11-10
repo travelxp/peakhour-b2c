@@ -8,7 +8,7 @@ export function AssigneeBadge({ assignee }: { assignee: ThreadAssignee | null | 
   if (!assignee) return null;
   return (
     <span
-      className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[10px] font-semibold text-primary"
+      className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-micro font-semibold text-primary"
       title={`Assigned to ${assignee.name}`}
       aria-label={`Assigned to ${assignee.name}`}
       data-testid="assignee-badge"
@@ -22,7 +22,7 @@ export function AssigneeBadge({ assignee }: { assignee: ThreadAssignee | null | 
 export function PriorityBadge({ priority }: { priority: Priority | undefined }) {
   if (priority !== "high") return null;
   return (
-    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-[11px] font-medium text-warning-on-tint" data-testid="priority-badge">
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-micro font-medium text-warning-on-tint" data-testid="priority-badge">
       <Flag className="size-3" aria-hidden="true" />
       High priority
     </span>
@@ -33,7 +33,7 @@ export function PriorityBadge({ priority }: { priority: Priority | undefined }) 
 export function ViewersText({ line }: { line: string | null }) {
   if (!line) return null;
   return (
-    <span className="text-[11px] italic text-muted-foreground" role="status" data-testid="viewers-line">
+    <span className="text-micro italic text-muted-foreground" role="status" data-testid="viewers-line">
       {line}
     </span>
   );
@@ -44,7 +44,7 @@ export function TimerChip({ timer }: { timer: ResponseTimer | null | undefined }
   const v = timerView(timer);
   if (!v) return null;
   return (
-    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${v.className}`} data-testid="timer-chip" data-tone={v.tone}>
+    <span className={`shrink-0 rounded-full px-2 py-0.5 text-micro font-medium ${v.className}`} data-testid="timer-chip" data-tone={v.tone}>
       {v.label}
     </span>
   );
@@ -55,7 +55,7 @@ export function CsatBadge({ csat }: { csat: ThreadCsat | null | undefined }) {
   const v = csatView(csat);
   if (!v) return null;
   return (
-    <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground" data-testid="csat-badge" data-answered={v.answered}>
+    <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-micro font-medium text-muted-foreground" data-testid="csat-badge" data-answered={v.answered}>
       {v.label}
     </span>
   );
@@ -70,11 +70,11 @@ export function TagChips({ tagIds, tags, max }: { tagIds: readonly string[] | un
   return (
     <>
       {shown.map((t) => (
-        <span key={t.id} className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-secondary-foreground" data-testid="tag-chip">
+        <span key={t.id} className="shrink-0 rounded-full bg-secondary px-2 py-0.5 text-micro font-medium text-secondary-foreground" data-testid="tag-chip">
           {t.name}
         </span>
       ))}
-      {more > 0 && <span className="shrink-0 text-[11px] text-muted-foreground">+{more}</span>}
+      {more > 0 && <span className="shrink-0 text-micro text-muted-foreground">+{more}</span>}
     </>
   );
 }

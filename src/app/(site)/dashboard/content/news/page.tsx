@@ -14,6 +14,7 @@ import { SourcesPanel } from "./components/sources-panel";
 import { ApproveNewsSheet } from "./components/approve-news-sheet";
 import { EmptyNewsDesk } from "./components/empty-news-desk";
 import type { NewsIdea } from "./types";
+import { PageIntro } from "@/components/dashboard/page-intro";
 
 /**
  * /dashboard/content/news — News Desk (N5). The autonomous newsroom's approval
@@ -62,6 +63,7 @@ export default function NewsDeskPage() {
         title="Industry news"
         description="Corroborated, brand-voice news drafts awaiting your go. Each shows the sources that back it — multi-source verified, refactored, never copied."
       />
+      <PageIntro id="news" />
 
       {isError ? (
         <ErrorBlock error={error} />
@@ -107,10 +109,10 @@ function NewsCard({ idea, onApprove }: { idea: NewsIdea; onApprove: () => void }
         <h3 className="font-semibold leading-snug">{idea.content?.subject || idea.title}</h3>
         <div className="flex shrink-0 items-center gap-1.5">
           {idea.channels?.map((ch) => (
-            <Badge key={ch} variant="outline" className="text-[10px] uppercase">{ch}</Badge>
+            <Badge key={ch} variant="outline" className="text-micro uppercase">{ch}</Badge>
           ))}
           {confidence !== undefined && (
-            <Badge variant="secondary" className="text-[10px]">Confidence {confidence}%</Badge>
+            <Badge variant="secondary" className="text-micro">Confidence {confidence}%</Badge>
           )}
         </div>
       </CardHeader>

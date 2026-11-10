@@ -371,12 +371,12 @@ export function UpgradePlanDialog({
                                     only credible if it says why. Falls back to the
                                     static flag when nothing is connected. */}
                                 {p.recommendReason ? (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-micro font-medium text-primary">
                                     <Sparkles className="size-3" />
                                     For you
                                   </span>
                                 ) : p.recommended ? (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-micro font-medium text-primary">
                                     <Sparkles className="size-3" />
                                     Popular
                                   </span>
@@ -427,7 +427,7 @@ export function UpgradePlanDialog({
                                 </div>
                               )}
                               {current && (
-                                <span className="mt-2 inline-block rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">
+                                <span className="mt-2 inline-block rounded bg-muted px-1.5 py-0.5 text-micro font-medium">
                                   Current plan
                                 </span>
                               )}

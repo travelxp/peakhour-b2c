@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { Suspense, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,15 +14,11 @@ import { ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
 import { createComposerStore } from "@/lib/wa-inbox-reply";
 import { ConversationsPane, WaitingForConnection } from "@/components/inbox/conversations-pane";
-import { AllStoresPane } from "@/components/inbox/all-stores-pane";
 import { SCOPE_LABEL, offersAllStores, openAddress, scopeFromParam, type InboxScope } from "@/lib/inbox-all-stores";
-import { InsightsPane } from "@/components/inbox/insights-pane";
-import { AskYourInbox } from "@/components/whatsapp/ask-your-inbox";
 import { useInsights } from "@/hooks/use-insights";
 import { insightsBadge } from "@/lib/insights";
 import { INBOX_SUBTITLE, threadFromParam } from "@/lib/inbox-view";
 import { inboxApi, type InboxItem, type InboxPriority } from "@/lib/api/inbox";
-import { ReviewReplyCard } from "@/components/inbox/review-reply-card";
 import { listFetchState, showsSkeleton } from "@/lib/list-fetch-state";
 import {
   inboxTabFromParam,
@@ -36,6 +33,13 @@ import {
   unansweredBadge,
 } from "@/lib/review-reply";
 import { PageShell } from "@/components/dashboard/page-shell";
+import { EmptyState } from "@/components/molecules/empty-state";
+
+// Tabs other than Conversations (and the all-stores scope) load on demand.
+const AllStoresPane = dynamic(() => import("@/components/inbox/all-stores-pane").then((mod) => mod.AllStoresPane));
+const InsightsPane = dynamic(() => import("@/components/inbox/insights-pane").then((mod) => mod.InsightsPane));
+const AskYourInbox = dynamic(() => import("@/components/whatsapp/ask-your-inbox").then((mod) => mod.AskYourInbox));
+const ReviewReplyCard = dynamic(() => import("@/components/inbox/review-reply-card").then((mod) => mod.ReviewReplyCard));
 
 /**
  * Inbox — ONE queue for everything inbound (D-inbox): every channel is
@@ -86,24 +90,24 @@ function LeadRow({ item, onChanged }: { item: InboxItem; onChanged: () => void }
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`inline-flex rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${PRIORITY_BADGE[item.priority]}`}>
+            <span className={`inline-flex rounded-sm px-1.5 py-0.5 text-micro font-medium uppercase tracking-wide ${PRIORITY_BADGE[item.priority]}`}>
               {item.priority}
             </span>
-            <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+            <Badge variant="outline" className="text-micro uppercase tracking-wide">
               {SOURCE_LABEL[item.source] ?? item.source}
             </Badge>
             {typeof lead?.score === "number" && (
-              <Badge variant="outline" className="text-[10px]">
+              <Badge variant="outline" className="text-micro">
                 score {lead.score}
                 {lead.qualified ? " · qualified" : ""}
               </Badge>
             )}
             {item.status !== "queued" && (
-              <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+              <Badge variant="outline" className="text-micro uppercase tracking-wide">
                 {item.status.replaceAll("_", " ")}
               </Badge>
             )}
-            {sla && <span className="text-[11px] text-warning-on-tint">{sla}</span>}
+            {sla && <span className="text-micro text-warning-on-tint">{sla}</span>}
           </div>
           <p className="truncate text-sm font-medium">
             {item.contact?.name || item.contact?.email || item.subject || "Lead"}
@@ -222,15 +226,13 @@ function LeadsPane() {
   });
   if (items.length === 0) {
     return (
-      <Card className="flex flex-col items-center gap-2 p-8 text-center">
-        <Sparkles className="size-5 text-muted-foreground" />
-        <p className="text-sm font-medium">No leads yet</p>
-        <p className="max-w-md text-xs text-muted-foreground">
-          When someone submits a LinkedIn Lead Gen form on one of your campaigns, it lands here —
-          scored, prioritised, and on an SLA clock. Run a lead-generation campaign from the Ads
-          Manager to start the flow.
-        </p>
-      </Card>
+      <EmptyState
+        icon={Sparkles}
+        title="No leads yet"
+        description="When someone fills in a LinkedIn lead form on one of your campaigns, they land here, sorted by how ready they look to buy. Start a lead-generation campaign to get the first one."
+        action={{ label: "Open Ads", href: "/dashboard/ads" }}
+        className="min-h-0 py-12"
+      />
     );
   }
   return (
@@ -315,15 +317,13 @@ function ReviewsPane({ query }: { query: ReturnType<typeof useReviewsQuery> }) {
   const items = reviewQueueOrder(query.data?.items ?? []);
   if (items.length === 0) {
     return (
-      <Card className="flex flex-col items-center gap-2 p-8 text-center">
-        <Sparkles className="size-5 text-muted-foreground" />
-        <p className="text-sm font-medium">No reviews here yet</p>
-        <p className="max-w-md text-xs text-muted-foreground">
-          Once a review network is connected and sending us reviews, every new review lands here
-          — worst first — with a reply you can publish back to its page without leaving Peakhour,
-          where the network takes replies.
-        </p>
-      </Card>
+      <EmptyState
+        icon={Sparkles}
+        title="No reviews here yet"
+        description="Once a review site is connected, every new review lands here, worst first, with a reply you can publish without leaving Peakhour. Connect a review site to begin."
+        action={{ label: "Connect a review site", href: "/dashboard/integrations" }}
+        className="min-h-0 py-12"
+      />
     );
   }
   return (
@@ -492,7 +492,7 @@ function InboxTabs() {
           <TabsTrigger value="insights">
             Insights
             {waiting > 0 && (
-              <Badge className="ml-1.5 bg-warning/15 px-1.5 text-[10px] text-warning-on-tint">{waiting}</Badge>
+              <Badge className="ml-1.5 bg-warning/15 px-1.5 text-micro text-warning-on-tint">{waiting}</Badge>
             )}
           </TabsTrigger>
           <TabsTrigger value="leads">Leads</TabsTrigger>
@@ -502,7 +502,7 @@ function InboxTabs() {
                 is a claim that there is nothing waiting, which a failed or
                 in-flight fetch has not earned. */}
             {badge && (
-              <Badge className="ml-1.5 bg-warning/15 px-1.5 text-[10px] text-warning-on-tint">
+              <Badge className="ml-1.5 bg-warning/15 px-1.5 text-micro text-warning-on-tint">
                 {badge.label}
               </Badge>
             )}

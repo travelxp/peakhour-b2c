@@ -28,6 +28,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { QueryError } from "@/components/dashboard/query-error";
+import { queryViewState } from "@/lib/query-view-state";
 
 interface FullArticle {
   _id: string;
@@ -79,13 +81,15 @@ export default function ArticleDetailPage() {
   const { formatDate, formatDateTime } = useLocale();
   const id = params.id as string;
 
-  const { data: article, isLoading } = useQuery({
+  const articleQuery = useQuery({
     queryKey: ["content-article", id],
     queryFn: () => api.get<FullArticle>(`/v1/content/library/${id}`),
     enabled: !!id,
   });
+  const { data: article } = articleQuery;
+  const view = queryViewState(articleQuery);
 
-  if (isLoading) {
+  if (view === "loading") {
     return (
       <PageShell width="wide">
         <Skeleton className="h-8 w-96" />
@@ -97,6 +101,17 @@ export default function ArticleDetailPage() {
           <Skeleton className="h-64" />
         </div>
       </PageShell>
+    );
+  }
+
+  if (view === "offline" || view === "error") {
+    return (
+      <QueryError
+        what="this article"
+        kind={view}
+        onRetry={() => void articleQuery.refetch()}
+        className="my-16"
+      />
     );
   }
 

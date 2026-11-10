@@ -82,7 +82,7 @@ export function NotesPanelView({
             className="min-h-16 text-xs"
           />
           <div className="flex items-center justify-between gap-2">
-            <span className={`text-[11px] ${draft.remaining < 0 ? "text-destructive" : "text-muted-foreground"}`}>
+            <span className={`text-micro ${draft.remaining < 0 ? "text-destructive" : "text-muted-foreground"}`}>
               {draft.remaining} left of {NOTE_MAX}
             </span>
             {onMention && (

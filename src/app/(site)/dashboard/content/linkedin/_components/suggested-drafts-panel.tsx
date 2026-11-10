@@ -166,7 +166,7 @@ export function SuggestedDraftsPanel({ onUseDraft }: Props) {
               </h3>
               <Badge
                 variant="outline"
-                className="border-primary/40 text-[10px] uppercase tracking-wide"
+                className="border-primary/40 text-micro uppercase tracking-wide"
               >
                 {drafts.length} draft{drafts.length === 1 ? "" : "s"}
               </Badge>
@@ -265,10 +265,10 @@ function SuggestedDraftCard({
               {draft.body}
             </p>
           )}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-micro text-muted-foreground">
             <Badge
               variant="secondary"
-              className="text-[10px] uppercase tracking-wide"
+              className="text-micro uppercase tracking-wide"
             >
               {angleLabel}
             </Badge>
@@ -317,7 +317,7 @@ function SuggestedDraftCard({
       </div>
       {draft.rationale ? (
         <p
-          className="border-t px-3 py-2 text-[11px] italic text-muted-foreground"
+          className="border-t px-3 py-2 text-micro italic text-muted-foreground"
           title={draft.rationale}
         >
           {draft.rationale}

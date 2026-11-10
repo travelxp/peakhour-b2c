@@ -104,7 +104,7 @@ export function VoiceCardPreview({
 
         {voiceCard.signaturePhrases.length > 0 && (
           <div className="px-4 py-3">
-            <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            <div className="text-micro font-medium uppercase tracking-wide text-muted-foreground">
               Signature — keep
             </div>
             <ul className="mt-1.5 space-y-1 text-sm">
@@ -131,7 +131,7 @@ export function VoiceCardPreview({
 
         {voiceCard.avoidPhrases.length > 0 && (
           <div className="border-t px-4 py-3">
-            <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            <div className="text-micro font-medium uppercase tracking-wide text-muted-foreground">
               Avoid — drop
             </div>
             <ul className="mt-1.5 space-y-1 text-sm">
@@ -154,7 +154,7 @@ export function VoiceCardPreview({
         )}
 
         {voiceCard.refreshedAt && (
-          <div className="border-t px-4 py-2 text-[10px] text-muted-foreground">
+          <div className="border-t px-4 py-2 text-micro text-muted-foreground">
             Last refreshed{" "}
             {new Date(voiceCard.refreshedAt).toLocaleDateString(undefined, {
               month: "short",

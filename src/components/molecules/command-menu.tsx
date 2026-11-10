@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import { OPEN_COMMAND_MENU_EVENT } from "@/lib/dashboard-events";
 
 // The dialog (cmdk, the page list, ~17 icons) is not needed for first paint.
 // This shell owns only the Cmd/Ctrl+K listener; the dialog chunk is fetched on
@@ -23,8 +24,18 @@ export function CommandMenu() {
         setOpen((o) => !o);
       }
     };
+    // The dialog is not mounted until the first open, so the event must mount
+    // it as well as open it — setOpen alone does nothing before the first Cmd+K.
+    const show = () => {
+      setEverOpened(true);
+      setOpen(true);
+    };
     document.addEventListener("keydown", down);
-    return () => document.removeEventListener("keydown", down);
+    window.addEventListener(OPEN_COMMAND_MENU_EVENT, show);
+    return () => {
+      document.removeEventListener("keydown", down);
+      window.removeEventListener(OPEN_COMMAND_MENU_EVENT, show);
+    };
   }, []);
 
   if (!everOpened) return null;

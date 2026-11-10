@@ -266,7 +266,7 @@ function KpiCard({ icon: Icon, label, value, sub, variant = "default" }: {
         <div>
           <p className="text-2xl font-bold tabular-nums">{value}</p>
           <p className="text-xs text-muted-foreground">{label}</p>
-          {sub && <p className="text-[11px] text-muted-foreground/70">{sub}</p>}
+          {sub && <p className="text-micro text-muted-foreground/70">{sub}</p>}
         </div>
       </CardContent>
     </Card>

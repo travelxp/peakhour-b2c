@@ -233,7 +233,7 @@ export function FirstRunView(p: FirstRunViewProps) {
       <Card>
         <CardContent className="grid gap-6">
           <fieldset className="grid gap-2.5">
-            <legend className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">1 &middot; What do you want more of?</legend>
+            <legend className="font-mono text-micro uppercase tracking-[0.2em] text-muted-foreground">1 &middot; What do you want more of?</legend>
             {draft.offers.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 Nothing can be measured for this business yet. Connect your shop, your inbox or your analytics in{" "}
@@ -282,7 +282,7 @@ export function FirstRunView(p: FirstRunViewProps) {
           </fieldset>
 
           <div className="grid gap-2">
-            <label htmlFor="first-run-ceiling" className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+            <label htmlFor="first-run-ceiling" className="font-mono text-micro uppercase tracking-[0.2em] text-muted-foreground">
               2 &middot; Your monthly ceiling
             </label>
             <div className="flex flex-wrap items-center gap-2.5">
@@ -311,7 +311,7 @@ export function FirstRunView(p: FirstRunViewProps) {
           </div>
 
           <div className="grid gap-2">
-            <label htmlFor="first-run-target" className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+            <label htmlFor="first-run-target" className="font-mono text-micro uppercase tracking-[0.2em] text-muted-foreground">
               3 &middot; {targetQuestion(targetKind, unit?.one ?? "outcome")}
             </label>
             <div className="flex flex-wrap items-center gap-2.5">

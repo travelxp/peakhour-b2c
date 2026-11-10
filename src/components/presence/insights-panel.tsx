@@ -2,16 +2,10 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  type ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
 import { presenceApi } from "@/lib/api/presence";
 import { useLocale } from "@/hooks/use-locale";
 import { useListingQuery } from "@/hooks/use-presence-listing";
@@ -51,6 +45,11 @@ import {
  * A figure the network did not report is "Not available yet", never 0. Search terms
  * (monthly, and only where the network declares them) sit under the chart.
  */
+const InsightsChart = dynamic(
+  () => import("@/components/presence/insights-chart").then((m) => m.InsightsChart),
+  { ssr: false, loading: () => <div className="h-56 w-full" aria-hidden /> },
+);
+
 export function InsightsPanel({ location, network, label: labelFallback, capabilities: capsFallback }: { location?: string; network?: string; label?: string | null; capabilities?: PresenceCapabilities | undefined }) {
   const [days, setDays] = useState(DEFAULT_INSIGHT_DAYS);
   const [metric, setMetric] = useState<InsightKey>("views");
@@ -186,9 +185,6 @@ export function InsightsPanel({ location, network, label: labelFallback, capabil
   const hasData = chartHasData(points);
   const coverage = coverageNote(series, shownDays, label);
   const syncNote = staleSyncNote(listingQ.data.setup, label);
-  const chartConfig = {
-    value: { label: selected.label, color: "var(--chart-5)" },
-  } satisfies ChartConfig;
   const shortDate = (iso: string) =>
     formatDate(`${iso}T00:00:00Z`, { timeZone: "UTC", day: "numeric", month: "short" });
 
@@ -220,7 +216,7 @@ export function InsightsPanel({ location, network, label: labelFallback, capabil
                 active ? "border-foreground/40 bg-muted/40" : ""
               }`}
             >
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <p className="text-micro font-medium uppercase tracking-wide text-muted-foreground">
                 {m.label}
               </p>
               {total === null ? (
@@ -248,61 +244,11 @@ export function InsightsPanel({ location, network, label: labelFallback, capabil
       ) : (
         <div>
           <p className="mb-2 text-xs font-medium">{selected.label}, day by day</p>
-          <ChartContainer config={chartConfig} className="h-56 w-full">
-            <AreaChart data={points} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="presenceInsightsFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--chart-5)" stopOpacity={0.25} />
-                  <stop offset="100%" stopColor="var(--chart-5)" stopOpacity={0.03} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid vertical={false} strokeOpacity={0.4} />
-              <XAxis
-                dataKey="date"
-                axisLine={false}
-                tickLine={false}
-                tickMargin={8}
-                fontSize={12}
-                minTickGap={28}
-                tickFormatter={shortDate}
-              />
-              <YAxis
-                axisLine={false}
-                tickLine={false}
-                tickMargin={8}
-                fontSize={12}
-                width={32}
-                allowDecimals={false}
-              />
-              <ChartTooltip
-                content={
-                  <ChartTooltipContent
-                    hideIndicator
-                    labelFormatter={(label) => shortDate(String(label))}
-                    formatter={(value) => (
-                      <span className="font-medium tabular-nums">
-                        {selected.label}: {value === null || value === undefined ? "No data" : formatNumber(Number(value))}
-                      </span>
-                    )}
-                  />
-                }
-              />
-              <Area
-                dataKey="value"
-                type="monotone"
-                stroke="var(--chart-5)"
-                strokeWidth={2}
-                fill="url(#presenceInsightsFill)"
-                connectNulls={false}
-                dot={{ r: 2, fill: "var(--chart-5)", strokeWidth: 0 }}
-                isAnimationActive={false}
-              />
-            </AreaChart>
-          </ChartContainer>
+          <InsightsChart points={points} label={selected.label} shortDate={shortDate} formatNumber={formatNumber} />
         </div>
       )}
 
-      {coverage && <p className="text-[11px] text-muted-foreground">{coverage}</p>}
+      {coverage && <p className="text-micro text-muted-foreground">{coverage}</p>}
 
       <SearchTermsSection entry={entry} />
     </>,

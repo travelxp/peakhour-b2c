@@ -21,6 +21,10 @@ import {
 } from "@/components/ui/sheet";
 import { ArrowLeft, MessageSquare } from "lucide-react";
 import Link from "next/link";
+import { QueryError } from "@/components/dashboard/query-error";
+import { queryViewState } from "@/lib/query-view-state";
+import { EmptyState } from "@/components/molecules/empty-state";
+import { openFeedback } from "@/lib/dashboard-events";
 
 const STATUS_STYLES: Record<string, string> = {
   pending: "bg-warning/15 text-warning-on-tint",
@@ -64,7 +68,9 @@ function formatDate(date: string) {
 }
 
 export default function MyTicketsPage() {
-  const { data: tickets, isLoading } = useMyTickets();
+  const ticketsQuery = useMyTickets();
+  const { data: tickets } = ticketsQuery;
+  const view = queryViewState(ticketsQuery);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   return (
@@ -72,7 +78,7 @@ export default function MyTicketsPage() {
       <PageHeader
         icon={
           <Button variant="ghost" size="icon" asChild>
-            <Link href="/dashboard/settings">
+            <Link aria-label="Back to settings" href="/dashboard/settings">
               <ArrowLeft className="size-4" />
             </Link>
           </Button>
@@ -81,22 +87,24 @@ export default function MyTicketsPage() {
         description="Track your feedback submissions and their status."
       />
 
-      {isLoading ? (
+      {view === "loading" ? (
         <div className="space-y-3">
           {[...Array(3)].map((_, i) => (
             <Skeleton key={i} className="h-20 w-full" />
           ))}
         </div>
+      ) : view === "offline" ? (
+        <QueryError what="your tickets" kind="offline" />
+      ) : view === "error" ? (
+        <QueryError what="your tickets" onRetry={() => void ticketsQuery.refetch()} />
       ) : !tickets || tickets.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-12">
-            <MessageSquare className="size-10 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
-              No tickets yet. Use the feedback button in the header to submit
-              one.
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={MessageSquare}
+          title="No tickets yet"
+          description="This is where your bug reports and ideas show up, with their status. Nothing is open right now."
+          action={{ label: "Send feedback", onClick: openFeedback }}
+          className="min-h-0 py-12"
+        />
       ) : (
         <div className="space-y-2">
           {tickets.map((ticket) => (

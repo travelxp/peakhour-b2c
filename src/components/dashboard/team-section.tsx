@@ -289,7 +289,7 @@ export function TeamSection() {
                   </span>
                   <ConfirmDialog
                     trigger={
-                      <Button variant="ghost" size="icon-xs" className="text-muted-foreground hover:text-destructive-on-tint">
+                      <Button variant="ghost" size="icon-xs" aria-label="Revoke invite" className="text-muted-foreground hover:text-destructive-on-tint">
                         <Trash2 className="size-3.5" />
                       </Button>
                     }

@@ -92,7 +92,7 @@ export function FacetedFilter<TData, TValue>({
           {selectedCount > 0 && (
             <Badge
               variant="secondary"
-              className="rounded-sm px-1 text-[11px] font-normal"
+              className="rounded-sm px-1 text-micro font-normal"
             >
               {selectedCount}
             </Badge>

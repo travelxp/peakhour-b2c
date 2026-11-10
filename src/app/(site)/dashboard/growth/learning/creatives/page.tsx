@@ -286,7 +286,7 @@ function CreativeCard({ item, onChanged }: { item: CreativeReviewItem; onChanged
                 {item.imageBriefs.map((b, i) =>
                   b.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img key={i} src={b.imageUrl} alt={b.prompt ?? "Ad image"} className="h-32 w-32 rounded-md border object-cover" />
+                    <img loading="lazy" key={i} src={b.imageUrl} alt={b.prompt ?? "Ad image"} className="h-32 w-32 rounded-md border object-cover" />
                   ) : (
                     <p key={i} className="text-muted-foreground">
                       Not made yet: {b.prompt ?? "an image"}

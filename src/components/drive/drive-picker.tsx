@@ -513,7 +513,7 @@ function Tile({
       <div className="relative flex h-24 items-center justify-center overflow-hidden bg-muted">
         <Thumb file={file} />
         {file.visibility === "private" && (
-          <span className="absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-sm bg-background/90 px-1.5 py-0.5 text-[10px] font-medium">
+          <span className="absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-sm bg-background/90 px-1.5 py-0.5 text-micro font-medium">
             <Lock className="size-2.5" /> Private
           </span>
         )}

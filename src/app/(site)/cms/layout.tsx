@@ -138,7 +138,7 @@ function CmsShell({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-screen supports-[min-height:100dvh]:min-h-dvh items-center justify-center">
         <p className="text-sm text-muted-foreground">Loading...</p>
       </div>
     );
@@ -146,7 +146,7 @@ function CmsShell({ children }: { children: React.ReactNode }) {
 
   if (!isAuthenticated || !user?.cmsUser) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-screen supports-[min-height:100dvh]:min-h-dvh items-center justify-center">
         <p className="text-sm text-muted-foreground">
           Access denied. CMS access required.
         </p>

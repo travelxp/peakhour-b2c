@@ -49,6 +49,7 @@ import {
 import { toast } from "sonner";
 import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 import { withHolidayFields, type SeasonalEventType } from "./seasonal-event-wire";
+import { PageIntro } from "@/components/dashboard/page-intro";
 
 // ── Types ───────────────────────────────────────────────────────
 
@@ -466,6 +467,7 @@ export default function SeasonalEventsPage() {
           </Button>
         }
       />
+      <PageIntro id="seasonal-events" />
 
       {error ? (
         <div role="alert" className="rounded-lg bg-destructive/10 p-4 text-sm text-destructive">
@@ -629,8 +631,8 @@ function EventRow({
               variant="outline"
               className={
                 event.status === "tentative"
-                  ? "shrink-0 text-[10px] text-muted-foreground"
-                  : "shrink-0 text-[10px] border-warning/40 text-warning-on-tint"
+                  ? "shrink-0 text-micro text-muted-foreground"
+                  : "shrink-0 text-micro border-warning/40 text-warning-on-tint"
               }
               title={
                 event.status === "tentative"
@@ -644,7 +646,7 @@ function EventRow({
             </Badge>
           ) : null}
           {dateInfo.primary ? (
-            <Badge variant="outline" className="shrink-0 font-mono text-[10px]">
+            <Badge variant="outline" className="shrink-0 font-mono text-micro">
               {dateInfo.primary}
             </Badge>
           ) : null}
@@ -652,7 +654,7 @@ function EventRow({
             // Secondary countdown chip — kept muted so the date stays
             // the primary affordance. "passed" renders neutral too;
             // it's defensive (shouldn't fire on the year-wrap path).
-            <Badge variant="secondary" className="shrink-0 text-[10px]">
+            <Badge variant="secondary" className="shrink-0 text-micro">
               {dateInfo.countdown}
             </Badge>
           ) : null}
@@ -664,14 +666,14 @@ function EventRow({
             // editor.
             <Badge
               variant="outline"
-              className="shrink-0 text-[10px] border-warning/40 text-warning-on-tint"
+              className="shrink-0 text-micro border-warning/40 text-warning-on-tint"
               title="The current-year date has passed and no next-year date is mapped. Click Edit on this row and add a per-year date for the upcoming year."
             >
               approximate · add next year
             </Badge>
           ) : null}
           {movingYears.length > 0 ? (
-            <Badge variant="outline" className="shrink-0 text-[10px] text-muted-foreground">
+            <Badge variant="outline" className="shrink-0 text-micro text-muted-foreground">
               moving · {movingYears.length}y mapped
             </Badge>
           ) : null}
@@ -907,7 +909,7 @@ function SeasonalEventEditor({
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-micro text-muted-foreground">
               Confirmed events drive AI content. Tentative, postponed, or
               cancelled events stay in your calendar but the seasonal
               generator skips them.
@@ -939,13 +941,13 @@ function SeasonalEventEditor({
                 variant="ghost"
                 onClick={addDateRow}
                 disabled={datesAtCap}
-                className="h-6 gap-1 px-1.5 text-[10px] text-muted-foreground"
+                className="h-6 gap-1 px-1.5 text-micro text-muted-foreground"
               >
                 <Plus className="h-3 w-3" /> Add date
               </Button>
             </div>
             {dateRows.length === 0 ? (
-              <p className="text-[11px] text-muted-foreground italic">
+              <p className="text-micro text-muted-foreground italic">
                 None — the modal month is the fallback.
               </p>
             ) : (
@@ -970,7 +972,7 @@ function SeasonalEventEditor({
                             : undefined
                         }
                         onChange={(ev) => updateDateRow(row.rowId, { year: ev.target.value })}
-                        className={`h-7 w-16 font-mono text-[11px] ${yearInvalid ? "border-destructive" : ""}`}
+                        className={`h-7 w-16 font-mono text-micro ${yearInvalid ? "border-destructive" : ""}`}
                       />
                       <span className="text-muted-foreground">:</span>
                       <Input
@@ -978,7 +980,7 @@ function SeasonalEventEditor({
                         value={row.date}
                         aria-label="Date"
                         onChange={(ev) => updateDateRow(row.rowId, { date: ev.target.value })}
-                        className={`h-7 flex-1 font-mono text-[11px] ${!dateOk && row.date ? "border-destructive" : ""}`}
+                        className={`h-7 flex-1 font-mono text-micro ${!dateOk && row.date ? "border-destructive" : ""}`}
                       />
                       <Button
                         type="button"

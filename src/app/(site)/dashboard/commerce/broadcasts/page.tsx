@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { BroadcastsPanel } from "@/components/commerce/broadcasts";
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
+import { PageIntro } from "@/components/dashboard/page-intro";
 
 export const metadata: Metadata = {
   title: "Promo messages · Commerce",
@@ -17,6 +18,7 @@ export default function CommerceBroadcastsPage() {
         title="Promo messages"
         description="Send an offer on WhatsApp to shoppers who opted in, and see how it did."
       />
+      <PageIntro id="broadcasts" />
       <BroadcastsPanel />
     </PageShell>
   );

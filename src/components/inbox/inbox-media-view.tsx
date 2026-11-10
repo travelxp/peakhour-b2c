@@ -60,7 +60,7 @@ function OpenMedia({ threadId, media }: { threadId: string; media: MessageMedia 
         return (
           <a href={url} target="_blank" rel="noopener noreferrer" className="mb-1 block" aria-label="Open the photo full size">
             {/* eslint-disable-next-line @next/next/no-img-element -- an object URL of a blob the api returned; there is nothing for the image optimiser to fetch */}
-            <img src={url} alt={media.kind === "sticker" ? "Sticker from the shopper" : "Photo in the conversation"} className="max-h-64 max-w-full rounded-md object-contain" />
+            <img loading="lazy" src={url} alt={media.kind === "sticker" ? "Sticker from the shopper" : "Photo in the conversation"} className="max-h-64 max-w-full rounded-md object-contain" />
           </a>
         );
       case "audio":
@@ -83,7 +83,7 @@ function OpenMedia({ threadId, media }: { threadId: string; media: MessageMedia 
       <Button size="xs" variant="outline" disabled={open && (file.isFetching || Boolean(file.data))} onClick={() => setOpen(true)}>
         {open && (file.isFetching || file.data) ? "Opening…" : label}
       </Button>
-      {size ? <span className="ml-2 text-[11px] text-muted-foreground">{size}</span> : null}
+      {size ? <span className="ml-2 text-micro text-muted-foreground">{size}</span> : null}
     </div>
   );
 }

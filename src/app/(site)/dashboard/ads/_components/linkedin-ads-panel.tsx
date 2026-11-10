@@ -428,7 +428,7 @@ function CampaignsPanel() {
           <h3 className="text-base font-semibold leading-none">Managed campaigns</h3>
           <Badge
             variant="outline"
-            className="text-[10px] uppercase tracking-wide"
+            className="text-micro uppercase tracking-wide"
             title="Campaigns Peakhour created from your organic posts. All start as non-spending LinkedIn drafts; Activate is the only action that starts spend."
           >
             Draft-first
@@ -475,7 +475,7 @@ function CampaignsPanel() {
             ))}
           </TableBody>
         </Table>
-        <p className="mt-3 border-t pt-2 text-[11px] text-muted-foreground">
+        <p className="mt-3 border-t pt-2 text-micro text-muted-foreground">
           Campaigns are created in LinkedIn as drafts under a draft group —
           they cannot spend until you activate them. Set the audience with the
           Audience button before activating. Every campaign is then checked
@@ -623,14 +623,14 @@ function CampaignRow({
           {campaign.name}
         </p>
         {campaign.schedule?.durationDays ? (
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-micro text-muted-foreground">
             {campaign.schedule.durationDays}-day flight
           </p>
         ) : null}
       </TableCell>
       <TableCell>
         <span
-          className={`inline-flex rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${STATUS_BADGE[campaign.status] ?? STATUS_BADGE.draft}`}
+          className={`inline-flex rounded-sm px-1.5 py-0.5 text-micro font-medium uppercase tracking-wide ${STATUS_BADGE[campaign.status] ?? STATUS_BADGE.draft}`}
         >
           {campaign.status}
         </span>

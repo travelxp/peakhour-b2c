@@ -90,7 +90,7 @@ export function ScheduleConflictWarning({
           <Button
             size="sm"
             variant="ghost"
-            className="h-6 px-1 text-[11px] text-warning-on-tint hover:bg-warning/15"
+            className="h-6 px-1 text-micro text-warning-on-tint hover:bg-warning/15"
             onClick={() => setOpen(false)}
           >
             Got it

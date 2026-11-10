@@ -219,7 +219,7 @@ export function HashtagSuggest({
         className="w-80 p-0"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
-        <div className="border-b px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        <div className="border-b px-3 py-2 text-micro font-medium uppercase tracking-wide text-muted-foreground">
           Hashtags
         </div>
         <ul role="listbox" className="max-h-64 overflow-y-auto p-1">

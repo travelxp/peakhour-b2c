@@ -201,7 +201,7 @@ export function AskLauncher() {
             </div>
             <div className="flex-1">
               <p className="text-sm font-semibold leading-none">Ask Peakhour</p>
-              <p className="text-[11px] text-muted-foreground">Grounded in your real data</p>
+              <p className="text-micro text-muted-foreground">Grounded in your real data</p>
             </div>
             <Button variant="ghost" size="icon" className="size-7" asChild>
               <Link href="/dashboard/ask" aria-label="Open Ask Peakhour full page" title="Open full page">

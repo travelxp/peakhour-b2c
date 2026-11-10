@@ -240,7 +240,7 @@ export default function SkillsPage() {
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
                       {(skill.platforms || []).map((p) => (
-                        <Badge key={p} variant="outline" className="text-[10px] capitalize">
+                        <Badge key={p} variant="outline" className="text-micro capitalize">
                           {p}
                         </Badge>
                       ))}

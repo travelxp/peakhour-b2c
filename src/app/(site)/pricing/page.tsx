@@ -72,7 +72,7 @@ export default async function PricingPage() {
   const heroTrial = pricingHeroTrial(trialDays);
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
       <Header />
 
       <main>

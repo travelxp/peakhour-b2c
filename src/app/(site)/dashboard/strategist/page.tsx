@@ -17,6 +17,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { PipelineIdea } from "./components/kanban-card";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { ElapsedTimer } from "@/components/molecules/elapsed-timer";
+import { QueryError } from "@/components/dashboard/query-error";
+import { queryViewState } from "@/lib/query-view-state";
+import { EmptyState } from "@/components/molecules/empty-state";
+import { PageIntro } from "@/components/dashboard/page-intro";
 
 /**
  * Content format the user wants the suggestion run to produce. Drives
@@ -123,11 +127,13 @@ export default function StrategistPage() {
   const [ideaTopic, setIdeaTopic] = useState("");
   const [contentFormatChoice, setContentFormatChoice] = useState<ContentFormatChoice>("any");
 
-  const { data, isLoading } = useQuery({
+  const pipelineQuery = useQuery({
     queryKey: ["pipeline-ideas"],
     queryFn: () =>
       api.get<Record<string, PipelineIdea[]>>("/v1/content/ideas?grouped=true"),
   });
+  const { data } = pipelineQuery;
+  const view = queryViewState(pipelineQuery);
 
   const handleGetIdeas = useCallback(async (topic?: string, format?: ContentFormatChoice) => {
     setGenerating(true);
@@ -224,6 +230,7 @@ export default function StrategistPage() {
           </>
         }
       />
+      <PageIntro id="strategist" />
 
       {/* New idea inline form */}
       {showNewIdea && (
@@ -282,7 +289,7 @@ export default function StrategistPage() {
                         <Icon className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
                         <div className="flex flex-col">
                           <span className="font-medium leading-tight">{label}</span>
-                          <span className="text-[10px] text-muted-foreground leading-tight">{hint}</span>
+                          <span className="text-micro text-muted-foreground leading-tight">{hint}</span>
                         </div>
                       </div>
                     </SelectItem>
@@ -294,7 +301,7 @@ export default function StrategistPage() {
               <span className="font-medium">Destination:</span>
               <span>Newsletter (Beehiiv)</span>
               <span aria-hidden className="text-muted-foreground/50">·</span>
-              <span className="text-[10px]">more platforms coming</span>
+              <span className="text-micro">more platforms coming</span>
             </div>
           </div>
           <div className="flex items-center justify-between">
@@ -356,7 +363,7 @@ export default function StrategistPage() {
       )}
 
       {/* Kanban board */}
-      {isLoading ? (
+      {view === "loading" ? (
         <div className="flex gap-3">
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="flex-1 rounded-xl bg-muted/40 p-3">
@@ -370,17 +377,25 @@ export default function StrategistPage() {
             </div>
           ))}
         </div>
+      ) : view === "offline" || view === "error" ? (
+        <QueryError
+          what="your ideas"
+          kind={view}
+          onRetry={() => void pipelineQuery.refetch()}
+        />
       ) : data ? (
         <KanbanBoard
           data={data}
           onRefresh={() => queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] })}
         />
       ) : (
-        <div className="py-16 text-center">
-          <p className="text-muted-foreground">
-            No ideas yet. Click &ldquo;Get Ideas&rdquo; to generate AI suggestions.
-          </p>
-        </div>
+        <EmptyState
+          icon={Sparkles}
+          title="No ideas yet"
+          description="Your content plan turns what Peakhour knows about your business into ideas you can move from idea to published. Nothing is here yet, so ask for the first batch."
+          action={{ label: "Get ideas", onClick: () => { setShowTopicInput(true); setShowNewIdea(false); } }}
+          className="min-h-0 py-16"
+        />
       )}
     </PageShell>
   );

@@ -19,6 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ArrowLeft, ExternalLink, Inbox } from "lucide-react";
+import { QueryError } from "@/components/dashboard/query-error";
+import { queryViewState } from "@/lib/query-view-state";
 
 const STATUS_STYLES: Record<string, string> = {
   pending: "bg-warning/15 text-warning-on-tint",
@@ -53,16 +55,18 @@ export default function FeedbackAdminPage() {
   if (statusFilter !== "all") params.status = statusFilter;
   if (severityFilter !== "all") params.severity = severityFilter;
 
-  const { data: tickets, isLoading } = useAdminTickets(
+  const ticketsQuery = useAdminTickets(
     Object.keys(params).length > 0 ? params : undefined
   );
+  const { data: tickets } = ticketsQuery;
+  const view = queryViewState(ticketsQuery);
 
   return (
     <PageShell width="standard">
       <PageHeader
         icon={
           <Button variant="ghost" size="icon" asChild>
-            <Link href="/dashboard/settings">
+            <Link aria-label="Back to settings" href="/dashboard/settings">
               <ArrowLeft className="size-4" />
             </Link>
           </Button>
@@ -103,12 +107,16 @@ export default function FeedbackAdminPage() {
       </div>
 
       {/* Ticket List */}
-      {isLoading ? (
+      {view === "loading" ? (
         <div className="space-y-3">
           {[...Array(5)].map((_, i) => (
             <Skeleton key={i} className="h-24 w-full" />
           ))}
         </div>
+      ) : view === "offline" ? (
+        <QueryError what="the tickets" kind="offline" />
+      ) : view === "error" ? (
+        <QueryError what="the tickets" onRetry={() => void ticketsQuery.refetch()} />
       ) : !tickets || tickets.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-12">

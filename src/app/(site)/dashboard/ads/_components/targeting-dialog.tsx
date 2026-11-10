@@ -393,7 +393,7 @@ export function TargetingDialog({
           </Button>
           <div className="flex flex-col items-end gap-1">
             {!valid ? (
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-micro text-muted-foreground">
                 Pick at least one location to apply.
               </p>
             ) : null}

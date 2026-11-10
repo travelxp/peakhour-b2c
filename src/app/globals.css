@@ -6,6 +6,10 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  /* Type floor: nothing in the product renders below 12px. `text-micro` is
+     the smallest step (badges, chips, captions, table meta). */
+  --text-micro: 0.75rem;
+  --text-micro--line-height: 1rem;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
@@ -737,5 +741,19 @@
   .drive-shine {
     animation: none;
     opacity: 0.4;
+  }
+}
+
+/*
+ * Safety net for Tailwind's stock decorative loops. Spinners (animate-spin)
+ * are left alone: they signal "working" and a frozen one reads as a hang.
+ * Skeleton pulse, ping rings and bounce arrows carry no information, so under
+ * prefers-reduced-motion they stop.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse,
+  .animate-ping,
+  .animate-bounce {
+    animation: none;
   }
 }
