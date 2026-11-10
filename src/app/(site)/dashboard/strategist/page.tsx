@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, newActionKey } from "@/lib/api";
 import { API_BASE_URL } from "@/lib/api";
+import { pipelineIdeasQuery } from "@/lib/nav-queries";
 import { Button } from "@/components/ui/button";
 import { ActionCost } from "@/components/dashboard/action-cost";
 import { Input } from "@/components/ui/input";
@@ -14,7 +15,6 @@ import { KanbanBoard } from "./components/kanban-board";
 import { Sparkles, CalendarDays, Plus, Loader2, CheckCircle, Send, Mail, FileText, Megaphone, Newspaper } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { PipelineIdea } from "./components/kanban-card";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { ElapsedTimer } from "@/components/molecules/elapsed-timer";
 import { QueryError } from "@/components/dashboard/query-error";
@@ -127,11 +127,7 @@ export default function StrategistPage() {
   const [ideaTopic, setIdeaTopic] = useState("");
   const [contentFormatChoice, setContentFormatChoice] = useState<ContentFormatChoice>("any");
 
-  const pipelineQuery = useQuery({
-    queryKey: ["pipeline-ideas"],
-    queryFn: () =>
-      api.get<Record<string, PipelineIdea[]>>("/v1/content/ideas?grouped=true"),
-  });
+  const pipelineQuery = useQuery(pipelineIdeasQuery);
   const { data } = pipelineQuery;
   const view = queryViewState(pipelineQuery);
 
