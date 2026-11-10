@@ -16,6 +16,7 @@ import { useLocale } from "@/hooks/use-locale";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DataToolbar, DataToolbarSearch } from "@/components/molecules/data-table";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -40,7 +41,6 @@ import {
 import { ConfirmDialog } from "@/components/molecules/confirm-dialog";
 import {
   MoreHorizontal,
-  Search,
   CornerDownLeft,
   Crown,
   ShieldCheck,
@@ -162,18 +162,17 @@ export function TeamSection() {
       </div>
 
       {/* Search + Invite */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="relative w-full max-w-56 min-w-20">
-          <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
+      <DataToolbar
+        search={
+          <DataToolbarSearch
             placeholder="Search members..."
-            className="pl-8"
+            aria-label="Search members"
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
           />
-        </div>
-        {isAdmin && <InviteDialog onInvited={loadData} />}
-      </div>
+        }
+        actions={isAdmin ? <InviteDialog onInvited={loadData} /> : undefined}
+      />
 
       <p className="text-xs font-semibold text-muted-foreground">
         {filteredMembers.length} member{filteredMembers.length !== 1 ? "s" : ""}

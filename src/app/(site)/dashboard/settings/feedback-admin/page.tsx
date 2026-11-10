@@ -7,6 +7,7 @@ import { useAdminTickets, type FeedbackTicket } from "@/hooks/use-feedback";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DataToolbar } from "@/components/molecules/data-table";
 import {
   Card,
   CardContent,
@@ -76,35 +77,39 @@ export default function FeedbackAdminPage() {
       />
 
       {/* Filters */}
-      <div className="flex gap-3">
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-40" aria-label="Status">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="acknowledged">Acknowledged</SelectItem>
-            <SelectItem value="in_progress">In Progress</SelectItem>
-            <SelectItem value="resolved">Resolved</SelectItem>
-            <SelectItem value="closed">Closed</SelectItem>
-          </SelectContent>
-        </Select>
+      <DataToolbar
+        filters={
+          <>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-40" aria-label="Status">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="acknowledged">Acknowledged</SelectItem>
+                <SelectItem value="in_progress">In Progress</SelectItem>
+                <SelectItem value="resolved">Resolved</SelectItem>
+                <SelectItem value="closed">Closed</SelectItem>
+              </SelectContent>
+            </Select>
 
-        <Select value={severityFilter} onValueChange={setSeverityFilter}>
-          <SelectTrigger className="w-40" aria-label="Severity">
-            <SelectValue placeholder="Severity" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Severities</SelectItem>
-            <SelectItem value="critical">Critical</SelectItem>
-            <SelectItem value="high">High</SelectItem>
-            <SelectItem value="medium">Medium</SelectItem>
-            <SelectItem value="low">Low</SelectItem>
-            <SelectItem value="informational">Informational</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+            <Select value={severityFilter} onValueChange={setSeverityFilter}>
+              <SelectTrigger className="w-40" aria-label="Severity">
+                <SelectValue placeholder="Severity" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Severities</SelectItem>
+                <SelectItem value="critical">Critical</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="informational">Informational</SelectItem>
+              </SelectContent>
+            </Select>
+          </>
+        }
+      />
 
       {/* Ticket List */}
       {view === "loading" ? (

@@ -36,7 +36,16 @@ function keyboardSnapshot() {
  * indicator (safe-area inset) and steps aside while the keyboard is up. The
  * shell adds a matching spacer so no page content ends up behind it.
  */
-export function MobileTabBar({ hasCommerce, pathname }: { hasCommerce: boolean; pathname: string }) {
+export function MobileTabBar({
+  hasCommerce,
+  pathname,
+  intentProps,
+}: {
+  hasCommerce: boolean;
+  pathname: string;
+  /** Hover/focus/touch handlers per href (hooks/use-nav-intent). The five tabs keep Next's viewport prefetch too. */
+  intentProps?: (href: string) => React.HTMLAttributes<HTMLAnchorElement>;
+}) {
   const { setOpenMobile } = useSidebar();
   const keyboardUp = useSyncExternalStore(subscribeKeyboard, keyboardSnapshot, () => false);
   const tabs = primaryTabs({ hasCommerce, homeHref: HOME_ROUTE });
@@ -55,6 +64,7 @@ export function MobileTabBar({ hasCommerce, pathname }: { hasCommerce: boolean; 
             <li key={t.key} className="min-w-0 flex-1">
               <Link
                 href={t.href}
+                {...(intentProps ? intentProps(t.href) : {})}
                 title={copy?.description}
                 aria-current={active ? "page" : undefined}
                 className={cn(

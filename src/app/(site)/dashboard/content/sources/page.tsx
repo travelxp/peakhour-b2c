@@ -7,7 +7,7 @@ import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { Activity, AlertCircle, BookMarked, FileSearch, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { DataToolbar, DataToolbarSearch } from "@/components/molecules/data-table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { KpiCard } from "@/components/molecules/kpi-card";
@@ -179,31 +179,37 @@ function TrustedSourcesSurface() {
       <KpiStrip rows={rows} loading={isLoading} />
 
       <Tabs value={tab} onValueChange={(v) => setTab(parseTab(v))}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <TabsList>
-            {STATUS_TABS.map((t) => (
-              <TabsTrigger key={t.value} value={t.value} className="gap-1.5">
-                {t.label}
-                <Badge variant="secondary" className="rounded-sm px-1.5 text-micro">
-                  {byStatus[t.value].length}
-                </Badge>
-              </TabsTrigger>
-            ))}
-            <TabsTrigger value="insights">Insights</TabsTrigger>
-          </TabsList>
-          {/* The list below is the shared panel; stubs keep aria-controls valid. */}
-          <TabPanelStubs values={[...STATUS_TABS.map((t) => t.value), "insights"]} />
-          {/* Search filters the row list — irrelevant on Insights, so
-              it hides there to avoid implying "search the aggregates". */}
-          {tab !== "insights" && (
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search name or URL"
-              className="h-9 w-full sm:w-72"
-            />
-          )}
-        </div>
+        <DataToolbar
+          search={
+            /* Search filters the row list: irrelevant on Insights, so it hides
+               there to avoid implying "search the aggregates". */
+            tab !== "insights" ? (
+              <DataToolbarSearch
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search name or URL"
+                aria-label="Search sources"
+              />
+            ) : undefined
+          }
+          tabs={
+            <>
+              <TabsList>
+                {STATUS_TABS.map((t) => (
+                  <TabsTrigger key={t.value} value={t.value} className="gap-1.5">
+                    {t.label}
+                    <Badge variant="secondary" className="rounded-sm px-1.5 text-micro">
+                      {byStatus[t.value].length}
+                    </Badge>
+                  </TabsTrigger>
+                ))}
+                <TabsTrigger value="insights">Insights</TabsTrigger>
+              </TabsList>
+              {/* The list below is the shared panel; stubs keep aria-controls valid. */}
+              <TabPanelStubs values={[...STATUS_TABS.map((t) => t.value), "insights"]} />
+            </>
+          }
+        />
 
         {/* aria-busy on the list region so screen-reader users learn
             when a background revalidation (post-mutation invalidate
