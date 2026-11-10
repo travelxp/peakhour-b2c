@@ -67,8 +67,8 @@ const Leaderboard3 = ({
                 <div
                   className={cn(
                     "flex items-center gap-1 text-sm",
-                    item.change === "up" && "text-green-500",
-                    item.change === "down" && "text-red-500",
+                    item.change === "up" && "text-success-on-tint",
+                    item.change === "down" && "text-destructive-on-tint",
                     item.change === "same" && "text-muted-foreground",
                   )}
                 >

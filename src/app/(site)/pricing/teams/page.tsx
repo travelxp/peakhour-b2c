@@ -230,7 +230,7 @@ export default async function TeamsPricingPage() {
               </ul>
               <Link
                 href="/contact"
-                className="mt-7 inline-flex items-center justify-center rounded-xl bg-brand-gradient px-5 py-3 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
+                className="mt-7 inline-flex items-center justify-center rounded-xl bg-brand-gradient px-5 py-3 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
               >
                 Talk to sales
               </Link>

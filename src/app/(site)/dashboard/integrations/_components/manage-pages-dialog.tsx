@@ -13,6 +13,7 @@ import { AlertTriangle, ExternalLink } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { LinkedinIcon } from "@/components/brand/brand-icons";
+import { brandTileStyle } from "@/components/brand/brand-colors";
 
 interface AdminPage {
   organizationId: string;
@@ -299,7 +300,7 @@ export function ManagePagesDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0A66C2] text-white">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={brandTileStyle("linkedin")}>
               <LinkedinIcon className="h-5 w-5" />
             </div>
             <div>

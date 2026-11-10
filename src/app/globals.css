@@ -40,6 +40,14 @@
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
   --color-warning-on-tint: var(--warning-on-tint);
+  /* WhatsApp chat chrome for previews that imitate it: `bg-wa-wallpaper`,
+     `bg-wa-bubble-out`, `text-wa-link`, … Values in :root / .dark below. */
+  --color-wa-header: var(--wa-header);
+  --color-wa-wallpaper: var(--wa-wallpaper);
+  --color-wa-bubble-in: var(--wa-bubble-in);
+  --color-wa-bubble-out: var(--wa-bubble-out);
+  --color-wa-text: var(--wa-text);
+  --color-wa-link: var(--wa-link);
   /* Workflow state: `bg-state-info/12`, `text-state-progress-on-tint`, … */
   --color-state-info: var(--state-info);
   --color-state-info-on-tint: var(--state-info-on-tint);
@@ -243,6 +251,17 @@
      grounds use this deep amber (~6:1 AA), while dark grounds get the bright
      gold via the .dark override below. */
   --brand-label: oklch(0.47 0.105 65);
+
+  /* WhatsApp look-alike (store-assistant and template previews). Third-party
+     chrome, so it is its own set rather than reusing app tokens. Contrast
+     (WCAG, computed): wa-text on bubble-out 15.2, on bubble-in 17.5; wa-link
+     on bubble-in 4.8; white on wa-header 7.7. */
+  --wa-header: #075e54;
+  --wa-wallpaper: #ece5dd;
+  --wa-bubble-in: #ffffff;
+  --wa-bubble-out: #dcf8c6;
+  --wa-text: #111b21;
+  --wa-link: #0b6fe0;
 }
 
 .dark {
@@ -314,6 +333,15 @@
      it directly here. (Only theme-aware token; the flat brand tones stay
      theme-stable to keep the Peaks UI identical.) */
   --brand-label: var(--brand);
+
+  /* WhatsApp dark theme. wa-text on bubble-out 6.8, on bubble-in 12.1;
+     wa-link on bubble-in 6.7; white on wa-header 7.7. */
+  --wa-header: #075e54;
+  --wa-wallpaper: #0b141a;
+  --wa-bubble-in: #202c33;
+  --wa-bubble-out: #005c4b;
+  --wa-text: #e9edef;
+  --wa-link: #53bdeb;
 }
 
 @layer base {

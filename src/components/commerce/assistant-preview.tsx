@@ -34,7 +34,7 @@ export function CommerceAssistantPreview() {
   return (
     <div className="mx-auto flex h-[560px] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-border shadow-sm">
       {/* WhatsApp-style header */}
-      <div className="flex items-center gap-3 bg-[#075E54] px-4 py-3 text-white">
+      <div className="flex items-center gap-3 bg-wa-header px-4 py-3 text-white">
         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-sm font-semibold">
           P
         </div>
@@ -47,7 +47,7 @@ export function CommerceAssistantPreview() {
       {/* Thread */}
       <div
         ref={scrollRef}
-        className="flex-1 space-y-2 overflow-y-auto bg-[#ECE5DD] px-3 py-4"
+        className="flex-1 space-y-2 overflow-y-auto bg-wa-wallpaper px-3 py-4"
       >
         {messages.length === 0 && (
           <div className="mx-auto mt-6 max-w-xs rounded-lg bg-white/70 px-3 py-2 text-center text-xs text-muted-foreground">
@@ -63,7 +63,7 @@ export function CommerceAssistantPreview() {
             <div
               className={`max-w-[78%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm shadow-sm ${
                 m.role === "user"
-                  ? "rounded-br-none bg-[#DCF8C6] text-foreground"
+                  ? "rounded-br-none bg-wa-bubble-out text-wa-text"
                   : "rounded-bl-none bg-white text-foreground"
               }`}
             >
@@ -83,7 +83,7 @@ export function CommerceAssistantPreview() {
 
       {/* Suggestion chips (only before the first message) */}
       {messages.length === 0 && (
-        <div className="flex flex-wrap gap-2 bg-[#ECE5DD] px-3 pb-2">
+        <div className="flex flex-wrap gap-2 bg-wa-wallpaper px-3 pb-2">
           {SUGGESTIONS.map((s) => (
             <button
               key={s}
@@ -109,13 +109,13 @@ export function CommerceAssistantPreview() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Type a message…"
-          className="flex-1 rounded-full border border-border px-4 py-2 text-sm outline-none focus:border-[#075E54]"
+          className="flex-1 rounded-full border border-border px-4 py-2 text-sm outline-none focus:border-wa-header"
           maxLength={2000}
         />
         <button
           type="submit"
           disabled={isLoading || !input.trim()}
-          className="rounded-full bg-[#075E54] px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+          className="rounded-full bg-wa-header px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
         >
           Send
         </button>

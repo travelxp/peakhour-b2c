@@ -45,7 +45,7 @@ import {
   type GlanceKey,
 } from "@/lib/home-overview";
 import {
-  PROVIDER_COLORS,
+  PROVIDER_TILES,
   PROVIDER_ICONS,
   type Integration,
 } from "../integrations/_components/shared";
@@ -324,13 +324,16 @@ function ConnectedAccountsCard({
           <ul className="space-y-2">
             {accounts.map((a) => {
               const Icon = PROVIDER_ICONS[a.provider] ?? Plug;
-              const bg = PROVIDER_COLORS[a.provider] ?? "bg-muted-foreground";
+              const tile = PROVIDER_TILES[a.provider];
               return (
                 <li
                   key={a.provider}
                   className="flex items-center gap-3 rounded-xl border px-3.5 py-3 transition-colors hover:bg-muted/30"
                 >
-                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white ${bg}`}>
+                  <div
+                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${tile ? "" : "bg-muted-foreground text-white"}`}
+                    style={tile}
+                  >
                     <Icon className="h-4 w-4" />
                   </div>
                   <div className="min-w-0 flex-1">

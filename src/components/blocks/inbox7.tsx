@@ -457,8 +457,8 @@ function getInitials(name: string) {
 }
 
 function getStatusColor(status: TicketStatus) {
-  if (status === "active") return "bg-emerald-500";
-  if (status === "pending") return "bg-amber-500";
+  if (status === "active") return "bg-success";
+  if (status === "pending") return "bg-warning";
   return "bg-muted-foreground";
 }
 
@@ -688,7 +688,7 @@ function AgentPanel({
             {customer.isHighValue && (
               <Badge
                 variant="outline"
-                className="mt-3 border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                className="mt-3 border-warning/40 bg-warning/10 text-warning-on-tint"
               >
                 High value customer
               </Badge>

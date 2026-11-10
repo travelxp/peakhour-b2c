@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { BeehiivIcon } from "@/components/brand/brand-icons";
+import { brandTileStyle } from "@/components/brand/brand-colors";
 
 export function WhatsAppConnectModal({
   open,
@@ -97,7 +98,7 @@ export function BeehiivConnectModal({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FFD100] text-black">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={brandTileStyle("beehiiv", "dark")}>
               <BeehiivIcon className="h-5 w-5" />
             </div>
             <div>

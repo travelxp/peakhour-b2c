@@ -9,7 +9,7 @@ import { Plug, CheckCircle, AlertCircle, ExternalLink, Unplug, RefreshCw, Loader
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { resolveProvider, isMetaVirtual, metaDisconnectCopy } from "@/lib/integrations-meta";
 import { isRecoverableStatus, showsComingSoon } from "@/lib/integration-card-state";
-import { Integration, PROVIDER_COLORS, PROVIDER_ICONS } from "./shared";
+import { Integration, PROVIDER_ICONS, PROVIDER_TILES } from "./shared";
 import { LinkedInAdsStatus, LinkedInContentPages } from "./linkedin-panels";
 
 export function IntegrationCard({
@@ -51,7 +51,7 @@ export function IntegrationCard({
 }) {
   const { formatDate, formatDateTime } = useLocale();
   const Icon = PROVIDER_ICONS[integration.provider] || Plug;
-  const colorClass = PROVIDER_COLORS[integration.provider] || "bg-muted";
+  const tile = PROVIDER_TILES[integration.provider];
   // A connection that already has a token but isn't `active` (stale scope /
   // revoked / errored). Reconnecting it starts a fresh OAuth which makes
   // the provider issue a NEW token and invalidate the current one — so we
@@ -91,7 +91,10 @@ export function IntegrationCard({
       )}
 
       <CardHeader className="flex flex-row items-start gap-3 space-y-0 pb-2">
-        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white ${colorClass}`}>
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${tile ? "" : "bg-muted text-white"}`}
+          style={tile}
+        >
           <Icon className="h-5 w-5" />
         </div>
         <div className="flex-1 min-w-0">

@@ -1,4 +1,5 @@
-import type { ComponentType } from "react";
+import type { ComponentType, CSSProperties } from "react";
+import { brandTileStyle } from "@/components/brand/brand-colors";
 import {
   LinkedinIcon,
   FacebookIcon,
@@ -32,19 +33,20 @@ export interface FallbackIntegration {
   key: string;
   name: string;
   icon: ComponentType<{ className?: string }>;
-  color: string;
+  /** Inline style for the brand tile (colours live in brand-colors.ts). */
+  tile: CSSProperties;
   description: string;
 }
 
 export const STATIC_FALLBACK_INTEGRATIONS: readonly FallbackIntegration[] = [
-  { key: "whatsapp", name: "WhatsApp Business", icon: WhatsAppIcon, color: "bg-[#25D366] text-black", description: "Conversations & storefront chat" },
-  { key: "instagram", name: "Instagram", icon: InstagramIcon, color: "bg-[#E4405F] text-white", description: "Reels, stories & ads" },
-  { key: "facebook_pages", name: "Facebook Pages", icon: FacebookIcon, color: "bg-[#0668E1] text-white", description: "Pages, posts & insights" },
-  { key: "meta_ads", name: "Meta Ads", icon: FacebookIcon, color: "bg-[#0668E1] text-white", description: "Facebook & Instagram campaigns" },
-  { key: "linkedin_content", name: "LinkedIn", icon: LinkedinIcon, color: "bg-[#0A66C2] text-white", description: "Organic posts & Lead Gen" },
-  { key: "x", name: "X (Twitter)", icon: TwitterIcon, color: "bg-black text-white", description: "Posts & mentions inbox" },
-  { key: "x_ads", name: "X Ads", icon: TwitterIcon, color: "bg-black text-white", description: "Promoted posts & campaigns" },
-  { key: "beehiiv", name: "Beehiiv", icon: BeehiivIcon, color: "bg-[#FFD100] text-black", description: "Newsletter import" },
+  { key: "whatsapp", name: "WhatsApp Business", icon: WhatsAppIcon, tile: brandTileStyle("whatsapp", "dark"), description: "Conversations & storefront chat" },
+  { key: "instagram", name: "Instagram", icon: InstagramIcon, tile: brandTileStyle("instagram"), description: "Reels, stories & ads" },
+  { key: "facebook_pages", name: "Facebook Pages", icon: FacebookIcon, tile: brandTileStyle("meta"), description: "Pages, posts & insights" },
+  { key: "meta_ads", name: "Meta Ads", icon: FacebookIcon, tile: brandTileStyle("meta"), description: "Facebook & Instagram campaigns" },
+  { key: "linkedin_content", name: "LinkedIn", icon: LinkedinIcon, tile: brandTileStyle("linkedin"), description: "Organic posts & Lead Gen" },
+  { key: "x", name: "X (Twitter)", icon: TwitterIcon, tile: brandTileStyle("x"), description: "Posts & mentions inbox" },
+  { key: "x_ads", name: "X Ads", icon: TwitterIcon, tile: brandTileStyle("x"), description: "Promoted posts & campaigns" },
+  { key: "beehiiv", name: "Beehiiv", icon: BeehiivIcon, tile: brandTileStyle("beehiiv", "dark"), description: "Newsletter import" },
 ] as const;
 
 /** The same list as keys — everything the page still calls live with no catalog. */

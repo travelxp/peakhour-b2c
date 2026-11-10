@@ -41,6 +41,7 @@ import { PageGrid, PageShell, PageHeader } from "@/components/dashboard/page-she
 import { WhatCountsAsAWinDialog } from "@/components/growth/what-counts-as-a-win-dialog";
 import { growthApi, type WinDefinition } from "@/lib/api/growth";
 import { analyticsActions, type AnalyticsAction } from "@/lib/analytics-actions";
+import { brandTileStyle } from "@/components/brand/brand-colors";
 
 interface ConnectionStatus {
   provider: string;
@@ -207,7 +208,7 @@ export default function AnalyticsInsightsPage() {
       {cronToolbar}
       <PageHeader
         icon={
-          <div className="rounded-lg bg-[#E37400] p-2">
+          <div className="rounded-lg p-2" style={brandTileStyle("googleAnalytics")}>
             <LineChart className="h-5 w-5 text-white" />
           </div>
         }

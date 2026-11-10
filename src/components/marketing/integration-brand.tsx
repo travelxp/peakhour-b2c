@@ -1,4 +1,5 @@
-import type { ComponentType } from "react";
+import type { ComponentType, CSSProperties } from "react";
+import { brandTileStyle } from "@/components/brand/brand-colors";
 import {
   LinkedinIcon,
   FacebookIcon,
@@ -35,45 +36,43 @@ import {
  * official mark.
  */
 /**
- * `color` carries BOTH the tile background and its foreground. The foreground
- * must live here, not on the tile element: a `text-black` in this string and a
- * `text-white` on the element are the same specificity, so the winner is
- * stylesheet order (Tailwind emits `.text-white` after `.text-black`), not
- * attribute order — which silently left the yellow Beehiiv/Mailchimp marks
- * white-on-yellow at ~1.1:1. Every entry states its own foreground.
+ * `tile` carries BOTH the tile background and its foreground (inline style, so
+ * no class-order race: an earlier `text-black` / `text-white` pair was resolved
+ * by stylesheet order and silently left the yellow Beehiiv/Mailchimp marks
+ * white-on-yellow at ~1.1:1). Every entry states its own foreground.
  */
-type Brand = { Icon: ComponentType<{ className?: string }>; color: string };
+type Brand = { Icon: ComponentType<{ className?: string }>; tile: CSSProperties };
 
 const BRANDS: Record<string, Brand> = {
-  linkedin: { Icon: LinkedinIcon, color: "bg-[#0A66C2] text-white" },
-  linkedin_content: { Icon: LinkedinIcon, color: "bg-[#0A66C2] text-white" },
-  linkedin_ads: { Icon: LinkedinIcon, color: "bg-[#0A66C2] text-white" },
-  facebook: { Icon: FacebookIcon, color: "bg-[#0668E1] text-white" },
-  meta: { Icon: FacebookIcon, color: "bg-[#0668E1] text-white" },
-  meta_ads: { Icon: FacebookIcon, color: "bg-[#0668E1] text-white" },
-  instagram: { Icon: InstagramIcon, color: "bg-[#E4405F] text-white" },
-  google: { Icon: GoogleIcon, color: "bg-[#4285F4] text-white" },
-  google_ads: { Icon: GoogleIcon, color: "bg-[#4285F4] text-white" },
-  youtube: { Icon: YoutubeIcon, color: "bg-[#FF0000] text-white" },
-  beehiiv: { Icon: BeehiivIcon, color: "bg-[#FFD100] text-black" },
-  substack: { Icon: SubstackIcon, color: "bg-[#FF6719] text-white" },
-  mailchimp: { Icon: MailchimpIcon, color: "bg-[#FFE01B] text-black" },
-  shopify: { Icon: ShopifyIcon, color: "bg-[#96BF48] text-black" },
-  wordpress: { Icon: WordPressIcon, color: "bg-[#21759B] text-white" },
+  linkedin: { Icon: LinkedinIcon, tile: brandTileStyle("linkedin") },
+  linkedin_content: { Icon: LinkedinIcon, tile: brandTileStyle("linkedin") },
+  linkedin_ads: { Icon: LinkedinIcon, tile: brandTileStyle("linkedin") },
+  facebook: { Icon: FacebookIcon, tile: brandTileStyle("meta") },
+  meta: { Icon: FacebookIcon, tile: brandTileStyle("meta") },
+  meta_ads: { Icon: FacebookIcon, tile: brandTileStyle("meta") },
+  instagram: { Icon: InstagramIcon, tile: brandTileStyle("instagram") },
+  google: { Icon: GoogleIcon, tile: brandTileStyle("google") },
+  google_ads: { Icon: GoogleIcon, tile: brandTileStyle("google") },
+  youtube: { Icon: YoutubeIcon, tile: brandTileStyle("youtube") },
+  beehiiv: { Icon: BeehiivIcon, tile: brandTileStyle("beehiiv", "dark") },
+  substack: { Icon: SubstackIcon, tile: brandTileStyle("substack") },
+  mailchimp: { Icon: MailchimpIcon, tile: brandTileStyle("mailchimp", "dark") },
+  shopify: { Icon: ShopifyIcon, tile: brandTileStyle("shopify", "dark") },
+  wordpress: { Icon: WordPressIcon, tile: brandTileStyle("wordpress") },
   // WooCommerce ships inside the `wordpress` connector (one plugin covers
   // both) and has no catalog row of its own today. Kept as forward-compat
   // spellings so a future standalone row can't fall through to a "W" initial.
-  woocommerce: { Icon: WooCommerceIcon, color: "bg-[#873EFF] text-white" },
-  woo: { Icon: WooCommerceIcon, color: "bg-[#873EFF] text-white" },
-  whatsapp: { Icon: WhatsAppIcon, color: "bg-[#25D366] text-black" },
-  whatsapp_business: { Icon: WhatsAppIcon, color: "bg-[#25D366] text-black" },
-  x: { Icon: TwitterIcon, color: "bg-black text-white" },
-  x_ads: { Icon: TwitterIcon, color: "bg-black text-white" },
+  woocommerce: { Icon: WooCommerceIcon, tile: brandTileStyle("woocommerce") },
+  woo: { Icon: WooCommerceIcon, tile: brandTileStyle("woocommerce") },
+  whatsapp: { Icon: WhatsAppIcon, tile: brandTileStyle("whatsapp", "dark") },
+  whatsapp_business: { Icon: WhatsAppIcon, tile: brandTileStyle("whatsapp", "dark") },
+  x: { Icon: TwitterIcon, tile: brandTileStyle("x") },
+  x_ads: { Icon: TwitterIcon, tile: brandTileStyle("x") },
   // Newsletter/messaging rows that carry no groupKey — without these they fall
   // through to the grey initial tile next to hand-tuned marks. Both are
   // `coming_soon` in prod, so they DO render on the public grid.
-  ghost: { Icon: GhostIcon, color: "bg-[#15171A] text-white" },
-  slack: { Icon: SlackIcon, color: "bg-[#4A154B] text-white" },
+  ghost: { Icon: GhostIcon, tile: brandTileStyle("ghost") },
+  slack: { Icon: SlackIcon, tile: brandTileStyle("slack") },
 };
 
 export function IntegrationBrandIcon({
@@ -96,12 +95,16 @@ export function IntegrationBrandIcon({
   return <span className="text-sm font-bold">{(name.trim()[0] ?? "?").toUpperCase()}</span>;
 }
 
-/** Tailwind background + foreground classes for the icon tile. Unmapped rows
- *  get a fixed dark neutral (~6:1 vs white in both themes) rather than a
- *  theme-relative token (`muted`/`primary`), which would invert to a light
- *  value in dark mode and fail contrast against the white glyph. */
-export function integrationBrandColor(groupKey?: string, integrationKey?: string): string {
+/** Background + foreground for the icon tile, as an inline style (the colours
+ *  live in brand-colors.ts). Unmapped rows get a fixed dark neutral
+ *  (`bg-ink-2 text-white`, ~6:1 in both themes) rather than a theme-relative
+ *  token (`muted`/`primary`), which would invert to a light value in dark mode
+ *  and fail contrast against the white glyph. */
+export function integrationBrandTile(
+  groupKey?: string,
+  integrationKey?: string,
+): { className: string; style?: CSSProperties } {
   const brand =
     (integrationKey ? BRANDS[integrationKey] : undefined) || (groupKey ? BRANDS[groupKey] : undefined);
-  return brand?.color ?? "bg-ink-2 text-white";
+  return brand ? { className: "", style: brand.tile } : { className: "bg-ink-2 text-white" };
 }
