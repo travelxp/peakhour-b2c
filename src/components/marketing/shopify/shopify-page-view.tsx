@@ -159,10 +159,10 @@ export function ShopifyPageView({
             </div>
             <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-muted-foreground">
               {shopifyHeroTicks(trialDays, comingSoon).map((tick) => (
-                <li key={tick}>
-                  <span aria-hidden className="font-bold text-brand-label">
-                    &check;
-                  </span>{" "}
+                <li key={tick} className="inline-flex items-center gap-1.5">
+                  {/* An icon, not `&check;`: JSX only decodes the XHTML entity
+                      set, so the HTML5 name rendered as the literal text. */}
+                  <Check aria-hidden className="size-3.5 shrink-0 text-brand-label" strokeWidth={3} />
                   {tick}
                 </li>
               ))}
