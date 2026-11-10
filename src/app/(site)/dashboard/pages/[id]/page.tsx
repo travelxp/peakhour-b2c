@@ -32,6 +32,7 @@ export default function WebPageReview({ params }: { params: Promise<{ id: string
     return (
       <PageShell width="standard">
         {back}
+        <h1 className="sr-only">Page draft</h1>
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-96 w-full rounded-lg" />
       </PageShell>
@@ -42,6 +43,7 @@ export default function WebPageReview({ params }: { params: Promise<{ id: string
     return (
       <PageShell width="standard">
         {back}
+        <h1 className="sr-only">Page draft</h1>
         <EmptyState
           icon={FileStack}
           title="Page not found"

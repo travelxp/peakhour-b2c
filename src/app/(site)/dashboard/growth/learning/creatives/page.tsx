@@ -61,7 +61,14 @@ export default function CreativeReviewPage() {
   // useSearchParams needs a Suspense boundary or the route bails out of
   // static rendering.
   return (
-    <Suspense fallback={<ListSkeleton />}>
+    <Suspense
+      fallback={
+        <PageShell>
+          <h1 className="sr-only">Ad creatives</h1>
+          <ListSkeleton />
+        </PageShell>
+      }
+    >
       <CreativeReview />
     </Suspense>
   );

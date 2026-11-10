@@ -102,6 +102,7 @@ export default function AudienceDetailPage({ params }: { params: Promise<{ id: s
 
       {set.isPending ? (
         <div className="space-y-3">
+          <h1 className="sr-only">Audience</h1>
           <Skeleton className="h-8 w-72" />
           <Skeleton className="h-32 w-full" />
         </div>
@@ -111,7 +112,10 @@ export default function AudienceDetailPage({ params }: { params: Promise<{ id: s
         // first" one click away and "That's on us" here — two answers to one
         // condition inside one feature — and a pasted bad id got an apology for
         // something that is not our fault.
-        <EmptyState icon={Users} {...detailErrorState(set.error)} />
+        <>
+          <h1 className="sr-only">Audience</h1>
+          <EmptyState icon={Users} {...detailErrorState(set.error)} />
+        </>
       ) : (
         <>
           <PageHeader
