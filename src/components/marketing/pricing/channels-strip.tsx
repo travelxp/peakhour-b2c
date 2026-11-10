@@ -4,6 +4,7 @@ import { CHANNELS, FEATURED_CHANNELS } from "@/lib/pricing-catalog";
 import { ChannelTile } from "@/components/marketing/pricing/channel-tile";
 import { StatusChip } from "@/components/marketing/pricing/status-chip";
 import { channelIsComingSoon } from "@/lib/pillar-channels";
+import { withCountry } from "@/lib/pricing";
 
 /**
  * "Works where you already run" — the channel strip. Each card explains, in one
@@ -19,9 +20,13 @@ import { channelIsComingSoon } from "@/lib/pillar-channels";
  */
 export function ChannelsStrip({
   comingSoonKeys,
+  country = null,
 }: {
   /** Resolved by the page through lib/pillar-channels.ts. */
   comingSoonKeys: readonly string[];
+  /** A country the visitor chose on /pricing: carried to /shopify, so the
+   *  two pages quote one currency. Null for a geo-detected visitor. */
+  country?: string | null;
 }) {
   const badged = new Set(comingSoonKeys);
   return (
@@ -30,7 +35,8 @@ export function ChannelsStrip({
         const ch = CHANNELS[key];
         const soon = channelIsComingSoon(key, badged);
         // A channel with a page of its own is read about here first.
-        const href = ch.pageHref ?? ch.href;
+        const base = ch.pageHref ?? ch.href;
+        const href = base === "/shopify" ? withCountry(base, country) : base;
         const external = href.startsWith("http");
         const inner = (
           <>

@@ -132,8 +132,25 @@ describe("price, trial and credits come from the catalog", () => {
 
   it("with no Suite in the catalog the page names no price", () => {
     const t = text(html({ pricing: null }));
-    expect(t).toContain("Pricing is not available right now");
+    expect(t).toContain("You'll see your price for your country at sign-up.");
+    expect(t).not.toContain("Check back soon");
     expect(t).not.toContain("$61");
+  });
+
+  it("states the country, currency and tax under the price, with a labelled switcher", () => {
+    const out = html({ country: "US" });
+    const t = text(out);
+    expect(t).toContain("Prices for United States in USD · plus applicable tax");
+    expect(t).toContain("Not in United States? Change");
+    expect(out).toContain('action="/shopify#pricing"');
+    expect(out).toMatch(/<label[^>]*for="country-[^"]*"[^>]*>Show prices for<\/label>/);
+    expect(out).toContain('<option value="ZZ">Other (USD)</option>');
+  });
+
+  it("a code the API priced in USD as a fallback names no country", () => {
+    const t = text(html({ country: "ZA" }));
+    expect(t).toContain("Prices in USD · plus applicable tax");
+    expect(t).not.toContain("South Africa");
   });
 
   it("a live campaign is shown by the catalog's own label", () => {
