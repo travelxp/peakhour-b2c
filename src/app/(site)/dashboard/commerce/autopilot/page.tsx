@@ -11,10 +11,5 @@ export const metadata: Metadata = {
  * autonomy consent dial. Gated on `commerce.autopilot` inside the component.
  */
 export default function CommerceAutopilotPage() {
-  return (
-    <div className="space-y-4">
-      <PageIntro id="commerce-autopilot" />
-      <CommerceAutopilot />
-    </div>
-  );
+  return <CommerceAutopilot intro={<PageIntro id="commerce-autopilot" />} />;
 }

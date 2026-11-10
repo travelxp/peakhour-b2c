@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { Suspense, useEffect, useMemo, useState } from "react";
+import { PageShell } from "@/components/dashboard/page-shell";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -274,7 +275,7 @@ function XContentDashboardInner() {
 function XPageShell({ children, loading }: { children?: React.ReactNode; loading?: boolean }) {
   const queryClient = useQueryClient();
   return (
-    <div className="space-y-6">
+    <PageShell width="standard">
       <CronToolbar
         crons={["x-metrics-sync", "x-mentions-sync", "performance-sync"]}
         onTriggered={() => {
@@ -302,7 +303,7 @@ function XPageShell({ children, loading }: { children?: React.ReactNode; loading
       ) : (
         children
       )}
-    </div>
+    </PageShell>
   );
 }
 

@@ -15,15 +15,17 @@ import { PageShell } from "@/components/dashboard/page-shell";
  * agent × channel). Reuses the same CommerceNeedsYou rail as the Command Center.
  * Gated on `commerce.autopilot`.
  */
-export function CommerceAutopilot() {
+export function CommerceAutopilot({ intro }: { intro?: React.ReactNode } = {}) {
   return (
     <FeatureGate feature="commerce.autopilot" featureName="Commerce Autopilot">
-      <CommerceAutopilotBody />
+      <CommerceAutopilotBody intro={intro} />
     </FeatureGate>
   );
 }
 
-function CommerceAutopilotBody() {
+/** `intro` is the route's "What is this page?" strip, rendered under the title
+ *  and inside this shell (a route cannot place it there itself). */
+function CommerceAutopilotBody({ intro }: { intro?: React.ReactNode }) {
   // commerce.autopilot is granted by plan, not by store connection — so a
   // pre-connect merchant can reach here. The summary query 4xxs when no store
   // is connected; use that as the connect signal (shared cache with Command
@@ -39,6 +41,7 @@ function CommerceAutopilotBody() {
           own — channel by channel, at a pace you&apos;re comfortable with.
         </p>
       </header>
+      {intro}
 
       {noStore ? (
         <EmptyState

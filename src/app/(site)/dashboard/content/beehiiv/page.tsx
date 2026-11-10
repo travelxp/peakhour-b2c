@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 import { useSyncProvider } from "@/hooks/use-sync-provider";
 import { useEnqueueJob, useJobs } from "@/hooks/use-jobs";
 import { useAuth } from "@/providers/auth-provider";
@@ -250,7 +251,7 @@ export default function ContentPage() {
 
   return (
     <TooltipProvider>
-      <div className="space-y-6">
+      <PageShell width="wide">
         {/* Cron toolbar — non-prod only. Always visible at the top of
             pages whose data depends on a cron (the canonical
             architecture pattern; see components/dev/cron-toolbar.tsx).
@@ -268,16 +269,11 @@ export default function ContentPage() {
           }}
         />
         {/* Header */}
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">
-              Content Intelligence
-            </h2>
-            <p className="text-muted-foreground">
-              Your newsletters, AI-tagged and scored for ad potential
-            </p>
-          </div>
-          <div className="flex gap-2 items-center flex-wrap">
+        <PageHeader
+          title="Content Intelligence"
+          description="Your newsletters, AI-tagged and scored for ad potential"
+          actions={
+            <>
             <Button
               onClick={handleWriteFromScratch}
               disabled={creatingDraft || !businessReady}
@@ -366,8 +362,9 @@ export default function ContentPage() {
                 }}
               />
             )}
-          </div>
-        </div>
+            </>
+          }
+        />
 
         {/* KPI Strip */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -755,7 +752,7 @@ export default function ContentPage() {
             </div>
           </TabsContent>
         </Tabs>
-      </div>
+      </PageShell>
       <RepurposeSheet
         open={repurposeSource !== null}
         onOpenChange={(o) => {

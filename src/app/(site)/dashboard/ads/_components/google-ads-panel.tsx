@@ -517,8 +517,8 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Campaign</TableHead>
-                <TableHead>Type</TableHead>
+                <TableHead className="sticky left-0 z-10 bg-background">Campaign</TableHead>
+                <TableHead className="hidden md:table-cell">Type</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Daily budget</TableHead>
                 <TableHead className="text-right">Action</TableHead>
@@ -532,7 +532,7 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
                 const channels = c.channelType === "DEMAND_GEN" ? googleChannelControlsSentence(c.channelControls) : null;
                 return (
                   <TableRow key={c.id}>
-                    <TableCell>
+                    <TableCell className="sticky left-0 z-10 bg-background">
                       <div className="font-medium">{c.name}</div>
                       {note ? <div className="text-xs text-muted-foreground">{note}</div> : null}
                       {c.channelType === "PERFORMANCE_MAX" ? (
@@ -543,7 +543,7 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
                         <div className="text-xs text-muted-foreground">{GOOGLE_DEMAND_GEN_REPORTING_NOTE}</div>
                       ) : null}
                     </TableCell>
-                    <TableCell>{googleChannelTypeLabel(c.channelType)}</TableCell>
+                    <TableCell className="hidden md:table-cell">{googleChannelTypeLabel(c.channelType)}</TableCell>
                     <TableCell>
                       <Badge variant="outline">{busy ? "Updating…" : googleStatusLabel(c)}</Badge>
                     </TableCell>

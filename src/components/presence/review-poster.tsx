@@ -1,5 +1,6 @@
 "use client";
 
+import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
@@ -57,26 +58,41 @@ export function ReviewPoster({ location, network }: { location?: string | undefi
     () => false,
   );
   const kit = useReviewKit(location, network);
-  if (kit.isPending) return <Skeleton className="mx-auto h-[60vh] w-full max-w-md" />;
+  if (kit.isPending) {
+    return (
+      <PageShell width="narrow">
+        <PageHeader title="Review poster" />
+        <Skeleton className="mx-auto h-[60vh] w-full max-w-md" />
+      </PageShell>
+    );
+  }
   if (kit.isError) {
-    return <p className="p-6 text-sm text-muted-foreground">We couldn&apos;t load your poster just now. Try again in a moment.</p>;
+    return (
+      <PageShell width="narrow">
+        <PageHeader title="Review poster" description="We couldn't load your poster just now. Try again in a moment." />
+      </PageShell>
+    );
   }
   if (kit.data.state !== "ready") {
     const empty = kitEmptyState(kit.data);
     return (
-      <div className="mx-auto max-w-md space-y-2 p-6">
+      <PageShell width="narrow">
+        <PageHeader title="Review poster" />
+        <div className="mx-auto max-w-md space-y-2">
         <p className="font-medium">{empty?.headline}</p>
         <p className="text-sm text-muted-foreground">{empty?.description}</p>
         <Button asChild variant="outline" size="sm">
           <Link href="/dashboard/presence">Back to Presence</Link>
         </Button>
-      </div>
+        </div>
+      </PageShell>
     );
   }
   const ready = kit.data;
   return (
-    <div className="space-y-4 p-4 md:p-6">
+    <PageShell width="standard">
       <style>{PRINT_CSS}</style>
+      <PageHeader title="Review poster" />
       <div className="mx-auto flex max-w-[210mm] flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">{POSTER_PAGE_NOTE}</p>
         <div className="flex gap-2">
@@ -91,6 +107,6 @@ export function ReviewPoster({ location, network }: { location?: string | undefi
       <PosterSheet kit={ready} />
       {/* The print copy lives directly under <body> (a portal), so the print rules can hide everything else. */}
       {mounted && createPortal(<div id="review-poster-print"><PosterSheet kit={ready} print /></div>, document.body)}
-    </div>
+    </PageShell>
   );
 }

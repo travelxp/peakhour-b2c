@@ -1,5 +1,6 @@
 "use client";
 
+import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { useState } from "react";
 import { useMyTickets, useTicketDetail } from "@/hooks/use-feedback";
 import { Badge } from "@/components/ui/badge";
@@ -73,20 +74,18 @@ export default function MyTicketsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link aria-label="Back to settings" href="/dashboard/settings">
-            <ArrowLeft className="size-4" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Support tickets</h1>
-          <p className="text-sm text-muted-foreground">
-            Track your feedback submissions and their status.
-          </p>
-        </div>
-      </div>
+    <PageShell width="narrow">
+      <PageHeader
+        icon={
+          <Button variant="ghost" size="icon" asChild>
+            <Link aria-label="Back to settings" href="/dashboard/settings">
+              <ArrowLeft className="size-4" />
+            </Link>
+          </Button>
+        }
+        title="Support tickets"
+        description="Track your feedback submissions and their status."
+      />
 
       {view === "loading" ? (
         <div className="space-y-3">
@@ -139,7 +138,7 @@ export default function MyTicketsPage() {
         ticketId={selectedId}
         onClose={() => setSelectedId(null)}
       />
-    </div>
+    </PageShell>
   );
 }
 

@@ -14,6 +14,7 @@ import { Choice } from "./home-screen";
 import { NotSetUp } from "./not-set-up";
 import { PacingBadge, PacingChart } from "./pacing-chart";
 import { PageHead } from "./page-head";
+import { PageShell } from "@/components/dashboard/page-shell";
 import { QueryBoundary } from "./query-boundary";
 import { ShareByWeek } from "./share-by-week";
 import { ToneBadge, type Tone } from "./tone";
@@ -27,7 +28,7 @@ export function ChannelsScreen() {
   // The prototype's sample is one fixed window: a control that cannot change it would only contradict the page.
   const preview = query.data?.preview === true;
   return (
-    <div className="grid gap-4">
+    <PageShell width="standard">
       <PageHead
         title="Where is the money going?"
         description="Spend and results for each channel. Results are the orders credited to the channel; what the ads caused is measured on Home."
@@ -44,7 +45,7 @@ export function ChannelsScreen() {
           {(r) => <ChannelsBody channels={r.data} pacingSeries={r.pacingSeries} unitPlural={unitFor(r.data.outcome.kind).many} unitOne={unitFor(r.data.outcome.kind).one} />}
         </QueryBoundary>
       </div>
-    </div>
+    </PageShell>
   );
 }
 

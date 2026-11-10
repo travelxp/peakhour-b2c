@@ -28,6 +28,7 @@ import {
 import { GROWTH_HOME } from "@/lib/growth-v2-nav";
 import { patchErrorMessage } from "@/lib/growth-v2-rules";
 import { PageHead } from "./page-head";
+import { PageShell } from "@/components/dashboard/page-shell";
 import { SignalStep } from "./signal-step";
 import { ToneBadge } from "./tone";
 
@@ -87,7 +88,7 @@ export function FirstRunScreen() {
   const suggestedZone = draft && "absent" in draft.timeZone ? (draft.timeZone.suggested ?? "") : "";
 
   return (
-    <div className="mx-auto grid w-full max-w-3xl gap-4">
+    <PageShell width="narrow">
       <FirstRunView
         draft={draft}
         loadFailed={query.isError}
@@ -135,7 +136,7 @@ export function FirstRunScreen() {
         }}
         onSend={() => body && confirm.mutate(body)}
       />
-    </div>
+    </PageShell>
   );
 }
 
