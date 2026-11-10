@@ -21,11 +21,11 @@ const BELOW_FLOOR = /text-\[(\d+(?:\.\d+)?)(px|rem|em)\]/g;
 const px = (n: number, unit: string) => (unit === "px" ? n : n * 16);
 
 /**
- * File → why it is exempt. dashboard/layout.tsx is being edited by another
- * lane at the time of writing; remove this entry when that lands and the two
- * remaining sizes are migrated.
+ * Files exempt from the floor, each with its reason. Empty: the last two
+ * sub-12px sizes (in dashboard/layout.tsx) were migrated by #713. Add an
+ * entry only with a reason a reviewer can check.
  */
-const ALLOWED = new Set(["src/app/(site)/dashboard/layout.tsx"]);
+const ALLOWED = new Set<string>();
 
 function belowFloor(text: string): string[] {
   return [...text.matchAll(BELOW_FLOOR)].filter((m) => px(Number(m[1]), m[2]) < 12).map((m) => m[0]);
