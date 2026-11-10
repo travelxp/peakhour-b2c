@@ -199,7 +199,7 @@ function FacetPicker({
           ) : results.isError ? (
             <p className="text-xs text-muted-foreground">
               Couldn&apos;t reach LinkedIn — if your LinkedIn Ads connection is
-              stale, reconnect it from Integrations; otherwise try again in a
+              stale, reconnect it from Connected accounts; otherwise try again in a
               moment.
             </p>
           ) : options.length === 0 ? (

@@ -344,7 +344,7 @@ export default function ContentPage() {
                 // The previous `~$X.XX (sub-skill path)` exposure was
                 // dropped — the user already sees the row count, which is
                 // the user-facing signal that matters.
-                description={`This will re-process only the ${stats.partialTagged ?? 0} partial-tagged + ${stats.transientUnprocessable ?? 0} transiently-failed newsletters. Working tagged rows are left alone. You can track progress on the Tasks page.`}
+                description={`This will re-process only the ${stats.partialTagged ?? 0} partial-tagged + ${stats.transientUnprocessable ?? 0} transiently-failed newsletters. Working tagged rows are left alone. You can track progress on the Activity page.`}
                 confirmLabel="Re-analyse incomplete"
                 onConfirm={() => {
                   // Race guard: the trigger was disabled when this

@@ -757,7 +757,7 @@ export function WhatsAppEmbeddedSignup({
       target.phase === "not_linked"
         ? {
             title: "Finish linking your store first",
-            body: `${shop} isn’t linked to Peakhour yet. Complete store setup, then connect WhatsApp from your store’s Integrations page.`,
+            body: `${shop} isn’t linked to Peakhour yet. Complete store setup, then connect WhatsApp from your store’s Connected accounts page.`,
           }
         : target.phase === "not_member"
           ? {

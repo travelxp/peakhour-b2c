@@ -461,9 +461,9 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
+                  <TableHead className="sticky left-0 z-10 bg-background">Name</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Daily budget</TableHead>
+                  <TableHead className="hidden text-right md:table-cell">Daily budget</TableHead>
                   <TableHead className="text-right">Spend (30d)</TableHead>
                   <TableHead className="w-24 text-right">Active</TableHead>
                 </TableRow>
@@ -522,13 +522,13 @@ function CampaignRow({
     );
   return (
     <TableRow>
-      <TableCell className="font-medium">{campaign.name}</TableCell>
+      <TableCell className="sticky left-0 z-10 bg-background font-medium">{campaign.name}</TableCell>
       <TableCell>
         <Badge variant={isActive ? "default" : "secondary"}>
           {campaign.status}
         </Badge>
       </TableCell>
-      <TableCell className="text-right tabular-nums">
+      <TableCell className="hidden text-right tabular-nums md:table-cell">
         {money(microsToDollars(campaign.dailyBudgetAmountLocalMicro))}
       </TableCell>
       <TableCell className="text-right tabular-nums">

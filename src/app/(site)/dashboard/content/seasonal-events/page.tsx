@@ -364,7 +364,7 @@ export default function SeasonalEventsPage() {
     api
       .get<OrgDetails>("/v1/dashboard/org")
       .then(setOrgDetails)
-      .catch(() => setError("Failed to load seasonal events. Please try again."))
+      .catch(() => setError("Failed to load holidays & events. Please try again."))
       .finally(() => setLoading(false));
   }, [org?._id]);
 
@@ -424,7 +424,7 @@ export default function SeasonalEventsPage() {
   if (loading) {
     return (
       <PageShell>
-        <div className="flex justify-center py-12" role="status" aria-label="Loading seasonal events">
+        <div className="flex justify-center py-12" role="status" aria-label="Loading holidays & events">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary" />
         </div>
       </PageShell>
@@ -479,7 +479,7 @@ export default function SeasonalEventsPage() {
         <div className="rounded-lg border border-dashed bg-card p-8 text-center">
           <CalendarDays className="mx-auto h-8 w-8 text-muted-foreground/40" />
           <p className="mt-3 text-sm text-muted-foreground">
-            No seasonal events yet. Click <span className="font-medium">Add event</span>{" "}
+            No holidays or events yet. Click <span className="font-medium">Add event</span>{" "}
             to add a holiday, festival, or commercial moment relevant to your audience.
           </p>
         </div>
@@ -841,7 +841,7 @@ function SeasonalEventEditor({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{initial ? "Edit event" : "Add seasonal event"}</DialogTitle>
+          <DialogTitle>{initial ? "Edit event" : "Add holiday or event"}</DialogTitle>
           <DialogDescription>
             {initial
               ? "Refine the name, month, relevance, or per-year dates."
