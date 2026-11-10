@@ -11,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DataToolbar, DataToolbarSearch } from "@/components/molecules/data-table";
 import { EmptyState } from "@/components/molecules/empty-state";
 import {
   useAnswerKbRequest,
@@ -159,35 +160,40 @@ function Entries() {
         </Button>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Input
-          aria-label="Search entries"
-          className="max-w-xs"
-          placeholder="Search"
-          value={typed}
-          onChange={(e) => setTyped(e.target.value)}
-        />
-        <select
-          aria-label="Show entries from"
-          className="rounded-md border bg-background px-2 text-sm"
-          value={filter.source}
-          onChange={(e) => setFilter((f) => ({ ...f, source: e.target.value as EntryFilter["source"] }))}
-        >
-          <option value="">All sources</option>
-          <option value="owner">Written by you</option>
-          <option value="import">Imported</option>
-          <option value="learned">Learned</option>
-        </select>
-        <select
-          aria-label="Active or archived"
-          className="rounded-md border bg-background px-2 text-sm"
-          value={filter.status}
-          onChange={(e) => setFilter((f) => ({ ...f, status: e.target.value as EntryFilter["status"] }))}
-        >
-          <option value="active">Active</option>
-          <option value="archived">Archived</option>
-        </select>
-      </div>
+      <DataToolbar
+        search={
+          <DataToolbarSearch
+            aria-label="Search entries"
+            placeholder="Search"
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+          />
+        }
+        filters={
+          <>
+            <select
+              aria-label="Show entries from"
+              className="rounded-md border bg-background px-2 text-sm"
+              value={filter.source}
+              onChange={(e) => setFilter((f) => ({ ...f, source: e.target.value as EntryFilter["source"] }))}
+            >
+              <option value="">All sources</option>
+              <option value="owner">Written by you</option>
+              <option value="import">Imported</option>
+              <option value="learned">Learned</option>
+            </select>
+            <select
+              aria-label="Active or archived"
+              className="rounded-md border bg-background px-2 text-sm"
+              value={filter.status}
+              onChange={(e) => setFilter((f) => ({ ...f, status: e.target.value as EntryFilter["status"] }))}
+            >
+              <option value="active">Active</option>
+              <option value="archived">Archived</option>
+            </select>
+          </>
+        }
+      />
 
       {editing && <EntryEditor key={editing === "new" ? "new" : editing.id} entry={editing === "new" ? null : editing} onDone={() => setEditing(null)} />}
 

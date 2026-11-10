@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Sparkles, Users } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DataToolbar, DataToolbarSearch } from "@/components/molecules/data-table";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -175,62 +175,67 @@ export default function AudienceLibraryPage() {
         <DiscoverAudiencesDialog open={discoverOpen} onOpenChange={setDiscoverOpen} />
       )}
 
-      <div className="flex flex-wrap gap-2">
-        <Input
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value.slice(0, SEARCH_MAX));
-            setOffset(0);
-          }}
-          maxLength={SEARCH_MAX}
-          placeholder="Search names and descriptions…"
-          className="w-full sm:max-w-xs"
-          aria-label="Search audiences"
-        />
-        <Select value={source} onValueChange={onFilterChange(setSource)}>
-          <SelectTrigger className="w-45" aria-label="Filter by where it came from">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Anywhere from</SelectItem>
-            {SOURCES.map((s) => (
-              <SelectItem key={s.value} value={s.value}>
-                {s.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={status} onValueChange={onFilterChange(setStatus)}>
-          <SelectTrigger className="w-40" aria-label="Filter by status">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Any status</SelectItem>
-            {STATUSES.map((s) => (
-              <SelectItem key={s.value} value={s.value}>
-                {s.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={platform} onValueChange={onFilterChange(setPlatform)}>
-          <SelectTrigger className="w-40" aria-label="Filter by channel">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {/* ★"WORKS ON THIS CHANNEL", NOT "WAS BORN ON IT". The api asks
-                whether the audience carries a shape for the channel, so an
-                idea planned on LinkedIn and since resolved for X appears under
-                both — which is the whole point of a channel-neutral library. */}
-            <SelectItem value={ALL}>Any channel</SelectItem>
-            {LIBRARY_CHANNELS.map((p) => (
-              <SelectItem key={p} value={p}>
-                Works on {platformLabel(p)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <DataToolbar
+        search={
+          <DataToolbarSearch
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value.slice(0, SEARCH_MAX));
+              setOffset(0);
+            }}
+            maxLength={SEARCH_MAX}
+            placeholder="Search names and descriptions…"
+            aria-label="Search audiences"
+          />
+        }
+        filters={
+          <>
+            <Select value={source} onValueChange={onFilterChange(setSource)}>
+              <SelectTrigger className="w-45" aria-label="Filter by where it came from">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Anywhere from</SelectItem>
+                {SOURCES.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={status} onValueChange={onFilterChange(setStatus)}>
+              <SelectTrigger className="w-40" aria-label="Filter by status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Any status</SelectItem>
+                {STATUSES.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={platform} onValueChange={onFilterChange(setPlatform)}>
+              <SelectTrigger className="w-40" aria-label="Filter by channel">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {/* ★"WORKS ON THIS CHANNEL", NOT "WAS BORN ON IT". The api asks
+                    whether the audience carries a shape for the channel, so an
+                    idea planned on LinkedIn and since resolved for X appears under
+                    both — which is the whole point of a channel-neutral library. */}
+                <SelectItem value={ALL}>Any channel</SelectItem>
+                {LIBRARY_CHANNELS.map((p) => (
+                  <SelectItem key={p} value={p}>
+                    Works on {platformLabel(p)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
+        }
+      />
 
       {sets.isPending ? (
         <div className="space-y-3">

@@ -10,8 +10,7 @@ import { resolveBrandLogo } from "@/lib/brand-logos";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
+import { DataToolbar, DataToolbarSearch } from "@/components/molecules/data-table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollableTabsList } from "@/components/scrollable-tabslist";
@@ -151,23 +150,6 @@ export default function ContentChannelsHubPage() {
               Connect content sources to ingest, repurpose, and publish across every channel.
             </p>
           </div>
-          {/* Top-right, and `type="search"` so the browser offers its own clear
-              affordance rather than us shipping a second one. `shrink-0` keeps
-              it from being squeezed by a long heading at tablet widths. */}
-          <div className="relative w-full shrink-0 sm:w-64">
-            <Search
-              className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-              aria-hidden
-            />
-            <Input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search channels"
-              aria-label="Search channels"
-              className="pl-8"
-            />
-          </div>
         </div>
         {isError && (
           <p className="text-sm text-destructive">
@@ -177,16 +159,28 @@ export default function ContentChannelsHubPage() {
       </header>
 
       <Tabs defaultValue={ALL_TAB}>
-        <ScrollableTabsList className="rounded-none">
-          <TabsList className="overflow-y-hidden">
-            <TabsTrigger value={ALL_TAB}>All</TabsTrigger>
-            {CHANNEL_CATEGORIES.map((category) => (
-              <TabsTrigger key={category} value={category}>
-                {category}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </ScrollableTabsList>
+        <DataToolbar
+          search={
+            <DataToolbarSearch
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search channels"
+              aria-label="Search channels"
+            />
+          }
+          tabs={
+            <ScrollableTabsList className="rounded-none">
+              <TabsList className="overflow-y-hidden">
+                <TabsTrigger value={ALL_TAB}>All</TabsTrigger>
+                {CHANNEL_CATEGORIES.map((category) => (
+                  <TabsTrigger key={category} value={category}>
+                    {category}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </ScrollableTabsList>
+          }
+        />
 
         <TabsContent value={ALL_TAB} className="mt-6">
           <ChannelGroups

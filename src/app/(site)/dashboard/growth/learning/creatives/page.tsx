@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DataToolbar } from "@/components/molecules/data-table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ApiError } from "@/lib/api";
@@ -125,31 +126,35 @@ function CreativeReview() {
           your <Link href="/dashboard/ads" className="underline underline-offset-2">guardrails</Link>, Peakhour
           creates ads only from creatives you approve here &mdash; exactly as they read when you approved them.</>} />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs value={filter.key} onValueChange={(v) => setParam("filter", v)} activationMode="manual">
-          <TabsList>
-            {CREATIVE_FILTERS.map((f) => (
-              <TabsTrigger key={f.key} value={f.key}>
-                {f.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-          <TabPanelStubs values={CREATIVE_FILTERS.map((f) => f.key)} />
-        </Tabs>
-        <Select value={platform || ALL_PLATFORMS} onValueChange={(v) => setParam("platform", v === ALL_PLATFORMS ? null : v)}>
-          <SelectTrigger className="w-56" aria-label="Channel">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_PLATFORMS}>All channels</SelectItem>
-            {GUARDRAIL_CHANNELS.map((c) => (
-              <SelectItem key={c.key} value={c.key}>
-                {c.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <DataToolbar
+        tabs={
+            <Tabs value={filter.key} onValueChange={(v) => setParam("filter", v)} activationMode="manual">
+              <TabsList>
+                {CREATIVE_FILTERS.map((f) => (
+                  <TabsTrigger key={f.key} value={f.key}>
+                    {f.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              <TabPanelStubs values={CREATIVE_FILTERS.map((f) => f.key)} />
+            </Tabs>
+        }
+        filters={
+            <Select value={platform || ALL_PLATFORMS} onValueChange={(v) => setParam("platform", v === ALL_PLATFORMS ? null : v)}>
+              <SelectTrigger className="w-56" aria-label="Channel">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_PLATFORMS}>All channels</SelectItem>
+                {GUARDRAIL_CHANNELS.map((c) => (
+                  <SelectItem key={c.key} value={c.key}>
+                    {c.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+        }
+      />
 
       {/* ★NO DATA covers a query paused offline too (pending, not loading):
           rendering the empty state then would claim "no creatives" from nothing. */}

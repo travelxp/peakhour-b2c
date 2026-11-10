@@ -14,12 +14,11 @@ import { SENTIMENT_CONFIG, SHELF_LIFE_LABELS, label } from "@/lib/content-labels
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/molecules/confirm-dialog";
 import { EmptyState } from "@/components/molecules/empty-state";
-import { useDataTable, FacetedFilter, DataTablePagination } from "@/components/molecules/data-table";
+import { useDataTable, FacetedFilter, DataTablePagination, DataToolbar, DataToolbarSearch } from "@/components/molecules/data-table";
 import type { FacetedFilterOption } from "@/components/molecules/data-table";
 import { getContentColumns, type Draft } from "./columns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FileX, LayoutGrid, List, Library, BrainCircuit, Plus } from "lucide-react";
 import { RepurposeSheet } from "@/components/repurpose/repurpose-sheet";
@@ -411,74 +410,81 @@ export default function ContentPage() {
           {/* ── Library Tab ─────────────────────────────────── */}
           <TabsContent value="library" className="mt-4 space-y-4">
             {/* Toolbar: Search + Faceted Filters + View Toggle */}
-            <div className="flex flex-wrap items-center gap-2">
-              <Input
-                placeholder="Search articles..."
-                value={globalFilter}
-                onChange={(e) => setGlobalFilter(e.target.value)}
-                className="h-8 w-full lg:w-64"
-              />
-              <FacetedFilter
-                column={table.getColumn("contentFormat")}
-                title="Format"
-                options={contentFormatFilterOptions}
-                align="start"
-              />
-              <FacetedFilter
-                column={table.getColumn("contentType")}
-                title="Subtype"
-                options={contentTypeFilterOptions}
-                align="start"
-              />
-              <FacetedFilter
-                column={table.getColumn("sentiment")}
-                title="Sentiment"
-                options={sentimentOptions}
-                align="start"
-              />
-              <FacetedFilter
-                column={table.getColumn("shelfLife")}
-                title="Shelf Life"
-                options={shelfLifeFilterOptions}
-                align="start"
-              />
-              {/* "Repurposable" filter — keys on the actions column's
-                  accessor (repurposeFit.topBand). Default selection is
-                  the most useful single filter ("green" = strong fit on
-                  ≥1 connected channel); we leave it as a multi-select
-                  so an operator can also include amber ("workable
-                  with caveats") if they want a broader pool. */}
-              <FacetedFilter
-                column={table.getColumn("actions")}
-                title="Repurposable"
-                options={[
-                  { value: "green", label: "Strong fit (green)" },
-                  { value: "amber", label: "Workable (amber)" },
-                  { value: "grey", label: "Not a fit (grey)" },
-                ]}
-                align="start"
-              />
-              {hasActiveFilters && (
-                <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8">
-                  Clear all
-                </Button>
-              )}
+            <DataToolbar
+              search={
+                <DataToolbarSearch
+                  aria-label="Search articles"
+                  placeholder="Search articles..."
+                  value={globalFilter}
+                  onChange={(e) => setGlobalFilter(e.target.value)}
+                  className="h-8"
+                />
+              }
+              filters={
+                <>
+                  <FacetedFilter
+                    column={table.getColumn("contentFormat")}
+                    title="Format"
+                    options={contentFormatFilterOptions}
+                    align="start"
+                  />
+                  <FacetedFilter
+                    column={table.getColumn("contentType")}
+                    title="Subtype"
+                    options={contentTypeFilterOptions}
+                    align="start"
+                  />
+                  <FacetedFilter
+                    column={table.getColumn("sentiment")}
+                    title="Sentiment"
+                    options={sentimentOptions}
+                    align="start"
+                  />
+                  <FacetedFilter
+                    column={table.getColumn("shelfLife")}
+                    title="Shelf Life"
+                    options={shelfLifeFilterOptions}
+                    align="start"
+                  />
+                  {/* "Repurposable" filter — keys on the actions column's
+                      accessor (repurposeFit.topBand). Default selection is
+                      the most useful single filter ("green" = strong fit on
+                      ≥1 connected channel); we leave it as a multi-select
+                      so an operator can also include amber ("workable
+                      with caveats") if they want a broader pool. */}
+                  <FacetedFilter
+                    column={table.getColumn("actions")}
+                    title="Repurposable"
+                    options={[
+                      { value: "green", label: "Strong fit (green)" },
+                      { value: "amber", label: "Workable (amber)" },
+                      { value: "grey", label: "Not a fit (grey)" },
+                    ]}
+                    align="start"
+                  />
+                  {hasActiveFilters && (
+                    <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8">
+                      Clear all
+                    </Button>
+                  )}
 
-              {/* View toggle */}
-              <ToggleGroup
-                type="single"
-                value={view}
-                onValueChange={(v) => v && setView(v as "card" | "table")}
-                className="ml-auto"
-              >
-                <ToggleGroupItem value="card" aria-label="Card view" className="h-8 w-8 p-0">
-                  <LayoutGrid className="size-4" />
-                </ToggleGroupItem>
-                <ToggleGroupItem value="table" aria-label="Table view" className="h-8 w-8 p-0">
-                  <List className="size-4" />
-                </ToggleGroupItem>
-              </ToggleGroup>
-            </div>
+                </>
+              }
+              actions={
+                <ToggleGroup
+                  type="single"
+                  value={view}
+                  onValueChange={(v) => v && setView(v as "card" | "table")}
+                >
+                  <ToggleGroupItem value="card" aria-label="Card view" className="h-8 w-8 p-0">
+                    <LayoutGrid className="size-4" />
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="table" aria-label="Table view" className="h-8 w-8 p-0">
+                    <List className="size-4" />
+                  </ToggleGroupItem>
+                </ToggleGroup>
+              }
+            />
 
             {/* Loading skeleton */}
             {libraryLoading ? (
