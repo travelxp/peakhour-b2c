@@ -35,6 +35,9 @@ export const RETIRED: Record<string, RegExp> = {
   "Content Pipeline": /\bcontent pipeline\b/i,
   "My Tickets": /\bmy tickets\b/i, // now "Support tickets"
   Integrations: /\bIntegrations\b/, // now "Connected accounts"
+  // Lower-case "integrations" is a fine common noun, but as a place you send someone it is the retired page name:
+  // "Go to integrations" shipped on both Reports pages and the audience channel card until 2026-11-10.
+  "integrations (as a destination)": /\b(?:[Gg]o to|[Oo]pen|[Vv]isit|[Bb]ack to)\s+integrations\b/,
   Tasks: /\bTasks\b/, // now "Activity"
   Insights: /\bInsights\b(?! Network)/, // now "Reports" (the Reports pillar only); "Insights Network" is another feature
 };
@@ -123,6 +126,8 @@ describe("retired destination names", () => {
     expect(retiredIn("We couldn't load your ledger")).toEqual(["Ledger"]);
     expect(retiredIn("Ledger")).toEqual(["Ledger"]);
     expect(retiredIn("See it in Integrations")).toEqual(["Integrations"]);
+    expect(retiredIn("Go to integrations")).toEqual(["integrations (as a destination)"]);
+    expect(retiredIn("works with your integrations")).toEqual([]);
     expect(retiredIn("Open the News Desk or Strategist")).toEqual(["Strategist", "News Desk"]);
     expect(retiredIn("Add trusted sources")).toEqual(["Trusted Sources"]);
     expect(retiredIn("Failed to load seasonal events")).toEqual(["Seasonal Events"]);

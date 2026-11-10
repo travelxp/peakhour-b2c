@@ -213,7 +213,7 @@ export function ChannelCard({ set, platform }: { set: AudienceSet; platform: str
             {CONNECTION_CODES.has(data.code) && (
               <div className="flex flex-wrap gap-2 pt-1">
                 <Button asChild size="sm" variant="outline">
-                  <Link href="/dashboard/integrations">Go to integrations</Link>
+                  <Link href="/dashboard/integrations">Go to Connected accounts</Link>
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => void resolution.refetch()}>
                   I&apos;ve done that — check again
@@ -302,7 +302,7 @@ export function ChannelCard({ set, platform }: { set: AudienceSet; platform: str
                     common case had the worse answer. */}
                 {CONNECTION_CODES.has(data.refreshFailed.code) && (
                   <Button asChild size="sm" variant="outline">
-                    <Link href="/dashboard/integrations">Go to integrations</Link>
+                    <Link href="/dashboard/integrations">Go to Connected accounts</Link>
                   </Button>
                 )}
               </div>
