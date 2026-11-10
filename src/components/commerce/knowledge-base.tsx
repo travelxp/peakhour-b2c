@@ -194,7 +194,7 @@ function Entries() {
       {isLoading ? (
         <Skeleton className="h-32 w-full" />
       ) : isError && !data ? (
-        <p className="text-sm text-destructive">Could not load the knowledge base. Please refresh.</p>
+        <p className="text-sm text-destructive">Could not load assistant answers. Please refresh.</p>
       ) : (data?.entries.length ?? 0) === 0 ? (
         <EmptyState
           icon={BookOpen}

@@ -321,7 +321,7 @@ function KpiStrip({ rows, loading }: { rows: TrustedSource[]; loading: boolean }
 function ErrorCard({ error }: { error: unknown }) {
   const isApi = error instanceof ApiError;
   const status = isApi ? error.status : 0;
-  const message = isApi ? error.message : "Could not load trusted sources.";
+  const message = isApi ? error.message : "Could not load content sources.";
 
   // 400 + scope mention from the backend = no business selected
   // (the route's principal-narrowing branch returns
@@ -384,7 +384,7 @@ function EmptyState({
         <CardContent className="space-y-2 py-12 text-center">
           <p className="text-sm font-medium">Your AI is using only platform-default sources.</p>
           <p className="text-sm text-muted-foreground">
-            Add 5–10 trusted sources to ground every brief in your brand&apos;s voice.
+            Add 5–10 content sources to ground every brief in your brand&apos;s voice.
           </p>
         </CardContent>
       </Card>

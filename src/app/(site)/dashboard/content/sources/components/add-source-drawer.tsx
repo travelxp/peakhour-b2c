@@ -94,7 +94,7 @@ export function AddSourceDrawer() {
       </SheetTrigger>
       <SheetContent className="flex flex-col sm:max-w-2xl">
         <SheetHeader>
-          <SheetTitle>Add trusted sources</SheetTitle>
+          <SheetTitle>Add content sources</SheetTitle>
           <SheetDescription>
             Sources ground every brief, idea, and post in your brand&apos;s voice. Active sources are picked up by the next 15-minute fetch.
           </SheetDescription>
@@ -593,7 +593,7 @@ function CompetitorTab({ onClose }: { onClose: () => void }) {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Paste a competitor or peer brand&apos;s URL — the AI proposes trusted sources grounded in your brand&apos;s sectors and audience. Approved recommendations land in your Suggested tab for one-click review.{" "}
+            Paste a competitor or peer brand&apos;s URL — the AI proposes content sources grounded in your brand&apos;s sectors and audience. Approved recommendations land in your Suggested tab for one-click review.{" "}
             <ActionCost action="findSources" />
           </p>
         </form>
@@ -843,7 +843,7 @@ function BulkSubmitFooter({
     // failure. One actionable toast beats N identical "Feature
     // required" messages.
     if (o.featureRevoked) {
-      toast.error("Trusted Sources is no longer on your plan", {
+      toast.error("Content sources is no longer on your plan", {
         description:
           "Refresh the page to see the upgrade options. Any rows that were already added before the change have been kept.",
       });

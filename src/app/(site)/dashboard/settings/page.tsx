@@ -437,7 +437,7 @@ function SettingsContent() {
                       </span>
                     ) : (
                       <span className="text-muted-foreground">
-                        Not set — seasonal events will be limited until you pick a country
+                        Not set — holidays & events will be limited until you pick a country
                       </span>
                     )
                   }

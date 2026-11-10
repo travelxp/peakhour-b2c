@@ -22,6 +22,7 @@ import {
   summaryHeadline,
 } from "@/lib/content-ledger";
 import { PageIntro } from "@/components/dashboard/page-intro";
+import { navLabel } from "@/lib/nav-copy";
 
 /**
  * The content ledger — what we published, and what it earned.
@@ -101,7 +102,7 @@ export default function ContentLedgerPage() {
       ) : ledger.isError ? (
         <EmptyState
           icon={FileClock}
-          title="We couldn't load your ledger"
+          title={`We couldn't load your ${navLabel("/dashboard/content/ledger").toLowerCase()}`}
           description="That's on us — nothing has been changed. Try again in a moment."
           action={{ label: "Try again", onClick: () => void ledger.refetch() }}
         />
@@ -143,7 +144,7 @@ function LedgerBody({ data }: { data: ContentLedgerResponse }) {
             : // ★★AND THE REASON THE RECORD MAY BE SHORT IS OURS, NOT THEIRS.
               // Nothing recorded which page came from which publish until the
               // ledger shipped, and that link cannot be reconstructed.
-              "Pages you publish from Peakhour appear here with what they earned. Articles published before this was switched on can't be matched back to their publish, so the ledger starts from your next one."
+              "Pages you publish from Peakhour appear here with what they earned. Articles published before this was switched on can't be matched back to their publish, so Results starts from your next one."
         }
       />
     );

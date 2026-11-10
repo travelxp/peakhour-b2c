@@ -106,7 +106,7 @@ export function doneCopy(
   const business = result.businessName ?? "your workspace";
   return {
     title: `Added to ${business}`,
-    body: `${storeName} was added to ${business} as another store. It shows under Integrations, next to the stores ${business} already has.`,
+    body: `${storeName} was added to ${business} as another store. It shows under Connected accounts, next to the stores ${business} already has.`,
     integrationsHint: true,
   };
 }

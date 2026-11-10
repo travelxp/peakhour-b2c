@@ -121,7 +121,7 @@ export function FeedbackWidget() {
             <Button variant="outline" size="sm" className="gap-1.5" asChild>
               <Link href="/dashboard/settings/tickets" onClick={() => setOpen(false)}>
                 <ExternalLink className="size-3.5" />
-                View my tickets
+                View support tickets
               </Link>
             </Button>
           </div>
