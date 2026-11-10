@@ -197,14 +197,14 @@ describe("the state words", () => {
 describe("the one publishing status (GBP Issue 1)", () => {
   const ADMIN_CAN = { propose: true, approve: true };
   const EDITOR_CAN = { propose: true, approve: false };
-  const pub = (over: Partial<PresencePublishing> = {}): PresencePublishing => ({ state: "held", heldReason: "Peakhour is finishing its setup with Testnet. You don't need to do anything.", blocker: null, keptForHours: 72, ...over });
+  const pub = (over: Partial<PresencePublishing> = {}): PresencePublishing => ({ state: "held", heldReason: "Peakhour is finishing its setup with Testnet.", blocker: null, keptForHours: 72, ...over });
   const entry = (p: PresencePublishing | null | undefined) => ({ label: "Testnet", publishing: p });
 
   it("held says what is off, why, that the merchant need not act, and for how long a change keeps, with no button", () => {
     const b = publishingBanner(entry(pub()), ADMIN_CAN)!;
     expect(b.tone).toBe("warn");
     expect(b.headline).toBe("Publishing to Testnet hasn't started yet");
-    expect(b.lines[0]).toMatch(/You don't need to do anything/);
+    expect(b.lines[0]).toBe("Peakhour is finishing its setup with Testnet. You don't need to do anything.");
     expect(b.lines.join(" ")).toMatch(/You can prepare and approve changes now/);
     expect(b.lines.join(" ")).toMatch(/3 days after it was prepared is dropped/);
     expect(b.action).toBeNull();
@@ -220,8 +220,9 @@ describe("the one publishing status (GBP Issue 1)", () => {
   it("held with a merchant-side blocker names it and gives its fix, so it can be done while they wait", () => {
     const b = publishingBanner(entry(pub({ blocker: { reason: "Testnet has suspended this listing.", action: "fix_on_network", href: "https://t.example" } })), ADMIN_CAN)!;
     expect(b.lines).toContain("One thing needs you first: Testnet has suspended this listing.");
-    // never "you don't need to do anything" beside "fix this"
+    // never "you don't need to do anything" beside "fix this"; the why is still said
     expect(b.lines.join(" ")).not.toMatch(/don't need to do anything/);
+    expect(b.lines[0]).toBe("Peakhour is finishing its setup with Testnet.");
     expect(b.action).toEqual({ label: "Fix this on Testnet", href: "https://t.example", external: true });
   });
 

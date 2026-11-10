@@ -291,9 +291,9 @@ export function publishingBanner(
       tone: "warn",
       headline: `Publishing to ${label} hasn't started yet`,
       lines: [
-        // ★Peakhour's sentence says the merchant need do nothing, which is false the moment something on their side also stops a send:
-        // with a blocker it is left out, so one status never says both "nothing to do" and "fix this".
-        ...(p.heldReason && !p.blocker ? [p.heldReason] : []),
+        // Peakhour's sentence is WHY (a fact; mig 979 and the api's HELD). Whether the merchant must act is said here, because only this
+        // status knows whether something on their side also stops a send: never both "nothing to do" and "fix this".
+        ...[[p.heldReason, p.blocker ? null : "You don't need to do anything."].filter(Boolean).join(" ")].filter(Boolean),
         `${meanwhile} They are sent to ${label} once publishing starts. A change that has not been sent ${keptFor(p.keptForHours)} after it was prepared is dropped, and has to be made again.`,
         ...(p.blocker ? [`One thing needs you first: ${p.blocker.reason}`] : []),
       ],
