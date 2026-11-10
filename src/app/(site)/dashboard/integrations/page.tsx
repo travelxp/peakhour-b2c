@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
 import { invalidateLinkedInContentQueries } from "@/lib/linkedin-cache";
+import { integrationsListQuery } from "@/lib/nav-queries";
 import { api, ApiError, API_BASE_URL } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
@@ -203,7 +204,8 @@ export default function IntegrationsPage() {
   // stopped being.
   useEffect(() => {
     if (!org) return;
-    loadIntegrations();
+    // The first read paints from the cache a nav-link prefetch warmed (lib/nav-prefetch.ts), then revalidates.
+    loadIntegrations({ allowCached: true });
   }, [org?._id, business?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
@@ -220,10 +222,21 @@ export default function IntegrationsPage() {
    * reconnect, refresh and disconnect all change what the hub should show, and
    * an invalidate on a fresh cache costs nothing.
    */
-  async function loadIntegrations() {
+  async function loadIntegrations(opts?: { allowCached?: boolean }) {
     invalidateLinkedInContentQueries(queryClient);
     try {
-      const data = await api.get<{ integrations: Integration[] }>("/v1/integrations");
+      const listQuery = integrationsListQuery(org?._id, business?._id);
+      // Stale-while-revalidate, never stale-only: a list a nav-link prefetch
+      // warmed paints at once, and the read below still goes to the api, so a
+      // connect that finished in another tab or an OAuth return is never hidden.
+      if (opts?.allowCached === true) {
+        const warm = queryClient.getQueryData(listQuery.queryKey);
+        if (warm) {
+          setIntegrations(flattenMetaIntegration(warm.integrations));
+          setLoading(false);
+        }
+      }
+      const data = await queryClient.fetchQuery({ ...listQuery, staleTime: 0 });
       setIntegrations(flattenMetaIntegration(data.integrations));
     } catch (err) {
       if (err instanceof ApiError) setError(err.message);

@@ -1,4 +1,4 @@
-import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useMutation, queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import {
@@ -613,17 +613,21 @@ export function sameBusiness(businessId: string | undefined) {
     previousQuery?.queryKey[1] === (businessId ?? "none") ? previous : undefined;
 }
 
-export function useGrowthV2Home(window: HomeWindowKey = "7d", compare: HomeCompare = "last_period") {
-  const { business } = useAuth();
-  return useQuery<HomeScreenData | HomeRefusal>({
-    queryKey: key(business?._id, "home", window, compare),
-    queryFn: () => loadHome(() => growthV2Api.home(window, compare)),
-    enabled: !!business?._id,
+export function growthV2HomeQuery(businessId: string | undefined, window: HomeWindowKey = "7d", compare: HomeCompare = "last_period") {
+  return queryOptions({
+    queryKey: key(businessId, "home", window, compare),
+    queryFn: (): Promise<HomeScreenData | HomeRefusal> => loadHome(() => growthV2Api.home(window, compare)),
+    enabled: !!businessId,
     staleTime: 30_000,
     // Changing the window keeps the last one on screen until the next arrives, instead of collapsing to a skeleton.
     // ★Only for the same business: another business's figures must never stand in for this one's.
-    placeholderData: sameBusiness(business?._id),
+    placeholderData: sameBusiness(businessId),
   });
+}
+
+export function useGrowthV2Home(window: HomeWindowKey = "7d", compare: HomeCompare = "last_period") {
+  const { business } = useAuth();
+  return useQuery(growthV2HomeQuery(business?._id, window, compare));
 }
 
 /** The decisions a screen reads: every page so far, merged, and whether there is another. */

@@ -18,6 +18,7 @@ import { SCOPE_LABEL, offersAllStores, openAddress, scopeFromParam, type InboxSc
 import { useInsights } from "@/hooks/use-insights";
 import { insightsBadge } from "@/lib/insights";
 import { INBOX_SUBTITLE, threadFromParam } from "@/lib/inbox-view";
+import { inboxReviewsQuery } from "@/lib/nav-queries";
 import { inboxApi, type InboxItem, type InboxPriority } from "@/lib/api/inbox";
 import { listFetchState, showsSkeleton } from "@/lib/list-fetch-state";
 import {
@@ -260,12 +261,7 @@ function LeadsPane() {
  * than implying the merchant has no reviews — nobody has told us either way.
  */
 function useReviewsQuery() {
-  return useQuery({
-    queryKey: ["inbox-reviews"],
-    queryFn: () => inboxApi.list({ kind: "review", limit: REVIEW_PAGE_LIMIT }),
-    staleTime: 30_000,
-    refetchOnWindowFocus: false,
-  });
+  return useQuery(inboxReviewsQuery);
 }
 
 function ReviewsPane({ query }: { query: ReturnType<typeof useReviewsQuery> }) {

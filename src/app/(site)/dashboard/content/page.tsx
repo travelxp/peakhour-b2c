@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
-import { api } from "@/lib/api";
+import { contentHubCatalogQuery, contentHubIntegrationsQuery, type ContentHubIntegration } from "@/lib/nav-queries";
 import { resolveBrandLogo } from "@/lib/brand-logos";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollableTabsList } from "@/components/scrollable-tabslist";
 import { flattenMetaIntegration } from "@/lib/integrations-meta";
-import type { ResolvedCatalog } from "@/lib/catalog";
 import {
   CHANNELS,
   CHANNEL_CATEGORIES,
@@ -27,17 +26,7 @@ import { resolveChannelCta } from "./channel-cta";
 import { filterChannels, groupChannels, type ChannelGroup } from "./channel-groups";
 import { PageShell } from "@/components/dashboard/page-shell";
 
-interface ApiIntegration {
-  provider: string;
-  connected?: boolean;
-  status?: string;
-  lastSyncAt?: string;
-  lastError?: string;
-  account?: {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    extra?: Record<string, any>;
-  };
-}
+type ApiIntegration = ContentHubIntegration;
 
 type ConnectionMap = Map<string, ApiIntegration>;
 
@@ -51,15 +40,12 @@ const ALL_TAB = "All" as const;
 
 export default function ContentChannelsHubPage() {
   const queryClient = useQueryClient();
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["content-hub-integrations"],
-    queryFn: () => api.get<{ integrations: ApiIntegration[] }>("/v1/integrations"),
-    staleTime: 30_000,
-    // Default refetch behavior is fine here. We DON'T disable focus / reconnect
-    // refetches: a user who connects Beehiiv in another tab and returns should
-    // see fresh connection state. (Earlier code disabled these to keep the
-    // auto-redirect from re-firing on tab focus, but that's gone now.)
-  });
+  // Default refetch behavior is fine here. We DON'T disable focus / reconnect
+  // refetches: a user who connects Beehiiv in another tab and returns should
+  // see fresh connection state. (Earlier code disabled these to keep the
+  // auto-redirect from re-firing on tab focus, but that's gone now.)
+  // The key and fn live in lib/nav-queries so the sidebar can prefetch them.
+  const { data, isLoading, isError } = useQuery(contentHubIntegrationsQuery);
 
   // Bind `data?.integrations` to a local so the memo's source dep matches what
   // React Compiler infers (it widened `data?.integrations` to `data`). Stable
@@ -67,11 +53,7 @@ export default function ContentChannelsHubPage() {
   // Channel list is now CMS-driven: resolved from the org-personalized platform
   // catalog. Falls back to the static channels.config.ts if the catalog can't
   // be loaded, so the hub never renders empty.
-  const { data: catalog } = useQuery({
-    queryKey: ["content-hub-catalog"],
-    queryFn: () => api.get<ResolvedCatalog>("/v1/platform/catalog"),
-    staleTime: 30_000,
-  });
+  const { data: catalog } = useQuery(contentHubCatalogQuery);
   const channels = useMemo<ChannelConfig[]>(
     () =>
       catalog?.integrations?.length

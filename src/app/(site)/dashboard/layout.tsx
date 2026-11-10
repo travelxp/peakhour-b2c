@@ -65,6 +65,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { useNavIntent } from "@/hooks/use-nav-intent";
 import { useMyTickets } from "@/hooks/use-feedback";
 import { useRunningJobCount } from "@/hooks/use-jobs";
 import { LockedNavItem } from "@/components/dashboard/locked-nav-item";
@@ -222,6 +223,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   // Whether a mandate exists decides whether Growth shows First run. The same
   // query feeds the Rules screen, so this is one request, not two.
   const rules = useGrowthV2Rules();
+  // Hover/focus/touch on a nav link warms its route code and first query; the
+  // links are prefetch={false} so ~40 of them do not prefetch on every load.
+  const intentProps = useNavIntent();
   const mandateState = mandateStateOf(rules.data);
   const navGroups = navGroupsFor(mandateState);
   // Which pillars the reader has opened or closed by hand. Unset = follow the
@@ -341,7 +345,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton size="lg" asChild className="hover:bg-transparent">
-                <Link href={HOME_ROUTE}>
+                <Link href={HOME_ROUTE} prefetch={false} {...intentProps(HOME_ROUTE)}>
                   {/* ★TWO COLUMNS: THE MARK, THEN THE NAME OVER ITS DESCRIPTION.
                       The mark is present in BOTH states — it is the one element
                       that survives the collapse — so it is not duplicated the
@@ -439,7 +443,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                                   return (
                                     <SidebarMenuSubItem key={sub.href}>
                                       <SidebarMenuSubButton asChild isActive={subActive}>
-                                        <Link href={sub.href} title={sub.description}>
+                                        <Link href={sub.href} prefetch={false} {...intentProps(sub.href)} title={sub.description}>
                                           <span>{sub.label}</span>
                                           {sub.badge && NAV_BADGES[sub.badge]()}
                                         </Link>
@@ -461,7 +465,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                           isActive={isActive}
                           tooltip={item.description ? `${item.label}: ${item.description}` : item.label}
                         >
-                          <Link href={item.href} title={item.description}>
+                          <Link href={item.href} prefetch={false} {...intentProps(item.href)} title={item.description}>
                             <Icon />
                             <span>{item.label}</span>
                             {item.badge && NAV_BADGES[item.badge]()}
@@ -642,6 +646,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               tabs={pillarTabs.subItems ?? []}
               pathname={pathname ?? ""}
               label={pillarTabs.label}
+              intentProps={intentProps}
             />
           )}
           {children}
@@ -655,6 +660,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       <MobileTabBar
         pathname={pathname ?? ""}
         hasCommerce={!!entitlements?.features?.includes("commerce.nav")}
+        intentProps={intentProps}
       />
 
       {/* ── AI Chat FAB ──────────────────────────────────── */}

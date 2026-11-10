@@ -23,12 +23,15 @@ export function PillarTabs({
   pathname,
   label,
   className,
+  intentProps,
 }: {
   tabs: PillarTab[];
   pathname: string;
   /** Names the landmark, e.g. "Content". */
   label: string;
   className?: string;
+  /** Hover/focus/touch handlers per href (hooks/use-nav-intent). When given, tabs do not prefetch on viewport. */
+  intentProps?: (href: string) => React.HTMLAttributes<HTMLAnchorElement>;
 }) {
   const active = activeTab(pathname, tabs);
   const listRef = useRef<HTMLUListElement>(null);
@@ -106,6 +109,7 @@ export function PillarTabs({
                 <li key={t.href}>
                   <Link
                     href={t.href}
+                    {...(intentProps ? { prefetch: false, ...intentProps(t.href) } : {})}
                     title={t.description}
                     aria-current={isActive ? "page" : undefined}
                     className={cn(
