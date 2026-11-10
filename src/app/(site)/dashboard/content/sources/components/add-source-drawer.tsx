@@ -653,7 +653,7 @@ function CompetitorRecommendationsPreview({ rows }: { rows: RecommendedSource[] 
       <ul className="max-h-80 divide-y overflow-auto">
         {rows.map((row, i) => (
           <li key={`${row.identifier}-${i}`} className="flex items-start gap-3 px-3 py-2.5">
-            <Badge variant="outline" className="mt-0.5 shrink-0 text-[10px]">
+            <Badge variant="outline" className="mt-0.5 shrink-0 text-micro">
               {SOURCE_TYPE_LABEL[row.type]}
             </Badge>
             <div className="min-w-0 flex-1">
@@ -661,7 +661,7 @@ function CompetitorRecommendationsPreview({ rows }: { rows: RecommendedSource[] 
                 <p className="truncate text-xs font-medium">{row.displayName}</p>
                 <ConfidencePill confidence={row.confidence} />
               </div>
-              <p className="truncate font-mono text-[10px] text-muted-foreground" title={row.identifier}>
+              <p className="truncate font-mono text-micro text-muted-foreground" title={row.identifier}>
                 {row.identifier}
               </p>
               <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
@@ -700,7 +700,7 @@ function ConfidencePill({ confidence }: { confidence: number }) {
   return (
     <Badge
       variant="outline"
-      className={`shrink-0 text-[10px] ${classes}`}
+      className={`shrink-0 text-micro ${classes}`}
       title={`AI confidence: ${pct}%`}
       aria-label={`${label} confidence, ${pct}%`}
     >
@@ -781,12 +781,12 @@ function BulkPreview({ rows }: { rows: CreateSourceInput[] }) {
       <ul className="max-h-80 divide-y overflow-auto">
         {rows.map((row, i) => (
           <li key={`${row.identifier}-${i}`} className="flex items-center gap-3 px-3 py-2">
-            <Badge variant="outline" className="shrink-0 text-[10px]">
+            <Badge variant="outline" className="shrink-0 text-micro">
               {SOURCE_TYPE_LABEL[row.type]}
             </Badge>
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-medium">{row.displayName}</p>
-              <p className="truncate font-mono text-[10px] text-muted-foreground" title={row.identifier}>
+              <p className="truncate font-mono text-micro text-muted-foreground" title={row.identifier}>
                 {row.identifier}
               </p>
             </div>

@@ -449,23 +449,23 @@ function IntegrationRow({
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium">{name}</p>
-          <p className="truncate text-[11px] text-muted-foreground">{description}</p>
+          <p className="truncate text-micro text-muted-foreground">{description}</p>
         </div>
         {loading ? (
           <span className="inline-block h-5 w-16 animate-pulse rounded-full bg-muted" />
         ) : connected ? (
-          <Badge className="shrink-0 gap-1 bg-success/90 text-[10px] font-medium">
+          <Badge className="shrink-0 gap-1 bg-success/90 text-micro font-medium">
             <CheckCircle className="h-2.5 w-2.5" />
             {connectedLabel || "Live"}
           </Badge>
         ) : (
-          <Badge variant="outline" className="shrink-0 text-[10px] text-muted-foreground">
+          <Badge variant="outline" className="shrink-0 text-micro text-muted-foreground">
             Not connected
           </Badge>
         )}
       </div>
       {warning && (
-        <div className="ml-11 flex items-center gap-1.5 rounded-lg bg-warning/10 px-3 py-1.5 text-[11px] text-warning-on-tint">
+        <div className="ml-11 flex items-center gap-1.5 rounded-lg bg-warning/10 px-3 py-1.5 text-micro text-warning-on-tint">
           <AlertCircle className="h-3 w-3 shrink-0" />
           {warning}
         </div>

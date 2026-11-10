@@ -802,7 +802,7 @@ export function WhatsAppEmbeddedSignup({
           <div>
             <CardTitle className="flex items-center gap-2 text-base">
               {needsReauth ? "Reconnect WhatsApp" : "Connect WhatsApp"}
-              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-micro font-medium text-primary">
                 <Sparkles className="size-3" /> Live in a minute
               </span>
             </CardTitle>
@@ -874,7 +874,7 @@ export function WhatsAppEmbeddedSignup({
           >
             <span className="flex items-center gap-2 font-medium text-foreground">
               I already use the WhatsApp Business app
-              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-micro font-medium text-primary">
                 Recommended
               </span>
             </span>

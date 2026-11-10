@@ -34,7 +34,7 @@ import {
 function DriftMark({ status, label }: { status: DriftStatus; label: string | null }) {
   if (status === "differs") {
     return (
-      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-warning-on-tint">
+      <span className="inline-flex items-center gap-1 text-micro font-medium text-warning-on-tint">
         <AlertTriangle className="size-3.5" aria-hidden />
         {driftLabel("differs", label)}
       </span>
@@ -42,14 +42,14 @@ function DriftMark({ status, label }: { status: DriftStatus; label: string | nul
   }
   if (status === "matches") {
     return (
-      <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+      <span className="inline-flex items-center gap-1 text-micro text-muted-foreground">
         <Check className="size-3.5" aria-hidden />
         {driftLabel("matches", label)}
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+    <span className="inline-flex items-center gap-1 text-micro text-muted-foreground">
       <Minus className="size-3.5" aria-hidden />
       {driftLabel("not_checked", label)}
     </span>
@@ -71,7 +71,7 @@ function Row({
 }) {
   return (
     <div className="grid gap-1 py-3 sm:grid-cols-[10rem_1fr_auto] sm:items-start sm:gap-4">
-      <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <dt className="text-micro font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </dt>
       <dd className="min-w-0 text-sm break-words">{children}</dd>
@@ -250,7 +250,7 @@ export function ListingPanel({ location, network, label: labelFallback }: { loca
         ))}
       </dl>
 
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-micro text-muted-foreground">
         {checked && entry
           ? `Last compared with ${label ?? "the network"} on ${formatDateTime(entry.lastSyncedAt)}. Only some fields are compared; the rest say so.`
           : `We haven't compared this with ${label ?? "the network"} recently.`}

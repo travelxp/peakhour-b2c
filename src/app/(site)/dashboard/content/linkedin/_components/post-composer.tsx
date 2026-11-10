@@ -904,7 +904,7 @@ export function PostComposer({ identity, seedText }: Props) {
             )}
             {carousel.isPending ? "Generating preview…" : "Carousel"}
           </Button>
-          <ActionCost action="linkedinCarousel" className="text-[10px]" />
+          <ActionCost action="linkedinCarousel" className="text-micro" />
           <Button onClick={onSubmit} disabled={publishDisabled} aria-busy={publish.isPending}>
             <Send className="size-4 mr-1.5" />
             {publish.isPending ? "Publishing…" : "Publish"}
@@ -982,7 +982,7 @@ export function PostComposer({ identity, seedText }: Props) {
       {mentions.length > 0 && (
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Mentions</span>
+            <span className="text-micro uppercase tracking-wide text-muted-foreground">Mentions</span>
             {mentions.map((m) => (
               <span
                 key={m.urn}
@@ -1001,7 +1001,7 @@ export function PostComposer({ identity, seedText }: Props) {
               </span>
             ))}
           </div>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-micro text-muted-foreground">
             Mentions link when you publish now. Scheduled posts send them as plain text.
           </p>
         </div>
@@ -1388,7 +1388,7 @@ function PolicyChip({ state }: { state: ComposerPolicyAdvisory | null | undefine
             <li key={`${f.category}-${i}`} className="text-xs">
               <span
                 className={cn(
-                  "mr-1.5 rounded-sm px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+                  "mr-1.5 rounded-sm px-1 py-0.5 text-micro font-medium uppercase tracking-wide",
                   f.verdict === "block"
                     ? "bg-destructive/10 text-destructive"
                     : "bg-warning/10 text-warning-on-tint",
@@ -1400,7 +1400,7 @@ function PolicyChip({ state }: { state: ComposerPolicyAdvisory | null | undefine
             </li>
           ))}
         </ul>
-        <p className="mt-2 border-t pt-2 text-[10px] text-muted-foreground">
+        <p className="mt-2 border-t pt-2 text-micro text-muted-foreground">
           Advisory only — you can still publish. The same check runs when you post.
         </p>
       </HoverCardContent>
@@ -1514,7 +1514,7 @@ function HookScoreCard({
           <Sparkles className="size-4" />
           <span className="font-medium">{band.label}</span>
           <span
-            className="rounded-sm border border-current/30 px-1.5 py-0 text-[10px] uppercase tracking-wide opacity-80"
+            className="rounded-sm border border-current/30 px-1.5 py-0 text-micro uppercase tracking-wide opacity-80"
             title={tierMeta.tooltip}
           >
             {tierMeta.label}
@@ -1540,7 +1540,7 @@ function HookScoreCard({
             </Button>
           )}
           {onRewrite && (
-            <ActionCost action="linkedinRewrite" className="text-[10px]" />
+            <ActionCost action="linkedinRewrite" className="text-micro" />
           )}
           <span className="font-mono text-base font-semibold tabular-nums">
             {score.score}
@@ -1549,7 +1549,7 @@ function HookScoreCard({
         </div>
       </div>
       {score.archetypeMatch && (
-        <div className="text-[11px] opacity-80">
+        <div className="text-micro opacity-80">
           Matched{" "}
           <span className="font-mono">{score.archetypeMatch.cohortId}</span>{" "}
           archetype · cosine{" "}
@@ -1655,7 +1655,7 @@ function HookVariantsPanel({
                     {v.score}
                   </span>
                 </div>
-                <span className="text-[10px] uppercase tracking-wide opacity-70">
+                <span className="text-micro uppercase tracking-wide opacity-70">
                   {v.technique}
                 </span>
               </button>
@@ -1792,7 +1792,7 @@ function VoiceCardPanel() {
             <div className="flex items-center gap-2 text-sm">
               <Mic className="size-4 text-muted-foreground" />
               <span className="font-medium">Your LinkedIn voice</span>
-              <span className="rounded-sm border px-1.5 py-0 text-[10px] uppercase tracking-wide text-muted-foreground">
+              <span className="rounded-sm border px-1.5 py-0 text-micro uppercase tracking-wide text-muted-foreground">
                 {PERSPECTIVE_LABEL[v.perspective]} · {v.formality}/10 formality
               </span>
             </div>
@@ -1812,12 +1812,12 @@ function VoiceCardPanel() {
           <dl className="grid gap-3 sm:grid-cols-2">
             {tones.length > 0 && (
               <div>
-                <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Tone</dt>
+                <dt className="text-micro uppercase tracking-wide text-muted-foreground">Tone</dt>
                 <dd className="mt-1 flex flex-wrap gap-1">
                   {tones.map((t) => (
                     <span
                       key={t}
-                      className="rounded-sm bg-muted px-1.5 py-0.5 text-[11px]"
+                      className="rounded-sm bg-muted px-1.5 py-0.5 text-micro"
                     >
                       {t}
                     </span>
@@ -1826,19 +1826,19 @@ function VoiceCardPanel() {
               </div>
             )}
             <div>
-              <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Typical length</dt>
+              <dt className="text-micro uppercase tracking-wide text-muted-foreground">Typical length</dt>
               <dd className="mt-1">
                 {s.averageWordCount} words avg · range {s.wordCountRange?.[0] ?? 0}–{s.wordCountRange?.[1] ?? 0}
               </dd>
             </div>
             {sigPhrases.length > 0 && (
               <div className="sm:col-span-2">
-                <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Signature phrases</dt>
+                <dt className="text-micro uppercase tracking-wide text-muted-foreground">Signature phrases</dt>
                 <dd className="mt-1 flex flex-wrap gap-1">
                   {sigPhrases.map((p) => (
                     <span
                       key={p}
-                      className="rounded-sm border bg-muted/40 px-1.5 py-0.5 text-[11px]"
+                      className="rounded-sm border bg-muted/40 px-1.5 py-0.5 text-micro"
                     >
                       &ldquo;{p}&rdquo;
                     </span>
@@ -1848,9 +1848,9 @@ function VoiceCardPanel() {
             )}
             {neverDoes.length > 0 && (
               <div className="sm:col-span-2">
-                <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Never does</dt>
+                <dt className="text-micro uppercase tracking-wide text-muted-foreground">Never does</dt>
                 <dd className="mt-1">
-                  <ul className="ml-4 list-disc space-y-0.5 text-[11px] text-muted-foreground">
+                  <ul className="ml-4 list-disc space-y-0.5 text-micro text-muted-foreground">
                     {neverDoes.map((n) => (
                       <li key={n}>{n}</li>
                     ))}
@@ -1859,21 +1859,21 @@ function VoiceCardPanel() {
               </div>
             )}
             <div>
-              <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Opening</dt>
+              <dt className="text-micro uppercase tracking-wide text-muted-foreground">Opening</dt>
               <dd className="mt-1 line-clamp-2">{s.openingStyle}</dd>
             </div>
             <div>
-              <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Closing</dt>
+              <dt className="text-micro uppercase tracking-wide text-muted-foreground">Closing</dt>
               <dd className="mt-1 line-clamp-2">{s.closingStyle}</dd>
             </div>
             {avoidTopics.length > 0 && (
               <div className="sm:col-span-2">
-                <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Avoid topics</dt>
+                <dt className="text-micro uppercase tracking-wide text-muted-foreground">Avoid topics</dt>
                 <dd className="mt-1 flex flex-wrap gap-1">
                   {avoidTopics.map((t) => (
                     <span
                       key={t}
-                      className="rounded-sm border border-warning/30 bg-warning/8 px-1.5 py-0.5 text-[11px] text-warning-on-tint"
+                      className="rounded-sm border border-warning/30 bg-warning/8 px-1.5 py-0.5 text-micro text-warning-on-tint"
                     >
                       {t}
                     </span>

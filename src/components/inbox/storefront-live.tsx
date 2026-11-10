@@ -106,12 +106,12 @@ export function StorefrontComposer({ thread, store }: { thread: StorefrontThread
         aria-label="Reply to the visitor"
       />
       {line && (
-        <p className="text-[11px] text-muted-foreground" data-testid="delivery-line">
+        <p className="text-micro text-muted-foreground" data-testid="delivery-line">
           {line}
         </p>
       )}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-[11px] text-muted-foreground">
+        <span className="text-micro text-muted-foreground">
           {mem.text.trim().length > STOREFRONT_REPLY_MAX ? problem : `${mem.text.trim().length}/${STOREFRONT_REPLY_MAX}`}
         </span>
         <div className="flex items-center gap-2">

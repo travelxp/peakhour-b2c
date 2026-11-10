@@ -413,7 +413,7 @@ export function getContentColumns(
             * the AI confidently chose this. Same UX pattern as the
             * sectors-derived badge below. */}
           {derived ? (
-            <span className="ml-1 text-[10px] uppercase tracking-wide text-warning-on-tint">auto</span>
+            <span className="ml-1 text-micro uppercase tracking-wide text-warning-on-tint">auto</span>
           ) : null}
         </Badge>
       );
@@ -475,7 +475,7 @@ export function getContentColumns(
                   * fallback fired (api#402) — avoids polluting every row with
                   * a chip-level marker but still flags the synthetic origin. */}
                 {derived && i === 0 ? (
-                  <span className="ml-1 text-[10px] uppercase tracking-wide text-warning-on-tint">auto</span>
+                  <span className="ml-1 text-micro uppercase tracking-wide text-warning-on-tint">auto</span>
                 ) : null}
               </Badge>
             </RationaleTooltip>
@@ -748,7 +748,7 @@ function RepurposeActionCell({
           </p>
           <p className="text-xs text-muted-foreground mt-1">{fit.topRationale}</p>
           {fit.breakdown.length > 1 && (
-            <div className="mt-2 border-t pt-1 text-[10px] text-muted-foreground">
+            <div className="mt-2 border-t pt-1 text-micro text-muted-foreground">
               <p className="font-medium mb-0.5">All channels:</p>
               {fit.breakdown.map((b) => (
                 <p key={b.channel} className="font-mono">

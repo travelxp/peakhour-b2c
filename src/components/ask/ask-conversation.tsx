@@ -235,14 +235,14 @@ export function AskConversation({
             className="max-h-30 min-h-9 resize-none text-sm"
             disabled={busy}
           />
-          <Button size="icon" className="size-9 shrink-0" onClick={handleSend} disabled={!input.trim() || busy}>
+          <Button size="icon" aria-label="Send message" className="size-9 shrink-0" onClick={handleSend} disabled={!input.trim() || busy}>
             {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
           </Button>
         </div>
-        <p className="mt-1.5 px-1 text-[10px] text-muted-foreground">
+        <p className="mt-1.5 px-1 text-micro text-muted-foreground">
           Ask Peakhour answers only from your connected data — it won&apos;t make numbers up.
         </p>
-        <ActionCost action="ask" className="mt-0.5 block px-1 text-[10px]" />
+        <ActionCost action="ask" className="mt-0.5 block px-1 text-micro" />
       </div>
     </div>
   );

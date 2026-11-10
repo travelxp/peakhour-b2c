@@ -1083,7 +1083,7 @@ function FileUploadItemPreview(props: FileUploadItemPreviewProps) {
 
         return (
           // biome-ignore lint/performance/noImgElement: dynamic file URLs from user uploads don't work well with Next.js Image optimization
-          <img src={url} alt={file.name} className="size-full object-cover" />
+          <img loading="lazy" src={url} alt={file.name} className="size-full object-cover" />
         );
       }
 
@@ -1166,7 +1166,7 @@ function FileUploadItemMetadata(props: FileUploadItemMetadataProps) {
             id={itemContext.sizeId}
             className={cn(
               "truncate text-muted-foreground text-xs",
-              size === "sm" && "text-[11px] leading-snug",
+              size === "sm" && "text-micro leading-snug",
             )}
           >
             {formatBytes(itemContext.fileState.file.size)}

@@ -257,7 +257,7 @@ function AdsHub() {
                 {/* Only claim "not connected" when connection state is actually
                     known — on a failed load we don't know either way. */}
                 {connectionStateKnown && !connectedProviderKeys.has(c.providerKey) && (
-                  <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-normal">
+                  <Badge variant="outline" className="px-1.5 py-0 text-micro font-normal">
                     Not connected
                   </Badge>
                 )}

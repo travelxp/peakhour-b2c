@@ -161,7 +161,7 @@ export default function CmsCronsPage() {
                         <span className="text-xs text-muted-foreground/80 mt-1 max-w-2xl">
                           {meta.description}
                         </span>
-                        <span className="text-[10px] text-muted-foreground/60 font-mono mt-1">
+                        <span className="text-micro text-muted-foreground/60 font-mono mt-1">
                           cron: {name}
                         </span>
                       </div>

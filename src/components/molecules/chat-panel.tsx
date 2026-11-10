@@ -68,12 +68,12 @@ export function ChatPanel() {
             </div>
             <div className="flex-1">
               <p className="text-sm font-semibold leading-none">Peakhour AI</p>
-              <p className="text-[11px] text-muted-foreground">Ask me anything about your content strategy</p>
+              <p className="text-micro text-muted-foreground">Ask me anything about your content strategy</p>
             </div>
             <Button variant="ghost" size="icon" className="size-7" onClick={clearChat} title="Clear chat">
               <Trash2 className="size-3.5" />
             </Button>
-            <Button variant="ghost" size="icon" className="size-7" onClick={() => setOpen(false)}>
+            <Button variant="ghost" size="icon" aria-label="Close chat" className="size-7" onClick={() => setOpen(false)}>
               <X className="size-4" />
             </Button>
           </div>
@@ -130,7 +130,7 @@ export function ChatPanel() {
                 disabled={isLoading}
               />
               <Button
-                size="icon"
+                size="icon" aria-label="Send message"
                 className="size-9 shrink-0"
                 onClick={handleSend}
                 disabled={!input.trim() || isLoading}

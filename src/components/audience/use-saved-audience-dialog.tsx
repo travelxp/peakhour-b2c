@@ -670,7 +670,7 @@ function AudienceOption({
         <span className="text-sm font-medium">{set.name}</span>
         <span className="flex items-center gap-1.5">
           {picked && <Check className="size-3.5 text-primary" aria-hidden="true" />}
-          <Badge variant="outline" className="text-[10px] font-normal">
+          <Badge variant="outline" className="text-micro font-normal">
             {originLabel(set.source)}
           </Badge>
         </span>

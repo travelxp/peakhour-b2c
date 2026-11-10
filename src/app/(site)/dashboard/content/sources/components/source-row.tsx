@@ -174,11 +174,11 @@ export function SourceRow({ source }: SourceRowProps) {
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <h3 className="truncate text-sm font-medium">{source.displayName}</h3>
-          <Badge variant="outline" className="shrink-0 text-[10px]">
+          <Badge variant="outline" className="shrink-0 text-micro">
             {SOURCE_TYPE_LABEL[source.type]}
           </Badge>
           {source.origin === "ai_suggested" && (
-            <Badge variant="secondary" className="shrink-0 text-[10px]">
+            <Badge variant="secondary" className="shrink-0 text-micro">
               AI suggested
             </Badge>
           )}

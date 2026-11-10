@@ -32,7 +32,7 @@ export async function PillarPage({
   const others = PILLAR_ORDER.filter((s) => s !== slug).map((s) => PILLARS[s]);
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
       <Header />
       <main>
         {/* Hero */}

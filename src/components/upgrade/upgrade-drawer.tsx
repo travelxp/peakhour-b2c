@@ -272,7 +272,7 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
                 <p className="mt-1 text-sm text-muted-foreground">{featureTagline}</p>
               ) : null}
               {featureKey ? (
-                <p className="mt-2 font-mono text-[10px] text-muted-foreground">{featureKey}</p>
+                <p className="mt-2 font-mono text-micro text-muted-foreground">{featureKey}</p>
               ) : null}
             </div>
           ) : null}

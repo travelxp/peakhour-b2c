@@ -151,7 +151,7 @@ export function OvernightRibbon({
         className,
       )}
     >
-      <span className="flex items-center gap-2 font-mono text-[0.65rem] font-semibold uppercase tracking-[0.15em] text-brand">
+      <span className="flex items-center gap-2 font-mono text-micro font-semibold uppercase tracking-[0.15em] text-brand">
         <span className="relative flex size-1.5">
           <span className="absolute inline-flex size-full rounded-full bg-success opacity-75 motion-safe:animate-ping" />
           <span className="relative inline-flex size-1.5 rounded-full bg-success" />

@@ -123,7 +123,7 @@ export function HomeBody({ result, openDecisions }: { result: HomeScreenData; op
       <Card>
         <CardContent className="grid items-center gap-6 lg:grid-cols-[1.1fr_1fr]">
           <div className="min-w-0">
-            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Your outcome &middot; {home.outcome.label}</p>
+            <p className="font-mono text-micro uppercase tracking-[0.2em] text-muted-foreground">Your outcome &middot; {home.outcome.label}</p>
             <p className="mt-2 text-4xl font-semibold leading-none tracking-tight sm:text-5xl">
               <FigureValue figure={outcomes} showReason />
               <small className="ml-2 text-lg font-medium text-muted-foreground">in {words.title}</small>

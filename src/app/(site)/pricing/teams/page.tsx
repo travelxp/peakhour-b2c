@@ -68,7 +68,7 @@ export default async function TeamsPricingPage() {
       : "1,000,000";
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
       <Header />
 
       <main>

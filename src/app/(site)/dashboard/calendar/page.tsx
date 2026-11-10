@@ -712,7 +712,7 @@ export default function CalendarPage() {
       )}
 
       {/* Keyboard hint */}
-      <div className="text-[11px] text-muted-foreground">
+      <div className="text-micro text-muted-foreground">
         Shortcuts: <kbd className="rounded border bg-muted px-1">←</kbd> /{" "}
         <kbd className="rounded border bg-muted px-1">→</kbd> nav ·{" "}
         <kbd className="rounded border bg-muted px-1">T</kbd> today ·{" "}

@@ -138,7 +138,7 @@ function PlaceholderPreviewBlock({ p }: { p: ImagePlaceholder }) {
     return (
       <figure className="not-prose my-5">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <img loading="lazy"
           src={p.resolvedImageUrl}
           alt={p.suggestedAltText}
           className="w-full rounded-lg border"
@@ -156,11 +156,11 @@ function PlaceholderPreviewBlock({ p }: { p: ImagePlaceholder }) {
     <div className="not-prose my-5 flex flex-col items-center gap-1.5 rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/30 px-4 py-8 text-center">
       <ImageIcon className="size-6 text-muted-foreground/40" />
       <div className="flex items-center gap-1.5">
-        <Badge variant="outline" className="text-[10px]">{p.position}</Badge>
-        <Badge variant="secondary" className="text-[10px]">{p.dimensions}</Badge>
+        <Badge variant="outline" className="text-micro">{p.position}</Badge>
+        <Badge variant="secondary" className="text-micro">{p.dimensions}</Badge>
       </div>
       <p className="max-w-md text-xs font-medium text-foreground">{p.purpose}</p>
-      <p className="max-w-md text-[11px] leading-snug text-muted-foreground">{p.description}</p>
+      <p className="max-w-md text-micro leading-snug text-muted-foreground">{p.description}</p>
     </div>
   );
 }
@@ -710,7 +710,7 @@ function BriefTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
                 </div>
                 {isObj && (
                   <div className="ml-4 mt-1 flex items-center gap-2">
-                    <Badge variant={confidence === "verified" ? "default" : confidence === "inferred" ? "secondary" : "destructive"} className="text-[10px]">{confidence}</Badge>
+                    <Badge variant={confidence === "verified" ? "default" : confidence === "inferred" ? "secondary" : "destructive"} className="text-micro">{confidence}</Badge>
                     {p.source && p.sourceUrl ? (
                       <a href={p.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">{p.source} <ExternalLink className="h-3 w-3" /></a>
                     ) : p.source ? (
@@ -760,7 +760,7 @@ function BriefFormatMetaPanel({
           {m.byline && <div><p className="text-xs text-muted-foreground">Byline</p><p className="text-sm font-medium">{m.byline}</p></div>}
           {m.slug && <div><p className="text-xs text-muted-foreground">Slug</p><p className="text-sm font-mono">{m.slug}</p></div>}
           {m.metaDescription && <div className="sm:col-span-2"><p className="text-xs text-muted-foreground">Meta description (≤160 chars)</p><p className="text-sm">{m.metaDescription}</p></div>}
-          {m.seoKeywords?.length ? <div className="sm:col-span-2"><p className="text-xs text-muted-foreground">SEO keywords</p><div className="flex flex-wrap gap-1.5 mt-1">{m.seoKeywords.map((k) => <Badge key={k} variant="secondary" className="text-[10px]">{k}</Badge>)}</div></div> : null}
+          {m.seoKeywords?.length ? <div className="sm:col-span-2"><p className="text-xs text-muted-foreground">SEO keywords</p><div className="flex flex-wrap gap-1.5 mt-1">{m.seoKeywords.map((k) => <Badge key={k} variant="secondary" className="text-micro">{k}</Badge>)}</div></div> : null}
         </CardContent>
       </Card>
     );
@@ -805,7 +805,7 @@ function BriefFormatMetaPanel({
                     <li key={i} className="rounded-md border bg-muted/30 p-3 text-sm">
                       <div className="flex items-center justify-between gap-2 mb-1">
                         <span className="font-medium">{q.attributedTo}</span>
-                        <Badge variant={statusTone} className="text-[10px]">{q.status}</Badge>
+                        <Badge variant={statusTone} className="text-micro">{q.status}</Badge>
                       </div>
                       <p className="text-xs text-muted-foreground mb-1">{q.role}</p>
                       {q.suggestedQuote
@@ -995,9 +995,9 @@ function PlaceholderCard({
     <li className={`rounded-md border p-3 text-sm flex items-start justify-between gap-2 ${resolved ? "bg-success/10 border-success/30" : "bg-muted/20"}`}>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-          <Badge variant="outline" className="text-[10px]">{p.position}</Badge>
-          <Badge variant="secondary" className="text-[10px]">{p.dimensions}</Badge>
-          {statusLabel && <Badge variant="default" className="text-[10px]">{statusLabel}</Badge>}
+          <Badge variant="outline" className="text-micro">{p.position}</Badge>
+          <Badge variant="secondary" className="text-micro">{p.dimensions}</Badge>
+          {statusLabel && <Badge variant="default" className="text-micro">{statusLabel}</Badge>}
         </div>
         <p className="font-medium truncate" title={p.purpose}>{p.purpose}</p>
         <p className="text-xs text-muted-foreground line-clamp-2">{p.description}</p>
@@ -1005,7 +1005,7 @@ function PlaceholderCard({
         {resolved && p.resolvedImageUrl && (
           <div className="mt-2 rounded-md overflow-hidden border bg-background">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={p.resolvedImageUrl} alt={p.suggestedAltText} className="block w-full h-auto" />
+            <img loading="lazy" src={p.resolvedImageUrl} alt={p.suggestedAltText} className="block w-full h-auto" />
           </div>
         )}
         {/* An image Drive does not hold yet (an AI image kept as data, or a picture from a pasted address): keep it (D8). */}
@@ -1533,7 +1533,7 @@ function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId: strin
               {/* On-demand quality score */}
               {quality && (
                 <Badge
-                  className={cn("h-5 gap-1 px-1.5 text-[10px] font-semibold border-0", scoreTone(quality.score))}
+                  className={cn("h-5 gap-1 px-1.5 text-micro font-semibold border-0", scoreTone(quality.score))}
                   title={quality.notes}
                 >
                   <Gauge className="size-3" /> {quality.score}/10
@@ -1718,7 +1718,7 @@ function DataCitationsPanel({ citations }: { citations: NonNullable<IdeaDetail["
       <CardHeader>
         <CardTitle className="text-sm flex items-center gap-2">
           Data Sources
-          <Badge variant={estimated === 0 ? "default" : "secondary"} className="text-[10px]">
+          <Badge variant={estimated === 0 ? "default" : "secondary"} className="text-micro">
             {verified} verified · {inferred} inferred · {estimated} unverified
           </Badge>
         </CardTitle>
@@ -1732,7 +1732,7 @@ function DataCitationsPanel({ citations }: { citations: NonNullable<IdeaDetail["
               <li key={i} className={`border-l-2 pl-3 text-sm ${borderColor}`}>
                 <p>{c.claim}</p>
                 <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                  <Badge variant={c.confidence === "verified" ? "default" : c.confidence === "inferred" ? "secondary" : "destructive"} className="text-[10px]">{c.confidence}</Badge>
+                  <Badge variant={c.confidence === "verified" ? "default" : c.confidence === "inferred" ? "secondary" : "destructive"} className="text-micro">{c.confidence}</Badge>
                   {c.source && c.sourceUrl ? (
                     <a href={c.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">{c.source} <ExternalLink className="h-3 w-3" /></a>
                   ) : c.source ? (
@@ -2030,8 +2030,8 @@ function VersionColumn({
     <Card>
       <CardHeader className={`${tone} border-b rounded-t-lg py-3`}>
         <CardTitle className="text-sm">{label}</CardTitle>
-        {sublabel && <CardDescription className="text-[11px]">{sublabel}</CardDescription>}
-        <div className="text-[10px] text-muted-foreground mt-1 flex items-center gap-2">
+        {sublabel && <CardDescription className="text-micro">{sublabel}</CardDescription>}
+        <div className="text-micro text-muted-foreground mt-1 flex items-center gap-2">
           {typeof wordCount === "number" && <span>{wordCount} words</span>}
           {timestamp && (
             <>

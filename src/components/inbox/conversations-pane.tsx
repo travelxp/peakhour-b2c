@@ -141,7 +141,7 @@ const WINDOW_TONE: Record<ReplyWindow["tone"], string> = {
 function WindowBadge({ store, threadId, endsAt }: { store: ComposerStore; threadId: string; endsAt: string | null | undefined }) {
   // ★THE COMPOSER'S OWN READING (`useReplyWindow`), so the two cannot disagree.
   const win = useReplyWindow(store, threadId, endsAt);
-  return <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${WINDOW_TONE[win.tone]}`}>{win.label}</span>;
+  return <span className={`rounded-full px-2 py-0.5 text-micro font-medium ${WINDOW_TONE[win.tone]}`}>{win.label}</span>;
 }
 
 /**
@@ -565,7 +565,7 @@ export function ConversationsPane({
           {/* ⚠️★★★A FAILED REFRESH SAYS SO WITHOUT TAKING THE ROWS AWAY. This lane polls every thirty seconds, so `error` here is
               usually a failed BACKGROUND refetch with the last good list still behind it. */}
           {listState === "stale" && (
-            <p className="px-2 pb-1 text-[11px] text-muted-foreground">
+            <p className="px-2 pb-1 text-micro text-muted-foreground">
               Couldn&apos;t refresh just now — showing the last update.{" "}
               <button onClick={retryList} className="underline underline-offset-2">
                 Retry
@@ -594,7 +594,7 @@ export function ConversationsPane({
                     <span className="flex shrink-0 items-center gap-1.5">
                       {row.priority === "high" && <Flag className="size-3.5 text-warning-on-tint" role="img" aria-label="High priority" />}
                       <AssigneeBadge assignee={row.assignee} />
-                      <span className="text-[11px] text-muted-foreground">{previewTime(row.updatedAt, now)}</span>
+                      <span className="text-micro text-muted-foreground">{previewTime(row.updatedAt, now)}</span>
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-1">

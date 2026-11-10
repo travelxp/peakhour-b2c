@@ -97,7 +97,7 @@ export function QuickActions({ className }: { className?: string }) {
               </span>
               <span className="min-w-0">
                 <span className="block truncate text-sm font-medium">{action.label}</span>
-                <span className="block truncate text-[11px] text-muted-foreground">
+                <span className="block truncate text-micro text-muted-foreground">
                   {action.description}
                 </span>
               </span>

@@ -72,7 +72,7 @@ export function FileTile({
               <div className="drive-shine drive-shine-warm" aria-hidden />
             </>
           )}
-          <span className="absolute left-2 top-2 rounded-md bg-card/90 px-1.5 py-0.5 text-[11px] font-medium">{badgeText(item)}</span>
+          <span className="absolute left-2 top-2 rounded-md bg-card/90 px-1.5 py-0.5 text-micro font-medium">{badgeText(item)}</span>
         </div>
         <div className="px-3 pb-3 pt-2.5">
           <div className="truncate text-[13px] font-medium">{item.name}</div>

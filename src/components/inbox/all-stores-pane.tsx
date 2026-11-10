@@ -120,11 +120,11 @@ export function AllStoresPane({ onOpen }: { onOpen: (threadId: string) => void }
                 <span className="truncate text-sm font-medium">{row.title}</span>
                 <span className="flex shrink-0 items-center gap-1.5">
                   <AssigneeBadge assignee={row.assignee} />
-                  <span className="text-[11px] text-muted-foreground">{previewTime(row.updatedAt, now)}</span>
+                  <span className="text-micro text-muted-foreground">{previewTime(row.updatedAt, now)}</span>
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-1">
-                <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium" data-testid="store-chip">
+                <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-micro font-medium" data-testid="store-chip">
                   {row.businessName}
                 </span>
                 <ChannelChip channel={row.channel} />

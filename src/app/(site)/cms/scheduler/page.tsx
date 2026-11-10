@@ -149,7 +149,7 @@ export default function CmsSchedulerPage() {
                     <li key={o.orgId} className="flex items-center justify-between py-2">
                       <span className="flex flex-col">
                         <span className="text-sm font-medium">{o.orgName}</span>
-                        <span className="font-mono text-[10px] text-muted-foreground">{o.orgId}</span>
+                        <span className="font-mono text-micro text-muted-foreground">{o.orgId}</span>
                       </span>
                       <Badge variant="outline" className="tabular-nums">{o.pending} pending</Badge>
                     </li>

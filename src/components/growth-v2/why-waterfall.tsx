@@ -60,7 +60,7 @@ export function WhyWaterfall({ items, currency, higherIsBetter = false }: WhyWat
           return (
             <g key={t}>
               <line x1={L} x2={W - 10} y1={y(v)} y2={y(v)} />
-              <text x={L - 6} y={y(v) + 4} textAnchor="end" className="fill-muted-foreground stroke-none text-[11px]">
+              <text x={L - 6} y={y(v) + 4} textAnchor="end" className="fill-muted-foreground stroke-none text-micro">
                 {fmt(Math.round(v))}
               </text>
             </g>
@@ -72,11 +72,11 @@ export function WhyWaterfall({ items, currency, higherIsBetter = false }: WhyWat
         const [l1, l2] = splitLabel(b.label);
         const label = (
           <>
-            <text x={x + bw / 2} y={H - 22} textAnchor="middle" className="fill-muted-foreground text-[11px]">
+            <text x={x + bw / 2} y={H - 22} textAnchor="middle" className="fill-muted-foreground text-micro">
               {l1}
             </text>
             {l2 ? (
-              <text x={x + bw / 2} y={H - 9} textAnchor="middle" className="fill-muted-foreground text-[11px]">
+              <text x={x + bw / 2} y={H - 9} textAnchor="middle" className="fill-muted-foreground text-micro">
                 {l2}
               </text>
             ) : null}
@@ -89,7 +89,7 @@ export function WhyWaterfall({ items, currency, higherIsBetter = false }: WhyWat
               <rect x={x} y={at - 8} width={bw} height={16} rx={4} fill="none" stroke="var(--muted-foreground)" strokeDasharray="3 3">
                 <title>{`${b.label}: not available. ${b.reason}`}</title>
               </rect>
-              <text x={x + bw / 2} y={at + 4} textAnchor="middle" className="fill-muted-foreground text-[11px]">
+              <text x={x + bw / 2} y={at + 4} textAnchor="middle" className="fill-muted-foreground text-micro">
                 n/a
               </text>
               {label}
@@ -105,7 +105,7 @@ export function WhyWaterfall({ items, currency, higherIsBetter = false }: WhyWat
             <rect x={x} y={top} width={bw} height={Math.max(h, 2)} rx={4} fill={fill} opacity={b.kind === "total" ? 0.55 : 1}>
               <title>{`${b.label}: ${b.kind === "total" ? fmt(b.value) : signed(b.value)}`}</title>
             </rect>
-            <text x={x + bw / 2} y={top - 6} textAnchor="middle" className="fill-foreground text-[11px] font-semibold">
+            <text x={x + bw / 2} y={top - 6} textAnchor="middle" className="fill-foreground text-micro font-semibold">
               {b.kind === "total" ? fmt(b.value) : signed(b.value)}
             </text>
             {label}

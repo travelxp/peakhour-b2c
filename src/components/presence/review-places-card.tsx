@@ -125,7 +125,7 @@ export function ReviewPlacesCard({
               </div>
               <div className="mt-2 grid gap-3 sm:grid-cols-3">
                 <div>
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Rating</p>
+                  <p className="text-micro font-medium uppercase tracking-wide text-muted-foreground">Rating</p>
                   {rating === null ? (
                     <p className="mt-1 text-sm text-muted-foreground">{placeNoRatingNote(p, answer.days)}</p>
                   ) : (
@@ -134,19 +134,19 @@ export function ReviewPlacesCard({
                         <Star className="size-4 fill-brand text-brand" />
                         {rating}
                       </p>
-                      {sub && <p className="text-[11px] text-muted-foreground">{sub}</p>}
+                      {sub && <p className="text-micro text-muted-foreground">{sub}</p>}
                     </>
                   )}
                 </div>
                 <div>
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Reviews</p>
+                  <p className="text-micro font-medium uppercase tracking-wide text-muted-foreground">Reviews</p>
                   <p className="mt-1 text-xl font-semibold tabular-nums">{p.volume}</p>
-                  <p className="text-[11px] text-muted-foreground">in the last {answer.days} days</p>
+                  <p className="text-micro text-muted-foreground">in the last {answer.days} days</p>
                 </div>
                 <div>
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Waiting</p>
+                  <p className="text-micro font-medium uppercase tracking-wide text-muted-foreground">Waiting</p>
                   {placeNeedsAttention(p) ? (
-                    <Badge variant="outline" className="mt-1 text-[11px] text-warning-on-tint">
+                    <Badge variant="outline" className="mt-1 text-micro text-warning-on-tint">
                       {unansweredLabel(p)}
                     </Badge>
                   ) : (
@@ -160,7 +160,7 @@ export function ReviewPlacesCard({
       </ul>
 
       {view === "data_stale" && (
-        <p className="text-[11px] text-warning-on-tint" role="status">
+        <p className="text-micro text-warning-on-tint" role="status">
           We couldn&apos;t refresh these just now, so this is what we had.{" "}
           <button type="button" className="underline" onClick={() => query.refetch()}>
             Try again
@@ -168,7 +168,7 @@ export function ReviewPlacesCard({
         </p>
       )}
       {(note || unplaced) && (
-        <div className="space-y-1 text-[11px] text-muted-foreground">
+        <div className="space-y-1 text-micro text-muted-foreground">
           {note && <p>{note}</p>}
           {unplaced && <p>{unplaced}</p>}
         </div>

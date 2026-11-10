@@ -183,7 +183,7 @@ export function ScheduledPanel() {
                     <Clock className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                     <div className="min-w-0 flex-1 space-y-1">
                       <p className="truncate text-sm font-medium">{firstLine}</p>
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-micro text-muted-foreground">
                         <span>
                           {formatScheduleLabel(item.scheduledAtUtc, item.audienceTimezone)}
                         </span>

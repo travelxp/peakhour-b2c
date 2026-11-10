@@ -247,7 +247,7 @@ export function ShopifyPageView({
                           <li key={step} className="flex gap-2.5">
                             <span
                               aria-hidden
-                              className="flex size-5 shrink-0 items-center justify-center rounded-full bg-brand-soft text-[11px] font-bold text-brand-ink"
+                              className="flex size-5 shrink-0 items-center justify-center rounded-full bg-brand-soft text-micro font-bold text-brand-ink"
                             >
                               {i + 1}
                             </span>

@@ -134,7 +134,7 @@ export function PollEditor({
           maxLength={POLL_QUESTION_MAX}
           aria-label="Poll question"
         />
-        <p className="text-right text-[11px] text-muted-foreground tabular-nums">
+        <p className="text-right text-micro text-muted-foreground tabular-nums">
           {value.question.trim().length}/{POLL_QUESTION_MAX}
         </p>
       </div>
