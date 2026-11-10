@@ -21,11 +21,7 @@
  */
 
 import { useState } from "react";
-import EmojiPickerReact, {
-  EmojiStyle,
-  Theme,
-  type EmojiClickData,
-} from "emoji-picker-react";
+import dynamic from "next/dynamic";
 import { useTheme } from "next-themes";
 import { Smile } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -34,6 +30,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+
+// emoji-picker-react is large and only needed once the popover opens.
+const EmojiPickerPanel = dynamic(() => import("./emoji-picker-panel"), {
+  ssr: false,
+  loading: () => <div className="h-[400px] w-[320px] animate-pulse rounded-md bg-muted" />,
+});
 
 interface EmojiPickerProps {
   /** Fired with the chosen emoji glyph (the character itself). */
@@ -65,19 +67,12 @@ export default function EmojiPicker({
       </PopoverTrigger>
       {/* p-0 + w-auto so the library panel sizes itself. */}
       <PopoverContent align="end" className="w-auto border-0 p-0 shadow-none">
-        <EmojiPickerReact
-          onEmojiClick={(data: EmojiClickData) => {
-            onEmojiSelect(data.emoji);
+        <EmojiPickerPanel
+          dark={resolvedTheme === "dark"}
+          onPick={(emoji) => {
+            onEmojiSelect(emoji);
             setOpen(false);
           }}
-          theme={resolvedTheme === "dark" ? Theme.DARK : Theme.LIGHT}
-          // Native glyphs (no CDN sprite fetch) — fastest + matches how
-          // the inserted character renders in the textarea.
-          emojiStyle={EmojiStyle.NATIVE}
-          lazyLoadEmojis
-          width={320}
-          height={400}
-          previewConfig={{ showPreview: false }}
         />
       </PopoverContent>
     </Popover>

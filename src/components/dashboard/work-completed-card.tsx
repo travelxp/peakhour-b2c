@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { ArrowRight, Clock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TrendChart } from "@/components/viz/trend-chart";
+import { TrendChart } from "@/components/viz/trend-chart-lazy";
 import { useHomeWork, type WorkMetric } from "@/hooks/use-home-work";
 import { cn } from "@/lib/utils";
 
