@@ -394,7 +394,7 @@ export default function StrategistPage() {
         <EmptyState
           icon={Sparkles}
           title="No ideas yet"
-          description="The Strategist turns what it knows about your business into content ideas you can move from idea to published. Nothing is here yet, so ask it for the first batch."
+          description="Your content plan turns what Peakhour knows about your business into ideas you can move from idea to published. Nothing is here yet, so ask for the first batch."
           action={{ label: "Get ideas", onClick: () => { setShowTopicInput(true); setShowNewIdea(false); } }}
           className="min-h-0 py-16"
         />

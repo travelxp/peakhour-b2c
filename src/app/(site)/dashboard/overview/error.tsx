@@ -3,5 +3,5 @@
 import { PillarError } from "@/components/dashboard/pillar-error";
 
 export default function OverviewError(props: { error: Error & { digest?: string }; reset: () => void }) {
-  return <PillarError area="Overview" {...props} />;
+  return <PillarError href="/dashboard/overview" {...props} />;
 }

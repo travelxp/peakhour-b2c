@@ -1,8 +1,20 @@
-/** The five places most merchants are looking for when a link is stale. */
-export const NOT_FOUND_DESTINATIONS = [
-  { label: "Overview", href: "/dashboard/overview", hint: "Your day at a glance" },
-  { label: "Strategist", href: "/dashboard/strategist", hint: "Ideas worth acting on" },
-  { label: "Content", href: "/dashboard/content", hint: "Posts and drafts" },
-  { label: "Growth", href: "/dashboard/growth", hint: "What to do next to grow" },
-  { label: "Integrations", href: "/dashboard/integrations", hint: "Connect your accounts" },
+import { navCopy } from "@/lib/nav-copy";
+
+/**
+ * The five places most merchants are looking for when a link is stale.
+ * Labels and hints come from nav-copy, so the 404 names each destination
+ * exactly as the sidebar does.
+ */
+const HREFS = [
+  "/dashboard/overview",
+  "/dashboard/strategist",
+  "/dashboard/content",
+  "/dashboard/growth",
+  "/dashboard/integrations",
 ] as const;
+
+export const NOT_FOUND_DESTINATIONS = HREFS.map((href) => {
+  const copy = navCopy(href);
+  if (!copy) throw new Error(`nav-copy has no entry for ${href}`);
+  return { href, label: copy.label, hint: copy.description };
+});

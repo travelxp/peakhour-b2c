@@ -63,8 +63,10 @@ describe("PageIntro", () => {
 describe("PillarError", () => {
   it("offers retry, a way home and a report link", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    const html = renderToStaticMarkup(<PillarError area="Growth" error={new Error("boom")} reset={() => {}} />);
-    expect(html).toContain("Growth hit a problem");
+    const html = renderToStaticMarkup(<PillarError href="/dashboard/integrations" error={new Error("boom")} reset={() => {}} />);
+    // The section is named from nav-copy, not from the route folder.
+    expect(html).toContain("Connected accounts hit a problem");
+    expect(html).toContain("Back to Home");
     expect(html).toContain("Try again");
     expect(html).toContain('href="/dashboard/overview"');
     expect(html).toContain("Report this");

@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { PAGE_INTRO_COPY } from "@/lib/page-intro-copy";
 import { NOT_FOUND_DESTINATIONS } from "@/lib/dashboard-not-found";
+import { navLabel } from "@/lib/nav-copy";
 
 const DASH = __dirname;
 const pillars = readdirSync(DASH).filter((n) => statSync(path.join(DASH, n)).isDirectory());
@@ -37,7 +38,16 @@ describe("dashboard error and not-found boundaries", () => {
     for (const d of NOT_FOUND_DESTINATIONS) {
       const dir = d.href.replace("/dashboard/", "");
       expect(existsSync(path.join(DASH, dir, "page.tsx")), d.href).toBe(true);
+      // Named as the sidebar names it.
+      expect(d.label, d.href).toBe(navLabel(d.href));
     }
+  });
+
+  it.each(pillars)("pillar %s error.tsx names its section from nav-copy", (pillar) => {
+    const src = readFileSync(path.join(DASH, pillar, "error.tsx"), "utf8");
+    const m = src.match(/<PillarError href="([^"]+)"/);
+    expect(m, `${pillar}/error.tsx must pass href, not a hand-typed name`).not.toBeNull();
+    expect(() => navLabel(m![1])).not.toThrow();
   });
 });
 
@@ -50,6 +60,12 @@ describe("page intro strips", () => {
 
   it("covers the ten pages (Autopilot on both its pages), each id used by a page", () => {
     expect([...used].sort()).toEqual(Object.keys(PAGE_INTRO_COPY).sort());
+  });
+
+  it("titles each strip with its page's nav label, so the strip and the sidebar agree", () => {
+    for (const [id, c] of Object.entries(PAGE_INTRO_COPY)) {
+      expect(c.title.toLowerCase(), id).toContain(navLabel(c.href).toLowerCase());
+    }
   });
 
   it("is written without product jargon", () => {

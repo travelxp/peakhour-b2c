@@ -3,5 +3,5 @@
 import { PillarError } from "@/components/dashboard/pillar-error";
 
 export default function InsightsError(props: { error: Error & { digest?: string }; reset: () => void }) {
-  return <PillarError area="Insights" {...props} />;
+  return <PillarError href="/dashboard/insights/analytics" {...props} />;
 }
