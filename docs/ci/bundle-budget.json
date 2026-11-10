@@ -3,17 +3,5 @@
   "allRoutesFloorKB": 950,
   "dashboardRouteKB": 1600,
   "growthPercent": 10,
-  "dashboardAllowlist": {
-    "/dashboard/content/linkedin": "over the cap when the guardrails were added (2026-11-10); held by the growth check until split",
-    "/dashboard/calendar": "over the cap when the guardrails were added (2026-11-10); held by the growth check until split",
-    "/dashboard/content/x": "over the cap when the guardrails were added (2026-11-10); held by the growth check until split",
-    "/dashboard/presence": "over the cap when the guardrails were added (2026-11-10); held by the growth check until split",
-    "/dashboard/strategist/[id]": "over the cap when the guardrails were added (2026-11-10); held by the growth check until split",
-    "/dashboard/overview": "over the cap when the guardrails were added (2026-11-10); held by the growth check until split",
-    "/dashboard/insights/analytics": "over the cap when the guardrails were added (2026-11-10); held by the growth check until split",
-    "/dashboard/insights/search-console": "over the cap when the guardrails were added (2026-11-10); held by the growth check until split",
-    "/dashboard/ads": "over the cap when the guardrails were added (2026-11-10); held by the growth check until split",
-    "/dashboard/inbox": "over the cap when the guardrails were added (2026-11-10); held by the growth check until split",
-    "/dashboard/content/beehiiv": "over the cap when the guardrails were added (2026-11-10); held by the growth check until split"
-  }
+  "dashboardAllowlist": {}
 }
