@@ -1,10 +1,10 @@
 "use client";
 
 import { INSIGHTS_KEY } from "@/hooks/use-insights";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
-import type { KbEntry, KbFindingsResponse, KbPayload, KbRequest, KbSuggestionsResponse } from "@/lib/knowledge-base";
+import { FINDINGS_PAGE, KB_LIST_LIMIT, type KbFinding, type KbEntry, type KbFindingsResponse, type KbPayload, type KbRequest, type KbSuggestionsResponse } from "@/lib/knowledge-base";
 
 /**
  * Knowledge base hooks (GET/POST/PATCH /v1/kb/*). The api scopes every call to
@@ -25,7 +25,7 @@ export function useKbEntries(filter: EntryFilter) {
     // keep the list on screen while the next search is fetched, rather than a skeleton per keystroke
     placeholderData: keepPreviousData,
     queryFn: () => {
-      const params: Record<string, string> = { status: filter.status, limit: "100" };
+      const params: Record<string, string> = { status: filter.status, limit: String(KB_LIST_LIMIT) };
       if (filter.source) params.source = filter.source;
       if (filter.q.trim()) params.q = filter.q.trim();
       return api.get("/v1/kb/entries", params);
@@ -136,12 +136,22 @@ export function useSaveSuggestion() {
   });
 }
 
-/** GET /v1/kb/findings?state=open|dismissed: what the policy check found. */
+/** GET /v1/kb/findings?state=open|dismissed, a page at a time (skip): the api orders them by severity then recency across pages, so a later page continues the order. */
 export function useKbFindings(state: "open" | "dismissed") {
   const { isAuthenticated, org, business } = useAuth();
-  return useQuery<KbFindingsResponse>({
+  return useInfiniteQuery({
     queryKey: [FINDINGS_KEY, org?._id ?? null, business?._id ?? null, state],
-    queryFn: () => api.get("/v1/kb/findings", { state, limit: "100" }),
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => api.get<KbFindingsResponse>("/v1/kb/findings", { state, limit: String(FINDINGS_PAGE), skip: String(pageParam) }),
+    getNextPageParam: (last, all) => {
+      const loaded = all.reduce((n, p) => n + p.findings.length, 0);
+      return last.findings.length > 0 && loaded < last.total ? loaded : undefined;
+    },
+    select: (d): { findings: KbFinding[]; total: number } => {
+      const seen = new Set<string>();
+      const findings = d.pages.flatMap((p) => p.findings).filter((f) => !seen.has(f.id) && seen.add(f.id));
+      return { findings, total: d.pages[d.pages.length - 1]?.total ?? findings.length };
+    },
     enabled: isAuthenticated && !!org?._id,
     retry: false,
   });

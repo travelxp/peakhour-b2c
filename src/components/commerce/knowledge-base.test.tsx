@@ -22,7 +22,7 @@ vi.mock("@/hooks/use-knowledge-base", () => ({
 vi.mock("@/hooks/use-commerce-stores", () => ({ useCommerceStores: () => ({}) }));
 vi.mock("next/link", () => ({ default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
 
-const { SuggestionsView, FindingsView } = await import("./knowledge-base");
+const { SuggestionsView, FindingsView, MoreFindings } = await import("./knowledge-base");
 
 const NOW = Date.parse("2026-11-10T12:00:00Z");
 const suggestion = (over: Record<string, unknown> = {}) => ({
@@ -41,7 +41,7 @@ const suggestion = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 const routedNone = { product_info: { count: 0, topics: [], destination: "catalog_manager" as const }, support: { count: 0, topics: [], destination: "inbox" as const } };
-const render = (data: KbSuggestionsResponse) => renderToStaticMarkup(<SuggestionsView data={data} now={NOW} onApproved={() => {}} />);
+const render = (data: KbSuggestionsResponse) => renderToStaticMarkup(<SuggestionsView data={data} now={NOW} onApproved={() => {}} onFailed={() => {}} />);
 
 describe("Suggested answers", () => {
   it("shows the card: asked line, based on, what it needs, the placeholder highlighted, and Approve disabled with its reason", () => {
@@ -60,9 +60,14 @@ describe("Suggested answers", () => {
     expect(out).not.toContain("kb-sg-s1-reason");
     expect(out).not.toMatch(/<button[^>]*disabled=""[^>]*>(?:<!-- -->)?Approve/);
   });
-  it("lists the most asked first", () => {
-    const out = render({ suggestions: [suggestion({ id: "a", title: "Few", timesAsked: 2 }), suggestion({ id: "b", title: "Many", timesAsked: 9 })], routed: routedNone });
-    expect(out.indexOf("Many")).toBeLessThan(out.indexOf("Few"));
+  it("lists them in the api's order, as it arrives", () => {
+    const out = render({ suggestions: [suggestion({ id: "a", title: "First" }), suggestion({ id: "b", title: "Second" })], routed: routedNone });
+    expect(out.indexOf("First")).toBeLessThan(out.indexOf("Second"));
+  });
+  it("★says where a store-details draft came from, never Asked 0 times", () => {
+    const out = render({ suggestions: [suggestion({ timesAsked: 0, lastAskedAt: null, origin: "generator" })], routed: routedNone });
+    expect(out).toContain("Suggested from your store details");
+    expect(out).not.toMatch(/Asked 0/);
   });
   it("says the plain empty sentence, with no card", () => {
     const out = render({ suggestions: [], routed: routedNone });
@@ -135,9 +140,39 @@ describe("Policy health", () => {
     expect(owner).not.toContain("Take over in Peakhour");
     expect(owner).not.toContain("Edit in Shopify");
   });
+  it("★Edit in Shopify only when the policy is managed in Shopify; Take over still shows", () => {
+    const other = { id: "e1", title: "Refunds", content: "", tags: [], source: "import", status: "active", channels: [], readOnly: true, managedIn: "its source", url: null, syncedAt: null, createdAt: null, updatedAt: null } as never;
+    const out = findings([finding({ entryId: "e1" })], "open", [other], "acme.myshopify.com");
+    expect(out).not.toContain("Edit in Shopify");
+    expect(out).toContain("Take over in Peakhour");
+  });
+  it("a contradiction names the other entry and its claims", () => {
+    const out = findings([finding({ checkKind: "contradiction", evidence: { claims: ["30 days"], otherEntryTitle: "Shipping", otherQuote: "7 days" } })]);
+    expect(out).toContain("Your answer says: 30 days");
+    expect(out).toContain("Also in &quot;Shipping&quot;");
+    expect(out).not.toContain("not legal advice");
+  });
   it("renders a reality check generically from its fields", () => {
     const out = findings([finding({ checkKind: "reality", evidence: { claims: ["ships in 2 days"] } })]);
     expect(out).toContain("Your answer says: ships in 2 days");
     expect(out).not.toContain("not legal advice");
+  });
+});
+
+describe("Findings past one page", () => {
+  const more = (over: Partial<Parameters<typeof MoreFindings>[0]> = {}) =>
+    renderToStaticMarkup(<MoreFindings shown={100} total={130} hasMore loading={false} failed={false} onMore={() => {}} {...over} />);
+  it("says Showing 100 of 130 and offers Show more", () => {
+    const out = more();
+    expect(out).toContain("Showing 100 of 130");
+    expect(out).toContain("Show more");
+  });
+  it("says nothing when everything is shown", () => {
+    expect(more({ shown: 130 })).toBe("");
+  });
+  it("says so when the next page failed, and keeps the button to retry", () => {
+    const out = more({ failed: true });
+    expect(out).toContain("Could not load more.");
+    expect(out).toContain("Show more");
   });
 });

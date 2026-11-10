@@ -53,14 +53,19 @@ import {
   kbErrorMessage,
   placeholdersIn,
   readOnlyNote,
-  realityLine,
+  claimsLine,
+  otherEntryLine,
+  canEditInShopify,
+  reconcileWords,
+  runSave,
+  showingLine,
+  SUGGESTION_UPDATED,
   routedLines,
   runAction,
   runApprove,
   safeUrl,
   severityHeading,
   shopifyPoliciesHref,
-  sortSuggestions,
   sourceLabel,
   splitPlaceholders,
   SUGGESTIONS_EMPTY,
@@ -71,6 +76,7 @@ import {
   type KbRequest,
   type KbSuggestion,
   type KbSuggestionsResponse,
+  type CardWords,
 } from "@/lib/knowledge-base";
 import { shopOf } from "@/lib/insights";
 
@@ -172,13 +178,13 @@ export function QuestionCard({ request, answerLabel = "Answer", dismissLabel = "
 
 function Suggestions() {
   const q = useKbSuggestions();
-  const [approved, setApproved] = useState(false);
+  const [approvedAt, setApprovedAt] = useState<number | null>(null);
   // the one-line confirmation is for the moment after the click, not for the rest of the visit
   useEffect(() => {
-    if (!approved) return;
-    const t = setTimeout(() => setApproved(false), 8000);
+    if (approvedAt === null) return;
+    const t = setTimeout(() => setApprovedAt(null), 8000);
     return () => clearTimeout(t);
-  }, [approved]);
+  }, [approvedAt]);
   // honest states: a failed read says so and offers a retry; it never shows the empty sentence in its place.
   // A paused query (offline) is not isLoading, and has no data: say nothing rather than guess.
   let body: React.ReactNode = null;
@@ -192,7 +198,7 @@ function Suggestions() {
         </Button>
       </div>
     );
-  else if (q.data) body = <SuggestionsView data={q.data} now={q.dataUpdatedAt} onApproved={() => setApproved(true)} />;
+  else if (q.data) body = <SuggestionsView data={q.data} now={q.dataUpdatedAt} onApproved={() => setApprovedAt(Date.now())} onFailed={() => setApprovedAt(null)} />;
   if (body === null) return null;
   return (
     <section aria-labelledby="kb-suggestions" className="space-y-3">
@@ -200,7 +206,7 @@ function Suggestions() {
         <ClipboardCheck className="size-5" aria-hidden="true" />
         Suggested answers
       </h2>
-      {approved && (
+      {approvedAt !== null && (
         <p role="status" className="flex items-center gap-2 text-sm">
           <Check className="size-4" aria-hidden="true" />
           {APPROVED_LINE}
@@ -211,8 +217,9 @@ function Suggestions() {
   );
 }
 
-export function SuggestionsView({ data, now, onApproved }: { data: KbSuggestionsResponse; now: number; onApproved: () => void }) {
-  const list = sortSuggestions(data.suggestions);
+export function SuggestionsView({ data, now, onApproved, onFailed }: { data: KbSuggestionsResponse; now: number; onApproved: () => void; onFailed: () => void }) {
+  // the api's order, as it arrives (most asked, then most recent, then id)
+  const list = data.suggestions;
   const routed = routedLines(data.routed);
   return (
     <>
@@ -223,7 +230,7 @@ export function SuggestionsView({ data, now, onApproved }: { data: KbSuggestions
       ) : (
         <ul className="space-y-3">
           {list.map((s) => (
-            <SuggestionCard key={`${s.id}|${s.title}|${s.content}`} suggestion={s} now={now} onApproved={onApproved} />
+            <SuggestionCard key={s.id} suggestion={s} now={now} onApproved={onApproved} onFailed={onFailed} />
           ))}
         </ul>
       )}
@@ -260,11 +267,17 @@ export function Highlighted({ text }: { text: string }) {
   );
 }
 
-function SuggestionCard({ suggestion, now, onApproved }: { suggestion: KbSuggestion; now: number; onApproved: () => void }) {
-  const [title, setTitle] = useState(suggestion.title);
-  const [content, setContent] = useState(suggestion.content);
+function SuggestionCard({ suggestion, now, onApproved, onFailed }: { suggestion: KbSuggestion; now: number; onApproved: () => void; onFailed: () => void }) {
+  // The boxes hold the merchant's words. They follow the server's words only while untouched; edits are never dropped (reconcileWords).
+  const [card, setCard] = useState<CardWords>({ base: { title: suggestion.title, content: suggestion.content }, title: suggestion.title, content: suggestion.content });
+  const synced = reconcileWords(card, { title: suggestion.title, content: suggestion.content });
+  if (synced.card !== card) setCard(synced.card);
+  const stale = synced.stale;
+  const { title, content } = card;
   const [error, setError] = useState<string | null>(null);
   const [confirmDismiss, setConfirmDismiss] = useState(false);
+  // a dismiss that worked has already deleted the suggestion: the card goes at once, so it cannot be sent twice before the refetch removes it
+  const [gone, setGone] = useState(false);
   const approve = useApproveSuggestion();
   const dismiss = useDismissSuggestion();
   const save = useSaveSuggestion();
@@ -272,52 +285,56 @@ function SuggestionCard({ suggestion, now, onApproved }: { suggestion: KbSuggest
   const state = approveState(title, content);
   const based = basedOnLine(suggestion.evidence);
   const reasonId = `kb-sg-${suggestion.id}-reason`;
-  const edited = `${title}\n${content}`;
+  const fail = (message: string) => {
+    setError(message);
+    onFailed();
+  };
 
   const doApprove = async () => {
     setError(null);
     const r = await runApprove((p) => approve.mutateAsync({ id: suggestion.id, ...p }), title, content);
     if (r.ok) onApproved();
-    else setError(r.error);
+    else fail(r.error);
   };
   const doSave = async () => {
     setError(null);
-    const r = await runAction(() => save.mutateAsync({ id: suggestion.id, title: title.trim(), content: content.trim() }));
+    const r = await runSave((p) => save.mutateAsync({ id: suggestion.id, ...p }), title, content);
     if (r.ok) toast.success("Saved. It is not approved yet.");
-    else setError(r.error);
+    else fail(r.error);
   };
   const doDismiss = async () => {
     setError(null);
     const r = await runAction(() => dismiss.mutateAsync(suggestion.id));
-    if (!r.ok) {
+    if (r.ok) setGone(true);
+    else {
       setConfirmDismiss(false);
-      setError(r.error);
+      fail(r.error);
     }
   };
+  if (gone) return null;
 
   return (
     <li>
       <Card>
         <CardContent className="space-y-3 p-4">
           <p className="text-xs text-muted-foreground">{suggestionAskedLine(suggestion, now)}</p>
+          {stale && (
+            <p role="status" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              {SUGGESTION_UPDATED}
+              <Button size="sm" variant="outline" onClick={() => setCard({ base: { title: suggestion.title, content: suggestion.content }, title: suggestion.title, content: suggestion.content })}>
+                Use the new version
+              </Button>
+            </p>
+          )}
           <label className="block space-y-1 text-sm">
             <span className="font-medium">Title</span>
-            <Input
-              value={title}
-              maxLength={KB_TITLE_MAX}
-              onChange={(e) => setTitle(e.target.value)}
-            />
+            <Input value={title} maxLength={KB_TITLE_MAX} onChange={(e) => setCard({ ...card, title: e.target.value })} />
           </label>
           <label className="block space-y-1 text-sm">
             <span className="font-medium">Suggested answer</span>
-            <Textarea
-              rows={5}
-              value={content}
-              maxLength={KB_CONTENT_MAX}
-              onChange={(e) => setContent(e.target.value)}
-            />
+            <Textarea rows={5} value={content} maxLength={KB_CONTENT_MAX} onChange={(e) => setCard({ ...card, content: e.target.value })} />
           </label>
-          {placeholdersIn(edited).length > 0 && (
+          {placeholdersIn(`${title}\n${content}`).length > 0 && (
             <div data-kb-preview className="space-y-1 rounded-md border p-2 text-sm">
               <p className="font-medium">
                 <Highlighted text={title} />
@@ -397,7 +414,13 @@ function PolicyHealth() {
         </Button>
       </div>
     );
-  else if (q.data) body = <FindingsView data={q.data} view={view} entries={imported.data?.entries ?? []} shop={shop} />;
+  else if (q.data)
+    body = (
+      <>
+        <FindingsView data={q.data} view={view} entries={imported.data?.entries ?? []} shop={shop} />
+        <MoreFindings shown={q.data.findings.length} total={q.data.total} hasMore={q.hasNextPage} loading={q.isFetchingNextPage} failed={q.isFetchNextPageError} onMore={() => void q.fetchNextPage()} />
+      </>
+    );
   if (body === null) return null;
   return (
     <section aria-labelledby="kb-health" className="space-y-3">
@@ -412,6 +435,28 @@ function PolicyHealth() {
       </div>
       {body}
     </section>
+  );
+}
+
+/** "Showing 100 of N" and a way to the rest. The api's order is kept across pages, so tips (the last group) are reached by paging on. */
+export function MoreFindings({ shown, total, hasMore, loading, failed, onMore }: { shown: number; total: number; hasMore: boolean; loading: boolean; failed: boolean; onMore: () => void }) {
+  const line = showingLine(shown, total);
+  if (!line) return null;
+  return (
+    <div data-kb-more className="flex flex-wrap items-center gap-2 text-sm">
+      <span>{line}</span>
+      {failed && (
+        <span role="alert" className="text-destructive">
+          Could not load more.
+        </span>
+      )}
+      {hasMore && (
+        <Button size="sm" variant="outline" onClick={onMore} disabled={loading}>
+          {loading && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />}
+          Show more
+        </Button>
+      )}
+    </div>
   );
 }
 
@@ -446,7 +491,8 @@ function FindingCard({ finding: f, dismissed, entry, shop }: { finding: KbFindin
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const footer = findingFooter(f);
-  const reality = realityLine(f);
+  const claims = claimsLine(f);
+  const other = otherEntryLine(f);
   const policiesHref = shopifyPoliciesHref(shop);
   const copy = async () => {
     try {
@@ -470,7 +516,8 @@ function FindingCard({ finding: f, dismissed, entry, shop }: { finding: KbFindin
         <CardContent className="space-y-2 p-4">
           {f.entryTitle && <p className="text-xs text-muted-foreground">In: {f.entryTitle}</p>}
           {f.quote && <blockquote className="border-l-2 pl-3 text-sm italic">{f.quote}</blockquote>}
-          {reality && <p className="text-sm">{reality}</p>}
+          {claims && <p className="text-sm">{claims}</p>}
+          {other && <p className="text-sm">{other}</p>}
           <p className="text-sm">{f.why}</p>
           <div className="space-y-1">
             <p className="text-xs font-medium text-muted-foreground">A way to put it</p>
@@ -500,7 +547,7 @@ function FindingCard({ finding: f, dismissed, entry, shop }: { finding: KbFindin
             </Button>
             {isImportedPolicy(entry) && (
               <>
-                {policiesHref && (
+                {policiesHref && canEditInShopify(entry) && (
                   <a href={policiesHref} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center rounded-md border px-3 text-sm font-medium">
                     Edit in Shopify
                   </a>

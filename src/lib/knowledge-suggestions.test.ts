@@ -10,11 +10,16 @@ import {
   isImportedPolicy,
   isLegal,
   placeholdersIn,
-  realityLine,
+  claimsLine,
+  canEditInShopify,
+  otherEntryLine,
+  reconcileWords,
+  runSave,
+  showingLine,
+  SUGGESTED_FROM_STORE,
   routedLines,
   runApprove,
   shopifyPoliciesHref,
-  sortSuggestions,
   splitPlaceholders,
   suggestionAskedLine,
   type KbFinding,
@@ -66,20 +71,16 @@ describe("approveState: the placeholder guard", () => {
   });
 });
 
-describe("sortSuggestions", () => {
-  const s = (id: string, timesAsked: number, lastAskedAt: string | null) => ({ id, timesAsked, lastAskedAt });
-  it("most asked first, then most recent, then id; does not mutate", () => {
-    const input = [s("b", 2, "2026-11-01"), s("a", 2, "2026-11-01"), s("c", 14, null), s("d", 2, "2026-11-05")];
-    expect(sortSuggestions(input).map((x) => x.id)).toEqual(["c", "d", "a", "b"]);
-    expect(input[0]!.id).toBe("b");
-  });
-});
-
 describe("suggestionAskedLine", () => {
   it("says how many times and when", () => {
     expect(suggestionAskedLine({ timesAsked: 14, lastAskedAt: "2026-11-08T12:00:00Z" }, NOW)).toBe("Asked 14 times · last asked 2 days ago");
     expect(suggestionAskedLine({ timesAsked: 1, lastAskedAt: "2026-11-09T12:00:00Z" }, NOW)).toBe("Asked once · last asked yesterday");
     expect(suggestionAskedLine({ timesAsked: 3, lastAskedAt: "2026-11-10T01:00:00Z" }, NOW)).toBe("Asked 3 times · last asked today");
+  });
+  it("★never says Asked 0 times: a draft from the store's own details says what it is", () => {
+    expect(suggestionAskedLine({ timesAsked: 0, lastAskedAt: null }, NOW)).toBe(SUGGESTED_FROM_STORE);
+    expect(suggestionAskedLine({ timesAsked: 0, lastAskedAt: "2026-11-08T12:00:00Z" }, NOW)).not.toMatch(/Asked 0/);
+    expect(SUGGESTED_FROM_STORE).toBe("Suggested from your store details");
   });
   it("leaves the time out when there is none", () => {
     expect(suggestionAskedLine({ timesAsked: 3, lastAskedAt: null }, NOW)).toBe("Asked 3 times");
@@ -173,11 +174,16 @@ describe("findingFooter: the legal line", () => {
   });
 });
 
-describe("realityLine: a reality check renders from its fields", () => {
-  it("lists the claims; null for any other kind or without claims", () => {
-    expect(realityLine(finding({ checkKind: "reality", evidence: { claims: ["ships in 2 days"] } }))).toBe("Your answer says: ships in 2 days");
-    expect(realityLine(finding({ checkKind: "reality" }))).toBeNull();
-    expect(realityLine(finding({ checkKind: "legal", evidence: { claims: ["x"] } }))).toBeNull();
+describe("claimsLine and otherEntryLine: any kind that carries them", () => {
+  it("lists the claims for a reality check and for a contradiction; null without claims", () => {
+    expect(claimsLine(finding({ checkKind: "reality", evidence: { claims: ["ships in 2 days"] } }))).toBe("Your answer says: ships in 2 days");
+    expect(claimsLine(finding({ checkKind: "contradiction", evidence: { claims: ["30 days"] } }))).toBe("Your answer says: 30 days");
+    expect(claimsLine(finding({ checkKind: "reality" }))).toBeNull();
+  });
+  it("names the other entry a contradiction points at", () => {
+    expect(otherEntryLine(finding({ checkKind: "contradiction", evidence: { otherEntryTitle: "Shipping", otherQuote: "7 days" } }))).toBe('Also in "Shipping": "7 days"');
+    expect(otherEntryLine(finding({ evidence: { otherEntryTitle: "Shipping" } }))).toBe('Also in "Shipping"');
+    expect(otherEntryLine(finding({}))).toBeNull();
   });
 });
 
@@ -186,6 +192,12 @@ describe("imported policy actions", () => {
     expect(isImportedPolicy({ readOnly: true, source: "import" })).toBe(true);
     expect(isImportedPolicy({ readOnly: false, source: "owner" })).toBe(false);
     expect(isImportedPolicy(undefined)).toBe(false);
+  });
+  it("★Edit in Shopify only for a policy the Shopify sync wrote", () => {
+    expect(canEditInShopify({ readOnly: true, source: "import", managedIn: "Shopify" })).toBe(true);
+    expect(canEditInShopify({ readOnly: true, source: "import", managedIn: "its source" })).toBe(false);
+    expect(canEditInShopify({ readOnly: false, source: "owner", managedIn: null })).toBe(false);
+    expect(canEditInShopify(undefined)).toBe(false);
   });
   it("the Shopify policies link is built from a checked handle, never a given URL", () => {
     expect(shopifyPoliciesHref("acme.myshopify.com")).toBe("https://admin.shopify.com/store/acme/settings/legal");
@@ -222,5 +234,58 @@ describe("runApprove: the page wiring", () => {
     const send = vi.fn().mockRejectedValue("boom");
     const r = await runApprove(send, "T", "C");
     expect(r).toEqual({ ok: false, error: expect.stringContaining("did not save") });
+  });
+});
+
+describe("runSave: validated like Approve, minus the placeholders", () => {
+  it("sends the trimmed words, and allows a placeholder (save is not approve)", async () => {
+    const send = vi.fn().mockResolvedValue({});
+    await expect(runSave(send, " T ", " In [days] days. ")).resolves.toEqual({ ok: true });
+    expect(send).toHaveBeenCalledWith({ title: "T", content: "In [days] days." });
+  });
+  it("sends nothing for an empty title or answer or one over the bound, with the reason", async () => {
+    const send = vi.fn();
+    expect(await runSave(send, " ", "x")).toEqual({ ok: false, error: "Give it a title to save." });
+    expect(await runSave(send, "t", "")).toEqual({ ok: false, error: "Write the answer to save." });
+    expect((await runSave(send, "t", "x".repeat(8193))).ok).toBe(false);
+    expect(send).not.toHaveBeenCalled();
+  });
+  it("shows the api's sentence when it refuses", async () => {
+    expect(await runSave(vi.fn().mockRejectedValue(new Error("nope")), "t", "c")).toEqual({ ok: false, error: "nope" });
+  });
+});
+
+describe("reconcileWords: unsaved edits are never dropped", () => {
+  const w = (title: string, content: string) => ({ title, content });
+  const card = (base: { title: string; content: string }, title = base.title, content = base.content) => ({ base, title, content });
+  it("untouched: follows the server's new words", () => {
+    const r = reconcileWords(card(w("a", "b")), w("a2", "b2"));
+    expect(r.stale).toBe(false);
+    expect(r.card).toEqual({ base: w("a2", "b2"), title: "a2", content: "b2" });
+  });
+  it("★edited: keeps the edits and flags the update", () => {
+    const c = card(w("a", "b"), "a", "my edit");
+    const r = reconcileWords(c, w("a2", "b2"));
+    expect(r.stale).toBe(true);
+    expect(r.card).toBe(c);
+    expect(r.card.content).toBe("my edit");
+  });
+  it("unchanged server words change nothing (same object)", () => {
+    const c = card(w("a", "b"), "x", "y");
+    expect(reconcileWords(c, w("a", "b"))).toEqual({ card: c, stale: false });
+    expect(reconcileWords(c, w("a", "b")).card).toBe(c);
+  });
+  it("edits that a save just made the server's words become the new base, no notice", () => {
+    const r = reconcileWords(card(w("a", "b"), "a", "mine"), w("a", "mine"));
+    expect(r.stale).toBe(false);
+    expect(r.card.base).toEqual(w("a", "mine"));
+  });
+});
+
+describe("showingLine", () => {
+  it("says Showing N of M only when there is more", () => {
+    expect(showingLine(100, 130)).toBe("Showing 100 of 130");
+    expect(showingLine(130, 130)).toBeNull();
+    expect(showingLine(0, 0)).toBeNull();
   });
 });
