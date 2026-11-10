@@ -233,7 +233,7 @@ export default function AnalyticsInsightsPage() {
             </p>
             <Button asChild>
               <Link href="/dashboard/integrations">
-                {needsReconnect ? "Reconnect" : "Go to integrations"}
+                {needsReconnect ? "Reconnect" : "Go to Connected accounts"}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>

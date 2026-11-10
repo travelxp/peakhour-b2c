@@ -331,7 +331,7 @@ export default function SearchConsoleInsightsPage() {
             </p>
             <Button asChild>
               <Link href="/dashboard/integrations">
-                {needsReconnect ? "Reconnect" : "Go to integrations"}
+                {needsReconnect ? "Reconnect" : "Go to Connected accounts"}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
@@ -375,7 +375,7 @@ export default function SearchConsoleInsightsPage() {
                   ? "No verified Search Console properties were found for this account. Verify a domain in Search Console, then reconnect."
                   : "Pick which verified property to track from Connected accounts to start seeing insights."
               }
-              cta={{ href: "/dashboard/integrations", label: "Go to integrations" }}
+              cta={{ href: "/dashboard/integrations", label: "Go to Connected accounts" }}
             />
           ) : data && data.pending ? (
             <NoticeCard
