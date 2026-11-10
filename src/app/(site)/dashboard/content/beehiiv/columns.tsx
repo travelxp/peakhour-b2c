@@ -269,6 +269,7 @@ function FormatSelectCell({ row }: { row: Draft }) {
             onValueChange={(v) => mutation.mutate(v as ContentFormat)}
           >
             <SelectTrigger
+              aria-label={`Content format for ${row.title}`}
               className={`h-7 w-30 text-xs ${isUnset ? "text-muted-foreground italic" : ""}`}
             >
               <SelectValue placeholder="—" />

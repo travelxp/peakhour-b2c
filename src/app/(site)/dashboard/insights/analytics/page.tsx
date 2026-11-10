@@ -227,7 +227,7 @@ export default function AnalyticsInsightsPage() {
             <p className="text-sm text-muted-foreground">
               {needsReconnect
                 ? "Your Analytics 4 refresh token expired. Reconnect to resume syncing funnel and page metrics."
-                : "Connect Google Analytics 4 to start syncing real conversion data into the autonomous engine. Universal Analytics is sunset and not supported — only GA4 properties (numeric ids) work."}
+                : "Connect Google Analytics 4 to start syncing real conversion data into Peakhour. Universal Analytics is sunset and not supported — only GA4 properties (numeric ids) work."}
             </p>
             <Button asChild>
               <Link href="/dashboard/integrations">

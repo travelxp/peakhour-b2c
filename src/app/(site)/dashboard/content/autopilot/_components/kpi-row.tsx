@@ -25,7 +25,7 @@ const KPIS: Kpi[] = [
     key: "publishedThisWeek",
     label: "Published this week",
     icon: Send,
-    hint: "Posts the engine shipped in the last 7 days",
+    hint: "Posts Peakhour published in the last 7 days",
   },
   {
     key: "needsYou",
@@ -63,7 +63,7 @@ export function KpiRow({ kpis }: { kpis: HomeSummary["kpis"] }) {
               </span>
               <Icon
                 className={cn(
-                  "size-4 text-muted-foreground/60",
+                  "size-4 text-muted-foreground",
                   active && "text-warning-on-tint",
                 )}
               />
@@ -76,7 +76,7 @@ export function KpiRow({ kpis }: { kpis: HomeSummary["kpis"] }) {
             >
               {value}
             </div>
-            <p className="mt-1 text-xs text-muted-foreground/70">{k.hint}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{k.hint}</p>
           </Card>
         );
       })}

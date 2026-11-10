@@ -207,7 +207,7 @@ export function CalendarItemDrawer({
       {item.smartTime && (
         <div>
           <div className="mb-1 text-xs font-medium text-muted-foreground">
-            Smart-time engine
+            Smart timing
           </div>
           <div className="space-y-1 rounded-md border bg-muted/30 p-3 text-xs">
             <div>
@@ -217,7 +217,7 @@ export function CalendarItemDrawer({
               <code className="rounded bg-muted px-1">
                 {item.smartTime.adapterVersion}
               </code>{" "}
-              · Engine{" "}
+              · Version{" "}
               <code className="rounded bg-muted px-1">
                 {item.smartTime.engineVersion}
               </code>

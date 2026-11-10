@@ -402,7 +402,7 @@ export function RepurposeSheet({ open, onOpenChange, source }: Props) {
           </SheetTitle>
           <SheetDescription className="text-xs">
             {showingScheduler
-              ? "Pick a time, a stagger strategy, and any per-channel timing preferences. The smart-time engine handles tier-A audience timing."
+              ? "Pick a time, a stagger strategy, and any per-channel timing preferences. Smart timing handles tier-A audience timing."
               : stage === "done"
                 ? "Your variants are ready — schedule them or save as drafts."
                 : "We score each connected channel. Tick the ones you want to generate."}

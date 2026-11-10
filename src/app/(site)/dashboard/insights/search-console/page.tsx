@@ -281,7 +281,7 @@ export default function SearchConsoleInsightsPage() {
                     setProperty(v === "__default__" ? undefined : v)
                   }
                 >
-                  <SelectTrigger className="w-55">
+                  <SelectTrigger className="w-55" aria-label="Property">
                     <SelectValue placeholder="Property" />
                   </SelectTrigger>
                   <SelectContent>

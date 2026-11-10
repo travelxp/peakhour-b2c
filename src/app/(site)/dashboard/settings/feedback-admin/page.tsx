@@ -78,7 +78,7 @@ export default function FeedbackAdminPage() {
       {/* Filters */}
       <div className="flex gap-3">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-40" aria-label="Status">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
@@ -92,7 +92,7 @@ export default function FeedbackAdminPage() {
         </Select>
 
         <Select value={severityFilter} onValueChange={setSeverityFilter}>
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-40" aria-label="Severity">
             <SelectValue placeholder="Severity" />
           </SelectTrigger>
           <SelectContent>

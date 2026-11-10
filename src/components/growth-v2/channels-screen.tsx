@@ -217,7 +217,7 @@ export function ChannelsBody({ channels, pacingSeries, unitPlural, unitOne }: { 
                           <MoneyValue money={c.dailyBudget} />
                           {c.engineChange ? (
                             <span className="block text-xs text-muted-foreground" data-engine-change="">
-                              Engine changed it from {formatMoney(c.engineChange.from, c.engineChange.currency)} to {formatMoney(c.engineChange.to, c.engineChange.currency)}
+                              Peakhour changed it from {formatMoney(c.engineChange.from, c.engineChange.currency)} to {formatMoney(c.engineChange.to, c.engineChange.currency)}
                             </span>
                           ) : null}
                         </td>

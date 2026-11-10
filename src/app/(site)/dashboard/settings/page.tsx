@@ -392,7 +392,7 @@ function SettingsContent() {
                 </div>
               )}
             </div>
-            <CardDescription>Your business information used by the AI engine</CardDescription>
+            <CardDescription>Your business information used by Peakhour&apos;s AI</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {editingBusiness ? (

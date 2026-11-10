@@ -173,9 +173,9 @@ export function Inbox({
           {items.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">
               {tab === "needs_you"
-                ? "Nothing needs you. The engine will list a proposal here the moment it has one."
+                ? "Nothing needs you. Peakhour will list a proposal here the moment it has one."
                 : tab === "blocked"
-                  ? "Nothing is blocked. If a guardrail stops the engine from doing something, it shows here."
+                  ? "Nothing is blocked. If a guardrail stops Peakhour from doing something, it shows here."
                   : "Nothing here yet."}
             </p>
           ) : (

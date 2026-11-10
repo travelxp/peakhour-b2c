@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useChat, type ChatMessage } from "@/hooks/use-chat";
+import { FAB_HIDDEN_CLASSES, useFabAutohide } from "@/hooks/use-fab-autohide";
 
 /**
  * Floating AI chat panel — opens from a FAB in the bottom-right.
@@ -14,6 +15,7 @@ import { useChat, type ChatMessage } from "@/hooks/use-chat";
 export function ChatPanel() {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
+  const fabHidden = useFabAutohide(open);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const { messages, isLoading, sendMessage, loadHistory, clearChat } = useChat();
@@ -51,7 +53,10 @@ export function ChatPanel() {
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-50 md:bottom-6 md:right-6 flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95"
+          className={cn(
+            "fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-50 md:bottom-6 md:right-6 flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-[transform,translate,opacity] motion-reduce:transition-none hover:scale-105 active:scale-95",
+            fabHidden && FAB_HIDDEN_CLASSES,
+          )}
           aria-label="Open AI assistant"
         >
           <Bot className="size-5" />

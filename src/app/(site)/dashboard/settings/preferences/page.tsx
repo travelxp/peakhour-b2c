@@ -131,7 +131,7 @@ export default function PreferencesPage() {
               </p>
             </div>
             <Select value={dateFormat} onValueChange={setDateFormat}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="Date format">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -154,7 +154,7 @@ export default function PreferencesPage() {
               </p>
             </div>
             <Select value={timezone || browserTimezone} onValueChange={setTimezone}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="Timezone">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="max-h-60">
@@ -177,7 +177,7 @@ export default function PreferencesPage() {
               </p>
             </div>
             <Select value={numberFormat} onValueChange={setNumberFormat}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="Number format">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

@@ -92,6 +92,7 @@ function ChannelCard({ channel }: { channel: ChannelWidget }) {
                   "size-2 rounded-full",
                   HEALTH_DOT[channel.health],
                 )}
+                role="img"
                 aria-label={HEALTH_LABEL[channel.health]}
               />
             </TooltipTrigger>
@@ -121,7 +122,7 @@ function ChannelCard({ channel }: { channel: ChannelWidget }) {
             <Chip count={counts.ideas} label="ideas" tone="muted" />
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground/70">
+          <p className="text-xs text-muted-foreground">
             {channel.health === "attention"
               ? "Reconnect to resume publishing"
               : "Nothing pending — quiet and healthy"}

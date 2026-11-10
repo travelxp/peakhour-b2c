@@ -221,7 +221,7 @@ export default function TeamPage() {
                       Role
                     </label>
                     <Select value={inviteRole} onValueChange={setInviteRole}>
-                      <SelectTrigger>
+                      <SelectTrigger aria-label="Role">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>

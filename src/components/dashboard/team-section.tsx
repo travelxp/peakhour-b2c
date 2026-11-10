@@ -206,7 +206,7 @@ export function TeamSection() {
                     value={m.role}
                     onValueChange={(v) => handleRoleChange(m.userId, v)}
                   >
-                    <SelectTrigger className="min-w-24 h-8 text-xs">
+                    <SelectTrigger className="min-w-24 h-8 text-xs" aria-label={`Role for ${m.name || m.email}`}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -363,7 +363,7 @@ function InviteDialog({ onInvited }: { onInvited: () => Promise<void> }) {
             <div className="space-y-1">
               <Label className="text-xs">Select role</Label>
               <Select value={role} onValueChange={setRole}>
-                <SelectTrigger className="w-full bg-background">
+                <SelectTrigger className="w-full bg-background" aria-label="Select role">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

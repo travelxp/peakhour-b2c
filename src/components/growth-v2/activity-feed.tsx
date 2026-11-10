@@ -23,7 +23,7 @@ const KINDS: Record<FeedEvent["kind"], { icon: LucideIcon; tone: string }> = {
 
 export function ActivityFeed({ events, decisionsHref, className }: { events: FeedEvent[]; decisionsHref?: string; className?: string }) {
   if (events.length === 0) {
-    return <p className="py-6 text-center text-sm text-muted-foreground">Nothing yet. The engine will list every check, change and refusal here.</p>;
+    return <p className="py-6 text-center text-sm text-muted-foreground">Nothing yet. Peakhour will list every check, change and refusal here.</p>;
   }
   return (
     <ul className={cn("divide-y", className)}>

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
-import { getPricing, findBundleTier, suiteCtaLabel, suiteTrialDays, countryFromHeader } from "@/lib/pricing";
+import { getPricing, findBundleTier, hasCountryOverride, moduleBadge, PRICE_AT_SIGNUP, resolveCountry, suiteCtaLabel, suiteTrialDays } from "@/lib/pricing";
 import { getPublicCatalog, publicMarketingIntegrations, signupCta } from "@/lib/catalog";
 import { pricingHeroTrial } from "@/lib/trial-copy";
 import { badgedComingSoonKeys } from "@/lib/pillar-channels";
@@ -42,9 +42,18 @@ export const metadata = pageMetadata({
  * (lib/pricing-catalog). Without a Suite in this environment's catalog the page
  * names no price and no trial rather than inventing either.
  */
-export default async function PricingPage() {
+export default async function PricingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ country?: string | string[] }>;
+}) {
   const h = await headers();
-  const country = countryFromHeader(h.get("x-vercel-ip-country"));
+  const query = (await searchParams).country;
+  // ★ONE RESOLUTION, SHARED WITH /shopify: a chosen country (?country=XX), else
+  // the edge geo header. Both pages call this, so one visitor is never quoted
+  // two currencies.
+  const country = resolveCountry(query, h.get("x-vercel-ip-country"));
+  const carried = hasCountryOverride(query) ? country : null;
 
   const [pricing, catalog] = await Promise.all([
     getPricing(country),
@@ -136,6 +145,7 @@ export default async function PricingPage() {
                   const pillar = pricingPillar(slug);
                   const Icon = pillar.icon;
                   const isIn = included.has(slug);
+                  const badge = moduleBadge(Boolean(suite), isIn);
                   return (
                     <li key={slug}>
                       <Link
@@ -155,20 +165,31 @@ export default async function PricingPage() {
                         </span>
                         {/* ★"Included" ONLY WHERE THE CATALOG SAYS SO
                             (`suiteModuleSlugs`); a module Suite does not
-                            compose here reads "Soon", never a price. */}
-                        <span
-                          className={`ml-auto shrink-0 pt-0.5 text-sm font-bold tabular-nums ${
-                            isIn ? "text-success" : "text-on-ink-dim"
-                          }`}
-                          style={{ fontFamily: "var(--font-space-grotesk)" }}
-                        >
-                          {isIn ? "Included" : "Soon"}
-                        </span>
+                            compose here reads "Soon", never a price. With no
+                            Suite at all (an outage, or an env with no
+                            pricing) the catalog has said nothing about any
+                            module, so no badge: "Soon" on a live product is
+                            false. */}
+                        {badge && (
+                          <span
+                            className={`ml-auto shrink-0 pt-0.5 text-sm font-bold tabular-nums ${
+                              isIn ? "text-success" : "text-on-ink-dim"
+                            }`}
+                            style={{ fontFamily: "var(--font-space-grotesk)" }}
+                          >
+                            {badge}
+                          </span>
+                        )}
                       </Link>
                     </li>
                   );
                 })}
               </ul>
+              {!suite && (
+                <p className="px-4 pb-2 pt-3 text-xs text-on-ink-dim">
+                  {PRICE_AT_SIGNUP}
+                </p>
+              )}
             </div>
           </div>
         </section>
@@ -185,6 +206,8 @@ export default async function PricingPage() {
                 includedSlugs={[...included]}
                 cta={cta}
                 openSignup={openSignup}
+                country={country}
+                scopeAction="/pricing#suite"
               />
             </div>
           </section>
@@ -215,7 +238,7 @@ export default async function PricingPage() {
                 </p>
               </div>
               <div className="mt-8">
-                <ChannelsStrip comingSoonKeys={comingSoonKeys} />
+                <ChannelsStrip comingSoonKeys={comingSoonKeys} country={carried} />
               </div>
             </div>
           </div>

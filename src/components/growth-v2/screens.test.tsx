@@ -68,7 +68,7 @@ describe("the screens render their preview sample", () => {
     // the big number says which window it counts, above a goal that is always the month
     expect(out).toContain("in this month");
     expect(out).toContain("3 decisions need you");
-    expect(out).toContain("What the engine did");
+    expect(out).toContain("What Peakhour did");
     expect(out.match(/<svg/g)!.length).toBeGreaterThanOrEqual(2);
   });
 
@@ -176,7 +176,7 @@ describe("the screens render their preview sample", () => {
 
   it("Channels & money shows a paused campaign's missing outcome as an absence", () => {
     const out = html(<ChannelsBody channels={FIXTURE_CHANNELS} pacingSeries={undefined} unitPlural="bookings" unitOne="booking" />);
-    expect(out).toContain("Paused by engine");
+    expect(out).toContain("Paused by Peakhour");
     expect(out).toContain("Not available");
     expect(out).toContain("day-by-day line is not available");
   });
@@ -186,7 +186,7 @@ describe("the screens render their preview sample", () => {
       ...FIXTURE_CHANNELS,
       health: [
         { platform: "meta", state: "healthy", reason: "Cost per outcome INR 250 against your target of INR 600.", spend: { value: 1000, currency: "INR" }, outcomes: { value: 4 }, efficiency: { value: 250 } },
-        { platform: "google_ads", state: "problem", reason: "Google Ads bills in USD, but your plan is in INR. The engine does not manage it, and its spend is left out of your totals.", spend: { absent: "currency_mismatch" }, outcomes: { absent: "currency_mismatch" }, efficiency: { absent: "currency_mismatch" } },
+        { platform: "google_ads", state: "problem", reason: "Google Ads bills in USD, but your plan is in INR. Peakhour does not manage it, and its spend is left out of your totals.", spend: { absent: "currency_mismatch" }, outcomes: { absent: "currency_mismatch" }, efficiency: { absent: "currency_mismatch" } },
         { platform: "x", state: "problem", reason: "INR 200 spent with no bookings credited to X Ads.", spend: { value: 200, currency: "INR" }, outcomes: { value: 0 }, efficiency: { absent: "no_outcomes_this_week" } },
         { platform: "linkedin", state: "not_connected", reason: "LinkedIn Ads isn't connected.", spend: { absent: "not_connected" }, outcomes: { absent: "not_connected" }, efficiency: { absent: "not_connected" } },
       ],
@@ -228,11 +228,11 @@ describe("the screens render their preview sample", () => {
       expect(out).not.toContain("extra bookings");
     });
 
-    it("lists campaigns with budget and spend, notes the engine's change, and drops results columns that would only repeat an absence", () => {
+    it("lists campaigns with budget and spend, notes Peakhour's change, and drops results columns that would only repeat an absence", () => {
       const out = body(live);
       expect(out).toContain("Alpha videos");
       expect(out).toContain("Active");
-      expect(out).toContain("Engine changed it from ₹500 to ₹600");
+      expect(out).toContain("Peakhour changed it from ₹500 to ₹600");
       expect(out).toContain("Daily budget");
       expect(out).not.toContain("Credit is per channel");
     });
@@ -278,7 +278,7 @@ describe("the screens render their preview sample", () => {
     expect(out).toContain("₹20,000");
     expect(out).toContain("Only use creatives I approved");
     expect(out).toContain("Blocked words");
-    expect(out).toContain("Let the engine use Meta");
+    expect(out).toContain("Let Peakhour use Meta");
     expect(out).toContain("Never, at any level");
     expect(out).toContain("Raise its own autonomy level");
   });
@@ -317,7 +317,7 @@ describe("the screens render their preview sample", () => {
 
   it("Rules points a business with no mandate at First run", () => {
     const out = html(withClient(<RulesBody rules={{ ...FIXTURE_RULES, mandate: undefined }} preview={false} />));
-    expect(out).toContain("The engine is off for this business");
+    expect(out).toContain("Peakhour is off for this business");
     expect(out).toContain("/dashboard/growth/start");
   });
 

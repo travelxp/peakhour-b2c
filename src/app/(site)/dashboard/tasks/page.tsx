@@ -342,7 +342,7 @@ function JobChildrenList({ jobId }: { jobId: string }) {
               {done} / {total}
             </span>
             <div className="w-20">
-              <Progress value={pct} className="h-1" />
+              <Progress value={pct} aria-label="Task progress" className="h-1" />
             </div>
           </div>
         );

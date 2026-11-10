@@ -40,7 +40,7 @@ export function KpiCard({
             </p>
             <p className="text-2xl font-bold mt-1">{value ?? "—"}</p>
             {progressValue !== undefined && (
-              <Progress value={progressValue} className="h-1.5 mt-2" />
+              <Progress value={progressValue} aria-label={title} className="h-1.5 mt-2" />
             )}
             {subtitle && (
               <p className="text-xs text-muted-foreground mt-1">

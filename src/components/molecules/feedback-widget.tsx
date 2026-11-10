@@ -148,7 +148,7 @@ export function FeedbackWidget() {
             <div className="space-y-2">
               <Label>Category</Label>
               <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger>
+                <SelectTrigger aria-label="Category">
                   <SelectValue placeholder="What kind of feedback?" />
                 </SelectTrigger>
                 <SelectContent>

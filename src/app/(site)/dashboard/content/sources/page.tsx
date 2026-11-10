@@ -1,5 +1,6 @@
 "use client";
 
+import { TabPanelStubs } from "@/components/dashboard/tab-panel-stubs";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
@@ -190,6 +191,8 @@ function TrustedSourcesSurface() {
             ))}
             <TabsTrigger value="insights">Insights</TabsTrigger>
           </TabsList>
+          {/* The list below is the shared panel; stubs keep aria-controls valid. */}
+          <TabPanelStubs values={[...STATUS_TABS.map((t) => t.value), "insights"]} />
           {/* Search filters the row list — irrelevant on Insights, so
               it hides there to avoid implying "search the aggregates". */}
           {tab !== "insights" && (
