@@ -11,7 +11,7 @@ import { useChangeOutcomes, useEditCapabilities, useListingChanges, usePresenceE
 import { useListingQuery } from "@/hooks/use-presence-listing";
 import { fetchView, primaryEntry } from "@/lib/presence-panels";
 import { drawnExtraFields } from "@/lib/presence-extras";
-import { capabilityFor, drawnSections, errorWords, formAccess, requestedForm, writesNote, type EditField } from "@/lib/presence-edit";
+import { capabilityFor, drawnSections, errorWords, formAccess, preparedWords, requestedForm, type EditField } from "@/lib/presence-edit";
 
 /** Another card asking for a field's form. A new object each time, so asking twice for one field opens it twice. */
 export type EditRequest = { field: string };
@@ -21,7 +21,7 @@ export type EditRequest = { field: string };
  *
  * MARKUP ONLY. What is drawn, what each state says and what a role may press are in `lib/presence-edit.ts`.
  * ★A submit prepares a change. It is not saved, and nothing is sent, until a person approves it; whether it is then sent depends on the
- * operator's switch, which this card reports in plain words. Never "saved", never "live" before the engine says so.
+ * operator's switch, which the publishing status above the panels reports once. Never "saved", never "live" before the engine says so.
  */
 export function EditListingCard({
   location,
@@ -124,7 +124,6 @@ export function EditListingCard({
       </Card>
     );
   }
-  const switchNote = writesNote(cap);
   // A change is listed by its own panel when that panel is drawn (photos, posts, services, details, links), so it is never listed twice.
   const extraFields = new Set<string>(drawnExtraFields(cap));
   const listedElsewhere = (c: { field: string; network: string }) => c.network === network && ((photoChangesElsewhere && c.field === "media") || extraFields.has(c.field));
@@ -138,11 +137,7 @@ export function EditListingCard({
       {
         onSuccess: (r) => {
           setOpen(null);
-          setNotice(
-            r.notChecked.length
-              ? `Your change is prepared, but ${cap!.label} could not check it just now. It is waiting below.`
-              : "Your change is prepared and checked. Review it below, then approve it.",
-          );
+          setNotice(preparedWords(r.notChecked.length, cap!));
         },
       },
     );
@@ -177,7 +172,7 @@ export function EditListingCard({
   return (
     <Card className="gap-4 p-5">
       {header}
-      {switchNote && <p className="rounded-md border border-warning/40 p-3 text-xs text-warning-on-tint">{switchNote}</p>}
+      {/* Whether changes are sent is the publishing status's one answer, above the panels (GBP Issue 1). */}
       {access.mode === "view" && <p className="text-xs text-muted-foreground">{access.why}</p>}
       {notice && (
         <p role="status" className="text-xs text-muted-foreground">
