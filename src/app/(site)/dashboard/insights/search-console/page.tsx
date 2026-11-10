@@ -35,7 +35,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
-import { TrendChart } from "@/components/viz/trend-chart";
+import { TrendChart } from "@/components/viz/trend-chart-lazy";
 import { ExplainCard } from "@/components/dashboard/explain-card";
 import { useSetAskEntityIds } from "@/providers/ask-context-provider";
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
@@ -269,7 +269,7 @@ export default function SearchConsoleInsightsPage() {
             <Search className="h-5 w-5 text-white" />
           </div>
         }
-        title="Search Console"
+        title="Google search"
         description="What's happening in Google Search — and what to do about it."
         actions={
           isWorking && (
@@ -368,7 +368,7 @@ export default function SearchConsoleInsightsPage() {
               body={
                 sites.length === 0
                   ? "No verified Search Console properties were found for this account. Verify a domain in Search Console, then reconnect."
-                  : "Pick which verified property to track from the Integrations page to start seeing insights."
+                  : "Pick which verified property to track from Connected accounts to start seeing insights."
               }
               cta={{ href: "/dashboard/integrations", label: "Go to integrations" }}
             />

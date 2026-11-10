@@ -86,9 +86,9 @@ const USER_FIXABLE = new Set([
 ]);
 
 const USER_FIXABLE_COPY: Record<string, string> = {
-  NOT_CONNECTED: "Connect the ad account first, from Integrations.",
+  NOT_CONNECTED: "Connect the ad account first, from Connected accounts.",
   NO_AD_ACCOUNT: "That connection has no ad account — reconnect it, or create one on the platform.",
-  NEEDS_REAUTH: "The connection needs reconnecting, from Integrations.",
+  NEEDS_REAUTH: "The connection needs reconnecting, from Connected accounts.",
   RATE_LIMITED: "The platform is rate-limiting us — give it a minute and try again.",
   FORBIDDEN: "Pick a business first.",
   INVALID_TRANSITION: "That change isn't possible from the campaign's current state.",

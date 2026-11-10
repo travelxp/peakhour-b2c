@@ -60,7 +60,7 @@ export default function NewsDeskPage() {
       <PageIntro id="news" />
       <header>
         <h2 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-          <Newspaper className="size-6" aria-hidden /> News Desk
+          <Newspaper className="size-6" aria-hidden /> Industry news
         </h2>
         <p className="text-muted-foreground">
           Corroborated, brand-voice news drafts awaiting your go. Each shows the sources that back it — multi-source verified, refactored, never copied.
@@ -134,7 +134,7 @@ function NewsCard({ idea, onApprove }: { idea: NewsIdea; onApprove: () => void }
 }
 
 function ErrorBlock({ error }: { error: unknown }) {
-  const message = error instanceof ApiError ? error.message : "Could not load the News Desk queue.";
+  const message = error instanceof ApiError ? error.message : "Could not load the Industry news queue.";
   return (
     <div className="flex items-start gap-3 py-6">
       <AlertCircle aria-hidden className="mt-0.5 size-5 shrink-0 text-destructive" />

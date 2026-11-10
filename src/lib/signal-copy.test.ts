@@ -296,7 +296,7 @@ describe("★the railOffered mechanism itself — asserted positively, not by ab
     // "Reactivate the plugin" is the wrong instruction for the first two.
     const body = stateCopy(wp({ state: "never_fired" }), false).body;
     expect(body).toMatch(/connected/i);
-    expect(body).toMatch(/integrations/i);
+    expect(body).toMatch(/connected accounts/i);
     expect(body).toMatch(/past(e|ing)/i);
   });
 

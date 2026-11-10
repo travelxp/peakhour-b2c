@@ -33,7 +33,7 @@ function CommerceAutopilotBody() {
   return (
     <PageShell width="standard">
       <header className="mb-6">
-        <h1 className="text-xl font-semibold">Autopilot</h1>
+        <h1 className="text-xl font-semibold">Auto-merchandising</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Approve what the engine proposes and set how much it can do on its
           own — channel by channel, at a pace you&apos;re comfortable with.

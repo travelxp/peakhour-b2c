@@ -21,11 +21,14 @@ import { UpgradeDrawer } from "@/components/upgrade/upgrade-drawer";
 export function LockedNavItem({
   icon: Icon,
   label,
+  description,
   featureKey,
   tagline,
 }: {
   icon: LucideIcon;
   label: string;
+  /** One-line plain-language description, shown in the tooltip. */
+  description?: string;
   /** cfg_features.key gating the pillar, e.g. "commerce.nav". */
   featureKey: string;
   tagline?: string;
@@ -35,7 +38,7 @@ export function LockedNavItem({
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
-        tooltip={`${label} — upgrade to unlock`}
+        tooltip={description ? `${label}: ${description} Upgrade to unlock.` : `${label} — upgrade to unlock`}
         onClick={() => setOpen(true)}
         className="text-sidebar-foreground/60"
       >

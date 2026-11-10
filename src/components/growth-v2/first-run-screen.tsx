@@ -236,7 +236,7 @@ export function FirstRunView(p: FirstRunViewProps) {
             {draft.offers.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 Nothing can be measured for this business yet. Connect your shop, your inbox or your analytics in{" "}
-                <Link href="/dashboard/integrations" className="underline underline-offset-2">Integrations</Link>, then come back.
+                <Link href="/dashboard/integrations" className="underline underline-offset-2">Connected accounts</Link>, then come back.
               </p>
             ) : (
               <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
@@ -275,7 +275,7 @@ export function FirstRunView(p: FirstRunViewProps) {
             {draft.askAboutStores && !hasStoreOffer ? (
               <p className="text-xs text-muted-foreground">
                 Google counts store visits only for a verified Business Profile linked to your Google Ads account. Connect and verify yours in{" "}
-                <Link href="/dashboard/integrations" className="underline underline-offset-2">Integrations</Link>, and store visits will appear here.
+                <Link href="/dashboard/integrations" className="underline underline-offset-2">Connected accounts</Link>, and store visits will appear here.
               </p>
             ) : null}
           </fieldset>
@@ -367,7 +367,7 @@ export function FirstRunView(p: FirstRunViewProps) {
                 <p className="text-xs text-muted-foreground">
                   {ROLE_LABEL[c.role]}. {c.reason}
                 </p>
-                {!c.connected ? <p className="text-xs text-warning-on-tint">Not connected yet. Connect it in Integrations to start here.</p> : null}
+                {!c.connected ? <p className="text-xs text-warning-on-tint">Not connected yet. Connect it in Connected accounts to start here.</p> : null}
               </div>
               {ceiling !== undefined ? <b className="text-sm tabular-nums">{formatMoney(Math.round(ceiling * c.monthlyShare), currency)}</b> : <ToneBadge>{ROLE_LABEL[c.role]}</ToneBadge>}
             </div>

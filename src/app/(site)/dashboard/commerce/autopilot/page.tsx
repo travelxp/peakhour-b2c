@@ -3,7 +3,7 @@ import { CommerceAutopilot } from "@/components/commerce/autopilot";
 import { PageIntro } from "@/components/dashboard/page-intro";
 
 export const metadata: Metadata = {
-  title: "Autopilot · Commerce",
+  title: "Auto-merchandising · Commerce",
 };
 
 /**
