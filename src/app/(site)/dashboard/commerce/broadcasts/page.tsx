@@ -3,7 +3,7 @@ import { BroadcastsPanel } from "@/components/commerce/broadcasts";
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 
 export const metadata: Metadata = {
-  title: "Broadcasts · Commerce",
+  title: "Promo messages · Commerce",
 };
 
 /**
@@ -14,7 +14,7 @@ export default function CommerceBroadcastsPage() {
   return (
     <PageShell width="standard">
       <PageHeader
-        title="Broadcasts"
+        title="Promo messages"
         description="Send an offer on WhatsApp to shoppers who opted in, and see how it did."
       />
       <BroadcastsPanel />

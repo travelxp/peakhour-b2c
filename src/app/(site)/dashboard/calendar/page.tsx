@@ -489,7 +489,7 @@ export default function CalendarPage() {
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Calendar</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Publishing calendar</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
             Every scheduled publish across all your channels.
           </p>

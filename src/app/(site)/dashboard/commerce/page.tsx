@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { CommandCenter } from "@/components/commerce/command-center";
 
 export const metadata: Metadata = {
-  title: "Command Center · Commerce",
+  title: "Store overview · Commerce",
 };
 
 /**

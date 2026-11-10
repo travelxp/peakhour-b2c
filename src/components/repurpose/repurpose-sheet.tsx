@@ -608,7 +608,7 @@ function EmptyState({ count }: { count: number }) {
           <p className="font-medium text-foreground">No channels connected yet.</p>
           <p className="mt-1 text-xs">
             Connect at least one channel (LinkedIn, X, etc.) before repurposing.
-            Head to <em>Settings → Integrations</em>.
+            Head to <em>Connected accounts</em>.
           </p>
         </>
       ) : (

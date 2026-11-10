@@ -361,7 +361,7 @@ export function BoostCampaignDialog({
         // the server only uses active connections.
         toast.error("Connect (or reconnect) LinkedIn Ads first.", {
           action: {
-            label: "Integrations",
+            label: "Connected accounts",
             onClick: () => {
               window.location.href = RECONNECT_HREF;
             },

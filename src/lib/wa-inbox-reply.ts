@@ -532,7 +532,7 @@ export function replyErrorCopy(err: unknown, kind: ReplyPayload["kind"] = "text"
       return {
         ...base,
         title: "WhatsApp isn't available right now",
-        detail: `${serverMessage(err, "Check your WhatsApp connection in Integrations.")} ${NOTHING_SENT}`,
+        detail: `${serverMessage(err, "Check your WhatsApp connection in Connected accounts.")} ${NOTHING_SENT}`,
       };
     case "NOT_FOUND":
       return {

@@ -207,7 +207,7 @@ function CatalogBody() {
 function Header() {
   return (
     <header className="mb-6">
-      <h1 className="text-xl font-semibold">Catalog &amp; Listings</h1>
+      <h1 className="text-xl font-semibold">Products</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Your products and how well each one is listed. Fix the weak spots to sell
         more — Peakhour&apos;s Merchandiser can do it for you.

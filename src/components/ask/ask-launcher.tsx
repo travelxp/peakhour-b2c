@@ -151,7 +151,7 @@ export function AskLauncher() {
           onFocus={() => setEngaged(true)}
           onBlur={() => setEngaged(false)}
           className={cn(
-            "group fixed bottom-6 right-6 z-50 flex h-12 items-center overflow-hidden rounded-full",
+            "group fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-50 md:bottom-6 md:right-6 flex h-12 items-center overflow-hidden rounded-full",
             "bg-primary text-primary-foreground shadow-lg",
             // Width is the animated property, and it animates between two fixed
             // values rather than to `auto` — `auto` is not an animatable length,
@@ -191,7 +191,7 @@ export function AskLauncher() {
       {threadId && (
         <div
           className={cn(
-            "fixed bottom-6 right-6 z-50 h-140 w-100 flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl",
+            "fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-50 md:bottom-6 md:right-6 h-140 w-100 flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl",
             open ? "flex" : "hidden",
           )}
         >

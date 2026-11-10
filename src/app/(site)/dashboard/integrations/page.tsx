@@ -732,7 +732,7 @@ export default function IntegrationsPage() {
           worked" the user is owed. */}
       <OAuthConnectResult />
       <PageHeader
-        title="Integrations"
+        title="Connected accounts"
         description="Connect your platforms to power AI-driven content and ads"
       />
 
