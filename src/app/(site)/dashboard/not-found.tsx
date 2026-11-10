@@ -22,7 +22,10 @@ export default function DashboardNotFound() {
         <EmptyMedia variant="icon">
           <FileQuestion />
         </EmptyMedia>
-        <EmptyTitle>We couldn&apos;t find that page</EmptyTitle>
+        {/* The page's one heading: EmptyTitle alone renders a div. */}
+        <EmptyTitle>
+          <h1>We couldn&apos;t find that page</h1>
+        </EmptyTitle>
         <EmptyDescription>
           It may have moved, or the link may be old. Pick one of these, or
           search for what you need.

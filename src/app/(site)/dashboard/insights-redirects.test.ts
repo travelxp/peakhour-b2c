@@ -18,21 +18,13 @@ const target = async (fn: (p: { searchParams: Promise<Q> }) => unknown, q: Q = {
   return "no redirect";
 };
 
-describe("the removed pages redirect to Insights, so old links stay alive", () => {
-  it("/dashboard/commerce/demand opens Product demand", async () => {
-    const { default: Page } = await import("./commerce/demand/page");
-    expect(await target(Page)).toBe("REDIRECT:/dashboard/inbox?tab=insights&type=product_demand");
-  });
+describe("the removed WhatsApp analytics page redirects to Insights (the Shopify app still links to it)", () => {
   it("/dashboard/content/whatsapp/analytics opens Insights, where the support results now are", async () => {
     const { default: Page } = await import("./content/whatsapp/analytics/page");
     expect(await target(Page)).toBe("REDIRECT:/dashboard/inbox?tab=insights");
   });
-  it("each carries the old address's query string over (SA-12), and the page's own keys win", async () => {
-    const demand = (await import("./commerce/demand/page")).default;
+  it("it carries the old address's query string over (SA-12)", async () => {
     const analytics = (await import("./content/whatsapp/analytics/page")).default;
-    expect(await target(demand, { store: "s1", utm_source: "email" })).toBe("REDIRECT:/dashboard/inbox?tab=insights&type=product_demand&store=s1&utm_source=email");
-    // a stale ?tab= or ?type= on the old address cannot send the person elsewhere
-    expect(await target(demand, { tab: "reviews", type: "support_issue", store: "s1" })).toBe("REDIRECT:/dashboard/inbox?tab=insights&type=product_demand&store=s1");
     expect(await target(analytics, { days: "7", channel: ["a", "b"] })).toBe("REDIRECT:/dashboard/inbox?tab=insights&days=7&channel=a&channel=b");
   });
 });

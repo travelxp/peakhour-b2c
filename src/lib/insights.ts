@@ -86,8 +86,8 @@ export const INSIGHT_FILTERS: readonly { value: InsightFilter; label: string }[]
 export const DEFAULT_INSIGHT_FILTER: InsightFilter = "needs_action";
 
 /**
- * Which chip a `?type=` value asks for. The api's own type names are accepted too (the Commerce demand redirect and a link from the
- * Shopify app name `product_demand`), and `missing_product_info` / `missing_store_info` both land on "Missing info". Anything else is
+ * Which chip a `?type=` value asks for. The api's own type names are accepted too (a link from the
+ * Shopify app names `product_demand`), and `missing_product_info` / `missing_store_info` both land on "Missing info". Anything else is
  * the default, never an error: a stale link must not leave the tab with no chip selected.
  */
 export function insightFilterFromParam(value: string | null | undefined): InsightFilter {
@@ -153,9 +153,6 @@ export const LEGACY_QUESTIONS_FILTER: InsightFilter = "missing_info";
 export function insightsHref(filter: InsightFilter = DEFAULT_INSIGHT_FILTER): string {
   return filter === DEFAULT_INSIGHT_FILTER ? "/dashboard/inbox?tab=insights" : `/dashboard/inbox?tab=insights&type=${filter}`;
 }
-
-/** Where the removed Commerce page now points. */
-export const DEMAND_REDIRECT_HREF = "/dashboard/inbox?tab=insights&type=product_demand";
 
 /**
  * A redirect's target with the old address's own query string carried over (SA-12). ★The target's keys win: `tab` and `type` say which

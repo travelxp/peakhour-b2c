@@ -1,5 +1,6 @@
 "use client";
 
+import { MediaImage } from "@/components/shared/media-image";
 import { useEffect, useState, type ReactNode } from "react";
 import { FileText, Loader2, Plus, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -416,8 +417,7 @@ export function BrandKitView(p: BrandKitViewProps) {
               {draft.logos.map((l, i) => (
                 <li key={l.mediaId} className="flex flex-col gap-1.5">
                   <div className="relative flex h-21 items-center justify-center overflow-hidden rounded-lg border bg-muted">
-                    {/* eslint-disable-next-line @next/next/no-img-element -- a Drive file's public URL, already on our CDN */}
-                    <img src={l.url} alt={`${l.name} (${logoFormLabel(l.form)})`} className="max-h-full max-w-full object-contain p-2" loading="lazy" />
+                    <MediaImage src={l.url} alt={`${l.name} (${logoFormLabel(l.form)})`} width={256} height={128} sizes="256px" className="max-h-full max-w-full object-contain p-2" />
                     {editing && (
                       <span className="absolute top-1 right-1 rounded-md bg-card/90">
                         <RemoveButton label={`Remove ${l.name}`} onClick={() => p.onRemoveLogo(i)} />
