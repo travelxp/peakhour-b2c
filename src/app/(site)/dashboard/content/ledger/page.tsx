@@ -20,6 +20,7 @@ import {
   searchTotalLine,
   summaryHeadline,
 } from "@/lib/content-ledger";
+import { PageIntro } from "@/components/dashboard/page-intro";
 
 /**
  * The content ledger — what we published, and what it earned.
@@ -65,6 +66,7 @@ export default function ContentLedgerPage() {
 
   return (
     <div className="space-y-6">
+      <PageIntro id="ledger" />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Results</h2>

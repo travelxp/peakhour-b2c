@@ -272,3 +272,21 @@ export function pillarLabel(href: string, fallback: string): string {
 export function subLabel(href: string, fallback: string): string {
   return SUB_COPY[href]?.label ?? fallback;
 }
+
+/**
+ * The copy for any nav destination, pillar first, then sub-link. Surfaces
+ * outside the sidebar (error pages, the 404, page intros) read names from
+ * here, so a page is never called one thing in the nav and another on its
+ * own error screen.
+ */
+export function navCopy(href: string): NavCopy | undefined {
+  return PILLAR_COPY[href] ?? SUB_COPY[href];
+}
+
+/** Merchant-facing name for a nav destination. Throws for an unknown href,
+ *  so an error page or link cannot ship with an invented name. */
+export function navLabel(href: string): string {
+  const copy = navCopy(href);
+  if (!copy) throw new Error(`nav-copy has no entry for ${href}`);
+  return copy.label;
+}

@@ -23,6 +23,7 @@ import type { RecurringRuleDto, RecurringRuleStatus } from "@/lib/scheduler/type
 import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { PageShell } from "@/components/dashboard/page-shell";
+import { EmptyState } from "@/components/molecules/empty-state";
 
 /**
  * /dashboard/calendar/recurring — manage recurring schedule rules
@@ -152,16 +153,13 @@ export default function RecurringRulesPage() {
           </CardContent>
         </Card>
       ) : rules.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <CalendarClock className="mx-auto mb-2 size-6 text-muted-foreground" />
-            <p className="text-sm font-medium">No recurring schedules yet</p>
-            <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
-              Open a composer, choose Schedule, and pick a repeating cadence to
-              create your first rule.
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={CalendarClock}
+          title="No recurring schedules yet"
+          description="A recurring schedule posts for you on a repeating cadence, such as every Monday. Set one up from the calendar: open a composer, choose Schedule, and pick a repeat."
+          action={{ label: "Open the calendar", href: "/dashboard/calendar" }}
+          className="min-h-0 py-12"
+        />
       ) : (
         <ul className="space-y-3">
           {rules.map((r) => (
