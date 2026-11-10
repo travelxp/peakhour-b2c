@@ -110,27 +110,14 @@ jobs:
 
 ### a11y-smoke.yml
 
-Runnable as is: copy `docs/ci/a11y-smoke.yml` to `.github/workflows/a11y-smoke.yml`. The install step it needs is `npx playwright install --with-deps chromium` after `npm ci` (already in the YAML; the npm packages come from `package.json`).
+Enabled: the workflow lives at `.github/workflows/a11y-smoke.yml` (this folder keeps a reference copy). It runs `npx playwright install --with-deps chromium` after `npm ci`, builds, then starts the app and runs the smoke in ONE step, so the server is alive for the whole run and no unpinned `wait-on` is downloaded:
 
 ```yaml
-name: A11y smoke
-on:
-  pull_request:
-jobs:
-  a11y:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 26
-          cache: npm
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm run build
-      - run: npm start &
-      - run: npx wait-on http://localhost:3000
-      - run: node scripts/a11y-smoke.mjs
+      - name: Start the app and run the a11y smoke
+        run: |
+          npm start &
+          for i in $(seq 1 60); do curl -sf -o /dev/null http://localhost:3000 && break; sleep 2; done
+          node scripts/a11y-smoke.mjs
         env:
           BASE_URL: http://localhost:3000
 ```
