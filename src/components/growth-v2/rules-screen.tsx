@@ -32,11 +32,13 @@ import { QueryBoundary } from "./query-boundary";
 import { ToneBadge } from "./tone";
 
 /** Rules: "What may the engine do?" Your mandate, how much it may do alone, and the lines it never crosses (plan 1, H5). */
-export function RulesScreen() {
+export function RulesScreen({ intro }: { intro?: React.ReactNode } = {}) {
   const query = useGrowthV2Rules();
   return (
     <PageShell width="standard">
       <PageHead title="What may the engine do?" description="Your mandate, how much the engine may do on its own, and the lines it never crosses." />
+      {/* The route's "What is this page?" strip: under the title, inside the shell. */}
+      {intro}
       <QueryBoundary query={query}>{(r) => <RulesBody rules={r.data} preview={r.preview} />}</QueryBoundary>
     </PageShell>
   );
