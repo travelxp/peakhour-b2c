@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 import { useLocale } from "@/hooks/use-locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -76,30 +77,27 @@ export default function IdeasCalendarPage() {
   const unscheduled = (ideas || []).filter((i) => !i.targetDate);
 
   return (
-    <div className="space-y-6">
+    <PageShell width="full">
       <CronToolbar
         crons={["jobs-runner"]}
         onTriggered={() =>
           queryClient.invalidateQueries({ queryKey: ["content-ideas"] })
         }
       />
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Content Calendar</h2>
-          <p className="text-muted-foreground">
-            Your scheduled and planned content
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant={view === "week" ? "default" : "outline"} size="sm" onClick={() => setView("week")}>
-            Week
-          </Button>
-          <Button variant={view === "month" ? "default" : "outline"} size="sm" onClick={() => setView("month")}>
-            Month
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title="Content Calendar"
+        description="Your scheduled and planned content"
+        actions={
+          <>
+            <Button variant={view === "week" ? "default" : "outline"} size="sm" onClick={() => setView("week")}>
+              Week
+            </Button>
+            <Button variant={view === "month" ? "default" : "outline"} size="sm" onClick={() => setView("month")}>
+              Month
+            </Button>
+          </>
+        }
+      />
 
       {/* Week navigation */}
       <div className="flex items-center justify-between">
@@ -173,14 +171,14 @@ export default function IdeasCalendarPage() {
           <h3 className="text-base font-semibold text-muted-foreground">
             Unscheduled ({unscheduled.length})
           </h3>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 2xl:grid-cols-4">
             {unscheduled.map((idea) => (
               <CalendarCard key={idea._id} idea={idea} />
             ))}
           </div>
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }
 

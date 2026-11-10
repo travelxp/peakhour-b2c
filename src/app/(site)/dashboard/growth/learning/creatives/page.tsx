@@ -46,6 +46,7 @@ import {
   platformParam,
   type BadgeTone,
 } from "@/lib/creative-review-copy";
+import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 
 const ALL_PLATFORMS = "__all__";
 
@@ -111,15 +112,10 @@ function CreativeReview() {
   }, [firstSummary, fetchedAt, queryClient]);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Ad creatives</h2>
-        <p className="text-muted-foreground">
-          The ads Peakhour has written for you. When you turn on &ldquo;Only use creatives I have approved&rdquo; in
+    <PageShell width="standard">
+      <PageHeader title="Ad creatives" description={<>The ads Peakhour has written for you. When you turn on &ldquo;Only use creatives I have approved&rdquo; in
           your <Link href="/dashboard/ads" className="underline underline-offset-2">guardrails</Link>, Peakhour
-          creates ads only from creatives you approve here &mdash; exactly as they read when you approved them.
-        </p>
-      </div>
+          creates ads only from creatives you approve here &mdash; exactly as they read when you approved them.</>} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Tabs value={filter.key} onValueChange={(v) => setParam("filter", v)} activationMode="manual">
@@ -178,7 +174,7 @@ function CreativeReview() {
           }
         />
       )}
-    </div>
+    </PageShell>
   );
 }
 

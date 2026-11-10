@@ -1,5 +1,6 @@
 "use client";
 
+import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { useState } from "react";
 import Link from "next/link";
 import { useAdminTickets, type FeedbackTicket } from "@/hooks/use-feedback";
@@ -57,23 +58,18 @@ export default function FeedbackAdminPage() {
   );
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/dashboard/settings">
-            <ArrowLeft className="size-4" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Feedback Tickets
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Review user feedback with AI-powered triage.
-          </p>
-        </div>
-      </div>
+    <PageShell width="standard">
+      <PageHeader
+        icon={
+          <Button variant="ghost" size="icon" asChild>
+            <Link href="/dashboard/settings">
+              <ArrowLeft className="size-4" />
+            </Link>
+          </Button>
+        }
+        title="Feedback Tickets"
+        description="Review user feedback with AI-powered triage."
+      />
 
       {/* Filters */}
       <div className="flex gap-3">
@@ -129,7 +125,7 @@ export default function FeedbackAdminPage() {
           ))}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }
 

@@ -27,6 +27,7 @@ import {
 } from "@/lib/growth-v2-rules";
 import { AutonomyLadder } from "./autonomy-ladder";
 import { PageHead } from "./page-head";
+import { PageShell } from "@/components/dashboard/page-shell";
 import { QueryBoundary } from "./query-boundary";
 import { ToneBadge } from "./tone";
 
@@ -34,10 +35,10 @@ import { ToneBadge } from "./tone";
 export function RulesScreen() {
   const query = useGrowthV2Rules();
   return (
-    <div className="grid gap-4">
+    <PageShell width="standard">
       <PageHead title="What may the engine do?" description="Your mandate, how much the engine may do on its own, and the lines it never crosses." />
       <QueryBoundary query={query}>{(r) => <RulesBody rules={r.data} preview={r.preview} />}</QueryBoundary>
-    </div>
+    </PageShell>
   );
 }
 

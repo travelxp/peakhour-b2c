@@ -48,6 +48,7 @@ import { toastUnhandledApiError } from "@/lib/toast-errors";
 import { onePress } from "@/lib/one-press";
 import { StoragePeaksCard } from "@/components/media/storage-peaks-card";
 import { ShopperCapCard } from "@/components/dashboard/shopper-cap-card";
+import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 
 // ── Formatting helpers ────────────────────────────────────────────────────
 
@@ -423,7 +424,7 @@ export default function PeaksPage() {
     <>
       <UsageHistorySheet open={historyOpen} onOpenChange={setHistoryOpen} />
 
-      <div className="space-y-6">
+      <PageShell width="standard">
         {/* The architecture requirement, applied to the page it matters most on:
             every number here is downstream of ai-credits-rollup, and on dev
             Vercel never fires it. Without this the balance sits at 0 used
@@ -440,26 +441,22 @@ export default function PeaksPage() {
         />
 
         {/* Page header */}
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-              <Zap className="size-6" />
-              Peaks
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              The AI credits that power every feature. Resets monthly on your billing date.
-            </p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2"
-            onClick={() => setHistoryOpen(true)}
-          >
-            <History className="size-4" />
-            Usage history
-          </Button>
-        </div>
+        <PageHeader
+          icon={<Zap className="mt-0.5 size-6" />}
+          title="Peaks"
+          description="The AI credits that power every feature. Resets monthly on your billing date."
+          actions={
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={() => setHistoryOpen(true)}
+            >
+              <History className="size-4" />
+              Usage history
+            </Button>
+          }
+        />
 
         {/* ── Balance card ──────────────────────────────────────────── */}
         <Card>
@@ -637,7 +634,7 @@ export default function PeaksPage() {
           write or edit. Your plan&apos;s monthly Peaks reset each month; Peaks you buy
           never expire.
         </p>
-      </div>
+      </PageShell>
     </>
   );
 }

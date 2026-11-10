@@ -1,5 +1,6 @@
 "use client";
 
+import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -190,7 +191,7 @@ export default function StrategistPage() {
   const progressLabel = genMode === "plan" ? "Planning your week..." : "Generating content ideas...";
 
   return (
-    <div className="space-y-6">
+    <PageShell width="full">
       <CronToolbar
         crons={[
           "voice-card-refresh",
@@ -203,15 +204,11 @@ export default function StrategistPage() {
           queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] })
         }
       />
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Content Pipeline</h2>
-          <p className="text-muted-foreground">
-            From idea to published — drag cards to move through stages
-          </p>
-        </div>
-        <div className="flex gap-2">
+      <PageHeader
+        title="Content Pipeline"
+        description="From idea to published — drag cards to move through stages"
+        actions={
+          <>
           <Button variant="outline" size="sm" onClick={() => { setShowNewIdea(!showNewIdea); setShowTopicInput(false); }}>
             <Plus className="mr-1.5 h-4 w-4" />
             New Idea
@@ -224,8 +221,9 @@ export default function StrategistPage() {
             {genMode === "plan" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CalendarDays className="mr-1.5 h-4 w-4" />}
             Plan Week
           </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {/* New idea inline form */}
       {showNewIdea && (
@@ -384,6 +382,6 @@ export default function StrategistPage() {
           </p>
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

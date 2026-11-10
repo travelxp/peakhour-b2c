@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { DecisionAsk } from "./decision-ask";
 import { DecisionCard } from "./decision-card";
 import { PageHead } from "./page-head";
+import { PageShell } from "@/components/dashboard/page-shell";
 import { QueryBoundary } from "./query-boundary";
 import { ToneBadge, type Tone } from "./tone";
 
@@ -54,7 +55,7 @@ export function DecisionsScreen() {
   const rules = useGrowthV2Rules();
   const { business } = useAuth();
   return (
-    <div className="grid gap-4">
+    <PageShell width="standard">
       <PageHead
         title="What needs you?"
         description="Every proposal, block and finished experiment in one queue. Each decision also goes to your WhatsApp, and you can answer in either place."
@@ -94,7 +95,7 @@ export function DecisionsScreen() {
           />
         )}
       </QueryBoundary>
-    </div>
+    </PageShell>
   );
 }
 

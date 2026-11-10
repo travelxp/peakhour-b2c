@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Newspaper, AlertCircle, CalendarPlus } from "lucide-react";
+import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { api, ApiError } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
@@ -39,7 +40,7 @@ export default function NewsDeskPage() {
     void queryClient.invalidateQueries({ queryKey: ["news-ideas"] });
 
   return (
-    <div className="space-y-6">
+    <PageShell>
       {/* Dev-only (auto-hidden in prod). The News Desk queue is fed by a
           cron pipeline; these buttons run each stage on demand so you don't
           wait for the schedule. Click left-to-right in pipeline order:
@@ -56,14 +57,11 @@ export default function NewsDeskPage() {
         onTriggered={invalidateQueue}
       />
 
-      <header>
-        <h2 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-          <Newspaper className="size-6" aria-hidden /> News Desk
-        </h2>
-        <p className="text-muted-foreground">
-          Corroborated, brand-voice news drafts awaiting your go. Each shows the sources that back it — multi-source verified, refactored, never copied.
-        </p>
-      </header>
+      <PageHeader
+        icon={<Newspaper className="size-6" aria-hidden />}
+        title="News Desk"
+        description="Corroborated, brand-voice news drafts awaiting your go. Each shows the sources that back it — multi-source verified, refactored, never copied."
+      />
 
       {isError ? (
         <ErrorBlock error={error} />
@@ -96,7 +94,7 @@ export default function NewsDeskPage() {
           invalidateQueue();
         }}
       />
-    </div>
+    </PageShell>
   );
 }
 

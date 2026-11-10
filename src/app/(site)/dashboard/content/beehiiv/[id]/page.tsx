@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 import { useLocale } from "@/hooks/use-locale";
 import {
   SENTIMENT_CONFIG,
@@ -86,7 +87,7 @@ export default function ArticleDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <PageShell width="wide">
         <Skeleton className="h-8 w-96" />
         <div className="grid gap-4 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-4">
@@ -95,18 +96,18 @@ export default function ArticleDetailPage() {
           </div>
           <Skeleton className="h-64" />
         </div>
-      </div>
+      </PageShell>
     );
   }
 
   if (!article) {
     return (
-      <div className="text-center py-16">
+      <PageShell width="wide" className="py-16 text-center">
         <p className="text-lg font-medium">Article not found</p>
         <Button variant="outline" className="mt-4" onClick={() => router.back()}>
           Go back
         </Button>
-      </div>
+      </PageShell>
     );
   }
 
@@ -114,9 +115,9 @@ export default function ArticleDetailPage() {
 
   return (
     <TooltipProvider>
-      <div className="space-y-6">
+      <PageShell width="wide">
         {/* Back + Title */}
-        <div>
+        <div className="space-y-3">
           <Button
             variant="ghost"
             size="sm"
@@ -125,13 +126,8 @@ export default function ArticleDetailPage() {
           >
             &larr; Back to Beehiiv library
           </Button>
-          <h2 className="text-2xl font-bold tracking-tight leading-tight">
-            {article.title}
-          </h2>
-          {article.subtitle && (
-            <p className="text-muted-foreground mt-1">{article.subtitle}</p>
-          )}
-          <div className="flex flex-wrap items-center gap-3 mt-3 text-sm text-muted-foreground">
+          <PageHeader title={article.title} description={article.subtitle} />
+          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
             {article.publishedAt && (
               <span>
                 {formatDate(article.publishedAt, { year: "numeric", month: "long", day: "numeric" })}
@@ -164,9 +160,9 @@ export default function ArticleDetailPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-6 lg:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-3">
             {/* Left column — 12-dimension breakdown */}
-            <div className="lg:col-span-2 space-y-4">
+            <div className="md:col-span-2 space-y-4">
               {/* Sectors */}
               <DimensionCard title="Sectors" description="Industry sectors covered">
                 <div className="flex flex-wrap gap-2">
@@ -526,7 +522,7 @@ export default function ArticleDetailPage() {
             </div>
           </div>
         )}
-      </div>
+      </PageShell>
     </TooltipProvider>
   );
 }

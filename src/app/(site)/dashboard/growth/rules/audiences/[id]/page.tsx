@@ -23,6 +23,7 @@ import {
 } from "@/lib/audience-library-rules";
 import { editLines } from "@/lib/audience-learning-rules";
 import { ChannelCard } from "./_components/channel-card";
+import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 
 /**
  * One audience, and what it looks like on each channel (G3).
@@ -91,7 +92,7 @@ export default function AudienceDetailPage({ params }: { params: Promise<{ id: s
   const row = set.data?.set;
 
   return (
-    <div className="space-y-6">
+    <PageShell width="narrow">
       <Button asChild variant="ghost" size="sm" className="-ml-2">
         <Link href="/dashboard/growth/rules/audiences">
           <ArrowLeft className="mr-1.5 size-3.5" aria-hidden="true" />
@@ -113,13 +114,15 @@ export default function AudienceDetailPage({ params }: { params: Promise<{ id: s
         <EmptyState icon={Users} {...detailErrorState(set.error)} />
       ) : (
         <>
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <h2 className="text-2xl font-bold tracking-tight">{row.name}</h2>
+          <PageHeader
+            title={row.name}
+            actions={
               <Badge variant={originIsOurs(row.source) ? "outline" : "secondary"}>
                 {originLabel(row.source)}
               </Badge>
-            </div>
+            }
+          />
+          <div className="space-y-2">
             {/* ★THE DEEPER SURFACE MUST NOT SHOW LESS THAN THE CARD THAT LINKS
                 TO IT. This page rendered `description` — the one-line label —
                 while the list card rendered `explanation`, §15's prose about
@@ -252,6 +255,6 @@ export default function AudienceDetailPage({ params }: { params: Promise<{ id: s
           </div>
         </>
       )}
-    </div>
+    </PageShell>
   );
 }

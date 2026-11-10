@@ -10,6 +10,7 @@ import { EnquiryHeatmap } from "./enquiry-heatmap";
 import { ExperimentTimeline } from "./experiment-timeline";
 import { NotSetUp } from "./not-set-up";
 import { PageHead } from "./page-head";
+import { PageShell } from "@/components/dashboard/page-shell";
 import { QueryBoundary } from "./query-boundary";
 import { ToneBadge } from "./tone";
 
@@ -20,13 +21,13 @@ export function LearningScreen() {
   // The api's own refusals, the same two as Growth home: shown as an answer, not an error.
   if (query.data && "refusal" in query.data) return <NotSetUp code={query.data.refusal} />;
   return (
-    <div className="grid gap-4">
+    <PageShell width="standard">
       <PageHead title="What did we learn?" description="Every bet the engine made, how it was judged, and what changed because of it." />
       <QueryBoundary query={query as UseQueryResult<V2Result<LearningResponse>>}>{(r) => {
           const mandate = mandateFor(rules.data, r.preview);
           return <LearningBody learning={r.data} unitPlural={unitFor(mandate?.outcome.kind).many} currency={mandate?.currency ?? ""} />;
         }}</QueryBoundary>
-    </div>
+    </PageShell>
   );
 }
 

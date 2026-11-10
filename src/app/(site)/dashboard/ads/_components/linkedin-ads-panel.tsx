@@ -453,13 +453,13 @@ function CampaignsPanel() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Campaign</TableHead>
+              <TableHead className="sticky left-0 z-10 bg-background">Campaign</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Daily budget</TableHead>
               <TableHead className="text-right">Spent</TableHead>
-              <TableHead className="text-right">Impressions</TableHead>
-              <TableHead className="text-right">Clicks</TableHead>
-              <TableHead className="text-right">CTR</TableHead>
+              <TableHead className="hidden md:table-cell text-right">Impressions</TableHead>
+              <TableHead className="hidden md:table-cell text-right">Clicks</TableHead>
+              <TableHead className="hidden md:table-cell text-right">CTR</TableHead>
               <TableHead
                 className="text-right"
                 title="Qualified leads · cost per qualified lead (spend ÷ qualified leads)"
@@ -618,7 +618,7 @@ function CampaignRow({
   return (
     <>
     <TableRow className={showAudience ? "border-b-0" : undefined}>
-      <TableCell className="max-w-[260px]">
+      <TableCell className="sticky left-0 z-10 bg-background max-w-[260px]">
         <p className="truncate text-sm font-medium" title={campaign.name}>
           {campaign.name}
         </p>
@@ -641,13 +641,13 @@ function CampaignRow({
       <TableCell className="text-right text-sm tabular-nums">
         {formatMoney(campaign.budget?.spent ?? perf?.spend, campaign.currency)}
       </TableCell>
-      <TableCell className="text-right text-sm tabular-nums">
+      <TableCell className="hidden md:table-cell text-right text-sm tabular-nums">
         {perf ? perf.impressions.toLocaleString() : "—"}
       </TableCell>
-      <TableCell className="text-right text-sm tabular-nums">
+      <TableCell className="hidden md:table-cell text-right text-sm tabular-nums">
         {perf ? perf.clicks.toLocaleString() : "—"}
       </TableCell>
-      <TableCell className="text-right text-sm tabular-nums">
+      <TableCell className="hidden md:table-cell text-right text-sm tabular-nums">
         {perf ? `${(perf.ctr * 100).toFixed(2)}%` : "—"}
       </TableCell>
       <TableCell className="text-right text-sm tabular-nums">

@@ -27,6 +27,7 @@ import { LiftBand } from "./lift-band";
 import { OutcomeFunnel } from "./outcome-funnel";
 import { PacingBadge, PacingChart } from "./pacing-chart";
 import { PageHead } from "./page-head";
+import { PageShell } from "@/components/dashboard/page-shell";
 import { QueryBoundary } from "./query-boundary";
 import { cn } from "@/lib/utils";
 import { WhyWaterfall } from "./why-waterfall";
@@ -45,7 +46,7 @@ export function HomeScreen() {
   // The prototype's sample is one fixed window: controls that cannot change it would only contradict the page.
   const preview = query.data?.preview === true;
   return (
-    <div className="grid gap-4">
+    <PageShell width="wide">
       {preview ? null : (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Choice label="Window" value={window} options={WINDOWS} onChange={setWindow} text={(o) => o.choice} />
@@ -56,7 +57,7 @@ export function HomeScreen() {
         {/* A refusal returned above, so what the boundary hands on is a page. */}
         <QueryBoundary query={query as UseQueryResult<HomeScreenData>}>{(r) => <HomeBody result={r} openDecisions={open} />}</QueryBoundary>
       </div>
-    </div>
+    </PageShell>
   );
 }
 

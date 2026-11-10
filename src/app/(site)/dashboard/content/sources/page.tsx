@@ -16,6 +16,7 @@ import { ApiError } from "@/lib/api";
 import { getCitations, listSources } from "./api";
 import { AddSourceDrawer } from "./components/add-source-drawer";
 import { InsightsPanel } from "./components/insights-panel";
+import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 import { SourceRow } from "./components/source-row";
 import type { SourceStatus, TrustedSource } from "./types";
 
@@ -155,7 +156,7 @@ function TrustedSourcesSurface() {
   }, [byStatus, tab, search]);
 
   return (
-    <div className="space-y-6">
+    <PageShell>
       {/* jobs-runner drains the source_fetch / discovery jobs these crons
           enqueue (they don't inline-drain on dev) — click the scheduler/runner
           first, then jobs-runner to actually fetch source content. */}
@@ -166,15 +167,11 @@ function TrustedSourcesSurface() {
           void queryClient.invalidateQueries({ queryKey: ["citations"] });
         }}
       />
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Trusted Sources</h2>
-          <p className="text-muted-foreground">
-            What your AI reads, watches, and cites.
-          </p>
-        </div>
-        <AddSourceDrawer />
-      </header>
+      <PageHeader
+        title="Trusted Sources"
+        description="What your AI reads, watches, and cites."
+        actions={<AddSourceDrawer />}
+      />
 
       <KpiStrip rows={rows} loading={isLoading} />
 
@@ -225,7 +222,7 @@ function TrustedSourcesSurface() {
           )}
         </div>
       </Tabs>
-    </div>
+    </PageShell>
   );
 }
 
@@ -265,7 +262,7 @@ function KpiStrip({ rows, loading }: { rows: TrustedSource[]; loading: boolean }
 
   if (loading) {
     return (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <Skeleton key={i} className="h-24" />
         ))}
@@ -284,7 +281,7 @@ function KpiStrip({ rows, loading }: { rows: TrustedSource[]; loading: boolean }
     : "AI citations across all sources, last 30 days";
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
       <KpiCard
         title="Active sources"
         value={activeCount}
@@ -408,13 +405,11 @@ function EmptyState({
 
 function TrustedSourcesLockedFallback() {
   return (
-    <div className="space-y-6">
-      <header>
-        <h2 className="text-2xl font-bold tracking-tight">Trusted Sources</h2>
-        <p className="text-muted-foreground">
-          What your AI reads, watches, and cites.
-        </p>
-      </header>
+    <PageShell>
+      <PageHeader
+        title="Trusted Sources"
+        description="What your AI reads, watches, and cites."
+      />
       <Card className="border-warning/30 bg-linear-to-br from-warning/8 to-white dark:to-transparent">
         <CardContent className="space-y-3 p-8 text-center">
           <Sparkles aria-hidden="true" className="mx-auto size-8 text-warning-on-tint" />
@@ -433,6 +428,6 @@ function TrustedSourcesLockedFallback() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </PageShell>
   );
 }

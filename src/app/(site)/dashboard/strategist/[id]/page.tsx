@@ -1,5 +1,6 @@
 "use client";
 
+import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { useState, useCallback, useMemo, useRef, type ReactNode } from "react";
 import DOMPurify from "isomorphic-dompurify";
 import { useParams, useRouter } from "next/navigation";
@@ -412,14 +413,16 @@ export default function IdeaDetailPage() {
 
   if (isLoading || !idea) {
     return (
-      <div className="flex items-center justify-center py-32">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
+      <PageShell width="wide">
+        <div className="flex items-center justify-center py-32">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </PageShell>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <PageShell width="wide">
       {/* Back + Header */}
       <div>
         <button
@@ -430,20 +433,17 @@ export default function IdeaDetailPage() {
           Back to Pipeline
         </button>
 
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="mb-2 flex items-center gap-2">
-              <PipelineStatusBadge status={idea.status} />
-              {idea.aiScore != null && (
-                <Badge variant="secondary" className="text-xs">Score: {idea.aiScore}</Badge>
-              )}
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight">{idea.title}</h1>
-            {idea.description && (
-              <p className="mt-1 max-w-2xl text-muted-foreground">{idea.description}</p>
-            )}
-          </div>
-          <div className="flex flex-col items-end gap-2">
+        <div className="mb-2 flex items-center gap-2">
+          <PipelineStatusBadge status={idea.status} />
+          {idea.aiScore != null && (
+            <Badge variant="secondary" className="text-xs">Score: {idea.aiScore}</Badge>
+          )}
+        </div>
+        <PageHeader
+          title={idea.title}
+          description={idea.description || undefined}
+          actions={
+            <div className="flex flex-col items-end gap-2">
             <IdeaCardActions
               ideaId={idea._id}
               title={idea.title}
@@ -461,8 +461,9 @@ export default function IdeaDetailPage() {
               {idea.sector && <Badge variant="outline">{idea.sector}</Badge>}
               {idea.contentType && <Badge variant="secondary">{idea.contentType}</Badge>}
             </div>
-          </div>
-        </div>
+            </div>
+          }
+        />
       </div>
 
       {/* Pipeline Stepper — clickable, replaces tabs */}
@@ -520,7 +521,7 @@ export default function IdeaDetailPage() {
         {activePanel === "publish" && <PublishTab idea={idea} loading={loading} onPublish={() => action("publish")} onScheduled={refresh} />}
         {activePanel === "versions" && <VersionsTab ideaId={ideaId} />}
       </div>
-    </div>
+    </PageShell>
   );
 }
 

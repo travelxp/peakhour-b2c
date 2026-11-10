@@ -2,6 +2,7 @@
 
 import { AudienceProfilePanel } from "@/components/audience/audience-profile-panel";
 import { WhatWeveLearned } from "@/components/audience/what-weve-learned";
+import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 
 /**
  * Your Business (G2) — what the platform understands about the customer.
@@ -23,15 +24,10 @@ import { WhatWeveLearned } from "@/components/audience/what-weve-learned";
  */
 export default function YourBusinessPage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Your business</h2>
-        <p className="text-muted-foreground">
-          What we understand about you, and where we got it from. Every audience we
+    <PageShell width="narrow">
+      <PageHeader title="Your business" description="What we understand about you, and where we got it from. Every audience we
           suggest is built out of this — so telling us where we&apos;re wrong is the
-          fastest way to make them better.
-        </p>
-      </div>
+          fastest way to make them better." />
 
       {/* Open by default: on its own page there is nothing else to look at, and
           collapsing the only content behind a click is how a surface stays
@@ -43,6 +39,6 @@ export default function YourBusinessPage() {
           visibly go nowhere, stops correcting — and the loop has been running
           for months with nothing rendering a single thing it learned. */}
       <WhatWeveLearned />
-    </div>
+    </PageShell>
   );
 }

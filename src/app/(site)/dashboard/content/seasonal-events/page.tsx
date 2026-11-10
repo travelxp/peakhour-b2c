@@ -47,6 +47,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 import { withHolidayFields, type SeasonalEventType } from "./seasonal-event-wire";
 
 // ── Types ───────────────────────────────────────────────────────
@@ -421,9 +422,11 @@ export default function SeasonalEventsPage() {
 
   if (loading) {
     return (
-      <div className="flex justify-center py-12" role="status" aria-label="Loading seasonal events">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary" />
-      </div>
+      <PageShell>
+        <div className="flex justify-center py-12" role="status" aria-label="Loading seasonal events">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary" />
+        </div>
+      </PageShell>
     );
   }
 
@@ -452,29 +455,17 @@ export default function SeasonalEventsPage() {
   });
 
   return (
-    <div className="space-y-6">
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <CalendarDays className="h-6 w-6 text-muted-foreground" />
-            Seasonal Events
-          </h2>
-          <p className="text-muted-foreground mt-1 max-w-prose">
-            Cultural, national, and commercial moments the AI uses to plan
-            seasonal content. Onboarding seeds these from your country&apos;s
-            calendar; add, edit, or remove events to fine-tune what the
-            seasonal generator sees. Exact dates show for the current year
-            when a moving holiday (Diwali, Eid, Easter, …) has been mapped.
-          </p>
-        </div>
-        <Button
-          size="sm"
-          onClick={() => openEditor(null)}
-          className="gap-1.5"
-        >
-          <Plus className="h-3.5 w-3.5" /> Add event
-        </Button>
-      </header>
+    <PageShell>
+      <PageHeader
+        icon={<CalendarDays className="h-6 w-6 text-muted-foreground" />}
+        title="Seasonal Events"
+        description="Cultural, national, and commercial moments the AI uses to plan seasonal content. Onboarding seeds these from your country's calendar; add, edit, or remove events to fine-tune what the seasonal generator sees. Exact dates show for the current year when a moving holiday (Diwali, Eid, Easter, …) has been mapped."
+        actions={
+          <Button size="sm" onClick={() => openEditor(null)} className="gap-1.5">
+            <Plus className="h-3.5 w-3.5" /> Add event
+          </Button>
+        }
+      />
 
       {error ? (
         <div role="alert" className="rounded-lg bg-destructive/10 p-4 text-sm text-destructive">
@@ -594,7 +585,7 @@ export default function SeasonalEventsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </PageShell>
   );
 }
 

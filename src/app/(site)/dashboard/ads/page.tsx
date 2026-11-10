@@ -18,6 +18,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -83,10 +84,10 @@ export default function AdsHubPage() {
   return (
     <Suspense
       fallback={
-        <div className="space-y-6">
+        <PageShell>
           <HubHeader />
           <HubSkeleton />
-        </div>
+        </PageShell>
       }
     >
       <AdsHub />
@@ -189,7 +190,7 @@ function AdsHub() {
   }, [hasExplicitChannel, selected, connectionStateKnown, navigate]);
 
   return (
-    <div className="space-y-6">
+    <PageShell>
       {/* Confirms a reconnect that started from this hub (its CTAs pass
           ?returnTo=/dashboard/ads?channel=linkedin) and strips the callback's
           params without disturbing ?channel=. */}
@@ -278,19 +279,17 @@ function AdsHub() {
           })}
         </Tabs>
       )}
-    </div>
+    </PageShell>
   );
 }
 
 /** Shared so the Suspense fallback and the resolved page agree on layout. */
 function HubHeader({ description }: { description?: string }) {
   return (
-    <div>
-      <h2 className="text-2xl font-bold tracking-tight">Ad campaigns</h2>
-      <p className="text-muted-foreground">
-        {description ?? "Manage paid campaigns across your connected ad channels."}
-      </p>
-    </div>
+    <PageHeader
+      title="Ad campaigns"
+      description={description ?? "Manage paid campaigns across your connected ad channels."}
+    />
   );
 }
 

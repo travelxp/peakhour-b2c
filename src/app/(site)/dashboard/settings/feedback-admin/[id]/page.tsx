@@ -1,5 +1,6 @@
 "use client";
 
+import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
@@ -104,18 +105,20 @@ export default function FeedbackAdminDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
+      <PageShell width="wide">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-64 w-full" />
-      </div>
+      </PageShell>
     );
   }
 
   if (!ticket) {
     return (
-      <div className="py-12 text-center text-muted-foreground">
-        Ticket not found
-      </div>
+      <PageShell width="wide">
+        <div className="py-12 text-center text-muted-foreground">
+          Ticket not found
+        </div>
+      </PageShell>
     );
   }
 
@@ -144,27 +147,28 @@ export default function FeedbackAdminDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/dashboard/settings/feedback-admin">
-            <ArrowLeft className="size-4" />
-          </Link>
-        </Button>
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold tracking-tight font-mono">
-            {ticket.ticketNumber}
-          </h1>
-          <Badge
-            className={STATUS_STYLES[ticket.status] ?? ""}
-            variant="secondary"
-          >
-            {ticket.status.replace("_", " ")}
-          </Badge>
-          <Badge variant="outline">{ticket.category}</Badge>
-        </div>
-      </div>
+    <PageShell width="wide">
+      <PageHeader
+        icon={
+          <Button variant="ghost" size="icon" asChild>
+            <Link href="/dashboard/settings/feedback-admin">
+              <ArrowLeft className="size-4" />
+            </Link>
+          </Button>
+        }
+        title={<span className="font-mono">{ticket.ticketNumber}</span>}
+        actions={
+          <>
+            <Badge
+              className={STATUS_STYLES[ticket.status] ?? ""}
+              variant="secondary"
+            >
+              {ticket.status.replace("_", " ")}
+            </Badge>
+            <Badge variant="outline">{ticket.category}</Badge>
+          </>
+        }
+      />
 
       {/* Two-column layout */}
       <div className="grid gap-6 lg:grid-cols-3">
@@ -522,6 +526,6 @@ export default function FeedbackAdminDetailPage() {
           </Card>
         </div>
       </div>
-    </div>
+    </PageShell>
   );
 }
