@@ -253,7 +253,7 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
       <div className="space-y-1.5">
         <Label className="text-xs uppercase tracking-wide text-muted-foreground">Ad account</Label>
         <Select value={accountId ?? undefined} onValueChange={setAccountParam}>
-          <SelectTrigger className="w-80">
+          <SelectTrigger aria-label="Ad account" className="w-80">
             <SelectValue placeholder="Choose an ad account" />
           </SelectTrigger>
           <SelectContent>
@@ -737,7 +737,7 @@ function DatasetCard({ account }: { account: MetaAdAccount }) {
               </p>
             ) : (
               <Select value={choice} onValueChange={setChoice}>
-                <SelectTrigger className="w-80">
+                <SelectTrigger aria-label="Dataset" className="w-80">
                   <SelectValue placeholder="Choose a dataset" />
                 </SelectTrigger>
                 <SelectContent>

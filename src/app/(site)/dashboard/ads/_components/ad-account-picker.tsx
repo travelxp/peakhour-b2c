@@ -154,7 +154,7 @@ export function AdAccountPicker() {
               disabled={save.isPending}
               onValueChange={(next) => save.mutate({ pageId: activePageId, adAccountId: next })}
             >
-              <SelectTrigger className="w-60">
+              <SelectTrigger aria-label="Ad account" className="w-60">
                 <SelectValue placeholder="Choose an ad account" />
               </SelectTrigger>
               <SelectContent>

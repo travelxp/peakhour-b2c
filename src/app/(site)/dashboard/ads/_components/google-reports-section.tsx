@@ -83,7 +83,7 @@ export function GoogleReportsSection({ account }: { account: GoogleAdAccount }) 
                 }
               }}
             >
-              <SelectTrigger className="w-48">
+              <SelectTrigger aria-label="Report" className="w-48">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

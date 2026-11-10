@@ -163,7 +163,7 @@ export function OvernightRibbon({
         // A quiet night is an answer, not an empty state. Saying nothing here
         // would read as a panel that failed to load.
         <span className="text-sm text-on-ink-dim">
-          Nothing moved overnight — your pillars are caught up.
+          Nothing needed doing overnight — you&rsquo;re all caught up.
         </span>
       ) : (
         moved.map((p) => (

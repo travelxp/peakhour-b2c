@@ -92,22 +92,31 @@ function getPriorityLabel(score?: number): { label: string; className: string } 
  * and a second IdeaCardActions mounted for the length of every drag. This
  * split is hygiene against a real hazard, not a fix for an observed bug.
  */
-function KanbanCardBody({ idea, onChanged }: { idea: PipelineIdea; onChanged?: () => void }) {
+function KanbanCardBody({
+  idea,
+  onChanged,
+  dragHandle,
+}: {
+  idea: PipelineIdea;
+  onChanged?: () => void;
+  /** The interactive grip (a real button carrying the dnd listeners). Absent on the overlay clone, which shows an inert cue. */
+  dragHandle?: React.ReactNode;
+}) {
   const priority = getPriorityLabel(idea.aiScore);
   const progress = STATUS_PROGRESS[idea.status] ?? 0;
   const progressPct = Math.round((progress / TOTAL_STEPS) * 100);
 
   return (
     <>
-      {/* Title row — grip is now just a visual "draggable" cue; the whole
-          card carries the drag listeners. */}
+      {/* Title row. The grip is the ONLY drag handle: a card that was itself
+          role=button and also held the star/delete buttons was a nested
+          interactive control (axe nested-interactive). */}
       <div className="flex items-start gap-1.5">
-        <span
-          aria-hidden
-          className="mt-0.5 text-muted-foreground/30 opacity-0 transition-opacity group-hover:opacity-100"
-        >
-          <GripVertical className="size-3.5" />
-        </span>
+        {dragHandle ?? (
+          <span aria-hidden className="mt-0.5 text-muted-foreground">
+            <GripVertical className="size-3.5" />
+          </span>
+        )}
         <h4 className="flex-1 text-sm font-medium leading-snug line-clamp-2">
           {idea.title}
         </h4>
@@ -117,8 +126,7 @@ function KanbanCardBody({ idea, onChanged }: { idea: PipelineIdea; onChanged?: (
         {/* Star/Delete — always visible when starred (shows the pin), else
             revealed on hover like the drag handle. */}
         <div
-          // Keep drags that start on the star/delete buttons from moving the
-          // card (the whole card is the drag handle now).
+          // Keep clicks on the star/delete buttons from opening the card.
           onPointerDown={(e) => e.stopPropagation()}
           className={cn(
             "shrink-0 transition-opacity",
@@ -228,6 +236,7 @@ export function KanbanCard({ idea, onChanged }: { idea: PipelineIdea; onChanged?
     attributes,
     listeners,
     setNodeRef,
+    setActivatorNodeRef,
     transform,
     transition,
     isDragging,
@@ -239,18 +248,15 @@ export function KanbanCard({ idea, onChanged }: { idea: PipelineIdea; onChanged?
   };
 
 
-  // The WHOLE card is the drag handle (dnd listeners below). To still allow
-  // "click to open", we record the pointer-down position and only navigate
-  // when the pointer barely moved — a real drag moves >8px (the sensor's
-  // activation distance), so it won't trigger navigation.
+  // Dragging starts from the grip button only. Clicking anywhere else on the
+  // card opens it; the pointer-down position guards against navigating at the
+  // end of a drag (a real drag moves >8px, the sensor's activation distance).
   const downPos = useRef<{ x: number; y: number } | null>(null);
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      {...attributes}
-      {...listeners}
       onPointerDownCapture={(e) => { downPos.current = { x: e.clientX, y: e.clientY }; }}
       onClick={(e) => {
         const d = downPos.current;
@@ -258,12 +264,28 @@ export function KanbanCard({ idea, onChanged }: { idea: PipelineIdea; onChanged?
         router.push(`/dashboard/strategist/${idea._id}`);
       }}
       className={cn(
-        "group cursor-grab rounded-lg border bg-card p-3 shadow-sm transition-all duration-150 active:cursor-grabbing",
+        "group cursor-pointer rounded-lg border bg-card p-3 shadow-sm transition-all duration-150",
         "hover:shadow-md hover:border-primary/20",
         isDragging && "opacity-50 shadow-lg ring-2 ring-primary/20",
       )}
     >
-      <KanbanCardBody idea={idea} onChanged={onChanged} />
+      <KanbanCardBody
+        idea={idea}
+        onChanged={onChanged}
+        dragHandle={
+          <button
+            type="button"
+            ref={setActivatorNodeRef}
+            {...attributes}
+            {...listeners}
+            aria-label={`Drag ${idea.title}`}
+            onClick={(e) => e.stopPropagation()}
+            className="-ml-1 mt-0.5 shrink-0 cursor-grab touch-none rounded p-0.5 text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing"
+          >
+            <GripVertical className="size-3.5" aria-hidden />
+          </button>
+        }
+      />
     </div>
   );
 }

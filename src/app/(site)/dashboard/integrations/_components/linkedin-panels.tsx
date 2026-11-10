@@ -232,7 +232,7 @@ export function LinkedInAdsStatus({
           {issues.length} issue{issues.length !== 1 ? "s" : ""} pending action
         </span>
         {readyCount > 0 && (
-          <Badge className="bg-success/90 text-micro px-1 py-0 shrink-0">
+          <Badge className="bg-success text-success-foreground text-micro px-1 py-0 shrink-0">
             {readyCount} ready
           </Badge>
         )}

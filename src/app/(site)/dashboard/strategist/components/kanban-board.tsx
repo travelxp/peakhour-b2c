@@ -7,10 +7,12 @@ import {
   type DragEndEvent,
   type DragStartEvent,
   PointerSensor,
+  KeyboardSensor,
   useSensor,
   useSensors,
   closestCorners,
 } from "@dnd-kit/core";
+import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { api } from "@/lib/api";
 import { KanbanColumn } from "./kanban-column";
 import { PIPELINE_COLUMNS } from "./status-badge";
@@ -43,7 +45,8 @@ export function KanbanBoard({ data, onRefresh }: KanbanBoardProps) {
   // portaled and positioned outside that clip.
   const [activeIdea, setActiveIdea] = useState<PipelineIdea | null>(null);
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   // Sync when parent data changes

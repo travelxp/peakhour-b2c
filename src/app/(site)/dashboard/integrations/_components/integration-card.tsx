@@ -107,7 +107,7 @@ export function IntegrationCard({
               {integration.name}
             </CardTitle>
             {integration.connected && (
-              <Badge className="bg-success/90 gap-0.5 text-micro px-1.5 py-0 shrink-0">
+              <Badge className="bg-success text-success-foreground gap-0.5 text-micro px-1.5 py-0 shrink-0">
                 <CheckCircle className="h-2.5 w-2.5" />
                 Live
               </Badge>
@@ -391,7 +391,7 @@ function WebhookHealthChip({
 
   const className =
     health.band === "red"
-      ? "bg-destructive/15 text-destructive border-destructive/30"
+      ? "bg-destructive/15 text-destructive-on-tint border-destructive/30"
       : health.band === "yellow"
         ? "bg-warning/15 text-warning-on-tint border-warning/40"
         : "bg-muted text-muted-foreground border-border";

@@ -3,10 +3,15 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { ArrowRight, Clock } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendChart } from "@/components/viz/trend-chart-lazy";
 import { useHomeWork, type WorkMetric } from "@/hooks/use-home-work";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
+import { useAuth } from "@/providers/auth-provider";
+import { connectedAccounts } from "@/lib/home-overview";
+import type { Integration } from "@/app/(site)/dashboard/integrations/_components/shared";
 
 /**
  * "What Peakhour did for you" — work completed, and the time it stands in for.
@@ -102,6 +107,17 @@ export function WorkCompletedCard({
   days?: number;
 }) {
   const { data, isLoading } = useHomeWork(days);
+  const { org } = useAuth();
+
+  // Same key and fetcher as Home and the ads hub, so this is one cache entry,
+  // not a second request. It only decides which empty state to show.
+  const integrationsQuery = useQuery({
+    queryKey: ["content-hub-integrations"],
+    queryFn: () => api.get<{ integrations: Integration[] }>("/v1/integrations"),
+    enabled: !!org,
+    staleTime: 30_000,
+  });
+  const hasConnections = connectedAccounts(integrationsQuery.data?.integrations).length > 0;
 
   /**
    * Fill the quiet days back in.
@@ -159,17 +175,39 @@ export function WorkCompletedCard({
           //  working; this says what would put the first point on it.
           <div className="flex flex-1 flex-col items-start justify-center gap-2 rounded-xl border border-dashed px-4 py-6">
             <p className="text-sm font-semibold">Nothing to report yet</p>
-            <p className="text-xs text-muted-foreground">
-              Once a channel is connected, everything Peakhour publishes, drafts and answers on
-              your behalf is counted here — with an estimate of the time it saved you.
-            </p>
-            <Link
-              href="/dashboard/integrations"
-              className="inline-flex items-center gap-1 text-xs font-semibold text-brand-label"
-            >
-              Connect your first channel
-              <ArrowRight className="size-3" aria-hidden />
-            </Link>
+            {hasConnections ? (
+              // ★A CONNECTED ACCOUNT IS NOT "CONNECT A CHANNEL". Telling a
+              //  merchant with eight live channels to connect their first one
+              //  reads as if the product cannot see their setup.
+              <>
+                <p className="text-xs text-muted-foreground">
+                  Peakhour has not published, drafted or answered anything for you in the last{" "}
+                  {days} days. Plan your next post and it will be counted here, with an estimate
+                  of the time it saved you.
+                </p>
+                <Link
+                  href="/dashboard/content"
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-brand-label"
+                >
+                  Plan your next post
+                  <ArrowRight className="size-3" aria-hidden />
+                </Link>
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  Once a channel is connected, everything Peakhour publishes, drafts and answers on
+                  your behalf is counted here — with an estimate of the time it saved you.
+                </p>
+                <Link
+                  href="/dashboard/integrations"
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-brand-label"
+                >
+                  Connect your first channel
+                  <ArrowRight className="size-3" aria-hidden />
+                </Link>
+              </>
+            )}
           </div>
         ) : (
           <>

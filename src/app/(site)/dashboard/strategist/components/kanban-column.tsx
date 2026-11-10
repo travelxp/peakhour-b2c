@@ -67,7 +67,7 @@ export function KanbanColumn({
         <div className="flex flex-1 flex-col gap-2">
           {ideas.length === 0 && (
             <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-muted-foreground/20 py-12">
-              <p className="text-xs text-muted-foreground/40">Drop here</p>
+              <p className="text-xs text-muted-foreground">Drop here</p>
             </div>
           )}
           {ideas.map((idea) => (
