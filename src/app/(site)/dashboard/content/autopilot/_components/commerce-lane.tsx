@@ -53,7 +53,7 @@ function MoneyLoopCard({ data }: { data: CommerceLaneData }) {
       ) : (
         <div className="mt-3">
           <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-semibold tracking-tight text-success-on-tint/40">
+            <span className="text-3xl font-semibold tracking-tight text-success-on-tint">
               —
             </span>
             <span className="inline-flex items-center gap-1 text-xs font-medium text-success-on-tint">

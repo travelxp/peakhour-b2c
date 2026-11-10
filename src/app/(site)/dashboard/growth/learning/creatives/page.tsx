@@ -17,6 +17,7 @@
  * Not under /dashboard/ads: the ads hub is one surface (ads-hub-single-surface);
  * the hub and the guardrails card link here.
  */
+import { TabPanelStubs } from "@/components/dashboard/tab-panel-stubs";
 import { Suspense, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -133,6 +134,7 @@ function CreativeReview() {
               </TabsTrigger>
             ))}
           </TabsList>
+          <TabPanelStubs values={CREATIVE_FILTERS.map((f) => f.key)} />
         </Tabs>
         <Select value={platform || ALL_PLATFORMS} onValueChange={(v) => setParam("platform", v === ALL_PLATFORMS ? null : v)}>
           <SelectTrigger className="w-56" aria-label="Channel">

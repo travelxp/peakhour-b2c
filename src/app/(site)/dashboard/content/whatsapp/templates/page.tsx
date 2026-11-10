@@ -530,7 +530,7 @@ export default function WhatsAppTemplatesPage() {
               <div className="space-y-1.5">
                 <Label>Category</Label>
                 <Select value={editor.category} onValueChange={(v) => { setEditor((x) => ({ ...x, category: v as Category })); setIssues(null); }}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger aria-label="Category"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="UTILITY">Utility</SelectItem>
                     <SelectItem value="MARKETING">Marketing</SelectItem>

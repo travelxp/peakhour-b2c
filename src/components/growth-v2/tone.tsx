@@ -10,7 +10,8 @@ export const TONE_CLASS: Record<Tone, string> = {
   warn: "bg-warning/10 text-warning-on-tint border-warning/30",
   bad: "bg-destructive/10 text-destructive-on-tint border-destructive/30",
   info: "bg-state-info/10 text-state-info-on-tint border-state-info/30",
-  ai: "bg-chart-2/10 text-chart-2 border-chart-2/30",
+  // chart-2 alone is ~4.4:1 on its own 10% tint; 30% foreground lifts it past 4.5:1.
+  ai: "bg-chart-2/10 text-[color-mix(in_oklch,var(--chart-2)_70%,var(--foreground))] border-chart-2/30",
   neutral: "bg-muted text-muted-foreground border-border",
 };
 

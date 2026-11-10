@@ -124,7 +124,8 @@ export function AvatarPicker() {
               return (
                 <li key={v.id}>
                   <AvatarChoice
-                    label={`Initials on ${v.label}`}
+                    // The tile shows the initials as visible text, so the name starts with them.
+                    label={`${initials} on ${v.label}`}
                     selected={isSelected}
                     saving={saving === token}
                     disabled={disabled}

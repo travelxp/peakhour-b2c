@@ -459,7 +459,7 @@ export default function FeedbackAdminDetailPage() {
               <div className="space-y-2">
                 <label className="text-sm font-medium">Update Status</label>
                 <Select value={newStatus} onValueChange={setNewStatus}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Update status">
                     <SelectValue placeholder="Change status..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -476,7 +476,7 @@ export default function FeedbackAdminDetailPage() {
               <div className="space-y-2">
                 <label className="text-sm font-medium">Priority</label>
                 <Select value={priority} onValueChange={setPriority}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Priority">
                     <SelectValue placeholder="Set priority..." />
                   </SelectTrigger>
                   <SelectContent>

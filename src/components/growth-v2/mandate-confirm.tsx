@@ -107,14 +107,14 @@ export function MandateConfirmView(p: MandateConfirmViewProps) {
           <CardTitle>{link.change ? "Your change is saved" : "Your plan is on"}</CardTitle>
           <CardDescription>
             {link.change
-              ? "The engine now works to your new plan. Nothing else changed."
-              : "The engine starts by watching and proposing. Every change waits for your approval until it has earned more, and nothing spends beyond your ceiling."}
+              ? "Peakhour now works to your new plan. Nothing else changed."
+              : "Peakhour starts by watching and proposing. Every change waits for your approval until it has earned more, and nothing spends beyond your ceiling."}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3">
           <p className="text-sm">{link.plan}</p>
           {!link.change && !p.done.holdout.started ? (
-            <p className="text-xs text-muted-foreground">Lift measurement has not started yet ({p.done.holdout.reason}). The engine will say so on Growth home.</p>
+            <p className="text-xs text-muted-foreground">Lift measurement has not started yet ({p.done.holdout.reason}). Peakhour will say so on Growth home.</p>
           ) : null}
           <Button asChild>
             <Link href="/dashboard/growth">Open Growth</Link>

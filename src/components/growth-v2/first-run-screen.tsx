@@ -173,7 +173,7 @@ export function FirstRunView(p: FirstRunViewProps) {
   if (!draft) {
     return (
       <>
-        <PageHead title="Let's get you more of what matters" description="Three questions, then the engine drafts your first plan. Nothing spends until you confirm on WhatsApp." />
+        <PageHead title="Let's get you more of what matters" description="Three questions, then Peakhour drafts your first plan. Nothing spends until you confirm on WhatsApp." />
         {p.loadFailed ? (
           <Card>
             <CardContent role="alert" className="py-8 text-center text-sm">
@@ -191,7 +191,7 @@ export function FirstRunView(p: FirstRunViewProps) {
   if (draft.alreadyActive) {
     return (
       <>
-        <PageHead title="Your plan is already running" description="The growth engine is on for this business." />
+        <PageHead title="Your plan is already running" description="Peakhour is running growth for this business." />
         <Card>
           <CardContent className="space-y-3 py-8 text-center">
             <p className="text-sm text-muted-foreground">To change your ceiling, your target or what you want more of, use Rules. A change is confirmed on WhatsApp, as your plan was.</p>
@@ -227,7 +227,7 @@ export function FirstRunView(p: FirstRunViewProps) {
     <>
       <PageHead
         title={unit ? `Let's get you more ${unit.many}` : "Let's get you more of what matters"}
-        description={`Three questions, then the engine drafts your first plan from the ${draft.playbook?.title ?? "right"} playbook. Nothing spends until you confirm on WhatsApp.`}
+        description={`Three questions, then Peakhour drafts your first plan from the ${draft.playbook?.title ?? "right"} playbook. Nothing spends until you confirm on WhatsApp.`}
       />
 
       <Card>
@@ -302,7 +302,7 @@ export function FirstRunView(p: FirstRunViewProps) {
               ))}
             </div>
             {ceiling !== undefined ? <b className="text-2xl tabular-nums">{formatMoney(ceiling, currency)}</b> : null}
-            <p className="text-xs text-muted-foreground">The engine can never spend more than this in a month.</p>
+            <p className="text-xs text-muted-foreground">Peakhour can never spend more than this in a month.</p>
             {ceiling !== undefined && minimum !== undefined && ceiling < minimum ? (
               <p role="status" className="text-xs text-warning-on-tint">
                 This is under the {draft.playbook?.title} playbook&apos;s usual minimum of {formatMoney(minimum, currency)}. It can still run, with fewer channels and slower learning.
@@ -449,7 +449,7 @@ function FocusPicker({ offer, chosen, onFocus, currency }: { offer: DraftOffer; 
           </option>
         ))}
       </select>
-      <p className="text-xs text-muted-foreground">The engine counts, bids on and reports only this part. Everything else is still shown, but never counted toward your goal.</p>
+      <p className="text-xs text-muted-foreground">Peakhour counts, bids on and reports only this part. Everything else is still shown, but never counted toward your goal.</p>
     </div>
   );
 }

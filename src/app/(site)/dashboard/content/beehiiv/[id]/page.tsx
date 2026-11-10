@@ -227,6 +227,7 @@ export default function ArticleDetailPage() {
                         </div>
                         <Progress
                           value={ar.relevance * 100}
+                          aria-label="Relevance"
                           className="h-2"
                         />
                         {ar.whyRelevant && (
@@ -435,6 +436,7 @@ export default function ArticleDetailPage() {
                     </div>
                     <Progress
                       value={(t.adPotential?.score ?? 0) * 10}
+                      aria-label="Ad potential"
                       className="h-2 mt-2"
                     />
                   </div>

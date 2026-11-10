@@ -123,7 +123,7 @@ function PricingBody() {
             ceiling of 0 (no markdowns to stay within anything). */}
         {guardrails.maxDiscountPct != null && guardrails.maxDiscountPct > 0 ? (
           <span className="text-muted-foreground">
-            Every markdown stays within these — the engine never proposes past them.
+            Every markdown stays within these — Peakhour never proposes past them.
           </span>
         ) : null}
       </div>

@@ -108,7 +108,7 @@ export function HomeBody({ result, openDecisions }: { result: HomeScreenData; op
     <div className="grid gap-4">
       <PageHead
         title="Is it working?"
-        description={`${home.outcome.label} for ${words.title}, what the engine caused, and what it costs you. ${home.pacing.daysLeft} days left in the month.`}
+        description={`${home.outcome.label} for ${words.title}, what Peakhour caused, and what it costs you. ${home.pacing.daysLeft} days left in the month.`}
         actions={
           <>
             <PacingBadge spent={home.pacing.spentThisMonth} ceiling={home.pacing.monthlyCeiling} daysLeft={home.pacing.daysLeft} daysInMonth={daysInMonth} />
@@ -241,7 +241,7 @@ export function HomeBody({ result, openDecisions }: { result: HomeScreenData; op
 
       <Card>
         <CardHeader>
-          <CardTitle>What the engine did</CardTitle>
+          <CardTitle>What Peakhour did</CardTitle>
           <CardDescription>Every check, change and refusal, with the reason.</CardDescription>
         </CardHeader>
         <CardContent>

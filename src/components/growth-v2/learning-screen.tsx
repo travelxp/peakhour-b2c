@@ -14,7 +14,7 @@ import { PageShell } from "@/components/dashboard/page-shell";
 import { QueryBoundary } from "./query-boundary";
 import { ToneBadge } from "./tone";
 
-/** Learning: "What did we learn?" Every bet the engine made and what changed because of it (plan 1, H4). */
+/** Learning: "What did we learn?" Every bet Peakhour made and what changed because of it (plan 1, H4). */
 export function LearningScreen() {
   const query = useGrowthV2Learning();
   const rules = useGrowthV2Rules();
@@ -22,7 +22,7 @@ export function LearningScreen() {
   if (query.data && "refusal" in query.data) return <NotSetUp code={query.data.refusal} />;
   return (
     <PageShell width="standard">
-      <PageHead title="What did we learn?" description="Every bet the engine made, how it was judged, and what changed because of it." />
+      <PageHead title="What did we learn?" description="Every bet Peakhour made, how it was judged, and what changed because of it." />
       <QueryBoundary query={query as UseQueryResult<V2Result<LearningResponse>>}>{(r) => {
           const mandate = mandateFor(rules.data, r.preview);
           return <LearningBody learning={r.data} unitPlural={unitFor(mandate?.outcome.kind).many} currency={mandate?.currency ?? ""} />;

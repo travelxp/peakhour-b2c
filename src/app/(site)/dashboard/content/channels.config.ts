@@ -166,7 +166,7 @@ export const CHANNELS: readonly ChannelConfig[] = [
   {
     slug: "shopify",
     name: "Shopify",
-    description: "Pull products and blog posts for content engines.",
+    description: "Pull products and blog posts for your content.",
     category: "Web & SEO",
     providerKey: "shopify",
     status: "coming_soon",

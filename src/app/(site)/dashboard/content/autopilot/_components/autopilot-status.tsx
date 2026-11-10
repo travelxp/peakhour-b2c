@@ -87,7 +87,7 @@ export function AutopilotStatus({
       <span className={cn("text-sm font-semibold", s.text)}>{s.label}</span>
       <span className="text-sm text-muted-foreground">— {reason}</span>
       {lastRun && (
-        <span className="ml-auto text-xs text-muted-foreground/70">
+        <span className="ml-auto text-xs text-muted-foreground">
           last run {lastRun}
         </span>
       )}
