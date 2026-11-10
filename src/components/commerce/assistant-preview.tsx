@@ -50,7 +50,7 @@ export function CommerceAssistantPreview() {
         className="flex-1 space-y-2 overflow-y-auto bg-wa-wallpaper px-3 py-4"
       >
         {messages.length === 0 && (
-          <div className="mx-auto mt-6 max-w-xs rounded-lg bg-white/70 px-3 py-2 text-center text-xs text-muted-foreground">
+          <div className="mx-auto mt-6 max-w-xs rounded-lg bg-wa-bubble-in px-3 py-2 text-center text-xs text-wa-text/80">
             Ask about your products the way a customer would — in any language.
           </div>
         )}
@@ -64,7 +64,7 @@ export function CommerceAssistantPreview() {
               className={`max-w-[78%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm shadow-sm ${
                 m.role === "user"
                   ? "rounded-br-none bg-wa-bubble-out text-wa-text"
-                  : "rounded-bl-none bg-white text-foreground"
+                  : "rounded-bl-none bg-wa-bubble-in text-wa-text"
               }`}
             >
               {m.content}
@@ -74,7 +74,7 @@ export function CommerceAssistantPreview() {
 
         {isLoading && (
           <div className="flex justify-start">
-            <div className="rounded-lg rounded-bl-none bg-white px-3 py-2 text-sm text-muted-foreground shadow-sm">
+            <div className="rounded-lg rounded-bl-none bg-wa-bubble-in px-3 py-2 text-sm text-wa-text/80 shadow-sm">
               typing…
             </div>
           </div>
@@ -89,7 +89,7 @@ export function CommerceAssistantPreview() {
               key={s}
               type="button"
               onClick={() => submit(s)}
-              className="rounded-full border border-border bg-white px-3 py-1 text-xs text-foreground hover:bg-muted"
+              className="rounded-full border border-border bg-wa-bubble-in px-3 py-1 text-xs text-wa-text hover:bg-wa-bubble-out"
             >
               {s}
             </button>
@@ -103,13 +103,14 @@ export function CommerceAssistantPreview() {
           e.preventDefault();
           submit(input);
         }}
-        className="flex items-center gap-2 border-t border-border bg-white px-3 py-2"
+        className="flex items-center gap-2 border-t border-border bg-wa-bubble-in px-3 py-2"
       >
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Type a message…"
-          className="flex-1 rounded-full border border-border px-4 py-2 text-sm outline-none focus:border-wa-header"
+          aria-label="Message the store assistant"
+          className="flex-1 rounded-full border border-border bg-transparent px-4 py-2 text-sm text-wa-text outline-none placeholder:text-wa-text/70 focus:border-wa-header"
           maxLength={2000}
         />
         <button
