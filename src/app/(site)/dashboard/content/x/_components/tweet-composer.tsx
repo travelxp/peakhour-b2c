@@ -561,6 +561,7 @@ export function TweetComposer() {
               id="x-paid-partnership"
               checked={paidPartnership}
               onCheckedChange={setPaidPartnership}
+              disabled={publish.isPending}
               aria-describedby="x-paid-partnership-help"
             />
             <div className="space-y-0.5">
@@ -569,6 +570,7 @@ export function TweetComposer() {
               </Label>
               <p id="x-paid-partnership-help" className="text-micro text-muted-foreground">
                 Label this post as a paid promotion on X.
+                {isThread ? " On a thread, the label goes on the first post." : ""}
               </p>
             </div>
           </div>
