@@ -68,7 +68,6 @@ import {
   severityHeading,
   shopifyPoliciesHref,
   sourceLabel,
-  splitPlaceholders,
   SUGGESTIONS_EMPTY,
   suggestionAskedLine,
   type KbEntry,
@@ -80,6 +79,8 @@ import {
   type CardWords,
 } from "@/lib/knowledge-base";
 import { shopOf } from "@/lib/insights";
+import { EntryPublish, PolicyBuilder } from "@/components/commerce/policy-builder";
+import { Highlighted } from "@/components/commerce/highlighted";
 
 /**
  * Commerce -> Knowledge base. What your assistant knows beyond the catalog: the
@@ -92,6 +93,7 @@ export function KnowledgeBase() {
   return (
     <div className="space-y-8">
       <Questions />
+      <PolicyBuilder />
       <Suggestions />
       <PolicyHealth />
       <Entries />
@@ -248,23 +250,6 @@ export function SuggestionsView({ data, now, onApproved, onFailed }: { data: KbS
             </li>
           ))}
         </ul>
-      )}
-    </>
-  );
-}
-
-/** The text with each [bracketed] detail still to fill in highlighted. */
-export function Highlighted({ text }: { text: string }) {
-  return (
-    <>
-      {splitPlaceholders(text).map((p, i) =>
-        p.placeholder ? (
-          <mark key={i} data-kb-placeholder className="rounded bg-warning/20 px-0.5 text-warning-on-tint">
-            {p.text}
-          </mark>
-        ) : (
-          <span key={i}>{p.text}</span>
-        ),
       )}
     </>
   );
@@ -679,6 +664,7 @@ function EntryCard({ entry, onEdit }: { entry: KbEntry; onEdit: () => void }) {
               View the original <ExternalLink className="size-3" aria-hidden="true" />
             </a>
           )}
+          {entry.status === "active" && !entry.readOnly && <EntryPublish entry={entry} />}
           <div className="flex gap-2 pt-1">
             {entry.readOnly ? (
               <Button size="sm" variant="outline" disabled={action.isPending} onClick={() => run("take-over")}>

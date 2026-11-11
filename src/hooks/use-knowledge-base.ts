@@ -1,9 +1,29 @@
 "use client";
 
 import { INSIGHTS_KEY } from "@/hooks/use-insights";
+import { CREDITS_KEY } from "@/hooks/use-credits";
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, newActionKey } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
+import {
+  FINDINGS_ERRORS_MAX,
+  FINDINGS_POLL_MS,
+  clickHeaders,
+  marketsParam,
+  type ApproveResponse,
+  type CapabilitiesResponse,
+  type GenerateResponse,
+  type MarketCheck,
+  type PoliciesResponse,
+  type PolicyPrice,
+  type PolicyRow,
+  type PolicyType,
+  type Publication,
+  type QuestionsResponse,
+  type SaveBody,
+  type UploadPrice,
+  type UploadSummary,
+} from "@/lib/policy-builder";
 import { FINDINGS_PAGE, KB_LIST_LIMIT, type KbFinding, type KbEntry, type KbFindingsResponse, type KbPayload, type KbRequest, type KbSuggestionsResponse } from "@/lib/knowledge-base";
 
 /**
@@ -112,10 +132,16 @@ export function useKbSuggestions() {
 /** The edited words are sent as they are; the api refuses (409/400, with its own sentence) while a [placeholder] remains or the entry limit is reached. */
 export function useApproveSuggestion() {
   const refresh = useRefresh();
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, title, content }: { id: string; title: string; content: string }) =>
       api.post<{ entry: KbEntry; answered: number }>(`/v1/kb/suggestions/${id}/approve`, { title, content }),
-    onSuccess: refresh,
+    onSuccess: () => {
+      refresh();
+      // a generated policy draft approved from here makes its policy row live (KE-2.10)
+      void qc.invalidateQueries({ queryKey: [POLICIES_KEY] });
+      void qc.invalidateQueries({ queryKey: [POLICY_QUESTIONS_KEY] });
+    },
   });
 }
 
@@ -161,6 +187,209 @@ export function useFindingAction() {
   const refresh = useRefresh();
   return useMutation({
     mutationFn: ({ id, action }: { id: string; action: "dismiss" | "reopen" }) => api.post<{ finding: { id: string; state: string } }>(`/v1/kb/findings/${id}/${action}`),
+    onSuccess: refresh,
+  });
+}
+
+// -- Policies (KE-2.10) ------------------------------------------------------------------------------------------------
+// The api (`/v1/kb/policies/*`, `/v1/kb/upload`, `/v1/kb/publish/*`) is the authority; these only carry its answers.
+
+const POLICIES_KEY = "kb-policies";
+const POLICY_QUESTIONS_KEY = "kb-policy-questions";
+const POLICY_PRICE_KEY = "kb-policy-price";
+const POLICY_FINDINGS_KEY = "kb-policy-findings";
+const UPLOAD_PRICE_KEY = "kb-upload-price";
+const CAPABILITIES_KEY = "kb-capabilities";
+const PUBLICATIONS_KEY = "kb-publications";
+
+/** GET /v1/kb/policies: the business's policy rows by type, and the types it has none for. */
+export function useKbPolicies() {
+  const { isAuthenticated, org, business } = useAuth();
+  return useQuery<PoliciesResponse>({
+    queryKey: [POLICIES_KEY, org?._id ?? null, business?._id ?? null],
+    queryFn: () => api.get("/v1/kb/policies"),
+    enabled: isAuthenticated && !!org?._id,
+    retry: false,
+  });
+}
+
+/** GET /v1/kb/policies/:type/questions?markets=: the questions, with what is known and what is answered. Free. */
+export function usePolicyQuestions(type: PolicyType, markets: readonly string[]) {
+  const { isAuthenticated, org, business } = useAuth();
+  return useQuery<QuestionsResponse>({
+    queryKey: [POLICY_QUESTIONS_KEY, org?._id ?? null, business?._id ?? null, type, marketsParam(markets)],
+    queryFn: () => api.get(`/v1/kb/policies/${type}/questions`, marketsParam(markets)),
+    enabled: isAuthenticated && !!org?._id,
+    retry: false,
+    // the merchant's boxes are not overwritten by a refetch: the editor reads the answers once per (type, markets)
+    refetchOnWindowFocus: false,
+  });
+}
+
+/** PUT /v1/kb/policies/:type: save the answers as the draft policy (free; writes no text and publishes nothing). */
+export function useSavePolicyAnswers(type: PolicyType) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: SaveBody) => api.put<{ policy: PolicyRow }>(`/v1/kb/policies/${type}`, body),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: [POLICIES_KEY] });
+      // the questions hold the saved answers and where each came from: a reopened editor must read what was just saved
+      void qc.invalidateQueries({ queryKey: [POLICY_QUESTIONS_KEY] });
+      void qc.invalidateQueries({ queryKey: [POLICY_PRICE_KEY] });
+    },
+  });
+}
+
+/** GET .../generate/price: the price shown before the click, the balance check and a signed quote. Always fresh: a stale price is a wrong price. */
+export function usePolicyPrice(type: PolicyType, markets: readonly string[], enabled = true) {
+  const { isAuthenticated, org, business } = useAuth();
+  return useQuery<PolicyPrice>({
+    queryKey: [POLICY_PRICE_KEY, org?._id ?? null, business?._id ?? null, type, marketsParam(markets)],
+    queryFn: () => api.get(`/v1/kb/policies/${type}/generate/price`, marketsParam(markets)),
+    enabled: enabled && isAuthenticated && !!org?._id,
+    retry: false,
+    staleTime: 0,
+  });
+}
+
+/**
+ * POST .../generate. ONE CLICK, ONE KEY: `clickHeaders` mints a new `Idempotency-Key` inside `mutationFn`, so each call of `mutate` is one click and a retry of a
+ * failed click is a new one. The signed quote from the price card travels as `x-peaks-quote` so the price shown is the price charged.
+ */
+export function useGeneratePolicy(type: PolicyType) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ markets, quoteToken }: { markets: readonly string[]; quoteToken?: string }) =>
+      api.post<GenerateResponse>(`/v1/kb/policies/${type}/generate`, markets.length > 0 ? { markets: [...markets] } : {}, clickHeaders(quoteToken, newActionKey)),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: [SUGGESTIONS_KEY] });
+      void qc.invalidateQueries({ queryKey: [ENTRIES_KEY] });
+      void qc.invalidateQueries({ queryKey: [POLICY_PRICE_KEY] });
+      // the Peaks balance the rest of the dashboard shows
+      void qc.invalidateQueries({ queryKey: [CREDITS_KEY] });
+    },
+  });
+}
+
+/** GET .../generate/findings: the market findings of the current draft (`draftKey` names which written draft, so a new draft never shows the last one's findings), read again while the generate reply said "pending". Free; stops after a few tries. */
+export function usePolicyFindings(type: PolicyType, markets: readonly string[], enabled: boolean, draftKey: string) {
+  const { isAuthenticated, org, business } = useAuth();
+  const qc = useQueryClient();
+  const queryKey = [POLICY_FINDINGS_KEY, org?._id ?? null, business?._id ?? null, type, marketsParam(markets), draftKey];
+  const q = useQuery<{ marketCheck: "done"; marketFindings: MarketCheck }>({
+    queryKey,
+    queryFn: () => api.get(`/v1/kb/policies/${type}/generate/findings`, marketsParam(markets)),
+    enabled: enabled && isAuthenticated && !!org?._id,
+    retry: false,
+    refetchInterval: (q) => (q.state.data || q.state.errorUpdateCount >= FINDINGS_ERRORS_MAX ? false : FINDINGS_POLL_MS),
+    gcTime: 0,
+  });
+  // a read that fails is tried again a few times (a network blip is not an answer); only then does the screen say it could not finish
+  const st = qc.getQueryState(queryKey);
+  return { ...q, gaveUp: !q.data && (st?.errorUpdateCount ?? 0) >= FINDINGS_ERRORS_MAX };
+}
+
+/** Approve the written draft (the existing suggestions route). Also refreshes the policy rows: a generated approval makes its policy row live. */
+export function useApprovePolicyDraft() {
+  const refresh = useRefresh();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, title, content }: { id: string; title: string; content: string }) => api.post<ApproveResponse>(`/v1/kb/suggestions/${id}/approve`, { title, content }),
+    onSuccess: () => {
+      refresh();
+      void qc.invalidateQueries({ queryKey: [POLICIES_KEY] });
+      void qc.invalidateQueries({ queryKey: [POLICY_QUESTIONS_KEY] });
+    },
+  });
+}
+
+/** GET /v1/kb/upload/price: the price of reading one document, with the signed quote and the limits. Free. */
+export function useUploadPrice() {
+  const { isAuthenticated, org, business } = useAuth();
+  return useQuery<UploadPrice>({
+    queryKey: [UPLOAD_PRICE_KEY, org?._id ?? null, business?._id ?? null],
+    queryFn: () => api.get("/v1/kb/upload/price"),
+    enabled: isAuthenticated && !!org?._id,
+    retry: false,
+    staleTime: 0,
+  });
+}
+
+/** POST /v1/kb/upload: one Drive file or one page address, charged only when something is delivered. One click, one `Idempotency-Key`. */
+export function useUploadKnowledge() {
+  const refresh = useRefresh();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ body, quoteToken }: { body: { driveFileId: string } | { url: string }; quoteToken?: string }) =>
+      api.post<UploadSummary>("/v1/kb/upload", body, clickHeaders(quoteToken, newActionKey)),
+    onSuccess: () => {
+      refresh();
+      // an upload fills in policy answers
+      void qc.invalidateQueries({ queryKey: [POLICIES_KEY] });
+      void qc.invalidateQueries({ queryKey: [POLICY_QUESTIONS_KEY] });
+      void qc.invalidateQueries({ queryKey: [UPLOAD_PRICE_KEY] });
+      void qc.invalidateQueries({ queryKey: [CREDITS_KEY] });
+    },
+  });
+}
+
+/** GET /v1/kb/publish/capabilities: every connected channel, its connections and what each slot allows. The Publish buttons are drawn from this and nothing else. */
+export function useKbCapabilities() {
+  const { isAuthenticated, org, business } = useAuth();
+  return useQuery<CapabilitiesResponse>({
+    queryKey: [CAPABILITIES_KEY, org?._id ?? null, business?._id ?? null],
+    queryFn: () => api.get("/v1/kb/publish/capabilities"),
+    enabled: isAuthenticated && !!org?._id,
+    retry: false,
+  });
+}
+
+/** GET /v1/kb/entries/:id/publications?check=1: where the entry is published, each copy read back and compared with what Peakhour sent. */
+export function useKbPublications(entryId: string | null) {
+  const { isAuthenticated, org, business } = useAuth();
+  return useQuery<{ publications: Publication[] }>({
+    queryKey: [PUBLICATIONS_KEY, org?._id ?? null, business?._id ?? null, entryId],
+    queryFn: () => api.get(`/v1/kb/entries/${entryId}/publications`, { check: "1" }),
+    enabled: isAuthenticated && !!org?._id && !!entryId,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+}
+
+function useRefreshPublications() {
+  const qc = useQueryClient();
+  return () => {
+    void qc.invalidateQueries({ queryKey: [PUBLICATIONS_KEY] });
+    void qc.invalidateQueries({ queryKey: [CAPABILITIES_KEY] });
+    void qc.invalidateQueries({ queryKey: [ENTRIES_KEY] });
+    void qc.invalidateQueries({ queryKey: [SUGGESTIONS_KEY] });
+  };
+}
+
+export function usePublishEntry() {
+  const refresh = useRefreshPublications();
+  return useMutation({
+    mutationFn: ({ id, channel, slot, connectionId }: { id: string; channel: string; slot: string; connectionId?: string }) =>
+      api.post<{ publication: Publication }>(`/v1/kb/entries/${id}/publish`, { channel, slot, ...(connectionId ? { connectionId } : {}) }),
+    onSuccess: refresh,
+    // a refusal (DIVERGED, GRANT_MISSING) changes what the panel should show too
+    onError: refresh,
+  });
+}
+
+export function useResolvePublication() {
+  const refresh = useRefreshPublications();
+  return useMutation({
+    mutationFn: ({ id, keep }: { id: string; keep: "ours" | "theirs" }) =>
+      api.post<{ keep: "ours" | "theirs"; publication?: Publication; draftEntryId?: string }>(`/v1/kb/publications/${id}/resolve`, { keep }),
+    onSuccess: refresh,
+  });
+}
+
+export function useUnpublish() {
+  const refresh = useRefreshPublications();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<{ removedFromChannel: boolean; keptChannelText: boolean }>(`/v1/kb/publications/${id}`),
     onSuccess: refresh,
   });
 }
