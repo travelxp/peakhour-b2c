@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, HelpCircle } from "lucide-react";
 import { ChangeChoices } from "@/components/presence/change-choices";
 import {
@@ -40,13 +40,15 @@ export function ControlSection({
   const control = controlNote(entry, label);
   const changes = changesView(entry, label);
   const listsChanges = changes?.kind === "some";
+  // What a choice did. Held here, not in the row: keeping the last change removes the row (and the section) before anyone could read it.
+  const [done, setDone] = useState<string | null>(null);
   // An alert links to `#network-changes`. The section draws after the listing loads, so the browser's own jump has nothing to land on yet.
   useEffect(() => {
     if (listsChanges && typeof window !== "undefined" && window.location.hash === `#${NETWORK_CHANGES_ID}`) {
       document.getElementById(NETWORK_CHANGES_ID)?.scrollIntoView({ block: "start" });
     }
   }, [listsChanges]);
-  if (!control && !changes) return null;
+  if (!control && !changes && !done) return null;
 
   return (
     <div className="space-y-3 rounded-lg border p-4">
@@ -78,10 +80,10 @@ export function ControlSection({
             <>
               <p className="text-sm font-medium">{changes.headline}</p>
               <ul className="space-y-2 pl-0 text-xs text-muted-foreground">
-                {changes.lines.map((l) => (
-                  <li key={l.key} id={`network-change-${l.field}`} className="space-y-1">
+                {changes.lines.map((l, i) => (
+                  <li key={l.key} id={`network-change-${i}`} className="space-y-1">
                     <p>{l.text}</p>
-                    {entry && listing ? <ChangeChoices line={l} entry={entry} listing={listing} /> : null}
+                    {entry && listing ? <ChangeChoices line={l} entry={entry} listing={listing} onDone={setDone} /> : null}
                   </li>
                 ))}
               </ul>
@@ -91,6 +93,12 @@ export function ControlSection({
             <p className="text-xs text-muted-foreground">{changes.text}</p>
           )}
         </div>
+      )}
+
+      {done && (
+        <p role="status" className="text-xs text-muted-foreground">
+          {done}
+        </p>
       )}
     </div>
   );

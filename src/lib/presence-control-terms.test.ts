@@ -219,6 +219,7 @@ describe("changesView: null and [] are different answers", () => {
     expect(putBackValue({ field: "phone", before: "1" }, null)).toEqual({ primary: "1", additional: [] });
     expect(putBackValue({ field: "regularHours", before: "x" }, null)).toBeNull();
     expect(putBackValue({ field: "phone" }, null)).toBeNull();
+    expect(putBackValue({ field: "description", before: "" }, null)).toBeNull();
   });
 });
 

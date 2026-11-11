@@ -784,7 +784,8 @@ export function putBackValue(
   change: Pick<PresenceNetworkChange, "field" | "before">,
   listing: { contact?: { additionalPhones?: string[] | null } | null } | null | undefined,
 ): unknown {
-  if (change.before === undefined || !(PUT_BACK_FIELDS as readonly string[]).includes(change.field)) return null;
+  // an empty `before` is no value we can name (the field was empty), so there is nothing to put back
+  if (change.before === undefined || change.before === "" || !(PUT_BACK_FIELDS as readonly string[]).includes(change.field)) return null;
   if (change.field === "phone") return { primary: change.before, additional: listing?.contact?.additionalPhones ?? [] };
   return change.before;
 }
@@ -839,10 +840,8 @@ export function changesView(
       text: `We haven't been able to ask ${label} whether it changed anything yet. That is not the same as no changes.`,
     };
   }
-  const pending =
-    pendingFields && pendingFields.length > 0
-      ? `Waiting for ${label} to publish your edit to: ${pendingFields.filter((f) => f !== "hidden").map((f) => fieldWords(f)).join(", ")}.`
-      : null;
+  const waitingOn = (pendingFields ?? []).filter((f) => f !== "hidden");
+  const pending = waitingOn.length > 0 ? `Waiting for ${label} to publish your edit to: ${waitingOn.map((f) => fieldWords(f)).join(", ")}.` : null;
   if (items.length === 0) {
     return { kind: "none", text: `${label} hasn't changed anything on its own.${pending ? ` ${pending}` : ""}` };
   }

@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useEditCapabilities, useKeepNetworkChange, usePresenceEditMutations } from "@/hooks/use-presence-edit";
 import { capabilityFor, errorWords } from "@/lib/presence-edit";
@@ -14,11 +13,10 @@ import { putBackValue, type ChangeLine, type PresenceListing, type PresenceNetwo
  * other change. KEEP asks the api to stop reminding and, for a name, description, phone number or website, to take the network's value
  * into the listing. Neither sends anything to the network on its own.
  */
-export function ChangeChoices({ line, entry, listing }: { line: ChangeLine; entry: PresenceNetworkEntry; listing: PresenceListing }) {
+export function ChangeChoices({ line, entry, listing, onDone }: { line: ChangeLine; entry: PresenceNetworkEntry; listing: PresenceListing; onDone: (words: string) => void }) {
   const caps = useEditCapabilities();
   const m = usePresenceEditMutations(listing.id);
   const keep = useKeepNetworkChange();
-  const [notice, setNotice] = useState<string | null>(null);
   const label = entry.label;
 
   // A viewer is offered nothing: the api refuses them, and a button that fails is not offered.
@@ -37,10 +35,10 @@ export function ChangeChoices({ line, entry, listing }: { line: ChangeLine; entr
             variant="outline"
             disabled={busy}
             onClick={() => {
-              setNotice(null);
+              onDone("");
               m.propose.mutate(
                 { listingId: listing.id, network: entry.network, changes: [{ field: line.field as never, value }] },
-                { onSuccess: () => setNotice("Prepared. Review it under Change your listing, then approve it. Nothing is sent until then.") },
+                { onSuccess: () => onDone("Prepared. Review it under Change your listing, then approve it. Nothing is sent until then.") },
               );
             }}
           >
@@ -52,17 +50,16 @@ export function ChangeChoices({ line, entry, listing }: { line: ChangeLine; entr
           variant="outline"
           disabled={busy}
           onClick={() => {
-            setNotice(null);
+            onDone("");
             keep.mutate(
               { listingId: listing.id, network: entry.network, field: line.field, label: line.path, externalId: entry.externalId ?? undefined, suggested: line.suggested },
-              { onSuccess: () => setNotice(`Done. We keep ${label}'s version and will stop reminding you about this.`) },
+              { onSuccess: () => onDone(`Done. We keep ${label}'s version and will stop reminding you about this.`) },
             );
           }}
         >
           Keep {label}&apos;s version
         </Button>
       </div>
-      {notice && <p role="status">{notice}</p>}
       {(m.propose.isError || keep.isError) && (
         <p role="alert" className="text-destructive">
           {errorWords(m.propose.error ?? keep.error)}
