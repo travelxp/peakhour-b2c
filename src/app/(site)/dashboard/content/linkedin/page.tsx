@@ -22,9 +22,11 @@ import {
 } from "lucide-react";
 import {
   PostComposer,
+} from "./_components/post-composer";
+import {
   PostComposerSkeleton,
   useLinkedInIdentity,
-} from "./_components/post-composer";
+} from "./_components/composer-identity";
 import { AudiencePanel } from "./_components/audience-panel";
 import { BoostCandidatesPanel } from "./_components/boost-candidates-panel";
 import { LibraryPanel } from "./_components/library-panel";
