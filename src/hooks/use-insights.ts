@@ -2,11 +2,9 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { INSIGHTS_KEY, insightsQuery } from "@/lib/nav-queries";
+export { INSIGHTS_KEY };
 import { useAuth } from "@/providers/auth-provider";
-import type { InsightsResponse } from "@/lib/insights";
-
-/** Every Insights read starts with this, so an answer or a dismissal can refresh them all. */
-export const INSIGHTS_KEY = "insights";
 
 /**
  * What customers are telling the assistant (GET /v1/insights). The api scopes the read to the session's pinned org AND business; nothing
@@ -14,12 +12,10 @@ export const INSIGHTS_KEY = "insights";
  */
 export function useInsights(days = 30) {
   const { isAuthenticated, org, business } = useAuth();
-  return useQuery<InsightsResponse>({
-    queryKey: [INSIGHTS_KEY, org?._id ?? null, business?._id ?? null, days],
-    queryFn: () => api.get("/v1/insights", { days: String(days) }),
+  return useQuery({
+    ...insightsQuery(org?._id ?? null, business?._id ?? null, days),
     // the api scope is org AND business: until both are pinned a read could only answer for nothing
     enabled: isAuthenticated && !!org?._id && !!business?._id,
-    retry: false,
   });
 }
 
