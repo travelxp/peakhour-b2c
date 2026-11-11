@@ -818,6 +818,8 @@ export interface ChangeLine {
   /** Put ours back: only where we hold a value that is plain text. */
   canPutBack: boolean;
   before: string | undefined;
+  /** The value the person is shown, sent back so a change that has since moved is not the one kept. */
+  suggested: string | undefined;
 }
 
 /**
@@ -854,6 +856,7 @@ export function changesView(
       text: changeLine(i, label),
       canPutBack: putBackValue(i, null) !== null,
       before: i.before,
+      suggested: i.suggested,
     })),
     pending,
   };

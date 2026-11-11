@@ -54,7 +54,7 @@ export function ChangeChoices({ line, entry, listing }: { line: ChangeLine; entr
           onClick={() => {
             setNotice(null);
             keep.mutate(
-              { listingId: listing.id, network: entry.network, field: line.field, label: line.path },
+              { listingId: listing.id, network: entry.network, field: line.field, label: line.path, externalId: entry.externalId ?? undefined, suggested: line.suggested },
               { onSuccess: () => setNotice(`Done. We keep ${label}'s version and will stop reminding you about this.`) },
             );
           }}

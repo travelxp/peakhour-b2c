@@ -66,7 +66,7 @@ export const presenceApi = {
    * "Keep the network's version" of a change it made by itself: the change stops alerting, and a name, description, phone number or website
    * is taken into the listing. Nothing is sent to the network. `path` says which change when several have no name.
    */
-  keepNetworkChange: (body: { listingId: string; network: string; field: string; label?: string | undefined }) =>
+  keepNetworkChange: (body: { listingId: string; network: string; field: string; label?: string | undefined; externalId?: string | undefined; suggested?: string | undefined }) =>
     api.post<{ kept: true }>("/v1/presence/network-changes/keep", body),
 
   /**
