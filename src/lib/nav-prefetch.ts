@@ -101,9 +101,13 @@ export function shouldSkipPrefetch(
 export function prefetchDestinationData(qc: QueryClient, href: string, ctx: PrefetchContext): void {
   if (!ctx.isAuthenticated) return;
   // the path picks the destination, the query string refines it (`/dashboard/inbox?tab=insights` is the Inbox, on its Insights lane)
-  const [target = ""] = href.split("#");
-  const q = target.indexOf("?");
-  const queries = INTENT_QUERIES[q === -1 ? target : target.slice(0, q)]?.(ctx, new URLSearchParams(q === -1 ? "" : target.slice(q + 1))) ?? [];
+  let url: URL;
+  try {
+    url = new URL(href, "http://intent.invalid");
+  } catch {
+    return;
+  }
+  const queries = INTENT_QUERIES[url.pathname.replace(/\/+$/, "")]?.(ctx, url.searchParams) ?? [];
   for (const q of queries) {
     // an infinite query (a paged list) warms its first page under the same key the page reads
     if ("initialPageParam" in q) void qc.prefetchInfiniteQuery(q as FetchInfiniteQueryOptions);

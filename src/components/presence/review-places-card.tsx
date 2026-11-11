@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useNavIntent } from "@/hooks/use-nav-intent";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavIntent } from "@/hooks/use-nav-intent";
 import { Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

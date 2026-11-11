@@ -6,7 +6,7 @@
  * or the pause copy: it shows what `GET /v1/inbox-desk/*` and the list rows carry.
  */
 
-import { assigneeFilterFromParam, deskListParams, priorityFilterFromParam, tagFromParam } from "@/lib/desk-list-params";
+import { deskListParams } from "@/lib/desk-list-params";
 import { canReply } from "@/lib/wa-inbox-reply";
 
 // ── what the api sends ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -119,7 +119,7 @@ export const ASSIGNEE_FILTERS: Array<{ value: AssigneeFilter; label: string }> =
 /** The priority chip: every conversation, or only those a person flagged. */
 export type PriorityFilter = "all" | "high";
 
-export { deskListParams, assigneeFilterFromParam, priorityFilterFromParam, tagFromParam };
+export { deskListParams };
 
 export interface DeskFilters {
   assignee: AssigneeFilter;

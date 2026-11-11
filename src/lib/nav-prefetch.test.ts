@@ -224,6 +224,11 @@ describe("a filtered Inbox link warms the view the page builds for that address"
     expect(keysOf("/dashboard/inbox?assignee=everyone&priority=low&tag=a%20b")).toEqual(keysOf("/dashboard/inbox"));
   });
 
+  it("a trailing slash or a full address resolves the same destination", () => {
+    expect(keysOf("/dashboard/inbox/?tab=insights")).toEqual(keysOf("/dashboard/inbox?tab=insights"));
+    expect(keysOf("https://app.example/dashboard/inbox?tab=insights")).toEqual(keysOf("/dashboard/inbox?tab=insights"));
+  });
+
   it("another destination with a query string still resolves by its path", () => {
     expect(keysOf("/dashboard/tasks?x=1")).toEqual([jobsListQuery("recent").queryKey]);
   });

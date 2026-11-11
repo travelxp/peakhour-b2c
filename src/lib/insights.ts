@@ -6,7 +6,6 @@
  * quiet, what counts as needing action).
  */
 import { adminUrl } from "@/lib/demand-insights";
-import { topicFromParam } from "@/lib/desk-list-params";
 
 export type InsightType = "product_demand" | "missing_product_info" | "missing_store_info" | "purchase_concern" | "support_issue" | "top_question";
 export type InsightTrend = "new" | "up" | "down" | "flat";
@@ -157,8 +156,6 @@ export function insightsHref(filter: InsightFilter = DEFAULT_INSIGHT_FILTER): st
 
 
 // -- the conversation filter (`?topic=`) -------------------------------------------------------------------------------
-
-export { topicFromParam };
 
 /** "See conversations": the Conversations lane narrowed to one insight. */
 export function conversationsHref(key: string): string {

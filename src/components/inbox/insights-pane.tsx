@@ -269,6 +269,7 @@ function InsightCard({ item, windowDays, shop }: { item: Insight; windowDays: nu
   const dismissal = useInsightDismissal();
   // these links carry the lane and its filter, so a hover warms exactly the list they open (lib/nav-prefetch.ts)
   const intent = useNavIntent();
+  const convoHref = conversationsHref(item.key);
   const action = actionFor(item, shop);
   const second = secondActionFor(item, shop);
   const trend = trendText(item.trend);
@@ -342,7 +343,7 @@ function InsightCard({ item, windowDays, shop }: { item: Insight; windowDays: nu
             {/* a "conversations" step already opens this same list under its own label: one button, not two */}
             {action.kind !== "conversations" && convo.linkable && (
               <Button size="sm" variant="outline" asChild>
-                <Link href={conversationsHref(item.key)} {...intent(conversationsHref(item.key))}>See conversations</Link>
+                <Link href={convoHref} {...intent(convoHref)}>See conversations</Link>
               </Button>
             )}
             <Button size="sm" variant="ghost" disabled={dismissal.isPending} onClick={() => dismissal.mutate({ key: item.key })}>

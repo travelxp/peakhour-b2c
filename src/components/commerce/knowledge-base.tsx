@@ -101,6 +101,7 @@ export function KnowledgeBase() {
 
 function Questions() {
   const intent = useNavIntent();
+  const insightsLink = insightsHref("missing_info");
   const { data, isLoading, isError } = useKbRequests();
   if (isLoading) return <Skeleton className="h-6 w-64" />;
   if (isError) return <p className="text-sm text-destructive">Could not load the questions to answer. Please refresh.</p>;
@@ -112,7 +113,7 @@ function Questions() {
     <p data-kb-questions className="flex flex-wrap items-center gap-2 text-sm">
       <MessageCircleQuestion className="size-4" aria-hidden="true" />
       {n === 0 ? "No questions are waiting for an answer." : n === 1 ? "1 question is waiting for your answer." : `${n} questions are waiting for your answer.`}
-      <Link href={insightsHref("missing_info")} {...intent(insightsHref("missing_info"))} className="font-medium underline underline-offset-2">
+      <Link href={insightsLink} {...intent(insightsLink)} className="font-medium underline underline-offset-2">
         See them in Insights
       </Link>
     </p>

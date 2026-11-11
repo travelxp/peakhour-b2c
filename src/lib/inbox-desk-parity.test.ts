@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { priorityFilterFromParam } from "@/lib/desk-list-params";
 import {
   ASSIGNEE_FILTERS,
   AUTO_CLOSE_DEFAULT_DAYS,
@@ -10,7 +11,6 @@ import {
   mentionsIn,
   pageOfView,
   patchFromForm,
-  priorityFilterFromParam,
   pruneAvailable,
   searchWithFilters,
   validateForm,

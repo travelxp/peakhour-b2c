@@ -43,14 +43,13 @@ import {
   canDeleteNote,
   mentionNames,
   searchWithFilters,
-  tagFromParam,
   timelineOf,
   viewersLine,
   type AssigneeFilter,
   type PageFilters,
   type PriorityFilter,
 } from "@/lib/inbox-desk";
-import { deskViewFromParams } from "@/lib/desk-list-params";
+import { deskViewFromParams, tagFromParam } from "@/lib/desk-list-params";
 import { TopicFilterBanner } from "@/components/inbox/topic-filter-banner";
 import { CustomerPanel } from "@/components/inbox/customer-panel";
 import { HandoverCard, StorefrontFooter } from "@/components/inbox/storefront-live";
