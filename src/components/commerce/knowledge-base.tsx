@@ -80,6 +80,7 @@ import {
   type CardWords,
 } from "@/lib/knowledge-base";
 import { shopOf } from "@/lib/insights";
+import { EntryPublish, PolicyBuilder } from "@/components/commerce/policy-builder";
 
 /**
  * Commerce -> Knowledge base. What your assistant knows beyond the catalog: the
@@ -92,6 +93,7 @@ export function KnowledgeBase() {
   return (
     <div className="space-y-8">
       <Questions />
+      <PolicyBuilder />
       <Suggestions />
       <PolicyHealth />
       <Entries />
@@ -679,6 +681,7 @@ function EntryCard({ entry, onEdit }: { entry: KbEntry; onEdit: () => void }) {
               View the original <ExternalLink className="size-3" aria-hidden="true" />
             </a>
           )}
+          {entry.status === "active" && !entry.readOnly && <EntryPublish entryId={entry.id} />}
           <div className="flex gap-2 pt-1">
             {entry.readOnly ? (
               <Button size="sm" variant="outline" disabled={action.isPending} onClick={() => run("take-over")}>
