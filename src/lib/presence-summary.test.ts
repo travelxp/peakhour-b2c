@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { needItems, requestNeedsYou, requestRowId, summaryLine, waitingLine, WAITING_WORDS, type SummaryInput } from "@/lib/presence-summary";
 import { requestStatus, type ChangeCardData } from "@/lib/presence-edit";
 import type { ListingScoreResponse } from "@/lib/presence-score";
@@ -167,6 +169,16 @@ describe("what needs the merchant", () => {
     const read = input({ writes: false, entry: withChanges([{ field: "phone" }], pub({ state: "blocked", blocker })), changes: [change()], score: ready(70, [{ id: "a", state: "attention" }]) });
     expect(summaryLine(read).map((p) => p.text)).toEqual(["Listing 70/100", "2 things need you"]);
     expect(needItems(read)!.map((i) => i.kind)).toEqual(["changed", "health"]);
+  });
+
+  it("with no way to write, the role and the request list are not waited for", () => {
+    const own = withChanges([{ field: "phone" }]);
+    expect(needItems(input({ writes: false, can: undefined, changes: undefined, entry: own }))!.map((i) => i.kind)).toEqual(["changed"]);
+    expect(needItems(input({ writes: true, can: undefined, changes: undefined, entry: own }))).toBeNull();
+  });
+
+  it("the anchor the line uses is the id the section is drawn with", () => {
+    expect(readFileSync(join(process.cwd(), "src", "components", "presence", "control-section.tsx"), "utf8")).toContain("NETWORK_CHANGES_ID = SUMMARY_ANCHORS.networkChanges");
   });
 
   it("the list opens Done recently by the same test the count uses", () => {

@@ -74,9 +74,11 @@ const plural = (n: number) => (n === 1 ? "1 thing needs you" : `${n} things need
 /** Everything that needs the merchant, in the order to look at it. Null when something it counts has not been read yet. */
 export function needItems(input: SummaryInput): NeedItem[] | null {
   const { score, entry, can, changes, now } = input;
-  if (!entry || !can || !changes || score === undefined) return null;
+  const writes = input.writes !== false;
+  // What this page cannot change needs neither the role nor the request list, so their reads are not waited for.
+  if (!entry || score === undefined || (writes && (!can || !changes))) return null;
   const items: NeedItem[] = [];
-  if (input.writes !== false) {
+  if (writes && can && changes) {
     const { open, recent } = requestGroups(changes, now);
     for (const c of [...open, ...recent]) {
       // `decide` is only ever given to a role that can approve. A request stopped by the publishing blocker is the blocker's, counted once below.
