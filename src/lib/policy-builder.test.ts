@@ -513,10 +513,10 @@ describe("KE-2.9a fields", () => {
   const row = (over: Partial<PolicyRow> = {}): PolicyRow => ({ id: "r1", policyType: "returns", status: "active", markets: [], marketKey: "*", facts: {}, factSources: [], ...over });
   it("finds the draft and the live entry of a policy for one market set, from the policy rows", () => {
     const rows = [row({ id: "d", status: "draft", draftEntryId: "e-draft" }), row({ id: "a", activeEntryId: "e-live" }), row({ id: "gb", marketKey: "GB", markets: ["GB"], activeEntryId: "e-gb" })];
-    expect(policyEntryRefs(rows, [])).toEqual({ draftEntryId: "e-draft", activeEntryId: "e-live", policyId: "a" });
-    expect(policyEntryRefs(rows, ["GB"])).toEqual({ draftEntryId: null, activeEntryId: "e-gb", policyId: "gb" });
-    expect(policyEntryRefs(rows, ["IN"])).toEqual({ draftEntryId: null, activeEntryId: null, policyId: null });
-    expect(policyEntryRefs(undefined, [])).toEqual({ draftEntryId: null, activeEntryId: null, policyId: null });
+    expect(policyEntryRefs(rows, [])).toEqual({ draftEntryId: "e-draft", draftPolicyId: "d", activeEntryId: "e-live", policyId: "a" });
+    expect(policyEntryRefs(rows, ["GB"])).toEqual({ draftEntryId: null, draftPolicyId: null, activeEntryId: "e-gb", policyId: "gb" });
+    expect(policyEntryRefs(rows, ["IN"])).toEqual({ draftEntryId: null, draftPolicyId: null, activeEntryId: null, policyId: null });
+    expect(policyEntryRefs(undefined, [])).toEqual({ draftEntryId: null, draftPolicyId: null, activeEntryId: null, policyId: null });
   });
   it("says the per-channel state from the rows' publication summaries", () => {
     const rows = [row({ publications: [{ id: "x.1", channel: "shopify", slot: "legal_policy", state: "live" }, { id: "x.2", channel: "site", slot: "page", state: "diverged" }] })];
@@ -524,6 +524,9 @@ describe("KE-2.9a fields", () => {
     expect(b.map((x) => x.text)).toEqual(["Shopify, your store policy: live", "site, a page: changed on your site"]);
     expect(b[1]!.tone).toBe("warn");
     expect(policyPublicationBadges([row()], caps)).toEqual([]);
+    // two market sets are told apart, and an unknown state is not shown raw
+    const two = [row({ publications: [{ id: "a", channel: "shopify", slot: "legal_policy", state: "live" }] }), row({ id: "gb", markets: ["GB"], marketKey: "GB", publications: [{ id: "b", channel: "shopify", slot: "legal_policy", state: "weird" }] })];
+    expect(policyPublicationBadges(two, caps).map((x) => x.text)).toEqual(["Shopify, your store policy: live", "Shopify, your store policy (GB): status unknown"]);
   });
   it("puts both texts of a divergence side by side when the site's text is there, and says so when the copy is gone", () => {
     expect(divergenceTexts({ remoteText: "Their words" }, "Our words")).toEqual({ ours: "Our words", theirs: "Their words", gone: false });

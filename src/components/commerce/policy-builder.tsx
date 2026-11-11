@@ -595,7 +595,7 @@ function WriteSection({ type, markets, dirty, answersVersion, rows, onSplit }: {
             charged: false,
             peaks: 0,
             entry: { id: waiting.id, title: waiting.title, content: waiting.content },
-            policy: { id: refs.policyId ?? "", status: "draft", markets, marketKey: marketsKey(markets) },
+            policy: { id: refs.draftPolicyId ?? "", status: "draft", markets, marketKey: marketsKey(markets) },
             needsFacts: waiting.needsFacts,
             replaced: false,
             marketCheck: "pending",
@@ -624,6 +624,8 @@ function DraftReview({ response, draftKey, outOfDate, resumed = false, type, mar
   const [error, setError] = useState<string | null>(null);
   const [stale, setStale] = useState(false);
   const [approvedLine, setApprovedLine] = useState<string | null>(null);
+  // the words that were approved: later edits to the box are not what is on the site
+  const [approvedText, setApprovedText] = useState<string | null>(null);
   const approve = useApprovePolicyDraft();
   const words = approveState(title, content);
   // answers changed after this draft was written: approving it would state what they no longer say (the api refuses it too, with a 409)
@@ -634,7 +636,10 @@ function DraftReview({ response, draftKey, outOfDate, resumed = false, type, mar
   const doApprove = async () => {
     setError(null);
     const r = await runPolicyApprove((p) => approve.mutateAsync({ id: response.entry.id, ...p }), title, content);
-    if (r.ok) setApprovedLine(r.line);
+    if (r.ok) {
+      setApprovedLine(r.line);
+      setApprovedText(content.trim());
+    }
     else {
       setError(r.error);
       setStale(r.stale);
@@ -697,7 +702,7 @@ function DraftReview({ response, draftKey, outOfDate, resumed = false, type, mar
             <Check className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             {approvedLine}
           </p>
-          <PublishPanel entryId={response.entry.id} ourText={content} ctx={{ policyType: type, markets, policyId: response.entry.policyId ?? response.policy.id }} />
+          <PublishPanel entryId={response.entry.id} ourText={approvedText ?? undefined} ctx={{ policyType: type, markets, policyId: response.entry.policyId ?? (response.policy.id || null) }} />
         </>
       )}
     </div>

@@ -783,12 +783,12 @@ export function resolvedLine(keep: "ours" | "theirs", slot: Slot): string {
   return slot === "legal_policy" ? `The text from your site is now a draft under Suggested answers. ${KEEP_THEIRS_POLICY_NOTE}` : "The text from your site is now a draft under Suggested answers. Approve it to use it in your assistant.";
 }
 
-/** A copy that can be removed from the channel offers it; one the channel will not let go is explained by the api's refusal. */
 /** What the policy row's entries are, for one market set: the draft waiting, the live entry, and the policy row the live entry belongs to. */
-export function policyEntryRefs(rows: readonly PolicyRow[] | undefined, markets: readonly string[]): { draftEntryId: string | null; activeEntryId: string | null; policyId: string | null } {
+export function policyEntryRefs(rows: readonly PolicyRow[] | undefined, markets: readonly string[]): { draftEntryId: string | null; draftPolicyId: string | null; activeEntryId: string | null; policyId: string | null } {
   const mine = (rows ?? []).filter((r) => r.marketKey === marketsKey(markets));
   const active = mine.find((r) => r.activeEntryId);
-  return { draftEntryId: mine.find((r) => r.draftEntryId)?.draftEntryId ?? null, activeEntryId: active?.activeEntryId ?? null, policyId: active?.id ?? null };
+  const draft = mine.find((r) => r.draftEntryId);
+  return { draftEntryId: draft?.draftEntryId ?? null, draftPolicyId: draft?.id ?? null, activeEntryId: active?.activeEntryId ?? null, policyId: active?.id ?? null };
 }
 
 /** Per-channel state from the policy rows' publication summaries: "Shopify, your store policy: live". */
@@ -802,8 +802,8 @@ export function policyPublicationBadges(rows: readonly PolicyRow[], caps: Capabi
   const out: { key: string; text: string; tone: "ok" | "warn" | "bad" }[] = [];
   for (const r of rows) {
     for (const p of r.publications ?? []) {
-      const w = words[p.state] ?? { text: p.state, tone: "warn" as const };
-      out.push({ key: p.id, text: `${channelLabelFor(caps, p.channel)}, ${slotWords(p.slot).noun}: ${w.text}`, tone: w.tone });
+      const w = words[p.state] ?? { text: "status unknown", tone: "warn" as const };
+      out.push({ key: p.id, text: `${channelLabelFor(caps, p.channel)}, ${slotWords(p.slot).noun}${r.markets.length > 0 ? ` (${r.markets.join(", ")})` : ""}: ${w.text}`, tone: w.tone });
     }
   }
   return out;
@@ -823,4 +823,5 @@ export function divergenceTexts(p: Pick<Publication, "remoteText">, ourText: str
 
 export const REMOTE_GONE = "The page is no longer on your site, so there is no text there to keep.";
 
+/** A copy that can be removed from the channel offers it; one the channel will not let go is explained by the api's refusal. */
 export const REMOVE_LABEL = "Take it off";
