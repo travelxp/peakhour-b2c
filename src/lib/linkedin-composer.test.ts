@@ -171,6 +171,16 @@ describe("buildPublishBody", () => {
     });
     expect(body.link).toEqual({ url: "https://a.b", title: undefined });
   });
+  it("never sends segments with a poll", () => {
+    const segments = [{ type: "text", value: "Hi" }] as never;
+    const body = buildPublishBody({
+      ...input,
+      segments,
+      poll: { question: "Q?", options: [{ text: "A" }, { text: "B" }], duration: "ONE_DAY" },
+    });
+    expect("commentarySegments" in body).toBe(false);
+    expect(body.commentary).toBe("Hello");
+  });
   it("ignores a hidden link when the toggle is off", () => {
     expect(
       buildPublishBody({ ...input, showLink: false, linkUrl: "https://a.b" }).link,
@@ -216,6 +226,12 @@ describe("buildScheduleChannels", () => {
   it("targets an organization urn for a page", () => {
     const [c] = buildScheduleChannels({ ...input, authorKey: "org:77" });
     expect(c.payload.channelOptions.authorUrn).toBe("urn:li:organization:77");
+  });
+  it("forces PUBLIC for a page, like publish", () => {
+    const [c] = buildScheduleChannels({ ...input, authorKey: "org:77", visibility: "CONNECTIONS" });
+    expect(c.payload.channelOptions.visibility).toBe("PUBLIC");
+    const [d] = buildScheduleChannels({ ...input, visibility: "CONNECTIONS" });
+    expect(d.payload.channelOptions.visibility).toBe("CONNECTIONS");
   });
   it("carries a link, with the title only when set", () => {
     const [a] = buildScheduleChannels({ ...input, showLink: true, linkUrl: " https://a.b " });

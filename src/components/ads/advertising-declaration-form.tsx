@@ -35,6 +35,7 @@ import {
   formMode,
   formSubmitLabel,
   type DeclarationAnswer,
+  type FormMode,
 } from "@/lib/ads-declaration-form";
 
 export interface DeclarationFormProps {
@@ -108,6 +109,68 @@ export function DeclarationForm({
     </>
   );
 
+  // ⏸THE DATE IS DROPPED, not guessed, when it cannot be formatted.
+  const declaredOn =
+    (state.kind === "political" || state.kind === "superseded") &&
+    state.declaredAt &&
+    formatDeclaredAt(state.declaredAt)
+      ? ` on ${formatDeclaredAt(state.declaredAt)}`
+      : "";
+
+  /** The line under the heading. One branch per `FormMode`, so the heading,
+   *  this line and the submit label cannot name different reasons. */
+  const formBody = (m: FormMode) => {
+    switch (m) {
+      case "reconfirm_wording":
+        return (
+          <>
+            The notice has been reworded since you declared{declaredOn}. Until
+            you confirm it, automatic campaigns send no declaration at all.
+          </>
+        );
+      case "answer_categories":
+        return (
+          <>
+            Your declaration stays in force. Meta also needs the
+            special-ad-category answer, and the two are recorded together as
+            one declaration — so confirm the wording again below and it will be
+            saved in one go.
+          </>
+        );
+      case "superseded":
+        return (
+          <>
+            LinkedIn has updated this notice since you declared{declaredOn}.
+            Until you confirm the current wording, automatic campaigns fall
+            back to no declaration.
+          </>
+        );
+      // Honest about not knowing rather than showing a confident "not
+      // declared": a false "not declared" only over-warns, but a false
+      // "declared" would be a claim we can't support. The two causes need
+      // different copy — saying "your campaigns are unaffected" would be FALSE
+      // on a notice change, where every stored declaration is superseded.
+      case "unsupported_notice":
+        return (
+          <>
+            LinkedIn has updated this notice and Peakhour needs an update
+            before you can confirm the new wording. Until then, automatic
+            campaigns send no declaration — so LinkedIn may hold them from EU
+            audiences. Contact support if this persists.
+          </>
+        );
+      case "read_failed":
+        return (
+          <>
+            The state shown here may be wrong. Try again in a moment — your
+            campaigns are unaffected.
+          </>
+        );
+      case "first_declaration":
+        return POLITICAL_DECLARATION_CONSEQUENCE;
+    }
+  };
+
   return (
       <div className="space-y-2">
         <div className="flex items-start gap-2">
@@ -123,72 +186,9 @@ export function DeclarationForm({
             <ShieldAlert className="mt-0.5 size-4 shrink-0 text-warning-on-tint" />
           )}
           <div className="min-w-0 flex-1 space-y-1">
-            <p className="text-sm font-medium">
-              {/* ⏸TWO REASONS REACH THIS FORM NOW (review round 3), and a
-                heading that names the wrong one tells the merchant to
-                look for a change that did not happen. */}
-            {formHeading(mode)}
-          </p>
+            <p className="text-sm font-medium">{formHeading(mode)}</p>
             <p className="text-xs text-muted-foreground">
-              {reconfirmingPolitical ? (
-                state.kind === "political" && state.superseded ? (
-                  <>
-                    The notice has been reworded since you declared
-                    {state.kind === "political" && state.declaredAt &&
-                    formatDeclaredAt(state.declaredAt)
-                      ? ` on ${formatDeclaredAt(state.declaredAt)}`
-                      : ""}
-                    . Until you confirm it, automatic campaigns send no
-                    declaration at all.
-                  </>
-                ) : (
-                  <>
-                    Your declaration stays in force. Meta also needs the
-                    special-ad-category answer, and the two are recorded
-                    together as one declaration — so confirm the wording
-                    again below and it will be saved in one go.
-                  </>
-                )
-              ) : amending ? (
-                <>
-                  Your declaration stays in force. Meta also needs the
-                  special-ad-category answer, and the two are recorded
-                  together as one declaration — so confirm the wording
-                  again below and it will be saved in one go.
-                </>
-              ) : state.kind === "superseded" ? (
-                <>
-                  LinkedIn has updated this notice since you declared
-                  {state.declaredAt && formatDeclaredAt(state.declaredAt)
-                    ? ` on ${formatDeclaredAt(state.declaredAt)}`
-                    : ""}
-                  . Until you confirm the current wording, automatic
-                  campaigns fall back to no declaration.
-                </>
-              ) : state.kind === "unknown" ? (
-                // Honest about not knowing rather than showing a confident
-                // "not declared": a false "not declared" only over-warns,
-                // but a false "declared" would be a claim we can't support.
-                // The two causes need different copy — saying "your
-                // campaigns are unaffected" would be FALSE on a notice
-                // change, where every stored declaration is superseded.
-                state.reason === "unsupported_notice" ? (
-                  <>
-                    LinkedIn has updated this notice and Peakhour needs an
-                    update before you can confirm the new wording. Until
-                    then, automatic campaigns send no declaration — so
-                    LinkedIn may hold them from EU audiences. Contact
-                    support if this persists.
-                  </>
-                ) : (
-                  <>
-                    The state shown here may be wrong. Try again in a moment
-                    — your campaigns are unaffected.
-                  </>
-                )
-              ) : (
-                POLITICAL_DECLARATION_CONSEQUENCE
-              )}
+              {formBody(mode)}
             </p>
           </div>
         </div>

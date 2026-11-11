@@ -44,6 +44,7 @@ import {
 } from "@/lib/ads-copy";
 import {
   buildDeclarationPatch,
+  effectiveAnswer,
   saveErrorMessage,
   type DeclarationAnswer,
 } from "@/lib/ads-declaration-form";
@@ -184,7 +185,7 @@ export function AdvertisingDeclarationCard() {
       toast.success(
         declared
           ? declarationSavedMessage(
-              answerInForce ?? "NOT_POLITICAL",
+              effectiveAnswer(answerInForce),
               res.settings.advertisingDeclaration?.specialAdCategories !== undefined,
             )
           : "Declaration withdrawn.",

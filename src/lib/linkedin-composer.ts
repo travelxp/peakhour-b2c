@@ -158,7 +158,7 @@ export interface PublishBodyInput {
   visibility: LinkedInVisibility;
   text: string;
   /** Commentary segments already built from the text + mentions, or null to
-   *  send the raw string. Always null for poll posts (built by the caller). */
+   *  send the raw string. Ignored for poll posts. */
   segments: PublishLinkedInPostInput["commentarySegments"] | null;
   poll: PollInputDraft | null;
   showLink: boolean;
@@ -176,8 +176,10 @@ export function buildPublishBody(i: PublishBodyInput): PublishLinkedInPostInput 
   // Structured commentary (CMA D4): when the user inserted org @mentions that
   // still appear in the text, send segments so the URNs link. Otherwise send
   // the raw string (which also lets LinkedIn auto-link plain #hashtags).
-  if (i.segments) {
-    body.commentarySegments = i.segments;
+  // A poll's intro text is never segmented, whatever the caller built.
+  const segments = i.poll ? null : i.segments;
+  if (segments) {
+    body.commentarySegments = segments;
   } else {
     body.commentary = i.text.trim();
   }
@@ -202,6 +204,7 @@ export function buildPublishBody(i: PublishBodyInput): PublishLinkedInPostInput 
 export interface ScheduleChannelInput {
   authorKey: string;
   personUrn: string;
+  /** The picker's value; a page forces PUBLIC, as it does for publish. */
   visibility: LinkedInVisibility;
   showLink: boolean;
   linkUrl: string;
@@ -224,7 +227,7 @@ export function buildScheduleChannels(i: ScheduleChannelInput) {
     authorUrn: isOrgAuthorKey(i.authorKey)
       ? `urn:li:organization:${i.authorKey.slice("org:".length)}`
       : i.personUrn,
-    visibility: i.visibility,
+    visibility: effectiveVisibilityFor(i.authorKey, i.visibility),
   };
   if (i.showLink && i.linkUrl.trim()) {
     channelOptions.link = {

@@ -10,6 +10,12 @@ import type { DeclarationState } from "@/lib/ads-copy";
 
 export type DeclarationAnswer = "NOT_POLITICAL" | "POLITICAL";
 
+/** No answer chosen counts as NOT_POLITICAL, as the card always has. One
+ *  place, so what is saved and what the success toast says cannot differ. */
+export function effectiveAnswer(answerInForce: DeclarationAnswer | null): DeclarationAnswer {
+  return answerInForce ?? "NOT_POLITICAL";
+}
+
 export interface DeclarationPatchInput {
   /** `false` withdraws the declaration. */
   declare: boolean;
@@ -47,7 +53,7 @@ export interface DeclarationPatch {
 export function buildDeclarationPatch(i: DeclarationPatchInput): DeclarationPatch {
   if (!i.declare) return { politicalIntent: null };
   return {
-    politicalIntent: i.answerInForce ?? "NOT_POLITICAL",
+    politicalIntent: effectiveAnswer(i.answerInForce),
     ...(i.categoryOptionCount > 0 ? { specialAdCategories: i.selectedCategories } : {}),
     ...(i.answerInForce === "POLITICAL" && i.countries.length > 0
       ? { specialAdCategoryCountries: i.countries }

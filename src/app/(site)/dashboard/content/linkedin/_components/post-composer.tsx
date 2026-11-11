@@ -503,13 +503,13 @@ export function PostComposer({ identity, seedText }: Props) {
       buildScheduleChannels({
         authorKey,
         personUrn: identity.person.urn,
-        visibility: effectiveVisibility,
+        visibility,
         showLink,
         linkUrl,
         linkTitle,
         text,
       }),
-    [authorKey, identity.person.urn, effectiveVisibility, showLink, linkUrl, linkTitle, text],
+    [authorKey, identity.person.urn, visibility, showLink, linkUrl, linkTitle, text],
   );
 
   function handleScheduled() {

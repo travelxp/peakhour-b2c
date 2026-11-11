@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildDeclarationPatch,
+  effectiveAnswer,
   formHeading,
   formMode,
   formSubmitLabel,
@@ -65,6 +66,14 @@ describe("buildDeclarationPatch", () => {
       buildDeclarationPatch({ ...base, selectedCategories: ["HOUSING", "CREDIT"] })
         .specialAdCategories,
     ).toEqual(["HOUSING", "CREDIT"]);
+  });
+});
+
+describe("effectiveAnswer", () => {
+  it("defaults an unchosen answer to NOT_POLITICAL and keeps a chosen one", () => {
+    expect(effectiveAnswer(null)).toBe("NOT_POLITICAL");
+    expect(effectiveAnswer("POLITICAL")).toBe("POLITICAL");
+    expect(effectiveAnswer("NOT_POLITICAL")).toBe("NOT_POLITICAL");
   });
 });
 
