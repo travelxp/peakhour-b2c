@@ -9,6 +9,7 @@ import { ThemeProvider } from "@/providers/theme-provider";
 import { QueryProvider } from "@/providers/query-provider";
 import { AuthProvider } from "@/providers/auth-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { WebVitalsReporter } from "@/components/shared/web-vitals-reporter";
 import { Toaster } from "sonner";
 import "../globals.css";
 
@@ -111,6 +112,8 @@ export default async function SiteLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} ${fraunces.variable} font-sans antialiased`}
       >
+        {/* Real-user speed data: one beacon per page load, route pattern only. */}
+        <WebVitalsReporter />
         <ThemeProvider>
           <QueryProvider>
             <AuthProvider>
