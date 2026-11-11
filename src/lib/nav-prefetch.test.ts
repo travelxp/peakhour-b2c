@@ -12,6 +12,11 @@ import {
   shouldSkipPrefetch,
 } from "./nav-prefetch";
 import { jobsListQuery } from "@/hooks/use-jobs";
+import { storefrontChatsOptions, waConversationsOptions } from "@/lib/inbox-list-queries";
+import { INBOX_FIRST_VIEW } from "./nav-prefetch";
+import { deskKeys } from "@/hooks/use-inbox-desk";
+import { deskTagsQuery } from "./nav-queries";
+import { removeScopedQueries } from "./auth-session";
 
 const ctx = { orgId: "o1", businessId: "b1", isAuthenticated: true };
 
@@ -76,6 +81,46 @@ describe("prefetchDestinationData", () => {
     prefetchDestinationData(qc, "/dashboard/tasks", ctx);
     await Promise.resolve();
     expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  it("Inbox warms the Conversations lane (both paged lists, tags, insights) under the keys the pane reads", async () => {
+    // the app's own default (providers/query-provider.tsx): the paged lists set no staleTime of their own
+    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000 } } });
+    prefetchDestinationData(qc, "/dashboard/inbox", ctx);
+    const wa = waConversationsOptions("b1", INBOX_FIRST_VIEW).queryKey;
+    const sf = storefrontChatsOptions("b1", INBOX_FIRST_VIEW).queryKey;
+    await vi.waitFor(() => {
+      expect(qc.getQueryData(wa)).toBeDefined();
+      expect(qc.getQueryData(sf)).toBeDefined();
+      expect(qc.getQueryData(["inbox-desk", "tags", "b1"])).toBeDefined();
+      expect(qc.getQueryData(["insights", "o1", "b1", 30])).toBeDefined();
+      expect(qc.getQueryData(["inbox-reviews"])).toBeDefined();
+    });
+    // the first render of the pane is a cache hit, not a request
+    const calls = get.mock.calls.length;
+    prefetchDestinationData(qc, "/dashboard/inbox", ctx);
+    await Promise.resolve();
+    expect(get.mock.calls.length).toBe(calls);
+    // the keys are the ones the pane builds from its default state
+    expect(wa).toEqual(["wa-conversations", "b1", "all", "open", "", "all", "", "", "all"]);
+    expect(sf).toEqual(["storefront-chats", "b1", "all", "open", "all", "", "", "all"]);
+  });
+
+  it("the prefetched tag key is the key the desk invalidates", () => {
+    expect(deskTagsQuery("b1").queryKey).toEqual(deskKeys.tags("b1"));
+  });
+
+  it("Inbox without a business warms only what needs none", () => {
+    const keys = INTENT_QUERIES["/dashboard/inbox"]({ ...ctx, businessId: undefined, orgId: undefined }).map((q) => q.queryKey);
+    expect(keys).toEqual([["inbox-reviews"]]);
+  });
+
+  it("a scope switch clears what a prefetch put in the cache", async () => {
+    const qc = new QueryClient();
+    prefetchDestinationData(qc, "/dashboard/inbox", ctx);
+    await vi.waitFor(() => expect(qc.getQueryData(["inbox-reviews"])).toBeDefined());
+    removeScopedQueries(qc);
+    expect(qc.getQueryCache().getAll()).toHaveLength(0);
   });
 
   it("does nothing signed out, or for a link with no registered query", () => {

@@ -2,29 +2,38 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { ActionCost } from "@/components/dashboard/action-cost";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { CalendarClock, Building2, GalleryHorizontalEnd, Link2, ListChecks, Loader2, Send, Sparkles, User, Wand2 } from "lucide-react";
+import { Link2 } from "lucide-react";
 import { linkedInContentApi, type HookVariant, type LinkedInAuthor, type LinkedInVisibility, type LinkedInIdentity, type PublishLinkedInPostInput, type CarouselPreviewInput, type CarouselPreviewResult, type RewriteHookResponse } from "@/lib/api/linkedin-content";
 import { emptyPoll, isPollValid, type PollState } from "./poll-editor";
 import { buildCommentarySegments, type ResolvedMention } from "./commentary-segments";
 import { ApiError } from "@/lib/api";
 import { rewriteContent, createDraft, updateDraft, type ComposerDraftRef } from "@/lib/api/content";
 import { insertAtCaret } from "@/lib/composer/caret";
+import {
+  applyHookVariant,
+  authorFromKey,
+  buildAuthorOptions,
+  buildPublishBody,
+  buildScheduleChannels,
+  composerGates,
+  effectiveVisibilityFor,
+  isOrgAuthorKey,
+  scheduleTitleFor,
+} from "@/lib/linkedin-composer";
 import { AiComposeToolbar, ComposerShell, DraftSaver, EmojiPickerTrigger, HashtagSuggest, MentionTypeahead, PlatformCharCounter, useDraftSaver, type AiActionContext, type ComposerCommand, type HashtagCandidate, type MentionCandidate } from "@/components/composer";
 import type { ScheduleSourceType } from "@/lib/scheduler/types";
 import { sourceTextHash } from "@/lib/scheduler/source-hash";
 import { aiOpNoChangeMessage, aiOpToast, isProbablyUrl, mapVoiceCardSummary } from "./composer-helpers";
-import { PolicyChip, usePolicyCheck } from "./composer-policy-check";
+import { usePolicyCheck } from "./composer-policy-check";
 import { HOOK_SCORE_MIN_CHARS, HookScoreCard, useHookScore } from "./composer-hook-score";
-import { LinkAttachCard, MentionsStrip, VisibilitySelect } from "./composer-attachments";
+import { LinkAttachCard, MentionsStrip } from "./composer-attachments";
+import { ComposerActions } from "./composer-actions";
+import { buildComposerCommands } from "./composer-commands";
+import { ComposerHeader } from "./composer-header";
 import { OffBrandVoiceNotice, VoiceCardPanel } from "./composer-voice-card";
 
 // Interaction-gated pieces: each mounts only after the user opens it.
@@ -33,14 +42,6 @@ const PollEditor = dynamic(() => import("./poll-editor").then((m) => m.PollEdito
 const HookVariantsPanel = dynamic(() => import("./composer-hook-score").then((m) => m.HookVariantsPanel), { ssr: false });
 const SchedulerComposer = dynamic(() => import("@/components/scheduler/scheduler-composer").then((m) => m.SchedulerComposer), { ssr: false });
 const ComposerCommandPalette = dynamic(() => import("@/components/composer/composer-command-palette").then((m) => m.ComposerCommandPalette), { ssr: false });
-
-const MAX_LEN = 3000;
-
-/** A carousel splits the text into slides, so it needs a few sentences of
- *  substance — mirrors the server's `newsletterText` min of 50 chars. */
-const CAROUSEL_MIN_CHARS = 50;
-
-const HAS_ORG_SCOPE = "w_organization_social";
 
 interface Props {
   identity: LinkedInIdentity;
@@ -125,34 +126,9 @@ export function PostComposer({ identity, seedText }: Props) {
   const [feedback, setFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
 
   // Author picker — discriminated union string keys for the Select.
-  // "org:<id>" → that org page. "person" → user's personal feed.
-  // Pages come FIRST and are the default: the business publishes as
-  // its Company Page. The personal feed is only offered when the
-  // server says it's allowed (pageless fallback — /me's
-  // personalPostingAllowed; the publish routes enforce the same
-  // policy server-side) or when no page option could be built at all
-  // (missing org scope → the reconnect hint below guides the user).
-  const authorOptions = useMemo(() => {
-    const opts: Array<{ value: string; label: string; sublabel?: string }> = [];
-    const canPostAsOrg = identity.scopes.includes(HAS_ORG_SCOPE);
-    if (canPostAsOrg) {
-      for (const page of identity.pages) {
-        opts.push({
-          value: `org:${page.id}`,
-          label: page.name || `Page ${page.id}`,
-          sublabel: "Company page",
-        });
-      }
-    }
-    if ((identity.personalPostingAllowed ?? true) || opts.length === 0) {
-      opts.push({
-        value: "person",
-        label: identity.person.name ?? "My personal feed",
-        sublabel: "Personal feed",
-      });
-    }
-    return opts;
-  }, [identity]);
+  // "org:<id>" → that org page. "person" → user's personal feed. The option
+  // rules live in lib/linkedin-composer.ts.
+  const authorOptions = useMemo(() => buildAuthorOptions(identity), [identity]);
 
   const [authorKey, setAuthorKey] = useState<string>(authorOptions[0]?.value ?? "person");
 
@@ -172,8 +148,8 @@ export function PostComposer({ identity, seedText }: Props) {
   // PUBLIC when the user picks a page so the submit doesn't surface
   // the raw API error. Keeps the visibility selector simple — both
   // org and person flows share the same control state.
-  const isOrgAuthor = authorKey.startsWith("org:");
-  const effectiveVisibility: LinkedInVisibility = isOrgAuthor ? "PUBLIC" : visibility;
+  const isOrgAuthor = isOrgAuthorKey(authorKey);
+  const effectiveVisibility: LinkedInVisibility = effectiveVisibilityFor(authorKey, visibility);
   const authorType: "person" | "org" = isOrgAuthor ? "org" : "person";
 
   // Hook DNA score — debounced live scoring as the user types.
@@ -215,10 +191,7 @@ export function PostComposer({ identity, seedText }: Props) {
   });
 
   function applyVariant(v: HookVariant) {
-    // Replace the hook with the picked variant, preserving any body
-    // below the first blank-line boundary.
-    const [, ...rest] = text.split(/\n\s*\n/);
-    const next = rest.length > 0 ? `${v.hook}\n\n${rest.join("\n\n")}` : v.hook;
+    const next = applyHookVariant(text, v.hook);
     setText(next);
     pruneMentions(next);
     setVariants(null);
@@ -331,63 +304,41 @@ export function PostComposer({ identity, seedText }: Props) {
     setLinkTitle("");
   }, []);
 
-  const remaining = MAX_LEN - text.length;
-  const tooLong = remaining < 0;
-  const empty = text.trim().length === 0;
-  const linkInvalid = showLink && linkUrl.trim().length > 0 && !isProbablyUrl(linkUrl);
   const anyPending = publish.isPending || carousel.isPending;
-  // A poll, when active, must be complete before publish. The commentary
-  // (text) is still required — it shows above the poll.
   const pollActive = poll !== null;
-  const pollOk = !pollActive || isPollValid(poll);
-  const publishDisabled = empty || tooLong || anyPending || linkInvalid || !pollOk;
-  // Scheduling + carousel don't carry a poll, so they're unavailable while a
-  // poll is active.
-  const scheduleDisabled = empty || tooLong || linkInvalid || pollActive;
-  // Carousel needs enough text to split into slides; a link card doesn't
-  // apply to a carousel (it's a document post), so a pending/invalid link
-  // doesn't block it — but the min-length + pending guards do.
-  const carouselTooShort = text.trim().length < CAROUSEL_MIN_CHARS;
-  const carouselDisabled = empty || tooLong || carouselTooShort || anyPending || pollActive;
+  const {
+    empty,
+    linkInvalid,
+    publishDisabled,
+    scheduleDisabled,
+    carouselTooShort,
+    carouselDisabled,
+  } = composerGates({
+    text,
+    showLink,
+    linkUrl,
+    pollActive,
+    pollValid: poll !== null && isPollValid(poll),
+    anyPending,
+    linkLooksLikeUrl: isProbablyUrl(linkUrl),
+  });
 
   function onSubmit() {
     if (publishDisabled) return;
     setFeedback(null);
 
-    const author: LinkedInAuthor = isOrgAuthor
-      ? { type: "org", pageId: authorKey.slice("org:".length) }
-      : { type: "person" };
-
-    const body: PublishLinkedInPostInput = {
-      author,
-      visibility: effectiveVisibility,
-    };
-
-    // Structured commentary (CMA D4): when the user inserted org @mentions that
-    // still appear in the text, send segments so the URNs link. Otherwise send
-    // the raw string (which also lets LinkedIn auto-link plain #hashtags). Poll
-    // posts use the raw path — a poll's intro text isn't segmented here.
+    // Poll posts use the raw path — a poll's intro text isn't segmented here.
     const segments = poll ? null : buildCommentarySegments(text.trim(), mentions);
-    if (segments) {
-      body.commentarySegments = segments;
-    } else {
-      body.commentary = text.trim();
-    }
-
-    if (poll) {
-      // A poll is exclusive — never combine it with a link. Trim the question
-      // and drop blank options (the server validates 2–4 / lengths too).
-      body.poll = {
-        question: poll.question.trim(),
-        options: poll.options.map((o) => o.text.trim()).filter((o) => o.length > 0),
-        duration: poll.duration,
-      };
-    } else if (showLink && linkUrl.trim()) {
-      body.link = {
-        url: linkUrl.trim(),
-        title: linkTitle.trim() || undefined,
-      };
-    }
+    const body = buildPublishBody({
+      authorKey,
+      visibility,
+      text,
+      segments,
+      poll,
+      showLink,
+      linkUrl,
+      linkTitle,
+    });
 
     publish.mutate(body);
   }
@@ -398,9 +349,7 @@ export function PostComposer({ identity, seedText }: Props) {
     // The composer text IS the source the server splits into slides. Snapshot
     // the publish target NOW (the dialog shows + uses it) so changing the
     // picker during the ~30–60s preview can't retarget the post.
-    const author: LinkedInAuthor = isOrgAuthor
-      ? { type: "org", pageId: authorKey.slice("org:".length) }
-      : { type: "person" };
+    const author: LinkedInAuthor = authorFromKey(authorKey);
     const label = authorOptions.find((o) => o.value === authorKey)?.label ?? "your feed";
     setCarouselTarget({ author, visibility: effectiveVisibility, label });
     carousel.mutate({ newsletterText: text.trim() });
@@ -538,10 +487,7 @@ export function PostComposer({ identity, seedText }: Props) {
   }
 
   // ── Scheduler props (only consumed in schedule mode) ────────────
-  const scheduleTitle = useMemo(() => {
-    const firstLine = text.trim().split(/\r?\n/).find((l) => l.trim().length > 0);
-    return firstLine ? firstLine.slice(0, 120).trim() : undefined;
-  }, [text]);
+  const scheduleTitle = useMemo(() => scheduleTitleFor(text), [text]);
 
   const schedulerSource = useMemo(
     () => ({
@@ -552,44 +498,19 @@ export function PostComposer({ identity, seedText }: Props) {
     [draftId, text],
   );
 
-  const schedulerChannels = useMemo(() => {
-    // channelOptions carries the LinkedIn-specific publish settings the
-    // scheduler's linkedin publisher adapter reads (authorUrn /
-    // visibility / link) so a scheduled post fires with the SAME author
-    // + visibility + link the user picked here.
-    // NOTE: the scheduler adapter publishes the raw text only — it does not
-    // carry commentary SEGMENTS, so org @mentions in a SCHEDULED post post as
-    // plain `@Name` text (not linked). Immediate publish links them. Threading
-    // segments through the scheduler is a follow-up; surfaced via the mention
-    // hint below so the user isn't surprised.
-    const channelOptions: Record<string, unknown> = {
-      authorUrn: isOrgAuthor
-        ? `urn:li:organization:${authorKey.slice("org:".length)}`
-        : identity.person.urn,
-      visibility: effectiveVisibility,
-    };
-    if (showLink && linkUrl.trim()) {
-      channelOptions.link = {
-        url: linkUrl.trim(),
-        ...(linkTitle.trim() ? { title: linkTitle.trim() } : {}),
-      };
-    }
-    return [
-      {
-        channel: "linkedin",
-        payload: { text: text.trim(), channelOptions },
-      },
-    ];
-  }, [
-    isOrgAuthor,
-    authorKey,
-    identity.person.urn,
-    effectiveVisibility,
-    showLink,
-    linkUrl,
-    linkTitle,
-    text,
-  ]);
+  const schedulerChannels = useMemo(
+    () =>
+      buildScheduleChannels({
+        authorKey,
+        personUrn: identity.person.urn,
+        visibility,
+        showLink,
+        linkUrl,
+        linkTitle,
+        text,
+      }),
+    [authorKey, identity.person.urn, visibility, showLink, linkUrl, linkTitle, text],
+  );
 
   function handleScheduled() {
     // SchedulerComposer fires its own "Scheduled across N channels."
@@ -601,51 +522,18 @@ export function PostComposer({ identity, seedText }: Props) {
 
   // ── Command palette actions ─────────────────────────────────────
   const commands = useMemo<ComposerCommand[]>(
-    () => [
-      {
-        id: "ai-compose",
-        label: "Compose with AI",
-        hint: "Generate a fresh draft from your brand voice",
-        group: "AI",
-        icon: Sparkles,
-        run: () => {
-          void handleAiAction({ op: "compose", text, platform: "linkedin" });
-        },
-      },
-      {
-        id: "ai-redraft",
-        label: "Rewrite this draft",
-        group: "AI",
-        icon: Wand2,
-        disabled: empty,
-        run: () => {
-          void handleAiAction({ op: "redraft", text, platform: "linkedin" });
-        },
-      },
-      {
-        id: "schedule",
-        label: "Schedule for later",
-        group: "Publish",
-        icon: CalendarClock,
-        disabled: scheduleDisabled,
-        run: () => setMode("schedule"),
-      },
-      {
-        id: "add-link",
-        label: showLink ? "Link attached" : "Attach a link",
-        group: "Compose",
-        icon: Link2,
-        disabled: showLink || pollActive,
-        run: () => setShowLink(true),
-      },
-      {
-        id: "toggle-poll",
-        label: pollActive ? "Remove poll" : "Add a poll",
-        group: "Compose",
-        icon: ListChecks,
-        run: togglePoll,
-      },
-    ],
+    () =>
+      buildComposerCommands({
+        text,
+        empty,
+        scheduleDisabled,
+        showLink,
+        pollActive,
+        runAi: handleAiAction,
+        onSchedule: () => setMode("schedule"),
+        onAttachLink: () => setShowLink(true),
+        onTogglePoll: togglePoll,
+      }),
     [handleAiAction, text, empty, scheduleDisabled, showLink, pollActive, togglePoll],
   );
 
@@ -682,75 +570,15 @@ export function PostComposer({ identity, seedText }: Props) {
       voiceCard={voiceSummary}
       onOpenPalette={() => setPaletteOpen(true)}
       headerSlot={
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="li-author" className="text-xs uppercase tracking-wide text-muted-foreground">
-              Posting as
-            </Label>
-            {authorOptions.length === 1 ? (
-              // Single allowed author (the mapped Company Page, or the
-              // pageless personal fallback) — nothing to choose, so show
-              // a locked identity chip instead of a one-item dropdown.
-              <div
-                id="li-author"
-                className="flex h-9 items-center gap-2 rounded-md border bg-muted/40 px-3 text-sm"
-              >
-                {authorOptions[0].value === "person" ? (
-                  <User className="size-4 shrink-0 text-muted-foreground" />
-                ) : (
-                  <Building2 className="size-4 shrink-0 text-muted-foreground" />
-                )}
-                <span className="truncate font-medium">{authorOptions[0].label}</span>
-                {authorOptions[0].sublabel && (
-                  <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                    {authorOptions[0].sublabel}
-                  </span>
-                )}
-              </div>
-            ) : (
-              <Select value={authorKey} onValueChange={setAuthorKey}>
-                <SelectTrigger id="li-author">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {authorOptions.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      <span className="flex flex-col">
-                        <span>{opt.label}</span>
-                        {opt.sublabel && (
-                          <span className="text-xs text-muted-foreground">{opt.sublabel}</span>
-                        )}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            {!identity.scopes.includes(HAS_ORG_SCOPE) && identity.pages.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                Reconnect LinkedIn to enable posting from your company pages.
-              </p>
-            )}
-            {identity.scopes.includes(HAS_ORG_SCOPE) && identity.pages.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                No pages enabled.{" "}
-                <Link
-                  href="/dashboard/integrations?manage_pages=1"
-                  className="font-medium text-primary underline underline-offset-2 hover:no-underline"
-                >
-                  Manage pages
-                </Link>
-                .
-              </p>
-            )}
-          </div>
-
-          <VisibilitySelect
-            value={effectiveVisibility}
-            onChange={setVisibility}
-            isOrgAuthor={isOrgAuthor}
-          />
-        </div>
+        <ComposerHeader
+          identity={identity}
+          authorOptions={authorOptions}
+          authorKey={authorKey}
+          onAuthorChange={setAuthorKey}
+          effectiveVisibility={effectiveVisibility}
+          onVisibilityChange={setVisibility}
+          isOrgAuthor={isOrgAuthor}
+        />
       }
       subHeaderSlot={
         <>
@@ -771,66 +599,20 @@ export function PostComposer({ identity, seedText }: Props) {
         </>
       }
       actionsSlot={
-        <>
-          <PolicyChip state={policy} />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setMode("schedule")}
-            disabled={scheduleDisabled}
-            className="gap-1.5"
-            title={
-              pollActive
-                ? "Polls can't be scheduled yet — publish now, or remove the poll to schedule."
-                : undefined
-            }
-          >
-            <CalendarClock className="size-4" /> Schedule
-          </Button>
-          <Button
-            type="button"
-            variant={pollActive ? "secondary" : "outline"}
-            size="sm"
-            onClick={togglePoll}
-            aria-pressed={pollActive}
-            className="gap-1.5"
-            title={
-              pollActive
-                ? "Remove the poll"
-                : "Add a poll (question + 2–4 options). Your text shows above the poll."
-            }
-          >
-            <ListChecks className="size-4" />
-            Poll
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onCarousel}
-            disabled={carouselDisabled}
-            aria-busy={carousel.isPending}
-            className="gap-1.5"
-            title={
-              carouselTooShort
-                ? "Write a few sentences first — a carousel splits your text into slides."
-                : "Generate a swipeable LinkedIn carousel and review it before publishing. Takes ~30–60s."
-            }
-          >
-            {carousel.isPending ? (
-              <Loader2 className="size-4 animate-spin motion-reduce:animate-none" />
-            ) : (
-              <GalleryHorizontalEnd className="size-4" />
-            )}
-            {carousel.isPending ? "Generating preview…" : "Carousel"}
-          </Button>
-          <ActionCost action="linkedinCarousel" className="text-micro" />
-          <Button onClick={onSubmit} disabled={publishDisabled} aria-busy={publish.isPending}>
-            <Send className="size-4 mr-1.5" />
-            {publish.isPending ? "Publishing…" : "Publish"}
-          </Button>
-        </>
+        <ComposerActions
+          policy={policy}
+          pollActive={pollActive}
+          scheduleDisabled={scheduleDisabled}
+          onSchedule={() => setMode("schedule")}
+          onTogglePoll={togglePoll}
+          carouselDisabled={carouselDisabled}
+          carouselTooShort={carouselTooShort}
+          carouselPending={carousel.isPending}
+          onCarousel={onCarousel}
+          publishDisabled={publishDisabled}
+          publishPending={publish.isPending}
+          onPublish={onSubmit}
+        />
       }
       footerSlot={
         feedback ? (
@@ -972,39 +754,4 @@ export function PostComposer({ identity, seedText }: Props) {
       )}
     </ComposerShell>
   );
-}
-
-export function PostComposerSkeleton() {
-  return (
-    <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
-      </div>
-      <Skeleton className="h-32 w-full" />
-      <div className="flex justify-between">
-        <Skeleton className="h-8 w-24" />
-        <Skeleton className="h-9 w-28" />
-      </div>
-    </div>
-  );
-}
-
-/**
- * Use the linkedin-me query as the data source for the composer's
- * picker. Re-exported here so the page can render the right shell
- * (composer, EmptyState, or Reconnect CTA) based on the same query.
- */
-export function useLinkedInIdentity() {
-  return useQuery({
-    queryKey: ["linkedin-me"],
-    queryFn: () => linkedInContentApi.me(),
-    retry: (failureCount, err) => {
-      if (err instanceof ApiError && (err.code === "NOT_CONNECTED" || err.status === 404)) {
-        return false;
-      }
-      return failureCount < 2;
-    },
-    staleTime: 60_000,
-  });
 }

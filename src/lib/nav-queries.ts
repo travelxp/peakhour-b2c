@@ -2,6 +2,8 @@ import { queryOptions } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { inboxApi } from "@/lib/api/inbox";
 import { REVIEW_PAGE_LIMIT } from "@/lib/review-reply";
+import type { InsightsResponse } from "@/lib/insights";
+import type { DeskTag } from "@/lib/inbox-desk";
 import type { ResolvedCatalog } from "@/lib/catalog";
 import type { PipelineIdea } from "@/app/(site)/dashboard/strategist/components/kanban-card";
 import type { Integration } from "@/app/(site)/dashboard/integrations/_components/shared";
@@ -67,4 +69,23 @@ export const integrationsListQuery = (orgId: string | undefined, businessId: str
     queryKey: ["integrations-list", orgId ?? null, businessId ?? null],
     queryFn: () => api.get<{ integrations: Integration[] }>("/v1/integrations"),
     staleTime: 30_000,
+  });
+
+/** Inbox, Conversations lane: the tag chips. (Key spelled as deskKeys.tags in hooks/use-inbox-desk.ts, which invalidates it.) */
+export const deskTagsQuery = (biz: string) =>
+  queryOptions({
+    queryKey: ["inbox-desk", "tags", biz] as const,
+    queryFn: () => api.get<{ tags: DeskTag[] }>("/v1/inbox-desk/tags"),
+    staleTime: 60_000,
+  });
+
+/** Every Insights read starts with this, so an answer or a dismissal can refresh them all. */
+export const INSIGHTS_KEY = "insights";
+
+/** Inbox tab badge: what customers keep raising. The api scopes the read to the session's pinned org AND business. */
+export const insightsQuery = (orgId: string | null, businessId: string | null, days = 30) =>
+  queryOptions({
+    queryKey: [INSIGHTS_KEY, orgId, businessId, days],
+    queryFn: () => api.get<InsightsResponse>("/v1/insights", { days: String(days) }),
+    retry: false,
   });

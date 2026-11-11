@@ -12,11 +12,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { ChannelIconCompact } from "@/components/brand/channel-icon";
 import { ArrowLeft } from "lucide-react";
+import { PostComposer } from "@/app/(site)/dashboard/content/linkedin/_components/post-composer";
 import {
-  PostComposer,
   PostComposerSkeleton,
   useLinkedInIdentity,
-} from "@/app/(site)/dashboard/content/linkedin/_components/post-composer";
+} from "@/app/(site)/dashboard/content/linkedin/_components/composer-identity";
 import { TweetComposer } from "@/app/(site)/dashboard/content/x/_components/tweet-composer";
 
 /**

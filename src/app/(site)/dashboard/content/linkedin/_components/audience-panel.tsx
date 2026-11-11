@@ -34,7 +34,7 @@ import {
   type LinkedInReactionType,
 } from "@/lib/api/linkedin-content";
 import { ActorAvatar, actorDisplayName } from "./engage-shared";
-import { useLinkedInIdentity } from "./post-composer";
+import { useLinkedInIdentity } from "./composer-identity";
 import { RetentionFootnote } from "./retention-footnote";
 import {
   CommunityPulse,

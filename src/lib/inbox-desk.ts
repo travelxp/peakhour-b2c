@@ -6,6 +6,7 @@
  * or the pause copy: it shows what `GET /v1/inbox-desk/*` and the list rows carry.
  */
 
+import { deskListParams } from "@/lib/desk-list-params";
 import { canReply } from "@/lib/wa-inbox-reply";
 
 // ── what the api sends ──────────────────────────────────────────────────────────────────────────────────────────────
@@ -132,16 +133,13 @@ export function tagFromParam(v: string | null | undefined): string | null {
   return t && t.length <= TAG_PARAM_MAX && /^[A-Za-z0-9_-]+$/.test(t) ? t : null;
 }
 
+export { deskListParams };
+
 export interface DeskFilters {
   assignee: AssigneeFilter;
   tag: string | null;
   /** SA-10. Optional so a caller that predates it still means "every priority". */
   priority?: PriorityFilter;
-}
-
-/** The list query for the filters: `?assignee=`, `?tag=` and `?priority=high` only when set. */
-export function deskListParams(f: DeskFilters): Record<string, string> {
-  return { ...(f.assignee !== "all" ? { assignee: f.assignee } : {}), ...(f.tag ? { tag: f.tag } : {}), ...(f.priority === "high" ? { priority: "high" } : {}) };
 }
 
 /** The page's own query string with the filters written in (the other keys, such as `tab`, are kept). */
