@@ -22,7 +22,9 @@ import {
   Music2,
   Globe,
   Pin,
+  Smartphone,
 } from "lucide-react";
+import { appLabel, platformLabel, safeHttpsUrl, setBusinessAppStatus, type BusinessApp } from "@/lib/api/business-apps";
 import {
   LinkedinIcon,
   InstagramIcon,
@@ -42,6 +44,8 @@ interface PendingFootprint {
 
 interface FootprintReviewCardProps {
   pending: PendingFootprint[];
+  /** Mobile apps we found and the merchant has not answered yet (`pendingApps` on the discovery snapshot). */
+  pendingApps?: BusinessApp[];
 }
 
 const SOURCE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -74,13 +78,14 @@ const SOURCE_LABEL: Record<string, string> = {
   ai_generated: "AI-suggested",
 };
 
-export function FootprintReviewCard({ pending }: FootprintReviewCardProps) {
+export function FootprintReviewCard({ pending, pendingApps = [] }: FootprintReviewCardProps) {
   const queryClient = useQueryClient();
   // Track URLs the user has just actioned (optimistic dismissal). Using
   // a Set keyed on URL — survives prop refetches naturally, and avoids
   // the race where two near-simultaneous clicks step on each other's
   // snapshot rollback.
   const [dismissedUrls, setDismissedUrls] = useState<Set<string>>(new Set());
+  const [dismissedApps, setDismissedApps] = useState<Set<string>>(new Set());
   const [submitting, setSubmitting] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const [error, setError] = useState("");
@@ -91,7 +96,31 @@ export function FootprintReviewCard({ pending }: FootprintReviewCardProps) {
   // `dismissedUrls` is automatic (the row is just absent).
   const visible = pending.filter((p) => !dismissedUrls.has(p.url));
 
-  if (visible.length === 0) return null;
+  const visibleApps = pendingApps.filter((a) => !dismissedApps.has(a.appId));
+
+  if (visible.length === 0 && visibleApps.length === 0) return null;
+
+  async function handleApp(appId: string, status: "confirmed" | "rejected") {
+    setError("");
+    setSubmitting(appId);
+    setDismissedApps((prev) => new Set(prev).add(appId));
+    try {
+      await setBusinessAppStatus(appId, status);
+      startTransition(() => {
+        queryClient.invalidateQueries({ queryKey: ["dashboard-discovery"] });
+        queryClient.invalidateQueries({ queryKey: ["business-apps"] });
+      });
+    } catch (err) {
+      setDismissedApps((prev) => {
+        const next = new Set(prev);
+        next.delete(appId);
+        return next;
+      });
+      setError(err instanceof ApiError ? err.message : "Couldn't save. Try again.");
+    } finally {
+      setSubmitting(null);
+    }
+  }
 
   async function handleConfirm(url: string, confirmed: boolean | null) {
     setError("");
@@ -138,7 +167,7 @@ export function FootprintReviewCard({ pending }: FootprintReviewCardProps) {
               recommend things you&apos;re already on.
             </CardDescription>
           </div>
-          <Badge variant="secondary">{visible.length} to review</Badge>
+          <Badge variant="secondary">{visible.length + visibleApps.length} to review</Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -147,6 +176,77 @@ export function FootprintReviewCard({ pending }: FootprintReviewCardProps) {
             {error}
           </div>
         )}
+        {visibleApps.map((app) => {
+          const isPending = submitting === app.appId;
+          const icon = safeHttpsUrl(app.iconUrl);
+          const store = safeHttpsUrl(app.storeUrl);
+          const label = appLabel(app);
+          return (
+            <div
+              key={app.appId}
+              className={cn(
+                "flex flex-col gap-2 rounded-md border p-3 transition-opacity sm:flex-row sm:items-center sm:gap-3",
+                isPending && "opacity-50",
+              )}
+            >
+              <div className="flex flex-1 items-center gap-3 min-w-0">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
+                  {icon ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={icon} alt="" className="h-9 w-9 object-cover" />
+                  ) : (
+                    <Smartphone className="h-4 w-4" aria-hidden="true" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-2">
+                    <p className="text-sm font-medium truncate">{label}</p>
+                    <span className="text-xs text-muted-foreground shrink-0">
+                      Is this your app? ({platformLabel(app.platform)})
+                    </span>
+                  </div>
+                  {app.evidence && (
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">{app.evidence}</p>
+                  )}
+                </div>
+                {store && (
+                  <a
+                    href={store}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hidden text-muted-foreground hover:text-foreground sm:inline-flex"
+                    aria-label={`Open ${label} in the store`}
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                )}
+              </div>
+              <div className="flex items-center gap-1 self-end sm:self-auto">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleApp(app.appId, "rejected")}
+                  disabled={isPending}
+                  aria-label={`No, ${label} isn't mine`}
+                  title="Not mine"
+                >
+                  <X className="h-4 w-4 sm:mr-1" />
+                  <span className="hidden sm:inline">No</span>
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => handleApp(app.appId, "confirmed")}
+                  disabled={isPending}
+                  aria-label={`Yes, ${label} is mine`}
+                  title="Yes, that's mine"
+                >
+                  <Check className="h-4 w-4 sm:mr-1" />
+                  <span className="hidden sm:inline">Yes</span>
+                </Button>
+              </div>
+            </div>
+          );
+        })}
         {visible.map((item) => {
           const Icon = SOURCE_ICONS[item.source] ?? Globe;
           const label = SOURCE_LABEL[item.source] ?? item.source;

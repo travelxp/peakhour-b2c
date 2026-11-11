@@ -19,6 +19,7 @@ import { RequestReviewButton } from "@/components/integrations/request-review-bu
 import { CreateWorkspaceButton } from "@/components/integrations/create-workspace-button";
 import { ContactSupportDialog } from "@/components/support/contact-support-dialog";
 import { Badge } from "@/components/ui/badge";
+import { YourAppsPanel } from "@/components/dashboard/your-apps-panel";
 import { DrivePrivacyCard } from "@/components/drive/drive-privacy-card";
 import { driveAbilities } from "@/lib/drive/files-state";
 import { Input } from "@/components/ui/input";
@@ -470,6 +471,8 @@ function SettingsContent() {
             )}
           </CardContent>
         </Card>
+
+        <YourAppsPanel />
 
         {/* Budget & Guardrails */}
         <Card>
