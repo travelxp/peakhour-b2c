@@ -1,7 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { inboxApi } from "@/lib/api/inbox";
-import { REVIEW_PAGE_LIMIT } from "@/lib/review-reply";
+import { REVIEW_PAGE_LIMIT } from "@/lib/review-page-limit";
 import type { InsightsResponse } from "@/lib/insights";
 import type { DeskTag } from "@/lib/inbox-desk";
 import type { ResolvedCatalog } from "@/lib/catalog";

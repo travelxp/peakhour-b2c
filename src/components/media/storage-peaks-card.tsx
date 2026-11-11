@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getStorageUsage, type StorageUsage } from "@/lib/api/media";
 import { aboutUsd, gbText, peaksText, renewalLine } from "@/lib/storage-copy";
-import { openAddSpace } from "@/components/media/add-space-dialog";
+import { openAddSpace } from "@/lib/add-space-event";
 
 /**
  * "Storage" on the Peaks page (Peakhour Drive Q4): its own line, apart from AI work. It lists only what the customer chose, the

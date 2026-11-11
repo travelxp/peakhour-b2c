@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { type StorageUsage, formatBytes } from "@/lib/api/media";
 import { meterState, gbText, gbUsedText } from "@/lib/storage-copy";
-import { openAddSpace } from "@/components/media/add-space-dialog";
+import { openAddSpace } from "@/lib/add-space-event";
 
 /**
  * Storage meter (Peakhour Drive Q4). Shows the POOL: GB used of the organisation's total, which is every paid business's plan
