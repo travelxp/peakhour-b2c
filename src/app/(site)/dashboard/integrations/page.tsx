@@ -18,7 +18,7 @@ import { affectsMeasurementHealth } from "@/lib/measurement-health";
 import { DataToolbar, DataToolbarSearch } from "@/components/molecules/data-table/data-toolbar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertCircle, Search } from "lucide-react";
-import { flattenMetaIntegration as flattenMetaIntegrationBase, resolveProvider, isMetaVirtual, metaActionPurpose, metaCardServedBy, metaCardStatus, metaCardsDisconnectedBy, metaGrantNote, metaLoginPurposeFor, withMetaLoginPurpose, type MetaLoginInfo } from "@/lib/integrations-meta";
+import { flattenMetaIntegration as flattenMetaIntegrationBase, resolveProvider, isMetaVirtual, metaActionPurpose, metaCardsDisconnectedBy, metaGrantNote, metaLoginPurposeFor, withMetaLoginPurpose, type MetaLoginInfo } from "@/lib/integrations-meta";
 import { Integration } from "./_components/shared";
 import { BeehiivConnectModal, WhatsAppConnectModal } from "./_components/connect-modals";
 import { IntegrationCard } from "./_components/integration-card";
@@ -42,23 +42,10 @@ function flattenMetaIntegration(integrations: Integration[]): Integration[] {
   const flat = flattenMetaIntegrationBase<Integration>(integrations, (item, card) => {
     const extra = item.account?.extra || {};
     const info: MetaLoginInfo = { metaLogin: item.metaLogin, metaConnections: item.metaConnections };
-    // ★The card's OWN row decides whether it needs reconnecting: the merged
-    // facebook row prefers an active row, so a broken Growth row beside a
-    // working shared row would otherwise show Meta Ads as connected.
-    const rowStatus = card.loginPurpose ? metaCardStatus(info, card.virtualProvider) : undefined;
-    const ownRowBroken = rowStatus !== undefined && rowStatus !== "active";
-    // And a card NO row serves (the api said so) is not connected, whatever
-    // the merged extras of another purpose's row contain.
-    const unserved =
-      card.loginPurpose !== undefined &&
-      item.metaConnections !== undefined &&
-      metaCardServedBy(info, card.virtualProvider) === "none";
     return {
       name: card.name,
       description: card.description,
       grantNote: metaGrantNote(card.virtualProvider, item.metaLogin, metaActionPurpose(info, card.virtualProvider)),
-      ...(ownRowBroken ? { connected: false, status: rowStatus } : {}),
-      ...(unserved ? { connected: false } : {}),
       category: card.category,
       account: item.connected
         ? {
