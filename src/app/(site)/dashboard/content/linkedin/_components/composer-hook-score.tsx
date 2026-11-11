@@ -141,7 +141,7 @@ export function HookScoreCard({
           )}
           <span className="font-mono text-base font-semibold tabular-nums">
             {score.score}
-            <span className="ml-0.5 text-xs">/100</span>
+            <span className="ml-0.5 text-xs font-normal">/100</span>
           </span>
         </div>
       </div>
