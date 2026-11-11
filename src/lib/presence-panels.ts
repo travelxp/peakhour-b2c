@@ -770,7 +770,7 @@ const FIELD_WORDS: Record<string, string> = {
 export const UNNAMED_DETAIL = "a detail Peakhour doesn't track yet";
 
 export function fieldWords(field: string): string {
-  return FIELD_WORDS[field] ?? UNNAMED_DETAIL;
+  return Object.hasOwn(FIELD_WORDS, field) ? FIELD_WORDS[field]! : UNNAMED_DETAIL;
 }
 
 /** The fields whose held value is plain text a person can put back in one press. */

@@ -36,10 +36,12 @@ export function ChangeChoices({ line, entry, listing, onDone }: { line: ChangeLi
             disabled={busy}
             onClick={() => {
               onDone("");
-              m.propose.mutate(
-                { listingId: listing.id, network: entry.network, changes: [{ field: line.field as never, value }] },
-                { onSuccess: () => onDone("Prepared. Review it under Change your listing, then approve it. Nothing is sent until then.") },
-              );
+              keep.reset();
+              // `.then`, not a per-call onSuccess: that is skipped once the row has gone
+              m.propose
+                .mutateAsync({ listingId: listing.id, network: entry.network, changes: [{ field: line.field as never, value }] })
+                .then(() => onDone("Prepared. Review it under Change your listing, then approve it. Nothing is sent until then."))
+                .catch(() => undefined); // the error is shown from the mutation's own state
             }}
           >
             Put mine back
@@ -51,10 +53,11 @@ export function ChangeChoices({ line, entry, listing, onDone }: { line: ChangeLi
           disabled={busy}
           onClick={() => {
             onDone("");
-            keep.mutate(
-              { listingId: listing.id, network: entry.network, field: line.field, label: line.path, externalId: entry.externalId ?? undefined, suggested: line.suggested },
-              { onSuccess: () => onDone(`Done. We keep ${label}'s version and will stop reminding you about this.`) },
-            );
+            m.propose.reset();
+            keep
+              .mutateAsync({ listingId: listing.id, network: entry.network, field: line.field, label: line.path, externalId: entry.externalId ?? undefined, suggested: line.suggested })
+              .then(() => onDone(`Done. We keep ${label}'s version and will stop reminding you about this.`))
+              .catch(() => undefined);
           }}
         >
           Keep {label}&apos;s version
