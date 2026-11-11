@@ -23,6 +23,7 @@ import {
   publicationLine,
   publicationFor,
   publishButtons,
+  newAnswersForm,
   reconcileAnswers,
   publishErrorLine,
   quoteLapsed,
@@ -459,26 +460,39 @@ describe("review round 1", () => {
     expect(publicationFor(pubs, { channel: "site", slot: "page", connectionLabel: "b.example" })).toBeUndefined();
     expect(publicationFor([{ channel: "site", slot: "page" as const, store: null }], { channel: "site", slot: "page", connectionLabel: "a.example" })).toBeUndefined();
   });
-  describe("the answers form follows the saved answers but never the merchant's edits", () => {
-    it("takes a server change when nothing was edited (an upload landed)", () => {
-      const r = reconcileAnswers({ raw: { a: "1", b: "" }, saved: { a: "1", b: "" } }, { a: "1", b: "5" });
-      expect(r).toEqual({ raw: { a: "1", b: "5" }, saved: { a: "1", b: "5" }, stale: false });
+  describe("the answers form follows the saved answers when they change, and never the merchant's edits", () => {
+    const form = (raw: Record<string, string>, saved: Record<string, string>, server = saved) => ({ raw, saved, server, stale: false });
+    it("takes a server change when nothing was edited (an upload landed), and calls it external", () => {
+      const r = reconcileAnswers(form({ a: "1", b: "" }, { a: "1", b: "" }), { a: "1", b: "5" });
+      expect(r.form).toEqual({ raw: { a: "1", b: "5" }, saved: { a: "1", b: "5" }, server: { a: "1", b: "5" }, stale: false });
+      expect(r.external).toBe(true);
+      expect(r.changed).toEqual(["b"]);
     });
     it("keeps an edited box, takes the untouched ones, and says the saved answers changed", () => {
-      const r = reconcileAnswers({ raw: { a: "9", b: "" }, saved: { a: "1", b: "" } }, { a: "2", b: "5" });
-      expect(r.raw).toEqual({ a: "9", b: "5" });
-      expect(r.saved).toEqual({ a: "2", b: "5" });
-      expect(r.stale).toBe(true);
+      const r = reconcileAnswers(form({ a: "9", b: "" }, { a: "1", b: "" }), { a: "2", b: "5" });
+      expect(r.form.raw).toEqual({ a: "9", b: "5" });
+      expect(r.form.saved).toEqual({ a: "2", b: "5" });
+      expect(r.form.stale).toBe(true);
+    });
+    it("does nothing while the server has not changed, however far the form moved ahead (a save is shown before its refetch lands)", () => {
+      // the merchant saved 30: saved is 30 at once, the server still says 14 until the refetch
+      const ahead = form({ w: "30" }, { w: "30" }, { w: "14" });
+      const r = reconcileAnswers(ahead, { w: "14" });
+      expect(r.form).toBe(ahead);
+      expect(r.form.raw).toEqual({ w: "30" });
+    });
+    it("a refetch that confirms the merchant's own save is not external, and does not mark a draft out of date", () => {
+      const r = reconcileAnswers(form({ w: "30" }, { w: "30" }, { w: "14" }), { w: "30" });
+      expect(r.external).toBe(false);
+      expect(r.form.raw).toEqual({ w: "30" });
+      expect(r.form.server).toEqual({ w: "30" });
     });
     it("is the same object when nothing changed (no render loop)", () => {
-      const state = { raw: { a: "1" }, saved: { a: "1" } };
-      const r = reconcileAnswers(state, { a: "1" });
-      expect(r.raw).toBe(state.raw);
-      expect(r.saved).toBe(state.saved);
+      const f = form({ a: "1" }, { a: "1" });
+      expect(reconcileAnswers(f, { a: "1" }).form).toBe(f);
     });
-    it("a save that landed (server equals the edit) is not stale", () => {
-      const r = reconcileAnswers({ raw: { a: "9" }, saved: { a: "1" } }, { a: "9" });
-      expect(r.stale).toBe(false);
+    it("starts equal to the server", () => {
+      expect(newAnswersForm({ a: "1" })).toEqual({ raw: { a: "1" }, saved: { a: "1" }, server: { a: "1" }, stale: false });
     });
   });
   it("names why Approve is off after the answers changed", () => {

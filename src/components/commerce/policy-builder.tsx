@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import dynamic from "next/dynamic";
-import { Highlighted } from "@/components/commerce/knowledge-base";
+import { Highlighted } from "@/components/commerce/highlighted";
 import {
   useApprovePolicyDraft,
   useGeneratePolicy,
@@ -63,6 +63,7 @@ import {
   policyStatusLine,
   priceCard,
   publicationFor,
+  newAnswersForm,
   reconcileAnswers,
   publicationLine,
   publishButtons,
@@ -76,6 +77,7 @@ import {
   valueText,
   valueToRaw,
   type AnswerShape,
+  type AnswersForm,
   type CapabilitiesResponse,
   type GenerateResponse,
   type MarketCheck,
@@ -103,6 +105,8 @@ export function PolicyBuilder() {
   const stores = useCommerceStores();
   const caps = useKbCapabilities();
   const [open, setOpen] = useState<PolicyType | null>(null);
+  // the upload panel (and the Drive picker with it) is fetched only when it is asked for
+  const [showUpload, setShowUpload] = useState(false);
   // a business with no store connection publishes to its website: that is then the main path, so it is said first
   const noStore = stores.data !== undefined && stores.data.length === 0;
 
@@ -132,7 +136,15 @@ export function PolicyBuilder() {
       {noStore && <WebsiteBand caps={caps.data} />}
       {body}
       {open && <PolicyEditor key={open} type={open} onClose={() => setOpen(null)} />}
-      <UploadPanel />
+      {showUpload ? (
+        <UploadPanel />
+      ) : (
+        <div>
+          <Button size="sm" variant="outline" onClick={() => setShowUpload(true)}>
+            Start from a document or a page
+          </Button>
+        </div>
+      )}
     </section>
   );
 }
@@ -284,14 +296,20 @@ function PolicyBody({ type, markets, onSplit }: { type: PolicyType; markets: str
 
 function AnswersAndWrite({ type, markets, questions, note, onSplit }: { type: PolicyType; markets: string[]; questions: Question[]; note?: string; onSplit: (m: string[]) => void }) {
   const initial = () => Object.fromEntries(questions.map((q) => [q.fact, valueToRaw(q.shape, q.answer)]));
-  const [form, setForm] = useState<{ raw: Record<string, string>; saved: Record<string, string> }>(() => ({ raw: initial(), saved: initial() }));
-  // untouched boxes follow the saved answers (an upload or another tab can change them); a box the merchant edited never does
+  const [form, setForm] = useState<AnswersForm>(() => newAnswersForm(initial()));
+  const [accepted, setAccepted] = useState<ReadonlySet<string>>(new Set());
+  // how many times the answers have changed (saved here, or changed by an upload): a draft written before the latest one is out of date
+  const [answersVersion, setAnswersVersion] = useState(0);
+  // untouched boxes follow the saved answers when THEY change (an upload, another tab); a box the merchant edited never does
   const synced = reconcileAnswers(form, initial());
-  if (synced.raw !== form.raw || synced.saved !== form.saved) setForm({ raw: synced.raw, saved: synced.saved });
+  if (synced.form !== form) {
+    setForm(synced.form);
+    if (synced.external) setAnswersVersion((v) => v + 1);
+    // an offer accepted for a box the server then changed is no longer the merchant's choice
+    if (synced.changed.length > 0) setAccepted((a) => new Set([...a].filter((f) => !synced.changed.includes(f))));
+  }
   const { raw, saved } = form;
   const setRaw = (f: (r: Record<string, string>) => Record<string, string>) => setForm((c) => ({ ...c, raw: f(c.raw) }));
-  const [saveCount, setSaveCount] = useState(0);
-  const [accepted, setAccepted] = useState<ReadonlySet<string>>(new Set());
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [summary, setSummary] = useState<string | null>(null);
   const save = useSavePolicyAnswers(type);
@@ -308,8 +326,8 @@ function AnswersAndWrite({ type, markets, questions, note, onSplit }: { type: Po
     setSummary(null);
     try {
       await save.mutateAsync(r.body);
-      setForm((c) => ({ ...c, saved: { ...raw } }));
-      setSaveCount((n) => n + 1);
+      setForm((c) => ({ ...c, saved: { ...raw }, stale: false }));
+      setAnswersVersion((v) => v + 1);
       toast.success("Answers saved. Nothing is written or published yet.");
     } catch (e) {
       setSummary(e instanceof Error && e.message ? e.message : "That did not save. Please try again.");
@@ -320,10 +338,13 @@ function AnswersAndWrite({ type, markets, questions, note, onSplit }: { type: Po
     <>
       <div className="space-y-4">
         {note && <p className="text-xs text-muted-foreground">{note}</p>}
-        {synced.stale && (
+        {form.stale && (
           <p role="status" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             {ANSWERS_UPDATED}
-            <Button size="sm" variant="outline" onClick={() => setForm({ raw: initial(), saved: initial() })}>
+            <Button size="sm" variant="outline" onClick={() => {
+                setForm(newAnswersForm(initial()));
+                setAccepted(new Set());
+              }}>
               Use the saved answers
             </Button>
           </p>
@@ -355,7 +376,7 @@ function AnswersAndWrite({ type, markets, questions, note, onSplit }: { type: Po
           {dirty && <span className="text-xs text-muted-foreground">You have changes that are not saved yet.</span>}
         </div>
       </div>
-      <WriteSection type={type} markets={markets} dirty={dirty} saveCount={saveCount} onSplit={onSplit} />
+      <WriteSection type={type} markets={markets} dirty={dirty} answersVersion={answersVersion} onSplit={onSplit} />
     </>
   );
 }
@@ -483,10 +504,10 @@ export function PriceCardView({ price }: { price: PolicyPrice }) {
   );
 }
 
-function WriteSection({ type, markets, dirty, saveCount, onSplit }: { type: PolicyType; markets: string[]; dirty: boolean; saveCount: number; onSplit: (m: string[]) => void }) {
+function WriteSection({ type, markets, dirty, answersVersion, onSplit }: { type: PolicyType; markets: string[]; dirty: boolean; answersVersion: number; onSplit: (m: string[]) => void }) {
   const price = usePolicyPrice(type, markets);
   const gen = useGeneratePolicy(type);
-  // `at`: how many times the answers had been saved when this draft was written; `n` names the draft for its findings read
+  // `at`: the answers' version when this draft was written; `n` names the draft for its findings read
   const [written, setWritten] = useState<{ response: Extract<GenerateResponse, { drafted: true }>; at: number; n: number } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [topUp, setTopUp] = useState(false);
@@ -507,7 +528,7 @@ function WriteSection({ type, markets, dirty, saveCount, onSplit }: { type: Poli
     try {
       const r = await gen.mutateAsync({ markets, quoteToken: p.token });
       if (!r.drafted) setMessage(r.message);
-      else setWritten((w) => ({ response: r, at: saveCount, n: (w?.n ?? 0) + 1 }));
+      else setWritten((w) => ({ response: r, at: answersVersion, n: (w?.n ?? 0) + 1 }));
     } catch (e) {
       const line = generateErrorLine(e);
       setMessage(line.message);
@@ -544,7 +565,7 @@ function WriteSection({ type, markets, dirty, saveCount, onSplit }: { type: Poli
         Write my policy
       </Button>
       {written && (
-        <DraftReview key={written.n} response={written.response} draftKey={String(written.n)} outOfDate={dirty || saveCount !== written.at} type={type} markets={markets} onSplit={onSplit} />
+        <DraftReview key={written.n} response={written.response} draftKey={String(written.n)} outOfDate={dirty || answersVersion !== written.at} type={type} markets={markets} onSplit={onSplit} />
       )}
     </div>
   );
@@ -644,7 +665,7 @@ function MarketFindingsSection({ type, markets, response, draftKey, onSplit }: {
   const polled = usePolicyFindings(type, markets, pending, draftKey);
   const check: MarketCheck | null = response.marketFindings ?? polled.data?.marketFindings ?? null;
   if (check) return <MarketFindingsView check={check} markets={markets} onSplit={onSplit} />;
-  if (pending && polled.isError) return <p className="text-sm text-muted-foreground">{MARKET_CHECK_GAVE_UP}</p>;
+  if (pending && polled.gaveUp) return <p className="text-sm text-muted-foreground">{MARKET_CHECK_GAVE_UP}</p>;
   return (
     <p role="status" className="text-sm text-muted-foreground">
       {MARKET_CHECK_PENDING}
@@ -666,10 +687,10 @@ export function MarketFindingsView({ check, markets, onSplit }: { check: MarketC
           <div key={g.severity} data-kb-severity={g.severity} className="space-y-2">
             <h5 className="text-sm font-semibold">{severityHeading(g.severity)}</h5>
             <ul className="space-y-2">
-              {g.findings.map((f) => {
+              {g.findings.map((f, i) => {
                 const href = findingSourceHref(f);
                 return (
-                  <li key={`${f.ruleKey}-${f.market}`} className="space-y-1 rounded-md border p-3 text-sm">
+                  <li key={`${f.ruleKey}-${f.market}-${i}`} className="space-y-1 rounded-md border p-3 text-sm">
                     {f.market !== "*" && <p className="text-xs text-muted-foreground">{countryName(f.market)}</p>}
                     {f.quote && <blockquote className="border-l-2 pl-3 italic">{f.quote}</blockquote>}
                     <p>{f.why}</p>

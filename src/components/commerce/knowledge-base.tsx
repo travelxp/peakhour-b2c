@@ -68,7 +68,6 @@ import {
   severityHeading,
   shopifyPoliciesHref,
   sourceLabel,
-  splitPlaceholders,
   SUGGESTIONS_EMPTY,
   suggestionAskedLine,
   type KbEntry,
@@ -81,6 +80,7 @@ import {
 } from "@/lib/knowledge-base";
 import { shopOf } from "@/lib/insights";
 import { EntryPublish, PolicyBuilder } from "@/components/commerce/policy-builder";
+import { Highlighted } from "@/components/commerce/highlighted";
 
 /**
  * Commerce -> Knowledge base. What your assistant knows beyond the catalog: the
@@ -250,23 +250,6 @@ export function SuggestionsView({ data, now, onApproved, onFailed }: { data: KbS
             </li>
           ))}
         </ul>
-      )}
-    </>
-  );
-}
-
-/** The text with each [bracketed] detail still to fill in highlighted. */
-export function Highlighted({ text }: { text: string }) {
-  return (
-    <>
-      {splitPlaceholders(text).map((p, i) =>
-        p.placeholder ? (
-          <mark key={i} data-kb-placeholder className="rounded bg-warning/20 px-0.5 text-warning-on-tint">
-            {p.text}
-          </mark>
-        ) : (
-          <span key={i}>{p.text}</span>
-        ),
       )}
     </>
   );

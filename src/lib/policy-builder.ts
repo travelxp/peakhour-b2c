@@ -277,22 +277,44 @@ export function countryName(code: string): string {
 }
 
 /**
- * The saved answers against the form. Untouched boxes follow the server (an upload, another tab or a save landing adds or changes answers); boxes the merchant has
- * edited are NEVER replaced (`stale` = a notice is shown). Returns the same objects when nothing changes.
+ * The answers form: what is in the boxes (`raw`), what the merchant started from (`saved`), and the last server answers it adopted (`server`). Every value is the
+ * box text (see `valueToRaw`).
  */
-export function reconcileAnswers(
-  state: { raw: Record<string, string>; saved: Record<string, string> },
-  server: Record<string, string>,
-): { raw: Record<string, string>; saved: Record<string, string>; stale: boolean } {
-  const facts = new Set([...Object.keys(server), ...Object.keys(state.saved)]);
-  const changed = [...facts].some((f) => (server[f] ?? "") !== (state.saved[f] ?? ""));
-  if (!changed) return { ...state, stale: false };
-  const dirty = [...facts].some((f) => (state.raw[f] ?? "") !== (state.saved[f] ?? ""));
-  if (!dirty) return { raw: { ...server }, saved: { ...server }, stale: false };
-  // edits are kept; the facts the merchant has not touched take the server's value
-  const raw = { ...state.raw };
-  for (const f of facts) if ((state.raw[f] ?? "") === (state.saved[f] ?? "")) raw[f] = server[f] ?? "";
-  return { raw, saved: { ...server }, stale: [...facts].some((f) => (raw[f] ?? "") !== (server[f] ?? "")) };
+export interface AnswersForm {
+  raw: Record<string, string>;
+  saved: Record<string, string>;
+  server: Record<string, string>;
+  /** The saved answers changed under edits the merchant had made: a notice is shown and the edits are kept. */
+  stale: boolean;
+}
+
+export const newAnswersForm = (server: Record<string, string>): AnswersForm => ({ raw: { ...server }, saved: { ...server }, server, stale: false });
+
+const sameBoxes = (a: Record<string, string>, b: Record<string, string>): boolean => {
+  for (const f of new Set([...Object.keys(a), ...Object.keys(b)])) if ((a[f] ?? "") !== (b[f] ?? "")) return false;
+  return true;
+};
+
+/**
+ * The form against the server's latest answers. ★IT ACTS ONLY WHEN THE SERVER'S ANSWERS CHANGED SINCE THE LAST ONES ADOPTED, never because the form moved ahead of a refetch
+ * (a save sets `saved` at once and the refetch that confirms it lands later). Untouched boxes follow the server (an upload, another tab); a box the merchant edited is NEVER replaced.
+ * `external`: the change is not the merchant's own save (the server's answers differ from what the form holds as saved), so a draft written before it is out of date.
+ * Returns the same form object when nothing changed, so a render-time sync cannot loop.
+ */
+export function reconcileAnswers(form: AnswersForm, server: Record<string, string>): { form: AnswersForm; external: boolean; changed: string[] } {
+  if (sameBoxes(form.server, server)) return { form, external: false, changed: [] };
+  const external = !sameBoxes(server, form.saved);
+  const facts = new Set([...Object.keys(form.raw), ...Object.keys(form.saved), ...Object.keys(server)]);
+  const edited = new Set([...facts].filter((f) => (form.raw[f] ?? "") !== (form.saved[f] ?? "")));
+  const raw = { ...form.raw };
+  const changed: string[] = [];
+  for (const f of facts) {
+    if (!edited.has(f) && (raw[f] ?? "") !== (server[f] ?? "")) {
+      raw[f] = server[f] ?? "";
+      changed.push(f);
+    }
+  }
+  return { form: { raw, saved: { ...server }, server, stale: form.stale || (external && edited.size > 0) }, external, changed };
 }
 
 export const ANSWERS_UPDATED = "Your saved answers changed (for example from a document you added). Your edits are kept.";
@@ -458,6 +480,8 @@ export const MARKET_CHECK_GAVE_UP = "We could not finish checking this draft. Yo
 
 /** How often a pending check is read again. A failed read stops the polling (the screen then says it could not finish). */
 export const FINDINGS_POLL_MS = 4000;
+/** A pending check is read again after a failed read, this many failures in all, before the screen gives up. */
+export const FINDINGS_ERRORS_MAX = 3;
 
 // -- Approving -----------------------------------------------------------------------------------------------------------------
 

@@ -6,6 +6,7 @@ import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClie
 import { api, newActionKey } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import {
+  FINDINGS_ERRORS_MAX,
   FINDINGS_POLL_MS,
   clickHeaders,
   marketsParam,
@@ -232,6 +233,8 @@ export function useSavePolicyAnswers(type: PolicyType) {
     mutationFn: (body: SaveBody) => api.put<{ policy: PolicyRow }>(`/v1/kb/policies/${type}`, body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: [POLICIES_KEY] });
+      // the questions hold the saved answers and where each came from: a reopened editor must read what was just saved
+      void qc.invalidateQueries({ queryKey: [POLICY_QUESTIONS_KEY] });
       void qc.invalidateQueries({ queryKey: [POLICY_PRICE_KEY] });
     },
   });
@@ -271,14 +274,19 @@ export function useGeneratePolicy(type: PolicyType) {
 /** GET .../generate/findings: the market findings of the current draft (`draftKey` names which written draft, so a new draft never shows the last one's findings), read again while the generate reply said "pending". Free; stops after a few tries. */
 export function usePolicyFindings(type: PolicyType, markets: readonly string[], enabled: boolean, draftKey: string) {
   const { isAuthenticated, org, business } = useAuth();
-  return useQuery<{ marketCheck: "done"; marketFindings: MarketCheck }>({
-    queryKey: [POLICY_FINDINGS_KEY, org?._id ?? null, business?._id ?? null, type, marketsParam(markets), draftKey],
+  const qc = useQueryClient();
+  const queryKey = [POLICY_FINDINGS_KEY, org?._id ?? null, business?._id ?? null, type, marketsParam(markets), draftKey];
+  const q = useQuery<{ marketCheck: "done"; marketFindings: MarketCheck }>({
+    queryKey,
     queryFn: () => api.get(`/v1/kb/policies/${type}/generate/findings`, marketsParam(markets)),
     enabled: enabled && isAuthenticated && !!org?._id,
     retry: false,
-    refetchInterval: (q) => (q.state.data || q.state.errorUpdateCount > 0 ? false : FINDINGS_POLL_MS),
+    refetchInterval: (q) => (q.state.data || q.state.errorUpdateCount >= FINDINGS_ERRORS_MAX ? false : FINDINGS_POLL_MS),
     gcTime: 0,
   });
+  // a read that fails is tried again a few times (a network blip is not an answer); only then does the screen say it could not finish
+  const st = qc.getQueryState(queryKey);
+  return { ...q, gaveUp: !q.data && (st?.errorUpdateCount ?? 0) >= FINDINGS_ERRORS_MAX };
 }
 
 /** Approve the written draft (the existing suggestions route). Also refreshes the policy rows: a generated approval makes its policy row live. */
