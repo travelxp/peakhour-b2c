@@ -23,7 +23,11 @@ import {
   publicationLine,
   publicationFor,
   publishButtons,
+  divergenceTexts,
   newAnswersForm,
+  policyEntryRefs,
+  policyPublicationBadges,
+  remoteSeenLine,
   reconcileAnswers,
   publishErrorLine,
   quoteLapsed,
@@ -37,6 +41,7 @@ import {
   valueToRaw,
   type CapabilitiesResponse,
   type PolicyPrice,
+  type PolicyRow,
   type Publication,
   type Question,
   type UploadSummary,
@@ -313,6 +318,8 @@ describe("upload", () => {
 
 // -- publishing -----------------------------------------------------------------------------------------------------
 
+const POLICY_ENTRY = { policyId: "p1", markets: [] as string[] };
+
 /** A fixture with two channels. Neither name is known to the code under test: it draws what it is given. */
 const caps: CapabilitiesResponse = {
   channels: [
@@ -355,7 +362,7 @@ describe("publish buttons are drawn from the capabilities", () => {
     expect(publishButtons({ channels: [] })).toEqual([]);
   });
   it("draws a working button for an allowed slot (and for a recheckable missing grant), ordered page, FAQ, store policy", () => {
-    const b = publishButtons(caps);
+    const b = publishButtons(caps, POLICY_ENTRY);
     expect(b.filter((x) => x.enabled).map((x) => `${x.channel}:${x.slot}`)).toEqual(["shopify:page", "wordpress:faq", "shopify:legal_policy", "wordpress:legal_policy"]);
     expect(b.map((x) => x.slot)).toEqual(["page", "page", "faq", "faq", "legal_policy", "legal_policy"]);
   });
@@ -371,7 +378,7 @@ describe("publish buttons are drawn from the capabilities", () => {
     expect(b.reapprove).toBe(false);
   });
   it("shows the re-approve prompt for a missing grant, and keeps the button when the channel can be asked again", () => {
-    const b = publishButtons(caps).find((x) => x.channel === "shopify" && x.slot === "legal_policy")!;
+    const b = publishButtons(caps, POLICY_ENTRY).find((x) => x.channel === "shopify" && x.slot === "legal_policy")!;
     expect(b.reapprove).toBe(true);
     expect(b.enabled).toBe(true);
     expect(b.note).toContain("Reconnect it and approve the permissions");
@@ -384,14 +391,16 @@ describe("publish buttons are drawn from the capabilities", () => {
     expect(FAQ_HELP).toContain("We do not promise any search-engine result");
     expect(FAQ_HELP).not.toMatch(/rich result/i);
   });
-  it("offers a store-wide policy slot only for a policy of its types, for every market", () => {
+  it("offers a store-wide policy slot only for an entry written as a policy (policyId set) that covers every market", () => {
     const slot = { slot: "legal_policy" as const, allowed: true, policyTypes: ["returns", "shipping"] };
-    expect(slotFits(slot, { policyType: "returns", markets: [] })).toBe(true);
-    expect(slotFits(slot, { policyType: "warranty", markets: [] })).toBe(false);
-    expect(slotFits(slot, { policyType: "returns", markets: ["GB"] })).toBe(false);
-    // an entry of unknown kind is offered it: the api refuses a non-policy in words
-    expect(slotFits(slot, {})).toBe(true);
-    expect(slotFits({ slot: "page", allowed: true }, { policyType: "warranty", markets: ["GB"] })).toBe(true);
+    expect(slotFits(slot, { policyId: "p1", markets: [] })).toBe(true);
+    expect(slotFits(slot, { policyId: "p1", markets: ["GB"] })).toBe(false);
+    expect(slotFits(slot, { policyId: null, markets: [] })).toBe(false);
+    // an api that sends no policyId is not guessed at
+    expect(slotFits(slot, {})).toBe(false);
+    expect(slotFits(slot, { policyId: "p1", markets: [], policyType: "returns" })).toBe(true);
+    expect(slotFits(slot, { policyId: "p1", markets: [], policyType: "warranty" })).toBe(false);
+    expect(slotFits({ slot: "page", allowed: true }, { policyId: null, markets: ["GB"] })).toBe(true);
   });
   it("the code under test names no channel", () => {
     const src = readFileSync(fileURLToPath(new URL("./policy-builder.ts", import.meta.url)), "utf8");
@@ -497,5 +506,35 @@ describe("review round 1", () => {
   });
   it("names why Approve is off after the answers changed", () => {
     expect(DRAFT_OUT_OF_DATE).toContain("write the policy again");
+  });
+});
+
+describe("KE-2.9a fields", () => {
+  const row = (over: Partial<PolicyRow> = {}): PolicyRow => ({ id: "r1", policyType: "returns", status: "active", markets: [], marketKey: "*", facts: {}, factSources: [], ...over });
+  it("finds the draft and the live entry of a policy for one market set, from the policy rows", () => {
+    const rows = [row({ id: "d", status: "draft", draftEntryId: "e-draft" }), row({ id: "a", activeEntryId: "e-live" }), row({ id: "gb", marketKey: "GB", markets: ["GB"], activeEntryId: "e-gb" })];
+    expect(policyEntryRefs(rows, [])).toEqual({ draftEntryId: "e-draft", activeEntryId: "e-live", policyId: "a" });
+    expect(policyEntryRefs(rows, ["GB"])).toEqual({ draftEntryId: null, activeEntryId: "e-gb", policyId: "gb" });
+    expect(policyEntryRefs(rows, ["IN"])).toEqual({ draftEntryId: null, activeEntryId: null, policyId: null });
+    expect(policyEntryRefs(undefined, [])).toEqual({ draftEntryId: null, activeEntryId: null, policyId: null });
+  });
+  it("says the per-channel state from the rows' publication summaries", () => {
+    const rows = [row({ publications: [{ id: "x.1", channel: "shopify", slot: "legal_policy", state: "live" }, { id: "x.2", channel: "site", slot: "page", state: "diverged" }] })];
+    const b = policyPublicationBadges(rows, caps);
+    expect(b.map((x) => x.text)).toEqual(["Shopify, your store policy: live", "site, a page: changed on your site"]);
+    expect(b[1]!.tone).toBe("warn");
+    expect(policyPublicationBadges([row()], caps)).toEqual([]);
+  });
+  it("puts both texts of a divergence side by side when the site's text is there, and says so when the copy is gone", () => {
+    expect(divergenceTexts({ remoteText: "Their words" }, "Our words")).toEqual({ ours: "Our words", theirs: "Their words", gone: false });
+    expect(divergenceTexts({ remoteText: null }, "Our words")).toEqual({ ours: "Our words", theirs: null, gone: true });
+    // absent (an older api, or not diverged): today's wording, no claim that the copy is gone
+    expect(divergenceTexts({}, "Our words")).toEqual({ ours: "Our words", theirs: null, gone: false });
+    expect(divergenceTexts({ remoteText: "x" }, undefined).ours).toBeNull();
+  });
+  it("words when the site's text was read", () => {
+    expect(remoteSeenLine("2026-11-04T10:00:00.000Z")).toBe("Read from your site on 4 Nov 2026");
+    expect(remoteSeenLine(null)).toBeNull();
+    expect(remoteSeenLine("nope")).toBeNull();
   });
 });

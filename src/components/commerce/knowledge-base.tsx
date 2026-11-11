@@ -664,7 +664,7 @@ function EntryCard({ entry, onEdit }: { entry: KbEntry; onEdit: () => void }) {
               View the original <ExternalLink className="size-3" aria-hidden="true" />
             </a>
           )}
-          {entry.status === "active" && !entry.readOnly && <EntryPublish entryId={entry.id} />}
+          {entry.status === "active" && !entry.readOnly && <EntryPublish entry={entry} />}
           <div className="flex gap-2 pt-1">
             {entry.readOnly ? (
               <Button size="sm" variant="outline" disabled={action.isPending} onClick={() => run("take-over")}>

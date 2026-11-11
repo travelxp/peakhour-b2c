@@ -39,6 +39,10 @@ export interface KbEntry {
   syncedAt: string | null;
   createdAt: string | null;
   updatedAt: string | null;
+  /** The policy row a generated entry was written for; null for any other entry. Absent from an older api. */
+  policyId?: string | null;
+  /** The policy's market set; `[]` is every market. */
+  markets?: string[];
 }
 
 export interface KbRequest {

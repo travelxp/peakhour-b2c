@@ -45,6 +45,19 @@ export interface PolicyRow {
   facts: Record<string, unknown>;
   factSources: FactSource[];
   updatedAt?: string;
+  /** The newest generator draft written from this row, or null. */
+  draftEntryId?: string | null;
+  /** The newest active entry of this policy, or null. */
+  activeEntryId?: string | null;
+  /** Where this policy's active entry is published, in brief. */
+  publications?: PolicyPublicationRef[];
+}
+
+export interface PolicyPublicationRef {
+  id: string;
+  channel: string;
+  slot: string;
+  state: string;
 }
 
 export interface PoliciesResponse {
@@ -395,7 +408,7 @@ export interface MarketCheck {
   splitMarkets: string[];
 }
 
-export interface GeneratedEntry extends Pick<KbEntry, "id" | "title" | "content"> {
+export interface GeneratedEntry extends Pick<KbEntry, "id" | "title" | "content" | "policyId" | "markets"> {
   draft?: { needsFacts?: string[] } | null;
 }
 
@@ -642,19 +655,21 @@ export interface PublishButton {
 }
 
 export interface PublishContext {
-  /** The policy the entry was written for, when this screen knows it (a generated draft just approved). Absent = an entry of unknown kind. */
-  policyType?: PolicyType;
-  /** The policy's market set. A policy for chosen markets only cannot take a store-wide slot. */
+  /** The policy row the entry was written for (the entry view's `policyId`). A store-wide policy slot is offered only when this is set. */
+  policyId?: string | null;
+  /** The entry's market set (`[]` = every market). A policy for chosen markets only cannot take a store-wide slot. */
   markets?: readonly string[];
+  /** The policy's type, when the screen is on that policy's card: a slot that takes other types is not drawn. */
+  policyType?: PolicyType;
 }
 
 const slotOrder: Record<Slot, number> = { page: 0, faq: 1, legal_policy: 2 };
 
-/** Whether this slot is offered for this entry. A `policyTypes` slot (a store-wide policy page) is for a policy of one of those types, for every market; an entry of unknown kind is offered it, and the api's refusal is worded if it is not a policy. */
+/** Whether this slot is offered for this entry. A `policyTypes` slot (a store-wide policy page) is for an entry written as a policy (`policyId` set) that covers every market. */
 export function slotFits(slot: CapabilitySlot, ctx: PublishContext): boolean {
   if (!slot.policyTypes) return true;
-  if (ctx.policyType === undefined) return true;
-  return slot.policyTypes.includes(ctx.policyType) && (ctx.markets?.length ?? 0) === 0;
+  if (ctx.policyId == null || (ctx.markets?.length ?? 0) > 0) return false;
+  return ctx.policyType === undefined || slot.policyTypes.includes(ctx.policyType);
 }
 
 /** Every button the capabilities allow for this entry, and a note for each slot the merchant could unblock. Nothing is invented: no capabilities, no buttons. */
@@ -729,6 +744,9 @@ export interface Publication {
   outdated: boolean;
   entryStatus: string;
   checkError?: string;
+  /** Only on a diverged copy: the words now on the site (null when the site's copy is gone) and when they were read. Absent when the copy is not diverged. */
+  remoteText?: string | null;
+  remoteSeenAt?: string | null;
 }
 
 /** "Live on Acme store as a page", with the states the merchant must see: out of date, changed on the site, failed, or the entry no longer live. */
@@ -766,4 +784,43 @@ export function resolvedLine(keep: "ours" | "theirs", slot: Slot): string {
 }
 
 /** A copy that can be removed from the channel offers it; one the channel will not let go is explained by the api's refusal. */
+/** What the policy row's entries are, for one market set: the draft waiting, the live entry, and the policy row the live entry belongs to. */
+export function policyEntryRefs(rows: readonly PolicyRow[] | undefined, markets: readonly string[]): { draftEntryId: string | null; activeEntryId: string | null; policyId: string | null } {
+  const mine = (rows ?? []).filter((r) => r.marketKey === marketsKey(markets));
+  const active = mine.find((r) => r.activeEntryId);
+  return { draftEntryId: mine.find((r) => r.draftEntryId)?.draftEntryId ?? null, activeEntryId: active?.activeEntryId ?? null, policyId: active?.id ?? null };
+}
+
+/** Per-channel state from the policy rows' publication summaries: "Shopify, your store policy: live". */
+export function policyPublicationBadges(rows: readonly PolicyRow[], caps: CapabilitiesResponse | undefined): { key: string; text: string; tone: "ok" | "warn" | "bad" }[] {
+  const words: Record<string, { text: string; tone: "ok" | "warn" | "bad" }> = {
+    live: { text: "live", tone: "ok" },
+    diverged: { text: "changed on your site", tone: "warn" },
+    failed: { text: "did not publish", tone: "bad" },
+    pending: { text: "publishing", tone: "warn" },
+  };
+  const out: { key: string; text: string; tone: "ok" | "warn" | "bad" }[] = [];
+  for (const r of rows) {
+    for (const p of r.publications ?? []) {
+      const w = words[p.state] ?? { text: p.state, tone: "warn" as const };
+      out.push({ key: p.id, text: `${channelLabelFor(caps, p.channel)}, ${slotWords(p.slot).noun}: ${w.text}`, tone: w.tone });
+    }
+  }
+  return out;
+}
+
+/** "Read from your site on 4 Nov 2026", or null when the time is unreadable. */
+export function remoteSeenLine(iso: string | null | undefined): string | null {
+  const t = iso ? Date.parse(iso) : NaN;
+  if (!Number.isFinite(t)) return null;
+  return `Read from your site on ${new Date(t).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}`;
+}
+
+/** The two texts of a divergence. `theirs` is null when the site's copy is gone, and absent from an older api: the banner then says what it can. */
+export function divergenceTexts(p: Pick<Publication, "remoteText">, ourText: string | undefined): { ours: string | null; theirs: string | null; gone: boolean } {
+  return { ours: ourText?.trim() ? ourText : null, theirs: typeof p.remoteText === "string" && p.remoteText.trim() ? p.remoteText : null, gone: p.remoteText === null };
+}
+
+export const REMOTE_GONE = "The page is no longer on your site, so there is no text there to keep.";
+
 export const REMOVE_LABEL = "Take it off";

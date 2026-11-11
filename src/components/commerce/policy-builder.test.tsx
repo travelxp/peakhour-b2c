@@ -26,7 +26,7 @@ vi.mock("@/components/commerce/knowledge-base", () => ({ Highlighted: ({ text }:
 vi.mock("next/link", () => ({ default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
 
 const { UploadResultView } = await import("./policy-upload");
-const { PriceCardView, MarketFindingsView, PublishPanelView, PublicationRow, QuestionField, PolicyList, WebsiteBand } = await import("./policy-builder");
+const { DivergedTexts, PriceCardView, MarketFindingsView, PublishPanelView, PublicationRow, QuestionField, PolicyList, WebsiteBand } = await import("./policy-builder");
 
 const price = (over: Partial<PolicyPrice> = {}): PolicyPrice => ({
   peaks: 60,
@@ -181,7 +181,7 @@ const caps: CapabilitiesResponse = {
 const pub = (over: Partial<Publication> = {}): Publication => ({ id: "e1.abc", channel: "site", slot: "faq", store: "acme.example", state: "live", url: "https://acme.example/faq", publishedAt: null, checkedAt: null, error: null, outdated: false, entryStatus: "active", ...over });
 
 describe("publish panel", () => {
-  const render = (over: Partial<Parameters<typeof PublishPanelView>[0]> = {}) => renderToStaticMarkup(<PublishPanelView entryId="e1" caps={caps} publications={[]} checking={false} checkFailed={false} ctx={{ policyType: "returns", markets: [] }} {...over} />);
+  const render = (over: Partial<Parameters<typeof PublishPanelView>[0]> = {}) => renderToStaticMarkup(<PublishPanelView entryId="e1" caps={caps} publications={[]} checking={false} checkFailed={false} ctx={{ policyType: "returns", markets: [], policyId: "p1" }} {...over} />);
   it("draws a button for the allowed slot only, with the others as notes", () => {
     const out = render();
     expect(out).toContain("Publish to the FAQ");
@@ -197,9 +197,11 @@ describe("publish panel", () => {
     expect(out).not.toMatch(/rich result/i);
   });
   it("hides the store-wide policy slot for a policy of another type or for chosen markets", () => {
-    expect(render({ ctx: { policyType: "warranty", markets: [] } })).not.toContain("Publish as your store policy");
-    expect(render({ ctx: { policyType: "returns", markets: ["GB"] } })).not.toContain("Publish as your store policy");
-    expect(render({ ctx: { policyType: "returns", markets: [] } })).toContain("Publish as your store policy");
+    expect(render({ ctx: { policyType: "warranty", markets: [], policyId: "p1" } })).not.toContain("Publish as your store policy");
+    expect(render({ ctx: { policyType: "returns", markets: ["GB"], policyId: "p1" } })).not.toContain("Publish as your store policy");
+    expect(render({ ctx: { policyType: "returns", markets: [], policyId: "p1" } })).toContain("Publish as your store policy");
+    // an entry that is not a policy never gets the store-wide slot
+    expect(render({ ctx: { policyId: null, markets: [] } })).not.toContain("Publish as your store policy");
   });
   it("with no capabilities draws no button, and says to connect", () => {
     const out = render({ caps: { channels: [] } });
@@ -263,5 +265,46 @@ describe("upload result", () => {
     expect(out).toContain("1 suggested answer was added under Suggested answers");
     expect(out).toContain("Returns, window days: you have 30, the document says 14. Yours was kept.");
     expect(out).toContain('role="status"');
+  });
+});
+
+describe("divergence banner shows the store's text (KE-2.9a)", () => {
+  const diverged = (over: Partial<Publication> = {}) => pub({ state: "diverged", remoteText: "Returns within 7 days <b>only</b>.", remoteSeenAt: "2026-11-04T10:00:00.000Z", ...over });
+  it("shows Peakhour's text and the site's text side by side, as plain text, with when it was read", () => {
+    const out = renderToStaticMarkup(<PublicationRow pub={diverged()} caps={caps} ourText="Returns within 30 days." />);
+    expect(out).toContain("data-kb-both-texts");
+    expect(out).toContain("Peakhour&#x27;s text");
+    expect(out).toContain("Returns within 30 days.");
+    expect(out).toContain("On acme.example now");
+    // escaped, never markup
+    expect(out).toContain("Returns within 7 days &lt;b&gt;only&lt;/b&gt;.");
+    expect(out).not.toContain("<b>only</b>");
+    expect(out).toContain("Read from your site on 4 Nov 2026");
+  });
+  it("says the page is gone when the site's copy is gone (remoteText null)", () => {
+    const out = renderToStaticMarkup(<PublicationRow pub={diverged({ remoteText: null, remoteSeenAt: null })} caps={caps} ourText="Ours" />);
+    expect(out).toContain("no longer on your site");
+    expect(out).not.toContain("data-kb-both-texts");
+  });
+  it("falls back to today's wording when the api sends no remote text", () => {
+    const out = renderToStaticMarkup(<PublicationRow pub={diverged({ remoteText: undefined, remoteSeenAt: undefined })} caps={caps} />);
+    expect(out).not.toContain("data-kb-both-texts");
+    expect(out).not.toContain("no longer on your site");
+    expect(out).toContain("Keep mine");
+  });
+  it("shows only the site's text when Peakhour's is not at hand", () => {
+    const out = renderToStaticMarkup(<DivergedTexts pub={diverged()} store="acme.example" />);
+    expect(out).toContain("On acme.example now");
+    expect(out).not.toContain("Peakhour&#x27;s text");
+  });
+});
+
+describe("policy cards show per-channel state from the row (KE-2.9a)", () => {
+  it("lists where the live policy is published, from the row's publications", () => {
+    const row = { id: "1", policyType: "returns", status: "active", markets: [], marketKey: "*", facts: {}, factSources: [], activeEntryId: "e1", publications: [{ id: "e1.x", channel: "site", slot: "legal_policy", state: "live" }, { id: "e1.y", channel: "site", slot: "page", state: "diverged" }] };
+    const data = Object.fromEntries(["returns", "refunds", "exchanges", "shipping", "cancellation", "cod", "warranty"].map((t) => [t, t === "returns" ? [row] : []]));
+    const out = renderToStaticMarkup(<PolicyList data={data as never} caps={caps} open={null} onOpen={() => {}} />);
+    expect(out).toContain("Acme site, your store policy: live");
+    expect(out).toContain("Acme site, a page: changed on your site");
   });
 });

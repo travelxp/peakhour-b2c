@@ -16,7 +16,9 @@ import {
   useApprovePolicyDraft,
   useGeneratePolicy,
   useKbCapabilities,
+  useKbEntries,
   useKbPolicies,
+  useKbSuggestions,
   useKbPublications,
   usePolicyFindings,
   usePolicyPrice,
@@ -27,7 +29,7 @@ import {
   useUnpublish,
 } from "@/hooks/use-knowledge-base";
 import { useCommerceStores } from "@/hooks/use-commerce-stores";
-import { KB_CONTENT_MAX, KB_TITLE_MAX, approveState, groupFindings, placeholdersIn, safeUrl, severityHeading } from "@/lib/knowledge-base";
+import { KB_CONTENT_MAX, KB_TITLE_MAX, approveState, type KbEntry, groupFindings, placeholdersIn, safeUrl, severityHeading } from "@/lib/knowledge-base";
 import {
   ANSWERS_UPDATED,
   DRAFT_OUT_OF_DATE,
@@ -64,6 +66,11 @@ import {
   priceCard,
   publicationFor,
   newAnswersForm,
+  policyEntryRefs,
+  policyPublicationBadges,
+  divergenceTexts,
+  remoteSeenLine,
+  REMOTE_GONE,
   reconcileAnswers,
   publicationLine,
   publishButtons,
@@ -78,6 +85,7 @@ import {
   valueToRaw,
   type AnswerShape,
   type AnswersForm,
+  type PolicyRow as PolicyRowT,
   type CapabilitiesResponse,
   type GenerateResponse,
   type MarketCheck,
@@ -122,7 +130,7 @@ export function PolicyBuilder() {
       </div>
     );
   else if (!policies.data) body = null;
-  else body = <PolicyList data={policies.data.policies} open={open} onOpen={(t) => setOpen((cur) => (cur === t ? null : t))} />;
+  else body = <PolicyList data={policies.data.policies} caps={caps.data} open={open} onOpen={(t) => setOpen((cur) => (cur === t ? null : t))} />;
 
   return (
     <section aria-labelledby="kb-policies" className="space-y-3">
@@ -135,7 +143,7 @@ export function PolicyBuilder() {
       </p>
       {noStore && <WebsiteBand caps={caps.data} />}
       {body}
-      {open && <PolicyEditor key={open} type={open} onClose={() => setOpen(null)} />}
+      {open && <PolicyEditor key={open} type={open} rows={policies.data?.policies[open] ?? []} onClose={() => setOpen(null)} />}
       {showUpload ? (
         <UploadPanel />
       ) : (
@@ -167,18 +175,19 @@ export function WebsiteBand({ caps }: { caps: CapabilitiesResponse | undefined }
   );
 }
 
-export function PolicyList({ data, open, onOpen }: { data: Record<PolicyType, PolicyRow[]>; open: PolicyType | null; onOpen: (t: PolicyType) => void }) {
+export function PolicyList({ data, caps, open, onOpen }: { data: Record<PolicyType, PolicyRow[]>; caps?: CapabilitiesResponse; open: PolicyType | null; onOpen: (t: PolicyType) => void }) {
   return (
     <ul className="grid gap-3 sm:grid-cols-2">
       {POLICY_TYPES.map((t) => (
-        <PolicyCard key={t} type={t} rows={data[t] ?? []} open={open === t} onOpen={() => onOpen(t)} />
+        <PolicyCard key={t} type={t} rows={data[t] ?? []} caps={caps} open={open === t} onOpen={() => onOpen(t)} />
       ))}
     </ul>
   );
 }
 
-export function PolicyCard({ type, rows, open, onOpen }: { type: PolicyType; rows: PolicyRow[]; open: boolean; onOpen: () => void }) {
+export function PolicyCard({ type, rows, caps, open, onOpen }: { type: PolicyType; rows: PolicyRow[]; caps?: CapabilitiesResponse; open: boolean; onOpen: () => void }) {
   const status = policyStatus(rows);
+  const badges = policyPublicationBadges(rows, caps);
   return (
     <li>
       <Card>
@@ -196,6 +205,15 @@ export function PolicyCard({ type, rows, open, onOpen }: { type: PolicyType; row
               ))}
             </ul>
           )}
+          {badges.length > 0 && (
+            <ul data-kb-published className="text-xs">
+              {badges.map((b) => (
+                <li key={b.key} className={b.tone === "bad" ? "text-destructive" : b.tone === "warn" ? "font-medium" : "text-muted-foreground"}>
+                  {b.text}
+                </li>
+              ))}
+            </ul>
+          )}
           <Button size="sm" variant={status === "not_started" ? "default" : "outline"} aria-expanded={open} aria-label={`${status === "not_started" ? "Set up" : "Open"} ${policyLabel(type).toLowerCase()} policy`} onClick={onOpen}>
             {open ? "Close" : status === "not_started" ? "Set up" : "Open"}
           </Button>
@@ -207,7 +225,7 @@ export function PolicyCard({ type, rows, open, onOpen }: { type: PolicyType; row
 
 // -- One policy ---------------------------------------------------------------------------------------------------------------
 
-function PolicyEditor({ type, onClose }: { type: PolicyType; onClose: () => void }) {
+function PolicyEditor({ type, rows, onClose }: { type: PolicyType; rows: PolicyRowT[]; onClose: () => void }) {
   const [markets, setMarkets] = useState<string[]>([]);
   const [chosen, setChosen] = useState(false);
   const [box, setBox] = useState("");
@@ -272,13 +290,13 @@ function PolicyEditor({ type, onClose }: { type: PolicyType; onClose: () => void
             </div>
           )}
         </fieldset>
-        <PolicyBody key={marketsKey(markets)} type={type} markets={markets} onSplit={split} />
+        <PolicyBody key={marketsKey(markets)} type={type} markets={markets} rows={rows} onSplit={split} />
       </CardContent>
     </Card>
   );
 }
 
-function PolicyBody({ type, markets, onSplit }: { type: PolicyType; markets: string[]; onSplit: (m: string[]) => void }) {
+function PolicyBody({ type, markets, rows, onSplit }: { type: PolicyType; markets: string[]; rows: PolicyRowT[]; onSplit: (m: string[]) => void }) {
   const q = usePolicyQuestions(type, markets);
   if (q.isLoading) return <Skeleton className="h-32 w-full" />;
   if (q.isError && !q.data)
@@ -291,10 +309,10 @@ function PolicyBody({ type, markets, onSplit }: { type: PolicyType; markets: str
       </div>
     );
   if (!q.data) return null;
-  return <AnswersAndWrite type={type} markets={markets} questions={q.data.questions} note={q.data.prefillNote} onSplit={onSplit} />;
+  return <AnswersAndWrite type={type} markets={markets} questions={q.data.questions} note={q.data.prefillNote} rows={rows} onSplit={onSplit} />;
 }
 
-function AnswersAndWrite({ type, markets, questions, note, onSplit }: { type: PolicyType; markets: string[]; questions: Question[]; note?: string; onSplit: (m: string[]) => void }) {
+function AnswersAndWrite({ type, markets, questions, note, rows, onSplit }: { type: PolicyType; markets: string[]; questions: Question[]; note?: string; rows: PolicyRowT[]; onSplit: (m: string[]) => void }) {
   const initial = () => Object.fromEntries(questions.map((q) => [q.fact, valueToRaw(q.shape, q.answer)]));
   const [form, setForm] = useState<AnswersForm>(() => newAnswersForm(initial()));
   const [accepted, setAccepted] = useState<ReadonlySet<string>>(new Set());
@@ -376,7 +394,7 @@ function AnswersAndWrite({ type, markets, questions, note, onSplit }: { type: Po
           {dirty && <span className="text-xs text-muted-foreground">You have changes that are not saved yet.</span>}
         </div>
       </div>
-      <WriteSection type={type} markets={markets} dirty={dirty} answersVersion={answersVersion} onSplit={onSplit} />
+      <WriteSection type={type} markets={markets} dirty={dirty} answersVersion={answersVersion} rows={rows} onSplit={onSplit} />
     </>
   );
 }
@@ -504,13 +522,17 @@ export function PriceCardView({ price }: { price: PolicyPrice }) {
   );
 }
 
-function WriteSection({ type, markets, dirty, answersVersion, onSplit }: { type: PolicyType; markets: string[]; dirty: boolean; answersVersion: number; onSplit: (m: string[]) => void }) {
+function WriteSection({ type, markets, dirty, answersVersion, rows, onSplit }: { type: PolicyType; markets: string[]; dirty: boolean; answersVersion: number; rows: PolicyRowT[]; onSplit: (m: string[]) => void }) {
   const price = usePolicyPrice(type, markets);
   const gen = useGeneratePolicy(type);
   // `at`: the answers' version when this draft was written; `n` names the draft for its findings read
   const [written, setWritten] = useState<{ response: Extract<GenerateResponse, { drafted: true }>; at: number; n: number } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [topUp, setTopUp] = useState(false);
+  // what the api says exists for this policy: a draft written earlier and the live entry, so both survive a reload
+  const refs = policyEntryRefs(rows, markets);
+  const suggestions = useKbSuggestions();
+  const waiting = !written && refs.draftEntryId ? suggestions.data?.suggestions.find((s) => s.id === refs.draftEntryId) : undefined;
   const card = price.data ? priceCard(price.data) : null;
   const blockedReason = dirty ? "Save your answers first, so the policy is written from them." : card?.needsAnswers ? "Save your answers first, then we can write the policy." : null;
 
@@ -564,6 +586,29 @@ function WriteSection({ type, markets, dirty, answersVersion, onSplit }: { type:
         {gen.isPending && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />}
         Write my policy
       </Button>
+      {waiting && (
+        <DraftReview
+          key={`waiting-${waiting.id}`}
+          resumed
+          response={{
+            drafted: true,
+            charged: false,
+            peaks: 0,
+            entry: { id: waiting.id, title: waiting.title, content: waiting.content },
+            policy: { id: refs.policyId ?? "", status: "draft", markets, marketKey: marketsKey(markets) },
+            needsFacts: waiting.needsFacts,
+            replaced: false,
+            marketCheck: "pending",
+            marketFindings: null,
+          }}
+          draftKey={`waiting-${waiting.id}`}
+          outOfDate={dirty}
+          type={type}
+          markets={markets}
+          onSplit={onSplit}
+        />
+      )}
+      {refs.activeEntryId && refs.activeEntryId !== written?.response.entry.id && <ActivePolicyPublish entryId={refs.activeEntryId} policyId={refs.policyId} type={type} markets={markets} />}
       {written && (
         <DraftReview key={written.n} response={written.response} draftKey={String(written.n)} outOfDate={dirty || answersVersion !== written.at} type={type} markets={markets} onSplit={onSplit} />
       )}
@@ -573,7 +618,7 @@ function WriteSection({ type, markets, dirty, answersVersion, onSplit }: { type:
 
 // -- The draft, its market findings, approval --------------------------------------------------------------------------------
 
-function DraftReview({ response, draftKey, outOfDate, type, markets, onSplit }: { response: Extract<GenerateResponse, { drafted: true }>; draftKey: string; outOfDate: boolean; type: PolicyType; markets: string[]; onSplit: (m: string[]) => void }) {
+function DraftReview({ response, draftKey, outOfDate, resumed = false, type, markets, onSplit }: { response: Extract<GenerateResponse, { drafted: true }>; draftKey: string; outOfDate: boolean; resumed?: boolean; type: PolicyType; markets: string[]; onSplit: (m: string[]) => void }) {
   const [title, setTitle] = useState(response.entry.title);
   const [content, setContent] = useState(response.entry.content);
   const [error, setError] = useState<string | null>(null);
@@ -600,7 +645,7 @@ function DraftReview({ response, draftKey, outOfDate, type, markets, onSplit }: 
     <div className="space-y-3">
       <p role="status" className="flex items-start gap-2 text-sm">
         <Check className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-        {generatedLine(response)}
+        {resumed ? "This is the draft you wrote earlier. Your assistant does not use it until you approve it." : generatedLine(response)}
       </p>
       <label className="block space-y-1 text-sm">
         <span className="font-medium">Title</span>
@@ -652,7 +697,7 @@ function DraftReview({ response, draftKey, outOfDate, type, markets, onSplit }: 
             <Check className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
             {approvedLine}
           </p>
-          <PublishPanel entryId={response.entry.id} ctx={{ policyType: type, markets }} />
+          <PublishPanel entryId={response.entry.id} ourText={content} ctx={{ policyType: type, markets, policyId: response.entry.policyId ?? response.policy.id }} />
         </>
       )}
     </div>
@@ -737,7 +782,7 @@ export function MarketFindingsView({ check, markets, onSplit }: { check: MarketC
 // -- Publishing ---------------------------------------------------------------------------------------------------------------
 
 /** Where an approved entry is published, and the buttons to publish it: drawn from the api's capabilities only. */
-export function PublishPanel({ entryId, ctx }: { entryId: string; ctx: PublishContext }) {
+export function PublishPanel({ entryId, ctx, ourText }: { entryId: string; ctx: PublishContext; ourText?: string }) {
   const caps = useKbCapabilities();
   const pubs = useKbPublications(entryId);
   if (caps.isLoading) return <Skeleton className="h-10 w-full" />;
@@ -750,7 +795,7 @@ export function PublishPanel({ entryId, ctx }: { entryId: string; ctx: PublishCo
         </Button>
       </div>
     );
-  return <PublishPanelView entryId={entryId} caps={caps.data} publications={pubs.data?.publications ?? []} checking={pubs.isFetching} checkFailed={pubs.isError} ctx={ctx} />;
+  return <PublishPanelView entryId={entryId} caps={caps.data} publications={pubs.data?.publications ?? []} checking={pubs.isFetching} checkFailed={pubs.isError} ctx={ctx} ourText={ourText} />;
 }
 
 export function PublishPanelView({
@@ -760,6 +805,7 @@ export function PublishPanelView({
   checking,
   checkFailed,
   ctx,
+  ourText,
 }: {
   entryId: string;
   caps: CapabilitiesResponse | undefined;
@@ -767,6 +813,7 @@ export function PublishPanelView({
   checking: boolean;
   checkFailed: boolean;
   ctx: PublishContext;
+  ourText?: string;
 }) {
   const publish = usePublishEntry();
   const [errors, setErrors] = useState<Record<string, { message: string; reapprove: boolean }>>({});
@@ -791,7 +838,7 @@ export function PublishPanelView({
     <div data-kb-publish className="space-y-3 rounded-md border p-3">
       <h4 className="text-sm font-semibold">Publish</h4>
       {publications.map((p) => (
-        <PublicationRow key={p.id} pub={p} caps={caps} />
+        <PublicationRow key={p.id} pub={p} caps={caps} ourText={ourText} />
       ))}
       {checking && publications.length === 0 && <p className="text-xs text-muted-foreground">Checking where this is published...</p>}
       {checkFailed && <p className="text-xs text-muted-foreground">We could not check where this is published just now.</p>}
@@ -854,7 +901,7 @@ export function PublishPanelView({
 }
 
 /** One publication: where it is live, whether it is out of date, and, when the site's text was changed, the banner with both ways out. */
-export function PublicationRow({ pub, caps }: { pub: Publication; caps: CapabilitiesResponse | undefined }) {
+export function PublicationRow({ pub, caps, ourText }: { pub: Publication; caps: CapabilitiesResponse | undefined; ourText?: string }) {
   const line = publicationLine(pub, channelLabelFor(caps, pub.channel));
   const resolve = useResolvePublication();
   const remove = useUnpublish();
@@ -894,6 +941,7 @@ export function PublicationRow({ pub, caps }: { pub: Publication; caps: Capabili
         <div data-kb-diverged role="group" aria-label="Your site's text was changed" className="space-y-2 rounded-md border-2 border-warning/50 p-3">
           <p className="font-medium">You changed this on {store} after Peakhour published it.</p>
           <p className="text-muted-foreground">{DIVERGED_TEXT}</p>
+          <DivergedTexts pub={pub} store={store} ourText={ourText} />
           <div className="grid gap-2 sm:grid-cols-2">
             <div className="space-y-1">
               <Button size="sm" variant="outline" disabled={busy} onClick={() => void settle("ours")}>
@@ -931,14 +979,51 @@ export function PublicationRow({ pub, caps }: { pub: Publication; caps: Capabili
 }
 
 /** A "Publish" disclosure for an entry in the list. The panel (and its read-back of where the entry is published) loads only when it is opened. */
-export function EntryPublish({ entryId }: { entryId: string }) {
+export function EntryPublish({ entry }: { entry: Pick<KbEntry, "id" | "content" | "policyId" | "markets"> }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="space-y-2">
       <Button size="sm" variant="ghost" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
         {open ? "Hide publishing" : "Publish"}
       </Button>
-      {open && <PublishPanel entryId={entryId} ctx={{}} />}
+      {open && <PublishPanel entryId={entry.id} ourText={entry.content} ctx={{ policyId: entry.policyId, markets: entry.markets }} />}
+    </div>
+  );
+}
+
+/** The two texts of a divergence, side by side: Peakhour's and what is on the site now. The site's words are shown as plain text, never as markup. */
+export function DivergedTexts({ pub, store, ourText }: { pub: Publication; store: string; ourText?: string }) {
+  const t = divergenceTexts(pub, ourText);
+  const seen = remoteSeenLine(pub.remoteSeenAt);
+  if (t.gone) return <p className="text-muted-foreground">{REMOTE_GONE}</p>;
+  if (!t.theirs && !t.ours) return null;
+  return (
+    <div data-kb-both-texts className="grid gap-2 sm:grid-cols-2">
+      {t.ours && (
+        <div className="space-y-1">
+          <p className="text-xs font-medium">Peakhour&apos;s text</p>
+          <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-md border p-2 text-xs">{t.ours}</pre>
+        </div>
+      )}
+      {t.theirs && (
+        <div className="space-y-1">
+          <p className="text-xs font-medium">On {store} now</p>
+          <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-md border p-2 text-xs">{t.theirs}</pre>
+          {seen && <p className="text-xs text-muted-foreground">{seen}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The live entry of a policy, read from the policy row, so its Publish panel is there after a reload. */
+function ActivePolicyPublish({ entryId, policyId, type, markets }: { entryId: string; policyId: string | null; type: PolicyType; markets: string[] }) {
+  const entries = useKbEntries({ source: "", status: "active", q: "" });
+  const entry = entries.data?.entries.find((e) => e.id === entryId);
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium">Your live {policyLabel(type).toLowerCase()} policy</p>
+      <PublishPanel entryId={entryId} ourText={entry?.content} ctx={{ policyType: type, markets, policyId: entry?.policyId ?? policyId }} />
     </div>
   );
 }
