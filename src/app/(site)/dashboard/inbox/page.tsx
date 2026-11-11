@@ -26,9 +26,9 @@ import {
   REVIEW_SUMMARY_QUERY_KEY,
   type InboxTab,
 } from "@/lib/review-summary";
+import { REVIEW_PAGE_LIMIT } from "@/lib/review-page-limit";
 import { REVIEW_PLACES_QUERY_KEY } from "@/lib/review-places";
 import {
-  REVIEW_PAGE_LIMIT,
   reviewQueueOrder,
   reviewsAreTruncated,
   unansweredBadge,
