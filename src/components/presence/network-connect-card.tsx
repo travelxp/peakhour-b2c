@@ -4,8 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { MapPin, ArrowRight, RefreshCw, AlertTriangle, Check } from "lucide-react";
+import { MapPin, ArrowRight, RefreshCw, AlertTriangle, Check, ExternalLink } from "lucide-react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/providers/auth-provider";
 import { REVIEW_SUMMARY_QUERY_KEY } from "@/lib/review-summary";
 import { REVIEW_PLACES_QUERY_KEY } from "@/lib/review-places";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,10 @@ import {
   effectiveDraft,
   toggleLocation,
   selectionLabel,
+  mapLink,
+  listingNameLooksOff,
+  chooseAnotherAction,
+  type ListingFacts,
   type NetworkConnectionStatus,
 } from "@/components/presence/network-card-state";
 import type { ConnectableNetwork } from "@/lib/presence-panels";
@@ -61,7 +66,7 @@ interface CapabilitiesResponse {
   locationNames?: string[];
   account?: {
     extra?: {
-      locations?: Array<{ locationName?: string; title?: string }>;
+      locations?: Array<{ locationName?: string; title?: string; address?: string; mapsUri?: string }>;
       locationsComplete?: boolean;
     };
   };
@@ -69,7 +74,7 @@ interface CapabilitiesResponse {
 
 interface LocationsResponse {
   provider: string;
-  locations: Array<{ locationName: string; title?: string }>;
+  locations: Array<{ locationName: string; title?: string; address?: string; mapsUri?: string }>;
   complete: boolean;
   selected: string[];
   /** Listings dropped from the selection because Google no longer lists them. */
@@ -86,6 +91,7 @@ export function NetworkConnectCard({ network }: { network: ConnectableNetwork })
   const CAP_KEY = ["integration-cap", PROVIDER];
   const LOCATIONS_KEY = ["network-locations", PROVIDER];
   const qc = useQueryClient();
+  const { business } = useAuth();
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const statusQ = useQuery({
@@ -191,6 +197,19 @@ export function NetworkConnectCard({ network }: { network: ConnectableNetwork })
   // selected listing has a name to show without a Google call.
   const known = locationsQ.data?.locations ?? capQ.data?.account?.extra?.locations ?? [];
   const selectedLabel = selected && pickerPath !== null ? selectionLabel(selected, known) : null;
+  // ★ONLY FOR A NETWORK WITH A LISTING TO CONFIRM (one that declares a picker and a listing): the merchant is asked "is this yours?"
+  // of a thing the network actually gave us.
+  const confirmable = pickerPath !== null && network.capabilities.listing !== false;
+  const selectedFacts = confirmable && selected ? selected.map((n) => known.find((l) => l.locationName === n)).filter((l): l is ListingFacts => !!l) : [];
+  // One listing selected: say where it is and link it. With several, the picker's rows carry the facts.
+  // ★ONLY WHEN THE ONE LISTING SYNCING IS THE ONE KNOWN: with two selected and one known, the one shown would stand for both.
+  const sole = selected?.length === 1 && selectedFacts.length === 1 ? selectedFacts[0]! : null;
+  const soleLink = mapLink(sole?.mapsUri);
+  // ★WARN ONLY WHEN EVERY NAMED LISTING LOOKS OFF: one that matches is the business.
+  const titled = selectedFacts.filter((l) => l.title?.trim());
+  const nameLooksOff = titled.length > 0 && titled.length === selected?.length && titled.every((l) => listingNameLooksOff(l.title, business?.name));
+  // ★THE COUNT AND THE "WHOLE LIST" FLAG COME FROM THE SAME READ, as `known` does.
+  const another = chooseAnotherAction(known.length, locationsQ.data ? locationsQ.data.complete : capQ.data?.account?.extra?.locationsComplete);
 
   // ★THE CAPABILITIES READ IS PART OF THE ANSWER, so its loading state is part
   // of the skeleton. Rendering the card first showed "Finish setup" for a
@@ -256,7 +275,8 @@ export function NetworkConnectCard({ network }: { network: ConnectableNetwork })
               {card.kind === "ready" ? (
                 selectedLabel ? (
                   <>
-                    Syncing <span className="font-medium text-foreground">{selectedLabel}</span>.
+                    Syncing <span className="font-medium text-foreground">{selectedLabel}</span>
+                    {sole?.address ? `, ${sole.address}` : ""}.
                   </>
                 ) : (
                   "Connected and syncing."
@@ -330,6 +350,46 @@ export function NetworkConnectCard({ network }: { network: ConnectableNetwork })
         </div>
       </div>
 
+      {/* ★★IS THIS YOUR BUSINESS? A listing picked for the merchant (one listing on the account) was never confirmed by them, and the
+          name check is a line, not a gate: no block, no dialog. */}
+      {card.kind === "ready" && confirmable && selectedLabel ? (
+        <div className="mt-4 space-y-1 border-t pt-4 text-sm text-muted-foreground">
+          {nameLooksOff ? (
+            <p className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+              <span>
+                This listing&rsquo;s name doesn&rsquo;t look like {business?.name}. Check it&rsquo;s the right one.
+              </span>
+            </p>
+          ) : null}
+          <p className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            {soleLink ? (
+              <a
+                href={soleLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 underline underline-offset-2"
+              >
+                View on {label} Maps
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            ) : null}
+            <span>
+              Not your business?{" "}
+              {another.kind === "picker" ? (
+                <button type="button" className="underline underline-offset-2" onClick={() => setPickerOpen(true)}>
+                  {another.text}
+                </button>
+              ) : (
+                <Link href={network.connectHref} className="underline underline-offset-2">
+                  {another.text}
+                </Link>
+              )}
+            </span>
+          </p>
+        </div>
+      ) : null}
+
       {/* ★★A RETIRED PICK IS EXPLAINED, NOT JUST APPLIED. The api clears a
           selection Google no longer lists; without this the card simply drops
           from "Syncing Bandra" to "Nothing syncs until you choose" and reads as
@@ -381,7 +441,7 @@ function PickerNotice({ children, onRetry }: { children: React.ReactNode; onRetr
   );
 }
 
-function LocationPicker({
+export function LocationPicker({
   query,
   label,
   title,
@@ -456,17 +516,30 @@ function LocationPicker({
       <ul className="space-y-2">
         {locations.map((l) => {
           const id = `place-${l.locationName}`;
+          const mapHref = mapLink(l.mapsUri);
           return (
-            <li key={l.locationName} className="flex items-center gap-2">
+            <li key={l.locationName} className="flex items-start gap-2">
               <Checkbox
                 id={id}
                 checked={chosen.includes(l.locationName)}
                 onCheckedChange={() => setDraft(toggleLocation(chosen, l.locationName))}
               />
               {/* The same fallback as the headline: never a blank row. */}
-              <label htmlFor={id} className="text-sm">
+              <label htmlFor={id} className="min-w-0 flex-1 text-sm">
                 {locationLabel(l.locationName, locations)}
+                {l.address ? <span className="block text-xs text-muted-foreground">{l.address}</span> : null}
               </label>
+              {mapHref ? (
+                <a
+                  href={mapHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground underline underline-offset-2"
+                >
+                  View on {label} Maps
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              ) : null}
             </li>
           );
         })}

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { presenceChangesApi } from "@/lib/api/presence-changes";
 import { presenceEditApi } from "@/lib/api/presence-edit";
+import { presenceApi } from "@/lib/api/presence";
 import {
   categoryQueryReady,
   outcomesRefetchMs,
@@ -71,6 +72,15 @@ export function useHolidayOffers(listingId: string | undefined, network: string 
     enabled: !!listingId && !!network,
     staleTime: 5 * 60_000,
     refetchOnWindowFocus: false,
+  });
+}
+
+/** "Keep the network's version": the listing the page reads changes, so every listing read is asked again. */
+export function useKeepNetworkChange() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (b: Parameters<typeof presenceApi.keepNetworkChange>[0]) => presenceApi.keepNetworkChange(b),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["presence", "listing"] }),
   });
 }
 

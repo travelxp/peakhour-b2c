@@ -240,7 +240,7 @@ export function ListingPanel({ location, network, label: labelFallback }: { loca
       )}
       {note && <p className="text-xs text-warning-on-tint">{note}</p>}
 
-      <ControlSection entry={entry} formatDateTime={formatDateTime} />
+      <ControlSection key={`${entry?.network ?? ""}|${listing.id}`} entry={entry} listing={listing} formatDateTime={formatDateTime} />
 
       <dl className="divide-y">
         {LISTING_ROWS.map((r) => (
