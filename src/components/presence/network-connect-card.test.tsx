@@ -29,10 +29,10 @@ const CELEB = {
 };
 const OTHER = { locationName: "locations/2", title: "Travelxp Studio", address: "Andheri, Mumbai", mapsUri: "https://maps.example/maps?cid=2" };
 
-function draw(net: ConnectableNetwork, locations: Array<Record<string, string>>, selected: string[]) {
+function draw(net: ConnectableNetwork, locations: Array<Record<string, string>>, selected: string[], complete = true) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   qc.setQueryData(["integration-status", net.network], { provider: net.network, status: "active" });
-  qc.setQueryData(["integration-cap", net.network], { provider: net.network, capabilities: null, locationNames: selected, account: { extra: { locations } } });
+  qc.setQueryData(["integration-cap", net.network], { provider: net.network, capabilities: null, locationNames: selected, account: { extra: { locations, locationsComplete: complete } } });
   return renderToStaticMarkup(createElement(QueryClientProvider, { client: qc }, createElement(NetworkConnectCard, { network: net })));
 }
 
@@ -68,6 +68,13 @@ describe("the connected card", () => {
     expect(html).toContain("Connect the account that manages your listing");
     expect(html).toContain('href="/dashboard/integrations"');
     expect(html).not.toContain("Choose another listing");
+  });
+
+  it("with one listing known from a list that may be short, still offers the picker", () => {
+    businessName = "Travelxp";
+    const html = draw(NET, [CELEB], ["locations/1"], false);
+    expect(html).toContain("Choose another listing");
+    expect(html).not.toContain("Connect the account");
   });
 
   it("draws no link or address for a connection that kept neither", () => {

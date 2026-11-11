@@ -251,10 +251,11 @@ export function listingNameLooksOff(listingTitle: string | null | undefined, bus
 
 /**
  * What "this is not my business" does: with other listings on the account, choose among them; with only this one on it, the fix is a
- * different account, so it goes to connect.
+ * different account, so it goes to connect. `complete` is whether the list of listings is the whole of them.
  */
-export function chooseAnotherAction(knownListings: number): { kind: "picker" | "reconnect"; text: string } {
-  return knownListings === 1
+export function chooseAnotherAction(knownListings: number, complete: boolean | undefined): { kind: "picker" | "reconnect"; text: string } {
+  // ★ONE KNOWN LISTING IS ONE ONLY WHEN THE LIST IS WHOLE: a partial or unread capture can hold one of several, and the picker re-lists.
+  return knownListings === 1 && complete === true
     ? { kind: "reconnect", text: "Connect the account that manages your listing" }
     : { kind: "picker", text: "Choose another listing" };
 }

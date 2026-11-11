@@ -279,8 +279,12 @@ describe("mapLink", () => {
 
 describe("chooseAnotherAction", () => {
   it("opens the picker when the account has other listings, else sends to connect", () => {
-    expect(chooseAnotherAction(3).kind).toBe("picker");
-    expect(chooseAnotherAction(0).kind).toBe("picker");
-    expect(chooseAnotherAction(1)).toEqual({ kind: "reconnect", text: "Connect the account that manages your listing" });
+    expect(chooseAnotherAction(3, true).kind).toBe("picker");
+    expect(chooseAnotherAction(0, true).kind).toBe("picker");
+    expect(chooseAnotherAction(1, true)).toEqual({ kind: "reconnect", text: "Connect the account that manages your listing" });
+  });
+  it("a list that may be short is never taken for the whole of the account", () => {
+    expect(chooseAnotherAction(1, false).kind).toBe("picker");
+    expect(chooseAnotherAction(1, undefined).kind).toBe("picker");
   });
 });

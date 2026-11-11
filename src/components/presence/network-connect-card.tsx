@@ -207,7 +207,7 @@ export function NetworkConnectCard({ network }: { network: ConnectableNetwork })
   // ★WARN ONLY WHEN EVERY NAMED LISTING LOOKS OFF: one that matches is the business.
   const titled = selectedFacts.filter((l) => l.title?.trim());
   const nameLooksOff = titled.length > 0 && titled.every((l) => listingNameLooksOff(l.title, business?.name));
-  const another = chooseAnotherAction(known.length);
+  const another = chooseAnotherAction(known.length, locationsQ.data ? locationsQ.data.complete : capQ.data?.account?.extra?.locationsComplete);
 
   // ★THE CAPABILITIES READ IS PART OF THE ANSWER, so its loading state is part
   // of the skeleton. Rendering the card first showed "Finish setup" for a
@@ -374,7 +374,7 @@ export function NetworkConnectCard({ network }: { network: ConnectableNetwork })
             ) : null}
             <span>
               Not your business?{" "}
-              {another.kind === "picker" && card.canPick ? (
+              {another.kind === "picker" ? (
                 <button type="button" className="underline underline-offset-2" onClick={() => setPickerOpen(true)}>
                   {another.text}
                 </button>
@@ -514,6 +514,7 @@ export function LocationPicker({
       <ul className="space-y-2">
         {locations.map((l) => {
           const id = `place-${l.locationName}`;
+          const mapHref = mapLink(l.mapsUri);
           return (
             <li key={l.locationName} className="flex items-start gap-2">
               <Checkbox
@@ -522,16 +523,16 @@ export function LocationPicker({
                 onCheckedChange={() => setDraft(toggleLocation(chosen, l.locationName))}
               />
               {/* The same fallback as the headline: never a blank row. */}
-              <label htmlFor={id} className="text-sm">
+              <label htmlFor={id} className="min-w-0 flex-1 text-sm">
                 {locationLabel(l.locationName, locations)}
                 {l.address ? <span className="block text-xs text-muted-foreground">{l.address}</span> : null}
               </label>
-              {mapLink(l.mapsUri) ? (
+              {mapHref ? (
                 <a
-                  href={mapLink(l.mapsUri)!}
+                  href={mapHref}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="ml-auto inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground underline underline-offset-2"
+                  className="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground underline underline-offset-2"
                 >
                   View on {label} Maps
                   <ExternalLink className="h-3 w-3" />
