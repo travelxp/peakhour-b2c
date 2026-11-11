@@ -77,6 +77,7 @@ export function WorkspaceSwitcher() {
   const planMounted = useEverOpened(choosingPlan);
   async function chooseLockedPlan() {
     if (!locked || unlocking) return;
+    void loadUpgradePlanDialog();
     setUnlocking(true);
     try {
       await switchBusiness(locked.id);
