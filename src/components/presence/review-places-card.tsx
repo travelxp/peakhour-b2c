@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavIntent } from "@/hooks/use-nav-intent";
 import { Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,7 @@ export function ReviewPlacesCard({
   /** Narrow the page to this place (its reference, as the location switcher carries it). */
   onPick: (locationName: string) => void;
 }) {
+  const intent = useNavIntent();
   // ★THE LIMIT IS PER NETWORK: "show all" chosen for one network must not widen another's list when the switcher moves.
   const [limits, setLimits] = useState<Record<string, number>>({});
   const limit = limits[network ?? "default"];
@@ -180,7 +182,7 @@ export function ReviewPlacesCard({
           </Button>
         )}
         <Button asChild size="sm" variant="ghost" className="h-8">
-          <Link href={INBOX_REVIEWS_HREF}>Open the reviews inbox</Link>
+          <Link href={INBOX_REVIEWS_HREF} {...intent(INBOX_REVIEWS_HREF)}>Open the reviews inbox</Link>
         </Button>
       </div>
     </Card>

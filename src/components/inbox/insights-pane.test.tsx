@@ -22,6 +22,8 @@ vi.mock("@/hooks/use-knowledge-base", () => ({
   useDismissKbRequest: () => ({ isPending: false, mutate: () => {} }),
 }));
 vi.mock("@/hooks/use-commerce-stores", () => ({ useCommerceStores: () => ({ data: [] }) }));
+// the hover handlers need the app's providers; what they warm is pinned in lib/nav-prefetch.test.ts
+vi.mock("@/hooks/use-nav-intent", () => ({ useNavIntent: () => () => ({}) }));
 vi.mock("@/components/inbox/support-results-panel", () => ({ SupportResultsPanel: () => null }));
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(), useRouter: () => ({}), usePathname: () => "/dashboard/inbox" }));
 

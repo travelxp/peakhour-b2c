@@ -157,19 +157,6 @@ export function insightsHref(filter: InsightFilter = DEFAULT_INSIGHT_FILTER): st
 
 // -- the conversation filter (`?topic=`) -------------------------------------------------------------------------------
 
-const TOPIC_MAX = 200;
-
-/**
- * A topic key from the URL, or null. The key is the api's own and is only ever sent back to it (URL-encoded), so any printable text is
- * accepted: narrowing the alphabet here would turn "See conversations" on a key with a slash or an accent into the whole unfiltered
- * list with no banner. Only the empty, the over-long and control characters are "no topic".
- */
-export function topicFromParam(v: string | null | undefined): string | null {
-  // NOT trimmed in what is returned: the key goes back to the api verbatim
-  const t = v ?? "";
-  return t.trim() && t.length <= TOPIC_MAX && ![...t].some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127) ? t : null;
-}
-
 /** "See conversations": the Conversations lane narrowed to one insight. */
 export function conversationsHref(key: string): string {
   return `/dashboard/inbox?tab=conversations&topic=${encodeURIComponent(key)}`;

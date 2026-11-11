@@ -13,6 +13,7 @@ import { AdminLink } from "@/components/commerce/demand-insights";
 import { QuestionCard } from "@/components/commerce/knowledge-base";
 import { SupportResultsPanel } from "@/components/inbox/support-results-panel";
 import { useInsightDismissal, useInsights } from "@/hooks/use-insights";
+import { useNavIntent } from "@/hooks/use-nav-intent";
 import { useKbRequests } from "@/hooks/use-knowledge-base";
 import { useCommerceStores } from "@/hooks/use-commerce-stores";
 import {
@@ -266,6 +267,9 @@ function RecentlyFixed({ items }: { items: Insight[] }) {
 
 function InsightCard({ item, windowDays, shop }: { item: Insight; windowDays: number; shop: string | null }) {
   const dismissal = useInsightDismissal();
+  // these links carry the lane and its filter, so a hover warms exactly the list they open (lib/nav-prefetch.ts)
+  const intent = useNavIntent();
+  const convoHref = conversationsHref(item.key);
   const action = actionFor(item, shop);
   const second = secondActionFor(item, shop);
   const trend = trendText(item.trend);
@@ -313,7 +317,7 @@ function InsightCard({ item, windowDays, shop }: { item: Insight; windowDays: nu
           {/* "Read the conversations" is the See conversations button below: drawn once, as a button, never as words */}
           {second.kind === "link" && (
             <p data-insight-part="second-step" className="text-sm text-muted-foreground">
-              Or: {second.external ? <AdminLink href={second.href}>{second.label}</AdminLink> : <Link className="underline" href={second.href}>{second.label}</Link>}
+              Or: {second.external ? <AdminLink href={second.href}>{second.label}</AdminLink> : <Link className="underline" href={second.href} {...intent(second.href)}>{second.label}</Link>}
             </p>
           )}
 
@@ -328,18 +332,18 @@ function InsightCard({ item, windowDays, shop }: { item: Insight; windowDays: nu
           <div className="flex flex-wrap items-center gap-2">
             {action.kind === "link" && !action.external && (
               <Button size="sm" asChild>
-                <Link href={action.href}>{action.label}</Link>
+                <Link href={action.href} {...intent(action.href)}>{action.label}</Link>
               </Button>
             )}
             {action.kind === "conversations" && !primaryIsDeadList && (
               <Button size="sm" asChild>
-                <Link href={action.href}>{action.label}</Link>
+                <Link href={action.href} {...intent(action.href)}>{action.label}</Link>
               </Button>
             )}
             {/* a "conversations" step already opens this same list under its own label: one button, not two */}
             {action.kind !== "conversations" && convo.linkable && (
               <Button size="sm" variant="outline" asChild>
-                <Link href={conversationsHref(item.key)}>See conversations</Link>
+                <Link href={convoHref} {...intent(convoHref)}>See conversations</Link>
               </Button>
             )}
             <Button size="sm" variant="ghost" disabled={dismissal.isPending} onClick={() => dismissal.mutate({ key: item.key })}>

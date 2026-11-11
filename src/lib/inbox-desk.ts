@@ -116,22 +116,8 @@ export const ASSIGNEE_FILTERS: Array<{ value: AssigneeFilter; label: string }> =
   { value: "assigned", label: "Assigned" },
 ];
 
-export function assigneeFilterFromParam(v: string | null | undefined): AssigneeFilter {
-  return v === "mine" || v === "unassigned" || v === "assigned" ? v : "all";
-}
-
 /** The priority chip: every conversation, or only those a person flagged. */
 export type PriorityFilter = "all" | "high";
-export function priorityFilterFromParam(v: string | null | undefined): PriorityFilter {
-  return v === "high" ? "high" : "all";
-}
-
-const TAG_PARAM_MAX = 64;
-/** A tag id from the URL, or null. Anything odd is "no tag" rather than a request the api would refuse. */
-export function tagFromParam(v: string | null | undefined): string | null {
-  const t = (v ?? "").trim();
-  return t && t.length <= TAG_PARAM_MAX && /^[A-Za-z0-9_-]+$/.test(t) ? t : null;
-}
 
 export { deskListParams };
 
