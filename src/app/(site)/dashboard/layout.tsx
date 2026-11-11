@@ -181,17 +181,17 @@ function DashboardShellSkeleton() {
       aria-busy="true"
       aria-label="Loading dashboard"
     >
-      <aside aria-label="Sidebar" className="hidden w-64 shrink-0 flex-col gap-4 border-r p-3 md:flex">
+      <aside aria-label="Workspace" className="hidden w-64 shrink-0 flex-col gap-4 border-r p-3 md:flex">
         <div className="flex items-center gap-2">
           <Skeleton className="size-8 rounded-md" />
           <Skeleton className="h-5 w-28" />
         </div>
         <Skeleton className="h-9 w-full" />
-        <nav aria-label="Dashboard" className="space-y-2 pt-2">
+        <div className="space-y-2 pt-2">
           {Array.from({ length: 8 }, (_, i) => (
             <Skeleton key={i} className="h-8 w-full" />
           ))}
-        </nav>
+        </div>
         <Skeleton className="mt-auto h-12 w-full" />
       </aside>
       {/* The one main landmark while auth resolves, header inside it like the real shell (SidebarInset is the main there). */}
@@ -305,7 +305,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             divs, so the landmark is ours), with the nav groups as a labelled
             navigation inside it. Same box model as the primitive inner div so
             the flex column, the rail and the scroll area behave as before. */}
-        <aside aria-label="Sidebar" className="flex h-full min-h-0 w-full flex-col">
+        <aside aria-label="Workspace" className="flex h-full min-h-0 w-full flex-col">
         {/* ── Header: brand block + workspace ────────────────── */}
         {/* ★MARK IN ONE COLUMN, NAME OVER DESCRIPTION IN THE OTHER — the shape
             the shell always had, finally with the real artwork in it. It shipped
