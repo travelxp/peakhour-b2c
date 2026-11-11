@@ -22,6 +22,7 @@ import {
   CalendarClock,
   type LucideIcon,
 } from "lucide-react";
+import type { BusinessApp } from "@/lib/api/business-apps";
 import { DiscoveryProgressStrip } from "@/components/dashboard/discovery-progress-strip";
 import { PageShell } from "@/components/dashboard/page-shell";
 import { OvernightRibbon } from "@/components/dashboard/overnight-ribbon";
@@ -91,6 +92,8 @@ interface DashboardDiscovery {
     evidence?: string;
     confirmedByUser?: boolean | null;
   }>;
+  /** Absent on an older api; treated as none. */
+  pendingApps?: BusinessApp[];
   pendingRecommendations: Array<{
     platform: string;
     rationale: string;
@@ -264,8 +267,8 @@ export default function OverviewPage() {
       />
 
       {/* Footprint review - auto-archives once all entries are reviewed */}
-      {discovery?.pendingFootprint && discovery.pendingFootprint.length > 0 && (
-        <FootprintReviewCard pending={discovery.pendingFootprint} />
+      {((discovery?.pendingFootprint?.length ?? 0) > 0 || (discovery?.pendingApps?.length ?? 0) > 0) && (
+        <FootprintReviewCard pending={discovery?.pendingFootprint ?? []} pendingApps={discovery?.pendingApps ?? []} />
       )}
 
       {/* "Where to grow next" */}
