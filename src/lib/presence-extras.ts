@@ -629,7 +629,7 @@ export function readFailureAction(err: unknown, label: string): ReadFailureActio
   if (code === "NETWORK_SETUP") return { kind: "none" };
   if (code === "RECONNECT_NEEDED" || code === "LISTING_NOT_FOUND") {
     const first = Array.isArray(e?.details) ? (e!.details as Array<{ href?: unknown }>)[0] : undefined;
-    const href = typeof first?.href === "string" && first.href.startsWith("/") ? first.href : null;
+    const href = typeof first?.href === "string" && /^\/(?![/\\])/.test(first.href) ? first.href : null;
     if (!href) return { kind: "none" };
     return { kind: "link", label: code === "RECONNECT_NEEDED" ? `Reconnect ${label}` : "Choose your listing", href };
   }
