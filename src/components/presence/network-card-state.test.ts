@@ -7,6 +7,9 @@ import {
   locationLabel,
   emptyListingReason,
   effectiveDraft,
+  listingNameLooksOff,
+  mapLink,
+  chooseAnotherAction,
   type NetworkConnectionStatus,
 } from "./network-card-state";
 
@@ -236,5 +239,52 @@ describe("a network with no picker (one place, nothing to choose)", () => {
   it("a network WITH a picker keeps asking (the default)", () => {
     expect(networkCardState("active", [], true).kind).toBe("needs_location");
     expect(networkCardState("active", []).kind).toBe("needs_location");
+  });
+});
+
+describe("listingNameLooksOff", () => {
+  it("warns when the listing shares no word with the business", () => {
+    expect(listingNameLooksOff("Celebrities Management Private Limited", "Travelxp")).toBe(true);
+  });
+  it("does not warn when only the company form differs, in case or punctuation", () => {
+    expect(listingNameLooksOff("TravelXP Pvt Ltd", "Travelxp")).toBe(false);
+    expect(listingNameLooksOff("Travelxp", "TravelXP Pvt. Ltd.")).toBe(false);
+  });
+  it("does not warn when one word is shared", () => {
+    expect(listingNameLooksOff("Bandra Salon & Spa", "Glow Salon")).toBe(false);
+  });
+  it("company-form words alone never make two names alike", () => {
+    expect(listingNameLooksOff("Acme Private Limited", "Zed Private Limited")).toBe(true);
+    expect(listingNameLooksOff("The Pvt Ltd", "Zed")).toBe(false);
+  });
+  it("does not warn with nothing to compare", () => {
+    expect(listingNameLooksOff(undefined, "Travelxp")).toBe(false);
+    expect(listingNameLooksOff("Travelxp", "")).toBe(false);
+    expect(listingNameLooksOff("  ", "Travelxp")).toBe(false);
+  });
+  it("compares words in any script", () => {
+    expect(listingNameLooksOff("ट्रैवल एक्सपी", "ट्रैवल एक्सपी प्राइवेट")).toBe(false);
+  });
+});
+
+describe("mapLink", () => {
+  it("keeps a web address and drops anything else", () => {
+    expect(mapLink("https://maps.google.com/maps?cid=7999572708683699360")).toBe("https://maps.google.com/maps?cid=7999572708683699360");
+    expect(mapLink("javascript:alert(1)")).toBeNull();
+    expect(mapLink("not a url")).toBeNull();
+    expect(mapLink(undefined)).toBeNull();
+    expect(mapLink("  ")).toBeNull();
+  });
+});
+
+describe("chooseAnotherAction", () => {
+  it("opens the picker when the account has other listings, else sends to connect", () => {
+    expect(chooseAnotherAction(3, true).kind).toBe("picker");
+    expect(chooseAnotherAction(0, true).kind).toBe("picker");
+    expect(chooseAnotherAction(1, true)).toEqual({ kind: "reconnect", text: "Connect the account that manages your listing" });
+  });
+  it("a list that may be short is never taken for the whole of the account", () => {
+    expect(chooseAnotherAction(1, false).kind).toBe("picker");
+    expect(chooseAnotherAction(1, undefined).kind).toBe("picker");
   });
 });
