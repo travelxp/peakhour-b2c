@@ -89,6 +89,7 @@ const TONE_OF_STAGE: Record<RequestStage, Tone> = {
   rejected_by_network: "problem",
   not_published: "problem",
   failed: "problem",
+  not_sent: "problem",
   declined: "closed",
   expired: "closed",
   replaced: "closed",

@@ -94,7 +94,8 @@ export interface ChangeCardData {
   expiresAt: string;
   submittedAt: string | null;
   liveAt: string | null;
-  liveCheck: { checkedAt: string; outcome: string; note: string | null } | null;
+  /** `confirmable` (the api's, from the network's adapter): false only when the network can never show this change back. Absent on an older api: not claimed. */
+  liveCheck: { checkedAt: string; outcome: string; note: string | null; confirmable?: boolean } | null;
   undone: boolean;
   /** Whether Peakhour can put this change back (the api decides; a photo removal can be undone only when the photo came from Drive). Absent on an older api: treated as true. */
   undoable?: boolean;
@@ -349,6 +350,7 @@ export type RequestStage =
   | "rejected_by_network"
   | "not_published"
   | "failed"
+  | "not_sent"
   | "declined"
   | "expired"
   | "replaced"
@@ -419,6 +421,9 @@ export function requestStatus(
         case "pending":
           return stage("under_review", `Under ${label} review`, note || `${label} is still reviewing this change. We will tell you when it is done.`, "neutral");
         case "unknown":
+          // Only a change the network can NEVER show back says so. A check that did not answer (or an api that does not say) is a later try:
+          // plain "sent", with the note.
+          if (check.confirmable !== false) return stage("sent", `Sent to ${label}`, note || `${label} may take time to show it. We will say when it does.`, "neutral");
           return stage("cannot_confirm", `Sent, ${label} doesn't let us confirm this`, note || `${label} does not show this kind of change back to us, so we cannot tell you when it is showing.`, "neutral");
         case "not_shown":
           return stage("sent", `Sent to ${label}`, note || `${label} is not showing it yet.`, "warn");
@@ -433,7 +438,8 @@ export function requestStatus(
       if (c.reason?.code === "not_published") return stage("not_published", "Didn't go live", reasonOf(c), "warn", again);
       return stage("failed", "Failed", reasonOf(c), "bad", again);
     case "blocked":
-      return stage("failed", "Failed", reasonOf(c), "bad", fix.kind === "fix" ? fix : again);
+      // Held, never sent: not a failed send.
+      return stage("not_sent", "Not sent", reasonOf(c), "bad", fix.kind === "fix" ? fix : again);
     case "rejected":
       return stage("declined", "Declined by you", "You declined it. Nothing was sent.", "neutral");
     case "expired":

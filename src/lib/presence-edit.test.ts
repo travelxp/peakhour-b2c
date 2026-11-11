@@ -689,7 +689,7 @@ describe("where a request stands (GBP L4)", () => {
     expect(at({ status: "failed", reason: { code: "network_rejected", message: "Testnet refused it." } })).toMatchObject({ stage: "rejected_by_network", label: "Rejected by Testnet", reason: "Testnet refused it." });
     expect(at({ status: "failed", reason: { code: "not_published", message: "It may have been declined." } })).toMatchObject({ stage: "not_published", label: "Didn't go live" });
     expect(at({ status: "failed", reason: { code: "outcome_unknown", message: "No answer." } })).toMatchObject({ stage: "failed", label: "Failed", reason: "No answer." });
-    expect(at({ status: "blocked", reason: { code: "control_lost", message: "No control." } })).toMatchObject({ stage: "failed", label: "Failed", reason: "No control." });
+    expect(at({ status: "blocked", reason: { code: "control_lost", message: "No control." } })).toMatchObject({ stage: "not_sent", label: "Not sent", reason: "No control." });
     expect(at({ status: "rejected" })).toMatchObject({ stage: "declined", label: "Declined by you" });
     expect(at({ status: "expired" })).toMatchObject({ stage: "expired", label: "Expired" });
     expect(at({ status: "superseded" })).toMatchObject({ stage: "replaced", label: "Replaced" });
@@ -717,9 +717,18 @@ describe("where a request stands (GBP L4)", () => {
   });
 
   it("says plainly when the network does not let us confirm", () => {
-    const r = at({ status: "submitted", liveCheck: check("unknown", "Testnet keeps the profile photo under one name.") });
+    const r = at({ status: "submitted", liveCheck: { ...check("unknown", "Testnet keeps the profile photo under one name."), confirmable: false } });
     expect(r).toMatchObject({ stage: "cannot_confirm", label: "Sent, Testnet doesn't let us confirm this", reason: "Testnet keeps the profile photo under one name.", tone: "neutral" });
-    expect(at({ status: "submitted", liveCheck: check("unknown") }).reason).toContain("Testnet");
+    expect(at({ status: "submitted", liveCheck: { ...check("unknown"), confirmable: false } }).reason).toContain("Testnet");
+  });
+
+  it("says only sent when a check did not answer, or when the api does not say", () => {
+    const note = "We could not reach the network to check this change.";
+    for (const confirmable of [true, undefined]) {
+      const r = at({ status: "submitted", liveCheck: { ...check("unknown", note), ...(confirmable === undefined ? {} : { confirmable }) } });
+      expect(r).toMatchObject({ stage: "sent", label: "Sent to Testnet", reason: note, tone: "neutral" });
+    }
+    expect(at({ status: "submitted", liveCheck: { ...check("unknown"), confirmable: true } }).reason).toContain("may take time");
   });
 
   it("warns when the network is not showing a sent change", () => {

@@ -51,7 +51,7 @@ describe("cardStatus: what each state tells a person", () => {
     ["submitted", "Sent to the network", false],
     ["live", "Live on the network", false],
     ["failed", "Failed", false],
-    ["blocked", "Failed", false],
+    ["blocked", "Not sent", false],
     ["rejected", "Declined by you", false],
     ["expired", "Expired", false],
     ["superseded", "Replaced", false],
