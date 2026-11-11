@@ -53,9 +53,18 @@ export function ListingChangeCard({ card }: { card: ListingChangeCardData }) {
   });
   const item = live.data?.item;
   const status = settled
-    ? cardStatus(lapsed ? "expired" : card.status, { reason: card.blockedReason })
+    ? cardStatus(lapsed ? "expired" : card.status, { reason: card.blockedReason, label: card.networkLabel })
     : item
-      ? cardStatus(item.status, { held: item.held?.reason ?? null, reason: item.reason?.message ?? null, liveNote: item.liveCheck?.note ?? null, expiresAt: item.expiresAt, now })
+      ? cardStatus(item.status, {
+          held: item.held?.reason ?? null,
+          reason: item.reason?.message ?? null,
+          reasonCode: item.reason?.code ?? null,
+          liveNote: item.liveCheck?.note ?? null,
+          liveOutcome: item.liveCheck?.outcome ?? null,
+          label: card.networkLabel,
+          expiresAt: item.expiresAt,
+          now,
+        })
       : live.isError
         ? UNREADABLE_STATUS
         : UNREAD_STATUS;

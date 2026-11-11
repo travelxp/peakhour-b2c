@@ -144,7 +144,7 @@ describe("the photos card", () => {
     const history = Array.from({ length: 20 }, (_, i) => change({ id: `h${i}`, status: "live", createdAt: `2026-11-06T10:00:${String(i).padStart(2, "0")}.000Z`, after: { op: "remove", ref: `old/${i}` } }));
     const open = change({ id: "still-open", status: "validated", createdAt: "2026-11-01T10:00:00.000Z" });
     const html = render({ changes: [...history, open] });
-    expect(html).toContain("Waiting for approval");
+    expect(html).toContain("Awaiting your approval");
     expect(html.match(/Live on NetA/g)).toHaveLength(8);
   });
 
@@ -180,7 +180,7 @@ describe("the photos card", () => {
   it("★photo changes are listed even when the photo read has not answered", () => {
     const html = render({ data: null, changes: [change({ status: "validated" })] });
     expect(html).toContain("Photo changes");
-    expect(html).toContain("Waiting for approval");
+    expect(html).toContain("Awaiting your approval");
     expect(html).toContain("Remove this photo");
   });
 

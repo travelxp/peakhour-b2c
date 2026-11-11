@@ -36,6 +36,9 @@ import {
   withCategory,
   preparedWords,
   publishingBanner,
+  requestGroups,
+  requestStatus,
+  shortChange,
   type CapabilitiesResponse,
   type ChangeCardData,
   type ChangeStatus,
@@ -104,7 +107,7 @@ describe("the form is drawn from declared capabilities", () => {
   });
 
   it("never lets a screen name a network: the word comes from the label", () => {
-    expect(statusWords(change({ status: "submitted" }), "Elsewhere", ADMIN).headline).toBe("Sent to Elsewhere, not live yet");
+    expect(statusWords(change({ status: "submitted" }), "Elsewhere", ADMIN).headline).toBe("Sent to Elsewhere");
     expect(preparedWords(0, cap({ label: "Elsewhere" }))).toContain("Elsewhere");
     expect(publishingBanner({ label: "Elsewhere", publishing: { state: "on", heldReason: null, blocker: null, keptForHours: 72 } }, undefined)!.headline).toContain("Elsewhere");
   });
@@ -158,15 +161,16 @@ describe("the state words", () => {
   });
 
   it("says a submitted change is not live yet", () => {
-    expect(words("submitted").headline).toBe("Sent to Testnet, not live yet");
+    expect(words("submitted").headline).toBe("Sent to Testnet");
+    expect(words("submitted").detail).toMatch(/may take time to show it/);
   });
 
   it("says an approved change was not sent when sending is held, and gives the reason", () => {
     const w = words("approved", { held: { reason: "Held for review." } });
-    expect(w.headline).toBe("Approved, but not sent");
+    expect(w.headline).toBe("Approved, waiting to send");
     expect(w.detail).toContain("Held for review.");
     expect(w.tone).toBe("warn");
-    expect(words("approved").headline).toBe("Approved, waiting to be sent");
+    expect(words("approved").headline).toBe("Approved, waiting to send");
   });
 
   it("gives the reason for a blocked or failed change, or says none was given", () => {
@@ -663,5 +667,159 @@ describe("which changes ask for what followed them", () => {
     expect(outcomesRefetchMs(one("too_early"))).toBe(5 * 60_000);
     expect(outcomesRefetchMs(one("measured"))).toBe(false);
     expect(outcomesRefetchMs(undefined)).toBe(false);
+  });
+});
+
+describe("where a request stands (GBP L4)", () => {
+  const A = { propose: true, approve: true };
+  const E = { propose: true, approve: false };
+  const V = { propose: false, approve: false };
+  const at = (over: Partial<ChangeCardData>, can = A, publishing = null as Parameters<typeof requestStatus>[3]) => requestStatus(change(over), "Testnet", can, publishing);
+  const check = (outcome: string, note: string | null = null) => ({ checkedAt: "2026-11-11T09:00:00.000Z", outcome, note });
+  const BLOCKER = { reason: "Testnet cannot see that you control this listing.", action: "fix_on_network" as const, href: "https://example.test/fix" };
+
+  it("names every stage of the table", () => {
+    expect(at({ status: "proposed" })).toMatchObject({ stage: "draft", label: "Draft" });
+    expect(at({ status: "validated" })).toMatchObject({ stage: "awaiting_approval", label: "Awaiting your approval" });
+    expect(at({ status: "approved" })).toMatchObject({ stage: "approved_waiting", label: "Approved, waiting to send" });
+    expect(at({ status: "approved", held: { reason: "Publishing has not started." } })).toMatchObject({ stage: "approved_held", label: "Approved, waiting to send", tone: "warn" });
+    expect(at({ status: "applying" })).toMatchObject({ stage: "sent", label: "Sent to Testnet" });
+    expect(at({ status: "submitted" })).toMatchObject({ stage: "sent", label: "Sent to Testnet" });
+    expect(at({ status: "live" })).toMatchObject({ stage: "live", label: "Live on Testnet", reason: null, next: { kind: "none" } });
+    expect(at({ status: "failed", reason: { code: "network_rejected", message: "Testnet refused it." } })).toMatchObject({ stage: "rejected_by_network", label: "Rejected by Testnet", reason: "Testnet refused it." });
+    expect(at({ status: "failed", reason: { code: "not_published", message: "It may have been declined." } })).toMatchObject({ stage: "not_published", label: "Didn't go live" });
+    expect(at({ status: "failed", reason: { code: "outcome_unknown", message: "No answer." } })).toMatchObject({ stage: "failed", label: "Failed", reason: "No answer." });
+    expect(at({ status: "blocked", reason: { code: "control_lost", message: "No control." } })).toMatchObject({ stage: "failed", label: "Failed", reason: "No control." });
+    expect(at({ status: "rejected" })).toMatchObject({ stage: "declined", label: "Declined by you" });
+    expect(at({ status: "expired" })).toMatchObject({ stage: "expired", label: "Expired" });
+    expect(at({ status: "superseded" })).toMatchObject({ stage: "replaced", label: "Replaced" });
+  });
+
+  it("keeps the merchant's decline apart from the network's rejection", () => {
+    const declined = at({ status: "rejected" });
+    const refused = at({ status: "failed", reason: { code: "network_rejected", message: "No." } });
+    expect(declined.label).toBe("Declined by you");
+    expect(refused.label).toBe("Rejected by Testnet");
+    expect(declined.label).not.toBe(refused.label);
+    // a failure with no reason code is neither
+    expect(at({ status: "failed" }).label).toBe("Failed");
+  });
+
+  it("says under review only for a pending check, and nothing else", () => {
+    expect(at({ status: "submitted", liveCheck: check("pending", "Testnet is still reviewing this change.") })).toMatchObject({ stage: "under_review", label: "Under Testnet review", reason: "Testnet is still reviewing this change." });
+    for (const outcome of ["not_shown", "unknown", "live", "rejected", ""]) {
+      expect(at({ status: "submitted", liveCheck: check(outcome) }).stage).not.toBe("under_review");
+    }
+    // time alone never makes it a review: an old submission with no check is only "sent"
+    expect(at({ status: "submitted", submittedAt: "2026-10-01T00:00:00.000Z" }).stage).toBe("sent");
+    // pending on any other status is not a review either
+    expect(at({ status: "approved", liveCheck: check("pending") }).stage).not.toBe("under_review");
+  });
+
+  it("says plainly when the network does not let us confirm", () => {
+    const r = at({ status: "submitted", liveCheck: check("unknown", "Testnet keeps the profile photo under one name.") });
+    expect(r).toMatchObject({ stage: "cannot_confirm", label: "Sent, Testnet doesn't let us confirm this", reason: "Testnet keeps the profile photo under one name.", tone: "neutral" });
+    expect(at({ status: "submitted", liveCheck: check("unknown") }).reason).toContain("Testnet");
+  });
+
+  it("warns when the network is not showing a sent change", () => {
+    expect(at({ status: "submitted", liveCheck: check("not_shown") })).toMatchObject({ stage: "sent", tone: "warn", reason: "Testnet is not showing it yet." });
+  });
+
+  it("offers Approve and Decline only to someone who can approve", () => {
+    expect(at({ status: "validated" }, A).next).toEqual({ kind: "decide" });
+    expect(at({ status: "proposed" }, A).next).toEqual({ kind: "decide" });
+    expect(at({ status: "validated" }, E).next).toEqual({ kind: "none" });
+    expect(at({ status: "validated" }, E).reason).toContain("admin or owner");
+    expect(at({ status: "validated" }, V).next).toEqual({ kind: "none" });
+  });
+
+  it("offers to make a failed, rejected or expired change again, and a viewer gets no action", () => {
+    const redo = { kind: "redo", label: "Make the change again" };
+    expect(at({ status: "expired" }, E).next).toEqual(redo);
+    expect(at({ status: "failed", reason: { code: "network_rejected", message: "No." } }, A).next).toEqual(redo);
+    expect(at({ status: "failed", reason: { code: "not_published", message: "No." } }, E).next).toEqual(redo);
+    expect(at({ status: "failed" }, E).next).toEqual(redo);
+    for (const status of ["expired", "failed", "blocked", "validated", "approved"] as ChangeStatus[]) {
+      expect(at({ status, held: status === "approved" ? { reason: "Held." } : null }, V, { blocker: BLOCKER, heldReason: null }).next).toEqual({ kind: "none" });
+    }
+    // nothing to do for what the merchant chose, or for what is live or replaced
+    for (const status of ["rejected", "live", "superseded", "submitted", "applying"] as ChangeStatus[]) expect(at({ status }, A).next).toEqual({ kind: "none" });
+  });
+
+  it("points a held or blocked request at the publishing status's own fix", () => {
+    const p = { blocker: BLOCKER, heldReason: null };
+    expect(at({ status: "blocked", reason: { code: "control_lost", message: "No control." } }, A, p).next).toEqual({ kind: "fix", label: "Fix this on Testnet", href: "https://example.test/fix", external: true });
+    expect(at({ status: "approved", held: { reason: "Held." } }, E, p)).toMatchObject({ next: { kind: "fix", href: "https://example.test/fix" }, reason: expect.stringContaining(BLOCKER.reason) });
+    const reconnect = { blocker: { reason: "The connection has lapsed.", action: "reconnect" as const, href: "/app/connections" }, heldReason: null };
+    expect(at({ status: "blocked" }, A, reconnect).next).toEqual({ kind: "fix", label: "Reconnect Testnet", href: "/app/connections", external: false });
+    // no blocker: a blocked request is made again, and a held one has nothing to press
+    expect(at({ status: "blocked" }, A).next).toEqual({ kind: "redo", label: "Make the change again" });
+    expect(at({ status: "approved", held: { reason: "Held." } }, A).next).toEqual({ kind: "none" });
+  });
+
+  it("falls back to the publishing status's own sentence when a held change has no reason of its own", () => {
+    expect(at({ status: "approved", held: { reason: "" } }, A, { blocker: null, heldReason: "Peakhour is finishing its setup." }).reason).toContain("Peakhour is finishing its setup.");
+  });
+
+  it("never names a network in the words but the label it is given", () => {
+    const r = requestStatus(change({ status: "submitted", liveCheck: check("pending") }), "Elsewhere", A);
+    expect(r.label).toBe("Under Elsewhere review");
+    expect(requestStatus(change({ status: "live" }), "Elsewhere", A).label).toBe("Live on Elsewhere");
+  });
+
+  it("makes the same words for statusWords as for requestStatus", () => {
+    const c = change({ status: "failed", reason: { code: "network_rejected", message: "No." } });
+    expect(statusWords(c, "Testnet", A)).toEqual({ headline: "Rejected by Testnet", detail: "No.", tone: "bad" });
+  });
+});
+
+describe("the requests list (GBP L4)", () => {
+  const NOW = Date.parse("2026-11-11T12:00:00.000Z");
+  const DAY = 24 * 3_600_000;
+  const ago = (days: number) => new Date(NOW - days * DAY).toISOString();
+  const row = (id: string, status: ChangeStatus, over: Partial<ChangeCardData> = {}) => change({ id, status, createdAt: ago(1), expiresAt: ago(-2), ...over });
+
+  it("lists open and in-flight requests first, newest first", () => {
+    const g = requestGroups(
+      [row("a", "submitted", { createdAt: ago(3) }), row("b", "validated", { createdAt: ago(1) }), row("c", "approved", { createdAt: ago(2) }), row("d", "proposed", { createdAt: ago(0.5) }), row("e", "applying", { createdAt: ago(4) })],
+      NOW,
+    );
+    expect(g.open.map((c) => c.id)).toEqual(["d", "b", "c", "a", "e"]);
+    expect(g.recent).toEqual([]);
+  });
+
+  it("folds finished requests from the last seven days and drops older ones", () => {
+    const g = requestGroups(
+      [
+        row("live6", "live", { liveAt: ago(6) }),
+        row("live8", "live", { liveAt: ago(8), createdAt: ago(9) }),
+        row("failed2", "failed", { submittedAt: ago(2) }),
+        row("declined", "rejected", { createdAt: ago(1) }),
+        row("declined-old", "rejected", { createdAt: ago(10) }),
+        row("expired", "expired", { createdAt: ago(10), expiresAt: ago(2) }),
+        row("expired-old", "expired", { createdAt: ago(12), expiresAt: ago(9) }),
+      ],
+      NOW,
+    );
+    expect(g.recent.map((c) => c.id)).toEqual(["declined", "failed2", "expired", "live6"]);
+  });
+
+  it("hides a replaced request, open or not", () => {
+    const g = requestGroups([row("x", "superseded"), row("y", "validated")], NOW);
+    expect(g.open.map((c) => c.id)).toEqual(["y"]);
+    expect(g.recent).toEqual([]);
+  });
+
+  it("is empty before the changes have loaded", () => {
+    expect(requestGroups(undefined, NOW)).toEqual({ open: [], recent: [] });
+  });
+
+  it("says a change as a short before and after", () => {
+    expect(shortChange("description", "Old.", "New.")).toBe("Old. → New.");
+    expect(shortChange("description", null, "New.")).toBe("nothing set → New.");
+    const long = "x".repeat(100);
+    expect(shortChange("description", "Old.", long).length).toBeLessThan(80);
+    expect(shortChange("description", "Old.", long)).toContain("...");
   });
 });
