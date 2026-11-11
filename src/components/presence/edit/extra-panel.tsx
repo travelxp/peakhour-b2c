@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -9,7 +10,7 @@ import { useChangeOutcomes, useEditCapabilities, useListingChanges } from "@/hoo
 import { useExtra, useExtraMutations, useRefreshWhenSettled, type ExtraTarget } from "@/hooks/use-presence-extras";
 import { useListingQuery } from "@/hooks/use-presence-listing";
 import { errorWords, type CapabilitiesResponse, type ChangeCardData } from "@/lib/presence-edit";
-import { capabilityOf, drawsPanel, extrasAccess, isListChanged, listedChanges, preparedWords, withChangesKnown, type ExtraField } from "@/lib/presence-extras";
+import { capabilityOf, drawsPanel, extrasAccess, isListChanged, listedChanges, preparedWords, readFailureAction, withChangesKnown, type ExtraField } from "@/lib/presence-extras";
 import { outcomeOf, type PhotoAccess } from "@/lib/presence-photos";
 import { fetchView, primaryEntry } from "@/lib/presence-panels";
 
@@ -110,6 +111,7 @@ export function ExtraPanel<D extends { label: string; writes: { notice: string |
   const label = data?.label ?? entry?.label ?? "the network";
   const readView = fetchView({ hasData: !!data, isPending: q.isPending, isError: q.isError, fetchStatus: q.fetchStatus });
   const stale = readView === "data_stale";
+  const failure = readFailureAction(q.error, label);
   // Drawn only once the capabilities have answered, so what this role can do is known.
   const access: PhotoAccess = withChangesKnown(extrasAccess(caps.data?.can, what), changesView, what);
   const items = changes.data?.items;
@@ -146,9 +148,17 @@ export function ExtraPanel<D extends { label: string; writes: { notice: string |
         <p role="alert" className="text-sm">
           {errorWords(q.error)}
         </p>
-        <Button size="sm" variant="outline" className="w-fit" onClick={() => q.refetch()}>
-          Try again
-        </Button>
+        {/* ONE action, by why the read failed: nothing for a gap on Peakhour's side, a link for access or a lost listing, else Try again. */}
+        {failure.kind === "retry" && (
+          <Button size="sm" variant="outline" className="w-fit" onClick={() => q.refetch()}>
+            Try again
+          </Button>
+        )}
+        {failure.kind === "link" && (
+          <Button asChild size="sm" className="w-fit">
+            <Link href={failure.href}>{failure.label}</Link>
+          </Button>
+        )}
       </>
     ) : (
       <>

@@ -721,7 +721,7 @@ export function offerLine(o: HolidayOffer): string {
 export function offerState(r: HolidayOffersResponse, label: string): { show: boolean; message: string | null; canAccept: boolean } {
   const say = (message: string) => ({ show: true, message, canAccept: false });
   if (r.noTimeZone) return say("We cannot suggest holiday hours yet, because we do not know your time zone.");
-  if (r.networkUnreadable) return say(`We could not read your listing from ${label} just now, so no holiday days are suggested. Try again in a moment.`);
+  if (r.networkUnreadable) return say(`${label} didn't answer just now, so no holiday days are suggested. Try again in a moment.`);
   if (r.needsRegularHours) return say("Set your opening hours first. Holiday hours change them for a day.");
   if (r.openChange) return say("A holiday-hours change is already waiting. Finish it first.");
   if (r.offers.length === 0) return { show: false, message: null, canAccept: false };

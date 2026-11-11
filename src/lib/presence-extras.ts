@@ -612,3 +612,26 @@ export function extraValueLines(field: string, value: unknown): string[] {
       return [];
   }
 }
+
+// ── A read that failed ───────────────────────────────────────────────────────
+
+/**
+ * What a panel shows when the read of what the network holds fails, and the ONE thing it offers. The api says why with a code, in its own plain
+ * words: Peakhour's side is not set up (`NETWORK_SETUP`: nothing to do, so no "Try again"), the access was refused (`RECONNECT_NEEDED`: reconnect),
+ * the listing is gone (`LISTING_NOT_FOUND`: choose it again), or the network did not answer (anything else: try again). The api names the page
+ * to go to (`details[0].href`); with none, the two linked actions are not offered rather than guessed. The network's name is the api's label.
+ */
+export type ReadFailureAction = { kind: "none" } | { kind: "retry" } | { kind: "link"; label: string; href: string };
+
+export function readFailureAction(err: unknown, label: string): ReadFailureAction {
+  const e = err as { code?: unknown; details?: unknown } | null;
+  const code = typeof e?.code === "string" ? e.code : "";
+  if (code === "NETWORK_SETUP") return { kind: "none" };
+  if (code === "RECONNECT_NEEDED" || code === "LISTING_NOT_FOUND") {
+    const first = Array.isArray(e?.details) ? (e!.details as Array<{ href?: unknown }>)[0] : undefined;
+    const href = typeof first?.href === "string" && first.href.startsWith("/") ? first.href : null;
+    if (!href) return { kind: "none" };
+    return { kind: "link", label: code === "RECONNECT_NEEDED" ? `Reconnect ${label}` : "Choose your listing", href };
+  }
+  return { kind: "retry" };
+}
