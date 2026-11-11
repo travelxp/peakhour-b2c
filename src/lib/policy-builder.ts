@@ -8,7 +8,7 @@
  * ★NOTHING HERE NAMES A CHANNEL. Publish buttons are drawn from `GET /v1/kb/publish/capabilities` (channel, connection, slot, allowed, reason) and
  *  from nothing else, so a channel the api adds later needs no change here.
  */
-import { formatPeaks } from "@/lib/pricing";
+import { formatNumber, formatPeaks } from "@/lib/pricing";
 import { LEGAL_LINE, approveState, safeUrl, suggestionPayload, type KbEntry } from "@/lib/knowledge-base";
 
 // -- The policies -------------------------------------------------------------------------------------------------------
@@ -146,9 +146,10 @@ export function parseAnswer(shape: AnswerShape, raw: string): Parsed {
     case "money":
     case "percent": {
       const n = Number(text);
-      if (!Number.isFinite(n)) return { ok: false, error: `Enter ${UNIT_WORDS[shape.kind]} as a number.` };
+      // plain decimal digits only: Number() also takes 0x10 and 1e3, which nobody means in a days box
+      if (!/^\d+(\.\d+)?$/.test(text) || !Number.isFinite(n)) return { ok: false, error: `Enter ${UNIT_WORDS[shape.kind]} as a number.` };
       if (shape.kind !== "money" && shape.kind !== "percent" && !Number.isInteger(n)) return { ok: false, error: `Enter a whole number of ${UNIT_WORDS[shape.kind]}.` };
-      if (n < shape.min || n > shape.max) return { ok: false, error: `Enter a number from ${formatPeaks(shape.min)} to ${formatPeaks(shape.max)}.` };
+      if (n < shape.min || n > shape.max) return { ok: false, error: `Enter a number from ${formatNumber(shape.min)} to ${formatNumber(shape.max)}.` };
       return { ok: true, value: n };
     }
     case "markets": {
@@ -201,7 +202,7 @@ export function sourceLine(s: FactSource | undefined): string | null {
   if (s.source.startsWith("prefill:")) {
     const id = s.source.slice("prefill:".length);
     const from = id === "orders" ? "your orders" : id === "catalog" ? "your products" : "an answer you already have";
-    return n ? `Suggested from ${from}, based on ${formatPeaks(n)} ${SOURCE_NOUN[id] ?? "records"}` : `Suggested from ${from}`;
+    return n ? `Suggested from ${from}, based on ${formatNumber(n)} ${SOURCE_NOUN[id] ?? "records"}` : `Suggested from ${from}`;
   }
   return null;
 }
@@ -246,6 +247,9 @@ export function buildSaveBody(
   return { ok: true, body: { facts, ...(markets.length > 0 ? { markets: [...markets] } : {}), ...(acceptedPrefill.length > 0 ? { acceptedPrefill } : {}) } };
 }
 
+/** A market set as one key, order-free (the api's `marketKey`: `*` for every market). */
+export const marketsKey = (markets: readonly string[]): string => (markets.length === 0 ? "*" : [...markets].sort().join(","));
+
 /** The api's `?markets=GB,IN` (absent for every market). */
 export const marketsParam = (markets: readonly string[]): Record<string, string> => (markets.length > 0 ? { markets: [...markets].sort().join(",") } : {});
 
@@ -271,6 +275,30 @@ export function countryName(code: string): string {
     return code;
   }
 }
+
+/**
+ * The saved answers against the form. Untouched boxes follow the server (an upload, another tab or a save landing adds or changes answers); boxes the merchant has
+ * edited are NEVER replaced (`stale` = a notice is shown). Returns the same objects when nothing changes.
+ */
+export function reconcileAnswers(
+  state: { raw: Record<string, string>; saved: Record<string, string> },
+  server: Record<string, string>,
+): { raw: Record<string, string>; saved: Record<string, string>; stale: boolean } {
+  const facts = new Set([...Object.keys(server), ...Object.keys(state.saved)]);
+  const changed = [...facts].some((f) => (server[f] ?? "") !== (state.saved[f] ?? ""));
+  if (!changed) return { ...state, stale: false };
+  const dirty = [...facts].some((f) => (state.raw[f] ?? "") !== (state.saved[f] ?? ""));
+  if (!dirty) return { raw: { ...server }, saved: { ...server }, stale: false };
+  // edits are kept; the facts the merchant has not touched take the server's value
+  const raw = { ...state.raw };
+  for (const f of facts) if ((state.raw[f] ?? "") === (state.saved[f] ?? "")) raw[f] = server[f] ?? "";
+  return { raw, saved: { ...server }, stale: [...facts].some((f) => (raw[f] ?? "") !== (server[f] ?? "")) };
+}
+
+export const ANSWERS_UPDATED = "Your saved answers changed (for example from a document you added). Your edits are kept.";
+
+/** Why Approve is off: the answers changed after this draft was written, so approving it would state what the answers no longer say. */
+export const DRAFT_OUT_OF_DATE = "You changed your answers after this draft was written. Save them and write the policy again.";
 
 // -- The price card (shown BEFORE the click) -----------------------------------------------------------------------------------
 
@@ -688,6 +716,11 @@ export function publicationLine(p: Publication, channelLabel: string): { text: s
   if (p.entryStatus !== "active") return { text: `Still live on ${where}, but this entry is no longer live in your assistant. Take it off your site if you do not want it there.`, tone: "warn" };
   if (p.outdated) return { text: `Live on ${where}, but your text has changed since. Publish again to update it.`, tone: "warn" };
   return { text: `Live on ${where}.`, tone: "ok" };
+}
+
+/** The publication of this button's slot on this connection. A publication names its connection by the connection's own label (`store`), so two stores on one channel are told apart. */
+export function publicationFor<P extends Pick<Publication, "channel" | "slot" | "store">>(pubs: readonly P[], b: Pick<PublishButton, "channel" | "slot" | "connectionLabel">): P | undefined {
+  return pubs.find((p) => p.channel === b.channel && p.slot === b.slot && p.store === b.connectionLabel);
 }
 
 export function channelLabelFor(caps: CapabilitiesResponse | undefined, channel: string): string {

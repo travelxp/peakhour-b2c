@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { newActionKey } from "@/lib/api";
 import {
+  DRAFT_OUT_OF_DATE,
   FAQ_HELP,
   KEEP_THEIRS_POLICY_NOTE,
   POLICY_TYPES,
@@ -13,13 +14,16 @@ import {
   generateErrorLine,
   generatedLine,
   marketCheckLines,
+  marketsKey,
   marketsParam,
   parseAnswer,
   parseMarketsBox,
   policyStatus,
   priceCard,
   publicationLine,
+  publicationFor,
   publishButtons,
+  reconcileAnswers,
   publishErrorLine,
   quoteLapsed,
   resolvedLine,
@@ -432,5 +436,52 @@ describe("publications", () => {
     expect(KEEP_THEIRS_POLICY_NOTE).toContain("Write my policy");
     expect(resolvedLine("theirs", "page")).not.toContain("Write my policy");
     expect(resolvedLine("ours", "page")).toBe("Peakhour's text is back on your site.");
+  });
+});
+
+describe("review round 1", () => {
+  it("takes plain decimal digits only: 0x10 and 1e3 are not a number of days", () => {
+    const days = { kind: "days", min: 0, max: 365 } as const;
+    for (const bad of ["0x10", "1e2", "-1", "+5", ".5", "5."]) expect(parseAnswer(days, bad).ok, bad).toBe(false);
+    expect(parseAnswer({ kind: "money", min: 0, max: 10_000_000 }, "12.50")).toEqual({ ok: true, value: 12.5 });
+  });
+  it("says a days bound with a plain number, not as Peaks", () => {
+    const r = parseAnswer({ kind: "money", min: 0, max: 10_000_000 }, "99999999");
+    expect(r).toEqual({ ok: false, error: "Enter a number from 0 to 10,000,000." });
+  });
+  it("a market set is one key whatever the order", () => {
+    expect(marketsKey(["IN", "GB"])).toBe(marketsKey(["GB", "IN"]));
+    expect(marketsKey([])).toBe("*");
+  });
+  it("two stores on one channel are told apart: a copy on A does not mark B as published or diverged", () => {
+    const pubs = [{ channel: "site", slot: "page" as const, store: "a.example", state: "diverged" }];
+    expect(publicationFor(pubs, { channel: "site", slot: "page", connectionLabel: "a.example" })?.state).toBe("diverged");
+    expect(publicationFor(pubs, { channel: "site", slot: "page", connectionLabel: "b.example" })).toBeUndefined();
+    expect(publicationFor([{ channel: "site", slot: "page" as const, store: null }], { channel: "site", slot: "page", connectionLabel: "a.example" })).toBeUndefined();
+  });
+  describe("the answers form follows the saved answers but never the merchant's edits", () => {
+    it("takes a server change when nothing was edited (an upload landed)", () => {
+      const r = reconcileAnswers({ raw: { a: "1", b: "" }, saved: { a: "1", b: "" } }, { a: "1", b: "5" });
+      expect(r).toEqual({ raw: { a: "1", b: "5" }, saved: { a: "1", b: "5" }, stale: false });
+    });
+    it("keeps an edited box, takes the untouched ones, and says the saved answers changed", () => {
+      const r = reconcileAnswers({ raw: { a: "9", b: "" }, saved: { a: "1", b: "" } }, { a: "2", b: "5" });
+      expect(r.raw).toEqual({ a: "9", b: "5" });
+      expect(r.saved).toEqual({ a: "2", b: "5" });
+      expect(r.stale).toBe(true);
+    });
+    it("is the same object when nothing changed (no render loop)", () => {
+      const state = { raw: { a: "1" }, saved: { a: "1" } };
+      const r = reconcileAnswers(state, { a: "1" });
+      expect(r.raw).toBe(state.raw);
+      expect(r.saved).toBe(state.saved);
+    });
+    it("a save that landed (server equals the edit) is not stale", () => {
+      const r = reconcileAnswers({ raw: { a: "9" }, saved: { a: "1" } }, { a: "9" });
+      expect(r.stale).toBe(false);
+    });
+  });
+  it("names why Approve is off after the answers changed", () => {
+    expect(DRAFT_OUT_OF_DATE).toContain("write the policy again");
   });
 });

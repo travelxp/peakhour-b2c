@@ -74,9 +74,6 @@ function useRefresh() {
     void qc.invalidateQueries({ queryKey: [FINDINGS_KEY] });
     // an answered question changes what Insights says is still open
     void qc.invalidateQueries({ queryKey: [INSIGHTS_KEY] });
-    // an approved policy draft makes its policy row live (KE-2.10)
-    void qc.invalidateQueries({ queryKey: [POLICIES_KEY] });
-    void qc.invalidateQueries({ queryKey: [POLICY_QUESTIONS_KEY] });
   };
 }
 
@@ -134,10 +131,16 @@ export function useKbSuggestions() {
 /** The edited words are sent as they are; the api refuses (409/400, with its own sentence) while a [placeholder] remains or the entry limit is reached. */
 export function useApproveSuggestion() {
   const refresh = useRefresh();
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, title, content }: { id: string; title: string; content: string }) =>
       api.post<{ entry: KbEntry; answered: number }>(`/v1/kb/suggestions/${id}/approve`, { title, content }),
-    onSuccess: refresh,
+    onSuccess: () => {
+      refresh();
+      // a generated policy draft approved from here makes its policy row live (KE-2.10)
+      void qc.invalidateQueries({ queryKey: [POLICIES_KEY] });
+      void qc.invalidateQueries({ queryKey: [POLICY_QUESTIONS_KEY] });
+    },
   });
 }
 
@@ -265,11 +268,11 @@ export function useGeneratePolicy(type: PolicyType) {
   });
 }
 
-/** GET .../generate/findings: the market findings of the current draft, read again while the generate reply said "pending". Free; stops after a few tries. */
-export function usePolicyFindings(type: PolicyType, markets: readonly string[], enabled: boolean) {
+/** GET .../generate/findings: the market findings of the current draft (`draftKey` names which written draft, so a new draft never shows the last one's findings), read again while the generate reply said "pending". Free; stops after a few tries. */
+export function usePolicyFindings(type: PolicyType, markets: readonly string[], enabled: boolean, draftKey: string) {
   const { isAuthenticated, org, business } = useAuth();
   return useQuery<{ marketCheck: "done"; marketFindings: MarketCheck }>({
-    queryKey: [POLICY_FINDINGS_KEY, org?._id ?? null, business?._id ?? null, type, marketsParam(markets)],
+    queryKey: [POLICY_FINDINGS_KEY, org?._id ?? null, business?._id ?? null, type, marketsParam(markets), draftKey],
     queryFn: () => api.get(`/v1/kb/policies/${type}/generate/findings`, marketsParam(markets)),
     enabled: enabled && isAuthenticated && !!org?._id,
     retry: false,
@@ -286,7 +289,8 @@ export function useApprovePolicyDraft() {
     mutationFn: ({ id, title, content }: { id: string; title: string; content: string }) => api.post<ApproveResponse>(`/v1/kb/suggestions/${id}/approve`, { title, content }),
     onSuccess: () => {
       refresh();
-      void qc.invalidateQueries({ queryKey: [CAPABILITIES_KEY] });
+      void qc.invalidateQueries({ queryKey: [POLICIES_KEY] });
+      void qc.invalidateQueries({ queryKey: [POLICY_QUESTIONS_KEY] });
     },
   });
 }
@@ -312,6 +316,9 @@ export function useUploadKnowledge() {
       api.post<UploadSummary>("/v1/kb/upload", body, clickHeaders(quoteToken, newActionKey)),
     onSuccess: () => {
       refresh();
+      // an upload fills in policy answers
+      void qc.invalidateQueries({ queryKey: [POLICIES_KEY] });
+      void qc.invalidateQueries({ queryKey: [POLICY_QUESTIONS_KEY] });
       void qc.invalidateQueries({ queryKey: [UPLOAD_PRICE_KEY] });
       void qc.invalidateQueries({ queryKey: [CREDITS_KEY] });
     },

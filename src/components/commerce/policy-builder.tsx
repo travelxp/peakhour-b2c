@@ -29,6 +29,8 @@ import {
 import { useCommerceStores } from "@/hooks/use-commerce-stores";
 import { KB_CONTENT_MAX, KB_TITLE_MAX, approveState, groupFindings, placeholdersIn, safeUrl, severityHeading } from "@/lib/knowledge-base";
 import {
+  ANSWERS_UPDATED,
+  DRAFT_OUT_OF_DATE,
   DIVERGED_TEXT,
   KEEP_OURS,
   KEEP_OURS_HELP,
@@ -52,6 +54,7 @@ import {
   generateErrorLine,
   generatedLine,
   marketCheckLines,
+  marketsKey,
   marketsLine,
   offerLine,
   parseMarketsBox,
@@ -59,6 +62,8 @@ import {
   policyStatus,
   policyStatusLine,
   priceCard,
+  publicationFor,
+  reconcileAnswers,
   publicationLine,
   publishButtons,
   publishErrorLine,
@@ -239,7 +244,13 @@ function PolicyEditor({ type, onClose }: { type: PolicyType; onClose: () => void
               <label htmlFor={boxId} className="block text-xs text-muted-foreground">
                 Two-letter country codes, separated by commas, such as GB, IN
               </label>
-              <Input id={boxId} value={box} aria-invalid={boxError ? true : undefined} aria-describedby={boxError ? `${boxId}-err` : undefined} onChange={(e) => setBox(e.target.value)} onBlur={() => apply(box)} placeholder="GB, IN" />
+              <Input id={boxId} value={box} aria-invalid={boxError ? true : undefined} aria-describedby={boxError ? `${boxId}-err` : undefined} onChange={(e) => setBox(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); apply(box); } }} placeholder="GB, IN" />
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" size="sm" variant="outline" onClick={() => apply(box)}>
+                  Use these countries
+                </Button>
+                <span className="text-xs text-muted-foreground">Each set of countries is its own policy. Answers you have not saved are not carried over.</span>
+              </div>
               {boxError && (
                 <p id={`${boxId}-err`} role="alert" className="text-sm text-destructive">
                   {boxError}
@@ -249,7 +260,7 @@ function PolicyEditor({ type, onClose }: { type: PolicyType; onClose: () => void
             </div>
           )}
         </fieldset>
-        <PolicyBody key={markets.join(",")} type={type} markets={markets} onSplit={split} />
+        <PolicyBody key={marketsKey(markets)} type={type} markets={markets} onSplit={split} />
       </CardContent>
     </Card>
   );
@@ -273,8 +284,13 @@ function PolicyBody({ type, markets, onSplit }: { type: PolicyType; markets: str
 
 function AnswersAndWrite({ type, markets, questions, note, onSplit }: { type: PolicyType; markets: string[]; questions: Question[]; note?: string; onSplit: (m: string[]) => void }) {
   const initial = () => Object.fromEntries(questions.map((q) => [q.fact, valueToRaw(q.shape, q.answer)]));
-  const [raw, setRaw] = useState<Record<string, string>>(initial);
-  const [saved, setSaved] = useState<Record<string, string>>(initial);
+  const [form, setForm] = useState<{ raw: Record<string, string>; saved: Record<string, string> }>(() => ({ raw: initial(), saved: initial() }));
+  // untouched boxes follow the saved answers (an upload or another tab can change them); a box the merchant edited never does
+  const synced = reconcileAnswers(form, initial());
+  if (synced.raw !== form.raw || synced.saved !== form.saved) setForm({ raw: synced.raw, saved: synced.saved });
+  const { raw, saved } = form;
+  const setRaw = (f: (r: Record<string, string>) => Record<string, string>) => setForm((c) => ({ ...c, raw: f(c.raw) }));
+  const [saveCount, setSaveCount] = useState(0);
   const [accepted, setAccepted] = useState<ReadonlySet<string>>(new Set());
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [summary, setSummary] = useState<string | null>(null);
@@ -292,7 +308,8 @@ function AnswersAndWrite({ type, markets, questions, note, onSplit }: { type: Po
     setSummary(null);
     try {
       await save.mutateAsync(r.body);
-      setSaved({ ...raw });
+      setForm((c) => ({ ...c, saved: { ...raw } }));
+      setSaveCount((n) => n + 1);
       toast.success("Answers saved. Nothing is written or published yet.");
     } catch (e) {
       setSummary(e instanceof Error && e.message ? e.message : "That did not save. Please try again.");
@@ -303,6 +320,14 @@ function AnswersAndWrite({ type, markets, questions, note, onSplit }: { type: Po
     <>
       <div className="space-y-4">
         {note && <p className="text-xs text-muted-foreground">{note}</p>}
+        {synced.stale && (
+          <p role="status" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            {ANSWERS_UPDATED}
+            <Button size="sm" variant="outline" onClick={() => setForm({ raw: initial(), saved: initial() })}>
+              Use the saved answers
+            </Button>
+          </p>
+        )}
         {questions.map((q) => (
           <QuestionField
             key={q.fact}
@@ -330,7 +355,7 @@ function AnswersAndWrite({ type, markets, questions, note, onSplit }: { type: Po
           {dirty && <span className="text-xs text-muted-foreground">You have changes that are not saved yet.</span>}
         </div>
       </div>
-      <WriteSection type={type} markets={markets} dirty={dirty} onSplit={onSplit} />
+      <WriteSection type={type} markets={markets} dirty={dirty} saveCount={saveCount} onSplit={onSplit} />
     </>
   );
 }
@@ -458,10 +483,11 @@ export function PriceCardView({ price }: { price: PolicyPrice }) {
   );
 }
 
-function WriteSection({ type, markets, dirty, onSplit }: { type: PolicyType; markets: string[]; dirty: boolean; onSplit: (m: string[]) => void }) {
+function WriteSection({ type, markets, dirty, saveCount, onSplit }: { type: PolicyType; markets: string[]; dirty: boolean; saveCount: number; onSplit: (m: string[]) => void }) {
   const price = usePolicyPrice(type, markets);
   const gen = useGeneratePolicy(type);
-  const [written, setWritten] = useState<Extract<GenerateResponse, { drafted: true }> | null>(null);
+  // `at`: how many times the answers had been saved when this draft was written; `n` names the draft for its findings read
+  const [written, setWritten] = useState<{ response: Extract<GenerateResponse, { drafted: true }>; at: number; n: number } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [topUp, setTopUp] = useState(false);
   const card = price.data ? priceCard(price.data) : null;
@@ -481,7 +507,7 @@ function WriteSection({ type, markets, dirty, onSplit }: { type: PolicyType; mar
     try {
       const r = await gen.mutateAsync({ markets, quoteToken: p.token });
       if (!r.drafted) setMessage(r.message);
-      else setWritten(r);
+      else setWritten((w) => ({ response: r, at: saveCount, n: (w?.n ?? 0) + 1 }));
     } catch (e) {
       const line = generateErrorLine(e);
       setMessage(line.message);
@@ -517,21 +543,25 @@ function WriteSection({ type, markets, dirty, onSplit }: { type: PolicyType; mar
         {gen.isPending && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden="true" />}
         Write my policy
       </Button>
-      {written && <DraftReview key={written.entry.id + written.entry.content} response={written} type={type} markets={markets} onSplit={onSplit} />}
+      {written && (
+        <DraftReview key={written.n} response={written.response} draftKey={String(written.n)} outOfDate={dirty || saveCount !== written.at} type={type} markets={markets} onSplit={onSplit} />
+      )}
     </div>
   );
 }
 
 // -- The draft, its market findings, approval --------------------------------------------------------------------------------
 
-function DraftReview({ response, type, markets, onSplit }: { response: Extract<GenerateResponse, { drafted: true }>; type: PolicyType; markets: string[]; onSplit: (m: string[]) => void }) {
+function DraftReview({ response, draftKey, outOfDate, type, markets, onSplit }: { response: Extract<GenerateResponse, { drafted: true }>; draftKey: string; outOfDate: boolean; type: PolicyType; markets: string[]; onSplit: (m: string[]) => void }) {
   const [title, setTitle] = useState(response.entry.title);
   const [content, setContent] = useState(response.entry.content);
   const [error, setError] = useState<string | null>(null);
   const [stale, setStale] = useState(false);
   const [approvedLine, setApprovedLine] = useState<string | null>(null);
   const approve = useApprovePolicyDraft();
-  const state = approveState(title, content);
+  const words = approveState(title, content);
+  // answers changed after this draft was written: approving it would state what they no longer say (the api refuses it too, with a 409)
+  const state: ReturnType<typeof approveState> = outOfDate ? { enabled: false, reason: DRAFT_OUT_OF_DATE } : words;
   const reasonId = useId();
   const needsFacts = response.needsFacts;
 
@@ -576,7 +606,7 @@ function DraftReview({ response, type, markets, onSplit }: { response: Extract<G
           </ul>
         </div>
       )}
-      <MarketFindingsSection type={type} markets={markets} response={response} onSplit={onSplit} />
+      <MarketFindingsSection type={type} markets={markets} response={response} draftKey={draftKey} onSplit={onSplit} />
       {approvedLine === null ? (
         <>
           {!state.enabled && (
@@ -608,10 +638,10 @@ function DraftReview({ response, type, markets, onSplit }: { response: Extract<G
   );
 }
 
-function MarketFindingsSection({ type, markets, response, onSplit }: { type: PolicyType; markets: string[]; response: Extract<GenerateResponse, { drafted: true }>; onSplit: (m: string[]) => void }) {
+function MarketFindingsSection({ type, markets, response, draftKey, onSplit }: { type: PolicyType; markets: string[]; response: Extract<GenerateResponse, { drafted: true }>; draftKey: string; onSplit: (m: string[]) => void }) {
   const pending = response.marketCheck === "pending" && response.marketFindings === null;
   // the generate reply said "pending": the free findings read runs the same check on the draft's own text
-  const polled = usePolicyFindings(type, markets, pending);
+  const polled = usePolicyFindings(type, markets, pending, draftKey);
   const check: MarketCheck | null = response.marketFindings ?? polled.data?.marketFindings ?? null;
   if (check) return <MarketFindingsView check={check} markets={markets} onSplit={onSplit} />;
   if (pending && polled.isError) return <p className="text-sm text-muted-foreground">{MARKET_CHECK_GAVE_UP}</p>;
@@ -723,7 +753,7 @@ export function PublishPanelView({
   const buttons = publishButtons(caps, ctx);
   const noChannels = (caps?.channels.length ?? 0) === 0;
   // a copy that is out and changed on the site is settled in its banner, not republished over
-  const diverged = new Set(publications.filter((p) => p.state === "diverged").map((p) => `${p.channel}:${p.slot}`));
+  const isDiverged = (b: PublishButton) => publicationFor(publications, b)?.state === "diverged";
 
   const run = async (b: PublishButton) => {
     setErrors((e) => Object.fromEntries(Object.entries(e).filter(([k]) => k !== b.key)));
@@ -754,10 +784,10 @@ export function PublishPanelView({
       ) : (
         <ul className="space-y-2">
           {buttons
-            .filter((b) => !diverged.has(`${b.channel}:${b.slot}`))
+            .filter((b) => !isDiverged(b))
             .map((b) => {
               const err = errors[b.key];
-              const has = publications.some((p) => p.channel === b.channel && p.slot === b.slot);
+              const has = publicationFor(publications, b) !== undefined;
               return (
                 <li key={b.key} className="space-y-1 text-sm">
                   <div className="flex flex-wrap items-center gap-2">
