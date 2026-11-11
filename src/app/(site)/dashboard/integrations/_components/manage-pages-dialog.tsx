@@ -578,7 +578,7 @@ function QueuedPostsPrompt({
       <ul className="space-y-1 border-t border-warning/30 pt-2">
         {shown.map((x) => (
           <li key={x.itemId} className="flex items-baseline gap-2">
-            <span className="shrink-0 tabular-nums opacity-80">
+            <span className="shrink-0 tabular-nums">
               {new Date(x.scheduledAtUtc).toLocaleDateString(undefined, {
                 month: "short",
                 day: "numeric",
@@ -589,7 +589,7 @@ function QueuedPostsPrompt({
           </li>
         ))}
         {count > shown.length && (
-          <li className="italic opacity-70">+ {count - shown.length} more</li>
+          <li className="italic">+ {count - shown.length} more</li>
         )}
       </ul>
 
@@ -623,7 +623,7 @@ function QueuedPostsPrompt({
       {/* "Change anyway" is a real choice — someone may be about to re-enable the
           page, or want to edit those posts first — but it must not read as the
           safe one. */}
-      <p className="opacity-80">
+      <p>
         &ldquo;Change anyway&rdquo; leaves {one ? "it" : "them"} scheduled, and{" "}
         {one ? "it" : "they"} will fail. Posts on other channels are never
         touched.

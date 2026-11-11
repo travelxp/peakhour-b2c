@@ -111,7 +111,7 @@ export function HookScoreCard({
           <Sparkles className="size-4" />
           <span className="font-medium">{band.label}</span>
           <span
-            className="rounded-sm border border-current/30 px-1.5 py-0 text-micro uppercase tracking-wide opacity-80"
+            className="rounded-sm border border-current/30 px-1.5 py-0 text-micro uppercase tracking-wide"
             title={tierMeta.tooltip}
           >
             {tierMeta.label}
@@ -141,12 +141,12 @@ export function HookScoreCard({
           )}
           <span className="font-mono text-base font-semibold tabular-nums">
             {score.score}
-            <span className="ml-0.5 text-xs opacity-70">/100</span>
+            <span className="ml-0.5 text-xs font-normal">/100</span>
           </span>
         </div>
       </div>
       {score.archetypeMatch && (
-        <div className="text-micro opacity-80">
+        <div className="text-micro">
           Matched{" "}
           <span className="font-mono">{score.archetypeMatch.cohortId}</span>{" "}
           archetype · cosine{" "}
@@ -155,7 +155,7 @@ export function HookScoreCard({
         </div>
       )}
       {topSuggestions.length > 0 && (
-        <ul className="ml-4 list-disc space-y-0.5 text-xs opacity-90">
+        <ul className="ml-4 list-disc space-y-0.5 text-xs">
           {topSuggestions.map((s, i) => (
             <li key={i}>{s}</li>
           ))}
@@ -252,7 +252,7 @@ export function HookVariantsPanel({
                     {v.score}
                   </span>
                 </div>
-                <span className="text-micro uppercase tracking-wide opacity-70">
+                <span className="text-micro uppercase tracking-wide">
                   {v.technique}
                 </span>
               </button>
