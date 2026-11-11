@@ -179,6 +179,7 @@ export function ScheduledPostEditor({
     });
     setText(item.payload.text);
     setMediaUrls(item.payload.mediaUrls ?? []);
+    setPaidPartnership(item.payload.channelOptions?.paidPartnership === true);
     setConfirmCancel(false);
     setConfirmPublish(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -257,6 +258,10 @@ export function ScheduledPostEditor({
 
   // X only. Saved the moment it is flipped (it is one flag, not text the person
   // is still drafting), so it does not join the dirty-state of the text box.
+  // ★No `onChanged()` on purpose: the refetch would bump `payload.version` and the
+  // content re-seed above would overwrite unsaved text and media drafts. The
+  // local state already holds the saved value, and a later content save
+  // re-seeds it from the stored snapshot.
   const [paidPartnership, setPaidPartnership] = useState(
     item.payload.channelOptions?.paidPartnership === true,
   );
@@ -265,7 +270,6 @@ export function ScheduledPostEditor({
     onSuccess: (res) => {
       setPaidPartnership(res.payload.channelOptions?.paidPartnership === true);
       toast.success("Scheduled post updated.");
-      onChanged();
     },
     onError: (err: unknown) => toast.error(mutationMessage(err, "Couldn't save the label.")),
   });
@@ -407,7 +411,7 @@ export function ScheduledPostEditor({
             id={`${textId}-paid`}
             checked={paidPartnership}
             onCheckedChange={(next) => savePaidPartnership.mutate(next)}
-            disabled={!editable || savePaidPartnership.isPending}
+            disabled={!editable || anyPending || savePaidPartnership.isPending}
             aria-describedby={`${textId}-paid-help`}
           />
           <div className="space-y-0.5">
