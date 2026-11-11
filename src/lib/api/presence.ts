@@ -63,6 +63,13 @@ export const presenceApi = {
     api.get<PresenceListingResponse>(`/v1/presence/listing${presenceQuery({ location, network })}`),
 
   /**
+   * "Keep the network's version" of a change it made by itself: the change stops alerting, and a name, description, phone number or website
+   * is taken into the listing. Nothing is sent to the network. `path` says which change when several have no name.
+   */
+  keepNetworkChange: (body: { listingId: string; network: string; field: string; label?: string | undefined }) =>
+    api.post<{ kept: true }>("/v1/presence/network-changes/keep", body),
+
+  /**
    * Day-by-day customer actions for the chosen listing.
    *
    * @param days 1-90. The api clamps and defaults to 28.

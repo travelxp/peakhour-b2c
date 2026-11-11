@@ -1,12 +1,18 @@
 "use client";
 
+import { useEffect } from "react";
 import { AlertTriangle, CheckCircle2, HelpCircle } from "lucide-react";
+import { ChangeChoices } from "@/components/presence/change-choices";
 import {
   changesView,
   controlNote,
   type NoteTone,
+  type PresenceListingResponse,
   type PresenceNetworkEntry,
 } from "@/lib/presence-panels";
+
+/** The id of the section an alert's link goes to. The api names the same id (`NETWORK_CHANGES_ANCHOR`). */
+export const NETWORK_CHANGES_ID = "network-changes";
 
 const TONE_ICON: Record<NoteTone, React.ReactNode> = {
   good: <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />,
@@ -23,14 +29,23 @@ const TONE_ICON: Record<NoteTone, React.ReactNode> = {
  */
 export function ControlSection({
   entry,
+  listing,
   formatDateTime,
 }: {
   entry: PresenceNetworkEntry | null;
+  listing: PresenceListingResponse["listing"] | null;
   formatDateTime: (iso: string | null | undefined) => string;
 }) {
   const label = entry?.label ?? "the network";
   const control = controlNote(entry, label);
   const changes = changesView(entry, label);
+  const listsChanges = changes?.kind === "some";
+  // An alert links to `#network-changes`. The section draws after the listing loads, so the browser's own jump has nothing to land on yet.
+  useEffect(() => {
+    if (listsChanges && typeof window !== "undefined" && window.location.hash === `#${NETWORK_CHANGES_ID}`) {
+      document.getElementById(NETWORK_CHANGES_ID)?.scrollIntoView({ block: "start" });
+    }
+  }, [listsChanges]);
   if (!control && !changes) return null;
 
   return (
@@ -58,13 +73,16 @@ export function ControlSection({
       )}
 
       {changes && (
-        <div className="space-y-0.5 border-t pt-3 first:border-t-0 first:pt-0">
+        <div id={NETWORK_CHANGES_ID} className="scroll-mt-20 space-y-0.5 border-t pt-3 first:border-t-0 first:pt-0">
           {changes.kind === "some" ? (
             <>
               <p className="text-sm font-medium">{changes.headline}</p>
-              <ul className="list-disc pl-5 text-xs text-muted-foreground">
+              <ul className="space-y-2 pl-0 text-xs text-muted-foreground">
                 {changes.lines.map((l) => (
-                  <li key={l}>{l}</li>
+                  <li key={l.key} id={`network-change-${l.field}`} className="space-y-1">
+                    <p>{l.text}</p>
+                    {entry && listing ? <ChangeChoices line={l} entry={entry} listing={listing} /> : null}
+                  </li>
                 ))}
               </ul>
               {changes.pending && <p className="text-xs text-muted-foreground">{changes.pending}</p>}
