@@ -41,6 +41,14 @@ const pub = (over: Partial<PresencePublishing> = {}): PresencePublishing => ({ s
 const ready = (score: number | null, health: Array<{ id: string; state: "ok" | "attention" | "unknown" }> = []): ListingScoreResponse =>
   ({ state: "ready", listingId: "l1", network: { key: "testnet", label: "Testnet" }, score: { score }, health: health.map((h) => ({ ...h, headline: h.id })) }) as unknown as ListingScoreResponse;
 
+// the network's own edits, as `changesView` reads them: a line each until it is kept or put back
+const withChanges = (items: Array<{ field: string; suggested?: string; before?: string }>, publishing: PresencePublishing = pub()): SummaryInput["entry"] => ({
+  label: "Testnet",
+  publishing,
+  changes: { items, pendingFields: null, checkedAt: null, lastReadFailedAt: null, customerMediaAt: null },
+  capabilities: { networkChanges: true } as never,
+});
+
 const input = (over: Partial<SummaryInput> = {}): SummaryInput => ({
   score: ready(89),
   entry: { label: "Testnet", publishing: pub() },
@@ -127,7 +135,7 @@ describe("what needs the merchant", () => {
 
   it("counts a change made on the listing itself, and each health row that needs attention", () => {
     const score = ready(70, [{ id: "a", state: "attention" }, { id: "b", state: "ok" }, { id: "c", state: "unknown" }, { id: "d", state: "attention" }]);
-    const items = needItems(input({ score, networkChanges: 2 }))!;
+    const items = needItems(input({ score, entry: withChanges([{ field: "phone", suggested: "1", before: "2" }, { field: "website" }]) }))!;
     expect(items.map((i) => i.kind)).toEqual(["changed", "changed", "health", "health"]);
     expect(items[0]!.href).toBe("#network-changes");
     expect(items[2]!.href).toBe("#listing-score");
@@ -138,12 +146,18 @@ describe("what needs the merchant", () => {
     const parts = summaryLine(
       input({
         score: ready(70, [{ id: "a", state: "attention" }]),
-        entry: { label: "Testnet", publishing: pub({ state: "blocked", blocker }) },
+        entry: withChanges([{ field: "phone", suggested: "1", before: "2" }], pub({ state: "blocked", blocker })),
         changes: [change({ id: "ok" }), change({ id: "bad", status: "failed", reason: { code: "x", message: "No." }, submittedAt: "2026-11-10T10:00:00.000Z" })],
-        networkChanges: 1,
       }),
     );
     expect(parts[2]).toMatchObject({ text: "5 things need you", href: "#request-ok" });
+  });
+
+  it("counts no change when the network does not report them, has not answered, or said nothing changed", () => {
+    const base = withChanges([{ field: "phone" }])!;
+    expect(needItems(input({ entry: { ...base, capabilities: { networkChanges: false } as never } }))).toEqual([]);
+    expect(needItems(input({ entry: { ...base, changes: { ...base.changes!, items: null } } }))).toEqual([]);
+    expect(needItems(input({ entry: withChanges([]) }))).toEqual([]);
   });
 
   it("is null while anything it counts has not been read", () => {

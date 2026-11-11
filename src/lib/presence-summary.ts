@@ -10,7 +10,7 @@
  */
 
 import { publishingBanner, requestGroups, requestStatus, type CapabilitiesResponse, type ChangeCardData } from "@/lib/presence-edit";
-import type { PresenceNetworkEntry } from "@/lib/presence-panels";
+import { changesView, type PresenceNetworkEntry } from "@/lib/presence-panels";
 import type { ListingScoreResponse } from "@/lib/presence-score";
 
 /** The in-page anchors the line links to. The page puts each id on the section it names. */
@@ -45,13 +45,12 @@ export interface SummaryPart {
 export interface SummaryInput {
   /** The score answer; undefined until it has answered (loading or failed). */
   score: ListingScoreResponse | undefined;
-  entry: Pick<PresenceNetworkEntry, "label" | "publishing"> | null | undefined;
+  /** `changes` and `capabilities` are what `changesView` reads: the edits the network made on its own that nobody has answered. */
+  entry: (Pick<PresenceNetworkEntry, "label" | "publishing"> & Partial<Pick<PresenceNetworkEntry, "changes" | "capabilities">>) | null | undefined;
   can: CapabilitiesResponse["can"] | undefined;
   /** The listing's changes; undefined until they have answered. */
   changes: readonly ChangeCardData[] | undefined;
   now: number;
-  /** Google-side edits nobody has answered yet. Zero until the page reads them. */
-  networkChanges?: number;
 }
 
 const FAILED_STAGES: ReadonlySet<string> = new Set(["failed", "rejected_by_network", "not_published", "not_sent"]);
@@ -73,7 +72,9 @@ export function needItems(input: SummaryInput): NeedItem[] | null {
   }
   const banner = publishingBanner(entry, can);
   if (banner?.action) items.push({ kind: "publishing", href: `#${SUMMARY_ANCHORS.publishing}`, words: "fix what stops publishing" });
-  for (let i = 0; i < (input.networkChanges ?? 0); i++) items.push({ kind: "changed", href: `#${SUMMARY_ANCHORS.networkChanges}`, words: "answer a change made on the listing itself" });
+  // Each line `changesView` lists is a change nobody has answered yet (keeping or putting it back removes the line).
+  const own = entry.changes && entry.capabilities ? changesView({ changes: entry.changes, capabilities: entry.capabilities }, entry.label) : null;
+  for (let i = 0; i < (own?.kind === "some" ? own.lines.length : 0); i++) items.push({ kind: "changed", href: `#${SUMMARY_ANCHORS.networkChanges}`, words: "answer a change made on the listing itself" });
   if (score.state === "ready") {
     for (const h of score.health) if (h.state === "attention") items.push({ kind: "health", href: `#${SUMMARY_ANCHORS.score}`, words: "look at a listing check" });
   }

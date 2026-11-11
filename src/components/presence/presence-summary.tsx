@@ -13,14 +13,14 @@ import { summaryLine } from "@/lib/presence-summary";
  * keys), so this adds no request. Each part is a link to its place on the page, and says its whole sentence to a screen reader (hidden text, so what is read still starts with what is seen); the words
  * carry the meaning, never a colour.
  */
-export function PresenceSummary({ location, network, networkChanges }: { location?: string | undefined; network?: string | undefined; networkChanges?: number | undefined }) {
+export function PresenceSummary({ location, network }: { location?: string | undefined; network?: string | undefined }) {
   const listingQ = useListingQuery(location, network);
   const caps = useEditCapabilities();
   const entry = primaryEntry(listingQ.data);
   const changes = useListingChanges(listingQ.data?.listing?.id);
   const score = useListingScore(location, network);
   const now = useNow();
-  const parts = summaryLine({ score: score.data, entry, can: caps.data?.can, changes: changes.data?.items, now, networkChanges: networkChanges ?? 0 });
+  const parts = summaryLine({ score: score.data, entry, can: caps.data?.can, changes: changes.data?.items, now });
   if (parts.length === 0) return null;
 
   return (
