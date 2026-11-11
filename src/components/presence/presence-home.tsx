@@ -12,6 +12,7 @@ import { reviewsPlaceIn, wantsPlacesView } from "@/lib/review-places";
 import { ListingPanel } from "@/components/presence/listing-panel";
 import { ListingScoreCard } from "@/components/presence/listing-score-card";
 import { EditListingCard, type EditRequest } from "@/components/presence/edit/edit-listing-card";
+import { PresenceSummary } from "@/components/presence/presence-summary";
 import { PublishingStatus } from "@/components/presence/publishing-status";
 import { PhotosCard } from "@/components/presence/edit/photos-card";
 import { PostsCard } from "@/components/presence/edit/posts-card";
@@ -233,6 +234,9 @@ export function PresenceHome() {
               </div>
             ) : null}
 
+            {/* ★THE ONE LINE (GBP L7): health, publishing and what needs the merchant, each a link to its place below. */}
+            {listingOn ? <PresenceSummary location={panelLocation} network={panelNetwork} /> : null}
+
             {/* ★WAIT FOR THE LISTING READ that says whether there are several places: drawing the summary first and swapping it for the places
                 view a moment later flashed one view and discarded its read. */}
             {reviewsOn && listAnswer.isPending ? <Skeleton className="h-40 w-full" /> : null}
@@ -280,17 +284,19 @@ export function PresenceHome() {
                     forms, or the photos card, which is drawn on its own declaration. */}
                 {editOn || photosOn ? <PublishingStatus location={panelLocation} network={panelNetwork} onRedo={openForm} canRedo={(f) => editOn || f === "media"} /> : null}
 
-                <ListingScoreCard
-                  location={panelLocation}
-                  network={panelNetwork}
-                  onOpenForm={openForm}
-                />
+                <div id="listing-score">
+                  <ListingScoreCard
+                    location={panelLocation}
+                    network={panelNetwork}
+                    onOpenForm={openForm}
+                  />
+                </div>
 
                 <ListingPanel location={panelLocation} network={panelNetwork} label={fallbackLabel} />
 
                 {editOn ? (
                   <div id="edit-listing">
-                    <EditListingCard location={panelLocation} network={panelNetwork} request={editRequest} photoChangesElsewhere={photosOn} />
+                    <EditListingCard location={panelLocation} network={panelNetwork} request={editRequest} />
                   </div>
                 ) : null}
 

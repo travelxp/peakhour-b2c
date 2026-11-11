@@ -152,3 +152,32 @@ describe("the one publishing status (GBP Issue 1)", () => {
     expect(flat("components/presence/edit/edit-listing-card.tsx")).toContain("preparedWords(r.notChecked.length, cap!, primaryEntry(listingQ.data)?.publishing)");
   });
 });
+
+describe("the one summary line (GBP L7)", () => {
+  const home = flat("components/presence/presence-home.tsx");
+  it("is drawn once, above the reviews, the status and every panel, and only for a network with a listing", () => {
+    expect(home.match(/<PresenceSummary /g)).toHaveLength(1);
+    expect(home).toContain("{listingOn ? <PresenceSummary location={panelLocation} network={panelNetwork} /> : null}");
+    for (const part of ["<ReviewSummaryCard", "<PublishingStatus ", "<ListingScoreCard", "<EditListingCard"]) {
+      expect(home.indexOf("<PresenceSummary "), part).toBeLessThan(home.indexOf(part));
+    }
+  });
+  it("every anchor the line links to exists on the page", () => {
+    expect(home).toContain('<div id="listing-score">');
+    expect(flat("components/presence/publishing-status.tsx")).toContain('<section id="publishing-status"');
+    expect(flat("components/presence/requests-list.tsx")).toContain("id={SUMMARY_ANCHORS.requests}");
+    expect(flat("components/presence/requests-list.tsx")).toContain("id={requestRowId(change.id)}");
+  });
+  it("adds no request: it reads the keys the status, the score card and the edit card read, and decides nothing itself", () => {
+    const s = flat("components/presence/presence-summary.tsx");
+    for (const read of ["useListingQuery(location, network)", "useEditCapabilities()", "useListingChanges(listingQ.data?.listing?.id)", "useListingScore(location, network)"]) expect(s).toContain(read);
+    expect(s).toContain("summaryLine({");
+    expect(s).not.toMatch(/Google|publishingBanner|requestStatus/);
+  });
+  it("the sections keep no status of their own: no card draws a request's stage or buttons", () => {
+    for (const f of ["edit-listing-card", "extra-panel", "photos-card"]) {
+      const s = flat(`components/presence/edit/${f}.tsx`);
+      expect(s, f).not.toMatch(/statusWords|cardActions|m\.approve|m\.undo/);
+    }
+  });
+});

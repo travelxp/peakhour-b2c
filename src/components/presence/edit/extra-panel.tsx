@@ -4,13 +4,13 @@ import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { WaitingLine } from "@/components/presence/edit/waiting-line";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChangeCard } from "@/components/presence/edit/change-card";
-import { useChangeOutcomes, useEditCapabilities, useListingChanges } from "@/hooks/use-presence-edit";
+import { useEditCapabilities, useListingChanges } from "@/hooks/use-presence-edit";
 import { useExtra, useExtraMutations, useRefreshWhenSettled, type ExtraTarget } from "@/hooks/use-presence-extras";
 import { useListingQuery } from "@/hooks/use-presence-listing";
 import { errorWords, type CapabilitiesResponse, type ChangeCardData } from "@/lib/presence-edit";
-import { capabilityOf, drawsPanel, extrasAccess, isListChanged, listedChanges, preparedWords, readFailureAction, withChangesKnown, type ExtraField } from "@/lib/presence-extras";
+import { capabilityOf, drawsPanel, extrasAccess, isListChanged, preparedWords, readFailureAction, withChangesKnown, type ExtraField } from "@/lib/presence-extras";
 import { outcomeOf, type PhotoAccess } from "@/lib/presence-photos";
 import { fetchView, primaryEntry } from "@/lib/presence-panels";
 
@@ -69,7 +69,6 @@ export function ExtraPanel<D extends { label: string; writes: { notice: string |
   const target: ExtraTarget | null = listing && network ? { listingId: listing.id, network } : null;
   const q = useExtra(field, listing?.id, network, drawn);
   const changes = useListingChanges(drawn ? listing?.id : undefined);
-  const outcomes = useChangeOutcomes(listing?.id, changes.data?.items, caps.data);
   const changesView = fetchView({ hasData: !!changes.data, isPending: changes.isPending, isError: changes.isError, fetchStatus: changes.fetchStatus });
   useRefreshWhenSettled(field, changes.data?.items, target);
   const m = useExtraMutations(field, target);
@@ -168,35 +167,13 @@ export function ExtraPanel<D extends { label: string; writes: { notice: string |
       </>
     );
 
-  const list = listedChanges(items, network, field, 8);
   return (
     <Card className="gap-4 p-5">
       {header}
       {body}
       {access.mode === "view" && !data && <p className="text-xs text-muted-foreground">{access.why}</p>}
-
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium">{title} changes</h3>
-        {changes.isPending ? (
-          <Skeleton className="h-16 w-full" />
-        ) : changes.isError && !changes.data ? (
-          <div className="flex items-center gap-2">
-            <p className="text-xs text-destructive">We could not load your changes just now.</p>
-            <Button size="sm" variant="outline" onClick={() => changes.refetch()}>
-              Try again
-            </Button>
-          </div>
-        ) : (
-          <>
-            {changes.isError && <p className="text-xs text-warning-on-tint">Could not refresh just now, so these may be out of date.</p>}
-            {list.length > 0 ? (
-              list.map((c) => <ChangeCard key={c.id} change={c} label={label} can={caps.data?.can} m={m} outcome={outcomes.slotFor(c)} />)
-            ) : (
-              <p className="text-xs text-muted-foreground">No changes yet.</p>
-            )}
-          </>
-        )}
-      </div>
+      {/* GBP L7: where a request for this panel stands lives in "Your requests", once. */}
+      <WaitingLine changes={items} matches={(c) => c.field === field && c.network === network} />
     </Card>
   );
 }

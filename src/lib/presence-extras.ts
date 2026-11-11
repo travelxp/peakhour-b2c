@@ -191,14 +191,6 @@ export function inFlightChanges(items: readonly ChangeCardData[] | undefined, ne
   return fieldChanges(items, network, field).filter((c) => IN_FLIGHT.includes(c.status));
 }
 
-/** EVERY change that has not settled, and only the most recent `settledCap` of the history. Capping must never hide a change somebody can act on. */
-export function listedChanges(items: readonly ChangeCardData[] | undefined, network: string, field: ExtraField, settledCap: number): ChangeCardData[] {
-  const all = fieldChanges(items, network, field);
-  const settled = all.filter((c) => !IN_FLIGHT.includes(c.status)).slice(0, settledCap);
-  const keep = new Set([...all.filter((c) => IN_FLIGHT.includes(c.status)), ...settled].map((c) => c.id));
-  return all.filter((c) => keep.has(c.id));
-}
-
 /** Whether a change of this field has just LEFT the in-flight statuses, so what the panel reads is stale. `before` is the ids in flight at the last look. */
 export function settledSince(before: ReadonlySet<string>, items: readonly ChangeCardData[] | undefined, network: string, field: ExtraField): boolean {
   const flying = new Set(inFlightChanges(items, network, field).map((c) => c.id));
@@ -234,7 +226,7 @@ export function pendingNote(status: string, can: { approve: boolean } | undefine
   if (status === "submitted") return "A change was sent. Waiting for it to show.";
   if (status === "approved") return "Approved, waiting to be sent.";
   if (status === "applying") return "Being sent now.";
-  return can?.approve ? "A change is waiting below. Approve or decline it there." : "A change is waiting below for an admin or owner to approve.";
+  return can?.approve ? "A change is waiting. Approve or decline it in Your requests." : "A change is waiting for an admin or owner to approve it. See Your requests.";
 }
 
 // ── Posts ────────────────────────────────────────────────────────────────────

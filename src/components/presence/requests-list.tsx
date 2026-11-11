@@ -4,8 +4,9 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ChangeOutcome } from "@/components/presence/edit/change-outcome";
 import type { usePresenceEditMutations } from "@/hooks/use-presence-edit";
-import { errorWords, fieldTitle, requestStatus, shortChange, type CapabilitiesResponse, type ChangeCardData, type OutcomeSlot, type Tone } from "@/lib/presence-edit";
+import { cardActions, errorWords, fieldTitle, requestStatus, shortChange, type CapabilitiesResponse, type ChangeCardData, type OutcomeSlot, type Tone } from "@/lib/presence-edit";
 import type { PresencePublishing } from "@/lib/presence-panels";
+import { requestRowId, SUMMARY_ANCHORS } from "@/lib/presence-summary";
 
 const TONE: Record<Tone, string> = {
   neutral: "text-muted-foreground",
@@ -14,7 +15,7 @@ const TONE: Record<Tone, string> = {
   bad: "text-destructive",
 };
 
-type Mutations = Pick<ReturnType<typeof usePresenceEditMutations>, "approve" | "reject">;
+type Mutations = Pick<ReturnType<typeof usePresenceEditMutations>, "approve" | "reject" | "undo">;
 
 /**
  * One request: the field, what it changes, where it stands, why, and the one thing to do. MARKUP ONLY: every word and the action come from
@@ -40,20 +41,37 @@ function RequestRow({
   canRedo: (field: string) => boolean;
 }) {
   const r = requestStatus(change, label, can, publishing);
-  const busy = m.approve.isPending || m.reject.isPending;
-  const failure = (m.approve.variables === change.id && m.approve.error) || (m.reject.variables === change.id && m.reject.error) || null;
+  const busy = m.approve.isPending || m.reject.isPending || m.undo.isPending;
+  const failure = (m.approve.variables === change.id && m.approve.error) || (m.reject.variables === change.id && m.reject.error) || (m.undo.variables === change.id && m.undo.error) || null;
+  // The one place a sent or live change is put back (the change cards used to hold this button).
+  const canUndo = cardActions(change, can).undo;
+  const issues = change.validation?.issues ?? [];
   const next = r.next;
 
   return (
-    <li className="space-y-1 py-3 first:pt-0 last:pb-0" data-testid="request-row" data-stage={r.stage}>
+    <li id={requestRowId(change.id)} className="scroll-mt-24 space-y-1 py-3 first:pt-0 last:pb-0" data-testid="request-row" data-stage={r.stage}>
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <p className="text-sm font-medium">{fieldTitle(change.field)}</p>
-        <p className={`text-xs font-medium ${TONE[r.tone]}`}>{r.label}</p>
+        <p className={`text-xs font-medium ${TONE[r.tone]}`}>
+          {r.label}
+          {change.undone ? " (undone)" : ""}
+        </p>
       </div>
       <p className="break-words text-xs text-muted-foreground">{shortChange(change.field, change.before, change.after)}</p>
       {/* What followed a live change: the slot comes from the one outcomes request the page already makes (PE-13), never one per row. */}
       {change.status === "live" && <ChangeOutcome slot={outcome} />}
+      {change.source === "assistant" && <p className="text-xs text-muted-foreground">Suggested by Ask Peakhour.</p>}
       {r.reason && <p className="text-xs text-muted-foreground">{r.reason}</p>}
+      {change.notes.map((n, i) => (
+        <p key={`${i}:${n}`} className="text-xs text-warning-on-tint">
+          {n}
+        </p>
+      ))}
+      {issues.map((i, k) => (
+        <p key={`${k}:${i.message}`} className="text-xs text-destructive">
+          {i.message}
+        </p>
+      ))}
       {failure ? <p className="text-xs text-destructive">{errorWords(failure)}</p> : null}
       {next.kind === "decide" && (
         <div className="flex flex-wrap gap-2 pt-1">
@@ -64,6 +82,11 @@ function RequestRow({
             Decline
           </Button>
         </div>
+      )}
+      {canUndo && (
+        <Button size="sm" variant="outline" className="mt-1 w-fit" disabled={busy} onClick={() => m.undo.mutate(change.id)}>
+          Undo (needs approval)
+        </Button>
       )}
       {next.kind === "redo" && canRedo(change.field) && (
         <Button size="sm" variant="outline" className="mt-1 w-fit" onClick={() => onRedo(change.field)}>
@@ -113,13 +136,15 @@ export function RequestsList({
   canRedo: (field: string) => boolean;
 }) {
   if (open.length === 0 && recent.length === 0) return null;
+  // A finished request that still needs the merchant (a failure to make again) is shown, not folded away, so the line at the top can link to it.
+  const recentNeedsYou = recent.some((c) => requestStatus(c, labelFor(c.network), can, publishing).next.kind !== "none");
   const row = (c: ChangeCardData) => <RequestRow key={c.id} change={c} label={labelFor(c.network)} can={can} publishing={publishing} m={m} onRedo={onRedo} outcome={outcomeFor?.(c)} canRedo={canRedo} />;
   return (
-    <div className="space-y-2" data-testid="your-requests">
+    <div id={SUMMARY_ANCHORS.requests} className="space-y-2" data-testid="your-requests">
       <h3 className="text-sm font-medium">Your requests</h3>
       {open.length > 0 ? <ul className="divide-y">{open.map(row)}</ul> : <p className="text-xs text-muted-foreground">Nothing is waiting.</p>}
       {recent.length > 0 && (
-        <details>
+        <details open={recentNeedsYou || undefined}>
           <summary className="w-fit cursor-pointer text-xs font-medium text-muted-foreground">Done recently ({recent.length})</summary>
           <ul className="mt-2 divide-y">{recent.map(row)}</ul>
         </details>
