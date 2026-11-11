@@ -106,10 +106,13 @@ export const scheduler = {
    * Edit a scheduled post's frozen snapshot. Every field is optional and an
    * omitted field keeps its stored value, so a text-only edit needs no media
    * round trip. Clears the `payloadStale` hold — the author has just
-   * re-authored the content, which is what the hold was waiting for.
+   * re-authored the content, which is what the hold was waiting for. (A patch
+   * of `paidPartnership` alone does not: it re-authors nothing.)
    *
-   * `channelOptions` is deliberately NOT editable: it carries the author URN +
-   * visibility the plan was committed with, and changing who publishes means
+   * `channelOptions` is deliberately NOT editable, with ONE exception: X's
+   * `paidPartnership` flag, which the server merges into it. The rest of it
+   * carries the author URN + visibility the plan was committed with, and
+   * changing who publishes means
    * cancelling and recomposing so the author policy runs again. The server
    * REJECTS an unknown field rather than dropping it, so a client that tries
    * gets a 400 instead of a false success.
@@ -126,6 +129,8 @@ export const scheduler = {
       mediaUrls?: string[];
       firstComment?: string;
       threadParts?: string[];
+      /** X only: the paid promotion label, the one channelOptions key an edit may set. */
+      paidPartnership?: boolean;
     },
   ) {
     return api.patch<{
