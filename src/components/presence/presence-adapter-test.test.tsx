@@ -85,7 +85,7 @@ const summaryEntry = (net: ConnectableNetwork, rating: number, n: number) => ({ 
 const summaryAnswer = (net: ConnectableNetwork, rating: number, n: number) => ({ days: 90, windowStart: "2026-08-07T00:00:00.000Z", locationName: null, networks: [summaryEntry(net, rating, n)] });
 const kitAnswer = (n: ConnectableNetwork) => ({ state: "ready", listingId: "l1", businessName: `${n.label} Shop`, link: `https://${n.network}.example/review`, network: n.network, networkLabel: n.label, qrSvg: "<svg xmlns='http://www.w3.org/2000/svg'></svg>" });
 const scoreAnswer = (n: ConnectableNetwork) => n.capabilities.listing
-  ? { state: "ready", listingId: "l1", network: { key: n.network, label: n.label }, score: { score: 70, seen: { scored: 5, unknown: 0, notApplicable: 0, total: 5, sentence: "We checked 5 things." }, market: { code: "IN", name: "India" }, business: { group: "shop", noun: "shop" }, checks: [], fixes: [], ordering: { by: "kind_of_business", reason: "figures_not_read", callShare: 0.5, group: "shop" } }, health: [] }
+  ? { state: "ready", listingId: "l1", network: { key: n.network, label: n.label }, score: { score: 70, seen: { scored: 5, unknown: 0, notApplicable: 0, total: 5, pointsEarned: 10, pointsCounted: 14, sentence: "We checked 5 things." }, market: { code: "IN", name: "India" }, business: { group: "shop", noun: "shop" }, checks: [], fixes: [], ordering: { by: "kind_of_business", reason: "figures_not_read", callShare: 0.5, group: "shop" } }, health: [] }
   : { state: "no_listing" };
 
 /** Render the page with the cache filled as the api would fill it, the api's default connection being `defaultNet`. */
