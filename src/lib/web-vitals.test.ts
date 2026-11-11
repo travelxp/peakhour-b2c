@@ -33,6 +33,8 @@ describe("routePattern", () => {
   it("★masks an opaque segment the router did not resolve as a param", () => {
     expect(routePattern("/share/9f8a7c6d5e4b3a291807f6e5d4c3b2a1", {})).toBe("/share/[id]");
     expect(routePattern("/dashboard/content/123456789", null)).toBe("/dashboard/content/[id]");
+    expect(routePattern("/share/a1234567", null)).toBe("/share/[id]");
+    expect(routePattern("/dashboard/a-long-static-word-with-d", null)).toBe("/dashboard/a-long-static-word-with-d");
   });
 
   it("collapses a catch-all to one placeholder", () => {

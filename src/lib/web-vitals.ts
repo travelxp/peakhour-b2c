@@ -42,7 +42,7 @@ export function isReportedMetric(name: string): name is ReportedMetric {
  *  with no long digit run. Anything else (an id, a token) is masked, so a param
  *  `useParams()` did not resolve can never put a raw segment in a beacon. */
 function isRouteWord(seg: string): boolean {
-  return /^[A-Za-z][A-Za-z0-9_-]{0,31}$/.test(seg) && !/d{6,}/.test(seg) && !(seg.length >= 20 && /d/.test(seg));
+  return /^[A-Za-z][A-Za-z0-9_-]{0,31}$/.test(seg) && !/\d{6,}/.test(seg) && !(seg.length >= 20 && /\d/.test(seg));
 }
 
 function decoded(segment: string): string {
