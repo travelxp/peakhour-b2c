@@ -40,10 +40,8 @@ import { useDeleteNote, useDeskTags, useDeskTeam, usePresence, useThreadNotes } 
 import {
   ASSIGNEE_FILTERS,
   NOTE_LABEL,
-  assigneeFilterFromParam,
   canDeleteNote,
   mentionNames,
-  priorityFilterFromParam,
   searchWithFilters,
   tagFromParam,
   timelineOf,
@@ -52,7 +50,7 @@ import {
   type PageFilters,
   type PriorityFilter,
 } from "@/lib/inbox-desk";
-import { topicFromParam } from "@/lib/insights";
+import { deskViewFromParams } from "@/lib/desk-list-params";
 import { TopicFilterBanner } from "@/components/inbox/topic-filter-banner";
 import { CustomerPanel } from "@/components/inbox/customer-panel";
 import { HandoverCard, StorefrontFooter } from "@/components/inbox/storefront-live";
@@ -216,12 +214,9 @@ export function ConversationsPane({
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const urlAssignee = assigneeFilterFromParam(params.get("assignee"));
-  const urlTag = tagFromParam(params.get("tag"));
-  const urlPriority = priorityFilterFromParam(params.get("priority"));
+  const { assignee: urlAssignee, tag: urlTag, priority: urlPriority, topic } = deskViewFromParams(params);
   // ★THE INSIGHT FILTER IS THE ADDRESS ALONE (`?topic=`): "See conversations" on an Insights card writes it and the banner below removes it,
   //  so there is no second copy in state to fall out of step with Back.
-  const topic = topicFromParam(params.get("topic"));
   const [assignee, setAssignee] = useState<AssigneeFilter>(urlAssignee);
   const [tag, setTag] = useState<string | null>(urlTag);
   const [priority, setPriority] = useState<PriorityFilter>(urlPriority);

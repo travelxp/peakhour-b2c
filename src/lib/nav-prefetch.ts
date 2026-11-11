@@ -1,6 +1,8 @@
 import type { FetchInfiniteQueryOptions, FetchQueryOptions, QueryClient } from "@tanstack/react-query";
 import { storefrontChatsOptions, waConversationsOptions, type ListView } from "@/lib/inbox-list-queries";
 import { DEFAULT_STATUS_FILTER } from "@/lib/inbox-view";
+import { deskViewFromParams, type ParamReader } from "@/lib/desk-list-params";
+import { inboxTabFromParam } from "@/lib/review-summary";
 import { GROWTH_HOME } from "@/lib/growth-v2-nav";
 import { commerceStoresQuery } from "@/hooks/use-commerce-stores";
 import { jobsListQuery } from "@/hooks/use-jobs";
@@ -44,27 +46,28 @@ export interface PrefetchContext {
 type AnyQuery = FetchQueryOptions<any, any, any, any> | FetchInfiniteQueryOptions<any, any, any, any, any>;
 
 /**
- * The Conversations lane as it first renders (the default lane): no search, no desk filters, the default chip.
- * Must equal what ConversationsPane passes on mount; nav-queries.test.ts pins both.
+ * The Conversations lane as an address asks for it: the default chip, no search, and the desk filters and topic the URL names
+ * (`?assignee=`, `?tag=`, `?priority=`, `?topic=`), read by the parser ConversationsPane reads them with.
+ * Must equal what ConversationsPane passes on mount; nav-prefetch.test.ts pins both.
  */
-export const INBOX_FIRST_VIEW: ListView = {
-  expiringOnly: false,
-  status: DEFAULT_STATUS_FILTER,
-  assignee: "all",
-  tag: null,
-  priority: "all",
-  topic: null,
-};
+export function inboxViewFromParams(p: ParamReader): ListView {
+  return { expiringOnly: false, status: DEFAULT_STATUS_FILTER, ...deskViewFromParams(p) };
+}
+
+/** The lane as it first renders on the bare link (no filter). */
+export const INBOX_FIRST_VIEW: ListView = inboxViewFromParams(new URLSearchParams());
 
 /** href -> the first query (or two) its page reads above the fold. */
-export const INTENT_QUERIES: Record<string, (ctx: PrefetchContext) => AnyQuery[]> = {
-  // The default lane is Conversations: both lists and the tag chips, then the tab badges (reviews, insights).
-  "/dashboard/inbox": (c) => [
+export const INTENT_QUERIES: Record<string, (ctx: PrefetchContext, search: URLSearchParams) => AnyQuery[]> = {
+  // ★THE LINK'S OWN ADDRESS PICKS THE LANE. The two tab badges (reviews, insights) are read by the page whatever lane opens, and the
+  //  Insights and Reviews lanes read those same keys. Conversations (the default, or `?tab=conversations`) adds both lists under the
+  //  filters the address names, and the tag chips; any other lane would only waste those requests.
+  "/dashboard/inbox": (c, search) => [
     inboxReviewsQuery,
-    ...(c.businessId
+    ...(c.businessId && inboxTabFromParam(search.get("tab")) === "conversations"
       ? [
-          waConversationsOptions(c.businessId, INBOX_FIRST_VIEW),
-          storefrontChatsOptions(c.businessId, INBOX_FIRST_VIEW),
+          waConversationsOptions(c.businessId, inboxViewFromParams(search)),
+          storefrontChatsOptions(c.businessId, inboxViewFromParams(search)),
           deskTagsQuery(c.businessId),
         ]
       : []),
@@ -97,7 +100,10 @@ export function shouldSkipPrefetch(
 /** The data half: warm every query registered for `href`. Never throws (a prefetch failure is silent). */
 export function prefetchDestinationData(qc: QueryClient, href: string, ctx: PrefetchContext): void {
   if (!ctx.isAuthenticated) return;
-  const queries = INTENT_QUERIES[href]?.(ctx) ?? [];
+  // the path picks the destination, the query string refines it (`/dashboard/inbox?tab=insights` is the Inbox, on its Insights lane)
+  const [target = ""] = href.split("#");
+  const q = target.indexOf("?");
+  const queries = INTENT_QUERIES[q === -1 ? target : target.slice(0, q)]?.(ctx, new URLSearchParams(q === -1 ? "" : target.slice(q + 1))) ?? [];
   for (const q of queries) {
     // an infinite query (a paged list) warms its first page under the same key the page reads
     if ("initialPageParam" in q) void qc.prefetchInfiniteQuery(q as FetchInfiniteQueryOptions);
