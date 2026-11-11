@@ -110,6 +110,8 @@ export function cardStatus(
     reasonCode?: string | null;
     liveNote?: string | null;
     liveOutcome?: string | null;
+    /** The row's `liveCheck.confirmable`: false only when the network can never show the change back. */
+    liveConfirmable?: boolean | null;
     label?: string | null;
     expiresAt?: string | null;
     now?: number;
@@ -122,7 +124,7 @@ export function cardStatus(
     // A code with no message still says what happened (a refusal is not a plain failure), so either one makes a reason.
     reason: opts.reason || opts.reasonCode ? { code: opts.reasonCode ?? "", message: opts.reason ?? "" } : null,
     held: opts.held ? { reason: opts.held } : null,
-    liveCheck: opts.liveOutcome ? { checkedAt: "", outcome: opts.liveOutcome, note: opts.liveNote ?? null } : opts.liveNote ? { checkedAt: "", outcome: "", note: opts.liveNote } : null,
+    liveCheck: opts.liveOutcome ? { checkedAt: "", outcome: opts.liveOutcome, note: opts.liveNote ?? null, ...(opts.liveConfirmable == null ? {} : { confirmable: opts.liveConfirmable }) } : opts.liveNote ? { checkedAt: "", outcome: "", note: opts.liveNote } : null,
   };
   // The card never knows the role (the api refuses what a role may not do), so it is asked as one who may decide.
   const r = requestStatus(source, opts.label?.trim() || "the network", { propose: true, approve: true });

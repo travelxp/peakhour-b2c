@@ -38,11 +38,14 @@ export function PublishingStatus({
   location,
   network,
   onRedo,
+  canRedo,
 }: {
   location?: string | undefined;
   network?: string | undefined;
   /** Opens the editor for a field, so a failed or expired request can be made again. */
   onRedo?: (field: string) => void;
+  /** Which fields have an editor to open on this page. Default: none, so no button is drawn that does nothing. */
+  canRedo?: (field: string) => boolean;
 }) {
   const listingQ = useListingQuery(location, network);
   const caps = useEditCapabilities();
@@ -96,6 +99,7 @@ export function PublishingStatus({
           m={m}
           onRedo={(field) => onRedo?.(field)}
           outcomeFor={outcomes.slotFor}
+          canRedo={(f) => !!onRedo && (canRedo?.(f) ?? false)}
         />
       )}
     </section>

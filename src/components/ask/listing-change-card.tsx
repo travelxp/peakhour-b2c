@@ -61,6 +61,7 @@ export function ListingChangeCard({ card }: { card: ListingChangeCardData }) {
           reasonCode: item.reason?.code ?? null,
           liveNote: item.liveCheck?.note ?? null,
           liveOutcome: item.liveCheck?.outcome ?? null,
+          liveConfirmable: item.liveCheck?.confirmable ?? null,
           label: card.networkLabel,
           expiresAt: item.expiresAt,
           now,

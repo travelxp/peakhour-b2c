@@ -474,6 +474,8 @@ function lapsed(c: ChangeCardData, now: number): ChangeCardData {
 }
 
 const OPEN_STATUSES: ReadonlySet<ChangeStatus> = new Set(["proposed", "validated", "approved", "applying", "submitted"]);
+/** Every status this build can say; one it cannot (the api is newer) is left out of the list. */
+const FINISHED_STATUSES: ReadonlySet<string> = new Set(["live", "failed", "blocked", "rejected", "expired"]);
 const RECENT_MS = 7 * 24 * 3_600_000;
 
 /**
@@ -495,9 +497,8 @@ export function requestGroups(changes: readonly ChangeCardData[] | undefined, no
   const recent: ChangeCardData[] = [];
   for (const row of changes ?? []) {
     const c = lapsed(row, now);
-    if (c.status === "superseded" || requestStatus(c, "", undefined).stage === "unknown") continue;
     if (OPEN_STATUSES.has(c.status)) open.push(c);
-    else if (now - finishedAt(c) <= RECENT_MS) recent.push(c);
+    else if (FINISHED_STATUSES.has(c.status) && now - finishedAt(c) <= RECENT_MS) recent.push(c);
   }
   const byNewest = (a: ChangeCardData, b: ChangeCardData) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0);
   return { open: open.sort(byNewest), recent: recent.sort((a, b) => finishedAt(b) - finishedAt(a)) };

@@ -126,7 +126,7 @@ describe("the one publishing status (GBP Issue 1)", () => {
   it("is drawn once, where changes can be made, above every panel it speaks for", () => {
     expect(home.match(/<PublishingStatus /g)).toHaveLength(1);
     // photos are drawn on their own declaration, so a network with photos and no edit forms still gets the status
-    expect(home).toContain("{editOn || photosOn ? <PublishingStatus location={panelLocation} network={panelNetwork} onRedo={editOn ? openForm : openPhotosOnly} /> : null}");
+    expect(home).toContain("{editOn || photosOn ? <PublishingStatus location={panelLocation} network={panelNetwork} onRedo={openForm} canRedo={(f) => editOn || f === \"media\"} /> : null}");
     for (const panel of ["<ListingScoreCard", "<EditListingCard", "<PhotosCard", "<PostsCard", "<ServicesCard", "<DetailsCard", "<LinksCard"]) {
       expect(home.indexOf("<PublishingStatus "), panel).toBeLessThan(home.indexOf(panel));
     }

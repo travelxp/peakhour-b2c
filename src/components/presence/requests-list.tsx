@@ -28,6 +28,7 @@ function RequestRow({
   m,
   onRedo,
   outcome,
+  canRedo,
 }: {
   change: ChangeCardData;
   label: string;
@@ -36,6 +37,7 @@ function RequestRow({
   m: Mutations;
   onRedo: (field: string) => void;
   outcome?: OutcomeSlot | undefined;
+  canRedo: (field: string) => boolean;
 }) {
   const r = requestStatus(change, label, can, publishing);
   const busy = m.approve.isPending || m.reject.isPending;
@@ -63,7 +65,7 @@ function RequestRow({
           </Button>
         </div>
       )}
-      {next.kind === "redo" && (
+      {next.kind === "redo" && canRedo(change.field) && (
         <Button size="sm" variant="outline" className="mt-1 w-fit" onClick={() => onRedo(change.field)}>
           {next.label}
         </Button>
@@ -96,6 +98,7 @@ export function RequestsList({
   m,
   onRedo,
   outcomeFor,
+  canRedo,
 }: {
   open: ChangeCardData[];
   recent: ChangeCardData[];
@@ -106,9 +109,11 @@ export function RequestsList({
   onRedo: (field: string) => void;
   /** The outcome slot for a change, from `useChangeOutcomes`' `slotFor`. */
   outcomeFor?: ((c: ChangeCardData) => OutcomeSlot) | undefined;
+  /** Whether an editor can open for a field here: a button that does nothing is not drawn. */
+  canRedo: (field: string) => boolean;
 }) {
   if (open.length === 0 && recent.length === 0) return null;
-  const row = (c: ChangeCardData) => <RequestRow key={c.id} change={c} label={labelFor(c.network)} can={can} publishing={publishing} m={m} onRedo={onRedo} outcome={outcomeFor?.(c)} />;
+  const row = (c: ChangeCardData) => <RequestRow key={c.id} change={c} label={labelFor(c.network)} can={can} publishing={publishing} m={m} onRedo={onRedo} outcome={outcomeFor?.(c)} canRedo={canRedo} />;
   return (
     <div className="space-y-2" data-testid="your-requests">
       <h3 className="text-sm font-medium">Your requests</h3>

@@ -83,10 +83,6 @@ export function PresenceHome() {
   // listing" for the listing, score, edit forms, photos and insights, and nothing there may ever read as applying to "all locations".
   const [reviewsPicked, setReviewsPicked] = useState<string | undefined>(undefined);
   const [editRequest, setEditRequest] = useState<EditRequest | null>(null);
-  // Without the edit forms only a photo request has an editor to open; any other field has none, so it opens nothing.
-  const openPhotosOnly = (field: string) => {
-    if (field === "media") openForm(field);
-  };
   // One way to open a field's editor, for the score card's fixes and the requests list's "Make the change again".
   const openForm = (field: string) => {
     // A photos fix opens the photos panel, not a form.
@@ -282,7 +278,7 @@ export function PresenceHome() {
               <>
                 {/* ★ONE publishing status for the panels below, never one per panel (GBP Issue 1). Wherever a change can be made: the edit
                     forms, or the photos card, which is drawn on its own declaration. */}
-                {editOn || photosOn ? <PublishingStatus location={panelLocation} network={panelNetwork} onRedo={editOn ? openForm : openPhotosOnly} /> : null}
+                {editOn || photosOn ? <PublishingStatus location={panelLocation} network={panelNetwork} onRedo={openForm} canRedo={(f) => editOn || f === "media"} /> : null}
 
                 <ListingScoreCard
                   location={panelLocation}

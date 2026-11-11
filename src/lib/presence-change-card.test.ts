@@ -89,6 +89,13 @@ describe("cardStatus says what the Presence page says", () => {
     expect(cardStatus("live", { label: "Testnet" }).label).toBe("Live on Testnet");
   });
 
+  it("says cannot-confirm on Ask only when the api says the change can never be read back", () => {
+    const base = { label: "Testnet", liveOutcome: "unknown", liveNote: "Cannot read this one." };
+    expect(cardStatus("submitted", { ...base, liveConfirmable: false }).label).toBe("Sent, Testnet doesn't let us confirm this");
+    expect(cardStatus("submitted", { ...base, liveConfirmable: true }).label).toBe("Sent to Testnet");
+    expect(cardStatus("submitted", base).label).toBe("Sent to Testnet");
+  });
+
   it("keeps the merchant's own decline apart from the network's refusal", () => {
     expect(cardStatus("rejected", { label: "Testnet" }).label).toBe("Declined by you");
     expect(cardStatus("failed", { label: "Testnet", reason: "Testnet refused it.", reasonCode: "network_rejected" }).label).toBe("Rejected by Testnet");
