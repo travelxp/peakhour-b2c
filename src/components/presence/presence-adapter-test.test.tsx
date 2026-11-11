@@ -49,6 +49,7 @@ vi.mock("next/link", () => ({ default: ({ href, children }: { href: string; chil
 vi.mock("@/hooks/use-locale", () => ({
   useLocale: () => ({ formatDate: (d: unknown) => String(d), formatDateTime: (d: unknown) => String(d), formatCurrency: (n: number) => String(n), formatNumber: (n: number) => String(n), formatRelativeTime: (d: unknown) => String(d) }),
 }));
+vi.mock("@/providers/auth-provider", () => ({ useAuth: () => ({ business: { _id: "b1", name: "Shop Co" } }) }));
 vi.mock("sonner", () => ({ toast: { success: () => undefined, error: () => undefined } }));
 vi.mock("@/lib/api", () => ({ api: { get: async () => { throw new Error("no network in this test"); }, put: async () => undefined, post: async () => undefined } }));
 
