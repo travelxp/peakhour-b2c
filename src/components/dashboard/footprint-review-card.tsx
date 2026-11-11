@@ -223,7 +223,7 @@ export function FootprintReviewCard({ pending, pendingApps = [] }: FootprintRevi
                     href={store}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="hidden text-muted-foreground hover:text-foreground sm:inline-flex"
+                    className="inline-flex text-muted-foreground hover:text-foreground"
                     aria-label={`Open ${label} in the store`}
                   >
                     <ExternalLink className="h-4 w-4" />

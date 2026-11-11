@@ -77,7 +77,7 @@ export function YourAppsPanel() {
   const { org, business } = useAuth();
   const queryClient = useQueryClient();
   const queryKey = ["business-apps", org?._id, business?._id];
-  const query = useQuery({ queryKey, queryFn: listBusinessApps, enabled: !!org });
+  const query = useQuery({ queryKey, queryFn: listBusinessApps, enabled: !!org && !!business });
   const [link, setLink] = useState("");
   const [addError, setAddError] = useState("");
   const [actionError, setActionError] = useState("");
@@ -102,6 +102,7 @@ export function YourAppsPanel() {
 
   // Optimistic: the row moves at once and snaps back if the api refuses.
   const setStatus = useMutation({
+    mutationKey: ["business-apps", "status"],
     mutationFn: (v: { appId: string; status: "confirmed" | "rejected" }) => setBusinessAppStatus(v.appId, v.status),
     onMutate: async (v) => {
       setActionError("");
@@ -122,7 +123,10 @@ export function YourAppsPanel() {
       }
       setActionError("Couldn't save that. Try again.");
     },
-    onSettled: refresh,
+    // Refetch only once the LAST in-flight status change lands, or an early refetch would show a later change at its old status.
+    onSettled: () => {
+      if (queryClient.isMutating({ mutationKey: ["business-apps", "status"] }) <= 1) refresh();
+    },
   });
 
   const remove = useMutation({
@@ -162,9 +166,9 @@ export function YourAppsPanel() {
           </div>
         )}
 
-        {query.isPending && <p className="text-sm text-muted-foreground">Loading your apps...</p>}
+        {query.isLoading && <p className="text-sm text-muted-foreground">Loading your apps...</p>}
 
-        {query.data && confirmed.length === 0 && pending.length === 0 && (
+        {query.data && !query.isError && confirmed.length === 0 && pending.length === 0 && (
           <p className="text-sm text-muted-foreground">
             No apps found. If you have one, paste its App Store or Google Play link.
           </p>
