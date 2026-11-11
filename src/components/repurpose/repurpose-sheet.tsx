@@ -672,7 +672,7 @@ function RecommendationList({
               <p className="text-xs text-muted-foreground">
                 {r.rationale}
                 {isHardBlocked && r.hardBlocks && r.hardBlocks.length > 0 && (
-                  <span className="ml-1 text-micro uppercase tracking-wide opacity-70">
+                  <span className="ml-1 text-micro uppercase tracking-wide">
                     [{r.hardBlocks.join(", ")}]
                   </span>
                 )}

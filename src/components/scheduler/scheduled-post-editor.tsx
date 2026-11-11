@@ -48,6 +48,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { DrivePicker } from "@/components/drive/drive-picker";
@@ -172,12 +173,17 @@ export function ScheduledPostEditor({
    */
   const contentSeedKey = `${item._id}:${item.payload.version}`;
   useEffect(() => {
-    setBaseline({
-      text: item.payload.text,
-      mediaUrls: item.payload.mediaUrls ?? [],
-    });
-    setText(item.payload.text);
-    setMediaUrls(item.payload.mediaUrls ?? []);
+    // Unsaved text/media drafts survive a re-seed that was not caused by a content
+    // save (the label save refetches the item too).
+    if (!contentDirty) {
+      setBaseline({
+        text: item.payload.text,
+        mediaUrls: item.payload.mediaUrls ?? [],
+      });
+      setText(item.payload.text);
+      setMediaUrls(item.payload.mediaUrls ?? []);
+    }
+    setPaidPartnership(item.payload.channelOptions?.paidPartnership === true);
     setConfirmCancel(false);
     setConfirmPublish(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -254,6 +260,23 @@ export function ScheduledPostEditor({
     onError: (err: unknown) => toast.error(mutationMessage(err, "Couldn't reschedule.")),
   });
 
+  // X only. Saved the moment it is flipped (it is one flag, not text the person
+  // is still drafting), so it does not join the dirty-state of the text box.
+  // `onChanged()` refetches so a reopened editor reads the saved flag; the
+  // re-seed skips text/media while they hold unsaved edits.
+  const [paidPartnership, setPaidPartnership] = useState(
+    item.payload.channelOptions?.paidPartnership === true,
+  );
+  const savePaidPartnership = useMutation({
+    mutationFn: (next: boolean) => scheduler.editItemPayload(item._id, { paidPartnership: next }),
+    onSuccess: (res) => {
+      setPaidPartnership(res.payload.channelOptions?.paidPartnership === true);
+      toast.success("Scheduled post updated.");
+      onChanged();
+    },
+    onError: (err: unknown) => toast.error(mutationMessage(err, "Couldn't save the label.")),
+  });
+
   const publishNow = useMutation({
     mutationFn: () => scheduler.publishItemNow(item._id),
     onSuccess: (res) => {
@@ -299,7 +322,7 @@ export function ScheduledPostEditor({
   });
 
   const anyPending =
-    saveContent.isPending || saveTime.isPending || publishNow.isPending || cancel.isPending;
+    saveContent.isPending || savePaidPartnership.isPending || saveTime.isPending || publishNow.isPending || cancel.isPending;
 
   const counterPlatform = useMemo(
     () => (COUNTER_PLATFORMS.has(item.channel) ? (item.channel as PlatformKey) : null),
@@ -382,6 +405,26 @@ export function ScheduledPostEditor({
             rows={8}
             className="resize-y"
           />
+        </div>
+      )}
+
+      {item.channel === "x" && (
+        <div className="flex items-start gap-2">
+          <Switch
+            id={`${textId}-paid`}
+            checked={paidPartnership}
+            onCheckedChange={(next) => savePaidPartnership.mutate(next)}
+            disabled={!editable || anyPending}
+            aria-describedby={`${textId}-paid-help`}
+          />
+          <div className="space-y-0.5">
+            <Label htmlFor={`${textId}-paid`} className="text-sm font-medium">
+              Paid partnership
+            </Label>
+            <p id={`${textId}-paid-help`} className="text-micro text-muted-foreground">
+              Label this post as a paid promotion on X.
+            </p>
+          </div>
         </div>
       )}
 

@@ -151,7 +151,7 @@ export function CommunityFeedPanel({ author }: { author: LinkedInAuthor | null }
         >
           {f.label}
           {countFor(f.key, counts) !== null && (
-            <span className="ml-1.5 tabular-nums opacity-70">
+            <span className="ml-1.5 tabular-nums">
               {countFor(f.key, counts)}
             </span>
           )}
@@ -509,7 +509,7 @@ function StatusBadges({ row }: { row: LinkedInInteraction }) {
         <Badge variant="secondary" className="text-micro uppercase tracking-wide">
           Replied
           {typeof row.firstResponseMs === "number" && (
-            <span className="ml-1 tabular-nums opacity-70">
+            <span className="ml-1 tabular-nums">
               in {formatDuration(row.firstResponseMs)}
             </span>
           )}
