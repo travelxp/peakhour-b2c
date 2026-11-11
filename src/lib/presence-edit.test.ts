@@ -812,6 +812,18 @@ describe("the requests list (GBP L4)", () => {
     expect(requestStatus(g.recent[0]!, "Testnet", { propose: true, approve: true }, null).next).toEqual({ kind: "redo", label: "Make the change again" });
   });
 
+  it("skips a status it does not know, and says unknown rather than throwing", () => {
+    const odd = row("odd", "mystery" as ChangeStatus);
+    expect(requestGroups([odd], NOW)).toEqual({ open: [], recent: [] });
+    expect(requestStatus(odd, "Testnet", { propose: true, approve: true })).toMatchObject({ stage: "unknown", label: "Unknown", next: { kind: "none" } });
+  });
+
+  it("does not say a held request's blocker twice", () => {
+    const p = { blocker: { reason: "Reconnect Testnet.", action: "reconnect" as const, href: "/x" }, heldReason: null };
+    const r = requestStatus(change({ status: "approved", held: { reason: "Reconnect Testnet." } }), "Testnet", { propose: true, approve: true }, p);
+    expect(r.reason!.match(/Reconnect Testnet\./g)).toHaveLength(1);
+  });
+
   it("hides a replaced request, open or not", () => {
     const g = requestGroups([row("x", "superseded"), row("y", "validated")], NOW);
     expect(g.open.map((c) => c.id)).toEqual(["y"]);

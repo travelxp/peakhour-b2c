@@ -92,6 +92,7 @@ const TONE_OF_STAGE: Record<RequestStage, Tone> = {
   declined: "closed",
   expired: "closed",
   replaced: "closed",
+  unknown: "closed",
 };
 
 /**
@@ -115,8 +116,6 @@ export function cardStatus(
 ): CardStatus {
   // The api closes an unanswered proposal lazily, so a change past its time can still read "proposed": it is expired to the person reading it.
   if (DECIDABLE.has(status) && opts.expiresAt && Date.parse(opts.expiresAt) <= (opts.now ?? Date.now())) status = "expired";
-  const known = ["proposed", "validated", "approved", "applying", "submitted", "live", "failed", "blocked", "rejected", "expired", "superseded"];
-  if (!known.includes(status)) return { label: "Unknown", detail: null, tone: "closed", canDecide: false };
   const source: RequestSource = {
     status: status as RequestSource["status"],
     // A code with no message still says what happened (a refusal is not a plain failure), so either one makes a reason.

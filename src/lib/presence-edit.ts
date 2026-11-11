@@ -351,7 +351,8 @@ export type RequestStage =
   | "failed"
   | "declined"
   | "expired"
-  | "replaced";
+  | "replaced"
+  | "unknown";
 
 /** The one thing a merchant can do about a request. `redo` opens the field's editor; `fix` is the publishing status's own link. */
 export type RequestNext =
@@ -407,7 +408,8 @@ export function requestStatus(
       );
     case "approved": {
       if (!c.held) return stage("approved_waiting", "Approved, waiting to send", `It has not reached ${label} yet.`, "neutral");
-      const why = [c.held.reason, b ? b.reason : null].filter(Boolean).join(" ");
+      // The listing-wide blocker is added only when the row's own sentence does not already say it.
+      const why = [c.held.reason, b && !c.held.reason.includes(b.reason) ? b.reason : null].filter(Boolean).join(" ");
       return stage("approved_held", "Approved, waiting to send", `${why || publishing?.heldReason || "Sending has not started yet."} Nothing has been sent to ${label}.`, "warn", fix);
     }
     case "applying":
@@ -438,6 +440,9 @@ export function requestStatus(
       return stage("expired", "Expired", "Nobody approved it in time, so nothing was sent.", "neutral", again);
     case "superseded":
       return stage("replaced", "Replaced", "A newer change took its place. Nothing was sent.", "neutral");
+    default:
+      // A status this build does not know (the api is newer): said as unknown, never guessed and never a crash.
+      return stage("unknown", "Unknown", null, "neutral");
   }
 }
 
@@ -484,7 +489,7 @@ export function requestGroups(changes: readonly ChangeCardData[] | undefined, no
   const recent: ChangeCardData[] = [];
   for (const row of changes ?? []) {
     const c = lapsed(row, now);
-    if (c.status === "superseded") continue;
+    if (c.status === "superseded" || requestStatus(c, "", undefined).stage === "unknown") continue;
     if (OPEN_STATUSES.has(c.status)) open.push(c);
     else if (now - finishedAt(c) <= RECENT_MS) recent.push(c);
   }
