@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { deskTagsQuery } from "@/lib/nav-queries";
 import { useAuth } from "@/providers/auth-provider";
 import type { DeskNote, DeskSettings, DeskSettingsResponse, DeskTag, Priority, SavedView, SavedViewFilters, TeamMemberRef, ThreadAssignee, Viewer } from "@/lib/inbox-desk";
 import { PING_EVERY_MS, patchFromForm } from "@/lib/inbox-desk";
@@ -46,8 +47,7 @@ export function useDeskTags() {
   const { business } = useAuth();
   const biz = business?._id ?? "none";
   return useQuery({
-    queryKey: deskKeys.tags(biz),
-    queryFn: () => api.get<{ tags: DeskTag[] }>(`${BASE}/tags`),
+    ...deskTagsQuery(biz),
     enabled: Boolean(business?._id),
     staleTime: 60_000,
   });

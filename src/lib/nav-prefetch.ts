@@ -1,4 +1,6 @@
-import type { FetchQueryOptions, QueryClient } from "@tanstack/react-query";
+import type { FetchInfiniteQueryOptions, FetchQueryOptions, QueryClient } from "@tanstack/react-query";
+import { storefrontChatsOptions, waConversationsOptions, type ListView } from "@/lib/inbox-list-queries";
+import { DEFAULT_STATUS_FILTER } from "@/lib/inbox-view";
 import { GROWTH_HOME } from "@/lib/growth-v2-nav";
 import { commerceStoresQuery } from "@/hooks/use-commerce-stores";
 import { jobsListQuery } from "@/hooks/use-jobs";
@@ -6,6 +8,8 @@ import { growthV2HomeQuery } from "@/lib/api/growth-v2";
 import {
   contentHubCatalogQuery,
   contentHubIntegrationsQuery,
+  deskTagsQuery,
+  insightsQuery,
   inboxReviewsQuery,
   integrationsListQuery,
   pipelineIdeasQuery,
@@ -37,11 +41,35 @@ export interface PrefetchContext {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyQuery = FetchQueryOptions<any, any, any, any>;
+type AnyQuery = FetchQueryOptions<any, any, any, any> | FetchInfiniteQueryOptions<any, any, any, any, any>;
+
+/**
+ * The Conversations lane as it first renders (the default lane): no search, no desk filters, the default chip.
+ * Must equal what ConversationsPane passes on mount; nav-queries.test.ts pins both.
+ */
+export const INBOX_FIRST_VIEW: ListView = {
+  expiringOnly: false,
+  status: DEFAULT_STATUS_FILTER,
+  assignee: "all",
+  tag: null,
+  priority: "all",
+  topic: null,
+};
 
 /** href -> the first query (or two) its page reads above the fold. */
 export const INTENT_QUERIES: Record<string, (ctx: PrefetchContext) => AnyQuery[]> = {
-  "/dashboard/inbox": () => [inboxReviewsQuery],
+  // The default lane is Conversations: both lists and the tag chips, then the tab badges (reviews, insights).
+  "/dashboard/inbox": (c) => [
+    inboxReviewsQuery,
+    ...(c.businessId
+      ? [
+          waConversationsOptions(c.businessId, INBOX_FIRST_VIEW),
+          storefrontChatsOptions(c.businessId, INBOX_FIRST_VIEW),
+          deskTagsQuery(c.businessId),
+        ]
+      : []),
+    ...(c.orgId && c.businessId ? [insightsQuery(c.orgId, c.businessId)] : []),
+  ],
   "/dashboard/content": () => [contentHubIntegrationsQuery, contentHubCatalogQuery],
   "/dashboard/strategist": () => [pipelineIdeasQuery],
   [GROWTH_HOME]: (c) => (c.businessId ? [growthV2HomeQuery(c.businessId)] : []),
@@ -70,7 +98,11 @@ export function shouldSkipPrefetch(
 export function prefetchDestinationData(qc: QueryClient, href: string, ctx: PrefetchContext): void {
   if (!ctx.isAuthenticated) return;
   const queries = INTENT_QUERIES[href]?.(ctx) ?? [];
-  for (const q of queries) void qc.prefetchQuery(q);
+  for (const q of queries) {
+    // an infinite query (a paged list) warms its first page under the same key the page reads
+    if ("initialPageParam" in q) void qc.prefetchInfiniteQuery(q as FetchInfiniteQueryOptions);
+    else void qc.prefetchQuery(q);
+  }
 }
 
 /**

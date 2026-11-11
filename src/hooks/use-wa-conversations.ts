@@ -3,10 +3,14 @@
 import { keepWithinBusiness } from "@/lib/wa-conversation-export";
 import { useInfiniteQuery, useQuery, useMutation, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { listParams, storefrontChatsOptions, waConversationsOptions, type ListView, type StorefrontListPage, type WaListPage } from "@/lib/inbox-list-queries";
+// the list view and its query string live with the query options (lib/inbox-list-queries.ts)
+export { listParams };
+export type { ListView };
 import { useAuth } from "@/providers/auth-provider";
 import type { CustomerPanelData, InboxPrices } from "@/lib/inbox-customer";
-import type { InboxState, StatusFilter } from "@/lib/inbox-view";
-import { deskListParams, type AssigneeFilter, type Priority, type PriorityFilter, type ResponseTimer, type ThreadAssignee, type ThreadCsat, type Viewer } from "@/lib/inbox-desk";
+import type { InboxState } from "@/lib/inbox-view";
+import type { Priority, ResponseTimer, ThreadAssignee, ThreadCsat, Viewer } from "@/lib/inbox-desk";
 import type { MessageMedia, ProductHit } from "@/lib/inbox-media";
 import { isStorefrontThread, storefrontMount, storefrontReplyRequest, storefrontResumeBody, type StorefrontDelivery, type StorefrontHandover } from "@/lib/storefront-handover";
 import {
@@ -175,41 +179,6 @@ function dedupe<T extends { threadId: string }>(rows: T[]): T[] {
   return rows.filter((r) => (seen.has(r.threadId) ? false : (seen.add(r.threadId), true)));
 }
 
-/** What narrows a list: the Open / Needs you / Done chip, and the search text (already trimmed and long enough: `searchTerm`). */
-export interface ListView {
-  expiringOnly?: boolean;
-  status?: StatusFilter;
-  q?: string;
-  /** Team desk (I3a): Mine / Unassigned (All = none), and one tag. A new value is a new query key, so the list starts again from its first page. */
-  assignee?: AssigneeFilter;
-  tag?: string | null;
-  /** Insights: one topic key (`metadata.insightTopics`). A new value is a new query key. */
-  topic?: string | null;
-  /** SA-10: only the conversations a person flagged high priority. */
-  priority?: PriorityFilter;
-}
-
-export const listParams = (view: ListView, cursor: string | undefined): Record<string, string> => ({
-  ...deskListParams({ assignee: view.assignee ?? "all", tag: view.tag ?? null, priority: view.priority ?? "all" }),
-  ...(view.topic ? { topic: view.topic } : {}),
-  ...(view.expiringOnly ? { expiring: "1" } : {}),
-  ...(view.status ? { status: view.status } : {}),
-  ...(view.q ? { q: view.q } : {}),
-  ...(cursor ? { cursor } : {}),
-});
-
-interface WaListPage {
-  conversations: WaConversation[];
-  /** Where the next page starts; null = the list ends here. Absent = an older api (no paging). */
-  nextCursor?: string | null;
-  expiringCount?: number | null;
-  expiringFrom?: string | null;
-  /** Inbox phase 1: the connection behind the list. Absent = an older api (nothing is claimed). */
-  available?: boolean;
-  connected?: boolean;
-  needsReauth?: boolean;
-}
-
 /**
  * List the business's WhatsApp conversations (most recent first), a page at a time (Inbox phase 2: `fetchNextPage`).
  *
@@ -220,15 +189,10 @@ interface WaListPage {
  */
 export function useWaConversations(view: ListView = {}) {
   const { business } = useAuth();
-  const key = ["wa-conversations", business?._id ?? "none", view.expiringOnly ? "expiring" : "all", view.status ?? "any", view.q ?? "", view.assignee ?? "all", view.tag ?? "", view.topic ?? "", view.priority ?? "all"];
+  const options = waConversationsOptions(business?._id ?? "none", view);
+  const key = options.queryKey;
   const query = useInfiniteQuery({
-    queryKey: key,
-    queryFn: ({ pageParam }) => {
-      const params = listParams(view, pageParam);
-      return api.get<WaListPage>(BASE, Object.keys(params).length ? params : undefined);
-    },
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    ...options,
     enabled: Boolean(business?._id),
     refetchInterval: 30_000, // inbox stays roughly live
     // changing the chip or the search keeps the rows and the banner on screen until the other list arrives
@@ -247,11 +211,6 @@ export function useWaConversations(view: ListView = {}) {
   };
 }
 
-interface StorefrontListPage {
-  conversations: StorefrontChat[];
-  nextCursor?: string | null;
-}
-
 /**
  * The business's storefront chats (Inbox phase 1), most recent first, a page at a time. Read-only, and NOT behind the WhatsApp
  * availability gate: a business whose WhatsApp is not on offer yet still reads its storefront chats. The key starts
@@ -259,15 +218,8 @@ interface StorefrontListPage {
  */
 export function useStorefrontChats(view: ListView & { enabled?: boolean } = {}) {
   const { business } = useAuth();
-  const key = ["storefront-chats", business?._id ?? "none", view.expiringOnly ? "expiring" : "all", view.status ?? "any", view.assignee ?? "all", view.tag ?? "", view.topic ?? "", view.priority ?? "all"];
   const query = useInfiniteQuery({
-    queryKey: key,
-    queryFn: ({ pageParam }) => {
-      const params = listParams({ ...view, q: undefined }, pageParam);
-      return api.get<StorefrontListPage>("/v1/storefront-chats", Object.keys(params).length ? params : undefined);
-    },
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    ...storefrontChatsOptions(business?._id ?? "none", view),
     enabled: Boolean(business?._id) && view.enabled !== false,
     refetchInterval: 30_000,
     placeholderData: (prev: InfiniteData<StorefrontListPage, string | undefined> | undefined, prevQuery) => keepWithinBusiness(prev, prevQuery?.queryKey, business?._id ?? "none"),
