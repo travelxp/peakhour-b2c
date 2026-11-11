@@ -34,7 +34,7 @@ const change = (over: Partial<ChangeCardData>): ChangeCardData => ({
 });
 
 const idle = { isPending: false, variables: undefined, error: null, mutate: () => undefined };
-const m = { approve: idle, reject: idle } as never;
+const m = { approve: idle, reject: idle, undo: idle } as never;
 
 const render = (open: ChangeCardData[], recent: ChangeCardData[], can = { propose: true, approve: true }) =>
   renderToStaticMarkup(createElement(RequestsList, { open, recent, labelFor: () => "Testnet", can, publishing: null, m, onRedo: () => undefined, canRedo: () => true }));
@@ -91,5 +91,46 @@ describe("the requests list", () => {
     expect(html).toContain("Declined by you");
     expect(html).toContain("Rejected by Testnet");
     expect(html).toContain("Make the change again");
+  });
+
+  it("gives each row an id the top line and the sections link to", () => {
+    expect(render([change({ id: "abc" })], [])).toContain('id="request-abc"');
+    expect(render([], [])).toBe("");
+    expect(render([change({})], [])).toContain('id="your-requests"');
+  });
+
+  it("holds the Undo that the change cards used to, only for a sent or live change the api says can be put back, and only for someone who can propose", () => {
+    const sent = (over: Partial<ChangeCardData>, can = { propose: true, approve: true }) => render([change({ status: "submitted", ...over })], [], can);
+    expect(sent({ undoable: true })).toContain("Undo (needs approval)");
+    expect(sent({})).toContain("Undo (needs approval)");
+    expect(sent({ undoable: false })).not.toContain("Undo (needs approval)");
+    expect(sent({ undone: true })).not.toContain("Undo (needs approval)");
+    expect(sent({ undoable: true }, { propose: false, approve: false })).not.toContain("Undo (needs approval)");
+    expect(render([change({ status: "validated" })], [])).not.toContain("Undo (needs approval)");
+  });
+
+  it("keeps the notes, the checks that did not pass, who suggested it and an undone mark that the change cards showed", () => {
+    const html = render(
+      [],
+      [
+        change({
+          status: "live",
+          liveAt: "2026-11-11T09:00:00.000Z",
+          undone: true,
+          source: "assistant",
+          notes: ["Check this with your team."],
+          validation: { checkedAt: "x", networkChecked: true, issues: [{ code: "x", message: "The hours overlap." }] },
+        }),
+      ],
+    );
+    expect(html).toContain("(undone)");
+    expect(html).toContain("Suggested by Ask Peakhour.");
+    expect(html).toContain("Check this with your team.");
+    expect(html).toContain("The hours overlap.");
+  });
+
+  it("opens Done recently when a finished request still needs the merchant, so the line at the top has a row to land on", () => {
+    expect(render([], [change({ status: "failed" })])).toContain("<details open");
+    expect(render([], [change({ status: "rejected" })])).not.toContain("<details open");
   });
 });

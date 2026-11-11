@@ -10,7 +10,6 @@ import {
   drawsPhotos,
   inFlightPhotoChanges,
   limitsSentence,
-  listedPhotoChanges,
   openPhotoChanges,
   outcomeOf,
   pendingFor,
@@ -143,7 +142,7 @@ describe("what a person may press", () => {
     expect(pendingFor(undefined, NET, "r1")).toBeUndefined();
   });
   it("the waiting words follow the change's own status, so nobody is told to approve what has no button", () => {
-    expect(pendingNote("validated", { approve: true })).toContain("Approve or decline it there");
+    expect(pendingNote("validated", { approve: true })).toContain("Approve or decline it in Your requests");
     expect(pendingNote("validated", { approve: false })).toContain("for an admin or owner to approve");
     expect(pendingNote("approved", { approve: true })).not.toMatch(/Approve or decline/);
     expect(pendingNote("approved", { approve: true })).toContain("waiting to be sent");
@@ -274,17 +273,8 @@ describe("photos are read again when a change leaves the in-flight statuses", ()
   });
 });
 
-describe("every open change is listed; only the settled history is capped", () => {
+describe("the merged change list keeps every open change", () => {
   const c = (id: string, status: string) => ({ id, field: "media", network: NET, status, createdAt: `2026-11-05T10:00:${id.padStart(2, "0")}.000Z`, after: { op: "add" } }) as ChangeCardData;
-  it("keeps every change that has not settled, however many settled ones are newer, and caps the rest", () => {
-    const settled = Array.from({ length: 20 }, (_, i) => c(String(30 + i), "live"));
-    const open = [c("05", "proposed"), c("06", "approved"), c("07", "submitted")];
-    const out = listedPhotoChanges([...settled, ...open], NET, 8);
-    expect(out.filter((x) => ["proposed", "approved", "submitted"].includes(x.status))).toHaveLength(3);
-    expect(out.filter((x) => x.status === "live")).toHaveLength(8);
-    expect(listedPhotoChanges([...open], NET, 0)).toHaveLength(3);
-    expect(listedPhotoChanges(undefined, NET, 8)).toEqual([]);
-  });
   it("the merged list never loses an open change to history: the open ones are read on their own and merged by id", () => {
     const history = Array.from({ length: 30 }, (_, i) => ({ ...c(String(40 + (i % 10)), "live"), id: `h${i}`, createdAt: `2026-11-06T10:00:${String(i).padStart(2, "0")}.000Z` }));
     const open = [{ ...c("01", "proposed"), id: "old-open", createdAt: "2026-11-01T10:00:00.000Z" }];
@@ -318,15 +308,14 @@ describe("how the panel is wired (pinned as text: b2c vitest renders no DOM)", (
     expect(home).toContain('<div id="photos-card">');
     expect(home).toContain('<PhotosCard key={`${panelLocation ?? ""}|${panelNetwork ?? ""}`} location={panelLocation} network={panelNetwork} />');
     expect(card()).not.toContain('id="photos-card"');
-    expect(home).toContain("photoChangesElsewhere={photosOn}");
     expect(home).toContain('if (field === "media") {');
   });
-  it("the edit card lists photo changes itself when the photos card is not drawn, and always lists another network's", () => {
-    const edit = flat("components/presence/edit/edit-listing-card.tsx");
-    // both the test that there is something to list and the list itself
-    expect(edit.match(/!listedElsewhere\(c\)/g)).toHaveLength(2);
-    // PE-12 widened the one rule: a photo change by the photos card, and a post, service, detail or link change by its own panel; always this network's only
-    expect(edit).toContain('c.network === network && ((photoChangesElsewhere && c.field === "media") || extraFields.has(c.field))');
+  it("no card keeps a change list of its own: each section points at Your requests instead", () => {
+    for (const f of ["edit-listing-card", "extra-panel", "photos-card"]) {
+      const src = flat(`components/presence/edit/${f}.tsx`);
+      expect(src, f).toContain("<WaitingLine");
+      expect(src, f).not.toContain("<ChangeCard");
+    }
   });
   it("the picker is offered no Generate tab: a business's photos are not made by AI and nothing is charged", () => {
     expect(card()).toContain('tabs={["drive", "upload"]}');
@@ -348,10 +337,9 @@ describe("how the panel is wired (pinned as text: b2c vitest renders no DOM)", (
     expect(c.slice(notRemovable, remove)).toContain("{p.notRemovableBecause &&");
     expect(c.slice(notRemovable, remove)).toContain("Report this photo");
   });
-  it("the photo changes are listed whatever the photo read did (outside the ready branch)", () => {
+  it("the waiting line is outside the ready branch, so a request is pointed at whatever the photo read did", () => {
     const c = card();
-    expect(c.indexOf("const changeList =")).toBeGreaterThan(c.indexOf("const body ="));
-    expect(c.slice(c.indexOf("return ( <Card className"))).toContain("Photo changes");
+    expect(c.indexOf("<WaitingLine")).toBeGreaterThan(c.indexOf("const body ="));
   });
   it("the answer of every proposal is read through outcomeOf, in the batch and for a removal", () => {
     const c = card();
@@ -374,10 +362,9 @@ describe("how the panel is wired (pinned as text: b2c vitest renders no DOM)", (
   });
   it("adding and removing wait for the change list, and a stale list says so", () => {
     expect(card()).toContain("withChangesKnown(photoAccess(capsView, caps.data?.can), changesView)");
-    expect(card()).toContain("Could not refresh just now, so these may be out of date.");
   });
   it("tiles load lazily", () => {
-    expect(card().match(/loading="lazy"/g)).toHaveLength(2);
+    expect(card().match(/loading="lazy"/g)).toHaveLength(1);
   });
   it("the api client reads every open change on its own, then the latest history", () => {
     const api = flat("lib/api/presence-edit.ts");

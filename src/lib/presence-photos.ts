@@ -149,17 +149,6 @@ export function inFlightPhotoChanges(items: readonly ChangeCardData[] | undefine
   return photoChanges(items, network).filter((c) => IN_FLIGHT.includes(c.status));
 }
 
-/**
- * The photo changes to list: EVERY one that has not settled (open, or sent and not yet shown) and only the most recent `settledCap` of the settled
- * history. Capping what is listed must never hide a change somebody can still act on.
- */
-export function listedPhotoChanges(items: readonly ChangeCardData[] | undefined, network: string, settledCap: number): ChangeCardData[] {
-  const all = photoChanges(items, network);
-  const settled = all.filter((c) => !IN_FLIGHT.includes(c.status)).slice(0, settledCap);
-  const keep = new Set([...all.filter((c) => IN_FLIGHT.includes(c.status)), ...settled].map((c) => c.id));
-  return all.filter((c) => keep.has(c.id));
-}
-
 /** The change about one network photo (a removal of it) that has not settled, from the change list: the ONE source of what is waiting. */
 export function pendingFor(items: readonly ChangeCardData[] | undefined, network: string, ref: string): ChangeCardData | undefined {
   return inFlightPhotoChanges(items, network).find((c) => (c.after as { op?: string; ref?: string } | null)?.op === "remove" && (c.after as { ref?: string }).ref === ref);
@@ -180,7 +169,7 @@ export function pendingNote(status: string, can: Pick<Can, "approve"> | undefine
   if (status === "submitted") return "Removal sent. Waiting for it to show.";
   if (status === "approved") return "Approved, waiting to be sent. It will be removed once it is sent.";
   if (status === "applying") return "Being removed now.";
-  return can?.approve ? "A removal is waiting below. Approve or decline it there." : "A removal is waiting below for an admin or owner to approve.";
+  return can?.approve ? "A removal is waiting. Approve or decline it in Your requests." : "A removal is waiting for an admin or owner to approve it. See Your requests.";
 }
 
 /**

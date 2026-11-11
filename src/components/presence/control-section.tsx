@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2, HelpCircle } from "lucide-react";
 import { ChangeChoices } from "@/components/presence/change-choices";
+import { SUMMARY_ANCHORS } from "@/lib/presence-summary";
 import {
   changesView,
   controlNote,
@@ -12,7 +13,7 @@ import {
 } from "@/lib/presence-panels";
 
 /** The id of the section an alert's link goes to. The api names the same id (`NETWORK_CHANGES_ANCHOR`). */
-export const NETWORK_CHANGES_ID = "network-changes";
+export const NETWORK_CHANGES_ID = SUMMARY_ANCHORS.networkChanges;
 
 const TONE_ICON: Record<NoteTone, React.ReactNode> = {
   good: <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />,

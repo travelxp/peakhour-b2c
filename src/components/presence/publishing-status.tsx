@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, CheckCircle2, CircleSlash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RequestsList } from "@/components/presence/requests-list";
 import { useChangeOutcomes, useEditCapabilities, useListingChanges, usePresenceEditMutations } from "@/hooks/use-presence-edit";
+import { useNow } from "@/hooks/use-now";
 import { useListingQuery } from "@/hooks/use-presence-listing";
 import { primaryEntry } from "@/lib/presence-panels";
 import { capabilityFor, publishingBanner, requestGroups, type PublishingBanner } from "@/lib/presence-edit";
@@ -15,16 +15,6 @@ const LOOK: Record<PublishingBanner["tone"], { box: string; head: string; icon: 
   warn: { box: "border border-warning/40", head: "text-warning-on-tint", icon: <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning-on-tint" aria-hidden /> },
   bad: { box: "border border-destructive/40", head: "text-destructive", icon: <CircleSlash className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden /> },
 };
-
-/** The time, read once and again every minute: a render must not read the clock, and an idle tab must still see a proposal run out. */
-function useNow(everyMs = 60_000): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), everyMs);
-    return () => clearInterval(t);
-  }, [everyMs]);
-  return now;
-}
 
 /**
  * GBP Issue 1: the ONE publishing status, above the listing panels. Can approved changes be sent, what stops them, and the one thing to press.
@@ -64,7 +54,7 @@ export function PublishingStatus({
 
   return (
     // A landmark, not a live region: it holds a heading and buttons, and a refetch must not re-announce it.
-    <section aria-label="Publishing status" className={`space-y-4 rounded-lg ${look?.box ?? "border"} p-4`}>
+    <section id="publishing-status" aria-label="Publishing status" className={`space-y-4 rounded-lg ${look?.box ?? "border"} p-4`}>
       {banner && look && (
         <div className="flex gap-3">
           {look.icon}

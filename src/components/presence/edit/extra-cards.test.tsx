@@ -67,7 +67,7 @@ const links = (over: Record<string, unknown> = {}) => ({
 const change = (over: Record<string, unknown> = {}) => ({
   id: "c1", listingId: "l1", network: NET, field: "posts", status: "validated", riskTier: "ordinary", notes: ["A note."], source: "form",
   before: { kind: "update", summary: "Open late on Friday.", ref: "p/1" }, after: { op: "delete", ref: "p/1" }, reason: null, held: null, validation: null,
-  createdAt: "2026-11-06T10:00:00.000Z", expiresAt: "2026-11-09T10:00:00.000Z", submittedAt: null, liveAt: null, liveCheck: null, undone: false, undoable: false, ...over,
+  createdAt: "2026-11-06T10:00:00.000Z", expiresAt: "2099-01-01T00:00:00.000Z", submittedAt: null, liveAt: null, liveCheck: null, undone: false, undoable: false, ...over,
 });
 
 type Kind = "posts" | "services" | "attributes" | "links";
@@ -153,8 +153,8 @@ describe("the posts card", () => {
   it("what waits on a post is read from the change list: that post has no Edit or Delete and says what is waiting", () => {
     const html = render(PostsCard as never, "posts", { data: posts(), changes: [change()] });
     expect(html.match(/>Delete</g)).toHaveLength(1);
-    expect(html).toContain("A change is waiting below. Approve or decline it there.");
-    expect(html).toContain("This post will be removed");
+    expect(html).toContain("A change is waiting. Approve or decline it in Your requests.");
+    expect(html).toContain("Waiting: see Your requests");
   });
   it("until the change list has answered, writing and deleting are withheld and it says why", () => {
     const html = render(PostsCard as never, "posts", { data: posts(), changes: null });
@@ -287,7 +287,16 @@ describe("the links card", () => {
 describe("a panel lists its own network's changes", () => {
   it("another network's change is not listed under this one", () => {
     const html = render(PostsCard as never, "posts", { data: posts(), changes: [change({ id: "mine" }), change({ id: "other", network: "net_b", field: "posts" })] });
-    expect(html.match(/This post will be removed/g)).toHaveLength(1);
+    // one waiting line, and it points at this network's request, never the other's
+    expect(html.match(/Waiting: see Your requests/g)).toHaveLength(1);
+    expect(html).toContain('href="#request-mine"');
+    expect(html).not.toContain("#request-other");
+  });
+  it("a panel keeps no request list of its own: the status lives in Your requests", () => {
+    const html = render(PostsCard as never, "posts", { data: posts(), changes: [change({ status: "failed" })] });
+    expect(html).not.toContain("posts changes");
+    expect(html).not.toContain("Approve</button>");
+    expect(html).not.toContain("Waiting: see Your requests");
   });
 });
 

@@ -20,7 +20,6 @@ import {
   waitingWords,
   withCustomService,
   linksValue,
-  listedChanges,
   liveDraft,
   nextDraft,
   postDraftUnchanged,
@@ -226,11 +225,8 @@ describe("the change list of a panel", () => {
     change({ id: "f", status: "validated", network: "net_b" }),
     change({ id: "g", status: "validated", network: "net_a", field: "services" }),
   ];
-  it("is one field's, for one network; sent ones are in flight; settled history is capped but every unsettled change is kept", () => {
+  it("is one field's, for one network; sent ones are in flight", () => {
     expect(inFlightChanges(rows, "net_a", "posts").map((c) => c.id)).toEqual(["a", "b"]);
-    expect(listedChanges(rows, "net_a", "posts", 1).map((c) => c.id)).toEqual(["a", "b", "c"]);
-    expect(listedChanges(rows, "net_a", "posts", 0).map((c) => c.id)).toEqual(["a", "b"]);
-    expect(listedChanges(undefined, "net_a", "posts", 5)).toEqual([]);
   });
   it("what waits on a post is read from the change list, and a create waits on no existing post", () => {
     expect(pendingForPost([change({ after: { op: "update", ref: "p/1" } })], "net_a", "p/1")?.id).toBe("c1");
