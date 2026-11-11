@@ -54,6 +54,7 @@ export function addAppErrorMessage(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.code === "INVALID_STORE_URL") return "That isn't an App Store or Google Play app link.";
     if (err.code === "APP_EXISTS") return "That app is already on your list.";
+    if (err.code === "APPS_LIMIT") return "You can list up to 50 apps. Remove one to add another.";
   }
   return "Couldn't add that app. Try again.";
 }

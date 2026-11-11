@@ -42,9 +42,10 @@ describe("safeHttpsUrl", () => {
 });
 
 describe("addAppErrorMessage", () => {
-  it("speaks plainly for the two known codes", () => {
+  it("speaks plainly for the known codes", () => {
     expect(m.addAppErrorMessage(new ApiError("INVALID_STORE_URL", "raw", 400))).toBe("That isn't an App Store or Google Play app link.");
     expect(m.addAppErrorMessage(new ApiError("APP_EXISTS", "raw", 409))).toBe("That app is already on your list.");
+    expect(m.addAppErrorMessage(new ApiError("APPS_LIMIT", "raw", 409))).toBe("You can list up to 50 apps. Remove one to add another.");
   });
   it("never shows raw error text for anything else", () => {
     expect(m.addAppErrorMessage(new ApiError("BOOM", "internal detail", 500))).toBe("Couldn't add that app. Try again.");
