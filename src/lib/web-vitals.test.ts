@@ -30,6 +30,11 @@ describe("routePattern", () => {
     expect(routePattern(`/share/${token}`, { token })).not.toContain(token);
   });
 
+  it("★masks an opaque segment the router did not resolve as a param", () => {
+    expect(routePattern("/share/9f8a7c6d5e4b3a291807f6e5d4c3b2a1", {})).toBe("/share/[id]");
+    expect(routePattern("/dashboard/content/123456789", null)).toBe("/dashboard/content/[id]");
+  });
+
   it("collapses a catch-all to one placeholder", () => {
     expect(routePattern("/help/billing/refunds", { slug: ["billing", "refunds"] })).toBe("/help/[...slug]");
     expect(routePattern("/a/b", { slug: ["a", "b"] })).toBe("/[...slug]");
@@ -94,9 +99,9 @@ describe("buildBeacon", () => {
     expect(buildBeacon("/", [{ name: "LCP", value: 1 }], { viewportWidth: 1200 })).not.toHaveProperty("connection");
   });
 
-  it("caps a runaway batch", () => {
-    const many = Array.from({ length: 100 }, () => ({ name: "CLS" as const, value: 0 }));
-    expect(buildBeacon("/", many, { viewportWidth: 1200 })?.metrics).toHaveLength(20);
+  it("keeps the latest value per metric", () => {
+    const many = Array.from({ length: 100 }, (_, i) => ({ name: "CLS" as const, value: i }));
+    expect(buildBeacon("/", many, { viewportWidth: 1200 })?.metrics).toEqual([{ name: "CLS", value: 99 }]);
   });
 });
 

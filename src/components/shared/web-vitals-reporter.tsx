@@ -30,7 +30,7 @@ export function WebVitalsReporter() {
   // Captured once: `useRef(initial)` keeps the first render's value.
   const entryRoute = useRef(routePattern(pathname, params));
   const samples = useRef<VitalSample[]>([]);
-  const enabled = process.env.NODE_ENV === "production" && API_BASE_URL !== "";
+  const enabled = process.env.NODE_ENV === "production" && Boolean(API_BASE_URL);
 
   useReportWebVitals((metric) => {
     const sample = toSample(metric);

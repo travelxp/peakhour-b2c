@@ -38,6 +38,13 @@ export function isReportedMetric(name: string): name is ReportedMetric {
   return (REPORTED_METRICS as readonly string[]).includes(name);
 }
 
+/** A static route word: letters, digits, `_`, `-`, starting with a letter, short,
+ *  with no long digit run. Anything else (an id, a token) is masked, so a param
+ *  `useParams()` did not resolve can never put a raw segment in a beacon. */
+function isRouteWord(seg: string): boolean {
+  return /^[A-Za-z][A-Za-z0-9_-]{0,31}$/.test(seg) && !/d{6,}/.test(seg) && !(seg.length >= 20 && /d/.test(seg));
+}
+
 function decoded(segment: string): string {
   try {
     return decodeURIComponent(segment);
@@ -72,7 +79,10 @@ export function routePattern(
         break;
       }
     }
-    if (!matched) out.push(segments[i++]);
+    if (!matched) {
+      const seg = segments[i++];
+      out.push(isRouteWord(seg) ? seg : "[id]");
+    }
   }
   return "/" + out.join("/");
 }
@@ -96,6 +106,13 @@ export function toSample(metric: { name: string; value: number; rating?: string 
   return { name: metric.name, value: metric.value, ...(rating ? { rating } : {}) };
 }
 
+/** INP and CLS are reported again as they grow: keep the latest value per metric. */
+function latestPerMetric(samples: readonly VitalSample[]): VitalSample[] {
+  const byName = new Map<string, VitalSample>();
+  for (const s of samples) byName.set(s.name, s);
+  return [...byName.values()];
+}
+
 export function buildBeacon(
   route: string,
   samples: readonly VitalSample[],
@@ -106,7 +123,7 @@ export function buildBeacon(
     route,
     device: deviceClass(env.viewportWidth),
     ...(env.connection ? { connection: env.connection } : {}),
-    metrics: samples.slice(0, MAX_SAMPLES),
+    metrics: latestPerMetric(samples).slice(0, MAX_SAMPLES),
   };
 }
 
@@ -125,11 +142,15 @@ export function sendBeacon(url: string, beacon: VitalsBeacon): void {
   } catch {
     // fall through to fetch
   }
-  void fetch(url, {
-    method: "POST",
-    body,
-    keepalive: true,
-    headers: { "content-type": "text/plain" },
-    credentials: "omit",
-  }).catch(() => {});
+  try {
+    void fetch(url, {
+      method: "POST",
+      body,
+      keepalive: true,
+      headers: { "content-type": "text/plain" },
+      credentials: "omit",
+    }).catch(() => {});
+  } catch {
+    // a lost perf beacon is never an error
+  }
 }
