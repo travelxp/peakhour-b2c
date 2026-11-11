@@ -20,9 +20,7 @@ import {
   Rocket,
   Users,
 } from "lucide-react";
-import {
-  PostComposer,
-} from "./_components/post-composer";
+import { PostComposer } from "./_components/post-composer";
 import {
   PostComposerSkeleton,
   useLinkedInIdentity,
