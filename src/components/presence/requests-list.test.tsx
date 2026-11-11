@@ -64,6 +64,15 @@ describe("the requests list", () => {
     expect(viewer).toContain("Awaiting your approval");
   });
 
+  it("draws what followed a live request from the slot it is given, and only on a live row", () => {
+    const slot = { kind: "answer", item: { id: "c1", outcome: { status: "measured", reason: "compared", message: "Compared.", lines: [{ text: "Calls: 40 before, 60 after." }] } } };
+    const live = change({ status: "live", liveAt: "2026-11-11T09:00:00.000Z" });
+    const withSlot = (c: ChangeCardData) =>
+      renderToStaticMarkup(createElement(RequestsList, { open: [], recent: [c], labelFor: () => "Testnet", can: { propose: true, approve: true }, publishing: null, m, onRedo: () => undefined, outcomeFor: () => slot as never }));
+    expect(withSlot(live)).toContain("Calls: 40 before, 60 after.");
+    expect(withSlot(change({ status: "failed" }))).not.toContain("Calls: 40");
+  });
+
   it("folds the finished ones under Done recently with their count, and says Declined by you apart from Rejected", () => {
     const html = render(
       [],

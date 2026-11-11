@@ -5,7 +5,7 @@ import Link from "next/link";
 import { AlertTriangle, CheckCircle2, CircleSlash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RequestsList } from "@/components/presence/requests-list";
-import { useEditCapabilities, useListingChanges, usePresenceEditMutations } from "@/hooks/use-presence-edit";
+import { useChangeOutcomes, useEditCapabilities, useListingChanges, usePresenceEditMutations } from "@/hooks/use-presence-edit";
 import { useListingQuery } from "@/hooks/use-presence-listing";
 import { primaryEntry } from "@/lib/presence-panels";
 import { capabilityFor, publishingBanner, requestGroups, type PublishingBanner } from "@/lib/presence-edit";
@@ -50,6 +50,8 @@ export function PublishingStatus({
   const entry = primaryEntry(listingQ.data);
   const changes = useListingChanges(listing?.id);
   const m = usePresenceEditMutations(listing?.id);
+  // The same request the change cards make (same key): a live row shows what followed it without a second fetch.
+  const outcomes = useChangeOutcomes(listing?.id, changes.data?.items, caps.data);
   const banner = caps.data ? publishingBanner(entry, caps.data.can) : null;
   const now = useNow();
   const groups = caps.data && entry ? requestGroups(changes.data?.items, now) : { open: [], recent: [] };
@@ -93,6 +95,7 @@ export function PublishingStatus({
           publishing={entry.publishing ?? null}
           m={m}
           onRedo={(field) => onRedo?.(field)}
+          outcomeFor={outcomes.slotFor}
         />
       )}
     </section>

@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { ChangeOutcome } from "@/components/presence/edit/change-outcome";
 import type { usePresenceEditMutations } from "@/hooks/use-presence-edit";
-import { errorWords, fieldTitle, requestStatus, shortChange, type CapabilitiesResponse, type ChangeCardData, type Tone } from "@/lib/presence-edit";
+import { errorWords, fieldTitle, requestStatus, shortChange, type CapabilitiesResponse, type ChangeCardData, type OutcomeSlot, type Tone } from "@/lib/presence-edit";
 import type { PresencePublishing } from "@/lib/presence-panels";
 
 const TONE: Record<Tone, string> = {
@@ -26,6 +27,7 @@ function RequestRow({
   publishing,
   m,
   onRedo,
+  outcome,
 }: {
   change: ChangeCardData;
   label: string;
@@ -33,6 +35,7 @@ function RequestRow({
   publishing: Pick<PresencePublishing, "blocker" | "heldReason"> | null;
   m: Mutations;
   onRedo: (field: string) => void;
+  outcome?: OutcomeSlot | undefined;
 }) {
   const r = requestStatus(change, label, can, publishing);
   const busy = m.approve.isPending || m.reject.isPending;
@@ -46,6 +49,8 @@ function RequestRow({
         <p className={`text-xs font-medium ${TONE[r.tone]}`}>{r.label}</p>
       </div>
       <p className="break-words text-xs text-muted-foreground">{shortChange(change.field, change.before, change.after)}</p>
+      {/* What followed a live change: the slot comes from the one outcomes request the page already makes (PE-13), never one per row. */}
+      {change.status === "live" && <ChangeOutcome slot={outcome} />}
       {r.reason && <p className="text-xs text-muted-foreground">{r.reason}</p>}
       {failure ? <p className="text-xs text-destructive">{errorWords(failure)}</p> : null}
       {next.kind === "decide" && (
@@ -90,6 +95,7 @@ export function RequestsList({
   publishing,
   m,
   onRedo,
+  outcomeFor,
 }: {
   open: ChangeCardData[];
   recent: ChangeCardData[];
@@ -98,9 +104,11 @@ export function RequestsList({
   publishing: Pick<PresencePublishing, "blocker" | "heldReason"> | null;
   m: Mutations;
   onRedo: (field: string) => void;
+  /** The outcome slot for a change, from `useChangeOutcomes`' `slotFor`. */
+  outcomeFor?: ((c: ChangeCardData) => OutcomeSlot) | undefined;
 }) {
   if (open.length === 0 && recent.length === 0) return null;
-  const row = (c: ChangeCardData) => <RequestRow key={c.id} change={c} label={labelFor(c.network)} can={can} publishing={publishing} m={m} onRedo={onRedo} />;
+  const row = (c: ChangeCardData) => <RequestRow key={c.id} change={c} label={labelFor(c.network)} can={can} publishing={publishing} m={m} onRedo={onRedo} outcome={outcomeFor?.(c)} />;
   return (
     <div className="space-y-2" data-testid="your-requests">
       <h3 className="text-sm font-medium">Your requests</h3>
