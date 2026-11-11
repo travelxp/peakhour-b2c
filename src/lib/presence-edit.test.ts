@@ -805,6 +805,13 @@ describe("the requests list (GBP L4)", () => {
     expect(g.recent.map((c) => c.id)).toEqual(["declined", "failed2", "expired", "live6"]);
   });
 
+  it("reads a proposal past its time as expired, never open and never approvable", () => {
+    const g = requestGroups([row("late", "validated", { expiresAt: ago(0.5), createdAt: ago(3.5) }), row("ok", "validated")], NOW);
+    expect(g.open.map((c) => c.id)).toEqual(["ok"]);
+    expect(g.recent.map((c) => [c.id, c.status])).toEqual([["late", "expired"]]);
+    expect(requestStatus(g.recent[0]!, "Testnet", { propose: true, approve: true }, null).next).toEqual({ kind: "redo", label: "Make the change again" });
+  });
+
   it("hides a replaced request, open or not", () => {
     const g = requestGroups([row("x", "superseded"), row("y", "validated")], NOW);
     expect(g.open.map((c) => c.id)).toEqual(["y"]);

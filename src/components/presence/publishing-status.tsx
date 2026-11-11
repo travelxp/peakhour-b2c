@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, CheckCircle2, CircleSlash } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,16 @@ const LOOK: Record<PublishingBanner["tone"], { box: string; head: string; icon: 
   warn: { box: "border border-warning/40", head: "text-warning-on-tint", icon: <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning-on-tint" aria-hidden /> },
   bad: { box: "border border-destructive/40", head: "text-destructive", icon: <CircleSlash className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden /> },
 };
+
+/** The time, read once and again every minute: a render must not read the clock, and an idle tab must still see a proposal run out. */
+function useNow(everyMs = 60_000): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), everyMs);
+    return () => clearInterval(t);
+  }, [everyMs]);
+  return now;
+}
 
 /**
  * GBP Issue 1: the ONE publishing status, above the listing panels. Can approved changes be sent, what stops them, and the one thing to press.
@@ -40,8 +51,8 @@ export function PublishingStatus({
   const changes = useListingChanges(listing?.id);
   const m = usePresenceEditMutations(listing?.id);
   const banner = caps.data ? publishingBanner(entry, caps.data.can) : null;
-  // "Now" is when the list was last read: a render must not read the clock, and a week has no edge a minute matters to.
-  const groups = caps.data && entry ? requestGroups(changes.data?.items, changes.dataUpdatedAt) : { open: [], recent: [] };
+  const now = useNow();
+  const groups = caps.data && entry ? requestGroups(changes.data?.items, now) : { open: [], recent: [] };
   const hasRequests = groups.open.length + groups.recent.length > 0;
   if (!banner && !hasRequests) return null;
   const look = banner ? LOOK[banner.tone] : null;

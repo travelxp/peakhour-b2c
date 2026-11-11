@@ -452,10 +452,23 @@ export function statusWords(
   return { headline: r.label, detail: r.reason, tone: r.tone };
 }
 
+/**
+ * The api closes an unanswered proposal lazily, so a row past its time can still read `proposed` or `validated`. It is expired to the person
+ * reading it, exactly as Ask's card reads it, and is never offered Approve.
+ */
+function lapsed(c: ChangeCardData, now: number): ChangeCardData {
+  if (c.status !== "proposed" && c.status !== "validated") return c;
+  const at = Date.parse(c.expiresAt);
+  return !Number.isNaN(at) && at <= now ? { ...c, status: "expired" } : c;
+}
+
 const OPEN_STATUSES: ReadonlySet<ChangeStatus> = new Set(["proposed", "validated", "approved", "applying", "submitted"]);
 const RECENT_MS = 7 * 24 * 3_600_000;
 
-/** When a finished request finished, as far as the row says: it went live then, ran out then, or was last sent or made. */
+/**
+ * When a finished request finished, as far as the row says: it went live then, ran out then, or was last sent or made. A decline or a
+ * failure before any send has no stamp of its own in the view; a proposal lives 72 hours, so its creation is within three days of the decline.
+ */
 function finishedAt(c: ChangeCardData): number {
   const t = c.status === "live" ? (c.liveAt ?? c.createdAt) : c.status === "expired" ? c.expiresAt : (c.submittedAt ?? c.createdAt);
   const n = Date.parse(t);
@@ -469,7 +482,8 @@ function finishedAt(c: ChangeCardData): number {
 export function requestGroups(changes: readonly ChangeCardData[] | undefined, now: number): { open: ChangeCardData[]; recent: ChangeCardData[] } {
   const open: ChangeCardData[] = [];
   const recent: ChangeCardData[] = [];
-  for (const c of changes ?? []) {
+  for (const row of changes ?? []) {
+    const c = lapsed(row, now);
     if (c.status === "superseded") continue;
     if (OPEN_STATUSES.has(c.status)) open.push(c);
     else if (now - finishedAt(c) <= RECENT_MS) recent.push(c);

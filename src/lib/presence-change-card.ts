@@ -119,7 +119,8 @@ export function cardStatus(
   if (!known.includes(status)) return { label: "Unknown", detail: null, tone: "closed", canDecide: false };
   const source: RequestSource = {
     status: status as RequestSource["status"],
-    reason: opts.reason ? { code: opts.reasonCode ?? "", message: opts.reason } : null,
+    // A code with no message still says what happened (a refusal is not a plain failure), so either one makes a reason.
+    reason: opts.reason || opts.reasonCode ? { code: opts.reasonCode ?? "", message: opts.reason ?? "" } : null,
     held: opts.held ? { reason: opts.held } : null,
     liveCheck: opts.liveOutcome ? { checkedAt: "", outcome: opts.liveOutcome, note: opts.liveNote ?? null } : opts.liveNote ? { checkedAt: "", outcome: "", note: opts.liveNote } : null,
   };

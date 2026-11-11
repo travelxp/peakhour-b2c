@@ -93,6 +93,8 @@ describe("cardStatus says what the Presence page says", () => {
     expect(cardStatus("rejected", { label: "Testnet" }).label).toBe("Declined by you");
     expect(cardStatus("failed", { label: "Testnet", reason: "Testnet refused it.", reasonCode: "network_rejected" }).label).toBe("Rejected by Testnet");
     expect(cardStatus("failed", { label: "Testnet", reason: "Not showing.", reasonCode: "not_published" }).label).toBe("Didn't go live");
+    // a code with no message still says what it was
+    expect(cardStatus("failed", { label: "Testnet", reasonCode: "network_rejected" }).label).toBe("Rejected by Testnet");
   });
 });
 
