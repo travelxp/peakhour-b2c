@@ -152,7 +152,7 @@ export function LinkedInContentPages({
             </li>
           ))}
           {pages.length > 3 && (
-            <li className="italic opacity-70">+ {pages.length - 3} more</li>
+            <li className="italic">+ {pages.length - 3} more</li>
           )}
         </ul>
       )}
