@@ -235,7 +235,7 @@ export function PresenceHome() {
             ) : null}
 
             {/* ★THE ONE LINE (GBP L7): health, publishing and what needs the merchant, each a link to its place below. */}
-            {listingOn ? <PresenceSummary location={panelLocation} network={panelNetwork} /> : null}
+            {listingOn ? <PresenceSummary location={panelLocation} network={panelNetwork} writes={editOn || photosOn} /> : null}
 
             {/* ★WAIT FOR THE LISTING READ that says whether there are several places: drawing the summary first and swapping it for the places
                 view a moment later flashed one view and discarded its read. */}

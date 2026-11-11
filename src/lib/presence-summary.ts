@@ -9,7 +9,7 @@
  * No network is named here: the words carry no label, so the line reads the same on every network.
  */
 
-import { publishingBanner, requestGroups, requestStatus, type CapabilitiesResponse, type ChangeCardData } from "@/lib/presence-edit";
+import { publishingBanner, requestGroups, requestStatus, type CapabilitiesResponse, type ChangeCardData, type RequestStatus } from "@/lib/presence-edit";
 import { changesView, type PresenceNetworkEntry } from "@/lib/presence-panels";
 import type { ListingScoreResponse } from "@/lib/presence-score";
 
@@ -46,7 +46,12 @@ export interface SummaryInput {
   /** The score answer; undefined until it has answered (loading or failed). */
   score: ListingScoreResponse | undefined;
   /** `changes` and `capabilities` are what `changesView` reads: the edits the network made on its own that nobody has answered. */
-  entry: (Pick<PresenceNetworkEntry, "label" | "publishing"> & Partial<Pick<PresenceNetworkEntry, "changes" | "capabilities">>) | null | undefined;
+  entry: Pick<PresenceNetworkEntry, "label" | "publishing" | "changes" | "capabilities"> | null | undefined;
+  /**
+   * Whether this page can change the listing at all (it draws the publishing status and "Your requests" only then). False drops the parts that
+   * link there, so no link goes to a section that is not drawn. Default true.
+   */
+  writes?: boolean;
   can: CapabilitiesResponse["can"] | undefined;
   /** The listing's changes; undefined until they have answered. */
   changes: readonly ChangeCardData[] | undefined;
@@ -55,6 +60,15 @@ export interface SummaryInput {
 
 const FAILED_STAGES: ReadonlySet<string> = new Set(["failed", "rejected_by_network", "not_published", "not_sent"]);
 
+/**
+ * Whether a request needs the merchant: an approval only their role can give, or a failure they can make again. ONE test for the count here and
+ * for the list's "Done recently" opening, so the line never links to a row that is folded away.
+ */
+export function requestNeedsYou(r: Pick<RequestStatus, "stage" | "next">): "approve" | "request" | null {
+  if (r.next.kind === "decide") return "approve";
+  return FAILED_STAGES.has(r.stage) && r.next.kind === "redo" ? "request" : null;
+}
+
 const plural = (n: number) => (n === 1 ? "1 thing needs you" : `${n} things need you`);
 
 /** Everything that needs the merchant, in the order to look at it. Null when something it counts has not been read yet. */
@@ -62,19 +76,20 @@ export function needItems(input: SummaryInput): NeedItem[] | null {
   const { score, entry, can, changes, now } = input;
   if (!entry || !can || !changes || score === undefined) return null;
   const items: NeedItem[] = [];
-  const { open, recent } = requestGroups(changes, now);
-  for (const c of [...open, ...recent]) {
-    const r = requestStatus(c, entry.label, can, entry.publishing ?? null);
-    // `decide` is only ever given to a role that can approve.
-    if (r.next.kind === "decide") items.push({ kind: "approve", href: `#${requestRowId(c.id)}`, words: "approve or decline a request" });
-    // A request stopped by the publishing blocker is the blocker's, counted once below.
-    else if (FAILED_STAGES.has(r.stage) && r.next.kind === "redo") items.push({ kind: "request", href: `#${requestRowId(c.id)}`, words: "look at a request that did not go through" });
+  if (input.writes !== false) {
+    const { open, recent } = requestGroups(changes, now);
+    for (const c of [...open, ...recent]) {
+      // `decide` is only ever given to a role that can approve. A request stopped by the publishing blocker is the blocker's, counted once below.
+      const need = requestNeedsYou(requestStatus(c, entry.label, can, entry.publishing ?? null));
+      if (need === "approve") items.push({ kind: "approve", href: `#${requestRowId(c.id)}`, words: "approve or decline a request" });
+      else if (need === "request") items.push({ kind: "request", href: `#${requestRowId(c.id)}`, words: "look at a request that did not go through" });
+    }
+    if (publishingBanner(entry, can)?.action) items.push({ kind: "publishing", href: `#${SUMMARY_ANCHORS.publishing}`, words: "fix what stops publishing" });
   }
-  const banner = publishingBanner(entry, can);
-  if (banner?.action) items.push({ kind: "publishing", href: `#${SUMMARY_ANCHORS.publishing}`, words: "fix what stops publishing" });
   // Each line `changesView` lists is a change nobody has answered yet (keeping or putting it back removes the line).
-  const own = entry.changes && entry.capabilities ? changesView({ changes: entry.changes, capabilities: entry.capabilities }, entry.label) : null;
-  for (let i = 0; i < (own?.kind === "some" ? own.lines.length : 0); i++) items.push({ kind: "changed", href: `#${SUMMARY_ANCHORS.networkChanges}`, words: "answer a change made on the listing itself" });
+  const own = changesView(entry, entry.label);
+  const unanswered = own?.kind === "some" ? own.lines.length : 0;
+  for (let i = 0; i < unanswered; i++) items.push({ kind: "changed", href: `#${SUMMARY_ANCHORS.networkChanges}`, words: "answer a change made on the listing itself" });
   if (score.state === "ready") {
     for (const h of score.health) if (h.state === "attention") items.push({ kind: "health", href: `#${SUMMARY_ANCHORS.score}`, words: "look at a listing check" });
   }
@@ -95,7 +110,7 @@ export function summaryLine(input: SummaryInput): SummaryPart[] {
       sentence: n === null ? "Your listing is not scored yet. Go to the score." : `Your listing score is ${n} out of 100. Go to the score.`,
     });
   }
-  const banner = input.can ? publishingBanner(input.entry, input.can) : null;
+  const banner = input.can && input.writes !== false ? publishingBanner(input.entry, input.can) : null;
   if (banner) {
     const text = banner.tone === "good" ? "Publishing on" : banner.tone === "warn" ? "Publishing hasn't started" : "Can't publish";
     const sentence = banner.tone === "good" ? "Publishing is on." : banner.tone === "warn" ? "Publishing has not started yet." : "Peakhour can't publish right now.";

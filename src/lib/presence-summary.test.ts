@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { needItems, requestRowId, summaryLine, waitingLine, WAITING_WORDS, type SummaryInput } from "@/lib/presence-summary";
-import type { ChangeCardData } from "@/lib/presence-edit";
+import { needItems, requestNeedsYou, requestRowId, summaryLine, waitingLine, WAITING_WORDS, type SummaryInput } from "@/lib/presence-summary";
+import { requestStatus, type ChangeCardData } from "@/lib/presence-edit";
 import type { ListingScoreResponse } from "@/lib/presence-score";
 import type { PresencePublishing } from "@/lib/presence-panels";
 
@@ -42,16 +42,18 @@ const ready = (score: number | null, health: Array<{ id: string; state: "ok" | "
   ({ state: "ready", listingId: "l1", network: { key: "testnet", label: "Testnet" }, score: { score }, health: health.map((h) => ({ ...h, headline: h.id })) }) as unknown as ListingScoreResponse;
 
 // the network's own edits, as `changesView` reads them: a line each until it is kept or put back
-const withChanges = (items: Array<{ field: string; suggested?: string; before?: string }>, publishing: PresencePublishing = pub()): SummaryInput["entry"] => ({
+const withChanges = (items: Array<{ field: string; suggested?: string; before?: string }>, publishing: PresencePublishing | null = pub()): NonNullable<SummaryInput["entry"]> => ({
   label: "Testnet",
   publishing,
   changes: { items, pendingFields: null, checkedAt: null, lastReadFailedAt: null, customerMediaAt: null },
   capabilities: { networkChanges: true } as never,
 });
+// no changes reported
+const ent = (publishing: PresencePublishing | null = pub()) => withChanges([], publishing);
 
 const input = (over: Partial<SummaryInput> = {}): SummaryInput => ({
   score: ready(89),
-  entry: { label: "Testnet", publishing: pub() },
+  entry: ent(),
   can: ADMIN,
   changes: [],
   now: NOW,
@@ -73,9 +75,9 @@ describe("the summary line", () => {
   });
 
   it("says the publishing state from the status's own tone", () => {
-    expect(text(input({ entry: { label: "Testnet", publishing: pub({ state: "held", heldReason: "Not started." }) } }))[1]).toBe("Publishing hasn't started");
+    expect(text(input({ entry: ent(pub({ state: "held", heldReason: "Not started." })) }))[1]).toBe("Publishing hasn't started");
     const blocked = pub({ state: "blocked", blocker: { reason: "Suspended.", action: "reconnect", href: "/i" } });
-    expect(text(input({ entry: { label: "Testnet", publishing: blocked } }))[1]).toBe("Can't publish");
+    expect(text(input({ entry: ent(blocked) }))[1]).toBe("Can't publish");
   });
 
   it("leaves out a part whose data has not answered, and never claims 'Nothing needs you' before it has", () => {
@@ -84,7 +86,7 @@ describe("the summary line", () => {
     expect(text(input({ can: undefined }))).toEqual(["Listing 89/100"]);
     expect(text(input({ entry: null }))).toEqual(["Listing 89/100"]);
     // a network that publishes nothing has no status, and the rest still reads
-    expect(text(input({ entry: { label: "Testnet", publishing: null } }))).toEqual(["Listing 89/100", "Nothing needs you"]);
+    expect(text(input({ entry: ent(null) }))).toEqual(["Listing 89/100", "Nothing needs you"]);
   });
 
   it("names no network anywhere in its words", () => {
@@ -127,10 +129,10 @@ describe("what needs the merchant", () => {
   it("counts the publishing blocker once, and not again for a request it holds", () => {
     const blocker = { reason: "Suspended.", action: "fix_on_network" as const, href: "https://t.example/fix" };
     const held = change({ id: "h", status: "blocked", reason: { code: "blocked", message: "Suspended." } });
-    const items = needItems(input({ entry: { label: "Testnet", publishing: pub({ state: "blocked", blocker }) }, changes: [held] }))!;
+    const items = needItems(input({ entry: ent(pub({ state: "blocked", blocker })), changes: [held] }))!;
     expect(items).toEqual([{ kind: "publishing", href: "#publishing-status", words: "fix what stops publishing" }]);
     // a viewer is told what is wrong but has nothing to press
-    expect(needItems(input({ can: VIEWER, entry: { label: "Testnet", publishing: pub({ state: "blocked", blocker }) } }))).toEqual([]);
+    expect(needItems(input({ can: VIEWER, entry: ent(pub({ state: "blocked", blocker })) }))).toEqual([]);
   });
 
   it("counts a change made on the listing itself, and each health row that needs attention", () => {
@@ -154,10 +156,25 @@ describe("what needs the merchant", () => {
   });
 
   it("counts no change when the network does not report them, has not answered, or said nothing changed", () => {
-    const base = withChanges([{ field: "phone" }])!;
+    const base = withChanges([{ field: "phone" }]);
     expect(needItems(input({ entry: { ...base, capabilities: { networkChanges: false } as never } }))).toEqual([]);
-    expect(needItems(input({ entry: { ...base, changes: { ...base.changes!, items: null } } }))).toEqual([]);
+    expect(needItems(input({ entry: { ...base, changes: { ...base.changes, items: null } } }))).toEqual([]);
     expect(needItems(input({ entry: withChanges([]) }))).toEqual([]);
+  });
+
+  it("with no way to write, the parts that link to the status and the requests are dropped, and the rest still counts", () => {
+    const blocker = { reason: "Suspended.", action: "reconnect" as const, href: "/i" };
+    const read = input({ writes: false, entry: withChanges([{ field: "phone" }], pub({ state: "blocked", blocker })), changes: [change()], score: ready(70, [{ id: "a", state: "attention" }]) });
+    expect(summaryLine(read).map((p) => p.text)).toEqual(["Listing 70/100", "2 things need you"]);
+    expect(needItems(read)!.map((i) => i.kind)).toEqual(["changed", "health"]);
+  });
+
+  it("the list opens Done recently by the same test the count uses", () => {
+    const need = (status: ChangeCardData["status"], can = ADMIN) => requestNeedsYou(requestStatus(change({ status, reason: { code: "x", message: "m" } }), "Testnet", can, null));
+    expect(need("failed")).toBe("request");
+    expect(need("validated")).toBe("approve");
+    expect(need("rejected")).toBeNull();
+    expect(need("failed", VIEWER)).toBeNull();
   });
 
   it("is null while anything it counts has not been read", () => {

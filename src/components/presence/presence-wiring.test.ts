@@ -157,7 +157,7 @@ describe("the one summary line (GBP L7)", () => {
   const home = flat("components/presence/presence-home.tsx");
   it("is drawn once, above the reviews, the status and every panel, and only for a network with a listing", () => {
     expect(home.match(/<PresenceSummary /g)).toHaveLength(1);
-    expect(home).toContain("{listingOn ? <PresenceSummary location={panelLocation} network={panelNetwork} /> : null}");
+    expect(home).toContain("{listingOn ? <PresenceSummary location={panelLocation} network={panelNetwork} writes={editOn || photosOn} /> : null}");
     for (const part of ["<ReviewSummaryCard", "<PublishingStatus ", "<ListingScoreCard", "<EditListingCard"]) {
       expect(home.indexOf("<PresenceSummary "), part).toBeLessThan(home.indexOf(part));
     }

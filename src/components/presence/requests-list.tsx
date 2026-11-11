@@ -6,7 +6,7 @@ import { ChangeOutcome } from "@/components/presence/edit/change-outcome";
 import type { usePresenceEditMutations } from "@/hooks/use-presence-edit";
 import { cardActions, errorWords, fieldTitle, requestStatus, shortChange, type CapabilitiesResponse, type ChangeCardData, type OutcomeSlot, type Tone } from "@/lib/presence-edit";
 import type { PresencePublishing } from "@/lib/presence-panels";
-import { requestRowId, SUMMARY_ANCHORS } from "@/lib/presence-summary";
+import { requestNeedsYou, requestRowId, SUMMARY_ANCHORS } from "@/lib/presence-summary";
 
 const TONE: Record<Tone, string> = {
   neutral: "text-muted-foreground",
@@ -137,7 +137,7 @@ export function RequestsList({
 }) {
   if (open.length === 0 && recent.length === 0) return null;
   // A finished request that still needs the merchant (a failure to make again) is shown, not folded away, so the line at the top can link to it.
-  const recentNeedsYou = recent.some((c) => requestStatus(c, labelFor(c.network), can, publishing).next.kind !== "none");
+  const recentNeedsYou = recent.some((c) => requestNeedsYou(requestStatus(c, labelFor(c.network), can, publishing)) !== null);
   const row = (c: ChangeCardData) => <RequestRow key={c.id} change={c} label={labelFor(c.network)} can={can} publishing={publishing} m={m} onRedo={onRedo} outcome={outcomeFor?.(c)} canRedo={canRedo} />;
   return (
     <div id={SUMMARY_ANCHORS.requests} className="space-y-2" data-testid="your-requests">
