@@ -94,6 +94,7 @@ export function YourAppsPanel() {
     onSuccess: () => {
       setLink("");
       setAddError("");
+      setActionError("");
       refresh();
     },
     onError: (err) => setAddError(addAppErrorMessage(err)),
@@ -105,14 +106,20 @@ export function YourAppsPanel() {
     onMutate: async (v) => {
       setActionError("");
       await queryClient.cancelQueries({ queryKey });
-      const previous = queryClient.getQueryData<BusinessApp[]>(queryKey);
+      // Remember only THIS app's old status, so two in-flight changes roll back independently.
+      const previousStatus = queryClient.getQueryData<BusinessApp[]>(queryKey)?.find((a) => a.appId === v.appId)?.status;
       queryClient.setQueryData<BusinessApp[]>(queryKey, (apps) =>
         apps?.map((a) => (a.appId === v.appId ? { ...a, status: v.status } : a)),
       );
-      return { previous };
+      return { previousStatus };
     },
-    onError: (_e, _v, ctx) => {
-      if (ctx?.previous) queryClient.setQueryData(queryKey, ctx.previous);
+    onError: (_e, v, ctx) => {
+      const back = ctx?.previousStatus;
+      if (back) {
+        queryClient.setQueryData<BusinessApp[]>(queryKey, (apps) =>
+          apps?.map((a) => (a.appId === v.appId ? { ...a, status: back } : a)),
+        );
+      }
       setActionError("Couldn't save that. Try again.");
     },
     onSettled: refresh,
@@ -155,9 +162,9 @@ export function YourAppsPanel() {
           </div>
         )}
 
-        {query.isLoading && <p className="text-sm text-muted-foreground">Loading your apps...</p>}
+        {query.isPending && <p className="text-sm text-muted-foreground">Loading your apps...</p>}
 
-        {!query.isLoading && !query.isError && confirmed.length === 0 && pending.length === 0 && (
+        {query.data && confirmed.length === 0 && pending.length === 0 && (
           <p className="text-sm text-muted-foreground">
             No apps found. If you have one, paste its App Store or Google Play link.
           </p>
@@ -279,7 +286,7 @@ export function YourAppsPanel() {
         )}
       </CardContent>
 
-      <AlertDialog open={!!removing} onOpenChange={(open) => !open && setRemoving(null)}>
+      <AlertDialog open={!!removing} onOpenChange={(open) => !open && !remove.isPending && setRemoving(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Remove {removing ? appLabel(removing) : "this app"}?</AlertDialogTitle>
@@ -289,7 +296,16 @@ export function YourAppsPanel() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep it</AlertDialogCancel>
-            <AlertDialogAction onClick={() => removing && remove.mutate(removing.appId)}>Remove</AlertDialogAction>
+            <AlertDialogAction
+              disabled={remove.isPending}
+              onClick={(e) => {
+                // Keep the dialog (and its title) open until the DELETE settles: onSettled closes it.
+                e.preventDefault();
+                if (removing && !remove.isPending) remove.mutate(removing.appId);
+              }}
+            >
+              Remove
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

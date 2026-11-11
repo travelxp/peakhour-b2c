@@ -86,7 +86,7 @@ export function FootprintReviewCard({ pending, pendingApps = [] }: FootprintRevi
   // snapshot rollback.
   const [dismissedUrls, setDismissedUrls] = useState<Set<string>>(new Set());
   const [dismissedApps, setDismissedApps] = useState<Set<string>>(new Set());
-  const [submitting, setSubmitting] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState<Set<string>>(new Set());
   const [, startTransition] = useTransition();
   const [error, setError] = useState("");
 
@@ -102,7 +102,7 @@ export function FootprintReviewCard({ pending, pendingApps = [] }: FootprintRevi
 
   async function handleApp(appId: string, status: "confirmed" | "rejected") {
     setError("");
-    setSubmitting(appId);
+    setSubmitting((prev) => new Set(prev).add(appId));
     setDismissedApps((prev) => new Set(prev).add(appId));
     try {
       await setBusinessAppStatus(appId, status);
@@ -118,13 +118,17 @@ export function FootprintReviewCard({ pending, pendingApps = [] }: FootprintRevi
       });
       setError(err instanceof ApiError ? err.message : "Couldn't save. Try again.");
     } finally {
-      setSubmitting(null);
+      setSubmitting((prev) => {
+        const next = new Set(prev);
+        next.delete(appId);
+        return next;
+      });
     }
   }
 
   async function handleConfirm(url: string, confirmed: boolean | null) {
     setError("");
-    setSubmitting(url);
+    setSubmitting((prev) => new Set(prev).add(url));
     setDismissedUrls((prev) => {
       const next = new Set(prev);
       next.add(url);
@@ -149,7 +153,11 @@ export function FootprintReviewCard({ pending, pendingApps = [] }: FootprintRevi
       });
       setError(err instanceof ApiError ? err.message : "Couldn't save. Try again.");
     } finally {
-      setSubmitting(null);
+      setSubmitting((prev) => {
+        const next = new Set(prev);
+        next.delete(url);
+        return next;
+      });
     }
   }
 
@@ -163,8 +171,9 @@ export function FootprintReviewCard({ pending, pendingApps = [] }: FootprintRevi
               We found you online
             </CardTitle>
             <CardDescription className="mt-1">
-              Tell us which of these are actually yours so we don&apos;t
-              recommend things you&apos;re already on.
+              {visible.length > 0
+                ? "Tell us which of these are actually yours so we don't recommend things you're already on."
+                : "Tell us which of these apps are yours so we promote the right ones."}
             </CardDescription>
           </div>
           <Badge variant="secondary">{visible.length + visibleApps.length} to review</Badge>
@@ -177,7 +186,7 @@ export function FootprintReviewCard({ pending, pendingApps = [] }: FootprintRevi
           </div>
         )}
         {visibleApps.map((app) => {
-          const isPending = submitting === app.appId;
+          const isPending = submitting.has(app.appId);
           const icon = safeHttpsUrl(app.iconUrl);
           const store = safeHttpsUrl(app.storeUrl);
           const label = appLabel(app);
@@ -250,7 +259,7 @@ export function FootprintReviewCard({ pending, pendingApps = [] }: FootprintRevi
         {visible.map((item) => {
           const Icon = SOURCE_ICONS[item.source] ?? Globe;
           const label = SOURCE_LABEL[item.source] ?? item.source;
-          const isPending = submitting === item.url;
+          const isPending = submitting.has(item.url);
           const display = item.handle ? `@${item.handle}` : prettyUrl(item.url);
           return (
             <div
