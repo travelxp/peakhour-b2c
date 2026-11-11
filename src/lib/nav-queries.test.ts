@@ -91,7 +91,7 @@ describe("pages read the same objects the prefetch warms", () => {
     ["components/inbox/conversations-pane.tsx", "useState<StatusFilter>(DEFAULT_STATUS_FILTER)"],
     ["components/inbox/conversations-pane.tsx", "useWaConversations({ expiringOnly, assignee, tag, priority, topic: q ? null : topic, ...(q ? { q } : { status }) })"],
     ["components/inbox/conversations-pane.tsx", "useStorefrontChats({ expiringOnly, status, assignee, tag, priority, topic, enabled: !q })"],
-    ["hooks/use-wa-conversations.ts", "...waConversationsOptions(business?._id"],
+    ["hooks/use-wa-conversations.ts", "const options = waConversationsOptions(business?._id"],
     ["hooks/use-wa-conversations.ts", "...storefrontChatsOptions(business?._id"],
     ["hooks/use-inbox-desk.ts", "...deskTagsQuery(biz)"],
     ["hooks/use-insights.ts", "...insightsQuery(org?._id ?? null"],

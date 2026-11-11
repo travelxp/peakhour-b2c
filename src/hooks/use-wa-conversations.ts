@@ -189,9 +189,10 @@ function dedupe<T extends { threadId: string }>(rows: T[]): T[] {
  */
 export function useWaConversations(view: ListView = {}) {
   const { business } = useAuth();
-  const key = waConversationsOptions(business?._id ?? "none", view).queryKey;
+  const options = waConversationsOptions(business?._id ?? "none", view);
+  const key = options.queryKey;
   const query = useInfiniteQuery({
-    ...waConversationsOptions(business?._id ?? "none", view),
+    ...options,
     enabled: Boolean(business?._id),
     refetchInterval: 30_000, // inbox stays roughly live
     // changing the chip or the search keeps the rows and the banner on screen until the other list arrives
