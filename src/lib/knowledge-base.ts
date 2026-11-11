@@ -145,7 +145,7 @@ export function kbErrorMessage(err: unknown): string {
 // This file decides only the order, what is highlighted, when Approve is allowed, and the words.
 
 export interface KbEvidence {
-  kind: "entry" | "reply" | "fact";
+  kind: "entry" | "reply" | "fact" | "document";
   ref: string;
   quote: string;
 }
