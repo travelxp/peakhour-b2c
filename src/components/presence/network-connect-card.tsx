@@ -202,11 +202,13 @@ export function NetworkConnectCard({ network }: { network: ConnectableNetwork })
   const confirmable = pickerPath !== null && network.capabilities.listing !== false;
   const selectedFacts = confirmable && selected ? selected.map((n) => known.find((l) => l.locationName === n)).filter((l): l is ListingFacts => !!l) : [];
   // One listing selected: say where it is and link it. With several, the picker's rows carry the facts.
-  const sole = selectedFacts.length === 1 ? selectedFacts[0]! : null;
+  // ★ONLY WHEN THE ONE LISTING SYNCING IS THE ONE KNOWN: with two selected and one known, the one shown would stand for both.
+  const sole = selected?.length === 1 && selectedFacts.length === 1 ? selectedFacts[0]! : null;
   const soleLink = mapLink(sole?.mapsUri);
   // ★WARN ONLY WHEN EVERY NAMED LISTING LOOKS OFF: one that matches is the business.
   const titled = selectedFacts.filter((l) => l.title?.trim());
-  const nameLooksOff = titled.length > 0 && titled.every((l) => listingNameLooksOff(l.title, business?.name));
+  const nameLooksOff = titled.length > 0 && titled.length === selected?.length && titled.every((l) => listingNameLooksOff(l.title, business?.name));
+  // ★THE COUNT AND THE "WHOLE LIST" FLAG COME FROM THE SAME READ, as `known` does.
   const another = chooseAnotherAction(known.length, locationsQ.data ? locationsQ.data.complete : capQ.data?.account?.extra?.locationsComplete);
 
   // ★THE CAPABILITIES READ IS PART OF THE ANSWER, so its loading state is part
