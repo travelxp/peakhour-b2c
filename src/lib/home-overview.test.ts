@@ -48,6 +48,75 @@ describe("connectedAccounts", () => {
   });
 });
 
+describe("connectedAccounts: Meta", () => {
+  const facebook = (o: Partial<Integration> = {}) =>
+    row({
+      provider: "facebook",
+      name: "Facebook",
+      connected: true,
+      status: "active",
+      account: {
+        externalId: "1",
+        name: "Chai Co login",
+        extra: {
+          pages: [{ pageName: "Chai Co", instagramAccountId: "ig1", instagramUsername: "chaico" }],
+          adAccounts: [{ name: "Chai Ads" }],
+        },
+      },
+      ...o,
+    });
+
+  it("lists each connected Meta account on its own, as the Connected accounts page does", () => {
+    const out = connectedAccounts([facebook()]);
+    expect(out.map((a) => [a.provider, a.name, a.accountName, a.state])).toEqual([
+      ["facebook_pages", "Facebook Pages", "Chai Co", "live"],
+      ["instagram", "Instagram", "@chaico", "live"],
+      ["meta_ads", "Meta Ads", "Chai Ads", "live"],
+    ]);
+    expect(out.some((a) => a.provider === "facebook")).toBe(false);
+  });
+
+  it("omits a Meta account the connection has nothing for", () => {
+    const out = connectedAccounts([
+      facebook({ account: { externalId: "1", name: "x", extra: { pages: [{ pageName: "Chai Co" }] } } }),
+    ]);
+    expect(out.map((a) => a.provider)).toEqual(["facebook_pages"]);
+  });
+
+  it("flags only the account whose own login is broken", () => {
+    const out = connectedAccounts([
+      facebook({
+        metaConnections: [
+          { purpose: null, status: "active" },
+          { purpose: "ads", status: "needs_reauth" },
+        ],
+      }),
+    ]);
+    expect(out.map((a) => [a.provider, a.state])).toEqual([
+      ["meta_ads", "needs_reconnect"],
+      ["facebook_pages", "live"],
+      ["instagram", "live"],
+    ]);
+  });
+
+  it("does not list a Meta account that no login serves", () => {
+    const out = connectedAccounts([
+      facebook({ metaConnections: [{ purpose: "content", status: "active" }] }),
+    ]);
+    expect(out.map((a) => a.provider)).toEqual(["facebook_pages", "instagram"]);
+  });
+
+  it("agrees with the Connected accounts page: same flatten, same connected set", async () => {
+    const { flattenMetaIntegration } = await import("./integrations-meta");
+    const rows = [facebook(), row({ provider: "shopify", connected: true, status: "active" })];
+    const page = flattenMetaIntegration(rows)
+      .filter((r) => r.connected)
+      .map((r) => r.provider)
+      .sort();
+    expect(connectedAccounts(rows).map((a) => a.provider).sort()).toEqual(page);
+  });
+});
+
 const stats = (o: Partial<HomeStatsSlice> = {}): HomeStatsSlice => ({
   content: { total: 0, tagged: 0, highPotential: 0 },
   campaigns: { active: 0, total: 0 },

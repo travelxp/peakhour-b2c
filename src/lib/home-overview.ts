@@ -5,16 +5,18 @@
  * rendering anything.
  */
 import { isRecoverableStatus } from "@/lib/integration-card-state";
+import { flattenMetaIntegration, type MetaLoginInfo } from "@/lib/integrations-meta";
 
 // ── Connected accounts ─────────────────────────────────────
 
 /** The slice of a GET /v1/integrations row Home reads. */
-export interface HomeIntegrationRow {
+export interface HomeIntegrationRow extends MetaLoginInfo {
   provider: string;
   name?: string;
   connected?: boolean;
   status?: string;
-  account?: { name?: string };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  account?: { name?: string; extra?: Record<string, any> };
 }
 
 export interface ConnectedAccount {
@@ -31,10 +33,22 @@ export interface ConnectedAccount {
  * hiding it would hide the one thing the merchant has to act on. Providers
  * the merchant never connected are not listed; the page shows one
  * "Connect more" link instead.
+ *
+ * Meta is one `facebook` connection that carries Pages, Instagram, Meta Ads
+ * and WhatsApp. It is expanded into those four rows by the same helper the
+ * Connected accounts page uses (`flattenMetaIntegration`), so Home lists
+ * exactly the Meta accounts that page shows as connected, and flags the one
+ * whose own login is broken.
  */
 export function connectedAccounts(rows: readonly HomeIntegrationRow[] | undefined): ConnectedAccount[] {
   const out: ConnectedAccount[] = [];
-  for (const r of rows ?? []) {
+  const flat = flattenMetaIntegration<HomeIntegrationRow>([...(rows ?? [])], (item, card) => ({
+    name: card.name,
+    account: item.connected
+      ? { ...item.account, name: card.getResourceSummary(item.account?.extra || {}) || item.account?.name }
+      : undefined,
+  }));
+  for (const r of flat) {
     const live = r.connected === true;
     const broken = !live && isRecoverableStatus(r.status);
     if (!live && !broken) continue;
