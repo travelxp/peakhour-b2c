@@ -39,10 +39,10 @@ describe("connectedAccounts", () => {
   it("lists a broken connection first, flagged for reconnect", () => {
     const out = connectedAccounts([
       row({ provider: "shopify", connected: true, status: "active" }),
-      row({ provider: "whatsapp", name: "WhatsApp", connected: false, status: "needs_reauth" }),
+      row({ provider: "linkedin_content", name: "LinkedIn Content", connected: false, status: "needs_reauth" }),
     ]);
     expect(out.map((a) => [a.provider, a.state])).toEqual([
-      ["whatsapp", "needs_reconnect"],
+      ["linkedin_content", "needs_reconnect"],
       ["shopify", "live"],
     ]);
   });
@@ -96,6 +96,19 @@ describe("connectedAccounts: Meta", () => {
       ["meta_ads", "needs_reconnect"],
       ["facebook_pages", "live"],
       ["instagram", "live"],
+    ]);
+  });
+
+  it("lists only the Meta accounts a broken connection held, with their names", () => {
+    const out = connectedAccounts([
+      facebook({
+        connected: false,
+        status: "needs_reauth",
+        account: { externalId: "1", name: "Chai Co login", extra: { pages: [{ pageName: "Chai Co" }] } },
+      }),
+    ]);
+    expect(out.map((a) => [a.provider, a.accountName, a.state])).toEqual([
+      ["facebook_pages", "Chai Co", "needs_reconnect"],
     ]);
   });
 

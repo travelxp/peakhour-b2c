@@ -5,7 +5,7 @@
  * rendering anything.
  */
 import { isRecoverableStatus } from "@/lib/integration-card-state";
-import { flattenMetaIntegration, type MetaLoginInfo } from "@/lib/integrations-meta";
+import { flattenMetaIntegration, META_VIRTUAL_CARDS, isMetaVirtual, type MetaLoginInfo } from "@/lib/integrations-meta";
 
 // ── Connected accounts ─────────────────────────────────────
 
@@ -28,6 +28,19 @@ export interface ConnectedAccount {
 }
 
 /**
+ * A Meta card a broken connection never had (no Page, no ad account, or the
+ * capability switched off). Flatten copies the parent's status onto all four
+ * cards, so without this a Pages-only connection that needs reconnecting
+ * would list Meta Ads and WhatsApp as broken too.
+ */
+function metaCardNeverHeld(r: HomeIntegrationRow): boolean {
+  if (!isMetaVirtual(r.provider)) return false;
+  const card = META_VIRTUAL_CARDS.find((c) => c.virtualProvider === r.provider);
+  const extra = r.account?.extra ?? {};
+  return !card || !card.hasResources(extra) || extra.capabilities?.[card.capabilityKey]?.enabled === false;
+}
+
+/**
  * Accounts to list on Home: every integration the business holds a
  * connection for. A broken connection is listed too, flagged, because
  * hiding it would hide the one thing the merchant has to act on. Providers
@@ -44,13 +57,11 @@ export function connectedAccounts(rows: readonly HomeIntegrationRow[] | undefine
   const out: ConnectedAccount[] = [];
   const flat = flattenMetaIntegration<HomeIntegrationRow>([...(rows ?? [])], (item, card) => ({
     name: card.name,
-    account: item.connected
-      ? { ...item.account, name: card.getResourceSummary(item.account?.extra || {}) || item.account?.name }
-      : undefined,
+    account: { ...item.account, name: card.getResourceSummary(item.account?.extra || {}) || item.account?.name },
   }));
   for (const r of flat) {
     const live = r.connected === true;
-    const broken = !live && isRecoverableStatus(r.status);
+    const broken = !live && isRecoverableStatus(r.status) && !metaCardNeverHeld(r);
     if (!live && !broken) continue;
     out.push({
       provider: r.provider,
