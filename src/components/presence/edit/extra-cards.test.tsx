@@ -323,13 +323,12 @@ describe("a read that failed says why, and offers the one thing that helps", () 
     for (const href of ["//evil.example/login", "/\\evil.example", "https://evil.example", "javascript:alert(1)"]) {
       const out = html(fail("RECONNECT_NEEDED", "NetA stopped accepting Peakhour's access to this listing.", [{ code: "reconnect", message: "", href }]));
       expect(out).not.toContain("<a ");
-      expect(out).not.toContain("Try again");
     }
   });
-  it("an error with no code is a retry; an access error with no page named offers nothing to press", () => {
+  it("an error with no code, or an access error with no page named, is a retry", () => {
     expect(html(new Error("boom"))).toContain("Try again</button>");
     const out = html(fail("RECONNECT_NEEDED", "NetA stopped accepting Peakhour's access to this listing."));
-    expect(out).not.toContain("Try again");
+    expect(out).toContain("Try again</button>");
     expect(out).not.toContain("<a ");
   });
 });
