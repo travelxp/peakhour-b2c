@@ -126,7 +126,7 @@ describe("the one publishing status (GBP Issue 1)", () => {
   it("is drawn once, where changes can be made, above every panel it speaks for", () => {
     expect(home.match(/<PublishingStatus /g)).toHaveLength(1);
     // photos are drawn on their own declaration, so a network with photos and no edit forms still gets the status
-    expect(home).toContain("{editOn || photosOn ? <PublishingStatus location={panelLocation} network={panelNetwork} /> : null}");
+    expect(home).toContain("{editOn || photosOn ? <PublishingStatus location={panelLocation} network={panelNetwork} onRedo={openForm} canRedo={(f) => editOn || f === \"media\"} /> : null}");
     for (const panel of ["<ListingScoreCard", "<EditListingCard", "<PhotosCard", "<PostsCard", "<ServicesCard", "<DetailsCard", "<LinksCard"]) {
       expect(home.indexOf("<PublishingStatus "), panel).toBeLessThan(home.indexOf(panel));
     }
@@ -142,7 +142,10 @@ describe("the one publishing status (GBP Issue 1)", () => {
   it("reads the listing and capabilities the edit card reads, and every word comes from publishingBanner", () => {
     const s = flat("components/presence/publishing-status.tsx");
     expect(s).toContain("useListingQuery(location, network)");
-    expect(s).toContain("publishingBanner(primaryEntry(listingQ.data), caps.data.can)");
+    expect(s).toContain("publishingBanner(entry, caps.data.can)");
+    // the requests list reads the same changes the edit card reads (one query key), and says every stage through requestStatus
+    expect(s).toContain("useListingChanges(listing?.id)");
+    expect(flat("components/presence/requests-list.tsx")).toContain("requestStatus(change, label, can, publishing)");
     expect(s).not.toContain('role="status"');
   });
   it("the prepared notice reads held from the same publishing answer as the status", () => {

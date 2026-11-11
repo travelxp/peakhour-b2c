@@ -8,6 +8,8 @@
  * ★NOTHING SAYS "LIVE" UNTIL THE API SAYS A READ PROVED IT. "Approved" is not "sent", and "sent" is not "live".
  */
 
+import { requestStatus, type RequestSource, type RequestStage } from "@/lib/presence-edit";
+
 export interface ListingChangeCardData {
   type: "listing_change";
   id: string;
@@ -75,43 +77,58 @@ export interface CardStatus {
   canDecide: boolean;
 }
 
-/** What a status means to the person reading the card. `held` is the api's reason a change is approved but not yet sent. */
+const TONE_OF_STAGE: Record<RequestStage, Tone> = {
+  draft: "waiting",
+  awaiting_approval: "waiting",
+  approved_held: "progress",
+  approved_waiting: "progress",
+  sent: "progress",
+  under_review: "progress",
+  cannot_confirm: "progress",
+  live: "done",
+  rejected_by_network: "problem",
+  not_published: "problem",
+  failed: "problem",
+  not_sent: "problem",
+  declined: "closed",
+  expired: "closed",
+  replaced: "closed",
+  unknown: "closed",
+};
+
+/**
+ * What a status means to the person reading the card. ★THE WORDS ARE `requestStatus`'s (lib/presence-edit.ts), the same ones the Presence
+ * page says, so a change reads the same in Ask and on the page. `held` is the api's reason a change is approved but not yet sent; `reasonCode`
+ * and `liveOutcome` (the row's `reason.code` and `liveCheck.outcome`) tell a network's refusal from a failed send, and "under review" from "sent".
+ * `label` is the network's name; with none the card says "the network".
+ */
 export function cardStatus(
   status: string,
-  opts: { held?: string | null; reason?: string | null; liveNote?: string | null; expiresAt?: string | null; now?: number } = {},
+  opts: {
+    held?: string | null;
+    reason?: string | null;
+    reasonCode?: string | null;
+    liveNote?: string | null;
+    liveOutcome?: string | null;
+    /** The row's `liveCheck.confirmable`: false only when the network can never show the change back. */
+    liveConfirmable?: boolean | null;
+    label?: string | null;
+    expiresAt?: string | null;
+    now?: number;
+  } = {},
 ): CardStatus {
   // The api closes an unanswered proposal lazily, so a change past its time can still read "proposed": it is expired to the person reading it.
   if (DECIDABLE.has(status) && opts.expiresAt && Date.parse(opts.expiresAt) <= (opts.now ?? Date.now())) status = "expired";
-  switch (status) {
-    case "proposed":
-    case "validated":
-      return { label: "Waiting for your approval", detail: null, tone: "waiting", canDecide: true };
-    case "approved":
-      return {
-        label: "Approved",
-        detail: opts.held ? opts.held : "It will be sent shortly. It is not live yet.",
-        tone: "progress",
-        canDecide: false,
-      };
-    case "applying":
-      return { label: "Being sent", detail: "It is not live yet.", tone: "progress", canDecide: false };
-    case "submitted":
-      return { label: "Sent", detail: opts.liveNote ?? "We are waiting to see it on the listing. It is not confirmed live yet.", tone: "progress", canDecide: false };
-    case "live":
-      return { label: "Live", detail: "We checked, and the listing shows it.", tone: "done", canDecide: false };
-    case "failed":
-      return { label: "Could not be sent", detail: opts.reason ?? "Nothing was changed on the listing.", tone: "problem", canDecide: false };
-    case "blocked":
-      return { label: "Held", detail: opts.reason ?? "This change cannot be sent right now.", tone: "problem", canDecide: false };
-    case "rejected":
-      return { label: "Discarded", detail: "Nothing was changed.", tone: "closed", canDecide: false };
-    case "expired":
-      return { label: "Expired", detail: "It was not approved in time. Ask again.", tone: "closed", canDecide: false };
-    case "superseded":
-      return { label: "Replaced", detail: null, tone: "closed", canDecide: false };
-    default:
-      return { label: "Unknown", detail: null, tone: "closed", canDecide: false };
-  }
+  const source: RequestSource = {
+    status: status as RequestSource["status"],
+    // A code with no message still says what happened (a refusal is not a plain failure), so either one makes a reason.
+    reason: opts.reason || opts.reasonCode ? { code: opts.reasonCode ?? "", message: opts.reason ?? "" } : null,
+    held: opts.held ? { reason: opts.held } : null,
+    liveCheck: opts.liveOutcome ? { checkedAt: "", outcome: opts.liveOutcome, note: opts.liveNote ?? null, ...(opts.liveConfirmable == null ? {} : { confirmable: opts.liveConfirmable }) } : opts.liveNote ? { checkedAt: "", outcome: "", note: opts.liveNote } : null,
+  };
+  // The card never knows the role (the api refuses what a role may not do), so it is asked as one who may decide.
+  const r = requestStatus(source, opts.label?.trim() || "the network", { propose: true, approve: true });
+  return { label: r.label, detail: r.reason, tone: TONE_OF_STAGE[r.stage], canDecide: r.stage === "draft" || r.stage === "awaiting_approval" };
 }
 
 /** The cards of several tool outputs, once per change: a change prepared and then listed in one reply is one card. */
