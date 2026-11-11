@@ -40,13 +40,13 @@ describe("the headline", () => {
     expect(scoreHeadline(82)).toBe("82 out of 100");
   });
   it("no number, no tone", () => {
-    expect(scoreTone(null)).toBe("none");
-    expect(scoreTone(0)).toBe("poor");
-    expect(scoreTone(59)).toBe("poor");
-    expect(scoreTone(60)).toBe("fair");
-    expect(scoreTone(84)).toBe("fair");
-    expect(scoreTone(85)).toBe("good");
-    expect(scoreTone(100)).toBe("good");
+    expect(scoreTone(null, 0)).toBe("none");
+    expect(scoreTone(0, 0)).toBe("poor");
+    expect(scoreTone(59, 0)).toBe("poor");
+    expect(scoreTone(60, 0)).toBe("fair");
+    expect(scoreTone(84, 0)).toBe("fair");
+    expect(scoreTone(85, 0)).toBe("good");
+    expect(scoreTone(100, 0)).toBe("good");
     expect(scoreTone(100, 1)).toBe("fair");
     expect(scoreTone(84, 1)).toBe("fair");
     expect(scoreTone(40, 2)).toBe("poor");
@@ -152,16 +152,18 @@ describe("the UI holds no network name and claims no ranking", () => {
 describe("the score shows its sum", () => {
   const seen = (over: Partial<Parameters<typeof pointsSentence>[0]> = {}) => ({ scored: 6, unknown: 1, notApplicable: 0, total: 7, pointsEarned: 16, pointsCounted: 18, sentence: "", ...over }) as Parameters<typeof pointsSentence>[0];
   it("16 of 18 from 6 of 7 checks", () => {
-    expect(pointsSentence(seen())).toBe("16 of 18 points, from 6 of 7 checks.");
+    expect(pointsSentence(seen(), 89)).toBe("16 of 18 points, from 6 of 7 checks.");
   });
   it("says all when nothing was skipped, and nothing when nothing was judged", () => {
-    expect(pointsSentence(seen({ scored: 7, unknown: 0, pointsCounted: 18 }))).toBe("16 of 18 points, from all 7 checks.");
-    expect(pointsSentence(seen({ scored: 0, unknown: 7 }))).toBeNull();
+    expect(pointsSentence(seen({ scored: 7, unknown: 0, pointsCounted: 18 }), 89)).toBe("16 of 18 points, from all 7 checks.");
+    expect(pointsSentence(seen({ scored: 0, unknown: 7 }), null)).toBeNull();
   });
   it("one row each: earned, missing, not counted, does not apply", () => {
     expect(checkPoints({ state: "ok", points: 3, earned: 3 })).toBe("+3 of 3");
     expect(checkPoints({ state: "gap", points: 2, earned: 0 })).toBe("0 of 2 — missing");
     expect(checkPoints({ state: "unknown", points: 2, earned: null })).toBe("Not checked, not counted");
+    expect(checkPoints({ state: "gap", points: 2, earned: null })).toBe("0 of 2 — missing");
+    expect(pointsSentence(seen({ scored: 2 }), null)).toBeNull();
     expect(checkPoints({ state: "not_applicable", points: 3, earned: null })).toBe("Does not apply");
   });
   it("the good tone is explained in words when a check was not done", () => {

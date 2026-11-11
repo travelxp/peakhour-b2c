@@ -104,7 +104,7 @@ export type Tone = "good" | "fair" | "poor" | "none";
  * A colour band for the number. No number, no band.
  * THE "GOOD" BAND IS NEVER SHOWN WHILE A CHECK WAS NOT DONE: green reads as "all healthy", and a part nobody looked at is not known to be.
  */
-export function scoreTone(score: number | null, unknown = 0): Tone {
+export function scoreTone(score: number | null, unknown: number): Tone {
   if (score === null) return "none";
   if (score >= 85) return unknown > 0 ? "fair" : "good";
   return score >= 60 ? "fair" : "poor";
@@ -118,9 +118,9 @@ export function scoreToneNote(score: number | null, seen: ListingScoreBody["seen
 
 const pointWord = (n: number) => (n === 1 ? "1 point" : `${n} points`);
 
-/** "16 of 18 points, from 6 of 7 checks." Null when no check could be judged. */
-export function pointsSentence(seen: ListingScoreBody["seen"]): string | null {
-  if (seen.scored === 0) return null;
+/** "16 of 18 points, from 6 of 7 checks." Null when no number is shown (too few checks judged), so a sum is never shown beside "not enough". */
+export function pointsSentence(seen: ListingScoreBody["seen"], score: number | null): string | null {
+  if (score === null || seen.scored === 0) return null;
   const from = seen.unknown === 0 ? `all ${seen.total} checks` : `${seen.scored} of ${seen.total} checks`;
   return `${seen.pointsEarned} of ${seen.pointsCounted} points, from ${from}.`;
 }
@@ -128,8 +128,9 @@ export function pointsSentence(seen: ListingScoreBody["seen"]): string | null {
 /** What one check row says about its points, in words that do not lean on colour. */
 export function checkPoints(c: Pick<ScoreCheck, "state" | "points" | "earned">): string {
   if (c.state === "not_applicable") return "Does not apply";
-  if (c.state === "unknown" || c.earned === null) return "Not checked, not counted";
-  return c.state === "ok" ? `+${c.earned} of ${c.points}` : `${c.earned} of ${c.points} — missing`;
+  if (c.state === "unknown") return "Not checked, not counted";
+  // The state decides: a gap earned nothing, whatever `earned` says.
+  return c.state === "ok" ? `+${c.earned ?? c.points} of ${c.points}` : `0 of ${c.points} — missing`;
 }
 
 /** "Add photos (+2 points)". */

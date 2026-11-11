@@ -181,6 +181,8 @@ export function ListingScoreCard({ location, network, onOpenForm }: { location?:
   }
   const { score, health } = q.data;
   const fixes = visibleFixes(score.fixes, showAll);
+  const points = pointsSentence(score.seen, score.score);
+  const toneNote = scoreToneNote(score.score, score.seen);
 
   return (
     <Card className="space-y-5 p-4 md:p-5">
@@ -190,12 +192,13 @@ export function ListingScoreCard({ location, network, onOpenForm }: { location?:
           <p className={`text-2xl font-semibold tabular-nums ${TONE_CLASS[scoreTone(score.score, score.seen.unknown)]}`} data-testid="score-headline">
             {scoreHeadline(score.score)}
           </p>
-          {pointsSentence(score.seen) ? <p className="text-sm font-medium" data-testid="score-points">{pointsSentence(score.seen)}</p> : null}
-          {scoreToneNote(score.score, score.seen) ? <p className="max-w-xl text-sm text-muted-foreground">{scoreToneNote(score.score, score.seen)}</p> : null}
+          {points ? <p className="text-sm font-medium" data-testid="score-points">{points}</p> : null}
+          {toneNote ? <p className="max-w-xl text-sm text-muted-foreground">{toneNote}</p> : null}
           <p className="max-w-xl text-sm text-muted-foreground">{score.seen.sentence}</p>
         </div>
       </div>
 
+      {score.checks.length > 0 ? (
       <div className="space-y-1">
         <h3 className="text-sm font-semibold">How the score adds up</h3>
         <ul className="divide-y" data-testid="score-checks">
@@ -213,6 +216,7 @@ export function ListingScoreCard({ location, network, onOpenForm }: { location?:
           ))}
         </ul>
       </div>
+      ) : null}
 
       <div className="space-y-1">
         <h3 className="text-sm font-semibold">What to fix next</h3>
