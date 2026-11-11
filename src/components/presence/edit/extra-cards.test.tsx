@@ -67,13 +67,14 @@ const links = (over: Record<string, unknown> = {}) => ({
 const change = (over: Record<string, unknown> = {}) => ({
   id: "c1", listingId: "l1", network: NET, field: "posts", status: "validated", riskTier: "ordinary", notes: ["A note."], source: "form",
   before: { kind: "update", summary: "Open late on Friday.", ref: "p/1" }, after: { op: "delete", ref: "p/1" }, reason: null, held: null, validation: null,
-  createdAt: "2026-11-06T10:00:00.000Z", expiresAt: "2026-11-09T10:00:00.000Z", submittedAt: null, liveAt: null, liveCheck: null, undone: false, undoable: false, ...over,
+  createdAt: "2026-11-06T10:00:00.000Z", expiresAt: "2099-01-01T00:00:00.000Z", submittedAt: null, liveAt: null, liveCheck: null, undone: false, undoable: false, ...over,
 });
 
 type Kind = "posts" | "services" | "attributes" | "links";
-function render(Card: React.ComponentType<Record<string, unknown>>, field: Kind, o: { data?: unknown; panels?: Record<string, boolean> | "none"; can?: { propose: boolean; approve: boolean } | null; changes?: unknown[] | null; noCaps?: boolean } = {}) {
-  const { data, panels = ALL, can = { propose: true, approve: true }, changes = [], noCaps = false } = o;
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+function render(Card: React.ComponentType<Record<string, unknown>>, field: Kind, o: { data?: unknown; error?: unknown; panels?: Record<string, boolean> | "none"; can?: { propose: boolean; approve: boolean } | null; changes?: unknown[] | null; noCaps?: boolean } = {}) {
+  const { data, error, panels = ALL, can = { propose: true, approve: true }, changes = [], noCaps = false } = o;
+  // `retryOnMount: false` so a query that holds an error draws it: left on, a mount would retry and the markup would be the loading state.
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity, ...(error ? { retryOnMount: false } : {}) } } });
   qc.setQueryData(presenceListingQueryKey(undefined, undefined), {
     setup: "ready",
     connection: { network: NET, label: "NetA", status: "active", locationName: "p", locations: [], lastSyncAt: null, lastError: null },
@@ -83,6 +84,7 @@ function render(Card: React.ComponentType<Record<string, unknown>>, field: Kind,
   if (!noCaps) qc.setQueryData(presenceEditKeys.capabilities, { items: [cap(panels === "none" ? undefined : panels)], ...(can ? { can } : { can: undefined }) });
   if (changes) qc.setQueryData(presenceEditKeys.changes("l1"), { items: changes });
   if (data) qc.setQueryData(presenceExtrasKey(field, "l1", NET), data);
+  if (error) qc.getQueryCache().build(qc, { queryKey: presenceExtrasKey(field, "l1", NET) }).setState({ status: "error", fetchStatus: "idle", error, errorUpdateCount: 1 } as never);
   return renderToStaticMarkup(createElement(QueryClientProvider, { client: qc }, createElement(Card)));
 }
 
@@ -151,8 +153,8 @@ describe("the posts card", () => {
   it("what waits on a post is read from the change list: that post has no Edit or Delete and says what is waiting", () => {
     const html = render(PostsCard as never, "posts", { data: posts(), changes: [change()] });
     expect(html.match(/>Delete</g)).toHaveLength(1);
-    expect(html).toContain("A change is waiting below. Approve or decline it there.");
-    expect(html).toContain("This post will be removed");
+    expect(html).toContain("A change is waiting. Approve or decline it in Your requests.");
+    expect(html).toContain("Waiting: see Your requests");
   });
   it("until the change list has answered, writing and deleting are withheld and it says why", () => {
     const html = render(PostsCard as never, "posts", { data: posts(), changes: null });
@@ -285,6 +287,57 @@ describe("the links card", () => {
 describe("a panel lists its own network's changes", () => {
   it("another network's change is not listed under this one", () => {
     const html = render(PostsCard as never, "posts", { data: posts(), changes: [change({ id: "mine" }), change({ id: "other", network: "net_b", field: "posts" })] });
-    expect(html.match(/This post will be removed/g)).toHaveLength(1);
+    // one waiting line, and it points at this network's request, never the other's
+    expect(html.match(/Waiting: see Your requests/g)).toHaveLength(1);
+    expect(html).toContain('href="#request-mine"');
+    expect(html).not.toContain("#request-other");
+  });
+  it("a panel keeps no request list of its own: the status lives in Your requests", () => {
+    const html = render(PostsCard as never, "posts", { data: posts(), changes: [change({ status: "failed" })] });
+    expect(html).not.toContain("posts changes");
+    expect(html).not.toContain("Approve</button>");
+    expect(html).not.toContain("Waiting: see Your requests");
+  });
+});
+
+describe("a read that failed says why, and offers the one thing that helps", () => {
+  const fail = (code: string, message: string, details?: unknown) => Object.assign(new Error(message), { code, details });
+  const html = (e: unknown) => render(LinksCard as never, "links", { error: e });
+
+  it("a gap on Peakhour's side has no action at all: no Try again, no link", () => {
+    const out = html(fail("NETWORK_SETUP", "Peakhour hasn't finished setting up NetA booking and order links on its side, so we can't show them yet. Nothing for you to do: our team has been told."));
+    expect(out).toContain("Nothing for you to do");
+    expect(out).not.toContain("Try again");
+    expect(out).not.toContain("Reconnect");
+    expect(out).not.toContain("<a ");
+  });
+  it("refused access offers Reconnect to the page the api named, and no Try again", () => {
+    const out = html(fail("RECONNECT_NEEDED", "NetA stopped accepting Peakhour's access to this listing.", [{ code: "reconnect", message: "", href: "/dashboard/integrations" }]));
+    expect(out).toContain("NetA stopped accepting Peakhour&#x27;s access to this listing.");
+    expect(out).toContain('href="/dashboard/integrations"');
+    expect(out).toContain("Reconnect NetA");
+    expect(out).not.toContain("Try again");
+  });
+  it("a listing that is gone offers to choose it again", () => {
+    const out = html(fail("LISTING_NOT_FOUND", "NetA can't find this listing any more.", [{ code: "choose_listing", message: "", href: "/dashboard/integrations" }]));
+    expect(out).toContain("Choose your listing");
+    expect(out).not.toContain("Try again");
+  });
+  it("a network that did not answer offers Try again, and nothing else", () => {
+    const out = html(fail("NETWORK_UNREADABLE", "NetA didn't answer just now, so we can't show this. Try again in a moment."));
+    expect(out).toContain("Try again</button>");
+    expect(out).not.toContain("<a ");
+  });
+  it("a page that is not on this site is never linked, whatever its spelling", () => {
+    for (const href of ["//evil.example/login", "/\\evil.example", "https://evil.example", "javascript:alert(1)"]) {
+      const out = html(fail("RECONNECT_NEEDED", "NetA stopped accepting Peakhour's access to this listing.", [{ code: "reconnect", message: "", href }]));
+      expect(out).not.toContain("<a ");
+    }
+  });
+  it("an error with no code, or an access error with no page named, is a retry", () => {
+    expect(html(new Error("boom"))).toContain("Try again</button>");
+    const out = html(fail("RECONNECT_NEEDED", "NetA stopped accepting Peakhour's access to this listing."));
+    expect(out).toContain("Try again</button>");
+    expect(out).not.toContain("<a ");
   });
 });

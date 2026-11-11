@@ -12,6 +12,7 @@
  * matches them for EQUALITY against vitest's JSON reporter.
  */
 import { describe, it, expect } from "vitest";
+import { REVIEW_PAGE_LIMIT } from "@/lib/review-page-limit";
 import {
   checkReplyText,
   composerStateFor,
@@ -23,7 +24,6 @@ import {
   isRetryableRefusal,
   needsAnswer,
   PRESENCE_ROUTE,
-  REVIEW_PAGE_LIMIT,
   reviewerLabel,
   reviewsAreTruncated,
   shouldAdoptPublishedReply,

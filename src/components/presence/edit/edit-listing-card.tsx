@@ -4,13 +4,12 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChangeCard } from "@/components/presence/edit/change-card";
+import { WaitingLine } from "@/components/presence/edit/waiting-line";
 import { FieldForm } from "@/components/presence/edit/field-form";
 import { HolidayOffersCard } from "@/components/presence/edit/holiday-offers-card";
-import { useChangeOutcomes, useEditCapabilities, useListingChanges, usePresenceEditMutations } from "@/hooks/use-presence-edit";
+import { useEditCapabilities, useListingChanges, usePresenceEditMutations } from "@/hooks/use-presence-edit";
 import { useListingQuery } from "@/hooks/use-presence-listing";
 import { fetchView, primaryEntry } from "@/lib/presence-panels";
-import { drawnExtraFields } from "@/lib/presence-extras";
 import { capabilityFor, drawnSections, errorWords, formAccess, preparedWords, requestedForm, type EditField } from "@/lib/presence-edit";
 
 /** Another card asking for a field's form. A new object each time, so asking twice for one field opens it twice. */
@@ -27,23 +26,16 @@ export function EditListingCard({
   location,
   network: chosenNetwork,
   request,
-  photoChangesElsewhere = false,
 }: {
   location?: string | undefined;
   network?: string | undefined;
   request?: EditRequest | null;
-  /**
-   * True when the photos card is drawn and lists this network's photo changes itself. Otherwise they are listed here, so a change is never out of
-   * sight; and another network's photo changes always are (the photos card shows one network's).
-   */
-  photoChangesElsewhere?: boolean;
 }) {
   const listingQ = useListingQuery(location, chosenNetwork);
   const caps = useEditCapabilities();
   const listing = listingQ.data?.listing ?? null;
   const network = primaryEntry(listingQ.data)?.network;
   const changes = useListingChanges(listing?.id);
-  const outcomes = useChangeOutcomes(listing?.id, changes.data?.items, caps.data);
   const m = usePresenceEditMutations(listing?.id);
   const [open, setOpen] = useState<EditField | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -124,9 +116,6 @@ export function EditListingCard({
       </Card>
     );
   }
-  // A change is listed by its own panel when that panel is drawn (photos, posts, services, details, links), so it is never listed twice.
-  const extraFields = new Set<string>(drawnExtraFields(cap));
-  const listedElsewhere = (c: { field: string; network: string }) => c.network === network && ((photoChangesElsewhere && c.field === "media") || extraFields.has(c.field));
   const ordinary = sections.filter((s) => !s.risky);
   const risky = sections.filter((s) => s.risky);
 
@@ -166,6 +155,8 @@ export function EditListingCard({
           )}
         </>
       )}
+      {/* GBP L7: where this field stands lives in "Your requests", once. */}
+      <WaitingLine changes={changes.data?.items} matches={(c) => c.field === s.field && c.network === network} />
     </li>
   );
 
@@ -189,30 +180,6 @@ export function EditListingCard({
           <ul className="divide-y">{risky.map(row)}</ul>
         </div>
       )}
-
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium">Changes</h3>
-        {changes.isPending ? (
-          <Skeleton className="h-16 w-full" />
-        ) : changes.isError && !changes.data ? (
-          <div className="flex items-center gap-2">
-            <p className="text-xs text-destructive">We could not load your changes just now.</p>
-            <Button size="sm" variant="outline" onClick={() => changes.refetch()}>
-              Try again
-            </Button>
-          </div>
-        ) : changes.data && changes.data.items.some((c) => !listedElsewhere(c)) ? (
-          <>
-            {changes.isError && <p className="text-xs text-warning-on-tint">Could not refresh just now, so this may be out of date.</p>}
-            {/* Photo changes are listed with the photos when that card is drawn; otherwise here. */}
-            {changes.data.items.filter((c) => !listedElsewhere(c)).map((c) => (
-              <ChangeCard key={c.id} change={c} label={cap.label} can={caps.data.can} m={m} outcome={outcomes.slotFor(c)} />
-            ))}
-          </>
-        ) : (
-          <p className="text-xs text-muted-foreground">No changes yet.</p>
-        )}
-      </div>
     </Card>
   );
 }

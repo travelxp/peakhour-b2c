@@ -3,7 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { FileText, Film, Image as ImageIcon, RotateCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { openAddSpace } from "@/components/media/add-space-dialog";
+import { openAddSpace } from "@/lib/add-space-event";
 import { describePoller } from "@/lib/drive/describe-poller";
 import { pillText, trayLine, trayName, trayTitle, trayWas } from "@/lib/drive/tray-copy";
 import { uploadQueue, type UploadRow } from "@/lib/drive/upload-engine";

@@ -27,7 +27,9 @@ export function EmptyState({
       <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted">
         <Icon aria-hidden="true" className="size-6 text-muted-foreground" />
       </div>
-      <h3 className="mt-4 text-lg font-semibold">{title}</h3>
+      {/* h2, not h3: an empty state is usually the only thing under the page's h1, and h1 -> h3 skips a level (axe
+          heading-order on /dashboard/commerce, 2026-11-11). Inside a section an h2 is still in order: headings may go up. */}
+      <h2 className="mt-4 text-lg font-semibold">{title}</h2>
       <p className="mt-2 max-w-sm text-sm text-muted-foreground">
         {description}
       </p>

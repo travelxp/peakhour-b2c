@@ -51,10 +51,10 @@ describe("how the panels are wired", () => {
     expect(hook).toContain("refetchOnWindowFocus: false");
     expect(hook).toContain("retry: false");
   });
-  it("the edit card lists a change itself only when no panel lists it, for this network only", () => {
+  it("the edit card keeps no change list: a section's own field points at Your requests, for this network only", () => {
     const edit = flat("components/presence/edit/edit-listing-card.tsx");
-    expect(edit).toContain("const extraFields = new Set<string>(drawnExtraFields(cap));");
-    expect(edit.match(/!listedElsewhere\(c\)/g)).toHaveLength(2);
+    expect(edit).toContain("<WaitingLine changes={changes.data?.items} matches={(c) => c.field === s.field && c.network === network} />");
+    expect(edit).not.toContain("<ChangeCard");
   });
   it("the client reads the four panels and proposes on the four fields through the one change route", () => {
     const api = flat("lib/api/presence-extras.ts");

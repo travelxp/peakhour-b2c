@@ -181,7 +181,7 @@ function DashboardShellSkeleton() {
       aria-busy="true"
       aria-label="Loading dashboard"
     >
-      <aside className="hidden w-64 shrink-0 flex-col gap-4 border-r p-3 md:flex">
+      <aside aria-label="Workspace" className="hidden w-64 shrink-0 flex-col gap-4 border-r p-3 md:flex">
         <div className="flex items-center gap-2">
           <Skeleton className="size-8 rounded-md" />
           <Skeleton className="h-5 w-28" />
@@ -194,7 +194,8 @@ function DashboardShellSkeleton() {
         </div>
         <Skeleton className="mt-auto h-12 w-full" />
       </aside>
-      <div className="flex min-w-0 flex-1 flex-col">
+      {/* The one main landmark while auth resolves, header inside it like the real shell (SidebarInset is the main there). */}
+      <main className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
           <Skeleton className="size-7 rounded-md" />
           <div className="ml-auto flex items-center gap-3">
@@ -203,8 +204,7 @@ function DashboardShellSkeleton() {
             <Skeleton className="size-7 rounded-full" />
           </div>
         </header>
-        {/* The one main landmark while auth resolves (the real shell's is SidebarInset). */}
-        <main className="space-y-6 p-4 md:p-6">
+        <div className="space-y-6 p-4 md:p-6">
           <Skeleton className="h-10 w-56" />
           <Skeleton className="h-24 w-full" />
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -212,8 +212,8 @@ function DashboardShellSkeleton() {
             <Skeleton className="h-32" />
             <Skeleton className="h-32" />
           </div>
-        </main>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }
@@ -301,6 +301,11 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       {/* The ONE "Add space" dialog: opened by the storage meter and by a 402 on an upload, on any dashboard page. */}
       <AddSpaceDialog />
       <Sidebar collapsible="icon" variant="sidebar">
+        {/* The sidebar is a complementary landmark (ui/sidebar.tsx renders bare
+            divs, so the landmark is ours), with the nav groups as a labelled
+            navigation inside it. Same box model as the primitive inner div so
+            the flex column, the rail and the scroll area behave as before. */}
+        <aside aria-label="Workspace" className="flex h-full min-h-0 w-full flex-col">
         {/* ── Header: brand block + workspace ────────────────── */}
         {/* ★MARK IN ONE COLUMN, NAME OVER DESCRIPTION IN THE OTHER — the shape
             the shell always had, finally with the real artwork in it. It shipped
@@ -378,7 +383,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         </SidebarHeader>
 
         {/* ── Navigation ────────────────────────────────────── */}
-        <SidebarContent>
+        <SidebarContent role="navigation" aria-label="Dashboard">
           {navGroups.map((group, idx) => (
             <SidebarGroup key={group.label || `group-${idx}`}>
               {group.label && (
@@ -546,6 +551,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarFooter>
+        </aside>
 
         <SidebarRail />
       </Sidebar>

@@ -12,6 +12,7 @@ import { reviewsPlaceIn, wantsPlacesView } from "@/lib/review-places";
 import { ListingPanel } from "@/components/presence/listing-panel";
 import { ListingScoreCard } from "@/components/presence/listing-score-card";
 import { EditListingCard, type EditRequest } from "@/components/presence/edit/edit-listing-card";
+import { PresenceSummary } from "@/components/presence/presence-summary";
 import { PublishingStatus } from "@/components/presence/publishing-status";
 import { PhotosCard } from "@/components/presence/edit/photos-card";
 import { PostsCard } from "@/components/presence/edit/posts-card";
@@ -83,6 +84,16 @@ export function PresenceHome() {
   // listing" for the listing, score, edit forms, photos and insights, and nothing there may ever read as applying to "all locations".
   const [reviewsPicked, setReviewsPicked] = useState<string | undefined>(undefined);
   const [editRequest, setEditRequest] = useState<EditRequest | null>(null);
+  // One way to open a field's editor, for the score card's fixes and the requests list's "Make the change again".
+  const openForm = (field: string) => {
+    // A photos fix opens the photos panel, not a form.
+    if (field === "media") {
+      document.getElementById("photos-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    setEditRequest({ field });
+    document.getElementById("edit-listing")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
   // Every network a merchant can connect, from the adapters' declarations: one card each.
   const capsQ = useQuery({
     queryKey: presenceCapabilitiesQueryKey,
@@ -223,6 +234,9 @@ export function PresenceHome() {
               </div>
             ) : null}
 
+            {/* ★THE ONE LINE (GBP L7): health, publishing and what needs the merchant, each a link to its place below. */}
+            {listingOn ? <PresenceSummary location={panelLocation} network={panelNetwork} writes={editOn || photosOn} /> : null}
+
             {/* ★WAIT FOR THE LISTING READ that says whether there are several places: drawing the summary first and swapping it for the places
                 view a moment later flashed one view and discarded its read. */}
             {reviewsOn && listAnswer.isPending ? <Skeleton className="h-40 w-full" /> : null}
@@ -268,27 +282,21 @@ export function PresenceHome() {
               <>
                 {/* ★ONE publishing status for the panels below, never one per panel (GBP Issue 1). Wherever a change can be made: the edit
                     forms, or the photos card, which is drawn on its own declaration. */}
-                {editOn || photosOn ? <PublishingStatus location={panelLocation} network={panelNetwork} /> : null}
+                {editOn || photosOn ? <PublishingStatus location={panelLocation} network={panelNetwork} onRedo={openForm} canRedo={(f) => editOn || f === "media"} /> : null}
 
-                <ListingScoreCard
-                  location={panelLocation}
-                  network={panelNetwork}
-                  onOpenForm={(field) => {
-                    // A photos fix opens the photos panel, not a form.
-                    if (field === "media") {
-                      document.getElementById("photos-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
-                      return;
-                    }
-                    setEditRequest({ field });
-                    document.getElementById("edit-listing")?.scrollIntoView({ behavior: "smooth", block: "start" });
-                  }}
-                />
+                <div id="listing-score">
+                  <ListingScoreCard
+                    location={panelLocation}
+                    network={panelNetwork}
+                    onOpenForm={openForm}
+                  />
+                </div>
 
                 <ListingPanel location={panelLocation} network={panelNetwork} label={fallbackLabel} />
 
                 {editOn ? (
                   <div id="edit-listing">
-                    <EditListingCard location={panelLocation} network={panelNetwork} request={editRequest} photoChangesElsewhere={photosOn} />
+                    <EditListingCard location={panelLocation} network={panelNetwork} request={editRequest} />
                   </div>
                 ) : null}
 

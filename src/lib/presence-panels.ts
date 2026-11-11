@@ -45,6 +45,8 @@ export interface PresenceListing {
   additionalCategories: string[];
   contact: {
     phone?: string;
+    /** The other numbers we hold. A phone change is the whole list, so putting a number back sends these with it. */
+    additionalPhones?: string[];
     email?: string;
     website?: string;
     bookingUrl?: string;
@@ -210,8 +212,11 @@ export interface PresenceControl {
 
 export interface PresenceNetworkChange {
   field: string;
+  /** The network's own path. Never shown: a path with no name says "a detail Peakhour doesn't track yet". */
   label?: string;
   suggested?: string;
+  /** What we held when the network changed it, in the same text form as `suggested`. */
+  before?: string;
 }
 
 export interface PresenceNetworkChanges {
@@ -752,16 +757,71 @@ const FIELD_WORDS: Record<string, string> = {
   geo: "map pin",
   regularHours: "opening hours",
   specialHours: "holiday hours",
+  temporaryClosure: "temporary closure",
+  services: "services",
+  attributes: "details such as accessibility",
+  links: "links",
+  serviceArea: "service area",
+  moreHours: "extra opening hours (such as delivery or takeaway)",
+  media: "photos",
 };
 
-export function fieldWords(field: string, label?: string): string {
-  return FIELD_WORDS[field] ?? (label && label.trim() ? label : "something else");
+/** The words for a field the api could not name. Said plainly: a path is never shown to a merchant. */
+export const UNNAMED_DETAIL = "a detail Peakhour doesn't track yet";
+
+export function fieldWords(field: string): string {
+  return Object.hasOwn(FIELD_WORDS, field) ? FIELD_WORDS[field]! : UNNAMED_DETAIL;
+}
+
+/** The fields whose held value is plain text a person can put back in one press. */
+const PUT_BACK_FIELDS = ["name", "description", "phone", "website"] as const;
+
+/**
+ * The value that puts our version back, in the shape the change engine takes, or null where there is none to put back. A phone number is the
+ * whole list, so the other numbers we hold go back with it.
+ */
+export function putBackValue(
+  change: Pick<PresenceNetworkChange, "field" | "before">,
+  listing: { contact?: { additionalPhones?: string[] | null } | null } | null | undefined,
+): unknown {
+  // an empty `before` is no value we can name (the field was empty), so there is nothing to put back
+  if (change.before === undefined || change.before === "" || !(PUT_BACK_FIELDS as readonly string[]).includes(change.field)) return null;
+  if (change.field === "phone") return { primary: change.before, additional: listing?.contact?.additionalPhones ?? [] };
+  return change.before;
+}
+
+/** A value as it goes into a sentence: one line, bounded, in quotes. */
+const quoted = (v: string): string => {
+  const one = v.replace(/\s+/g, " ").trim();
+  return `"${one.length > 120 ? `${one.slice(0, 117)}...` : one}"`;
+};
+
+/** One change, in words: what, and from and to where we know them. An unknown before says only "to"; no value names the field. */
+export function changeLine(c: PresenceNetworkChange, label: string): string {
+  if (c.field === "other") return `${label} changed ${UNNAMED_DETAIL}.`;
+  const to = c.suggested ? ` to ${quoted(c.suggested)}` : "";
+  const from = c.suggested && c.before ? ` from ${quoted(c.before)}` : "";
+  return `${label} changed your ${fieldWords(c.field)}${from}${to}.`;
 }
 
 export type ChangesView =
   | { kind: "no_answer"; text: string }
   | { kind: "none"; text: string }
-  | { kind: "some"; headline: string; lines: string[]; pending: string | null };
+  | { kind: "some"; headline: string; lines: ChangeLine[]; pending: string | null };
+
+/** One change as the page draws it: the sentence, and which of the two choices it can offer. */
+export interface ChangeLine {
+  key: string;
+  field: string;
+  /** The network's own path, sent back only to say which change is meant. */
+  path: string | undefined;
+  text: string;
+  /** Put ours back: only where we hold a value that is plain text. */
+  canPutBack: boolean;
+  before: string | undefined;
+  /** The value the person is shown, sent back so a change that has since moved is not the one kept. */
+  suggested: string | undefined;
+}
 
 /**
  * `items: null` AND `items: []` ARE DIFFERENT ANSWERS. Null is "the network has not told us", and must
@@ -780,20 +840,23 @@ export function changesView(
       text: `We haven't been able to ask ${label} whether it changed anything yet. That is not the same as no changes.`,
     };
   }
-  const pending =
-    pendingFields && pendingFields.length > 0
-      ? `Waiting for ${label} to publish your edit to: ${pendingFields.map((f) => fieldWords(f)).join(", ")}.`
-      : null;
+  const waitingOn = (pendingFields ?? []).filter((f) => f !== "hidden");
+  const pending = waitingOn.length > 0 ? `Waiting for ${label} to publish your edit to: ${waitingOn.map((f) => fieldWords(f)).join(", ")}.` : null;
   if (items.length === 0) {
     return { kind: "none", text: `${label} hasn't changed anything on its own.${pending ? ` ${pending}` : ""}` };
   }
   return {
     kind: "some",
     headline: `${label} changed ${items.length === 1 ? "something" : `${items.length} things`} on its own`,
-    lines: items.map((i) => {
-      const what = fieldWords(i.field, i.label);
-      return i.suggested ? `Its ${what}: ${label} suggests "${i.suggested}"` : `Its ${what}`;
-    }),
+    lines: items.map((i, n) => ({
+      key: `${i.field}|${i.label ?? ""}|${n}`,
+      field: i.field,
+      path: i.label,
+      text: changeLine(i, label),
+      canPutBack: putBackValue(i, null) !== null,
+      before: i.before,
+      suggested: i.suggested,
+    })),
     pending,
   };
 }

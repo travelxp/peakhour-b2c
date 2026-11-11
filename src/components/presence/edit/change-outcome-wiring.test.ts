@@ -10,18 +10,18 @@ import { join } from "node:path";
 const read = (rel: string) => readFileSync(join(process.cwd(), "src", "components", "presence", "edit", rel), "utf8");
 
 describe("what followed a change is wired", () => {
-  it("each card that lists changes makes the one request and hands each card its slot", () => {
-    for (const file of ["edit-listing-card.tsx", "photos-card.tsx"]) {
-      const src = read(file);
-      expect(src, file).toContain("useChangeOutcomes(listing?.id, changes.data?.items, caps.data)");
-      expect(src, file).toContain("outcome={outcomes.slotFor(c)}");
-    }
+  it("the requests list's owner makes the one request and hands each row its slot", () => {
+    const status = readFileSync(join(process.cwd(), "src", "components", "presence", "publishing-status.tsx"), "utf8");
+    expect(status).toContain("useChangeOutcomes(listing?.id, changes.data?.items, caps.data)");
+    expect(status).toContain("outcomeFor={outcomes.slotFor}");
+    // the panels no longer list changes, so they make no outcomes request
+    for (const file of ["edit-listing-card.tsx", "photos-card.tsx", "extra-panel.tsx"]) expect(read(file), file).not.toContain("useChangeOutcomes");
   });
 
-  it("the change card draws the answer it is given and asks for nothing itself", () => {
-    const src = read("change-card.tsx");
+  it("the request row draws the answer it is given and asks for nothing itself", () => {
+    const src = readFileSync(join(process.cwd(), "src", "components", "presence", "requests-list.tsx"), "utf8");
     expect(src).toContain("<ChangeOutcome slot={outcome} />");
-    expect(src).not.toContain("useChangeOutcomes");
+    expect(src).not.toContain("useChangeOutcomes(");
     expect(read("change-outcome.tsx")).not.toMatch(/from "@\/hooks|@tanstack|fetch\(/);
   });
 

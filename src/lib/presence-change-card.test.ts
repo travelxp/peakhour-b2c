@@ -44,15 +44,15 @@ describe("cardsOf: the cards in the change tool's output", () => {
 
 describe("cardStatus: what each state tells a person", () => {
   const cases: Array<[string, string, boolean]> = [
-    ["proposed", "Waiting for your approval", true],
-    ["validated", "Waiting for your approval", true],
-    ["approved", "Approved", false],
-    ["applying", "Being sent", false],
-    ["submitted", "Sent", false],
-    ["live", "Live", false],
-    ["failed", "Could not be sent", false],
-    ["blocked", "Held", false],
-    ["rejected", "Discarded", false],
+    ["proposed", "Draft", true],
+    ["validated", "Awaiting your approval", true],
+    ["approved", "Approved, waiting to send", false],
+    ["applying", "Sent to the network", false],
+    ["submitted", "Sent to the network", false],
+    ["live", "Live on the network", false],
+    ["failed", "Failed", false],
+    ["blocked", "Not sent", false],
+    ["rejected", "Declined by you", false],
     ["expired", "Expired", false],
     ["superseded", "Replaced", false],
     ["something_new", "Unknown", false],
@@ -72,13 +72,36 @@ describe("cardStatus: what each state tells a person", () => {
       const s = cardStatus(status, { held: null });
       expect(`${s.label} ${s.detail ?? ""}`).not.toMatch(/\blive\b(?! yet)/i);
     }
-    expect(cardStatus("approved").detail).toMatch(/not live yet/);
-    expect(cardStatus("submitted").detail).toMatch(/not confirmed live yet/);
+    expect(cardStatus("approved").detail).toMatch(/not reached/);
+    expect(cardStatus("applying").detail).toMatch(/not live yet/);
+    expect(cardStatus("submitted").detail).toMatch(/take time to show it/);
   });
 
   it("explains a held approval and a blocked change in the api's words", () => {
-    expect(cardStatus("approved", { held: "Listing changes are held for now." }).detail).toBe("Listing changes are held for now.");
+    expect(cardStatus("approved", { held: "Listing changes are held for now." }).detail).toContain("Listing changes are held for now.");
     expect(cardStatus("blocked", { reason: "Google has not confirmed that you control this listing." }).detail).toMatch(/control this listing/);
+  });
+});
+
+describe("cardStatus says what the Presence page says", () => {
+  it("names the network from the label it is given", () => {
+    expect(cardStatus("submitted", { label: "Testnet", liveOutcome: "pending" }).label).toBe("Under Testnet review");
+    expect(cardStatus("live", { label: "Testnet" }).label).toBe("Live on Testnet");
+  });
+
+  it("says cannot-confirm on Ask only when the api says the change can never be read back", () => {
+    const base = { label: "Testnet", liveOutcome: "unknown", liveNote: "Cannot read this one." };
+    expect(cardStatus("submitted", { ...base, liveConfirmable: false }).label).toBe("Sent, Testnet doesn't let us confirm this");
+    expect(cardStatus("submitted", { ...base, liveConfirmable: true }).label).toBe("Sent to Testnet");
+    expect(cardStatus("submitted", base).label).toBe("Sent to Testnet");
+  });
+
+  it("keeps the merchant's own decline apart from the network's refusal", () => {
+    expect(cardStatus("rejected", { label: "Testnet" }).label).toBe("Declined by you");
+    expect(cardStatus("failed", { label: "Testnet", reason: "Testnet refused it.", reasonCode: "network_rejected" }).label).toBe("Rejected by Testnet");
+    expect(cardStatus("failed", { label: "Testnet", reason: "Not showing.", reasonCode: "not_published" }).label).toBe("Didn't go live");
+    // a code with no message still says what it was
+    expect(cardStatus("failed", { label: "Testnet", reasonCode: "network_rejected" }).label).toBe("Rejected by Testnet");
   });
 });
 
@@ -90,7 +113,7 @@ describe("a stale card is never approvable", () => {
     expect(cardStatus("validated", { expiresAt: past, now }).canDecide).toBe(false);
     expect(cardStatus("proposed", { expiresAt: "2026-11-07T00:00:00.000Z", now }).canDecide).toBe(true);
     // only a change that can still be decided expires: a sent change keeps its status
-    expect(cardStatus("submitted", { expiresAt: past, now }).label).toBe("Sent");
+    expect(cardStatus("submitted", { expiresAt: past, now }).label).toBe("Sent to the network");
   });
 
   it("the states shown while the live status is unread, or unreadable, offer no Approve", () => {

@@ -38,7 +38,7 @@ const photos = (over: Partial<PhotosResponse> = {}): PhotosResponse => ({
 });
 const change = (over: Record<string, unknown> = {}) => ({
   id: "c1", listingId: "l1", network: NET, field: "media", status: "validated", riskTier: "ordinary", notes: ["A note."], source: "form",
-  before: { op: "keep", ref: "m/1" }, after: { op: "remove", ref: "m/1" }, reason: null, held: null, validation: null, createdAt: "2026-11-05T10:00:00.000Z", expiresAt: "2026-11-08T10:00:00.000Z",
+  before: { op: "keep", ref: "m/1" }, after: { op: "remove", ref: "m/1" }, reason: null, held: null, validation: null, createdAt: "2026-11-05T10:00:00.000Z", expiresAt: "2099-01-01T00:00:00.000Z",
   submittedAt: null, liveAt: null, liveCheck: null, undone: false, undoable: true, ...over,
 });
 
@@ -102,10 +102,10 @@ describe("the photos card", () => {
   it("a removal waiting for approval is read from the CHANGE LIST: that photo has no Remove, and its note matches the status", () => {
     const waiting = render({ changes: [change({ status: "validated" })] });
     expect(waiting.match(/>Remove</g) ?? []).toHaveLength(0);
-    expect(waiting).toContain("A removal is waiting below. Approve or decline it there.");
+    expect(waiting).toContain("A removal is waiting. Approve or decline it in Your requests.");
     const approved = render({ changes: [change({ status: "approved" })] });
     expect(approved).toContain("Approved, waiting to be sent");
-    expect(approved).not.toContain("Approve or decline it there");
+    expect(approved).not.toContain("Approve or decline it");
   });
 
   it("until the change list has answered, Remove and adding are withheld and it says why", () => {
@@ -119,12 +119,12 @@ describe("the photos card", () => {
     const html = render({ changes: [change({ status: "submitted" })] });
     expect(html.match(/>Remove</g) ?? []).toHaveLength(0);
     expect(html).toContain("Removal sent. Waiting for it to show.");
-    expect(html).not.toContain("Approve or decline it there");
+    expect(html).not.toContain("Approve or decline it");
   });
 
   it("another network's photo change is not listed here, and does not hold this network's tile", () => {
     const html = render({ changes: [change({ network: "net_b", id: "other" })] });
-    expect(html).toContain("No photo changes yet.");
+    expect(html).not.toContain("Waiting: see Your requests");
     expect(html.match(/>Remove</g)).toHaveLength(1);
   });
 
@@ -138,14 +138,6 @@ describe("the photos card", () => {
     const adds = Array.from({ length: 5 }, (_, i) => change({ id: `a${i}`, status: "validated", before: null, after: { op: "add", mediaId: `d${i}`, category: "EXTERIOR", file: { name: "a.jpg" } } }));
     const html = render({ data: photos({ held: 95 }), changes: adds });
     expect(html).toContain("The photos already waiting would fill the 100 this listing can hold. Approve or decline them first.");
-  });
-
-  it("every open change is shown even beneath a long settled history", () => {
-    const history = Array.from({ length: 20 }, (_, i) => change({ id: `h${i}`, status: "live", createdAt: `2026-11-06T10:00:${String(i).padStart(2, "0")}.000Z`, after: { op: "remove", ref: `old/${i}` } }));
-    const open = change({ id: "still-open", status: "validated", createdAt: "2026-11-01T10:00:00.000Z" });
-    const html = render({ changes: [...history, open] });
-    expect(html).toContain("Waiting for approval");
-    expect(html.match(/Live on NetA/g)).toHaveLength(8);
   });
 
   it("a waiting change does not lock adding: the category is still chosen and several photos can be picked", () => {
@@ -177,23 +169,14 @@ describe("the photos card", () => {
     expect(html).not.toContain("Choose from Drive");
   });
 
-  it("★photo changes are listed even when the photo read has not answered", () => {
+  it("★a photo request is pointed at from the card even when the photo read has not answered, and the card keeps no list of its own", () => {
     const html = render({ data: null, changes: [change({ status: "validated" })] });
-    expect(html).toContain("Photo changes");
-    expect(html).toContain("Waiting for approval");
-    expect(html).toContain("Remove this photo");
+    expect(html).toContain("Waiting: see Your requests");
+    expect(html).toContain('href="#request-c1"');
+    for (const gone of ["Photo changes", "Awaiting your approval", "Remove this photo", "Undo (needs approval)"]) expect(html).not.toContain(gone);
   });
 
-  it("a removal's card shows the photo it is about, looked up by its reference; with no photo read it shows none", () => {
-    const withData = render({ changes: [change()] });
-    expect(withData).toContain('alt="The photo this change is about"');
-    expect(withData).toContain('src="https://img.example/1.jpg"');
-    expect(render({ data: null, changes: [change()] })).not.toContain("The photo this change is about");
-  });
-
-  it("Undo is shown only for a change the api says can be put back", () => {
-    const sent = (undoable: boolean) => render({ changes: [change({ status: "submitted", undoable })] });
-    expect(sent(true)).toContain("Undo (needs approval)");
-    expect(sent(false)).not.toContain("Undo (needs approval)");
+  it("a settled photo request leaves no waiting line", () => {
+    expect(render({ changes: [change({ status: "live" })] })).not.toContain("Waiting: see Your requests");
   });
 });

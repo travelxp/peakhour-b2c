@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { StorageMeter } from "@/components/drive/storage-meter";
-import { openAddSpace } from "@/components/media/add-space-dialog";
+import { openAddSpace } from "@/lib/add-space-event";
 import { getCleanup, getStorageUsage, type MediaKind, type StorageUsage } from "@/lib/api/media";
 import { cleanupTotals, gbText as bytesGbText } from "@/lib/drive/copy";
 import { gbText, gbUsedText, meterState, packCostLine, poolLine, renewalLine, USD_NOTE } from "@/lib/storage-copy";
