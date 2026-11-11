@@ -126,6 +126,8 @@ export const scheduler = {
       mediaUrls?: string[];
       firstComment?: string;
       threadParts?: string[];
+      /** X only: the paid promotion label, the one channelOptions key an edit may set. */
+      paidPartnership?: boolean;
     },
   ) {
     return api.patch<{
