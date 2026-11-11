@@ -1,14 +1,6 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
-import {
-  FIXTURE_CHANNELS,
-  FIXTURE_HOME,
-  FIXTURE_LEARNING,
-  FIXTURE_PACING_SERIES,
-  FIXTURE_RULES,
-  previewDecisions,
-} from "@/lib/growth-v2-fixtures";
 import { seriesFromHome, type HomeSeries, type PacingSeries } from "@/lib/growth-v2-series";
 
 /**
@@ -533,6 +525,13 @@ export const growthV2Api = {
   confirm: (body: ConfirmPlanBody) => api.post<OnboardingConfirmResponse>(`${BASE}/onboarding/confirm`, body),
 };
 
+/**
+ * The sample data loads on demand: it is ~15 KB that only a 501 ever needs, and these
+ * hooks run in the dashboard shell (the nav asks for Rules on every page), so a static
+ * import would ship the fixtures with every dashboard page.
+ */
+const fixtures = () => import("@/lib/growth-v2-fixtures");
+
 // -- 501 NOT_BUILT and the preview fallback --------------------------------------------------
 
 /** True for the one error that means "no lane has built this route yet". */
@@ -560,11 +559,11 @@ export interface V2Result<T> {
  * Run `fetcher`; when the route answers 501 NOT_BUILT, hand back `fixture`
  * flagged as a preview. Every other failure is rethrown untouched.
  */
-export async function loadOrPreview<T>(fetcher: () => Promise<T>, fixture: () => T): Promise<V2Result<T>> {
+export async function loadOrPreview<T>(fetcher: () => Promise<T>, fixture: () => T | Promise<T>): Promise<V2Result<T>> {
   try {
     return { data: await fetcher(), preview: false };
   } catch (err) {
-    if (isNotBuilt(err)) return { data: fixture(), preview: true, row: notBuiltRow(err) };
+    if (isNotBuilt(err)) return { data: await fixture(), preview: true, row: notBuiltRow(err) };
     throw err;
   }
 }
@@ -598,7 +597,7 @@ export function refusalOf(err: unknown): HomeRefusal | undefined {
 
 export async function loadHome(fetcher: () => Promise<HomeResponse>): Promise<HomeScreenData | HomeRefusal> {
   try {
-    const r = await loadOrPreview(fetcher, () => FIXTURE_HOME);
+    const r = await loadOrPreview(fetcher, async () => (await fixtures()).FIXTURE_HOME);
     return { ...r, ...seriesFromHome(r.data) };
   } catch (err) {
     const refusal = refusalOf(err);
@@ -663,7 +662,7 @@ export function useGrowthV2Decisions(queue: DecisionQueue = "open") {
     queryFn: ({ pageParam }) =>
       loadOrPreview(
         () => growthV2Api.decisions(queue, pageParam ? { cursor: pageParam } : {}),
-        () => previewDecisions(queue),
+        async () => (await fixtures()).previewDecisions(queue),
       ),
     getNextPageParam: (last) => last.data.nextCursor,
     select: mergeDecisionPages,
@@ -678,7 +677,7 @@ export function useGrowthV2DecisionCounts() {
   return useQuery<V2Result<DecisionsResponse["counts"]>>({
     queryKey: key(business?._id, "decision-counts"),
     queryFn: async () => {
-      const r = await loadOrPreview(() => growthV2Api.decisions("open", { limit: 1 }), () => previewDecisions("open"));
+      const r = await loadOrPreview(() => growthV2Api.decisions("open", { limit: 1 }), async () => (await fixtures()).previewDecisions("open"));
       return { data: r.data.counts, preview: r.preview, ...(r.row !== undefined ? { row: r.row } : {}) };
     },
     enabled: !!business?._id,
@@ -707,8 +706,8 @@ export function pacingSeriesFrom(c: ChannelsResponse): PacingSeries | undefined 
  */
 export async function loadChannels(fetcher: () => Promise<ChannelsResponse>): Promise<ChannelsScreenData | ChannelsRefusal> {
   try {
-    const r = await loadOrPreview(fetcher, () => FIXTURE_CHANNELS);
-    const series = r.preview ? FIXTURE_PACING_SERIES : pacingSeriesFrom(r.data);
+    const r = await loadOrPreview(fetcher, async () => (await fixtures()).FIXTURE_CHANNELS);
+    const series = r.preview ? (await fixtures()).FIXTURE_PACING_SERIES : pacingSeriesFrom(r.data);
     return series ? { ...r, pacingSeries: series } : r;
   } catch (err) {
     if (err instanceof ApiError && (err.code === "NO_MANDATE" || err.code === "NO_BUSINESS_CLOCK")) return { refusal: err.code, preview: false };
@@ -730,7 +729,7 @@ export function useGrowthV2Channels(window: HomeWindowKey = "7d") {
 /** Learning, or the refusal the api gives instead of one (the same two as Growth home). */
 export async function loadLearning(fetcher: () => Promise<LearningResponse>): Promise<V2Result<LearningResponse> | HomeRefusal> {
   try {
-    return await loadOrPreview(fetcher, () => FIXTURE_LEARNING);
+    return await loadOrPreview(fetcher, async () => (await fixtures()).FIXTURE_LEARNING);
   } catch (err) {
     const refusal = refusalOf(err);
     if (refusal) return refusal;
@@ -752,7 +751,7 @@ export function useGrowthV2Rules() {
   const { business } = useAuth();
   return useQuery<V2Result<RulesResponse>>({
     queryKey: key(business?._id, "rules"),
-    queryFn: () => loadOrPreview(growthV2Api.rules, () => FIXTURE_RULES),
+    queryFn: () => loadOrPreview(growthV2Api.rules, async () => (await fixtures()).FIXTURE_RULES),
     enabled: !!business?._id,
     staleTime: 60_000,
     // The nav asks on every dashboard page; a 403 for a business without Growth is an answer, not a blip.

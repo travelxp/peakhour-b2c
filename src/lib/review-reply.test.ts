@@ -11,6 +11,7 @@
  * asserts. Killer titles are load-bearing — `scripts/mutate-review-reply.mjs`
  * matches them for EQUALITY against vitest's JSON reporter.
  */
+import { REVIEW_PAGE_LIMIT } from "@/lib/review-page-limit";
 import { describe, it, expect } from "vitest";
 import {
   checkReplyText,
@@ -23,7 +24,6 @@ import {
   isRetryableRefusal,
   needsAnswer,
   PRESENCE_ROUTE,
-  REVIEW_PAGE_LIMIT,
   reviewerLabel,
   reviewsAreTruncated,
   shouldAdoptPublishedReply,

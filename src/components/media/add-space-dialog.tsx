@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { buyStoragePack, cancelStoragePack, getStorageUsage, type StoragePackOffer, type StorageUsage } from "@/lib/api/media";
 import { CREDITS_KEY, useCreditsBalance } from "@/hooks/use-credits";
+import { ADD_SPACE_EVENT } from "@/lib/add-space-event";
 import { onePress } from "@/lib/one-press";
 import { CONFIRM_BUY, USD_NOTE, gbText, longDate, packCostLine, packErrorMessage, peaksText, renewalLine, shortBy } from "@/lib/storage-copy";
 
@@ -19,12 +20,6 @@ import { CONFIRM_BUY, USD_NOTE, gbText, longDate, packCostLine, packErrorMessage
  * ONE DIALOG, TWO DOORS: the storage meter and the 402 upload error both call `openAddSpace()`; the dialog is mounted once, in
  * the dashboard sidebar footer, and listens for it.
  */
-
-export const ADD_SPACE_EVENT = "peakhour:add-space";
-
-export function openAddSpace(): void {
-  if (typeof window !== "undefined") window.dispatchEvent(new Event(ADD_SPACE_EVENT));
-}
 
 export type AddSpaceStep = "choose" | "confirm" | "cancel";
 

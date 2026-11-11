@@ -31,6 +31,8 @@
  * @package peakhour-b2c
  */
 
+import { REVIEW_PAGE_LIMIT } from "@/lib/review-page-limit";
+
 /**
  * What the api says about replying to one review (PE-R): the network's own words and whether it takes a reply at all. It is the adapter's
  * declaration, served on every review row of `GET /v1/support/inbox` as `replyChannel`, so this module holds no network's name, source or
@@ -187,17 +189,6 @@ export function unansweredReviews<T extends ReviewItemLike>(
 export function unansweredReviewCount(items: readonly ReviewItemLike[] | undefined): number {
   return unansweredReviews(items).length;
 }
-
-/**
- * What one page of the lane asks the api for.
- *
- * ⚠️THIS IS THE api's HARD MAXIMUM, AND THE ROUTE HAS NO CURSOR. `GET
- * /v1/support/inbox` caps `limit` at 100 and sorts `createdAt: -1`, so a
- * merchant with more than 100 review rows is served the hundred NEWEST — and
- * the ones silently dropped are the OLDEST, which is precisely where an
- * unanswered review has been sitting longest.
- */
-export const REVIEW_PAGE_LIMIT = 100;
 
 /** What the tab shows, or nothing at all. */
 export interface UnansweredBadge {
