@@ -11,16 +11,20 @@ import { presenceChangesApi } from "@/lib/api/presence-changes";
 import { useListingScore } from "@/hooks/use-presence-score";
 import {
   canDecide,
-  checkMark,
+  checkPoints,
   effectWord,
   fixControl,
+  fixTitleWithPoints,
+  HEALTH_TITLE,
   healthMark,
+  pointsSentence,
   orderingSentence,
   presenceScoreQueryKey,
   proposalBody,
   scoreEmptyState,
   scoreHeadline,
   scoreTone,
+  scoreToneNote,
   sortedChecks,
   sortedHealth,
   statusSentence,
@@ -120,7 +124,7 @@ function FixRow({ fix, onOpenForm }: { fix: ScoreFix; onOpenForm?: ((field: stri
     <li className="space-y-1 py-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <p className="text-sm font-medium">
-          {fix.rank.position}. {fix.title}
+          {fix.rank.position}. {fixTitleWithPoints(fix)}
         </p>
         <span className="text-micro uppercase tracking-wide text-muted-foreground">{effectWord(fix.rank.effect)}</span>
       </div>
@@ -183,28 +187,32 @@ export function ListingScoreCard({ location, network, onOpenForm }: { location?:
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="space-y-1">
           <h2 className="text-base font-semibold">Your listing score</h2>
-          <p className={`text-2xl font-semibold tabular-nums ${TONE_CLASS[scoreTone(score.score)]}`} data-testid="score-headline">
+          <p className={`text-2xl font-semibold tabular-nums ${TONE_CLASS[scoreTone(score.score, score.seen.unknown)]}`} data-testid="score-headline">
             {scoreHeadline(score.score)}
           </p>
+          {pointsSentence(score.seen) ? <p className="text-sm font-medium" data-testid="score-points">{pointsSentence(score.seen)}</p> : null}
+          {scoreToneNote(score.score, score.seen) ? <p className="max-w-xl text-sm text-muted-foreground">{scoreToneNote(score.score, score.seen)}</p> : null}
           <p className="max-w-xl text-sm text-muted-foreground">{score.seen.sentence}</p>
         </div>
       </div>
 
-      {health.length > 0 ? (
-        <ul className="divide-y rounded-md border" aria-label="Listing health">
-          {sortedHealth(health).map((h) => (
-            <li key={h.id} className="flex items-start gap-2 px-3 py-2">
-              <span className="mt-0.5"><Mark state={h.state === "ok" ? "ok" : h.state === "attention" ? "attention" : "unknown"} /></span>
-              <div className="min-w-0 text-sm">
-                <p>
-                  {h.headline} <span className="text-xs text-muted-foreground">({healthMark(h.state)})</span>
+      <div className="space-y-1">
+        <h3 className="text-sm font-semibold">How the score adds up</h3>
+        <ul className="divide-y" data-testid="score-checks">
+          {sortedChecks(score.checks).map((c) => (
+            <li key={c.id} className="flex items-start gap-2 py-2">
+              <span className="mt-0.5"><Mark state={c.state} /></span>
+              <div className="min-w-0 flex-1 text-sm">
+                <p className="flex flex-wrap items-baseline justify-between gap-x-3">
+                  <span className="first-letter:uppercase">{c.label}</span>
+                  <span className="text-xs tabular-nums text-muted-foreground">{checkPoints(c)}</span>
                 </p>
-                {h.detail ? <p className="text-xs text-muted-foreground">{h.detail}</p> : null}
+                {c.note ? <p className="text-xs text-muted-foreground">{c.note}</p> : null}
               </div>
             </li>
           ))}
         </ul>
-      ) : null}
+      </div>
 
       <div className="space-y-1">
         <h3 className="text-sm font-semibold">What to fix next</h3>
@@ -229,22 +237,24 @@ export function ListingScoreCard({ location, network, onOpenForm }: { location?:
         )}
       </div>
 
-      <details className="text-sm">
-        <summary className="cursor-pointer text-muted-foreground">Every part we looked at</summary>
-        <ul className="mt-2 divide-y">
-          {sortedChecks(score.checks).map((c) => (
-            <li key={c.id} className="flex items-start gap-2 py-2">
-              <span className="mt-0.5"><Mark state={c.state} /></span>
-              <div className="min-w-0">
-                <p>
-                  {c.label} <span className="text-xs text-muted-foreground">({checkMark(c.state)})</span>
-                </p>
-                {c.note ? <p className="text-xs text-muted-foreground">{c.note}</p> : null}
-              </div>
-            </li>
-          ))}
-        </ul>
-      </details>
+      {health.length > 0 ? (
+        <div className="space-y-1">
+          <h3 className="text-sm font-semibold">{HEALTH_TITLE}</h3>
+          <ul className="divide-y rounded-md border" aria-label={HEALTH_TITLE}>
+            {sortedHealth(health).map((h) => (
+              <li key={h.id} className="flex items-start gap-2 px-3 py-2">
+                <span className="mt-0.5"><Mark state={h.state === "ok" ? "ok" : h.state === "attention" ? "attention" : "unknown"} /></span>
+                <div className="min-w-0 text-sm">
+                  <p>
+                    {h.headline} <span className="text-xs text-muted-foreground">({healthMark(h.state)})</span>
+                  </p>
+                  {h.detail ? <p className="text-xs text-muted-foreground">{h.detail}</p> : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </Card>
   );
 }

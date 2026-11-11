@@ -22,6 +22,10 @@ export interface ScoreCheck {
   label: string;
   state: CheckState;
   note?: string;
+  /** What the check is worth. */
+  points: number;
+  /** `points` when ok, 0 when a gap, `null` when it was not counted. */
+  earned: number | null;
 }
 
 export type FixAction =
@@ -36,6 +40,8 @@ export interface ScoreFix {
   why: string;
   rank: { position: number; effect: "high" | "medium" | "low"; reason: string };
   note?: string;
+  /** The points the score gains when this is fixed. */
+  points: number;
   action: FixAction;
 }
 
@@ -52,7 +58,7 @@ export interface HealthItem {
 
 export interface ListingScoreBody {
   score: number | null;
-  seen: { scored: number; unknown: number; notApplicable: number; total: number; sentence: string };
+  seen: { scored: number; unknown: number; notApplicable: number; total: number; pointsEarned: number; pointsCounted: number; sentence: string };
   market: { code: string | null; name: string };
   business: { group: string; noun: string };
   checks: ScoreCheck[];
@@ -94,21 +100,41 @@ export function scoreHeadline(score: number | null): string {
 
 export type Tone = "good" | "fair" | "poor" | "none";
 
-/** A colour band for the number. No number, no band. */
-export function scoreTone(score: number | null): Tone {
+/**
+ * A colour band for the number. No number, no band.
+ * THE "GOOD" BAND IS NEVER SHOWN WHILE A CHECK WAS NOT DONE: green reads as "all healthy", and a part nobody looked at is not known to be.
+ */
+export function scoreTone(score: number | null, unknown = 0): Tone {
   if (score === null) return "none";
-  return score >= 85 ? "good" : score >= 60 ? "fair" : "poor";
+  if (score >= 85) return unknown > 0 ? "fair" : "good";
+  return score >= 60 ? "fair" : "poor";
 }
 
-const CHECK_MARK: Record<CheckState, string> = {
-  ok: "Done",
-  gap: "To do",
-  unknown: "Could not check",
-  not_applicable: "Does not apply",
-};
+/** Why the number is not shown as healthy when it would have been. Null when nothing needs saying. */
+export function scoreToneNote(score: number | null, seen: ListingScoreBody["seen"]): string | null {
+  if (score === null || score < 85 || seen.unknown === 0) return null;
+  return `Not shown as fully healthy: ${seen.unknown === 1 ? "1 check was" : `${seen.unknown} checks were`} not done, so the score may change once ${seen.unknown === 1 ? "it is" : "they are"}.`;
+}
 
-export function checkMark(state: CheckState): string {
-  return CHECK_MARK[state];
+const pointWord = (n: number) => (n === 1 ? "1 point" : `${n} points`);
+
+/** "16 of 18 points, from 6 of 7 checks." Null when no check could be judged. */
+export function pointsSentence(seen: ListingScoreBody["seen"]): string | null {
+  if (seen.scored === 0) return null;
+  const from = seen.unknown === 0 ? `all ${seen.total} checks` : `${seen.scored} of ${seen.total} checks`;
+  return `${seen.pointsEarned} of ${seen.pointsCounted} points, from ${from}.`;
+}
+
+/** What one check row says about its points, in words that do not lean on colour. */
+export function checkPoints(c: Pick<ScoreCheck, "state" | "points" | "earned">): string {
+  if (c.state === "not_applicable") return "Does not apply";
+  if (c.state === "unknown" || c.earned === null) return "Not checked, not counted";
+  return c.state === "ok" ? `+${c.earned} of ${c.points}` : `${c.earned} of ${c.points} — missing`;
+}
+
+/** "Add photos (+2 points)". */
+export function fixTitleWithPoints(f: Pick<ScoreFix, "title" | "points">): string {
+  return `${f.title} (+${pointWord(f.points)})`;
 }
 
 /** Checks in the order a person reads them: what to do, what we could not check, what is done, what does not apply. */
@@ -163,6 +189,9 @@ export function fixControl(action: FixAction, canOpenForm: boolean): FixControl 
 export function proposalBody(action: Extract<FixAction, { kind: "card" }>) {
   return { listingId: action.listingId, network: action.network, changes: [{ field: action.field, value: action.value }] };
 }
+
+/** The words the health list is shown under. None of it is counted in the score. */
+export const HEALTH_TITLE = "Other checks (not part of the score)";
 
 const HEALTH_MARK = { ok: "Fine", attention: "Needs a look", unknown: "Not checked" } as const;
 

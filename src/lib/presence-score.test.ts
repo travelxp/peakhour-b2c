@@ -3,7 +3,10 @@ import { describe, it, expect } from "vitest";
 import {
   FIXES_SHOWN,
   canDecide,
-  checkMark,
+  checkPoints,
+  fixTitleWithPoints,
+  pointsSentence,
+  scoreToneNote,
   effectWord,
   fixControl,
   healthMark,
@@ -44,6 +47,9 @@ describe("the headline", () => {
     expect(scoreTone(84)).toBe("fair");
     expect(scoreTone(85)).toBe("good");
     expect(scoreTone(100)).toBe("good");
+    expect(scoreTone(100, 1)).toBe("fair");
+    expect(scoreTone(84, 1)).toBe("fair");
+    expect(scoreTone(40, 2)).toBe("poor");
   });
 });
 
@@ -86,9 +92,8 @@ describe("the list", () => {
     expect(visibleFixes(many, false)[0]).toBe(0);
   });
   it("checks read: to do, could not check, done, does not apply; stable within a state", () => {
-    const c = (id: string, state: ScoreCheck["state"]): ScoreCheck => ({ id, field: id, label: id, state });
+    const c = (id: string, state: ScoreCheck["state"]): ScoreCheck => ({ id, field: id, label: id, state, points: 2, earned: null });
     expect(sortedChecks([c("a", "ok"), c("b", "not_applicable"), c("c", "unknown"), c("d", "gap"), c("e", "gap")]).map((x) => x.id)).toEqual(["d", "e", "c", "a", "b"]);
-    expect(checkMark("unknown")).toBe("Could not check");
   });
   it("health reads: needs a look, not checked, fine", () => {
     const h = (id: string, state: "ok" | "attention" | "unknown") => ({ id, state, headline: id });
@@ -141,5 +146,36 @@ describe("the UI holds no network name and claims no ranking", () => {
   });
   it("no ranking claim", () => {
     for (const f of sources) expect(code(f), f).not.toMatch(/rank higher|ranking factor|boost your ranking|algorithm/i);
+  });
+});
+
+describe("the score shows its sum", () => {
+  const seen = (over: Partial<Parameters<typeof pointsSentence>[0]> = {}) => ({ scored: 6, unknown: 1, notApplicable: 0, total: 7, pointsEarned: 16, pointsCounted: 18, sentence: "", ...over }) as Parameters<typeof pointsSentence>[0];
+  it("16 of 18 from 6 of 7 checks", () => {
+    expect(pointsSentence(seen())).toBe("16 of 18 points, from 6 of 7 checks.");
+  });
+  it("says all when nothing was skipped, and nothing when nothing was judged", () => {
+    expect(pointsSentence(seen({ scored: 7, unknown: 0, pointsCounted: 18 }))).toBe("16 of 18 points, from all 7 checks.");
+    expect(pointsSentence(seen({ scored: 0, unknown: 7 }))).toBeNull();
+  });
+  it("one row each: earned, missing, not counted, does not apply", () => {
+    expect(checkPoints({ state: "ok", points: 3, earned: 3 })).toBe("+3 of 3");
+    expect(checkPoints({ state: "gap", points: 2, earned: 0 })).toBe("0 of 2 — missing");
+    expect(checkPoints({ state: "unknown", points: 2, earned: null })).toBe("Not checked, not counted");
+    expect(checkPoints({ state: "not_applicable", points: 3, earned: null })).toBe("Does not apply");
+  });
+  it("the good tone is explained in words when a check was not done", () => {
+    expect(scoreToneNote(92, seen())).toMatch(/not done/);
+    expect(scoreToneNote(92, seen({ unknown: 0 }))).toBeNull();
+    expect(scoreToneNote(70, seen())).toBeNull();
+  });
+  it("a fix says what it adds", () => {
+    expect(fixTitleWithPoints({ title: "Add photos", points: 2 })).toBe("Add photos (+2 points)");
+    expect(fixTitleWithPoints({ title: "X", points: 1 })).toBe("X (+1 point)");
+  });
+  it("a health row is Fine only when ok", () => {
+    expect(healthMark("ok")).toBe("Fine");
+    expect(healthMark("unknown")).not.toBe("Fine");
+    expect(healthMark("attention")).not.toBe("Fine");
   });
 });
