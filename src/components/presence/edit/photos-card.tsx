@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DrivePicker } from "@/components/drive/drive-picker";
-import { ChangeCard } from "@/components/presence/edit/change-card";
-import { useChangeOutcomes, useEditCapabilities, useListingChanges } from "@/hooks/use-presence-edit";
+import { WaitingLine } from "@/components/presence/edit/waiting-line";
+import { useEditCapabilities, useListingChanges } from "@/hooks/use-presence-edit";
 import { usePhotoMutations, usePhotos, useRefreshPhotosWhenSettled, type PhotoTarget } from "@/hooks/use-presence-photos";
 import { useListingQuery } from "@/hooks/use-presence-listing";
 import { fetchView, primaryEntry } from "@/lib/presence-panels";
@@ -18,7 +18,6 @@ import {
   categoryLabel,
   inFlightPhotoChanges,
   limitsSentence,
-  listedPhotoChanges,
   openPhotoChanges,
   outcomeOf,
   pendingFor,
@@ -58,7 +57,6 @@ export function PhotosCard({ location, network: chosenNetwork }: { location?: st
   const capsView = fetchView({ hasData: !!caps.data, isPending: caps.isPending, isError: caps.isError, fetchStatus: caps.fetchStatus });
   const photosQ = usePhotos(listing?.id, network);
   const changes = useListingChanges(listing?.id);
-  const outcomes = useChangeOutcomes(listing?.id, changes.data?.items, caps.data);
   const changesView = fetchView({ hasData: !!changes.data, isPending: changes.isPending, isError: changes.isError, fetchStatus: changes.fetchStatus });
   useRefreshPhotosWhenSettled(changes.data?.items, target);
   const m = usePhotoMutations(target);
@@ -162,11 +160,7 @@ export function PhotosCard({ location, network: chosenNetwork }: { location?: st
       </>
     ) : (
       <>
-        {data.writes.notice && (
-          <p role="status" className="rounded-md border border-warning/40 p-3 text-xs text-warning-on-tint">
-            {data.writes.notice}
-          </p>
-        )}
+        {/* Whether changes are sent is said ONCE, by the publishing status above the panels (GBP Issue 1), never per panel. */}
         {view.stale && <p className="text-xs text-warning-on-tint">Could not refresh just now, so this may be out of date.</p>}
         {!data.complete && <p className="text-xs text-warning-on-tint">We could not read every one of your photos from {label} just now, so this list may be missing some.</p>}
         {data.customersComplete === false && <p className="text-xs text-warning-on-tint">We could not read the photos your customers added on {label} just now, so they may be missing here.</p>}
@@ -274,58 +268,13 @@ export function PhotosCard({ location, network: chosenNetwork }: { location?: st
       </>
     );
 
-  // Every open (and sent) change, and only the settled history is capped.
-  const changeList = listedPhotoChanges(items, network, 8);
-
   return (
     <Card className="gap-4 p-5">
       {header}
       {body}
       {access.mode === "view" && view.kind !== "ready" && <p className="text-xs text-muted-foreground">{access.why}</p>}
-
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium">Photo changes</h3>
-        {changes.isPending ? (
-          <Skeleton className="h-16 w-full" />
-        ) : changes.isError && !changes.data ? (
-          <div className="flex items-center gap-2">
-            <p className="text-xs text-destructive">We could not load your photo changes just now.</p>
-            <Button size="sm" variant="outline" onClick={() => changes.refetch()}>
-              Try again
-            </Button>
-          </div>
-        ) : (
-          <>
-            {changes.isError && <p className="text-xs text-warning-on-tint">Could not refresh just now, so these may be out of date.</p>}
-            {changeList.length > 0 ? (
-              changeList.map((c) => {
-                // A removal shows the photo it is about, looked up by its reference in the photos read.
-                const after = c.after as { op?: string; ref?: string } | null;
-                const item = after?.op === "remove" ? data?.items.find((i) => i.ref === after.ref) : undefined;
-                const src = item ? previewOf(item) : null;
-                return (
-                  <ChangeCard
-                    key={c.id}
-                    change={c}
-                    label={label}
-                    can={caps.data?.can}
-                    m={m}
-                    outcome={outcomes.slotFor(c)}
-                    extra={
-                      src ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={src} loading="lazy" alt="The photo this change is about" className="aspect-video w-full max-w-xs rounded-md bg-muted object-cover" />
-                      ) : null
-                    }
-                  />
-                );
-              })
-            ) : (
-              <p className="text-xs text-muted-foreground">No photo changes yet.</p>
-            )}
-          </>
-        )}
-      </div>
+      {/* GBP L7: where a photo request stands lives in "Your requests", once. */}
+      <WaitingLine changes={items} matches={(c) => c.field === "media" && c.network === network} />
     </Card>
   );
 }

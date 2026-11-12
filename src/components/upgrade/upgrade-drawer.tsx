@@ -18,7 +18,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { PaymentModal, type CheckoutResult } from "@/components/upgrade/payment-modal";
+import type { CheckoutResult } from "@/components/upgrade/payment-modal";
+import { PaymentModal } from "@/components/upgrade/payment-modal-lazy";
 
 /**
  * UpgradeDrawer — reusable Sheet that opens on any plan-gated
@@ -272,7 +273,7 @@ export function UpgradeDrawer(props: UpgradeDrawerProps) {
                 <p className="mt-1 text-sm text-muted-foreground">{featureTagline}</p>
               ) : null}
               {featureKey ? (
-                <p className="mt-2 font-mono text-[10px] text-muted-foreground">{featureKey}</p>
+                <p className="mt-2 font-mono text-micro text-muted-foreground">{featureKey}</p>
               ) : null}
             </div>
           ) : null}

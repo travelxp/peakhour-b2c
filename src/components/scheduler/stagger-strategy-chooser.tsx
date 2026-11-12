@@ -122,7 +122,7 @@ export function StaggerStrategyChooser({
                 {opt.label}
               </span>
               {opt.value === "smart" && (
-                <span className="ml-auto rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
+                <span className="ml-auto rounded-full bg-primary/10 px-1.5 py-0.5 text-micro font-medium uppercase tracking-wide text-primary">
                   Default
                 </span>
               )}

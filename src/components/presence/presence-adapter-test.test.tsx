@@ -49,6 +49,7 @@ vi.mock("next/link", () => ({ default: ({ href, children }: { href: string; chil
 vi.mock("@/hooks/use-locale", () => ({
   useLocale: () => ({ formatDate: (d: unknown) => String(d), formatDateTime: (d: unknown) => String(d), formatCurrency: (n: number) => String(n), formatNumber: (n: number) => String(n), formatRelativeTime: (d: unknown) => String(d) }),
 }));
+vi.mock("@/providers/auth-provider", () => ({ useAuth: () => ({ business: { _id: "b1", name: "Shop Co" } }) }));
 vi.mock("sonner", () => ({ toast: { success: () => undefined, error: () => undefined } }));
 vi.mock("@/lib/api", () => ({ api: { get: async () => { throw new Error("no network in this test"); }, put: async () => undefined, post: async () => undefined } }));
 
@@ -85,7 +86,7 @@ const summaryEntry = (net: ConnectableNetwork, rating: number, n: number) => ({ 
 const summaryAnswer = (net: ConnectableNetwork, rating: number, n: number) => ({ days: 90, windowStart: "2026-08-07T00:00:00.000Z", locationName: null, networks: [summaryEntry(net, rating, n)] });
 const kitAnswer = (n: ConnectableNetwork) => ({ state: "ready", listingId: "l1", businessName: `${n.label} Shop`, link: `https://${n.network}.example/review`, network: n.network, networkLabel: n.label, qrSvg: "<svg xmlns='http://www.w3.org/2000/svg'></svg>" });
 const scoreAnswer = (n: ConnectableNetwork) => n.capabilities.listing
-  ? { state: "ready", listingId: "l1", network: { key: n.network, label: n.label }, score: { score: 70, seen: { scored: 5, unknown: 0, notApplicable: 0, total: 5, sentence: "We checked 5 things." }, market: { code: "IN", name: "India" }, business: { group: "shop", noun: "shop" }, checks: [], fixes: [], ordering: { by: "kind_of_business", reason: "figures_not_read", callShare: 0.5, group: "shop" } }, health: [] }
+  ? { state: "ready", listingId: "l1", network: { key: n.network, label: n.label }, score: { score: 70, seen: { scored: 5, unknown: 0, notApplicable: 0, total: 5, pointsEarned: 10, pointsCounted: 14, sentence: "We checked 5 things." }, market: { code: "IN", name: "India" }, business: { group: "shop", noun: "shop" }, checks: [], fixes: [], ordering: { by: "kind_of_business", reason: "figures_not_read", callShare: 0.5, group: "shop" } }, health: [] }
   : { state: "no_listing" };
 
 /** Render the page with the cache filled as the api would fill it, the api's default connection being `defaultNet`. */
@@ -360,7 +361,9 @@ describe("the diff rule, for the screens", () => {
       return statSync(f).isDirectory() ? walk(f) : /\.(ts|tsx)$/.test(f) && !/\.test\.tsx?$/.test(f) ? [f] : [];
     });
   }
-  it("no screen file spells a test network's key: the three networks above exist only in this test file", () => {
+  it("no screen file spells a test network's key: the three networks above exist only in this test file", { timeout: 60_000 }, () => {
+    // Explicit timeout: this walks and reads every non-test source file in src/. The cost is file I/O, not a
+    // hang, and under CPU load (several builds at once) it exceeds the 5s default. The scan is unchanged.
     const bad = walk(SRC)
       .filter((f) => /pe16_/.test(readFileSync(f, "utf8")))
       .map((f) => relative(SRC, f));

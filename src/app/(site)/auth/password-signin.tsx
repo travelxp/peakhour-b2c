@@ -129,7 +129,7 @@ export function PasswordSignIn({
       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-xs font-medium text-muted-foreground sm:text-sm marker:content-none [&::-webkit-details-marker]:hidden">
         <KeyRound className="size-3.5 shrink-0" aria-hidden />
         Sign in with password
-        <span className="ml-auto text-[11px] font-normal opacity-70">reviewers only</span>
+        <span className="ml-auto text-micro font-normal">reviewers only</span>
       </summary>
 
       <form onSubmit={onSubmit} className="flex flex-col gap-3 border-t border-border/60 p-3">

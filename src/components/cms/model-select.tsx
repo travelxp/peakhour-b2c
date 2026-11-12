@@ -129,7 +129,7 @@ export function ModelSelect({
                   <Check className={cn("mr-2 h-4 w-4", value === m.modelId ? "opacity-100" : "opacity-0")} />
                   <span className="flex-1 truncate font-mono text-xs">{m.modelId}</span>
                   {m.provider && (
-                    <span className="ml-2 shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">
+                    <span className="ml-2 shrink-0 text-micro uppercase tracking-wide text-muted-foreground">
                       {m.provider}
                     </span>
                   )}

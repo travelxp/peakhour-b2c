@@ -1,5 +1,6 @@
 "use client";
 
+import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -18,6 +19,7 @@ import { RequestReviewButton } from "@/components/integrations/request-review-bu
 import { CreateWorkspaceButton } from "@/components/integrations/create-workspace-button";
 import { ContactSupportDialog } from "@/components/support/contact-support-dialog";
 import { Badge } from "@/components/ui/badge";
+import { YourAppsPanel } from "@/components/dashboard/your-apps-panel";
 import { DrivePrivacyCard } from "@/components/drive/drive-privacy-card";
 import { driveAbilities } from "@/lib/drive/files-state";
 import { Input } from "@/components/ui/input";
@@ -98,9 +100,11 @@ export default function SettingsPage() {
 
 function SettingsLoading() {
   return (
-    <div className="flex justify-center py-12" role="status" aria-label="Loading settings">
-      <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary" />
-    </div>
+    <PageShell width="narrow">
+      <div className="flex justify-center py-12" role="status" aria-label="Loading settings">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-primary" />
+      </div>
+    </PageShell>
   );
 }
 
@@ -265,16 +269,12 @@ function SettingsContent() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">General</h2>
-          <p className="text-muted-foreground mt-1">
-            Business details, budget, and connected accounts
-          </p>
-        </div>
-        <ContactSupportDialog />
-      </div>
+    <PageShell width="narrow">
+      <PageHeader
+        title="General"
+        description="Business details, budget, and connected accounts"
+        actions={<ContactSupportDialog />}
+      />
 
       {justConnectedProvider !== null && (
         <div className="flex items-center gap-2 rounded-lg bg-success/10 border border-success/20 p-4 text-sm text-success-on-tint">
@@ -334,7 +334,7 @@ function SettingsContent() {
         </div>
       )}
 
-      <div className="max-w-3xl space-y-6">
+      <div className="space-y-6">
         {/* Wrong-brand integrations flagged by the fit-reconcile cron. Renders
             nothing when there's no pollution. */}
         <IntegrationFitAttention />
@@ -393,7 +393,7 @@ function SettingsContent() {
                 </div>
               )}
             </div>
-            <CardDescription>Your business information used by the AI engine</CardDescription>
+            <CardDescription>Your business information used by Peakhour&apos;s AI</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {editingBusiness ? (
@@ -438,7 +438,7 @@ function SettingsContent() {
                       </span>
                     ) : (
                       <span className="text-muted-foreground">
-                        Not set — seasonal events will be limited until you pick a country
+                        Not set — holidays & events will be limited until you pick a country
                       </span>
                     )
                   }
@@ -471,6 +471,8 @@ function SettingsContent() {
             )}
           </CardContent>
         </Card>
+
+        <YourAppsPanel />
 
         {/* Budget & Guardrails */}
         <Card>
@@ -548,7 +550,7 @@ function SettingsContent() {
 
         <DrivePrivacyCard canChange={driveAbilities(orgs.find((o) => o._id === org?._id)?.role).isAdmin} />
       </div>
-    </div>
+    </PageShell>
   );
 }
 

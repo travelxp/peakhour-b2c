@@ -10,6 +10,7 @@ import {
   yearlyPrice,
   type ResolvedProductTier,
 } from "@/lib/pricing";
+import { PriceScope } from "@/components/marketing/pricing/price-scope";
 import type { SignupCta } from "@/lib/catalog";
 import { pricingPillar } from "@/lib/pricing-catalog";
 import { shopifyTrialNote } from "@/lib/shopify-features";
@@ -40,6 +41,8 @@ export function SuiteCard({
   cta,
   openSignup,
   channel,
+  country,
+  scopeAction,
 }: {
   tier: ResolvedProductTier;
   /** ★THE MODULES THIS PLAN ACTUALLY COMPOSES, resolved by the caller from the
@@ -58,6 +61,12 @@ export function SuiteCard({
    * Shopify trial is billed through Shopify, not started on peakhour.ai.
    */
   channel?: "shopify";
+  /** The country this price was fetched for (`resolveCountry`). With
+   *  `scopeAction`, the card says which country and tax the price is for and
+   *  offers the country switcher. */
+  country?: string;
+  /** Where the switcher returns to, fragment included: "/pricing#suite". */
+  scopeAction?: string;
 }) {
   const shopify = channel === "shopify";
   const external = shopify && cta.href.startsWith("http");
@@ -73,11 +82,11 @@ export function SuiteCard({
         {/* ── The offer ─────────────────────────────────────────────── */}
         <div>
           <div className="flex flex-wrap items-center gap-2.5">
-            <span className="inline-flex items-center rounded-full bg-brand-gradient px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-brand-contrast shadow-sm">
+            <span className="inline-flex items-center rounded-full bg-brand-gradient px-3 py-1 text-micro font-bold uppercase tracking-wide text-brand-contrast shadow-sm">
               Everything, one price
             </span>
             {badge && (
-              <span className="inline-flex items-center rounded-full border border-brand/40 bg-brand-soft/60 px-2.5 py-1 text-[11px] font-bold text-brand-ink dark:bg-brand/10 dark:text-brand">
+              <span className="inline-flex items-center rounded-full border border-brand/40 bg-brand-soft/60 px-2.5 py-1 text-micro font-bold text-brand-ink dark:bg-brand/10 dark:text-brand">
                 {badge}
               </span>
             )}
@@ -132,6 +141,9 @@ export function SuiteCard({
             )}
           </p>
           )}
+          {country && scopeAction && (
+            <PriceScope pricing={p} country={country} action={scopeAction} />
+          )}
 
           {typeof peaks === "number" && (
             <div className="mt-6 rounded-2xl border border-brand/40 bg-brand-soft/50 px-4 py-3.5 dark:bg-brand/10">
@@ -176,7 +188,7 @@ export function SuiteCard({
               (D19), which collects none. "Card required" was the rule for a
               trial bought at checkout, and this button goes to signup. */}
           {p.trialDays > 0 && (
-            <p className="mt-2.5 text-[11px] text-muted-foreground">
+            <p className="mt-2.5 text-micro text-muted-foreground">
               {shopify
                 ? shopifyTrialNote(p.trialDays)
                 : `${p.trialDays}-day free trial · no card to start`}

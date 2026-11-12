@@ -45,6 +45,7 @@ const SPEC = "src/lib/review-reply.test.ts";
 /** One (file, spec) pair — every rule S0·4 rests on is in the one module. */
 const FILES = {
   rules: { target: "src/lib/review-reply.ts", spec: SPEC },
+  limit: { target: "src/lib/review-page-limit.ts", spec: SPEC },
 };
 
 /** ⚠️★`npx.cmd` ANSWERS EINVAL on this platform — go through the node binary. */
@@ -191,7 +192,7 @@ const MUTANTS = [
     killer: "★★★says a full page is a floor, not a total",
   },
   {
-    where: "rules",
+    where: "limit",
     name: "★ask the api for a page it will refuse",
     anchor: "export const REVIEW_PAGE_LIMIT = 100;",
     mutated: "export const REVIEW_PAGE_LIMIT = 250;",

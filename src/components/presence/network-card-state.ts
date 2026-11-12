@@ -200,3 +200,107 @@ export function locationLabel(
 export function emptyListingReason(complete: boolean | undefined): "none" | "unreadable" {
   return complete === true ? "none" : "unreadable";
 }
+
+/** The facts the card and the picker show about one listing, beside its name. */
+export interface ListingFacts {
+  locationName?: string;
+  title?: string;
+  /** One line: the first address line, then the town. */
+  address?: string;
+  /** The listing's page on the network's map. */
+  mapsUri?: string;
+  /** When a person confirmed it is theirs. The api sends it only while it still counts (the title has not changed since). */
+  confirmedAt?: string;
+  /** When a person put the question off ("Not now"). The api sends it only while the title is the one they saw. */
+  nameAskDismissedAt?: string;
+}
+
+/**
+ * The map link, only when it is a web address. ★A stored value is shown as a link target, so anything but http(s) is no link at all.
+ */
+export function mapLink(mapsUri: string | null | undefined): string | null {
+  const t = mapsUri?.trim();
+  if (!t) return null;
+  try {
+    const u = new URL(t);
+    return u.protocol === "https:" || u.protocol === "http:" ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Words that say what kind of company a name is, not which one: they never make two names "the same". */
+const NAME_NOISE = new Set(["pvt", "private", "limited", "ltd", "llp", "inc", "the", "and"]);
+
+/** The words of a name that tell it from another: lower case, no punctuation, no company-form words. */
+function meaningfulWords(name: string): string[] {
+  return name
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((w) => w !== "" && !NAME_NOISE.has(w));
+}
+
+/**
+ * Whether a listing's name looks like it belongs to some other business: it shares no meaningful word with the business's own name.
+ *
+ * ★A WARNING, NEVER A BLOCK. Two names can share nothing and still be one business, so the answer only decides whether a soft line
+ * is shown. ★AND NO ANSWER FROM NO WORDS: a name that is all company-form words, or blank, has nothing to compare, so it never warns.
+ */
+export function listingNameLooksOff(listingTitle: string | null | undefined, businessName: string | null | undefined): boolean {
+  const listing = meaningfulWords(listingTitle ?? "");
+  const business = new Set(meaningfulWords(businessName ?? ""));
+  if (listing.length === 0 || business.size === 0) return false;
+  return !listing.some((w) => business.has(w));
+}
+
+/**
+ * What "this is not my business" does: with other listings on the account, choose among them; with only this one on it, the fix is a
+ * different account, so it goes to connect. `complete` is whether the list of listings is the whole of them.
+ */
+export function chooseAnotherAction(knownListings: number, complete: boolean | undefined): { kind: "picker" | "reconnect"; text: string } {
+  // ★ONE KNOWN LISTING IS ONE ONLY WHEN THE LIST IS WHOLE: a partial or unread capture can hold one of several, and the picker re-lists.
+  return knownListings === 1 && complete === true
+    ? { kind: "reconnect", text: "Connect the account that manages your listing" }
+    : { kind: "picker", text: "Choose another listing" };
+}
+
+/**
+ * What the name check says about the selected listings.
+ *
+ * ★ASK ONLY WHEN EVERY NAMED LISTING LOOKS OFF (one that matches is the business), and every listing in the selection is named. `pending` is
+ * the ones nobody has confirmed: "ask" while any is pending, "confirmed" once none is. ★THE CONFIRMATION COMES FROM THE API, which counts it
+ * only while the title is the one confirmed, so a renamed listing is back to "ask" with nothing to do here.
+ */
+export function nameCheck(
+  selectedCount: number,
+  facts: readonly ListingFacts[],
+  businessName: string | null | undefined,
+): { kind: "none" | "ask" | "confirmed"; titles: string[]; pending: string[]; dismissed: boolean } {
+  // A listing with no reference cannot be confirmed, so it cannot count as asked or answered.
+  const titled = facts.filter((l) => l.title?.trim() && l.locationName);
+  const off = titled.length > 0 && titled.length === selectedCount && titled.every((l) => listingNameLooksOff(l.title, businessName));
+  if (!off) return { kind: "none", titles: [], pending: [], dismissed: false };
+  const unanswered = titled.filter((l) => !l.confirmedAt && l.locationName);
+  const pending = unanswered.map((l) => l.locationName as string);
+  // ★DISMISSED ONLY WHEN EVERY UNANSWERED LISTING WAS PUT OFF: a listing nobody has been asked about keeps the question on top. The card's
+  // own line ignores this, so a put-off question can still be answered there.
+  const dismissed = unanswered.length > 0 && unanswered.every((l) => !!l.nameAskDismissedAt);
+  return { kind: pending.length > 0 ? "ask" : "confirmed", titles: titled.map((l) => l.title!.trim()), pending, dismissed };
+}
+
+/**
+ * The listings in the selection that the network gave us facts about, in the selection's order. Only for a network with a listing to confirm.
+ * ONE place, so the card and the top-of-page question judge the same rows.
+ */
+export function selectedListingFacts<T extends ListingFacts>(selected: readonly string[] | null | undefined, known: readonly T[], confirmable: boolean): T[] {
+  return confirmable && selected ? selected.map((n) => known.find((l) => l.locationName === n)).filter((l): l is T => !!l) : [];
+}
+
+/** The window event the top-of-page question sends to open a card's picker ("No, choose another listing"). `detail` is the network's key. */
+export const OPEN_PICKER_EVENT = "presence:open-picker";
+
+/** The id of a network's connect card, so a link can scroll to it. */
+export const networkCardId = (network: string) => `network-card-${network}`;
+
+/** The id of a network's top-of-page question, which the summary line links to. */
+export const nameAskAnchor = (network: string) => `name-ask-${network}`;

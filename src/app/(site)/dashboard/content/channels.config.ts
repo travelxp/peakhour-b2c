@@ -166,7 +166,7 @@ export const CHANNELS: readonly ChannelConfig[] = [
   {
     slug: "shopify",
     name: "Shopify",
-    description: "Pull products and blog posts for content engines.",
+    description: "Pull products and blog posts for your content.",
     category: "Web & SEO",
     providerKey: "shopify",
     status: "coming_soon",
@@ -236,7 +236,6 @@ export const CHANNELS: readonly ChannelConfig[] = [
     category: "Ads",
     providerKey: "x_ads",
     status: "live",
-    // Moved out of /dashboard/content/x-ads (that route now redirects here).
     dashboardPath: "/dashboard/ads?channel=x",
     logoUrl: `${SHADCN_LOGOS}/x-icon.svg`,
     logoInvertOnDark: true,

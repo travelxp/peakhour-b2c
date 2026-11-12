@@ -64,7 +64,7 @@ export function LiftLine({ e }: { e: Experiment }) {
 
 export function ExperimentTimeline({ experiments }: { experiments: Experiment[] }) {
   if (experiments.length === 0) {
-    return <p className="py-6 text-center text-sm text-muted-foreground">No experiments yet. The engine will list each bet here before it is judged.</p>;
+    return <p className="py-6 text-center text-sm text-muted-foreground">No experiments yet. Peakhour will list each bet here before it is judged.</p>;
   }
   return (
     <ol className="grid">

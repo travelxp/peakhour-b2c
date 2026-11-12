@@ -1,0 +1,31 @@
+name: Tests
+# Type-check, lint and the vitest suite on every PR. Before this, PR CI ran only
+# the bundle budget and the a11y smoke, so a red test (2026-11-10, a time-bomb
+# in share-links-panel) reached master unnoticed.
+#
+# Tests that read a sibling repo (../peakhour-api) skip here when it is absent;
+# run them locally with the sibling checked out.
+on:
+  pull_request:
+  push:
+    branches: [master]
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm ci
+      - name: Type-check
+        run: npx tsc --noEmit
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests
+        run: npm test

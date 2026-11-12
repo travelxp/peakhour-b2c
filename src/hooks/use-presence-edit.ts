@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { presenceChangesApi } from "@/lib/api/presence-changes";
 import { presenceEditApi } from "@/lib/api/presence-edit";
+import { presenceApi } from "@/lib/api/presence";
 import {
   categoryQueryReady,
   outcomesRefetchMs,
@@ -74,6 +75,15 @@ export function useHolidayOffers(listingId: string | undefined, network: string 
   });
 }
 
+/** "Keep the network's version": the listing the page reads changes, so every listing read is asked again. */
+export function useKeepNetworkChange() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (b: Parameters<typeof presenceApi.keepNetworkChange>[0]) => presenceApi.keepNetworkChange(b),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["presence", "listing"] }),
+  });
+}
+
 /** A value that follows `value` after `ms` of quiet, so typing does not ask the network on every key. */
 export function useDebounced<T>(value: T, ms = 350): T {
   const [v, setV] = useState(value);
@@ -115,6 +125,7 @@ export function usePresenceEditMutations(listingId: string | undefined) {
     reject: useMutation({ mutationFn: (id: string) => presenceChangesApi.reject(id), onSuccess: refresh }),
     undo: useMutation({ mutationFn: (id: string) => presenceEditApi.undo(id), onSuccess: refresh }),
     acceptOffer: useMutation({ mutationFn: (b: Parameters<typeof presenceEditApi.proposeOffer>[0]) => presenceEditApi.proposeOffer(b), onSuccess: refresh }),
+    setTimeZone: useMutation({ mutationFn: (b: Parameters<typeof presenceEditApi.setTimeZone>[0]) => presenceEditApi.setTimeZone(b), onSuccess: refresh }),
     dismissOffer: useMutation({ mutationFn: (b: Parameters<typeof presenceEditApi.dismissOffer>[0]) => presenceEditApi.dismissOffer(b), onSuccess: refresh }),
   };
 }

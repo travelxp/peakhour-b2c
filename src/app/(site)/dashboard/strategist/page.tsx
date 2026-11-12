@@ -1,10 +1,12 @@
 "use client";
 
+import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, newActionKey } from "@/lib/api";
 import { API_BASE_URL } from "@/lib/api";
+import { pipelineIdeasQuery } from "@/lib/nav-queries";
 import { Button } from "@/components/ui/button";
 import { ActionCost } from "@/components/dashboard/action-cost";
 import { Input } from "@/components/ui/input";
@@ -13,9 +15,12 @@ import { KanbanBoard } from "./components/kanban-board";
 import { Sparkles, CalendarDays, Plus, Loader2, CheckCircle, Send, Mail, FileText, Megaphone, Newspaper } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { PipelineIdea } from "./components/kanban-card";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { ElapsedTimer } from "@/components/molecules/elapsed-timer";
+import { QueryError } from "@/components/dashboard/query-error";
+import { queryViewState } from "@/lib/query-view-state";
+import { EmptyState } from "@/components/molecules/empty-state";
+import { PageIntro } from "@/components/dashboard/page-intro";
 
 /**
  * Content format the user wants the suggestion run to produce. Drives
@@ -122,11 +127,9 @@ export default function StrategistPage() {
   const [ideaTopic, setIdeaTopic] = useState("");
   const [contentFormatChoice, setContentFormatChoice] = useState<ContentFormatChoice>("any");
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["pipeline-ideas"],
-    queryFn: () =>
-      api.get<Record<string, PipelineIdea[]>>("/v1/content/ideas?grouped=true"),
-  });
+  const pipelineQuery = useQuery(pipelineIdeasQuery);
+  const { data } = pipelineQuery;
+  const view = queryViewState(pipelineQuery);
 
   const handleGetIdeas = useCallback(async (topic?: string, format?: ContentFormatChoice) => {
     setGenerating(true);
@@ -190,7 +193,7 @@ export default function StrategistPage() {
   const progressLabel = genMode === "plan" ? "Planning your week..." : "Generating content ideas...";
 
   return (
-    <div className="space-y-6">
+    <PageShell width="full">
       <CronToolbar
         crons={[
           "voice-card-refresh",
@@ -203,15 +206,11 @@ export default function StrategistPage() {
           queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] })
         }
       />
-      {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Content Pipeline</h2>
-          <p className="text-muted-foreground">
-            From idea to published — drag cards to move through stages
-          </p>
-        </div>
-        <div className="flex gap-2">
+      <PageHeader
+        title="Content plan"
+        description="From idea to published — drag cards to move through stages"
+        actions={
+          <>
           <Button variant="outline" size="sm" onClick={() => { setShowNewIdea(!showNewIdea); setShowTopicInput(false); }}>
             <Plus className="mr-1.5 h-4 w-4" />
             New Idea
@@ -224,8 +223,10 @@ export default function StrategistPage() {
             {genMode === "plan" ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CalendarDays className="mr-1.5 h-4 w-4" />}
             Plan Week
           </Button>
-        </div>
-      </div>
+          </>
+        }
+      />
+      <PageIntro id="strategist" />
 
       {/* New idea inline form */}
       {showNewIdea && (
@@ -284,7 +285,7 @@ export default function StrategistPage() {
                         <Icon className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
                         <div className="flex flex-col">
                           <span className="font-medium leading-tight">{label}</span>
-                          <span className="text-[10px] text-muted-foreground leading-tight">{hint}</span>
+                          <span className="text-micro text-muted-foreground leading-tight">{hint}</span>
                         </div>
                       </div>
                     </SelectItem>
@@ -296,7 +297,7 @@ export default function StrategistPage() {
               <span className="font-medium">Destination:</span>
               <span>Newsletter (Beehiiv)</span>
               <span aria-hidden className="text-muted-foreground/50">·</span>
-              <span className="text-[10px]">more platforms coming</span>
+              <span className="text-micro">more platforms coming</span>
             </div>
           </div>
           <div className="flex items-center justify-between">
@@ -358,7 +359,7 @@ export default function StrategistPage() {
       )}
 
       {/* Kanban board */}
-      {isLoading ? (
+      {view === "loading" ? (
         <div className="flex gap-3">
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="flex-1 rounded-xl bg-muted/40 p-3">
@@ -372,18 +373,26 @@ export default function StrategistPage() {
             </div>
           ))}
         </div>
+      ) : view === "offline" || view === "error" ? (
+        <QueryError
+          what="your ideas"
+          kind={view}
+          onRetry={() => void pipelineQuery.refetch()}
+        />
       ) : data ? (
         <KanbanBoard
           data={data}
           onRefresh={() => queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] })}
         />
       ) : (
-        <div className="py-16 text-center">
-          <p className="text-muted-foreground">
-            No ideas yet. Click &ldquo;Get Ideas&rdquo; to generate AI suggestions.
-          </p>
-        </div>
+        <EmptyState
+          icon={Sparkles}
+          title="No ideas yet"
+          description="Your content plan turns what Peakhour knows about your business into ideas you can move from idea to published. Nothing is here yet, so ask for the first batch."
+          action={{ label: "Get ideas", onClick: () => { setShowTopicInput(true); setShowNewIdea(false); } }}
+          className="min-h-0 py-16"
+        />
       )}
-    </div>
+    </PageShell>
   );
 }

@@ -295,7 +295,7 @@ function MentionCard({
               <Sparkles className="size-3.5" />
               Suggest reply
             </Button>
-            <ActionCost action="xReply" className="text-[10px]" />
+            <ActionCost action="xReply" className="text-micro" />
             {mention.url && (
               <Button
                 variant="ghost"

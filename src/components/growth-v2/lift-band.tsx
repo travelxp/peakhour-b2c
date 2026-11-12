@@ -95,14 +95,14 @@ export function LiftBand({ weeks, weeklyGoal, lift, unitPlural }: LiftBandProps)
           {yTicks.map((v) => (
             <g key={v}>
               <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} />
-              <text x={L - 8} y={y(v) + 4} textAnchor="end" className="fill-muted-foreground stroke-none text-[11px]">
+              <text x={L - 8} y={y(v) + 4} textAnchor="end" className="fill-muted-foreground stroke-none text-micro">
                 {Math.round(v)}
               </text>
             </g>
           ))}
         </g>
         {weeks.map((w, i) => (
-          <text key={w.weekStart} x={x(i)} y={H - 8} textAnchor={i === weeks.length - 1 ? "end" : "middle"} className="fill-muted-foreground text-[11px]">
+          <text key={w.weekStart} x={x(i)} y={H - 8} textAnchor={i === weeks.length - 1 ? "end" : "middle"} className="fill-muted-foreground text-micro">
             {formatDay(w.weekStart)}
           </text>
         ))}
@@ -119,10 +119,10 @@ export function LiftBand({ weeks, weeklyGoal, lift, unitPlural }: LiftBandProps)
             <title>{`${formatDay(weeks[i].weekStart)}: ${weeks[i].withAds} with ads, ${weeks[i].holdout} without`}</title>
           </circle>
         ))}
-        <text x={x(weeks.length - 1) - 6} y={y(last.withAds) - 12} textAnchor="end" className="fill-foreground text-[11px] font-semibold">
+        <text x={x(weeks.length - 1) - 6} y={y(last.withAds) - 12} textAnchor="end" className="fill-foreground text-micro font-semibold">
           {last.withAds} with ads
         </text>
-        <text x={x(weeks.length - 1) - 6} y={y(last.holdout) + 18} textAnchor="end" className="fill-muted-foreground text-[11px]">
+        <text x={x(weeks.length - 1) - 6} y={y(last.holdout) + 18} textAnchor="end" className="fill-muted-foreground text-micro">
           {last.holdout} without
         </text>
       </svg>

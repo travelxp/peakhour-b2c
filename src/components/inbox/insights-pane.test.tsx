@@ -22,6 +22,8 @@ vi.mock("@/hooks/use-knowledge-base", () => ({
   useDismissKbRequest: () => ({ isPending: false, mutate: () => {} }),
 }));
 vi.mock("@/hooks/use-commerce-stores", () => ({ useCommerceStores: () => ({ data: [] }) }));
+// the hover handlers need the app's providers; what they warm is pinned in lib/nav-prefetch.test.ts
+vi.mock("@/hooks/use-nav-intent", () => ({ useNavIntent: () => () => ({}) }));
 vi.mock("@/components/inbox/support-results-panel", () => ({ SupportResultsPanel: () => null }));
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(), useRouter: () => ({}), usePathname: () => "/dashboard/inbox" }));
 
@@ -276,7 +278,7 @@ describe("the old Questions lane is gone", () => {
     expect(PAGE).toContain('search.delete("topic")');
   });
   it("Commerce no longer lists What shoppers asked for", () => {
-    const LAYOUT = read("../../app/(site)/dashboard/layout.tsx");
+    const LAYOUT = read("../../lib/dashboard-nav.ts");
     expect(LAYOUT).not.toContain("What shoppers asked for");
     expect(LAYOUT).not.toContain("/dashboard/commerce/demand");
     expect(LAYOUT).toContain("/dashboard/commerce/knowledge");

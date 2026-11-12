@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { toast } from "sonner";
 import { Building2, Check, ChevronsUpDown, Loader2, Lock, Plus } from "lucide-react";
 import {
@@ -13,10 +14,16 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { PlanLimitDialog } from "@/components/upgrade/plan-limit-dialog";
-import { AddBusinessDialog } from "@/components/upgrade/add-business-dialog";
-import { UpgradePlanDialog } from "@/components/upgrade/upgrade-plan-dialog";
+import { useEverOpened } from "@/hooks/use-ever-opened";
 import { useAuth } from "@/providers/auth-provider";
 import { cn } from "@/lib/utils";
+
+// Both dialogs open only from this menu, so they are their own chunks (they are ~15 KB of the dashboard
+// shell otherwise). The chunks are requested when the menu opens, which is before a click can land on them.
+const loadAddBusinessDialog = () => import("@/components/upgrade/add-business-dialog").then((m) => m.AddBusinessDialog);
+const loadUpgradePlanDialog = () => import("@/components/upgrade/upgrade-plan-dialog").then((m) => m.UpgradePlanDialog);
+const AddBusinessDialog = dynamic(loadAddBusinessDialog, { ssr: false });
+const UpgradePlanDialog = dynamic(loadUpgradePlanDialog, { ssr: false });
 
 /**
  * WorkspaceSwitcher — ONE business name with a dropdown, in the sidebar header.
@@ -66,8 +73,11 @@ export function WorkspaceSwitcher() {
   // The plan picker for a padlocked workspace, opened once it is switched in.
   const [choosingPlan, setChoosingPlan] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
+  const addingMounted = useEverOpened(adding);
+  const planMounted = useEverOpened(choosingPlan);
   async function chooseLockedPlan() {
     if (!locked || unlocking) return;
+    void loadUpgradePlanDialog();
     setUnlocking(true);
     try {
       await switchBusiness(locked.id);
@@ -153,7 +163,13 @@ export function WorkspaceSwitcher() {
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <DropdownMenu>
+        <DropdownMenu
+          onOpenChange={(next) => {
+            if (!next) return;
+            void loadAddBusinessDialog();
+            void loadUpgradePlanDialog();
+          }}
+        >
           <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
           <DropdownMenuContent
             align="start"
@@ -242,15 +258,17 @@ export function WorkspaceSwitcher() {
         ctaBusy={unlocking}
       />
 
-      <UpgradePlanDialog open={choosingPlan} onOpenChange={setChoosingPlan} />
+      {planMounted && <UpgradePlanDialog open={choosingPlan} onOpenChange={setChoosingPlan} />}
 
       {/* `another=1`: the add-business page is also first-run onboarding,
           which sends an onboarded org home. */}
-      <AddBusinessDialog
-        open={adding}
-        onOpenChange={setAdding}
-        freePathHref="/onboarding/add-business?another=1"
-      />
+      {addingMounted && (
+        <AddBusinessDialog
+          open={adding}
+          onOpenChange={setAdding}
+          freePathHref="/onboarding/add-business?another=1"
+        />
+      )}
     </SidebarMenu>
   );
 }

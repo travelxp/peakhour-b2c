@@ -18,6 +18,8 @@ export interface PublishTweetInput {
   replyToTweetId?: string;
   quoteTweetId?: string;
   mediaIds?: string[];
+  /** Label the post as a paid promotion on X. */
+  paidPartnership?: boolean;
 }
 
 /**

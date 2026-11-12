@@ -94,14 +94,14 @@ export function PacingChart({ spent, ceiling, daysLeft, series }: PacingChartPro
           {yTicks.map((v) => (
             <g key={v}>
               <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} />
-              <text x={L - 6} y={y(v) + 4} textAnchor="end" className="fill-muted-foreground stroke-none text-[11px]">
+              <text x={L - 6} y={y(v) + 4} textAnchor="end" className="fill-muted-foreground stroke-none text-micro">
                 {formatMoney(v, currency)}
               </text>
             </g>
           ))}
         </g>
         {dayMarks.map((d) => (
-          <text key={d} x={x(d)} y={H - 10} textAnchor="middle" className="fill-muted-foreground text-[11px]">
+          <text key={d} x={x(d)} y={H - 10} textAnchor="middle" className="fill-muted-foreground text-micro">
             {d}
           </text>
         ))}
@@ -109,7 +109,7 @@ export function PacingChart({ spent, ceiling, daysLeft, series }: PacingChartPro
         <path d={`${linePath(pts)}L${x(lastPt.day)},${y(0)}L${x(1)},${y(0)}Z`} fill="var(--chart-3)" fillOpacity={0.2} />
         <path d={linePath(pts)} fill="none" stroke="var(--chart-3)" strokeWidth={2.5} />
         <circle cx={x(lastPt.day)} cy={y(lastPt.spend)} r={4} fill="var(--chart-3)" />
-        <text x={W - R - 4} y={y(c) - 6} textAnchor="end" className="fill-muted-foreground text-[11px]">
+        <text x={W - R - 4} y={y(c) - 6} textAnchor="end" className="fill-muted-foreground text-micro">
           ceiling {formatMoney(c, currency)}
         </text>
       </svg>

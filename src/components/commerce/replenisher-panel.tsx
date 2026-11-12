@@ -155,12 +155,12 @@ export function ReplenisherPanel() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left text-xs text-muted-foreground">
-                    <th className="px-4 py-2 font-medium">Product</th>
-                    <th className="px-4 py-2 font-medium">Location</th>
-                    <th className="px-4 py-2 text-right font-medium">In stock</th>
+                    <th className="sticky left-0 z-10 bg-background px-4 py-2 font-medium">Product</th>
+                    <th className="hidden px-4 py-2 font-medium md:table-cell">Location</th>
+                    <th className="hidden px-4 py-2 text-right font-medium md:table-cell">In stock</th>
                     <th className="px-4 py-2 text-right font-medium">Cover</th>
                     <th className="px-4 py-2 text-right font-medium">Restock</th>
-                    <th className="px-4 py-2 text-right font-medium">At risk</th>
+                    <th className="hidden px-4 py-2 text-right font-medium md:table-cell">At risk</th>
                     <th className="px-4 py-2" />
                   </tr>
                 </thead>
@@ -173,11 +173,11 @@ export function ReplenisherPanel() {
                       c.locationStock !== null ? `${c.locationStock}` : `${c.currentStock}`;
                     return (
                       <tr key={c.sourceProductId} className="align-middle">
-                        <td className="max-w-[16rem] px-4 py-3">
+                        <td className="sticky left-0 z-10 max-w-[9rem] bg-background px-4 py-3 md:max-w-[16rem]">
                           <p className="line-clamp-1 font-medium">{c.title || "Untitled product"}</p>
                           <p className="text-xs text-muted-foreground">{c.unitsSold} sold · {c.dailyVelocity}/day</p>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="hidden px-4 py-3 md:table-cell">
                           {c.locationName ? (
                             <span className="inline-flex items-center gap-1 text-muted-foreground">
                               <Warehouse className="size-3" />
@@ -187,7 +187,7 @@ export function ReplenisherPanel() {
                             <span className="text-muted-foreground">—</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-right tabular-nums">{stockLabel}</td>
+                        <td className="hidden px-4 py-3 text-right tabular-nums md:table-cell">{stockLabel}</td>
                         <td className="px-4 py-3 text-right tabular-nums">
                           {c.daysOfCover === null ? (
                             <span className="inline-flex items-center gap-1 text-destructive-on-tint">
@@ -200,7 +200,7 @@ export function ReplenisherPanel() {
                         <td className="px-4 py-3 text-right font-medium tabular-nums">
                           +{c.recommendedRestockQty}
                         </td>
-                        <td className="px-4 py-3 text-right tabular-nums">{risk ?? "—"}</td>
+                        <td className="hidden px-4 py-3 text-right tabular-nums md:table-cell">{risk ?? "—"}</td>
                         <td className="px-4 py-3 text-right">
                           {isDone ? (
                             <span className="inline-flex items-center gap-1 text-xs text-success-on-tint">

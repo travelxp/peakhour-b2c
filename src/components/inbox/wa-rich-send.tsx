@@ -57,7 +57,7 @@ export function WaRichSend({ threadId, disabled, unknownSig, onSend }: { threadI
   const [mode, setMode] = useState<"product" | "checkout" | null>(null);
   return (
     <div className="space-y-2" data-testid="rich-send">
-      {unknownSig !== null && <p className="text-[11px] text-muted-foreground">{UNKNOWN_BLOCK_NOTE}</p>}
+      {unknownSig !== null && <p className="text-micro text-muted-foreground">{UNKNOWN_BLOCK_NOTE}</p>}
       <div className="flex flex-wrap items-center gap-2">
         <AttachButton disabled={disabled} unknownSig={unknownSig} onSend={onSend} />
         <Button size="xs" variant={mode === "product" ? "secondary" : "outline"} disabled={disabled} onClick={() => setMode(mode === "product" ? null : "product")}>
@@ -126,7 +126,7 @@ function AttachButton({ disabled, unknownSig, onSend }: { disabled: boolean; unk
           </p>
           <Input value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Add a caption (optional)" aria-label="Caption for the file" />
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] text-muted-foreground">{captionIssue ?? `${caption.trim().length}/${CAPTION_MAX}`}</span>
+            <span className="text-micro text-muted-foreground">{captionIssue ?? `${caption.trim().length}/${CAPTION_MAX}`}</span>
             <span className="flex gap-2">
               <Button size="xs" variant="ghost" disabled={disabled} onClick={() => { setFile(null); setCaption(""); }}>
                 Remove
@@ -170,7 +170,7 @@ function ProductPanel({ mode, threadId, disabled, unknownSig, onSend, onDone }: 
   return (
     <div className="space-y-2 rounded-md border bg-muted/30 p-2" data-testid={`rich-${mode}`}>
       <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search your products" aria-label="Search your products" maxLength={100} />
-      {mode === "checkout" && <p className="text-[11px] text-muted-foreground">{CHECKOUT_NOTE}</p>}
+      {mode === "checkout" && <p className="text-micro text-muted-foreground">{CHECKOUT_NOTE}</p>}
       {products.isLoading && <Skeleton className="h-10 w-full" />}
       {products.isError && (
         <p className="text-xs text-muted-foreground">
@@ -218,7 +218,7 @@ function ProductPanel({ mode, threadId, disabled, unknownSig, onSend, onDone }: 
             ))}
           </ul>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-micro text-muted-foreground">
               {lines.length}/{CHECKOUT_MAX_LINES} products
             </span>
             <Button
@@ -246,13 +246,13 @@ function ProductRow({ p, mode, disabled, cardLabel, onCard, onAdd }: { p: Produc
     <li className="flex flex-wrap items-center gap-2 rounded-md bg-background p-1.5">
       {p.image ? (
         // eslint-disable-next-line @next/next/no-img-element -- the store's own product photo, already on its CDN
-        <img src={p.image} alt="" className="size-9 shrink-0 rounded object-cover" />
+        <img width={36} height={36} loading="lazy" src={p.image} alt="" className="size-9 shrink-0 rounded object-cover" />
       ) : (
         <span className="size-9 shrink-0 rounded bg-muted" aria-hidden />
       )}
       <span className="min-w-0 flex-1">
         <span className="block truncate text-xs font-medium">{p.title}</span>
-        <span className="block text-[11px] text-muted-foreground">{soldOut ? "Sold out" : (p.price ?? "No price")}</span>
+        <span className="block text-micro text-muted-foreground">{soldOut ? "Sold out" : (p.price ?? "No price")}</span>
       </span>
       {mode === "product" ? (
         <Button size="xs" disabled={disabled} onClick={onCard}>

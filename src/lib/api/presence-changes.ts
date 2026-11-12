@@ -18,7 +18,7 @@ export interface ListingChangeView {
   expiresAt: string;
   submittedAt: string | null;
   liveAt: string | null;
-  liveCheck: { outcome: string; note: string | null } | null;
+  liveCheck: { outcome: string; note: string | null; confirmable?: boolean } | null;
   /** The before and after of the change, and the checks it failed. Present on every view the api returns (PE-10 draws a card from them). */
   before?: unknown;
   after?: unknown;

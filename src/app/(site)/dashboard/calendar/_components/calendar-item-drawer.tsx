@@ -70,7 +70,7 @@ function ToneBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium capitalize",
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-micro font-medium capitalize",
         tone === "success" &&
           "bg-success/15 text-success-on-tint",
         tone === "info" &&
@@ -172,7 +172,7 @@ export function CalendarItemDrawer({
                 {item.payload.hashtags.map((h) => (
                   <span
                     key={h}
-                    className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
+                    className="rounded bg-muted px-1.5 py-0.5 text-micro text-muted-foreground"
                   >
                     #{h}
                   </span>
@@ -180,7 +180,7 @@ export function CalendarItemDrawer({
               </div>
             )}
             {item.payload.mediaUrls && item.payload.mediaUrls.length > 0 && (
-              <div className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground">
+              <div className="mt-2 flex items-center gap-1 text-micro text-muted-foreground">
                 {/* eslint-disable-next-line jsx-a11y/alt-text */}
                 <Image className="h-3 w-3" />
                 {item.payload.mediaUrls.length} attachment
@@ -188,7 +188,7 @@ export function CalendarItemDrawer({
               </div>
             )}
             {item.payload.threadParts && item.payload.threadParts.length > 0 && (
-              <div className="mt-2 text-[11px] text-muted-foreground">
+              <div className="mt-2 text-micro text-muted-foreground">
                 Thread · {item.payload.threadParts.length} part
                 {item.payload.threadParts.length === 1 ? "" : "s"}
               </div>
@@ -207,7 +207,7 @@ export function CalendarItemDrawer({
       {item.smartTime && (
         <div>
           <div className="mb-1 text-xs font-medium text-muted-foreground">
-            Smart-time engine
+            Smart timing
           </div>
           <div className="space-y-1 rounded-md border bg-muted/30 p-3 text-xs">
             <div>
@@ -217,7 +217,7 @@ export function CalendarItemDrawer({
               <code className="rounded bg-muted px-1">
                 {item.smartTime.adapterVersion}
               </code>{" "}
-              · Engine{" "}
+              · Version{" "}
               <code className="rounded bg-muted px-1">
                 {item.smartTime.engineVersion}
               </code>
@@ -302,7 +302,7 @@ export function CalendarItemDrawer({
           A terminal item has none. */}
 
       {/* Item metadata footer */}
-      <div className="border-t pt-3 text-[10px] text-muted-foreground">
+      <div className="border-t pt-3 text-micro text-muted-foreground">
         <div>Item id · {item._id}</div>
         <div>Plan id · {item.planId}</div>
         {item.externalId && <div>External id · {item.externalId}</div>}

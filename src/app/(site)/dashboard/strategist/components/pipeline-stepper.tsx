@@ -91,7 +91,7 @@ export function PipelineStepper({
                     style={{ backgroundColor: step.color }}
                   />
                 ) : (
-                  <span className="text-[11px]">{i + 1}</span>
+                  <span className="text-micro">{i + 1}</span>
                 )}
               </div>
               <span

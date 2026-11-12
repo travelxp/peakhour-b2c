@@ -16,6 +16,7 @@
  * Mount this component's panel (`DrivePickerPanel`) directly to test it: the sheet is only the frame.
  */
 
+import { MediaImage } from "@/components/shared/media-image";
 import { useEffect, useId, useMemo, useRef, useState, type DragEvent } from "react";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { FileText, Image as ImageIcon, Loader2, Lock, Search, Sparkles, Upload, Video, Check, X } from "lucide-react";
@@ -513,7 +514,7 @@ function Tile({
       <div className="relative flex h-24 items-center justify-center overflow-hidden bg-muted">
         <Thumb file={file} />
         {file.visibility === "private" && (
-          <span className="absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-sm bg-background/90 px-1.5 py-0.5 text-[10px] font-medium">
+          <span className="absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-sm bg-background/90 px-1.5 py-0.5 text-micro font-medium">
             <Lock className="size-2.5" /> Private
           </span>
         )}
@@ -537,8 +538,7 @@ function Tile({
 
 function Thumb({ file }: { file: DriveFile }) {
   if (file.kind === "image" && file.publicUrl && file.visibility === "published") {
-    // eslint-disable-next-line @next/next/no-img-element -- Drive files live on the media host, not in next/image's remotePatterns
-    return <img src={file.publicUrl} alt={file.altText ?? ""} loading="lazy" className="h-full w-full object-cover" />;
+    return <MediaImage src={file.publicUrl} alt={file.altText ?? ""} width={320} height={320} sizes="160px" className="h-full w-full object-cover" />;
   }
   if (file.kind === "video") return <Video className="size-7 text-muted-foreground" aria-hidden />;
   if (file.kind === "document") return <FileText className="size-7 text-muted-foreground" aria-hidden />;

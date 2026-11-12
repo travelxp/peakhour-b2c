@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import type { DrawnSection } from "@/lib/presence-edit";
+import type { PresencePublishing } from "@/lib/presence-panels";
 import {
   cardActions,
   capabilityFor,
@@ -16,6 +17,10 @@ import {
   requestedForm,
   offerOutcome,
   offerState,
+  zoneChoices,
+  zoneLine,
+  zoneRowLine,
+  zoneWords,
   outcomeFor,
   outcomeSignature,
   outcomeSlot,
@@ -33,7 +38,13 @@ import {
   websiteValue,
   wipeNote,
   withCategory,
-  writesNote,
+  preparedWords,
+  publishingBanner,
+  requestGroups,
+  groupByStage,
+  requestSteps,
+  requestStatus,
+  shortChange,
   type CapabilitiesResponse,
   type ChangeCardData,
   type ChangeStatus,
@@ -102,8 +113,9 @@ describe("the form is drawn from declared capabilities", () => {
   });
 
   it("never lets a screen name a network: the word comes from the label", () => {
-    expect(statusWords(change({ status: "submitted" }), "Elsewhere", ADMIN).headline).toBe("Sent to Elsewhere, not live yet");
-    expect(writesNote(cap({ label: "Elsewhere" }))).toContain("Elsewhere");
+    expect(statusWords(change({ status: "submitted" }), "Elsewhere", ADMIN).headline).toBe("Sent to Elsewhere");
+    expect(preparedWords(0, cap({ label: "Elsewhere" }))).toContain("Elsewhere");
+    expect(publishingBanner({ label: "Elsewhere", publishing: { state: "on", heldReason: null, blocker: null, keptForHours: 72 } }, undefined)!.headline).toContain("Elsewhere");
   });
 });
 
@@ -155,15 +167,16 @@ describe("the state words", () => {
   });
 
   it("says a submitted change is not live yet", () => {
-    expect(words("submitted").headline).toBe("Sent to Testnet, not live yet");
+    expect(words("submitted").headline).toBe("Sent to Testnet");
+    expect(words("submitted").detail).toMatch(/may take time to show it/);
   });
 
   it("says an approved change was not sent when sending is held, and gives the reason", () => {
     const w = words("approved", { held: { reason: "Held for review." } });
-    expect(w.headline).toBe("Approved, but not sent");
+    expect(w.headline).toBe("Approved, waiting to send");
     expect(w.detail).toContain("Held for review.");
     expect(w.tone).toBe("warn");
-    expect(words("approved").headline).toBe("Approved, waiting to be sent");
+    expect(words("approved").headline).toBe("Approved, waiting to send");
   });
 
   it("gives the reason for a blocked or failed change, or says none was given", () => {
@@ -191,17 +204,117 @@ describe("the state words", () => {
   });
 });
 
-describe("the switch", () => {
-  it("says plainly that sending is off, with the reason, and never says saved", () => {
-    const n = writesNote(cap())!;
-    expect(n).toContain("switched off");
-    expect(n).toContain("nothing is sent to Testnet");
-    expect(n).toContain("Held for review.");
-    expect(n.toLowerCase()).not.toContain("saved");
+describe("the one publishing status (GBP Issue 1)", () => {
+  const ADMIN_CAN = { propose: true, approve: true };
+  const EDITOR_CAN = { propose: true, approve: false };
+  const pub = (over: Partial<PresencePublishing> = {}): PresencePublishing => ({ state: "held", heldReason: "Peakhour is finishing its setup with Testnet.", blocker: null, keptForHours: 72, ...over });
+  const entry = (p: PresencePublishing | null | undefined) => ({ label: "Testnet", publishing: p });
+
+  it("held says what is off, why, that the merchant need not act, and for how long a change keeps, with no button", () => {
+    const b = publishingBanner(entry(pub()), ADMIN_CAN)!;
+    expect(b.tone).toBe("warn");
+    expect(b.headline).toBe("Publishing to Testnet hasn't started yet");
+    expect(b.lines[0]).toBe("Peakhour is finishing its setup with Testnet. You don't need to do anything.");
+    expect(b.lines.join(" ")).toMatch(/You can prepare and approve changes now/);
+    expect(b.lines.join(" ")).toMatch(/3 days after it was prepared is dropped/);
+    expect(b.action).toBeNull();
   });
-  it("says nothing when writes are on, or there is no network", () => {
-    expect(writesNote(cap({ writes: { released: true, reason: null } }))).toBeNull();
-    expect(writesNote(undefined)).toBeNull();
+
+  it("★never tells a merchant about a switch they cannot press", () => {
+    for (const state of ["on", "held", "blocked"] as const) {
+      const b = publishingBanner(entry(pub({ state, blocker: state === "blocked" ? { reason: "x", action: "reconnect", href: "/i" } : null })), ADMIN_CAN)!;
+      expect([b.headline, ...b.lines].join(" "), state).not.toMatch(/switch/i);
+    }
+  });
+
+  it("held with a merchant-side blocker names it and gives its fix, so it can be done while they wait", () => {
+    const b = publishingBanner(entry(pub({ blocker: { reason: "Testnet has suspended this listing.", action: "fix_on_network", href: "https://t.example" } })), ADMIN_CAN)!;
+    expect(b.lines).toContain("One thing needs you first: Testnet has suspended this listing.");
+    // never "you don't need to do anything" beside "fix this"; the why is still said
+    expect(b.lines.join(" ")).not.toMatch(/don't need to do anything/);
+    expect(b.lines[0]).toBe("Peakhour is finishing its setup with Testnet.");
+    expect(b.action).toEqual({ label: "Fix this on Testnet", href: "https://t.example", external: true });
+  });
+
+  it("blocked is the warning look, with the reason and a reconnect inside the app", () => {
+    const b = publishingBanner(entry(pub({ state: "blocked", heldReason: null, blocker: { reason: "We could not tell.", action: "reconnect", href: "/dashboard/integrations" } })), ADMIN_CAN)!;
+    expect(b.tone).toBe("bad");
+    expect(b.headline).toBe("Peakhour can't publish to Testnet right now");
+    expect(b.lines[0]).toBe("We could not tell.");
+    expect(b.action).toEqual({ label: "Reconnect Testnet", href: "/dashboard/integrations", external: false });
+  });
+
+  it("a blocker with no place to fix it gives its reason and no button that leads nowhere", () => {
+    expect(publishingBanner(entry(pub({ state: "blocked", blocker: { reason: "r", action: "fix_on_network", href: null } })), ADMIN_CAN)!.action).toBeNull();
+  });
+
+  it("on says changes are sent, and never promises they are live", () => {
+    const b = publishingBanner(entry(pub({ state: "on", heldReason: null })), ADMIN_CAN)!;
+    expect(b.tone).toBe("good");
+    expect(b.headline).toBe("Publishing to Testnet is on");
+    expect(b.lines.join(" ")).not.toMatch(/live/i);
+  });
+
+  it("an editor is told an admin approves; an admin is not", () => {
+    expect(publishingBanner(entry(pub()), EDITOR_CAN)!.lines.join(" ")).toMatch(/an admin or owner approves them/i);
+    expect(publishingBanner(entry(pub({ state: "on", heldReason: null })), EDITOR_CAN)!.lines.join(" ")).toMatch(/An admin or owner approves them/);
+    expect(publishingBanner(entry(pub()), ADMIN_CAN)!.lines.join(" ")).not.toMatch(/admin or owner/);
+  });
+
+  it("★while held, nobody is told they can do what their role cannot", () => {
+    const editor = publishingBanner(entry(pub()), EDITOR_CAN)!.lines.join(" ");
+    expect(editor).toMatch(/You can prepare changes now, and an admin or owner approves them/);
+    expect(editor).not.toMatch(/prepare and approve/);
+    const viewer = publishingBanner(entry(pub()), { propose: false, approve: false })!.lines.join(" ");
+    expect(viewer).not.toMatch(/You can prepare/);
+    expect(viewer).toMatch(/Changes your team prepares and approves now are kept/);
+  });
+
+  it("draws nothing for a network that writes nothing, or an api that predates the field", () => {
+    expect(publishingBanner(entry(null), ADMIN_CAN)).toBeNull();
+    expect(publishingBanner(entry(undefined), ADMIN_CAN)).toBeNull();
+    expect(publishingBanner(null, ADMIN_CAN)).toBeNull();
+  });
+
+  it("blocked also says how long a prepared change keeps, since it still expires", () => {
+    const b = publishingBanner(entry(pub({ state: "blocked", heldReason: null, blocker: { reason: "r", action: "reconnect", href: "/i" } })), ADMIN_CAN)!;
+    expect(b.lines.join(" ")).toMatch(/Changes are sent once this is fixed\. A change that has not been sent 3 days after/);
+  });
+
+  it("★a viewer is told what is wrong but offered no button they cannot use", () => {
+    const viewer = { propose: false, approve: false };
+    expect(publishingBanner(entry(pub({ state: "blocked", blocker: { reason: "r", action: "reconnect", href: "/i" } })), viewer)!.action).toBeNull();
+    expect(publishingBanner(entry(pub({ blocker: { reason: "r", action: "fix_on_network", href: "https://t.example" } })), viewer)!.action).toBeNull();
+    expect(publishingBanner(entry(pub({ state: "blocked", blocker: { reason: "r", action: "reconnect", href: "/i" } })), EDITOR_CAN)!.action).not.toBeNull();
+  });
+
+  it("a new tab follows the link, not the action: an in-app fix stays in the app, an off-site reconnect opens a tab", () => {
+    expect(publishingBanner(entry(pub({ state: "blocked", blocker: { reason: "r", action: "fix_on_network", href: "/dashboard/x" } })), ADMIN_CAN)!.action!.external).toBe(false);
+    expect(publishingBanner(entry(pub({ state: "blocked", blocker: { reason: "r", action: "reconnect", href: "https://auth.example" } })), ADMIN_CAN)!.action!.external).toBe(true);
+  });
+
+  it("says a day or hours when the lifetime is not whole days", () => {
+    expect(publishingBanner(entry(pub({ keptForHours: 1 })), ADMIN_CAN)!.lines.join(" ")).toMatch(/1 hour after/);
+    expect(publishingBanner(entry(pub({ keptForHours: 48 })), ADMIN_CAN)!.lines.join(" ")).toMatch(/2 days after/);
+    expect(publishingBanner(entry(pub({ keptForHours: 24 })), ADMIN_CAN)!.lines.join(" ")).toMatch(/1 day after/);
+    expect(publishingBanner(entry(pub({ keptForHours: 36 })), ADMIN_CAN)!.lines.join(" ")).toMatch(/36 hours after/);
+  });
+});
+
+describe("what a person reads after preparing a change", () => {
+  it("while writes are held, says who checked it: the network checks it again when it is sent", () => {
+    expect(preparedWords(0, cap())).toBe("Your change is prepared and checked against Testnet's rules. Testnet checks it again when it is sent. Review it below, then approve it.");
+  });
+  it("while writes are on, the network checked it", () => {
+    expect(preparedWords(0, cap({ writes: { released: true, reason: null } }))).toBe("Your change is prepared and checked. Review it below, then approve it.");
+  });
+  it("the listing's publishing answer wins over the capabilities' cache, so it never disagrees with the status", () => {
+    expect(preparedWords(0, cap(), { state: "on" })).toBe("Your change is prepared and checked. Review it below, then approve it.");
+    expect(preparedWords(0, cap({ writes: { released: true, reason: null } }), { state: "held" })).toMatch(/checked against Testnet's rules/);
+    expect(preparedWords(0, cap({ writes: { released: true, reason: null } }), { state: "blocked" })).toMatch(/^Your change is prepared and checked\./);
+  });
+  it("a change the network could not check says so, whatever the switch", () => {
+    expect(preparedWords(1, cap())).toMatch(/could not check it just now/);
   });
 });
 
@@ -346,7 +459,7 @@ describe("not wiping or losing what is there", () => {
 
 describe("the holiday offer", () => {
   const offer = (over = {}) => ({ key: "k", date: "2026-12-25", name: "Christmas Day", tentative: false, regionUnknown: false, ...over });
-  const resp = (over = {}) => ({ offers: [offer()], needsRegularHours: false, openChange: false, noTimeZone: false, networkUnreadable: false, ...over });
+  const resp = (over = {}) => ({ offers: [offer()], needsRegularHours: false, openChange: false, noTimeZone: false, timeZone: null, networkUnreadable: false, ...over });
   const L = "Testnet";
 
   it("shows nothing when there is no day to offer and nothing to say", () => {
@@ -560,5 +673,327 @@ describe("which changes ask for what followed them", () => {
     expect(outcomesRefetchMs(one("too_early"))).toBe(5 * 60_000);
     expect(outcomesRefetchMs(one("measured"))).toBe(false);
     expect(outcomesRefetchMs(undefined)).toBe(false);
+  });
+});
+
+describe("where a request stands (GBP L4)", () => {
+  const A = { propose: true, approve: true };
+  const E = { propose: true, approve: false };
+  const V = { propose: false, approve: false };
+  const at = (over: Partial<ChangeCardData>, can = A, publishing = null as Parameters<typeof requestStatus>[3]) => requestStatus(change(over), "Testnet", can, publishing);
+  const check = (outcome: string, note: string | null = null) => ({ checkedAt: "2026-11-11T09:00:00.000Z", outcome, note });
+  const BLOCKER = { reason: "Testnet cannot see that you control this listing.", action: "fix_on_network" as const, href: "https://example.test/fix" };
+
+  it("names every stage of the table", () => {
+    expect(at({ status: "proposed" })).toMatchObject({ stage: "draft", label: "Draft" });
+    expect(at({ status: "validated" })).toMatchObject({ stage: "awaiting_approval", label: "Awaiting your approval" });
+    expect(at({ status: "approved" })).toMatchObject({ stage: "approved_waiting", label: "Approved, waiting to send" });
+    expect(at({ status: "approved", held: { reason: "Publishing has not started." } })).toMatchObject({ stage: "approved_held", label: "Approved, waiting to send", tone: "warn" });
+    expect(at({ status: "applying" })).toMatchObject({ stage: "sent", label: "Sent to Testnet" });
+    expect(at({ status: "submitted" })).toMatchObject({ stage: "sent", label: "Sent to Testnet" });
+    expect(at({ status: "live" })).toMatchObject({ stage: "live", label: "Live on Testnet", reason: null, next: { kind: "none" } });
+    expect(at({ status: "failed", reason: { code: "network_rejected", message: "Testnet refused it." } })).toMatchObject({ stage: "rejected_by_network", label: "Rejected by Testnet", reason: "Testnet refused it." });
+    expect(at({ status: "failed", reason: { code: "not_published", message: "It may have been declined." } })).toMatchObject({ stage: "not_published", label: "Didn't go live" });
+    expect(at({ status: "failed", reason: { code: "outcome_unknown", message: "No answer." } })).toMatchObject({ stage: "failed", label: "Failed", reason: "No answer." });
+    expect(at({ status: "blocked", reason: { code: "control_lost", message: "No control." } })).toMatchObject({ stage: "not_sent", label: "Not sent", reason: "No control." });
+    expect(at({ status: "rejected" })).toMatchObject({ stage: "declined", label: "Declined by you" });
+    expect(at({ status: "expired" })).toMatchObject({ stage: "expired", label: "Expired" });
+    expect(at({ status: "superseded" })).toMatchObject({ stage: "replaced", label: "Replaced" });
+  });
+
+  it("keeps the merchant's decline apart from the network's rejection", () => {
+    const declined = at({ status: "rejected" });
+    const refused = at({ status: "failed", reason: { code: "network_rejected", message: "No." } });
+    expect(declined.label).toBe("Declined by you");
+    expect(refused.label).toBe("Rejected by Testnet");
+    expect(declined.label).not.toBe(refused.label);
+    // a failure with no reason code is neither
+    expect(at({ status: "failed" }).label).toBe("Failed");
+  });
+
+  it("says under review only for a pending check, and nothing else", () => {
+    expect(at({ status: "submitted", liveCheck: check("pending", "Testnet is still reviewing this change.") })).toMatchObject({ stage: "under_review", label: "Under Testnet review", reason: "Testnet is still reviewing this change." });
+    for (const outcome of ["not_shown", "unknown", "live", "rejected", ""]) {
+      expect(at({ status: "submitted", liveCheck: check(outcome) }).stage).not.toBe("under_review");
+    }
+    // time alone never makes it a review: an old submission with no check is only "sent"
+    expect(at({ status: "submitted", submittedAt: "2026-10-01T00:00:00.000Z" }).stage).toBe("sent");
+    // pending on any other status is not a review either
+    expect(at({ status: "approved", liveCheck: check("pending") }).stage).not.toBe("under_review");
+  });
+
+  it("says plainly when the network does not let us confirm", () => {
+    const r = at({ status: "submitted", liveCheck: { ...check("unknown", "Testnet keeps the profile photo under one name."), confirmable: false } });
+    expect(r).toMatchObject({ stage: "cannot_confirm", label: "Sent, Testnet doesn't let us confirm this", reason: "Testnet keeps the profile photo under one name.", tone: "neutral" });
+    expect(at({ status: "submitted", liveCheck: { ...check("unknown"), confirmable: false } }).reason).toContain("Testnet");
+  });
+
+  it("says only sent when a check did not answer, or when the api does not say", () => {
+    const note = "We could not reach the network to check this change.";
+    for (const confirmable of [true, undefined]) {
+      const r = at({ status: "submitted", liveCheck: { ...check("unknown", note), ...(confirmable === undefined ? {} : { confirmable }) } });
+      expect(r).toMatchObject({ stage: "sent", label: "Sent to Testnet", reason: note, tone: "neutral" });
+    }
+    expect(at({ status: "submitted", liveCheck: { ...check("unknown"), confirmable: true } }).reason).toContain("may take time");
+  });
+
+  it("warns when the network is not showing a sent change", () => {
+    expect(at({ status: "submitted", liveCheck: check("not_shown") })).toMatchObject({ stage: "sent", tone: "warn", reason: "Testnet is not showing it yet." });
+  });
+
+  it("offers Approve and Decline only to someone who can approve", () => {
+    expect(at({ status: "validated" }, A).next).toEqual({ kind: "decide" });
+    expect(at({ status: "proposed" }, A).next).toEqual({ kind: "decide" });
+    expect(at({ status: "validated" }, E).next).toEqual({ kind: "none" });
+    expect(at({ status: "validated" }, E).reason).toContain("admin or owner");
+    expect(at({ status: "validated" }, V).next).toEqual({ kind: "none" });
+  });
+
+  it("offers to make a failed, rejected or expired change again, and a viewer gets no action", () => {
+    const redo = { kind: "redo", label: "Make the change again" };
+    expect(at({ status: "expired" }, E).next).toEqual(redo);
+    expect(at({ status: "failed", reason: { code: "network_rejected", message: "No." } }, A).next).toEqual(redo);
+    expect(at({ status: "failed", reason: { code: "not_published", message: "No." } }, E).next).toEqual(redo);
+    expect(at({ status: "failed" }, E).next).toEqual(redo);
+    for (const status of ["expired", "failed", "blocked", "validated", "approved"] as ChangeStatus[]) {
+      expect(at({ status, held: status === "approved" ? { reason: "Held." } : null }, V, { blocker: BLOCKER, heldReason: null }).next).toEqual({ kind: "none" });
+    }
+    // nothing to do for what the merchant chose, or for what is live or replaced
+    for (const status of ["rejected", "live", "superseded", "submitted", "applying"] as ChangeStatus[]) expect(at({ status }, A).next).toEqual({ kind: "none" });
+  });
+
+  it("points a held or blocked request at the publishing status's own fix", () => {
+    const p = { blocker: BLOCKER, heldReason: null };
+    expect(at({ status: "blocked", reason: { code: "control_lost", message: "No control." } }, A, p).next).toEqual({ kind: "fix", label: "Fix this on Testnet", href: "https://example.test/fix", external: true });
+    expect(at({ status: "approved", held: { reason: "Held." } }, E, p)).toMatchObject({ next: { kind: "fix", href: "https://example.test/fix" }, reason: expect.stringContaining(BLOCKER.reason) });
+    const reconnect = { blocker: { reason: "The connection has lapsed.", action: "reconnect" as const, href: "/app/connections" }, heldReason: null };
+    expect(at({ status: "blocked" }, A, reconnect).next).toEqual({ kind: "fix", label: "Reconnect Testnet", href: "/app/connections", external: false });
+    // no blocker: a blocked request is made again, and a held one has nothing to press
+    expect(at({ status: "blocked" }, A).next).toEqual({ kind: "redo", label: "Make the change again" });
+    expect(at({ status: "approved", held: { reason: "Held." } }, A).next).toEqual({ kind: "none" });
+  });
+
+  it("falls back to the publishing status's own sentence when a held change has no reason of its own", () => {
+    expect(at({ status: "approved", held: { reason: "" } }, A, { blocker: null, heldReason: "Peakhour is finishing its setup." }).reason).toContain("Peakhour is finishing its setup.");
+  });
+
+  it("never names a network in the words but the label it is given", () => {
+    const r = requestStatus(change({ status: "submitted", liveCheck: check("pending") }), "Elsewhere", A);
+    expect(r.label).toBe("Under Elsewhere review");
+    expect(requestStatus(change({ status: "live" }), "Elsewhere", A).label).toBe("Live on Elsewhere");
+  });
+
+  it("makes the same words for statusWords as for requestStatus", () => {
+    const c = change({ status: "failed", reason: { code: "network_rejected", message: "No." } });
+    expect(statusWords(c, "Testnet", A)).toEqual({ headline: "Rejected by Testnet", detail: "No.", tone: "bad" });
+  });
+});
+
+describe("the requests list (GBP L4)", () => {
+  const NOW = Date.parse("2026-11-11T12:00:00.000Z");
+  const DAY = 24 * 3_600_000;
+  const ago = (days: number) => new Date(NOW - days * DAY).toISOString();
+  const row = (id: string, status: ChangeStatus, over: Partial<ChangeCardData> = {}) => change({ id, status, createdAt: ago(1), expiresAt: ago(-2), ...over });
+
+  it("lists open and in-flight requests first, newest first", () => {
+    const g = requestGroups(
+      [row("a", "submitted", { createdAt: ago(3) }), row("b", "validated", { createdAt: ago(1) }), row("c", "approved", { createdAt: ago(2) }), row("d", "proposed", { createdAt: ago(0.5) }), row("e", "applying", { createdAt: ago(4) })],
+      NOW,
+    );
+    expect(g.open.map((c) => c.id)).toEqual(["d", "b", "c", "a", "e"]);
+    expect(g.recent).toEqual([]);
+  });
+
+  it("keeps finished requests older than seven days apart, for Show older", () => {
+    const g = requestGroups([row("live6", "live", { liveAt: ago(6) }), row("live8", "live", { liveAt: ago(8), createdAt: ago(9) }), row("sup", "superseded", { createdAt: ago(9) })], NOW);
+    expect(g.recent.map((c) => c.id)).toEqual(["live6"]);
+    expect(g.older.map((c) => c.id)).toEqual(["live8"]);
+  });
+
+  it("folds finished requests from the last seven days and drops older ones", () => {
+    const g = requestGroups(
+      [
+        row("live6", "live", { liveAt: ago(6) }),
+        row("live8", "live", { liveAt: ago(8), createdAt: ago(9) }),
+        row("failed2", "failed", { submittedAt: ago(2) }),
+        row("declined", "rejected", { createdAt: ago(1) }),
+        row("declined-old", "rejected", { createdAt: ago(10) }),
+        row("expired", "expired", { createdAt: ago(10), expiresAt: ago(2) }),
+        row("expired-old", "expired", { createdAt: ago(12), expiresAt: ago(9) }),
+      ],
+      NOW,
+    );
+    expect(g.recent.map((c) => c.id)).toEqual(["declined", "failed2", "expired", "live6"]);
+  });
+
+  it("reads a proposal past its time as expired, never open and never approvable", () => {
+    const g = requestGroups([row("late", "validated", { expiresAt: ago(0.5), createdAt: ago(3.5) }), row("ok", "validated")], NOW);
+    expect(g.open.map((c) => c.id)).toEqual(["ok"]);
+    expect(g.recent.map((c) => [c.id, c.status])).toEqual([["late", "expired"]]);
+    expect(requestStatus(g.recent[0]!, "Testnet", { propose: true, approve: true }, null).next).toEqual({ kind: "redo", label: "Make the change again" });
+  });
+
+  it("skips a status it does not know, and says unknown rather than throwing", () => {
+    const odd = row("odd", "mystery" as ChangeStatus);
+    expect(requestGroups([odd], NOW)).toEqual({ open: [], recent: [], older: [] });
+    expect(requestStatus(odd, "Testnet", { propose: true, approve: true })).toMatchObject({ stage: "unknown", label: "Unknown", next: { kind: "none" } });
+  });
+
+  it("does not say a held request's blocker twice", () => {
+    const p = { blocker: { reason: "Reconnect Testnet.", action: "reconnect" as const, href: "/x" }, heldReason: null };
+    const r = requestStatus(change({ status: "approved", held: { reason: "Reconnect Testnet." } }), "Testnet", { propose: true, approve: true }, p);
+    expect(r.reason!.match(/Reconnect Testnet\./g)).toHaveLength(1);
+  });
+
+  describe("the tracker (GBP L12)", () => {
+    const when = (iso: string) => `<${iso.slice(5, 16)}>`;
+    const stageOf = (c: ChangeCardData) => requestStatus(c, "Testnet", { propose: true, approve: true }, null).stage;
+    const every: ChangeCardData[] = [
+      row("p", "proposed"),
+      row("v", "validated"),
+      row("ap", "approved"),
+      row("hd", "approved", { held: { reason: "Held." } }),
+      row("ly", "applying"),
+      row("sb", "submitted"),
+      row("rv", "submitted", { liveCheck: { checkedAt: ago(0), outcome: "pending", note: null } }),
+      row("cc", "submitted", { liveCheck: { checkedAt: ago(0), outcome: "unknown", note: null, confirmable: false } }),
+      row("lv", "live", { liveAt: ago(1) }),
+      row("f", "failed"),
+      row("nr", "failed", { reason: { code: "network_rejected", message: "No." } }),
+      row("np", "failed", { reason: { code: "not_published", message: "No." } }),
+      row("bl", "blocked"),
+      row("dc", "rejected"),
+      row("ex", "expired"),
+    ];
+
+    it("puts every request in exactly one group, and the counts add up", () => {
+      const groups = groupByStage(every, stageOf);
+      expect(groups.reduce((n, g) => n + g.rows.length, 0)).toBe(every.length);
+      const ids = groups.flatMap((g) => g.rows.map((r) => r.id));
+      expect(new Set(ids).size).toBe(every.length);
+      expect(groups.map((g) => g.id)).toEqual(["awaiting", "problem", "draft", "waiting", "sent", "review", "live", "closed"]);
+      expect(groups.find((g) => g.id === "problem")!.rows.map((r) => r.id)).toEqual(["f", "nr", "np", "bl"]);
+    });
+
+    it("leaves out stages that have no rows", () => {
+      const some = [row("a", "validated"), row("b", "submitted", { liveCheck: { checkedAt: ago(0), outcome: "pending", note: null } }), row("c", "live"), row("d", "live")];
+      expect(groupByStage(some, stageOf).map((g) => [g.id, g.rows.length])).toEqual([["awaiting", 1], ["review", 1], ["live", 2]]);
+      expect(groupByStage([], stageOf)).toEqual([]);
+    });
+
+    it("never groups a submitted change as live", () => {
+      for (const o of [undefined, "pending", "unknown", "not_shown", "confirmed"]) {
+        const c = row("s", "submitted", { liveAt: ago(0), liveCheck: o ? { checkedAt: ago(0), outcome: o, note: null } : null });
+        expect(groupByStage([c], stageOf)[0]!.id).not.toBe("live");
+        expect(requestStatus(c, "Testnet", undefined, null, { when }).label).not.toMatch(/^Live/);
+      }
+    });
+
+    it("says how we know a change is live, from the last check, else the live time, and nothing without a time writer", () => {
+      const live = row("l", "live", { liveAt: "2026-11-10T10:55:00.000Z", liveCheck: { checkedAt: "2026-11-10T11:30:00.000Z", outcome: "confirmed", note: null } });
+      expect(requestStatus(live, "Testnet", undefined, null, { when }).reason).toBe("Testnet shows this change. We checked on <11-10T11:30>.");
+      expect(requestStatus({ ...live, liveCheck: null }, "Testnet", undefined, null, { when }).reason).toBe("Testnet shows this change. We checked on <11-10T10:55>.");
+      expect(requestStatus(live, "Testnet", undefined, null).reason).toBeNull();
+      expect(requestStatus({ ...live, liveAt: null, liveCheck: { checkedAt: "not a time", outcome: "confirmed", note: null } }, "Testnet", undefined, null, { when }).reason).toBeNull();
+    });
+
+    it("says the real check cadence for a sent change, and stops promising it after fourteen days", () => {
+      const sent = row("s", "submitted", { submittedAt: "2026-11-10T10:42:00.000Z" });
+      expect(requestStatus(sent, "Testnet", undefined, null, { when, now: NOW }).reason).toBe("Sent <11-10T10:42>. Testnet hasn't shown it yet. We check again within the hour.");
+      // no clock, no promise; and a change under review keeps its own sentence
+      expect(requestStatus(sent, "Testnet", undefined, null, { when }).reason).toBe("Sent <11-10T10:42>. Testnet hasn't shown it yet.");
+      const review = row("r", "submitted", { submittedAt: "2026-11-10T10:42:00.000Z", liveCheck: { checkedAt: ago(0), outcome: "pending", note: null } });
+      expect(requestStatus(review, "Testnet", undefined, null, { when, now: NOW }).reason).toBe("Sent <11-10T10:42>. Testnet is still reviewing this change. We check again within the hour.");
+      const stale = row("s", "submitted", { submittedAt: ago(15) });
+      expect(requestStatus(stale, "Testnet", undefined, null, { when, now: NOW }).reason).toContain("We have stopped checking.");
+      expect(requestStatus(stale, "Testnet", undefined, null, { when, now: NOW }).reason).not.toContain("within the hour");
+      // a network that cannot show a change back keeps its own words, with no promise of a check
+      const cc = row("c", "submitted", { submittedAt: ago(1), liveCheck: { checkedAt: ago(0), outcome: "unknown", note: null, confirmable: false } });
+      expect(requestStatus(cc, "Testnet", undefined, null, { when, now: NOW })).toMatchObject({ stage: "cannot_confirm" });
+      expect(requestStatus(cc, "Testnet", undefined, null, { when, now: NOW }).reason).not.toContain("within the hour");
+    });
+
+    it("closes the api's note before the cadence, and skips a step whose time is not a time", () => {
+      const noted = row("n", "submitted", { submittedAt: "2026-11-10T10:42:00.000Z", liveCheck: { checkedAt: ago(0), outcome: "pending", note: "Testnet is still processing" } });
+      expect(requestStatus(noted, "Testnet", undefined, null, { when, now: NOW }).reason).toBe("Sent <11-10T10:42>. Testnet is still processing. We check again within the hour.");
+      expect(requestSteps(change({ createdAt: "garbage", submittedAt: "also bad" }), "Testnet", when)).toEqual([]);
+    });
+
+    it("draws only the steps that happened", () => {
+      const at = (over: Partial<ChangeCardData>) => requestSteps(change({ createdAt: "2026-11-10T08:00:00.000Z", ...over }), "Testnet", when);
+      expect(at({ status: "validated" })).toEqual(["Requested <11-10T08:00>"]);
+      expect(at({ status: "submitted", submittedAt: "2026-11-10T10:42:00.000Z" })).toEqual(["Requested <11-10T08:00>", "Sent <11-10T10:42>"]);
+      expect(at({ status: "live", submittedAt: "2026-11-10T10:42:00.000Z", liveAt: "2026-11-10T10:55:00.000Z" })).toEqual(["Requested <11-10T08:00>", "Sent <11-10T10:42>", "Testnet shows it <11-10T10:55>"]);
+      // a stray live time on a change that is not live is not drawn as done
+      expect(at({ status: "submitted", submittedAt: "2026-11-10T10:42:00.000Z", liveAt: "2026-11-10T10:55:00.000Z" })).toEqual(["Requested <11-10T08:00>", "Sent <11-10T10:42>"]);
+    });
+  });
+
+  it("hides a replaced request, open or not", () => {
+    const g = requestGroups([row("x", "superseded"), row("y", "validated")], NOW);
+    expect(g.open.map((c) => c.id)).toEqual(["y"]);
+    expect(g.recent).toEqual([]);
+  });
+
+  it("is empty before the changes have loaded", () => {
+    expect(requestGroups(undefined, NOW)).toEqual({ open: [], recent: [], older: [] });
+  });
+
+  it("says a change as a short before and after", () => {
+    expect(shortChange("description", "Old.", "New.")).toBe("Old. → New.");
+    expect(shortChange("description", null, "New.")).toBe("nothing set → New.");
+    const long = "x".repeat(100);
+    expect(shortChange("description", "Old.", long).length).toBeLessThan(80);
+    expect(shortChange("description", "Old.", long)).toContain("...");
+  });
+});
+
+describe("the listing's time zone words", () => {
+  const HOST = process.env.TZ ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  afterEach(() => {
+    process.env.TZ = HOST;
+  });
+
+  it("names the place, not just the id, on any host zone", () => {
+    for (const host of ["Asia/Kolkata", "America/Los_Angeles"]) {
+      process.env.TZ = host;
+      expect(zoneWords("Asia/Kolkata")).toBe("India Standard Time (Asia/Kolkata)");
+      expect(zoneWords("America/New_York")).toBe("Eastern Time (America/New_York)");
+    }
+    expect(zoneWords("Not/AZone")).toBe("Not/AZone");
+  });
+
+  it("says where an address-given zone came from, with the city when there is one", () => {
+    expect(zoneLine({ zone: "Asia/Kolkata", source: "address" }, "Mumbai")).toBe("Holiday hours use India Standard Time (Asia/Kolkata), from your address in Mumbai.");
+    expect(zoneLine({ zone: "Asia/Kolkata", source: "address" }, " ")).toBe("Holiday hours use India Standard Time (Asia/Kolkata), from your address.");
+    expect(zoneLine({ zone: "Asia/Kolkata", source: "business" }, "Mumbai")).toBe("Holiday hours use India Standard Time (Asia/Kolkata), from your business settings.");
+  });
+
+  it("says nothing extra for a confirmed zone, or when there is none", () => {
+    expect(zoneLine({ zone: "Asia/Kolkata", source: "confirmed" }, "Mumbai")).toBeNull();
+    expect(zoneLine(null)).toBeNull();
+  });
+
+  it("words the listing card's row the same way: source after a dot, nothing for a confirmed zone, 'not set' for none", () => {
+    expect(zoneRowLine({ zone: "Asia/Kolkata", source: "address" }, "Mumbai")).toBe("Time zone: India Standard Time (Asia/Kolkata) \u00b7 from your address in Mumbai");
+    expect(zoneRowLine({ zone: "Asia/Kolkata", source: "address" }, " ")).toBe("Time zone: India Standard Time (Asia/Kolkata) \u00b7 from your address");
+    expect(zoneRowLine({ zone: "Europe/London", source: "business" })).toContain("\u00b7 from your business settings");
+    expect(zoneRowLine({ zone: "Asia/Kolkata", source: "confirmed" }, "Mumbai")).toBe("Time zone: India Standard Time (Asia/Kolkata)");
+    expect(zoneRowLine(null)).toBe("Time zone: not set");
+  });
+
+  it("lists the listing's country first, then every other zone once", () => {
+    const supported = Intl.supportedValuesOf("timeZone");
+    const { near, all } = zoneChoices("IN", supported);
+    expect(near.length).toBeGreaterThan(0);
+    expect(near.map((z) => Intl.DateTimeFormat("en", { timeZone: z }).resolvedOptions().timeZone)).toContain(Intl.DateTimeFormat("en", { timeZone: "Asia/Kolkata" }).resolvedOptions().timeZone);
+    expect(all.length).toBeGreaterThan(100);
+    expect(all.filter((z) => near.includes(z))).toEqual([]);
+    expect(new Set([...near, ...all]).size).toBe(near.length + all.length);
+  });
+
+  it("has no first group for a country it does not know, and never throws", () => {
+    for (const c of [undefined, null, "", "ZZZ", "1!", "xx"]) expect(zoneChoices(c, ["Asia/Kolkata", "UTC"]).near).toEqual([]);
+    expect(zoneChoices("IN", []).all).toEqual(["UTC"]);
   });
 });

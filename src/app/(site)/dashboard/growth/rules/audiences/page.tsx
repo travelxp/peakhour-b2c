@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Sparkles, Users } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { DataToolbar, DataToolbarSearch } from "@/components/molecules/data-table/data-toolbar";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -20,6 +20,7 @@ import { platformLabel, LIBRARY_CHANNELS } from "@/lib/audience-library-rules";
 import type { AudienceSetsQuery } from "@/lib/api/audiences";
 import { AudienceSetCard } from "./_components/audience-set-card";
 import { ALL, MAX_OFFSET, PAGE_SIZE, SEARCH_MAX, SOURCES, STATUSES } from "./filters";
+import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 
 /**
  * The audience library (G1).
@@ -153,86 +154,88 @@ export default function AudienceLibraryPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Audiences</h2>
-          <p className="text-muted-foreground">
-            Every audience we&apos;ve suggested, read off your past campaigns, or you&apos;ve
-            built by hand — reusable on any campaign, on any channel.
-          </p>
-        </div>
-        {/* ★THE PRIMARY ACTION ON THIS PAGE IS NOT "ADD ONE". A library a
-            customer has to fill themselves is a filing cabinet; the engine's
-            whole claim is that it can tell them who to target from what it
-            already knows about the business, with no campaign history at all.
-            That call existed and nothing on any screen made it. */}
-        <Button className="shrink-0" onClick={() => setDiscoverOpen(true)}>
-          <Sparkles className="mr-1.5 size-4" aria-hidden="true" />
-          Find audiences
-        </Button>
-      </div>
+    <PageShell width="standard">
+      {/* ★THE PRIMARY ACTION ON THIS PAGE IS NOT "ADD ONE". A library a
+          customer has to fill themselves is a filing cabinet; the engine's
+          whole claim is that it can tell them who to target from what it
+          already knows about the business, with no campaign history at all.
+          That call existed and nothing on any screen made it. */}
+      <PageHeader
+        title="Audiences"
+        description="Every audience we've suggested, read off your past campaigns, or you've built by hand — reusable on any campaign, on any channel."
+        actions={
+          <Button className="shrink-0" onClick={() => setDiscoverOpen(true)}>
+            <Sparkles className="mr-1.5 size-4" aria-hidden="true" />
+            Find audiences
+          </Button>
+        }
+      />
 
       {discoverOpen && (
         <DiscoverAudiencesDialog open={discoverOpen} onOpenChange={setDiscoverOpen} />
       )}
 
-      <div className="flex flex-wrap gap-2">
-        <Input
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value.slice(0, SEARCH_MAX));
-            setOffset(0);
-          }}
-          maxLength={SEARCH_MAX}
-          placeholder="Search names and descriptions…"
-          className="w-full sm:max-w-xs"
-          aria-label="Search audiences"
-        />
-        <Select value={source} onValueChange={onFilterChange(setSource)}>
-          <SelectTrigger className="w-45" aria-label="Filter by where it came from">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Anywhere from</SelectItem>
-            {SOURCES.map((s) => (
-              <SelectItem key={s.value} value={s.value}>
-                {s.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={status} onValueChange={onFilterChange(setStatus)}>
-          <SelectTrigger className="w-40" aria-label="Filter by status">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Any status</SelectItem>
-            {STATUSES.map((s) => (
-              <SelectItem key={s.value} value={s.value}>
-                {s.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={platform} onValueChange={onFilterChange(setPlatform)}>
-          <SelectTrigger className="w-40" aria-label="Filter by channel">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {/* ★"WORKS ON THIS CHANNEL", NOT "WAS BORN ON IT". The api asks
-                whether the audience carries a shape for the channel, so an
-                idea planned on LinkedIn and since resolved for X appears under
-                both — which is the whole point of a channel-neutral library. */}
-            <SelectItem value={ALL}>Any channel</SelectItem>
-            {LIBRARY_CHANNELS.map((p) => (
-              <SelectItem key={p} value={p}>
-                Works on {platformLabel(p)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <DataToolbar
+        search={
+          <DataToolbarSearch
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value.slice(0, SEARCH_MAX));
+              setOffset(0);
+            }}
+            maxLength={SEARCH_MAX}
+            placeholder="Search names and descriptions…"
+            aria-label="Search audiences"
+          />
+        }
+        filters={
+          <>
+            <Select value={source} onValueChange={onFilterChange(setSource)}>
+              <SelectTrigger className="w-45" aria-label="Filter by where it came from">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Anywhere from</SelectItem>
+                {SOURCES.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={status} onValueChange={onFilterChange(setStatus)}>
+              <SelectTrigger className="w-40" aria-label="Filter by status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Any status</SelectItem>
+                {STATUSES.map((s) => (
+                  <SelectItem key={s.value} value={s.value}>
+                    {s.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={platform} onValueChange={onFilterChange(setPlatform)}>
+              <SelectTrigger className="w-40" aria-label="Filter by channel">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {/* ★"WORKS ON THIS CHANNEL", NOT "WAS BORN ON IT". The api asks
+                    whether the audience carries a shape for the channel, so an
+                    idea planned on LinkedIn and since resolved for X appears under
+                    both — which is the whole point of a channel-neutral library. */}
+                <SelectItem value={ALL}>Any channel</SelectItem>
+                {LIBRARY_CHANNELS.map((p) => (
+                  <SelectItem key={p} value={p}>
+                    Works on {platformLabel(p)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
+        }
+      />
 
       {sets.isPending ? (
         <div className="space-y-3">
@@ -338,6 +341,6 @@ export default function AudienceLibraryPage() {
           )}
         </>
       )}
-    </div>
+    </PageShell>
   );
 }

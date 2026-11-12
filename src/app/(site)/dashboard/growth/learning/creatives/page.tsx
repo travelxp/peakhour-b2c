@@ -17,6 +17,7 @@
  * Not under /dashboard/ads: the ads hub is one surface (ads-hub-single-surface);
  * the hub and the guardrails card link here.
  */
+import { TabPanelStubs } from "@/components/dashboard/tab-panel-stubs";
 import { Suspense, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -27,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DataToolbar } from "@/components/molecules/data-table/data-toolbar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ApiError } from "@/lib/api";
@@ -46,12 +48,13 @@ import {
   platformParam,
   type BadgeTone,
 } from "@/lib/creative-review-copy";
+import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 
 const ALL_PLATFORMS = "__all__";
 
 const TONE_CLASS: Record<BadgeTone, string> = {
-  approved: "border-emerald-600/40 bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
-  changed: "border-amber-600/40 bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
+  approved: "border-success/40 bg-success/10 text-success-on-tint",
+  changed: "border-warning/40 bg-warning/10 text-warning-on-tint",
   pending: "border-border bg-background text-foreground",
   muted: "border-border bg-muted text-muted-foreground",
 };
@@ -60,7 +63,14 @@ export default function CreativeReviewPage() {
   // useSearchParams needs a Suspense boundary or the route bails out of
   // static rendering.
   return (
-    <Suspense fallback={<ListSkeleton />}>
+    <Suspense
+      fallback={
+        <PageShell>
+          <h1 className="sr-only">Ad creatives</h1>
+          <ListSkeleton />
+        </PageShell>
+      }
+    >
       <CreativeReview />
     </Suspense>
   );
@@ -111,40 +121,40 @@ function CreativeReview() {
   }, [firstSummary, fetchedAt, queryClient]);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Ad creatives</h2>
-        <p className="text-muted-foreground">
-          The ads Peakhour has written for you. When you turn on &ldquo;Only use creatives I have approved&rdquo; in
+    <PageShell width="standard">
+      <PageHeader title="Ad creatives" description={<>The ads Peakhour has written for you. When you turn on &ldquo;Only use creatives I have approved&rdquo; in
           your <Link href="/dashboard/ads" className="underline underline-offset-2">guardrails</Link>, Peakhour
-          creates ads only from creatives you approve here &mdash; exactly as they read when you approved them.
-        </p>
-      </div>
+          creates ads only from creatives you approve here &mdash; exactly as they read when you approved them.</>} />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs value={filter.key} onValueChange={(v) => setParam("filter", v)} activationMode="manual">
-          <TabsList>
-            {CREATIVE_FILTERS.map((f) => (
-              <TabsTrigger key={f.key} value={f.key}>
-                {f.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-        <Select value={platform || ALL_PLATFORMS} onValueChange={(v) => setParam("platform", v === ALL_PLATFORMS ? null : v)}>
-          <SelectTrigger className="w-56" aria-label="Channel">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_PLATFORMS}>All channels</SelectItem>
-            {GUARDRAIL_CHANNELS.map((c) => (
-              <SelectItem key={c.key} value={c.key}>
-                {c.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <DataToolbar
+        tabs={
+            <Tabs value={filter.key} onValueChange={(v) => setParam("filter", v)} activationMode="manual">
+              <TabsList>
+                {CREATIVE_FILTERS.map((f) => (
+                  <TabsTrigger key={f.key} value={f.key}>
+                    {f.label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              <TabPanelStubs values={CREATIVE_FILTERS.map((f) => f.key)} />
+            </Tabs>
+        }
+        filters={
+            <Select value={platform || ALL_PLATFORMS} onValueChange={(v) => setParam("platform", v === ALL_PLATFORMS ? null : v)}>
+              <SelectTrigger className="w-56" aria-label="Channel">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_PLATFORMS}>All channels</SelectItem>
+                {GUARDRAIL_CHANNELS.map((c) => (
+                  <SelectItem key={c.key} value={c.key}>
+                    {c.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+        }
+      />
 
       {/* ★NO DATA covers a query paused offline too (pending, not loading):
           rendering the empty state then would claim "no creatives" from nothing. */}
@@ -178,7 +188,7 @@ function CreativeReview() {
           }
         />
       )}
-    </div>
+    </PageShell>
   );
 }
 
@@ -283,7 +293,7 @@ function CreativeCard({ item, onChanged }: { item: CreativeReviewItem; onChanged
                 {item.imageBriefs.map((b, i) =>
                   b.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img key={i} src={b.imageUrl} alt={b.prompt ?? "Ad image"} className="h-32 w-32 rounded-md border object-cover" />
+                    <img loading="lazy" key={i} src={b.imageUrl} alt={b.prompt ?? "Ad image"} className="h-32 w-32 rounded-md border object-cover" />
                   ) : (
                     <p key={i} className="text-muted-foreground">
                       Not made yet: {b.prompt ?? "an image"}
@@ -310,7 +320,7 @@ function CreativeCard({ item, onChanged }: { item: CreativeReviewItem; onChanged
             className={
               item.preflight.decision === "block"
                 ? "rounded-md border border-destructive/40 p-3 text-sm"
-                : "rounded-md border border-amber-600/40 p-3 text-sm"
+                : "rounded-md border border-warning/40 p-3 text-sm"
             }
           >
             <span className="font-medium">Ad-policy check: </span>

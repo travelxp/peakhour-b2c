@@ -199,7 +199,7 @@ const SettingsIntegrations9 = ({
     switch (status) {
       case "active":
         return (
-          <Badge variant="secondary" className="bg-green-100 text-green-800">
+          <Badge variant="secondary" className="bg-success/10 text-success-on-tint">
             Active
           </Badge>
         );
@@ -207,7 +207,7 @@ const SettingsIntegrations9 = ({
         return <Badge variant="secondary">Paused</Badge>;
       case "error":
         return (
-          <Badge variant="secondary" className="bg-red-100 text-red-800">
+          <Badge variant="secondary" className="bg-destructive/10 text-destructive-on-tint">
             Error
           </Badge>
         );
@@ -234,7 +234,7 @@ const SettingsIntegrations9 = ({
               <div className="flex items-start gap-4">
                 <div className="flex size-14 shrink-0 items-center justify-center rounded-xl border bg-muted/50">
                   {/* eslint-disable-next-line @next/next/no-img-element -- vendored block: provider logos are small remote images */}
-                  <img
+                  <img width={32} height={32} loading="lazy"
                     src={integration.image}
                     alt={integration.title}
                     className={cn("size-8", integration.className)}
@@ -255,7 +255,7 @@ const SettingsIntegrations9 = ({
                       <DropdownMenuTrigger asChild>
                         <Button
                           variant="ghost"
-                          size="icon"
+                          size="icon" aria-label="Integration actions"
                           className="opacity-0 group-hover:opacity-100"
                         >
                           <MoreHorizontal className="size-4" />

@@ -1,12 +1,13 @@
 "use client";
 
+import { TabPanelStubs } from "@/components/dashboard/tab-panel-stubs";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { Activity, AlertCircle, BookMarked, FileSearch, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { DataToolbar, DataToolbarSearch } from "@/components/molecules/data-table/data-toolbar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { KpiCard } from "@/components/molecules/kpi-card";
@@ -16,8 +17,10 @@ import { ApiError } from "@/lib/api";
 import { getCitations, listSources } from "./api";
 import { AddSourceDrawer } from "./components/add-source-drawer";
 import { InsightsPanel } from "./components/insights-panel";
+import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 import { SourceRow } from "./components/source-row";
 import type { SourceStatus, TrustedSource } from "./types";
+import { PageIntro } from "@/components/dashboard/page-intro";
 
 /**
  * Trusted Sources — Phase 0 priority per the LinkedIn 360 plan §3.
@@ -38,7 +41,7 @@ import type { SourceStatus, TrustedSource } from "./types";
  */
 
 const FEATURE_KEY = "content.trusted_sources";
-const FEATURE_NAME = "Trusted Sources";
+const FEATURE_NAME = "Content sources";
 const FEATURE_TAGLINE =
   "Ground every brief, idea, and post in your brand's voice. Add the sites, feeds, channels, and creators your AI should read, watch, and cite.";
 
@@ -155,7 +158,7 @@ function TrustedSourcesSurface() {
   }, [byStatus, tab, search]);
 
   return (
-    <div className="space-y-6">
+    <PageShell>
       {/* jobs-runner drains the source_fetch / discovery jobs these crons
           enqueue (they don't inline-drain on dev) — click the scheduler/runner
           first, then jobs-runner to actually fetch source content. */}
@@ -166,42 +169,47 @@ function TrustedSourcesSurface() {
           void queryClient.invalidateQueries({ queryKey: ["citations"] });
         }}
       />
-      <header className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Trusted Sources</h2>
-          <p className="text-muted-foreground">
-            What your AI reads, watches, and cites.
-          </p>
-        </div>
-        <AddSourceDrawer />
-      </header>
+      <PageHeader
+        title="Content sources"
+        description="What your AI reads, watches, and cites."
+        actions={<AddSourceDrawer />}
+      />
+      <PageIntro id="sources" />
 
       <KpiStrip rows={rows} loading={isLoading} />
 
       <Tabs value={tab} onValueChange={(v) => setTab(parseTab(v))}>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <TabsList>
-            {STATUS_TABS.map((t) => (
-              <TabsTrigger key={t.value} value={t.value} className="gap-1.5">
-                {t.label}
-                <Badge variant="secondary" className="rounded-sm px-1.5 text-[10px]">
-                  {byStatus[t.value].length}
-                </Badge>
-              </TabsTrigger>
-            ))}
-            <TabsTrigger value="insights">Insights</TabsTrigger>
-          </TabsList>
-          {/* Search filters the row list — irrelevant on Insights, so
-              it hides there to avoid implying "search the aggregates". */}
-          {tab !== "insights" && (
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search name or URL"
-              className="h-9 w-full sm:w-72"
-            />
-          )}
-        </div>
+        <DataToolbar
+          search={
+            /* Search filters the row list: irrelevant on Insights, so it hides
+               there to avoid implying "search the aggregates". */
+            tab !== "insights" ? (
+              <DataToolbarSearch
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search name or URL"
+                aria-label="Search sources"
+              />
+            ) : undefined
+          }
+          tabs={
+            <>
+              <TabsList>
+                {STATUS_TABS.map((t) => (
+                  <TabsTrigger key={t.value} value={t.value} className="gap-1.5">
+                    {t.label}
+                    <Badge variant="secondary" className="rounded-sm px-1.5 text-micro">
+                      {byStatus[t.value].length}
+                    </Badge>
+                  </TabsTrigger>
+                ))}
+                <TabsTrigger value="insights">Insights</TabsTrigger>
+              </TabsList>
+              {/* The list below is the shared panel; stubs keep aria-controls valid. */}
+              <TabPanelStubs values={[...STATUS_TABS.map((t) => t.value), "insights"]} />
+            </>
+          }
+        />
 
         {/* aria-busy on the list region so screen-reader users learn
             when a background revalidation (post-mutation invalidate
@@ -225,7 +233,7 @@ function TrustedSourcesSurface() {
           )}
         </div>
       </Tabs>
-    </div>
+    </PageShell>
   );
 }
 
@@ -265,7 +273,7 @@ function KpiStrip({ rows, loading }: { rows: TrustedSource[]; loading: boolean }
 
   if (loading) {
     return (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <Skeleton key={i} className="h-24" />
         ))}
@@ -284,7 +292,7 @@ function KpiStrip({ rows, loading }: { rows: TrustedSource[]; loading: boolean }
     : "AI citations across all sources, last 30 days";
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
       <KpiCard
         title="Active sources"
         value={activeCount}
@@ -322,7 +330,7 @@ function KpiStrip({ rows, loading }: { rows: TrustedSource[]; loading: boolean }
 function ErrorCard({ error }: { error: unknown }) {
   const isApi = error instanceof ApiError;
   const status = isApi ? error.status : 0;
-  const message = isApi ? error.message : "Could not load trusted sources.";
+  const message = isApi ? error.message : "Could not load content sources.";
 
   // 400 + scope mention from the backend = no business selected
   // (the route's principal-narrowing branch returns
@@ -385,7 +393,7 @@ function EmptyState({
         <CardContent className="space-y-2 py-12 text-center">
           <p className="text-sm font-medium">Your AI is using only platform-default sources.</p>
           <p className="text-sm text-muted-foreground">
-            Add 5–10 trusted sources to ground every brief in your brand&apos;s voice.
+            Add 5–10 content sources to ground every brief in your brand&apos;s voice.
           </p>
         </CardContent>
       </Card>
@@ -408,17 +416,15 @@ function EmptyState({
 
 function TrustedSourcesLockedFallback() {
   return (
-    <div className="space-y-6">
-      <header>
-        <h2 className="text-2xl font-bold tracking-tight">Trusted Sources</h2>
-        <p className="text-muted-foreground">
-          What your AI reads, watches, and cites.
-        </p>
-      </header>
+    <PageShell>
+      <PageHeader
+        title="Content sources"
+        description="What your AI reads, watches, and cites."
+      />
       <Card className="border-warning/30 bg-linear-to-br from-warning/8 to-white dark:to-transparent">
         <CardContent className="space-y-3 p-8 text-center">
           <Sparkles aria-hidden="true" className="mx-auto size-8 text-warning-on-tint" />
-          <h3 className="text-lg font-semibold tracking-tight">Trusted Sources is rolling out</h3>
+          <h3 className="text-lg font-semibold tracking-tight">Content sources is rolling out</h3>
           <p className="mx-auto max-w-md text-sm text-muted-foreground">
             {FEATURE_TAGLINE}
           </p>
@@ -433,6 +439,6 @@ function TrustedSourcesLockedFallback() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </PageShell>
   );
 }

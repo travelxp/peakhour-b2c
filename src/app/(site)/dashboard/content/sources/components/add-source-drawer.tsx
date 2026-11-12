@@ -94,7 +94,7 @@ export function AddSourceDrawer() {
       </SheetTrigger>
       <SheetContent className="flex flex-col sm:max-w-2xl">
         <SheetHeader>
-          <SheetTitle>Add trusted sources</SheetTitle>
+          <SheetTitle>Add content sources</SheetTitle>
           <SheetDescription>
             Sources ground every brief, idea, and post in your brand&apos;s voice. Active sources are picked up by the next 15-minute fetch.
           </SheetDescription>
@@ -593,7 +593,7 @@ function CompetitorTab({ onClose }: { onClose: () => void }) {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Paste a competitor or peer brand&apos;s URL — the AI proposes trusted sources grounded in your brand&apos;s sectors and audience. Approved recommendations land in your Suggested tab for one-click review.{" "}
+            Paste a competitor or peer brand&apos;s URL — the AI proposes content sources grounded in your brand&apos;s sectors and audience. Approved recommendations land in your Suggested tab for one-click review.{" "}
             <ActionCost action="findSources" />
           </p>
         </form>
@@ -653,7 +653,7 @@ function CompetitorRecommendationsPreview({ rows }: { rows: RecommendedSource[] 
       <ul className="max-h-80 divide-y overflow-auto">
         {rows.map((row, i) => (
           <li key={`${row.identifier}-${i}`} className="flex items-start gap-3 px-3 py-2.5">
-            <Badge variant="outline" className="mt-0.5 shrink-0 text-[10px]">
+            <Badge variant="outline" className="mt-0.5 shrink-0 text-micro">
               {SOURCE_TYPE_LABEL[row.type]}
             </Badge>
             <div className="min-w-0 flex-1">
@@ -661,7 +661,7 @@ function CompetitorRecommendationsPreview({ rows }: { rows: RecommendedSource[] 
                 <p className="truncate text-xs font-medium">{row.displayName}</p>
                 <ConfidencePill confidence={row.confidence} />
               </div>
-              <p className="truncate font-mono text-[10px] text-muted-foreground" title={row.identifier}>
+              <p className="truncate font-mono text-micro text-muted-foreground" title={row.identifier}>
                 {row.identifier}
               </p>
               <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
@@ -700,7 +700,7 @@ function ConfidencePill({ confidence }: { confidence: number }) {
   return (
     <Badge
       variant="outline"
-      className={`shrink-0 text-[10px] ${classes}`}
+      className={`shrink-0 text-micro ${classes}`}
       title={`AI confidence: ${pct}%`}
       aria-label={`${label} confidence, ${pct}%`}
     >
@@ -781,12 +781,12 @@ function BulkPreview({ rows }: { rows: CreateSourceInput[] }) {
       <ul className="max-h-80 divide-y overflow-auto">
         {rows.map((row, i) => (
           <li key={`${row.identifier}-${i}`} className="flex items-center gap-3 px-3 py-2">
-            <Badge variant="outline" className="shrink-0 text-[10px]">
+            <Badge variant="outline" className="shrink-0 text-micro">
               {SOURCE_TYPE_LABEL[row.type]}
             </Badge>
             <div className="min-w-0 flex-1">
               <p className="truncate text-xs font-medium">{row.displayName}</p>
-              <p className="truncate font-mono text-[10px] text-muted-foreground" title={row.identifier}>
+              <p className="truncate font-mono text-micro text-muted-foreground" title={row.identifier}>
                 {row.identifier}
               </p>
             </div>
@@ -843,7 +843,7 @@ function BulkSubmitFooter({
     // failure. One actionable toast beats N identical "Feature
     // required" messages.
     if (o.featureRevoked) {
-      toast.error("Trusted Sources is no longer on your plan", {
+      toast.error("Content sources is no longer on your plan", {
         description:
           "Refresh the page to see the upgrade options. Any rows that were already added before the change have been kept.",
       });

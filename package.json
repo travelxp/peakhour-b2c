@@ -17,7 +17,10 @@
     "errors:ai:1d": "npm --prefix ../peakhour-api run errors:ai:1d",
     "errors:ai:7d": "npm --prefix ../peakhour-api run errors:ai:7d",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "budget": "node scripts/check-bundle-budget.mjs",
+    "budget:update": "node scripts/check-bundle-budget.mjs --update",
+    "blocks:drift": "tsx scripts/check-shadcnblocks-drift.ts"
   },
   "dependencies": {
     "@ai-sdk/react": "^4.0.32",
@@ -54,6 +57,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^26",
     "@types/react": "^19",
@@ -61,6 +65,7 @@
     "dotenv": "^17.0.0",
     "eslint": "^9.39.4",
     "eslint-config-next": "16.2.4",
+    "playwright": "1.64.1",
     "shadcn": "^4.4.0",
     "tailwindcss": "^4",
     "tsx": "^4.20.0",

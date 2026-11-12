@@ -18,6 +18,7 @@ import { WebPageRow } from "./components/web-page-row";
 import { GeneratePagesDialog, type TopicSeed } from "./components/generate-pages-dialog";
 import { TemplateGallery } from "./components/template-gallery";
 import { ActionCost } from "@/components/dashboard/action-cost";
+import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 
 /**
  * Turn a generate result into one plain-language line.
@@ -120,24 +121,21 @@ export default function PagesDashboard() {
   const busy = generate.isPending || !business;
 
   return (
-    <div className="space-y-6">
+    <PageShell width="standard">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Pages</h2>
-          <p className="mt-1 max-w-prose text-sm text-muted-foreground">
-            Ready-made landing pages for your business, written for you. Review each one and
-            approve to publish — nothing goes live until you say so.
-          </p>
-        </div>
-        <div className="flex flex-col items-start gap-1 sm:items-end">
-          <Button onClick={() => openWithSeed(undefined)} disabled={busy}>
-            <Sparkles className="size-4" aria-hidden="true" />
-            {generate.isPending ? "Writing pages…" : "Generate pages"}
-          </Button>
-          <ActionCost action="webPages" unit="for each page" className="text-xs" />
-        </div>
-      </div>
+      <PageHeader
+        title="Web pages"
+        description="Ready-made landing pages for your business, written for you. Review each one and approve to publish — nothing goes live until you say so."
+        actions={
+          <div className="flex flex-col items-start gap-1 sm:items-end">
+            <Button onClick={() => openWithSeed(undefined)} disabled={busy}>
+              <Sparkles className="size-4" aria-hidden="true" />
+              {generate.isPending ? "Writing pages…" : "Generate pages"}
+            </Button>
+            <ActionCost action="webPages" unit="for each page" className="text-xs" />
+          </div>
+        }
+      />
 
       {/* ★THE GALLERY LEADS WHEN THE QUEUE IS EMPTY, AND FOLLOWS WHEN IT IS NOT.
           A first-time owner's problem is knowing what page to ask for; a
@@ -218,6 +216,6 @@ export default function PagesDashboard() {
         onGenerate={runGenerate}
         seed={seed}
       />
-    </div>
+    </PageShell>
   );
 }

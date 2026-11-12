@@ -16,6 +16,7 @@ import { useLocale } from "@/hooks/use-locale";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DataToolbar, DataToolbarSearch } from "@/components/molecules/data-table/data-toolbar";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -40,7 +41,6 @@ import {
 import { ConfirmDialog } from "@/components/molecules/confirm-dialog";
 import {
   MoreHorizontal,
-  Search,
   CornerDownLeft,
   Crown,
   ShieldCheck,
@@ -162,18 +162,17 @@ export function TeamSection() {
       </div>
 
       {/* Search + Invite */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="relative w-full max-w-56 min-w-20">
-          <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
+      <DataToolbar
+        search={
+          <DataToolbarSearch
             placeholder="Search members..."
-            className="pl-8"
+            aria-label="Search members"
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
           />
-        </div>
-        {isAdmin && <InviteDialog onInvited={loadData} />}
-      </div>
+        }
+        actions={isAdmin ? <InviteDialog onInvited={loadData} /> : undefined}
+      />
 
       <p className="text-xs font-semibold text-muted-foreground">
         {filteredMembers.length} member{filteredMembers.length !== 1 ? "s" : ""}
@@ -206,7 +205,7 @@ export function TeamSection() {
                     value={m.role}
                     onValueChange={(v) => handleRoleChange(m.userId, v)}
                   >
-                    <SelectTrigger className="min-w-24 h-8 text-xs">
+                    <SelectTrigger className="min-w-24 h-8 text-xs" aria-label={`Role for ${m.name || m.email}`}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -289,7 +288,7 @@ export function TeamSection() {
                   </span>
                   <ConfirmDialog
                     trigger={
-                      <Button variant="ghost" size="icon-xs" className="text-muted-foreground hover:text-destructive-on-tint">
+                      <Button variant="ghost" size="icon-xs" aria-label="Revoke invite" className="text-muted-foreground hover:text-destructive-on-tint">
                         <Trash2 className="size-3.5" />
                       </Button>
                     }
@@ -363,7 +362,7 @@ function InviteDialog({ onInvited }: { onInvited: () => Promise<void> }) {
             <div className="space-y-1">
               <Label className="text-xs">Select role</Label>
               <Select value={role} onValueChange={setRole}>
-                <SelectTrigger className="w-full bg-background">
+                <SelectTrigger className="w-full bg-background" aria-label="Select role">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

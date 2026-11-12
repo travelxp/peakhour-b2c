@@ -27,17 +27,20 @@ import {
 } from "@/lib/growth-v2-rules";
 import { AutonomyLadder } from "./autonomy-ladder";
 import { PageHead } from "./page-head";
+import { PageShell } from "@/components/dashboard/page-shell";
 import { QueryBoundary } from "./query-boundary";
 import { ToneBadge } from "./tone";
 
-/** Rules: "What may the engine do?" Your mandate, how much it may do alone, and the lines it never crosses (plan 1, H5). */
-export function RulesScreen() {
+/** Rules: "What may Peakhour do?" Your mandate, how much it may do alone, and the lines it never crosses (plan 1, H5). */
+export function RulesScreen({ intro }: { intro?: React.ReactNode } = {}) {
   const query = useGrowthV2Rules();
   return (
-    <div className="grid gap-4">
-      <PageHead title="What may the engine do?" description="Your mandate, how much the engine may do on its own, and the lines it never crosses." />
+    <PageShell width="standard">
+      <PageHead title="What may Peakhour do?" description="Your mandate, how much Peakhour may do on its own, and the lines it never crosses." />
+      {/* The route's "What is this page?" strip: under the title, inside the shell. */}
+      {intro}
       <QueryBoundary query={query}>{(r) => <RulesBody rules={r.data} preview={r.preview} />}</QueryBoundary>
-    </div>
+    </PageShell>
   );
 }
 
@@ -71,9 +74,9 @@ export function RulesBody({ rules, preview }: { rules: RulesResponse; preview: b
       <div className="grid gap-4">
         <Card>
           <CardContent className="space-y-3 py-8 text-center">
-            <p className="font-medium">The engine is off for this business.</p>
+            <p className="font-medium">Peakhour is off for this business.</p>
             <p className="mx-auto max-w-prose text-sm text-muted-foreground">
-              There is no mandate yet. Answer three questions and confirm on WhatsApp, and the engine starts by watching and proposing.
+              There is no mandate yet. Answer three questions and confirm on WhatsApp, and Peakhour starts by watching and proposing.
             </p>
             <Button asChild>
               <Link href={`${GROWTH_HOME}/start`}>Start the first run</Link>
@@ -97,7 +100,7 @@ export function RulesBody({ rules, preview }: { rules: RulesResponse; preview: b
       <Card>
         <CardHeader>
           <CardTitle>Autonomy</CardTitle>
-          <CardDescription>The engine earns each level by its results, and drops back a level on its own after a bad result.</CardDescription>
+          <CardDescription>Peakhour earns each level by its results, and drops back a level on its own after a bad result.</CardDescription>
         </CardHeader>
         <CardContent>
           <AutonomyLadder
@@ -119,7 +122,7 @@ export function RulesBody({ rules, preview }: { rules: RulesResponse; preview: b
       <Card>
         <CardHeader>
           <CardTitle>Connections</CardTitle>
-          <CardDescription>The engine only manages accounts that bill in your mandate&apos;s currency ({m.currency}).</CardDescription>
+          <CardDescription>Peakhour only manages accounts that bill in your mandate&apos;s currency ({m.currency}).</CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <table className="w-full min-w-[520px] text-sm">
@@ -177,7 +180,7 @@ export function RulesBody({ rules, preview }: { rules: RulesResponse; preview: b
             </tbody>
           </table>
           <p className="mt-3 text-xs text-muted-foreground">
-            Manage connections in <Link href="/dashboard/integrations" className="underline underline-offset-2">Integrations</Link>.
+            Manage connections in <Link href="/dashboard/integrations" className="underline underline-offset-2">Connected accounts</Link>.
           </p>
         </CardContent>
       </Card>
@@ -194,7 +197,7 @@ function NeverCrossed({ lines }: { lines: string[] }) {
         <CardTitle className="inline-flex items-center gap-2">
           <Lock aria-hidden className="size-4" /> Never, at any level
         </CardTitle>
-        <CardDescription>These do not change with autonomy. The engine cannot do them, whatever it has earned.</CardDescription>
+        <CardDescription>These do not change with autonomy. Peakhour cannot do them, whatever it has earned.</CardDescription>
       </CardHeader>
       <CardContent>
         <ul className="list-disc space-y-1 pl-5 text-sm">
@@ -233,7 +236,7 @@ function MandateCard({ mandate: m, preview }: { mandate: MandateView; preview: b
             </ToneBadge>
           </Row>
           {m.goal ? <Row term="Monthly goal" detail="What you are aiming for">{m.goal.perMonth}</Row> : <Row term="Monthly goal" detail="No goal set">None</Row>}
-          <Row term="Monthly ceiling" detail="The engine can never spend more than this">
+          <Row term="Monthly ceiling" detail="Peakhour can never spend more than this">
             {formatMoney(m.monthlyCeiling, m.currency)}
           </Row>
           <Row
@@ -389,7 +392,7 @@ function GuardrailsCard({ rules, preview }: { rules: RulesResponse; preview: boo
     <Card>
       <CardHeader>
         <CardTitle>Guardrails</CardTitle>
-        <CardDescription>The engine checks these before it proposes anything, not after. A change here is saved at once.</CardDescription>
+        <CardDescription>Peakhour checks these before it proposes anything, not after. A change here is saved at once.</CardDescription>
         {g.adsHalted ? (
           <CardAction>
             <ToneBadge tone="bad" dot>
@@ -469,7 +472,7 @@ function GuardrailsCard({ rules, preview }: { rules: RulesResponse; preview: boo
         </div>
 
         <div className="grid gap-1">
-          <b className="text-sm font-medium">Channels the engine may use</b>
+          <b className="text-sm font-medium">Channels Peakhour may use</b>
           <dl className="divide-y">
             {rules.connections.map((c) => (
               <Row key={c.platform} term={PLATFORM_LABEL[c.platform]} detail={c.connected ? "Connected" : "Not connected yet"}>
@@ -477,7 +480,7 @@ function GuardrailsCard({ rules, preview }: { rules: RulesResponse; preview: boo
                   checked={channelAllowed(g, c.platform)}
                   disabled={busy}
                   onCheckedChange={(allowed) => apply({ kind: "channel", platform: c.platform, allowed })}
-                  aria-label={`Let the engine use ${PLATFORM_LABEL[c.platform]}`}
+                  aria-label={`Let Peakhour use ${PLATFORM_LABEL[c.platform]}`}
                 />
               </Row>
             ))}

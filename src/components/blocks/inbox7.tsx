@@ -457,8 +457,8 @@ function getInitials(name: string) {
 }
 
 function getStatusColor(status: TicketStatus) {
-  if (status === "active") return "bg-emerald-500";
-  if (status === "pending") return "bg-amber-500";
+  if (status === "active") return "bg-success";
+  if (status === "pending") return "bg-warning";
   return "bg-muted-foreground";
 }
 
@@ -495,7 +495,7 @@ function QueueButton({
       <Icon className="size-4 shrink-0" />
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {count !== undefined && count > 0 && (
-        <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+        <Badge variant="secondary" className="h-5 px-1.5 text-micro">
           {count}
         </Badge>
       )}
@@ -555,7 +555,7 @@ function TicketList({
                         src={ticket.respondingUser.avatar}
                         alt={ticket.respondingUser.name}
                       />
-                      <AvatarFallback className="text-[8px]">
+                      <AvatarFallback className="text-micro">
                         {getInitials(ticket.respondingUser.name)}
                       </AvatarFallback>
                     </Avatar>
@@ -591,7 +591,7 @@ function MessageBubble({ message }: { message: Message }) {
           <div className="flex items-center gap-2">
             <span className="font-medium">{message.senderName}</span>
             {message.isStaff && (
-              <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+              <Badge variant="secondary" className="h-5 px-1.5 text-micro">
                 Staff
               </Badge>
             )}
@@ -630,7 +630,7 @@ function ReplyComposer({
           className="min-h-20 resize-none border-0 bg-transparent focus-visible:ring-0"
         />
         <div className="flex flex-wrap items-center justify-between gap-2 border-t px-3 py-2">
-          <Button variant="ghost" size="icon" className="size-8">
+          <Button variant="ghost" size="icon" aria-label="Add attachment" className="size-8">
             <Plus className="size-4" />
           </Button>
           <div className="flex items-center gap-2">
@@ -688,7 +688,7 @@ function AgentPanel({
             {customer.isHighValue && (
               <Badge
                 variant="outline"
-                className="mt-3 border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                className="mt-3 border-warning/40 bg-warning/10 text-warning-on-tint"
               >
                 High value customer
               </Badge>
@@ -789,7 +789,7 @@ function Conversation({
           {showAgentToggle && (
             <Button
               variant="ghost"
-              size="icon"
+              size="icon" aria-label="Toggle assistant panel"
               className="hidden size-8 lg:inline-flex"
               onClick={onToggleAgent}
             >
@@ -1005,7 +1005,7 @@ export function Inbox7({ className }: { className?: string }) {
           </DropdownMenu>
           <Button
             variant="ghost"
-            size="icon"
+            size="icon" aria-label="Search conversations"
             className="size-8"
             onClick={() => setIsCommandOpen(true)}
           >

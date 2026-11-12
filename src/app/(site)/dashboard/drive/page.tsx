@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Upload } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
+import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { BrandKitTab } from "@/components/brand-kit/brand-kit-tab";
@@ -103,16 +104,15 @@ function DriveHome() {
   }, [abilities.canEdit, addFiles]);
 
   return (
-    <div className="flex flex-col gap-5">
+    <PageShell width="wide">
       <CronToolbar crons={MEDIA_CRONS} onTriggered={() => void qc.invalidateQueries({ queryKey: ["drive"] })} />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Drive</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Everything {business?.name ?? "your business"} makes and owns, in one place.</p>
-        </div>
-        {abilities.canEdit && (
-          <div className="flex gap-2">
+      <PageHeader
+        title="Drive"
+        description={`Everything ${business?.name ?? "your business"} makes and owns, in one place.`}
+        actions={
+          abilities.canEdit ? (
+            <>
             {tab === "files" && <NewCollectionButton />}
             <Button type="button" onClick={() => input.current?.click()}>
               <Upload aria-hidden className="size-4" />
@@ -130,9 +130,10 @@ function DriveHome() {
                 e.target.value = "";
               }}
             />
-          </div>
-        )}
-      </div>
+            </>
+          ) : undefined
+        }
+      />
 
       <Tabs value={tab} onValueChange={setTab} className="gap-5">
         <TabsList variant="line" aria-label="Drive sections" className="h-auto w-full flex-wrap justify-start border-b">
@@ -172,7 +173,7 @@ function DriveHome() {
           <div className="mt-1 text-sm text-muted-foreground">Images, videos and documents. Peakhour names and sorts them for you.</div>
         </div>
       </div>
-    </div>
+    </PageShell>
   );
 }
 

@@ -55,7 +55,7 @@ export function KanbanColumn({
           <span className={cn("size-2 rounded-full", dotColor)} />
           <span className="text-sm font-semibold">{label}</span>
         </div>
-        <Badge variant="secondary" className="h-5 min-w-5 justify-center rounded-full px-1.5 text-[10px] font-medium">
+        <Badge variant="secondary" className="h-5 min-w-5 justify-center rounded-full px-1.5 text-micro font-medium">
           {ideas.length}
         </Badge>
       </div>
@@ -67,7 +67,7 @@ export function KanbanColumn({
         <div className="flex flex-1 flex-col gap-2">
           {ideas.length === 0 && (
             <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-muted-foreground/20 py-12">
-              <p className="text-xs text-muted-foreground/40">Drop here</p>
+              <p className="text-xs text-muted-foreground">Drop here</p>
             </div>
           )}
           {ideas.map((idea) => (

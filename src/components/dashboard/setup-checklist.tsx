@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 /**
- * "Set up your AI engine" — the three things Peakhour needs before it can work
+ * "Finish setting up Peakhour" — the three things Peakhour needs before it can work
  * on its own, and which one is next.
  *
  * ── ★★THE BUG THIS REPLACES, WHICH WAS NOT COSMETIC
@@ -72,7 +72,7 @@ export function SetupChecklist({ steps }: { steps: SetupStep[] }) {
           </div>
           <div className="min-w-0 space-y-2">
             <div>
-              <p className="text-sm font-semibold">Set up your AI engine</p>
+              <p className="text-sm font-semibold">Finish setting up Peakhour</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {doneCount} of {steps.length} done — these three are what Peakhour needs before it
                 can work on its own.
@@ -113,7 +113,7 @@ export function SetupChecklist({ steps }: { steps: SetupStep[] }) {
                         {step.label}
                       </span>
                       {!step.done && (
-                        <span className="block text-[11px] leading-snug text-muted-foreground">
+                        <span className="block text-micro leading-snug text-muted-foreground">
                           {step.detail}
                         </span>
                       )}

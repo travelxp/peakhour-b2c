@@ -21,14 +21,15 @@ import {
   Target,
   Activity,
   Lock,
-  ArrowUpRight,
-  ArrowDownRight,
-  Minus,
 } from "lucide-react";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { useSetAskEntityIds } from "@/providers/ask-context-provider";
 import { ASK_ENABLED } from "@/lib/flags";
-import { TrendChart } from "@/components/viz/trend-chart";
+import { TrendChart } from "@/components/viz/trend-chart-lazy";
+import { ComparisonChart } from "@/components/viz/comparison-chart-lazy";
+import { DeltaChip } from "@/components/viz/delta-chip";
+import { periodDelta, type PeriodDelta } from "@/lib/period-delta";
+import { splitPeriods } from "@/lib/period-series";
 import { ExplainCard } from "@/components/dashboard/explain-card";
 import {
   useAnalyticsInsights,
@@ -37,10 +38,11 @@ import {
   type Ga4Digest,
 } from "@/hooks/use-analytics-insights";
 import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
-import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
+import { PageGrid, PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { WhatCountsAsAWinDialog } from "@/components/growth/what-counts-as-a-win-dialog";
 import { growthApi, type WinDefinition } from "@/lib/api/growth";
 import { analyticsActions, type AnalyticsAction } from "@/lib/analytics-actions";
+import { brandTileStyle } from "@/components/brand/brand-colors";
 
 interface ConnectionStatus {
   provider: string;
@@ -207,12 +209,12 @@ export default function AnalyticsInsightsPage() {
       {cronToolbar}
       <PageHeader
         icon={
-          <div className="rounded-lg bg-[#E37400] p-2">
+          <div className="rounded-lg p-2" style={brandTileStyle("googleAnalytics")}>
             <LineChart className="h-5 w-5 text-white" />
           </div>
         }
-        title="Analytics 4"
-        description="Conversion funnel + top page performance — drives Optimizer budget allocation and Strategist content suggestions."
+        title="Website traffic"
+        description="Conversion funnel + top page performance — drives Optimizer budget allocation and Content plan suggestions."
       />
 
       {!isWorking ? (
@@ -227,11 +229,11 @@ export default function AnalyticsInsightsPage() {
             <p className="text-sm text-muted-foreground">
               {needsReconnect
                 ? "Your Analytics 4 refresh token expired. Reconnect to resume syncing funnel and page metrics."
-                : "Connect Google Analytics 4 to start syncing real conversion data into the autonomous engine. Universal Analytics is sunset and not supported — only GA4 properties (numeric ids) work."}
+                : "Connect Google Analytics 4 to start syncing real conversion data into Peakhour. Universal Analytics is sunset and not supported — only GA4 properties (numeric ids) work."}
             </p>
             <Button asChild>
               <Link href="/dashboard/integrations">
-                {needsReconnect ? "Reconnect" : "Go to integrations"}
+                {needsReconnect ? "Reconnect" : "Go to Connected accounts"}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
@@ -422,38 +424,22 @@ function num(n: number): string {
   return n.toLocaleString();
 }
 
-/** WoW delta chip (percent). null delta → no chip. */
-function DeltaChip({ deltaPct }: { deltaPct: number | null | undefined }) {
-  if (deltaPct === null || deltaPct === undefined) return null;
-  const up = deltaPct > 0;
-  const down = deltaPct < 0;
-  return (
-    <span
-      className={`flex items-center gap-0.5 text-xs font-medium ${
-        up
-          ? "text-success-on-tint"
-          : down
-            ? "text-destructive-on-tint"
-            : "text-muted-foreground"
-      }`}
-    >
-      {up ? <ArrowUpRight className="h-3 w-3" /> : down ? <ArrowDownRight className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
-      {Math.abs(deltaPct)}%
-    </span>
-  );
-}
+/** The week-over-week digest compares the last 7 days with the 7 before them. */
+const WOW_VS = "last 7 days vs the 7 before";
+const WOW_SPOKEN = "the 7 days before the last 7 days";
 
 function FunnelTile({
   icon,
   label,
   value,
-  deltaPct,
+  delta,
   suffix,
 }: {
   icon: React.ReactNode;
   label: string;
   value: number;
-  deltaPct?: number | null;
+  /** Null when the api has no prior week to compare with. */
+  delta?: PeriodDelta | null;
   suffix?: string;
 }) {
   return (
@@ -462,13 +448,11 @@ function FunnelTile({
         {icon}
         {label}
       </div>
-      <div className="mt-1 flex items-baseline gap-2">
-        <span className="text-2xl font-semibold tabular-nums">
-          {num(value)}
-          {suffix}
-        </span>
-        <DeltaChip deltaPct={deltaPct} />
+      <div className="mt-1 text-2xl font-semibold tabular-nums">
+        {num(value)}
+        {suffix}
       </div>
+      <DeltaChip delta={delta} label={label} vs={WOW_VS} comparedWith={WOW_SPOKEN} className="mt-1" />
     </div>
   );
 }
@@ -542,6 +526,9 @@ function AnalyticsData({
   const channels = data.channels ?? [];
   const trend = data.trend ?? [];
   const funnelWindow = data.period ?? "last 30 days";
+  // Only a digest with a prior week behind it carries a comparison.
+  const weekly = d?.hasComparison ? d.trend : null;
+  const weekCompare = splitPeriods(trend as unknown as Array<{ date: string; [k: string]: string | number }>, "sessions", 7);
   const windowLabel = data.trendWindowDays ? `last ${data.trendWindowDays} days` : "recent";
 
   /**
@@ -654,23 +641,66 @@ function AnalyticsData({
       {funnel && (
         <div className="space-y-2">
           <p className="text-xs text-muted-foreground">Totals · {funnelWindow}</p>
-          <div className="grid grid-cols-2 gap-3">
-            <FunnelTile icon={<Users className="h-4 w-4" />} label="People" value={funnel.totalUsers} />
+          <PageGrid variant="kpi">
+            <FunnelTile
+              icon={<Users className="h-4 w-4" />}
+              label="People"
+              value={funnel.totalUsers}
+              delta={weekly ? periodDelta(weekly.totalUsers.now, weekly.totalUsers.prev) : null}
+            />
             <FunnelTile
               icon={<Activity className="h-4 w-4" />}
               label="Stayed and read something"
               value={funnel.engagementRatePct}
               suffix="%"
+              delta={
+                weekly
+                  ? periodDelta(weekly.engagementRate.now * 100, weekly.engagementRate.prev * 100, {
+                      absoluteOnly: true,
+                      unit: "pts",
+                      decimals: 1,
+                    })
+                  : null
+              }
             />
             {showGa4Conversions && funnel.conversions > 0 && (
               <FunnelTile
                 icon={<Target className="h-4 w-4" />}
                 label="Outcomes"
                 value={funnel.conversions}
+                delta={weekly ? periodDelta(weekly.conversions.now, weekly.conversions.prev) : null}
               />
             )}
-          </div>
+          </PageGrid>
         </div>
+      )}
+
+      {/* ── This week against last week ──
+          Only when the daily series holds 14 unbroken days: this week is the
+          filled area, the week before is the dashed line, day by day. */}
+      {weekCompare && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <LineChart className="h-4 w-4" />
+              Sessions: last 7 days against the 7 before
+            </CardTitle>
+            <p className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
+              <span>
+                {num(weekCompare.currentTotal)} sessions, against {num(weekCompare.previousTotal)}.
+              </span>
+              <DeltaChip
+                delta={periodDelta(weekCompare.currentTotal, weekCompare.previousTotal)}
+                label="Sessions"
+                vs="vs the 7 days before"
+                comparedWith={WOW_SPOKEN}
+              />
+            </p>
+          </CardHeader>
+          <CardContent>
+            <ComparisonChart rows={weekCompare.rows} />
+          </CardContent>
+        </Card>
       )}
 
       {/* ── Sessions trend ── */}
@@ -691,7 +721,7 @@ function AnalyticsData({
       </Card>
 
       {/* ── Channels + top pages ── */}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2 text-base">

@@ -261,7 +261,7 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
       <div className="space-y-1.5">
         <Label className="text-xs uppercase tracking-wide text-muted-foreground">Google Ads account</Label>
         <Select value={accountId ?? undefined} onValueChange={setAccountParam}>
-          <SelectTrigger className="w-80">
+          <SelectTrigger aria-label="Google Ads account" className="w-80">
             <SelectValue placeholder="Choose an account" />
           </SelectTrigger>
           <SelectContent>
@@ -400,7 +400,7 @@ function ConversionTrackingSection({ account }: { account: GoogleAdAccount }) {
                 <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground">Use an existing import-from-clicks action</Label>
                   <Select value={choice ?? ""} onValueChange={setPicked} disabled={busy}>
-                    <SelectTrigger className="w-80">
+                    <SelectTrigger aria-label="Conversion action" className="w-80">
                       <SelectValue placeholder="Choose a conversion action" />
                     </SelectTrigger>
                     <SelectContent>
@@ -517,8 +517,8 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Campaign</TableHead>
-                <TableHead>Type</TableHead>
+                <TableHead className="sticky left-0 z-10 bg-background">Campaign</TableHead>
+                <TableHead className="hidden md:table-cell">Type</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Daily budget</TableHead>
                 <TableHead className="text-right">Action</TableHead>
@@ -532,7 +532,7 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
                 const channels = c.channelType === "DEMAND_GEN" ? googleChannelControlsSentence(c.channelControls) : null;
                 return (
                   <TableRow key={c.id}>
-                    <TableCell>
+                    <TableCell className="sticky left-0 z-10 bg-background">
                       <div className="font-medium">{c.name}</div>
                       {note ? <div className="text-xs text-muted-foreground">{note}</div> : null}
                       {c.channelType === "PERFORMANCE_MAX" ? (
@@ -543,7 +543,7 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
                         <div className="text-xs text-muted-foreground">{GOOGLE_DEMAND_GEN_REPORTING_NOTE}</div>
                       ) : null}
                     </TableCell>
-                    <TableCell>{googleChannelTypeLabel(c.channelType)}</TableCell>
+                    <TableCell className="hidden md:table-cell">{googleChannelTypeLabel(c.channelType)}</TableCell>
                     <TableCell>
                       <Badge variant="outline">{busy ? "Updating…" : googleStatusLabel(c)}</Badge>
                     </TableCell>
@@ -772,7 +772,7 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
       <CardContent className="space-y-4">
         <Field label="Campaign type">
           <Select value={form.channelType} onValueChange={(v) => set("channelType", v as GoogleChannelType)} disabled={create.isPending}>
-            <SelectTrigger className="w-60">
+            <SelectTrigger aria-label="Campaign type" className="w-60">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

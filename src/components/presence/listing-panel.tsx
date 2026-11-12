@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useListingQuery } from "@/hooks/use-presence-listing";
+import { useEditCapabilities } from "@/hooks/use-presence-edit";
+import { ZoneControl } from "@/components/presence/edit/zone-control";
 import { useLocale } from "@/hooks/use-locale";
 import { ControlSection } from "@/components/presence/control-section";
 import {
@@ -14,6 +16,7 @@ import {
   driftStatus,
   fetchView,
   hoursLines,
+  listingMapLink,
   networkLabel,
   primaryEntry,
   setupMessage,
@@ -34,7 +37,7 @@ import {
 function DriftMark({ status, label }: { status: DriftStatus; label: string | null }) {
   if (status === "differs") {
     return (
-      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-warning-on-tint">
+      <span className="inline-flex items-center gap-1 text-micro font-medium text-warning-on-tint">
         <AlertTriangle className="size-3.5" aria-hidden />
         {driftLabel("differs", label)}
       </span>
@@ -42,14 +45,14 @@ function DriftMark({ status, label }: { status: DriftStatus; label: string | nul
   }
   if (status === "matches") {
     return (
-      <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+      <span className="inline-flex items-center gap-1 text-micro text-muted-foreground">
         <Check className="size-3.5" aria-hidden />
         {driftLabel("matches", label)}
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+    <span className="inline-flex items-center gap-1 text-micro text-muted-foreground">
       <Minus className="size-3.5" aria-hidden />
       {driftLabel("not_checked", label)}
     </span>
@@ -71,7 +74,7 @@ function Row({
 }) {
   return (
     <div className="grid gap-1 py-3 sm:grid-cols-[10rem_1fr_auto] sm:items-start sm:gap-4">
-      <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <dt className="text-micro font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </dt>
       <dd className="min-w-0 text-sm break-words">{children}</dd>
@@ -152,6 +155,8 @@ function rowValue(
 
 export function ListingPanel({ location, network, label: labelFallback }: { location?: string; network?: string; label?: string | null }) {
   const q = useListingQuery(location, network);
+  // Only an admin or owner can change the zone (the route is theirs): everyone else is shown the line and no button.
+  const caps = useEditCapabilities();
   const { formatDate, formatDateTime } = useLocale();
   const view = fetchView({
     hasData: !!q.data,
@@ -240,7 +245,7 @@ export function ListingPanel({ location, network, label: labelFallback }: { loca
       )}
       {note && <p className="text-xs text-warning-on-tint">{note}</p>}
 
-      <ControlSection entry={entry} formatDateTime={formatDateTime} />
+      <ControlSection key={`${entry?.network ?? ""}|${listing.id}`} entry={entry} listing={listing} mapHref={listingMapLink(data.connection?.locations, entry?.externalId)} formatDateTime={formatDateTime} />
 
       <dl className="divide-y">
         {LISTING_ROWS.map((r) => (
@@ -250,7 +255,15 @@ export function ListingPanel({ location, network, label: labelFallback }: { loca
         ))}
       </dl>
 
-      <p className="text-[11px] text-muted-foreground">
+      {/* GBP L13: the zone days are placed in, always visible, so a wrong one can be seen and corrected without waiting for a holiday. */}
+      {/* An api that does not send the zone at all (undefined) is "unknown to this page", not "not set": nothing is drawn, so no one is nudged to overwrite it. */}
+      {listing.timeZone !== undefined && (
+        <div className="border-t pt-3">
+          <ZoneControl key={listing.id} listingId={listing.id} tz={listing.timeZone} address={listing.address} variant="row" canChange={!!caps.data?.can.approve} />
+        </div>
+      )}
+
+      <p className="text-micro text-muted-foreground">
         {checked && entry
           ? `Last compared with ${label ?? "the network"} on ${formatDateTime(entry.lastSyncedAt)}. Only some fields are compared; the rest say so.`
           : `We haven't compared this with ${label ?? "the network"} recently.`}

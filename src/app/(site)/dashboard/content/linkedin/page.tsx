@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { PageShell } from "@/components/dashboard/page-shell";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
@@ -19,11 +20,11 @@ import {
   Rocket,
   Users,
 } from "lucide-react";
+import { PostComposer } from "./_components/post-composer";
 import {
-  PostComposer,
   PostComposerSkeleton,
   useLinkedInIdentity,
-} from "./_components/post-composer";
+} from "./_components/composer-identity";
 import { AudiencePanel } from "./_components/audience-panel";
 import { BoostCandidatesPanel } from "./_components/boost-candidates-panel";
 import { LibraryPanel } from "./_components/library-panel";
@@ -330,7 +331,7 @@ function LinkedInPageShell({
 }) {
   const queryClient = useQueryClient();
   return (
-    <div className="space-y-6">
+    <PageShell width="wide">
       {/* Confirms a reconnect that started here (the Boost dialog's CTAs pass
           ?returnTo=/dashboard/content/linkedin) — in the shell so every branch
           of this page, including the empty states, announces it. */}
@@ -404,6 +405,6 @@ function LinkedInPageShell({
       ) : (
         children
       )}
-    </div>
+    </PageShell>
   );
 }

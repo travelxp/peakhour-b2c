@@ -22,24 +22,24 @@ import {
   ExternalLink,
   AlertTriangle,
   ArrowRight,
-  TrendingUp,
-  TrendingDown,
-  Minus,
   MousePointerClick,
   Eye,
   Trophy,
   Sparkles,
   Lock,
-  ArrowUpRight,
-  ArrowDownRight,
   ShieldCheck,
 } from "lucide-react";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
-import { TrendChart } from "@/components/viz/trend-chart";
+import { TrendChart } from "@/components/viz/trend-chart-lazy";
+import { ComparisonChart } from "@/components/viz/comparison-chart-lazy";
+import { DeltaChip } from "@/components/viz/delta-chip";
+import { periodDelta, type PeriodDelta } from "@/lib/period-delta";
+import { splitPeriods } from "@/lib/period-series";
 import { ExplainCard } from "@/components/dashboard/explain-card";
 import { useSetAskEntityIds } from "@/providers/ask-context-provider";
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { describeActionPage, stripUnsafeText } from "@/lib/search-action-page";
+import { brandTileStyle } from "@/components/brand/brand-colors";
 
 // ── Types (mirror peakhour-api search-insights service) ─────────────────────
 interface ConnectionStatus {
@@ -258,6 +258,11 @@ export default function SearchConsoleInsightsPage() {
   const isWorking = status?.status === "active" || status?.status === "error";
   const needsReconnect = status?.status === "expired";
   const data = insightsQ.data;
+  const clicksCompare = splitPeriods(
+    data?.trend as unknown as Array<{ date: string; [k: string]: string | number }> | undefined,
+    "clicks",
+    28,
+  );
 
   return (
     <PageShell width="wide">
@@ -265,11 +270,11 @@ export default function SearchConsoleInsightsPage() {
 
       <PageHeader
         icon={
-          <div className="rounded-lg bg-[#458CF7] p-2">
+          <div className="rounded-lg p-2" style={brandTileStyle("googleSearchConsole")}>
             <Search className="h-5 w-5 text-white" />
           </div>
         }
-        title="Search Console"
+        title="Google search"
         description="What's happening in Google Search — and what to do about it."
         actions={
           isWorking && (
@@ -281,7 +286,7 @@ export default function SearchConsoleInsightsPage() {
                     setProperty(v === "__default__" ? undefined : v)
                   }
                 >
-                  <SelectTrigger className="w-55">
+                  <SelectTrigger className="w-55" aria-label="Property">
                     <SelectValue placeholder="Property" />
                   </SelectTrigger>
                   <SelectContent>
@@ -326,7 +331,7 @@ export default function SearchConsoleInsightsPage() {
             </p>
             <Button asChild>
               <Link href="/dashboard/integrations">
-                {needsReconnect ? "Reconnect" : "Go to integrations"}
+                {needsReconnect ? "Reconnect" : "Go to Connected accounts"}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
@@ -368,9 +373,9 @@ export default function SearchConsoleInsightsPage() {
               body={
                 sites.length === 0
                   ? "No verified Search Console properties were found for this account. Verify a domain in Search Console, then reconnect."
-                  : "Pick which verified property to track from the Integrations page to start seeing insights."
+                  : "Pick which verified property to track from Connected accounts to start seeing insights."
               }
-              cta={{ href: "/dashboard/integrations", label: "Go to integrations" }}
+              cta={{ href: "/dashboard/integrations", label: "Go to Connected accounts" }}
             />
           ) : data && data.pending ? (
             <NoticeCard
@@ -391,18 +396,39 @@ export default function SearchConsoleInsightsPage() {
                       <TrendTile
                         icon={<MousePointerClick className="h-4 w-4" />}
                         label="Clicks"
-                        value={data.digest.trend.clicks.now}
-                        deltaPct={data.digest.trend.clicks.deltaPct}
+                        value={num(data.digest.trend.clicks.now)}
+                        delta={
+                          data.digest.hasComparison
+                            ? periodDelta(data.digest.trend.clicks.now, data.digest.trend.clicks.prev)
+                            : null
+                        }
                       />
                       <TrendTile
                         icon={<Eye className="h-4 w-4" />}
                         label="Impressions"
-                        value={data.digest.trend.impressions.now}
-                        deltaPct={data.digest.trend.impressions.deltaPct}
+                        value={num(data.digest.trend.impressions.now)}
+                        delta={
+                          data.digest.hasComparison
+                            ? periodDelta(data.digest.trend.impressions.now, data.digest.trend.impressions.prev)
+                            : null
+                        }
                       />
-                      <PositionTile
-                        now={data.digest.trend.avgPosition.now}
-                        delta={data.digest.trend.avgPosition.delta}
+                      <TrendTile
+                        icon={<Trophy className="h-4 w-4" />}
+                        label="Avg. position"
+                        value={data.digest.trend.avgPosition.now || "—"}
+                        lowerIsBetter
+                        delta={
+                          data.digest.hasComparison
+                            ? periodDelta(data.digest.trend.avgPosition.now, data.digest.trend.avgPosition.prev, {
+                                absoluteOnly: true,
+                                lowerIsBetter: true,
+                                zeroIsMissing: true,
+                                decimals: 1,
+                                unit: "places",
+                              })
+                            : null
+                        }
                       />
                     </div>
 
@@ -435,6 +461,33 @@ export default function SearchConsoleInsightsPage() {
 
               {/* ── Tier-2 "Explain this" (user-triggered, Peaks-metered) ── */}
               <ExplainCard surface="gsc" resource={data.siteUrl} />
+
+              {/* ── Last 28 days against the 28 before ──
+                  Only when the daily series holds 56 unbroken days. */}
+              {clicksCompare && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <MousePointerClick className="h-4 w-4" />
+                      Clicks: last 28 days against the 28 before
+                    </CardTitle>
+                    <p className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
+                      <span>
+                        {num(clicksCompare.currentTotal)} clicks, against {num(clicksCompare.previousTotal)}.
+                      </span>
+                      <DeltaChip
+                        delta={periodDelta(clicksCompare.currentTotal, clicksCompare.previousTotal)}
+                        label="Clicks"
+                        vs="vs the 28 days before"
+                        comparedWith="the 28 days before the last 28 days"
+                      />
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <ComparisonChart rows={clicksCompare.rows} />
+                  </CardContent>
+                </Card>
+              )}
 
               {/* ── Clicks trend ── */}
               {data.trend && data.trend.length > 0 && (
@@ -647,65 +700,39 @@ function NoticeCard({
   );
 }
 
+/** The digest compares the latest stored 28-day slice with the one stored about a week earlier. */
+const GSC_VS = "vs about a week ago";
+const GSC_SPOKEN = "about a week ago";
+
 function TrendTile({
   icon,
   label,
   value,
-  deltaPct,
+  delta,
+  lowerIsBetter,
 }: {
   icon: React.ReactNode;
   label: string;
-  value: number;
-  deltaPct: number | null;
+  value: React.ReactNode;
+  /** Null when the api has no earlier slice to compare with. */
+  delta: PeriodDelta | null;
+  lowerIsBetter?: boolean;
 }) {
-  const up = deltaPct !== null && deltaPct > 0;
-  const down = deltaPct !== null && deltaPct < 0;
   return (
     <div className="rounded-lg border p-3">
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
         {icon}
         {label}
       </div>
-      <div className="mt-1 flex items-baseline gap-2">
-        <span className="text-2xl font-semibold tabular-nums">{num(value)}</span>
-        {deltaPct !== null && (
-          <span
-            className={`flex items-center gap-0.5 text-xs font-medium ${
-              up ? "text-success-on-tint" : down ? "text-destructive-on-tint" : "text-muted-foreground"
-            }`}
-          >
-            {up ? <ArrowUpRight className="h-3 w-3" /> : down ? <ArrowDownRight className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
-            {Math.abs(deltaPct)}%
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/** Average position is INVERTED — a lower number is better, so a negative
- *  delta reads as an improvement. Spell it out rather than trust an arrow. */
-function PositionTile({ now, delta }: { now: number; delta: number | null }) {
-  const improved = delta !== null && delta < 0;
-  return (
-    <div className="rounded-lg border p-3">
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Trophy className="h-4 w-4" />
-        Avg. position
-      </div>
-      <div className="mt-1 flex items-baseline gap-2">
-        <span className="text-2xl font-semibold tabular-nums">{now || "—"}</span>
-        {delta !== null && delta !== 0 && (
-          <span
-            className={`flex items-center gap-0.5 text-xs font-medium ${
-              improved ? "text-success-on-tint" : "text-destructive-on-tint"
-            }`}
-          >
-            {improved ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-            {improved ? "improved" : "declined"}
-          </span>
-        )}
-      </div>
+      <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
+      <DeltaChip
+        delta={delta}
+        label={label}
+        vs={GSC_VS}
+        comparedWith={GSC_SPOKEN}
+        lowerIsBetter={lowerIsBetter}
+        className="mt-1"
+      />
     </div>
   );
 }
@@ -751,7 +778,7 @@ function ActionCard({ action: a, property }: { action: SearchAction; property?: 
       <CardContent className="space-y-2 py-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-[#458CF7]" />
+            <Sparkles className="h-4 w-4 text-chart-4" />
             <span className="text-sm font-semibold">{a.headline}</span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -777,7 +804,7 @@ function ActionCard({ action: a, property }: { action: SearchAction; property?: 
               href={page.href}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-sm text-[#458CF7] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#458CF7]"
+              className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-sm text-chart-4 underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chart-4"
               title={page.href}
             >
               {/* ★ONE ADDRESS, NOT TWO WORDS. `gap` on the anchor put a visible

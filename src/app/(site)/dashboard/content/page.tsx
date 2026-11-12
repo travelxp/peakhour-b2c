@@ -5,18 +5,16 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
-import { api } from "@/lib/api";
+import { contentHubCatalogQuery, contentHubIntegrationsQuery, type ContentHubIntegration } from "@/lib/nav-queries";
 import { resolveBrandLogo } from "@/lib/brand-logos";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
+import { DataToolbar, DataToolbarSearch } from "@/components/molecules/data-table/data-toolbar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollableTabsList } from "@/components/scrollable-tabslist";
 import { flattenMetaIntegration } from "@/lib/integrations-meta";
-import type { ResolvedCatalog } from "@/lib/catalog";
 import {
   CHANNELS,
   CHANNEL_CATEGORIES,
@@ -27,17 +25,7 @@ import { resolveChannelCta } from "./channel-cta";
 import { filterChannels, groupChannels, type ChannelGroup } from "./channel-groups";
 import { PageShell } from "@/components/dashboard/page-shell";
 
-interface ApiIntegration {
-  provider: string;
-  connected?: boolean;
-  status?: string;
-  lastSyncAt?: string;
-  lastError?: string;
-  account?: {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    extra?: Record<string, any>;
-  };
-}
+type ApiIntegration = ContentHubIntegration;
 
 type ConnectionMap = Map<string, ApiIntegration>;
 
@@ -51,15 +39,12 @@ const ALL_TAB = "All" as const;
 
 export default function ContentChannelsHubPage() {
   const queryClient = useQueryClient();
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["content-hub-integrations"],
-    queryFn: () => api.get<{ integrations: ApiIntegration[] }>("/v1/integrations"),
-    staleTime: 30_000,
-    // Default refetch behavior is fine here. We DON'T disable focus / reconnect
-    // refetches: a user who connects Beehiiv in another tab and returns should
-    // see fresh connection state. (Earlier code disabled these to keep the
-    // auto-redirect from re-firing on tab focus, but that's gone now.)
-  });
+  // Default refetch behavior is fine here. We DON'T disable focus / reconnect
+  // refetches: a user who connects Beehiiv in another tab and returns should
+  // see fresh connection state. (Earlier code disabled these to keep the
+  // auto-redirect from re-firing on tab focus, but that's gone now.)
+  // The key and fn live in lib/nav-queries so the sidebar can prefetch them.
+  const { data, isLoading, isError } = useQuery(contentHubIntegrationsQuery);
 
   // Bind `data?.integrations` to a local so the memo's source dep matches what
   // React Compiler infers (it widened `data?.integrations` to `data`). Stable
@@ -67,11 +52,7 @@ export default function ContentChannelsHubPage() {
   // Channel list is now CMS-driven: resolved from the org-personalized platform
   // catalog. Falls back to the static channels.config.ts if the catalog can't
   // be loaded, so the hub never renders empty.
-  const { data: catalog } = useQuery({
-    queryKey: ["content-hub-catalog"],
-    queryFn: () => api.get<ResolvedCatalog>("/v1/platform/catalog"),
-    staleTime: 30_000,
-  });
+  const { data: catalog } = useQuery(contentHubCatalogQuery);
   const channels = useMemo<ChannelConfig[]>(
     () =>
       catalog?.integrations?.length
@@ -133,7 +114,7 @@ export default function ContentChannelsHubPage() {
 
   if (isLoading) {
     return (
-      <PageShell>
+      <PageShell width="wide">
         {cronToolbar}
         <HubSkeleton />
       </PageShell>
@@ -141,32 +122,15 @@ export default function ContentChannelsHubPage() {
   }
 
   return (
-    <PageShell>
+    <PageShell width="wide">
       {cronToolbar}
       <header className="space-y-2 border-b pb-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 space-y-2">
-            <h1 className="text-2xl font-semibold tracking-tight">Content channels</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">All content</h1>
             <p className="text-sm text-muted-foreground">
               Connect content sources to ingest, repurpose, and publish across every channel.
             </p>
-          </div>
-          {/* Top-right, and `type="search"` so the browser offers its own clear
-              affordance rather than us shipping a second one. `shrink-0` keeps
-              it from being squeezed by a long heading at tablet widths. */}
-          <div className="relative w-full shrink-0 sm:w-64">
-            <Search
-              className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-              aria-hidden
-            />
-            <Input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search channels"
-              aria-label="Search channels"
-              className="pl-8"
-            />
           </div>
         </div>
         {isError && (
@@ -177,16 +141,28 @@ export default function ContentChannelsHubPage() {
       </header>
 
       <Tabs defaultValue={ALL_TAB}>
-        <ScrollableTabsList className="rounded-none">
-          <TabsList className="overflow-y-hidden">
-            <TabsTrigger value={ALL_TAB}>All</TabsTrigger>
-            {CHANNEL_CATEGORIES.map((category) => (
-              <TabsTrigger key={category} value={category}>
-                {category}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </ScrollableTabsList>
+        <DataToolbar
+          search={
+            <DataToolbarSearch
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search channels"
+              aria-label="Search channels"
+            />
+          }
+          tabs={
+            <ScrollableTabsList className="rounded-none">
+              <TabsList className="overflow-y-hidden">
+                <TabsTrigger value={ALL_TAB}>All</TabsTrigger>
+                {CHANNEL_CATEGORIES.map((category) => (
+                  <TabsTrigger key={category} value={category}>
+                    {category}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </ScrollableTabsList>
+          }
+        />
 
         <TabsContent value={ALL_TAB} className="mt-6">
           <ChannelGroups
@@ -267,7 +243,7 @@ function ChannelGroups({
                 {group.empty}
               </p>
             ) : (
-              <div className="space-y-3">
+              <div className="grid gap-3 2xl:grid-cols-2">
                 {group.channels.map((channel) => (
                   <ChannelRow
                     key={channel.slug}
@@ -364,7 +340,7 @@ function ChannelRow({ channel, integration, connectionStateUnknown }: ChannelRow
         )}
         {manageViaIntegrations && (
           <p className="text-xs text-muted-foreground">
-            Managed from Integrations — this channel has no screen of its own.
+            Managed from Connected accounts — this channel has no screen of its own.
           </p>
         )}
       </div>

@@ -41,7 +41,7 @@ export function ShareByWeek({ weeks }: ShareByWeekProps) {
           {[0, 0.5, 1].map((v) => (
             <g key={v}>
               <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} />
-              <text x={L - 6} y={y(v) + 4} textAnchor="end" className="fill-muted-foreground stroke-none text-[11px]">
+              <text x={L - 6} y={y(v) + 4} textAnchor="end" className="fill-muted-foreground stroke-none text-micro">
                 {formatPercent(v)}
               </text>
             </g>
@@ -69,7 +69,7 @@ export function ShareByWeek({ weeks }: ShareByWeekProps) {
                   <title>{`Week of ${formatDay(w.weekStart)}: ${formatPercent(gap)} has no figure`}</title>
                 </rect>
               ) : null}
-              <text x={x + bw / 2} y={H - 12} textAnchor="middle" className="fill-muted-foreground text-[11px]">
+              <text x={x + bw / 2} y={H - 12} textAnchor="middle" className="fill-muted-foreground text-micro">
                 {formatDay(w.weekStart)}
               </text>
             </g>

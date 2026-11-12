@@ -60,8 +60,9 @@ describe("a paid click carries a key of its own", () => {
   it("the strategist, the draft and the page generator send it", () => {
     expect(read("src/hooks/use-web-pages.ts")).toMatch(/"\/v1\/content\/web-pages\/generate", body \?\? \{\}, newActionKey\(\)/);
     expect(read("src/app/(site)/dashboard/strategist/page.tsx")).toMatch(/streamPost\("\/v1\/content\/suggest", .*newActionKey\(\)\)/);
-    const detail = read("src/app/(site)/dashboard/strategist/[id]/page.tsx");
-    expect(detail).toMatch(/generate-brief`, undefined, newActionKey\(\)\)/);
-    expect(detail).toMatch(/generate-content`, undefined, newActionKey\(\)\)/);
+    const briefTab = read("src/app/(site)/dashboard/strategist/[id]/_components/brief-tab.tsx");
+    const writeTab = read("src/app/(site)/dashboard/strategist/[id]/_components/write-tab.tsx");
+    expect(briefTab).toMatch(/generate-brief`, undefined, newActionKey\(\)\)/);
+    expect(writeTab).toMatch(/generate-content`, undefined, newActionKey\(\)\)/);
   });
 });

@@ -85,7 +85,7 @@ export type ExportOutcome = { ok: true; filename: string } | { ok: false; messag
  * Fetch the file (cookie auth) and hand it to the browser as a download. A blob fetch rather than a link, so an expired
  * session or a refusal is a sentence on the page, not a JSON error in a dead tab (as the tax-invoice download does).
  */
-export async function downloadConversationExport(path: string, fallbackFilename?: string): Promise<ExportOutcome> {
+export async function downloadConversationExport(path: string, fallbackFilename?: string, failureLine: (status: number, code?: string) => string = exportFailure): Promise<ExportOutcome> {
   try {
     let res = await fetch(`${API_BASE_URL}${path}`, { credentials: "include" });
     // An idle tab's access token has usually expired while its refresh cookie has not: renew once and retry, as the api client does.
@@ -100,7 +100,7 @@ export async function downloadConversationExport(path: string, fallbackFilename?
       } catch {
         code = undefined;
       }
-      return { ok: false, message: exportFailure(res.status, code) };
+      return { ok: false, message: failureLine(res.status, code) };
     }
     const filename = filenameFrom(res.headers.get("content-disposition"), fallbackFilename ?? (/format=jsonl/.test(path) ? "peakhour-conversations.jsonl" : "peakhour-conversations.txt"));
     const blob = await res.blob();
@@ -115,7 +115,7 @@ export async function downloadConversationExport(path: string, fallbackFilename?
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
     return { ok: true, filename };
   } catch {
-    return { ok: false, message: exportFailure(500) };
+    return { ok: false, message: failureLine(500) };
   }
 }
 

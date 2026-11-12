@@ -34,17 +34,17 @@ export function NoteCard({
   const [confirming, setConfirming] = useState(false);
   return (
     <div className="mx-auto w-full max-w-[90%] rounded-lg border border-dashed border-warning/60 bg-warning/10 p-2.5 text-sm text-foreground" data-testid="note-card">
-      <p className="mb-0.5 flex items-center gap-1 text-[11px] font-medium text-warning-on-tint">
+      <p className="mb-0.5 flex items-center gap-1 text-micro font-medium text-warning-on-tint">
         <Lock className="size-3" aria-hidden="true" />
         <span>{label}</span>
       </p>
       <p className="whitespace-pre-wrap wrap-break-word">{body}</p>
       {mentions.length > 0 && (
-        <p className="mt-1 text-[11px] text-muted-foreground" data-testid="note-mentions">
+        <p className="mt-1 text-micro text-muted-foreground" data-testid="note-mentions">
           Mentioned: {mentions.join(", ")}
         </p>
       )}
-      <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+      <div className="mt-1 flex items-center justify-between gap-2 text-micro text-muted-foreground">
         <span>
           {author}
           {time ? ` · ${time}` : ""}

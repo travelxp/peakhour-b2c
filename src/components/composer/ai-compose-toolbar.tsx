@@ -342,7 +342,7 @@ export function AiComposeToolbar({
                   </TooltipContent>
                 </Tooltip>
                 <PopoverContent align="start" className="w-64 p-0">
-                  <div className="border-b px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <div className="border-b px-3 py-2 text-micro font-medium uppercase tracking-wide text-muted-foreground">
                     Tone
                   </div>
                   <Command className="bg-transparent">

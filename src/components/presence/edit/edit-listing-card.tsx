@@ -4,14 +4,13 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChangeCard } from "@/components/presence/edit/change-card";
+import { WaitingLine } from "@/components/presence/edit/waiting-line";
 import { FieldForm } from "@/components/presence/edit/field-form";
 import { HolidayOffersCard } from "@/components/presence/edit/holiday-offers-card";
-import { useChangeOutcomes, useEditCapabilities, useListingChanges, usePresenceEditMutations } from "@/hooks/use-presence-edit";
+import { useEditCapabilities, useListingChanges, usePresenceEditMutations } from "@/hooks/use-presence-edit";
 import { useListingQuery } from "@/hooks/use-presence-listing";
 import { fetchView, primaryEntry } from "@/lib/presence-panels";
-import { drawnExtraFields } from "@/lib/presence-extras";
-import { capabilityFor, drawnSections, errorWords, formAccess, requestedForm, writesNote, type EditField } from "@/lib/presence-edit";
+import { capabilityFor, drawnSections, errorWords, formAccess, preparedWords, requestedForm, type EditField } from "@/lib/presence-edit";
 
 /** Another card asking for a field's form. A new object each time, so asking twice for one field opens it twice. */
 export type EditRequest = { field: string };
@@ -21,29 +20,22 @@ export type EditRequest = { field: string };
  *
  * MARKUP ONLY. What is drawn, what each state says and what a role may press are in `lib/presence-edit.ts`.
  * ★A submit prepares a change. It is not saved, and nothing is sent, until a person approves it; whether it is then sent depends on the
- * operator's switch, which this card reports in plain words. Never "saved", never "live" before the engine says so.
+ * operator's switch, which the publishing status above the panels reports once. Never "saved", never "live" before the engine says so.
  */
 export function EditListingCard({
   location,
   network: chosenNetwork,
   request,
-  photoChangesElsewhere = false,
 }: {
   location?: string | undefined;
   network?: string | undefined;
   request?: EditRequest | null;
-  /**
-   * True when the photos card is drawn and lists this network's photo changes itself. Otherwise they are listed here, so a change is never out of
-   * sight; and another network's photo changes always are (the photos card shows one network's).
-   */
-  photoChangesElsewhere?: boolean;
 }) {
   const listingQ = useListingQuery(location, chosenNetwork);
   const caps = useEditCapabilities();
   const listing = listingQ.data?.listing ?? null;
   const network = primaryEntry(listingQ.data)?.network;
   const changes = useListingChanges(listing?.id);
-  const outcomes = useChangeOutcomes(listing?.id, changes.data?.items, caps.data);
   const m = usePresenceEditMutations(listing?.id);
   const [open, setOpen] = useState<EditField | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -124,10 +116,6 @@ export function EditListingCard({
       </Card>
     );
   }
-  const switchNote = writesNote(cap);
-  // A change is listed by its own panel when that panel is drawn (photos, posts, services, details, links), so it is never listed twice.
-  const extraFields = new Set<string>(drawnExtraFields(cap));
-  const listedElsewhere = (c: { field: string; network: string }) => c.network === network && ((photoChangesElsewhere && c.field === "media") || extraFields.has(c.field));
   const ordinary = sections.filter((s) => !s.risky);
   const risky = sections.filter((s) => s.risky);
 
@@ -138,11 +126,7 @@ export function EditListingCard({
       {
         onSuccess: (r) => {
           setOpen(null);
-          setNotice(
-            r.notChecked.length
-              ? `Your change is prepared, but ${cap!.label} could not check it just now. It is waiting below.`
-              : "Your change is prepared and checked. Review it below, then approve it.",
-          );
+          setNotice(preparedWords(r.notChecked.length, cap!, primaryEntry(listingQ.data)?.publishing));
         },
       },
     );
@@ -171,13 +155,15 @@ export function EditListingCard({
           )}
         </>
       )}
+      {/* GBP L7: where this field stands lives in "Your requests", once. */}
+      <WaitingLine changes={changes.data?.items} matches={(c) => c.field === s.field && c.network === network} />
     </li>
   );
 
   return (
     <Card className="gap-4 p-5">
       {header}
-      {switchNote && <p className="rounded-md border border-warning/40 p-3 text-xs text-warning-on-tint">{switchNote}</p>}
+      {/* Whether changes are sent is the publishing status's one answer, above the panels (GBP Issue 1). */}
       {access.mode === "view" && <p className="text-xs text-muted-foreground">{access.why}</p>}
       {notice && (
         <p role="status" className="text-xs text-muted-foreground">
@@ -185,7 +171,7 @@ export function EditListingCard({
         </p>
       )}
 
-      {access.mode === "edit" && network && <HolidayOffersCard listingId={listing.id} network={network} label={cap.label} />}
+      {access.mode === "edit" && network && <HolidayOffersCard listingId={listing.id} network={network} label={cap.label} address={listing.address} canChange={caps.data.can.approve} />}
 
       <ul className="divide-y">{ordinary.map(row)}</ul>
       {risky.length > 0 && (
@@ -194,30 +180,6 @@ export function EditListingCard({
           <ul className="divide-y">{risky.map(row)}</ul>
         </div>
       )}
-
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium">Changes</h3>
-        {changes.isPending ? (
-          <Skeleton className="h-16 w-full" />
-        ) : changes.isError && !changes.data ? (
-          <div className="flex items-center gap-2">
-            <p className="text-xs text-destructive">We could not load your changes just now.</p>
-            <Button size="sm" variant="outline" onClick={() => changes.refetch()}>
-              Try again
-            </Button>
-          </div>
-        ) : changes.data && changes.data.items.some((c) => !listedElsewhere(c)) ? (
-          <>
-            {changes.isError && <p className="text-xs text-warning-on-tint">Could not refresh just now, so this may be out of date.</p>}
-            {/* Photo changes are listed with the photos when that card is drawn; otherwise here. */}
-            {changes.data.items.filter((c) => !listedElsewhere(c)).map((c) => (
-              <ChangeCard key={c.id} change={c} label={cap.label} can={caps.data.can} m={m} outcome={outcomes.slotFor(c)} />
-            ))}
-          </>
-        ) : (
-          <p className="text-xs text-muted-foreground">No changes yet.</p>
-        )}
-      </div>
     </Card>
   );
 }

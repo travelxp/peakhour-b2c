@@ -82,8 +82,8 @@ export function EmptyNewsDesk() {
               <p className="text-sm font-semibold">Nothing corroborated yet</p>
               <p className="text-sm text-muted-foreground">
                 {activeCount === null
-                  ? "We're reading your trusted sources."
-                  : `We're reading your ${activeCount} trusted ${activeCount === 1 ? "source" : "sources"}.`}{" "}
+                  ? "We're reading your content sources."
+                  : `We're reading your ${activeCount} content ${activeCount === 1 ? "source" : "sources"}.`}{" "}
                 A story only becomes a draft once more than one of them reports it — so a quiet
                 queue usually means a quiet news day, not a problem. Adding more sources, or ones
                 that cover the same beat, is what makes corroboration happen sooner.
@@ -93,7 +93,7 @@ export function EmptyNewsDesk() {
             <>
               <p className="text-sm font-semibold">Add a source and the desk starts working</p>
               <p className="text-sm text-muted-foreground">
-                The News Desk writes from publications you trust — it reads them, cross-checks a
+                Industry news writes from publications you trust — it reads them, cross-checks a
                 story against more than one, and drafts it in your voice for approval. You
                 haven&rsquo;t added any yet, so there is nothing for it to read.
               </p>

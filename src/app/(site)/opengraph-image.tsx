@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { SITE } from "@/lib/utils";
+import { OG_IMAGE } from "@/components/brand/brand-colors";
 
 // Shared social-share image for the marketing surface. Text-only + inline
 // styles (Satori has no Tailwind and finicky gradient-text support), so we use
@@ -8,8 +9,8 @@ export const alt = `${SITE.name} — ${SITE.tagline}`;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-const GOLD = "#f0a821";
-const INK = "#0b0a08";
+const GOLD = OG_IMAGE.gold;
+const INK = OG_IMAGE.ink;
 
 export default function OpengraphImage() {
   return new ImageResponse(
@@ -22,7 +23,7 @@ export default function OpengraphImage() {
           flexDirection: "column",
           justifyContent: "space-between",
           background: `radial-gradient(1000px 500px at 80% -10%, rgba(240,168,33,0.18), transparent 60%), ${INK}`,
-          color: "#f7f4ec",
+          color: OG_IMAGE.paper,
           padding: "72px 80px",
           fontFamily: "sans-serif",
         }}
@@ -36,7 +37,7 @@ export default function OpengraphImage() {
           <div style={{ display: "flex", fontSize: 68, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1.5, maxWidth: 900 }}>
             {SITE.tagline}
           </div>
-          <div style={{ display: "flex", fontSize: 30, color: "#b9b2a2" }}>
+          <div style={{ display: "flex", fontSize: 30, color: OG_IMAGE.muted }}>
             Five modules. One platform. One plan.
           </div>
         </div>

@@ -8,6 +8,9 @@ import {
   controlNote,
   declaredMetrics,
   fieldWords,
+  changeLine,
+  listingMapLink,
+  putBackValue,
   metricTotal,
   monthStartIso,
   searchTermsView,
@@ -61,10 +64,11 @@ const g = (over: Partial<G> = {}): G => ({
 });
 
 describe("controlNote: the three states are three different things", () => {
-  it("controlled says edits can go live", () => {
+  it("controlled says you manage the listing, never that edits go live (the publishing status answers that)", () => {
     const n = controlNote(g(), NET)!;
     expect(n.tone).toBe("good");
-    expect(n.headline).toBe("Your edits can go live");
+    expect(n.headline).toBe("You manage this listing");
+    expect(n.headline).not.toMatch(/go live/);
   });
 
   it("not controlled is a warning, and always says may", () => {
@@ -87,9 +91,11 @@ describe("controlNote: the three states are three different things", () => {
     const n = controlNote(g({ control: control({ state: "unknown", checkedAt: null }) }), NET)!;
     expect(n.tone).toBe("unknown");
     expect(n.headline).toMatch(/can't tell/);
-    expect(n.headline).not.toBe("Your edits can go live");
+    expect(n.headline).not.toBe("You manage this listing");
     expect(n.headline).not.toBe("Your edits may not go live");
-    expect(n.body).toMatch(/not a sign that anything is wrong/);
+    // ★The send blocks on unknown, so it never reassures; it says nothing is sent until we know.
+    expect(n.body).not.toMatch(/not a sign that anything is wrong/);
+    expect(n.body).toMatch(/Nothing is sent to .+ until we know/);
     expect(n.body).toMatch(/haven't asked/);
   });
 
@@ -159,7 +165,7 @@ describe("changesView: null and [] are different answers", () => {
     const v = changesView(
       g({
         changes: {
-          items: [{ field: "phone", suggested: "+1 555 0100" }, { field: "regularHours" }, { field: "other", label: "attributes.x" }],
+          items: [{ field: "phone", suggested: "+1 555 0100", before: "+1 555 0199" }, { field: "regularHours" }, { field: "other", label: "attributes.x" }],
           pendingFields: ["website"],
           checkedAt: "2026-11-03T10:00:00.000Z",
           lastReadFailedAt: null,
@@ -171,7 +177,17 @@ describe("changesView: null and [] are different answers", () => {
     expect(v.kind).toBe("some");
     if (v.kind !== "some") return;
     expect(v.headline).toBe(`${NET} changed 3 things on its own`);
-    expect(v.lines).toEqual([`Its phone number: ${NET} suggests "+1 555 0100"`, "Its opening hours", "Its attributes.x"]);
+    expect(v.lines.map((l) => l.text)).toEqual([
+      `${NET} changed your phone number from "+1 555 0199" to "+1 555 0100".`,
+      `${NET} changed your opening hours. See it on ${NET}.`,
+      `${NET} changed something on your listing that Peakhour can't show yet.`,
+    ]);
+    expect(v.lines.map((l) => l.unnamed)).toEqual([false, false, true]);
+    // the path is never shown, only sent back to say which change is meant
+    expect(JSON.stringify(v.lines.map((l) => l.text))).not.toMatch(/attributes[.]x/);
+    expect(v.lines[2]!.path).toBe("attributes.x");
+    // put mine back only where we hold plain text
+    expect(v.lines.map((l) => l.canPutBack)).toEqual([true, false, false]);
     expect(v.pending).toBe(`Waiting for ${NET} to publish your edit to: website.`);
   });
 
@@ -187,9 +203,27 @@ describe("changesView: null and [] are different answers", () => {
     expect(changesView(null, NET)).toBeNull();
   });
 
-  it("an unknown field with no label is 'something else', never blank", () => {
-    expect(fieldWords("zzz")).toBe("something else");
-    expect(fieldWords("zzz", "  ")).toBe("something else");
+  it("an unknown field is said plainly, never as its path and never blank", () => {
+    expect(fieldWords("zzz")).toBe("a detail Peakhour doesn't track yet");
+    expect(fieldWords("temporaryClosure")).toBe("temporary closure");
+    expect(fieldWords("serviceArea")).toBe("service area");
+  });
+
+  it("an unknown before says only to; no value names the field; a long value is one bounded line", () => {
+    expect(changeLine({ field: "website", suggested: "https://b.example" }, NET)).toBe(`${NET} changed your website to "https://b.example".`);
+    expect(changeLine({ field: "website" }, NET)).toBe(`${NET} changed your website. See it on ${NET}.`);
+    expect(changeLine({ field: "website", suggested: "https://b.example", before: "https://a.example" }, NET)).toBe(`${NET} changed your website from "https://a.example" to "https://b.example".`);
+    expect(changeLine({ field: "other", label: "x.y" }, NET)).toBe(`${NET} changed something on your listing that Peakhour can't show yet.`);
+    expect(changeLine({ field: "description", suggested: ["a", "b".repeat(300)].join(String.fromCharCode(10)) }, NET)).not.toContain(String.fromCharCode(10));
+  });
+
+  it("put mine back: the value in the engine's shape, the other numbers going with a phone number", () => {
+    expect(putBackValue({ field: "name", before: "Acme" }, null)).toBe("Acme");
+    expect(putBackValue({ field: "phone", before: "1" }, { contact: { additionalPhones: ["2"] } })).toEqual({ primary: "1", additional: ["2"] });
+    expect(putBackValue({ field: "phone", before: "1" }, null)).toEqual({ primary: "1", additional: [] });
+    expect(putBackValue({ field: "regularHours", before: "x" }, null)).toBeNull();
+    expect(putBackValue({ field: "phone" }, null)).toBeNull();
+    expect(putBackValue({ field: "description", before: "" }, null)).toBeNull();
   });
 });
 
@@ -317,5 +351,22 @@ describe("declaredMetrics: tiles come from the declaration", () => {
   it("every tile maps to a distinct neutral key", () => {
     const neutral = INSIGHT_METRICS.map((m) => m.neutral);
     expect(new Set(neutral).size).toBe(neutral.length);
+  });
+});
+
+describe("listingMapLink: the link to look at the change on the network", () => {
+  const places = [
+    { locationName: "locations/1", title: "A", mapsUri: "https://maps.example/a" },
+    { locationName: "locations/2", title: "B", mapsUri: "javascript:alert(1)" },
+    { locationName: "locations/3", title: "C" },
+  ];
+  it("is the listing's own link; never a guess between several; never a non-web address", () => {
+    expect(listingMapLink(places, "locations/1")).toBe("https://maps.example/a");
+    expect(listingMapLink(places, "locations/2")).toBeNull();
+    expect(listingMapLink(places, "locations/3")).toBeNull();
+    expect(listingMapLink(places, null)).toBeNull();
+    expect(listingMapLink([places[0]!], null)).toBe("https://maps.example/a");
+    expect(listingMapLink([places[0]!], "locations/9")).toBeNull();
+    expect(listingMapLink(undefined, "locations/1")).toBeNull();
   });
 });

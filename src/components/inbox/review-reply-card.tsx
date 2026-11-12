@@ -56,7 +56,7 @@ function Stars({ rating }: { rating?: number }) {
   if (typeof rating !== "number") {
     // ⚠️ABSENT IS NOT ZERO. An empty row of stars reads as "nobody rated this
     // well"; the honest rendering of a missing rating is to say it is missing.
-    return <span className="text-[11px] text-muted-foreground">no rating</span>;
+    return <span className="text-micro text-muted-foreground">no rating</span>;
   }
   return (
     <span className="inline-flex items-center gap-0.5" aria-label={`${rating} out of 5`}>
@@ -256,22 +256,22 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <Stars rating={item.review?.rating} />
-            <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+            <Badge variant="outline" className="text-micro uppercase tracking-wide">
               {network}
             </Badge>
             {state.published ? (
-              <Badge variant="outline" className="text-[10px]">
+              <Badge variant="outline" className="text-micro">
                 {state.pendingCheck ? "checking" : "replied"}
               </Badge>
             ) : (
-              <span className="text-[11px] font-medium text-warning-on-tint">unanswered</span>
+              <span className="text-micro font-medium text-warning-on-tint">unanswered</span>
             )}
             {item.status !== "queued" && (
-              <Badge variant="outline" className="text-[10px] uppercase tracking-wide">
+              <Badge variant="outline" className="text-micro uppercase tracking-wide">
                 {item.status.replaceAll("_", " ")}
               </Badge>
             )}
-            <span className="text-[11px] text-muted-foreground">{formatDate(item.createdAt)}</span>
+            <span className="text-micro text-muted-foreground">{formatDate(item.createdAt)}</span>
           </div>
           {/* ★THE WEBHOOK WRITES NO `contact` ON A REVIEW ROW — it puts the
               reviewer in the SUBJECT ("New 4★ review from Jo Smith"), so a card
@@ -375,7 +375,7 @@ export function ReviewReplyCard({ item, onChanged }: { item: InboxItem; onChange
             {remaining === null && <span className="ml-auto" />}
             {remaining !== null && (
               <span
-                className={`ml-auto text-[11px] ${
+                className={`ml-auto text-micro ${
                   remaining < 0 ? "text-destructive" : "text-muted-foreground"
                 }`}
               >

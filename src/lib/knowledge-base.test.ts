@@ -7,6 +7,7 @@ import {
   KB_TITLE_MAX,
   answerToPayload,
   askedLine,
+  basedOnLine,
   channelLabel,
   channelsLine,
   entryToForm,
@@ -124,5 +125,13 @@ describe("copy", () => {
   it("kbErrorMessage uses the api's sentence, else a default", () => {
     expect(kbErrorMessage(new Error("This question has already been answered or dismissed"))).toBe("This question has already been answered or dismissed");
     expect(kbErrorMessage(undefined)).toContain("did not save");
+  });
+});
+
+describe("basedOnLine", () => {
+  it("shows a quote from an uploaded document (KE-2.4 evidence kind)", () => {
+    expect(basedOnLine([{ kind: "document", ref: "returns.pdf", quote: "Returns are accepted within 30 days." }])).toBe(
+      'Based on: "Returns are accepted within 30 days."',
+    );
   });
 });

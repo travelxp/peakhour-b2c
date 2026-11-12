@@ -199,7 +199,7 @@ function FacetPicker({
           ) : results.isError ? (
             <p className="text-xs text-muted-foreground">
               Couldn&apos;t reach LinkedIn — if your LinkedIn Ads connection is
-              stale, reconnect it from Integrations; otherwise try again in a
+              stale, reconnect it from Connected accounts; otherwise try again in a
               moment.
             </p>
           ) : options.length === 0 ? (
@@ -393,7 +393,7 @@ export function TargetingDialog({
           </Button>
           <div className="flex flex-col items-end gap-1">
             {!valid ? (
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-micro text-muted-foreground">
                 Pick at least one location to apply.
               </p>
             ) : null}

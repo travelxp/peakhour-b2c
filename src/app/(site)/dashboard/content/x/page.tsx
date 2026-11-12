@@ -1,6 +1,8 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { Suspense, useEffect, useMemo, useState } from "react";
+import { PageShell } from "@/components/dashboard/page-shell";
 import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -16,9 +18,11 @@ import { createDraft } from "@/lib/api/content";
 import { RepurposeSheet } from "@/components/repurpose/repurpose-sheet";
 import type { RepurposeSource } from "@/lib/api/repurpose";
 import { TweetComposer } from "./_components/tweet-composer";
-import { TweetCard } from "./_components/tweet-card";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
-import { MentionsList } from "./_components/mentions-list";
+
+// The Recent and Mentions tabs are not shown first, so they load on demand.
+const TweetCard = dynamic(() => import("./_components/tweet-card").then((mod) => mod.TweetCard));
+const MentionsList = dynamic(() => import("./_components/mentions-list").then((mod) => mod.MentionsList));
 
 interface ApiIntegration {
   provider: string;
@@ -271,7 +275,7 @@ function XContentDashboardInner() {
 function XPageShell({ children, loading }: { children?: React.ReactNode; loading?: boolean }) {
   const queryClient = useQueryClient();
   return (
-    <div className="space-y-6">
+    <PageShell width="standard">
       <CronToolbar
         crons={["x-metrics-sync", "x-mentions-sync", "performance-sync"]}
         onTriggered={() => {
@@ -299,7 +303,7 @@ function XPageShell({ children, loading }: { children?: React.ReactNode; loading
       ) : (
         children
       )}
-    </div>
+    </PageShell>
   );
 }
 

@@ -25,7 +25,7 @@ export function GradientRing({ className, hoverAccelerate = true }: GradientRing
       aria-hidden
       className={cn(
         "pointer-events-none absolute inset-[-1.5px] rounded-[inherit]",
-        "[background:conic-gradient(from_var(--ring-angle,0deg),#0A66C2_0deg,#7c3aed_120deg,#f59e0b_240deg,#0A66C2_360deg)]",
+        "[background:conic-gradient(from_var(--ring-angle,0deg),var(--chart-4)_0deg,var(--chart-2)_120deg,var(--chart-1)_240deg,var(--chart-4)_360deg)]",
         "[mask:linear-gradient(#000_0_0)_content-box,linear-gradient(#000_0_0)]",
         "[mask-composite:exclude] [-webkit-mask-composite:xor]",
         "p-[1.5px] motion-safe:animate-[gradient-ring-spin_8s_linear_infinite] motion-reduce:animate-none",

@@ -40,19 +40,16 @@ import { useDeleteNote, useDeskTags, useDeskTeam, usePresence, useThreadNotes } 
 import {
   ASSIGNEE_FILTERS,
   NOTE_LABEL,
-  assigneeFilterFromParam,
   canDeleteNote,
   mentionNames,
-  priorityFilterFromParam,
   searchWithFilters,
-  tagFromParam,
   timelineOf,
   viewersLine,
   type AssigneeFilter,
   type PageFilters,
   type PriorityFilter,
 } from "@/lib/inbox-desk";
-import { topicFromParam } from "@/lib/insights";
+import { deskViewFromParams, tagFromParam } from "@/lib/desk-list-params";
 import { TopicFilterBanner } from "@/components/inbox/topic-filter-banner";
 import { CustomerPanel } from "@/components/inbox/customer-panel";
 import { HandoverCard, StorefrontFooter } from "@/components/inbox/storefront-live";
@@ -141,7 +138,7 @@ const WINDOW_TONE: Record<ReplyWindow["tone"], string> = {
 function WindowBadge({ store, threadId, endsAt }: { store: ComposerStore; threadId: string; endsAt: string | null | undefined }) {
   // ★THE COMPOSER'S OWN READING (`useReplyWindow`), so the two cannot disagree.
   const win = useReplyWindow(store, threadId, endsAt);
-  return <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${WINDOW_TONE[win.tone]}`}>{win.label}</span>;
+  return <span className={`rounded-full px-2 py-0.5 text-micro font-medium ${WINDOW_TONE[win.tone]}`}>{win.label}</span>;
 }
 
 /**
@@ -216,12 +213,9 @@ export function ConversationsPane({
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-  const urlAssignee = assigneeFilterFromParam(params.get("assignee"));
-  const urlTag = tagFromParam(params.get("tag"));
-  const urlPriority = priorityFilterFromParam(params.get("priority"));
+  const { assignee: urlAssignee, tag: urlTag, priority: urlPriority, topic } = deskViewFromParams(params);
   // ★THE INSIGHT FILTER IS THE ADDRESS ALONE (`?topic=`): "See conversations" on an Insights card writes it and the banner below removes it,
   //  so there is no second copy in state to fall out of step with Back.
-  const topic = topicFromParam(params.get("topic"));
   const [assignee, setAssignee] = useState<AssigneeFilter>(urlAssignee);
   const [tag, setTag] = useState<string | null>(urlTag);
   const [priority, setPriority] = useState<PriorityFilter>(urlPriority);
@@ -565,7 +559,7 @@ export function ConversationsPane({
           {/* ⚠️★★★A FAILED REFRESH SAYS SO WITHOUT TAKING THE ROWS AWAY. This lane polls every thirty seconds, so `error` here is
               usually a failed BACKGROUND refetch with the last good list still behind it. */}
           {listState === "stale" && (
-            <p className="px-2 pb-1 text-[11px] text-muted-foreground">
+            <p className="px-2 pb-1 text-micro text-muted-foreground">
               Couldn&apos;t refresh just now — showing the last update.{" "}
               <button onClick={retryList} className="underline underline-offset-2">
                 Retry
@@ -594,7 +588,7 @@ export function ConversationsPane({
                     <span className="flex shrink-0 items-center gap-1.5">
                       {row.priority === "high" && <Flag className="size-3.5 text-warning-on-tint" role="img" aria-label="High priority" />}
                       <AssigneeBadge assignee={row.assignee} />
-                      <span className="text-[11px] text-muted-foreground">{previewTime(row.updatedAt, now)}</span>
+                      <span className="text-micro text-muted-foreground">{previewTime(row.updatedAt, now)}</span>
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-1">

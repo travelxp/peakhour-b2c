@@ -6,6 +6,10 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+  /* Type floor: nothing in the product renders below 12px. `text-micro` is
+     the smallest step (badges, chips, captions, table meta). */
+  --text-micro: 0.75rem;
+  --text-micro--line-height: 1rem;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
@@ -36,6 +40,14 @@
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
   --color-warning-on-tint: var(--warning-on-tint);
+  /* WhatsApp chat chrome for previews that imitate it: `bg-wa-wallpaper`,
+     `bg-wa-bubble-out`, `text-wa-link`, … Values in :root / .dark below. */
+  --color-wa-header: var(--wa-header);
+  --color-wa-wallpaper: var(--wa-wallpaper);
+  --color-wa-bubble-in: var(--wa-bubble-in);
+  --color-wa-bubble-out: var(--wa-bubble-out);
+  --color-wa-text: var(--wa-text);
+  --color-wa-link: var(--wa-link);
   /* Workflow state: `bg-state-info/12`, `text-state-progress-on-tint`, … */
   --color-state-info: var(--state-info);
   --color-state-info-on-tint: var(--state-info-on-tint);
@@ -137,7 +149,7 @@
      3.3:1, under AA. Dark-on-green is 5.1:1 and keeps --success usable as a
      fill. Same trade --warning makes below. */
   --success-foreground: oklch(0.22 0.014 68);
-  --success-on-tint: oklch(0.5 0.13 158);
+  --success-on-tint: oklch(0.46 0.12 158);
   --warning: oklch(0.72 0.155 68);
   --warning-foreground: oklch(0.22 0.014 68);
   --warning-on-tint: oklch(0.5 0.115 62);
@@ -239,6 +251,17 @@
      grounds use this deep amber (~6:1 AA), while dark grounds get the bright
      gold via the .dark override below. */
   --brand-label: oklch(0.47 0.105 65);
+
+  /* WhatsApp look-alike (store-assistant and template previews). Third-party
+     chrome, so it is its own set rather than reusing app tokens. Contrast
+     (WCAG, computed): wa-text on bubble-out 15.2, on bubble-in 17.5; wa-link
+     on bubble-in 4.8; white on wa-header 7.7. */
+  --wa-header: #075e54;
+  --wa-wallpaper: #ece5dd;
+  --wa-bubble-in: #ffffff;
+  --wa-bubble-out: #dcf8c6;
+  --wa-text: #111b21;
+  --wa-link: #0b6fe0;
 }
 
 .dark {
@@ -258,10 +281,11 @@
   --accent: oklch(0.27 0.012 70);
   --accent-foreground: oklch(0.97 0.008 85);
   --destructive: oklch(0.704 0.191 22.216);
-  /* On dark grounds the base red already clears AA on the tint (~5.5:1), so
-     the on-tint step is the same colour — declared rather than inherited so
-     the token never falls back to the light value. */
-  --destructive-on-tint: var(--destructive);
+  /* A lighter, slightly calmer red for text ON a red tint. The base red on a
+     10% red tint measured 5.51:1 over --card and 6.12:1 over --background, but
+     only 4.53:1 over --muted, a hair above AA. This step gives >= 5.65:1 on all
+     three (computed 2026-11-10, OKLCH -> sRGB, tint = 10% --destructive). */
+  --destructive-on-tint: oklch(0.76 0.15 22.216);
   --border: oklch(0.85 0.05 80 / 14%);
   --input: oklch(0.85 0.05 80 / 18%);
   --ring: oklch(0.77 0.146 67);
@@ -310,6 +334,15 @@
      it directly here. (Only theme-aware token; the flat brand tones stay
      theme-stable to keep the Peaks UI identical.) */
   --brand-label: var(--brand);
+
+  /* WhatsApp dark theme. wa-text on bubble-out 6.8, on bubble-in 12.1;
+     wa-link on bubble-in 6.7; white on wa-header 7.7. */
+  --wa-header: #075e54;
+  --wa-wallpaper: #0b141a;
+  --wa-bubble-in: #202c33;
+  --wa-bubble-out: #005c4b;
+  --wa-text: #e9edef;
+  --wa-link: #53bdeb;
 }
 
 @layer base {
@@ -737,5 +770,19 @@
   .drive-shine {
     animation: none;
     opacity: 0.4;
+  }
+}
+
+/*
+ * Safety net for Tailwind's stock decorative loops. Spinners (animate-spin)
+ * are left alone: they signal "working" and a frozen one reads as a hang.
+ * Skeleton pulse, ping rings and bounce arrows carry no information, so under
+ * prefers-reduced-motion they stop.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse,
+  .animate-ping,
+  .animate-bounce {
+    animation: none;
   }
 }

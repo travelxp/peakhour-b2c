@@ -4,7 +4,6 @@ import {
   NOTE_LABEL,
   NOTE_MAX,
   TAG_LIMIT,
-  assigneeFilterFromParam,
   assigneeFor,
   awayPreview,
   canDeleteNote,
@@ -21,7 +20,6 @@ import {
   formatMinutes,
   searchWithFilters,
   tagCountLine,
-  tagFromParam,
   tagNameError,
   timelineOf,
   timerView,
@@ -32,6 +30,7 @@ import {
   type DeskSettings,
   type ResponseTimer,
 } from "@/lib/inbox-desk";
+import { assigneeFilterFromParam, tagFromParam } from "@/lib/desk-list-params";
 
 const SETTINGS: DeskSettings = {
   aiPaused: false,

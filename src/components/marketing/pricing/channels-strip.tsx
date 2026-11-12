@@ -4,6 +4,7 @@ import { CHANNELS, FEATURED_CHANNELS } from "@/lib/pricing-catalog";
 import { ChannelTile } from "@/components/marketing/pricing/channel-tile";
 import { StatusChip } from "@/components/marketing/pricing/status-chip";
 import { channelIsComingSoon } from "@/lib/pillar-channels";
+import { withCountry } from "@/lib/pricing";
 
 /**
  * "Works where you already run" — the channel strip. Each card explains, in one
@@ -19,9 +20,13 @@ import { channelIsComingSoon } from "@/lib/pillar-channels";
  */
 export function ChannelsStrip({
   comingSoonKeys,
+  country = null,
 }: {
   /** Resolved by the page through lib/pillar-channels.ts. */
   comingSoonKeys: readonly string[];
+  /** A country the visitor chose on /pricing: carried to /shopify, so the
+   *  two pages quote one currency. Null for a geo-detected visitor. */
+  country?: string | null;
 }) {
   const badged = new Set(comingSoonKeys);
   return (
@@ -30,12 +35,16 @@ export function ChannelsStrip({
         const ch = CHANNELS[key];
         const soon = channelIsComingSoon(key, badged);
         // A channel with a page of its own is read about here first.
-        const href = ch.pageHref ?? ch.href;
+        const base = ch.pageHref ?? ch.href;
+        const href = base === "/shopify" ? withCountry(base, country) : base;
         const external = href.startsWith("http");
         const inner = (
           <>
             <ChannelTile channel={key} className="size-10 rounded-xl text-sm" />
-            <h3 className="mt-3.5 flex flex-wrap items-center gap-2 font-bold">
+            {/* The chip is always on its own row under the name, and the row
+                keeps its height on a card with no chip, so every description
+                starts at the same height. */}
+            <h3 className="mt-3.5 flex min-h-[4.25rem] flex-col items-start gap-2 font-bold">
               {ch.name}
               {soon && <StatusChip status="coming_soon" />}
             </h3>
@@ -62,7 +71,7 @@ export function ChannelsStrip({
             className={`group ${shell} transition-all hover:-translate-y-1 hover:border-foreground hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2`}
           >
             {inner}
-            <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-bold text-brand-strong">
+            <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-bold text-brand-label">
               See what runs here
               <ArrowRight
                 className="size-3.5 transition-transform group-hover:translate-x-1"

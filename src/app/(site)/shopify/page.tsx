@@ -4,7 +4,7 @@ import { Footer } from "@/components/shared/footer";
 import { ShopifyPageView } from "@/components/marketing/shopify/shopify-page-view";
 import { getPublicCatalog, publicMarketingIntegrations, signupCta } from "@/lib/catalog";
 import { badgedComingSoonKeys, channelIsComingSoon } from "@/lib/pillar-channels";
-import { countryFromHeader, getPricing, suiteTrialDays } from "@/lib/pricing";
+import { getPricing, resolveCountry, suiteTrialDays } from "@/lib/pricing";
 import { pageMetadata } from "@/lib/seo";
 import { SHOPIFY_SEO } from "@/lib/shopify-features";
 
@@ -21,9 +21,14 @@ export const metadata = pageMetadata(SHOPIFY_SEO);
  * runs, so this page cannot send a visitor to a listing the catalog says is
  * not open yet. See lib/shopify-features.ts for the copy.
  */
-export default async function ShopifyPage() {
+export default async function ShopifyPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ country?: string | string[] }>;
+}) {
   const h = await headers();
-  const country = countryFromHeader(h.get("x-vercel-ip-country"));
+  // The same resolution /pricing runs: a chosen country, else the geo header.
+  const country = resolveCountry((await searchParams).country, h.get("x-vercel-ip-country"));
   const [pricing, catalog] = await Promise.all([getPricing(country), getPublicCatalog()]);
 
   const published = catalog ? publicMarketingIntegrations(catalog.integrations) : [];
@@ -34,9 +39,9 @@ export default async function ShopifyPage() {
   const signup = signupCta(catalog?.platform?.signupMode ?? "open", suiteTrialDays(pricing));
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
       <Header />
-      <ShopifyPageView pricing={pricing} comingSoon={comingSoon} signup={signup} />
+      <ShopifyPageView pricing={pricing} comingSoon={comingSoon} signup={signup} country={country} />
       <Footer />
     </div>
   );

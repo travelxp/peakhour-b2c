@@ -160,7 +160,7 @@ const InviteUserForm = () => {
             <div className="space-y-1">
               <Label className="text-xs">Select role</Label>
               <Select defaultValue="editor">
-                <SelectTrigger className="w-full bg-background">
+                <SelectTrigger className="w-full bg-background" aria-label="Select role">
                   <SelectValue placeholder="Select a role" />
                 </SelectTrigger>
                 <SelectContent>
@@ -208,7 +208,7 @@ const UserCard = ({ user }: UserCardProps) => {
         <div className="flex size-10 items-center justify-center overflow-hidden rounded-full bg-muted">
           {user.image ? (
             // eslint-disable-next-line @next/next/no-img-element -- mock data with external host; matches team-section.tsx pattern
-            <img
+            <img loading="lazy"
               src={user.image}
               alt={user.name}
               className="size-full object-cover"
@@ -225,7 +225,7 @@ const UserCard = ({ user }: UserCardProps) => {
 
       <div className="flex items-center justify-between gap-3 sm:flex-1/3">
         <Select defaultValue={user.accessLevel}>
-          <SelectTrigger className="min-w-24">
+          <SelectTrigger className="min-w-24" aria-label={`Role for ${user.name}`}>
             <SelectValue placeholder="Select a role" />
           </SelectTrigger>
           <SelectContent>

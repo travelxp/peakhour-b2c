@@ -65,9 +65,9 @@ export const jobsKeys = {
  * `recent` (last 24h finished): 60s; rows aren't moving but new completions
  * still surface here without a refresh.
  */
-export function useJobs(status: JobListStatus = "active") {
+export function jobsListQuery(status: JobListStatus = "active") {
   const isActive = status === "active";
-  return useQuery({
+  return queryOptions({
     queryKey: jobsKeys.list(status),
     queryFn: () => api.get<{ rows: Job[] }>("/v1/jobs", { status }),
     refetchInterval: (q) => {
@@ -84,6 +84,10 @@ export function useJobs(status: JobListStatus = "active") {
     refetchIntervalInBackground: false,
     staleTime: isActive ? 5_000 : 30_000,
   });
+}
+
+export function useJobs(status: JobListStatus = "active") {
+  return useQuery(jobsListQuery(status));
 }
 
 /**

@@ -6,12 +6,14 @@
  * adapter. Nothing in this file spells one.
  *
  * ★SUBMITTED IS NOT LIVE. "Live" is a word only the `live` status earns; every other state says what is true instead.
- * ★WRITES ARE OFF until the operator switches a network on (`writes.released`). The form says so plainly and never says "saved".
+ * ★WRITES ARE OFF until the operator switches a network on (`writes.released`). The page says so ONCE, in `publishingBanner`, and never
+ * says "saved".
  */
 
-import type { HoursPeriod, SpecialHours } from "@/lib/presence-panels";
+import type { HoursPeriod, PresenceNetworkEntry, PresencePublishing, SpecialHours } from "@/lib/presence-panels";
 import { photoValueLines } from "@/lib/presence-photos";
 import { PANEL_TITLES, extraValueLines, type ExtraField } from "@/lib/presence-extras";
+import { isReadableZone, timeZoneOptions } from "@/lib/guardrails-copy";
 
 // ── Shapes the api returns ───────────────────────────────────────────────────
 
@@ -93,7 +95,8 @@ export interface ChangeCardData {
   expiresAt: string;
   submittedAt: string | null;
   liveAt: string | null;
-  liveCheck: { checkedAt: string; outcome: string; note: string | null } | null;
+  /** `confirmable` (the api's, from the network's adapter): false only when the network can never show this change back. Absent on an older api: not claimed. */
+  liveCheck: { checkedAt: string; outcome: string; note: string | null; confirmable?: boolean } | null;
   undone: boolean;
   /** Whether Peakhour can put this change back (the api decides; a photo removal can be undone only when the photo came from Drive). Absent on an older api: treated as true. */
   undoable?: boolean;
@@ -134,11 +137,21 @@ export interface HolidayOffer {
   regionUnknown: boolean;
 }
 
+/** Who answered the listing's time zone: the merchant (`confirmed`), the address it holds (`address`), or the business's settings (`business`). */
+export type ListingZoneSource = "confirmed" | "address" | "business";
+
+export interface ListingTimeZone {
+  zone: string;
+  source: ListingZoneSource;
+}
+
 export interface HolidayOffersResponse {
   offers: HolidayOffer[];
   needsRegularHours: boolean;
   openChange: boolean;
   noTimeZone: boolean;
+  /** The zone the days are placed in, and who gave it. Null when none is known. */
+  timeZone: ListingTimeZone | null;
   /** The network could not be read just now; nothing is offered. */
   networkUnreadable: boolean;
 }
@@ -221,10 +234,100 @@ export function cardActions(c: Pick<ChangeCardData, "status" | "undone"> & { und
   };
 }
 
-/** Plain words about the switch. Null when writes are on. */
-export function writesNote(cap: NetworkCapability | undefined): string | null {
-  if (!cap || cap.writes.released) return null;
-  return `Sending changes to ${cap.label} is switched off for now. You can prepare a change and have it approved, but nothing is sent to ${cap.label} until Peakhour switches it on.${cap.writes.reason ? ` ${cap.writes.reason}` : ""}`;
+/**
+ * What a person reads after preparing a change. While writes are held the network's own dry run is skipped (it needs the release), so
+ * "checked" must say by whom: Peakhour checked it against the network's rules, and the network checks it again when it is sent.
+ *
+ * ★ONE SOURCE FOR "held": the listing's `publishing`, the same answer the publishing status draws, so the two never disagree while their
+ * caches refresh at different times. Only an api that predates it falls back to the capabilities' `writes.released`.
+ */
+export function preparedWords(
+  notChecked: number,
+  cap: Pick<NetworkCapability, "label" | "writes">,
+  publishing?: Pick<PresencePublishing, "state"> | null,
+): string {
+  if (notChecked > 0) return `Your change is prepared, but ${cap.label} could not check it just now. It is waiting below.`;
+  const released = publishing ? publishing.state !== "held" : cap.writes.released;
+  if (released) return "Your change is prepared and checked. Review it below, then approve it.";
+  return `Your change is prepared and checked against ${cap.label}'s rules. ${cap.label} checks it again when it is sent. Review it below, then approve it.`;
+}
+
+// ── The one publishing status ────────────────────────────────────────────────
+
+export interface PublishingBanner {
+  tone: "good" | "warn" | "bad";
+  headline: string;
+  /** Separate facts, in the order to read them. */
+  lines: string[];
+  /** The one thing to press, when the merchant can fix what stops a send. `external` opens the network's own site. */
+  action: { label: string; href: string; external: boolean } | null;
+}
+
+const unit = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
+const keptFor = (hours: number) => (hours > 0 && hours % 24 === 0 ? unit(hours / 24, "day") : unit(hours, "hour"));
+
+/**
+ * GBP Issue 1: the ONE answer to "can I publish, what is stopping me, and what do I do?", shown once above the panels. It replaced a
+ * "switched off ... until Peakhour switches it on" paragraph drawn under six panels that never said whether the merchant had to act.
+ *
+ * Built from the api's `publishing` (the send's own gates) and the person's role. Null when the network writes nothing, or on an api that
+ * predates the field: no status is drawn rather than a guessed one.
+ */
+export function publishingBanner(
+  entry: Pick<PresenceNetworkEntry, "label" | "publishing"> | null | undefined,
+  can: CapabilitiesResponse["can"] | undefined,
+): PublishingBanner | null {
+  const p = entry?.publishing;
+  if (!entry || !p) return null;
+  const label = entry.label;
+  // The one button, only for someone whose role can change the listing: a viewer is told what is wrong, never sent to a page they cannot
+  // use. A link off this site opens in a new tab; that is a property of where it goes, not of the action's kind.
+  const href = p.blocker?.href ?? null;
+  const fix =
+    p.blocker && href && can?.propose
+      ? { label: p.blocker.action === "reconnect" ? `Reconnect ${label}` : `Fix this on ${label}`, href, external: /^https?:\/\//i.test(href) }
+      : null;
+  // Who approves: said once here, so an editor is not surprised by an Approve button they do not have.
+  const editorOnly = !!can?.propose && !can.approve;
+  const role = editorOnly ? ["You can prepare changes. An admin or owner approves them before anything is sent."] : [];
+  // ★WHAT THIS PERSON CAN DO WHILE THEY WAIT, by role: a viewer is never told to prepare, nor an editor to approve.
+  const meanwhile = can?.approve
+    ? "You can prepare and approve changes now."
+    : can?.propose
+      ? "You can prepare changes now, and an admin or owner approves them."
+      : "Changes your team prepares and approves now are kept.";
+  const kept = `A change that has not been sent ${keptFor(p.keptForHours)} after it was prepared is dropped, and has to be made again.`;
+
+  if (p.state === "held") {
+    const why = [p.heldReason, p.blocker ? null : "You don't need to do anything."].filter(Boolean).join(" ");
+    return {
+      tone: "warn",
+      headline: `Publishing to ${label} hasn't started yet`,
+      lines: [
+        // Peakhour's sentence is WHY (a fact; mig 985 and the api's HELD). Whether the merchant must act is said here, because only this
+        // status knows whether something on their side also stops a send: never both "nothing to do" and "fix this".
+        ...(why ? [why] : []),
+        `${meanwhile} They are sent to ${label} once publishing starts. ${kept}`,
+        ...(p.blocker ? [`One thing needs you first: ${p.blocker.reason}`] : []),
+      ],
+      action: fix,
+    };
+  }
+  if (p.state === "blocked") {
+    // Prepared changes still expire while blocked, so the lifetime is said here too.
+    return {
+      tone: "bad",
+      headline: `Peakhour can't publish to ${label} right now`,
+      lines: [p.blocker?.reason ?? `Something on ${label} is stopping changes.`, `Changes are sent once this is fixed. ${kept}`, ...role],
+      action: fix,
+    };
+  }
+  return {
+    tone: "good",
+    headline: `Publishing to ${label} is on`,
+    lines: [`Approved changes are sent to ${label}. ${label} can take a little while to show them.`, ...role],
+    action: null,
+  };
 }
 
 // ── What a state says ────────────────────────────────────────────────────────
@@ -238,48 +341,265 @@ export interface StatusWords {
 
 const reasonOf = (c: Pick<ChangeCardData, "reason">) => c.reason?.message?.trim() || "No reason was given.";
 
+// ── Where a request stands (GBP L4) ──────────────────────────────────────────
+
 /**
- * ★"LIVE" IS ONLY FOR THE `live` STATUS. A submitted change is with the network and not yet shown; an approved one may not even have been
- * sent (writes can be held). Blocked and failed always give the reason.
+ * ★ONE STAGE FOR EVERY SURFACE. The cards, the "Your requests" list and Ask Peakhour's card all say a request's stage through
+ * `requestStatus`, so the same change never reads two ways. Two meanings that look alike stay apart: `rejected` is the merchant's own
+ * DECLINE ("Declined by you"); the network refusing a change is stored as `failed` with the reason code `network_rejected`.
+ * ★"UNDER REVIEW" COMES FROM ONE SIGNAL ONLY: a submitted change whose last check said `pending`. Never from time, never inferred.
  */
-export function statusWords(c: ChangeCardData, label: string, can: CapabilitiesResponse["can"] | undefined): StatusWords {
+export type RequestStage =
+  | "draft"
+  | "awaiting_approval"
+  | "approved_held"
+  | "approved_waiting"
+  | "sent"
+  | "under_review"
+  | "cannot_confirm"
+  | "live"
+  | "rejected_by_network"
+  | "not_published"
+  | "failed"
+  | "not_sent"
+  | "declined"
+  | "expired"
+  | "replaced"
+  | "unknown";
+
+/** The one thing a merchant can do about a request. `redo` opens the field's editor; `fix` is the publishing status's own link. */
+export type RequestNext =
+  | { kind: "none" }
+  | { kind: "decide" }
+  | { kind: "redo"; label: string }
+  | { kind: "fix"; label: string; href: string; external: boolean };
+
+export interface RequestStatus {
+  stage: RequestStage;
+  label: string;
+  reason: string | null;
+  tone: Tone;
+  next: RequestNext;
+}
+
+export type RequestSource = Pick<ChangeCardData, "status" | "reason" | "held" | "liveCheck"> & Partial<Pick<ChangeCardData, "submittedAt" | "liveAt">>;
+
+/**
+ * What lets a sentence carry a time. Both are optional so Ask's card, which has neither, keeps its plain words. `when` writes a time the way
+ * the page does (the viewer's own zone); `now` lets the "we check again" promise stop being made once the api has stopped checking.
+ */
+export interface RequestStatusOptions {
+  when?: ((iso: string) => string) | undefined;
+  now?: number | undefined;
+}
+
+/**
+ * The api checks a sent change on the hourly sweep, no more than once per ten minutes, for 14 days from the send (change-apply.ts:
+ * CONFIRM_EVERY_MS, CONFIRM_FOR_MS; the decisions-expiry cron runs at minute 10 of every hour). "Within the hour" is true only inside that window.
+ */
+const CHECKED_FOR_MS = 14 * 86_400_000;
+
+const REDO: RequestNext = { kind: "redo", label: "Make the change again" };
+
+/**
+ * The stage of one request, its reason and its next action. `publishing` is the listing's publishing status: it supplies the fix link for a
+ * send that something on the merchant's side stops, so a blocked request never invents a link of its own.
+ */
+export function requestStatus(
+  c: RequestSource,
+  label: string,
+  can: CapabilitiesResponse["can"] | undefined,
+  publishing?: Pick<PresencePublishing, "blocker" | "heldReason"> | null,
+  opts?: RequestStatusOptions,
+): RequestStatus {
+  const check = c.liveCheck;
+  const note = check?.note?.trim() || null;
+  // Only a role that can change the listing is offered a way to change it again; a viewer is told, never sent.
+  const again: RequestNext = can?.propose ? REDO : { kind: "none" };
+  const b = publishing?.blocker ?? null;
+  const fix: RequestNext =
+    b && b.href && can?.propose
+      ? { kind: "fix", label: b.action === "reconnect" ? `Reconnect ${label}` : `Fix this on ${label}`, href: b.href, external: /^https?:\/\//i.test(b.href) }
+      : { kind: "none" };
+  const stage = (st: RequestStage, lbl: string, reason: string | null, tone: Tone, next: RequestNext = { kind: "none" }): RequestStatus => ({ stage: st, label: lbl, reason, tone, next });
+  const decide: RequestNext = can?.approve ? { kind: "decide" } : { kind: "none" };
+  const when = opts?.when;
+  const sentAt = c.submittedAt ? Date.parse(c.submittedAt) : NaN;
+  // "Sent 12 Nov 10:42." and the real cadence, said only when the row has a send time and the page can write it. After 14 days the api has stopped.
+  // `middle` is the row's own sentence for what the network said (kept as it was); the time and the cadence are added around it. The cadence is
+  // only promised when the page says what time it is, so a promise is never made that the api has stopped keeping.
+  const withSent = (middle: string, plain: string): string => {
+    if (!when || Number.isNaN(sentAt)) return plain;
+    const cadence = opts?.now === undefined ? "" : opts.now - sentAt > CHECKED_FOR_MS ? " We have stopped checking." : " We check again within the hour.";
+    // The api's note is not normalised: close it with a full stop before the next sentence.
+    const closed = /[.!?]$/.test(middle.trim()) ? middle.trim() : `${middle.trim()}.`;
+    return `Sent ${when(c.submittedAt as string)}. ${closed}${cadence}`;
+  };
+
   switch (c.status) {
     case "proposed":
-      return { headline: "Not checked yet", detail: `Peakhour has not checked this change with ${label} yet. Nothing has been sent.`, tone: "neutral" };
+      return stage("draft", "Draft", `Peakhour has not checked this change with ${label} yet. Nothing has been sent.`, "neutral", decide);
     case "validated":
-      return {
-        headline: "Waiting for approval",
-        detail: `Nothing has been sent to ${label}. ${can?.approve ? "Approve it to send it." : "An admin or owner has to approve it."}`,
-        tone: "neutral",
-      };
-    case "approved":
-      return c.held
-        ? { headline: "Approved, but not sent", detail: `${c.held.reason} Nothing has been sent to ${label}.`, tone: "warn" }
-        : { headline: "Approved, waiting to be sent", detail: `It has not reached ${label} yet.`, tone: "neutral" };
-    case "applying":
-      return { headline: `Sending to ${label}`, detail: "This can take a moment. It is not live yet.", tone: "neutral" };
-    case "submitted": {
-      const outcome = c.liveCheck?.outcome;
-      const extra = outcome === "not_shown" ? c.liveCheck?.note?.trim() || `${label} is not showing it yet.` : c.liveCheck?.note?.trim();
-      return {
-        headline: `Sent to ${label}, not live yet`,
-        detail: `${label} may take time to show it. We will say when it does.${extra ? ` ${extra}` : ""}`,
-        tone: outcome === "not_shown" ? "warn" : "neutral",
-      };
+      return stage(
+        "awaiting_approval",
+        "Awaiting your approval",
+        `Nothing has been sent to ${label}. ${can?.approve ? "Approve it to send it." : "An admin or owner has to approve it."}`,
+        "neutral",
+        decide,
+      );
+    case "approved": {
+      if (!c.held) return stage("approved_waiting", "Approved, waiting to send", `It has not reached ${label} yet.`, "neutral");
+      // The listing-wide blocker is added only when the row's own sentence does not already say it.
+      const why = [c.held.reason, b && !c.held.reason.includes(b.reason) ? b.reason : null].filter(Boolean).join(" ");
+      return stage("approved_held", "Approved, waiting to send", `${why || publishing?.heldReason || "Sending has not started yet."} Nothing has been sent to ${label}.`, "warn", fix);
     }
-    case "live":
-      return { headline: `Live on ${label}`, detail: null, tone: "good" };
+    case "applying":
+      return stage("sent", `Sent to ${label}`, "This can take a moment. It is not live yet.", "neutral");
+    case "submitted": {
+      switch (check?.outcome) {
+        case "pending":
+          return stage("under_review", `Under ${label} review`, withSent(note || `${label} is still reviewing this change.`, note || `${label} is still reviewing this change. We will tell you when it is done.`), "neutral");
+        case "unknown":
+          // Only a change the network can NEVER show back says so. A check that did not answer (or an api that does not say) is a later try:
+          // plain "sent", with the note.
+          if (check.confirmable !== false) return stage("sent", `Sent to ${label}`, withSent(note || `${label} hasn't shown it yet.`, note || `${label} may take time to show it. We will say when it does.`), "neutral");
+          return stage("cannot_confirm", `Sent, ${label} doesn't let us confirm this`, note || `${label} does not show this kind of change back to us, so we cannot tell you when it is showing.`, "neutral");
+        case "not_shown":
+          return stage("sent", `Sent to ${label}`, withSent(note || `${label} is not showing it yet.`, note || `${label} is not showing it yet.`), "warn");
+        default:
+          return stage("sent", `Sent to ${label}`, withSent(`${label} hasn't shown it yet.${note ? ` ${note}` : ""}`, `${label} may take time to show it. We will say when it does.${note ? ` ${note}` : ""}`), "neutral");
+      }
+    }
+    case "live": {
+      // How we know: the api sets `live` only after the network shows the change back. The time is the last check, else the moment it went live.
+      const proof = [check?.checkedAt, c.liveAt].find((t) => t && !Number.isNaN(Date.parse(t))) ?? null;
+      return stage("live", `Live on ${label}`, when && proof ? `${label} shows this change. We checked on ${when(proof)}.` : null, "good");
+    }
     case "failed":
-      return { headline: "Could not be sent", detail: reasonOf(c), tone: "bad" };
+      if (c.reason?.code === "network_rejected") return stage("rejected_by_network", `Rejected by ${label}`, reasonOf(c), "bad", again);
+      if (c.reason?.code === "not_published") return stage("not_published", "Didn't go live", reasonOf(c), "warn", again);
+      return stage("failed", "Failed", reasonOf(c), "bad", again);
     case "blocked":
-      return { headline: "Not sent", detail: reasonOf(c), tone: "bad" };
+      // Held, never sent: not a failed send.
+      return stage("not_sent", "Not sent", reasonOf(c), "bad", fix.kind === "fix" ? fix : again);
     case "rejected":
-      return { headline: "Declined", detail: "Nothing was sent.", tone: "neutral" };
+      return stage("declined", "Declined by you", "You declined it. Nothing was sent.", "neutral");
     case "expired":
-      return { headline: "Expired", detail: "Nobody approved it in time, so nothing was sent.", tone: "neutral" };
+      return stage("expired", "Expired", "Nobody approved it in time, so nothing was sent.", "neutral", again);
     case "superseded":
-      return { headline: "Replaced", detail: "A newer change took its place. Nothing was sent.", tone: "neutral" };
+      return stage("replaced", "Replaced", "A newer change took its place. Nothing was sent.", "neutral");
+    default:
+      // A status this build does not know (the api is newer): said as unknown, never guessed and never a crash.
+      return stage("unknown", "Unknown", null, "neutral");
   }
+}
+
+/** The headline and detail a change card draws: the request's stage, said the same way everywhere. */
+export function statusWords(
+  c: ChangeCardData,
+  label: string,
+  can: CapabilitiesResponse["can"] | undefined,
+  publishing?: Pick<PresencePublishing, "blocker" | "heldReason"> | null,
+): StatusWords {
+  const r = requestStatus(c, label, can, publishing);
+  return { headline: r.label, detail: r.reason, tone: r.tone };
+}
+
+/**
+ * The api closes an unanswered proposal lazily, so a row past its time can still read `proposed` or `validated`. It is expired to the person
+ * reading it, exactly as Ask's card reads it, and is never offered Approve.
+ */
+function lapsed(c: ChangeCardData, now: number): ChangeCardData {
+  if (c.status !== "proposed" && c.status !== "validated") return c;
+  const at = Date.parse(c.expiresAt);
+  return !Number.isNaN(at) && at <= now ? { ...c, status: "expired" } : c;
+}
+
+const OPEN_STATUSES: ReadonlySet<ChangeStatus> = new Set(["proposed", "validated", "approved", "applying", "submitted"]);
+/** Every status this build can say; one it cannot (the api is newer) is left out of the list. */
+const FINISHED_STATUSES: ReadonlySet<string> = new Set(["live", "failed", "blocked", "rejected", "expired"]);
+const RECENT_MS = 7 * 24 * 3_600_000;
+
+/**
+ * When a finished request finished, as far as the row says: it went live then, ran out then, or was last sent or made. A decline or a
+ * failure before any send has no stamp of its own in the view; a proposal lives 72 hours, so its creation is within three days of the decline.
+ */
+function finishedAt(c: ChangeCardData): number {
+  const t = c.status === "live" ? (c.liveAt ?? c.createdAt) : c.status === "expired" ? c.expiresAt : (c.submittedAt ?? c.createdAt);
+  const n = Date.parse(t);
+  return Number.isNaN(n) ? 0 : n;
+}
+
+/**
+ * The "Your requests" list: what is still open or in flight first (newest first), then what finished in the last seven days. A replaced
+ * request is hidden: another one took its place and is listed. An older one is the history, not a request.
+ */
+export function requestGroups(changes: readonly ChangeCardData[] | undefined, now: number): { open: ChangeCardData[]; recent: ChangeCardData[]; older: ChangeCardData[] } {
+  const open: ChangeCardData[] = [];
+  const recent: ChangeCardData[] = [];
+  const older: ChangeCardData[] = [];
+  for (const row of changes ?? []) {
+    const c = lapsed(row, now);
+    if (OPEN_STATUSES.has(c.status)) open.push(c);
+    else if (FINISHED_STATUSES.has(c.status)) (now - finishedAt(c) <= RECENT_MS ? recent : older).push(c);
+  }
+  const byNewest = (a: ChangeCardData, b: ChangeCardData) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0);
+  const byFinished = (a: ChangeCardData, b: ChangeCardData) => finishedAt(b) - finishedAt(a);
+  return { open: open.sort(byNewest), recent: recent.sort(byFinished), older: older.sort(byFinished) };
+}
+
+// ── The tracker: every request, grouped by stage ─────────────────────────────
+
+/**
+ * ★THE ONE STAGE-TO-GROUP RULE. A request's group is read from `requestStatus(...).stage` and nothing else, so a request is in exactly one
+ * group and the count line can never disagree with the list. Order is the order drawn: what needs the merchant first, then what is in flight,
+ * then what finished. A submitted change is only ever in `sent` or `under_review`; `live` is the `live` stage alone.
+ */
+export const REQUEST_GROUPS: ReadonlyArray<{ id: string; label: string; stages: readonly RequestStage[] }> = [
+  { id: "awaiting", label: "Awaiting approval", stages: ["awaiting_approval"] },
+  { id: "problem", label: "Rejected or failed", stages: ["rejected_by_network", "not_published", "failed", "not_sent"] },
+  { id: "draft", label: "Draft", stages: ["draft"] },
+  { id: "waiting", label: "Approved, waiting to send", stages: ["approved_held", "approved_waiting"] },
+  { id: "sent", label: "Sent", stages: ["sent", "cannot_confirm"] },
+  { id: "review", label: "Under review", stages: ["under_review"] },
+  { id: "live", label: "Live", stages: ["live"] },
+  { id: "closed", label: "Declined or expired", stages: ["declined", "expired"] },
+];
+
+export interface RequestGroup<T> {
+  id: string;
+  label: string;
+  rows: T[];
+}
+
+/** Rows split into the groups above, in order, empty groups left out. A row whose stage is in no group (an unknown status) is left out too. */
+export function groupByStage<T>(rows: readonly T[], stageOf: (row: T) => RequestStage): RequestGroup<T>[] {
+  const staged = rows.map((r) => ({ r, st: stageOf(r) }));
+  return REQUEST_GROUPS.map((g) => ({ id: g.id, label: g.label, rows: staged.filter((x) => g.stages.includes(x.st)).map((x) => x.r) })).filter((g) => g.rows.length > 0);
+}
+
+/**
+ * The step line under a request, from stored times only: when it was asked for, when it was sent, when the network showed it. A step that
+ * has not happened is not in it. There is no approval time to show: the api does not keep one on the change.
+ */
+export function requestSteps(c: Pick<ChangeCardData, "status" | "createdAt" | "submittedAt" | "liveAt">, label: string, when: (iso: string) => string): string[] {
+  const steps: string[] = [];
+  const real = (t: string | null | undefined): t is string => !!t && !Number.isNaN(Date.parse(t));
+  if (real(c.createdAt)) steps.push(`Requested ${when(c.createdAt)}`);
+  if (real(c.submittedAt)) steps.push(`Sent ${when(c.submittedAt)}`);
+  // "Shows it" is said only of a change the api has marked live.
+  if (c.status === "live" && real(c.liveAt)) steps.push(`${label} shows it ${when(c.liveAt)}`);
+  return steps;
+}
+
+/** A short "before → after" for a row: each side on one line, cut where long. */
+export function shortChange(field: string, before: unknown, after: unknown): string {
+  const say = (v: unknown) => {
+    const t = valueLines(field, v).join("; ");
+    if (!t) return "nothing set";
+    return t.length > 60 ? `${t.slice(0, 57).trimEnd()}...` : t;
+  };
+  return `${say(before)} → ${say(after)}`;
 }
 
 // ── What followed a live change (PE-13) ──────────────────────────────────────
@@ -630,7 +950,7 @@ export function offerLine(o: HolidayOffer): string {
 export function offerState(r: HolidayOffersResponse, label: string): { show: boolean; message: string | null; canAccept: boolean } {
   const say = (message: string) => ({ show: true, message, canAccept: false });
   if (r.noTimeZone) return say("We cannot suggest holiday hours yet, because we do not know your time zone.");
-  if (r.networkUnreadable) return say(`We could not read your listing from ${label} just now, so no holiday days are suggested. Try again in a moment.`);
+  if (r.networkUnreadable) return say(`${label} didn't answer just now, so no holiday days are suggested. Try again in a moment.`);
   if (r.needsRegularHours) return say("Set your opening hours first. Holiday hours change them for a day.");
   if (r.openChange) return say("A holiday-hours change is already waiting. Finish it first.");
   if (r.offers.length === 0) return { show: false, message: null, canAccept: false };
@@ -647,6 +967,74 @@ export function offerOutcome(items: ReadonlyArray<Pick<ChangeCardData, "status" 
   if (items.length === 0) return { ok: false, message: `${name} was not prepared.` };
   if (items.some((i) => i.status === "proposed")) return { ok: true, message: `${name} is prepared, but ${label} has not checked it yet. Review it under Changes below. Nothing has been sent to ${label}.` };
   return { ok: true, message: `${name} is prepared. Review it under Changes below, then approve it. Nothing has been sent to ${label}.` };
+}
+
+// ── The listing's time zone ──────────────────────────────────────────────────
+
+/** A zone by the place it names: "India Standard Time (Asia/Kolkata)". The id alone when this browser has no name for it. */
+export function zoneWords(zone: string): string {
+  const hit = ZONE_WORDS.get(zone);
+  if (hit) return hit;
+  const words = zoneWordsOf(zone);
+  ZONE_WORDS.set(zone, words);
+  return words;
+}
+
+const ZONE_WORDS = new Map<string, string>();
+
+function zoneWordsOf(zone: string): string {
+  try {
+    const name = new Intl.DateTimeFormat("en", { timeZone: zone, timeZoneName: "longGeneric" }).formatToParts(new Date()).find((p) => p.type === "timeZoneName")?.value;
+    return name && name !== zone ? `${name} (${zone})` : zone;
+  } catch {
+    return zone;
+  }
+}
+
+/**
+ * The one line under the holiday card about the zone its days are placed in, or null when the merchant confirmed it (nothing to explain).
+ * It says where the zone came from, so a wrong guess is easy to spot.
+ */
+export function zoneLine(tz: ListingTimeZone | null, city?: string | null): string | null {
+  if (!tz || tz.source === "confirmed") return null;
+  return `Holiday hours use ${zoneWords(tz.zone)}, ${zoneSource(tz, city)}.`;
+}
+
+/** Where a zone came from, in a merchant's words: "from your address in Mumbai" or "from your business settings". Empty for a confirmed zone. One rule for the holiday line and the row. */
+function zoneSource(tz: ListingTimeZone, city?: string | null): string {
+  if (tz.source === "confirmed") return "";
+  const place = city?.trim();
+  return tz.source === "address" ? `from your address${place ? ` in ${place}` : ""}` : "from your business settings";
+}
+
+/**
+ * The same zone as ONE quiet row on the listing card. Where the zone came from is said in the same words as `zoneLine`; a confirmed zone says
+ * nothing more. None known says so plainly.
+ */
+export function zoneRowLine(tz: ListingTimeZone | null, city?: string | null): string {
+  if (!tz) return "Time zone: not set";
+  const from = zoneSource(tz, city);
+  return `Time zone: ${zoneWords(tz.zone)}${from ? ` · ${from}` : ""}`;
+}
+
+/**
+ * The zones to choose from: the listing's country first (the browser's own region data), then every zone it knows. A zone is listed once,
+ * and a browser with no region data simply has no first group.
+ */
+export function zoneChoices(country: string | null | undefined, supported: readonly string[]): { near: string[]; all: string[] } {
+  const all = timeZoneOptions(supported);
+  let near: string[] = [];
+  const cc = country?.trim().toUpperCase();
+  if (cc && /^[A-Z]{2}$/.test(cc)) {
+    try {
+      const loc = new Intl.Locale(`und-${cc}`) as Intl.Locale & { getTimeZones?: () => string[] };
+      near = timeZoneOptions(loc.getTimeZones?.() ?? []).filter((z) => z !== "UTC" && all.includes(z) && isReadableZone(z));
+    } catch {
+      near = [];
+    }
+  }
+  const nearSet = new Set(near);
+  return { near, all: all.filter((z) => !nearSet.has(z)) };
 }
 
 export const regionQuestion = (o: HolidayOffer) =>

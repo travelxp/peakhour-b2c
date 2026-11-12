@@ -67,7 +67,7 @@ export function RankedListCard({
                   <p className="truncate font-medium">{item.title}</p>
                   {item.subtitle ? (
                     <p
-                      className="truncate font-mono text-[11px] text-muted-foreground"
+                      className="truncate font-mono text-micro text-muted-foreground"
                       title={item.subtitle}
                     >
                       {item.subtitle}

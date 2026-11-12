@@ -49,6 +49,9 @@ export const presenceEditApi = {
   proposeOffer: (body: { listingId: string; network: string; date: string; confirmRegion?: boolean }) =>
     api.post<{ items: ChangeCardData[]; notChecked: unknown[] }>("/v1/presence/edit/holiday-offers/propose", body),
 
+  /** The merchant confirms, or changes, the zone this place keeps its calendar in. Our copy only; nothing is sent to a network. */
+  setTimeZone: (body: { listingId: string; timeZone: string }) => api.post<{ timeZone: string }>("/v1/presence/edit/time-zone", body),
+
   dismissOffer: (body: { listingId: string; key: string }) =>
     api.post<{ dismissed: boolean }>("/v1/presence/edit/holiday-offers/dismiss", body),
 };

@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 import { useLocale } from "@/hooks/use-locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/molecules";
 import { CronToolbar } from "@/components/dev/cron-toolbar";
+import { navLabel } from "@/lib/nav-copy";
 
 interface CalendarIdea {
   _id: string;
@@ -26,13 +28,15 @@ interface CalendarIdea {
 }
 
 import { ChannelIconCompact } from "@/components/brand/channel-icon";
+import { QueryError } from "@/components/dashboard/query-error";
+import { queryViewState } from "@/lib/query-view-state";
 
 const STATUS_COLORS: Record<string, string> = {
   brainstorm: "bg-muted border-border",
   planned: "bg-state-info/10 border-state-info/30",
   in_progress: "bg-warning/10 border-warning/30",
   published: "bg-success/10 border-success/30",
-  archived: "bg-destructive/10 border-destructive/30 opacity-50",
+  archived: "bg-muted border-border",
 };
 
 export default function IdeasCalendarPage() {
@@ -41,10 +45,12 @@ export default function IdeasCalendarPage() {
   const [view, setView] = useState<"week" | "month">("week");
   const [weekOffset, setWeekOffset] = useState(0);
 
-  const { data: ideas } = useQuery({
+  const ideasQuery = useQuery({
     queryKey: ["content-ideas"],
     queryFn: () => api.get<CalendarIdea[]>("/v1/content/ideas"),
   });
+  const { data: ideas } = ideasQuery;
+  const ideasView = queryViewState(ideasQuery);
 
   // Calculate week dates
   const today = new Date();
@@ -73,33 +79,42 @@ export default function IdeasCalendarPage() {
   }
 
   // Ideas without dates
-  const unscheduled = (ideas || []).filter((i) => !i.targetDate);
+  // Archived ideas are done with: they never belong in the working list.
+  const unscheduled = (ideas || []).filter(
+    (i) => !i.targetDate && i.status !== "archived",
+  );
+  const archived = (ideas || []).filter((i) => i.status === "archived");
 
   return (
-    <div className="space-y-6">
+    <PageShell width="full">
       <CronToolbar
         crons={["jobs-runner"]}
         onTriggered={() =>
           queryClient.invalidateQueries({ queryKey: ["content-ideas"] })
         }
       />
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Content Calendar</h2>
-          <p className="text-muted-foreground">
-            Your scheduled and planned content
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant={view === "week" ? "default" : "outline"} size="sm" onClick={() => setView("week")}>
-            Week
-          </Button>
-          <Button variant={view === "month" ? "default" : "outline"} size="sm" onClick={() => setView("month")}>
-            Month
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        title={navLabel("/dashboard/calendar")}
+        description="Your scheduled and planned content"
+        actions={
+          <>
+            <Button variant={view === "week" ? "default" : "outline"} size="sm" onClick={() => setView("week")}>
+              Week
+            </Button>
+            <Button variant={view === "month" ? "default" : "outline"} size="sm" onClick={() => setView("month")}>
+              Month
+            </Button>
+          </>
+        }
+      />
+
+      {(ideasView === "error" || ideasView === "offline") && (
+        <QueryError
+          what="your planned ideas"
+          kind={ideasView}
+          onRetry={() => void ideasQuery.refetch()}
+        />
+      )}
 
       {/* Week navigation */}
       <div className="flex items-center justify-between">
@@ -173,14 +188,28 @@ export default function IdeasCalendarPage() {
           <h3 className="text-base font-semibold text-muted-foreground">
             Unscheduled ({unscheduled.length})
           </h3>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3 2xl:grid-cols-4">
             {unscheduled.map((idea) => (
               <CalendarCard key={idea._id} idea={idea} />
             ))}
           </div>
         </div>
       )}
-    </div>
+
+      {/* Archived ideas: collapsed, muted but full-contrast text. */}
+      {archived.length > 0 && (
+        <details className="space-y-3">
+          <summary className="cursor-pointer text-base font-semibold text-muted-foreground">
+            Archived ({archived.length})
+          </summary>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 md:grid-cols-3 2xl:grid-cols-4">
+            {archived.map((idea) => (
+              <CalendarCard key={idea._id} idea={idea} />
+            ))}
+          </div>
+        </details>
+      )}
+    </PageShell>
   );
 }
 
@@ -212,9 +241,9 @@ function CalendarCard({ idea, compact }: { idea: CalendarIdea; compact?: boolean
 
       {!compact && (
         <div className="flex flex-wrap gap-1 mt-1.5">
-          {idea.sector && <Badge variant="secondary" className="text-[10px] h-5">{idea.sector}</Badge>}
-          {idea.contentType && <Badge variant="outline" className="text-[10px] h-5">{idea.contentType}</Badge>}
-          <StatusBadge status={idea.status} className="text-[10px] h-5" />
+          {idea.sector && <Badge variant="secondary" className="text-micro h-5">{idea.sector}</Badge>}
+          {idea.contentType && <Badge variant="outline" className="text-micro h-5">{idea.contentType}</Badge>}
+          <StatusBadge status={idea.status} className="text-micro h-5" />
         </div>
       )}
     </div>
@@ -260,7 +289,7 @@ function MonthView({ ideasByDate, today }: { ideasByDate: Map<string, CalendarId
               </span>
               {dayIdeas.slice(0, 2).map((idea) => (
                 <div key={idea._id} className="mt-0.5">
-                  <p className="text-[10px] leading-tight line-clamp-1 font-medium">{idea.title}</p>
+                  <p className="text-micro leading-tight line-clamp-1 font-medium">{idea.title}</p>
                   <div className="flex gap-0.5">
                     {idea.channels?.slice(0, 3).map((ch) => (
                       <ChannelIconCompact key={ch} channel={ch} size={10} />
@@ -269,7 +298,7 @@ function MonthView({ ideasByDate, today }: { ideasByDate: Map<string, CalendarId
                 </div>
               ))}
               {dayIdeas.length > 2 && (
-                <p className="text-[9px] text-muted-foreground">+{dayIdeas.length - 2} more</p>
+                <p className="text-micro text-muted-foreground">+{dayIdeas.length - 2} more</p>
               )}
             </div>
           );

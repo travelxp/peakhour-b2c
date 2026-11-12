@@ -120,3 +120,77 @@ describe("the review kit and the edit queries carry the network", () => {
     expect(hooks).toContain('presenceEditKeys.categories(listingId ?? "", network ?? "", q)');
   });
 });
+
+describe("the one publishing status (GBP Issue 1)", () => {
+  const home = flat("components/presence/presence-home.tsx");
+  it("is drawn once, where changes can be made, above every panel it speaks for", () => {
+    expect(home.match(/<PublishingStatus /g)).toHaveLength(1);
+    // photos are drawn on their own declaration, so a network with photos and no edit forms still gets the status
+    expect(home).toContain("{editOn || photosOn ? <PublishingStatus location={panelLocation} network={panelNetwork} onRedo={openForm} canRedo={(f) => editOn || f === \"media\"} /> : null}");
+    for (const panel of ["<ListingScoreCard", "<EditListingCard", "<PhotosCard", "<PostsCard", "<ServicesCard", "<DetailsCard", "<LinksCard"]) {
+      expect(home.indexOf("<PublishingStatus "), panel).toBeLessThan(home.indexOf(panel));
+    }
+  });
+  it("no panel says it again: the per-panel switch-off notice is not rendered anywhere", () => {
+    for (const f of ["components/presence/edit/edit-listing-card.tsx", "components/presence/edit/extra-panel.tsx", "components/presence/edit/photos-card.tsx"]) {
+      const s = flat(f);
+      expect(s, f).not.toContain("writes.notice}");
+      expect(s, f).not.toContain("writesNote(");
+      expect(s, f).not.toContain("switchNote");
+    }
+  });
+  it("reads the listing and capabilities the edit card reads, and every word comes from publishingBanner", () => {
+    const s = flat("components/presence/publishing-status.tsx");
+    expect(s).toContain("useListingQuery(location, network)");
+    expect(s).toContain("publishingBanner(entry, caps.data.can)");
+    // the requests list reads the same changes the edit card reads (one query key), and says every stage through requestStatus
+    expect(s).toContain("useListingChanges(listing?.id)");
+    expect(flat("components/presence/requests-list.tsx")).toContain("requestStatus(change, label, can, publishing, { when, now })");
+    expect(s).not.toContain('role="status"');
+  });
+  it("the prepared notice reads held from the same publishing answer as the status", () => {
+    expect(flat("components/presence/edit/edit-listing-card.tsx")).toContain("preparedWords(r.notChecked.length, cap!, primaryEntry(listingQ.data)?.publishing)");
+  });
+});
+
+describe("the one summary line (GBP L7)", () => {
+  const home = flat("components/presence/presence-home.tsx");
+  it("is drawn once, above the reviews, the status and every panel, and only for a network with a listing", () => {
+    expect(home.match(/<PresenceSummary /g)).toHaveLength(1);
+    expect(home).toContain("{listingOn ? <PresenceSummary location={panelLocation} network={panelNetwork} writes={editOn || photosOn} nameAskHref={nameAsk.show ? `#${nameAsk.anchor}` : undefined} /> : null}");
+    for (const part of ["<ReviewSummaryCard", "<PublishingStatus ", "<ListingScoreCard", "<EditListingCard"]) {
+      expect(home.indexOf("<PresenceSummary "), part).toBeLessThan(home.indexOf(part));
+    }
+  });
+  it("the question 'Is this your business?' is drawn once per network, right under the line and above every panel", () => {
+    expect(home.match(/<NameAskPanel /g)).toHaveLength(1);
+    expect(home).toContain("<NameAskPanel key={n.network} network={n} />");
+    expect(home.indexOf("<PresenceSummary ")).toBeLessThan(home.indexOf("<NameAskPanel "));
+    for (const part of ["<ReviewSummaryCard", "<PublishingStatus ", "<ListingScoreCard", "<EditListingCard"]) {
+      expect(home.indexOf("<NameAskPanel "), part).toBeLessThan(home.indexOf(part));
+    }
+    // the summary counts it from the same read the panel draws from
+    expect(home).toContain("useNameAsk(aboutNetwork)");
+    expect(flat("components/presence/name-ask-panel.tsx")).toContain("id={ask.anchor}");
+    // no network is named in the panel
+    expect(flat("components/presence/name-ask-panel.tsx")).not.toMatch(/Google/);
+  });
+  it("every anchor the line links to exists on the page", () => {
+    expect(home).toContain('<div id="listing-score">');
+    expect(flat("components/presence/publishing-status.tsx")).toContain('<section id="publishing-status"');
+    expect(flat("components/presence/requests-list.tsx")).toContain("id={SUMMARY_ANCHORS.requests}");
+    expect(flat("components/presence/requests-list.tsx")).toContain("id={requestRowId(change.id)}");
+  });
+  it("adds no request: it reads the keys the status, the score card and the edit card read, and decides nothing itself", () => {
+    const s = flat("components/presence/presence-summary.tsx");
+    for (const read of ["useListingQuery(location, network)", "useEditCapabilities()", "useListingChanges(listingQ.data?.listing?.id)", "useListingScore(location, network)"]) expect(s).toContain(read);
+    expect(s).toContain("summaryLine({");
+    expect(s).not.toMatch(/Google|publishingBanner|requestStatus/);
+  });
+  it("the sections keep no status of their own: no card draws a request's stage or buttons", () => {
+    for (const f of ["edit-listing-card", "extra-panel", "photos-card"]) {
+      const s = flat(`components/presence/edit/${f}.tsx`);
+      expect(s, f).not.toMatch(/statusWords|cardActions|m\.approve|m\.undo/);
+    }
+  });
+});

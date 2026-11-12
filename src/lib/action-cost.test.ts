@@ -141,13 +141,13 @@ describe("the places that said 'Uses Peaks.'", () => {
     expect(read("app/(site)/dashboard/pages/page.tsx")).toContain('<ActionCost action="webPages" unit="for each page"');
     expect(read("app/(site)/dashboard/pages/components/generate-pages-dialog.tsx")).toContain('<ActionCost action="webPages" unit="for each page"');
     expect(read("app/(site)/dashboard/content/sources/components/add-source-drawer.tsx")).toContain('<ActionCost action="findSources" />');
-    expect(read("app/(site)/dashboard/strategist/[id]/page.tsx")).toContain('<ActionCost action="contentBrief"');
-    expect(read("app/(site)/dashboard/strategist/[id]/page.tsx")).toContain('<ActionCost action="contentDraft"');
-    expect(read("app/(site)/dashboard/content/linkedin/_components/post-composer.tsx")).toContain('<ActionCost action="linkedinRewrite"');
+    expect(read("app/(site)/dashboard/strategist/[id]/_components/brief-tab.tsx")).toContain('<ActionCost action="contentBrief"');
+    expect(read("app/(site)/dashboard/strategist/[id]/_components/write-tab.tsx")).toContain('<ActionCost action="contentDraft"');
+    expect(read("app/(site)/dashboard/content/linkedin/_components/composer-hook-score.tsx")).toContain('<ActionCost action="linkedinRewrite"');
     expect(read("app/(site)/dashboard/content/linkedin/_components/engage-shared.tsx")).toContain('<ActionCost action="linkedinReply"');
     expect(read("components/composer/ai-compose-toolbar.tsx")).toContain("actionCostSentence(cost)");
     expect(read("app/(site)/dashboard/strategist/page.tsx")).toContain('<ActionCost action="contentIdeas"');
-    expect(read("app/(site)/dashboard/content/linkedin/_components/post-composer.tsx")).toContain('<ActionCost action="linkedinCarousel"');
+    expect(read("app/(site)/dashboard/content/linkedin/_components/composer-actions.tsx")).toContain('<ActionCost action="linkedinCarousel"');
     expect(read("components/repurpose/repurpose-sheet.tsx")).toContain('<ActionCost action="repurpose"');
     const studio = read("app/(site)/dashboard/content/whatsapp/templates/page.tsx");
     expect(studio.match(/<ActionCost action="waTemplateStudio"/g)).toHaveLength(3);

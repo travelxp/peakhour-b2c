@@ -17,7 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { PaymentModal, type CheckoutResult } from "./payment-modal";
+import type { CheckoutResult } from "./payment-modal";
+import { PaymentModal } from "./payment-modal-lazy";
 import { TERM_LABEL, type BillingTerm } from "@/lib/billing-terms";
 import {
   ADDED_BUSINESS_NAME_MAX,

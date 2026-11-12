@@ -14,6 +14,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { WhatsAppIcon } from "@/components/brand/brand-icons";
 import { CheckCircle2, AlertCircle, Loader2, Sparkles } from "lucide-react";
+import { BRAND_COLORS } from "@/components/brand/brand-colors";
 
 const APP_ID = process.env.NEXT_PUBLIC_META_APP_ID;
 const CONFIG_ID = process.env.NEXT_PUBLIC_META_ES_CONFIG_ID;
@@ -757,7 +758,7 @@ export function WhatsAppEmbeddedSignup({
       target.phase === "not_linked"
         ? {
             title: "Finish linking your store first",
-            body: `${shop} isn’t linked to Peakhour yet. Complete store setup, then connect WhatsApp from your store’s Integrations page.`,
+            body: `${shop} isn’t linked to Peakhour yet. Complete store setup, then connect WhatsApp from your store’s Connected accounts page.`,
           }
         : target.phase === "not_member"
           ? {
@@ -796,13 +797,13 @@ export function WhatsAppEmbeddedSignup({
     <Card>
       <CardHeader>
         <div className="flex items-center gap-3">
-          <span className="flex size-10 items-center justify-center rounded-full bg-[#25D366]/15">
-            <WhatsAppIcon className="size-5 text-[#25D366]" />
+          <span className="flex size-10 items-center justify-center rounded-full" style={{ color: BRAND_COLORS.whatsapp, backgroundColor: `color-mix(in srgb, ${BRAND_COLORS.whatsapp} 15%, transparent)` }}>
+            <WhatsAppIcon className="size-5" />
           </span>
           <div>
             <CardTitle className="flex items-center gap-2 text-base">
               {needsReauth ? "Reconnect WhatsApp" : "Connect WhatsApp"}
-              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-micro font-medium text-primary">
                 <Sparkles className="size-3" /> Live in a minute
               </span>
             </CardTitle>
@@ -874,7 +875,7 @@ export function WhatsAppEmbeddedSignup({
           >
             <span className="flex items-center gap-2 font-medium text-foreground">
               I already use the WhatsApp Business app
-              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-micro font-medium text-primary">
                 Recommended
               </span>
             </span>

@@ -157,7 +157,7 @@ function AgentRow({
           )}
           {confidencePct !== null ? (
             <div className="mt-2 flex items-center gap-2">
-              <Progress value={confidencePct} className="h-1.5 w-24" />
+              <Progress value={confidencePct} aria-label="Confidence" className="h-1.5 w-24" />
               <span className="text-xs tabular-nums text-muted-foreground">
                 {confidencePct}% confidence
               </span>

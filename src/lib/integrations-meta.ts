@@ -8,7 +8,7 @@
  * and /dashboard/content (the channels hub) so the two stay consistent.
  */
 
-interface BaseIntegration {
+interface BaseIntegration extends MetaLoginInfo {
   provider: string;
   connected?: boolean;
   status?: string;
@@ -338,10 +338,26 @@ export function flattenMetaIntegration<T extends BaseIntegration>(
       const capConfig = capabilities[card.capabilityKey];
       const isEnabled = capConfig?.enabled !== false; // default enabled
 
+      // ★The card's OWN row decides whether it needs reconnecting: the merged
+      // facebook row prefers an active row, so a broken Growth row beside a
+      // working shared row would otherwise show Meta Ads as connected. And a
+      // card NO row serves (the api said so) is not connected, whatever the
+      // merged extras of another purpose's row contain. Decided here, once, so
+      // /dashboard/integrations and Home cannot disagree.
+      const info: MetaLoginInfo = { metaLogin: item.metaLogin, metaConnections: item.metaConnections };
+      const rowStatus = card.loginPurpose ? metaCardStatus(info, card.virtualProvider) : undefined;
+      const ownRowBroken = rowStatus !== undefined && rowStatus !== "active";
+      const unserved =
+        card.loginPurpose !== undefined &&
+        item.metaConnections !== undefined &&
+        metaCardServedBy(info, card.virtualProvider) === "none";
+
       const virtualRow = {
         ...item,
         provider: card.virtualProvider,
         connected: item.connected === true && hasRes && isEnabled,
+        ...(ownRowBroken ? { connected: false, status: rowStatus } : {}),
+        ...(unserved ? { connected: false } : {}),
         ...(decorate ? decorate(item, card) : {}),
       } as T;
 

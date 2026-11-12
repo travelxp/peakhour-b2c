@@ -107,8 +107,8 @@ export function WaitingForYou({
       >
         <Check className="size-4 shrink-0 text-success" aria-hidden />
         <span>
-          <span className="font-medium text-foreground">Nothing waiting on you.</span> Your pillars
-          keep working — approvals, failures and unanswered messages land here.
+          <span className="font-medium text-foreground">Nothing waiting on you.</span> Peakhour
+          keeps working — approvals, failures and unanswered messages land here.
         </span>
       </p>
     );

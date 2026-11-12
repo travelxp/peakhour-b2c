@@ -68,7 +68,7 @@ export function ActorAvatar({
           our cache — a broken image is normal, and AvatarFallback covers
           it without a retry. */}
       {profile?.pictureUrl && <AvatarImage src={profile.pictureUrl} alt="" />}
-      <AvatarFallback className="text-[10px]">{initials}</AvatarFallback>
+      <AvatarFallback className="text-micro">{initials}</AvatarFallback>
     </Avatar>
   );
 }
@@ -257,7 +257,7 @@ export function ReplyBox({
           </Button>
         )}
         {commentText && commentText.trim().length > 0 && (
-          <ActionCost action="linkedinReply" className="text-[10px]" />
+          <ActionCost action="linkedinReply" className="text-micro" />
         )}
         <SavedReplyPicker
           channel="linkedin"
@@ -295,7 +295,7 @@ export function ReplyBox({
         >
           Cancel
         </Button>
-        <span className="ml-auto text-[10px] tabular-nums text-muted-foreground">
+        <span className="ml-auto text-micro tabular-nums text-muted-foreground">
           {text.length}/{COMMENT_MAX_LEN}
         </span>
       </div>

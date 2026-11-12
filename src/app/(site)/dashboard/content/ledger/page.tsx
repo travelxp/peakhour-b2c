@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { ContentLedgerTable } from "@/components/growth/content-ledger-table";
 import { useAuth } from "@/providers/auth-provider";
+import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 import { growthApi, type ContentLedgerResponse } from "@/lib/api/growth";
 import {
   analyticsTotalLine,
@@ -20,6 +21,8 @@ import {
   searchTotalLine,
   summaryHeadline,
 } from "@/lib/content-ledger";
+import { PageIntro } from "@/components/dashboard/page-intro";
+import { navLabel } from "@/lib/nav-copy";
 
 /**
  * The content ledger — what we published, and what it earned.
@@ -64,15 +67,12 @@ export default function ContentLedgerPage() {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Ledger</h2>
-          <p className="text-muted-foreground">
-            What you published through Peakhour, and what each page earned.
-          </p>
-        </div>
-        <div className="flex shrink-0 gap-1 rounded-md border p-0.5">
+    <PageShell>
+      <PageHeader
+        title="Results"
+        description="What you published through Peakhour, and what each page earned."
+        actions={
+          <div className="flex shrink-0 gap-1 rounded-md border p-0.5">
           {WINDOWS.map((w) => (
             <Button
               key={w.days}
@@ -86,8 +86,10 @@ export default function ContentLedgerPage() {
               {w.label}
             </Button>
           ))}
-        </div>
-      </div>
+          </div>
+        }
+      />
+      <PageIntro id="ledger" />
 
       {/* ★`isPending` ALONE, never `isPending && !isError` — the two statuses
           are mutually exclusive in Query v5, so the second is a guard after a
@@ -100,14 +102,14 @@ export default function ContentLedgerPage() {
       ) : ledger.isError ? (
         <EmptyState
           icon={FileClock}
-          title="We couldn't load your ledger"
+          title={`We couldn't load your ${navLabel("/dashboard/content/ledger").toLowerCase()}`}
           description="That's on us — nothing has been changed. Try again in a moment."
           action={{ label: "Try again", onClick: () => void ledger.refetch() }}
         />
       ) : (
         <LedgerBody data={ledger.data} />
       )}
-    </div>
+    </PageShell>
   );
 }
 
@@ -142,7 +144,7 @@ function LedgerBody({ data }: { data: ContentLedgerResponse }) {
             : // ★★AND THE REASON THE RECORD MAY BE SHORT IS OURS, NOT THEIRS.
               // Nothing recorded which page came from which publish until the
               // ledger shipped, and that link cannot be reconstructed.
-              "Pages you publish from Peakhour appear here with what they earned. Articles published before this was switched on can't be matched back to their publish, so the ledger starts from your next one."
+              "Pages you publish from Peakhour appear here with what they earned. Articles published before this was switched on can't be matched back to their publish, so Results starts from your next one."
         }
       />
     );

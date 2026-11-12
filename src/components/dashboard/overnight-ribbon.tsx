@@ -151,7 +151,7 @@ export function OvernightRibbon({
         className,
       )}
     >
-      <span className="flex items-center gap-2 font-mono text-[0.65rem] font-semibold uppercase tracking-[0.15em] text-brand">
+      <span className="flex items-center gap-2 font-mono text-micro font-semibold uppercase tracking-[0.15em] text-brand">
         <span className="relative flex size-1.5">
           <span className="absolute inline-flex size-full rounded-full bg-success opacity-75 motion-safe:animate-ping" />
           <span className="relative inline-flex size-1.5 rounded-full bg-success" />
@@ -163,7 +163,7 @@ export function OvernightRibbon({
         // A quiet night is an answer, not an empty state. Saying nothing here
         // would read as a panel that failed to load.
         <span className="text-sm text-on-ink-dim">
-          Nothing moved overnight — your pillars are caught up.
+          Nothing needed doing overnight — you&rsquo;re all caught up.
         </span>
       ) : (
         moved.map((p) => (

@@ -253,7 +253,7 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
       <div className="space-y-1.5">
         <Label className="text-xs uppercase tracking-wide text-muted-foreground">Ad account</Label>
         <Select value={accountId ?? undefined} onValueChange={setAccountParam}>
-          <SelectTrigger className="w-80">
+          <SelectTrigger aria-label="Ad account" className="w-80">
             <SelectValue placeholder="Choose an ad account" />
           </SelectTrigger>
           <SelectContent>
@@ -394,9 +394,9 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
+                  <TableHead className="sticky left-0 z-10 bg-background">Name</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Budget</TableHead>
+                  <TableHead className="hidden text-right md:table-cell">Budget</TableHead>
                   <TableHead className="text-right">Spend ({INSIGHTS_DAYS}d)</TableHead>
                   <TableHead className="w-24 text-right">Active</TableHead>
                 </TableRow>
@@ -604,7 +604,7 @@ function NodeRow({
   const level = depth === 0 ? "campaign" : depth === 1 ? "ad set" : "ad";
   return (
     <TableRow>
-      <TableCell className={INDENT[depth]}>
+      <TableCell className={`sticky left-0 z-10 bg-background ${INDENT[depth]}`}>
         <div className="flex items-center gap-1.5">
           {open !== null && onExpand ? (
             <Button
@@ -629,7 +629,7 @@ function NodeRow({
       <TableCell>
         <Badge variant={status === "ACTIVE" ? "default" : "secondary"}>{status}</Badge>
       </TableCell>
-      <TableCell className="text-right tabular-nums text-muted-foreground">{budget}</TableCell>
+      <TableCell className="hidden text-right tabular-nums text-muted-foreground md:table-cell">{budget}</TableCell>
       <TableCell className="text-right tabular-nums">{spend}</TableCell>
       <TableCell className="text-right">
         {toggle ? (
@@ -737,7 +737,7 @@ function DatasetCard({ account }: { account: MetaAdAccount }) {
               </p>
             ) : (
               <Select value={choice} onValueChange={setChoice}>
-                <SelectTrigger className="w-80">
+                <SelectTrigger aria-label="Dataset" className="w-80">
                   <SelectValue placeholder="Choose a dataset" />
                 </SelectTrigger>
                 <SelectContent>

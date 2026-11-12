@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Space_Grotesk, Fraunces } from "next/font/google";
 import { connection } from "next/server";
+import { preconnect } from "react-dom";
 import { getLocale } from "next-intl/server";
 import { SITE } from "@/lib/utils";
+import { API_BASE_URL } from "@/lib/api";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { QueryProvider } from "@/providers/query-provider";
 import { AuthProvider } from "@/providers/auth-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { WebVitalsReporter } from "@/components/shared/web-vitals-reporter";
 import { Toaster } from "sonner";
 import "../globals.css";
 
@@ -89,6 +92,17 @@ export default async function SiteLayout({
   // Shopify surface gets its own dynamic behaviour independently.
   await connection();
 
+  // The first /me (and every query after it) goes to the api origin with
+  // cookies. Open that connection while the HTML and JS are still loading, in
+  // the credentialed pool the fetch will actually use. Emits nothing when the
+  // api is same-origin or unset.
+  try {
+    const apiOrigin = API_BASE_URL ? new URL(API_BASE_URL).origin : "";
+    if (apiOrigin) preconnect(apiOrigin, { crossOrigin: "use-credentials" });
+  } catch {
+    // A malformed NEXT_PUBLIC_API_URL is reported by the api client; skip the hint.
+  }
+
   // Resolve via next-intl (English-only today) so <html lang> tracks the
   // active locale automatically once more languages are added.
   const locale = await getLocale();
@@ -98,6 +112,8 @@ export default async function SiteLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} ${fraunces.variable} font-sans antialiased`}
       >
+        {/* Real-user speed data: one beacon per page load, route pattern only. */}
+        <WebVitalsReporter />
         <ThemeProvider>
           <QueryProvider>
             <AuthProvider>

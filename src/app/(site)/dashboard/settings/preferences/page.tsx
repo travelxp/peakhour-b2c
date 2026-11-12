@@ -1,5 +1,6 @@
 "use client";
 
+import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { useState, useMemo } from "react";
 import { useAuth } from "@/providers/auth-provider";
 import { updateProfile, type UserPreferences } from "@/lib/auth";
@@ -92,13 +93,11 @@ export default function PreferencesPage() {
   const previewDate = new Date();
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Preferences</h2>
-        <p className="text-muted-foreground mt-1">
-          How you appear, and how dates, numbers and currencies are shown
-        </p>
-      </div>
+    <PageShell width="narrow">
+      <PageHeader
+        title="Preferences"
+        description="How you appear, and how dates, numbers and currencies are shown"
+      />
 
       {/* ★ABOVE THE FORMATTING CARD, AND ON THIS PAGE RATHER THAN SETTINGS →
           General. Everything here is scoped to the signed-in USER; General is
@@ -108,7 +107,7 @@ export default function PreferencesPage() {
           for the company. */}
       <AvatarPicker />
 
-      <Card className="max-w-3xl">
+      <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
             <Globe className="h-5 w-5 text-muted-foreground" />
@@ -132,7 +131,7 @@ export default function PreferencesPage() {
               </p>
             </div>
             <Select value={dateFormat} onValueChange={setDateFormat}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="Date format">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -155,7 +154,7 @@ export default function PreferencesPage() {
               </p>
             </div>
             <Select value={timezone || browserTimezone} onValueChange={setTimezone}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="Timezone">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="max-h-60">
@@ -178,7 +177,7 @@ export default function PreferencesPage() {
               </p>
             </div>
             <Select value={numberFormat} onValueChange={setNumberFormat}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="Number format">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -206,6 +205,6 @@ export default function PreferencesPage() {
 
       {/* PE-14: the business's weekly listings summary and tips. A BUSINESS setting (an owner or admin changes it), the one the email's opt-out link also moves. */}
       <HelpfulEmailsCard role={role} />
-    </div>
+    </PageShell>
   );
 }

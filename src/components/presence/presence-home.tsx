@@ -3,14 +3,19 @@
 import { useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { MapPin } from "lucide-react";
+import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { NetworkConnectCard } from "@/components/presence/network-connect-card";
+import { NameAskPanel } from "@/components/presence/name-ask-panel";
+import { useNameAsk } from "@/hooks/use-name-ask";
 import { ReviewSummaryCard } from "@/components/presence/review-summary-card";
 import { ReviewPlacesCard } from "@/components/presence/review-places-card";
 import { reviewsPlaceIn, wantsPlacesView } from "@/lib/review-places";
 import { ListingPanel } from "@/components/presence/listing-panel";
 import { ListingScoreCard } from "@/components/presence/listing-score-card";
 import { EditListingCard, type EditRequest } from "@/components/presence/edit/edit-listing-card";
+import { PresenceSummary } from "@/components/presence/presence-summary";
+import { PublishingStatus } from "@/components/presence/publishing-status";
 import { PhotosCard } from "@/components/presence/edit/photos-card";
 import { PostsCard } from "@/components/presence/edit/posts-card";
 import { ServicesCard } from "@/components/presence/edit/services-card";
@@ -81,6 +86,16 @@ export function PresenceHome() {
   // listing" for the listing, score, edit forms, photos and insights, and nothing there may ever read as applying to "all locations".
   const [reviewsPicked, setReviewsPicked] = useState<string | undefined>(undefined);
   const [editRequest, setEditRequest] = useState<EditRequest | null>(null);
+  // One way to open a field's editor, for the score card's fixes and the requests list's "Make the change again".
+  const openForm = (field: string) => {
+    // A photos fix opens the photos panel, not a form.
+    if (field === "media") {
+      document.getElementById("photos-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    setEditRequest({ field });
+    document.getElementById("edit-listing")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
   // Every network a merchant can connect, from the adapters' declarations: one card each.
   const capsQ = useQuery({
     queryKey: presenceCapabilitiesQueryKey,
@@ -112,6 +127,8 @@ export function PresenceHome() {
   // network anyway, but it is sent by name so the declarations applied below and the answers read are for the same network.
   const panelNetwork = aboutNetwork?.network;
   const fallbackLabel = aboutNetwork?.label ?? null;
+  // "Is this your business?" for the network the page judges: the summary line counts it while its panel is drawn.
+  const nameAsk = useNameAsk(aboutNetwork);
   // Each card draws only for a network that declares what it shows (no declaration to go by, as on an older api, draws them).
   const reviewsOn = drawsReviews(aboutNetwork);
   // The listing, score and edit panels draw only for a network that declares a listing (a reviews-only network has none to show).
@@ -137,20 +154,17 @@ export function PresenceHome() {
 
   return (
     <FeatureGate feature="presence.nav" featureName="Presence" mode="hide">
-      <div className="mx-auto w-full max-w-5xl space-y-8 p-4 md:p-6">
-        <header className="space-y-2">
+      <PageShell width="standard" className="space-y-8">
+        <div className="space-y-2">
           <div className="flex items-center gap-2 text-muted-foreground">
             <MapPin className="h-5 w-5" />
             <span className="text-sm font-medium uppercase tracking-wide">Presence</span>
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
-            Your listing and reviews, in one place
-          </h1>
-          <p className="max-w-2xl text-muted-foreground">
-            See your listing, how customers use it, and your reviews.
-            You can prepare changes to your listing here. A person approves each one before it is sent.
-          </p>
-        </header>
+          <PageHeader
+            title="Your listing and reviews, in one place"
+            description="See your listing, how customers use it, and your reviews. You can prepare changes to your listing here. A person approves each one before it is sent."
+          />
+        </div>
 
         {capsQ.isPending ? <Skeleton className="h-24 w-full" /> : null}
         {networks.map((n) => (
@@ -224,6 +238,15 @@ export function PresenceHome() {
               </div>
             ) : null}
 
+            {/* ★THE ONE LINE (GBP L7): health, publishing and what needs the merchant, each a link to its place below. */}
+            {listingOn ? <PresenceSummary location={panelLocation} network={panelNetwork} writes={editOn || photosOn} nameAskHref={nameAsk.show ? `#${nameAsk.anchor}` : undefined} /> : null}
+
+            {/* ★IS THIS YOUR BUSINESS? (GBP L14) Asked once, right under the line, of an admin or owner, for each network whose listing's name
+                looks off and nobody has answered. It needs no network choice: each draws its own, from its own label. */}
+            {networks.map((n) => (
+              <NameAskPanel key={n.network} network={n} />
+            ))}
+
             {/* ★WAIT FOR THE LISTING READ that says whether there are several places: drawing the summary first and swapping it for the places
                 view a moment later flashed one view and discarded its read. */}
             {reviewsOn && listAnswer.isPending ? <Skeleton className="h-40 w-full" /> : null}
@@ -267,25 +290,23 @@ export function PresenceHome() {
 
             {listingOn ? (
               <>
-                <ListingScoreCard
-                  location={panelLocation}
-                  network={panelNetwork}
-                  onOpenForm={(field) => {
-                    // A photos fix opens the photos panel, not a form.
-                    if (field === "media") {
-                      document.getElementById("photos-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
-                      return;
-                    }
-                    setEditRequest({ field });
-                    document.getElementById("edit-listing")?.scrollIntoView({ behavior: "smooth", block: "start" });
-                  }}
-                />
+                {/* ★ONE publishing status for the panels below, never one per panel (GBP Issue 1). Wherever a change can be made: the edit
+                    forms, or the photos card, which is drawn on its own declaration. */}
+                {editOn || photosOn ? <PublishingStatus location={panelLocation} network={panelNetwork} onRedo={openForm} canRedo={(f) => editOn || f === "media"} /> : null}
+
+                <div id="listing-score">
+                  <ListingScoreCard
+                    location={panelLocation}
+                    network={panelNetwork}
+                    onOpenForm={openForm}
+                  />
+                </div>
 
                 <ListingPanel location={panelLocation} network={panelNetwork} label={fallbackLabel} />
 
                 {editOn ? (
                   <div id="edit-listing">
-                    <EditListingCard location={panelLocation} network={panelNetwork} request={editRequest} photoChangesElsewhere={photosOn} />
+                    <EditListingCard location={panelLocation} network={panelNetwork} request={editRequest} />
                   </div>
                 ) : null}
 
@@ -312,7 +333,7 @@ export function PresenceHome() {
             <InsightsPanel location={panelLocation} network={panelNetwork} label={fallbackLabel} capabilities={aboutNetwork?.capabilities} />
           </>
         )}
-      </div>
+      </PageShell>
     </FeatureGate>
   );
 }

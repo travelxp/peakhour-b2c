@@ -249,7 +249,7 @@ export function GuardrailsCard() {
           ))}
 
         {!draft && assetsWarning && (
-          <p role="status" className="text-sm text-amber-700 dark:text-amber-400">
+          <p role="status" className="text-sm text-warning-on-tint">
             {assetsWarning}{" "}
             <Link href={CREATIVE_REVIEW_PATH} className="underline underline-offset-2">
               Review creatives
@@ -315,7 +315,7 @@ export function GuardrailsCard() {
                 })}
               </div>
               {modeWarning && (
-                <p role="status" className="text-xs text-amber-700 dark:text-amber-400">
+                <p role="status" className="text-xs text-warning-on-tint">
                   {modeWarning}
                 </p>
               )}

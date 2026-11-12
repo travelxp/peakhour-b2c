@@ -70,8 +70,6 @@ import {
  * (`/dashboard/ads?channel=x`). The hub owns the page header, channel
  * selector, and CronToolbar; this component owns everything below it,
  * including its own connection gate and ad-account selector.
- *
- * Was `/dashboard/content/x-ads` — that route now redirects here.
  */
 
 const ACCOUNT_PARAM = "account";
@@ -360,7 +358,7 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
             Ad account
           </Label>
           <Select value={accountId ?? undefined} onValueChange={setAccountParam}>
-            <SelectTrigger className="w-72">
+            <SelectTrigger aria-label="Ad account" className="w-72">
               <SelectValue placeholder="Choose an ad account" />
             </SelectTrigger>
             <SelectContent>
@@ -461,9 +459,9 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
+                  <TableHead className="sticky left-0 z-10 bg-background">Name</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Daily budget</TableHead>
+                  <TableHead className="hidden text-right md:table-cell">Daily budget</TableHead>
                   <TableHead className="text-right">Spend (30d)</TableHead>
                   <TableHead className="w-24 text-right">Active</TableHead>
                 </TableRow>
@@ -522,13 +520,13 @@ function CampaignRow({
     );
   return (
     <TableRow>
-      <TableCell className="font-medium">{campaign.name}</TableCell>
+      <TableCell className="sticky left-0 z-10 bg-background font-medium">{campaign.name}</TableCell>
       <TableCell>
         <Badge variant={isActive ? "default" : "secondary"}>
           {campaign.status}
         </Badge>
       </TableCell>
-      <TableCell className="text-right tabular-nums">
+      <TableCell className="hidden text-right tabular-nums md:table-cell">
         {money(microsToDollars(campaign.dailyBudgetAmountLocalMicro))}
       </TableCell>
       <TableCell className="text-right tabular-nums">

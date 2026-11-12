@@ -88,7 +88,7 @@ export default async function HowItWorks() {
   const note = trialNote(trialDays);
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
       <RevealNoScript />
       <Header />
       <main>
@@ -164,7 +164,7 @@ export default async function HowItWorks() {
                         <div className="flex aspect-square w-full items-center justify-center rounded-xl border border-dashed bg-background text-muted-foreground">
                           <Icon className="size-4 sm:size-5" strokeWidth={1.75} aria-hidden />
                         </div>
-                        <span className="break-words text-center text-[0.6rem] font-semibold leading-tight text-muted-foreground sm:text-xs">
+                        <span className="break-words text-center text-micro font-semibold leading-tight text-muted-foreground sm:text-xs">
                           {p.name}
                         </span>
                         {/* A stub that goes nowhere — the visual point of this
@@ -200,7 +200,7 @@ export default async function HowItWorks() {
                         <div className="flex aspect-square w-full items-center justify-center rounded-xl border border-brand/40 bg-brand/10 text-brand">
                           <Icon className="size-4 sm:size-5" strokeWidth={1.75} aria-hidden />
                         </div>
-                        <span className="break-words text-center text-[0.6rem] font-semibold leading-tight text-on-ink-dim sm:text-xs">
+                        <span className="break-words text-center text-micro font-semibold leading-tight text-on-ink-dim sm:text-xs">
                           {p.name}
                         </span>
                         {/* Gold lead-in — every pillar runs into the bar below. */}
@@ -378,7 +378,7 @@ export default async function HowItWorks() {
                     }
                   >
                     {/* Route chip — the two parts of the business being joined. */}
-                    <div className="flex items-center gap-2 text-[0.65rem] font-bold uppercase tracking-[0.15em] text-muted-foreground">
+                    <div className="flex items-center gap-2 text-micro font-bold uppercase tracking-[0.15em] text-muted-foreground">
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-2.5 py-1 text-brand-ink">
                         {FromIcon && <FromIcon className="size-3" strokeWidth={2.5} aria-hidden />}
                         {s.from}
@@ -464,7 +464,7 @@ export default async function HowItWorks() {
                   With Peakhour
                 </p>
                 <div className="mt-5 overflow-hidden rounded-2xl border border-ink-line bg-ink p-4 shadow-2xl sm:p-5">
-                  <div className="flex items-center justify-between px-1 pb-3 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-on-ink-dim">
+                  <div className="flex items-center justify-between px-1 pb-3 text-micro font-bold uppercase tracking-[0.18em] text-on-ink-dim">
                     <span>Worth your attention</span>
                     <span className="flex items-center gap-1.5 text-success">
                       <span className="size-1.5 rounded-full bg-success" aria-hidden />
@@ -630,7 +630,7 @@ export default async function HowItWorks() {
               {!cta.disabled && (
                 <Link
                   href={cta.href}
-                  className="group mt-8 inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-7 py-3.5 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 motion-reduce:transition-none"
+                  className="group mt-8 inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-7 py-3.5 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-ink motion-reduce:transition-none"
                 >
                   {cta.label} — all five modules
                   <ArrowRight

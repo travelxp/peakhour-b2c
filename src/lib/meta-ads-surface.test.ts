@@ -72,6 +72,10 @@ const SIBLING_ROUTE_FILE = fileURLToPath(
 describe("★★M-13 — b2c points at no Meta passthrough", () => {
   const all = sourceFiles(SRC);
   const scanned = all.filter((f) => !SELF.includes(rel(f)));
+  // Read every file ONCE and share the text across the scan cases. Each case used to re-read the whole
+  // tree itself (three full passes); the cost is file I/O, not a hang, and under CPU load three passes
+  // blew the 5s default. The text is identical for every case, so one read changes no assertion.
+  const text = new Map(scanned.map((f) => [f, readFileSync(f, "utf8")] as const));
 
   it("★★M-13 b2c the scan actually read this repository", () => {
     // ⚠️⚠️★WITHOUT THIS EVERY OTHER CASE IN THIS BLOCK IS A LOOP OVER ZERO
@@ -93,7 +97,7 @@ describe("★★M-13 — b2c points at no Meta passthrough", () => {
 
   it("★★M-13 b2c no source file names a Meta ads path outside the managed list", () => {
     const refused = scanned
-      .map((f) => ({ file: rel(f), paths: findMetaAdsPaths(readFileSync(f, "utf8")) }))
+      .map((f) => ({ file: rel(f), paths: findMetaAdsPaths(text.get(f)!) }))
       .flatMap((x) =>
         x.paths
           // ⏸THE BARE MOUNT IS PROSE (review round 3) — no handler sits at it,
@@ -115,7 +119,7 @@ describe("★★M-13 — b2c points at no Meta passthrough", () => {
 
   it("★★M-13 b2c and no source file names a DELETED route, managed-looking or not", () => {
     const deleted = scanned
-      .map((f) => ({ file: rel(f), paths: findMetaAdsPaths(readFileSync(f, "utf8")) }))
+      .map((f) => ({ file: rel(f), paths: findMetaAdsPaths(text.get(f)!) }))
       .flatMap((x) =>
         x.paths
           .filter((p) => (META_ADS_DELETED_ROUTES as readonly string[]).includes(p))
@@ -178,7 +182,7 @@ describe("★★M-13 — b2c points at no Meta passthrough", () => {
     // deleted passthrough, and both return `[]` from `findMetaAdsPaths`.
     // ★A file that cannot import the raw materials cannot compose one.
     const offenders = scanned
-      .map((f) => ({ file: rel(f), names: findForbiddenSurfaceImports(readFileSync(f, "utf8")) }))
+      .map((f) => ({ file: rel(f), names: findForbiddenSurfaceImports(text.get(f)!) }))
       .filter((x) => x.names.length > 0)
       .map((x) => `${x.file}: ${x.names.join(", ")}`);
     expect(

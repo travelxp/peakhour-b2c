@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   CalendarClock,
   Loader2,
@@ -170,6 +171,9 @@ export function TweetComposer() {
   const createInFlightRef = useRef<Promise<ComposerDraftRef> | null>(null);
 
   const [refMode, setRefMode] = useState<RefMode>({ kind: "none" });
+  // Off by default and after every publish/schedule: a paid promotion label
+  // should never carry over to the next post by accident.
+  const [paidPartnership, setPaidPartnership] = useState(false);
   const [showRefs, setShowRefs] = useState(false);
   const [refInput, setRefInput] = useState("");
   const [refError, setRefError] = useState<string | null>(null);
@@ -340,6 +344,7 @@ export function TweetComposer() {
     textareaRefs.current.clear();
     wrapRefs.current.clear();
     setRefMode({ kind: "none" });
+    setPaidPartnership(false);
     setRefInput("");
     setShowRefs(false);
     setDraftId(null);
@@ -359,6 +364,8 @@ export function TweetComposer() {
         if (i === 0) {
           if (refMode.kind === "reply") body.replyToTweetId = refMode.id;
           if (refMode.kind === "quote") body.quoteTweetId = refMode.id;
+          // The label sits on the first post only, as the scheduler does.
+          if (paidPartnership) body.paidPartnership = true;
         } else {
           body.replyToTweetId = prevId;
         }
@@ -430,6 +437,7 @@ export function TweetComposer() {
     const channelOptions: Record<string, unknown> = {};
     if (refMode.kind === "reply") channelOptions.replyToTweetId = refMode.id;
     if (refMode.kind === "quote") channelOptions.quoteTweetId = refMode.id;
+    if (paidPartnership) channelOptions.paidPartnership = true;
     return [
       {
         channel: "x",
@@ -442,7 +450,7 @@ export function TweetComposer() {
         },
       },
     ];
-  }, [segments, refMode]);
+  }, [segments, refMode, paidPartnership]);
 
   function handleScheduled() {
     queryClient.invalidateQueries({ queryKey: ["scheduler:items"] });
@@ -545,7 +553,29 @@ export function TweetComposer() {
           </div>
         ) : undefined
       }
-      toolbarSlot={<AiComposeToolbar text={activeText} platform="x" onAiAction={handleAiAction} />}
+      toolbarSlot={
+        <div className="space-y-3">
+          <AiComposeToolbar text={activeText} platform="x" onAiAction={handleAiAction} />
+          <div className="flex items-start gap-2">
+            <Switch
+              id="x-paid-partnership"
+              checked={paidPartnership}
+              onCheckedChange={setPaidPartnership}
+              disabled={publish.isPending}
+              aria-describedby="x-paid-partnership-help"
+            />
+            <div className="space-y-0.5">
+              <Label htmlFor="x-paid-partnership" className="text-sm font-medium">
+                Paid partnership
+              </Label>
+              <p id="x-paid-partnership-help" className="text-micro text-muted-foreground">
+                Label this post as a paid promotion on X.
+                {isThread ? " On a thread, the label goes on the first post." : ""}
+              </p>
+            </div>
+          </div>
+        </div>
+      }
       actionsBordered
       actionsSlot={
         <>
@@ -606,7 +636,7 @@ export function TweetComposer() {
             >
               {isThread && (
                 <div className="mb-1 flex items-center justify-between px-1">
-                  <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <span className="text-micro font-medium uppercase tracking-wide text-muted-foreground">
                     {index === 0 ? "Tweet 1 (root)" : `Tweet ${index + 1}`}
                   </span>
                   <Button

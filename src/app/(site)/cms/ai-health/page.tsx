@@ -450,7 +450,7 @@ function IngestHealthPanel() {
                                   <Badge
                                     key={f}
                                     variant="outline"
-                                    className="text-[10px]"
+                                    className="text-micro"
                                   >
                                     {f}
                                   </Badge>
@@ -458,7 +458,7 @@ function IngestHealthPanel() {
                               </div>
                               {conn.lastError && (
                                 <span
-                                  className="text-[10px] text-muted-foreground"
+                                  className="text-micro text-muted-foreground"
                                   title={conn.lastError}
                                 >
                                   {conn.lastError.length > 80

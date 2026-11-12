@@ -20,6 +20,7 @@ import {
   formatPeaks,
   hasMonthlyOffer,
   offerMonthly,
+  PRICE_AT_SIGNUP,
   suiteTrialDays,
   type PricingResponse,
 } from "@/lib/pricing";
@@ -50,10 +51,13 @@ const primaryBtn =
  */
 export function ShopifyPageView({
   pricing,
+  country = "DEFAULT",
   comingSoon,
   signup,
 }: {
   pricing: PricingResponse | null;
+  /** The country `pricing` was fetched for (`resolveCountry`). */
+  country?: string;
   /** The catalog marks the shopify connector coming soon (pillar-channels). */
   comingSoon: boolean;
   /** `signupCta(...)`: what the hero shows in place of Install while coming soon. */
@@ -159,10 +163,10 @@ export function ShopifyPageView({
             </div>
             <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-muted-foreground">
               {shopifyHeroTicks(trialDays, comingSoon).map((tick) => (
-                <li key={tick}>
-                  <span aria-hidden className="font-bold text-brand-label">
-                    &check;
-                  </span>{" "}
+                <li key={tick} className="inline-flex items-center gap-1.5">
+                  {/* An icon, not `&check;`: JSX only decodes the XHTML entity
+                      set, so the HTML5 name rendered as the literal text. */}
+                  <Check aria-hidden className="size-3.5 shrink-0 text-brand-label" strokeWidth={3} />
                   {tick}
                 </li>
               ))}
@@ -247,7 +251,7 @@ export function ShopifyPageView({
                           <li key={step} className="flex gap-2.5">
                             <span
                               aria-hidden
-                              className="flex size-5 shrink-0 items-center justify-center rounded-full bg-brand-soft text-[11px] font-bold text-brand-ink"
+                              className="flex size-5 shrink-0 items-center justify-center rounded-full bg-brand-soft text-micro font-bold text-brand-ink"
                             >
                               {i + 1}
                             </span>
@@ -314,10 +318,12 @@ export function ShopifyPageView({
               // Coming soon, the button is the peakhour.ai signup, so the card is
               // the plain Suite card: its trial is not billed through Shopify.
               channel={comingSoon ? undefined : "shopify"}
+              country={country}
+              scopeAction="/shopify#pricing"
             />
           ) : (
             <p className="text-muted-foreground">
-              Pricing is not available right now. Check back soon.
+              {PRICE_AT_SIGNUP}
             </p>
           )}
         </div>

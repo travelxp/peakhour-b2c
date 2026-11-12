@@ -33,6 +33,7 @@
  * the form, the three mutations, and the confirmations.
  */
 
+import { MediaImage } from "@/components/shared/media-image";
 import { useEffect, useId, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -47,6 +48,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { DrivePicker } from "@/components/drive/drive-picker";
@@ -171,12 +173,17 @@ export function ScheduledPostEditor({
    */
   const contentSeedKey = `${item._id}:${item.payload.version}`;
   useEffect(() => {
-    setBaseline({
-      text: item.payload.text,
-      mediaUrls: item.payload.mediaUrls ?? [],
-    });
-    setText(item.payload.text);
-    setMediaUrls(item.payload.mediaUrls ?? []);
+    // Unsaved text/media drafts survive a re-seed that was not caused by a content
+    // save (the label save refetches the item too).
+    if (!contentDirty) {
+      setBaseline({
+        text: item.payload.text,
+        mediaUrls: item.payload.mediaUrls ?? [],
+      });
+      setText(item.payload.text);
+      setMediaUrls(item.payload.mediaUrls ?? []);
+    }
+    setPaidPartnership(item.payload.channelOptions?.paidPartnership === true);
     setConfirmCancel(false);
     setConfirmPublish(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -253,6 +260,23 @@ export function ScheduledPostEditor({
     onError: (err: unknown) => toast.error(mutationMessage(err, "Couldn't reschedule.")),
   });
 
+  // X only. Saved the moment it is flipped (it is one flag, not text the person
+  // is still drafting), so it does not join the dirty-state of the text box.
+  // `onChanged()` refetches so a reopened editor reads the saved flag; the
+  // re-seed skips text/media while they hold unsaved edits.
+  const [paidPartnership, setPaidPartnership] = useState(
+    item.payload.channelOptions?.paidPartnership === true,
+  );
+  const savePaidPartnership = useMutation({
+    mutationFn: (next: boolean) => scheduler.editItemPayload(item._id, { paidPartnership: next }),
+    onSuccess: (res) => {
+      setPaidPartnership(res.payload.channelOptions?.paidPartnership === true);
+      toast.success("Scheduled post updated.");
+      onChanged();
+    },
+    onError: (err: unknown) => toast.error(mutationMessage(err, "Couldn't save the label.")),
+  });
+
   const publishNow = useMutation({
     mutationFn: () => scheduler.publishItemNow(item._id),
     onSuccess: (res) => {
@@ -298,7 +322,7 @@ export function ScheduledPostEditor({
   });
 
   const anyPending =
-    saveContent.isPending || saveTime.isPending || publishNow.isPending || cancel.isPending;
+    saveContent.isPending || savePaidPartnership.isPending || saveTime.isPending || publishNow.isPending || cancel.isPending;
 
   const counterPlatform = useMemo(
     () => (COUNTER_PLATFORMS.has(item.channel) ? (item.channel as PlatformKey) : null),
@@ -353,14 +377,14 @@ export function ScheduledPostEditor({
                 key={`${i}-${part.slice(0, 24)}`}
                 className="rounded-md border bg-muted/30 p-2.5 text-sm"
               >
-                <span className="mr-1.5 text-[11px] tabular-nums text-muted-foreground">
+                <span className="mr-1.5 text-micro tabular-nums text-muted-foreground">
                   {i + 1}.
                 </span>
                 <span className="whitespace-pre-wrap wrap-break-word">{part}</span>
               </li>
             ))}
           </ol>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-micro text-muted-foreground">
             A thread publishes from its parts, so its wording can&apos;t be
             edited here yet — cancel and recompose to change it. You can still
             move it, publish it early, or call it off.
@@ -384,6 +408,26 @@ export function ScheduledPostEditor({
         </div>
       )}
 
+      {item.channel === "x" && (
+        <div className="flex items-start gap-2">
+          <Switch
+            id={`${textId}-paid`}
+            checked={paidPartnership}
+            onCheckedChange={(next) => savePaidPartnership.mutate(next)}
+            disabled={!editable || anyPending}
+            aria-describedby={`${textId}-paid-help`}
+          />
+          <div className="space-y-0.5">
+            <Label htmlFor={`${textId}-paid`} className="text-sm font-medium">
+              Paid partnership
+            </Label>
+            <p id={`${textId}-paid-help`} className="text-micro text-muted-foreground">
+              Label this post as a paid promotion on X.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Hashtags are a separate array on the payload and DO publish. Shown so
           the person editing can see everything that goes out; editing them is a
           follow-up, and hiding them was worse than showing them read-only. */}
@@ -396,7 +440,7 @@ export function ScheduledPostEditor({
             {hashtags.map((h) => (
               <span
                 key={h}
-                className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
+                className="rounded bg-muted px-1.5 py-0.5 text-micro text-muted-foreground"
               >
                 #{h}
               </span>
@@ -418,12 +462,11 @@ export function ScheduledPostEditor({
                 about duplicate keys. */}
             {mediaUrls.map((url, i) => (
               <li key={`${i}-${url}`} className="relative">
-                {/* Plain <img>: these are R2 URLs on a host next/image is not
-                    configured for, and a scheduled post's thumbnail is not
-                    worth a remotePatterns change. */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <MediaImage
                   src={url}
+                  width={64}
+                  height={64}
+                  sizes="64px"
                   alt={`Attachment ${i + 1}`}
                   className="size-16 rounded-md border object-cover"
                 />
@@ -643,12 +686,12 @@ export function ScheduledPostEditor({
       </div>
 
       {publishBlocked && !contentDirty && (
-        <p className="text-[11px] text-muted-foreground">{publishBlocked}</p>
+        <p className="text-micro text-muted-foreground">{publishBlocked}</p>
       )}
 
       {/* The one thing this editor can't change, said plainly rather than
           offered as a control the server would reject. */}
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-micro text-muted-foreground">
         Publishing as the page and audience this post was scheduled with. To
         change those, cancel it and compose again.
       </p>

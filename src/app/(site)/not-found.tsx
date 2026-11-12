@@ -24,7 +24,10 @@ export default function NotFound() {
           <EmptyMedia variant="icon">
             <FileQuestion />
           </EmptyMedia>
-          <EmptyTitle>Page not found</EmptyTitle>
+          {/* The page's one heading: EmptyTitle alone renders a div. */}
+          <EmptyTitle>
+            <h1>Page not found</h1>
+          </EmptyTitle>
           <EmptyDescription>
             The page you&apos;re looking for doesn&apos;t exist or has moved.
           </EmptyDescription>

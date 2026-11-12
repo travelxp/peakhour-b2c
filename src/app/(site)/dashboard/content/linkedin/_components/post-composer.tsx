@@ -1,106 +1,47 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { ActionCost } from "@/components/dashboard/action-cost";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
-import {
-  AtSign,
-  CalendarClock,
-  ChevronDown,
-  Building2,
-  GalleryHorizontalEnd,
-  Link2,
-  ListChecks,
-  Loader2,
-  Mic,
-  Send,
-  Shield,
-  ShieldAlert,
-  ShieldCheck,
-  Sparkles,
-  User,
-  Wand2,
-  X,
-} from "lucide-react";
-import {
-  linkedInContentApi,
-  type ComposerPolicyAdvisory,
-  type HookScore,
-  type HookVariant,
-  type LinkedInAuthor,
-  type LinkedInVisibility,
-  type LinkedInIdentity,
-  type LinkedInVoiceCard,
-  type PublishLinkedInPostInput,
-  type CarouselPreviewInput,
-  type CarouselPreviewResult,
-  type RewriteHookResponse,
-} from "@/lib/api/linkedin-content";
-import { CarouselPreviewDialog } from "./carousel-preview-dialog";
-import { PollEditor, emptyPoll, isPollValid, type PollState } from "./poll-editor";
+import { Link2 } from "lucide-react";
+import { linkedInContentApi, type HookVariant, type LinkedInAuthor, type LinkedInVisibility, type LinkedInIdentity, type PublishLinkedInPostInput, type CarouselPreviewInput, type CarouselPreviewResult, type RewriteHookResponse } from "@/lib/api/linkedin-content";
+import { emptyPoll, isPollValid, type PollState } from "./poll-editor";
 import { buildCommentarySegments, type ResolvedMention } from "./commentary-segments";
-import { api, ApiError } from "@/lib/api";
+import { ApiError } from "@/lib/api";
 import { rewriteContent, createDraft, updateDraft, type ComposerDraftRef } from "@/lib/api/content";
 import { insertAtCaret } from "@/lib/composer/caret";
 import {
-  AiComposeToolbar,
-  ComposerShell,
-  ComposerCommandPalette,
-  DraftSaver,
-  EmojiPickerTrigger,
-  HashtagSuggest,
-  MentionTypeahead,
-  PlatformCharCounter,
-  useDraftSaver,
-  type AiActionContext,
-  type ComposerCommand,
-  type HashtagCandidate,
-  type MentionCandidate,
-  type RewriteOp,
-  type VoiceCardSummary,
-} from "@/components/composer";
-import { SchedulerComposer } from "@/components/scheduler/scheduler-composer";
+  applyHookVariant,
+  authorFromKey,
+  buildAuthorOptions,
+  buildPublishBody,
+  buildScheduleChannels,
+  composerGates,
+  effectiveVisibilityFor,
+  isOrgAuthorKey,
+  scheduleTitleFor,
+} from "@/lib/linkedin-composer";
+import { AiComposeToolbar, ComposerShell, DraftSaver, EmojiPickerTrigger, HashtagSuggest, MentionTypeahead, PlatformCharCounter, useDraftSaver, type AiActionContext, type ComposerCommand, type HashtagCandidate, type MentionCandidate } from "@/components/composer";
 import type { ScheduleSourceType } from "@/lib/scheduler/types";
 import { sourceTextHash } from "@/lib/scheduler/source-hash";
-import { cn } from "@/lib/utils";
+import { aiOpNoChangeMessage, aiOpToast, isProbablyUrl, mapVoiceCardSummary } from "./composer-helpers";
+import { usePolicyCheck } from "./composer-policy-check";
+import { HOOK_SCORE_MIN_CHARS, HookScoreCard, useHookScore } from "./composer-hook-score";
+import { LinkAttachCard, MentionsStrip } from "./composer-attachments";
+import { ComposerActions } from "./composer-actions";
+import { buildComposerCommands } from "./composer-commands";
+import { ComposerHeader } from "./composer-header";
+import { OffBrandVoiceNotice, VoiceCardPanel } from "./composer-voice-card";
 
-const MAX_LEN = 3000;
-
-/** A carousel splits the text into slides, so it needs a few sentences of
- *  substance — mirrors the server's `newsletterText` min of 50 chars. */
-const CAROUSEL_MIN_CHARS = 50;
-
-const HAS_ORG_SCOPE = "w_organization_social";
+// Interaction-gated pieces: each mounts only after the user opens it.
+const CarouselPreviewDialog = dynamic(() => import("./carousel-preview-dialog").then((m) => m.CarouselPreviewDialog), { ssr: false });
+const PollEditor = dynamic(() => import("./poll-editor").then((m) => m.PollEditor), { ssr: false });
+const HookVariantsPanel = dynamic(() => import("./composer-hook-score").then((m) => m.HookVariantsPanel), { ssr: false });
+const SchedulerComposer = dynamic(() => import("@/components/scheduler/scheduler-composer").then((m) => m.SchedulerComposer), { ssr: false });
+const ComposerCommandPalette = dynamic(() => import("@/components/composer/composer-command-palette").then((m) => m.ComposerCommandPalette), { ssr: false });
 
 interface Props {
   identity: LinkedInIdentity;
@@ -185,34 +126,9 @@ export function PostComposer({ identity, seedText }: Props) {
   const [feedback, setFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
 
   // Author picker — discriminated union string keys for the Select.
-  // "org:<id>" → that org page. "person" → user's personal feed.
-  // Pages come FIRST and are the default: the business publishes as
-  // its Company Page. The personal feed is only offered when the
-  // server says it's allowed (pageless fallback — /me's
-  // personalPostingAllowed; the publish routes enforce the same
-  // policy server-side) or when no page option could be built at all
-  // (missing org scope → the reconnect hint below guides the user).
-  const authorOptions = useMemo(() => {
-    const opts: Array<{ value: string; label: string; sublabel?: string }> = [];
-    const canPostAsOrg = identity.scopes.includes(HAS_ORG_SCOPE);
-    if (canPostAsOrg) {
-      for (const page of identity.pages) {
-        opts.push({
-          value: `org:${page.id}`,
-          label: page.name || `Page ${page.id}`,
-          sublabel: "Company page",
-        });
-      }
-    }
-    if ((identity.personalPostingAllowed ?? true) || opts.length === 0) {
-      opts.push({
-        value: "person",
-        label: identity.person.name ?? "My personal feed",
-        sublabel: "Personal feed",
-      });
-    }
-    return opts;
-  }, [identity]);
+  // "org:<id>" → that org page. "person" → user's personal feed. The option
+  // rules live in lib/linkedin-composer.ts.
+  const authorOptions = useMemo(() => buildAuthorOptions(identity), [identity]);
 
   const [authorKey, setAuthorKey] = useState<string>(authorOptions[0]?.value ?? "person");
 
@@ -232,8 +148,8 @@ export function PostComposer({ identity, seedText }: Props) {
   // PUBLIC when the user picks a page so the submit doesn't surface
   // the raw API error. Keeps the visibility selector simple — both
   // org and person flows share the same control state.
-  const isOrgAuthor = authorKey.startsWith("org:");
-  const effectiveVisibility: LinkedInVisibility = isOrgAuthor ? "PUBLIC" : visibility;
+  const isOrgAuthor = isOrgAuthorKey(authorKey);
+  const effectiveVisibility: LinkedInVisibility = effectiveVisibilityFor(authorKey, visibility);
   const authorType: "person" | "org" = isOrgAuthor ? "org" : "person";
 
   // Hook DNA score — debounced live scoring as the user types.
@@ -275,10 +191,7 @@ export function PostComposer({ identity, seedText }: Props) {
   });
 
   function applyVariant(v: HookVariant) {
-    // Replace the hook with the picked variant, preserving any body
-    // below the first blank-line boundary.
-    const [, ...rest] = text.split(/\n\s*\n/);
-    const next = rest.length > 0 ? `${v.hook}\n\n${rest.join("\n\n")}` : v.hook;
+    const next = applyHookVariant(text, v.hook);
     setText(next);
     pruneMentions(next);
     setVariants(null);
@@ -391,63 +304,41 @@ export function PostComposer({ identity, seedText }: Props) {
     setLinkTitle("");
   }, []);
 
-  const remaining = MAX_LEN - text.length;
-  const tooLong = remaining < 0;
-  const empty = text.trim().length === 0;
-  const linkInvalid = showLink && linkUrl.trim().length > 0 && !isProbablyUrl(linkUrl);
   const anyPending = publish.isPending || carousel.isPending;
-  // A poll, when active, must be complete before publish. The commentary
-  // (text) is still required — it shows above the poll.
   const pollActive = poll !== null;
-  const pollOk = !pollActive || isPollValid(poll);
-  const publishDisabled = empty || tooLong || anyPending || linkInvalid || !pollOk;
-  // Scheduling + carousel don't carry a poll, so they're unavailable while a
-  // poll is active.
-  const scheduleDisabled = empty || tooLong || linkInvalid || pollActive;
-  // Carousel needs enough text to split into slides; a link card doesn't
-  // apply to a carousel (it's a document post), so a pending/invalid link
-  // doesn't block it — but the min-length + pending guards do.
-  const carouselTooShort = text.trim().length < CAROUSEL_MIN_CHARS;
-  const carouselDisabled = empty || tooLong || carouselTooShort || anyPending || pollActive;
+  const {
+    empty,
+    linkInvalid,
+    publishDisabled,
+    scheduleDisabled,
+    carouselTooShort,
+    carouselDisabled,
+  } = composerGates({
+    text,
+    showLink,
+    linkUrl,
+    pollActive,
+    pollValid: poll !== null && isPollValid(poll),
+    anyPending,
+    linkLooksLikeUrl: isProbablyUrl(linkUrl),
+  });
 
   function onSubmit() {
     if (publishDisabled) return;
     setFeedback(null);
 
-    const author: LinkedInAuthor = isOrgAuthor
-      ? { type: "org", pageId: authorKey.slice("org:".length) }
-      : { type: "person" };
-
-    const body: PublishLinkedInPostInput = {
-      author,
-      visibility: effectiveVisibility,
-    };
-
-    // Structured commentary (CMA D4): when the user inserted org @mentions that
-    // still appear in the text, send segments so the URNs link. Otherwise send
-    // the raw string (which also lets LinkedIn auto-link plain #hashtags). Poll
-    // posts use the raw path — a poll's intro text isn't segmented here.
+    // Poll posts use the raw path — a poll's intro text isn't segmented here.
     const segments = poll ? null : buildCommentarySegments(text.trim(), mentions);
-    if (segments) {
-      body.commentarySegments = segments;
-    } else {
-      body.commentary = text.trim();
-    }
-
-    if (poll) {
-      // A poll is exclusive — never combine it with a link. Trim the question
-      // and drop blank options (the server validates 2–4 / lengths too).
-      body.poll = {
-        question: poll.question.trim(),
-        options: poll.options.map((o) => o.text.trim()).filter((o) => o.length > 0),
-        duration: poll.duration,
-      };
-    } else if (showLink && linkUrl.trim()) {
-      body.link = {
-        url: linkUrl.trim(),
-        title: linkTitle.trim() || undefined,
-      };
-    }
+    const body = buildPublishBody({
+      authorKey,
+      visibility,
+      text,
+      segments,
+      poll,
+      showLink,
+      linkUrl,
+      linkTitle,
+    });
 
     publish.mutate(body);
   }
@@ -458,9 +349,7 @@ export function PostComposer({ identity, seedText }: Props) {
     // The composer text IS the source the server splits into slides. Snapshot
     // the publish target NOW (the dialog shows + uses it) so changing the
     // picker during the ~30–60s preview can't retarget the post.
-    const author: LinkedInAuthor = isOrgAuthor
-      ? { type: "org", pageId: authorKey.slice("org:".length) }
-      : { type: "person" };
+    const author: LinkedInAuthor = authorFromKey(authorKey);
     const label = authorOptions.find((o) => o.value === authorKey)?.label ?? "your feed";
     setCarouselTarget({ author, visibility: effectiveVisibility, label });
     carousel.mutate({ newsletterText: text.trim() });
@@ -598,10 +487,7 @@ export function PostComposer({ identity, seedText }: Props) {
   }
 
   // ── Scheduler props (only consumed in schedule mode) ────────────
-  const scheduleTitle = useMemo(() => {
-    const firstLine = text.trim().split(/\r?\n/).find((l) => l.trim().length > 0);
-    return firstLine ? firstLine.slice(0, 120).trim() : undefined;
-  }, [text]);
+  const scheduleTitle = useMemo(() => scheduleTitleFor(text), [text]);
 
   const schedulerSource = useMemo(
     () => ({
@@ -612,44 +498,19 @@ export function PostComposer({ identity, seedText }: Props) {
     [draftId, text],
   );
 
-  const schedulerChannels = useMemo(() => {
-    // channelOptions carries the LinkedIn-specific publish settings the
-    // scheduler's linkedin publisher adapter reads (authorUrn /
-    // visibility / link) so a scheduled post fires with the SAME author
-    // + visibility + link the user picked here.
-    // NOTE: the scheduler adapter publishes the raw text only — it does not
-    // carry commentary SEGMENTS, so org @mentions in a SCHEDULED post post as
-    // plain `@Name` text (not linked). Immediate publish links them. Threading
-    // segments through the scheduler is a follow-up; surfaced via the mention
-    // hint below so the user isn't surprised.
-    const channelOptions: Record<string, unknown> = {
-      authorUrn: isOrgAuthor
-        ? `urn:li:organization:${authorKey.slice("org:".length)}`
-        : identity.person.urn,
-      visibility: effectiveVisibility,
-    };
-    if (showLink && linkUrl.trim()) {
-      channelOptions.link = {
-        url: linkUrl.trim(),
-        ...(linkTitle.trim() ? { title: linkTitle.trim() } : {}),
-      };
-    }
-    return [
-      {
-        channel: "linkedin",
-        payload: { text: text.trim(), channelOptions },
-      },
-    ];
-  }, [
-    isOrgAuthor,
-    authorKey,
-    identity.person.urn,
-    effectiveVisibility,
-    showLink,
-    linkUrl,
-    linkTitle,
-    text,
-  ]);
+  const schedulerChannels = useMemo(
+    () =>
+      buildScheduleChannels({
+        authorKey,
+        personUrn: identity.person.urn,
+        visibility,
+        showLink,
+        linkUrl,
+        linkTitle,
+        text,
+      }),
+    [authorKey, identity.person.urn, visibility, showLink, linkUrl, linkTitle, text],
+  );
 
   function handleScheduled() {
     // SchedulerComposer fires its own "Scheduled across N channels."
@@ -661,51 +522,18 @@ export function PostComposer({ identity, seedText }: Props) {
 
   // ── Command palette actions ─────────────────────────────────────
   const commands = useMemo<ComposerCommand[]>(
-    () => [
-      {
-        id: "ai-compose",
-        label: "Compose with AI",
-        hint: "Generate a fresh draft from your brand voice",
-        group: "AI",
-        icon: Sparkles,
-        run: () => {
-          void handleAiAction({ op: "compose", text, platform: "linkedin" });
-        },
-      },
-      {
-        id: "ai-redraft",
-        label: "Rewrite this draft",
-        group: "AI",
-        icon: Wand2,
-        disabled: empty,
-        run: () => {
-          void handleAiAction({ op: "redraft", text, platform: "linkedin" });
-        },
-      },
-      {
-        id: "schedule",
-        label: "Schedule for later",
-        group: "Publish",
-        icon: CalendarClock,
-        disabled: scheduleDisabled,
-        run: () => setMode("schedule"),
-      },
-      {
-        id: "add-link",
-        label: showLink ? "Link attached" : "Attach a link",
-        group: "Compose",
-        icon: Link2,
-        disabled: showLink || pollActive,
-        run: () => setShowLink(true),
-      },
-      {
-        id: "toggle-poll",
-        label: pollActive ? "Remove poll" : "Add a poll",
-        group: "Compose",
-        icon: ListChecks,
-        run: togglePoll,
-      },
-    ],
+    () =>
+      buildComposerCommands({
+        text,
+        empty,
+        scheduleDisabled,
+        showLink,
+        pollActive,
+        runAi: handleAiAction,
+        onSchedule: () => setMode("schedule"),
+        onAttachLink: () => setShowLink(true),
+        onTogglePoll: togglePoll,
+      }),
     [handleAiAction, text, empty, scheduleDisabled, showLink, pollActive, togglePoll],
   );
 
@@ -742,94 +570,15 @@ export function PostComposer({ identity, seedText }: Props) {
       voiceCard={voiceSummary}
       onOpenPalette={() => setPaletteOpen(true)}
       headerSlot={
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="li-author" className="text-xs uppercase tracking-wide text-muted-foreground">
-              Posting as
-            </Label>
-            {authorOptions.length === 1 ? (
-              // Single allowed author (the mapped Company Page, or the
-              // pageless personal fallback) — nothing to choose, so show
-              // a locked identity chip instead of a one-item dropdown.
-              <div
-                id="li-author"
-                className="flex h-9 items-center gap-2 rounded-md border bg-muted/40 px-3 text-sm"
-              >
-                {authorOptions[0].value === "person" ? (
-                  <User className="size-4 shrink-0 text-muted-foreground" />
-                ) : (
-                  <Building2 className="size-4 shrink-0 text-muted-foreground" />
-                )}
-                <span className="truncate font-medium">{authorOptions[0].label}</span>
-                {authorOptions[0].sublabel && (
-                  <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                    {authorOptions[0].sublabel}
-                  </span>
-                )}
-              </div>
-            ) : (
-              <Select value={authorKey} onValueChange={setAuthorKey}>
-                <SelectTrigger id="li-author">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {authorOptions.map((opt) => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      <span className="flex flex-col">
-                        <span>{opt.label}</span>
-                        {opt.sublabel && (
-                          <span className="text-xs text-muted-foreground">{opt.sublabel}</span>
-                        )}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            {!identity.scopes.includes(HAS_ORG_SCOPE) && identity.pages.length > 0 && (
-              <p className="text-xs text-muted-foreground">
-                Reconnect LinkedIn to enable posting from your company pages.
-              </p>
-            )}
-            {identity.scopes.includes(HAS_ORG_SCOPE) && identity.pages.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                No pages enabled.{" "}
-                <Link
-                  href="/dashboard/integrations?manage_pages=1"
-                  className="font-medium text-primary underline underline-offset-2 hover:no-underline"
-                >
-                  Manage pages
-                </Link>
-                .
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="li-visibility" className="text-xs uppercase tracking-wide text-muted-foreground">
-              Visibility
-            </Label>
-            <Select
-              value={effectiveVisibility}
-              onValueChange={(v) => setVisibility(v as LinkedInVisibility)}
-              disabled={isOrgAuthor}
-            >
-              <SelectTrigger id="li-visibility">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="PUBLIC">Public — anyone on LinkedIn</SelectItem>
-                <SelectItem value="CONNECTIONS">Connections only</SelectItem>
-                <SelectItem value="LOGGED_IN">Signed-in members</SelectItem>
-              </SelectContent>
-            </Select>
-            {isOrgAuthor && (
-              <p className="text-xs text-muted-foreground">
-                Company page posts are always public.
-              </p>
-            )}
-          </div>
-        </div>
+        <ComposerHeader
+          identity={identity}
+          authorOptions={authorOptions}
+          authorKey={authorKey}
+          onAuthorChange={setAuthorKey}
+          effectiveVisibility={effectiveVisibility}
+          onVisibilityChange={setVisibility}
+          isOrgAuthor={isOrgAuthor}
+        />
       }
       subHeaderSlot={
         <>
@@ -850,66 +599,20 @@ export function PostComposer({ identity, seedText }: Props) {
         </>
       }
       actionsSlot={
-        <>
-          <PolicyChip state={policy} />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setMode("schedule")}
-            disabled={scheduleDisabled}
-            className="gap-1.5"
-            title={
-              pollActive
-                ? "Polls can't be scheduled yet — publish now, or remove the poll to schedule."
-                : undefined
-            }
-          >
-            <CalendarClock className="size-4" /> Schedule
-          </Button>
-          <Button
-            type="button"
-            variant={pollActive ? "secondary" : "outline"}
-            size="sm"
-            onClick={togglePoll}
-            aria-pressed={pollActive}
-            className="gap-1.5"
-            title={
-              pollActive
-                ? "Remove the poll"
-                : "Add a poll (question + 2–4 options). Your text shows above the poll."
-            }
-          >
-            <ListChecks className="size-4" />
-            Poll
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onCarousel}
-            disabled={carouselDisabled}
-            aria-busy={carousel.isPending}
-            className="gap-1.5"
-            title={
-              carouselTooShort
-                ? "Write a few sentences first — a carousel splits your text into slides."
-                : "Generate a swipeable LinkedIn carousel and review it before publishing. Takes ~30–60s."
-            }
-          >
-            {carousel.isPending ? (
-              <Loader2 className="size-4 animate-spin motion-reduce:animate-none" />
-            ) : (
-              <GalleryHorizontalEnd className="size-4" />
-            )}
-            {carousel.isPending ? "Generating preview…" : "Carousel"}
-          </Button>
-          <ActionCost action="linkedinCarousel" className="text-[10px]" />
-          <Button onClick={onSubmit} disabled={publishDisabled} aria-busy={publish.isPending}>
-            <Send className="size-4 mr-1.5" />
-            {publish.isPending ? "Publishing…" : "Publish"}
-          </Button>
-        </>
+        <ComposerActions
+          policy={policy}
+          pollActive={pollActive}
+          scheduleDisabled={scheduleDisabled}
+          onSchedule={() => setMode("schedule")}
+          onTogglePoll={togglePoll}
+          carouselDisabled={carouselDisabled}
+          carouselTooShort={carouselTooShort}
+          carouselPending={carousel.isPending}
+          onCarousel={onCarousel}
+          publishDisabled={publishDisabled}
+          publishPending={publish.isPending}
+          onPublish={onSubmit}
+        />
       }
       footerSlot={
         feedback ? (
@@ -979,33 +682,10 @@ export function PostComposer({ identity, seedText }: Props) {
         minQueryLength={2}
       />
 
-      {mentions.length > 0 && (
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Mentions</span>
-            {mentions.map((m) => (
-              <span
-                key={m.urn}
-                className="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2 py-0.5 text-xs"
-              >
-                <AtSign className="size-3 text-muted-foreground" />
-                {m.name}
-                <button
-                  type="button"
-                  onClick={() => setMentions((prev) => prev.filter((x) => x.urn !== m.urn))}
-                  className="text-muted-foreground hover:text-foreground"
-                  aria-label={`Unlink mention ${m.name}`}
-                >
-                  <X className="size-3" />
-                </button>
-              </span>
-            ))}
-          </div>
-          <p className="text-[11px] text-muted-foreground">
-            Mentions link when you publish now. Scheduled posts send them as plain text.
-          </p>
-        </div>
-      )}
+      <MentionsStrip
+        mentions={mentions}
+        onUnlink={(urn) => setMentions((prev) => prev.filter((x) => x.urn !== urn))}
+      />
 
       <div className="flex items-center gap-2">
         <EmojiPickerTrigger onInsert={insertSnippet} />
@@ -1039,42 +719,18 @@ export function PostComposer({ identity, seedText }: Props) {
       )}
 
       {showLink && (
-        <div className="space-y-2 rounded-md border p-3">
-          <Label htmlFor="li-link-url" className="text-xs uppercase tracking-wide text-muted-foreground">
-            Attach link
-          </Label>
-          <Input
-            id="li-link-url"
-            value={linkUrl}
-            onChange={(e) => setLinkUrl(e.target.value)}
-            placeholder="https://example.com/article"
-            aria-invalid={linkInvalid}
-          />
-          <Input
-            value={linkTitle}
-            onChange={(e) => setLinkTitle(e.target.value)}
-            placeholder="Link title (optional)"
-          />
-          <div className="flex items-center justify-between">
-            {linkInvalid ? (
-              <p className="text-xs text-destructive">Enter a valid http(s) URL.</p>
-            ) : (
-              <span />
-            )}
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setShowLink(false);
-                setLinkUrl("");
-                setLinkTitle("");
-              }}
-            >
-              <X className="size-3.5 mr-1" /> Remove
-            </Button>
-          </div>
-        </div>
+        <LinkAttachCard
+          linkUrl={linkUrl}
+          linkTitle={linkTitle}
+          linkInvalid={linkInvalid}
+          onLinkUrlChange={setLinkUrl}
+          onLinkTitleChange={setLinkTitle}
+          onRemove={() => {
+            setShowLink(false);
+            setLinkUrl("");
+            setLinkTitle("");
+          }}
+        />
       )}
 
       {carouselPreview && carouselTarget && (
@@ -1097,793 +753,5 @@ export function PostComposer({ identity, seedText }: Props) {
         />
       )}
     </ComposerShell>
-  );
-}
-
-export function PostComposerSkeleton() {
-  return (
-    <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-10 w-full" />
-      </div>
-      <Skeleton className="h-32 w-full" />
-      <div className="flex justify-between">
-        <Skeleton className="h-8 w-24" />
-        <Skeleton className="h-9 w-28" />
-      </div>
-    </div>
-  );
-}
-
-/**
- * Use the linkedin-me query as the data source for the composer's
- * picker. Re-exported here so the page can render the right shell
- * (composer, EmptyState, or Reconnect CTA) based on the same query.
- */
-export function useLinkedInIdentity() {
-  return useQuery({
-    queryKey: ["linkedin-me"],
-    queryFn: () => linkedInContentApi.me(),
-    retry: (failureCount, err) => {
-      if (err instanceof ApiError && (err.code === "NOT_CONNECTED" || err.status === 404)) {
-        return false;
-      }
-      return failureCount < 2;
-    },
-    staleTime: 60_000,
-  });
-}
-
-function isProbablyUrl(s: string): boolean {
-  try {
-    const u = new URL(s.trim());
-    return u.protocol === "http:" || u.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
-/** Map the LinkedIn-specific voice card to the shared
- *  <VoiceCardPreview/> summary shape. Returns null when no card has
- *  been synthesised yet (the preview renders nothing for null). */
-function mapVoiceCardSummary(card: LinkedInVoiceCard | undefined): VoiceCardSummary | null {
-  if (!card) return null;
-  return {
-    id: `linkedin-post-v${card.version}`,
-    channel: "linkedin",
-    category: "post",
-    toneAdjectives: card.voice.tone ?? [],
-    signaturePhrases: card.voice.signaturePhrases ?? [],
-    avoidPhrases: card.voice.avoidPhrases ?? [],
-    refreshedAt: card.lastGeneratedAt,
-  };
-}
-
-/**
- * Toast copy per AI op, and how loudly to say it.
- *
- * ★The two length ops carry their numbers, and the numbers decide the tone.
- * Their whole promise is a change the user is supposed to SEE, so a bare
- * "Draft shortened." is unfalsifiable — it reads identically whether 40%
- * came off or nothing did. "412 → 268 characters (−35%)" is checkable
- * against the box in front of them, and a Shorten that came back LONGER is
- * not a success to be congratulated in green.
- *
- * Message and level are derived from the same measurement here rather than
- * decided by the caller, which is what stopped them contradicting each other.
- */
-function aiOpToast(
-  op: RewriteOp,
-  before?: string,
-  after?: string,
-): { message: string; success: boolean } {
-  switch (op) {
-    case "compose":
-      return { message: "Draft composed.", success: true };
-    case "redraft":
-      return { message: "Draft rewritten.", success: true };
-    case "shorten":
-    case "lengthen": {
-      const from = before?.trim().length ?? 0;
-      const to = after?.trim().length ?? 0;
-      // No measurement to report — fall back to the plain claim rather than
-      // render "0 → 0 characters".
-      if (from === 0 || to === 0) {
-        return {
-          message: op === "shorten" ? "Draft shortened." : "Draft expanded.",
-          success: true,
-        };
-      }
-      if (to === from) {
-        return { message: `Draft rewritten — still ${to} characters.`, success: false };
-      }
-      const grew = to > from;
-      const pct = Math.round((Math.abs(to - from) / from) * 100);
-      const delta = `${from} → ${to} characters (${grew ? "+" : "−"}${pct}%)`;
-      // ★The verb follows the MEASUREMENT, not the button that was pressed.
-      // When both attempts miss the length band the api returns the closer
-      // one rather than failing, so a Shorten can legitimately come back
-      // longer — and "Draft shortened … (+30%)" is a sentence that argues
-      // with the number beside it.
-      const didWhatWasAsked = op === "shorten" ? !grew : grew;
-      if (didWhatWasAsked) {
-        return {
-          message: `${grew ? "Draft expanded" : "Draft shortened"} — ${delta}.`,
-          success: true,
-        };
-      }
-      return {
-        message: `${
-          op === "shorten" ? "Shorten" : "Lengthen"
-        } came back the wrong way — ${delta}. Try again.`,
-        success: false,
-      };
-    }
-    case "tone":
-      return { message: "Tone updated.", success: true };
-    case "quote":
-      return { message: "Pull-quote added.", success: true };
-    case "disclosure":
-      return { message: "Disclosure added.", success: true };
-  }
-}
-
-/** What we say when a replace op returned the draft it was handed. Neutral
- *  (`toast.message`), not success and not an error: the call worked, the
- *  model just produced nothing worth applying. */
-function aiOpNoChangeMessage(op: RewriteOp): string {
-  switch (op) {
-    case "shorten":
-      return "Shorten returned the same draft — nothing changed. Try again, or trim it yourself.";
-    case "lengthen":
-      return "Lengthen returned the same draft — nothing changed. Try again, or add the detail yourself.";
-    default:
-      return "That returned the same draft — nothing changed. Try again.";
-  }
-}
-
-// ── Content-policy advisory pre-check ────────────────────────────────
-
-const POLICY_DEBOUNCE_MS = 800;
-const POLICY_MIN_CHARS = 24;
-
-/**
- * Debounced advisory content-policy check. Fires
- * `POST /v1/linkedin/content/check-policy` 800ms after the user stops
- * typing, once there's enough text to be worth classifying.
- *
- * Returns:
- *   - `null`      while text is too short to check
- *   - `undefined` while a debounce/request window is open (pending)
- *   - advisory otherwise. A 429 (rate-limited) or any error resolves
- *     to a `checked:false` advisory so the chip renders a neutral
- *     "couldn't check" — never a scary error or a false "OK".
- */
-function usePolicyCheck(
-  text: string,
-  authorType: "person" | "org",
-): ComposerPolicyAdvisory | null | undefined {
-  const trimmed = text.trim();
-  const longEnough = trimmed.length >= POLICY_MIN_CHARS;
-  // Store only the async result, tagged with BOTH the text and the
-  // author type it was computed for. The null (too-short) and undefined
-  // (pending) states are DERIVED below from the current text+author —
-  // no synchronous setState in the effect (avoids cascading renders),
-  // and the chip flips to "pending" the instant either changes. Tagging
-  // by author matters: an org post has a different policy surface than a
-  // personal post, so a person-scoped result must not linger after the
-  // user switches to a company page without editing the text.
-  const [res, setRes] = useState<
-    { forText: string; forAuthor: "person" | "org"; advisory: ComposerPolicyAdvisory } | null
-  >(null);
-
-  useEffect(() => {
-    if (!longEnough) return;
-    let cancelled = false;
-    const handle = window.setTimeout(() => {
-      linkedInContentApi
-        .checkPolicy(trimmed, authorType)
-        .then((advisory) => {
-          if (!cancelled) setRes({ forText: trimmed, forAuthor: authorType, advisory });
-        })
-        .catch(() => {
-          // 429 / network / soft-fail — treat as "couldn't check".
-          if (!cancelled) {
-            setRes({
-              forText: trimmed,
-              forAuthor: authorType,
-              advisory: { overall: "ok", summary: "", findings: [], issueCount: 0, checked: false },
-            });
-          }
-        });
-    }, POLICY_DEBOUNCE_MS);
-
-    return () => {
-      cancelled = true;
-      window.clearTimeout(handle);
-    };
-  }, [trimmed, longEnough, authorType]);
-
-  if (!longEnough) return null;
-  // pending: no fresh result for the current text + author
-  if (!res || res.forText !== trimmed || res.forAuthor !== authorType) return undefined;
-  return res.advisory;
-}
-
-/**
- * Advisory policy chip rendered near Publish. Non-blocking — the hard
- * gate still runs server-side at publish. States:
- *   - hidden while too-short (null)
- *   - "Checking…" while pending (undefined)
- *   - "Policy: OK" when clean
- *   - "Policy: N issue(s)" with a hover popover of findings
- *   - "Couldn't check" (neutral) when the gate soft-failed / was rate-limited
- */
-function PolicyChip({ state }: { state: ComposerPolicyAdvisory | null | undefined }) {
-  if (state === null) return null;
-  if (state === undefined) {
-    return (
-      <span role="status" aria-live="polite" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Loader2 className="size-3 animate-spin motion-reduce:animate-none" />
-        Checking policy…
-      </span>
-    );
-  }
-
-  if (!state.checked) {
-    return (
-      <span
-        role="status"
-        aria-live="polite"
-        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
-        title="We couldn't run the policy check just now — it doesn't block publishing."
-      >
-        <Shield className="size-3.5" />
-        Policy check unavailable
-      </span>
-    );
-  }
-
-  if (state.overall === "ok") {
-    return (
-      <span role="status" aria-live="polite" className="inline-flex items-center gap-1.5 text-xs text-success-on-tint">
-        <ShieldCheck className="size-3.5" />
-        Policy: OK
-      </span>
-    );
-  }
-
-  const issues = state.findings.filter((f) => f.verdict !== "ok");
-  const tone =
-    state.overall === "block"
-      ? "text-destructive"
-      : "text-warning-on-tint";
-  return (
-    <HoverCard openDelay={150} closeDelay={100}>
-      <HoverCardTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            tone,
-          )}
-          aria-label={`Content policy: ${state.issueCount} issue${state.issueCount === 1 ? "" : "s"}. Hover for details.`}
-        >
-          <ShieldAlert className="size-3.5" />
-          Policy: {state.issueCount} issue{state.issueCount === 1 ? "" : "s"}
-        </button>
-      </HoverCardTrigger>
-      <HoverCardContent align="end" side="top" className="w-80">
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          <ShieldAlert className={cn("size-4", tone)} />
-          {state.overall === "block" ? "Likely policy violation" : "Possible policy issues"}
-        </div>
-        {state.summary && (
-          <p className="mt-1 text-xs text-muted-foreground">{state.summary}</p>
-        )}
-        <ul className="mt-2 space-y-1.5">
-          {issues.map((f, i) => (
-            <li key={`${f.category}-${i}`} className="text-xs">
-              <span
-                className={cn(
-                  "mr-1.5 rounded-sm px-1 py-0.5 text-[10px] font-medium uppercase tracking-wide",
-                  f.verdict === "block"
-                    ? "bg-destructive/10 text-destructive"
-                    : "bg-warning/10 text-warning-on-tint",
-                )}
-              >
-                {f.category.replace(/_/g, " ")}
-              </span>
-              {f.rationale}
-            </li>
-          ))}
-        </ul>
-        <p className="mt-2 border-t pt-2 text-[10px] text-muted-foreground">
-          Advisory only — you can still publish. The same check runs when you post.
-        </p>
-      </HoverCardContent>
-    </HoverCard>
-  );
-}
-
-// ── Hook DNA scoring ─────────────────────────────────────────────────
-
-const HOOK_SCORE_DEBOUNCE_MS = 400;
-const HOOK_SCORE_MIN_CHARS = 8;
-
-/**
- * Debounced hook scorer. Fires `POST /v1/linkedin/content/score-hook`
- * 400ms after the user stops typing. Pure-server function (no AI),
- * so the cost of getting it wrong is just a request, not a token bill.
- */
-function useHookScore(text: string): HookScore | null | undefined {
-  const trimmed = text.trim();
-  const longEnough = trimmed.length >= HOOK_SCORE_MIN_CHARS;
-  // Same derived-state pattern as usePolicyCheck: store the async
-  // result tagged with its source text; derive null (too-short) /
-  // undefined (pending) from the current text so we never call
-  // setState synchronously inside the effect. `score: null` is the
-  // error sentinel (HookScoreCard hides on null).
-  const [res, setRes] = useState<{ forText: string; score: HookScore | null } | null>(null);
-
-  useEffect(() => {
-    if (!longEnough) return;
-    let cancelled = false;
-    const handle = window.setTimeout(() => {
-      linkedInContentApi
-        .scoreHook(trimmed)
-        .then((s) => {
-          if (!cancelled) setRes({ forText: trimmed, score: s });
-        })
-        .catch(() => {
-          if (!cancelled) setRes({ forText: trimmed, score: null });
-        });
-    }, HOOK_SCORE_DEBOUNCE_MS);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(handle);
-    };
-  }, [trimmed, longEnough]);
-
-  if (!longEnough) return null;
-  if (!res || res.forText !== trimmed) return undefined; // pending
-  return res.score;
-}
-
-interface HookScoreBand {
-  label: string;
-  className: string;
-}
-
-function bandForScore(score: number): HookScoreBand {
-  if (score >= 80)
-    return {
-      label: "Strong hook",
-      className:
-        "border-success/30 bg-success/10 text-success-on-tint",
-    };
-  if (score >= 55)
-    return {
-      label: "Decent hook",
-      className:
-        "border-state-info/30 bg-state-info/10 text-state-info-on-tint",
-    };
-  if (score >= 30)
-    return {
-      label: "Weak hook",
-      className:
-        "border-warning/30 bg-warning/8 text-warning-on-tint",
-    };
-  return {
-    label: "Rework the hook",
-    className:
-      "border-destructive/30 bg-destructive/10 text-destructive-on-tint",
-  };
-}
-
-/**
- * HookScore card — surfaces the v0 score, an honest tier badge, and
- * up to 3 plain-English suggestions.
- */
-function HookScoreCard({
-  score,
-  onRewrite,
-  rewritePending,
-}: {
-  score: HookScore | null | undefined;
-  onRewrite?: () => void;
-  rewritePending?: boolean;
-}) {
-  if (score === null) return null;
-  if (score === undefined) {
-    return (
-      <div className="rounded-md border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-        Scoring hook…
-      </div>
-    );
-  }
-  const band = bandForScore(score.score);
-  const topSuggestions = score.suggestions.slice(0, 3);
-  const tierMeta = tierBadgeMeta(score.tier);
-  return (
-    <div className={`space-y-2 rounded-md border px-3 py-2.5 text-sm ${band.className}`}>
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Sparkles className="size-4" />
-          <span className="font-medium">{band.label}</span>
-          <span
-            className="rounded-sm border border-current/30 px-1.5 py-0 text-[10px] uppercase tracking-wide opacity-80"
-            title={tierMeta.tooltip}
-          >
-            {tierMeta.label}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          {onRewrite && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 gap-1 text-xs"
-              onClick={onRewrite}
-              disabled={rewritePending}
-              aria-busy={rewritePending}
-            >
-              {rewritePending ? (
-                <Loader2 className="size-3 animate-spin" />
-              ) : (
-                <Wand2 className="size-3" />
-              )}
-              {rewritePending ? "Rewriting…" : "Rewrite"}
-            </Button>
-          )}
-          {onRewrite && (
-            <ActionCost action="linkedinRewrite" className="text-[10px]" />
-          )}
-          <span className="font-mono text-base font-semibold tabular-nums">
-            {score.score}
-            <span className="ml-0.5 text-xs opacity-70">/100</span>
-          </span>
-        </div>
-      </div>
-      {score.archetypeMatch && (
-        <div className="text-[11px] opacity-80">
-          Matched{" "}
-          <span className="font-mono">{score.archetypeMatch.cohortId}</span>{" "}
-          archetype · cosine{" "}
-          {score.archetypeMatch.cosineSimilarity.toFixed(2)} · scored
-          against {score.archetypeMatch.exampleCount} examples
-        </div>
-      )}
-      {topSuggestions.length > 0 && (
-        <ul className="ml-4 list-disc space-y-0.5 text-xs opacity-90">
-          {topSuggestions.map((s, i) => (
-            <li key={i}>{s}</li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-/**
- * Friendlier copy for the tier badge.
- */
-function tierBadgeMeta(tier: HookScore["tier"]): { label: string; tooltip: string } {
-  switch (tier) {
-    case "industry":
-      return {
-        label: "Tier: industry",
-        tooltip:
-          "Blended score: 60% cosine similarity to your industry archetype + 40% craft rules. Higher confidence than the rules-only floor.",
-      };
-    case "personal":
-      return {
-        label: "Tier: personal",
-        tooltip:
-          "Blended score: cosine similarity to your own top-performing hooks + craft rules. Most personalised tier.",
-      };
-    case "rules":
-    default:
-      return {
-        label: "Tier: rules",
-        tooltip:
-          "Score from craft rules only (length, opener, specific data, audience naming, active voice, line rhythm). No archetype available yet for your cohort.",
-      };
-  }
-}
-
-/**
- * Variants panel — renders the rewrite_hook_variants response.
- */
-function HookVariantsPanel({
-  response,
-  onPick,
-  onDismiss,
-}: {
-  response: RewriteHookResponse;
-  onPick: (v: HookVariant) => void;
-  onDismiss: () => void;
-}) {
-  const { variants } = response;
-  return (
-    <div
-      className="space-y-2 rounded-md border bg-muted/20 p-3"
-      role="region"
-      aria-live="polite"
-      aria-label="Hook rewrite suggestions"
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <Wand2 className="size-4" />
-          Rewrite suggestions
-          <span className="text-xs font-normal text-muted-foreground">
-            (your hook scored {response.original.score})
-          </span>
-        </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2"
-          onClick={onDismiss}
-          aria-label="Dismiss rewrite suggestions"
-        >
-          <X className="size-3.5" />
-        </Button>
-      </div>
-      {variants.length === 0 ? (
-        <p className="text-xs text-muted-foreground">
-          No rewrites available — try editing the hook yourself and rescoring.
-        </p>
-      ) : (
-        <div className="space-y-1.5">
-          {variants.map((v, i) => {
-            const band = bandForScore(v.score);
-            return (
-              <button
-                key={i}
-                type="button"
-                onClick={() => onPick(v)}
-                className={`flex w-full flex-col gap-1.5 rounded-md border px-3 py-2 text-left text-sm transition hover:shadow-sm ${band.className}`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <span className="line-clamp-3 whitespace-pre-line">{v.hook}</span>
-                  <span className="shrink-0 font-mono text-sm font-semibold tabular-nums">
-                    {v.score}
-                  </span>
-                </div>
-                <span className="text-[10px] uppercase tracking-wide opacity-70">
-                  {v.technique}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Voice Card panel ─────────────────────────────────────────────────
-
-const PERSPECTIVE_LABEL: Record<LinkedInVoiceCard["voice"]["perspective"], string> = {
-  first_person_singular: "I",
-  first_person_plural: "We",
-  third_person: "They",
-};
-
-/**
- * Surface the auto-synthesised LinkedIn voice card alongside the
- * composer so the user sees the tone/perspective/signature phrases
- * we learned from their own posts before they type.
- */
-/**
- * Says whose voice the AI writes in, when that is NOT the Page you selected.
- *
- * ★THE REPORTED BUG THIS ANSWERS: switch the Page to another brand, hit Redraft,
- * and the draft comes back about the OTHER brand. Nothing is broken — every AI
- * op on this surface posts to `/v1/content/rewrite`, which grounds on
- * `buildBusinessContext(orgId, businessId)`: the WORKSPACE's brand voice,
- * taxonomy and value proposition. The request has no field for a Page and could
- * not accept one. So the AI is behaving exactly as designed and the UI was
- * silent about it, which reads as the AI ignoring you.
- *
- * The fix that matters is structural — the other brand belongs in its own
- * workspace, where its voice, audience and reporting are its own. This notice is
- * how the composer says so at the moment of confusion, instead of after it.
- *
- * Renders NOTHING in the ordinary case (Page matches the workspace, unanchored
- * workspace, personal feed, or the fit lookup failed) — a note on every draft
- * would be noise, and noise is how real warnings get ignored.
- */
-function OffBrandVoiceNotice({ authorKey }: { authorKey: string }) {
-  const pageId = authorKey.startsWith("org:") ? authorKey.slice("org:".length) : null;
-
-  // Same key + endpoint the Manage-Pages dialog uses, so the two dedupe rather
-  // than each paying for the round trip.
-  const { data } = useQuery({
-    queryKey: ["linkedin-page-fit"],
-    queryFn: () =>
-      api.get<{
-        brandAnchor: string | null;
-        pages: { organizationId: string; brandFit: "match" | "unrelated" | "unknown" }[];
-      }>("/v1/integrations/linkedin_content/pages"),
-    enabled: pageId !== null,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-
-  if (!pageId || !data) return null;
-  const fit = data.pages.find((p) => p.organizationId === pageId)?.brandFit;
-  if (fit !== "unrelated") return null;
-
-  return (
-    <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1 rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning-on-tint">
-      <Sparkles className="size-3.5 shrink-0 self-center" />
-      <span>
-        Publishing to this page, but AI drafts are written in
-        {data.brandAnchor ? ` ${data.brandAnchor}` : " this workspace"}&apos;s
-        voice — this workspace has one brand.
-      </span>
-      <Link
-        href="/dashboard/integrations?manage_pages=1"
-        className="font-medium underline underline-offset-2 hover:no-underline"
-      >
-        Give it its own workspace
-      </Link>
-    </div>
-  );
-}
-
-function VoiceCardPanel() {
-  const [open, setOpen] = useState(false);
-  const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["linkedin-voice-card"],
-    queryFn: () => linkedInContentApi.voiceCard(),
-    retry: (failureCount, err) => {
-      if (err instanceof ApiError && (err.status === 404 || err.status === 403)) {
-        return false;
-      }
-      return failureCount < 2;
-    },
-    staleTime: 5 * 60_000,
-  });
-
-  if (isLoading) {
-    return (
-      <div className="rounded-md border border-dashed bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-        Loading your voice card…
-      </div>
-    );
-  }
-
-  if (isError) {
-    if (error instanceof ApiError && error.status === 404) {
-      return (
-        <div className="rounded-md border border-dashed bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-          <Mic className="mr-1 inline size-3" />
-          Your LinkedIn voice card will appear here once you have 5+ published posts. We&apos;ll learn your tone and signature patterns automatically.
-        </div>
-      );
-    }
-    return null;
-  }
-
-  if (!data) return null;
-
-  const v = data.voice;
-  const s = data.structure;
-  const tones = v.tone.slice(0, 4);
-  const sigPhrases = v.signaturePhrases.slice(0, 3);
-  const neverDoes = v.neverDoes.slice(0, 3);
-  const avoidTopics = data.content.avoidTopics.slice(0, 3);
-
-  return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <div className="rounded-md border bg-card">
-        <CollapsibleTrigger asChild>
-          <button
-            type="button"
-            className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left"
-          >
-            <div className="flex items-center gap-2 text-sm">
-              <Mic className="size-4 text-muted-foreground" />
-              <span className="font-medium">Your LinkedIn voice</span>
-              <span className="rounded-sm border px-1.5 py-0 text-[10px] uppercase tracking-wide text-muted-foreground">
-                {PERSPECTIVE_LABEL[v.perspective]} · {v.formality}/10 formality
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">
-                Trained on {data.generatedFrom} post{data.generatedFrom === 1 ? "" : "s"}
-              </span>
-              <ChevronDown
-                className={`size-4 text-muted-foreground transition-transform ${
-                  open ? "rotate-180" : ""
-                }`}
-              />
-            </div>
-          </button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="border-t px-3 py-3 text-xs">
-          <dl className="grid gap-3 sm:grid-cols-2">
-            {tones.length > 0 && (
-              <div>
-                <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Tone</dt>
-                <dd className="mt-1 flex flex-wrap gap-1">
-                  {tones.map((t) => (
-                    <span
-                      key={t}
-                      className="rounded-sm bg-muted px-1.5 py-0.5 text-[11px]"
-                    >
-                      {t}
-                    </span>
-                  ))}
-                </dd>
-              </div>
-            )}
-            <div>
-              <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Typical length</dt>
-              <dd className="mt-1">
-                {s.averageWordCount} words avg · range {s.wordCountRange?.[0] ?? 0}–{s.wordCountRange?.[1] ?? 0}
-              </dd>
-            </div>
-            {sigPhrases.length > 0 && (
-              <div className="sm:col-span-2">
-                <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Signature phrases</dt>
-                <dd className="mt-1 flex flex-wrap gap-1">
-                  {sigPhrases.map((p) => (
-                    <span
-                      key={p}
-                      className="rounded-sm border bg-muted/40 px-1.5 py-0.5 text-[11px]"
-                    >
-                      &ldquo;{p}&rdquo;
-                    </span>
-                  ))}
-                </dd>
-              </div>
-            )}
-            {neverDoes.length > 0 && (
-              <div className="sm:col-span-2">
-                <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Never does</dt>
-                <dd className="mt-1">
-                  <ul className="ml-4 list-disc space-y-0.5 text-[11px] text-muted-foreground">
-                    {neverDoes.map((n) => (
-                      <li key={n}>{n}</li>
-                    ))}
-                  </ul>
-                </dd>
-              </div>
-            )}
-            <div>
-              <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Opening</dt>
-              <dd className="mt-1 line-clamp-2">{s.openingStyle}</dd>
-            </div>
-            <div>
-              <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Closing</dt>
-              <dd className="mt-1 line-clamp-2">{s.closingStyle}</dd>
-            </div>
-            {avoidTopics.length > 0 && (
-              <div className="sm:col-span-2">
-                <dt className="text-[10px] uppercase tracking-wide text-muted-foreground">Avoid topics</dt>
-                <dd className="mt-1 flex flex-wrap gap-1">
-                  {avoidTopics.map((t) => (
-                    <span
-                      key={t}
-                      className="rounded-sm border border-warning/30 bg-warning/8 px-1.5 py-0.5 text-[11px] text-warning-on-tint"
-                    >
-                      {t}
-                    </span>
-                  ))}
-                </dd>
-              </div>
-            )}
-          </dl>
-        </CollapsibleContent>
-      </div>
-    </Collapsible>
   );
 }

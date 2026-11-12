@@ -25,8 +25,8 @@ import { cn } from "@/lib/utils";
  * MEASURE (max-width + centring) and VERTICAL RHYTHM. Pages own neither: a
  * page adopting PageShell should carry no `p-*`, `max-w-*` or `mx-auto` on its
  * root, and should pick a `width` instead. This is a convention, not an
- * enforced invariant — nothing stops the next route from reintroducing its
- * own padding, and the lint rule that would pin it is not written yet.
+ * enforced invariant at runtime, but src/app/(site)/dashboard/page-shell.lint.test.ts
+ * fails the build if a page.tsx declares its own root frame or two <h1>s.
  *
  * "Root" means the outermost element the route renders, which is not always
  * in the page.tsx: the Commerce routes are one-line pages delegating to a
@@ -45,10 +45,35 @@ import { cn } from "@/lib/utils";
  * it matches the routes that already used `text-sm` and stops the header
  * block from out-weighing the content beneath it.
  *
- * Container queries are deliberately NOT applied here yet: `container-type`
- * makes an element a containing block for fixed-position descendants, so
- * turning it on app-wide needs its own audit. That lands with the tablet
- * density work.
+ * LARGE SCREENS (>= 2xl, 1536px). Without a rule the `standard` and `wide`
+ * caps left 400-800px of empty gutter at 1920/2560. `standard` now grows to
+ * 80rem and `wide` to 100rem at 2xl; `PageGrid` adds a 4th card column at the
+ * same breakpoint; and an optional `rail` slot adds a sticky 20rem context
+ * column that only exists at >= 2xl (below it the rail stacks under the
+ * content, so nothing is hidden on tablets). Prose keeps `max-w-prose`
+ * (PAGE_PROSE) at every size - a wider page must not mean longer lines.
+ * The dashboard layout's banner slot still caps at max-w-360; it is empty in
+ * the common case and lives in layout.tsx (another lane owns it), so syncing
+ * it to the new `wide` cap is a follow-up.
+ *
+ * TABLET (768-1023px). Phone->desktop jumps (`sm:` then `lg:`) left tablets on
+ * the phone layout. PageGrid steps 1 -> 2 (sm) -> 3 (md) -> 4 (2xl), `kpi`
+ * 2 -> 3 (md) -> 4 (lg), and tables degrade below `md` (see DataTable /
+ * `ScrollTable` guidance in the PR).
+ *
+ * CONTAINER QUERIES. PageGrid wraps its grid in an `@container`, so its
+ * columns respond to the width of the content area, not the viewport - the
+ * sidebar toggles between 256px and 48px, which no viewport breakpoint can
+ * see. `container-type: inline-size` applies layout containment, which makes
+ * the element the containing block for `position: fixed` descendants (they
+ * would pin to the container instead of the viewport) and it also clips
+ * nothing but creates a stacking context. Audit finding: every dialog, sheet,
+ * popover, select, tooltip and toast in this app is a Radix/sonner portal
+ * rendered under <body>, so none of them is a DOM descendant of a grid; and
+ * `fixed` is not used on any element rendered inside a card grid. PageGrid is
+ * therefore safe for cards and KPI tiles, but do NOT put a `fixed` element
+ * inside one, and do NOT apply `@container` to PageShell itself (pages hold
+ * sticky bars and inline fixed overlays).
  */
 
 /**
@@ -57,16 +82,30 @@ import { cn } from "@/lib/utils";
  * happened in the first place.
  */
 const PAGE_WIDTHS = {
-  /** Single-column reading/forms: settings, billing, one-column detail. 768px. */
+  /** Single-column reading/forms: settings, billing, one-column detail. 768px.
+   *  Deliberately does NOT grow at 2xl: it is a reading measure. */
   narrow: "max-w-3xl",
-  /** The default. Card grids and most list pages. 1152px. */
-  standard: "max-w-6xl",
-  /** Dense multi-column dashboards (KPI rows, analytics). 1440px. Kept in
-   *  sync with the banner-slot cap in the dashboard layout shell. */
-  wide: "max-w-360",
+  /** The default. Card grids and most list pages. 1152px, 1280px at 2xl. */
+  standard: "max-w-6xl 2xl:max-w-7xl",
+  /** Dense multi-column dashboards (KPI rows, analytics). 1440px, 1600px at
+   *  2xl. The layout's banner slot is still capped at max-w-360. */
+  wide: "max-w-360 2xl:max-w-400",
   /** Opt out entirely: tables, boards, calendars that want every pixel. */
   full: "max-w-none",
 } as const;
+
+/** The same tiers when a `rail` is present: at 2xl the cap grows by the rail
+ *  (20rem) plus its gap (1.5rem) so the MAIN column keeps its tier width. */
+const PAGE_WIDTHS_WITH_RAIL = {
+  narrow: "max-w-3xl 2xl:max-w-[69.5rem]",
+  standard: "max-w-6xl 2xl:max-w-[101.5rem]",
+  wide: "max-w-360 2xl:max-w-[121.5rem]",
+  full: "max-w-none",
+} as const;
+
+/** Line-length cap for running prose on any page. Apply to paragraphs, not
+ *  to cards or tables. ~65ch regardless of how wide the shell is. */
+export const PAGE_PROSE = "max-w-prose";
 
 export type PageShellWidth = keyof typeof PAGE_WIDTHS;
 
@@ -97,6 +136,13 @@ export interface PageShellProps extends React.ComponentProps<"div"> {
    * into a nested scrollbar instead of scrolling inside the page.
    */
   fill?: boolean;
+  /**
+   * Optional right-hand context rail (activity, "needs you", tips). At >= 2xl
+   * it is a sticky 20rem column beside the content; below 2xl it stacks UNDER
+   * the content, so it must be supplementary - never the only place an action
+   * lives. Not supported together with `fill`.
+   */
+  rail?: React.ReactNode;
 }
 
 /**
@@ -110,10 +156,35 @@ export interface PageShellProps extends React.ComponentProps<"div"> {
 export function PageShell({
   width = "standard",
   fill = false,
+  rail,
   className,
   children,
   ...props
 }: PageShellProps) {
+  if (rail && !fill) {
+    return (
+      <div
+        data-slot="page-shell"
+        data-rail=""
+        className={cn(
+          "mx-auto w-full space-y-4 sm:space-y-6 2xl:grid 2xl:grid-cols-[minmax(0,1fr)_20rem] 2xl:items-start 2xl:gap-6 2xl:space-y-0",
+          PAGE_WIDTHS_WITH_RAIL[width],
+          className,
+        )}
+        {...props}
+      >
+        <div data-slot="page-shell-main" className="min-w-0 space-y-4 sm:space-y-6">
+          {children}
+        </div>
+        <aside
+          data-slot="page-shell-rail"
+          className="space-y-4 2xl:sticky 2xl:top-4"
+        >
+          {rail}
+        </aside>
+      </div>
+    );
+  }
   return (
     <div
       data-slot="page-shell"
@@ -127,6 +198,38 @@ export function PageShell({
       {...props}
     >
       {children}
+    </div>
+  );
+}
+
+const GRID_VARIANTS = {
+  /** Cards of comparable weight: 1 -> 2 -> 3 -> 4 columns by CONTAINER width. */
+  cards: "grid gap-4 @md:grid-cols-2 @3xl:grid-cols-3 @6xl:grid-cols-4",
+  /** KPI tiles: 2 up on phones, stepping to 3, 4 and 6 as the content grows. */
+  kpi: "grid grid-cols-2 gap-3 @2xl:grid-cols-3 @4xl:grid-cols-4 @7xl:grid-cols-6",
+} as const;
+
+export interface PageGridProps extends React.ComponentProps<"div"> {
+  /** Column ladder. Defaults to `cards`. */
+  variant?: keyof typeof GRID_VARIANTS;
+}
+
+/**
+ * Container-query card/KPI grid. The OUTER element is the `@container`; the
+ * grid is its child (a container cannot restyle itself). See the CONTAINER
+ * QUERIES paragraph above for why this is safe and where it is not.
+ */
+export function PageGrid({
+  variant = "cards",
+  className,
+  children,
+  ...props
+}: PageGridProps) {
+  return (
+    <div data-slot="page-grid" className="@container">
+      <div className={cn(GRID_VARIANTS[variant], className)} {...props}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -200,7 +303,7 @@ export function PageHeader({
               `stats.businessType`), so an unbroken token would otherwise
               overflow this narrowed track with nothing clipping it. */}
           {description && (
-            <p className="wrap-break-word text-sm text-muted-foreground">
+            <p className="wrap-break-word max-w-prose text-sm text-muted-foreground">
               {description}
             </p>
           )}

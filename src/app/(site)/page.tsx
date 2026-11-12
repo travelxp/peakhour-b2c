@@ -29,7 +29,7 @@ import {
 } from "@/lib/catalog";
 import {
   IntegrationBrandIcon,
-  integrationBrandColor,
+  integrationBrandTile,
 } from "@/components/marketing/integration-brand";
 import { STATIC_FALLBACK_INTEGRATIONS } from "@/lib/integrations-fallback";
 
@@ -131,7 +131,7 @@ export default async function Home({
         // `||` not `??` — the CMS accepts an empty tagline, and `??` would
         // treat "" as present and silently blank the card's only line of copy.
         description: i.tagline || i.description || i.comingSoon?.copy || "",
-        colorClass: integrationBrandColor(i.display?.groupKey, i.key),
+        tile: integrationBrandTile(i.display?.groupKey, i.key),
         icon: (
           <IntegrationBrandIcon
             groupKey={i.display?.groupKey}
@@ -152,14 +152,14 @@ export default async function Home({
           id: item.key,
           name: item.name,
           description: item.description,
-          colorClass: item.color,
+          tile: { className: "", style: item.tile },
           icon: <IntIcon className="h-5 w-5" />,
           comingSoon: false,
         };
       });
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
       {platform?.banner?.enabled && platform.banner.copy ? (
         <div
           role="status"
@@ -456,10 +456,10 @@ export default async function Home({
                   className="flex items-center gap-3 rounded-2xl border bg-background p-4 transition-all hover:-translate-y-1 hover:border-foreground hover:shadow-md"
                 >
                   {/* No `text-white` here — the foreground ships with the brand
-                      class (see integrationBrandColor); two same-specificity
-                      text utilities would be resolved by stylesheet order. */}
+                      style (see integrationBrandTile). */}
                   <div
-                    className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${item.colorClass}`}
+                    className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${item.tile.className}`}
+                    style={item.tile.style}
                   >
                     {item.icon}
                   </div>
@@ -467,7 +467,7 @@ export default async function Home({
                     <p className="flex items-center gap-2 text-sm font-bold">
                       <span className="truncate">{item.name}</span>
                       {item.comingSoon && (
-                        <span className="shrink-0 rounded-full border px-1.5 py-0 text-[10px] font-medium text-muted-foreground">
+                        <span className="shrink-0 rounded-full border px-1.5 py-0 text-micro font-medium text-muted-foreground">
                           Coming soon
                         </span>
                       )}
@@ -505,7 +505,7 @@ export default async function Home({
                 <>
                   <Link
                     href={cta.href}
-                    className="group mt-8 inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-7 py-3.5 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
+                    className="group mt-8 inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-7 py-3.5 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
                   >
                     {cta.label}
                     <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />

@@ -13,6 +13,7 @@ import { Sparkles, X, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { FAB_HIDDEN_CLASSES, useFabAutohide } from "@/hooks/use-fab-autohide";
 import { AskConversation } from "./ask-conversation";
 
 function newThreadId(): string {
@@ -49,6 +50,7 @@ const REINTRODUCE_EVERY_MS = 45_000;
 export function AskLauncher() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const fabHidden = useFabAutohide(open);
   // Minted lazily on first open (client-only → no SSR/hydration mismatch).
   const [threadId, setThreadId] = useState<string | null>(null);
 
@@ -151,12 +153,12 @@ export function AskLauncher() {
           onFocus={() => setEngaged(true)}
           onBlur={() => setEngaged(false)}
           className={cn(
-            "group fixed bottom-6 right-6 z-50 flex h-12 items-center overflow-hidden rounded-full",
+            "group fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-50 md:bottom-6 md:right-6 flex h-12 items-center overflow-hidden rounded-full",
             "bg-primary text-primary-foreground shadow-lg",
             // Width is the animated property, and it animates between two fixed
             // values rather than to `auto` — `auto` is not an animatable length,
             // so the transition would simply not run.
-            "transition-[width,box-shadow] duration-500 ease-brand active:scale-95",
+            "transition-[width,box-shadow,opacity,translate] duration-500 ease-brand active:scale-95",
             // Expanded while EITHER holds it open — see `engaged`.
             introducing || engaged ? "w-44" : "w-12",
             // The pulse. `u-ask-glow` lives in globals.css and is inert under
@@ -164,6 +166,7 @@ export function AskLauncher() {
             // layout and cannot shift anything around it.
             "u-ask-glow",
             "motion-reduce:w-12 motion-reduce:transition-none",
+            fabHidden && FAB_HIDDEN_CLASSES,
           )}
           aria-label="Open Ask Peakhour"
         >
@@ -191,7 +194,7 @@ export function AskLauncher() {
       {threadId && (
         <div
           className={cn(
-            "fixed bottom-6 right-6 z-50 h-140 w-100 flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl",
+            "fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-4 z-50 md:bottom-6 md:right-6 h-140 w-100 flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl",
             open ? "flex" : "hidden",
           )}
         >
@@ -201,7 +204,7 @@ export function AskLauncher() {
             </div>
             <div className="flex-1">
               <p className="text-sm font-semibold leading-none">Ask Peakhour</p>
-              <p className="text-[11px] text-muted-foreground">Grounded in your real data</p>
+              <p className="text-micro text-muted-foreground">Grounded in your real data</p>
             </div>
             <Button variant="ghost" size="icon" className="size-7" asChild>
               <Link href="/dashboard/ask" aria-label="Open Ask Peakhour full page" title="Open full page">

@@ -1,11 +1,11 @@
 "use client";
 
+import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { flexRender } from "@tanstack/react-table";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -14,10 +14,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "@/components/molecules/status-badge";
+import { DataToolbar, DataToolbarSearch } from "@/components/molecules/data-table/data-toolbar";
 import {
   useDataTable,
   FacetedFilter,
@@ -38,6 +39,14 @@ import {
 import { getTaskColumns, formatKind } from "./columns";
 
 type TaskFilter = "active" | "completed" | "all";
+
+/** Phone: the first column sticks while the table scrolls sideways, and the
+ *  low-priority "started" column is dropped until md. */
+function columnClass(id: string) {
+  if (id === "task") return "sticky left-0 z-10 bg-background";
+  if (id === "started") return "hidden md:table-cell";
+  return undefined;
+}
 
 export default function TasksPage() {
   const queryClient = useQueryClient();
@@ -110,17 +119,15 @@ export default function TasksPage() {
   }, [rows]);
 
   return (
-    <div className="space-y-6">
+    <PageShell width="wide">
       <CronToolbar
         crons={["jobs-runner"]}
         onTriggered={() => queryClient.invalidateQueries({ queryKey: ["jobs"] })}
       />
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Tasks</h2>
-        <p className="text-muted-foreground">
-          Background work running on your library — analysis, syncs, and more.
-        </p>
-      </div>
+      <PageHeader
+        title="Activity"
+        description="Background work running on your library — analysis, syncs, and more."
+      />
 
       {/* Button tabs: ongoing vs completed */}
       <div className="flex flex-wrap items-center gap-3">
@@ -134,6 +141,11 @@ export default function TasksPage() {
             </TabsTrigger>
             <TabsTrigger value="all">All</TabsTrigger>
           </TabsList>
+          {/* Filter tabs: the table below is the shared panel. Empty, force-mounted
+              panels keep each trigger's aria-controls pointing at a real id. */}
+          {(["active", "completed", "all"] as const).map((v) => (
+            <TabsContent key={v} value={v} forceMount hidden />
+          ))}
         </Tabs>
         {(activeLoading || recentLoading) && (
           <Loader2 className="size-3 animate-spin text-muted-foreground" />
@@ -157,32 +169,39 @@ export default function TasksPage() {
       ) : (
         <div className="space-y-3">
           {/* Toolbar: search + Type filter chip */}
-          <div className="flex flex-wrap items-center gap-2">
-            <Input
-              placeholder="Search tasks..."
-              value={globalFilter}
-              onChange={(e) => setGlobalFilter(e.target.value)}
-              className="h-8 w-full lg:w-64"
-            />
-            {typeOptions.length > 1 && (
-              <FacetedFilter
-                column={table.getColumn("kind")}
-                title="Type"
-                options={typeOptions}
-                align="start"
-              />
-            )}
-            {table.getState().columnFilters.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
+          <DataToolbar
+            search={
+              <DataToolbarSearch
+                aria-label="Search tasks"
+                placeholder="Search tasks..."
+                value={globalFilter}
+                onChange={(e) => setGlobalFilter(e.target.value)}
                 className="h-8"
-                onClick={() => table.resetColumnFilters()}
-              >
-                Clear
-              </Button>
-            )}
-          </div>
+              />
+            }
+            filters={
+              <>
+                {typeOptions.length > 1 && (
+                  <FacetedFilter
+                    column={table.getColumn("kind")}
+                    title="Type"
+                    options={typeOptions}
+                    align="start"
+                  />
+                )}
+                {table.getState().columnFilters.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8"
+                    onClick={() => table.resetColumnFilters()}
+                  >
+                    Clear
+                  </Button>
+                )}
+              </>
+            }
+          />
 
           <div className="rounded-md border">
             <Table>
@@ -190,7 +209,7 @@ export default function TasksPage() {
                 {table.getHeaderGroups().map((hg) => (
                   <TableRow key={hg.id}>
                     {hg.headers.map((header) => (
-                      <TableHead key={header.id}>
+                      <TableHead key={header.id} className={columnClass(header.column.id)}>
                         {header.isPlaceholder
                           ? null
                           : flexRender(
@@ -213,7 +232,7 @@ export default function TasksPage() {
                       colSpan={row.getVisibleCells().length}
                     >
                       {row.getVisibleCells().map((cell) => (
-                        <TableCell key={cell.id} className="align-top">
+                        <TableCell key={cell.id} className={cn("align-top", columnClass(cell.column.id))}>
                           {flexRender(
                             cell.column.columnDef.cell,
                             cell.getContext(),
@@ -239,7 +258,7 @@ export default function TasksPage() {
           <DataTablePagination table={table} />
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }
 
@@ -330,7 +349,7 @@ function JobChildrenList({ jobId }: { jobId: string }) {
               {done} / {total}
             </span>
             <div className="w-20">
-              <Progress value={pct} className="h-1" />
+              <Progress value={pct} aria-label="Task progress" className="h-1" />
             </div>
           </div>
         );

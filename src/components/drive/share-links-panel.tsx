@@ -110,7 +110,12 @@ export function ShareLinksView(p: ShareLinksViewProps) {
   );
 }
 
-export function ShareLinksPanel({ mediaId }: { mediaId: string }) {
+/**
+ * `now` is the parent panel's clock (FileDetail passes its own), so this list and the rest of the file panel agree on which links
+ * have expired. Reading `new Date()` here made the two disagree, and turned a fixed-clock test into one that failed at a wall-clock
+ * time (a link expiring 2026-11-10 12:00Z stopped showing Revoke after that instant, whatever `now` the panel was given).
+ */
+export function ShareLinksPanel({ mediaId, now }: { mediaId: string; now?: Date }) {
   const qc = useQueryClient();
   const [expiryDays, setExpiryDays] = useState(7);
   const [password, setPassword] = useState("");
@@ -141,7 +146,7 @@ export function ShareLinksPanel({ mediaId }: { mediaId: string }) {
       links={q.data}
       loading={q.isPending}
       error={q.isError}
-      now={new Date()}
+      now={now ?? new Date()}
       creating={create.isPending}
       expiryDays={expiryDays}
       password={password}

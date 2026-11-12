@@ -21,10 +21,10 @@ import {
   searchWithTopic,
   shopOf,
   stateOfError,
-  topicFromParam,
   type Insight,
   type InsightsResponse,
 } from "./insights";
+import { topicFromParam } from "./desk-list-params";
 
 const item = (over: Partial<Insight> = {}): Insight => ({
   key: "delivery-times",

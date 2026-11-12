@@ -28,6 +28,7 @@ import {
 import { GROWTH_HOME } from "@/lib/growth-v2-nav";
 import { patchErrorMessage } from "@/lib/growth-v2-rules";
 import { PageHead } from "./page-head";
+import { PageShell } from "@/components/dashboard/page-shell";
 import { SignalStep } from "./signal-step";
 import { ToneBadge } from "./tone";
 
@@ -87,7 +88,7 @@ export function FirstRunScreen() {
   const suggestedZone = draft && "absent" in draft.timeZone ? (draft.timeZone.suggested ?? "") : "";
 
   return (
-    <div className="mx-auto grid w-full max-w-3xl gap-4">
+    <PageShell width="narrow">
       <FirstRunView
         draft={draft}
         loadFailed={query.isError}
@@ -135,7 +136,7 @@ export function FirstRunScreen() {
         }}
         onSend={() => body && confirm.mutate(body)}
       />
-    </div>
+    </PageShell>
   );
 }
 
@@ -172,7 +173,7 @@ export function FirstRunView(p: FirstRunViewProps) {
   if (!draft) {
     return (
       <>
-        <PageHead title="Let's get you more of what matters" description="Three questions, then the engine drafts your first plan. Nothing spends until you confirm on WhatsApp." />
+        <PageHead title="Let's get you more of what matters" description="Three questions, then Peakhour drafts your first plan. Nothing spends until you confirm on WhatsApp." />
         {p.loadFailed ? (
           <Card>
             <CardContent role="alert" className="py-8 text-center text-sm">
@@ -190,7 +191,7 @@ export function FirstRunView(p: FirstRunViewProps) {
   if (draft.alreadyActive) {
     return (
       <>
-        <PageHead title="Your plan is already running" description="The growth engine is on for this business." />
+        <PageHead title="Your plan is already running" description="Peakhour is running growth for this business." />
         <Card>
           <CardContent className="space-y-3 py-8 text-center">
             <p className="text-sm text-muted-foreground">To change your ceiling, your target or what you want more of, use Rules. A change is confirmed on WhatsApp, as your plan was.</p>
@@ -226,17 +227,17 @@ export function FirstRunView(p: FirstRunViewProps) {
     <>
       <PageHead
         title={unit ? `Let's get you more ${unit.many}` : "Let's get you more of what matters"}
-        description={`Three questions, then the engine drafts your first plan from the ${draft.playbook?.title ?? "right"} playbook. Nothing spends until you confirm on WhatsApp.`}
+        description={`Three questions, then Peakhour drafts your first plan from the ${draft.playbook?.title ?? "right"} playbook. Nothing spends until you confirm on WhatsApp.`}
       />
 
       <Card>
         <CardContent className="grid gap-6">
           <fieldset className="grid gap-2.5">
-            <legend className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">1 &middot; What do you want more of?</legend>
+            <legend className="font-mono text-micro uppercase tracking-[0.2em] text-muted-foreground">1 &middot; What do you want more of?</legend>
             {draft.offers.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 Nothing can be measured for this business yet. Connect your shop, your inbox or your analytics in{" "}
-                <Link href="/dashboard/integrations" className="underline underline-offset-2">Integrations</Link>, then come back.
+                <Link href="/dashboard/integrations" className="underline underline-offset-2">Connected accounts</Link>, then come back.
               </p>
             ) : (
               <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
@@ -275,13 +276,13 @@ export function FirstRunView(p: FirstRunViewProps) {
             {draft.askAboutStores && !hasStoreOffer ? (
               <p className="text-xs text-muted-foreground">
                 Google counts store visits only for a verified Business Profile linked to your Google Ads account. Connect and verify yours in{" "}
-                <Link href="/dashboard/integrations" className="underline underline-offset-2">Integrations</Link>, and store visits will appear here.
+                <Link href="/dashboard/integrations" className="underline underline-offset-2">Connected accounts</Link>, and store visits will appear here.
               </p>
             ) : null}
           </fieldset>
 
           <div className="grid gap-2">
-            <label htmlFor="first-run-ceiling" className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+            <label htmlFor="first-run-ceiling" className="font-mono text-micro uppercase tracking-[0.2em] text-muted-foreground">
               2 &middot; Your monthly ceiling
             </label>
             <div className="flex flex-wrap items-center gap-2.5">
@@ -301,7 +302,7 @@ export function FirstRunView(p: FirstRunViewProps) {
               ))}
             </div>
             {ceiling !== undefined ? <b className="text-2xl tabular-nums">{formatMoney(ceiling, currency)}</b> : null}
-            <p className="text-xs text-muted-foreground">The engine can never spend more than this in a month.</p>
+            <p className="text-xs text-muted-foreground">Peakhour can never spend more than this in a month.</p>
             {ceiling !== undefined && minimum !== undefined && ceiling < minimum ? (
               <p role="status" className="text-xs text-warning-on-tint">
                 This is under the {draft.playbook?.title} playbook&apos;s usual minimum of {formatMoney(minimum, currency)}. It can still run, with fewer channels and slower learning.
@@ -310,7 +311,7 @@ export function FirstRunView(p: FirstRunViewProps) {
           </div>
 
           <div className="grid gap-2">
-            <label htmlFor="first-run-target" className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+            <label htmlFor="first-run-target" className="font-mono text-micro uppercase tracking-[0.2em] text-muted-foreground">
               3 &middot; {targetQuestion(targetKind, unit?.one ?? "outcome")}
             </label>
             <div className="flex flex-wrap items-center gap-2.5">
@@ -367,7 +368,7 @@ export function FirstRunView(p: FirstRunViewProps) {
                 <p className="text-xs text-muted-foreground">
                   {ROLE_LABEL[c.role]}. {c.reason}
                 </p>
-                {!c.connected ? <p className="text-xs text-warning-on-tint">Not connected yet. Connect it in Integrations to start here.</p> : null}
+                {!c.connected ? <p className="text-xs text-warning-on-tint">Not connected yet. Connect it in Connected accounts to start here.</p> : null}
               </div>
               {ceiling !== undefined ? <b className="text-sm tabular-nums">{formatMoney(Math.round(ceiling * c.monthlyShare), currency)}</b> : <ToneBadge>{ROLE_LABEL[c.role]}</ToneBadge>}
             </div>
@@ -448,7 +449,7 @@ function FocusPicker({ offer, chosen, onFocus, currency }: { offer: DraftOffer; 
           </option>
         ))}
       </select>
-      <p className="text-xs text-muted-foreground">The engine counts, bids on and reports only this part. Everything else is still shown, but never counted toward your goal.</p>
+      <p className="text-xs text-muted-foreground">Peakhour counts, bids on and reports only this part. Everything else is still shown, but never counted toward your goal.</p>
     </div>
   );
 }

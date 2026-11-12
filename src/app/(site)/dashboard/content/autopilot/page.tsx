@@ -14,6 +14,7 @@ import { ChannelWidgets } from "./_components/channel-widgets";
 import { AutopilotEmpty } from "./_components/autopilot-empty";
 import { CommerceLane } from "./_components/commerce-lane";
 import { PageShell } from "@/components/dashboard/page-shell";
+import { PageIntro } from "@/components/dashboard/page-intro";
 
 /**
  * Content > Autopilot — the entitlement-composed content command center.
@@ -77,11 +78,12 @@ export default function AutopilotHomePage() {
 
       {/* Header */}
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Autopilot</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Auto-publish</h1>
         <p className="text-sm text-muted-foreground">
-          What your content engine did, and what it needs from you.
+          What Peakhour did with your content, and what it needs from you.
         </p>
       </div>
+      <PageIntro id="content-autopilot" />
 
       {isLoading && <LoadingState />}
 
