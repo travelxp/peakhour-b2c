@@ -29,8 +29,9 @@ const CELEB = {
 };
 const OTHER = { locationName: "locations/2", title: "Travelxp Studio", address: "Andheri, Mumbai", mapsUri: "https://maps.example/maps?cid=2" };
 
-function draw(net: ConnectableNetwork, locations: Array<Record<string, string>>, selected: string[], complete = true) {
+function draw(net: ConnectableNetwork, locations: Array<Record<string, string>>, selected: string[], complete = true, can: { propose: boolean; approve: boolean } = { propose: true, approve: true }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+  qc.setQueryData(["presence", "edit", "capabilities"], { items: [], can });
   qc.setQueryData(["integration-status", net.network], { provider: net.network, status: "active" });
   qc.setQueryData(["integration-cap", net.network], { provider: net.network, capabilities: null, locationNames: selected, account: { extra: { locations, locationsComplete: complete } } });
   return renderToStaticMarkup(createElement(QueryClientProvider, { client: qc }, createElement(NetworkConnectCard, { network: net })));
@@ -52,7 +53,36 @@ describe("the connected card", () => {
   it("says the name does not look like the business when no word is shared", () => {
     businessName = "Travelxp";
     const html = draw(NET, [CELEB, OTHER], ["locations/1"]);
-    expect(html.replace(/[‘’]|&#x27;/g, "'")).toContain("This listing's name doesn't look like Travelxp. Check it's the right one.");
+    const text = html.replace(/[‘’]|&#x27;/g, "'").replace(/<!-- -->/g, "").replace(/\s+/g, " ");
+    expect(text).toContain(
+      "This listing's name (Celebrities Management Private Limited) is different from your business name (Travelxp). That's fine if you trade under another name. Is this your business?",
+    );
+    expect(text).not.toContain("Check it's the right one");
+    expect(html).toContain("Yes, this is my business");
+    expect(html).toContain("Choose another listing");
+  });
+
+  it("an admin's confirmed listing shows no warning and one quiet line", () => {
+    businessName = "Travelxp";
+    const html = draw(NET, [{ ...CELEB, confirmedAt: "2026-11-12T10:00:00.000Z" }, OTHER], ["locations/1"]);
+    expect(html).toContain("You confirmed this is your business.");
+    expect(html).not.toContain("is different from your business name");
+    expect(html).not.toContain("Yes, this is my business");
+  });
+
+  it("a listing someone else confirmed does not carry to the selected one", () => {
+    businessName = "Travelxp";
+    const html = draw(NET, [{ ...CELEB, confirmedAt: "2026-11-12T10:00:00.000Z" }, { ...CELEB, locationName: "locations/3" }], ["locations/3"]);
+    expect(html).toContain("Yes, this is my business");
+    expect(html).not.toContain("You confirmed");
+  });
+
+  it("a viewer sees the warning words and no button", () => {
+    businessName = "Travelxp";
+    const html = draw(NET, [CELEB, OTHER], ["locations/1"], true, { propose: false, approve: false });
+    expect(html).toContain("Is this your business?");
+    expect(html).not.toContain("Yes, this is my business");
+    expect(html).toContain("An admin or owner can confirm this.");
   });
 
   it("says nothing of the name when it matches", () => {

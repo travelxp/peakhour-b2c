@@ -8,6 +8,7 @@ import {
   emptyListingReason,
   effectiveDraft,
   listingNameLooksOff,
+  nameCheck,
   mapLink,
   chooseAnotherAction,
   type NetworkConnectionStatus,
@@ -286,5 +287,27 @@ describe("chooseAnotherAction", () => {
   it("a list that may be short is never taken for the whole of the account", () => {
     expect(chooseAnotherAction(1, false).kind).toBe("picker");
     expect(chooseAnotherAction(1, undefined).kind).toBe("picker");
+  });
+});
+
+describe("nameCheck", () => {
+  const a = { locationName: "locations/1", title: "CMPL" };
+  it("asks when every named listing looks off and none is confirmed", () => {
+    expect(nameCheck(1, [a], "Travelxp")).toEqual({ kind: "ask", titles: ["CMPL"], pending: ["locations/1"] });
+  });
+  it("is confirmed once the api says so", () => {
+    expect(nameCheck(1, [{ ...a, confirmedAt: "2026-11-12T10:00:00Z" }], "Travelxp").kind).toBe("confirmed");
+  });
+  it("asks again for a listing the api no longer reports confirmed (its title changed)", () => {
+    expect(nameCheck(1, [{ ...a, title: "CMPL Travel" }], "Travelxp").kind).toBe("ask");
+  });
+  it("asks for only the unconfirmed ones among several", () => {
+    const b = { locationName: "locations/2", title: "Other Co", confirmedAt: "2026-11-12T10:00:00Z" };
+    expect(nameCheck(2, [a, b], "Travelxp").pending).toEqual(["locations/1"]);
+  });
+  it("says nothing when one listing matches, when a selected listing is unnamed, or with no facts", () => {
+    expect(nameCheck(2, [a, { locationName: "locations/2", title: "Travelxp Studio" }], "Travelxp").kind).toBe("none");
+    expect(nameCheck(2, [a], "Travelxp").kind).toBe("none");
+    expect(nameCheck(1, [], "Travelxp").kind).toBe("none");
   });
 });

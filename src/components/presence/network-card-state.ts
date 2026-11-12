@@ -209,6 +209,8 @@ export interface ListingFacts {
   address?: string;
   /** The listing's page on the network's map. */
   mapsUri?: string;
+  /** When a person confirmed it is theirs. The api sends it only while it still counts (the title has not changed since). */
+  confirmedAt?: string;
 }
 
 /**
@@ -258,4 +260,24 @@ export function chooseAnotherAction(knownListings: number, complete: boolean | u
   return knownListings === 1 && complete === true
     ? { kind: "reconnect", text: "Connect the account that manages your listing" }
     : { kind: "picker", text: "Choose another listing" };
+}
+
+/**
+ * What the name check says about the selected listings.
+ *
+ * ★ASK ONLY WHEN EVERY NAMED LISTING LOOKS OFF (one that matches is the business), and every listing in the selection is named. `pending` is
+ * the ones nobody has confirmed: "ask" while any is pending, "confirmed" once none is. ★THE CONFIRMATION COMES FROM THE API, which counts it
+ * only while the title is the one confirmed, so a renamed listing is back to "ask" with nothing to do here.
+ */
+export function nameCheck(
+  selectedCount: number,
+  facts: readonly ListingFacts[],
+  businessName: string | null | undefined,
+): { kind: "none" | "ask" | "confirmed"; titles: string[]; pending: string[] } {
+  // A listing with no reference cannot be confirmed, so it cannot count as asked or answered.
+  const titled = facts.filter((l) => l.title?.trim() && l.locationName);
+  const off = titled.length > 0 && titled.length === selectedCount && titled.every((l) => listingNameLooksOff(l.title, businessName));
+  if (!off) return { kind: "none", titles: [], pending: [] };
+  const pending = titled.filter((l) => !l.confirmedAt && l.locationName).map((l) => l.locationName as string);
+  return { kind: pending.length > 0 ? "ask" : "confirmed", titles: titled.map((l) => l.title!.trim()), pending };
 }
