@@ -28,6 +28,7 @@ import {
   useSavePolicyAnswers,
   useUnpublish,
 } from "@/hooks/use-knowledge-base";
+import { EvidencePanel, PolicyStandingCard } from "@/components/commerce/knowledge-phase3";
 import { useCommerceStores } from "@/hooks/use-commerce-stores";
 import { KB_CONTENT_MAX, KB_TITLE_MAX, approveState, type KbEntry, groupFindings, placeholdersIn, safeUrl, severityHeading } from "@/lib/knowledge-base";
 import {
@@ -143,6 +144,8 @@ export function PolicyBuilder() {
       </p>
       {noStore && <WebsiteBand caps={caps.data} />}
       {body}
+      <PolicyStandingCard />
+      <EvidencePanel />
       {open && <PolicyEditor key={open} type={open} rows={policies.data?.policies[open] ?? []} onClose={() => setOpen(null)} />}
       {showUpload ? (
         <UploadPanel />

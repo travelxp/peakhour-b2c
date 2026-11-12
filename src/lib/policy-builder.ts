@@ -603,7 +603,10 @@ export const uploadErrorLine = (e: unknown): ErrorLine => {
 
 // -- Publishing: drawn from the api's capabilities, never from a channel name ------------------------------------------------
 
-export type Slot = "page" | "faq" | "legal_policy";
+export type Slot = "page" | "faq" | "legal_policy" | "ice_breakers_messenger" | "ice_breakers_instagram";
+
+/** A slot published as a set of a few entries (conversation starters), not one entry at a time. Read from the slot, never from a channel. Its section is on the Knowledge page, so no per-entry button is drawn for it. */
+export const isSetSlot = (slot: string): boolean => /^ice_breakers_/.test(slot);
 
 export interface CapabilitySlot {
   slot: Slot;
@@ -630,6 +633,8 @@ const SLOT_WORDS: Record<Slot, { button: string; noun: string }> = {
   page: { button: "Publish as a page", noun: "a page" },
   faq: { button: "Publish to the FAQ", noun: "the FAQ" },
   legal_policy: { button: "Publish as your store policy", noun: "your store policy" },
+  ice_breakers_messenger: { button: "Add to Messenger", noun: "a Messenger conversation starter" },
+  ice_breakers_instagram: { button: "Add to Instagram", noun: "an Instagram conversation starter" },
 };
 export const slotWords = (s: string): { button: string; noun: string } => SLOT_WORDS[s as Slot] ?? { button: "Publish", noun: "this" };
 
@@ -663,7 +668,7 @@ export interface PublishContext {
   policyType?: PolicyType;
 }
 
-const slotOrder: Record<Slot, number> = { page: 0, faq: 1, legal_policy: 2 };
+const slotOrder: Record<Slot, number> = { page: 0, faq: 1, legal_policy: 2, ice_breakers_messenger: 3, ice_breakers_instagram: 4 };
 
 /** Whether this slot is offered for this entry. A `policyTypes` slot (a store-wide policy page) is for an entry written as a policy (`policyId` set) that covers every market. */
 export function slotFits(slot: CapabilitySlot, ctx: PublishContext): boolean {
@@ -678,7 +683,7 @@ export function publishButtons(caps: CapabilitiesResponse | undefined, ctx: Publ
   for (const ch of caps?.channels ?? []) {
     for (const conn of ch.connections) {
       for (const s of conn.slots) {
-        if (!slotFits(s, ctx)) continue;
+        if (isSetSlot(s.slot) || !slotFits(s, ctx)) continue;
         const words = slotWords(s.slot);
         const base = {
           key: `${ch.channel}:${conn.id}:${s.slot}`,
@@ -724,10 +729,13 @@ export function publishErrorLine(e: unknown): { message: string; reapprove: bool
     TARGET_TAKEN: message || "Another entry already publishes to that page. Take that one off your site first, or edit it instead.",
     IMPORTED: "This entry was imported from your store and is managed there. Take it over to make it yours, then publish it.",
     NOT_ACTIVE: "Only an approved entry can be published. Approve it first.",
+    EXPIRED: "This entry has expired, so it cannot be published. Write a new entry if you still need it.",
     DIVERGED: "This was changed on your site after Peakhour published it. Choose whether to keep Peakhour's text or yours.",
     NOT_CONNECTED: message || "Connect your site or store first.",
     CHOOSE_STORE: message || "You have more than one connection. Choose where to publish.",
   };
+  // the api's own sentence names the title and its length, so it is kept
+  if (code === "TITLE_TOO_LONG") return { message: message || "This title is too long for there. Shorten the title, then try again.", reapprove: false };
   return { message: words[code ?? ""] ?? (message || "That did not publish. Please try again."), reapprove: code === "GRANT_MISSING" || code === "RECONNECT" };
 }
 

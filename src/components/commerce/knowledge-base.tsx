@@ -80,6 +80,8 @@ import {
 } from "@/lib/knowledge-base";
 import { shopOf } from "@/lib/insights";
 import { EntryPublish, PolicyBuilder } from "@/components/commerce/policy-builder";
+import { ConversationStarters, CoverageMap } from "@/components/commerce/knowledge-phase3";
+import { EXPIRED_NOTE, expiredLine, usedUntilLine } from "@/lib/knowledge-phase3";
 import { Highlighted } from "@/components/commerce/highlighted";
 
 /**
@@ -93,7 +95,9 @@ export function KnowledgeBase() {
   return (
     <div className="space-y-8">
       <Questions />
+      <CoverageMap />
       <PolicyBuilder />
+      <ConversationStarters />
       <Suggestions />
       <PolicyHealth />
       <Entries />
@@ -305,7 +309,10 @@ function SuggestionCard({ suggestion, now, onApproved, onFailed }: { suggestion:
     <li>
       <Card>
         <CardContent className="space-y-3 p-4">
-          <p className="text-xs text-muted-foreground">{suggestionAskedLine(suggestion, now)}</p>
+          <p className="text-xs text-muted-foreground">
+            {suggestionAskedLine(suggestion, now)}
+            {usedUntilLine(suggestion) ? ` · ${usedUntilLine(suggestion)}` : ""}
+          </p>
           {stale && (
             <p role="status" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               {SUGGESTION_UPDATED}
@@ -605,12 +612,13 @@ function Entries() {
               <option value="learned">Learned</option>
             </select>
             <select
-              aria-label="Active or archived"
+              aria-label="Active, expired or archived"
               className="rounded-md border bg-background px-2 text-sm"
               value={filter.status}
               onChange={(e) => setFilter((f) => ({ ...f, status: e.target.value as EntryFilter["status"] }))}
             >
               <option value="active">Active</option>
+              <option value="expired">Expired</option>
               <option value="archived">Archived</option>
             </select>
           </>
@@ -645,6 +653,9 @@ function EntryCard({ entry, onEdit }: { entry: KbEntry; onEdit: () => void }) {
   const action = useKbEntryAction();
   const note = readOnlyNote(entry);
   const link = safeUrl(entry.url);
+  // an expired entry is kept and shown as expired: it is not live, so it is not published from here
+  const expired = entry.expired === true;
+  const usedUntil = usedUntilLine(entry);
   const run = (a: "archive" | "restore" | "take-over") =>
     action.mutate({ id: entry.id, action: a }, { onError: (e) => toast.error(kbErrorMessage(e)) });
   return (
@@ -656,15 +667,18 @@ function EntryCard({ entry, onEdit }: { entry: KbEntry; onEdit: () => void }) {
             <Badge variant="outline">{sourceLabel(entry)}</Badge>
             <Badge variant="secondary">{channelsLine(entry.channels)}</Badge>
             {entry.status === "archived" && <Badge variant="outline">Archived</Badge>}
+            {expired && <Badge variant="outline">{expiredLine(entry)}</Badge>}
+            {!expired && usedUntil && <Badge variant="secondary">{usedUntil}</Badge>}
           </div>
           <p className="line-clamp-4 whitespace-pre-line text-sm text-muted-foreground">{entry.content}</p>
           {note && <p className="text-xs text-muted-foreground">{note}</p>}
+          {expired && <p className="text-xs text-muted-foreground">{EXPIRED_NOTE}</p>}
           {link && (
             <a href={link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs underline">
               View the original <ExternalLink className="size-3" aria-hidden="true" />
             </a>
           )}
-          {entry.status === "active" && !entry.readOnly && <EntryPublish entry={entry} />}
+          {entry.status === "active" && !expired && !entry.readOnly && <EntryPublish entry={entry} />}
           <div className="flex gap-2 pt-1">
             {entry.readOnly ? (
               <Button size="sm" variant="outline" disabled={action.isPending} onClick={() => run("take-over")}>

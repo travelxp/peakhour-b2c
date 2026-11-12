@@ -43,6 +43,10 @@ export interface KbEntry {
   policyId?: string | null;
   /** The policy's market set; `[]` is every market. */
   markets?: string[];
+  /** A seasonal entry stops being used at `validUntil`; `expired` says it has. Absent from an older api, and null on an ordinary entry. */
+  validUntil?: string | null;
+  expired?: boolean;
+  seasonal?: { eventKey: string; eventDate: string } | null;
 }
 
 export interface KbRequest {
@@ -167,6 +171,9 @@ export interface KbSuggestion {
   lastAskedAt: string | null;
   requestCount: number;
   draftedAt: string | null;
+  /** A seasonal suggestion is about one calendar day (`YYYY-MM-DD`) and stops being used at `validUntil`; null on any other. */
+  eventDate?: string | null;
+  validUntil?: string | null;
 }
 
 export interface KbRouted {
