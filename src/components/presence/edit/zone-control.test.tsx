@@ -56,3 +56,9 @@ describe("ZoneControl without the right to change", () => {
     expect(html).not.toContain("<button");
   });
 });
+
+describe("nothing to say and nothing to press draws nothing", () => {
+  it("a confirmed zone for a role that cannot change it", () => {
+    expect(render({ tz: { zone: "Asia/Kolkata", source: "confirmed" }, canChange: false })).toBe("");
+  });
+});

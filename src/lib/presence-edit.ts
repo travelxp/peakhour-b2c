@@ -997,9 +997,14 @@ function zoneWordsOf(zone: string): string {
  */
 export function zoneLine(tz: ListingTimeZone | null, city?: string | null): string | null {
   if (!tz || tz.source === "confirmed") return null;
+  return `Holiday hours use ${zoneWords(tz.zone)}, ${zoneSource(tz, city)}.`;
+}
+
+/** Where a zone came from, in a merchant's words: "from your address in Mumbai" or "from your business settings". Empty for a confirmed zone. One rule for the holiday line and the row. */
+function zoneSource(tz: ListingTimeZone, city?: string | null): string {
+  if (tz.source === "confirmed") return "";
   const place = city?.trim();
-  const from = tz.source === "address" ? `from your address${place ? ` in ${place}` : ""}` : "from your business settings";
-  return `Holiday hours use ${zoneWords(tz.zone)}, ${from}.`;
+  return tz.source === "address" ? `from your address${place ? ` in ${place}` : ""}` : "from your business settings";
 }
 
 /**
@@ -1008,8 +1013,7 @@ export function zoneLine(tz: ListingTimeZone | null, city?: string | null): stri
  */
 export function zoneRowLine(tz: ListingTimeZone | null, city?: string | null): string {
   if (!tz) return "Time zone: not set";
-  const place = city?.trim();
-  const from = tz.source === "address" ? `from your address${place ? ` in ${place}` : ""}` : tz.source === "business" ? "from your business settings" : "";
+  const from = zoneSource(tz, city);
   return `Time zone: ${zoneWords(tz.zone)}${from ? ` · ${from}` : ""}`;
 }
 

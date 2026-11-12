@@ -256,9 +256,12 @@ export function ListingPanel({ location, network, label: labelFallback }: { loca
       </dl>
 
       {/* GBP L13: the zone days are placed in, always visible, so a wrong one can be seen and corrected without waiting for a holiday. */}
-      <div className="border-t pt-3">
-        <ZoneControl key={listing.id} listingId={listing.id} tz={listing.timeZone ?? null} address={listing.address} variant="row" canChange={!!caps.data?.can.approve} />
-      </div>
+      {/* An api that does not send the zone at all (undefined) is "unknown to this page", not "not set": nothing is drawn, so no one is nudged to overwrite it. */}
+      {listing.timeZone !== undefined && (
+        <div className="border-t pt-3">
+          <ZoneControl key={listing.id} listingId={listing.id} tz={listing.timeZone} address={listing.address} variant="row" canChange={!!caps.data?.can.approve} />
+        </div>
+      )}
 
       <p className="text-micro text-muted-foreground">
         {checked && entry

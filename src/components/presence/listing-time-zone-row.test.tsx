@@ -75,11 +75,14 @@ describe("the listing card's time zone row", () => {
     expect(html).not.toContain("from your");
   });
   it("none known says so and offers Choose, not a dead end", () => {
-    for (const tz of [null, undefined]) {
-      const html = render(tz, ADMIN);
-      expect(html).toContain("Time zone: not set");
-      expect(html).toContain(">Choose<");
-    }
+    const html = render(null, ADMIN);
+    expect(html).toContain("Time zone: not set");
+    expect(html).toContain(">Choose<");
+  });
+  it("an api that sends no zone field draws no row, so nobody is nudged to overwrite one", () => {
+    const html = render(undefined, ADMIN);
+    expect(html).not.toContain("Time zone");
+    expect(html).not.toContain(">Choose<");
   });
   it("a viewer or editor sees the line and no button", () => {
     for (const can of [{ propose: false, approve: false }, { propose: true, approve: false }, null]) {

@@ -58,6 +58,8 @@ export function ZoneControl({
   const shown = pick && choices && (choices.near.includes(pick) || choices.all.includes(pick)) ? pick : "";
 
   if (!editing) {
+    // Nothing to say and nothing to press: no empty box in the card.
+    if (!line && !(canChange) && !(!tz && message)) return null;
     return (
       <div className="flex flex-wrap items-center gap-2">
         {(line ?? (!tz ? message : null)) && <p className="text-xs text-muted-foreground">{line ?? message}</p>}
