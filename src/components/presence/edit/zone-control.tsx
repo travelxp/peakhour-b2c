@@ -45,14 +45,14 @@ export function ZoneControl({
     return zoneChoices(country, supported);
   }, [editing, country]);
 
-  // The current zone is the seed only when the list holds it by that spelling (a legacy id is listed under today's name).
+  // Save needs a choice the list holds: nothing is pre-selected, so a save is always a change the merchant made.
   const shown = pick && choices && (choices.near.includes(pick) || choices.all.includes(pick)) ? pick : "";
 
   if (!editing) {
     return (
       <div className="flex flex-wrap items-center gap-2">
         {line && <p className="text-xs text-muted-foreground">{line}</p>}
-        <Button size="sm" variant="outline" onClick={() => { m.setTimeZone.reset(); setPick(tz!.zone); setOpen(true); }}>
+        <Button size="sm" variant="outline" onClick={() => { m.setTimeZone.reset(); setPick(""); setOpen(true); }}>
           Change
         </Button>
       </div>
@@ -63,7 +63,7 @@ export function ZoneControl({
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">{message ?? "Choose the time zone this place keeps, so holiday days land on the right date."}</p>
       <div className="flex flex-wrap items-center gap-2">
-        <Select value={shown} onValueChange={setPick}>
+        <Select value={shown} onValueChange={(z) => { m.setTimeZone.reset(); setPick(z); }}>
           <SelectTrigger className="w-72" aria-label="Time zone">
             <SelectValue placeholder="Choose your time zone" />
           </SelectTrigger>
@@ -88,7 +88,7 @@ export function ZoneControl({
             </SelectGroup>
           </SelectContent>
         </Select>
-        <Button size="sm" disabled={!pick || m.setTimeZone.isPending} onClick={() => m.setTimeZone.mutate({ listingId, timeZone: pick }, { onSuccess: () => setOpen(false) })}>
+        <Button size="sm" disabled={!shown || m.setTimeZone.isPending} onClick={() => m.setTimeZone.mutate({ listingId, timeZone: shown }, { onSuccess: () => setOpen(false) })}>
           Save time zone
         </Button>
         {tz && (
