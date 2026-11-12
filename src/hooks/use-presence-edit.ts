@@ -125,6 +125,7 @@ export function usePresenceEditMutations(listingId: string | undefined) {
     reject: useMutation({ mutationFn: (id: string) => presenceChangesApi.reject(id), onSuccess: refresh }),
     undo: useMutation({ mutationFn: (id: string) => presenceEditApi.undo(id), onSuccess: refresh }),
     acceptOffer: useMutation({ mutationFn: (b: Parameters<typeof presenceEditApi.proposeOffer>[0]) => presenceEditApi.proposeOffer(b), onSuccess: refresh }),
+    setTimeZone: useMutation({ mutationFn: (b: Parameters<typeof presenceEditApi.setTimeZone>[0]) => presenceEditApi.setTimeZone(b), onSuccess: refresh }),
     dismissOffer: useMutation({ mutationFn: (b: Parameters<typeof presenceEditApi.dismissOffer>[0]) => presenceEditApi.dismissOffer(b), onSuccess: refresh }),
   };
 }
