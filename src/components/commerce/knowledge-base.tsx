@@ -81,7 +81,7 @@ import {
 import { shopOf } from "@/lib/insights";
 import { EntryPublish, PolicyBuilder } from "@/components/commerce/policy-builder";
 import { ConversationStarters, CoverageMap } from "@/components/commerce/knowledge-phase3";
-import { EXPIRED_NOTE, expiredLine, usedUntilLine } from "@/lib/knowledge-phase3";
+import { EXPIRED_EMPTY, EXPIRED_NOTE, expiredLine, usedUntilLine } from "@/lib/knowledge-phase3";
 import { Highlighted } from "@/components/commerce/highlighted";
 
 /**
@@ -276,6 +276,9 @@ function SuggestionCard({ suggestion, now, onApproved, onFailed }: { suggestion:
   const busy = approve.isPending || dismiss.isPending || save.isPending;
   const state = approveState(title, content);
   const based = basedOnLine(suggestion.evidence);
+  // the api does not offer a suggestion for a day that has passed; if one is still on screen it is said as expired, not as in use
+  const lapsed = !!suggestion.validUntil && Date.parse(suggestion.validUntil) <= now;
+  const seasonalLine = lapsed ? expiredLine({ ...suggestion, expired: true }) : usedUntilLine(suggestion);
   const reasonId = `kb-sg-${suggestion.id}-reason`;
   const fail = (message: string) => {
     setError(message);
@@ -311,7 +314,7 @@ function SuggestionCard({ suggestion, now, onApproved, onFailed }: { suggestion:
         <CardContent className="space-y-3 p-4">
           <p className="text-xs text-muted-foreground">
             {suggestionAskedLine(suggestion, now)}
-            {usedUntilLine(suggestion) ? ` · ${usedUntilLine(suggestion)}` : ""}
+            {seasonalLine ? ` · ${seasonalLine}` : ""}
           </p>
           {stale && (
             <p role="status" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
@@ -631,6 +634,8 @@ function Entries() {
         <Skeleton className="h-32 w-full" />
       ) : isError && !data ? (
         <p className="text-sm text-destructive">Could not load assistant answers. Please refresh.</p>
+      ) : (data?.entries.length ?? 0) === 0 && filter.status === "expired" ? (
+        <p className="text-sm text-muted-foreground">{EXPIRED_EMPTY}</p>
       ) : (data?.entries.length ?? 0) === 0 ? (
         <EmptyState
           icon={BookOpen}

@@ -14,6 +14,7 @@ import {
   evidenceOrder,
   expiredLine,
   instantInZone,
+  keepKnown,
   outcomeLines,
   placedLine,
   preselect,
@@ -134,6 +135,11 @@ describe("expiry", () => {
     expect(expiredLine({ validUntil: "2026-11-09T00:00:00.000Z", expired: true })).toBe("Expired on 9 Nov 2026");
     expect(expiredLine({ expired: true })).toBe("Expired");
   });
+  it("reads the last day of use from validUntil as the day before it, so used-until and expired-on differ by a day", () => {
+    const e = { validUntil: "2026-11-09T00:00:00.000Z" };
+    expect(usedUntilLine({ ...e, expired: false })).toBe("Used until 8 Nov 2026");
+    expect(expiredLine({ ...e, expired: true })).toBe("Expired on 9 Nov 2026");
+  });
   it("rejects a day that does not exist", () => expect(dayLabel("2026-02-31")).toBeNull());
   it("words the expired refusal plainly", () => {
     expect(publishErrorLine({ code: "EXPIRED", message: "x" }).message).toContain("has expired");
@@ -169,6 +175,10 @@ describe("conversation starters", () => {
     expect(preselect({ slot: "s", maxEntries: 2, candidates: cands(8) })).toEqual(["e0", "e2"]);
     expect(preselect({ slot: "s", maxEntries: null, candidates: cands(8) })).toHaveLength(4);
     expect(preselect(undefined)).toEqual([]);
+  });
+  it("drops a picked entry that is no longer a candidate", () => {
+    expect(keepKnown(["e0", "gone", "e2"], { candidates: cands(3) })).toEqual(["e0", "e2"]);
+    expect(keepKnown(["e0"], undefined)).toEqual([]);
   });
   it("swaps one without going past the most", () => {
     expect(toggleChoice(["a", "b"], "b", 4)).toEqual(["a"]);

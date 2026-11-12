@@ -63,8 +63,9 @@ export interface Expiring {
 function lastDay(e: Expiring): string | null {
   const day = dayLabel(e.seasonal?.eventDate ?? e.eventDate);
   if (day) return day;
+  // `validUntil` is the first instant it is NOT used, so the last day of use is the one before it
   const t = e.validUntil ? Date.parse(e.validUntil) : NaN;
-  return Number.isFinite(t) ? dayLabel(new Date(t).toISOString().slice(0, 10)) : null;
+  return Number.isFinite(t) ? dayLabel(new Date(t - 1).toISOString().slice(0, 10)) : null;
 }
 
 /** "Used until 18 Oct 2026" on a seasonal entry or suggestion that has not run out; null on any other. */
@@ -307,6 +308,12 @@ export function preselect(r: CandidatesResponse | undefined): string[] {
   return r.candidates.filter((c) => c.fits).slice(0, maxOf(r)).map((c) => c.id);
 }
 
+/** A pick holds only entries that are still candidates: one archived or expired elsewhere since drops out, so it neither counts toward the most nor is sent. */
+export const keepKnown = (ids: readonly string[], r: Pick<CandidatesResponse, "candidates"> | undefined): string[] => {
+  const known = new Set((r?.candidates ?? []).map((c) => c.id));
+  return ids.filter((id) => known.has(id));
+};
+
 /** Tick or untick one. Ticking past the most the slot shows changes nothing (the box is disabled, and this holds if a click gets through). */
 export function toggleChoice(chosen: readonly string[], id: string, max: number): string[] {
   if (chosen.includes(id)) return chosen.filter((x) => x !== id);
@@ -412,7 +419,7 @@ export function topicRows(topics: readonly CoverageTopic[]): { key: string; labe
     .map(({ t }) => {
       const askedLine = t.asked === 1 ? "Asked once" : `Asked ${t.asked} times`;
       if (t.covered) return { key: t.key, label: t.label, askedLine, covered: true, action: { kind: "none" as const, label: "" } };
-      if (t.policyType) return { key: t.key, label: t.label, askedLine, covered: false, action: { kind: "policy" as const, label: "Write this policy", policyType: t.policyType } };
+      if (t.policyType) return { key: t.key, label: t.label, askedLine, covered: false, action: { kind: "policy" as const, label: "Write it under Policies", policyType: t.policyType } };
       if (t.requestId) return { key: t.key, label: t.label, askedLine, covered: false, action: { kind: "request" as const, label: "Answer this question" } };
       return { key: t.key, label: t.label, askedLine, covered: false, action: { kind: "none" as const, label: "" } };
     });

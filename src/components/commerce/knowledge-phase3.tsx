@@ -29,6 +29,7 @@ import {
   evidenceFallbackName,
   evidenceItemView,
   evidenceOrder,
+  keepKnown,
   maxOf,
   outcomeLines,
   placedLine,
@@ -139,7 +140,9 @@ function EvidenceLookup() {
       return;
     }
     setFormError(null);
-    setAsked(r.order);
+    // the same order again is a retry: the query key has not changed, so it is asked again by hand
+    if (r.order === asked) void q.refetch();
+    else setAsked(r.order);
   };
   return (
     <div data-kb-evidence className="space-y-3 rounded-md border p-3">
@@ -272,7 +275,8 @@ function StarterSection({ section }: { section: SetSection }) {
   const [replace, setReplace] = useState(false);
   const [outcome, setOutcome] = useState<{ lines: OutcomeLine[]; removedLine: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const picked = chosen ?? preselect(cand.data);
+  // a pick can only hold entries that are still candidates: one archived or expired elsewhere drops out
+  const picked = keepKnown(chosen ?? preselect(cand.data), cand.data);
   const run = async () => {
     setError(null);
     setOutcome(null);
