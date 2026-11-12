@@ -387,6 +387,8 @@ export function NetworkConnectCard({ network }: { network: ConnectableNetwork })
                     {confirmMut.isPending ? <RefreshCw className="h-4 w-4 animate-spin" /> : null}
                     Yes, this is my business
                   </Button>
+                ) : editCaps.data ? (
+                  <p>An admin or owner can confirm this.</p>
                 ) : null}
               </div>
             </div>

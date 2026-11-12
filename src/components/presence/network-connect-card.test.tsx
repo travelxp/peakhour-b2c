@@ -82,6 +82,7 @@ describe("the connected card", () => {
     const html = draw(NET, [CELEB, OTHER], ["locations/1"], true, { propose: false, approve: false });
     expect(html).toContain("Is this your business?");
     expect(html).not.toContain("Yes, this is my business");
+    expect(html).toContain("An admin or owner can confirm this.");
   });
 
   it("says nothing of the name when it matches", () => {
