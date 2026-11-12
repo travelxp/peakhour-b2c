@@ -34,10 +34,17 @@ export function HolidayOffersCard({ listingId, network, label, address }: { list
   }
   const state = offerState(q.data, label);
   // No zone is known: ask for it instead of a dead end. Once it is chosen the offers are read again.
-  if (q.data.noTimeZone) return <ZoneControl listingId={listingId} tz={null} country={address?.country} city={address?.city} message={state.message} />;
+  if (q.data.noTimeZone) return <ZoneControl listingId={listingId} tz={null} country={address?.country} city={address?.city} message={state.message ? `${state.message} Choose it below.` : null} />;
   if (!state.show) return null;
   // Nothing to offer, but a reason to say: a lone line, not a card with no days in it.
-  if (q.data.offers.length === 0) return state.message ? <p className="text-xs text-muted-foreground">{state.message}</p> : null;
+  if (q.data.offers.length === 0) {
+    return state.message ? (
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground">{state.message}</p>
+        <ZoneControl listingId={listingId} tz={q.data.timeZone} country={address?.country} city={address?.city} />
+      </div>
+    ) : null;
+  }
 
   const failure = m.acceptOffer.error ?? m.dismissOffer.error;
   const busy = m.acceptOffer.isPending || m.dismissOffer.isPending;

@@ -872,7 +872,7 @@ export function offerLine(o: HolidayOffer): string {
 /** What an offer card can do. A regional day with no known region asks first; a listing without regular hours cannot take one. */
 export function offerState(r: HolidayOffersResponse, label: string): { show: boolean; message: string | null; canAccept: boolean } {
   const say = (message: string) => ({ show: true, message, canAccept: false });
-  if (r.noTimeZone) return say("We cannot suggest holiday hours yet, because we do not know your time zone. Choose it below.");
+  if (r.noTimeZone) return say("We cannot suggest holiday hours yet, because we do not know your time zone.");
   if (r.networkUnreadable) return say(`${label} didn't answer just now, so no holiday days are suggested. Try again in a moment.`);
   if (r.needsRegularHours) return say("Set your opening hours first. Holiday hours change them for a day.");
   if (r.openChange) return say("A holiday-hours change is already waiting. Finish it first.");
@@ -896,6 +896,16 @@ export function offerOutcome(items: ReadonlyArray<Pick<ChangeCardData, "status" 
 
 /** A zone by the place it names: "India Standard Time (Asia/Kolkata)". The id alone when this browser has no name for it. */
 export function zoneWords(zone: string): string {
+  const hit = ZONE_WORDS.get(zone);
+  if (hit) return hit;
+  const words = zoneWordsOf(zone);
+  ZONE_WORDS.set(zone, words);
+  return words;
+}
+
+const ZONE_WORDS = new Map<string, string>();
+
+function zoneWordsOf(zone: string): string {
   try {
     const name = new Intl.DateTimeFormat("en", { timeZone: zone, timeZoneName: "longGeneric" }).formatToParts(new Date()).find((p) => p.type === "timeZoneName")?.value;
     return name && name !== zone ? `${name} (${zone})` : zone;

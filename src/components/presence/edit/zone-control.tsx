@@ -45,6 +45,9 @@ export function ZoneControl({
     return zoneChoices(country, supported);
   }, [editing, country]);
 
+  // The current zone is the seed only when the list holds it by that spelling (a legacy id is listed under today's name).
+  const shown = pick && choices && (choices.near.includes(pick) || choices.all.includes(pick)) ? pick : "";
+
   if (!editing) {
     return (
       <div className="flex flex-wrap items-center gap-2">
@@ -60,7 +63,7 @@ export function ZoneControl({
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">{message ?? "Choose the time zone this place keeps, so holiday days land on the right date."}</p>
       <div className="flex flex-wrap items-center gap-2">
-        <Select value={pick} onValueChange={setPick}>
+        <Select value={shown} onValueChange={setPick}>
           <SelectTrigger className="w-72" aria-label="Time zone">
             <SelectValue placeholder="Choose your time zone" />
           </SelectTrigger>
@@ -89,7 +92,7 @@ export function ZoneControl({
           Save time zone
         </Button>
         {tz && (
-          <Button size="sm" variant="outline" disabled={m.setTimeZone.isPending} onClick={() => setOpen(false)}>
+          <Button size="sm" variant="outline" disabled={m.setTimeZone.isPending} onClick={() => { m.setTimeZone.reset(); setPick(""); setOpen(false); }}>
             Cancel
           </Button>
         )}
