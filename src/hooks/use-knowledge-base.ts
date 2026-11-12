@@ -24,6 +24,8 @@ import {
   type UploadPrice,
   type UploadSummary,
 } from "@/lib/policy-builder";
+import type { CandidatesResponse, CoverageDays, CoverageResponse, PolicyEvidence, PolicyStanding, SetBody, SetResult } from "@/lib/knowledge-phase3";
+import { coverageHidden, evidenceOrder } from "@/lib/knowledge-phase3";
 import { FINDINGS_PAGE, KB_LIST_LIMIT, type KbFinding, type KbEntry, type KbFindingsResponse, type KbPayload, type KbRequest, type KbSuggestionsResponse } from "@/lib/knowledge-base";
 
 /**
@@ -36,7 +38,7 @@ const REQUESTS_KEY = "kb-requests";
 const SUGGESTIONS_KEY = "kb-suggestions";
 const FINDINGS_KEY = "kb-findings";
 
-export type EntryFilter = { source: "" | "owner" | "import" | "learned"; status: "active" | "archived"; q: string };
+export type EntryFilter = { source: "" | "owner" | "import" | "learned"; status: "active" | "expired" | "archived"; q: string };
 
 export function useKbEntries(filter: EntryFilter) {
   const { isAuthenticated, org, business } = useAuth();
@@ -140,6 +142,7 @@ export function useApproveSuggestion() {
       refresh();
       // a generated policy draft approved from here makes its policy row live (KE-2.10)
       void qc.invalidateQueries({ queryKey: [POLICIES_KEY] });
+      invalidatePhase3(qc);
       void qc.invalidateQueries({ queryKey: [POLICY_QUESTIONS_KEY] });
     },
   });
@@ -233,6 +236,7 @@ export function useSavePolicyAnswers(type: PolicyType) {
     mutationFn: (body: SaveBody) => api.put<{ policy: PolicyRow }>(`/v1/kb/policies/${type}`, body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: [POLICIES_KEY] });
+      invalidatePhase3(qc);
       // the questions hold the saved answers and where each came from: a reopened editor must read what was just saved
       void qc.invalidateQueries({ queryKey: [POLICY_QUESTIONS_KEY] });
       void qc.invalidateQueries({ queryKey: [POLICY_PRICE_KEY] });
@@ -298,6 +302,7 @@ export function useApprovePolicyDraft() {
     onSuccess: () => {
       refresh();
       void qc.invalidateQueries({ queryKey: [POLICIES_KEY] });
+      invalidatePhase3(qc);
       void qc.invalidateQueries({ queryKey: [POLICY_QUESTIONS_KEY] });
     },
   });
@@ -326,6 +331,7 @@ export function useUploadKnowledge() {
       refresh();
       // an upload fills in policy answers
       void qc.invalidateQueries({ queryKey: [POLICIES_KEY] });
+      invalidatePhase3(qc);
       void qc.invalidateQueries({ queryKey: [POLICY_QUESTIONS_KEY] });
       void qc.invalidateQueries({ queryKey: [UPLOAD_PRICE_KEY] });
       void qc.invalidateQueries({ queryKey: [CREDITS_KEY] });
@@ -356,6 +362,13 @@ export function useKbPublications(entryId: string | null) {
   });
 }
 
+/** What the Phase 3 reads depend on: the policy answers (benchmarks), what is approved or published (coverage), and what was live (evidence). */
+function invalidatePhase3(qc: ReturnType<typeof useQueryClient>) {
+  void qc.invalidateQueries({ queryKey: [BENCHMARKS_KEY] });
+  void qc.invalidateQueries({ queryKey: [COVERAGE_KEY] });
+  void qc.invalidateQueries({ queryKey: [EVIDENCE_KEY] });
+}
+
 function useRefreshPublications() {
   const qc = useQueryClient();
   return () => {
@@ -363,6 +376,7 @@ function useRefreshPublications() {
     void qc.invalidateQueries({ queryKey: [CAPABILITIES_KEY] });
     void qc.invalidateQueries({ queryKey: [ENTRIES_KEY] });
     void qc.invalidateQueries({ queryKey: [SUGGESTIONS_KEY] });
+    invalidatePhase3(qc);
   };
 }
 
@@ -392,4 +406,75 @@ export function useUnpublish() {
     mutationFn: (id: string) => api.delete<{ removedFromChannel: boolean; keptChannelText: boolean }>(`/v1/kb/publications/${id}`),
     onSuccess: refresh,
   });
+}
+
+// -- Phase 3 (KE-3.8b) ------------------------------------------------------------------------------------------------------
+
+const BENCHMARKS_KEY = "kb-policy-benchmarks";
+const EVIDENCE_KEY = "kb-policy-evidence";
+const CANDIDATES_KEY = "kb-candidates";
+const COVERAGE_KEY = "kb-coverage";
+
+/** GET /v1/kb/policies/benchmarks: how the business's return window, free-shipping threshold and cash-on-delivery share compare with stores like it. */
+export function useKbBenchmarks() {
+  const { isAuthenticated, org, business } = useAuth();
+  return useQuery<PolicyStanding>({
+    queryKey: [BENCHMARKS_KEY, org?._id ?? null, business?._id ?? null],
+    queryFn: () => api.get("/v1/kb/policies/benchmarks"),
+    enabled: isAuthenticated && !!org?._id,
+    retry: false,
+  });
+}
+
+/** GET /v1/kb/policies/evidence?order=: the policy text that was live when the order was placed. Runs only once an order has been asked for. */
+export function useKbEvidence(order: string | null) {
+  const { isAuthenticated, org, business } = useAuth();
+  const ref = order === null ? null : evidenceOrder(order);
+  return useQuery<PolicyEvidence>({
+    queryKey: [EVIDENCE_KEY, org?._id ?? null, business?._id ?? null, ref && ref.ok ? ref.order : null],
+    queryFn: () => api.get("/v1/kb/policies/evidence", { order: (ref as { order: string }).order }),
+    enabled: isAuthenticated && !!org?._id && !!ref && ref.ok,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/** GET /v1/kb/publish/candidates: the active entries a merchant would put in a slot that shows a few, most-asked first. */
+export function useKbCandidates(channel: string, slot: string, enabled = true) {
+  const { isAuthenticated, org, business } = useAuth();
+  return useQuery<CandidatesResponse>({
+    queryKey: [CANDIDATES_KEY, org?._id ?? null, business?._id ?? null, channel, slot],
+    queryFn: () => api.get("/v1/kb/publish/candidates", { channel, slot }),
+    enabled: enabled && isAuthenticated && !!org?._id,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/** POST /v1/kb/publish/set: publish the chosen entries to a slot that shows a few. Free; one after another on the api. */
+export function usePublishSet() {
+  const refresh = useRefreshPublications();
+  const qc = useQueryClient();
+  const done = () => {
+    refresh();
+    void qc.invalidateQueries({ queryKey: [CANDIDATES_KEY] });
+  };
+  return useMutation({
+    mutationFn: (body: SetBody) => api.post<SetResult>("/v1/kb/publish/set", body),
+    onSuccess: done,
+    // a refusal part-way (or a take-down that went through) changes what is out
+    onError: done,
+  });
+}
+
+/** GET /v1/kb/coverage?days=: what shoppers asked about, by topic, and how much was answered. A 404 means the api has not shipped it: the section hides, so it is not retried. */
+export function useKbCoverage(days: CoverageDays) {
+  const { isAuthenticated, org, business } = useAuth();
+  const q = useQuery<CoverageResponse>({
+    queryKey: [COVERAGE_KEY, org?._id ?? null, business?._id ?? null, days],
+    queryFn: () => api.get("/v1/kb/coverage", { days: String(days) }),
+    enabled: isAuthenticated && !!org?._id,
+    retry: false,
+  });
+  return { ...q, hidden: q.isError && coverageHidden(q.error) };
 }
