@@ -14,6 +14,7 @@ import {
   driftStatus,
   fetchView,
   hoursLines,
+  listingMapLink,
   networkLabel,
   primaryEntry,
   setupMessage,
@@ -240,7 +241,7 @@ export function ListingPanel({ location, network, label: labelFallback }: { loca
       )}
       {note && <p className="text-xs text-warning-on-tint">{note}</p>}
 
-      <ControlSection key={`${entry?.network ?? ""}|${listing.id}`} entry={entry} listing={listing} formatDateTime={formatDateTime} />
+      <ControlSection key={`${entry?.network ?? ""}|${listing.id}`} entry={entry} listing={listing} mapHref={listingMapLink(data.connection?.locations, entry?.externalId)} formatDateTime={formatDateTime} />
 
       <dl className="divide-y">
         {LISTING_ROWS.map((r) => (
