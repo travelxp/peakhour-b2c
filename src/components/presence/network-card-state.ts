@@ -211,6 +211,8 @@ export interface ListingFacts {
   mapsUri?: string;
   /** When a person confirmed it is theirs. The api sends it only while it still counts (the title has not changed since). */
   confirmedAt?: string;
+  /** When a person put the question off ("Not now"). The api sends it only while the title is the one they saw. */
+  nameAskDismissedAt?: string;
 }
 
 /**
@@ -273,11 +275,32 @@ export function nameCheck(
   selectedCount: number,
   facts: readonly ListingFacts[],
   businessName: string | null | undefined,
-): { kind: "none" | "ask" | "confirmed"; titles: string[]; pending: string[] } {
+): { kind: "none" | "ask" | "confirmed"; titles: string[]; pending: string[]; dismissed: boolean } {
   // A listing with no reference cannot be confirmed, so it cannot count as asked or answered.
   const titled = facts.filter((l) => l.title?.trim() && l.locationName);
   const off = titled.length > 0 && titled.length === selectedCount && titled.every((l) => listingNameLooksOff(l.title, businessName));
-  if (!off) return { kind: "none", titles: [], pending: [] };
-  const pending = titled.filter((l) => !l.confirmedAt && l.locationName).map((l) => l.locationName as string);
-  return { kind: pending.length > 0 ? "ask" : "confirmed", titles: titled.map((l) => l.title!.trim()), pending };
+  if (!off) return { kind: "none", titles: [], pending: [], dismissed: false };
+  const unanswered = titled.filter((l) => !l.confirmedAt && l.locationName);
+  const pending = unanswered.map((l) => l.locationName as string);
+  // ★DISMISSED ONLY WHEN EVERY UNANSWERED LISTING WAS PUT OFF: a listing nobody has been asked about keeps the question on top. The card's
+  // own line ignores this, so a put-off question can still be answered there.
+  const dismissed = unanswered.length > 0 && unanswered.every((l) => !!l.nameAskDismissedAt);
+  return { kind: pending.length > 0 ? "ask" : "confirmed", titles: titled.map((l) => l.title!.trim()), pending, dismissed };
 }
+
+/**
+ * The listings in the selection that the network gave us facts about, in the selection's order. Only for a network with a listing to confirm.
+ * ONE place, so the card and the top-of-page question judge the same rows.
+ */
+export function selectedListingFacts<T extends ListingFacts>(selected: readonly string[] | null | undefined, known: readonly T[], confirmable: boolean): T[] {
+  return confirmable && selected ? selected.map((n) => known.find((l) => l.locationName === n)).filter((l): l is T => !!l) : [];
+}
+
+/** The window event the top-of-page question sends to open a card's picker ("No, choose another listing"). `detail` is the network's key. */
+export const OPEN_PICKER_EVENT = "presence:open-picker";
+
+/** The id of a network's connect card, so a link can scroll to it. */
+export const networkCardId = (network: string) => `network-card-${network}`;
+
+/** The id of a network's top-of-page question, which the summary line links to. */
+export const nameAskAnchor = (network: string) => `name-ask-${network}`;

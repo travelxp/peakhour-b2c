@@ -6,6 +6,8 @@ import { MapPin } from "lucide-react";
 import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { NetworkConnectCard } from "@/components/presence/network-connect-card";
+import { NameAskPanel } from "@/components/presence/name-ask-panel";
+import { useNameAsk } from "@/hooks/use-name-ask";
 import { ReviewSummaryCard } from "@/components/presence/review-summary-card";
 import { ReviewPlacesCard } from "@/components/presence/review-places-card";
 import { reviewsPlaceIn, wantsPlacesView } from "@/lib/review-places";
@@ -125,6 +127,8 @@ export function PresenceHome() {
   // network anyway, but it is sent by name so the declarations applied below and the answers read are for the same network.
   const panelNetwork = aboutNetwork?.network;
   const fallbackLabel = aboutNetwork?.label ?? null;
+  // "Is this your business?" for the network the page judges: the summary line counts it while its panel is drawn.
+  const nameAsk = useNameAsk(aboutNetwork);
   // Each card draws only for a network that declares what it shows (no declaration to go by, as on an older api, draws them).
   const reviewsOn = drawsReviews(aboutNetwork);
   // The listing, score and edit panels draw only for a network that declares a listing (a reviews-only network has none to show).
@@ -235,7 +239,13 @@ export function PresenceHome() {
             ) : null}
 
             {/* ★THE ONE LINE (GBP L7): health, publishing and what needs the merchant, each a link to its place below. */}
-            {listingOn ? <PresenceSummary location={panelLocation} network={panelNetwork} writes={editOn || photosOn} /> : null}
+            {listingOn ? <PresenceSummary location={panelLocation} network={panelNetwork} writes={editOn || photosOn} nameAskHref={nameAsk.show ? `#${nameAsk.anchor}` : undefined} /> : null}
+
+            {/* ★IS THIS YOUR BUSINESS? (GBP L14) Asked once, right under the line, of an admin or owner, for each network whose listing's name
+                looks off and nobody has answered. It needs no network choice: each draws its own, from its own label. */}
+            {networks.map((n) => (
+              <NameAskPanel key={n.network} network={n} />
+            ))}
 
             {/* ★WAIT FOR THE LISTING READ that says whether there are several places: drawing the summary first and swapping it for the places
                 view a moment later flashed one view and discarded its read. */}

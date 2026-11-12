@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -8,6 +8,7 @@ import { MapPin, ArrowRight, RefreshCw, AlertTriangle, Check, ExternalLink } fro
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import { useEditCapabilities } from "@/hooks/use-presence-edit";
+import { networkKeys, useNameAnswer, type CapabilitiesResponse, type ConnectionStatus, type LocationsResponse } from "@/hooks/use-name-ask";
 import { REVIEW_SUMMARY_QUERY_KEY } from "@/lib/review-summary";
 import { REVIEW_PLACES_QUERY_KEY } from "@/lib/review-places";
 import { Button } from "@/components/ui/button";
@@ -25,8 +26,10 @@ import {
   mapLink,
   nameCheck,
   chooseAnotherAction,
+  selectedListingFacts,
+  networkCardId,
+  OPEN_PICKER_EVENT,
   type ListingFacts,
-  type NetworkConnectionStatus,
 } from "@/components/presence/network-card-state";
 import type { ConnectableNetwork } from "@/lib/presence-panels";
 
@@ -52,45 +55,14 @@ import type { ConnectableNetwork } from "@/lib/presence-panels";
  * merchant is TOLD belongs there rather than inline here.
  */
 
-interface ConnectionStatus {
-  provider: string;
-  status?: NetworkConnectionStatus;
-  account?: { name?: string };
-  lastError?: string;
-}
-
-interface CapabilitiesResponse {
-  provider: string;
-  /** ★NOT where a Google selection lives — see the api route's note. */
-  capabilities: Record<string, unknown> | null;
-  /** Absent entirely on an api that predates the field. See `networkCardState`. */
-  locationNames?: string[];
-  account?: {
-    extra?: {
-      locations?: Array<{ locationName?: string; title?: string; address?: string; mapsUri?: string; confirmedAt?: string }>;
-      locationsComplete?: boolean;
-    };
-  };
-}
-
-interface LocationsResponse {
-  provider: string;
-  locations: Array<{ locationName: string; title?: string; address?: string; mapsUri?: string; confirmedAt?: string }>;
-  complete: boolean;
-  selected: string[];
-  /** Listings dropped from the selection because Google no longer lists them. */
-  retired?: string[];
-}
-
 export function NetworkConnectCard({ network }: { network: ConnectableNetwork }) {
   // The network's key is the integration's provider name; the places route is whatever its adapter declares.
   const PROVIDER = network.network;
   const label = network.label;
   const title = network.title;
   const pickerPath = network.picker?.path ?? null;
-  const STATUS_KEY = ["integration-status", PROVIDER];
-  const CAP_KEY = ["integration-cap", PROVIDER];
-  const LOCATIONS_KEY = ["network-locations", PROVIDER];
+  // The keys the top-of-page question reads too (`useNameAsk`), so an answer here is an answer there.
+  const { status: STATUS_KEY, cap: CAP_KEY, locations: LOCATIONS_KEY } = networkKeys(PROVIDER);
   const qc = useQueryClient();
   const { business } = useAuth();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -169,22 +141,17 @@ export function NetworkConnectCard({ network }: { network: ConnectableNetwork })
     onError: (e: Error) => toast.error(e.message || "Could not select that listing"),
   });
 
-  // ★"YES, THIS IS MY BUSINESS": one answer per listing that asked. The api records it against the title the merchant saw. The picker's list
-  // is written as well as the capabilities read invalidated, because `known` prefers the picker's list once it has loaded.
-  const confirmMut = useMutation({
-    mutationFn: async (locationNames: string[]) => {
-      for (const locationName of locationNames) {
-        await api.post(`/v1/integrations/${PROVIDER}/${pickerPath}/confirm`, { locationName });
-        // ★ONE AT A TIME INTO THE CACHE: a later one failing must not hide the ones the api has already stored.
-        const at = new Date().toISOString();
-        qc.setQueryData<LocationsResponse>(LOCATIONS_KEY, (old) =>
-          old ? { ...old, locations: old.locations.map((l) => (l.locationName === locationName ? { ...l, confirmedAt: at } : l)) } : old,
-        );
-      }
-    },
-    onSettled: () => void qc.invalidateQueries({ queryKey: CAP_KEY }),
-    onError: (e: Error) => toast.error(e.message || "Could not save that. Try again."),
-  });
+  // ★"YES, THIS IS MY BUSINESS" AND "NOT NOW": one answer per listing that asked, shared with the question at the top of the page.
+  const confirmMut = useNameAnswer(network);
+
+  // "No, choose another listing" on the question at the top of the page opens this card's picker.
+  useEffect(() => {
+    const open = (e: Event) => {
+      if ((e as CustomEvent<string>).detail === PROVIDER) setPickerOpen(true);
+    };
+    window.addEventListener(OPEN_PICKER_EVENT, open);
+    return () => window.removeEventListener(OPEN_PICKER_EVENT, open);
+  }, [PROVIDER]);
 
   const syncMut = useMutation({
     mutationFn: () => api.post(`/v1/integrations/${PROVIDER}/sync`, {}),
@@ -218,7 +185,7 @@ export function NetworkConnectCard({ network }: { network: ConnectableNetwork })
   // ★ONLY FOR A NETWORK WITH A LISTING TO CONFIRM (one that declares a picker and a listing): the merchant is asked "is this yours?"
   // of a thing the network actually gave us.
   const confirmable = pickerPath !== null && network.capabilities.listing !== false;
-  const selectedFacts = confirmable && selected ? selected.map((n) => known.find((l) => l.locationName === n)).filter((l): l is ListingFacts => !!l) : [];
+  const selectedFacts = selectedListingFacts(selected, known as ListingFacts[], confirmable);
   // One listing selected: say where it is and link it. With several, the picker's rows carry the facts.
   // ★ONLY WHEN THE ONE LISTING SYNCING IS THE ONE KNOWN: with two selected and one known, the one shown would stand for both.
   const sole = selected?.length === 1 && selectedFacts.length === 1 ? selectedFacts[0]! : null;
@@ -263,7 +230,7 @@ export function NetworkConnectCard({ network }: { network: ConnectableNetwork })
   }
 
   return (
-    <div className="rounded-xl border bg-card p-6 shadow-sm">
+    <div id={networkCardId(PROVIDER)} className="rounded-xl border bg-card p-6 shadow-sm">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-start gap-4">
           <span
@@ -383,7 +350,7 @@ export function NetworkConnectCard({ network }: { network: ConnectableNetwork })
                   if you trade under another name. Is this your business?
                 </p>
                 {canConfirm ? (
-                  <Button size="sm" variant="outline" disabled={confirmMut.isPending} onClick={() => confirmMut.mutate(nameState.pending)}>
+                  <Button size="sm" variant="outline" disabled={confirmMut.isPending} onClick={() => confirmMut.mutate({ locationNames: nameState.pending, answer: "yes" })}>
                     {confirmMut.isPending ? <RefreshCw className="h-4 w-4 animate-spin" /> : null}
                     Yes, this is my business
                   </Button>
