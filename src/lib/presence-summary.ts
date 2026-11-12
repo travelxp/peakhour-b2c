@@ -25,7 +25,7 @@ export const SUMMARY_ANCHORS = {
 export const requestRowId = (changeId: string) => `request-${changeId}`;
 
 export interface NeedItem {
-  kind: "approve" | "request" | "publishing" | "changed" | "health";
+  kind: "name" | "approve" | "request" | "publishing" | "changed" | "health";
   /** An in-page anchor, `#...`. */
   href: string;
   /** What to do, said short, for the screen-reader sentence. */
@@ -53,6 +53,11 @@ export interface SummaryInput {
    */
   writes?: boolean;
   can: CapabilitiesResponse["can"] | undefined;
+  /**
+   * The question "Is this your business?" is open at the top of the page, for someone who can answer it: where it is. It counts as one thing
+   * that needs the merchant. The caller passes it only while the panel is drawn, so the line never links to a panel that is not there.
+   */
+  nameAskHref?: string | undefined;
   /** The listing's changes; undefined until they have answered. */
   changes: readonly ChangeCardData[] | undefined;
   now: number;
@@ -78,6 +83,7 @@ export function needItems(input: SummaryInput): NeedItem[] | null {
   // What this page cannot change needs neither the role nor the request list, so their reads are not waited for.
   if (!entry || score === undefined || (writes && (!can || !changes))) return null;
   const items: NeedItem[] = [];
+  if (input.nameAskHref) items.push({ kind: "name", href: input.nameAskHref, words: "say whether a listing is your business" });
   if (writes && can && changes) {
     const { open, recent, older } = requestGroups(changes, now);
     // `older` too: the list draws it (opened when it holds something that needs you), so the count and the list agree.

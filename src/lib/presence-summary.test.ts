@@ -97,6 +97,21 @@ describe("the summary line", () => {
   });
 });
 
+describe("the question 'Is this your business?'", () => {
+  it("counts as one thing that needs you while it is open, first, linking to its panel", () => {
+    const items = needItems(input({ nameAskHref: "#name-ask-net_a" }))!;
+    expect(items).toEqual([{ kind: "name", href: "#name-ask-net_a", words: "say whether a listing is your business" }]);
+    expect(summaryLine(input({ nameAskHref: "#name-ask-net_a" }))[2]).toMatchObject({ text: "1 thing needs you", href: "#name-ask-net_a" });
+  });
+  it("is one of several, and ahead of a request", () => {
+    const items = needItems(input({ nameAskHref: "#name-ask-net_a", changes: [change({ id: "a1" })] }))!;
+    expect(items.map((i) => i.kind)).toEqual(["name", "approve"]);
+  });
+  it("adds nothing once answered", () => {
+    expect(needItems(input({ nameAskHref: undefined }))).toEqual([]);
+  });
+});
+
 describe("what needs the merchant", () => {
   it("counts a request awaiting approval for someone who can approve, and links to its row", () => {
     const items = needItems(input({ changes: [change({ id: "a1" })] }))!;

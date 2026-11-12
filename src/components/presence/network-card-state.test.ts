@@ -293,13 +293,22 @@ describe("chooseAnotherAction", () => {
 describe("nameCheck", () => {
   const a = { locationName: "locations/1", title: "CMPL" };
   it("asks when every named listing looks off and none is confirmed", () => {
-    expect(nameCheck(1, [a], "Travelxp")).toEqual({ kind: "ask", titles: ["CMPL"], pending: ["locations/1"] });
+    expect(nameCheck(1, [a], "Travelxp")).toEqual({ kind: "ask", titles: ["CMPL"], pending: ["locations/1"], dismissed: false });
   });
   it("is confirmed once the api says so", () => {
     expect(nameCheck(1, [{ ...a, confirmedAt: "2026-11-12T10:00:00Z" }], "Travelxp").kind).toBe("confirmed");
   });
   it("asks again for a listing the api no longer reports confirmed (its title changed)", () => {
     expect(nameCheck(1, [{ ...a, title: "CMPL Travel" }], "Travelxp").kind).toBe("ask");
+  });
+  it("is dismissed only when every unanswered listing was put off; the question itself stays ask", () => {
+    const off = "2026-11-12T10:00:00Z";
+    expect(nameCheck(1, [{ ...a, nameAskDismissedAt: off }], "Travelxp")).toMatchObject({ kind: "ask", dismissed: true });
+    const b = { locationName: "locations/2", title: "Other Co" };
+    expect(nameCheck(2, [{ ...a, nameAskDismissedAt: off }, b], "Travelxp").dismissed).toBe(false);
+    // a confirmed listing among them does not hold the dismissal back
+    expect(nameCheck(2, [{ ...a, nameAskDismissedAt: off }, { ...b, confirmedAt: off }], "Travelxp").dismissed).toBe(true);
+    expect(nameCheck(1, [{ ...a, confirmedAt: off }], "Travelxp").dismissed).toBe(false);
   });
   it("asks for only the unconfirmed ones among several", () => {
     const b = { locationName: "locations/2", title: "Other Co", confirmedAt: "2026-11-12T10:00:00Z" };
