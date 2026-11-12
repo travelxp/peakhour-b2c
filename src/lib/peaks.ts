@@ -24,7 +24,10 @@ export interface PeakPack {
   amount: string;
   currency: string;
   displayPrefix?: string;
-  highlight: boolean;
+  // The api also sends `highlight` (cfg_addons.display.highlight). It is left
+  // off this type on purpose: "Best value" is derived from the unit prices
+  // (`lib/peaks-pack-unit-price`), because the stored flag sat on a pack that
+  // was not the cheapest per 1,000 Peaks.
 }
 
 export interface PeaksResponse {
@@ -62,4 +65,15 @@ export function formatPackPrice(p: PeakPack): string {
     ? p.amount
     : n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   return `${p.displayPrefix ?? ""}${num}`;
+}
+
+/**
+ * A unit price (per 1,000 Peaks) in this pack's money: "$0.90" / "₹74.95".
+ * Same locale as `formatPackPrice` so the two lines on a card match, but always
+ * two decimals ("$0.9" reads as a typo on a price). With no `displayPrefix` it
+ * falls back to the currency code, never a bare number.
+ */
+export function formatPackUnitPrice(p: Pick<PeakPack, "currency" | "displayPrefix">, unit: number): string {
+  const num = unit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return p.displayPrefix ? `${p.displayPrefix}${num}` : `${p.currency} ${num}`;
 }
