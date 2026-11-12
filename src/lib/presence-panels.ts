@@ -1,3 +1,4 @@
+import type { ListingTimeZone } from "@/lib/presence-edit";
 import { mapLink } from "@/components/presence/network-card-state";
 /**
  * What the Presence Listing and Insights panels are allowed to SAY (PE-04a).
@@ -65,6 +66,8 @@ export interface PresenceListing {
   regularHours: HoursPeriod[];
   specialHours: SpecialHours[];
   updatedAt: string | null;
+  /** The zone its calendar days are placed in and who gave it; null when none is known. Absent from an api that has not shipped it. */
+  timeZone?: ListingTimeZone | null;
 }
 
 /** `GET /v1/presence/listing`. */

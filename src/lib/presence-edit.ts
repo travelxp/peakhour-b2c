@@ -1003,6 +1003,17 @@ export function zoneLine(tz: ListingTimeZone | null, city?: string | null): stri
 }
 
 /**
+ * The same zone as ONE quiet row on the listing card. Where the zone came from is said in the same words as `zoneLine`; a confirmed zone says
+ * nothing more. None known says so plainly.
+ */
+export function zoneRowLine(tz: ListingTimeZone | null, city?: string | null): string {
+  if (!tz) return "Time zone: not set";
+  const place = city?.trim();
+  const from = tz.source === "address" ? `from your address${place ? ` in ${place}` : ""}` : tz.source === "business" ? "from your business settings" : "";
+  return `Time zone: ${zoneWords(tz.zone)}${from ? ` · ${from}` : ""}`;
+}
+
+/**
  * The zones to choose from: the listing's country first (the browser's own region data), then every zone it knows. A zone is listed once,
  * and a browser with no region data simply has no first group.
  */

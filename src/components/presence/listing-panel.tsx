@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useListingQuery } from "@/hooks/use-presence-listing";
+import { useEditCapabilities } from "@/hooks/use-presence-edit";
+import { ZoneControl } from "@/components/presence/edit/zone-control";
 import { useLocale } from "@/hooks/use-locale";
 import { ControlSection } from "@/components/presence/control-section";
 import {
@@ -153,6 +155,8 @@ function rowValue(
 
 export function ListingPanel({ location, network, label: labelFallback }: { location?: string; network?: string; label?: string | null }) {
   const q = useListingQuery(location, network);
+  // Only an admin or owner can change the zone (the route is theirs): everyone else is shown the line and no button.
+  const caps = useEditCapabilities();
   const { formatDate, formatDateTime } = useLocale();
   const view = fetchView({
     hasData: !!q.data,
@@ -250,6 +254,11 @@ export function ListingPanel({ location, network, label: labelFallback }: { loca
           </Row>
         ))}
       </dl>
+
+      {/* GBP L13: the zone days are placed in, always visible, so a wrong one can be seen and corrected without waiting for a holiday. */}
+      <div className="border-t pt-3">
+        <ZoneControl listingId={listing.id} tz={listing.timeZone ?? null} address={listing.address} variant="row" canChange={!!caps.data?.can.approve} />
+      </div>
 
       <p className="text-micro text-muted-foreground">
         {checked && entry

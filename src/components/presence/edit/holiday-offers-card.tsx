@@ -15,7 +15,7 @@ const SHOWN = 4;
  * ★NOTHING IS CHANGED FROM HERE. "Prepare" makes a proposal that an admin approves; "No thanks" is remembered. A regional day we cannot place
  * asks first rather than guessing. Nothing renders until there is a day to offer, and a failed read is said, not hidden.
  */
-export function HolidayOffersCard({ listingId, network, label, address }: { listingId: string; network: string; label: string; address?: { city?: string; country?: string } | null }) {
+export function HolidayOffersCard({ listingId, network, label, address, canChange = true }: { listingId: string; network: string; label: string; address?: { city?: string; country?: string } | null; canChange?: boolean }) {
   const q = useHolidayOffers(listingId, network);
   const m = usePresenceEditMutations(listingId);
   const [done, setDone] = useState<string | null>(null);
@@ -34,14 +34,17 @@ export function HolidayOffersCard({ listingId, network, label, address }: { list
   }
   const state = offerState(q.data, label);
   // No zone is known: ask for it instead of a dead end. Once it is chosen the offers are read again.
-  if (q.data.noTimeZone) return <ZoneControl listingId={listingId} tz={null} country={address?.country} city={address?.city} message={state.message ? `${state.message} Choose it below.` : null} />;
+  if (q.data.noTimeZone) {
+    const ask = canChange ? "Choose it below." : "Ask an admin or owner to choose it.";
+    return <ZoneControl listingId={listingId} tz={null} address={address} canChange={canChange} message={state.message ? `${state.message} ${ask}` : null} />;
+  }
   if (!state.show) return null;
   // Nothing to offer, but a reason to say: a lone line, not a card with no days in it.
   if (q.data.offers.length === 0) {
     return state.message ? (
       <div className="space-y-1">
         <p className="text-xs text-muted-foreground">{state.message}</p>
-        <ZoneControl listingId={listingId} tz={q.data.timeZone} country={address?.country} city={address?.city} />
+        <ZoneControl listingId={listingId} tz={q.data.timeZone} address={address} canChange={canChange} />
       </div>
     ) : null;
   }
@@ -67,7 +70,7 @@ export function HolidayOffersCard({ listingId, network, label, address }: { list
       </div>
       {view === "data_stale" && <p className="text-xs text-warning-on-tint">Could not refresh just now, so this may be out of date.</p>}
       {state.message && <p className="text-xs text-warning-on-tint">{state.message}</p>}
-      <ZoneControl listingId={listingId} tz={q.data.timeZone} country={address?.country} city={address?.city} />
+      <ZoneControl listingId={listingId} tz={q.data.timeZone} address={address} canChange={canChange} />
       <ul className="space-y-3">
         {q.data.offers.slice(0, SHOWN).map((o) => (
           <li key={o.key} className="space-y-1">
