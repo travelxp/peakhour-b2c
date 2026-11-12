@@ -997,9 +997,24 @@ function zoneWordsOf(zone: string): string {
  */
 export function zoneLine(tz: ListingTimeZone | null, city?: string | null): string | null {
   if (!tz || tz.source === "confirmed") return null;
+  return `Holiday hours use ${zoneWords(tz.zone)}, ${zoneSource(tz, city)}.`;
+}
+
+/** Where a zone came from, in a merchant's words: "from your address in Mumbai" or "from your business settings". Empty for a confirmed zone. One rule for the holiday line and the row. */
+function zoneSource(tz: ListingTimeZone, city?: string | null): string {
+  if (tz.source === "confirmed") return "";
   const place = city?.trim();
-  const from = tz.source === "address" ? `from your address${place ? ` in ${place}` : ""}` : "from your business settings";
-  return `Holiday hours use ${zoneWords(tz.zone)}, ${from}.`;
+  return tz.source === "address" ? `from your address${place ? ` in ${place}` : ""}` : "from your business settings";
+}
+
+/**
+ * The same zone as ONE quiet row on the listing card. Where the zone came from is said in the same words as `zoneLine`; a confirmed zone says
+ * nothing more. None known says so plainly.
+ */
+export function zoneRowLine(tz: ListingTimeZone | null, city?: string | null): string {
+  if (!tz) return "Time zone: not set";
+  const from = zoneSource(tz, city);
+  return `Time zone: ${zoneWords(tz.zone)}${from ? ` · ${from}` : ""}`;
 }
 
 /**

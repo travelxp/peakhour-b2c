@@ -171,7 +171,7 @@ export function EditListingCard({
         </p>
       )}
 
-      {access.mode === "edit" && network && <HolidayOffersCard listingId={listing.id} network={network} label={cap.label} address={listing.address} />}
+      {access.mode === "edit" && network && <HolidayOffersCard listingId={listing.id} network={network} label={cap.label} address={listing.address} canChange={caps.data.can.approve} />}
 
       <ul className="divide-y">{ordinary.map(row)}</ul>
       {risky.length > 0 && (

@@ -19,6 +19,7 @@ import {
   offerState,
   zoneChoices,
   zoneLine,
+  zoneRowLine,
   zoneWords,
   outcomeFor,
   outcomeSignature,
@@ -971,6 +972,14 @@ describe("the listing's time zone words", () => {
   it("says nothing extra for a confirmed zone, or when there is none", () => {
     expect(zoneLine({ zone: "Asia/Kolkata", source: "confirmed" }, "Mumbai")).toBeNull();
     expect(zoneLine(null)).toBeNull();
+  });
+
+  it("words the listing card's row the same way: source after a dot, nothing for a confirmed zone, 'not set' for none", () => {
+    expect(zoneRowLine({ zone: "Asia/Kolkata", source: "address" }, "Mumbai")).toBe("Time zone: India Standard Time (Asia/Kolkata) \u00b7 from your address in Mumbai");
+    expect(zoneRowLine({ zone: "Asia/Kolkata", source: "address" }, " ")).toBe("Time zone: India Standard Time (Asia/Kolkata) \u00b7 from your address");
+    expect(zoneRowLine({ zone: "Europe/London", source: "business" })).toContain("\u00b7 from your business settings");
+    expect(zoneRowLine({ zone: "Asia/Kolkata", source: "confirmed" }, "Mumbai")).toBe("Time zone: India Standard Time (Asia/Kolkata)");
+    expect(zoneRowLine(null)).toBe("Time zone: not set");
   });
 
   it("lists the listing's country first, then every other zone once", () => {

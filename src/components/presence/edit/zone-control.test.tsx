@@ -14,11 +14,11 @@ vi.mock("@/lib/api", () => ({ api: { get: async () => undefined, post: async () 
 const { ZoneControl } = await import("@/components/presence/edit/zone-control");
 
 const render = (props: Record<string, unknown>) =>
-  renderToStaticMarkup(createElement(QueryClientProvider, { client: new QueryClient() }, createElement(ZoneControl as never, { listingId: "l1", ...props })));
+  renderToStaticMarkup(createElement(QueryClientProvider, { client: new QueryClient() }, createElement(ZoneControl as never, { listingId: "l1", canChange: true, ...props })));
 
 describe("ZoneControl", () => {
   it("draws the picker, with its words, when no zone is known", () => {
-    const html = render({ tz: null, country: "IN", message: "We cannot suggest holiday hours yet, because we do not know your time zone. Choose it below." });
+    const html = render({ tz: null, address: { country: "IN" }, message: "We cannot suggest holiday hours yet, because we do not know your time zone. Choose it below." });
     expect(html).toContain("Choose your time zone");
     expect(html).toContain("Save time zone");
     expect(html).toContain("we do not know your time zone");
@@ -26,7 +26,7 @@ describe("ZoneControl", () => {
   });
 
   it("says the zone came from the address, in the place's words, with a Change button", () => {
-    const html = render({ tz: { zone: "Asia/Kolkata", source: "address" }, city: "Mumbai", country: "IN" });
+    const html = render({ tz: { zone: "Asia/Kolkata", source: "address" }, address: { city: "Mumbai", country: "IN" } });
     expect(html).toContain("Holiday hours use India Standard Time (Asia/Kolkata), from your address in Mumbai.");
     expect(html).toContain(">Change<");
     expect(html).not.toContain("Save time zone");
@@ -37,8 +37,28 @@ describe("ZoneControl", () => {
   });
 
   it("says nothing extra for a confirmed zone, only Change", () => {
-    const html = render({ tz: { zone: "Asia/Kolkata", source: "confirmed" }, city: "Mumbai" });
+    const html = render({ tz: { zone: "Asia/Kolkata", source: "confirmed" }, address: { city: "Mumbai" } });
     expect(html).not.toContain("Holiday hours use");
     expect(html).toContain(">Change<");
+  });
+});
+
+describe("ZoneControl without the right to change", () => {
+  it("says the zone and draws no button", () => {
+    const html = render({ tz: { zone: "Asia/Kolkata", source: "address" }, address: { city: "Mumbai" }, canChange: false });
+    expect(html).toContain("from your address in Mumbai");
+    expect(html).not.toContain("<button");
+  });
+  it("holiday card with no zone: the message, no picker, no button", () => {
+    const html = render({ tz: null, canChange: false, message: "We do not know your time zone. Ask an admin or owner to choose it." });
+    expect(html).toContain("Ask an admin or owner");
+    expect(html).not.toContain("Choose your time zone");
+    expect(html).not.toContain("<button");
+  });
+});
+
+describe("nothing to say and nothing to press draws nothing", () => {
+  it("a confirmed zone for a role that cannot change it", () => {
+    expect(render({ tz: { zone: "Asia/Kolkata", source: "confirmed" }, canChange: false })).toBe("");
   });
 });
