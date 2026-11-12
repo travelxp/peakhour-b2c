@@ -173,15 +173,16 @@ export function NetworkConnectCard({ network }: { network: ConnectableNetwork })
   // is written as well as the capabilities read invalidated, because `known` prefers the picker's list once it has loaded.
   const confirmMut = useMutation({
     mutationFn: async (locationNames: string[]) => {
-      for (const locationName of locationNames) await api.post(`/v1/integrations/${PROVIDER}/${pickerPath}/confirm`, { locationName });
+      for (const locationName of locationNames) {
+        await api.post(`/v1/integrations/${PROVIDER}/${pickerPath}/confirm`, { locationName });
+        // ★ONE AT A TIME INTO THE CACHE: a later one failing must not hide the ones the api has already stored.
+        const at = new Date().toISOString();
+        qc.setQueryData<LocationsResponse>(LOCATIONS_KEY, (old) =>
+          old ? { ...old, locations: old.locations.map((l) => (l.locationName === locationName ? { ...l, confirmedAt: at } : l)) } : old,
+        );
+      }
     },
-    onSuccess: (_data, locationNames) => {
-      const at = new Date().toISOString();
-      qc.setQueryData<LocationsResponse>(LOCATIONS_KEY, (old) =>
-        old ? { ...old, locations: old.locations.map((l) => (locationNames.includes(l.locationName) ? { ...l, confirmedAt: at } : l)) } : old,
-      );
-      void qc.invalidateQueries({ queryKey: CAP_KEY });
-    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: CAP_KEY }),
     onError: (e: Error) => toast.error(e.message || "Could not save that. Try again."),
   });
 

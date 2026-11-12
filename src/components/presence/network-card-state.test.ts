@@ -311,4 +311,3 @@ describe("nameCheck", () => {
     expect(nameCheck(1, [], "Travelxp").kind).toBe("none");
   });
 });
-

@@ -274,10 +274,10 @@ export function nameCheck(
   facts: readonly ListingFacts[],
   businessName: string | null | undefined,
 ): { kind: "none" | "ask" | "confirmed"; titles: string[]; pending: string[] } {
-  const titled = facts.filter((l) => l.title?.trim());
+  // A listing with no reference cannot be confirmed, so it cannot count as asked or answered.
+  const titled = facts.filter((l) => l.title?.trim() && l.locationName);
   const off = titled.length > 0 && titled.length === selectedCount && titled.every((l) => listingNameLooksOff(l.title, businessName));
   if (!off) return { kind: "none", titles: [], pending: [] };
   const pending = titled.filter((l) => !l.confirmedAt && l.locationName).map((l) => l.locationName as string);
   return { kind: pending.length > 0 ? "ask" : "confirmed", titles: titled.map((l) => l.title!.trim()), pending };
 }
-
