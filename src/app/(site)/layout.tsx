@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Space_Grotesk, Fraunces } from "next/font/google";
 import { connection } from "next/server";
+import { headers } from "next/headers";
 import { preconnect } from "react-dom";
 import { getLocale } from "next-intl/server";
 import { SITE } from "@/lib/utils";
@@ -107,6 +108,9 @@ export default async function SiteLayout({
   // active locale automatically once more languages are added.
   const locale = await getLocale();
 
+  // The middleware's per-request CSP nonce, for next-themes' inline script.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <html lang={locale} suppressHydrationWarning>
       <body
@@ -114,7 +118,7 @@ export default async function SiteLayout({
       >
         {/* Real-user speed data: one beacon per page load, route pattern only. */}
         <WebVitalsReporter />
-        <ThemeProvider>
+        <ThemeProvider nonce={nonce}>
           <QueryProvider>
             <AuthProvider>
               <TooltipProvider>

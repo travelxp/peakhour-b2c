@@ -9,7 +9,7 @@ describe("forcedThemeFor", () => {
     },
   );
 
-  it.each(["/dashboard", "/dashboard/ask", "/onboarding", "/onboarding/brand-kit"])(
+  it.each(["/dashboard", "/dashboard/ask", "/onboarding", "/onboarding/brand-kit", "/cms", "/cms/jobs"])(
     "lets the signed-in route %s follow the device setting",
     (path) => {
       expect(forcedThemeFor(path)).toBeUndefined();
@@ -19,6 +19,7 @@ describe("forcedThemeFor", () => {
   it("does not treat a lookalike prefix as the app", () => {
     expect(forcedThemeFor("/dashboards")).toBe("light");
     expect(forcedThemeFor("/onboarding-guide")).toBe("light");
+    expect(forcedThemeFor("/cmsx")).toBe("light");
   });
 
   it("forces light when the path is not known", () => {
