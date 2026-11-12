@@ -14,7 +14,7 @@ vi.mock("@/lib/api", () => ({ api: { get: async () => undefined, post: async () 
 const { ZoneControl } = await import("@/components/presence/edit/zone-control");
 
 const render = (props: Record<string, unknown>) =>
-  renderToStaticMarkup(createElement(QueryClientProvider, { client: new QueryClient() }, createElement(ZoneControl as never, { listingId: "l1", ...props })));
+  renderToStaticMarkup(createElement(QueryClientProvider, { client: new QueryClient() }, createElement(ZoneControl as never, { listingId: "l1", canChange: true, ...props })));
 
 describe("ZoneControl", () => {
   it("draws the picker, with its words, when no zone is known", () => {

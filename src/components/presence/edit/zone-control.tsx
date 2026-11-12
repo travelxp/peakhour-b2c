@@ -10,7 +10,7 @@ import { errorWords, zoneChoices, zoneLine, zoneRowLine, zoneWords, type Listing
  * The time zone a place keeps its calendar in: one line saying where it came from (from the address, or from the business settings),
  * a Change button, and the picker. ONE component for both places it appears: the holiday card (`variant="holiday"`: when no zone is known the
  * picker is open from the start, in place of a dead end) and the listing card's quiet row (`variant="row"`: always there, "not set [Choose]").
- * `canChange` false (the route is an admin's) draws the line and no button.
+ * `canChange` is false unless a caller says so (the route is an admin's): the line is drawn and no button.
  *
  * It writes our own copy of the listing only. Nothing is sent to a network, so there is nothing to approve.
  */
@@ -20,7 +20,7 @@ export function ZoneControl({
   address,
   message,
   variant = "holiday",
-  canChange = true,
+  canChange = false,
 }: {
   listingId: string;
   /** The zone and who gave it; null when none is known. */

@@ -15,7 +15,7 @@ const SHOWN = 4;
  * ★NOTHING IS CHANGED FROM HERE. "Prepare" makes a proposal that an admin approves; "No thanks" is remembered. A regional day we cannot place
  * asks first rather than guessing. Nothing renders until there is a day to offer, and a failed read is said, not hidden.
  */
-export function HolidayOffersCard({ listingId, network, label, address, canChange = true }: { listingId: string; network: string; label: string; address?: { city?: string; country?: string } | null; canChange?: boolean }) {
+export function HolidayOffersCard({ listingId, network, label, address, canChange = false }: { listingId: string; network: string; label: string; address?: { city?: string; country?: string } | null; canChange?: boolean }) {
   const q = useHolidayOffers(listingId, network);
   const m = usePresenceEditMutations(listingId);
   const [done, setDone] = useState<string | null>(null);
@@ -36,7 +36,7 @@ export function HolidayOffersCard({ listingId, network, label, address, canChang
   // No zone is known: ask for it instead of a dead end. Once it is chosen the offers are read again.
   if (q.data.noTimeZone) {
     const ask = canChange ? "Choose it below." : "Ask an admin or owner to choose it.";
-    return <ZoneControl listingId={listingId} tz={null} address={address} canChange={canChange} message={state.message ? `${state.message} ${ask}` : null} />;
+    return <ZoneControl listingId={listingId} tz={null} address={address} canChange={canChange} message={state.message ? `${state.message} ${ask}` : canChange ? null : `We do not know this place's time zone. ${ask}`} />;
   }
   if (!state.show) return null;
   // Nothing to offer, but a reason to say: a lone line, not a card with no days in it.

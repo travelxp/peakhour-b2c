@@ -257,7 +257,7 @@ export function ListingPanel({ location, network, label: labelFallback }: { loca
 
       {/* GBP L13: the zone days are placed in, always visible, so a wrong one can be seen and corrected without waiting for a holiday. */}
       <div className="border-t pt-3">
-        <ZoneControl listingId={listing.id} tz={listing.timeZone ?? null} address={listing.address} variant="row" canChange={!!caps.data?.can.approve} />
+        <ZoneControl key={listing.id} listingId={listing.id} tz={listing.timeZone ?? null} address={listing.address} variant="row" canChange={!!caps.data?.can.approve} />
       </div>
 
       <p className="text-micro text-muted-foreground">
