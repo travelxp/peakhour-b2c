@@ -70,7 +70,7 @@ describe("a named change", () => {
     expect(buttons(draw(line({ field: "regularHours", unnamed: false }), "https://maps.example/a").host)).toEqual(["Keep Acme's version"]);
   });
 
-  it("offers no Keep with no value and no link", () => {
-    expect(buttons(draw(line({ field: "regularHours", unnamed: false }), null).host)).toEqual([]);
+  it("with no value and no link, is still dismissable: I've checked it, never Keep", () => {
+    expect(buttons(draw(line({ field: "regularHours", unnamed: false }), null).host)).toEqual(["I've checked it"]);
   });
 });

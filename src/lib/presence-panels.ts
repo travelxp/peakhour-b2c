@@ -1,3 +1,4 @@
+import { mapLink } from "@/components/presence/network-card-state";
 /**
  * What the Presence Listing and Insights panels are allowed to SAY (PE-04a).
  *
@@ -288,15 +289,11 @@ export function listingMapLink(
   if (!locations || locations.length === 0) return null;
   const own = externalId ? locations.find((l) => l.locationName === externalId) : undefined;
   const place = own ?? (locations.length === 1 ? locations[0] : undefined);
-  const t = place?.mapsUri?.trim();
-  if (!t) return null;
-  try {
-    const u = new URL(t);
-    return u.protocol === "https:" || u.protocol === "http:" ? u.toString() : null;
-  } catch {
-    return null;
-  }
+  return mapLink(place?.mapsUri);
 }
+
+/** A field the page has no words for (the api's `other`, or a name added to the api first) is a change we cannot name. */
+export const isUnnamedField = (field: string): boolean => field === "other" || !Object.hasOwn(FIELD_WORDS, field);
 
 /**
  * One day. A figure the network did not report is `null`, never 0: those are different things on screen.
@@ -824,7 +821,7 @@ const quoted = (v: string): string => {
  * see it. A change we cannot name says so, and offers no value at all.
  */
 export function changeLine(c: PresenceNetworkChange, label: string): string {
-  if (c.field === "other") return `${label} changed something on your listing that Peakhour can't show yet.`;
+  if (isUnnamedField(c.field)) return `${label} changed something on your listing that Peakhour can't show yet.`;
   if (!c.suggested) return `${label} changed your ${fieldWords(c.field)}. See it on ${label}.`;
   const from = c.before ? ` from ${quoted(c.before)}` : "";
   return `${label} changed your ${fieldWords(c.field)}${from} to ${quoted(c.suggested)}.`;
@@ -881,7 +878,7 @@ export function changesView(
       field: i.field,
       path: i.label,
       text: changeLine(i, label),
-      unnamed: i.field === "other",
+      unnamed: isUnnamedField(i.field),
       canPutBack: putBackValue(i, null) !== null,
       before: i.before,
       suggested: i.suggested,

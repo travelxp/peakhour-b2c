@@ -79,6 +79,8 @@ export function ChangeChoices({
   }
   // "Keep" only where the merchant can see what they are keeping: a value, or a named field with a link to look at.
   const canKeep = line.suggested !== undefined || !!mapHref;
+  // Nothing to see and nothing to keep: the change must still be dismissable, so it is "I've checked it" (acknowledge only), never a dead end.
+  const canAcknowledge = !canKeep && !canPutBack;
 
   return (
     <div className="space-y-1">
@@ -113,6 +115,20 @@ export function ChangeChoices({
             }}
           >
             Keep {label}&apos;s version
+          </Button>
+        )}
+        {canAcknowledge && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy}
+            onClick={() => {
+              keepMutation()
+                .then(() => onDone("Done. We will stop reminding you about this."))
+                .catch(() => undefined);
+            }}
+          >
+            I&apos;ve checked it
           </Button>
         )}
         {link}
