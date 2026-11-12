@@ -289,6 +289,8 @@ function StarterSection({ section }: { section: SetSection }) {
       const res = await publish.mutateAsync(body.body);
       const titles = Object.fromEntries((cand.data?.candidates ?? []).map((c) => [c.id, c.title]));
       setOutcome(outcomeLines(res, titles));
+      // a take-down is asked for each time, never carried over to the next publish
+      setReplace(false);
     } catch (e) {
       setError(setCallError(e));
     }

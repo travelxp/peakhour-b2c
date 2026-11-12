@@ -81,7 +81,7 @@ import {
 import { shopOf } from "@/lib/insights";
 import { EntryPublish, PolicyBuilder } from "@/components/commerce/policy-builder";
 import { ConversationStarters, CoverageMap } from "@/components/commerce/knowledge-phase3";
-import { EXPIRED_EMPTY, EXPIRED_NOTE, expiredLine, usedUntilLine } from "@/lib/knowledge-phase3";
+import { EXPIRED_EMPTY, EXPIRED_NOTE, lapsedState, expiredLine, usedUntilLine } from "@/lib/knowledge-phase3";
 import { Highlighted } from "@/components/commerce/highlighted";
 
 /**
@@ -274,10 +274,10 @@ function SuggestionCard({ suggestion, now, onApproved, onFailed }: { suggestion:
   const dismiss = useDismissSuggestion();
   const save = useSaveSuggestion();
   const busy = approve.isPending || dismiss.isPending || save.isPending;
-  const state = approveState(title, content);
-  const based = basedOnLine(suggestion.evidence);
-  // the api does not offer a suggestion for a day that has passed; if one is still on screen it is said as expired, not as in use
+  // the api does not offer a suggestion for a day that has passed; if one is still on screen it is said as expired, and cannot be approved
   const lapsed = !!suggestion.validUntil && Date.parse(suggestion.validUntil) <= now;
+  const state = lapsedState(approveState(title, content), lapsed);
+  const based = basedOnLine(suggestion.evidence);
   const seasonalLine = lapsed ? expiredLine({ ...suggestion, expired: true }) : usedUntilLine(suggestion);
   const reasonId = `kb-sg-${suggestion.id}-reason`;
   const fail = (message: string) => {

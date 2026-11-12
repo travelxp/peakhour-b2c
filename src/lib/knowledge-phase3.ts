@@ -87,6 +87,13 @@ export function expiredLine(e: Expiring): string | null {
   return fallback ? `Expired on ${fallback}` : "Expired";
 }
 
+export const LAPSED_REASON = "This was for a day that has passed. Dismiss it.";
+
+/** Approve is not offered for a suggestion whose day has passed: it would become an entry that is already expired. */
+export function lapsedState<S extends { enabled: boolean }>(state: S, lapsed: boolean): S | { enabled: false; reason: string } {
+  return lapsed ? { enabled: false, reason: LAPSED_REASON } : state;
+}
+
 export const EXPIRED_NOTE = "Your assistant no longer uses this. Write a new entry if you still need it.";
 export const EXPIRED_EMPTY = "Nothing has expired.";
 
@@ -218,7 +225,7 @@ export function evidenceItemView(item: EvidenceItem, zone: string): EvidenceItem
   const status =
     item.kind === "published" ? `Live since ${at ?? "an unknown time"}` : item.kind === "as_found" ? `As found on ${at ?? "an unknown time"}` : item.kind === "removed" ? `Taken off on ${at ?? "an unknown time"}` : `No record before ${first ?? "the first record"}`;
   const noun = slotWords(item.slot).noun;
-  return { key: `${item.channel}|${item.target}`, title: item.title, status, where: `${item.channelLabel}, ${noun === "this" ? item.slot : noun}`, target: item.target, text: item.text, hash: item.hash, sentence: item.sentence };
+  return { key: `${item.channel}|${item.target}|${item.kind}|${item.recordedAt ?? "none"}`, title: item.title, status, where: `${item.channelLabel}, ${noun === "this" ? item.slot : noun}`, target: item.target, text: item.text, hash: item.hash, sentence: item.sentence };
 }
 
 /** The order's placed-at time in the business's zone and in UTC, as the api returned it. */

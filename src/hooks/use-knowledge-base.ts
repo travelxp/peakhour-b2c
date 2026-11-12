@@ -142,6 +142,7 @@ export function useApproveSuggestion() {
       refresh();
       // a generated policy draft approved from here makes its policy row live (KE-2.10)
       void qc.invalidateQueries({ queryKey: [POLICIES_KEY] });
+      invalidatePhase3(qc);
       void qc.invalidateQueries({ queryKey: [POLICY_QUESTIONS_KEY] });
     },
   });
@@ -235,6 +236,7 @@ export function useSavePolicyAnswers(type: PolicyType) {
     mutationFn: (body: SaveBody) => api.put<{ policy: PolicyRow }>(`/v1/kb/policies/${type}`, body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: [POLICIES_KEY] });
+      invalidatePhase3(qc);
       // the questions hold the saved answers and where each came from: a reopened editor must read what was just saved
       void qc.invalidateQueries({ queryKey: [POLICY_QUESTIONS_KEY] });
       void qc.invalidateQueries({ queryKey: [POLICY_PRICE_KEY] });
@@ -300,6 +302,7 @@ export function useApprovePolicyDraft() {
     onSuccess: () => {
       refresh();
       void qc.invalidateQueries({ queryKey: [POLICIES_KEY] });
+      invalidatePhase3(qc);
       void qc.invalidateQueries({ queryKey: [POLICY_QUESTIONS_KEY] });
     },
   });
@@ -328,6 +331,7 @@ export function useUploadKnowledge() {
       refresh();
       // an upload fills in policy answers
       void qc.invalidateQueries({ queryKey: [POLICIES_KEY] });
+      invalidatePhase3(qc);
       void qc.invalidateQueries({ queryKey: [POLICY_QUESTIONS_KEY] });
       void qc.invalidateQueries({ queryKey: [UPLOAD_PRICE_KEY] });
       void qc.invalidateQueries({ queryKey: [CREDITS_KEY] });
@@ -358,6 +362,13 @@ export function useKbPublications(entryId: string | null) {
   });
 }
 
+/** What the Phase 3 reads depend on: the policy answers (benchmarks), what is approved or published (coverage), and what was live (evidence). */
+function invalidatePhase3(qc: ReturnType<typeof useQueryClient>) {
+  void qc.invalidateQueries({ queryKey: [BENCHMARKS_KEY] });
+  void qc.invalidateQueries({ queryKey: [COVERAGE_KEY] });
+  void qc.invalidateQueries({ queryKey: [EVIDENCE_KEY] });
+}
+
 function useRefreshPublications() {
   const qc = useQueryClient();
   return () => {
@@ -365,6 +376,7 @@ function useRefreshPublications() {
     void qc.invalidateQueries({ queryKey: [CAPABILITIES_KEY] });
     void qc.invalidateQueries({ queryKey: [ENTRIES_KEY] });
     void qc.invalidateQueries({ queryKey: [SUGGESTIONS_KEY] });
+    invalidatePhase3(qc);
   };
 }
 

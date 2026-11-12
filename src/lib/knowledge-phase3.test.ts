@@ -15,6 +15,7 @@ import {
   expiredLine,
   instantInZone,
   keepKnown,
+  lapsedState,
   outcomeLines,
   placedLine,
   preselect,
@@ -139,6 +140,10 @@ describe("expiry", () => {
     const e = { validUntil: "2026-11-09T00:00:00.000Z" };
     expect(usedUntilLine({ ...e, expired: false })).toBe("Used until 8 Nov 2026");
     expect(expiredLine({ ...e, expired: true })).toBe("Expired on 9 Nov 2026");
+  });
+  it("does not offer approve for a suggestion whose day has passed", () => {
+    expect(lapsedState({ enabled: true }, true)).toMatchObject({ enabled: false, reason: expect.stringContaining("Dismiss it") });
+    expect(lapsedState({ enabled: true }, false)).toEqual({ enabled: true });
   });
   it("rejects a day that does not exist", () => expect(dayLabel("2026-02-31")).toBeNull());
   it("words the expired refusal plainly", () => {
