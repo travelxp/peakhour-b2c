@@ -79,8 +79,9 @@ export function needItems(input: SummaryInput): NeedItem[] | null {
   if (!entry || score === undefined || (writes && (!can || !changes))) return null;
   const items: NeedItem[] = [];
   if (writes && can && changes) {
-    const { open, recent } = requestGroups(changes, now);
-    for (const c of [...open, ...recent]) {
+    const { open, recent, older } = requestGroups(changes, now);
+    // `older` too: the list draws it (opened when it holds something that needs you), so the count and the list agree.
+    for (const c of [...open, ...recent, ...older]) {
       // `decide` is only ever given to a role that can approve. A request stopped by the publishing blocker is the blocker's, counted once below.
       const need = requestNeedsYou(requestStatus(c, entry.label, can, entry.publishing ?? null));
       if (need === "approve") items.push({ kind: "approve", href: `#${requestRowId(c.id)}`, words: "approve or decline a request" });

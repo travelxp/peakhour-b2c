@@ -909,6 +909,12 @@ describe("the requests list (GBP L4)", () => {
       expect(requestStatus(cc, "Testnet", undefined, null, { when, now: NOW }).reason).not.toContain("within the hour");
     });
 
+    it("closes the api's note before the cadence, and skips a step whose time is not a time", () => {
+      const noted = row("n", "submitted", { submittedAt: "2026-11-10T10:42:00.000Z", liveCheck: { checkedAt: ago(0), outcome: "pending", note: "Testnet is still processing" } });
+      expect(requestStatus(noted, "Testnet", undefined, null, { when, now: NOW }).reason).toBe("Sent <11-10T10:42>. Testnet is still processing. We check again within the hour.");
+      expect(requestSteps(change({ createdAt: "garbage", submittedAt: "also bad" }), "Testnet", when)).toEqual([]);
+    });
+
     it("draws only the steps that happened", () => {
       const at = (over: Partial<ChangeCardData>) => requestSteps(change({ createdAt: "2026-11-10T08:00:00.000Z", ...over }), "Testnet", when);
       expect(at({ status: "validated" })).toEqual(["Requested <11-10T08:00>"]);

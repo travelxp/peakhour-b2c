@@ -420,7 +420,9 @@ export function requestStatus(
   const withSent = (middle: string, plain: string): string => {
     if (!when || Number.isNaN(sentAt)) return plain;
     const cadence = opts?.now === undefined ? "" : opts.now - sentAt > CHECKED_FOR_MS ? " We have stopped checking." : " We check again within the hour.";
-    return `Sent ${when(c.submittedAt as string)}. ${middle}${cadence}`;
+    // The api's note is not normalised: close it with a full stop before the next sentence.
+    const closed = /[.!?]$/.test(middle.trim()) ? middle.trim() : `${middle.trim()}.`;
+    return `Sent ${when(c.submittedAt as string)}. ${closed}${cadence}`;
   };
 
   switch (c.status) {
@@ -571,10 +573,11 @@ export function groupByStage<T>(rows: readonly T[], stageOf: (row: T) => Request
  */
 export function requestSteps(c: Pick<ChangeCardData, "status" | "createdAt" | "submittedAt" | "liveAt">, label: string, when: (iso: string) => string): string[] {
   const steps: string[] = [];
-  if (c.createdAt) steps.push(`Requested ${when(c.createdAt)}`);
-  if (c.submittedAt) steps.push(`Sent ${when(c.submittedAt)}`);
+  const real = (t: string | null | undefined): t is string => !!t && !Number.isNaN(Date.parse(t));
+  if (real(c.createdAt)) steps.push(`Requested ${when(c.createdAt)}`);
+  if (real(c.submittedAt)) steps.push(`Sent ${when(c.submittedAt)}`);
   // "Shows it" is said only of a change the api has marked live.
-  if (c.status === "live" && c.liveAt) steps.push(`${label} shows it ${when(c.liveAt)}`);
+  if (c.status === "live" && real(c.liveAt)) steps.push(`${label} shows it ${when(c.liveAt)}`);
   return steps;
 }
 
