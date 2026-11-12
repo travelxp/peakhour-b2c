@@ -38,7 +38,6 @@ import {
   publishingBanner,
   requestGroups,
   groupByStage,
-  groupCountLine,
   requestSteps,
   requestStatus,
   shortChange,
@@ -872,10 +871,10 @@ describe("the requests list (GBP L4)", () => {
       expect(groups.find((g) => g.id === "problem")!.rows.map((r) => r.id)).toEqual(["f", "nr", "np", "bl"]);
     });
 
-    it("says the counts from the groups, only for stages that have rows", () => {
+    it("leaves out stages that have no rows", () => {
       const some = [row("a", "validated"), row("b", "submitted", { liveCheck: { checkedAt: ago(0), outcome: "pending", note: null } }), row("c", "live"), row("d", "live")];
-      expect(groupCountLine(groupByStage(some, stageOf))).toBe("1 awaiting approval · 1 under review · 2 live");
-      expect(groupCountLine([])).toBe("");
+      expect(groupByStage(some, stageOf).map((g) => [g.id, g.rows.length])).toEqual([["awaiting", 1], ["review", 1], ["live", 2]]);
+      expect(groupByStage([], stageOf)).toEqual([]);
     });
 
     it("never groups a submitted change as live", () => {
@@ -891,11 +890,16 @@ describe("the requests list (GBP L4)", () => {
       expect(requestStatus(live, "Testnet", undefined, null, { when }).reason).toBe("Testnet shows this change. We checked on <11-10T11:30>.");
       expect(requestStatus({ ...live, liveCheck: null }, "Testnet", undefined, null, { when }).reason).toBe("Testnet shows this change. We checked on <11-10T10:55>.");
       expect(requestStatus(live, "Testnet", undefined, null).reason).toBeNull();
+      expect(requestStatus({ ...live, liveAt: null, liveCheck: { checkedAt: "not a time", outcome: "confirmed", note: null } }, "Testnet", undefined, null, { when }).reason).toBeNull();
     });
 
     it("says the real check cadence for a sent change, and stops promising it after fourteen days", () => {
       const sent = row("s", "submitted", { submittedAt: "2026-11-10T10:42:00.000Z" });
       expect(requestStatus(sent, "Testnet", undefined, null, { when, now: NOW }).reason).toBe("Sent <11-10T10:42>. Testnet hasn't shown it yet. We check again within the hour.");
+      // no clock, no promise; and a change under review keeps its own sentence
+      expect(requestStatus(sent, "Testnet", undefined, null, { when }).reason).toBe("Sent <11-10T10:42>. Testnet hasn't shown it yet.");
+      const review = row("r", "submitted", { submittedAt: "2026-11-10T10:42:00.000Z", liveCheck: { checkedAt: ago(0), outcome: "pending", note: null } });
+      expect(requestStatus(review, "Testnet", undefined, null, { when, now: NOW }).reason).toBe("Sent <11-10T10:42>. Testnet is still reviewing this change. We check again within the hour.");
       const stale = row("s", "submitted", { submittedAt: ago(15) });
       expect(requestStatus(stale, "Testnet", undefined, null, { when, now: NOW }).reason).toContain("We have stopped checking.");
       expect(requestStatus(stale, "Testnet", undefined, null, { when, now: NOW }).reason).not.toContain("within the hour");

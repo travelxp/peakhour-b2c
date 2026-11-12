@@ -119,9 +119,10 @@ function RequestRow({
   );
 }
 
+// Fixed locale and zone, so the server and the browser draw the same text; the page passes its own format (the viewer's zone) in practice.
 const defaultWhen = (iso: string): string => {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "at an unknown time" : d.toLocaleString();
+  return Number.isNaN(d.getTime()) ? "" : `${d.toLocaleString("en-GB", { timeZone: "UTC", dateStyle: "medium", timeStyle: "short" })} UTC`;
 };
 
 /** The anchor of one group, so a count in the status line lands on its group. */
@@ -167,7 +168,11 @@ export function RequestsList({
   const old = older ?? [];
   const when = formatDateTime ?? defaultWhen;
   const stageOf = (c: ChangeCardData) => requestStatus(c, labelFor(c.network), can, publishing).stage;
-  const groups = groupByStage([...open, ...recent], stageOf);
+  // Newest request first inside a group, whichever list it came from.
+  const byNewest = (a: ChangeCardData, b: ChangeCardData) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0);
+  const groups = groupByStage([...open, ...recent].sort(byNewest), stageOf);
+  // An older request that still needs the merchant (a failure to make again, an approval) opens the fold, so it is not hidden.
+  const olderNeedsYou = old.some((c) => requestNeedsYou(requestStatus(c, labelFor(c.network), can, publishing)) !== null);
   const row = (c: ChangeCardData) => (
     <RequestRow key={c.id} change={c} label={labelFor(c.network)} can={can} publishing={publishing} m={m} onRedo={onRedo} outcome={outcomeFor?.(c)} canRedo={canRedo} when={when} now={now} />
   );
@@ -199,7 +204,7 @@ export function RequestsList({
             </div>
           ))}
           {old.length > 0 && (
-            <details>
+            <details open={olderNeedsYou || undefined}>
               <summary className="w-fit cursor-pointer text-xs font-medium text-muted-foreground">Show older ({old.length})</summary>
               <ul className="mt-2 divide-y">{old.map(row)}</ul>
             </details>

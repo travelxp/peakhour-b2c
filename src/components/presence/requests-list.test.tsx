@@ -38,7 +38,7 @@ const m = { approve: idle, reject: idle, undo: idle } as never;
 
 const fmt = (iso: string | null | undefined) => `[${(iso ?? "").slice(5, 16)}]`;
 const render = (open: ChangeCardData[], recent: ChangeCardData[], can = { propose: true, approve: true }, older: ChangeCardData[] = []) =>
-  renderToStaticMarkup(createElement(RequestsList, { open, recent, older, labelFor: () => "Testnet", can, publishing: null, m, onRedo: () => undefined, canRedo: () => true, formatDateTime: fmt }));
+  renderToStaticMarkup(createElement(RequestsList, { open, recent, older, labelFor: () => "Testnet", can, publishing: null, m, onRedo: () => undefined, canRedo: () => true, formatDateTime: fmt, now: Date.parse("2026-11-11T12:00:00.000Z") }));
 
 describe("the requests list", () => {
   it("says where requests will appear when there are none", () => {
@@ -171,6 +171,12 @@ describe("the requests list", () => {
     expect(html).toContain("Suggested by Ask Peakhour.");
     expect(html).toContain("Check this with your team.");
     expect(html).toContain("The hours overlap.");
+  });
+
+  it("opens Show older when an older request still needs the merchant", () => {
+    const can = { propose: true, approve: true };
+    expect(render([], [], can, [change({ status: "failed" })])).toContain("<details open");
+    expect(render([], [], can, [change({ status: "live" })])).not.toContain("<details open");
   });
 
   it("draws a failed request outside any fold, so the line at the top has a row to land on", () => {

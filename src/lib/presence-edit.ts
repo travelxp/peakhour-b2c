@@ -415,14 +415,12 @@ export function requestStatus(
   const when = opts?.when;
   const sentAt = c.submittedAt ? Date.parse(c.submittedAt) : NaN;
   // "Sent 12 Nov 10:42." and the real cadence, said only when the row has a send time and the page can write it. After 14 days the api has stopped.
-  const sentWords = (): string | null => {
-    if (!when || Number.isNaN(sentAt)) return null;
-    const stopped = opts?.now !== undefined && opts.now - sentAt > CHECKED_FOR_MS;
-    return `Sent ${when(c.submittedAt as string)}. ${label} hasn't shown it yet. ${stopped ? "We have stopped checking." : "We check again within the hour."}`;
-  };
-  const withSent = (plain: string): string => {
-    const w = sentWords();
-    return w ? `${w}${note ? ` ${note}` : ""}` : plain;
+  // `middle` is the row's own sentence for what the network said (kept as it was); the time and the cadence are added around it. The cadence is
+  // only promised when the page says what time it is, so a promise is never made that the api has stopped keeping.
+  const withSent = (middle: string, plain: string): string => {
+    if (!when || Number.isNaN(sentAt)) return plain;
+    const cadence = opts?.now === undefined ? "" : opts.now - sentAt > CHECKED_FOR_MS ? " We have stopped checking." : " We check again within the hour.";
+    return `Sent ${when(c.submittedAt as string)}. ${middle}${cadence}`;
   };
 
   switch (c.status) {
@@ -447,21 +445,21 @@ export function requestStatus(
     case "submitted": {
       switch (check?.outcome) {
         case "pending":
-          return stage("under_review", `Under ${label} review`, withSent(note || `${label} is still reviewing this change. We will tell you when it is done.`), "neutral");
+          return stage("under_review", `Under ${label} review`, withSent(note || `${label} is still reviewing this change.`, note || `${label} is still reviewing this change. We will tell you when it is done.`), "neutral");
         case "unknown":
           // Only a change the network can NEVER show back says so. A check that did not answer (or an api that does not say) is a later try:
           // plain "sent", with the note.
-          if (check.confirmable !== false) return stage("sent", `Sent to ${label}`, withSent(note || `${label} may take time to show it. We will say when it does.`), "neutral");
+          if (check.confirmable !== false) return stage("sent", `Sent to ${label}`, withSent(note || `${label} hasn't shown it yet.`, note || `${label} may take time to show it. We will say when it does.`), "neutral");
           return stage("cannot_confirm", `Sent, ${label} doesn't let us confirm this`, note || `${label} does not show this kind of change back to us, so we cannot tell you when it is showing.`, "neutral");
         case "not_shown":
-          return stage("sent", `Sent to ${label}`, withSent(note || `${label} is not showing it yet.`), "warn");
+          return stage("sent", `Sent to ${label}`, withSent(note || `${label} is not showing it yet.`, note || `${label} is not showing it yet.`), "warn");
         default:
-          return stage("sent", `Sent to ${label}`, withSent(`${label} may take time to show it. We will say when it does.${note ? ` ${note}` : ""}`), "neutral");
+          return stage("sent", `Sent to ${label}`, withSent(`${label} hasn't shown it yet.${note ? ` ${note}` : ""}`, `${label} may take time to show it. We will say when it does.${note ? ` ${note}` : ""}`), "neutral");
       }
     }
     case "live": {
       // How we know: the api sets `live` only after the network shows the change back. The time is the last check, else the moment it went live.
-      const proof = check?.checkedAt ?? c.liveAt ?? null;
+      const proof = [check?.checkedAt, c.liveAt].find((t) => t && !Number.isNaN(Date.parse(t))) ?? null;
       return stage("live", `Live on ${label}`, when && proof ? `${label} shows this change. We checked on ${when(proof)}.` : null, "good");
     }
     case "failed":
@@ -563,12 +561,8 @@ export interface RequestGroup<T> {
 
 /** Rows split into the groups above, in order, empty groups left out. A row whose stage is in no group (an unknown status) is left out too. */
 export function groupByStage<T>(rows: readonly T[], stageOf: (row: T) => RequestStage): RequestGroup<T>[] {
-  return REQUEST_GROUPS.map((g) => ({ id: g.id, label: g.label, rows: rows.filter((r) => g.stages.includes(stageOf(r))) })).filter((g) => g.rows.length > 0);
-}
-
-/** "1 awaiting approval · 1 under review · 2 live": one count per group that has rows, from the groups themselves. */
-export function groupCountLine(groups: readonly RequestGroup<unknown>[]): string {
-  return groups.map((g) => `${g.rows.length} ${g.label.toLowerCase()}`).join(" · ");
+  const staged = rows.map((r) => ({ r, st: stageOf(r) }));
+  return REQUEST_GROUPS.map((g) => ({ id: g.id, label: g.label, rows: staged.filter((x) => g.stages.includes(x.st)).map((x) => x.r) })).filter((g) => g.rows.length > 0);
 }
 
 /**
