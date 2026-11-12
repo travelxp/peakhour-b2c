@@ -80,7 +80,7 @@ export function ChangeChoices({
   // "Keep" only where the merchant can see what they are keeping: a value, or a named field with a link to look at.
   const canKeep = line.suggested !== undefined || !!mapHref;
   // Nothing to see and nothing to keep: the change must still be dismissable, so it is "I've checked it" (acknowledge only), never a dead end.
-  const canAcknowledge = !canKeep && !canPutBack;
+  const canAcknowledge = !canKeep;
 
   return (
     <div className="space-y-1">

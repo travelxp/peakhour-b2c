@@ -366,6 +366,7 @@ describe("listingMapLink: the link to look at the change on the network", () => 
     expect(listingMapLink(places, "locations/3")).toBeNull();
     expect(listingMapLink(places, null)).toBeNull();
     expect(listingMapLink([places[0]!], null)).toBe("https://maps.example/a");
+    expect(listingMapLink([places[0]!], "locations/9")).toBeNull();
     expect(listingMapLink(undefined, "locations/1")).toBeNull();
   });
 });

@@ -288,7 +288,8 @@ export function listingMapLink(
 ): string | null {
   if (!locations || locations.length === 0) return null;
   const own = externalId ? locations.find((l) => l.locationName === externalId) : undefined;
-  const place = own ?? (locations.length === 1 ? locations[0] : undefined);
+  // the only place is the listing's only when the listing names no place of its own; a named place that is not listed is not guessed
+  const place = own ?? (!externalId && locations.length === 1 ? locations[0] : undefined);
   return mapLink(place?.mapsUri);
 }
 
