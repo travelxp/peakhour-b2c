@@ -24,7 +24,10 @@ export interface PeakPack {
   amount: string;
   currency: string;
   displayPrefix?: string;
-  highlight: boolean;
+  // The api also sends `highlight` (cfg_addons.display.highlight). It is left
+  // off this type on purpose: "Best value" is derived from the unit prices
+  // (`lib/peaks-pack-unit-price`), because the stored flag sat on a pack that
+  // was not the cheapest per 1,000 Peaks.
 }
 
 export interface PeaksResponse {

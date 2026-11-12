@@ -41,6 +41,7 @@ import {
   type PeaksPack,
 } from "@/hooks/use-peaks-packs";
 import { cardReason, packReason, packRefusalShownAsIs } from "@/lib/peaks-pack-copy";
+import { bestValueKey, pricePerThousand, PER_THOUSAND_SUFFIX } from "@/lib/peaks-pack-unit-price";
 import type { CheckoutResult } from "@/components/upgrade/payment-modal";
 import { PaymentModal } from "@/components/upgrade/payment-modal-lazy";
 import { ApiError } from "@/lib/api";
@@ -336,7 +337,12 @@ function BuyPeaks() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {data.packs.map((p) => {
+            {data.packs.map((p, _i, all) => {
+              // Same rule as the public /peaks page: the badge goes to the
+              // lowest price per 1,000 Peaks, derived, never stored.
+              const best = p.key === bestValueKey(all);
+              const unitPrice = pricePerThousand(p);
+              const unit = unitPrice === null ? null : `${fmtPrice(unitPrice.toFixed(2), p.currency)} ${PER_THOUSAND_SUFFIX}`;
               // Only when it ADDS something. When every pack is blocked for the
               // same reason the card already says it once — repeating it under
               // each button turned one message into N+1 identical sentences,
@@ -357,8 +363,14 @@ function BuyPeaks() {
                       {/* The pre-selection is otherwise conveyed by a ring only,
                           which a screen reader cannot see. */}
                       {p.key === wanted ? <span className="sr-only"> (the pack you chose)</span> : null}
+                      {best ? (
+                        <span className="bg-primary/10 text-primary ml-2 rounded-full px-2 py-0.5 text-xs font-semibold">
+                          Best value
+                        </span>
+                      ) : null}
                     </p>
                     <p className="text-muted-foreground text-sm">{fmtPeaks(p.credits)} Peaks</p>
+                    {unit ? <p className="text-muted-foreground text-xs tabular-nums">{unit}</p> : null}
                   </div>
                   <div className="mt-auto flex items-end justify-between gap-2">
                     <span className="text-lg font-semibold tabular-nums">
