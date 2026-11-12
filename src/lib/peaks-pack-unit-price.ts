@@ -11,6 +11,11 @@
  * 1,000) while Peaks Pro was cheaper ($0.80): printing the unit price beside a
  * stored badge would have contradicted it on the same card. Deriving it means
  * the badge and the line under it cannot disagree.
+ *
+ * ★ONE ROUNDING. `pricePerThousand` rounds to the cent once; the badge compares
+ * that number and every surface formats that same number. Comparing one
+ * rounding and printing another is how two cards could show the same price
+ * with a badge on only one of them.
  */
 
 /** The fields both pack shapes (public /peaks and in-app billing) share. */
@@ -22,21 +27,22 @@ export interface PackForUnitPrice {
   currency: string;
 }
 
-/** Price of 1,000 Peaks in this pack, or null when the pack can't say. */
+/** Price of 1,000 Peaks in this pack, rounded to the cent, or null when the
+ *  pack can't say. */
 export function pricePerThousand(pack: Pick<PackForUnitPrice, "amount" | "credits">): number | null {
   const amount = Number(pack.amount);
   // `Number("")` and `Number(" ")` are 0 and finite, so `<= 0` is also what
   // stops an empty amount from printing as a unit price of zero.
   if (!Number.isFinite(amount) || amount <= 0) return null;
   if (!Number.isFinite(pack.credits) || pack.credits <= 0) return null;
-  return (amount * 1000) / pack.credits;
+  return Math.round((amount * 1000 * 100) / pack.credits) / 100;
 }
-
-/** Hundredths, so two packs that print the same price count as a tie. */
-const cents = (n: number) => Math.round(n * 100);
 
 /**
  * The key of the pack with the lowest price per 1,000 Peaks, or null.
+ *
+ * Pass only the packs the buyer can act on: a badge on a pack they cannot buy
+ * points them at a greyed-out button.
  *
  * Null when fewer than two packs can be compared, when they are not all in one
  * currency (a cheaper number in another currency is not cheaper), or when the
@@ -48,6 +54,8 @@ export function bestValueKey(packs: readonly PackForUnitPrice[]): string | null 
     .filter((p): p is { key: string; currency: string; unit: number } => p.unit !== null);
   if (priced.length < 2) return null;
   if (new Set(priced.map((p) => p.currency)).size !== 1) return null;
+  // Whole cents, so float noise in two equal prices cannot break a tie.
+  const cents = (n: number) => Math.round(n * 100);
   const lowest = Math.min(...priced.map((p) => cents(p.unit)));
   const winners = priced.filter((p) => cents(p.unit) === lowest);
   return winners.length === 1 ? winners[0].key : null;
@@ -57,15 +65,13 @@ export function bestValueKey(packs: readonly PackForUnitPrice[]): string | null 
 export const PER_THOUSAND_SUFFIX = "per 1,000 Peaks";
 
 /**
- * "$0.90 per 1,000 Peaks" from a display prefix (the public /peaks page's
- * shape), or null. Two decimals always: "$0.9" reads as a typo on a price.
+ * "$0.90 per 1,000 Peaks", or null. `formatMoney` is the surface's own price
+ * formatter, so the unit line reads like the pack price on the same card.
  */
 export function perThousandLabel(
   pack: Pick<PackForUnitPrice, "amount" | "credits">,
-  displayPrefix = "",
+  formatMoney: (n: number) => string,
 ): string | null {
   const unit = pricePerThousand(pack);
-  if (unit === null) return null;
-  const n = unit.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return `${displayPrefix}${n} ${PER_THOUSAND_SUFFIX}`;
+  return unit === null ? null : `${formatMoney(unit)} ${PER_THOUSAND_SUFFIX}`;
 }

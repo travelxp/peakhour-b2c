@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { bestValueKey, perThousandLabel, pricePerThousand, type PackForUnitPrice } from "./peaks-pack-unit-price";
+import { formatPackUnitPrice } from "./peaks";
+
+const money = (prefix: string) => (n: number) => formatPackUnitPrice({ currency: "XXX", displayPrefix: prefix }, n);
 
 /**
  * The per-1,000-Peaks line on every pack, and the "Best value" badge derived
@@ -26,12 +29,12 @@ const INR = [
 
 describe("perThousandLabel", () => {
   it("prints the live packs' unit prices, always to two decimals", () => {
-    expect(USD.map((p) => perThousandLabel(p, "$"))).toEqual([
+    expect(USD.map((p) => perThousandLabel(p, money("$")))).toEqual([
       "$1.00 per 1,000 Peaks",
       "$0.90 per 1,000 Peaks",
       "$0.80 per 1,000 Peaks",
     ]);
-    expect(INR.map((p) => perThousandLabel(p, "₹"))).toEqual([
+    expect(INR.map((p) => perThousandLabel(p, money("₹")))).toEqual([
       "₹79.80 per 1,000 Peaks",
       "₹74.95 per 1,000 Peaks",
       "₹64.99 per 1,000 Peaks",
@@ -39,11 +42,11 @@ describe("perThousandLabel", () => {
   });
 
   it("says nothing rather than a wrong number for a pack it can't divide", () => {
-    expect(perThousandLabel(pack("a", "", 5000), "$")).toBeNull();
-    expect(perThousandLabel(pack("a", " ", 5000), "$")).toBeNull();
-    expect(perThousandLabel(pack("a", "abc", 5000), "$")).toBeNull();
-    expect(perThousandLabel(pack("a", "0.00", 5000), "$")).toBeNull();
-    expect(perThousandLabel(pack("a", "5.00", 0), "$")).toBeNull();
+    expect(perThousandLabel(pack("a", "", 5000), money("$"))).toBeNull();
+    expect(perThousandLabel(pack("a", " ", 5000), money("$"))).toBeNull();
+    expect(perThousandLabel(pack("a", "abc", 5000), money("$"))).toBeNull();
+    expect(perThousandLabel(pack("a", "0.00", 5000), money("$"))).toBeNull();
+    expect(perThousandLabel(pack("a", "5.00", 0), money("$"))).toBeNull();
   });
 });
 
@@ -51,6 +54,20 @@ describe("pricePerThousand", () => {
   it("is the pack price scaled to 1,000 Peaks", () => {
     expect(pricePerThousand(pack("a", "18.00", 20000))).toBeCloseTo(0.9);
     expect(pricePerThousand(pack("a", "129.00", 100000))).toBeCloseTo(1.29);
+  });
+
+  it("is rounded to the cent once, so the badge compares what the card prints", () => {
+    // 80.06 / 100 = 0.8006: printed "$0.80", and compared as 0.80 too.
+    expect(pricePerThousand(pack("a", "80.06", 100000))).toBe(0.8);
+    expect(perThousandLabel(pack("a", "80.06", 100000), money("$"))).toBe("$0.80 per 1,000 Peaks");
+  });
+});
+
+describe("formatPackUnitPrice", () => {
+  it("uses the display prefix, and falls back to the currency code, never a bare number", () => {
+    expect(formatPackUnitPrice({ currency: "USD", displayPrefix: "$" }, 0.9)).toBe("$0.90");
+    expect(formatPackUnitPrice({ currency: "INR" }, 74.95)).toBe("INR 74.95");
+    expect(formatPackUnitPrice({ currency: "INR", displayPrefix: "" }, 74.95)).toBe("INR 74.95");
   });
 });
 

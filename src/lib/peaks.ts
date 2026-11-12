@@ -66,3 +66,14 @@ export function formatPackPrice(p: PeakPack): string {
     : n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   return `${p.displayPrefix ?? ""}${num}`;
 }
+
+/**
+ * A unit price (per 1,000 Peaks) in this pack's money: "$0.90" / "₹74.95".
+ * Same locale as `formatPackPrice` so the two lines on a card match, but always
+ * two decimals ("$0.9" reads as a typo on a price). With no `displayPrefix` it
+ * falls back to the currency code, never a bare number.
+ */
+export function formatPackUnitPrice(p: Pick<PeakPack, "currency" | "displayPrefix">, unit: number): string {
+  const num = unit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return p.displayPrefix ? `${p.displayPrefix}${num}` : `${p.currency} ${num}`;
+}

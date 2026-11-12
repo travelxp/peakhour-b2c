@@ -7,7 +7,7 @@ import { Footer } from "@/components/shared/footer";
 import { Button } from "@/components/ui/button";
 import { PeaksGlyph } from "@/components/peaks/peaks-glyph";
 import { Peaks } from "@/components/peaks/peaks";
-import { getPeaks, formatPackPrice, type PeakPack } from "@/lib/peaks";
+import { getPeaks, formatPackPrice, formatPackUnitPrice, type PeakPack } from "@/lib/peaks";
 import { bestValueKey, perThousandLabel } from "@/lib/peaks-pack-unit-price";
 import { marketingTrialDays } from "@/lib/pricing";
 import { hasTrial, trialCtaLabel } from "@/lib/trial-copy";
@@ -201,7 +201,7 @@ function HowItWorksCard({
  *  the api's stored `highlight`, so the badge cannot contradict the
  *  per-1,000 line printed on the same cards. */
 function PackCard({ pack, bestValue }: { pack: PeakPack; bestValue: boolean }) {
-  const unit = perThousandLabel(pack, pack.displayPrefix);
+  const unit = perThousandLabel(pack, (n) => formatPackUnitPrice(pack, n));
   return (
     <div
       className={`relative flex flex-col rounded-2xl border bg-card p-6 ${

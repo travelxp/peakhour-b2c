@@ -41,7 +41,7 @@ import {
   type PeaksPack,
 } from "@/hooks/use-peaks-packs";
 import { cardReason, packReason, packRefusalShownAsIs } from "@/lib/peaks-pack-copy";
-import { bestValueKey, pricePerThousand, PER_THOUSAND_SUFFIX } from "@/lib/peaks-pack-unit-price";
+import { bestValueKey, perThousandLabel } from "@/lib/peaks-pack-unit-price";
 import type { CheckoutResult } from "@/components/upgrade/payment-modal";
 import { PaymentModal } from "@/components/upgrade/payment-modal-lazy";
 import { ApiError } from "@/lib/api";
@@ -311,6 +311,10 @@ function BuyPeaks() {
         : null;
   const cardBlocked = cardReason(countryBlocked, data.packs);
   const canBuy = (p: PeaksPack) => p.purchasable && countryBlocked === null;
+  // Same rule as the public /peaks page (lowest price per 1,000 Peaks, derived,
+  // never stored), ranked among the packs this org can BUY: a badge on a
+  // greyed-out button points the buyer at the one pack they can't have.
+  const bestKey = bestValueKey(data.packs.filter(canBuy));
 
   return (
     <>
@@ -337,12 +341,10 @@ function BuyPeaks() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {data.packs.map((p, _i, all) => {
-              // Same rule as the public /peaks page: the badge goes to the
-              // lowest price per 1,000 Peaks, derived, never stored.
-              const best = p.key === bestValueKey(all);
-              const unitPrice = pricePerThousand(p);
-              const unit = unitPrice === null ? null : `${fmtPrice(unitPrice.toFixed(2), p.currency)} ${PER_THOUSAND_SUFFIX}`;
+            {data.packs.map((p) => {
+              const best = p.key === bestKey;
+              // `n` is already rounded to the cent, so toFixed(2) is exact.
+              const unit = perThousandLabel(p, (n) => fmtPrice(n.toFixed(2), p.currency));
               // Only when it ADDS something. When every pack is blocked for the
               // same reason the card already says it once — repeating it under
               // each button turned one message into N+1 identical sentences,
