@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { b2cAccessCookieName, b2cRefreshCookieName } from "@/lib/auth-cookies";
+import { isAppRoute } from "@/lib/route-theme";
 
 const isDev = process.env.NODE_ENV !== "production";
 
@@ -201,14 +202,11 @@ export function middleware(req: NextRequest) {
   // homepage and every marketing/legal route still show the teaser to EVERYONE
   // while the gate is on. Soft gate: presence ≠ validity — the app's own auth
   // guard (AuthProvider → /v1/auth/me) bounces an invalid session back to /auth.
-  const APP_PREFIXES = ["/dashboard", "/onboarding", "/cms"];
-  const isAppRoute = APP_PREFIXES.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`),
-  );
+  // The app-route list is shared with the ThemeProvider (lib/route-theme.ts).
   const hasSession =
     !!req.cookies.get(b2cAccessCookieName())?.value ||
     !!req.cookies.get(b2cRefreshCookieName())?.value;
-  const sessionBypass = hasSession && isAppRoute;
+  const sessionBypass = hasSession && isAppRoute(pathname);
   const gated =
     comingSoon &&
     pathname !== "/coming-soon" &&
