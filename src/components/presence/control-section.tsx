@@ -31,10 +31,13 @@ const TONE_ICON: Record<NoteTone, React.ReactNode> = {
 export function ControlSection({
   entry,
   listing,
+  mapHref,
   formatDateTime,
 }: {
   entry: PresenceNetworkEntry | null;
   listing: PresenceListingResponse["listing"] | null;
+  /** The listing's page on the network, for "Check it on ...". */
+  mapHref?: string | null;
   formatDateTime: (iso: string | null | undefined) => string;
 }) {
   const label = entry?.label ?? "the network";
@@ -84,7 +87,7 @@ export function ControlSection({
                 {changes.lines.map((l, i) => (
                   <li key={l.key} id={`network-change-${i}`} className="space-y-1">
                     <p>{l.text}</p>
-                    {entry && listing ? <ChangeChoices line={l} entry={entry} listing={listing} onDone={setDone} /> : null}
+                    {entry && listing ? <ChangeChoices line={l} entry={entry} listing={listing} mapHref={mapHref} onDone={setDone} /> : null}
                   </li>
                 ))}
               </ul>

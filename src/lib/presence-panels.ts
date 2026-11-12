@@ -1,3 +1,4 @@
+import { mapLink } from "@/components/presence/network-card-state";
 /**
  * What the Presence Listing and Insights panels are allowed to SAY (PE-04a).
  *
@@ -273,7 +274,27 @@ export interface PresenceSearchTerms {
 export interface PresenceLocation {
   locationName: string;
   title: string | null;
+  /** The listing's page on the network's map. Present only when the network gave a web address. */
+  mapsUri?: string;
 }
+
+/**
+ * The link to a listing on the network, for "Check it on {label}". The listing's own entry when the connection lists it, else the only place the
+ * connection lists. Never a guess between several. Only an http(s) address is a link.
+ */
+export function listingMapLink(
+  locations: readonly PresenceLocation[] | undefined,
+  externalId: string | null | undefined,
+): string | null {
+  if (!locations || locations.length === 0) return null;
+  const own = externalId ? locations.find((l) => l.locationName === externalId) : undefined;
+  // the only place is the listing's only when the listing names no place of its own; a named place that is not listed is not guessed
+  const place = own ?? (!externalId && locations.length === 1 ? locations[0] : undefined);
+  return mapLink(place?.mapsUri);
+}
+
+/** A field the page has no words for (the api's `other`, or a name added to the api first) is a change we cannot name. */
+export const isUnnamedField = (field: string): boolean => field === "other" || !Object.hasOwn(FIELD_WORDS, field);
 
 /**
  * One day. A figure the network did not report is `null`, never 0: those are different things on screen.
@@ -796,12 +817,15 @@ const quoted = (v: string): string => {
   return `"${one.length > 120 ? `${one.slice(0, 117)}...` : one}"`;
 };
 
-/** One change, in words: what, and from and to where we know them. An unknown before says only "to"; no value names the field. */
+/**
+ * One change, in words: what, and from and to where we know them. An unknown before says only "to"; no value names the field and says where to
+ * see it. A change we cannot name says so, and offers no value at all.
+ */
 export function changeLine(c: PresenceNetworkChange, label: string): string {
-  if (c.field === "other") return `${label} changed ${UNNAMED_DETAIL}.`;
-  const to = c.suggested ? ` to ${quoted(c.suggested)}` : "";
-  const from = c.suggested && c.before ? ` from ${quoted(c.before)}` : "";
-  return `${label} changed your ${fieldWords(c.field)}${from}${to}.`;
+  if (isUnnamedField(c.field)) return `${label} changed something on your listing that Peakhour can't show yet.`;
+  if (!c.suggested) return `${label} changed your ${fieldWords(c.field)}. See it on ${label}.`;
+  const from = c.before ? ` from ${quoted(c.before)}` : "";
+  return `${label} changed your ${fieldWords(c.field)}${from} to ${quoted(c.suggested)}.`;
 }
 
 export type ChangesView =
@@ -816,6 +840,8 @@ export interface ChangeLine {
   /** The network's own path, sent back only to say which change is meant. */
   path: string | undefined;
   text: string;
+  /** A change we cannot name: it is never offered for approval, only for "I've checked it". */
+  unnamed: boolean;
   /** Put ours back: only where we hold a value that is plain text. */
   canPutBack: boolean;
   before: string | undefined;
@@ -853,6 +879,7 @@ export function changesView(
       field: i.field,
       path: i.label,
       text: changeLine(i, label),
+      unnamed: isUnnamedField(i.field),
       canPutBack: putBackValue(i, null) !== null,
       before: i.before,
       suggested: i.suggested,

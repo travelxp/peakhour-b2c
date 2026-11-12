@@ -9,6 +9,7 @@ import {
   declaredMetrics,
   fieldWords,
   changeLine,
+  listingMapLink,
   putBackValue,
   metricTotal,
   monthStartIso,
@@ -178,9 +179,10 @@ describe("changesView: null and [] are different answers", () => {
     expect(v.headline).toBe(`${NET} changed 3 things on its own`);
     expect(v.lines.map((l) => l.text)).toEqual([
       `${NET} changed your phone number from "+1 555 0199" to "+1 555 0100".`,
-      `${NET} changed your opening hours.`,
-      `${NET} changed a detail Peakhour doesn't track yet.`,
+      `${NET} changed your opening hours. See it on ${NET}.`,
+      `${NET} changed something on your listing that Peakhour can't show yet.`,
     ]);
+    expect(v.lines.map((l) => l.unnamed)).toEqual([false, false, true]);
     // the path is never shown, only sent back to say which change is meant
     expect(JSON.stringify(v.lines.map((l) => l.text))).not.toMatch(/attributes[.]x/);
     expect(v.lines[2]!.path).toBe("attributes.x");
@@ -209,7 +211,9 @@ describe("changesView: null and [] are different answers", () => {
 
   it("an unknown before says only to; no value names the field; a long value is one bounded line", () => {
     expect(changeLine({ field: "website", suggested: "https://b.example" }, NET)).toBe(`${NET} changed your website to "https://b.example".`);
-    expect(changeLine({ field: "website" }, NET)).toBe(`${NET} changed your website.`);
+    expect(changeLine({ field: "website" }, NET)).toBe(`${NET} changed your website. See it on ${NET}.`);
+    expect(changeLine({ field: "website", suggested: "https://b.example", before: "https://a.example" }, NET)).toBe(`${NET} changed your website from "https://a.example" to "https://b.example".`);
+    expect(changeLine({ field: "other", label: "x.y" }, NET)).toBe(`${NET} changed something on your listing that Peakhour can't show yet.`);
     expect(changeLine({ field: "description", suggested: ["a", "b".repeat(300)].join(String.fromCharCode(10)) }, NET)).not.toContain(String.fromCharCode(10));
   });
 
@@ -347,5 +351,22 @@ describe("declaredMetrics: tiles come from the declaration", () => {
   it("every tile maps to a distinct neutral key", () => {
     const neutral = INSIGHT_METRICS.map((m) => m.neutral);
     expect(new Set(neutral).size).toBe(neutral.length);
+  });
+});
+
+describe("listingMapLink: the link to look at the change on the network", () => {
+  const places = [
+    { locationName: "locations/1", title: "A", mapsUri: "https://maps.example/a" },
+    { locationName: "locations/2", title: "B", mapsUri: "javascript:alert(1)" },
+    { locationName: "locations/3", title: "C" },
+  ];
+  it("is the listing's own link; never a guess between several; never a non-web address", () => {
+    expect(listingMapLink(places, "locations/1")).toBe("https://maps.example/a");
+    expect(listingMapLink(places, "locations/2")).toBeNull();
+    expect(listingMapLink(places, "locations/3")).toBeNull();
+    expect(listingMapLink(places, null)).toBeNull();
+    expect(listingMapLink([places[0]!], null)).toBe("https://maps.example/a");
+    expect(listingMapLink([places[0]!], "locations/9")).toBeNull();
+    expect(listingMapLink(undefined, "locations/1")).toBeNull();
   });
 });
