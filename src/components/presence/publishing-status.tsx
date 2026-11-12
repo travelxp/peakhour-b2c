@@ -5,6 +5,7 @@ import { AlertTriangle, CheckCircle2, CircleSlash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RequestsList } from "@/components/presence/requests-list";
 import { useChangeOutcomes, useEditCapabilities, useListingChanges, usePresenceEditMutations } from "@/hooks/use-presence-edit";
+import { useLocale } from "@/hooks/use-locale";
 import { useNow } from "@/hooks/use-now";
 import { useListingQuery } from "@/hooks/use-presence-listing";
 import { primaryEntry } from "@/lib/presence-panels";
@@ -47,9 +48,11 @@ export function PublishingStatus({
   const outcomes = useChangeOutcomes(listing?.id, changes.data?.items, caps.data);
   const banner = caps.data ? publishingBanner(entry, caps.data.can) : null;
   const now = useNow();
-  const groups = caps.data && entry ? requestGroups(changes.data?.items, now) : { open: [], recent: [] };
-  const hasRequests = groups.open.length + groups.recent.length > 0;
-  if (!banner && !hasRequests) return null;
+  const { formatDateTime } = useLocale();
+  const groups = caps.data && entry ? requestGroups(changes.data?.items, now) : { open: [], recent: [], older: [] };
+  // The section is always drawn once the page can change the listing, so a merchant with no request yet is told where they will appear.
+  const showRequests = !!caps.data && !!entry;
+  if (!banner && !showRequests) return null;
   const look = banner ? LOOK[banner.tone] : null;
 
   return (
@@ -83,6 +86,9 @@ export function PublishingStatus({
         <RequestsList
           open={groups.open}
           recent={groups.recent}
+          older={groups.older}
+          formatDateTime={formatDateTime}
+          now={now}
           labelFor={(n) => capabilityFor(caps.data, n)?.label ?? entry.label}
           can={caps.data.can}
           publishing={entry.publishing ?? null}

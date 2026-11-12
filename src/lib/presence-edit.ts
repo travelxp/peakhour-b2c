@@ -371,7 +371,22 @@ export interface RequestStatus {
   next: RequestNext;
 }
 
-export type RequestSource = Pick<ChangeCardData, "status" | "reason" | "held" | "liveCheck">;
+export type RequestSource = Pick<ChangeCardData, "status" | "reason" | "held" | "liveCheck"> & Partial<Pick<ChangeCardData, "submittedAt" | "liveAt">>;
+
+/**
+ * What lets a sentence carry a time. Both are optional so Ask's card, which has neither, keeps its plain words. `when` writes a time the way
+ * the page does (the viewer's own zone); `now` lets the "we check again" promise stop being made once the api has stopped checking.
+ */
+export interface RequestStatusOptions {
+  when?: ((iso: string) => string) | undefined;
+  now?: number | undefined;
+}
+
+/**
+ * The api checks a sent change on the hourly sweep, no more than once per ten minutes, for 14 days from the send (change-apply.ts:
+ * CONFIRM_EVERY_MS, CONFIRM_FOR_MS; the decisions-expiry cron runs at minute 10 of every hour). "Within the hour" is true only inside that window.
+ */
+const CHECKED_FOR_MS = 14 * 86_400_000;
 
 const REDO: RequestNext = { kind: "redo", label: "Make the change again" };
 
@@ -384,6 +399,7 @@ export function requestStatus(
   label: string,
   can: CapabilitiesResponse["can"] | undefined,
   publishing?: Pick<PresencePublishing, "blocker" | "heldReason"> | null,
+  opts?: RequestStatusOptions,
 ): RequestStatus {
   const check = c.liveCheck;
   const note = check?.note?.trim() || null;
@@ -396,6 +412,18 @@ export function requestStatus(
       : { kind: "none" };
   const stage = (st: RequestStage, lbl: string, reason: string | null, tone: Tone, next: RequestNext = { kind: "none" }): RequestStatus => ({ stage: st, label: lbl, reason, tone, next });
   const decide: RequestNext = can?.approve ? { kind: "decide" } : { kind: "none" };
+  const when = opts?.when;
+  const sentAt = c.submittedAt ? Date.parse(c.submittedAt) : NaN;
+  // "Sent 12 Nov 10:42." and the real cadence, said only when the row has a send time and the page can write it. After 14 days the api has stopped.
+  // `middle` is the row's own sentence for what the network said (kept as it was); the time and the cadence are added around it. The cadence is
+  // only promised when the page says what time it is, so a promise is never made that the api has stopped keeping.
+  const withSent = (middle: string, plain: string): string => {
+    if (!when || Number.isNaN(sentAt)) return plain;
+    const cadence = opts?.now === undefined ? "" : opts.now - sentAt > CHECKED_FOR_MS ? " We have stopped checking." : " We check again within the hour.";
+    // The api's note is not normalised: close it with a full stop before the next sentence.
+    const closed = /[.!?]$/.test(middle.trim()) ? middle.trim() : `${middle.trim()}.`;
+    return `Sent ${when(c.submittedAt as string)}. ${closed}${cadence}`;
+  };
 
   switch (c.status) {
     case "proposed":
@@ -419,20 +447,23 @@ export function requestStatus(
     case "submitted": {
       switch (check?.outcome) {
         case "pending":
-          return stage("under_review", `Under ${label} review`, note || `${label} is still reviewing this change. We will tell you when it is done.`, "neutral");
+          return stage("under_review", `Under ${label} review`, withSent(note || `${label} is still reviewing this change.`, note || `${label} is still reviewing this change. We will tell you when it is done.`), "neutral");
         case "unknown":
           // Only a change the network can NEVER show back says so. A check that did not answer (or an api that does not say) is a later try:
           // plain "sent", with the note.
-          if (check.confirmable !== false) return stage("sent", `Sent to ${label}`, note || `${label} may take time to show it. We will say when it does.`, "neutral");
+          if (check.confirmable !== false) return stage("sent", `Sent to ${label}`, withSent(note || `${label} hasn't shown it yet.`, note || `${label} may take time to show it. We will say when it does.`), "neutral");
           return stage("cannot_confirm", `Sent, ${label} doesn't let us confirm this`, note || `${label} does not show this kind of change back to us, so we cannot tell you when it is showing.`, "neutral");
         case "not_shown":
-          return stage("sent", `Sent to ${label}`, note || `${label} is not showing it yet.`, "warn");
+          return stage("sent", `Sent to ${label}`, withSent(note || `${label} is not showing it yet.`, note || `${label} is not showing it yet.`), "warn");
         default:
-          return stage("sent", `Sent to ${label}`, `${label} may take time to show it. We will say when it does.${note ? ` ${note}` : ""}`, "neutral");
+          return stage("sent", `Sent to ${label}`, withSent(`${label} hasn't shown it yet.${note ? ` ${note}` : ""}`, `${label} may take time to show it. We will say when it does.${note ? ` ${note}` : ""}`), "neutral");
       }
     }
-    case "live":
-      return stage("live", `Live on ${label}`, null, "good");
+    case "live": {
+      // How we know: the api sets `live` only after the network shows the change back. The time is the last check, else the moment it went live.
+      const proof = [check?.checkedAt, c.liveAt].find((t) => t && !Number.isNaN(Date.parse(t))) ?? null;
+      return stage("live", `Live on ${label}`, when && proof ? `${label} shows this change. We checked on ${when(proof)}.` : null, "good");
+    }
     case "failed":
       if (c.reason?.code === "network_rejected") return stage("rejected_by_network", `Rejected by ${label}`, reasonOf(c), "bad", again);
       if (c.reason?.code === "not_published") return stage("not_published", "Didn't go live", reasonOf(c), "warn", again);
@@ -492,16 +523,62 @@ function finishedAt(c: ChangeCardData): number {
  * The "Your requests" list: what is still open or in flight first (newest first), then what finished in the last seven days. A replaced
  * request is hidden: another one took its place and is listed. An older one is the history, not a request.
  */
-export function requestGroups(changes: readonly ChangeCardData[] | undefined, now: number): { open: ChangeCardData[]; recent: ChangeCardData[] } {
+export function requestGroups(changes: readonly ChangeCardData[] | undefined, now: number): { open: ChangeCardData[]; recent: ChangeCardData[]; older: ChangeCardData[] } {
   const open: ChangeCardData[] = [];
   const recent: ChangeCardData[] = [];
+  const older: ChangeCardData[] = [];
   for (const row of changes ?? []) {
     const c = lapsed(row, now);
     if (OPEN_STATUSES.has(c.status)) open.push(c);
-    else if (FINISHED_STATUSES.has(c.status) && now - finishedAt(c) <= RECENT_MS) recent.push(c);
+    else if (FINISHED_STATUSES.has(c.status)) (now - finishedAt(c) <= RECENT_MS ? recent : older).push(c);
   }
   const byNewest = (a: ChangeCardData, b: ChangeCardData) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0);
-  return { open: open.sort(byNewest), recent: recent.sort((a, b) => finishedAt(b) - finishedAt(a)) };
+  const byFinished = (a: ChangeCardData, b: ChangeCardData) => finishedAt(b) - finishedAt(a);
+  return { open: open.sort(byNewest), recent: recent.sort(byFinished), older: older.sort(byFinished) };
+}
+
+// ── The tracker: every request, grouped by stage ─────────────────────────────
+
+/**
+ * ★THE ONE STAGE-TO-GROUP RULE. A request's group is read from `requestStatus(...).stage` and nothing else, so a request is in exactly one
+ * group and the count line can never disagree with the list. Order is the order drawn: what needs the merchant first, then what is in flight,
+ * then what finished. A submitted change is only ever in `sent` or `under_review`; `live` is the `live` stage alone.
+ */
+export const REQUEST_GROUPS: ReadonlyArray<{ id: string; label: string; stages: readonly RequestStage[] }> = [
+  { id: "awaiting", label: "Awaiting approval", stages: ["awaiting_approval"] },
+  { id: "problem", label: "Rejected or failed", stages: ["rejected_by_network", "not_published", "failed", "not_sent"] },
+  { id: "draft", label: "Draft", stages: ["draft"] },
+  { id: "waiting", label: "Approved, waiting to send", stages: ["approved_held", "approved_waiting"] },
+  { id: "sent", label: "Sent", stages: ["sent", "cannot_confirm"] },
+  { id: "review", label: "Under review", stages: ["under_review"] },
+  { id: "live", label: "Live", stages: ["live"] },
+  { id: "closed", label: "Declined or expired", stages: ["declined", "expired"] },
+];
+
+export interface RequestGroup<T> {
+  id: string;
+  label: string;
+  rows: T[];
+}
+
+/** Rows split into the groups above, in order, empty groups left out. A row whose stage is in no group (an unknown status) is left out too. */
+export function groupByStage<T>(rows: readonly T[], stageOf: (row: T) => RequestStage): RequestGroup<T>[] {
+  const staged = rows.map((r) => ({ r, st: stageOf(r) }));
+  return REQUEST_GROUPS.map((g) => ({ id: g.id, label: g.label, rows: staged.filter((x) => g.stages.includes(x.st)).map((x) => x.r) })).filter((g) => g.rows.length > 0);
+}
+
+/**
+ * The step line under a request, from stored times only: when it was asked for, when it was sent, when the network showed it. A step that
+ * has not happened is not in it. There is no approval time to show: the api does not keep one on the change.
+ */
+export function requestSteps(c: Pick<ChangeCardData, "status" | "createdAt" | "submittedAt" | "liveAt">, label: string, when: (iso: string) => string): string[] {
+  const steps: string[] = [];
+  const real = (t: string | null | undefined): t is string => !!t && !Number.isNaN(Date.parse(t));
+  if (real(c.createdAt)) steps.push(`Requested ${when(c.createdAt)}`);
+  if (real(c.submittedAt)) steps.push(`Sent ${when(c.submittedAt)}`);
+  // "Shows it" is said only of a change the api has marked live.
+  if (c.status === "live" && real(c.liveAt)) steps.push(`${label} shows it ${when(c.liveAt)}`);
+  return steps;
 }
 
 /** A short "before → after" for a row: each side on one line, cut where long. */

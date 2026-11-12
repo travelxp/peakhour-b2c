@@ -62,7 +62,7 @@ const FAILED_STAGES: ReadonlySet<string> = new Set(["failed", "rejected_by_netwo
 
 /**
  * Whether a request needs the merchant: an approval only their role can give, or a failure they can make again. ONE test for the count here and
- * for the list's "Done recently" opening, so the line never links to a row that is folded away.
+ * for the list: a request that needs the merchant is in a group that is drawn (never folded), so the line always has a row to land on.
  */
 export function requestNeedsYou(r: Pick<RequestStatus, "stage" | "next">): "approve" | "request" | null {
   if (r.next.kind === "decide") return "approve";
@@ -79,8 +79,9 @@ export function needItems(input: SummaryInput): NeedItem[] | null {
   if (!entry || score === undefined || (writes && (!can || !changes))) return null;
   const items: NeedItem[] = [];
   if (writes && can && changes) {
-    const { open, recent } = requestGroups(changes, now);
-    for (const c of [...open, ...recent]) {
+    const { open, recent, older } = requestGroups(changes, now);
+    // `older` too: the list draws it (opened when it holds something that needs you), so the count and the list agree.
+    for (const c of [...open, ...recent, ...older]) {
       // `decide` is only ever given to a role that can approve. A request stopped by the publishing blocker is the blocker's, counted once below.
       const need = requestNeedsYou(requestStatus(c, entry.label, can, entry.publishing ?? null));
       if (need === "approve") items.push({ kind: "approve", href: `#${requestRowId(c.id)}`, words: "approve or decline a request" });
