@@ -62,7 +62,7 @@ const FAILED_STAGES: ReadonlySet<string> = new Set(["failed", "rejected_by_netwo
 
 /**
  * Whether a request needs the merchant: an approval only their role can give, or a failure they can make again. ONE test for the count here and
- * for the list's "Done recently" opening, so the line never links to a row that is folded away.
+ * for the list: a request that needs the merchant is in a group that is drawn (never folded), so the line always has a row to land on.
  */
 export function requestNeedsYou(r: Pick<RequestStatus, "stage" | "next">): "approve" | "request" | null {
   if (r.next.kind === "decide") return "approve";

@@ -145,7 +145,7 @@ describe("the one publishing status (GBP Issue 1)", () => {
     expect(s).toContain("publishingBanner(entry, caps.data.can)");
     // the requests list reads the same changes the edit card reads (one query key), and says every stage through requestStatus
     expect(s).toContain("useListingChanges(listing?.id)");
-    expect(flat("components/presence/requests-list.tsx")).toContain("requestStatus(change, label, can, publishing)");
+    expect(flat("components/presence/requests-list.tsx")).toContain("requestStatus(change, label, can, publishing, { when, now })");
     expect(s).not.toContain('role="status"');
   });
   it("the prepared notice reads held from the same publishing answer as the status", () => {

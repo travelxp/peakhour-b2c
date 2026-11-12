@@ -37,6 +37,9 @@ import {
   preparedWords,
   publishingBanner,
   requestGroups,
+  groupByStage,
+  groupCountLine,
+  requestSteps,
   requestStatus,
   shortChange,
   type CapabilitiesResponse,
@@ -798,6 +801,12 @@ describe("the requests list (GBP L4)", () => {
     expect(g.recent).toEqual([]);
   });
 
+  it("keeps finished requests older than seven days apart, for Show older", () => {
+    const g = requestGroups([row("live6", "live", { liveAt: ago(6) }), row("live8", "live", { liveAt: ago(8), createdAt: ago(9) }), row("sup", "superseded", { createdAt: ago(9) })], NOW);
+    expect(g.recent.map((c) => c.id)).toEqual(["live6"]);
+    expect(g.older.map((c) => c.id)).toEqual(["live8"]);
+  });
+
   it("folds finished requests from the last seven days and drops older ones", () => {
     const g = requestGroups(
       [
@@ -823,7 +832,7 @@ describe("the requests list (GBP L4)", () => {
 
   it("skips a status it does not know, and says unknown rather than throwing", () => {
     const odd = row("odd", "mystery" as ChangeStatus);
-    expect(requestGroups([odd], NOW)).toEqual({ open: [], recent: [] });
+    expect(requestGroups([odd], NOW)).toEqual({ open: [], recent: [], older: [] });
     expect(requestStatus(odd, "Testnet", { propose: true, approve: true })).toMatchObject({ stage: "unknown", label: "Unknown", next: { kind: "none" } });
   });
 
@@ -833,6 +842,79 @@ describe("the requests list (GBP L4)", () => {
     expect(r.reason!.match(/Reconnect Testnet\./g)).toHaveLength(1);
   });
 
+  describe("the tracker (GBP L12)", () => {
+    const when = (iso: string) => `<${iso.slice(5, 16)}>`;
+    const stageOf = (c: ChangeCardData) => requestStatus(c, "Testnet", { propose: true, approve: true }, null).stage;
+    const every: ChangeCardData[] = [
+      row("p", "proposed"),
+      row("v", "validated"),
+      row("ap", "approved"),
+      row("hd", "approved", { held: { reason: "Held." } }),
+      row("ly", "applying"),
+      row("sb", "submitted"),
+      row("rv", "submitted", { liveCheck: { checkedAt: ago(0), outcome: "pending", note: null } }),
+      row("cc", "submitted", { liveCheck: { checkedAt: ago(0), outcome: "unknown", note: null, confirmable: false } }),
+      row("lv", "live", { liveAt: ago(1) }),
+      row("f", "failed"),
+      row("nr", "failed", { reason: { code: "network_rejected", message: "No." } }),
+      row("np", "failed", { reason: { code: "not_published", message: "No." } }),
+      row("bl", "blocked"),
+      row("dc", "rejected"),
+      row("ex", "expired"),
+    ];
+
+    it("puts every request in exactly one group, and the counts add up", () => {
+      const groups = groupByStage(every, stageOf);
+      expect(groups.reduce((n, g) => n + g.rows.length, 0)).toBe(every.length);
+      const ids = groups.flatMap((g) => g.rows.map((r) => r.id));
+      expect(new Set(ids).size).toBe(every.length);
+      expect(groups.map((g) => g.id)).toEqual(["awaiting", "problem", "draft", "waiting", "sent", "review", "live", "closed"]);
+      expect(groups.find((g) => g.id === "problem")!.rows.map((r) => r.id)).toEqual(["f", "nr", "np", "bl"]);
+    });
+
+    it("says the counts from the groups, only for stages that have rows", () => {
+      const some = [row("a", "validated"), row("b", "submitted", { liveCheck: { checkedAt: ago(0), outcome: "pending", note: null } }), row("c", "live"), row("d", "live")];
+      expect(groupCountLine(groupByStage(some, stageOf))).toBe("1 awaiting approval · 1 under review · 2 live");
+      expect(groupCountLine([])).toBe("");
+    });
+
+    it("never groups a submitted change as live", () => {
+      for (const o of [undefined, "pending", "unknown", "not_shown", "confirmed"]) {
+        const c = row("s", "submitted", { liveAt: ago(0), liveCheck: o ? { checkedAt: ago(0), outcome: o, note: null } : null });
+        expect(groupByStage([c], stageOf)[0]!.id).not.toBe("live");
+        expect(requestStatus(c, "Testnet", undefined, null, { when }).label).not.toMatch(/^Live/);
+      }
+    });
+
+    it("says how we know a change is live, from the last check, else the live time, and nothing without a time writer", () => {
+      const live = row("l", "live", { liveAt: "2026-11-10T10:55:00.000Z", liveCheck: { checkedAt: "2026-11-10T11:30:00.000Z", outcome: "confirmed", note: null } });
+      expect(requestStatus(live, "Testnet", undefined, null, { when }).reason).toBe("Testnet shows this change. We checked on <11-10T11:30>.");
+      expect(requestStatus({ ...live, liveCheck: null }, "Testnet", undefined, null, { when }).reason).toBe("Testnet shows this change. We checked on <11-10T10:55>.");
+      expect(requestStatus(live, "Testnet", undefined, null).reason).toBeNull();
+    });
+
+    it("says the real check cadence for a sent change, and stops promising it after fourteen days", () => {
+      const sent = row("s", "submitted", { submittedAt: "2026-11-10T10:42:00.000Z" });
+      expect(requestStatus(sent, "Testnet", undefined, null, { when, now: NOW }).reason).toBe("Sent <11-10T10:42>. Testnet hasn't shown it yet. We check again within the hour.");
+      const stale = row("s", "submitted", { submittedAt: ago(15) });
+      expect(requestStatus(stale, "Testnet", undefined, null, { when, now: NOW }).reason).toContain("We have stopped checking.");
+      expect(requestStatus(stale, "Testnet", undefined, null, { when, now: NOW }).reason).not.toContain("within the hour");
+      // a network that cannot show a change back keeps its own words, with no promise of a check
+      const cc = row("c", "submitted", { submittedAt: ago(1), liveCheck: { checkedAt: ago(0), outcome: "unknown", note: null, confirmable: false } });
+      expect(requestStatus(cc, "Testnet", undefined, null, { when, now: NOW })).toMatchObject({ stage: "cannot_confirm" });
+      expect(requestStatus(cc, "Testnet", undefined, null, { when, now: NOW }).reason).not.toContain("within the hour");
+    });
+
+    it("draws only the steps that happened", () => {
+      const at = (over: Partial<ChangeCardData>) => requestSteps(change({ createdAt: "2026-11-10T08:00:00.000Z", ...over }), "Testnet", when);
+      expect(at({ status: "validated" })).toEqual(["Requested <11-10T08:00>"]);
+      expect(at({ status: "submitted", submittedAt: "2026-11-10T10:42:00.000Z" })).toEqual(["Requested <11-10T08:00>", "Sent <11-10T10:42>"]);
+      expect(at({ status: "live", submittedAt: "2026-11-10T10:42:00.000Z", liveAt: "2026-11-10T10:55:00.000Z" })).toEqual(["Requested <11-10T08:00>", "Sent <11-10T10:42>", "Testnet shows it <11-10T10:55>"]);
+      // a stray live time on a change that is not live is not drawn as done
+      expect(at({ status: "submitted", submittedAt: "2026-11-10T10:42:00.000Z", liveAt: "2026-11-10T10:55:00.000Z" })).toEqual(["Requested <11-10T08:00>", "Sent <11-10T10:42>"]);
+    });
+  });
+
   it("hides a replaced request, open or not", () => {
     const g = requestGroups([row("x", "superseded"), row("y", "validated")], NOW);
     expect(g.open.map((c) => c.id)).toEqual(["y"]);
@@ -840,7 +922,7 @@ describe("the requests list (GBP L4)", () => {
   });
 
   it("is empty before the changes have loaded", () => {
-    expect(requestGroups(undefined, NOW)).toEqual({ open: [], recent: [] });
+    expect(requestGroups(undefined, NOW)).toEqual({ open: [], recent: [], older: [] });
   });
 
   it("says a change as a short before and after", () => {

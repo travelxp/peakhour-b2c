@@ -181,7 +181,7 @@ describe("what needs the merchant", () => {
     expect(readFileSync(join(process.cwd(), "src", "components", "presence", "control-section.tsx"), "utf8")).toContain("NETWORK_CHANGES_ID = SUMMARY_ANCHORS.networkChanges");
   });
 
-  it("the list opens Done recently by the same test the count uses", () => {
+  it("the list and the count use the same test for what needs the merchant", () => {
     const need = (status: ChangeCardData["status"], can = ADMIN) => requestNeedsYou(requestStatus(change({ status, reason: { code: "x", message: "m" } }), "Testnet", can, null));
     expect(need("failed")).toBe("request");
     expect(need("validated")).toBe("approve");
