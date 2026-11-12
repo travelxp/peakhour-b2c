@@ -133,9 +133,16 @@ export function useNameAnswer(network: ConnectableNetwork | undefined) {
         qc.setQueryData<LocationsResponse>(keys.locations, (old) =>
           old ? { ...old, locations: old.locations.map((l) => (l.locationName === locationName ? { ...l, [field]: at } : l)) } : old,
         );
+        // The capabilities read too: with the picker never opened there is no list above to write, and the page reads this one.
+        qc.setQueryData<CapabilitiesResponse>(keys.cap, (old) =>
+          old?.account?.extra?.locations
+            ? { ...old, account: { ...old.account, extra: { ...old.account.extra, locations: old.account.extra.locations.map((l) => (l.locationName === locationName ? { ...l, [field]: at } : l)) } } }
+            : old,
+        );
       }
     },
-    onSettled: () => void qc.invalidateQueries({ queryKey: keys.cap }),
+    // Returned, so the buttons stay disabled until the read that confirms the answer is back (no second post from a double click).
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.cap }),
     onError: (e: Error) => toast.error(e.message || "Could not save that. Try again."),
   });
 }

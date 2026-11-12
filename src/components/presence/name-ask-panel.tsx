@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,14 +18,12 @@ import type { ConnectableNetwork } from "@/lib/presence-panels";
 export function NameAskPanel({ network }: { network: ConnectableNetwork }) {
   const ask = useNameAsk(network);
   const answer = useNameAnswer(network);
-  // "No, choose another listing" is an answer too: the panel steps aside until the listing it asked about changes.
-  const [declinedFor, setDeclinedFor] = useState<string | null>(null);
-  const asked = `${ask.pending.join("|")}#${ask.titles.join("|")}`;
-  if (!ask.show || declinedFor === asked) return null;
+  if (!ask.show) return null;
 
   const names = ask.titles.join(", ");
+  // ★NOT AN ANSWER YET: "No, choose another listing" opens the picker and leaves the question where it is. It goes away when a listing is
+  // answered or a different one is saved, so the summary line never links to a panel that was hidden by a click.
   const choose = () => {
-    setDeclinedFor(asked);
     window.dispatchEvent(new CustomEvent(OPEN_PICKER_EVENT, { detail: network.network }));
     document.getElementById(networkCardId(network.network))?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
