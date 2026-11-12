@@ -13,6 +13,7 @@
 import type { HoursPeriod, PresenceNetworkEntry, PresencePublishing, SpecialHours } from "@/lib/presence-panels";
 import { photoValueLines } from "@/lib/presence-photos";
 import { PANEL_TITLES, extraValueLines, type ExtraField } from "@/lib/presence-extras";
+import { isReadableZone, timeZoneOptions } from "@/lib/guardrails-copy";
 
 // ── Shapes the api returns ───────────────────────────────────────────────────
 
@@ -136,11 +137,21 @@ export interface HolidayOffer {
   regionUnknown: boolean;
 }
 
+/** Who answered the listing's time zone: the merchant (`confirmed`), the address it holds (`address`), or the business's settings (`business`). */
+export type ListingZoneSource = "confirmed" | "address" | "business";
+
+export interface ListingTimeZone {
+  zone: string;
+  source: ListingZoneSource;
+}
+
 export interface HolidayOffersResponse {
   offers: HolidayOffer[];
   needsRegularHours: boolean;
   openChange: boolean;
   noTimeZone: boolean;
+  /** The zone the days are placed in, and who gave it. Null when none is known. */
+  timeZone: ListingTimeZone | null;
   /** The network could not be read just now; nothing is offered. */
   networkUnreadable: boolean;
 }
@@ -861,7 +872,7 @@ export function offerLine(o: HolidayOffer): string {
 /** What an offer card can do. A regional day with no known region asks first; a listing without regular hours cannot take one. */
 export function offerState(r: HolidayOffersResponse, label: string): { show: boolean; message: string | null; canAccept: boolean } {
   const say = (message: string) => ({ show: true, message, canAccept: false });
-  if (r.noTimeZone) return say("We cannot suggest holiday hours yet, because we do not know your time zone.");
+  if (r.noTimeZone) return say("We cannot suggest holiday hours yet, because we do not know your time zone. Choose it below.");
   if (r.networkUnreadable) return say(`${label} didn't answer just now, so no holiday days are suggested. Try again in a moment.`);
   if (r.needsRegularHours) return say("Set your opening hours first. Holiday hours change them for a day.");
   if (r.openChange) return say("A holiday-hours change is already waiting. Finish it first.");
@@ -879,6 +890,49 @@ export function offerOutcome(items: ReadonlyArray<Pick<ChangeCardData, "status" 
   if (items.length === 0) return { ok: false, message: `${name} was not prepared.` };
   if (items.some((i) => i.status === "proposed")) return { ok: true, message: `${name} is prepared, but ${label} has not checked it yet. Review it under Changes below. Nothing has been sent to ${label}.` };
   return { ok: true, message: `${name} is prepared. Review it under Changes below, then approve it. Nothing has been sent to ${label}.` };
+}
+
+// ── The listing's time zone ──────────────────────────────────────────────────
+
+/** A zone by the place it names: "India Standard Time (Asia/Kolkata)". The id alone when this browser has no name for it. */
+export function zoneWords(zone: string): string {
+  try {
+    const name = new Intl.DateTimeFormat("en", { timeZone: zone, timeZoneName: "longGeneric" }).formatToParts(new Date()).find((p) => p.type === "timeZoneName")?.value;
+    return name && name !== zone ? `${name} (${zone})` : zone;
+  } catch {
+    return zone;
+  }
+}
+
+/**
+ * The one line under the holiday card about the zone its days are placed in, or null when the merchant confirmed it (nothing to explain).
+ * It says where the zone came from, so a wrong guess is easy to spot.
+ */
+export function zoneLine(tz: ListingTimeZone | null, city?: string | null): string | null {
+  if (!tz || tz.source === "confirmed") return null;
+  const place = city?.trim();
+  const from = tz.source === "address" ? `from your address${place ? ` in ${place}` : ""}` : "from your business settings";
+  return `Holiday hours use ${zoneWords(tz.zone)}, ${from}.`;
+}
+
+/**
+ * The zones to choose from: the listing's country first (the browser's own region data), then every zone it knows. A zone is listed once,
+ * and a browser with no region data simply has no first group.
+ */
+export function zoneChoices(country: string | null | undefined, supported: readonly string[]): { near: string[]; all: string[] } {
+  const all = timeZoneOptions(supported);
+  let near: string[] = [];
+  const cc = country?.trim().toUpperCase();
+  if (cc && /^[A-Z]{2}$/.test(cc)) {
+    try {
+      const loc = new Intl.Locale(`und-${cc}`) as Intl.Locale & { getTimeZones?: () => string[] };
+      near = timeZoneOptions(loc.getTimeZones?.() ?? []).filter((z) => z !== "UTC" && all.includes(z) && isReadableZone(z));
+    } catch {
+      near = [];
+    }
+  }
+  const nearSet = new Set(near);
+  return { near, all: all.filter((z) => !nearSet.has(z)) };
 }
 
 export const regionQuestion = (o: HolidayOffer) =>

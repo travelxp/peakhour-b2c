@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import type { DrawnSection } from "@/lib/presence-edit";
 import type { PresencePublishing } from "@/lib/presence-panels";
 import {
@@ -17,6 +17,9 @@ import {
   requestedForm,
   offerOutcome,
   offerState,
+  zoneChoices,
+  zoneLine,
+  zoneWords,
   outcomeFor,
   outcomeSignature,
   outcomeSlot,
@@ -453,7 +456,7 @@ describe("not wiping or losing what is there", () => {
 
 describe("the holiday offer", () => {
   const offer = (over = {}) => ({ key: "k", date: "2026-12-25", name: "Christmas Day", tentative: false, regionUnknown: false, ...over });
-  const resp = (over = {}) => ({ offers: [offer()], needsRegularHours: false, openChange: false, noTimeZone: false, networkUnreadable: false, ...over });
+  const resp = (over = {}) => ({ offers: [offer()], needsRegularHours: false, openChange: false, noTimeZone: false, timeZone: null, networkUnreadable: false, ...over });
   const L = "Testnet";
 
   it("shows nothing when there is no day to offer and nothing to say", () => {
@@ -849,5 +852,47 @@ describe("the requests list (GBP L4)", () => {
     const long = "x".repeat(100);
     expect(shortChange("description", "Old.", long).length).toBeLessThan(80);
     expect(shortChange("description", "Old.", long)).toContain("...");
+  });
+});
+
+describe("the listing's time zone words", () => {
+  const HOST = process.env.TZ ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+  afterEach(() => {
+    process.env.TZ = HOST;
+  });
+
+  it("names the place, not just the id, on any host zone", () => {
+    for (const host of ["Asia/Kolkata", "America/Los_Angeles"]) {
+      process.env.TZ = host;
+      expect(zoneWords("Asia/Kolkata")).toBe("India Standard Time (Asia/Kolkata)");
+      expect(zoneWords("America/New_York")).toBe("Eastern Time (America/New_York)");
+    }
+    expect(zoneWords("Not/AZone")).toBe("Not/AZone");
+  });
+
+  it("says where an address-given zone came from, with the city when there is one", () => {
+    expect(zoneLine({ zone: "Asia/Kolkata", source: "address" }, "Mumbai")).toBe("Holiday hours use India Standard Time (Asia/Kolkata), from your address in Mumbai.");
+    expect(zoneLine({ zone: "Asia/Kolkata", source: "address" }, " ")).toBe("Holiday hours use India Standard Time (Asia/Kolkata), from your address.");
+    expect(zoneLine({ zone: "Asia/Kolkata", source: "business" }, "Mumbai")).toBe("Holiday hours use India Standard Time (Asia/Kolkata), from your business settings.");
+  });
+
+  it("says nothing extra for a confirmed zone, or when there is none", () => {
+    expect(zoneLine({ zone: "Asia/Kolkata", source: "confirmed" }, "Mumbai")).toBeNull();
+    expect(zoneLine(null)).toBeNull();
+  });
+
+  it("lists the listing's country first, then every other zone once", () => {
+    const supported = Intl.supportedValuesOf("timeZone");
+    const { near, all } = zoneChoices("IN", supported);
+    expect(near.length).toBeGreaterThan(0);
+    expect(near.map((z) => Intl.DateTimeFormat("en", { timeZone: z }).resolvedOptions().timeZone)).toContain(Intl.DateTimeFormat("en", { timeZone: "Asia/Kolkata" }).resolvedOptions().timeZone);
+    expect(all.length).toBeGreaterThan(100);
+    expect(all.filter((z) => near.includes(z))).toEqual([]);
+    expect(new Set([...near, ...all]).size).toBe(near.length + all.length);
+  });
+
+  it("has no first group for a country it does not know, and never throws", () => {
+    for (const c of [undefined, null, "", "ZZZ", "1!", "xx"]) expect(zoneChoices(c, ["Asia/Kolkata", "UTC"]).near).toEqual([]);
+    expect(zoneChoices("IN", []).all).toEqual(["UTC"]);
   });
 });
