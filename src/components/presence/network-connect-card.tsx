@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { MapPin, ArrowRight, RefreshCw, AlertTriangle, Check, ExternalLink } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
+import { useEditCapabilities } from "@/hooks/use-presence-edit";
 import { REVIEW_SUMMARY_QUERY_KEY } from "@/lib/review-summary";
 import { REVIEW_PLACES_QUERY_KEY } from "@/lib/review-places";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,7 @@ import {
   toggleLocation,
   selectionLabel,
   mapLink,
-  listingNameLooksOff,
+  nameCheck,
   chooseAnotherAction,
   type ListingFacts,
   type NetworkConnectionStatus,
@@ -66,7 +67,7 @@ interface CapabilitiesResponse {
   locationNames?: string[];
   account?: {
     extra?: {
-      locations?: Array<{ locationName?: string; title?: string; address?: string; mapsUri?: string }>;
+      locations?: Array<{ locationName?: string; title?: string; address?: string; mapsUri?: string; confirmedAt?: string }>;
       locationsComplete?: boolean;
     };
   };
@@ -74,7 +75,7 @@ interface CapabilitiesResponse {
 
 interface LocationsResponse {
   provider: string;
-  locations: Array<{ locationName: string; title?: string; address?: string; mapsUri?: string }>;
+  locations: Array<{ locationName: string; title?: string; address?: string; mapsUri?: string; confirmedAt?: string }>;
   complete: boolean;
   selected: string[];
   /** Listings dropped from the selection because Google no longer lists them. */
@@ -168,6 +169,22 @@ export function NetworkConnectCard({ network }: { network: ConnectableNetwork })
     onError: (e: Error) => toast.error(e.message || "Could not select that listing"),
   });
 
+  // ★"YES, THIS IS MY BUSINESS": one answer per listing that asked. The api records it against the title the merchant saw. The picker's list
+  // is written as well as the capabilities read invalidated, because `known` prefers the picker's list once it has loaded.
+  const confirmMut = useMutation({
+    mutationFn: async (locationNames: string[]) => {
+      for (const locationName of locationNames) await api.post(`/v1/integrations/${PROVIDER}/${pickerPath}/confirm`, { locationName });
+    },
+    onSuccess: (_data, locationNames) => {
+      const at = new Date().toISOString();
+      qc.setQueryData<LocationsResponse>(LOCATIONS_KEY, (old) =>
+        old ? { ...old, locations: old.locations.map((l) => (locationNames.includes(l.locationName) ? { ...l, confirmedAt: at } : l)) } : old,
+      );
+      void qc.invalidateQueries({ queryKey: CAP_KEY });
+    },
+    onError: (e: Error) => toast.error(e.message || "Could not save that. Try again."),
+  });
+
   const syncMut = useMutation({
     mutationFn: () => api.post(`/v1/integrations/${PROVIDER}/sync`, {}),
     // ★NO IMMEDIATE INVALIDATE, AND THE COPY SAYS WHY. `/sync` ENQUEUES a job;
@@ -206,8 +223,10 @@ export function NetworkConnectCard({ network }: { network: ConnectableNetwork })
   const sole = selected?.length === 1 && selectedFacts.length === 1 ? selectedFacts[0]! : null;
   const soleLink = mapLink(sole?.mapsUri);
   // ★WARN ONLY WHEN EVERY NAMED LISTING LOOKS OFF: one that matches is the business.
-  const titled = selectedFacts.filter((l) => l.title?.trim());
-  const nameLooksOff = titled.length > 0 && titled.length === selected?.length && titled.every((l) => listingNameLooksOff(l.title, business?.name));
+  const nameState = nameCheck(selected?.length ?? 0, selectedFacts, business?.name);
+  // Only an admin or owner is offered the button, as the api only takes it from them.
+  const editCaps = useEditCapabilities();
+  const canConfirm = editCaps.data?.can.approve === true;
   // ★THE COUNT AND THE "WHOLE LIST" FLAG COME FROM THE SAME READ, as `known` does.
   const another = chooseAnotherAction(known.length, locationsQ.data ? locationsQ.data.complete : capQ.data?.account?.extra?.locationsComplete);
 
@@ -354,13 +373,24 @@ export function NetworkConnectCard({ network }: { network: ConnectableNetwork })
           name check is a line, not a gate: no block, no dialog. */}
       {card.kind === "ready" && confirmable && selectedLabel ? (
         <div className="mt-4 space-y-1 border-t pt-4 text-sm text-muted-foreground">
-          {nameLooksOff ? (
-            <p className="flex items-start gap-2">
+          {nameState.kind === "ask" ? (
+            <div className="flex items-start gap-2">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-              <span>
-                This listing&rsquo;s name doesn&rsquo;t look like {business?.name}. Check it&rsquo;s the right one.
-              </span>
-            </p>
+              <div className="space-y-2">
+                <p>
+                  This listing&rsquo;s name ({nameState.titles.join(", ")}) is different from your business name ({business?.name}). That&rsquo;s fine
+                  if you trade under another name. Is this your business?
+                </p>
+                {canConfirm ? (
+                  <Button size="sm" variant="outline" disabled={confirmMut.isPending} onClick={() => confirmMut.mutate(nameState.pending)}>
+                    {confirmMut.isPending ? <RefreshCw className="h-4 w-4 animate-spin" /> : null}
+                    Yes, this is my business
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          ) : nameState.kind === "confirmed" ? (
+            <p>You confirmed this is your business.</p>
           ) : null}
           <p className="flex flex-wrap items-center gap-x-4 gap-y-1">
             {soleLink ? (
