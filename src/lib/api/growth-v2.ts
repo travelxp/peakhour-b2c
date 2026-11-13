@@ -1,6 +1,7 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, newActionKey } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
+import { CREDITS_KEY } from "@/hooks/use-credits";
 import { seriesFromHome, type HomeSeries, type PacingSeries } from "@/lib/growth-v2-series";
 
 /**
@@ -225,6 +226,24 @@ export interface DecisionView {
   steps?: DecisionStepView[];
   createdAt: string;
 }
+
+/** The api's bounds on an Ask Peakhour Summit question (`zCouncilRequest`: 10 to `QUESTION_MAX` characters once trimmed). */
+export const SUMMIT_QUESTION_MIN = 10;
+export const SUMMIT_QUESTION_MAX = 2000;
+
+/** The seats of one review, as a decision card shows them. */
+export type SummitCouncil = NonNullable<DecisionView["council"]>;
+
+/**
+ * What `POST /v1/growth/v2/council` answers when a session met (SUM-5). `charged` says whether this answer raised the charge: false for a
+ * decline that came before any seat ran. A session that could not meet is an error (503 `COUNCIL_UNAVAILABLE`), not one of these.
+ */
+export type SummitAskResponse =
+  | { status: "recorded"; charged: boolean; experimentId: string; decisionId?: string; council: SummitCouncil; recommendation: string }
+  /** The review met and recommends nothing (`council` is absent when the decline came before any seat ran). */
+  | { status: "declined"; charged: boolean; reason: string; council?: SummitCouncil }
+  /** The review met but the suggestion could not be saved. */
+  | { status: "not_recorded"; charged: boolean; council: SummitCouncil; recommendation: string };
 
 /** A guardrail block, one per (guardrail, channel): something the engine was stopped from doing. */
 export interface GuardrailBlockView {
@@ -515,6 +534,9 @@ export const growthV2Api = {
   /** "Check it again now": one more review of a waiting change. */
   recheckReview: (runId: string, proposalId: string) =>
     api.post<RecheckReviewResponse>(`${BASE}/decisions/waiting/${encodeURIComponent(runId)}/${encodeURIComponent(proposalId)}/recheck`),
+  /** Ask Peakhour Summit. A priced task: the signed quote the merchant was shown travels as `x-peaks-quote`, and one key per click makes a retry one charge. */
+  askSummit: (question: string, quoteToken?: string) =>
+    api.post<SummitAskResponse>(`${BASE}/council`, { question }, { ...newActionKey(), ...(quoteToken ? { "x-peaks-quote": quoteToken } : {}) }),
   ask: (id: string, question: string) =>
     api.post<DecisionAskResponse>(`${BASE}/decisions/${encodeURIComponent(id)}/ask`, { question }),
   channels: (window: HomeWindowKey = "7d") => api.get<ChannelsResponse>(`${BASE}/channels?window=${window}`),
@@ -840,4 +862,19 @@ export function useRecheckReviewV2() {
 /** Ask a question about one decision. Free, and moves nothing: no refetch. */
 export function useAskDecisionV2() {
   return useMutation({ mutationFn: (v: { id: string; question: string }) => growthV2Api.ask(v.id, v.question) });
+}
+
+/**
+ * Ask Peakhour Summit a question (SUM-5). One call of `mutate` is one click, so it gets one `Idempotency-Key`. A review that met may have queued a
+ * suggested action, so every Growth v2 screen is read again; the Peaks balance changed too.
+ */
+export function useAskSummitV2() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { question: string; quoteToken?: string }) => growthV2Api.askSummit(v.question, v.quoteToken),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["growth-v2"] });
+      void qc.invalidateQueries({ queryKey: [CREDITS_KEY] });
+    },
+  });
 }
