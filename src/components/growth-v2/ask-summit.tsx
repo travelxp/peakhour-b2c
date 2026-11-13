@@ -10,6 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { PriceLine } from "@/components/audience/discover-audiences-dialog";
 import { usePeaksQuote, quoteTokenFor } from "@/hooks/use-peaks-quote";
 import { ApiError } from "@/lib/api";
+import { useAuth } from "@/providers/auth-provider";
+import { driveAbilities } from "@/lib/drive/files-state";
 import { PEAKS_ACTIONS } from "@/lib/api/peaks";
 import { SUMMIT_QUESTION_MAX, SUMMIT_QUESTION_MIN, useAskSummitV2, type SummitAskResponse } from "@/lib/api/growth-v2";
 import { SUMMIT } from "@/lib/growth-v2-copy";
@@ -41,6 +43,8 @@ export function summitErrorLine(err: unknown): { text: string; topUp: boolean; r
     case "COUNCIL_UNAVAILABLE":
     case "COUNCIL_FAILED":
       return { text: `${SUMMIT} could not meet just now. ${NOT_CHARGED}`, topUp: false, retry: true };
+    case "FORBIDDEN":
+      return { text: EDITOR_ONLY, topUp: false, retry: false };
     case "COUNCIL_NOT_RELEASED":
       return { text: `${SUMMIT} is not available yet. ${NOT_CHARGED}`, topUp: false, retry: false };
     case "PRICE_UNAVAILABLE":
@@ -57,12 +61,18 @@ export function summitErrorLine(err: unknown): { text: string; topUp: boolean; r
   }
 }
 
-/** The header button and its dialog. */
+/** Why the button is off for a viewer. The api refuses an ask below editor with 403, so the button says so instead of failing. */
+export const EDITOR_ONLY = "Asking Peakhour Summit uses Peaks, so it takes an editor role. Ask an owner or admin to change your role.";
+
+/** The header button and its dialog. Off, with the reason, for anyone below editor (the api enforces the same). */
 export function AskSummit() {
   const [open, setOpen] = useState(false);
+  const { org, orgs } = useAuth();
+  const role = orgs?.find((o) => o._id === org?._id)?.role;
+  const canAsk = driveAbilities(role).canEdit;
   return (
     <>
-      <Button variant="outline" onClick={() => setOpen(true)}>
+      <Button variant="outline" onClick={() => setOpen(true)} disabled={!canAsk} title={canAsk ? undefined : EDITOR_ONLY}>
         <Sparkles aria-hidden /> Ask {SUMMIT}
       </Button>
       <AskSummitDialog open={open} onOpenChange={setOpen} />

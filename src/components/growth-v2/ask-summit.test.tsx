@@ -15,9 +15,10 @@ import type { SummitAskResponse, SummitCouncil } from "@/lib/api/growth-v2";
 const h = vi.hoisted(() => ({
   get: vi.fn<(path: string) => Promise<unknown>>(),
   post: vi.fn<(path: string, body?: unknown, headers?: Record<string, string>) => Promise<unknown>>(),
+  role: "editor" as string | undefined,
 }));
 vi.mock("@/lib/api", async (orig) => ({ ...(await orig<typeof import("@/lib/api")>()), api: { get: h.get, post: h.post } }));
-vi.mock("@/providers/auth-provider", () => ({ useAuth: () => ({ business: { _id: "biz-1", name: "Acme Tea" }, org: { _id: "org-1" }, isAuthenticated: true }) }));
+vi.mock("@/providers/auth-provider", () => ({ useAuth: () => ({ business: { _id: "biz-1", name: "Acme Tea" }, org: { _id: "org-1" }, orgs: [{ _id: "org-1", role: h.role }], isAuthenticated: true }) }));
 vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
     <a href={href} {...rest}>
@@ -110,6 +111,7 @@ async function openDialog() {
 const councilPosts = () => h.post.mock.calls.filter((c) => c[0] === "/v1/growth/v2/council");
 
 beforeEach(() => {
+  h.role = "editor";
   h.get.mockReset().mockImplementation(async (path: string) => {
     if (path.includes("/v1/peaks/quote")) return quote();
     throw new Error(`unplanned GET ${path}`);
@@ -119,6 +121,32 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   document.body.innerHTML = "";
+});
+
+describe("only an editor can ask", () => {
+  it.each([["viewer"], [undefined]])("a %s sees the button off with the reason, cannot open the dialog, and nothing is quoted or sent", async (role) => {
+    h.role = role;
+    await mount();
+    const b = button(/Ask Peakhour Summit/)!;
+    expect(b.disabled).toBe(true);
+    expect(b.title).toContain("editor role");
+    await click(/Ask Peakhour Summit/);
+    expect(document.querySelector("textarea")).toBeNull();
+    expect(h.get).not.toHaveBeenCalled();
+    expect(h.post).not.toHaveBeenCalled();
+  });
+
+  it.each([["editor"], ["admin"], ["owner"]])("a %s can open it", async (role) => {
+    h.role = role;
+    await mount();
+    expect(button(/Ask Peakhour Summit/)!.disabled).toBe(false);
+    await openDialog();
+    expect(document.querySelector("textarea")).not.toBeNull();
+  });
+
+  it("a 403 from the api says the same thing", () => {
+    expect(summitErrorLine(new ApiError("FORBIDDEN", "This action requires editor role", 403)).text).toContain("editor role");
+  });
 });
 
 describe("the price comes before Ask", () => {
