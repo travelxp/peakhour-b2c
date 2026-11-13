@@ -155,14 +155,17 @@ export function positioningRows(p: Positioning): PositioningRow[] {
 }
 
 /** One line of what a measured value rests on ("42 of 130 customers bought more than once in the last year"), or undefined. */
-export function basisLine(field: string, basis: { customers?: number; repeatCustomerShare?: number; ownMedianPrice?: number; currency?: string; sampleSize?: number } | undefined): string | undefined {
+export function basisLine(field: string, basis: { customers?: number; repeatCustomerShare?: number; windowDays?: number; ownMedianPrice?: number; currency?: string; sampleSize?: number } | undefined): string | undefined {
   if (!basis) return undefined;
   if (field === "classification.buyingPattern" && basis.customers !== undefined && basis.repeatCustomerShare !== undefined) {
     const repeat = Math.round(basis.repeatCustomerShare * basis.customers);
-    return `${repeat} of ${basis.customers} customers bought more than once in the last year.`;
+    const days = basis.windowDays;
+    const span = !days || days === 365 ? "the last year" : `the last ${days} days`;
+    return `${repeat} of ${basis.customers} customers bought more than once in ${span}.`;
   }
   if (field === "classification.priceTier" && basis.ownMedianPrice !== undefined && basis.sampleSize) {
-    return `Your ${basis.sampleSize} active products have a median price of ${basis.ownMedianPrice}${basis.currency ? ` ${basis.currency}` : ""}.`;
+    const money = basis.currency ? new Intl.NumberFormat("en", { maximumFractionDigits: 2 }).format(basis.ownMedianPrice) + ` ${basis.currency}` : String(basis.ownMedianPrice);
+    return basis.sampleSize === 1 ? `Your one active product is priced at ${money}.` : `Your ${basis.sampleSize} active products have a median price of ${money}.`;
   }
   return undefined;
 }

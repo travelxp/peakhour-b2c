@@ -142,6 +142,13 @@ describe("what a measured value rests on", () => {
   it("says how many customers came back", () => {
     expect(basisLine("classification.buyingPattern", { customers: 130, repeatCustomerShare: 0.323, windowDays: 365 } as never)).toBe("42 of 130 customers bought more than once in the last year.");
   });
+  it("names the window the api measured, not always a year", () => {
+    expect(basisLine("classification.buyingPattern", { customers: 100, repeatCustomerShare: 0.3, windowDays: 90 })).toBe("30 of 100 customers bought more than once in the last 90 days.");
+  });
+  it("one product is not a median, and a large figure is grouped", () => {
+    expect(basisLine("classification.priceTier", { ownMedianPrice: 1, currency: "INR", sampleSize: 1 })).toBe("Your one active product is priced at 1 INR.");
+    expect(basisLine("classification.priceTier", { ownMedianPrice: 1234.5, currency: "INR", sampleSize: 8 })).toBe("Your 8 active products have a median price of 1,234.5 INR.");
+  });
   it("says what the catalogue median is", () => {
     expect(basisLine("classification.priceTier", { ownMedianPrice: 799, currency: "INR", sampleSize: 40 })).toBe("Your 40 active products have a median price of 799 INR.");
   });

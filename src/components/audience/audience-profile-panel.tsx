@@ -248,6 +248,8 @@ export function AudienceProfilePanel({ defaultOpen = false }: { defaultOpen?: bo
         (old: Partial<ProfileResponse> | undefined) => ({
           ...old,
           profile: res.profile,
+          // The api's words and tiers for the positioning block belong to the OLD profile: hidden until re-read.
+          positioning: undefined as never,
           correctableFields: old?.correctableFields ?? specs,
         }),
       );
@@ -278,6 +280,8 @@ export function AudienceProfilePanel({ defaultOpen = false }: { defaultOpen?: bo
         (old: Partial<ProfileResponse> | undefined) => ({
           ...old,
           profile: res.profile,
+          // The api's words and tiers for the positioning block belong to the OLD profile: hidden until re-read.
+          positioning: undefined as never,
           correctableFields: old?.correctableFields ?? specs,
         }),
       );
@@ -882,6 +886,9 @@ function CorrectionEditor({
 }) {
   const { spec, value, list } = editing;
   const [draft, setDraft] = useState("");
+  // What was typed into "not in the list", kept apart from the value so typing a word that equals a slug does not
+  // clear the box under the cursor.
+  const [typed, setTyped] = useState(editing.choices?.choices.some((ch) => ch.value === editing.value) ? "" : editing.value);
   const inputId = useId();
   const hintId = useId();
   const reasonId = useId();
@@ -1033,7 +1040,10 @@ function CorrectionEditor({
         <div className="space-y-2">
           <Select
             value={choiceList.some((ch) => ch.value === value) ? value : ""}
-            onValueChange={(v) => setEditing({ ...editing, value: v })}
+            onValueChange={(v) => {
+              setTyped("");
+              setEditing({ ...editing, value: v });
+            }}
           >
             <SelectTrigger
               id={inputId}
@@ -1054,8 +1064,11 @@ function CorrectionEditor({
           {allowUnlisted && (
             <Input
               aria-label={`${label}: not in the list? Type it`}
-              value={choiceList.some((ch) => ch.value === value) ? "" : value}
-              onChange={(e) => setEditing({ ...editing, value: e.target.value })}
+              value={typed}
+              onChange={(e) => {
+                setTyped(e.target.value);
+                setEditing({ ...editing, value: e.target.value });
+              }}
               placeholder="Not in the list? Type it"
             />
           )}
