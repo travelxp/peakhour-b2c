@@ -1,12 +1,15 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { ShopifyHeroDemo } from "@/components/marketing/shopify/shopify-hero-demo";
 import {
-  LAUNCH_PERKS,
   LaunchFooter,
+  LaunchPerks,
   LaunchSteps,
   LaunchTopBar,
+  launchCoralBtn,
+  launchEyebrow,
+  launchH2,
   launchWrap,
 } from "@/components/marketing/launch/launch-chrome";
 import { cn } from "@/lib/utils";
@@ -58,17 +61,19 @@ const JOBS: { dot: string; job: string; body: string }[] = [
 
 const CHANNELS = ["Shopify", "WordPress", "WhatsApp", "Google Business Profile", "LinkedIn", "X", "Beehiiv"];
 
-const eyebrow = "text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground";
-const h2 = "mt-3 text-[2rem] font-extrabold leading-[1.05] tracking-[-0.035em] text-balance sm:text-5xl";
-const coralBtn =
-  "group inline-flex items-center gap-2 rounded-full bg-brand-gradient px-6 py-3.5 text-[15px] font-bold text-brand-contrast shadow-[0_8px_20px_-8px_var(--brand)] transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+const eyebrow = launchEyebrow;
+const h2 = launchH2;
+const coralBtn = launchCoralBtn;
 
 export default function ComingSoonPage() {
   return (
-    <div className="theme-daylight flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
+    // overflow-x-clip: the demo's floating cards sit outside its box; nothing may scroll the page sideways.
+    <div className="theme-daylight flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col overflow-x-clip">
       <div className="bg-[linear-gradient(180deg,var(--daylight-hero)_0%,var(--background)_92%)]">
         <LaunchTopBar />
-        <main>
+      </div>
+      <main className="flex-1">
+        <div className="bg-[linear-gradient(180deg,var(--daylight-hero)_-40%,var(--background)_92%)]">
           {/* Hero: what Peakhour does, and the product doing it */}
           <section className={cn(launchWrap, "grid grid-cols-1 items-center gap-10 pb-14 pt-6 sm:pt-10 lg:grid-cols-[1fr_1.05fr] lg:gap-14 lg:pb-20")}>
             <div className="min-w-0">
@@ -100,8 +105,7 @@ export default function ComingSoonPage() {
               <ShopifyHeroDemo />
             </div>
           </section>
-        </main>
-      </div>
+        </div>
 
       {/* What it does: jobs, not a module count */}
       <section id="what" aria-labelledby="what-h" className="scroll-mt-6 border-t py-14 sm:py-20">
@@ -145,26 +149,12 @@ export default function ComingSoonPage() {
             <p className="mt-4 max-w-xl text-lg text-on-ink/85">
               We are onboarding a small group of businesses ahead of public launch, with our team alongside them.
             </p>
-            <ul className="mt-7 grid gap-4 sm:grid-cols-2">
-              {LAUNCH_PERKS.map((p) => (
-                <li key={p.title} className="flex gap-3">
-                  <Check aria-hidden className="mt-0.5 size-5 shrink-0 text-brand" strokeWidth={3} />
-                  <span>
-                    <b className="block">{p.title}</b>
-                    <span className="text-[15px] text-on-ink-dim">{p.body}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <LaunchPerks tone="ink" className="mt-7" />
           </div>
           <div className="flex min-w-0 flex-col justify-center gap-8">
             <LaunchSteps tone="ink" />
             <div>
-              <Link
-                prefetch={false}
-                href="/launch-partner"
-                className="group inline-flex items-center gap-2 rounded-full bg-brand-gradient px-6 py-3.5 text-[15px] font-bold text-brand-contrast transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-              >
+              <Link prefetch={false} href="/launch-partner" className={cn(coralBtn, "focus-visible:ring-white focus-visible:ring-offset-ink")}>
                 Apply to be a launch partner
                 <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" aria-hidden />
               </Link>
@@ -172,6 +162,7 @@ export default function ComingSoonPage() {
           </div>
         </div>
       </section>
+      </main>
 
       <LaunchFooter />
     </div>

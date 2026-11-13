@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { Check } from "lucide-react";
 import { SITE, cn } from "@/lib/utils";
-import { LAUNCH_PERKS, LaunchFooter, LaunchSteps, LaunchTopBar, launchWrap } from "@/components/marketing/launch/launch-chrome";
+import { LaunchFooter, LaunchPerks, LaunchSteps, LaunchTopBar, launchEyebrow, launchWrap } from "@/components/marketing/launch/launch-chrome";
 import { LaunchPartnerForm } from "./launch-partner-form";
 
 export const metadata: Metadata = {
@@ -54,13 +53,14 @@ export default async function LaunchPartnerPage({
   const signupSource = normalizeSource(source);
   const country = geoCountry(h.get("x-vercel-ip-country"));
   return (
-    <div className="theme-daylight flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
+    <div className="theme-daylight flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col overflow-x-clip">
       <div className="flex-1 bg-[linear-gradient(180deg,var(--daylight-hero)_0%,var(--background)_80%)]">
         <LaunchTopBar back />
-        <main className={cn(launchWrap, "grid grid-cols-1 gap-8 pb-14 pt-4 sm:pt-8 lg:grid-cols-[1fr_0.95fr] lg:gap-14 lg:pb-20")}>
-          {/* The pitch. On a phone the form comes right after the heading (order below). */}
-          <div className="min-w-0 lg:pt-4">
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">Launch Partner programme</p>
+        {/* DOM order is the phone order: heading, form, perks, steps. On lg the grid puts the form in its own
+            right-hand column, spanning the three left-hand rows. */}
+        <main className={cn(launchWrap, "grid grid-cols-1 gap-8 pb-14 pt-4 sm:pt-8 lg:grid-cols-[1fr_0.95fr] lg:gap-x-14 lg:gap-y-10 lg:pb-20")}>
+          <div className="min-w-0 lg:col-start-1 lg:row-start-1 lg:pt-4">
+            <p className={launchEyebrow}>Launch Partner programme</p>
             <h1 className="mt-3 text-[2.4rem] font-black leading-[1.03] tracking-[-0.04em] text-balance sm:text-6xl">
               Build {SITE.name} <span className="daylight-mark">with us.</span>
             </h1>
@@ -68,43 +68,18 @@ export default async function LaunchPartnerPage({
               We&rsquo;re onboarding a small group of launch partners ahead of public launch. Work directly with our team, shape the
               roadmap for Peakhour Suite, and get early access, with hands-on setup.
             </p>
-            <ul className="mt-8 hidden gap-4 sm:grid sm:grid-cols-2">
-              {LAUNCH_PERKS.map((perk) => (
-                <li key={perk.title} className="flex gap-3">
-                  <Check aria-hidden className="mt-0.5 size-5 shrink-0 text-brand" strokeWidth={3} />
-                  <span>
-                    <b className="block">{perk.title}</b>
-                    <span className="text-[15px] text-muted-foreground">{perk.body}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
           </div>
 
-          <div className="min-w-0 lg:sticky lg:top-6 lg:row-span-2 lg:self-start">
+          <div className="min-w-0 lg:sticky lg:top-6 lg:col-start-2 lg:row-span-3 lg:row-start-1 lg:self-start">
             <div className="rounded-[28px] border bg-card p-5 shadow-[var(--daylight-shadow)] sm:p-8">
-              <p className="text-xl font-extrabold tracking-tight">Apply to be a launch partner</p>
-              <p className="mt-1 text-[15px] text-muted-foreground">Takes a minute. No card, no commitment.</p>
-              <div className="mt-6">
-                <LaunchPartnerForm source={signupSource} country={country} />
-              </div>
+              <LaunchPartnerForm source={signupSource} country={country} />
             </div>
           </div>
 
-          <div className="min-w-0">
-            {/* Perks again on a phone, under the form, so the form is not pushed below the fold. */}
-            <ul className="grid gap-4 sm:hidden">
-              {LAUNCH_PERKS.map((perk) => (
-                <li key={perk.title} className="flex gap-3">
-                  <Check aria-hidden className="mt-0.5 size-5 shrink-0 text-brand" strokeWidth={3} />
-                  <span>
-                    <b className="block">{perk.title}</b>
-                    <span className="text-[15px] text-muted-foreground">{perk.body}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <p className="mb-4 mt-8 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground sm:mt-0">How it works</p>
+          <LaunchPerks className="lg:col-start-1 lg:row-start-2" />
+
+          <div className="min-w-0 lg:col-start-1 lg:row-start-3">
+            <p className={cn(launchEyebrow, "mb-4")}>How it works</p>
             <LaunchSteps />
           </div>
         </main>
