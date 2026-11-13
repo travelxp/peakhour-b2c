@@ -469,7 +469,7 @@ export const SHOPIFY_OWNER_WHATSAPP = {
   eyebrow: "Peakhour on WhatsApp · for you, not your shoppers",
   headline: "Run your store from",
   accent: "a WhatsApp chat.",
-  lede: "Message Peakhour from your own phone. Ask how the store is doing, approve the work it has lined up, or pause it, in any language. Nothing you say there reaches your customers.",
+  lede: "Message Peakhour from your own phone. Ask how the store is doing in your own words, in any language, then approve the work it has lined up or pause it with a one-word reply. Nothing you say there reaches your customers.",
   points: [
     {
       id: "ask",

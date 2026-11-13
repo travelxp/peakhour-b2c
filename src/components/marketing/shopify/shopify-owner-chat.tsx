@@ -1,13 +1,10 @@
-"use client";
-
-import { useEffect, useRef, useState } from "react";
 import { PeakMark } from "./shopify-art";
 
 /**
  * A sample owner chat with Peakhour on WhatsApp: a question, an approval, and
- * the CONFIRM step that every spend asks for. It plays once when it scrolls
- * into view. The server renders the finished thread, and reduced motion keeps
- * it that way.
+ * the CONFIRM step that every spend asks for. Deliberately still: a replay
+ * would hide text from find-in-page and screen readers until it scrolled in,
+ * and the hero already carries the page's motion.
  *
  * Held to the api: BOOST sponsors content already published, and its reply is
  * quoted verbatim (command-router.ts). BOOST asks for CONFIRM first, which
@@ -57,51 +54,10 @@ const THREAD: Msg[] = [
   },
 ];
 
-const STEP_MS = 900;
 
 export function ShopifyOwnerChat() {
-  const [shown, setShown] = useState(THREAD.length);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    // Play only a thread the visitor has not seen yet. The observer's first
-    // report says where the phone is at load: already on screen, it stays as
-    // it is, so nothing being read disappears; below the fold, it is emptied
-    // while off screen and plays when it scrolls in.
-    const timers: number[] = [];
-    let first = true;
-    let armed = false;
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        const onScreen = !!entry?.isIntersecting;
-        if (first) {
-          first = false;
-          if (onScreen) {
-            io.disconnect();
-            return;
-          }
-          armed = true;
-          setShown(0);
-          return;
-        }
-        if (!armed || !onScreen) return;
-        io.disconnect();
-        THREAD.forEach((_, i) => timers.push(window.setTimeout(() => setShown(i + 1), 300 + i * STEP_MS)));
-      },
-      { threshold: 0.3 },
-    );
-    io.observe(el);
-    return () => {
-      io.disconnect();
-      timers.forEach((t) => window.clearTimeout(t));
-    };
-  }, []);
-
   return (
     <div
-      ref={ref}
       role="group"
       aria-label="Sample chat between a store owner and Peakhour on WhatsApp"
       className="mx-auto w-full max-w-[340px] rounded-[40px] bg-[var(--daylight-phone)] p-3 shadow-[0_40px_80px_-30px_rgb(0_0_0/70%),inset_0_0_0_1.5px_rgb(255_255_255/12%)]"
@@ -120,11 +76,10 @@ export function ShopifyOwnerChat() {
           {THREAD.map((m, i) => (
             <div
               key={i}
-              data-on={i < shown}
               className={
                 m.from === "owner"
-                  ? "daylight-bubble max-w-[86%] self-end rounded-[10px] rounded-tr-sm bg-wa-bubble-out px-2.5 pb-1.5 pt-2 shadow-[0_1px_1px_rgb(0_0_0/8%)]"
-                  : "daylight-bubble max-w-[86%] self-start rounded-[10px] rounded-tl-sm bg-wa-bubble-in px-2.5 pb-1.5 pt-2 shadow-[0_1px_1px_rgb(0_0_0/8%)]"
+                  ? "max-w-[86%] self-end rounded-[10px] rounded-tr-sm bg-wa-bubble-out px-2.5 pb-1.5 pt-2 shadow-[0_1px_1px_rgb(0_0_0/8%)]"
+                  : "max-w-[86%] self-start rounded-[10px] rounded-tl-sm bg-wa-bubble-in px-2.5 pb-1.5 pt-2 shadow-[0_1px_1px_rgb(0_0_0/8%)]"
               }
             >
               {m.body}

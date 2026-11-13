@@ -44,6 +44,7 @@ import {
 } from "@/lib/shopify-features";
 import { SITE, cn } from "@/lib/utils";
 import { ShopifyAutopilotDemo } from "./shopify-autopilot-demo";
+import { Disclosure } from "./shopify-disclosure";
 import { ShopifyHeroDemo } from "./shopify-hero-demo";
 import { ShopifyJobs } from "./shopify-jobs";
 import { ShopifyOwnerChat } from "./shopify-owner-chat";
@@ -64,13 +65,12 @@ const primaryBtn =
 const ghostBtn =
   "inline-flex items-center rounded-full px-6 py-3.5 text-[15px] font-bold shadow-[inset_0_0_0_2px_var(--foreground)] transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
 
-/** One icon per trust line, keyed by the line so coming soon's shorter list keeps them. */
-const TRUST_ICONS: Record<string, typeof Check> = {
-  [SHOPIFY_TRUST[0]]: Store,
-  [SHOPIFY_TRUST[1]]: CreditCard,
-  [SHOPIFY_TRUST[2]]: LayoutDashboard,
-  [SHOPIFY_TRUST[3]]: Clock3,
-};
+/**
+ * One icon per SHOPIFY_TRUST line, by position. Looked up through the line's
+ * index in SHOPIFY_TRUST, so coming soon's shorter list keeps the right icons
+ * and a copy edit to a line cannot drop its icon.
+ */
+const TRUST_ICONS: (typeof Check)[] = [Store, CreditCard, LayoutDashboard, Clock3];
 const OWNER_ICONS: Record<string, typeof Check> = {
   ask: MessageCircle,
   approve: BadgeCheck,
@@ -202,7 +202,7 @@ export function ShopifyPageView({
       <section aria-label="What to expect" className="border-y">
         <ul className={cn(wrap, "grid sm:grid-cols-2", trust.length > 2 && "lg:grid-cols-4")}>
           {trust.map((t) => {
-            const Icon = TRUST_ICONS[t] ?? Check;
+            const Icon = TRUST_ICONS[SHOPIFY_TRUST.indexOf(t)] ?? Check;
             return (
               <li
                 key={t}
@@ -375,18 +375,14 @@ export function ShopifyPageView({
           </div>
           <div className="border-t-2 border-foreground">
             {faqs.map((faq, i) => (
-              <details key={faq.q} open={i === 0} className="group border-b">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-[17px] font-extrabold tracking-tight sm:py-5 [&::-webkit-details-marker]:hidden">
-                  {faq.q}
-                  <span
-                    aria-hidden
-                    className="text-2xl font-medium leading-none text-muted-foreground transition-transform group-open:rotate-45"
-                  >
-                    +
-                  </span>
-                </summary>
+              <Disclosure
+                key={faq.q}
+                title={faq.q}
+                open={i === 0}
+                summaryClassName="py-4 text-[17px] font-extrabold tracking-tight sm:py-5"
+              >
                 <p className="max-w-[62ch] pb-5 text-muted-foreground">{faq.a}</p>
-              </details>
+              </Disclosure>
             ))}
           </div>
         </div>

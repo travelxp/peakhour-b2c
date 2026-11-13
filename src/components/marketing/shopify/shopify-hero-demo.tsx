@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Pause, Play, Tag } from "lucide-react";
+import { WhatsAppIcon } from "@/components/brand/brand-icons";
 import { ProductTile, SampleTag } from "./shopify-art";
+import { useReducedMotion } from "./use-reduced-motion";
 import { cn } from "@/lib/utils";
 
 /**
@@ -35,6 +37,8 @@ export function ShopifyHeroDemo() {
   const [inView, setInView] = useState(false);
   const timers = useRef<number[]>([]);
   const root = useRef<HTMLDivElement>(null);
+  // Reduced motion: no loop at all, and no Play button to start one.
+  const still = useReducedMotion();
 
   const clear = () => {
     timers.current.forEach((t) => window.clearTimeout(t));
@@ -59,13 +63,13 @@ export function ShopifyHeroDemo() {
   }, []);
 
   useEffect(() => {
-    if (userChose || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (userChose || still) return;
     const t = window.setTimeout(() => setPlaying(true), FIRST_DELAY_MS);
     return () => window.clearTimeout(t);
-  }, [userChose]);
+  }, [userChose, still]);
 
   useEffect(() => {
-    if (!playing || !inView) return;
+    if (!playing || !inView || still) return;
     const run = () => {
       clear();
       setStep(0);
@@ -77,7 +81,7 @@ export function ShopifyHeroDemo() {
       clear();
       setStep(LAST); // off screen or paused: rest on the finished frame
     };
-  }, [playing, inView]);
+  }, [playing, inView, still]);
 
   const toggle = () => {
     setUserChose(true);
@@ -174,14 +178,16 @@ export function ShopifyHeroDemo() {
         <div className="flex items-center gap-2 bg-ink py-1.5 pl-3.5 pr-1.5 text-sm font-bold text-on-ink">
           <span className="size-2 rounded-full bg-brand" aria-hidden />
           Ask Neel &amp; Co.
-          <button
-            type="button"
-            onClick={toggle}
-            className="ml-auto flex items-center gap-1.5 rounded-full px-2.5 py-1 text-micro font-semibold text-on-ink-dim transition-colors hover:bg-white/10 hover:text-on-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            {playing ? <Pause className="size-3" aria-hidden /> : <Play className="size-3" aria-hidden />}
-            {playing ? "Pause demo" : "Play demo"}
-          </button>
+          {!still && (
+            <button
+              type="button"
+              onClick={toggle}
+              className="ml-auto flex items-center gap-1.5 rounded-full px-2.5 py-1 text-micro font-semibold text-on-ink-dim transition-colors hover:bg-white/10 hover:text-on-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {playing ? <Pause className="size-3" aria-hidden /> : <Play className="size-3" aria-hidden />}
+              {playing ? "Pause demo" : "Play demo"}
+            </button>
+          )}
         </div>
         <div className="flex min-h-[208px] flex-col gap-2 p-3 text-[13px] leading-snug">
           <Bubble on={on(1)} me>Is the indigo kurta in XL? I need it in Pune by Friday.</Bubble>
@@ -207,7 +213,7 @@ export function ShopifyHeroDemo() {
         className="daylight-bubble absolute bottom-6 -left-2 z-10 hidden w-[236px] lg:-left-6 rounded-2xl border bg-card p-3 text-xs shadow-xl sm:block"
       >
         <p className="mb-1.5 flex items-center gap-1.5 font-extrabold text-[var(--daylight-wa)]">
-          <WhatsAppGlyph className="size-4" />
+          <WhatsAppIcon className="size-4" />
           WhatsApp · COD check
         </p>
         <p className="rounded-xl bg-[var(--daylight-wa-soft)] px-2.5 py-2 leading-snug">
@@ -240,17 +246,5 @@ function Bubble({ on, me = false, children }: { on: boolean; me?: boolean; child
     >
       {children}
     </p>
-  );
-}
-
-export function WhatsAppGlyph({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden className={className}>
-      <path d="M12 3a9 9 0 00-7.8 13.5L3 21l4.6-1.2A9 9 0 1012 3z" fill="currentColor" />
-      <path
-        d="M9 8.5c.3-.6.6-.6 1-.6l.6 1.5-.6.9c.5 1 1.3 1.8 2.4 2.4l.9-.6 1.5.6c0 .4 0 .8-.6 1.1-1 .6-4.7-1.4-5.5-4.3-.1-.5.1-.8.3-1z"
-        fill="#fff"
-      />
-    </svg>
   );
 }

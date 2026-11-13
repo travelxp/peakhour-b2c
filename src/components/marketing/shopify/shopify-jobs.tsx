@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ShopifyGroup } from "@/lib/shopify-features";
 import { cn } from "@/lib/utils";
 import { ProductTile, SampleTag } from "./shopify-art";
+import { Disclosure } from "./shopify-disclosure";
 
 /**
  * "What it does": the feature groups as tabs, each with a picture of the app
@@ -17,10 +18,22 @@ import { ProductTile, SampleTag } from "./shopify-art";
  */
 export function ShopifyJobs({ groups }: { groups: ShopifyGroup[] }) {
   const [active, setActive] = useState(groups[0]?.id ?? "");
-  const [openFeature, setOpenFeature] = useState<string | null>(null);
+  /**
+   * The open feature per group, or null for none. It mirrors the DOM in both
+   * directions (onToggle reports a visitor's own open or close), so the `open`
+   * prop always equals what the page shows and React can re-open a feature a
+   * visitor closed. Each group starts with its first feature open.
+   */
+  const [openBy, setOpenBy] = useState<Record<string, string | null>>(() =>
+    Object.fromEntries(groups.map((g) => [g.id, g.features[0]?.id ?? null])),
+  );
+  /**
+   * A #hash to scroll to. Held in state, with a counter so the same hash can
+   * ask twice, so the scroll runs in the effect of the render that applied it:
+   * by then the target's panel is no longer hidden.
+   */
+  const [scrollTarget, setScrollTarget] = useState<{ id: string; n: number } | null>(null);
   const tabRefs = useRef<Record<string, HTMLAnchorElement | null>>({});
-  // A #hash target to scroll to once its panel (and feature) render open.
-  const scrollTo = useRef<string | null>(null);
 
   useEffect(() => {
     const fromHash = () => {
@@ -29,27 +42,26 @@ export function ShopifyJobs({ groups }: { groups: ShopifyGroup[] }) {
       const group = groups.find((g) => g.id === id || g.features.some((f) => f.id === id));
       if (!group) return;
       setActive(group.id);
-      setOpenFeature(group.id === id ? null : id);
-      // The target was hidden when the browser tried to scroll to it; scroll
-      // after the commit that un-hides it (the effect below).
-      scrollTo.current = id;
+      if (group.id !== id) setOpenBy((s) => ({ ...s, [group.id]: id }));
+      setScrollTarget((t) => ({ id, n: (t?.n ?? 0) + 1 }));
     };
     fromHash();
+    // hashchange for links and the address bar; popstate for history steps
+    // and pushState navigation, which fire no hashchange.
     window.addEventListener("hashchange", fromHash);
-    return () => window.removeEventListener("hashchange", fromHash);
+    window.addEventListener("popstate", fromHash);
+    return () => {
+      window.removeEventListener("hashchange", fromHash);
+      window.removeEventListener("popstate", fromHash);
+    };
   }, [groups]);
 
-  // Runs after the commit that applied a hash: the target is no longer hidden.
   useEffect(() => {
-    const id = scrollTo.current;
-    if (!id) return;
-    scrollTo.current = null;
-    document.getElementById(id)?.scrollIntoView({ block: "start" });
-  }, [active, openFeature]);
+    if (scrollTarget) document.getElementById(scrollTarget.id)?.scrollIntoView({ block: "start" });
+  }, [scrollTarget]);
 
   const select = (id: string, focus = false) => {
     setActive(id);
-    setOpenFeature(null);
     window.history.replaceState(null, "", `#${id}`);
     if (focus) tabRefs.current[id]?.focus();
   };
@@ -130,39 +142,32 @@ export function ShopifyJobs({ groups }: { groups: ShopifyGroup[] }) {
           </div>
           {/* Below: every feature, in two columns from md, one open at a time. */}
           <div className="border-t px-5 pb-2 sm:px-6 md:columns-2 md:gap-x-10 lg:px-8">
-            {g.features.map((f, k) => {
-              const open = openFeature ? openFeature === f.id : k === 0;
-              return (
-                <details
-                  key={f.id}
-                  id={f.id}
-                  open={open}
-                  onToggle={(e) => {
-                    if (e.currentTarget.open && !open) setOpenFeature(f.id);
-                  }}
-                  className="group scroll-mt-28 break-inside-avoid border-b"
-                >
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-3.5 font-bold [&::-webkit-details-marker]:hidden">
-                    {f.title}
-                    <span
-                      aria-hidden
-                      className="text-xl font-medium leading-none text-muted-foreground transition-transform group-open:rotate-45"
-                    >
-                      +
-                    </span>
-                  </summary>
-                  <div className="flex flex-col gap-2 pb-4 text-[15px] text-muted-foreground">
-                    <p className="text-foreground">{f.does}</p>
-                    <p>{f.benefit}</p>
-                    <ol className="ml-5 list-decimal space-y-0.5 text-sm">
-                      {f.steps.map((st) => (
-                        <li key={st}>{st}</li>
-                      ))}
-                    </ol>
-                  </div>
-                </details>
-              );
-            })}
+            {g.features.map((f) => (
+              <Disclosure
+                key={f.id}
+                id={f.id}
+                title={f.title}
+                open={openBy[g.id] === f.id}
+                onToggle={(isOpen) =>
+                  setOpenBy((s) => {
+                    const next = isOpen ? f.id : s[g.id] === f.id ? null : s[g.id];
+                    return next === s[g.id] ? s : { ...s, [g.id]: next };
+                  })
+                }
+                className="scroll-mt-28 break-inside-avoid"
+                summaryClassName="py-3.5"
+              >
+                <div className="flex flex-col gap-2 pb-4 text-[15px] text-muted-foreground">
+                  <p className="text-foreground">{f.does}</p>
+                  <p>{f.benefit}</p>
+                  <ol className="ml-5 list-decimal space-y-0.5 text-sm">
+                    {f.steps.map((st) => (
+                      <li key={st}>{st}</li>
+                    ))}
+                  </ol>
+                </div>
+              </Disclosure>
+            ))}
           </div>
         </div>
       ))}
