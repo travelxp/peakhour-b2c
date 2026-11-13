@@ -248,8 +248,6 @@ export function AudienceProfilePanel({ defaultOpen = false }: { defaultOpen?: bo
         (old: Partial<ProfileResponse> | undefined) => ({
           ...old,
           profile: res.profile,
-          // The api's words and tiers for the positioning block belong to the OLD profile: hidden until re-read.
-          positioning: undefined as never,
           correctableFields: old?.correctableFields ?? specs,
         }),
       );
@@ -280,8 +278,6 @@ export function AudienceProfilePanel({ defaultOpen = false }: { defaultOpen?: bo
         (old: Partial<ProfileResponse> | undefined) => ({
           ...old,
           profile: res.profile,
-          // The api's words and tiers for the positioning block belong to the OLD profile: hidden until re-read.
-          positioning: undefined as never,
           correctableFields: old?.correctableFields ?? specs,
         }),
       );
@@ -746,7 +742,8 @@ function PositioningSection({
     }
   };
   const basis: Record<string, string | undefined> = {
-    "classification.buyingPattern": basisLine("classification.buyingPattern", c.buyingPattern?.basis),
+    // The order figures describe a measurement: not shown beside a value the merchant has since stated.
+    "classification.buyingPattern": positioning.buyingPattern?.tier === "observed" ? basisLine("classification.buyingPattern", c.buyingPattern?.basis) : undefined,
     "classification.priceTier": basisLine("classification.priceTier", c.priceTier?.basis),
   };
   const unlisted = positioning.subCategory !== null && positioning.subCategory.slug === null;
