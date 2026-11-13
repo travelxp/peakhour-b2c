@@ -8,6 +8,7 @@ import {
   audiencesApi,
   type CorrectableFieldSpec,
   type EvidenceTier,
+  type ProfileResponse,
   type ProfileSource,
 } from "@/lib/api/audiences";
 import {
@@ -18,6 +19,15 @@ import {
   mergeSources,
   topSource,
 } from "@/lib/audience-profile-rules";
+import {
+  POSITIONING_FIELD_LABEL,
+  basisLine,
+  choicesFor,
+  listedLabel,
+  positioningRows,
+  sourceWords,
+  type Choice,
+} from "@/lib/positioning-ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -177,6 +187,9 @@ type Editing = {
   spec: CorrectableFieldSpec;
   value: string;
   list: string[];
+  /** PL-0: what the correction can be picked from (an enum's values, or the category's list of sub-categories and
+   *  styles), and whether the merchant may type something the list lacks. Absent for a free-text field. */
+  choices?: { choices: Choice[]; allowUnlisted: boolean };
   /** What the profile said when the editor opened — so a no-op save can be
    *  refused, and so the delta the log records is one the user actually made. */
   original: { value: string; list: string[] };
@@ -232,11 +245,14 @@ export function AudienceProfilePanel({ defaultOpen = false }: { defaultOpen?: bo
       // is not correctable" rather than "we lost the spec list".
       queryClient.setQueryData(
         ["audience-profile"],
-        (old: { correctableFields?: CorrectableFieldSpec[] } | undefined) => ({
+        (old: Partial<ProfileResponse> | undefined) => ({
+          ...old,
           profile: res.profile,
           correctableFields: old?.correctableFields ?? specs,
         }),
       );
+      // The positioning block reads the api's own answer (words and tiers), so it is read again.
+      void queryClient.invalidateQueries({ queryKey: ["audience-profile"] });
       // A re-read replaces the profile underneath any open editor, so the
       // snapshot in it describes a profile that no longer exists. Closing is
       // the honest move — saving it would write values the user never saw.
@@ -259,11 +275,13 @@ export function AudienceProfilePanel({ defaultOpen = false }: { defaultOpen?: bo
     onSuccess: (res) => {
       queryClient.setQueryData(
         ["audience-profile"],
-        (old: { correctableFields?: CorrectableFieldSpec[] } | undefined) => ({
+        (old: Partial<ProfileResponse> | undefined) => ({
+          ...old,
           profile: res.profile,
           correctableFields: old?.correctableFields ?? specs,
         }),
       );
+      void queryClient.invalidateQueries({ queryKey: ["audience-profile"] });
       closeEditor();
       toast.success("Thanks — we'll use that from now on.");
       // The audience is built from this profile, so a correction changes what
@@ -298,7 +316,8 @@ export function AudienceProfilePanel({ defaultOpen = false }: { defaultOpen?: bo
       value: typeof current === "string" ? current : "",
       list: Array.isArray(current) ? current : [],
     };
-    setEditing({ spec, ...original, original, profileVersion: profile.profileVersion });
+    const choices = choicesFor(spec, data?.positioningOptions ?? null, profile.classification.subIndustry?.value) ?? undefined;
+    setEditing({ spec, ...original, ...(choices ? { choices } : {}), original, profileVersion: profile.profileVersion });
   };
 
   const submitEdit = () => {
@@ -578,6 +597,16 @@ export function AudienceProfilePanel({ defaultOpen = false }: { defaultOpen?: bo
               </div>
             </section>
 
+            {data?.positioning && (
+              <PositioningSection
+                positioning={data.positioning}
+                profile={profile}
+                specFor={specFor}
+                startEdit={startEdit}
+                options={data.positioningOptions ?? null}
+              />
+            )}
+
             <ListSection
               title={FIELD_LABEL.icp!}
               field="icp"
@@ -672,6 +701,108 @@ export function AudienceProfilePanel({ defaultOpen = false }: { defaultOpen?: bo
   );
 }
 
+/**
+ * "How you're positioned" (PL-0): what you sell, in what style, at what price, where, and to whom. Every value says where
+ * it came from in plain words and can be corrected from the category's own list (or typed in when the list lacks it).
+ * It is the same correction flow as the rest of the panel: the pencil opens the one editor below.
+ */
+function PositioningSection({
+  positioning,
+  profile,
+  specFor,
+  startEdit,
+  options,
+}: {
+  positioning: NonNullable<ProfileResponse["positioning"]>;
+  profile: NonNullable<ProfileResponse["profile"]>;
+  specFor: (field: string) => CorrectableFieldSpec | undefined;
+  startEdit: (field: string, current: string | string[], opener?: HTMLElement | null) => void;
+  options: ProfileResponse["positioningOptions"];
+}) {
+  const c = profile.classification;
+  /** What the editor opens on: the values as stored (slugs for a list we name). */
+  const current = (field: string): string | string[] => {
+    switch (field) {
+      case "classification.subIndustry":
+        return c.subIndustry?.value ?? "";
+      case "classification.styles":
+        return (c.styles ?? []).map((x) => x.value);
+      case "classification.priceTier":
+        return c.priceTier?.value ?? "";
+      case "classification.buyingPattern":
+        return c.buyingPattern?.value ?? "";
+      case "classification.salesChannels":
+        return (c.salesChannels ?? []).map((x) => x.value);
+      case "classification.shopper.ageBands":
+        return (c.shopper?.ageBands ?? []).map((x) => x.value);
+      case "classification.shopper.genderLean":
+        return c.shopper?.genderLean?.value ?? "";
+      default:
+        return c.shopper?.spendingPower?.value ?? "";
+    }
+  };
+  const basis: Record<string, string | undefined> = {
+    "classification.buyingPattern": basisLine("classification.buyingPattern", c.buyingPattern?.basis),
+    "classification.priceTier": basisLine("classification.priceTier", c.priceTier?.basis),
+  };
+  const unlisted = positioning.subCategory !== null && positioning.subCategory.slug === null;
+  return (
+    <section>
+      <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        How you&apos;re positioned
+      </h4>
+      <p className="mb-1 text-xs text-muted-foreground">
+        Two shops can sell the same thing and need opposite plans. This is what sets yours apart.
+      </p>
+      <div className="divide-y">
+        {positioningRows(positioning).map((row) => {
+          const spec = specFor(row.field);
+          return (
+            <div key={row.field} className="flex items-start justify-between gap-3 py-2">
+              <div className="min-w-0">
+                <div className="text-xs text-muted-foreground">{row.label}</div>
+                {row.values.length === 0 ? (
+                  <div className="text-sm text-muted-foreground italic">Not known yet</div>
+                ) : (
+                  <ul className="space-y-1">
+                    {row.values.map((v, i) => (
+                      <li key={`${row.field}:${i}:${v.text}`} className="flex flex-wrap items-center gap-2 text-sm">
+                        <span>{v.text}</span>
+                        <span
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-micro font-medium ${TIER_CLASS[v.tier]}`}
+                        >
+                          {sourceWords(v.tier, row.field)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {basis[row.field] && <p className="mt-0.5 text-xs text-muted-foreground">{basis[row.field]}</p>}
+                {row.field === "classification.subIndustry" && unlisted && options && (
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    That&apos;s in your own words. Pick the closest one from our list if there is one.
+                  </p>
+                )}
+              </div>
+              {spec && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 shrink-0 px-2"
+                  onClick={(e) => startEdit(row.field, current(row.field), e.currentTarget)}
+                  aria-label={`Correct ${row.label}`}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function ListSection({
   title,
   field,
@@ -763,7 +894,9 @@ function CorrectionEditor({
   useEffect(() => {
     firstFieldRef.current?.focus();
   }, []);
-  const label = FIELD_LABEL[spec.field] ?? spec.field;
+  const label = POSITIONING_FIELD_LABEL[spec.field] ?? FIELD_LABEL[spec.field] ?? spec.field;
+  const choiceList = editing.choices?.choices;
+  const allowUnlisted = editing.choices?.allowUnlisted ?? false;
   // Deduped, matching the rule Save uses. Counting raw entries meant Add was
   // disabled while Save was enabled on the same screen, at 21 raw / 20 unique.
   const atItemCap = spec.maxItems !== undefined && dedupeLabels(list).length >= spec.maxItems;
@@ -802,11 +935,37 @@ function CorrectionEditor({
 
       {spec.shape === "list" ? (
         <div className="space-y-2">
+          {choiceList && (
+            // PL-0: pick from the list. Pressing a choice adds or removes it; what is picked shows below.
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label={`Choose ${label}`}>
+              {choiceList.map((ch) => {
+                const picked = list.some((x) => x.toLowerCase() === ch.value.toLowerCase());
+                return (
+                  <Button
+                    key={ch.value}
+                    type="button"
+                    size="sm"
+                    variant={picked ? "default" : "outline"}
+                    aria-pressed={picked}
+                    disabled={!picked && atItemCap}
+                    onClick={() =>
+                      setEditing({
+                        ...editing,
+                        list: picked ? list.filter((x) => x.toLowerCase() !== ch.value.toLowerCase()) : [...list, ch.value],
+                      })
+                    }
+                  >
+                    {ch.label}
+                  </Button>
+                );
+              })}
+            </div>
+          )}
           <ul className="flex flex-wrap gap-1.5">
             {list.map((item, i) => (
               <li key={`${item}-${i}`}>
                 <Badge variant="secondary" className="gap-1 py-1 pr-1">
-                  <span className="max-w-[28rem] truncate">{item}</span>
+                  <span className="max-w-[28rem] truncate">{listedLabel(choiceList, item)}</span>
                   <button
                     type="button"
                     aria-label={`Remove ${item}`}
@@ -821,6 +980,7 @@ function CorrectionEditor({
               </li>
             ))}
           </ul>
+          {(!choiceList || allowUnlisted) && (
           <div className="flex gap-2">
             {spec.maxLength > 300 ? (
               <Textarea
@@ -846,13 +1006,14 @@ function CorrectionEditor({
                     addDraft();
                   }
                 }}
-                placeholder="Add"
+                placeholder={allowUnlisted ? "Not in the list? Type it" : "Add"}
               />
             )}
             <Button variant="outline" onClick={addDraft} disabled={!draft.trim() || draftTooLong || atItemCap}>
               Add
             </Button>
           </div>
+          )}
           <p id={hintId} className="text-xs text-muted-foreground">
             {draftTooLong
               ? `Too long — keep each one under ${spec.maxLength} characters.`
@@ -867,6 +1028,37 @@ function CorrectionEditor({
                     // believing they had made a statement.
                     "Add what we've missed."}
           </p>
+        </div>
+      ) : choiceList ? (
+        <div className="space-y-2">
+          <Select
+            value={choiceList.some((ch) => ch.value === value) ? value : ""}
+            onValueChange={(v) => setEditing({ ...editing, value: v })}
+          >
+            <SelectTrigger
+              id={inputId}
+              ref={firstFieldRef as unknown as React.RefObject<HTMLButtonElement>}
+              aria-label={`Correct ${label}`}
+              aria-describedby={blockedReason ? reasonId : undefined}
+            >
+              <SelectValue placeholder="Choose" />
+            </SelectTrigger>
+            <SelectContent>
+              {choiceList.map((ch) => (
+                <SelectItem key={ch.value} value={ch.value}>
+                  {ch.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {allowUnlisted && (
+            <Input
+              aria-label={`${label}: not in the list? Type it`}
+              value={choiceList.some((ch) => ch.value === value) ? "" : value}
+              onChange={(e) => setEditing({ ...editing, value: e.target.value })}
+              placeholder="Not in the list? Type it"
+            />
+          )}
         </div>
       ) : spec.values ? (
         <Select value={value} onValueChange={(v) => setEditing({ ...editing, value: v })}>
