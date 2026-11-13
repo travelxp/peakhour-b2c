@@ -9,7 +9,7 @@ import { act } from "react";
 
 const h = vi.hoisted(() => ({
   status: { data: undefined as unknown, isPending: false, isError: false },
-  consent: { isPending: false, isError: false, variables: undefined as boolean | undefined, mutate: vi.fn<(share: boolean) => void>() },
+  consent: { isPending: false, isError: false, isSuccess: false, variables: undefined as boolean | undefined, mutate: vi.fn<(share: boolean) => void>() },
   post: vi.fn<(path: string, body?: unknown) => Promise<unknown>>(),
   get: vi.fn<(path: string) => Promise<unknown>>(),
 }));
@@ -27,7 +27,7 @@ let root: Root;
 let host: HTMLElement;
 beforeEach(() => {
   h.status = { data: { pin: null }, isPending: false, isError: false };
-  h.consent = { isPending: false, isError: false, variables: undefined, mutate: vi.fn<(share: boolean) => void>() };
+  h.consent = { isPending: false, isError: false, isSuccess: false, variables: undefined, mutate: vi.fn<(share: boolean) => void>() };
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
@@ -72,10 +72,10 @@ describe("the share-results box", () => {
     await render();
     expect(box().disabled).toBe(true);
     h.status = { data: { pin: null }, isPending: false, isError: false };
-    h.consent = { isPending: true, isError: false, variables: true, mutate: vi.fn<(share: boolean) => void>() };
+    h.consent = { isPending: true, isError: false, isSuccess: false, variables: true, mutate: vi.fn<(share: boolean) => void>() };
     await render();
     expect(box().getAttribute("aria-checked"), "the answer being saved, not the status it replaces").toBe("true");
-    h.consent = { isPending: false, isError: true, variables: true, mutate: vi.fn<(share: boolean) => void>() };
+    h.consent = { isPending: false, isError: true, isSuccess: false, variables: true, mutate: vi.fn<(share: boolean) => void>() };
     await render();
     expect(host.querySelector('[role="alert"]')?.textContent).toMatch(/could not save/);
   });
@@ -89,6 +89,17 @@ describe("a failed status read", () => {
     expect(host.querySelector('[role="alert"]')?.textContent).toMatch(/could not check whether you share/);
     await act(async () => box().click());
     expect(h.consent.mutate).not.toHaveBeenCalled();
+  });
+});
+
+describe("after a save", () => {
+  it("a re-read that fails keeps the recorded answer and the box usable", async () => {
+    h.status = { data: { pin: null }, isPending: false, isError: true };
+    h.consent = { isPending: false, isError: false, isSuccess: true, variables: true, mutate: vi.fn<(share: boolean) => void>() };
+    await render();
+    expect(box().getAttribute("aria-checked")).toBe("true");
+    expect(box().disabled).toBe(false);
+    expect(host.querySelector('[role="alert"]')).toBeNull();
   });
 });
 

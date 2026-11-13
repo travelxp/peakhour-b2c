@@ -42,16 +42,20 @@ export function ShareResultsView(p: ShareResultsViewProps) {
 export function ShareResultsOptIn() {
   const status = usePinStatus();
   const consent = usePinConsent("first_run");
-  // While an answer is in flight the box shows the answer being recorded, not the status it replaces.
-  const checked = consent.isPending && consent.variables !== undefined ? consent.variables : isSharing(status.data);
+  // While an answer is in flight, and once it is recorded, the box shows that answer, not the status it replaced (a
+  // re-read that fails after a save must not flip the box back to what the ledger no longer says).
+  const answered = (consent.isPending || consent.isSuccess) && consent.variables !== undefined;
+  const checked = answered ? consent.variables! : isSharing(status.data);
+  // A status that could not be read blocks the box only when there is no answer to show at all.
+  const unknown = status.isError && status.data === undefined && !answered;
   // ★A FAILED STATUS READ IS NOT "NOT SHARING": an unticked box would tell a business that shares that it does not, and a
   // tick would write a needless second opt-in. The box stays disabled and says why.
   return (
     <ShareResultsView
       checked={checked}
-      busy={status.isPending || status.isError || consent.isPending}
+      busy={status.isPending || unknown || consent.isPending}
       error={
-        status.isError
+        unknown
           ? "We could not check whether you share your results. Reload the page to try again."
           : consent.isError
             ? "We could not save that. Please try again."
