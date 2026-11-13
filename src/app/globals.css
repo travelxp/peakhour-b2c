@@ -860,6 +860,8 @@
   --daylight-wa: #0b7a3e; /* white text 5.4:1, and as text on white */
   --daylight-wa-soft: #e8f7ee;
   --daylight-phone: #0b0d24;
+  /* The one raised-card elevation the /shopify pictures share. */
+  --daylight-shadow: 0 2px 4px rgb(15 17 48 / 6%), 0 28px 56px -20px rgb(15 17 48 / 30%);
   /* Sample-store product art: tints that stand in for product photos. */
   --daylight-tint-indigo: linear-gradient(140deg, #cdd9fb, #8aa6ee);
   --daylight-tint-rose: linear-gradient(140deg, #fbd9e1, #ee97a9);

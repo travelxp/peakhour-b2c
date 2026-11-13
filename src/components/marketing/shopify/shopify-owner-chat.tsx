@@ -9,9 +9,9 @@ import { PeakMark } from "./shopify-art";
  * into view. The server renders the finished thread, and reduced motion keeps
  * it that way.
  *
- * Held to the api: BOOST prepares an ad that is saved as a draft and does not
- * spend until the merchant switches it on (command-router.ts), and CONFIRM
- * expires after 10 minutes (CONFIRM_TTL_MINUTES).
+ * Held to the api: BOOST sponsors content already published, and its reply is
+ * quoted verbatim (command-router.ts). BOOST asks for CONFIRM first, which
+ * expires after 10 minutes (command-authority.ts, CONFIRM_TTL_MINUTES).
  */
 type Msg = { from: "owner" | "peakhour"; time: string; body: React.ReactNode; buttons?: string[] };
 
@@ -36,24 +36,28 @@ const THREAD: Msg[] = [
     body: "1 LinkedIn post is ready: “How we hand-print every kurta in Bagru”.",
     buttons: ["Approve", "Skip"],
   },
-  { from: "owner", time: "9:04", body: "Approve. And boost it" },
+  { from: "owner", time: "9:04", body: "APPROVE" },
+  { from: "peakhour", time: "9:04", body: "Approved. It goes out on LinkedIn now." },
+  { from: "owner", time: "9:05", body: "BOOST" },
   {
     from: "peakhour",
-    time: "9:04",
+    time: "9:05",
     body: (
       <>
-        Approved. I&apos;ll prepare an ad from that post. It is saved as a draft and spends nothing until you switch it on.
-        <br />
-        <br />
-        Reply <code className="rounded bg-black/5 px-1 font-mono text-xs font-bold">CONFIRM</code> within 10 minutes to go
-        ahead.
+        An ad spends money, so I check first. Reply{" "}
+        <code className="rounded bg-black/5 px-1 font-mono text-xs font-bold">CONFIRM</code> within 10 minutes to go ahead.
       </>
     ),
   },
-  { from: "owner", time: "9:05", body: "CONFIRM" },
+  { from: "owner", time: "9:06", body: "CONFIRM" },
+  {
+    from: "peakhour",
+    time: "9:06",
+    body: "Found content worth promoting. I'm preparing the ad options and will send them for approval shortly.",
+  },
 ];
 
-const STEP_MS = 1100;
+const STEP_MS = 900;
 
 export function ShopifyOwnerChat() {
   const [shown, setShown] = useState(THREAD.length);
@@ -62,15 +66,31 @@ export function ShopifyOwnerChat() {
   useEffect(() => {
     const el = ref.current;
     if (!el || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    // Play only a thread the visitor has not seen yet. The observer's first
+    // report says where the phone is at load: already on screen, it stays as
+    // it is, so nothing being read disappears; below the fold, it is emptied
+    // while off screen and plays when it scrolls in.
     const timers: number[] = [];
+    let first = true;
+    let armed = false;
     const io = new IntersectionObserver(
       ([entry]) => {
-        if (!entry?.isIntersecting) return;
+        const onScreen = !!entry?.isIntersecting;
+        if (first) {
+          first = false;
+          if (onScreen) {
+            io.disconnect();
+            return;
+          }
+          armed = true;
+          setShown(0);
+          return;
+        }
+        if (!armed || !onScreen) return;
         io.disconnect();
-        setShown(0);
-        THREAD.forEach((_, i) => timers.push(window.setTimeout(() => setShown(i + 1), 400 + i * STEP_MS)));
+        THREAD.forEach((_, i) => timers.push(window.setTimeout(() => setShown(i + 1), 300 + i * STEP_MS)));
       },
-      { threshold: 0.45 },
+      { threshold: 0.3 },
     );
     io.observe(el);
     return () => {

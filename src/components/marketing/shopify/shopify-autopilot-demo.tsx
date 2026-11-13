@@ -25,7 +25,7 @@ export function ShopifyAutopilotDemo() {
     <div
       role="group"
       aria-label="Try it: Autopilot"
-      className="rounded-3xl border bg-card p-5 shadow-[0_2px_4px_rgb(15_17_48/6%),0_28px_56px_-20px_rgb(15_17_48/30%)] sm:p-6"
+      className="rounded-3xl border bg-card p-5 shadow-[var(--daylight-shadow)] sm:p-6"
     >
       <div className="flex items-center justify-between">
         <span className="text-lg font-extrabold tracking-tight">Autopilot</span>
@@ -90,7 +90,6 @@ export function ShopifyAutopilotDemo() {
 
       <button
         type="button"
-        aria-pressed={stopped}
         onClick={() => setStopped((s) => !s)}
         className={cn(
           "mt-3 flex w-full items-center justify-center gap-2 rounded-xl py-3 text-[15px] font-extrabold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",

@@ -19,6 +19,8 @@ export function ShopifyJobs({ groups }: { groups: ShopifyGroup[] }) {
   const [active, setActive] = useState(groups[0]?.id ?? "");
   const [openFeature, setOpenFeature] = useState<string | null>(null);
   const tabRefs = useRef<Record<string, HTMLAnchorElement | null>>({});
+  // A #hash target to scroll to once its panel (and feature) render open.
+  const scrollTo = useRef<string | null>(null);
 
   useEffect(() => {
     const fromHash = () => {
@@ -28,13 +30,22 @@ export function ShopifyJobs({ groups }: { groups: ShopifyGroup[] }) {
       if (!group) return;
       setActive(group.id);
       setOpenFeature(group.id === id ? null : id);
-      // The target was hidden when the browser tried to scroll to it.
-      requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ block: "start" }));
+      // The target was hidden when the browser tried to scroll to it; scroll
+      // after the commit that un-hides it (the effect below).
+      scrollTo.current = id;
     };
     fromHash();
     window.addEventListener("hashchange", fromHash);
     return () => window.removeEventListener("hashchange", fromHash);
   }, [groups]);
+
+  // Runs after the commit that applied a hash: the target is no longer hidden.
+  useEffect(() => {
+    const id = scrollTo.current;
+    if (!id) return;
+    scrollTo.current = null;
+    document.getElementById(id)?.scrollIntoView({ block: "start" });
+  }, [active, openFeature]);
 
   const select = (id: string, focus = false) => {
     setActive(id);
@@ -75,6 +86,8 @@ export function ShopifyJobs({ groups }: { groups: ShopifyGroup[] }) {
               aria-selected={selected}
               tabIndex={selected ? 0 : -1}
               onClick={(e) => {
+                // A new-tab or new-window click keeps the link's own behaviour.
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
                 e.preventDefault();
                 select(g.id);
               }}
@@ -161,7 +174,7 @@ export function ShopifyJobs({ groups }: { groups: ShopifyGroup[] }) {
 
 function AppCard({ title, chip, children }: { title: string; chip: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="w-full min-w-0 max-w-[440px] overflow-hidden rounded-2xl border bg-card text-sm shadow-[0_2px_4px_rgb(15_17_48/6%),0_28px_56px_-20px_rgb(15_17_48/30%)]">
+    <div className="w-full min-w-0 max-w-[440px] overflow-hidden rounded-2xl border bg-card text-sm shadow-[var(--daylight-shadow)]">
       <div className="flex items-center justify-between gap-2 border-b px-4 py-3 font-extrabold">
         <span>{title}</span>
         {chip}

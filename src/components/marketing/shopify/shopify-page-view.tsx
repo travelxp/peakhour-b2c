@@ -222,7 +222,7 @@ export function ShopifyPageView({
           <p className={eyebrow}>What it does</p>
           <h2 className={h2}>Five jobs Peakhour takes off your plate.</h2>
           <p className={sub}>
-            Pick a job to see it in the app. Every feature here is built and in the app today, and{" "}
+            Pick a job to see it in the app. Every feature here is built, and{" "}
             <a href="#control" className="font-semibold text-foreground underline decoration-brand decoration-2 underline-offset-4">
               you stay in charge of all of it
             </a>
@@ -400,7 +400,7 @@ export function ShopifyPageView({
               <h2 className="text-[2rem] font-black leading-[1.04] tracking-[-0.035em] text-balance sm:text-5xl">
                 {SHOPIFY_CLOSING.headline}
               </h2>
-              <p className="mt-4 text-lg text-white/90">{SHOPIFY_CLOSING.body}</p>
+              <p className="mt-4 text-lg text-white">{SHOPIFY_CLOSING.body}</p>
             </div>
             <div className="flex shrink-0 flex-wrap gap-3">
               <InstallActions install={install} onBrand />

@@ -29,7 +29,12 @@ const RAIL = [
 export function ShopifyHeroDemo() {
   const [step, setStep] = useState(LAST);
   const [playing, setPlaying] = useState(false);
+  // The visitor pressed Play or Pause: the automatic start must not override it.
+  const [userChose, setUserChose] = useState(false);
+  // The hero is on screen and the tab is visible; the loop runs only then.
+  const [inView, setInView] = useState(false);
   const timers = useRef<number[]>([]);
+  const root = useRef<HTMLDivElement>(null);
 
   const clear = () => {
     timers.current.forEach((t) => window.clearTimeout(t));
@@ -37,13 +42,30 @@ export function ShopifyHeroDemo() {
   };
 
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const t = window.setTimeout(() => setPlaying(true), FIRST_DELAY_MS);
-    return () => window.clearTimeout(t);
+    const el = root.current;
+    if (!el) return;
+    let visible = false;
+    const update = () => setInView(visible && document.visibilityState === "visible");
+    const io = new IntersectionObserver(([e]) => {
+      visible = !!e?.isIntersecting;
+      update();
+    });
+    io.observe(el);
+    document.addEventListener("visibilitychange", update);
+    return () => {
+      io.disconnect();
+      document.removeEventListener("visibilitychange", update);
+    };
   }, []);
 
   useEffect(() => {
-    if (!playing) return;
+    if (userChose || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const t = window.setTimeout(() => setPlaying(true), FIRST_DELAY_MS);
+    return () => window.clearTimeout(t);
+  }, [userChose]);
+
+  useEffect(() => {
+    if (!playing || !inView) return;
     const run = () => {
       clear();
       setStep(0);
@@ -51,10 +73,14 @@ export function ShopifyHeroDemo() {
       timers.current.push(window.setTimeout(run, LOOP_MS));
     };
     run();
-    return clear;
-  }, [playing]);
+    return () => {
+      clear();
+      setStep(LAST); // off screen or paused: rest on the finished frame
+    };
+  }, [playing, inView]);
 
   const toggle = () => {
+    setUserChose(true);
     if (playing) {
       clear();
       setPlaying(false);
@@ -67,11 +93,11 @@ export function ShopifyHeroDemo() {
   const on = (n: number) => step >= n;
 
   return (
-    <div className="relative sm:pb-28" aria-label="Sample store: the Peakhour assistant answering a shopper" role="group">
+    <div ref={root} className="relative sm:pb-28" aria-label="Sample store: the Peakhour assistant answering a shopper" role="group">
       <SampleTag className="absolute -top-3 right-3 z-20" />
 
       {/* The storefront */}
-      <div className="overflow-hidden rounded-3xl border bg-card shadow-[0_2px_4px_rgb(15_17_48/6%),0_28px_56px_-20px_rgb(15_17_48/30%)]">
+      <div className="overflow-hidden rounded-3xl border bg-card shadow-[var(--daylight-shadow)]">
         <div className="flex items-center gap-1.5 border-b bg-muted px-3.5 py-2.5">
           <i className="size-2.5 rounded-full bg-border" />
           <i className="size-2.5 rounded-full bg-border" />
@@ -151,7 +177,6 @@ export function ShopifyHeroDemo() {
           <button
             type="button"
             onClick={toggle}
-            aria-pressed={!playing}
             className="ml-auto flex items-center gap-1.5 rounded-full px-2.5 py-1 text-micro font-semibold text-on-ink-dim transition-colors hover:bg-white/10 hover:text-on-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {playing ? <Pause className="size-3" aria-hidden /> : <Play className="size-3" aria-hidden />}
