@@ -8,7 +8,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
 
 const h = vi.hoisted(() => ({
-  status: { data: undefined as unknown, isPending: false },
+  status: { data: undefined as unknown, isPending: false, isError: false },
   consent: { isPending: false, isError: false, variables: undefined as boolean | undefined, mutate: vi.fn<(share: boolean) => void>() },
   post: vi.fn<(path: string, body?: unknown) => Promise<unknown>>(),
   get: vi.fn<(path: string) => Promise<unknown>>(),
@@ -26,7 +26,7 @@ const { ShareResultsOptIn, SHARE_LABEL, SHARE_EXPLAINER } = await import("./shar
 let root: Root;
 let host: HTMLElement;
 beforeEach(() => {
-  h.status = { data: { pin: null }, isPending: false };
+  h.status = { data: { pin: null }, isPending: false, isError: false };
   h.consent = { isPending: false, isError: false, variables: undefined, mutate: vi.fn<(share: boolean) => void>() };
   host = document.createElement("div");
   document.body.appendChild(host);
@@ -57,7 +57,7 @@ describe("the share-results box", () => {
   });
 
   it("a business that already shares sees it ticked, and unticking withdraws", async () => {
-    h.status = { data: { pin: { consentStatus: { pin_contribution: "opted_in" } } }, isPending: false };
+    h.status = { data: { pin: { consentStatus: { pin_contribution: "opted_in" } } }, isPending: false, isError: false };
     await render();
     expect(box().getAttribute("aria-checked")).toBe("true");
     await act(async () => box().click());
@@ -65,19 +65,30 @@ describe("the share-results box", () => {
   });
 
   it("a withdrawn business is unticked; the box is disabled while the status loads or an answer saves, and a failed save says so", async () => {
-    h.status = { data: { pin: { consentStatus: { pin_contribution: "revoked" } } }, isPending: false };
+    h.status = { data: { pin: { consentStatus: { pin_contribution: "revoked" } } }, isPending: false, isError: false };
     await render();
     expect(box().getAttribute("aria-checked")).toBe("false");
-    h.status = { data: undefined, isPending: true };
+    h.status = { data: undefined, isPending: true, isError: false };
     await render();
     expect(box().disabled).toBe(true);
-    h.status = { data: { pin: null }, isPending: false };
+    h.status = { data: { pin: null }, isPending: false, isError: false };
     h.consent = { isPending: true, isError: false, variables: true, mutate: vi.fn<(share: boolean) => void>() };
     await render();
     expect(box().getAttribute("aria-checked"), "the answer being saved, not the status it replaces").toBe("true");
     h.consent = { isPending: false, isError: true, variables: true, mutate: vi.fn<(share: boolean) => void>() };
     await render();
     expect(host.querySelector('[role="alert"]')?.textContent).toMatch(/could not save/);
+  });
+});
+
+describe("a failed status read", () => {
+  it("is not 'not sharing': the box is disabled and says it could not check, so no second opt-in is written", async () => {
+    h.status = { data: undefined, isPending: false, isError: true };
+    await render();
+    expect(box().disabled).toBe(true);
+    expect(host.querySelector('[role="alert"]')?.textContent).toMatch(/could not check whether you share/);
+    await act(async () => box().click());
+    expect(h.consent.mutate).not.toHaveBeenCalled();
   });
 });
 
