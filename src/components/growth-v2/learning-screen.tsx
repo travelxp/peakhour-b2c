@@ -55,7 +55,7 @@ export function LearningBody({ learning, unitPlural, currency }: { learning: Lea
           <Card>
             <CardHeader>
               <CardTitle>Creative patterns that win</CardTitle>
-              <CardDescription>Your extra {unitPlural} per 1,000 views, by hook, once something measures it.</CardDescription>
+              <CardDescription>Your {unitPlural} per 1,000 views by angle and format, from your own ads once a pattern has 10 {unitPlural}. Until then, what is typical for your industry.</CardDescription>
             </CardHeader>
             <CardContent>
               <CreativeLeaderboard patterns={learning.creativePatterns} unitPlural={unitPlural} emptyReason={learning.basis.creativePatterns} />

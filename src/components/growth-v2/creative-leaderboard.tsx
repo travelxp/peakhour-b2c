@@ -44,7 +44,7 @@ export function CreativeLeaderboard({ patterns, unitPlural, emptyReason }: { pat
                     </span>
                   ) : (
                     <>
-                      {formatCount(v)}
+                      {formatRate(v)}
                       <span className="ml-1 text-xs text-muted-foreground">{p.source === "yours" ? "per 1,000 views" : "extra per 1,000 views"}</span>
                     </>
                   )}
@@ -63,4 +63,9 @@ export function CreativeLeaderboard({ patterns, unitPlural, emptyReason }: { pat
       })}
     </ol>
   );
+}
+
+/** A rate per 1,000 views: a real but tiny rate (0.04) reads "under 0.1", never "0". Otherwise the shared count format (one decimal). */
+export function formatRate(v: number): string {
+  return v > 0 && v < 0.1 ? "under 0.1" : formatCount(v);
 }
