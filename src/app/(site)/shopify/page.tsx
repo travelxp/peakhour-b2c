@@ -39,7 +39,9 @@ export default async function ShopifyPage({
   const signup = signupCta(catalog?.platform?.signupMode ?? "open", suiteTrialDays(pricing));
 
   return (
-    <div className="flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
+    // .theme-daylight: the new marketing palette (globals.css), scoped to this
+    // page so the Header and Footer inside it follow without being forked.
+    <div className="theme-daylight flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
       <Header />
       <ShopifyPageView pricing={pricing} comingSoon={comingSoon} signup={signup} country={country} />
       <Footer />
