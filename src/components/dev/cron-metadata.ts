@@ -1483,13 +1483,14 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
   },
 
   "growth-council-review": {
-    label: "Monthly Peakhour Summit review",
-    frequency: "Runs at 5:00 AM UTC on the 1st–7th of each month",
+    label: "Peakhour Summit scheduled reviews",
+    frequency: "Runs hourly (at :45 past); each business is worked once a day, at 11:00 in its own time zone",
     description:
-      "Reviews the last 28 days of each business whose growth mandate is above autonomy L0 and that has no review " +
-      "this month, as many as fit in one run; the next day's run picks up the rest, and a review that could not " +
-      "run is retried. Up to three model calls per business, so AI spend. A recommendation becomes a decision " +
-      "under the business's autonomy rules.",
+      "Reviews the last 28 days of each business whose growth mandate is above autonomy L0 and that is due a review: " +
+      "a first review 14 days after its plan was confirmed, then one each calendar month in its own time zone (a " +
+      "first review counts as that month's). As many as fit in one run; later hours pick up the rest, and a review " +
+      "that could not run is retried the next day. Up to three model calls per business, so AI spend. A " +
+      "recommendation becomes a decision under the business's autonomy rules.",
     summarize: summarizeCouncilReview,
   },
 
