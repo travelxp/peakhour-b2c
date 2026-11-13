@@ -155,37 +155,7 @@ export function DecisionCard({ decision: d, currency, unit, now, onAction, actio
         </section>
       ) : null}
 
-      {d.council ? (
-        <div className="grid gap-2.5">
-          <Seat who="The case for" tone="info" model={d.council.strategist.model}>
-            {d.council.strategist.text}
-          </Seat>
-          <Seat who="The case against" tone="warn" model={d.council.critic.model}>
-            {d.council.critic.text}
-          </Seat>
-          <Seat who="Final call" tone="neutral">
-            {d.council.chair.text}
-          </Seat>
-          <section className="grid gap-1 rounded-lg border p-3" aria-label="Safety checks">
-            <div className="flex items-center gap-2 text-xs font-semibold">
-              <ToneBadge tone={d.council.risk.checks.every((c) => c.pass) ? "good" : "warn"}>Safety checks</ToneBadge>
-              <span className="font-normal text-muted-foreground">rules, not a model</span>
-            </div>
-            <ul className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-2">
-              {d.council.risk.checks.map((c) => (
-                <li key={c.key} className="flex items-start gap-1.5">
-                  {c.pass ? (
-                    <Check aria-label="Passed" className="mt-0.5 size-4 shrink-0 text-success-on-tint" />
-                  ) : (
-                    <X aria-label="Needs attention" className="mt-0.5 size-4 shrink-0 text-warning-on-tint" />
-                  )}
-                  <span>{c.detail}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        </div>
-      ) : null}
+      {d.council ? <CouncilSeats council={d.council} /> : null}
 
       {d.tripwire ? (
         <p className="rounded-lg border border-dashed p-3 text-sm">
@@ -265,6 +235,44 @@ export function DecisionCard({ decision: d, currency, unit, now, onAction, actio
         </AlertDialogContent>
       </AlertDialog>
     </article>
+  );
+}
+
+/**
+ * The four seats of one Peakhour Summit review, as the api sends them under the names a merchant sees. Shared by a decision's card and by the
+ * answer to Ask Peakhour Summit, so a review reads the same wherever it is shown.
+ */
+export function CouncilSeats({ council }: { council: NonNullable<DecisionView["council"]> }) {
+  return (
+    <div className="grid gap-2.5">
+      <Seat who="The case for" tone="info" model={council.strategist.model}>
+        {council.strategist.text}
+      </Seat>
+      <Seat who="The case against" tone="warn" model={council.critic.model}>
+        {council.critic.text}
+      </Seat>
+      <Seat who="Final call" tone="neutral">
+        {council.chair.text}
+      </Seat>
+      <section className="grid gap-1 rounded-lg border p-3" aria-label="Safety checks">
+        <div className="flex items-center gap-2 text-xs font-semibold">
+          <ToneBadge tone={council.risk.checks.every((c) => c.pass) ? "good" : "warn"}>Safety checks</ToneBadge>
+          <span className="font-normal text-muted-foreground">rules, not a model</span>
+        </div>
+        <ul className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-2">
+          {council.risk.checks.map((c) => (
+            <li key={c.key} className="flex items-start gap-1.5">
+              {c.pass ? (
+                <Check aria-label="Passed" className="mt-0.5 size-4 shrink-0 text-success-on-tint" />
+              ) : (
+                <X aria-label="Needs attention" className="mt-0.5 size-4 shrink-0 text-warning-on-tint" />
+              )}
+              <span>{c.detail}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
   );
 }
 

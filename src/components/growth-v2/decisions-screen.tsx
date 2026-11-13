@@ -23,6 +23,7 @@ import { PREVIEW_BUSINESS_NAME, PREVIEW_NOW } from "@/lib/growth-v2-fixtures";
 import { decisionNotice, isAnswerable, KIND_LABEL, QUEUE_TABS, recheckNotice, TAB_QUEUE, whatsappPreview, type DecisionNotice, type QueueTab } from "@/lib/growth-v2-decisions";
 import { formatDay, unitFor } from "@/lib/growth-v2-figure";
 import { cn } from "@/lib/utils";
+import { AskSummit } from "./ask-summit";
 import { DecisionAsk } from "./decision-ask";
 import { DecisionCard } from "./decision-card";
 import { PageHead } from "./page-head";
@@ -59,6 +60,7 @@ export function DecisionsScreen() {
       <PageHead
         title="What needs you?"
         description="Every proposal, block and finished experiment in one queue. Each decision also goes to your WhatsApp, and you can answer in either place."
+        actions={<AskSummit />}
       />
       <div role="group" aria-label="Filter decisions" className="flex flex-wrap gap-1.5">
         {QUEUE_TABS.map((t) => {
