@@ -7,7 +7,8 @@ import { Footer } from "@/components/shared/footer";
 import { Button } from "@/components/ui/button";
 import { PeaksGlyph } from "@/components/peaks/peaks-glyph";
 import { Peaks } from "@/components/peaks/peaks";
-import { getPeaks, formatPackPrice, type PeakPack } from "@/lib/peaks";
+import { getPeaks, formatPackPrice, formatPackUnitPrice, type PeakPack } from "@/lib/peaks";
+import { bestValueKey, perThousandLabel } from "@/lib/peaks-pack-unit-price";
 import { marketingTrialDays } from "@/lib/pricing";
 import { hasTrial, trialCtaLabel } from "@/lib/trial-copy";
 import { PEAKS_REFUND_SENTENCE } from "@/lib/peaks-refund-terms";
@@ -39,6 +40,7 @@ export default async function PeaksPage() {
   // 2026-10-06, `lib/trial-copy`).
   const [peaks, trialDays] = await Promise.all([getPeaks(country), marketingTrialDays()]);
   const packs = peaks?.packs ?? [];
+  const bestKey = bestValueKey(packs);
 
   return (
     <div className="flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
@@ -113,7 +115,7 @@ export default async function PeaksPage() {
               <>
                 <div className="mx-auto mt-12 grid max-w-5xl gap-6 md:grid-cols-3">
                   {packs.map((pack) => (
-                    <PackCard key={pack.key} pack={pack} />
+                    <PackCard key={pack.key} pack={pack} bestValue={pack.key === bestKey} />
                   ))}
                 </div>
                 {peaks && peaks.country !== "DEFAULT" && (
@@ -195,14 +197,18 @@ function HowItWorksCard({
   );
 }
 
-function PackCard({ pack }: { pack: PeakPack }) {
+/** `bestValue` is derived from the unit prices (`bestValueKey`), never from
+ *  the api's stored `highlight`, so the badge cannot contradict the
+ *  per-1,000 line printed on the same cards. */
+function PackCard({ pack, bestValue }: { pack: PeakPack; bestValue: boolean }) {
+  const unit = perThousandLabel(pack, (n) => formatPackUnitPrice(pack, n));
   return (
     <div
       className={`relative flex flex-col rounded-2xl border bg-card p-6 ${
-        pack.highlight ? "border-(--brand,oklch(0.77_0.146_67)) ring-1 ring-(--brand,oklch(0.77_0.146_67)) shadow-sm" : ""
+        bestValue ? "border-(--brand,oklch(0.77_0.146_67)) ring-1 ring-(--brand,oklch(0.77_0.146_67)) shadow-sm" : ""
       }`}
     >
-      {pack.highlight && (
+      {bestValue && (
         <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-(--brand,oklch(0.77_0.146_67)) px-3 py-0.5 text-xs font-semibold text-(--brand-ink,oklch(0.27_0.05_55))">
           Best value
         </span>
@@ -221,6 +227,7 @@ function PackCard({ pack }: { pack: PeakPack }) {
         </span>
         <span className="text-sm text-muted-foreground">one-time</span>
       </div>
+      {unit && <p className="mt-1 text-sm tabular-nums text-muted-foreground">{unit}</p>}
 
       <p className="mt-3 text-sm font-medium text-(--brand-strong,oklch(0.66_0.156_50))">
         <span className="tabular-nums" style={{ fontFamily: "var(--font-space-grotesk)" }}>

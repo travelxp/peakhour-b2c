@@ -786,3 +786,130 @@
     animation: none;
   }
 }
+
+/*
+ * "Daylight": the new marketing palette, scoped to the pages that opt in by
+ * wrapping themselves in `.theme-daylight` (today: /shopify). It redefines the
+ * shared tokens instead of adding new utilities, so the Header, Footer and
+ * pricing cards inside the wrapper follow without being forked.
+ *
+ * The system is deliberately small: white ground, indigo ink, ONE brand colour
+ * (coral) and one highlight (amber). Pillar colours appear only as dots.
+ *
+ * Contrast (WCAG AA, measured on #fff unless noted):
+ *  --brand-gradient #d4400f -> #b8330b carries WHITE text: 4.6:1 at the light
+ *    end. The bright coral #ff5a2c is ~3:1 with white, so it is used only for
+ *    marks, dots, borders and icon fills, never behind text.
+ *  --brand-strong #b8330b as text: 5.6:1.
+ *  --muted-foreground #4a4e6a: 8.3:1.
+ * Public pages are forced light (lib/route-theme.ts), so there is no dark set.
+ */
+.theme-daylight {
+  --background: #ffffff;
+  --foreground: #0f1130;
+  --card: #ffffff;
+  --card-foreground: #0f1130;
+  --popover: #ffffff;
+  --popover-foreground: #0f1130;
+  --primary: #0f1130;
+  --primary-foreground: #ffffff;
+  --secondary: #f4f5f9;
+  --secondary-foreground: #0f1130;
+  --muted: #f4f5f9;
+  --muted-foreground: #4a4e6a;
+  --accent: #f4f5f9;
+  --accent-foreground: #0f1130;
+  --border: #e3e5ee;
+  --input: #e3e5ee;
+  --ring: #ff5a2c;
+
+  --brand: #ff5a2c;
+  --brand-strong: #b8330b;
+  --brand-soft: #ffece4;
+  --brand-ink: #8a2a0a;
+  --brand-contrast: #ffffff;
+  --brand-gradient: linear-gradient(135deg, #d4400f 0%, #b8330b 100%);
+  --brand-label: #4a4e6a;
+
+  --ink: #0f1130;
+  --ink-2: #181b42;
+  --on-ink: #ffffff;
+  --on-ink-dim: #b9bcd6;
+  --ink-line: rgb(255 255 255 / 12%);
+
+  /* Daylight-only roles. */
+  --daylight-amber: #ffb21e;
+  --daylight-mist: #f4f5f9;
+  --daylight-hero: #fff4ee;
+  --daylight-dot-commerce: #ff5a2c;
+  --daylight-dot-content: #e2407c;
+  --daylight-dot-growth: #2f6feb;
+  --daylight-dot-support: #0ea578;
+  --daylight-dot-presence: #ffb21e;
+  /* Status inside the /shopify app pictures (sample UI), and the WhatsApp
+     green of the COD card. Each -ink step is AA on its own -soft step. */
+  --daylight-ok: #0a7d56; /* white text 5.0:1 */
+  --daylight-ok-soft: #e3f6ee;
+  --daylight-ok-ink: #0a6e4c;
+  --daylight-warn-soft: #fff3d6;
+  --daylight-warn-ink: #7a5200;
+  --daylight-bad: #c42a47;
+  --daylight-bad-hover: #ab2340;
+  --daylight-bad-soft: #fde6ea;
+  --daylight-bad-ink: #a0213a;
+  --daylight-wa: #0b7a3e; /* white text 5.4:1, and as text on white */
+  --daylight-wa-soft: #e8f7ee;
+  --daylight-phone: #0b0d24;
+  /* The one raised-card elevation the /shopify pictures share. */
+  --daylight-shadow: 0 2px 4px rgb(15 17 48 / 6%), 0 28px 56px -20px rgb(15 17 48 / 30%);
+  /* Sample-store product art: tints that stand in for product photos. */
+  --daylight-tint-indigo: linear-gradient(140deg, #cdd9fb, #8aa6ee);
+  --daylight-tint-rose: linear-gradient(140deg, #fbd9e1, #ee97a9);
+  --daylight-tint-marigold: linear-gradient(140deg, #ffe8b0, #f7bc4a);
+  --daylight-tint-leaf: linear-gradient(140deg, #cff0df, #69c9a0);
+  --daylight-tint-clay: linear-gradient(140deg, #ffdccb, #f79c78);
+
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+/* The one highlight stroke: an amber marker under a phrase. Drawn as a
+   background (not ::after) with box-decoration-break, so the phrase may wrap
+   on a phone and every line keeps its stroke. */
+.daylight-mark {
+  background-image: linear-gradient(transparent 68%, var(--daylight-amber) 68%, var(--daylight-amber) 92%, transparent 92%);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  padding-inline: 0.04em;
+}
+
+/* Chat bubbles in the /shopify demos: they rise in, and sit still under
+   reduced motion. `data-on` is set by the demo's own timer. */
+.daylight-bubble {
+  transition: opacity 0.35s ease, transform 0.35s ease, visibility 0s;
+}
+/* Not yet shown: invisible to screen readers and to contrast checks too. */
+.daylight-bubble[data-on="false"] {
+  opacity: 0;
+  transform: translateY(6px);
+  visibility: hidden;
+}
+@keyframes daylight-typing {
+  0%, 60%, 100% { opacity: 0.25; }
+  30% { opacity: 1; }
+}
+.daylight-typing > i {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: daylight-typing 1s infinite;
+}
+.daylight-typing > i:nth-child(2) { animation-delay: 0.15s; }
+.daylight-typing > i:nth-child(3) { animation-delay: 0.3s; }
+@media (prefers-reduced-motion: reduce) {
+  .daylight-bubble { transition: none; }
+  .daylight-bubble[data-on="false"] { opacity: 1; transform: none; visibility: visible; }
+  .daylight-typing > i { animation: none; }
+}

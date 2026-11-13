@@ -2,7 +2,9 @@ import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
+  SHOPIFY_CLOSING,
   SHOPIFY_HERO,
+  SHOPIFY_OWNER_WHATSAPP,
   SHOPIFY_SEO,
   shopifyFaq,
   shopifyHeroTicks,
@@ -84,12 +86,48 @@ describe("shopifyFaq", () => {
   it("coming soon: no question about Shopify billing", () => {
     const qs = shopifyFaq({ trialDays: 14, peaksIncluded: null, comingSoon: true }).map((f) => f.q);
     expect(qs).not.toContain("How am I billed?");
-    expect(qs).toHaveLength(9);
+    expect(qs).toHaveLength(11);
   });
-  it("answers the ten owner questions and never calls Peakhour a free plan", () => {
+  it("answers the owner's ten questions plus the team's two, and never calls Peakhour a free plan", () => {
     const faq = shopifyFaq({ trialDays: 14, peaksIncluded: "5,000" });
-    expect(faq).toHaveLength(10);
+    expect(faq).toHaveLength(12);
     expect(faq.map((f) => f.a).join(" ")).not.toMatch(/free (plan|tier)/i);
+  });
+  it("runs setup, WhatsApp, control, privacy, then pricing", () => {
+    const qs = shopifyFaq({ trialDays: 14, peaksIncluded: null }).map((f) => f.q);
+    const at = (q: string) => qs.indexOf(q);
+    expect(at("Do I need to change my theme code?")).toBe(0);
+    expect(at("Can I run my store from WhatsApp?")).toBeGreaterThan(at("What does WhatsApp cost?"));
+    expect(at("Will Peakhour change my store without asking?")).toBeGreaterThan(at("Can I run my store from WhatsApp?"));
+    expect(at("What happens to my shoppers' data?")).toBeGreaterThan(at("Will Peakhour change my store without asking?"));
+    expect(at("Is Peakhour free?")).toBeGreaterThan(at("What happens to my shoppers' data?"));
+  });
+});
+
+describe("Peakhour on WhatsApp (the merchant's own line)", () => {
+  const all = [
+    SHOPIFY_OWNER_WHATSAPP.lede,
+    SHOPIFY_OWNER_WHATSAPP.note,
+    ...SHOPIFY_OWNER_WHATSAPP.points.flatMap((p) => [p.title, p.body]),
+  ].join(" ");
+  it("says what the api enforces: CONFIRM before spend or publish, verified numbers only", () => {
+    expect(all).toContain("Nothing spends or publishes without CONFIRM");
+    expect(all).toContain("Only numbers you have verified can give it instructions");
+  });
+  it("★claims no store action WhatsApp has no command for", () => {
+    expect(all).not.toMatch(/restock|reorder|mark ?down|change (a |the )?price|edit (a |the )?post/i);
+  });
+  it("★never says WhatsApp can switch Peakhour back on", () => {
+    expect(all).toContain("Switching it back on is done in the app.");
+    expect(all).not.toMatch(/\bRESUME\b|turn (it )?(back )?on from WhatsApp/i);
+  });
+});
+
+describe("the closing band", () => {
+  it("names the difference from a chatbot, and keeps the undo claim to 'almost'", () => {
+    expect(SHOPIFY_CLOSING.headline).toBe("Chatbots answer. Peakhour does the work.");
+    expect(SHOPIFY_CLOSING.body).toContain("almost everything can be undone");
+    expect(SHOPIFY_CLOSING.body).not.toMatch(/\bevery change\b|never wrong/i);
   });
 });
 

@@ -1,18 +1,19 @@
 import Link from "next/link";
-import { ArrowRight, Check } from "lucide-react";
-import { BrandBackdrop } from "@/components/marketing/brand-backdrop";
-import { Reveal } from "@/components/marketing/reveal";
-import { RevealNoScript } from "@/components/marketing/reveal-noscript";
-import { ChannelTile } from "@/components/marketing/pricing/channel-tile";
+import {
+  ArrowRight,
+  BadgeCheck,
+  Check,
+  Clock3,
+  CreditCard,
+  LayoutDashboard,
+  MessageCircle,
+  PauseCircle,
+  ShieldCheck,
+  Store,
+} from "lucide-react";
 import { StatusChip } from "@/components/marketing/pricing/status-chip";
 import { SuiteCard } from "@/components/marketing/pricing/suite-card";
 import { TeamsCtaBand } from "@/components/marketing/pricing/teams-cta";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 import type { SignupCta } from "@/lib/catalog";
 import { CHANNELS, suiteModuleSlugs } from "@/lib/pricing-catalog";
 import {
@@ -26,27 +27,69 @@ import {
 } from "@/lib/pricing";
 import { safeJsonLd } from "@/lib/json-ld";
 import {
+  SHOPIFY_CLOSING,
   SHOPIFY_GROUPS,
   SHOPIFY_HERO,
   SHOPIFY_MORE,
+  SHOPIFY_OWNER_WHATSAPP,
   SHOPIFY_SEO,
+  SHOPIFY_STEPS,
+  SHOPIFY_TRUST,
   shopifyFaq,
   shopifyHeroTicks,
   shopifyInstallCta,
   shopifyJsonLd,
   shopifyTrust,
+  type ShopifyInstallCta,
 } from "@/lib/shopify-features";
-import { SITE } from "@/lib/utils";
+import { SITE, cn } from "@/lib/utils";
+import { ShopifyAutopilotDemo } from "./shopify-autopilot-demo";
+import { Disclosure } from "./shopify-disclosure";
+import { ShopifyHeroDemo } from "./shopify-hero-demo";
+import { ShopifyJobs } from "./shopify-jobs";
+import { ShopifyOwnerChat } from "./shopify-owner-chat";
 
-const eyebrow =
-  "inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label";
+/*
+ * Layout rhythm. One container, one section padding and one heading scale, so
+ * no section opens a gap of its own: sections are py-14 on a phone and py-20
+ * from sm, and a heading block sits mt-8 (mt-10 from sm) above what it
+ * introduces.
+ */
+const wrap = "mx-auto max-w-6xl px-4 sm:px-6";
+const section = "py-14 sm:py-20";
+const eyebrow = "text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground";
+const h2 = "mt-3 text-[2rem] font-extrabold leading-[1.05] tracking-[-0.035em] text-balance sm:text-5xl";
+const sub = "mt-3 max-w-2xl text-lg text-muted-foreground";
 const primaryBtn =
-  "group inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-6 py-3.5 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2";
+  "group inline-flex items-center gap-2 rounded-full bg-brand-gradient px-6 py-3.5 text-[15px] font-bold text-brand-contrast shadow-[0_8px_20px_-8px_var(--brand)] transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+const ghostBtn =
+  "inline-flex items-center rounded-full px-6 py-3.5 text-[15px] font-bold shadow-[inset_0_0_0_2px_var(--foreground)] transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+
+/**
+ * One icon per SHOPIFY_TRUST line, by position. Looked up through the line's
+ * index in SHOPIFY_TRUST, so coming soon's shorter list keeps the right icons
+ * and a copy edit to a line cannot drop its icon.
+ */
+const TRUST_ICONS: (typeof Check)[] = [Store, CreditCard, LayoutDashboard, Clock3];
+const OWNER_ICONS: Record<string, typeof Check> = {
+  ask: MessageCircle,
+  approve: BadgeCheck,
+  confirm: ShieldCheck,
+  pause: PauseCircle,
+};
+/** Pillar dots: identity only, never a fill behind text. */
+const MORE_DOTS: Record<string, string> = {
+  "/support": "var(--daylight-dot-support)",
+  "/content": "var(--daylight-dot-content)",
+  "/growth": "var(--daylight-dot-growth)",
+  "/presence": "var(--daylight-dot-presence)",
+};
 
 /**
  * The body of /shopify ("Peakhour for Shopify"), between the Header and the
- * Footer. Pure: every fact it states (price, trial, credit allowance, whether
- * the connector is coming soon) arrives as a prop from the page, so a test can
+ * Footer, on the Daylight palette (the page wraps itself in .theme-daylight).
+ * Pure: every fact it states (price, trial, credit allowance, whether the
+ * connector is coming soon) arrives as a prop from the page, so a test can
  * render it from a fixture. See lib/shopify-features.ts for the copy.
  */
 export function ShopifyPageView({
@@ -90,9 +133,16 @@ export function ShopifyPageView({
       ? { label: install.label, href: install.href }
       : install.signup;
 
+  const trust = shopifyTrust(comingSoon);
+  const jobs = SHOPIFY_GROUPS.filter((g) => g.id !== "control");
+  const control = SHOPIFY_GROUPS.find((g) => g.id === "control");
+
   return (
     <main>
-      <RevealNoScript />
+      {/* No-JS: every feature panel, not only the first tab. */}
+      <noscript suppressHydrationWarning>
+        <style dangerouslySetInnerHTML={{ __html: "[data-jobs-panel][hidden]{display:block!important}" }} />
+      </noscript>
       {jsonLd.map((graph, i) => (
         <script
           key={i}
@@ -102,14 +152,13 @@ export function ShopifyPageView({
       ))}
 
       {/* Hero */}
-      <section className="relative isolate py-16 sm:py-24">
-        <BrandBackdrop />
-        <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 sm:px-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <div>
+      <section className="bg-[linear-gradient(180deg,var(--daylight-hero)_0%,var(--background)_88%)]">
+        <div className={cn(wrap, "grid grid-cols-1 items-center gap-10 py-10 sm:py-14 lg:grid-cols-[1fr_1.05fr] lg:gap-14 lg:py-20")}>
+          <div className="min-w-0">
             <nav aria-label="Breadcrumb" className="text-sm font-medium text-muted-foreground">
               <ol className="flex items-center gap-1.5">
                 <li>
-                  <Link href="/" className="transition-colors hover:text-brand">
+                  <Link href="/" className="transition-colors hover:text-foreground">
                     Home
                   </Link>
                 </li>
@@ -121,178 +170,165 @@ export function ShopifyPageView({
                 </li>
               </ol>
             </nav>
-            <span className={`mt-5 ${eyebrow}`}>
-              <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-              {SHOPIFY_HERO.eyebrow}
-            </span>
-            <h1 className="mt-4 text-4xl font-extrabold leading-[1.05] tracking-tight text-pretty sm:text-5xl">
-              {SHOPIFY_HERO.headline}{" "}
-              <span className="font-serif font-normal italic text-brand-gradient">
-                {SHOPIFY_HERO.accent}
-              </span>
+            <p className={cn(eyebrow, "mt-5")}>{SHOPIFY_HERO.eyebrow}</p>
+            <h1 className="mt-3 text-[2.6rem] font-black leading-[1.02] tracking-[-0.04em] text-balance sm:text-6xl lg:text-[4.25rem]">
+              {SHOPIFY_HERO.headline} <span className="daylight-mark">{SHOPIFY_HERO.accent}</span>
             </h1>
-            <p className="mt-5 max-w-xl text-lg text-muted-foreground">{SHOPIFY_HERO.lede}</p>
-            <div className="mt-8 flex flex-wrap items-center gap-4">
-              {install.kind === "install" ? (
-                <a
-                  href={install.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={primaryBtn}
-                >
-                  {install.label}
-                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
-                </a>
-              ) : (
-                <>
-                  <StatusChip status="coming_soon" />
-                  {!install.signup.disabled && (
-                    <Link href={install.signup.href} className={primaryBtn}>
-                      {install.signup.label}
-                      <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
-                    </Link>
-                  )}
-                </>
-              )}
-              <a
-                href="#pricing"
-                className="inline-flex items-center rounded-xl border-2 px-6 py-3 text-sm font-bold transition-colors hover:border-brand hover:text-brand"
-              >
+            <p className="mt-5 max-w-xl text-lg text-muted-foreground sm:text-xl">{SHOPIFY_HERO.lede}</p>
+            <div className="mt-7 flex flex-wrap items-center gap-3">
+              <InstallActions install={install} />
+              <a href="#pricing" className={ghostBtn}>
                 {SHOPIFY_HERO.pricing}
               </a>
             </div>
-            <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-muted-foreground">
+            <ul className="mt-5 flex flex-wrap gap-x-5 gap-y-1.5 text-sm font-semibold text-muted-foreground">
               {shopifyHeroTicks(trialDays, comingSoon).map((tick) => (
                 <li key={tick} className="inline-flex items-center gap-1.5">
                   {/* An icon, not `&check;`: JSX only decodes the XHTML entity
                       set, so the HTML5 name rendered as the literal text. */}
-                  <Check aria-hidden className="size-3.5 shrink-0 text-brand-label" strokeWidth={3} />
+                  <Check aria-hidden className="size-4 shrink-0 text-[var(--daylight-ok)]" strokeWidth={3} />
                   {tick}
                 </li>
               ))}
             </ul>
           </div>
-
-          {/* The six groups, in a dark panel */}
-          <div className="overflow-hidden rounded-2xl border border-ink-line bg-ink p-6 text-on-ink shadow-2xl">
-            <div className="flex items-center gap-3">
-              <ChannelTile channel="shopify" className="size-11 rounded-xl text-sm" />
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-on-ink-dim">
-                  Inside your Shopify admin
-                </p>
-                <p className="text-lg font-bold">Peakhour</p>
-              </div>
-            </div>
-            <ul className="mt-5 flex flex-col gap-3">
-              {SHOPIFY_GROUPS.map((g) => (
-                <li key={g.id} className="flex gap-3 text-sm text-on-ink-dim">
-                  <Check className="mt-0.5 size-4 shrink-0 text-brand" strokeWidth={2.5} aria-hidden />
-                  <a href={`#${g.id}`} className="transition-colors hover:text-on-ink">
-                    {g.name}
-                  </a>
-                </li>
-              ))}
-            </ul>
+          <div className="min-w-0">
+            <ShopifyHeroDemo />
           </div>
         </div>
       </section>
 
       {/* Trust strip */}
-      <section aria-label="What to expect" className="border-y bg-muted/30 py-6">
-        <ul className="mx-auto grid max-w-6xl gap-3 px-4 text-sm font-medium sm:px-6 md:grid-cols-2 lg:grid-cols-4">
-          {shopifyTrust(comingSoon).map((t) => (
-            <li key={t} className="flex gap-2.5">
-              <Check className="mt-0.5 size-4 shrink-0 text-brand-strong" strokeWidth={2.5} aria-hidden />
-              {t}
-            </li>
-          ))}
+      <section aria-label="What to expect" className="border-y">
+        <ul className={cn(wrap, "grid sm:grid-cols-2", trust.length > 2 && "lg:grid-cols-4")}>
+          {trust.map((t) => {
+            const Icon = TRUST_ICONS[SHOPIFY_TRUST.indexOf(t)] ?? Check;
+            return (
+              <li
+                key={t}
+                className="flex items-center gap-3 border-b py-4 text-[15px] font-bold last:border-b-0 sm:border-b-0 sm:py-5 sm:pr-4 sm:even:border-l sm:even:pl-5 lg:border-l lg:pl-5 lg:first:border-l-0 lg:first:pl-0"
+              >
+                <Icon aria-hidden className="size-5 shrink-0 text-brand" strokeWidth={2.25} />
+                {t}
+              </li>
+            );
+          })}
         </ul>
       </section>
 
-      {/* Six feature groups */}
-      <section className="py-16 sm:py-20">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <nav aria-label="Feature groups" className="flex flex-wrap gap-2">
-            {SHOPIFY_GROUPS.map((g) => (
-              <a
-                key={g.id}
-                href={`#${g.id}`}
-                className="rounded-full border px-4 py-1.5 text-sm font-semibold transition-colors hover:border-brand hover:text-brand"
-              >
-                {g.name}
-              </a>
-            ))}
-          </nav>
-
-          {SHOPIFY_GROUPS.map((g) => (
-            <div key={g.id} id={g.id} className="scroll-mt-24 pt-16">
-              <Reveal>
-                <span className={eyebrow}>
-                  <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-                  {g.name}
-                </span>
-                <h2 className="mt-4 max-w-3xl text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
-                  {g.blurb}
-                </h2>
-              </Reveal>
-              <div className="mt-8 grid gap-4 md:grid-cols-2">
-                {g.features.map((f) => (
-                  <Reveal key={f.id}>
-                    <article
-                      id={f.id}
-                      className="flex h-full flex-col gap-3 rounded-2xl border bg-background p-6"
-                    >
-                      <h3 className="text-lg font-bold tracking-tight">{f.title}</h3>
-                      <p className="text-sm">{f.does}</p>
-                      <p className="text-sm text-muted-foreground">{f.benefit}</p>
-                      <ol className="mt-1 flex flex-col gap-1.5 text-sm text-muted-foreground">
-                        {f.steps.map((step, i) => (
-                          <li key={step} className="flex gap-2.5">
-                            <span
-                              aria-hidden
-                              className="flex size-5 shrink-0 items-center justify-center rounded-full bg-brand-soft text-micro font-bold text-brand-ink"
-                            >
-                              {i + 1}
-                            </span>
-                            {step}
-                          </li>
-                        ))}
-                      </ol>
-                    </article>
-                  </Reveal>
-                ))}
-              </div>
-            </div>
-          ))}
+      {/* What it does */}
+      <section id="features" className={cn(section, "scroll-mt-20")}>
+        <div className={wrap}>
+          <p className={eyebrow}>What it does</p>
+          <h2 className={h2}>Five jobs Peakhour takes off your plate.</h2>
+          <p className={sub}>
+            Pick a job to see it in the app. Every feature here is built, and{" "}
+            <a href="#control" className="font-semibold text-foreground underline decoration-brand decoration-2 underline-offset-4">
+              you stay in charge of all of it
+            </a>
+            .
+          </p>
+          <div className="mt-8 sm:mt-10">
+            <ShopifyJobs groups={jobs} />
+          </div>
         </div>
       </section>
 
-      {/* More than the store */}
-      <section className="border-t bg-muted/30 py-16 sm:py-20">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <span className={eyebrow}>
-            <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-            The rest of Peakhour
-          </span>
-          <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
-            Your plan covers more than your store.
-          </h2>
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Peakhour on WhatsApp, for the merchant: the page's one dark band */}
+      <section id="whatsapp" aria-labelledby="whatsapp-h" className="scroll-mt-20 bg-ink text-on-ink">
+        <div className={cn(wrap, "grid grid-cols-1 items-center gap-10 py-14 sm:py-20 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16")}>
+          <div className="min-w-0">
+            <p className={cn(eyebrow, "text-on-ink-dim")}>{SHOPIFY_OWNER_WHATSAPP.eyebrow}</p>
+            <h2 id="whatsapp-h" className={h2}>
+              {SHOPIFY_OWNER_WHATSAPP.headline} <span className="text-brand">{SHOPIFY_OWNER_WHATSAPP.accent}</span>
+            </h2>
+            <p className="mt-4 max-w-xl text-lg text-on-ink/85">{SHOPIFY_OWNER_WHATSAPP.lede}</p>
+            <ul className="mt-8 grid gap-5 sm:grid-cols-2 sm:gap-x-8 lg:grid-cols-1">
+              {SHOPIFY_OWNER_WHATSAPP.points.map((p) => {
+                const Icon = OWNER_ICONS[p.id] ?? Check;
+                return (
+                  <li key={p.id} className="flex gap-3.5">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-white/10">
+                      <Icon aria-hidden className="size-[18px] text-brand" />
+                    </span>
+                    <span>
+                      <b className="block text-[17px]">{p.title}</b>
+                      <span className="text-[15px] text-on-ink-dim">{p.body}</span>
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+            <p className="mt-7 text-sm text-on-ink-dim">{SHOPIFY_OWNER_WHATSAPP.note}</p>
+          </div>
+          <ShopifyOwnerChat />
+        </div>
+      </section>
+
+      {/* You stay in charge */}
+      {control && (
+        <section id="control" className={cn(section, "scroll-mt-20")}>
+          <div className={cn(wrap, "grid grid-cols-1 items-center gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16")}>
+            <div className="min-w-0">
+              <p className={eyebrow}>{control.name}</p>
+              <h2 className={h2}>Switch it on one task at a time. Stop it in a second.</h2>
+              <p className={sub}>{control.blurb}</p>
+              <ul className="mt-8 grid gap-x-8 gap-y-5 sm:grid-cols-2">
+                {control.features.map((f) => (
+                  <li key={f.id} id={f.id} className="scroll-mt-24">
+                    <b className="block">{f.title}</b>
+                    <span className="text-[15px] text-muted-foreground">{f.does}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <ShopifyAutopilotDemo />
+          </div>
+        </section>
+      )}
+
+      {/* Get started: only with an App Store install to start from */}
+      {install.kind === "install" && (
+        <section aria-labelledby="start-h" className="pb-14 sm:pb-20">
+          <div className={wrap}>
+            <p className={eyebrow}>Get started</p>
+            <h2 id="start-h" className={h2}>
+              From install to first answer in one sitting.
+            </h2>
+            <ol className="mt-8 grid gap-6 sm:mt-10 md:grid-cols-3">
+              {SHOPIFY_STEPS.map((s, i) => (
+                <li key={s.title} className="border-t-[3px] border-foreground pt-5">
+                  <span className="block text-4xl font-black leading-none text-brand">{i + 1}</span>
+                  <b className="mt-3 block text-xl tracking-tight">{s.title}</b>
+                  <span className="mt-1.5 block text-muted-foreground">{s.body}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+      )}
+
+      {/* The rest of Peakhour */}
+      <section className="border-t bg-muted py-14 sm:py-20">
+        <div className={wrap}>
+          <p className={eyebrow}>The rest of Peakhour</p>
+          <h2 className={h2}>Your plan covers more than your store.</h2>
+          <div className="mt-8 grid gap-3 sm:mt-10 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
             {SHOPIFY_MORE.map((m) => (
               <Link
                 key={m.href}
                 href={m.href}
-                className="group flex flex-col gap-2 rounded-2xl border bg-background p-5 transition-all hover:-translate-y-1 hover:border-foreground hover:shadow-md"
+                className="group flex flex-col gap-2 rounded-2xl border bg-card p-5 transition-all hover:-translate-y-1 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <span className="flex items-center gap-2 font-bold">
+                <span className="flex items-center gap-2.5 text-lg font-extrabold tracking-tight">
+                  <span aria-hidden className="size-2.5 rounded-full" style={{ background: MORE_DOTS[m.href] ?? "var(--brand)" }} />
                   {m.title}
                   <ArrowRight
                     className="ml-auto size-4 text-muted-foreground transition-transform group-hover:translate-x-1"
                     aria-hidden
                   />
                 </span>
-                <span className="text-sm text-muted-foreground">{m.body}</span>
+                <span className="text-[15px] text-muted-foreground">{m.body}</span>
               </Link>
             ))}
           </div>
@@ -300,13 +336,10 @@ export function ShopifyPageView({
       </section>
 
       {/* Pricing */}
-      <section id="pricing" className="scroll-mt-24 py-16 sm:py-20">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <span className={eyebrow}>
-            <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-            Pricing
-          </span>
-          <h2 className="mb-8 mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
+      <section id="pricing" className={cn(section, "scroll-mt-20")}>
+        <div className={wrap}>
+          <p className={eyebrow}>Pricing</p>
+          <h2 className={cn(h2, "mb-8 sm:mb-10")}>
             {comingSoon ? "One plan, everything included." : "One plan, billed through Shopify."}
           </h2>
           {suite ? (
@@ -322,43 +355,90 @@ export function ShopifyPageView({
               scopeAction="/shopify#pricing"
             />
           ) : (
-            <p className="text-muted-foreground">
-              {PRICE_AT_SIGNUP}
-            </p>
+            <p className="text-muted-foreground">{PRICE_AT_SIGNUP}</p>
           )}
+          <div className="mt-4">
+            <TeamsCtaBand />
+          </div>
         </div>
       </section>
 
       {/* FAQ */}
-      <section className="pb-14">
-        <div className="mx-auto max-w-3xl px-4 sm:px-6">
-          <span className={eyebrow}>
-            <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-            Good to know
-          </span>
-          <h2 className="mb-6 mt-4 text-3xl font-extrabold tracking-tight text-pretty">
-            Questions, answered simply
-          </h2>
-          <Accordion type="single" collapsible className="w-full">
-            {faqs.map((faq) => (
-              <AccordionItem key={faq.q} value={faq.q}>
-                <AccordionTrigger className="text-left text-base font-semibold">
-                  {faq.q}
-                </AccordionTrigger>
-                <AccordionContent className="text-sm text-muted-foreground">
-                  {faq.a}
-                </AccordionContent>
-              </AccordionItem>
+      <section id="faq" aria-labelledby="faq-h" className="scroll-mt-20 pb-14 sm:pb-20">
+        <div className={cn(wrap, "grid grid-cols-1 gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16")}>
+          <div className="lg:sticky lg:top-28 lg:self-start">
+            <p className={eyebrow}>FAQ</p>
+            <h2 id="faq-h" className={h2}>
+              Questions merchants ask before they install.
+            </h2>
+            <p className={sub}>Setup, WhatsApp, control, privacy and pricing, in short answers.</p>
+          </div>
+          <div className="border-t-2 border-foreground">
+            {faqs.map((faq, i) => (
+              <Disclosure
+                key={faq.q}
+                title={faq.q}
+                open={i === 0}
+                summaryClassName="py-4 text-[17px] font-extrabold tracking-tight sm:py-5"
+              >
+                <p className="max-w-[62ch] pb-5 text-muted-foreground">{faq.a}</p>
+              </Disclosure>
             ))}
-          </Accordion>
+          </div>
         </div>
       </section>
 
-      <section className="pb-24">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <TeamsCtaBand />
+      {/* Closing band */}
+      <section className="pb-14 sm:pb-20">
+        <div className={wrap}>
+          <div className="flex flex-col items-start justify-between gap-7 rounded-[28px] bg-brand-gradient px-6 py-10 text-white sm:px-10 sm:py-14 lg:flex-row lg:items-center lg:px-14">
+            <div className="max-w-2xl">
+              <h2 className="text-[2rem] font-black leading-[1.04] tracking-[-0.035em] text-balance sm:text-5xl">
+                {SHOPIFY_CLOSING.headline}
+              </h2>
+              <p className="mt-4 text-lg text-white">{SHOPIFY_CLOSING.body}</p>
+            </div>
+            <div className="flex shrink-0 flex-wrap gap-3">
+              <InstallActions install={install} onBrand />
+              <a
+                href="#pricing"
+                className="inline-flex items-center rounded-full px-6 py-3.5 text-[15px] font-bold text-white shadow-[inset_0_0_0_2px_#fff] transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              >
+                {SHOPIFY_HERO.pricing}
+              </a>
+            </div>
+          </div>
         </div>
       </section>
     </main>
+  );
+}
+
+/**
+ * The install button, or (coming soon) the chip and the platform's signup
+ * button. One decision, used by the hero and the closing band.
+ */
+function InstallActions({ install, onBrand = false }: { install: ShopifyInstallCta; onBrand?: boolean }) {
+  const btn = onBrand
+    ? "group inline-flex items-center gap-2 rounded-full bg-ink px-6 py-3.5 text-[15px] font-bold text-on-ink transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+    : primaryBtn;
+  if (install.kind === "install") {
+    return (
+      <a href={install.href} target="_blank" rel="noopener noreferrer" className={btn}>
+        {install.label}
+        <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" aria-hidden />
+      </a>
+    );
+  }
+  return (
+    <>
+      {!onBrand && <StatusChip status="coming_soon" />}
+      {!install.signup.disabled && (
+        <Link href={install.signup.href} className={btn}>
+          {install.signup.label}
+          <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" aria-hidden />
+        </Link>
+      )}
+    </>
   );
 }

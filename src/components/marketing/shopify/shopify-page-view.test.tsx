@@ -206,3 +206,25 @@ describe("the page reads as the owner decided", () => {
     expect(t).not.toMatch(/Growth Council|Commerce Assistant|Content Assistant|Commerce Insights|\bLens\b/);
   });
 });
+
+describe("the merchant WhatsApp sample chat is held to the api", () => {
+  it("quotes BOOST's own reply, and asks for CONFIRM before it", () => {
+    const t = text(html());
+    expect(t).toContain(
+      "Found content worth promoting. I'm preparing the ad options and will send them for approval shortly.",
+    );
+    expect(t.indexOf("CONFIRM within 10 minutes")).toBeLessThan(t.indexOf("Found content worth promoting"));
+  });
+  it("★promises no draft ad and no boost of an unpublished post", () => {
+    const t = text(html());
+    expect(t).not.toMatch(/saved as a draft|spends nothing until you switch it on|boost it/i);
+  });
+});
+
+describe("★coming soon: the features intro claims nothing about the app being installable", () => {
+  it("says the features are built, not that they are in the app today", () => {
+    const t = text(html({ comingSoon: true }));
+    expect(t).toContain("Every feature here is built");
+    expect(t).not.toMatch(/in the app today/);
+  });
+});
