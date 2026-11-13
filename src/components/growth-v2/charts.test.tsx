@@ -161,17 +161,41 @@ describe("EnquiryHeatmap", () => {
 describe("creative leaderboard", () => {
   it("ranks measured patterns best first and puts unmeasured ones last", () => {
     const ranked = rankPatterns([
-      { key: "a", label: "A", hookFormat: "x", liftPer1k: { absent: "none" }, n: { absent: "none" } },
-      { key: "b", label: "B", hookFormat: "x", liftPer1k: { value: 1 }, n: { value: 3 } },
-      { key: "c", label: "C", hookFormat: "x", liftPer1k: { value: 2 }, n: { value: 3 } },
+      { key: "a", label: "A", hookFormat: "x", source: "playbook" as const, costPerOutcome: { absent: "none" }, liftPer1k: { absent: "none" }, n: { absent: "none" } },
+      { key: "b", label: "B", hookFormat: "x", source: "playbook" as const, costPerOutcome: { absent: "none" }, liftPer1k: { value: 1 }, n: { value: 3 } },
+      { key: "c", label: "C", hookFormat: "x", source: "playbook" as const, costPerOutcome: { absent: "none" }, liftPer1k: { value: 2 }, n: { value: 3 } },
     ]);
     expect(ranked.map((p) => p.key)).toEqual(["c", "b", "a"]);
   });
 
   it("does not rank an unmeasured pattern", () => {
-    const out = html(<CreativeLeaderboard patterns={[{ key: "a", label: "A", hookFormat: "x", liftPer1k: { absent: "none" }, n: { absent: "none" } }]} unitPlural="bookings" />);
+    const out = html(<CreativeLeaderboard patterns={[{ key: "a", label: "A", hookFormat: "x", source: "playbook" as const, costPerOutcome: { absent: "none" }, liftPer1k: { absent: "none" }, n: { absent: "none" } }]} unitPlural="bookings" />);
     expect(out).toContain("Not available");
     expect(out).not.toContain(">1<");
+  });
+
+  const yours = { key: "angle:price", label: "price", hookFormat: "Angle", source: "yours" as const, liftPer1k: { value: 2 }, costPerOutcome: { value: 10 }, n: { value: 20 } };
+  const prior = { key: "festive", label: "Festive", hookFormat: "price_drop", source: "playbook" as const, liftPer1k: { value: 3 }, costPerOutcome: { absent: "x" }, n: { value: 80 } };
+
+  it("words the business's own rows as outcomes per 1,000 views, never as extra, and says they are from your ads", () => {
+    const out = html(<CreativeLeaderboard patterns={[yours]} unitPlural="bookings" />);
+    expect(out).toContain("per 1,000 views");
+    expect(out).not.toContain("extra");
+    expect(out).toContain("Your ads");
+    expect(out).toContain("based on 20 outcomes");
+    expect(out).toContain("Your creative patterns by bookings per 1,000 views");
+  });
+
+  it("keeps the lift wording for a playbook row and says it is typical for the industry", () => {
+    const out = html(<CreativeLeaderboard patterns={[prior]} unitPlural="bookings" />);
+    expect(out).toContain("extra per 1,000 views");
+    expect(out).toContain("Typical for your industry");
+    expect(out).toContain("based on 80 samples");
+    expect(out).toContain("by extra bookings per 1,000 views");
+  });
+
+  it("says one outcome, singular", () => {
+    expect(html(<CreativeLeaderboard patterns={[{ ...yours, n: { value: 1 } }]} unitPlural="bookings" />)).toContain("based on 1 outcome");
   });
 });
 

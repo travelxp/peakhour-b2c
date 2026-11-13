@@ -354,10 +354,10 @@ export const FIXTURE_LEARNING: LearningResponse = {
     { id: "preview-e5", title: "Holdout: 10% of areas held back", status: "running", startedAt: "2026-09-23T00:00:00Z", kind: "holdout", lift: fig(0.31), liftLow: fig(0.12), liftHigh: fig(0.5) },
   ],
   creativePatterns: [
-    { key: "price_first_carousel", label: "Price-first carousel", hookFormat: "carousel", liftPer1k: fig(2.9), n: fig(14) },
-    { key: "founder_video", label: "Founder video at camp", hookFormat: "video", liftPer1k: fig(2.4), n: fig(9) },
-    { key: "traveller_reviews", label: "Real traveller reviews", hookFormat: "collage", liftPer1k: fig(1.6), n: fig(6) },
-    { key: "generic_photo", label: "Generic mountain photo", hookFormat: "image", liftPer1k: fig(0.4), n: fig(11) },
+    { key: "price_first_carousel", label: "Price-first carousel", hookFormat: "carousel", source: "playbook", liftPer1k: fig(2.9), costPerOutcome: { absent: "playbook_prior_has_no_cost" }, n: fig(14) },
+    { key: "founder_video", label: "Founder video at camp", hookFormat: "video", source: "playbook", liftPer1k: fig(2.4), costPerOutcome: { absent: "playbook_prior_has_no_cost" }, n: fig(9) },
+    { key: "traveller_reviews", label: "Real traveller reviews", hookFormat: "collage", source: "playbook", liftPer1k: fig(1.6), costPerOutcome: { absent: "playbook_prior_has_no_cost" }, n: fig(6) },
+    { key: "generic_photo", label: "Generic mountain photo", hookFormat: "image", source: "playbook", liftPer1k: fig(0.4), costPerOutcome: { absent: "playbook_prior_has_no_cost" }, n: fig(11) },
   ],
   benchmarks: [
     { metric: "cost_per_outcome", you: fig(410), p25: fig(450), p50: fig(520), p75: fig(620), n: fig(214), source: "pin", asOf: "2026-09-30" },
