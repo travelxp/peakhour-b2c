@@ -163,13 +163,15 @@ export const peaksApi = {
  * at a call site is a string nothing checks until a merchant presses the
  * button and gets a 404 where a price should be.
  *
- * ⏸TWO ENTRIES, and that is the api's shape rather than a sketch: the routes wrapped in `chargedAct` that have a button here are
- * `POST /v1/audiences/plan` and the content image route. A further entry is a further wrapped route with a button.
+ * ⏸THREE ENTRIES, and that is the api's shape rather than a sketch: the routes wrapped in `chargedAct` that have a button here are
+ * `POST /v1/audiences/plan`, the content image route and Ask Peakhour Summit. A further entry is a further wrapped route with a button.
  */
 export const PEAKS_ACTIONS = {
   proposeAudiences: "growth.propose_audiences",
   /** C7: one content image (`POST /v1/content/ideas/:id/placeholders/:index/generate`). */
   generateImage: "content.generate_image",
+  /** SUM-5: one review a merchant asks Peakhour Summit for (`POST /v1/growth/v2/council`), one price per review. */
+  askSummit: "growth.summit_review",
 } as const;
 
 export type PeaksActionKey = (typeof PEAKS_ACTIONS)[keyof typeof PEAKS_ACTIONS];
