@@ -194,9 +194,14 @@ export function LaunchPartnerForm({
       }}
       className="w-full space-y-5 text-left"
     >
+      {/* The card's heading lives here, so it goes away with the form once the application is in. */}
+      <div>
+        <p className="text-xl font-extrabold tracking-tight">Apply to be a launch partner</p>
+        <p className="mt-1 text-[15px] text-muted-foreground">Takes a minute. No card, no commitment.</p>
+      </div>
       {productName ? (
         <p className="text-sm text-muted-foreground">
-          You&apos;re joining the waitlist for{" "}
+          You&apos;re applying for{" "}
           <span className="font-medium text-foreground">{productName}</span>.
         </p>
       ) : null}
@@ -236,22 +241,22 @@ export function LaunchPartnerForm({
         />
       </div>
 
-      <Button type="submit" className="h-11 w-full text-base" disabled={submitting}>
+      <Button type="submit" className="h-12 w-full rounded-full bg-brand-gradient text-base font-bold text-brand-contrast hover:opacity-95" disabled={submitting}>
         {submitting ? (
           <>
             <Loader2 className="mr-2 size-4 animate-spin" />
-            Joining…
+            Applying…
           </>
         ) : (
           <>
-            Join the waitlist
+            Apply to be a launch partner
             <ArrowRight className="ml-1 size-4" aria-hidden />
           </>
         )}
       </Button>
       <p className="text-center text-xs text-muted-foreground">
-        We&apos;ll email a confirmation now, and your sign-in link when your spot
-        is approved.
+        We&apos;ll email a confirmation now, and your sign-in link when you&apos;re
+        approved.
       </p>
     </form>
   );
