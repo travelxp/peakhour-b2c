@@ -406,8 +406,8 @@ const DRAFT: FirstRunDraftResponse = {
   askAboutStores: false,
   playbook: { id: "growth-ecommerce-d2c", version: 1, title: "D2C" },
   channels: [
-    { platform: "meta", role: "lead", monthlyShare: 0.625, reason: "Short videos.", connected: true },
-    { platform: "google_ads", role: "test", monthlyShare: 0.375, reason: "Search on your products.", connected: false },
+    { platform: "meta", role: "lead", monthlyShare: 0.625, reason: "Short videos.", connected: true, startingFrom: { layer: "playbook", label: "D2C" } },
+    { platform: "google_ads", role: "test", monthlyShare: 0.375, reason: "Search on your products.", connected: false, startingFrom: { layer: "playbook", label: "D2C" } },
   ],
   ceilingBands: { currency: "INR", bands: [{ key: "starter", amount: 30000 }, { key: "steady", amount: 60000 }, { key: "growth", amount: 120000 }] },
   excludedByGuardrails: ["x"],

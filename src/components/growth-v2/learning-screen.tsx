@@ -4,6 +4,7 @@ import type { UseQueryResult } from "@tanstack/react-query";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { mandateFor, useGrowthV2Learning, useGrowthV2Rules, type LearningResponse, type V2Result } from "@/lib/api/growth-v2";
 import { unitFor } from "@/lib/growth-v2-figure";
+import { startingFromWords } from "@/lib/growth-v2-starting-from";
 import { BenchmarkRows } from "./benchmark-rows";
 import { CreativeLeaderboard } from "./creative-leaderboard";
 import { EnquiryHeatmap } from "./enquiry-heatmap";
@@ -67,6 +68,7 @@ export function LearningBody({ learning, unitPlural, currency }: { learning: Lea
               <CardDescription>{learning.basis.benchmarks}</CardDescription>
             </CardHeader>
             <CardContent>
+              {startingFromWords(learning.targetStartingFrom) ? <p className="pb-2 text-xs text-muted-foreground">Your target. {startingFromWords(learning.targetStartingFrom)}.</p> : null}
               <BenchmarkRows benchmarks={learning.benchmarks} currency={currency} />
             </CardContent>
           </Card>

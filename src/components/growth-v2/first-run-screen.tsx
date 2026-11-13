@@ -27,6 +27,7 @@ import {
 } from "@/lib/growth-v2-firstrun";
 import { GROWTH_HOME } from "@/lib/growth-v2-nav";
 import { patchErrorMessage } from "@/lib/growth-v2-rules";
+import { startingFromWords } from "@/lib/growth-v2-starting-from";
 import { PageHead } from "./page-head";
 import { PageShell } from "@/components/dashboard/page-shell";
 import { SignalStep } from "./signal-step";
@@ -226,6 +227,7 @@ export function FirstRunView(p: FirstRunViewProps) {
   const targetKind = offer ? targetKindOf(offer) : "cost_per_outcome";
   const shownTarget = p.typedTarget ?? (resolved ? String(resolved.target.value) : "");
   const hasStoreOffer = draft.offers.some((o) => o.kind === "store_visits");
+  const splitWords = startingFromWords(draft.channels[0]?.startingFrom);
 
   return (
     <>
@@ -322,7 +324,7 @@ export function FirstRunView(p: FirstRunViewProps) {
               {targetKind === "cost_per_outcome" ? <span className="text-sm text-muted-foreground">{currency}</span> : null}
               <Input id="first-run-target" inputMode="decimal" className="w-32 tabular-nums" value={shownTarget} onChange={(e) => p.onTarget(e.target.value)} />
               {targetKind === "roas" ? <span className="text-sm text-muted-foreground">x return</span> : null}
-              {resolved?.source === "playbook" ? <ToneBadge tone="ai">Filled in by the {draft.playbook?.title} playbook</ToneBadge> : null}
+              {resolved?.source === "playbook" ? <ToneBadge tone="ai">{startingFromWords(offer?.startingFrom) ?? `Filled in by the ${draft.playbook?.title} playbook`}</ToneBadge> : null}
               <span className="text-xs text-muted-foreground">Change it any time.</span>
             </div>
             {targetKind === "cost_per_outcome" ? <p className="text-xs text-muted-foreground">{TARGET_NOT_A_FEE}</p> : null}
@@ -358,7 +360,10 @@ export function FirstRunView(p: FirstRunViewProps) {
       <Card id="first-run-plan">
         <CardHeader>
           <CardTitle>Your first plan</CardTitle>
-          <CardDescription>Drafted from the {draft.playbook?.title} playbook. Your own data takes over from about week 4.</CardDescription>
+          <CardDescription>
+            {splitWords ? `${splitWords}. ` : `Drafted from the ${draft.playbook?.title} playbook. `}
+            {draft.channels[0]?.startingFrom.layer === "own" ? "" : "Your own data takes over from about week 4."}
+          </CardDescription>
         </CardHeader>
         <CardContent className="divide-y">
           {draft.channels.length === 0 ? <p className="py-3 text-sm text-muted-foreground">The playbook has no channel to start with for this business.</p> : null}

@@ -23,13 +23,14 @@ const draft = (offers: DraftOffer[], over: Partial<FirstRunDraftResponse> = {}):
   excludedByGuardrails: [], ...over,
 });
 
-const h = vi.hoisted(() => ({ asked: [] as unknown[] }));
+const h = vi.hoisted(() => ({ asked: [] as unknown[], override: undefined as undefined | ((d: FirstRunDraftResponse) => FirstRunDraftResponse) }));
 vi.mock("@/lib/api/growth-v2", async (orig) => ({
   ...(await orig<typeof import("@/lib/api/growth-v2")>()),
   // Saying customers visit in person puts store visits first; before that, leads are.
   useFirstRunDraft: (body: { customersVisitInPerson?: boolean; playbookId?: string }) => {
     h.asked.push(body);
-    return { data: body.customersVisitInPerson ? draft([VISITS, LEADS]) : draft([LEADS]), isError: false, isPlaceholderData: false };
+    const d = body.customersVisitInPerson ? draft([VISITS, LEADS]) : draft([LEADS]);
+    return { data: h.override ? h.override(d) : d, isError: false, isPlaceholderData: false };
   },
   useConfirmPlan: () => ({ isSuccess: false, isError: false, isPending: false, reset: vi.fn(), mutate: vi.fn() }),
   usePatchRules: () => ({ isPending: false, isError: false, mutate: vi.fn() }),
@@ -46,6 +47,7 @@ const { FirstRunScreen } = await import("./first-run-screen");
 let root: Root;
 let host: HTMLElement;
 afterEach(() => {
+  h.override = undefined;
   act(() => root.unmount());
   host.remove();
   document.body.innerHTML = "";
@@ -85,5 +87,49 @@ describe("first run: the typed target", () => {
     });
     await act(async () => no().click());
     expect(target().value).toBe("77");
+  });
+});
+
+describe("first run: where the starting numbers came from (PL-7)", () => {
+  const mount = async () => {
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => root.render(<FirstRunScreen />));
+  };
+  const channel = (startingFrom: NonNullable<FirstRunDraftResponse["channels"][number]["startingFrom"]>) => ({ platform: "meta" as const, role: "lead" as const, monthlyShare: 1, reason: "r", connected: true, startingFrom });
+
+  it("says the target started from the business's own results, in place of the playbook's name", async () => {
+    h.override = (d) => ({ ...d, offers: d.offers.map((o) => ({ ...o, startingFrom: { layer: "own", n: 30 } })) });
+    await mount();
+    expect(document.body.textContent).toContain("Starting from your own results");
+    expect(document.body.textContent).not.toContain("Filled in by the Local playbook");
+  });
+
+  it("says a pooled target started from businesses like this one, by band and industry", async () => {
+    h.override = (d) => ({ ...d, offers: d.offers.map((o) => ({ ...o, startingFrom: { layer: "pooled", band: "20-49", industry: "travel" } })) });
+    await mount();
+    expect(document.body.textContent).toContain("Starting from 20+ travel businesses like yours");
+  });
+
+  it("keeps the playbook's name when the api sent no layer", async () => {
+    await mount();
+    expect(document.body.textContent).toContain("Filled in by the Local playbook");
+  });
+
+  it("says where the channel split started, and drops the week-4 promise when it is the business's own", async () => {
+    h.override = (d) => ({ ...d, channels: [channel({ layer: "own", n: 40 })] });
+    await mount();
+    const plan = document.getElementById("first-run-plan")!.textContent!;
+    expect(plan).toContain("Starting from your own results.");
+    expect(plan).not.toContain("takes over from about week 4");
+  });
+
+  it("a split from the playbook keeps the week-4 sentence, with the playbook named", async () => {
+    h.override = (d) => ({ ...d, channels: [channel({ layer: "playbook", label: "Local" })] });
+    await mount();
+    const plan = document.getElementById("first-run-plan")!.textContent!;
+    expect(plan).toContain("Starting from the Local playbook.");
+    expect(plan).toContain("Your own data takes over from about week 4.");
   });
 });

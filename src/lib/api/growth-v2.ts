@@ -394,6 +394,8 @@ export interface LearningResponse {
   heatmap: { rows: string[]; columns: string[]; cells: Array<{ row: string; column: string; figure: Figure }> };
   /** What each section is made of, in words (H4). */
   basis: { experiments: string; creativePatterns: string; benchmarks: string; heatmap: string };
+  /** What the plan's target still rests on; absent when the merchant set it or no layer's number is it any more. */
+  targetStartingFrom?: StartingFrom;
 }
 
 // -- Rules (H5) --------------------------------------------------------------------------
@@ -465,6 +467,19 @@ export interface FirstRunDraftRequest {
   customersVisitInPerson?: boolean;
 }
 
+/**
+ * PL-7: which layer a starting number came from (api `StartingFrom`). `own` carries `n`, the outcomes behind it; `pooled` and `everyone`
+ * a `band` ("20-49", "50-99", "100+") and the `industry` slug; `line` and `playbook` a `label` (none for the default playbook).
+ * The words live in `startingFromWords`, nowhere else.
+ */
+export interface StartingFrom {
+  layer: "own" | "pooled" | "line" | "playbook" | "everyone";
+  n?: number;
+  band?: string;
+  industry?: string;
+  label?: string;
+}
+
 export interface DraftOffer {
   kind: OutcomeKind;
   source: OutcomeSource;
@@ -475,6 +490,8 @@ export interface DraftOffer {
   focusWindowDays?: number;
   defaultTarget?: { kind: "cost_per_outcome"; value: number; low: number; high: number; currency: string } | { kind: "roas"; value: number; low: number; high: number };
   targetSource: "playbook" | "merchant";
+  /** Where `defaultTarget` came from. Absent with no default. */
+  startingFrom?: StartingFrom;
 }
 
 export interface DraftChannel {
@@ -484,6 +501,10 @@ export interface DraftChannel {
   monthlyShare: number;
   reason: string;
   connected: boolean;
+  /** Where `monthlyShare` came from. */
+  startingFrom: StartingFrom;
+  /** Where the channel's response curve came from; shown nowhere (the allocator's detail), kept for the mirror. */
+  curveStartingFrom?: StartingFrom;
 }
 
 export interface FirstRunDraftResponse {

@@ -150,3 +150,17 @@ describe("the experiment timeline's label", () => {
     expect(out).not.toMatch(/[\u2122\u00ae]/);
   });
 });
+
+describe("Learning says what the target still rests on (PL-7)", () => {
+  it("shows the words for the layer the api names, above the benchmarks", () => {
+    const out = html(<LearningBody learning={{ ...LIVE, targetStartingFrom: { layer: "pooled", band: "20-49", industry: "travel" } }} unitPlural="bookings" currency="INR" />);
+    expect(out).toContain("Your target. Starting from 20+ travel businesses like yours.");
+    expect(out.indexOf("Your target.")).toBeLessThan(out.indexOf("BASIS-BENCHMARKS") + 4000);
+  });
+  it("says nothing when the api names no layer (the merchant set the target, or the evidence moved)", () => {
+    expect(html(<LearningBody learning={LIVE} unitPlural="bookings" currency="INR" />)).not.toContain("Your target.");
+  });
+  it("a starting guess is said as one", () => {
+    expect(html(<LearningBody learning={{ ...LIVE, targetStartingFrom: { layer: "playbook" } }} unitPlural="bookings" currency="INR" />)).toContain("Your target. Starting guess.");
+  });
+});
