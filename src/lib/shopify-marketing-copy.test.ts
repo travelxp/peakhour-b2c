@@ -240,6 +240,8 @@ describe("retired names and over-claims are gone", () => {
     );
     expect(flat(read("lib/how-it-works.ts"))).toContain("WooCommerce connects with an API key");
     expect(flat(read("app/(site)/launch-partner/launch-partner-form.tsx"))).toContain('shopify: "Peakhour for Shopify"');
-    expect(flat(read("app/(site)/coming-soon/page.tsx"))).toContain("Commerce, Content, Growth, Support and Presence");
+    // The teaser names what Peakhour does (owner 2026-11-13: not a count of modules), each job a built one.
+    expect(flat(read("app/(site)/coming-soon/page.tsx"))).toContain("Your AI team behind");
+    expect(flat(read("app/(site)/coming-soon/page.tsx"))).not.toMatch(/five (modules|pillars)|Autonomous Customer Engagement/i);
   });
 });

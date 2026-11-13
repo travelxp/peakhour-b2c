@@ -1,8 +1,7 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { ArrowLeft } from "lucide-react";
-import { SITE } from "@/lib/utils";
+import { SITE, cn } from "@/lib/utils";
+import { LaunchFooter, LaunchPerks, LaunchSteps, LaunchTopBar, launchEyebrow, launchWrap } from "@/components/marketing/launch/launch-chrome";
 import { LaunchPartnerForm } from "./launch-partner-form";
 
 export const metadata: Metadata = {
@@ -13,8 +12,8 @@ export const metadata: Metadata = {
 
 /**
  * Pre-launch "Become a Launch Partner" capture. Self-contained (no Header/
- * Footer that link into the gated app), same monochrome aesthetic as the
- * coming-soon teaser. Reachable through the coming-soon gate because
+ * Footer that link into the gated app), on the Daylight palette like the
+ * coming-soon teaser (shared chrome: components/marketing/launch). Reachable through the coming-soon gate because
  * /launch-partner is allowlisted in middleware (alongside the legal routes).
  *
  * Applying = joining the waitlist (waitlist_signups). Ops approves applicants
@@ -54,38 +53,38 @@ export default async function LaunchPartnerPage({
   const signupSource = normalizeSource(source);
   const country = geoCountry(h.get("x-vercel-ip-country"));
   return (
-    <main className="relative flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col items-center justify-center overflow-hidden px-6 py-16 text-center">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-1/2 bg-linear-to-b from-primary/5 to-transparent"
-      />
+    <div className="theme-daylight flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col overflow-x-clip">
+      <div className="flex-1 bg-[linear-gradient(180deg,var(--daylight-hero)_0%,var(--background)_80%)]">
+        <LaunchTopBar back />
+        {/* DOM order is the phone order: heading, form, perks, steps. On lg the grid puts the form in its own
+            right-hand column, spanning the three left-hand rows. */}
+        <main className={cn(launchWrap, "grid grid-cols-1 gap-8 pb-14 pt-4 sm:pt-8 lg:grid-cols-[1fr_0.95fr] lg:gap-x-14 lg:gap-y-10 lg:pb-20")}>
+          <div className="min-w-0 lg:col-start-1 lg:row-start-1 lg:pt-4">
+            <p className={launchEyebrow}>Launch Partner programme</p>
+            <h1 className="mt-3 text-[2.4rem] font-black leading-[1.03] tracking-[-0.04em] text-balance sm:text-6xl">
+              Build {SITE.name} <span className="daylight-mark">with us.</span>
+            </h1>
+            <p className="mt-5 max-w-xl text-lg text-muted-foreground">
+              We&rsquo;re onboarding a small group of launch partners ahead of public launch. Work directly with our team, shape the
+              roadmap for Peakhour Suite, and get early access, with hands-on setup.
+            </p>
+          </div>
 
-      <div className="mx-auto flex w-full max-w-xl flex-col items-center gap-7">
-        <span className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          Launch Partner Program
-        </span>
+          <div className="min-w-0 lg:sticky lg:top-6 lg:col-start-2 lg:row-span-3 lg:row-start-1 lg:self-start">
+            <div className="rounded-[28px] border bg-card p-5 shadow-[var(--daylight-shadow)] sm:p-8">
+              <LaunchPartnerForm source={signupSource} country={country} />
+            </div>
+          </div>
 
-        <h1 className="text-pretty text-4xl font-bold tracking-tight sm:text-5xl">
-          Build {SITE.name} with us
-        </h1>
+          <LaunchPerks className="lg:col-start-1 lg:row-start-2" />
 
-        <p className="max-w-lg text-balance text-lg text-muted-foreground">
-          We&rsquo;re onboarding a small group of launch partners ahead of public
-          launch. Work directly with our team, shape the roadmap for Peakhour
-          Suite, and get early access &mdash; with
-          hands-on setup.
-        </p>
-
-        <LaunchPartnerForm source={signupSource} country={country} />
-
-        <Link
-          href="/coming-soon"
-          className="mt-2 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" aria-hidden />
-          Back
-        </Link>
+          <div className="min-w-0 lg:col-start-1 lg:row-start-3">
+            <p className={cn(launchEyebrow, "mb-4")}>How it works</p>
+            <LaunchSteps />
+          </div>
+        </main>
       </div>
-    </main>
+      <LaunchFooter />
+    </div>
   );
 }
