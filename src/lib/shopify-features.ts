@@ -452,6 +452,74 @@ export const SHOPIFY_MORE: { href: string; title: string; body: string }[] = [
   },
 ];
 
+/**
+ * "Peakhour on WhatsApp", the merchant's own line to Peakhour (the control
+ * plane on Peakhour's number, api chat/platform-inbound.ts), as distinct from
+ * the shopper-facing WhatsApp assistant on the merchant's number.
+ *
+ * Every sentence is held to what the api does: answers come from read-only
+ * tools (store summary, posts waiting, campaign status), the commands are a
+ * fixed list, anything that spends or publishes asks for CONFIRM
+ * (command-authority.ts), only verified numbers are obeyed
+ * (merchant-verification.ts), and WhatsApp can pause autonomous mode but never
+ * switch it on. ★No restock or price change over WhatsApp: there is no such
+ * command.
+ */
+export const SHOPIFY_OWNER_WHATSAPP = {
+  eyebrow: "Peakhour on WhatsApp · for you, not your shoppers",
+  headline: "Run your store from",
+  accent: "a WhatsApp chat.",
+  lede: "Message Peakhour from your own phone. Ask how the store is doing in your own words, in any language, then approve the work it has lined up or pause it with a one-word reply. Nothing you say there reaches your customers.",
+  points: [
+    {
+      id: "ask",
+      title: "Ask about your store",
+      body: "Stock health, recent orders and sales, store suggestions waiting, posts to approve, and how your ads are running.",
+    },
+    {
+      id: "approve",
+      title: "Approve with one reply",
+      body: "Approve or skip a post, answer a growth decision, or have Peakhour prepare an ad from a post you published.",
+    },
+    {
+      id: "confirm",
+      title: "Nothing spends or publishes without CONFIRM",
+      body: "Peakhour asks before anything costs money or goes live. Only numbers you have verified can give it instructions, and each teammate acts only in the area you assign.",
+    },
+    {
+      id: "pause",
+      title: "Pause it from anywhere",
+      body: "Reply PAUSE and Peakhour waits for your approval before publishing anything. Switching it back on is done in the app.",
+    },
+  ],
+  note: "Set it up in Peakhour under Settings → Peakhour on WhatsApp. It is separate from the WhatsApp assistant that answers your shoppers on your own number.",
+} as const;
+
+/**
+ * "Get started": the real order a merchant goes in. Step 1 is an App Store
+ * install, so the page shows these only while the connector is open.
+ */
+export const SHOPIFY_STEPS: { title: string; body: string }[] = [
+  {
+    title: "Install from the App Store",
+    body: "Add Peakhour to your store. Billing goes through your Shopify account.",
+  },
+  {
+    title: "Preview the assistant",
+    body: "Ask it a shopper's question in your admin and read the answer before any shopper does.",
+  },
+  {
+    title: "Add it to your theme",
+    body: "Switch on the assistant and your shelves from the theme editor, then watch Conversations.",
+  },
+];
+
+/** The closing band: what sets Peakhour apart from a chatbot. */
+export const SHOPIFY_CLOSING = {
+  headline: "Chatbots answer. Peakhour does the work.",
+  body: "It answers shoppers from your real catalogue, then builds your shelves, plans restocks, confirms COD orders and fixes product pages. You approve what goes live, and almost everything can be undone.",
+} as const;
+
 export const SHOPIFY_SEO = {
   title: "Peakhour for Shopify — AI shopping assistant and store autopilot",
   description:
@@ -534,7 +602,37 @@ export function shopifyFaq({
     typeof trialDays === "number" && trialDays > 0
       ? `You can try it for ${trialDays} days first, and you can preview the storefront assistant before you pick a plan.`
       : "You can preview the storefront assistant before you pick a plan.";
+  // Ordered by topic, as the team asked: setup, WhatsApp, control, privacy,
+  // then pricing.
   const faqs = [
+    {
+      q: "Do I need to change my theme code?",
+      a: "No. You add the assistant and the shelves from the theme editor, with no code.",
+    },
+    {
+      q: "Which languages does it speak?",
+      a: "The assistant replies in the language the shopper writes in. The Peakhour admin is in English.",
+    },
+    {
+      q: "What does WhatsApp cost?",
+      a: "Meta bills its WhatsApp fees to you directly, and Peakhour adds no markup. COD confirmation and the WhatsApp assistant need your WhatsApp Business number connected.",
+    },
+    {
+      q: "Can I run my store from WhatsApp?",
+      a: "Yes. Verify your number in Peakhour under Settings → Peakhour on WhatsApp, then message Peakhour from that phone. Ask about stock, orders, posts and ads, approve or skip work, or pause Peakhour. Anything that spends money or publishes waits for you to reply CONFIRM, and only verified numbers can give instructions.",
+    },
+    {
+      q: "Will Peakhour change my store without asking?",
+      a: "It changes only what you switch on. Each change appears in your activity feed with an Undo, and the emergency stop pauses its automatic work.",
+    },
+    {
+      q: "How long do you keep conversations?",
+      a: "We delete a conversation 180 days after its last message. When a legal hold applies, the deletion waits until the hold is lifted.",
+    },
+    {
+      q: "What happens to my shoppers' data?",
+      a: "Shoppers' personal details are encrypted with a key for your store alone. Shopify's customer data requests and deletion requests are handled for you automatically.",
+    },
     {
       q: "Is Peakhour free?",
       a: `No. There is one plan, Peakhour Suite, and it has everything. ${trial}`,
@@ -548,26 +646,6 @@ export function shopifyFaq({
       a: peaksIncluded
         ? `AI credits (Peaks) pay for the writing, answering and analysing Peakhour does. Peakhour Suite includes ${peaksIncluded} a month, and you can buy top-ups on peakhour.ai.`
         : "AI credits (Peaks) pay for the writing, answering and analysing Peakhour does. Peakhour Suite includes a monthly amount, and you can buy top-ups on peakhour.ai.",
-    },
-    {
-      q: "Will Peakhour change my store without asking?",
-      a: "It changes only what you switch on. Each change appears in your activity feed with an Undo, and the emergency stop pauses its automatic work.",
-    },
-    {
-      q: "What does WhatsApp cost?",
-      a: "Meta bills its WhatsApp fees to you directly, and Peakhour adds no markup. COD confirmation and the WhatsApp assistant need your WhatsApp Business number connected.",
-    },
-    {
-      q: "Which languages does it speak?",
-      a: "The assistant replies in the language the shopper writes in. The Peakhour admin is in English.",
-    },
-    {
-      q: "Do I need to change my theme code?",
-      a: "No. You add the assistant and the shelves from the theme editor, with no code.",
-    },
-    {
-      q: "How long do you keep conversations?",
-      a: "We delete a conversation 180 days after its last message. When a legal hold applies, the deletion waits until the hold is lifted.",
     },
     {
       q: "Can I use it on more than one store?",
