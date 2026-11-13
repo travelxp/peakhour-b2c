@@ -4,7 +4,8 @@ import { ABSENT_LABEL, absentReason, figureValue, formatCount } from "@/lib/grow
 /**
  * Which creative patterns win, ranked (from leaderboard3).
  *
- * Ranked by extra outcomes per 1,000 views. A pattern with no figure is listed
+ * Ranked by the figure each row carries: for the business's own ads, outcomes per 1,000 views; for a playbook's priors, extra outcomes
+ * per 1,000 views (a lift). The two are never worded alike. A pattern with no figure is listed
  * last, unranked, with its reason, so a pattern nobody could measure never ranks
  * above one that was, or below zero.
  */
@@ -24,7 +25,7 @@ export function CreativeLeaderboard({ patterns, unitPlural, emptyReason }: { pat
   const ranked = rankPatterns(patterns);
   const max = Math.max(...ranked.map((p) => figureValue(p.liftPer1k) ?? 0), 0);
   return (
-    <ol className="grid gap-3" aria-label={`Creative patterns by extra ${unitPlural} per 1,000 views`}>
+    <ol className="grid gap-3" aria-label={ranked.every((p) => p.source === "yours") ? `Your creative patterns by ${unitPlural} per 1,000 views` : `Creative patterns by extra ${unitPlural} per 1,000 views`}>
       {ranked.map((p, i) => {
         const v = figureValue(p.liftPer1k);
         const n = figureValue(p.n);
@@ -42,18 +43,29 @@ export function CreativeLeaderboard({ patterns, unitPlural, emptyReason }: { pat
                       {ABSENT_LABEL}
                     </span>
                   ) : (
-                    formatCount(v)
+                    <>
+                      {formatRate(v)}
+                      <span className="ml-1 text-xs text-muted-foreground">{p.source === "yours" ? "per 1,000 views" : "extra per 1,000 views"}</span>
+                    </>
                   )}
                 </span>
               </div>
               <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
                 {v !== undefined ? <div className="h-full rounded-full bg-chart-3" style={{ width: `${max > 0 ? Math.max((v / max) * 100, 0) : 0}%` }} /> : null}
               </div>
-              {n !== undefined ? <p className="mt-0.5 text-xs text-muted-foreground">based on {formatCount(n)} samples</p> : null}
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {p.source === "yours" ? "Your ads" : "Typical for your industry"}
+                {n !== undefined ? ` · based on ${formatCount(n)} ${p.source === "yours" ? (n === 1 ? "outcome" : "outcomes") : "samples"}` : ""}
+              </p>
             </div>
           </li>
         );
       })}
     </ol>
   );
+}
+
+/** A rate per 1,000 views: a real but tiny rate (0.04) reads "under 0.1", never "0". Otherwise the shared count format (one decimal). */
+export function formatRate(v: number): string {
+  return v > 0 && v < 0.1 ? "under 0.1" : formatCount(v);
 }

@@ -373,8 +373,12 @@ export interface LearningResponse {
     /** Why it stopped, for an abandoned holdout. */
     note?: string;
   }>;
-  /** Empty, with `basis.creativePatterns` saying why, when nothing records a pattern's lift with a sample size. */
-  creativePatterns: Array<{ key: string; label: string; hookFormat: string; liftPer1k: Figure; n: Figure }>;
+  /**
+   * `source: "yours"` rows are this business's own angle and format groups: `liftPer1k` is OUTCOMES per 1,000 views (not lift) and `n` its
+   * outcomes. `source: "playbook"` rows are the playbook's priors: `liftPer1k` is the playbook's lift, `n` its samples. Empty, with
+   * `basis.creativePatterns` saying why, when there is neither.
+   */
+  creativePatterns: Array<{ key: string; label: string; hookFormat: string; source: "yours" | "playbook"; liftPer1k: Figure; costPerOutcome: Figure; n: Figure }>;
   benchmarks: Array<{
     metric: string;
     you: Figure;
