@@ -72,9 +72,17 @@ export function AskSummit() {
   const canAsk = driveAbilities(role).canEdit;
   return (
     <>
-      <Button variant="outline" onClick={() => setOpen(true)} disabled={!canAsk} title={canAsk ? undefined : EDITOR_ONLY}>
-        <Sparkles aria-hidden /> Ask {SUMMIT}
-      </Button>
+      {/* A disabled button shows no tooltip of its own, so the reason sits on a wrapper (hover) and is read out by the button (touch, keyboard, screen reader). */}
+      <span title={canAsk ? undefined : EDITOR_ONLY} className="inline-flex">
+        <Button variant="outline" onClick={() => setOpen(true)} disabled={!canAsk} aria-describedby={canAsk ? undefined : "ask-summit-editor-only"}>
+          <Sparkles aria-hidden /> Ask {SUMMIT}
+        </Button>
+      </span>
+      {canAsk ? null : (
+        <span id="ask-summit-editor-only" className="sr-only">
+          {EDITOR_ONLY}
+        </span>
+      )}
       <AskSummitDialog open={open} onOpenChange={setOpen} />
     </>
   );

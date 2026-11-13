@@ -129,7 +129,8 @@ describe("only an editor can ask", () => {
     await mount();
     const b = button(/Ask Peakhour Summit/)!;
     expect(b.disabled).toBe(true);
-    expect(b.title).toContain("editor role");
+    expect(b.parentElement!.title).toContain("editor role"); // hover: a disabled button shows no title of its own
+    expect(document.getElementById(b.getAttribute("aria-describedby")!)!.textContent).toContain("editor role"); // touch, keyboard and screen reader
     await click(/Ask Peakhour Summit/);
     expect(document.querySelector("textarea")).toBeNull();
     expect(h.get).not.toHaveBeenCalled();
