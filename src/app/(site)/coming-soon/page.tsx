@@ -1,172 +1,179 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Sparkles, ShoppingBag, Megaphone, ArrowRight } from "lucide-react";
-import { SITE } from "@/lib/utils";
+import { ArrowRight, Check } from "lucide-react";
+import { ShopifyHeroDemo } from "@/components/marketing/shopify/shopify-hero-demo";
+import {
+  LAUNCH_PERKS,
+  LaunchFooter,
+  LaunchSteps,
+  LaunchTopBar,
+  launchWrap,
+} from "@/components/marketing/launch/launch-chrome";
+import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  title: "Peakhour — Autonomous Customer Engagement",
+  title: "Peakhour — your AI team behind every channel you sell on",
   description:
-    "Peakhour helps businesses build visibility, engage customers, and unlock growth opportunities across every channel — without a full-scale marketing team. One plan, Peakhour Suite, with five modules: Commerce, Content, Growth, Support and Presence. Launching soon.",
+    "Peakhour answers your customers, fixes your product pages, writes in your voice and runs your growth, across your store, your website and Google. You approve what goes live. Launching soon: become a launch partner.",
 };
 
 /**
- * Standalone pre-launch teaser. Served for EVERY route in production while the
- * coming-soon gate is on (see middleware.ts) — deliberately self-contained
- * (no Header/Footer that link into the gated app). Preview locally at
- * /coming-soon, or set COMING_SOON=true to exercise the full gate in dev.
+ * The pre-launch teaser, served for EVERY gated route in production while the
+ * coming-soon gate is on (middleware.ts). Preview at /coming-soon, or set
+ * COMING_SOON=true locally. Daylight palette (.theme-daylight), like /shopify.
  *
- * Positioning: one plan, Peakhour Suite, with five modules, shown as two
- * entry points (the store modules and the marketing modules). Links are
- * next/link with prefetch={false}: every gated URL renders this page, so a
- * viewport prefetch would server-render /auth and /launch-partner for each
- * teaser view. They resolve straight through the coming-soon gate — /launch-partner is allowlisted in
- * middleware alongside the legal routes; #commerce / #marketing are
- * in-page anchors (no separate gated routes to loop back on).
+ * Positioning (owner 2026-10-29: "Peakhour is an engine concept"): what
+ * Peakhour does for a business, behind the channels it already uses, not a
+ * count of modules. Every job named here is built; the channel list names
+ * integrations that exist today. The hero shows the product (the /shopify
+ * sample-store demo), because a teaser with no product is the page's old flaw.
  */
+const JOBS: { dot: string; job: string; body: string }[] = [
+  {
+    dot: "var(--daylight-dot-commerce)",
+    job: "Sell",
+    body: "A shopping assistant that answers from your real catalogue, shelves that sell, and COD orders confirmed on WhatsApp.",
+  },
+  {
+    dot: "var(--daylight-dot-support)",
+    job: "Answer",
+    body: "Your WhatsApp and website conversations in one inbox, answered by AI or by you.",
+  },
+  {
+    dot: "var(--daylight-dot-content)",
+    job: "Publish",
+    body: "Posts for LinkedIn and X, newsletters and blog articles, written in your voice.",
+  },
+  {
+    dot: "var(--daylight-dot-growth)",
+    job: "Grow",
+    body: "Ads and LinkedIn growth, with a plan you review before anything spends.",
+  },
+  {
+    dot: "var(--daylight-dot-presence)",
+    job: "Get found",
+    body: "Connect your Google Business Profile and see how people find you.",
+  },
+];
+
+const CHANNELS = ["Shopify", "WordPress", "WhatsApp", "Google Business Profile", "LinkedIn", "X", "Beehiiv"];
+
+const eyebrow = "text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground";
+const h2 = "mt-3 text-[2rem] font-extrabold leading-[1.05] tracking-[-0.035em] text-balance sm:text-5xl";
+const coralBtn =
+  "group inline-flex items-center gap-2 rounded-full bg-brand-gradient px-6 py-3.5 text-[15px] font-bold text-brand-contrast shadow-[0_8px_20px_-8px_var(--brand)] transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+
 export default function ComingSoonPage() {
   return (
-    <main className="relative flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col overflow-hidden">
-      {/* Subtle backdrop (standard utilities — no brittle arbitrary theme()). */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-1/2 bg-linear-to-b from-primary/5 to-transparent"
-      />
+    <div className="theme-daylight flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
+      <div className="bg-[linear-gradient(180deg,var(--daylight-hero)_0%,var(--background)_92%)]">
+        <LaunchTopBar />
+        <main>
+          {/* Hero: what Peakhour does, and the product doing it */}
+          <section className={cn(launchWrap, "grid grid-cols-1 items-center gap-10 pb-14 pt-6 sm:pt-10 lg:grid-cols-[1fr_1.05fr] lg:gap-14 lg:pb-20")}>
+            <div className="min-w-0">
+              <p className="inline-flex items-center gap-2 rounded-full bg-card px-3 py-1.5 text-xs font-bold shadow-sm">
+                <span className="size-2 rounded-full bg-brand" aria-hidden />
+                Launching soon · Launch Partner programme open
+              </p>
+              <h1 className="mt-5 text-[2.6rem] font-black leading-[1.02] tracking-[-0.04em] text-balance sm:text-6xl lg:text-[4.1rem]">
+                Your AI team behind <span className="daylight-mark">every channel you sell on.</span>
+              </h1>
+              <p className="mt-5 max-w-xl text-lg text-muted-foreground sm:text-xl">
+                Peakhour answers your customers, fixes your product pages, writes in your voice and runs your growth,
+                across your store, your website and Google. You approve what goes live, and almost everything can be undone.
+              </p>
+              <div className="mt-7 flex flex-wrap items-center gap-3">
+                <Link prefetch={false} href="/launch-partner" className={coralBtn}>
+                  Become a Launch Partner
+                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" aria-hidden />
+                </Link>
+                <a
+                  href="#what"
+                  className="inline-flex items-center rounded-full px-6 py-3.5 text-[15px] font-bold shadow-[inset_0_0_0_2px_var(--foreground)] transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  See what it does
+                </a>
+              </div>
+            </div>
+            <div className="min-w-0">
+              <ShopifyHeroDemo />
+            </div>
+          </section>
+        </main>
+      </div>
 
-      {/* Sign in — for approved launch partners (e.g. quests.travel). Plain
-          <a> so it resolves straight through the coming-soon gate, which
-          allowlists /auth (see middleware.ts). The magic-link endpoint only
-          sends a real link to ops-approved emails; everyone else is routed to
-          the waitlist from the sign-in page itself. */}
-      <Link prefetch={false}
-        href="/auth"
-        className="absolute right-6 top-6 z-10 inline-flex items-center rounded-full border bg-background/80 px-4 py-2 text-sm font-medium text-foreground backdrop-blur transition-colors hover:bg-muted/60"
-      >
-        Sign in
-      </Link>
-
-      {/* ── Hero ─────────────────────────────────────────────── */}
-      <section className="flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col items-center justify-center px-6 text-center">
-        <div className="mx-auto flex max-w-2xl flex-col items-center gap-7">
-          <span className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            <Sparkles className="size-3.5" aria-hidden />
-            Autonomous Customer Engagement
-          </span>
-
-          <h1 className="text-pretty text-5xl font-bold tracking-tight sm:text-6xl lg:text-7xl">
-            Every hour is{" "}
-            <span className="bg-linear-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-              {SITE.name}
-            </span>
-          </h1>
-
-          <p className="max-w-xl text-balance text-lg text-muted-foreground">
-            {SITE.name} helps businesses build visibility, engage customers,
-            and unlock growth opportunities across every channel&mdash;without
-            a full-scale marketing team.
-          </p>
-
-          <div className="mt-2 flex flex-col items-center gap-3 sm:flex-row">
-            <Link prefetch={false}
-              href="/launch-partner"
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
-            >
-              Become a Launch Partner
-              <ArrowRight className="size-4" aria-hidden />
-            </Link>
-            <a
-              href="#commerce"
-              className="inline-flex items-center justify-center gap-2 rounded-full border px-6 py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted/60"
-            >
-              Explore the five modules
-            </a>
+      {/* What it does: jobs, not a module count */}
+      <section id="what" aria-labelledby="what-h" className="scroll-mt-6 border-t py-14 sm:py-20">
+        <div className={launchWrap}>
+          <p className={eyebrow}>What it does</p>
+          <h2 id="what-h" className={h2}>
+            The work behind a growing business, done with you.
+          </h2>
+          <ul className="mt-8 grid gap-3 sm:mt-10 sm:grid-cols-2 lg:grid-cols-5">
+            {JOBS.map((j) => (
+              <li key={j.job} className="flex flex-col gap-2 rounded-2xl border bg-card p-5">
+                <span className="flex items-center gap-2.5 text-lg font-extrabold tracking-tight">
+                  <span aria-hidden className="size-2.5 rounded-full" style={{ background: j.dot }} />
+                  {j.job}
+                </span>
+                <span className="text-[15px] text-muted-foreground">{j.body}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <p className="shrink-0 text-sm font-bold">Works with</p>
+            <ul className="flex flex-wrap gap-2">
+              {CHANNELS.map((c) => (
+                <li key={c} className="rounded-full bg-muted px-3 py-1.5 text-sm font-semibold">
+                  {c}
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       </section>
 
-      {/* ── Built for growing businesses ─────────────────────── */}
-      <section className="mx-auto w-full max-w-5xl px-6 pb-28">
-        <h2 className="text-center text-sm font-medium uppercase tracking-wider text-muted-foreground">
-          Built for growing businesses
-        </h2>
-
-        <div className="mt-8 grid gap-5 sm:grid-cols-2">
-          {/* Commerce */}
-          <div
-            id="commerce"
-            className="group flex scroll-mt-24 flex-col rounded-2xl border bg-card p-7 text-left transition-colors hover:border-foreground/20"
-          >
-            <span className="inline-flex size-11 items-center justify-center rounded-xl border bg-muted/40 text-foreground">
-              <ShoppingBag className="size-5" aria-hidden />
-            </span>
-            <h3 className="mt-5 text-xl font-semibold tracking-tight">
-              Commerce, Support and Presence
-            </h3>
-            <p className="mt-2 text-pretty text-sm leading-relaxed text-muted-foreground">
-              For Shopify, WooCommerce and D2C brands: an AI shop assistant
-              that answers shoppers from your catalogue, one inbox for your
-              customer messages, and a Google Business Profile that stays
-              current.
+      {/* Launch Partner: the page's one dark band */}
+      <section aria-labelledby="partner-h" className="bg-ink text-on-ink">
+        <div className={cn(launchWrap, "grid grid-cols-1 gap-10 py-14 sm:py-20 lg:grid-cols-[1fr_1fr] lg:gap-16")}>
+          <div className="min-w-0">
+            <p className={cn(eyebrow, "text-on-ink-dim")}>Launch Partner programme</p>
+            <h2 id="partner-h" className={h2}>
+              Build Peakhour <span className="text-brand">with us.</span>
+            </h2>
+            <p className="mt-4 max-w-xl text-lg text-on-ink/85">
+              We are onboarding a small group of businesses ahead of public launch, with our team alongside them.
             </p>
-            {/* Pre-launch, "Learn more" routes to the launch-partner capture.
-                Swap to /commerce once the solution page ships post-launch. */}
-            <Link prefetch={false}
-              href="/launch-partner"
-              className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-foreground transition-colors group-hover:gap-2.5"
-            >
-              Learn more
-              <ArrowRight className="size-4" aria-hidden />
-            </Link>
+            <ul className="mt-7 grid gap-4 sm:grid-cols-2">
+              {LAUNCH_PERKS.map((p) => (
+                <li key={p.title} className="flex gap-3">
+                  <Check aria-hidden className="mt-0.5 size-5 shrink-0 text-brand" strokeWidth={3} />
+                  <span>
+                    <b className="block">{p.title}</b>
+                    <span className="text-[15px] text-on-ink-dim">{p.body}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
           </div>
-
-          {/* Marketing */}
-          <div
-            id="marketing"
-            className="group flex scroll-mt-24 flex-col rounded-2xl border bg-card p-7 text-left transition-colors hover:border-foreground/20"
-          >
-            <span className="inline-flex size-11 items-center justify-center rounded-xl border bg-muted/40 text-foreground">
-              <Megaphone className="size-5" aria-hidden />
-            </span>
-            <h3 className="mt-5 text-xl font-semibold tracking-tight">
-              Content and Growth
-            </h3>
-            <p className="mt-2 text-pretty text-sm leading-relaxed text-muted-foreground">
-              For publishers, brands and marketing teams: content written in
-              your voice, and ads and LinkedIn growth that you approve.
-            </p>
-            <Link prefetch={false}
-              href="/launch-partner"
-              className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-foreground transition-colors group-hover:gap-2.5"
-            >
-              Learn more
-              <ArrowRight className="size-4" aria-hidden />
-            </Link>
+          <div className="flex min-w-0 flex-col justify-center gap-8">
+            <LaunchSteps tone="ink" />
+            <div>
+              <Link
+                prefetch={false}
+                href="/launch-partner"
+                className="group inline-flex items-center gap-2 rounded-full bg-brand-gradient px-6 py-3.5 text-[15px] font-bold text-brand-contrast transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              >
+                Apply to be a launch partner
+                <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" aria-hidden />
+              </Link>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* ── Footer (normal flow — page now scrolls past one viewport) ── */}
-      <footer className="mt-auto flex flex-col items-center gap-3 px-6 pb-8 text-center text-xs text-muted-foreground">
-        {/* next/link is safe here: the coming-soon gate in middleware.ts
-            allowlists the legal routes for prefetch/RSC requests as well as
-            full-document ones. */}
-        <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
-          <Link prefetch={false} href="/privacy-policy" className="transition-colors hover:text-foreground">
-            Privacy Policy
-          </Link>
-          <Link prefetch={false} href="/terms" className="transition-colors hover:text-foreground">
-            Terms of Service
-          </Link>
-          <Link prefetch={false} href="/cookie-policy" className="transition-colors hover:text-foreground">
-            Cookie Policy
-          </Link>
-          <Link prefetch={false} href="/data-deletion" className="transition-colors hover:text-foreground">
-            Data Deletion
-          </Link>
-        </nav>
-        <p>
-          © {new Date().getFullYear()} {SITE.company.legalName}. All rights reserved.
-        </p>
-      </footer>
-    </main>
+      <LaunchFooter />
+    </div>
   );
 }

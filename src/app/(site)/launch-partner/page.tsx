@@ -1,8 +1,8 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { ArrowLeft } from "lucide-react";
-import { SITE } from "@/lib/utils";
+import { Check } from "lucide-react";
+import { SITE, cn } from "@/lib/utils";
+import { LAUNCH_PERKS, LaunchFooter, LaunchSteps, LaunchTopBar, launchWrap } from "@/components/marketing/launch/launch-chrome";
 import { LaunchPartnerForm } from "./launch-partner-form";
 
 export const metadata: Metadata = {
@@ -13,8 +13,8 @@ export const metadata: Metadata = {
 
 /**
  * Pre-launch "Become a Launch Partner" capture. Self-contained (no Header/
- * Footer that link into the gated app), same monochrome aesthetic as the
- * coming-soon teaser. Reachable through the coming-soon gate because
+ * Footer that link into the gated app), on the Daylight palette like the
+ * coming-soon teaser (shared chrome: components/marketing/launch). Reachable through the coming-soon gate because
  * /launch-partner is allowlisted in middleware (alongside the legal routes).
  *
  * Applying = joining the waitlist (waitlist_signups). Ops approves applicants
@@ -54,38 +54,62 @@ export default async function LaunchPartnerPage({
   const signupSource = normalizeSource(source);
   const country = geoCountry(h.get("x-vercel-ip-country"));
   return (
-    <main className="relative flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col items-center justify-center overflow-hidden px-6 py-16 text-center">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-1/2 bg-linear-to-b from-primary/5 to-transparent"
-      />
+    <div className="theme-daylight flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
+      <div className="flex-1 bg-[linear-gradient(180deg,var(--daylight-hero)_0%,var(--background)_80%)]">
+        <LaunchTopBar back />
+        <main className={cn(launchWrap, "grid grid-cols-1 gap-8 pb-14 pt-4 sm:pt-8 lg:grid-cols-[1fr_0.95fr] lg:gap-14 lg:pb-20")}>
+          {/* The pitch. On a phone the form comes right after the heading (order below). */}
+          <div className="min-w-0 lg:pt-4">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">Launch Partner programme</p>
+            <h1 className="mt-3 text-[2.4rem] font-black leading-[1.03] tracking-[-0.04em] text-balance sm:text-6xl">
+              Build {SITE.name} <span className="daylight-mark">with us.</span>
+            </h1>
+            <p className="mt-5 max-w-xl text-lg text-muted-foreground">
+              We&rsquo;re onboarding a small group of launch partners ahead of public launch. Work directly with our team, shape the
+              roadmap for Peakhour Suite, and get early access, with hands-on setup.
+            </p>
+            <ul className="mt-8 hidden gap-4 sm:grid sm:grid-cols-2">
+              {LAUNCH_PERKS.map((perk) => (
+                <li key={perk.title} className="flex gap-3">
+                  <Check aria-hidden className="mt-0.5 size-5 shrink-0 text-brand" strokeWidth={3} />
+                  <span>
+                    <b className="block">{perk.title}</b>
+                    <span className="text-[15px] text-muted-foreground">{perk.body}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
 
-      <div className="mx-auto flex w-full max-w-xl flex-col items-center gap-7">
-        <span className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          Launch Partner Program
-        </span>
+          <div className="min-w-0 lg:sticky lg:top-6 lg:row-span-2 lg:self-start">
+            <div className="rounded-[28px] border bg-card p-5 shadow-[var(--daylight-shadow)] sm:p-8">
+              <p className="text-xl font-extrabold tracking-tight">Apply to be a launch partner</p>
+              <p className="mt-1 text-[15px] text-muted-foreground">Takes a minute. No card, no commitment.</p>
+              <div className="mt-6">
+                <LaunchPartnerForm source={signupSource} country={country} />
+              </div>
+            </div>
+          </div>
 
-        <h1 className="text-pretty text-4xl font-bold tracking-tight sm:text-5xl">
-          Build {SITE.name} with us
-        </h1>
-
-        <p className="max-w-lg text-balance text-lg text-muted-foreground">
-          We&rsquo;re onboarding a small group of launch partners ahead of public
-          launch. Work directly with our team, shape the roadmap for Peakhour
-          Suite, and get early access &mdash; with
-          hands-on setup.
-        </p>
-
-        <LaunchPartnerForm source={signupSource} country={country} />
-
-        <Link
-          href="/coming-soon"
-          className="mt-2 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="size-4" aria-hidden />
-          Back
-        </Link>
+          <div className="min-w-0">
+            {/* Perks again on a phone, under the form, so the form is not pushed below the fold. */}
+            <ul className="grid gap-4 sm:hidden">
+              {LAUNCH_PERKS.map((perk) => (
+                <li key={perk.title} className="flex gap-3">
+                  <Check aria-hidden className="mt-0.5 size-5 shrink-0 text-brand" strokeWidth={3} />
+                  <span>
+                    <b className="block">{perk.title}</b>
+                    <span className="text-[15px] text-muted-foreground">{perk.body}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="mb-4 mt-8 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground sm:mt-0">How it works</p>
+            <LaunchSteps />
+          </div>
+        </main>
       </div>
-    </main>
+      <LaunchFooter />
+    </div>
   );
 }
