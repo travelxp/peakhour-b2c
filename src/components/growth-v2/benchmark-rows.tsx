@@ -68,7 +68,8 @@ export function BenchmarkRows({ benchmarks, currency }: { benchmarks: Benchmark[
               <b className="text-sm font-medium">{metricLabel(b.metric)}</b>
               <p className="text-xs text-muted-foreground">
                 You <Num figure={b.you} fmt={fmt} strong /> &middot; median <Num figure={b.p50} fmt={fmt} />
-                {n !== undefined ? <> &middot; {formatCount(n)} businesses</> : null}
+                {/* A floor, never an exact count: the network publishes bands ("50-99"), and the playbook stores the band's floor (PL-6). */}
+                {n !== undefined ? <> &middot; {formatCount(n)}+ businesses</> : null}
               </p>
               {n === undefined ? (
                 <p data-absent="" className="text-xs text-muted-foreground">

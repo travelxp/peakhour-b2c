@@ -30,6 +30,7 @@ import { patchErrorMessage } from "@/lib/growth-v2-rules";
 import { PageHead } from "./page-head";
 import { PageShell } from "@/components/dashboard/page-shell";
 import { SignalStep } from "./signal-step";
+import { ShareResultsOptIn } from "./share-results-opt-in";
 import { ToneBadge } from "./tone";
 
 /**
@@ -105,6 +106,7 @@ export function FirstRunScreen() {
             onContinue={() => document.getElementById("first-run-plan")?.scrollIntoView({ behavior: "smooth", block: "start" })}
           />
         }
+        shareStep={<ShareResultsOptIn />}
         blockedReason={stale ?? planBlockedReason(draft, answers, signalDone)}
         sending={confirm.isPending}
         sent={confirm.isSuccess}
@@ -152,6 +154,8 @@ export interface FirstRunViewProps {
   zoneError?: string;
   /** Step 4, the conversion signal (C3). A slot, so the view renders without the api. */
   signalStep: React.ReactNode;
+  /** The shared-network opt-in on the plan card (PL-6). A slot for the same reason; absent, the card has none. */
+  shareStep?: React.ReactNode;
   /** Why the plan cannot be sent yet; undefined = it can. */
   blockedReason: string | undefined;
   sending?: boolean;
@@ -383,6 +387,7 @@ export function FirstRunView(p: FirstRunViewProps) {
             </div>
             <ToneBadge tone="good">On</ToneBadge>
           </div>
+          {p.shareStep}
         </CardContent>
         {p.sent ? (
           <div role="status" className="mx-6 mb-4 grid gap-1 rounded-lg border border-success/30 bg-success/10 p-4 text-sm">

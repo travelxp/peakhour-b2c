@@ -386,7 +386,7 @@ export const SHOPIFY_GROUPS: ShopifyGroup[] = [
       {
         id: "benchmarks",
         title: "Benchmarks",
-        does: "Compares your store with similar stores, once at least 50 similar stores have shared. You opt in.",
+        does: "Compares your store with similar stores, once at least 20 similar stores have shared. You opt in.",
         benefit: "You see how you compare, without sharing anything you did not agree to.",
         steps: [
           "Opt in to Benchmarks.",
