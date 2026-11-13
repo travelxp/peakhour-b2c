@@ -36,6 +36,7 @@ vi.mock("@/lib/api/growth-v2", async (orig) => ({
 }));
 vi.mock("@/lib/api/growth-v2-signal", () => ({ useSignalReadiness: () => ({ data: undefined }) }));
 vi.mock("./signal-step", () => ({ SignalStep: () => null }));
+vi.mock("./share-results-opt-in", () => ({ ShareResultsOptIn: () => null }));
 vi.mock("next/link", () => ({ default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
 
 const { FirstRunScreen } = await import("./first-run-screen");

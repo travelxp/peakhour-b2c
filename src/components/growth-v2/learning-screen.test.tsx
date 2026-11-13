@@ -88,7 +88,7 @@ describe("Learning, live", () => {
   });
 
   it("shows you against the quartiles with n, and a benchmark under 20 as absences without a comparison", () => {
-    expect(out).toContain("214 businesses");
+    expect(out).toContain("214+ businesses");
     expect(out).toContain("Better than most");
     expect(out).toContain("Return on ad spend");
     expect(out).toContain("Fewer than 20 businesses");
