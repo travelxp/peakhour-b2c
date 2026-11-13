@@ -142,6 +142,22 @@ describe("the price comes before Ask", () => {
     expect(button("Ask")!.disabled).toBe(false);
   });
 
+  it("the question's bounds are the api's: 10 characters is enough, 9 is not; 2,000 is enough, 2,001 is not", async () => {
+    await mount();
+    await openDialog();
+    await type("a".repeat(SUMMIT_QUESTION_MIN - 1));
+    expect(button("Ask")!.disabled).toBe(true);
+    await type("a".repeat(SUMMIT_QUESTION_MIN));
+    expect(button("Ask")!.disabled).toBe(false);
+    await type("a".repeat(SUMMIT_QUESTION_MAX));
+    expect(button("Ask")!.disabled).toBe(false);
+    await type("a".repeat(SUMMIT_QUESTION_MAX + 1));
+    expect(button("Ask")!.disabled).toBe(true);
+    // spaces around the question do not count
+    await type(`   ${"a".repeat(SUMMIT_QUESTION_MIN - 1)}   `);
+    expect(button("Ask")!.disabled).toBe(true);
+  });
+
   it("with no price to show (not priced), Ask stays off and nothing claims a number", async () => {
     h.get.mockImplementation(async () => {
       throw new ApiError("ACTION_NOT_PRICED", "no price", 502);

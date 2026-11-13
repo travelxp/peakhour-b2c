@@ -536,7 +536,7 @@ export const growthV2Api = {
     api.post<RecheckReviewResponse>(`${BASE}/decisions/waiting/${encodeURIComponent(runId)}/${encodeURIComponent(proposalId)}/recheck`),
   /** Ask Peakhour Summit. A priced task: the signed quote the merchant was shown travels as `x-peaks-quote`, and one key per click makes a retry one charge. */
   askSummit: (question: string, quoteToken?: string) =>
-    api.post<SummitAskResponse>(`${BASE}/council`, { question }, { ...newActionKey(), ...(quoteToken ? { "x-peaks-quote": quoteToken } : {}) }),
+    api.post<SummitAskResponse>(BASE + "/council", { question }, { ...newActionKey(), ...(quoteToken ? { "x-peaks-quote": quoteToken } : {}) }),
   ask: (id: string, question: string) =>
     api.post<DecisionAskResponse>(`${BASE}/decisions/${encodeURIComponent(id)}/ask`, { question }),
   channels: (window: HomeWindowKey = "7d") => api.get<ChannelsResponse>(`${BASE}/channels?window=${window}`),
