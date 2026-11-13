@@ -362,7 +362,7 @@ export function FirstRunView(p: FirstRunViewProps) {
           <CardTitle>Your first plan</CardTitle>
           <CardDescription>
             {splitWords ? `${splitWords}. ` : `Drafted from the ${draft.playbook?.title} playbook. `}
-            {draft.channels[0]?.startingFrom.layer === "own" ? "" : "Your own data takes over from about week 4."}
+            {draft.channels[0]?.startingFrom?.layer === "own" ? "" : "Your own data takes over from about week 4."}
           </CardDescription>
         </CardHeader>
         <CardContent className="divide-y">
