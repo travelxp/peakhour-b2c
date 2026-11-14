@@ -48,6 +48,7 @@ export const DELEGATES: Record<string, string> = {
   "growth/decisions/page.tsx": "components/growth-v2/decisions-screen.tsx",
   "growth/learning/page.tsx": "components/growth-v2/learning-screen.tsx",
   "growth/rules/page.tsx": "components/growth-v2/rules-screen.tsx",
+  "growth/goals/page.tsx": "components/growth-v2/goals-screen.tsx",
   "growth/start/page.tsx": "components/growth-v2/first-run-screen.tsx",
   // Presence.
   "presence/page.tsx": "components/presence/presence-home.tsx",

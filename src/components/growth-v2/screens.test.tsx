@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider, type UseQueryResult } from "@tanstack/react-query";
-import { FIXTURE_CHANNELS, FIXTURE_DECISIONS, FIXTURE_HOME, FIXTURE_LEARNING, FIXTURE_PACING_SERIES, FIXTURE_RULES, previewDecisions } from "@/lib/growth-v2-fixtures";
+import { FIXTURE_CHANNELS, FIXTURE_DECISIONS, FIXTURE_HOME, FIXTURE_LEARNING, FIXTURE_PACING_SERIES, FIXTURE_RULES, PREVIEW_NOW, previewDecisions } from "@/lib/growth-v2-fixtures";
 import type { ChannelsResponse, DecisionsScreenData, DraftOffer, FirstRunDraftResponse, HomeResponse, HomeScreenData } from "@/lib/api/growth-v2";
 import { EMPTY_ANSWERS } from "@/lib/growth-v2-firstrun";
 import { seriesFromHome } from "@/lib/growth-v2-series";
@@ -12,6 +12,8 @@ import { HomeBody } from "./home-screen";
 import { LearningBody } from "./learning-screen";
 import { QueryBoundary } from "./query-boundary";
 import { RulesBody } from "./rules-screen";
+import { GoalsBody } from "./goals-screen";
+import { KIND_LABEL, STATUS_LABEL } from "@/lib/growth-v2-decisions";
 import { Inbox } from "./decisions-screen";
 import { DecisionCard } from "./decision-card";
 
@@ -78,6 +80,8 @@ describe("the screens render their preview sample", () => {
       data: {
         ...FIXTURE_HOME,
         goal: undefined,
+        // one goal: the headline is the goal, and no goals card is shown
+        goals: { items: [FIXTURE_HOME.goals.items[0]!].map((g) => ({ ...g, soFar: { absent: "No data yet" } })), monthSoFar: { absent: "No data yet" } },
         efficiency: { metric: "cost_per_outcome", you: { absent: "No outcomes yet" }, target: { absent: "No target" }, industry: { absent: "No benchmark" }, basis: "Ad spend divided by all paid orders." },
         lift: { liftPct: { absent: "Holdout not started" }, confidence: { absent: "n/a" }, windowDays: 28 },
         pacing: { spentThisMonth: { absent: "Not connected" }, monthlyCeiling: { absent: "Not connected" }, daysLeft: 9 },
@@ -270,12 +274,17 @@ describe("the screens render their preview sample", () => {
     expect(out).toContain("5 experiments");
   });
 
-  it("Rules shows the ladder, the mandate, the guardrail switches and the lines it never crosses", () => {
+  it("Guardrails shows the ladder, the plan summary with a link to Goals, the guardrail switches and the lines it never crosses", () => {
     const out = html(withClient(<RulesBody rules={FIXTURE_RULES} preview />));
     expect(out).toContain("Propose");
     expect(out).toContain("3 of 5 cleared decisions");
-    expect(out).toContain("Your mandate");
+    expect(out).toContain("Your plan");
     expect(out).toContain("₹20,000");
+    // PL-3: the goals in one line, the single-goal edit moved to Goals
+    expect(out).toContain("Treks 70%, Stays 30%");
+    expect(out).toContain('href="/dashboard/growth/goals"');
+    expect(out).toContain("Change ceiling");
+    expect(out).not.toContain("Target cost per");
     expect(out).toContain("Only use creatives I approved");
     expect(out).toContain("Blocked words");
     expect(out).toContain("Let Peakhour use Meta");
@@ -487,7 +496,7 @@ describe("First run", () => {
     expect(out).toContain("63%");
     expect(out).toContain("₹37,500");
     expect(out).toContain("Not connected yet");
-    expect(out).toContain("Left out because you turned them off in Rules: X");
+    expect(out).toContain("Left out because you turned them off in Guardrails: X");
   });
 
   it("asks for the time zone while there is none, prefilled with the suggestion", () => {
@@ -517,10 +526,10 @@ describe("First run", () => {
     expect(html(<FirstRunView {...firstRun({ sendError: "Verify your WhatsApp number in Settings first." })} />)).toContain("Verify your WhatsApp number");
   });
 
-  it("points a business that already has a mandate at Rules instead of drafting again", () => {
+  it("points a business that already has a plan at Goals instead of drafting again", () => {
     const out = html(<FirstRunView {...firstRun({ draft: { ...DRAFT, alreadyActive: true } })} />);
     expect(out).toContain("already running");
-    expect(out).toContain("/dashboard/growth/rules");
+    expect(out).toContain("/dashboard/growth/goals");
     expect(out).not.toContain("What do you want more of?");
   });
 
@@ -590,5 +599,120 @@ describe("The confirmation link page", () => {
     expect(out).toContain("This link can&#x27;t be used");
     expect(out).toContain("Links last 24 hours");
     expect(out).not.toContain("mandate-code");
+  });
+});
+
+// -- PL-3: Goals, "What do you sell?", and no "mandate" a merchant can see ----------------------------
+
+/** The text a merchant reads: tags, attribute values and entities out. */
+const visibleText = (markup: string) => markup.replace(/<[^>]*>/g, " ").replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+
+describe("PL-3: the Goals page", () => {
+  it("lists every goal with its share, target, this month and status, and each campaign with its goal or suggestion", () => {
+    const out = html(<GoalsBody rules={FIXTURE_RULES} preview results={FIXTURE_HOME.goals.items} />);
+    const text = visibleText(out);
+    expect(text).toContain("Your goals");
+    expect(text).toMatch(/Treks\s+Active/);
+    expect(text).toContain("70% · ₹14,000");
+    expect(text).toContain("30% · ₹6,000");
+    expect(text).toContain("₹450 each");
+    expect(out).toContain(">34<");
+    expect(text).toContain("Which goal does each campaign serve?");
+    // the campaign the merchant gave Treks, the one with a suggestion (pre-selected, marked), the one with none
+    expect(out).toMatch(/<option value="treks" selected="">Treks<\/option>/);
+    expect(text).toContain("Suggested");
+    expect(text).toContain('mentions "homestay"');
+    expect(out).toMatch(/<option value="stays" selected="">Stays<\/option>/);
+    // a preview cannot change anything
+    expect(out).toMatch(/<button[^>]*disabled=""[^>]*>Add goal<\/button>/);
+  });
+  it("a plan of one active goal offers no \"No goal\": that goal owns every campaign", () => {
+    const m = FIXTURE_RULES.mandate!;
+    const one = { ...m, goals: [{ ...m.goals[0]!, share: 1 }] };
+    const out = html(<GoalsBody rules={{ ...FIXTURE_RULES, mandate: one, campaigns: [{ ...FIXTURE_RULES.campaigns![0]!, how: "only" as const }] }} preview={false} />);
+    expect(out).not.toContain(">No goal<");
+  });
+  it("★PL-4: a scheduled or ended goal shows the api's day words as they are, and the end-date note sits on its goal", () => {
+    const text = visibleText(html(<GoalsBody rules={FIXTURE_RULES} preview results={FIXTURE_HOME.goals.items} />));
+    expect(text).toMatch(/Winter treks\s+Scheduled\s+1 Dec to 1 Feb/);
+    expect(text).toMatch(/Monsoon stays\s+Ended 15 Sep\s+Counts/);
+    const m = FIXTURE_RULES.mandate!;
+    const note = { id: "goal-ended-treks-2026-10-20", title: 'Your goal "Treks" reached its end date', detail: 'Your goal "Treks" reached its end date on 20 Oct. Add a new goal or extend this one; until then Peakhour will not raise spend.' };
+    const out = html(<GoalsBody rules={{ ...FIXTURE_RULES, mandate: { ...m, goals: [{ ...m.goals[0]!, note }, ...m.goals.slice(1)] } }} preview={false} />);
+    expect(out).toContain('data-note-id="goal-ended-treks-2026-10-20"');
+    expect(visibleText(out)).toContain("reached its end date on 20 Oct");
+  });
+  it("a plan with no goals yet points to First run", () => {
+    expect(visibleText(html(<GoalsBody rules={{ ...FIXTURE_RULES, mandate: undefined }} preview={false} />))).toContain("There is no plan yet.");
+  });
+  it("an ended goal shows as ended, with no Edit or End", () => {
+    const m = FIXTURE_RULES.mandate!;
+    const ended = { ...m, goals: [{ ...m.goals[0]!, share: 1 }, { ...m.goals[1]!, status: "done" as const, share: 0 }] };
+    const out = html(<GoalsBody rules={{ ...FIXTURE_RULES, mandate: ended }} preview={false} />);
+    expect(visibleText(out)).toMatch(/Stays\s+Ended/);
+    expect(out.match(/>Edit</g)).toHaveLength(1);
+  });
+});
+
+describe("PL-3: First run asks what the business sells first", () => {
+  const line = (id: string, label: string, matched: boolean, min?: number) => ({ id, label, matched, score: matched ? 1 : 0, why: matched ? `Your catalog has ${label}.` : "Nothing points to it yet.", offers: [OFFER_SALES], ...(min ? { minMonthlyBudget: min } : {}) });
+  const LINES_DRAFT: FirstRunDraftResponse = {
+    ...DRAFT,
+    lines: [line("flights", "Flights", true, 30000), line("hotels", "Hotels", false), line("holidays", "Holidays", true, 10000)],
+    campaigns: [
+      { campaignId: "meta:1", platform: "meta", name: "Cheap airfare", status: "active", suggestedLineId: "flights", why: 'Its name or targeting mentions "airfare".' },
+      { campaignId: "meta:2", platform: "meta", name: "Brand", status: "paused", why: "Nothing names a line." },
+    ],
+  };
+
+  it("★pre-ticks the matched lines, drafts one goal each, suggests the split and asks each target, then gives the campaigns their goals", () => {
+    const out = html(<FirstRunView {...firstRun({ draft: LINES_DRAFT })} />);
+    const text = visibleText(out);
+    expect(text).toContain("What do you sell?");
+    expect(out.match(/type="checkbox"[^>]*checked=""/g)).toHaveLength(2);
+    expect(text).toContain("One goal for each");
+    // the suggested split: 30,000 : 10,000 of the minimums
+    expect(out).toContain('id="first-run-share-flights"');
+    expect(out).toMatch(/id="first-run-share-flights"[^>]*value="75"/);
+    expect(out).toMatch(/id="first-run-share-holidays"[^>]*value="25"/);
+    expect(text).toContain("₹45,000");
+    expect(text).toContain("Each goal's target");
+    expect(out).toContain('id="first-run-target-flights"');
+    expect(out).not.toContain('id="first-run-target-hotels"');
+    // the three-question form is not shown beside it
+    expect(text).not.toContain("What do you want more of?");
+    expect(text).toContain("Which goal does each campaign serve?");
+    expect(out).toMatch(/<option value="flights" selected="">Flights<\/option>/);
+  });
+  it("one line ticked: one goal, no split, no campaign step", () => {
+    const out = html(<FirstRunView {...firstRun({ draft: LINES_DRAFT, answers: { ...EMPTY_ANSWERS, ceiling: "60000", lines: ["hotels"] } })} />);
+    const text = visibleText(out);
+    expect(text).toContain("Your goal");
+    expect(out).not.toContain("first-run-share-");
+    expect(text).not.toContain("Which goal does each campaign serve?");
+  });
+  it("a playbook without lines skips the step: the three questions, as before", () => {
+    const text = visibleText(html(<FirstRunView {...firstRun()} />));
+    expect(text).not.toContain("What do you sell?");
+    expect(text).toContain("What do you want more of?");
+  });
+});
+
+describe("PL-3: no merchant-visible \"mandate\"", () => {
+  it("★none of the Growth pages' rendered text says mandate", () => {
+    const LINED: FirstRunDraftResponse = { ...DRAFT, lines: [{ id: "flights", label: "Flights", matched: true, score: 1, why: "x", offers: [OFFER_SALES] }] };
+    const pages = {
+      home: html(<HomeBody result={{ data: FIXTURE_HOME, preview: true, row: "H1", ...seriesFromHome(FIXTURE_HOME) }} openDecisions={3} />),
+      guardrails: html(withClient(<RulesBody rules={FIXTURE_RULES} preview />)),
+      guardrailsOff: html(withClient(<RulesBody rules={{ ...FIXTURE_RULES, mandate: undefined }} preview={false} />)),
+      goals: html(<GoalsBody rules={FIXTURE_RULES} preview results={FIXTURE_HOME.goals.items} />),
+      firstRun: html(<FirstRunView {...firstRun()} />),
+      firstRunLines: html(<FirstRunView {...firstRun({ draft: LINED })} />),
+      firstRunActive: html(<FirstRunView {...firstRun({ draft: { ...DRAFT, alreadyActive: true } })} />),
+      ...Object.fromEntries(FIXTURE_DECISIONS.decisions.map((d) => [`decision ${d.id}`, html(withClient(<DecisionCard decision={d} currency="INR" unit={{ one: "booking", many: "bookings" }} now={PREVIEW_NOW} />))])),
+    };
+    for (const [name, out] of Object.entries(pages)) expect(visibleText(out), name).not.toMatch(/mandate/i);
+    // the words a decision's kind and status are shown in
+    expect([...Object.values(KIND_LABEL), ...Object.values(STATUS_LABEL)].filter((w) => /mandate/i.test(w))).toEqual([]);
   });
 });

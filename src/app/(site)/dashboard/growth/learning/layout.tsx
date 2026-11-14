@@ -5,7 +5,7 @@ import { LEARNING_TABS } from "@/lib/growth-v2-nav";
 export default function LearningLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="space-y-4">
-      <GrowthSubTabs tabs={LEARNING_TABS} label="Learning" />
+      <GrowthSubTabs tabs={LEARNING_TABS} label="What's working" />
       {children}
     </div>
   );

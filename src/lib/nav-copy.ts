@@ -157,6 +157,11 @@ export const SUB_COPY: Record<string, NavCopy> = {
     description: "What Peakhour has learned from your results so far.",
     aliases: ["Learning"],
   },
+  "/dashboard/growth/goals": {
+    label: "Goals",
+    description: "What your plan is for, each goal's share and target.",
+    aliases: [],
+  },
   "/dashboard/growth/rules": {
     label: "Guardrails",
     description: "The limits and preferences Peakhour must follow.",

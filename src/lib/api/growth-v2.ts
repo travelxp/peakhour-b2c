@@ -54,7 +54,53 @@ export interface MandateOutcome {
 
 export type MandateTarget = { kind: "cost_per_outcome"; value: number } | { kind: "roas"; value: number };
 
+/** One goal of the plan (PL-2), as the screens see it. */
+export interface MandateGoalView {
+  goalId: string;
+  /** PL-3: its name in words (the focus's label, the line, else the kind). */
+  label: string;
+  /** The playbook line it serves. */
+  lineId?: string;
+  outcome: MandateOutcome;
+  perMonth?: number;
+  /** Its fraction of the monthly ceiling. */
+  share: number;
+  /** `share x monthlyCeiling` while active; 0 for a scheduled or done goal. */
+  monthlyBudget: number;
+  target: MandateTarget;
+  targetSource: "playbook" | "merchant";
+  status: "active" | "scheduled" | "done";
+  phase?: "awareness" | "conversion" | "retention";
+  startsAt?: string;
+  endsAt?: string;
+  /** PL-3: the campaigns the merchant gave this goal (`platform:platformCampaignId`); absent when none. */
+  campaignIds?: string[];
+  /** PL-4: its days in words on the business calendar ("Starts 1 Nov", "1 to 31 Dec", "Ended 15 Nov"); shown as it is, never re-formatted. */
+  dayWords?: string;
+  /** PL-4: the "goal reached its end date" Needs You row about this goal (`goal-ended-<goalId>-<endDay>`). */
+  note?: { id: string; title: string; detail: string };
+}
+
+/**
+ * One of the business's campaigns on the Goals page (PL-3). `assigned` is the merchant's own answer; `trail` the goal of the
+ * latest decision that acted on it; `only` the plan's one active goal; `unknown` none, and the engine moves none of its money.
+ * `suggested` is shown pre-selected for a campaign no goal names, and applied only when the merchant saves.
+ */
+export interface GoalCampaignView {
+  campaignId: string;
+  platform: AdPlatform;
+  name: string;
+  status: "active" | "paused";
+  goalId?: string;
+  how: "assigned" | "trail" | "only" | "unknown";
+  suggested?: { goalId: string; why: string };
+}
+
 export interface MandateView {
+  /** PL-2: every goal of the plan, in the plan's order. The Goals page reads these. */
+  goals: MandateGoalView[];
+  /** The primary goal (the active goal with the largest share): the one the four single-goal fields below describe. */
+  goalId: string;
   outcome: MandateOutcome;
   goal?: { perMonth: number };
   currency: string;
@@ -106,6 +152,22 @@ export interface HomeSpendPoint {
 
 export type HomeFeedKind = "budget" | "pause" | "creative" | "blocked" | "change" | "check";
 
+/** One goal of the plan on Home (PL-2). */
+export interface HomeGoal {
+  goalId: string;
+  label: string;
+  kind: OutcomeKind;
+  status: "active" | "scheduled";
+  share: number;
+  monthlyBudget: Money;
+  target: MandateTarget;
+  perMonth?: number;
+  /** Its outcomes this calendar month so far. */
+  soFar: Figure;
+  /** The goal the headline describes. */
+  primary: boolean;
+}
+
 export interface HomeResponse {
   /** The window the figures cover, on the business clock; `to` is exclusive. */
   window: { key: HomeWindowKey; from: string; to: string; days: number; compare: HomeCompare };
@@ -140,6 +202,8 @@ export interface HomeResponse {
   waterfallBasis: { basis: string } | { absent: string };
   funnel: { stages: Array<{ key: string; label: string; figure: Figure }>; basis: string };
   feed: Array<{ at: string; kind: HomeFeedKind; title: string; detail?: string; decisionId?: string }>;
+  /** PL-2: every active or scheduled goal with this month's outcomes, and their total (absent with the reason when they count different things). */
+  goals: { items: HomeGoal[]; monthSoFar: Figure };
 }
 
 // -- Decisions (H2 reads, C5 acts) ------------------------------------------------------
@@ -203,6 +267,8 @@ export interface DecisionStepView {
 export interface DecisionView {
   id: string;
   kind: DecisionKind;
+  /** PL-2: the plan goal it acts for (`MandateView.goals[].goalId`); absent on a plan-wide kind and on one from before goals. */
+  goalId?: string;
   source: { engine: string; refId?: string };
   title: string;
   summary: string;
@@ -428,6 +494,8 @@ export interface RulesResponse {
   neverCrossed: string[];
   /** A mandate change waiting for its signed link and code; absent when none is. */
   pendingChange?: { decisionId: string; summary: string; expiresAt: string };
+  /** PL-3: the live and paused campaigns and the goal each serves; absent with no plan. */
+  campaigns?: GoalCampaignView[];
 }
 
 export type SignalStateView = "ready" | "untracked_accepted" | "needed" | "needs_primary_goal" | "not_connected";
@@ -448,11 +516,33 @@ export interface GuardrailsPatch {
   timeZone?: string;
 }
 
+/** A goal to add (PL-2): its target may be left to the playbook's default for its outcome. */
+export interface GoalAdd {
+  lineId?: string;
+  outcome: { kind: OutcomeKind; source: OutcomeSource; focus?: NonNullable<MandateOutcome["focus"]>; optimizeFor?: "count" | "value" };
+  perMonth?: number;
+  share: number;
+  target?: MandateTarget;
+  targetSource?: "playbook" | "merchant";
+}
+
 /** The mandate edit of `PATCH /rules`: it never writes the mandate, it sends a confirmation link. */
 export interface MandatePatch {
+  /** The goal an `outcome` or `target` change is for. The Goals page always names it. */
+  goalId?: string;
   outcome?: { kind: OutcomeKind; source: OutcomeSource; focus?: NonNullable<MandateOutcome["focus"]>; optimizeFor?: "count" | "value" };
   monthlyCeiling?: number;
   target?: MandateTarget;
+  /** A new goal, listed last. */
+  add?: GoalAdd;
+  /** Goals that end: each stays in the plan as done. */
+  end?: string[];
+  /** Every goal, in the order to list them. */
+  order?: string[];
+  /** Each named goal's share of the ceiling; the active goals' shares must add up to 1. */
+  shares?: Record<string, number>;
+  /** PL-3: campaigns given to a goal, or to none (no `goalId`). */
+  assign?: Array<{ campaignId: string; goalId?: string }>;
 }
 
 export type RulesPatchBody = { guardrails: GuardrailsPatch } | { mandate: MandatePatch };
@@ -519,22 +609,60 @@ export interface FirstRunDraftResponse {
   timeZone: { value: string } | { absent: string; suggested?: string };
   offers: DraftOffer[];
   askAboutStores: boolean;
-  playbook?: { id: string; version: number; title: string };
+  /** `line` is the business's own line (PL-1). */
+  playbook?: { id: string; version: number; title: string; line?: { id: string; label: string } };
   /** More than one playbook fits equally: ask "Which best describes you?" and send the answer back as `playbookId`. */
   tie?: { candidates: Array<{ playbookId: string; version: number; title: string }> };
   channels: DraftChannel[];
   ceilingBands: { currency: string; bands: Array<{ key: "starter" | "steady" | "growth"; amount: number }> } | { absent: string };
   excludedByGuardrails: AdPlatform[];
+  /** PL-3: "What do you sell?": every line of the playbook, scored. Absent when it has none: one goal, as before. */
+  lines?: DraftLine[];
+  /** PL-3: the campaigns, each with the line its words suggest, for the last step. */
+  campaigns?: DraftCampaign[];
+}
+
+/** One line of the playbook on First run (PL-3). */
+export interface DraftLine {
+  id: string;
+  label: string;
+  /** Any evidence the business sells it: pre-ticked. */
+  matched: boolean;
+  score: number;
+  why: string;
+  /** The outcomes it may be measured on, with its own default targets. */
+  offers: DraftOffer[];
+  /** Its minimum monthly budget in the plan's currency, for the suggested split. */
+  minMonthlyBudget?: number;
+}
+
+export interface DraftCampaign {
+  campaignId: string;
+  platform: AdPlatform;
+  name: string;
+  status: "active" | "paused";
+  /** The line its name or targeting points to; absent on a tie or no hit. */
+  suggestedLineId?: string;
+  why: string;
+}
+
+/** One goal of the plan First run sends (PL-2). The server names it. */
+export interface ConfirmGoal {
+  lineId?: string;
+  outcome: MandateOutcome;
+  perMonth?: number;
+  share: number;
+  target: MandateTarget;
+  targetSource: "playbook" | "merchant";
+  /** PL-3: the campaigns given to this goal at First run's last step. */
+  campaignIds?: string[];
 }
 
 /** The plan `POST /onboarding/confirm` validates (W1) and stores pending until its link and code are accepted. */
 export interface ConfirmPlanBody {
-  outcome: MandateOutcome;
-  goal?: { perMonth: number };
+  goals: ConfirmGoal[];
   currency: string;
   monthlyCeiling: number;
-  target: MandateTarget;
-  targetSource: "playbook" | "merchant";
   playbook?: { id: string; version: number };
   approvers?: string[];
 }

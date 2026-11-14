@@ -40,6 +40,8 @@ const BEFORE_SUBS = [
   "/dashboard/growth/channels",
   "/dashboard/growth/learning",
   "/dashboard/growth/rules",
+  // PL-3 (2026-11-14): Growth -> Goals, a new screen the plan names.
+  "/dashboard/growth/goals",
   "/dashboard/growth/start",
   "/dashboard/commerce",
   "/dashboard/commerce/channels",

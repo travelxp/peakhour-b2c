@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { ApiError } from "@/lib/api";
-import type { DraftOffer, FirstRunDraftResponse } from "@/lib/api/growth-v2";
+import type { DraftLine, DraftOffer, FirstRunDraftResponse } from "@/lib/api/growth-v2";
 import {
   EMPTY_ANSWERS,
+  asksForCampaigns,
   buildPlanBody,
+  campaignLine,
+  chosenLines,
+  lineShares,
+  suggestedShares,
   ceilingChips,
   parseAmount,
   planBlockedReason,
@@ -122,21 +127,27 @@ describe("the target", () => {
 describe("the plan that is sent", () => {
   it("carries the outcome, the focus, the ceiling, the target and the pinned playbook", () => {
     const body = buildPlanBody(draft(), answers({ focus: "Kurtas", ceiling: "75,000" }))!;
+    // a playbook with no lines: one goal with all of the ceiling
     expect(body).toEqual({
-      outcome: { kind: "sales", source: "orders", optimizeFor: "value", focus: { by: "product_type", values: ["Kurtas", "Kurta Sets"], label: "Kurtas" } },
+      goals: [
+        {
+          outcome: { kind: "sales", source: "orders", optimizeFor: "value", focus: { by: "product_type", values: ["Kurtas", "Kurta Sets"], label: "Kurtas" } },
+          share: 1,
+          target: { kind: "roas", value: 2.5 },
+          targetSource: "playbook",
+        },
+      ],
       currency: "INR",
       monthlyCeiling: 75000,
-      target: { kind: "roas", value: 2.5 },
-      targetSource: "playbook",
       playbook: { id: "growth-ecommerce-d2c", version: 3 },
     });
   });
 
   it("has no focus for an outcome counted from a win or an ads conversion, and a merchant's own target is marked so", () => {
     const body = buildPlanBody(draft(), answers({ offer: "leads:win_definition", focus: "Sarees", target: "420" }))!;
-    expect(body.outcome).toEqual({ kind: "leads", source: "win_definition", optimizeFor: "count" });
-    expect(body.target).toEqual({ kind: "cost_per_outcome", value: 420 });
-    expect(body.targetSource).toBe("merchant");
+    expect(body.goals[0]!.outcome).toEqual({ kind: "leads", source: "win_definition", optimizeFor: "count" });
+    expect(body.goals[0]!.target).toEqual({ kind: "cost_per_outcome", value: 420 });
+    expect(body.goals[0]!.targetSource).toBe("merchant");
   });
 
   it("is never built without an answer, a playbook, a clock or a currency", () => {
@@ -186,5 +197,90 @@ describe("a failed send", () => {
     expect(sendErrorMessage(new ApiError("VALIDATION_ERROR", "raw", 400))).toMatch(/ceiling and the target/);
     expect(sendErrorMessage(new ApiError("SOMETHING_ELSE", "stack trace goes here", 500))).not.toMatch(/stack trace/);
     expect(sendErrorMessage(new TypeError("Failed to fetch"))).toMatch(/Try again/);
+  });
+});
+
+// -- PL-3: "What do you sell?" ---------------------------------------------------------------
+
+const line = (id: string, label: string, over: Partial<DraftLine> = {}): DraftLine => ({ id, label, matched: false, score: 0, why: "", offers: [LEADS], ...over });
+const FLIGHTS = line("flights", "Flights", { matched: true, score: 1, minMonthlyBudget: 30000 });
+const HOTELS = line("hotels", "Hotels", { minMonthlyBudget: 20000 });
+const HOLIDAYS = line("holidays", "Holidays", { matched: true, score: 1, minMonthlyBudget: 10000, offers: [{ ...LEADS, defaultTarget: { kind: "cost_per_outcome", value: 900, low: 300, high: 3000, currency: "INR" } }] });
+const travel = (over: Partial<FirstRunDraftResponse> = {}) => draft({ playbook: { id: "growth-travel-india", version: 2, title: "Travel" }, lines: [FLIGHTS, HOTELS, HOLIDAYS], ...over });
+
+describe("PL-3: one goal per line the business sells", () => {
+  it("★two lines: a travel business selling flights and holidays has both pre-ticked and gets two goals whose shares sum to 1", () => {
+    const d = travel();
+    expect(chosenLines(d, {}).map((l) => l.id)).toEqual(["flights", "holidays"]);
+    const body = buildPlanBody(d, answers({ ceiling: "50000" }))!;
+    expect(body.goals.map((g) => [g.lineId, g.share, g.target, g.targetSource])).toEqual([
+      ["flights", 0.75, { kind: "cost_per_outcome", value: 350 }, "playbook"],
+      ["holidays", 0.25, { kind: "cost_per_outcome", value: 900 }, "playbook"],
+    ]);
+    expect(body.goals.reduce((t, g) => t + g.share, 0)).toBeCloseTo(1, 9);
+    expect(body).toMatchObject({ currency: "INR", monthlyCeiling: 50000, playbook: { id: "growth-travel-india", version: 2 } });
+    expect(body).not.toHaveProperty("outcome");
+  });
+  it("one line ticked gives one goal with all of the ceiling", () => {
+    const body = buildPlanBody(travel(), answers({ lines: ["hotels"] }))!;
+    expect(body.goals).toEqual([{ lineId: "hotels", outcome: { kind: "leads", source: "win_definition", optimizeFor: "count" }, share: 1, target: { kind: "cost_per_outcome", value: 350 }, targetSource: "playbook" }]);
+  });
+  it("a playbook without lines skips the step: no line is chosen and the plan is one goal, as before", () => {
+    expect(chosenLines(draft(), {})).toEqual([]);
+    expect(buildPlanBody(draft(), answers())!.goals).toHaveLength(1);
+    expect(buildPlanBody(draft(), answers())!.goals[0]).not.toHaveProperty("lineId");
+  });
+  it("each goal has its own outcome and its own typed target", () => {
+    const body = buildPlanBody(travel({ lines: [FLIGHTS, { ...HOLIDAYS, offers: [LEADS, SALES] }] }), answers({ goals: { holidays: { offer: "sales:orders", target: "4" } } }))!;
+    expect(body.goals[1]).toMatchObject({ lineId: "holidays", outcome: { kind: "sales", optimizeFor: "value" }, target: { kind: "roas", value: 4 }, targetSource: "merchant" });
+    expect(body.goals[0]).toMatchObject({ lineId: "flights", outcome: { kind: "leads" } });
+  });
+
+  it("suggestedShares: in proportion to each line's minimum budget, else even; whole percentages adding up to 100", () => {
+    expect(suggestedShares([FLIGHTS, HOLIDAYS])).toEqual({ flights: 75, holidays: 25 });
+    expect(suggestedShares([FLIGHTS, HOTELS, HOLIDAYS])).toEqual({ flights: 50, hotels: 33, holidays: 17 });
+    expect(suggestedShares([FLIGHTS, line("x", "X")])).toEqual({ flights: 50, x: 50 }); // one has no minimum: even
+    expect(suggestedShares([line("a", "A"), line("b", "B"), line("c", "C")])).toEqual({ a: 34, b: 33, c: 33 });
+    expect(suggestedShares([FLIGHTS])).toEqual({ flights: 100 });
+    expect(suggestedShares([])).toEqual({});
+  });
+  it("★shares the merchant types must add up to 100; an unreadable box blocks", () => {
+    const d = travel();
+    expect(planBlockedReason(d, answers({ shares: { flights: "60", holidays: "30" } }), true)).toMatch(/add up to 90%/);
+    expect(planBlockedReason(d, answers({ shares: { flights: "60", holidays: "abc" } }), true)).toMatch(/share of the ceiling/);
+    expect(planBlockedReason(d, answers({ shares: { flights: "60", holidays: "40" } }), true)).toBeUndefined();
+    expect(planBlockedReason(d, answers({ shares: { flights: "100", holidays: "0" } }), true)).toMatch(/Holidays has no share/);
+    expect(buildPlanBody(d, answers({ shares: { flights: "60", holidays: "40" } }))!.goals.map((g) => g.share)).toEqual([0.6, 0.4]);
+    expect(lineShares(d, answers({ shares: { flights: "60" } }))).toEqual({ flights: 60, holidays: 25 });
+    expect(lineShares(d, answers({ shares: { flights: "150", holidays: "-50" } }))).toEqual({ flights: undefined, holidays: undefined });
+  });
+  it("FAIL: no line ticked, more than six, a line with nothing to measure, a missing target", () => {
+    expect(planBlockedReason(travel(), answers({ lines: [] }), true)).toBe("Tick at least one thing you sell.");
+    const seven = Array.from({ length: 7 }, (_, i) => line(`l${i}`, `L${i}`, { matched: true }));
+    expect(planBlockedReason(travel({ lines: seven }), answers(), true)).toMatch(/at most 6 goals/);
+    expect(planBlockedReason(travel({ lines: [FLIGHTS, { ...HOLIDAYS, offers: [] }] }), answers(), true)).toMatch(/Nothing can be measured for Holidays/);
+    expect(planBlockedReason(travel(), answers({ goals: { flights: { target: "" } } }), true)).toMatch(/for Flights/);
+    expect(buildPlanBody(travel(), answers({ lines: [] }))).toBeUndefined();
+  });
+
+  it("★the campaigns go to the chosen goals: the merchant's pick, else the suggestion when that line is chosen, else none", () => {
+    const d = travel({
+      campaigns: [
+        { campaignId: "meta:1", platform: "meta", name: "Airfare", status: "active", suggestedLineId: "flights", why: "" },
+        { campaignId: "meta:2", platform: "meta", name: "Hotels", status: "active", suggestedLineId: "hotels", why: "" },
+        { campaignId: "meta:3", platform: "meta", name: "Brand", status: "active", why: "" },
+      ],
+    });
+    expect(asksForCampaigns(d, answers())).toBe(true);
+    expect(campaignLine(d, answers(), "meta:1")).toBe("flights");
+    expect(campaignLine(d, answers(), "meta:2")).toBe(""); // hotels is not chosen
+    expect(campaignLine(d, answers(), "meta:3")).toBe("");
+    const body = buildPlanBody(d, answers({ campaigns: { "meta:3": "holidays" } }))!;
+    expect(body.goals.map((g) => [g.lineId, g.campaignIds])).toEqual([["flights", ["meta:1"]], ["holidays", ["meta:3"]]]);
+    // the merchant can give a suggested campaign to no goal
+    expect(buildPlanBody(d, answers({ campaigns: { "meta:1": "" } }))!.goals.every((g) => g.campaignIds === undefined)).toBe(true);
+    // one goal owns every campaign implicitly: none are named, and the step is not asked
+    expect(asksForCampaigns(d, answers({ lines: ["flights"] }))).toBe(false);
+    expect(buildPlanBody(d, answers({ lines: ["flights"] }))!.goals[0]).not.toHaveProperty("campaignIds");
   });
 });
