@@ -196,7 +196,7 @@ describe("PL-9: a draft from a sentence fills the Add goal form", () => {
     const ok = parsed();
     expect(unfilledOf(ok, formFromParsed(ok, lines, []))).toEqual([]);
     const noLine = parsed({ lineId: "cruises" });
-    expect(unfilledOf(noLine, formFromParsed(noLine, lines, [BOOKINGS]))).toEqual(["what you want more of"]);
+    expect(unfilledOf(noLine, formFromParsed(noLine, lines, [BOOKINGS]))).toEqual(["what it is for", "what you want more of"]);
     const named = parsed({ lineId: "flights", outcome: { kind: "sales", source: "orders", optimizeFor: "value" }, target: { kind: "roas", value: 4 } });
     expect(unfilledOf(named, formFromParsed(named, lines, []))).toEqual(["what you want more of"]);
     const wrongKind = parsed({ target: { kind: "roas", value: 4 } });
