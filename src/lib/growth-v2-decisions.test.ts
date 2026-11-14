@@ -9,6 +9,7 @@ import {
   describeImpact,
   describeOp,
   isSpendDecision,
+  KIND_LABEL,
   queueTab,
   tabCounts,
   undoOpenUntil,
@@ -220,5 +221,12 @@ describe("describeOp units", () => {
 
   it("prints a zero bound of a cost change without a plus sign", () => {
     expect(describeImpact({ metric: "cost_per_outcome", low: 0, high: 40, confidence: 0.5, horizonDays: 7 }, "INR", { one: "lead", many: "leads" }).range).toBe("\u20B90 to +\u20B940");
+  });
+});
+
+describe("PL-4: a seasonal goal or a phase move reads as a change to the plan", () => {
+  it("the kind a merchant sees on a plan change says plan, never mandate (the engine proposes goals over time as plan changes)", () => {
+    expect(KIND_LABEL.mandate_change).toBe("Plan change");
+    for (const label of Object.values(KIND_LABEL)) expect(label).not.toMatch(/mandate|intent|council|strategist/i);
   });
 });

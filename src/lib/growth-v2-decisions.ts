@@ -50,7 +50,7 @@ export const KIND_LABEL: Record<DecisionKind, string> = {
   campaign_pause: "Pause",
   playbook_upgrade: "Playbook",
   autonomy_change: "Autonomy",
-  mandate_change: "Mandate",
+  mandate_change: "Plan change",
   channel_add: "New channel",
   content_adjustment: "Content",
 };
