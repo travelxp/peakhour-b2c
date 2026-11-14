@@ -37,6 +37,7 @@ import {
   rebalance,
   resultOf,
   sharesAfterAdd,
+  unfilledOf,
   type GoalAddForm,
   type GoalEditForm,
 } from "@/lib/growth-v2-goals";
@@ -356,7 +357,11 @@ function AddGoalDialog({ m, onClose }: { m: MandateView; onClose: () => void }) 
   const chosen: GoalAddForm = { ...form, offer: offer ? offerKey(offer) : "" };
   const pct = parsePct(form.share);
   // PL-9: a draft from a sentence only fills the form; nothing is sent until the merchant presses the dialog's own button.
-  const fill = (goal: GoalParseResponse["goal"]) => setForm(formFromParsed(goal, lines, draft?.offers ?? []));
+  const fill = (goal: GoalParseResponse["goal"]): string[] => {
+    const next = formFromParsed(goal, lines, draft?.offers ?? []);
+    setForm(next);
+    return unfilledOf(goal, next);
+  };
   return (
     <PlanChangeDialog title="Add a goal" build={() => addGoalPatch(m, chosen, offers)} onClose={onClose}>
       {!draft ? <p className="text-sm text-muted-foreground">Loading what your business can be measured on.</p> : null}

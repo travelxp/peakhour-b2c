@@ -103,6 +103,15 @@ export interface GoalAddForm {
   timing?: { status: "active" | "scheduled"; startsAt?: string; endsAt?: string };
 }
 
+/** PL-9: what a draft named that the form could not take, in the form's own words (empty when it all fitted). */
+export function unfilledOf(goal: GoalParseResponse["goal"], form: GoalAddForm): string[] {
+  const out: string[] = [];
+  if (goal.lineId !== undefined && form.lineId === "") out.push("what it is for");
+  if (form.offer === "") out.push("what you want more of");
+  if (goal.target !== undefined && form.target === "" && form.offer !== "") out.push("the target");
+  return out;
+}
+
 /**
  * PL-9: the Add goal form as a draft goal fills it. The draft is only ever a suggestion for the form (nothing is sent): a line the
  * plan's playbook has is chosen, an outcome the form offers on it is chosen, a target is kept only when it is of the kind that

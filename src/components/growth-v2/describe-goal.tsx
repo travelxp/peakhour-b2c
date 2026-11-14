@@ -65,8 +65,9 @@ export function describeErrorLine(err: unknown): { text: string; topUp: boolean 
   }
 }
 
-export function DescribeGoal({ ready, onDraft }: { ready: boolean; onDraft: (goal: GoalParseResponse["goal"]) => void }) {
+export function DescribeGoal({ ready, onDraft }: { ready: boolean; onDraft: (goal: GoalParseResponse["goal"]) => string[] }) {
   const [text, setText] = useState("");
+  const [unfilled, setUnfilled] = useState<string[]>([]);
   const queryClient = useQueryClient();
   const { org, orgs } = useAuth();
   const role = orgs?.find((o) => o._id === org?._id)?.role;
@@ -84,7 +85,7 @@ export function DescribeGoal({ ready, onDraft }: { ready: boolean; onDraft: (goa
       { text: trimmed, ...quoteTokenFor(price) },
       {
         onSuccess: (r) => {
-          onDraft(r.goal);
+          setUnfilled(onDraft(r.goal));
           // The receipt that was shown has been used: the next press reads a fresh one.
           void queryClient.invalidateQueries({ queryKey: ["peaks-quote"] });
         },
@@ -144,7 +145,9 @@ export function DescribeGoal({ ready, onDraft }: { ready: boolean; onDraft: (goa
       {parse.isSuccess ? (
         <div role="status" className="grid gap-1 rounded-lg border border-success/30 bg-success/10 p-3 text-sm">
           <p className="font-medium">{parse.data.restatement}</p>
-          <p className="text-xs text-muted-foreground">We filled in the form below. Check it, change anything, then send it for confirmation.</p>
+          <p className="text-xs text-muted-foreground">
+            {unfilled.length > 0 ? `We filled in the form below, except ${unfilled.join(" and ")}: choose that yourself.` : "We filled in the form below."} Check it, change anything, then send it for confirmation.
+          </p>
         </div>
       ) : null}
 

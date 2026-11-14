@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DraftOffer, GoalCampaignView, MandateGoalView, MandateView } from "@/lib/api/growth-v2";
 import { FIXTURE_RULES } from "@/lib/growth-v2-fixtures";
-import { activeGoals, addGoalPatch, assignPatch, editFormOf, editGoalPatch, endGoalPatch, formFromParsed, goalUnit, preselected, rebalance, sharesAfterAdd } from "./growth-v2-goals";
+import { activeGoals, addGoalPatch, assignPatch, editFormOf, editGoalPatch, endGoalPatch, formFromParsed, unfilledOf, goalUnit, preselected, rebalance, sharesAfterAdd } from "./growth-v2-goals";
 
 /**
  * PL-3: the Goals page's actions, each one `PATCH /rules` body.
@@ -190,6 +190,20 @@ describe("PL-9: a draft from a sentence fills the Add goal form", () => {
     expect(formFromParsed(parsed({ status: "scheduled", startsAt: "2026-11-30T18:30:00.000Z" }), lines, []).timing).toEqual({ status: "scheduled", startsAt: "2026-11-30T18:30:00.000Z" });
     expect(formFromParsed(parsed({ endsAt: "2026-12-31T18:30:00.000Z" }), lines, []).timing).toEqual({ status: "active", endsAt: "2026-12-31T18:30:00.000Z" });
     expect(formFromParsed(parsed(), lines, [])).not.toHaveProperty("timing");
+  });
+
+  it("unfilledOf names what the draft said and the form could not take", () => {
+    const ok = parsed();
+    expect(unfilledOf(ok, formFromParsed(ok, lines, []))).toEqual([]);
+    const noLine = parsed({ lineId: "cruises" });
+    expect(unfilledOf(noLine, formFromParsed(noLine, lines, [BOOKINGS]))).toEqual(["what you want more of"]);
+    const named = parsed({ lineId: "flights", outcome: { kind: "sales", source: "orders", optimizeFor: "value" }, target: { kind: "roas", value: 4 } });
+    expect(unfilledOf(named, formFromParsed(named, lines, []))).toEqual(["what you want more of"]);
+    const wrongKind = parsed({ target: { kind: "roas", value: 4 } });
+    expect(unfilledOf(wrongKind, formFromParsed(wrongKind, lines, []))).toEqual(["the target"]);
+    // a line the plan has none of, but named: the merchant picks it
+    const lineless = parsed();
+    expect(unfilledOf(lineless, { lineId: "", offer: "bookings:orders", target: "1500", share: "20" })).toEqual(["what it is for"]);
   });
 
   const m = plan([goal("flights", 0.6), goal("hotels", 0.4)]);
