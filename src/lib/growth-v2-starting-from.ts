@@ -44,6 +44,8 @@ const INDUSTRY_WORD: Record<string, string> = {
 
 export function startingFromWords(from: StartingFrom | undefined): string | undefined {
   if (!from) return undefined;
+  // PL-5: a guess carries its own sentence, written for the merchant.
+  if (from.reason) return from.reason;
   switch (from.layer) {
     case "own":
       return "Starting from your own results";

@@ -228,6 +228,7 @@ export function FirstRunView(p: FirstRunViewProps) {
   const shownTarget = p.typedTarget ?? (resolved ? String(resolved.target.value) : "");
   const hasStoreOffer = draft.offers.some((o) => o.kind === "store_visits");
   const splitWords = startingFromWords(draft.channels[0]?.startingFrom);
+  const guessWords = startingFromWords(draft.startingFrom);
 
   return (
     <>
@@ -364,6 +365,7 @@ export function FirstRunView(p: FirstRunViewProps) {
             {splitWords ? `${splitWords}. ` : `Drafted from the ${draft.playbook?.title} playbook. `}
             {draft.channels[0]?.startingFrom?.layer === "own" ? "" : "Your own data takes over from about week 4."}
           </CardDescription>
+          {guessWords ? <p className="pt-1 text-xs text-muted-foreground">{guessWords}</p> : null}
         </CardHeader>
         <CardContent className="divide-y">
           {draft.channels.length === 0 ? <p className="py-3 text-sm text-muted-foreground">The playbook has no channel to start with for this business.</p> : null}

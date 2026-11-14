@@ -478,6 +478,8 @@ export interface StartingFrom {
   band?: string;
   industry?: string;
   label?: string;
+  /** PL-5: the whole sentence for a plan that starts from a guess (its business type has no plan yet); shown as it is. */
+  reason?: string;
 }
 
 export interface DraftOffer {
@@ -508,6 +510,8 @@ export interface DraftChannel {
 }
 
 export interface FirstRunDraftResponse {
+  /** PL-5: present while the business type waits for the team: every number starts from a broader plan. Show `reason` as it is. */
+  startingFrom?: StartingFrom;
   /** True when the business already has a mandate: the plan is changed from Rules, not drafted again. */
   alreadyActive: boolean;
   currency?: string;

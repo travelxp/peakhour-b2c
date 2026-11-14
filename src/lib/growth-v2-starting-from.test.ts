@@ -46,6 +46,11 @@ describe("startingFromWords", () => {
     expect(startingFromWords({ layer: "everyone", band: "100+", industry: "travel" })).toBe("Starting guess");
   });
 
+  it("a guess carries its own sentence (PL-5), whatever layer it names", () => {
+    expect(startingFromWords({ layer: "playbook", reason: "Peakhour has no plan yet for a business like yours." })).toBe("Peakhour has no plan yet for a business like yours.");
+    expect(startingFromWords({ layer: "everyone", reason: "Our general plan." })).toBe("Our general plan.");
+  });
+
   it("says nothing when the api sent nothing", () => {
     expect(startingFromWords(undefined)).toBeUndefined();
   });

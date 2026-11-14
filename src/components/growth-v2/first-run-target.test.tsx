@@ -125,6 +125,12 @@ describe("first run: where the starting numbers came from (PL-7)", () => {
     expect(plan).not.toContain("takes over from about week 4");
   });
 
+  it("a business type waiting for the team shows PL-5's own sentence on the plan", async () => {
+    h.override = (d) => ({ ...d, startingFrom: { layer: "playbook", reason: "Peakhour has no plan yet for a business like yours. These numbers are starting guesses." } });
+    await mount();
+    expect(document.getElementById("first-run-plan")!.textContent).toContain("Peakhour has no plan yet for a business like yours. These numbers are starting guesses.");
+  });
+
   it("a split from the playbook keeps the week-4 sentence, with the playbook named", async () => {
     h.override = (d) => ({ ...d, channels: [channel({ layer: "playbook", label: "Local" })] });
     await mount();
