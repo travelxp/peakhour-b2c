@@ -626,6 +626,12 @@ describe("PL-3: the Goals page", () => {
     // a preview cannot change anything
     expect(out).toMatch(/<button[^>]*disabled=""[^>]*>Add goal<\/button>/);
   });
+  it("a plan of one active goal offers no \"No goal\": that goal owns every campaign", () => {
+    const m = FIXTURE_RULES.mandate!;
+    const one = { ...m, goals: [{ ...m.goals[0]!, share: 1 }] };
+    const out = html(<GoalsBody rules={{ ...FIXTURE_RULES, mandate: one, campaigns: [{ ...FIXTURE_RULES.campaigns![0]!, how: "only" as const }] }} preview={false} />);
+    expect(out).not.toContain(">No goal<");
+  });
   it("a plan with no goals yet points to First run", () => {
     expect(visibleText(html(<GoalsBody rules={{ ...FIXTURE_RULES, mandate: undefined }} preview={false} />))).toContain("There is no plan yet.");
   });

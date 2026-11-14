@@ -144,7 +144,7 @@ export function GoalsBody({ rules, preview, results }: { rules: RulesResponse; p
           ) : (
             <ul className="divide-y" aria-label="Campaigns">
               {campaigns.map((c) => (
-                <CampaignRow key={c.campaignId} c={c} m={m} value={picks[c.campaignId] ?? preselected(c)} disabled={preview} onPick={(v) => setPicks({ ...picks, [c.campaignId]: v })} />
+                <CampaignRow key={c.campaignId} c={c} m={m} value={picks[c.campaignId] ?? preselected(c)} disabled={preview} noneAllowed={active.length > 1} onPick={(v) => setPicks({ ...picks, [c.campaignId]: v })} />
               ))}
             </ul>
           )}
@@ -238,7 +238,8 @@ const HOW: Record<GoalCampaignView["how"], string | undefined> = {
   unknown: undefined,
 };
 
-function CampaignRow({ c, m, value, disabled, onPick }: { c: GoalCampaignView; m: MandateView; value: string; disabled: boolean; onPick: (goalId: string) => void }) {
+/** `noneAllowed` is false in a plan of one active goal: it owns every campaign, so "No goal" could not stick. */
+function CampaignRow({ c, m, value, disabled, noneAllowed, onPick }: { c: GoalCampaignView; m: MandateView; value: string; disabled: boolean; noneAllowed: boolean; onPick: (goalId: string) => void }) {
   const suggestedShown = c.suggested !== undefined && value === c.suggested.goalId && namedGoal(m, c.campaignId) === "";
   const id = `campaign-goal-${c.campaignId}`;
   return (
@@ -260,7 +261,7 @@ function CampaignRow({ c, m, value, disabled, onPick }: { c: GoalCampaignView; m
         ) : null}
       </div>
       <select id={id} className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={value} disabled={disabled} onChange={(e) => onPick(e.target.value)}>
-        <option value="">No goal</option>
+        {noneAllowed || value === "" ? <option value="">No goal</option> : null}
         {m.goals
           .filter((g) => g.status !== "done" || g.goalId === value)
           .map((g) => (
