@@ -18,7 +18,7 @@ import {
 } from "@/lib/api/growth-v2";
 import { GROWTH_HOME } from "@/lib/growth-v2-nav";
 import { PLATFORM_LABEL, figureText, formatMoney } from "@/lib/growth-v2-figure";
-import { offerKey } from "@/lib/growth-v2-firstrun";
+import { GOAL_MAX, offerKey } from "@/lib/growth-v2-firstrun";
 import {
   STATUS_WORD,
   activeGoals,
@@ -107,7 +107,7 @@ export function GoalsBody({ rules, preview, results }: { rules: RulesResponse; p
             {formatMoney(m.monthlyCeiling, m.currency)} a month, split between {active.length === 1 ? "one goal" : `${active.length} goals`}. A change is confirmed on WhatsApp first.
           </CardDescription>
           <CardAction>
-            <Button type="button" size="sm" disabled={preview || m.goals.length >= 6} onClick={() => setOpen({ kind: "add" })}>
+            <Button type="button" size="sm" disabled={preview || m.goals.length >= GOAL_MAX} onClick={() => setOpen({ kind: "add" })}>
               Add goal
             </Button>
           </CardAction>
@@ -163,7 +163,7 @@ export function GoalsBody({ rules, preview, results }: { rules: RulesResponse; p
       {open?.kind === "end" ? <EndGoalDialog m={m} goal={open.goal} onClose={close} /> : null}
       {open?.kind === "add" ? <AddGoalDialog m={m} onClose={close} /> : null}
       {open?.kind === "campaigns" ? (
-        <PlanChangeDialog title="Give campaigns their goals" build={() => assignPatch(m, campaigns, picks)} onClose={close}>
+        <PlanChangeDialog title="Give campaigns their goals" build={() => assignPatch(m, campaigns, picks)} onSent={() => setPicks({})} onClose={close}>
           <ul className="grid gap-1 text-sm">
             {(changed?.assign ?? []).map((a) => (
               <li key={a.campaignId}>

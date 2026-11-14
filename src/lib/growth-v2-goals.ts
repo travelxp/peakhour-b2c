@@ -1,5 +1,5 @@
 import type { DraftOffer, Figure, GoalCampaignView, HomeGoal, MandateGoalView, MandatePatch, MandateTarget, MandateView, OutcomeKind } from "@/lib/api/growth-v2";
-import { offerKey, parseAmount, targetKindOf } from "@/lib/growth-v2-firstrun";
+import { GOAL_MAX, offerKey, parseAmount, targetKindOf } from "@/lib/growth-v2-firstrun";
 import { OUTCOME_UNIT, unitFor } from "@/lib/growth-v2-figure";
 
 /**
@@ -34,12 +34,17 @@ export function rebalance(goals: ReadonlyArray<Pick<MandateGoalView, "goalId" | 
   const rest = goals.filter((g) => !(g.goalId in fixed));
   if (rest.length === 0) return out;
   left = Math.max(0, left);
+  // Whole percentages share the whole part of what is left; a typed decimal's fraction (33.3% leaves 66.7) goes to the first of the
+  // largest, so the split still adds up to exactly 100 (the api allows 0.001 of slack).
+  const wholeLeft = Math.floor(left + 1e-9);
   const total = rest.reduce((t, g) => t + g.share, 0);
-  const raw = rest.map((g) => (total > 0 ? (g.share / total) * left : left / rest.length));
-  const whole = raw.map((r) => Math.floor(r));
-  const order = raw.map((r, i) => ({ i, rest: r - Math.floor(r) })).sort((a, b) => b.rest - a.rest || a.i - b.i);
-  let spare = Math.round(left - whole.reduce((a, b) => a + b, 0));
+  const raw = rest.map((g) => (total > 0 ? (g.share / total) * wholeLeft : wholeLeft / rest.length));
+  const whole = raw.map((r) => Math.floor(r + 1e-9));
+  const order = raw.map((r, i) => ({ i, rest: r - Math.floor(r + 1e-9) })).sort((a, b) => b.rest - a.rest || a.i - b.i);
+  let spare = wholeLeft - whole.reduce((a, b) => a + b, 0);
   for (let k = 0; spare > 0; k++, spare--) whole[order[k % order.length]!.i]! += 1;
+  const largest = whole.indexOf(Math.max(...whole));
+  whole[largest] = Math.round((whole[largest]! + left - wholeLeft) * 10) / 10;
   rest.forEach((g, i) => (out[g.goalId] = whole[i]!));
   return out;
 }
@@ -96,13 +101,14 @@ export interface GoalAddForm {
 
 /** Add goal: the new goal with its share, and the other active goals rebalanced (`rebalance`) so the split adds up. */
 export function addGoalPatch(m: Pick<MandateView, "goals">, form: GoalAddForm, offers: readonly DraftOffer[]): MandatePatch | { error: string } {
-  if (m.goals.length >= 6) return { error: "A plan holds at most 6 goals, including ended ones." };
+  if (m.goals.length >= GOAL_MAX) return { error: `A plan holds at most ${GOAL_MAX} goals, including ended ones.` };
   const offer = offers.find((o) => offerKey(o) === form.offer);
   if (!offer) return { error: "Choose what this goal should get you more of." };
   const pct = parsePct(form.share);
   if (pct === undefined || pct === 0) return { error: "Enter the new goal's share as a percentage above 0." };
   const active = activeGoals(m);
   if (pct > 100 || (pct === 100 && active.length > 0)) return { error: "Leave some of the ceiling for your other goals, or end them first." };
+  if (active.length === 0 && pct !== 100) return { error: "With no other active goal, the new goal holds all of the ceiling: enter 100%." };
   let target: MandateTarget | undefined;
   if (form.target.trim() !== "") {
     const typed = parseAmount(form.target);

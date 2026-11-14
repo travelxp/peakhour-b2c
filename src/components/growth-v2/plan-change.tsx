@@ -17,6 +17,7 @@ export function PlanChangeDialog({
   description = "We send a link to your WhatsApp. Your plan changes only when you open it and enter the code.",
   build,
   onClose,
+  onSent,
   submitLabel = "Send for confirmation",
   children,
 }: {
@@ -25,6 +26,8 @@ export function PlanChangeDialog({
   /** The patch the form says, a sentence when it cannot be sent, or undefined when nothing changed. */
   build: () => MandatePatch | { error: string } | undefined;
   onClose: () => void;
+  /** Called once the link is sent, so a form can stop offering the same change while it waits for the code. */
+  onSent?: () => void;
   submitLabel?: string;
   children: React.ReactNode;
 }) {
@@ -39,7 +42,7 @@ export function PlanChangeDialog({
     if (p === undefined) return setError("Nothing is different from your plan.");
     if ("error" in p) return setError(p.error);
     setError(undefined);
-    patch.mutate({ mandate: p });
+    patch.mutate({ mandate: p }, { onSuccess: (r) => (r.mandateChange ? onSent?.() : undefined) });
   }
 
   return (

@@ -200,7 +200,16 @@ function PlanCard({ mandate: m, preview }: { mandate: MandateView; preview: bool
           Confirmed with a one-time code on {formatDate(m.confirmation.at)}. Renews on {formatDate(m.confirmation.renewsAt)}.
         </CardDescription>
         <CardAction>
-          <Button type="button" size="sm" variant="outline" disabled={preview} onClick={() => setOpen(true)}>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={preview}
+            onClick={() => {
+              setCeiling(String(m.monthlyCeiling));
+              setOpen(true);
+            }}
+          >
             Change ceiling
           </Button>
         </CardAction>

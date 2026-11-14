@@ -99,8 +99,11 @@ export function FirstRunScreen() {
   };
   const body = draft ? buildPlanBody(draft, answers) : undefined;
   const setGoal = (lineId: string, a: GoalAnswers) => setGoalAnswers((all) => ({ ...all, [lineId]: a }));
-  const firstLine = draft ? chosenLines(draft, answers)[0] : undefined;
+  const chosen = draft ? chosenLines(draft, answers) : [];
+  const firstLine = chosen[0];
   const signalOffer = firstLine ? lineOffer(firstLine, answers) : draft ? selectedOffer(draft, answers) : undefined;
+  // The signal carries values when ANY goal is measured by value: a count goal beside it reads the same signal's count.
+  const signalMetric = chosen.some((l) => lineOffer(l, answers)?.optimizeFor === "value") ? "value" : (signalOffer?.optimizeFor ?? "count");
   // ★A DRAFT THAT IS NOT THE ANSWER TO THE LATEST ANSWERS IS NOT SENT: while the next one loads (the old one stays on screen so the
   // page does not blink), and when it failed, the plan on screen was drafted for different answers than the ones given.
   const stale = query.isPlaceholderData ? "Updating your plan for that answer." : query.isError && draft ? "We could not update your plan for that answer. Reload the page to try again." : undefined;
@@ -124,7 +127,7 @@ export function FirstRunScreen() {
         zoneError={saveZone.isError ? patchErrorMessage(saveZone.error) : undefined}
         signalStep={
           <SignalStep
-            optimizeFor={signalOffer?.optimizeFor ?? "count"}
+            optimizeFor={signalMetric}
             focusLabel={firstLine ? selectedFocus(signalOffer, { ceiling: "", ...goalAnswers[firstLine.id] })?.label : draft ? selectedFocus(selectedOffer(draft, answers), answers)?.label : undefined}
             onContinue={() => document.getElementById("first-run-plan")?.scrollIntoView({ behavior: "smooth", block: "start" })}
           />
@@ -143,7 +146,11 @@ export function FirstRunScreen() {
         onInPerson={edited((v: boolean) => {
           // A changed answer changes which outcomes are offered, so the first one, and the target it defaults to, may be another;
           // the same answer again changes nothing and keeps what was typed.
-          if (v !== inPerson) setTypedTarget(undefined);
+          if (v !== inPerson) {
+            setTypedTarget(undefined);
+            // the next draft may pre-tick other lines, so a typed split no longer describes them
+            setTypedShares(undefined);
+          }
           setInPerson(v);
         })}
         onOffer={edited((key: string) => {

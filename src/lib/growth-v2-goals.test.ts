@@ -107,6 +107,22 @@ describe("rebalance", () => {
     expect(rebalance([goal("a", 1 / 3), goal("b", 1 / 3), goal("c", 1 / 3)], {})).toEqual({ a: 34, b: 33, c: 33 });
     expect(rebalance([goal("a", 0), goal("b", 0)], {})).toEqual({ a: 50, b: 50 });
   });
+  it("★a typed decimal still adds up to exactly 100 (the api allows 0.001 of slack)", () => {
+    const three = [goal("a", 1 / 3), goal("b", 1 / 3), goal("c", 1 / 3)];
+    for (const pct of [33.3, 66.4, 12.5, 0.1]) {
+      const r = rebalance(three, { a: pct });
+      expect(Object.values(r).reduce((x, y) => x + y, 0), String(pct)).toBeCloseTo(100, 9);
+    }
+    expect(rebalance(three, { a: 33.3 })).toEqual({ a: 33.3, b: 33.7, c: 33 });
+    const p = editGoalPatch(plan(three), three[0]!, { ...editFormOf(three[0]!), share: "30.5" }) as { shares: Record<string, number> };
+    expect(Math.abs(sum(p.shares) - 1)).toBeLessThanOrEqual(1e-9);
+  });
+  it("with no other active goal, a new goal must hold all of the ceiling", () => {
+    const LEADS: DraftOffer = { kind: "leads", source: "win_definition", optimizeFor: "count", label: "Leads", focusSuggestions: [], defaultTarget: { kind: "cost_per_outcome", value: 300, low: 100, high: 900, currency: "INR" }, targetSource: "playbook" };
+    const later = plan([goal("later", 0, { status: "scheduled" })]);
+    expect(addGoalPatch(later, { lineId: "", offer: "leads:win_definition", target: "", share: "40" }, [LEADS])).toHaveProperty("error");
+    expect(addGoalPatch(later, { lineId: "", offer: "leads:win_definition", target: "", share: "100" }, [LEADS])).toMatchObject({ add: { share: 1 } });
+  });
 });
 
 describe("campaigns: which goal each serves", () => {
