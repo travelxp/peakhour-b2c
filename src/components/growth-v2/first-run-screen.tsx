@@ -148,8 +148,10 @@ export function FirstRunScreen() {
           // the same answer again changes nothing and keeps what was typed.
           if (v !== inPerson) {
             setTypedTarget(undefined);
-            // the next draft may pre-tick other lines, so a typed split no longer describes them
+            // the next draft may pre-tick other lines and offer each line other outcomes, so a typed split, a chosen outcome
+            // and a typed target no longer describe them (a cost typed for bookings must never become a return on sales)
             setTypedShares(undefined);
+            setGoalAnswers({});
           }
           setInPerson(v);
         })}
@@ -442,7 +444,7 @@ export function FirstRunView(p: FirstRunViewProps) {
             </div>
           ))}
           {draft.excludedByGuardrails.length > 0 ? (
-            <p className="py-3 text-xs text-muted-foreground">Left out because you turned them off in Rules: {draft.excludedByGuardrails.map((x) => PLATFORM_LABEL[x]).join(", ")}.</p>
+            <p className="py-3 text-xs text-muted-foreground">Left out because you turned them off in Guardrails: {draft.excludedByGuardrails.map((x) => PLATFORM_LABEL[x]).join(", ")}.</p>
           ) : null}
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3">
             <div>

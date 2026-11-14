@@ -496,7 +496,7 @@ describe("First run", () => {
     expect(out).toContain("63%");
     expect(out).toContain("₹37,500");
     expect(out).toContain("Not connected yet");
-    expect(out).toContain("Left out because you turned them off in Rules: X");
+    expect(out).toContain("Left out because you turned them off in Guardrails: X");
   });
 
   it("asks for the time zone while there is none, prefilled with the suggestion", () => {
