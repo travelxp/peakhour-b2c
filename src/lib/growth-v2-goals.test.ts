@@ -116,6 +116,8 @@ describe("campaigns: which goal each serves", () => {
 
   it("pre-selects the campaign's goal, else its suggestion, else none", () => {
     expect(campaigns.map(preselected)).toEqual(["flights", "hotels", "", "hotels"]);
+    // a campaign the trail gives a goal keeps that goal even when its words suggest another
+    expect(preselected(c("meta:5", { goalId: "flights", how: "trail", suggested: { goalId: "hotels", why: "" } }))).toBe("flights");
   });
   it("★saving sends only what differs from the goal that names it now: a kept suggestion or trail goal becomes named, a named one moved, none for none", () => {
     expect(assignPatch(m, campaigns, {})).toEqual({ assign: [{ campaignId: "meta:2", goalId: "hotels" }, { campaignId: "meta:4", goalId: "hotels" }] });

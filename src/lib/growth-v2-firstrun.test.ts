@@ -251,6 +251,7 @@ describe("PL-3: one goal per line the business sells", () => {
     expect(planBlockedReason(d, answers({ shares: { flights: "60", holidays: "40" } }), true)).toBeUndefined();
     expect(buildPlanBody(d, answers({ shares: { flights: "60", holidays: "40" } }))!.goals.map((g) => g.share)).toEqual([0.6, 0.4]);
     expect(lineShares(d, answers({ shares: { flights: "60" } }))).toEqual({ flights: 60, holidays: 25 });
+    expect(lineShares(d, answers({ shares: { flights: "150", holidays: "-50" } }))).toEqual({ flights: undefined, holidays: undefined });
   });
   it("FAIL: no line ticked, more than six, a line with nothing to measure, a missing target", () => {
     expect(planBlockedReason(travel(), answers({ lines: [] }), true)).toBe("Tick at least one thing you sell.");
