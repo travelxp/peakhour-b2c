@@ -146,7 +146,7 @@ export function DescribeGoal({ ready, onDraft }: { ready: boolean; onDraft: (goa
         <div role="status" className="grid gap-1 rounded-lg border border-success/30 bg-success/10 p-3 text-sm">
           <p className="font-medium">{parse.data.restatement}</p>
           <p className="text-xs text-muted-foreground">
-            {unfilled.length > 0 ? `We filled in the form below, except ${unfilled.join(" and ")}: choose that yourself.` : "We filled in the form below."} Check it, change anything, then send it for confirmation.
+            {unfilled.length > 0 ? `We filled in the form below, but could not match ${unfilled.join(" and ")}: check ${unfilled.length > 1 ? "those" : "that"} yourself.` : "We filled in the form below."} Check it, change anything, then send it for confirmation.
           </p>
         </div>
       ) : null}

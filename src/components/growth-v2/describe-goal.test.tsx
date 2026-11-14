@@ -283,7 +283,7 @@ describe("review fixes", () => {
     await openAdd();
     await type(SENTENCE);
     await click(FILL);
-    expect(text()).toContain("We filled in the form below, except what you want more of: choose that yourself.");
+    expect(text()).toContain("We filled in the form below, but could not match what you want more of: check that yourself.");
   });
   it("a draft that fitted says only that", async () => {
     h.post.mockImplementation(async (path: string) => (path === "/v1/growth/v2/onboarding/draft" ? DRAFT : PARSED));
@@ -292,7 +292,7 @@ describe("review fixes", () => {
     await type(SENTENCE);
     await click(FILL);
     expect(text()).toContain("We filled in the form below. Check it");
-    expect(text()).not.toContain("except");
+    expect(text()).not.toContain("could not match");
   });
   it("an error the client cannot judge does not claim the merchant was not charged", () => {
     const { text: t } = describeErrorLine(new ApiError("NETWORK", "x", 0));
