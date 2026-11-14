@@ -190,6 +190,27 @@ describe("live data", () => {
   });
 });
 
+describe("PL-4: the engine's goal proposals are plan changes", () => {
+  it("★a seasonal goal the engine proposes reads as a plan change in the list and on the card, with its own words and no 'mandate'", async () => {
+    const d = decision({ id: "d-season", kind: "mandate_change", source: { engine: "playbook" }, ops: [], title: "Diwali push for Hotels", summary: "Diwali push for Hotels: 23 Nov to 7 Dec, 25% of your budget. Your other goals share the rest while it runs." });
+    routes.open = page("open", [d]);
+    serve();
+    await mount();
+    expect(text()).toContain("Plan change");
+    expect(text()).toContain("Diwali push for Hotels");
+    expect(text()).toContain("25% of your budget");
+    expect(text()).not.toMatch(/mandate/i);
+  });
+
+  it("the badge for a decision inside the merchant's own rules says plan, not mandate", async () => {
+    routes.open = page("open", [decision({ id: "d-auto", needsPerson: false })]);
+    serve();
+    await mount();
+    expect(text()).toContain("Within your plan");
+    expect(text()).not.toMatch(/mandate/i);
+  });
+});
+
 describe("answering", () => {
   it("★Hold and Reject send their routes and say what happened", async () => {
     const d = decision({ id: "d1" });
