@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { DraftOffer, GoalCampaignView, MandateGoalView, MandateView } from "@/lib/api/growth-v2";
 import { FIXTURE_RULES } from "@/lib/growth-v2-fixtures";
-import { activeGoals, addGoalPatch, assignPatch, editFormOf, editGoalPatch, endGoalPatch, goalUnit, preselected, rebalance, sharesAfterAdd } from "./growth-v2-goals";
+import { activeGoals, addGoalPatch, assignPatch, editFormOf, editGoalPatch, endGoalPatch, formFromParsed, unfilledOf, goalUnit, preselected, rebalance, sharesAfterAdd } from "./growth-v2-goals";
 
 /**
  * PL-3: the Goals page's actions, each one `PATCH /rules` body.
@@ -157,5 +157,71 @@ describe("per-goal units", () => {
     expect(goalUnit({ ...m, outcome: m.goals[0]!.outcome }, undefined).one).toBe("booking");
     expect(goalUnit({ ...m, outcome: m.goals[0]!.outcome }, "gone").one).toBe("booking");
     expect(activeGoals(m)).toHaveLength(2);
+  });
+});
+
+describe("PL-9: a draft from a sentence fills the Add goal form", () => {
+  const BOOKINGS: DraftOffer = { kind: "bookings", source: "orders", optimizeFor: "count", label: "Bookings", focusSuggestions: [], defaultTarget: { kind: "cost_per_outcome", value: 900, low: 300, high: 2000, currency: "INR" }, targetSource: "playbook" };
+  const SALES: DraftOffer = { kind: "sales", source: "orders", optimizeFor: "value", label: "Sales", focusSuggestions: [], defaultTarget: { kind: "roas", value: 3, low: 2, high: 5 }, targetSource: "playbook" };
+  const line = (id: string, offers: DraftOffer[]) => ({ id, label: id, matched: true, score: 1, why: "", offers });
+  const lines = [line("flights", [BOOKINGS]), line("hotels", [BOOKINGS, SALES])];
+  const parsed = (over: Record<string, unknown> = {}) => ({ lineId: "hotels", outcome: { kind: "bookings", source: "orders", optimizeFor: "count" }, target: { kind: "cost_per_outcome", value: 1500 }, share: 0.2, status: "active", ...over }) as never;
+
+  it("PASS: the line, the outcome, the target and the share (as the percentage the merchant sees)", () => {
+    expect(formFromParsed(parsed(), lines, [])).toEqual({ lineId: "hotels", offer: "bookings:orders", target: "1500", share: "20" });
+  });
+  it("a line the form does not have is not chosen, and no outcome with it (the merchant picks the line)", () => {
+    expect(formFromParsed(parsed({ lineId: "cruises" }), lines, [BOOKINGS])).toEqual({ lineId: "", offer: "", target: "", share: "20" });
+  });
+  it("with no lines the outcome is read from the plan's own offers", () => {
+    expect(formFromParsed(parsed({ lineId: undefined }), [], [BOOKINGS, SALES])).toMatchObject({ lineId: "", offer: "bookings:orders", target: "1500" });
+  });
+  it("an outcome the line does not offer is left for the merchant, with no target", () => {
+    expect(formFromParsed(parsed({ lineId: "flights", outcome: { kind: "sales", source: "orders", optimizeFor: "value" }, target: { kind: "roas", value: 4 } }), lines, [])).toMatchObject({ lineId: "flights", offer: "", target: "" });
+  });
+  it("a target of the other kind than the outcome takes is not kept", () => {
+    expect(formFromParsed(parsed({ target: { kind: "roas", value: 4 } }), lines, []).target).toBe("");
+    expect(formFromParsed(parsed({ lineId: "hotels", outcome: { kind: "sales", source: "orders", optimizeFor: "value" }, target: { kind: "roas", value: 4 } }), lines, []).target).toBe("4");
+  });
+  it("no share in the sentence leaves the share empty for the merchant", () => {
+    expect(formFromParsed(parsed({ share: undefined }), lines, []).share).toBe("");
+  });
+  it("dates carry as timing: a later start is scheduled, an end alone stays active", () => {
+    expect(formFromParsed(parsed({ status: "scheduled", startsAt: "2026-11-30T18:30:00.000Z" }), lines, []).timing).toEqual({ status: "scheduled", startsAt: "2026-11-30T18:30:00.000Z" });
+    expect(formFromParsed(parsed({ endsAt: "2026-12-31T18:30:00.000Z" }), lines, []).timing).toEqual({ status: "active", endsAt: "2026-12-31T18:30:00.000Z" });
+    expect(formFromParsed(parsed(), lines, [])).not.toHaveProperty("timing");
+  });
+
+  it("unfilledOf names what the draft said and the form could not take", () => {
+    const ok = parsed();
+    expect(unfilledOf(ok, formFromParsed(ok, lines, []))).toEqual([]);
+    const noLine = parsed({ lineId: "cruises" });
+    expect(unfilledOf(noLine, formFromParsed(noLine, lines, [BOOKINGS]))).toEqual(["what it is for", "what you want more of"]);
+    const named = parsed({ lineId: "flights", outcome: { kind: "sales", source: "orders", optimizeFor: "value" }, target: { kind: "roas", value: 4 } });
+    expect(unfilledOf(named, formFromParsed(named, lines, []))).toEqual(["what you want more of"]);
+    const wrongKind = parsed({ target: { kind: "roas", value: 4 } });
+    expect(unfilledOf(wrongKind, formFromParsed(wrongKind, lines, []))).toEqual(["the target"]);
+    // a line the plan has none of, but named: the merchant picks it
+    const lineless = parsed();
+    expect(unfilledOf(lineless, { lineId: "", offer: "bookings:orders", target: "1500", share: "20" })).toEqual(["what it is for"]);
+  });
+
+  const m = plan([goal("flights", 0.6), goal("hotels", 0.4)]);
+  it("the draft is sent only through the usual add: the dates go with it, and an active goal with an end still rebalances", () => {
+    const f = { ...formFromParsed(parsed({ endsAt: "2026-12-31T18:30:00.000Z" }), lines, []) };
+    const p = addGoalPatch(m, f, [BOOKINGS]) as unknown as { add: Record<string, unknown>; shares?: Record<string, number> };
+    expect(p.add).toMatchObject({ lineId: "hotels", share: 0.2, status: "active", endsAt: "2026-12-31T18:30:00.000Z", target: { kind: "cost_per_outcome", value: 1500 } });
+    expect(sum(p.shares) + 0.2).toBeCloseTo(1, 9);
+  });
+  it("a goal that starts later takes nothing from the goals running now: no split is sent, and it carries its start", () => {
+    const f = formFromParsed(parsed({ status: "scheduled", startsAt: "2026-11-30T18:30:00.000Z" }), lines, []);
+    const p = addGoalPatch(m, f, [BOOKINGS]) as unknown as { add: Record<string, unknown>; shares?: unknown };
+    expect(p.add).toMatchObject({ status: "scheduled", startsAt: "2026-11-30T18:30:00.000Z", share: 0.2 });
+    expect(p).not.toHaveProperty("shares");
+  });
+  it("a form with no timing sends none of the new fields (what the form always sent)", () => {
+    const p = addGoalPatch(m, { lineId: "", offer: "bookings:orders", target: "", share: "20" }, [BOOKINGS]) as unknown as { add: Record<string, unknown> };
+    expect(p.add).not.toHaveProperty("status");
+    expect(p.add).not.toHaveProperty("startsAt");
   });
 });

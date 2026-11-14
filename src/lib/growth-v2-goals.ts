@@ -1,4 +1,4 @@
-import type { DraftOffer, Figure, GoalCampaignView, HomeGoal, MandateGoalView, MandatePatch, MandateTarget, MandateView, OutcomeKind } from "@/lib/api/growth-v2";
+import type { DraftLine, DraftOffer, Figure, GoalCampaignView, GoalParseResponse, HomeGoal, MandateGoalView, MandatePatch, MandateTarget, MandateView, OutcomeKind } from "@/lib/api/growth-v2";
 import { GOAL_MAX, offerKey, parseAmount, targetKindOf } from "@/lib/growth-v2-firstrun";
 import { OUTCOME_UNIT, unitFor } from "@/lib/growth-v2-figure";
 
@@ -99,6 +99,37 @@ export interface GoalAddForm {
   /** Empty = the playbook's default for that outcome. */
   target: string;
   share: string;
+  /** PL-9: when the sentence gave dates, the goal starts later (`scheduled`) and/or ends. Absent = active from now, no end. */
+  timing?: { status: "active" | "scheduled"; startsAt?: string; endsAt?: string };
+}
+
+/** PL-9: what a draft named that the form could not take, in the form's own words (empty when it all fitted). */
+export function unfilledOf(goal: GoalParseResponse["goal"], form: GoalAddForm): string[] {
+  const out: string[] = [];
+  if (goal.lineId !== undefined && form.lineId === "") out.push("what it is for");
+  if (form.offer === "") out.push("what you want more of");
+  if (goal.target !== undefined && form.target === "" && form.offer !== "") out.push("the target");
+  return out;
+}
+
+/**
+ * PL-9: the Add goal form as a draft goal fills it. The draft is only ever a suggestion for the form (nothing is sent): a line the
+ * plan's playbook has is chosen, an outcome the form offers on it is chosen, a target is kept only when it is of the kind that
+ * outcome takes, and a share becomes the percentage the merchant sees and may change.
+ */
+export function formFromParsed(goal: GoalParseResponse["goal"], lines: readonly DraftLine[], draftOffers: readonly DraftOffer[]): GoalAddForm {
+  const line = lines.find((l) => l.id === goal.lineId);
+  const offers = line ? line.offers : lines.length > 0 ? [] : draftOffers;
+  const offer = offers.find((o) => o.kind === goal.outcome.kind && o.source === goal.outcome.source);
+  const target = offer && goal.target && goal.target.kind === targetKindOf(offer) ? String(goal.target.value) : "";
+  const timing = goal.status === "scheduled" || goal.endsAt ? { status: goal.status, ...(goal.startsAt ? { startsAt: goal.startsAt } : {}), ...(goal.endsAt ? { endsAt: goal.endsAt } : {}) } : undefined;
+  return {
+    lineId: line?.id ?? "",
+    offer: offer ? offerKey(offer) : "",
+    target,
+    share: goal.share !== undefined ? String(pctOf(goal.share)) : "",
+    ...(timing ? { timing } : {}),
+  };
 }
 
 /** Add goal: the new goal with its share, and the other active goals rebalanced (`rebalance`) so the split adds up. */
@@ -109,15 +140,17 @@ export function addGoalPatch(m: Pick<MandateView, "goals">, form: GoalAddForm, o
   const pct = parsePct(form.share);
   if (pct === undefined || pct === 0) return { error: "Enter the new goal's share as a percentage above 0." };
   const active = activeGoals(m);
-  if (pct > 100 || (pct === 100 && active.length > 0)) return { error: "Leave some of the ceiling for your other goals, or end them first." };
-  if (active.length === 0 && pct !== 100) return { error: "With no other active goal, the new goal holds all of the ceiling: enter 100%." };
+  // A goal that starts later spends nothing yet, so it takes nothing from the goals running now.
+  const later = form.timing?.status === "scheduled";
+  if (pct > 100 || (pct === 100 && active.length > 0 && !later)) return { error: "Leave some of the ceiling for your other goals, or end them first." };
+  if (active.length === 0 && pct !== 100 && !later) return { error: "With no other active goal, the new goal holds all of the ceiling: enter 100%." };
   let target: MandateTarget | undefined;
   if (form.target.trim() !== "") {
     const typed = parseAmount(form.target);
     if (typed === undefined) return { error: "Enter a target above zero, or leave it empty for the playbook's." };
     target = { kind: targetKindOf(offer), value: typed };
   } else if (!offer.defaultTarget) return { error: "This outcome has no playbook target. Enter one." };
-  const shares = active.length > 0 ? fractions(rebalance(active, { [NEW]: pct })) : {};
+  const shares = active.length > 0 && !later ? fractions(rebalance(active, { [NEW]: pct })) : {};
   delete shares[NEW];
   return {
     add: {
@@ -125,6 +158,7 @@ export function addGoalPatch(m: Pick<MandateView, "goals">, form: GoalAddForm, o
       outcome: { kind: offer.kind, source: offer.source, optimizeFor: offer.optimizeFor },
       share: Math.round(pct * 10) / 1000,
       ...(target ? { target, targetSource: "merchant" as const } : {}),
+      ...(form.timing ? { status: form.timing.status, ...(form.timing.startsAt ? { startsAt: form.timing.startsAt } : {}), ...(form.timing.endsAt ? { endsAt: form.timing.endsAt } : {}) } : {}),
     },
     ...(Object.keys(shares).length > 0 ? { shares } : {}),
   };

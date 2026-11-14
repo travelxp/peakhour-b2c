@@ -524,6 +524,21 @@ export interface GoalAdd {
   share: number;
   target?: MandateTarget;
   targetSource?: "playbook" | "merchant";
+  /** PL-9: a goal that starts later is `scheduled`; the dates are ISO instants. */
+  status?: "active" | "scheduled";
+  startsAt?: string;
+  endsAt?: string;
+}
+
+/** The api's bounds on a goal sentence (`zGoalParseRequest`: 3 to 300 characters once trimmed). */
+export const GOAL_TEXT_MIN = 3;
+export const GOAL_TEXT_MAX = 300;
+
+/** What `POST /v1/growth/v2/goals/parse` answers when a goal comes back (PL-9): a DRAFT in the shape of `GoalAdd` (`share` only if the sentence gave one), and a sentence saying it. Nothing is applied. */
+export interface GoalParseResponse {
+  goal: Omit<GoalAdd, "share" | "outcome"> & { share?: number; outcome: { kind: OutcomeKind; source: OutcomeSource; optimizeFor: "count" | "value" }; status: "active" | "scheduled" };
+  restatement: string;
+  charged: boolean;
 }
 
 /** The mandate edit of `PATCH /rules`: it never writes the mandate, it sends a confirmation link. */
@@ -694,6 +709,9 @@ export const growthV2Api = {
   /** Ask Peakhour Summit. A priced task: the signed quote the merchant was shown travels as `x-peaks-quote`, and one key per click makes a retry one charge. */
   askSummit: (question: string, quoteToken?: string) =>
     api.post<SummitAskResponse>(BASE + "/council", { question }, { ...newActionKey(), ...(quoteToken ? { "x-peaks-quote": quoteToken } : {}) }),
+  /** Turn a sentence into a draft goal. A priced task, like `askSummit`: the quote travels as `x-peaks-quote`, one key per click. */
+  parseGoal: (text: string, quoteToken?: string) =>
+    api.post<GoalParseResponse>(BASE + "/goals/parse", { text }, { ...newActionKey(), ...(quoteToken ? { "x-peaks-quote": quoteToken } : {}) }),
   ask: (id: string, question: string) =>
     api.post<DecisionAskResponse>(`${BASE}/decisions/${encodeURIComponent(id)}/ask`, { question }),
   channels: (window: HomeWindowKey = "7d") => api.get<ChannelsResponse>(`${BASE}/channels?window=${window}`),
@@ -1019,6 +1037,15 @@ export function useRecheckReviewV2() {
 /** Ask a question about one decision. Free, and moves nothing: no refetch. */
 export function useAskDecisionV2() {
   return useMutation({ mutationFn: (v: { id: string; question: string }) => growthV2Api.ask(v.id, v.question) });
+}
+
+/** Describe a goal in your own words (PL-9). One call of `mutate` is one click. Only the Peaks balance changed: the plan did not. */
+export function useParseGoal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { text: string; quoteToken?: string }) => growthV2Api.parseGoal(v.text, v.quoteToken),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: [CREDITS_KEY] }),
+  });
 }
 
 /**
