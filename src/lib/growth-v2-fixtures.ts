@@ -112,6 +112,13 @@ export const FIXTURE_HOME: HomeResponse = {
     { at: "2026-10-23T10:30:00Z", kind: "creative", title: "Generated 6 new creatives.", detail: "Price-first and founder-video hooks won last month. Waiting for your approval." },
     { at: "2026-10-22T16:00:00Z", kind: "change", title: "Tripwire cleared: Reels-first creative.", detail: "Cost per booking fell ₹28 and stayed down for 14 days." },
   ],
+  goals: {
+    items: [
+      { goalId: "treks", label: "Treks", kind: "bookings", status: "active", share: 0.7, monthlyBudget: { value: 14000, currency: "INR" }, target: { kind: "cost_per_outcome", value: 450 }, perMonth: 50, soFar: fig(34), primary: true },
+      { goalId: "stays", label: "Stays", kind: "leads", status: "active", share: 0.3, monthlyBudget: { value: 6000, currency: "INR" }, target: { kind: "cost_per_outcome", value: 300 }, soFar: fig(12), primary: false },
+    ],
+    monthSoFar: { absent: "Your goals count different things, so they have no total." },
+  },
 };
 
 export const FIXTURE_PACING_SERIES: PacingSeries = {
@@ -193,7 +200,7 @@ const SAMPLE_DECISIONS: SampleDecision[] = [
       ops: [{ platform: "google_ads", campaignRef: "google-trip-names", op: "set_bid_strategy", from: "maximize_clicks", to: "target_cpa_450" }],
       impact: { metric: "cost_per_outcome", low: -68, high: -36, confidence: 0.7, horizonDays: 21 },
       council: {
-        strategist: { model: "model A", text: "Google has enough conversions for target bidding, and the target matches your mandate." },
+        strategist: { model: "model A", text: "Google has enough conversions for target bidding, and the target matches your plan." },
         critic: { model: "model B (different vendor)", text: "Changing the bid strategy restarts learning. Do it after the 14 Nov batch closes, not before it." },
         chair: { text: "Approve for 15 Nov. Reverts on its own if cost goes above ₹600 for 7 days." },
         risk: { checks: [{ key: "learning", pass: false, detail: "Restarts Google's learning" }] },
@@ -380,6 +387,33 @@ export const FIXTURE_LEARNING: LearningResponse = {
 
 export const FIXTURE_RULES: RulesResponse = {
   mandate: {
+    goals: [
+      {
+        goalId: "treks",
+        label: "Treks",
+        lineId: "treks",
+        outcome: { kind: "bookings", source: "orders", optimizeFor: "count" },
+        perMonth: 50,
+        share: 0.7,
+        monthlyBudget: 14000,
+        target: { kind: "cost_per_outcome", value: 450 },
+        targetSource: "playbook",
+        status: "active",
+        campaignIds: ["meta:preview-1"],
+      },
+      {
+        goalId: "stays",
+        label: "Stays",
+        lineId: "stays",
+        outcome: { kind: "leads", source: "win_definition", optimizeFor: "count" },
+        share: 0.3,
+        monthlyBudget: 6000,
+        target: { kind: "cost_per_outcome", value: 300 },
+        targetSource: "merchant",
+        status: "active",
+      },
+    ],
+    goalId: "treks",
     outcome: { kind: "bookings", source: "orders", optimizeFor: "count" },
     currency: "INR",
     monthlyCeiling: 20000,
@@ -412,5 +446,10 @@ export const FIXTURE_RULES: RulesResponse = {
     "Run ads on a channel you have turned off, or add a channel you have not approved.",
     "Change what counts as an outcome, your ceiling or your target without you confirming it.",
     "Raise its own autonomy level. It can only offer, and you decide.",
+  ],
+  campaigns: [
+    { campaignId: "meta:preview-1", platform: "meta", name: "Kedarkantha winter trek", status: "active", goalId: "treks", how: "assigned" },
+    { campaignId: "google_ads:preview-2", platform: "google_ads", name: "Rishikesh homestays", status: "active", how: "unknown", suggested: { goalId: "stays", why: 'Its name or targeting mentions "homestay".' } },
+    { campaignId: "meta:preview-3", platform: "meta", name: "Brand awareness", status: "paused", how: "unknown" },
   ],
 };

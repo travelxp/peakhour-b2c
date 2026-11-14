@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api";
-import type { DraftOffer, GuardrailsPatch, MandateView, RulesPatchBody, RulesPatchResponse, RulesResponse } from "@/lib/api/growth-v2";
+import type { GuardrailsPatch, MandateView, RulesPatchBody, RulesPatchResponse, RulesResponse } from "@/lib/api/growth-v2";
 import { FIXTURE_RULES } from "@/lib/growth-v2-fixtures";
 
 /**
@@ -19,7 +19,7 @@ vi.mock("@/lib/api", async (importOriginal) => {
 });
 
 const { growthV2Api } = await import("@/lib/api/growth-v2");
-const { DEFAULT_QUIET_HOURS, channelAllowed, editAfterOutcome, editFrom, guardrailPatchFor, mandatePatchFor, patchErrorMessage } = await import("./growth-v2-rules");
+const { DEFAULT_QUIET_HOURS, ceilingPatchFor, channelAllowed, guardrailPatchFor, patchErrorMessage } = await import("./growth-v2-rules");
 
 const g0 = FIXTURE_RULES.guardrails;
 const m0: MandateView = FIXTURE_RULES.mandate!; // bookings from orders, count, INR 20,000, cost per outcome 450
@@ -108,83 +108,12 @@ describe("channel switches", () => {
   });
 });
 
-describe("a mandate edit", () => {
-  const COUNT_OFFER: DraftOffer = { kind: "bookings", source: "orders", optimizeFor: "count", label: "Bookings", focusSuggestions: [{ by: "product_type", values: ["Flight"], label: "Flights", source: "playbook", revenue: 900000 }], targetSource: "merchant" };
-  const VALUE_OFFER: DraftOffer = { kind: "sales", source: "orders", optimizeFor: "value", label: "Sales", focusSuggestions: [], defaultTarget: { kind: "roas", value: 2.5, low: 1, high: 5 }, targetSource: "playbook" };
-  const LEADS: DraftOffer = { kind: "leads", source: "win_definition", optimizeFor: "count", label: "Leads", focusSuggestions: [], targetSource: "merchant" };
-  const offers = [COUNT_OFFER, VALUE_OFFER, LEADS];
-  const edit = (over: Partial<ReturnType<typeof editFrom>> = {}) => ({ ...editFrom(m0), ...over });
-
-  it("starts from what the mandate says, and sending it unchanged is nothing to send", () => {
-    expect(editFrom(m0)).toEqual({ offer: "bookings:orders", focus: "", ceiling: "20000", target: "450" });
-    expect(mandatePatchFor(m0, edit(), offers)).toBeUndefined();
-  });
-
-  it("names only the fields that changed", () => {
-    expect(mandatePatchFor(m0, edit({ ceiling: "35,000" }), offers)).toEqual({ monthlyCeiling: 35000 });
-    expect(mandatePatchFor(m0, edit({ target: "400" }), offers)).toEqual({ target: { kind: "cost_per_outcome", value: 400 } });
-    expect(mandatePatchFor(m0, edit({ ceiling: "35000", target: "400" }), offers)).toEqual({ monthlyCeiling: 35000, target: { kind: "cost_per_outcome", value: 400 } });
-  });
-
-  it("never names autonomy, approvers or confirmation", () => {
-    const p = mandatePatchFor(m0, edit({ ceiling: "35000", target: "400", focus: "Flights" }), offers) as Record<string, unknown>;
-    expect(Object.keys(p).every((k) => ["outcome", "monthlyCeiling", "target"].includes(k))).toBe(true);
-  });
-
-  it("a new focus is an outcome change that carries the focus the api suggested", () => {
-    expect(mandatePatchFor(m0, edit({ focus: "Flights" }), offers)).toEqual({
-      outcome: { kind: "bookings", source: "orders", optimizeFor: "count", focus: { by: "product_type", values: ["Flight"], label: "Flights" } },
-    });
-  });
-
-  it("an outcome measured the other way takes its target's kind from the outcome; the form clears the box, so a retyped number is the merchant's own", () => {
-    const cleared = editAfterOutcome(m0, edit(), "sales:orders", offers);
-    expect(cleared).toMatchObject({ offer: "sales:orders", focus: "", target: "" });
-    // an empty box with the kind flipped is "the playbook's default, or tell me": the api answers which
-    expect(mandatePatchFor(m0, cleared, offers)).toEqual({ outcome: { kind: "sales", source: "orders", optimizeFor: "value" } });
-    expect(mandatePatchFor(m0, { ...cleared, target: "3" }, offers)).toEqual({
-      outcome: { kind: "sales", source: "orders", optimizeFor: "value" },
-      target: { kind: "roas", value: 3 },
-    });
-    // ...and the old number retyped on purpose is a return of 450x, not an error: it is the merchant's call
-    expect(mandatePatchFor(m0, { ...cleared, target: "450" }, offers)).toEqual({
-      outcome: { kind: "sales", source: "orders", optimizeFor: "value" },
-      target: { kind: "roas", value: 450 },
-    });
-  });
-
-  it("an empty target with no change of measure has nothing to fall back on", () => {
-    expect(mandatePatchFor(m0, edit({ target: "" }), offers)).toHaveProperty("error");
-    expect(mandatePatchFor(m0, edit({ offer: "leads:win_definition", target: "" }), offers)).toHaveProperty("error");
-  });
-
-  it("choosing the saved outcome again brings back its saved focus and target", () => {
-    const withFocus: MandateView = { ...m0, outcome: { ...m0.outcome, focus: { by: "product_type", values: ["Hotels"], label: "Hotels" } } };
-    const away = editAfterOutcome(withFocus, editFrom(withFocus), "sales:orders", offers);
-    expect(away).toMatchObject({ focus: "", target: "" });
-    expect(editAfterOutcome(withFocus, away, "bookings:orders", offers)).toMatchObject({ focus: "Hotels", target: "450" });
-  });
-
-  it("an outcome of the same kind of measure keeps the target unless it is retyped", () => {
-    expect(mandatePatchFor(m0, edit({ offer: "leads:win_definition" }), offers)).toEqual({ outcome: { kind: "leads", source: "win_definition", optimizeFor: "count" } });
-  });
-
-  it("★a saved focus that this week's suggestions no longer rank is not a change, so a ceiling-only edit leaves the outcome alone", () => {
-    const shoes: MandateView = { ...m0, outcome: { ...m0.outcome, focus: { by: "product_type", values: ["Shoes"], label: "Shoes" } } };
-    expect(mandatePatchFor(shoes, { ...editFrom(shoes), ceiling: "35000" }, offers)).toEqual({ monthlyCeiling: 35000 });
-    // and the offers not having loaded at all does not stop a ceiling edit either
-    expect(mandatePatchFor(shoes, { ...editFrom(shoes), ceiling: "35000" }, [])).toEqual({ monthlyCeiling: 35000 });
-    // asking for Everything is a change, and says so by sending an outcome with no focus
-    expect(mandatePatchFor(shoes, { ...editFrom(shoes), focus: "" }, offers)).toEqual({ outcome: { kind: "bookings", source: "orders", optimizeFor: "count" } });
-    // a focus that is neither saved nor suggested cannot be sent
-    expect(mandatePatchFor(shoes, { ...editFrom(shoes), focus: "Boots" }, offers)).toHaveProperty("error");
-  });
-
-  it("refuses an unreadable ceiling or target, and an outcome the business is not offered", () => {
-    expect(mandatePatchFor(m0, edit({ ceiling: "" }), offers)).toHaveProperty("error");
-    expect(mandatePatchFor(m0, edit({ ceiling: "0" }), offers)).toHaveProperty("error");
-    expect(mandatePatchFor(m0, edit({ target: "abc" }), offers)).toHaveProperty("error");
-    expect(mandatePatchFor(m0, edit({ offer: "store_visits:ads_conversions" }), offers)).toHaveProperty("error");
+describe("a plan edit on Guardrails: the ceiling alone (PL-3 moved the goals to Goals)", () => {
+  it("names the ceiling only when it changed; an unreadable or zero ceiling says so", () => {
+    expect(ceilingPatchFor(m0, "20000")).toBeUndefined();
+    expect(ceilingPatchFor(m0, "35,000")).toEqual({ monthlyCeiling: 35000 });
+    expect(ceilingPatchFor(m0, "0")).toHaveProperty("error");
+    expect(ceilingPatchFor(m0, "1e6")).toHaveProperty("error");
   });
 
   it("goes to PATCH /rules as a mandate edit alone", async () => {
@@ -203,6 +132,10 @@ describe("a refused edit", () => {
     expect(patchErrorMessage(new ApiError("NO_CHANGE", "That is what the plan already says.", 409))).toBe("That is what the plan already says.");
     expect(patchErrorMessage(new ApiError("TARGET_NEEDED", "This outcome is measured differently.", 422))).toBe("This outcome is measured differently.");
     expect(patchErrorMessage(new ApiError("VALIDATION_ERROR", "Keep at least one channel on.", 400))).toBe("Keep at least one channel on.");
+    // PL-3: the Goals page's refusals
+    expect(patchErrorMessage(new ApiError("SHARES_DONT_ADD_UP", "The goals' shares must add up to 100%.", 422))).toBe("The goals' shares must add up to 100%.");
+    expect(patchErrorMessage(new ApiError("GOAL_NOT_FOUND", "That goal is not in the plan, or it has ended.", 422))).toBe("That goal is not in the plan, or it has ended.");
+    expect(patchErrorMessage(new ApiError("LINK_BUSY", "Another change request is in progress.", 409))).toBe("Another change request is in progress.");
   });
   it("says something plain, never a raw message, for anything else", () => {
     expect(patchErrorMessage(new ApiError("RULES_ERROR", "mongo exploded at host 10.0.0.4", 500))).not.toMatch(/mongo/);

@@ -6,13 +6,19 @@ import { Building2, MapPin, MessageSquare, Phone, ShoppingCart, type LucideIcon 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { useConfirmPlan, useFirstRunDraft, usePatchRules, type DraftOffer, type FirstRunDraftResponse, type OutcomeKind } from "@/lib/api/growth-v2";
+import { useConfirmPlan, useFirstRunDraft, usePatchRules, type DraftLine, type DraftOffer, type FirstRunDraftResponse, type OutcomeKind } from "@/lib/api/growth-v2";
 import { useSignalReadiness } from "@/lib/api/growth-v2-signal";
 import { canContinue } from "@/lib/growth-v2-signal";
 import { OUTCOME_UNIT, PLATFORM_COLOR, PLATFORM_LABEL, formatMoney } from "@/lib/growth-v2-figure";
 import {
+  asksForCampaigns,
   buildPlanBody,
+  campaignLine,
   ceilingChips,
+  chosenLines,
+  lineOffer,
+  lineShares,
+  lineTarget,
   offerKey,
   parseAmount,
   planBlockedReason,
@@ -24,6 +30,7 @@ import {
   targetQuestion,
   TARGET_NOT_A_FEE,
   type FirstRunAnswers,
+  type GoalAnswers,
 } from "@/lib/growth-v2-firstrun";
 import { GROWTH_HOME } from "@/lib/growth-v2-nav";
 import { patchErrorMessage } from "@/lib/growth-v2-rules";
@@ -41,6 +48,9 @@ import { ToneBadge } from "./tone";
  * (`offerableOutcomes`): store visits appear only when Google would count them, calls only with call conversions, and sales
  * and bookings show the categories the shop really sold. A business that is offered nothing is told so, not shown a menu.
  * ★A TIE IS ASKED BEFORE ANYTHING ELSE: when two playbooks fit equally the draft carries the candidates and no plan.
+ * ★PL-3: "WHAT DO YOU SELL?" FIRST, when the playbook has lines: the lines the catalog and profile point to are pre-ticked, then one
+ * goal per ticked line, the ceiling with a suggested split, and each goal's target; a plan of several goals ends by giving each
+ * campaign its goal. A playbook with no lines asks the three questions as before.
  * ★NOTHING SPENDS FROM HERE. "Send to WhatsApp to confirm" stores the plan pending and sends a signed link; the plan starts
  * only when the one-time code on that link's page is accepted (`/growth/confirm/[token]`).
  */
@@ -63,6 +73,11 @@ export function FirstRunScreen() {
   const [typedCeiling, setTypedCeiling] = useState<string>();
   const [typedTarget, setTypedTarget] = useState<string>();
   const [zone, setZone] = useState<string>();
+  // PL-3: one goal per line
+  const [ticked, setTicked] = useState<string[]>();
+  const [goalAnswers, setGoalAnswers] = useState<Record<string, GoalAnswers>>({});
+  const [typedShares, setTypedShares] = useState<Record<string, string>>();
+  const [campaignPicks, setCampaignPicks] = useState<Record<string, string>>({});
 
   const query = useFirstRunDraft({ ...(playbookId ? { playbookId } : {}), ...(inPerson !== undefined ? { customersVisitInPerson: inPerson } : {}) });
   const signalDone = canContinue(useSignalReadiness().data);
@@ -77,8 +92,15 @@ export function FirstRunScreen() {
     ...(focus ? { focus } : {}),
     ceiling: typedCeiling ?? defaultCeiling,
     ...(typedTarget !== undefined ? { target: typedTarget } : {}),
+    ...(ticked ? { lines: ticked } : {}),
+    goals: goalAnswers,
+    ...(typedShares ? { shares: typedShares } : {}),
+    campaigns: campaignPicks,
   };
   const body = draft ? buildPlanBody(draft, answers) : undefined;
+  const setGoal = (lineId: string, a: GoalAnswers) => setGoalAnswers((all) => ({ ...all, [lineId]: a }));
+  const firstLine = draft ? chosenLines(draft, answers)[0] : undefined;
+  const signalOffer = firstLine ? lineOffer(firstLine, answers) : draft ? selectedOffer(draft, answers) : undefined;
   // ★A DRAFT THAT IS NOT THE ANSWER TO THE LATEST ANSWERS IS NOT SENT: while the next one loads (the old one stays on screen so the
   // page does not blink), and when it failed, the plan on screen was drafted for different answers than the ones given.
   const stale = query.isPlaceholderData ? "Updating your plan for that answer." : query.isError && draft ? "We could not update your plan for that answer. Reload the page to try again." : undefined;
@@ -102,8 +124,8 @@ export function FirstRunScreen() {
         zoneError={saveZone.isError ? patchErrorMessage(saveZone.error) : undefined}
         signalStep={
           <SignalStep
-            optimizeFor={(draft && selectedOffer(draft, answers)?.optimizeFor) ?? "count"}
-            focusLabel={draft ? selectedFocus(selectedOffer(draft, answers), answers)?.label : undefined}
+            optimizeFor={signalOffer?.optimizeFor ?? "count"}
+            focusLabel={firstLine ? selectedFocus(signalOffer, { ceiling: "", ...goalAnswers[firstLine.id] })?.label : draft ? selectedFocus(selectedOffer(draft, answers), answers)?.label : undefined}
             onContinue={() => document.getElementById("first-run-plan")?.scrollIntoView({ behavior: "smooth", block: "start" })}
           />
         }
@@ -132,6 +154,21 @@ export function FirstRunScreen() {
         onFocus={edited(setFocus)}
         onCeiling={edited(setTypedCeiling)}
         onTarget={edited(setTypedTarget)}
+        onToggleLine={edited((id: string, on: boolean) => {
+          const now = draft ? chosenLines(draft, answers).map((l) => l.id) : [];
+          setTicked(on ? [...now.filter((x) => x !== id), id] : now.filter((x) => x !== id));
+          // a new set of goals has a new suggested split
+          setTypedShares(undefined);
+        })}
+        onLineOffer={edited((lineId: string, key: string) => setGoal(lineId, { offer: key }))}
+        onLineFocus={edited((lineId: string, label: string | undefined) => setGoal(lineId, { ...goalAnswers[lineId], focus: label }))}
+        onLineTarget={edited((lineId: string, text: string) => setGoal(lineId, { ...goalAnswers[lineId], target: text }))}
+        onShare={edited((lineId: string, text: string) => {
+          // the first typed share fixes every box at what it showed, so the others do not move under the merchant's hand
+          const shown = draft ? lineShares(draft, answers) : {};
+          setTypedShares({ ...Object.fromEntries(Object.entries(shown).map(([k, v]) => [k, v === undefined ? "" : String(v)])), ...typedShares, [lineId]: text });
+        })}
+        onCampaign={edited((campaignId: string, lineId: string) => setCampaignPicks((all) => ({ ...all, [campaignId]: lineId })))}
         onZone={setZone}
         onSaveZone={() => {
           const tz = (zone ?? suggestedZone).trim();
@@ -171,6 +208,13 @@ export interface FirstRunViewProps {
   onZone: (tz: string) => void;
   onSaveZone: () => void;
   onSend: () => void;
+  /** PL-3: the "What do you sell?" answers; absent in a view with no lines to ask about. */
+  onToggleLine?: (lineId: string, on: boolean) => void;
+  onLineOffer?: (lineId: string, offerKey: string) => void;
+  onLineFocus?: (lineId: string, label: string | undefined) => void;
+  onLineTarget?: (lineId: string, text: string) => void;
+  onShare?: (lineId: string, text: string) => void;
+  onCampaign?: (campaignId: string, lineId: string) => void;
 }
 
 export function FirstRunView(p: FirstRunViewProps) {
@@ -199,9 +243,9 @@ export function FirstRunView(p: FirstRunViewProps) {
         <PageHead title="Your plan is already running" description="Peakhour is running growth for this business." />
         <Card>
           <CardContent className="space-y-3 py-8 text-center">
-            <p className="text-sm text-muted-foreground">To change your ceiling, your target or what you want more of, use Rules. A change is confirmed on WhatsApp, as your plan was.</p>
+            <p className="text-sm text-muted-foreground">To change a goal, its target or its share of the ceiling, use Goals. A change is confirmed on WhatsApp, as your plan was.</p>
             <Button asChild>
-              <Link href={`${GROWTH_HOME}/rules`}>Open Rules</Link>
+              <Link href={`${GROWTH_HOME}/goals`}>Open Goals</Link>
             </Button>
           </CardContent>
         </Card>
@@ -217,7 +261,9 @@ export function FirstRunView(p: FirstRunViewProps) {
     );
   }
 
-  const offer = selectedOffer(draft, p.answers);
+  const lines = chosenLines(draft, p.answers);
+  const linesMode = (draft.lines ?? []).length > 0;
+  const offer = linesMode ? (lines[0] ? lineOffer(lines[0], p.answers) : undefined) : selectedOffer(draft, p.answers);
   const unit = offer ? OUTCOME_UNIT[offer.kind] : undefined;
   const currency = draft.currency ?? "";
   const ceiling = parseAmount(p.answers.ceiling);
@@ -237,6 +283,7 @@ export function FirstRunView(p: FirstRunViewProps) {
         description={`Three questions, then Peakhour drafts your first plan from the ${draft.playbook?.title ?? "right"} playbook. Nothing spends until you confirm on WhatsApp.`}
       />
 
+      {linesMode ? <LinesQuestions {...p} /> : (
       <Card>
         <CardContent className="grid gap-6">
           <fieldset className="grid gap-2.5">
@@ -332,6 +379,7 @@ export function FirstRunView(p: FirstRunViewProps) {
           </div>
         </CardContent>
       </Card>
+      )}
 
       {"absent" in draft.timeZone ? (
         <Card>
@@ -357,6 +405,8 @@ export function FirstRunView(p: FirstRunViewProps) {
       ) : null}
 
       {p.signalStep}
+
+      {asksForCampaigns(draft, p.answers) ? <CampaignsStep {...p} /> : null}
 
       <Card id="first-run-plan">
         <CardHeader>
@@ -441,15 +491,15 @@ function TieQuestion({ draft, onChoose }: { draft: FirstRunDraftResponse; onChoo
   );
 }
 
-function FocusPicker({ offer, chosen, onFocus, currency }: { offer: DraftOffer; chosen: string | undefined; onFocus: (label: string | undefined) => void; currency: string }) {
+function FocusPicker({ offer, chosen, onFocus, currency, id = "first-run-focus" }: { offer: DraftOffer; chosen: string | undefined; onFocus: (label: string | undefined) => void; currency: string; id?: string }) {
   const days = offer.focusWindowDays ?? 90;
   return (
     <div className="grid gap-1.5 rounded-lg border p-3 text-sm">
-      <label htmlFor="first-run-focus" className="font-medium">
+      <label htmlFor={id} className="font-medium">
         Focus on one part of what you sell? <span className="font-normal text-muted-foreground">(optional)</span>
       </label>
       <select
-        id="first-run-focus"
+        id={id}
         className="h-9 rounded-md border bg-background px-2 text-sm"
         value={chosen ?? ""}
         onChange={(e) => onFocus(e.target.value === "" ? undefined : e.target.value)}
@@ -463,5 +513,227 @@ function FocusPicker({ offer, chosen, onFocus, currency }: { offer: DraftOffer; 
       </select>
       <p className="text-xs text-muted-foreground">Peakhour counts, bids on and reports only this part. Everything else is still shown, but never counted toward your goal.</p>
     </div>
+  );
+}
+
+const LEGEND = "font-mono text-micro uppercase tracking-[0.2em] text-muted-foreground";
+
+/**
+ * PL-3: "What do you sell?", then one goal per ticked line, the ceiling with its suggested split, then each goal's target. The
+ * steps are fixed; the lines and their pre-ticks are the api's (`draft.lines`), computed for this business.
+ */
+function LinesQuestions(p: FirstRunViewProps) {
+  const draft = p.draft!;
+  const currency = draft.currency ?? "";
+  const lines = chosenLines(draft, p.answers);
+  const shares = lineShares(draft, p.answers);
+  const ceiling = parseAmount(p.answers.ceiling);
+  const chips = ceilingChips(draft);
+  const sum = lines.reduce((t, l) => t + (shares[l.id] ?? 0), 0);
+  const typedAny = p.answers.shares !== undefined;
+  const hasStoreOffer = (draft.lines ?? []).some((l) => l.offers.some((o) => o.kind === "store_visits"));
+  return (
+    <Card>
+      <CardContent className="grid gap-6">
+        <fieldset className="grid gap-2.5">
+          <legend className={LEGEND}>1 &middot; What do you sell?</legend>
+          <p className="text-xs text-muted-foreground">We ticked what your catalog and profile point to. Tick everything you want more of; each becomes a goal.</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {(draft.lines ?? []).map((l) => {
+              const on = lines.some((x) => x.id === l.id);
+              return (
+                <label key={l.id} className="flex cursor-pointer items-start gap-2.5 rounded-xl border bg-card p-3 has-[:checked]:border-chart-1">
+                  <input type="checkbox" className="mt-0.5 size-4 accent-[var(--chart-1)]" checked={on} onChange={(e) => p.onToggleLine?.(l.id, e.target.checked)} />
+                  <span className="grid gap-0.5">
+                    <b className="text-sm">{l.label}</b>
+                    <span className="text-xs text-muted-foreground">{l.why}</span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+
+        <fieldset className="grid gap-3">
+          <legend className={LEGEND}>2 &middot; {lines.length === 1 ? "Your goal" : "One goal for each"}</legend>
+          {lines.length === 0 ? <p className="text-sm text-muted-foreground">Tick at least one thing you sell.</p> : null}
+          {lines.map((l) => (
+            <LineGoal key={l.id} line={l} p={p} currency={currency} />
+          ))}
+          {!hasStoreOffer ? (
+            <div className="grid gap-1.5 rounded-lg border border-dashed p-3 text-sm">
+              <span className="font-medium">Do customers visit you in person?</span>
+              <div className="flex gap-2">
+                <Button type="button" size="sm" variant={p.inPerson === true ? "default" : "outline"} aria-pressed={p.inPerson === true} onClick={() => p.onInPerson(true)}>
+                  Yes
+                </Button>
+                <Button type="button" size="sm" variant={p.inPerson === false ? "default" : "outline"} aria-pressed={p.inPerson === false} onClick={() => p.onInPerson(false)}>
+                  No
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </fieldset>
+
+        <div className="grid gap-2">
+          <label htmlFor="first-run-ceiling" className={LEGEND}>
+            3 &middot; Your monthly ceiling{lines.length > 1 ? ", split between your goals" : ""}
+          </label>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <span className="text-sm text-muted-foreground">{currency}</span>
+            <Input
+              id="first-run-ceiling"
+              inputMode="numeric"
+              className="w-40 tabular-nums"
+              value={p.answers.ceiling}
+              onChange={(e) => p.onCeiling(e.target.value)}
+              aria-invalid={p.answers.ceiling !== "" && ceiling === undefined}
+            />
+            {chips.map((c) => (
+              <Button key={c.key} type="button" size="sm" variant="outline" onClick={() => p.onCeiling(String(c.amount))}>
+                {c.label} {formatMoney(c.amount, currency)}
+              </Button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">Peakhour can never spend more than this in a month.</p>
+          {lines.length > 1 ? (
+            <div className="grid gap-2 rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">
+                {typedAny ? "Your split." : lines.every((l) => l.minMonthlyBudget) ? "Suggested in proportion to what each usually needs at least." : "Suggested evenly."} Change any share; they must add up to 100%.
+              </p>
+              {lines.map((l) => (
+                <div key={l.id} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 text-sm">
+                  <label htmlFor={`first-run-share-${l.id}`}>{l.label}</label>
+                  <span className="flex items-center gap-1">
+                    <Input
+                      id={`first-run-share-${l.id}`}
+                      inputMode="decimal"
+                      className="w-20 tabular-nums"
+                      value={p.answers.shares?.[l.id] ?? String(shares[l.id] ?? "")}
+                      onChange={(e) => p.onShare?.(l.id, e.target.value)}
+                      aria-invalid={shares[l.id] === undefined}
+                    />
+                    %
+                  </span>
+                  <b className="w-28 text-right tabular-nums">{ceiling !== undefined && shares[l.id] !== undefined ? formatMoney(Math.round((ceiling * shares[l.id]!) / 100), currency) : ""}</b>
+                </div>
+              ))}
+              {Math.abs(sum - 100) > 0.1 ? (
+                <p role="status" className="text-xs text-warning-on-tint">
+                  The shares add up to {Math.round(sum * 10) / 10}%.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+
+        <fieldset className="grid gap-3">
+          <legend className={LEGEND}>4 &middot; {lines.length > 1 ? "Each goal's target" : "Your target"}</legend>
+          {lines.map((l) => (
+            <LineTargetBox key={l.id} line={l} p={p} currency={currency} />
+          ))}
+          <p className="text-xs text-muted-foreground">{TARGET_NOT_A_FEE}</p>
+        </fieldset>
+      </CardContent>
+    </Card>
+  );
+}
+
+function LineGoal({ line, p, currency }: { line: DraftLine; p: FirstRunViewProps; currency: string }) {
+  const offer = lineOffer(line, p.answers);
+  const chosenFocus = p.answers.goals?.[line.id]?.focus;
+  return (
+    <div className="grid gap-2 rounded-lg border p-3">
+      <b className="text-sm">{line.label}</b>
+      {line.offers.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Nothing can be measured for {line.label} yet. Untick it, or connect your shop, your inbox or your analytics.</p>
+      ) : (
+        <div className="flex flex-wrap gap-2" role="group" aria-label={`What ${line.label} should get you more of`}>
+          {line.offers.map((o) => {
+            const Icon = ICON[o.kind];
+            return (
+              <Button
+                key={offerKey(o)}
+                type="button"
+                size="sm"
+                variant={offer && offerKey(offer) === offerKey(o) ? "default" : "outline"}
+                aria-pressed={offer !== undefined && offerKey(offer) === offerKey(o)}
+                onClick={() => p.onLineOffer?.(line.id, offerKey(o))}
+              >
+                <Icon aria-hidden className="size-4" />
+                {o.label}
+              </Button>
+            );
+          })}
+        </div>
+      )}
+      {offer && offer.source === "orders" && offer.focusSuggestions.length > 0 ? (
+        <FocusPicker offer={offer} chosen={chosenFocus} onFocus={(label) => p.onLineFocus?.(line.id, label)} currency={currency} id={`first-run-focus-${line.id}`} />
+      ) : null}
+    </div>
+  );
+}
+
+function LineTargetBox({ line, p, currency }: { line: DraftLine; p: FirstRunViewProps; currency: string }) {
+  const offer = lineOffer(line, p.answers);
+  if (!offer) return null;
+  const kind = targetKindOf(offer);
+  const resolved = lineTarget(line, p.answers);
+  const typed = p.answers.goals?.[line.id]?.target;
+  const id = `first-run-target-${line.id}`;
+  return (
+    <div className="grid gap-1.5">
+      <label htmlFor={id} className="text-sm font-medium">
+        {line.label}: {targetQuestion(kind, OUTCOME_UNIT[offer.kind].one)}
+      </label>
+      <div className="flex flex-wrap items-center gap-2.5">
+        {kind === "cost_per_outcome" ? <span className="text-sm text-muted-foreground">{currency}</span> : null}
+        <Input id={id} inputMode="decimal" className="w-32 tabular-nums" value={typed ?? (resolved ? String(resolved.target.value) : "")} onChange={(e) => p.onLineTarget?.(line.id, e.target.value)} />
+        {kind === "roas" ? <span className="text-sm text-muted-foreground">x return</span> : null}
+        {resolved?.source === "playbook" ? <ToneBadge tone="ai">{startingFromWords(offer.startingFrom) ?? `Filled in by the ${p.draft?.playbook?.title} playbook`}</ToneBadge> : null}
+      </div>
+    </div>
+  );
+}
+
+/** PL-3: the last step of a plan of several goals: which goal each campaign serves. A suggestion is pre-selected, never sent unseen. */
+function CampaignsStep(p: FirstRunViewProps) {
+  const draft = p.draft!;
+  const lines = chosenLines(draft, p.answers);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Which goal does each campaign serve?</CardTitle>
+        <CardDescription>Peakhour moves a campaign&apos;s budget only inside its goal. A campaign with no goal is left exactly as it is. You can change this later on Goals.</CardDescription>
+      </CardHeader>
+      <CardContent className="divide-y">
+        {(draft.campaigns ?? []).map((c) => {
+          const value = campaignLine(draft, p.answers, c.campaignId);
+          const id = `first-run-campaign-${c.campaignId}`;
+          return (
+            <div key={c.campaignId} className="grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,14rem)] sm:items-center">
+              <div className="min-w-0">
+                <label htmlFor={id} className="block truncate text-sm font-medium">
+                  {c.name}
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  {PLATFORM_LABEL[c.platform] ?? c.platform}
+                  {c.status === "paused" ? " · Paused" : ""}
+                  {c.suggestedLineId && value === c.suggestedLineId && p.answers.campaigns?.[c.campaignId] === undefined ? ` · Suggested: ${c.why}` : ""}
+                </p>
+              </div>
+              <select id={id} className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={value} onChange={(e) => p.onCampaign?.(c.campaignId, e.target.value)}>
+                <option value="">No goal</option>
+                {lines.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
   );
 }

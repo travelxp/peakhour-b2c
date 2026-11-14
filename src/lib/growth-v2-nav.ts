@@ -12,6 +12,8 @@ export const GROWTH_HOME = "/dashboard/growth";
 /** Where the pre-v2 pages live now. They keep their pages; only the routes moved. */
 export const RULES_ROUTE = `${GROWTH_HOME}/rules`;
 export const LEARNING_ROUTE = `${GROWTH_HOME}/learning`;
+/** PL-3: every goal of the plan, with Add, Edit and End. */
+export const GOALS_ROUTE = `${GROWTH_HOME}/goals`;
 
 export interface GrowthNavSub {
   href: string;
@@ -52,11 +54,12 @@ export function showFirstRun(state: MandateState): boolean {
 export function growthNav(state: MandateState): GrowthNavSub[] {
   const items: GrowthNavSub[] = [
     { href: GROWTH_HOME, label: "Growth home" },
-    { href: `${GROWTH_HOME}/decisions`, label: "Decisions" },
+    { href: `${GROWTH_HOME}/decisions`, label: "Suggested actions" },
     // Campaign management stays at /dashboard/ads; Channels & money links to it.
-    { href: `${GROWTH_HOME}/channels`, label: "Channels & money", matches: ["/dashboard/ads"] },
-    { href: LEARNING_ROUTE, label: "Learning" },
-    { href: RULES_ROUTE, label: "Rules" },
+    { href: `${GROWTH_HOME}/channels`, label: "Ad channels & budget", matches: ["/dashboard/ads"] },
+    { href: LEARNING_ROUTE, label: "What's working" },
+    { href: GOALS_ROUTE, label: "Goals" },
+    { href: RULES_ROUTE, label: "Guardrails" },
   ];
   if (showFirstRun(state)) items.push({ href: `${GROWTH_HOME}/start`, label: "First run" });
   return items;
@@ -64,13 +67,13 @@ export function growthNav(state: MandateState): GrowthNavSub[] {
 
 /** The sub-tabs under Rules and Learning. The first tab of each is the screen itself. */
 export const RULES_TABS: GrowthNavSub[] = [
-  { href: RULES_ROUTE, label: "Rules" },
+  { href: RULES_ROUTE, label: "Guardrails" },
   { href: `${RULES_ROUTE}/audiences`, label: "Audiences" },
   { href: `${RULES_ROUTE}/business`, label: "Your Business" },
 ];
 
 export const LEARNING_TABS: GrowthNavSub[] = [
-  { href: LEARNING_ROUTE, label: "Learning" },
+  { href: LEARNING_ROUTE, label: "What's working" },
   { href: `${LEARNING_ROUTE}/creatives`, label: "Ad creatives" },
   { href: `${LEARNING_ROUTE}/signals`, label: "Signals" },
 ];

@@ -6,8 +6,8 @@ import { LEARNING_TABS, RULES_TABS, activeSubHref, growthNav, mandateStateOf, sh
 const labels = (s: MandateState) => growthNav(s).map((i) => i.label);
 
 describe("Growth nav", () => {
-  it("is the five screens in order", () => {
-    expect(labels("present")).toEqual(["Growth home", "Decisions", "Channels & money", "Learning", "Rules"]);
+  it("is the six screens in order, in the words the merchant sees (PL-3 added Goals)", () => {
+    expect(labels("present")).toEqual(["Growth home", "Suggested actions", "Ad channels & budget", "What's working", "Goals", "Guardrails"]);
   });
 
   it("points each screen at its route", () => {
@@ -16,6 +16,7 @@ describe("Growth nav", () => {
       "/dashboard/growth/decisions",
       "/dashboard/growth/channels",
       "/dashboard/growth/learning",
+      "/dashboard/growth/goals",
       "/dashboard/growth/rules",
     ]);
   });
@@ -88,8 +89,8 @@ describe("activeSubHref", () => {
 
 describe("the sub-tabs", () => {
   it("put the screen first and the moved pages after it", () => {
-    expect(RULES_TABS.map((t) => t.label)).toEqual(["Rules", "Audiences", "Your Business"]);
-    expect(LEARNING_TABS.map((t) => t.label)).toEqual(["Learning", "Ad creatives", "Signals"]);
+    expect(RULES_TABS.map((t) => t.label)).toEqual(["Guardrails", "Audiences", "Your Business"]);
+    expect(LEARNING_TABS.map((t) => t.label)).toEqual(["What's working", "Ad creatives", "Signals"]);
   });
 
   it("light exactly one tab on each of their pages", () => {
