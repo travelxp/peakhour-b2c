@@ -199,9 +199,16 @@ function GoalRow({
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <b className="text-sm">{g.label}</b>
-          <ToneBadge tone={STATUS_TONE[g.status]}>{STATUS_WORD[g.status]}</ToneBadge>
+          {/* the api's words on the business calendar; the browser formats no date. An ended goal's words ("Ended 15 Nov") are its badge. */}
+          <ToneBadge tone={STATUS_TONE[g.status]}>{g.status === "done" && g.dayWords ? g.dayWords : STATUS_WORD[g.status]}</ToneBadge>
+          {g.dayWords && g.status !== "done" ? <span className="text-xs text-muted-foreground">{g.dayWords}</span> : null}
         </div>
         <p className="text-xs text-muted-foreground">Counts {countsWhat(g)}</p>
+        {g.note ? (
+          <p role="status" data-note-id={g.note.id} className="mt-1.5 rounded-md border border-warning/30 bg-warning/10 px-2 py-1 text-xs">
+            {g.note.detail}
+          </p>
+        ) : null}
       </div>
       <Cell term="Share">{g.status === "active" ? `${pctOf(g.share)}% · ${formatMoney(g.monthlyBudget, currency)}` : "None"}</Cell>
       <Cell term="Target">{targetWords(g, currency)}</Cell>

@@ -632,6 +632,16 @@ describe("PL-3: the Goals page", () => {
     const out = html(<GoalsBody rules={{ ...FIXTURE_RULES, mandate: one, campaigns: [{ ...FIXTURE_RULES.campaigns![0]!, how: "only" as const }] }} preview={false} />);
     expect(out).not.toContain(">No goal<");
   });
+  it("★PL-4: a scheduled or ended goal shows the api's day words as they are, and the end-date note sits on its goal", () => {
+    const text = visibleText(html(<GoalsBody rules={FIXTURE_RULES} preview results={FIXTURE_HOME.goals.items} />));
+    expect(text).toMatch(/Winter treks\s+Scheduled\s+1 Dec to 1 Feb/);
+    expect(text).toMatch(/Monsoon stays\s+Ended 15 Sep\s+Counts/);
+    const m = FIXTURE_RULES.mandate!;
+    const note = { id: "goal-ended-treks-2026-10-20", title: 'Your goal "Treks" reached its end date', detail: 'Your goal "Treks" reached its end date on 20 Oct. Add a new goal or extend this one; until then Peakhour will not raise spend.' };
+    const out = html(<GoalsBody rules={{ ...FIXTURE_RULES, mandate: { ...m, goals: [{ ...m.goals[0]!, note }, ...m.goals.slice(1)] } }} preview={false} />);
+    expect(out).toContain('data-note-id="goal-ended-treks-2026-10-20"');
+    expect(visibleText(out)).toContain("reached its end date on 20 Oct");
+  });
   it("a plan with no goals yet points to First run", () => {
     expect(visibleText(html(<GoalsBody rules={{ ...FIXTURE_RULES, mandate: undefined }} preview={false} />))).toContain("There is no plan yet.");
   });

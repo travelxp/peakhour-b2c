@@ -75,6 +75,10 @@ export interface MandateGoalView {
   endsAt?: string;
   /** PL-3: the campaigns the merchant gave this goal (`platform:platformCampaignId`); absent when none. */
   campaignIds?: string[];
+  /** PL-4: its days in words on the business calendar ("Starts 1 Nov", "1 to 31 Dec", "Ended 15 Nov"); shown as it is, never re-formatted. */
+  dayWords?: string;
+  /** PL-4: the "goal reached its end date" Needs You row about this goal (`goal-ended-<goalId>-<endDay>`). */
+  note?: { id: string; title: string; detail: string };
 }
 
 /**
