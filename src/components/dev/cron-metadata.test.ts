@@ -1219,6 +1219,14 @@ describe("growth cron summaries read the api's real result shapes", () => {
     const base = { checked: 2, committed: 1, declined: 0, unavailable: 0, notReleased: false };
     expect(sum("growth-council-review", { ...base, goals: { checked: 5, transitioned: 2, proposed: 1, notSent: 0 } })?.message).toBe("2 businesses checked: 1 recommendation, 0 declined, 0 could not be reviewed. Goals: 5 businesses worked, 2 goals started or ended, 1 proposal sent.");
     expect(sum("growth-council-review", base)?.message).toBe("2 businesses checked: 1 recommendation, 0 declined, 0 could not be reviewed."); // the step absent (it failed): nothing is claimed
+    // ★a step that stopped early, or whose proposals did not reach anyone, warns and says so
+    expect(sum("growth-council-review", { ...base, goals: { checked: 5, transitioned: 0, proposed: 1, notSent: 3, stoppedEarly: "time_budget" } })).toEqual({
+      message: "2 businesses checked: 1 recommendation, 0 declined, 0 could not be reviewed. Goals: 5 businesses worked, 0 goals started or ended, 1 proposal sent, 3 could not be sent. The goal step stopped early at its time budget.",
+      level: "warning",
+    });
+    expect(sum("growth-council-review", { ...base, goals: { checked: 1, transitioned: 0, proposed: 0, notSent: 1 } })?.level).toBe("warning");
+    // an odd or empty `goals` claims nothing
+    for (const odd of [{}, { error: "x" }, null, "x"]) expect(sum("growth-council-review", { ...base, goals: odd })?.message).toBe("2 businesses checked: 1 recommendation, 0 declined, 0 could not be reviewed.");
   });
 
   it("council review: not released, and stopped early, both warn", () => {

@@ -263,15 +263,21 @@ function summarizeCouncilReview(data: unknown): CronSummary | null {
         ? " Stopped early at the time budget — trigger again to continue."
         : "";
   const unavailable = num(d.unavailable);
+  // PL-4: the daily goal step's counts, only when the run reports them as numbers (a step that failed adds no key, and an odd one says nothing).
   const g = asRecord(d.goals);
-  const goals = g
-    ? ` Goals: ${num(g.checked)} ${plural(num(g.checked), "business", "es")} worked, ${num(g.transitioned)} ${plural(num(g.transitioned), "goal")} started or ended, ${num(g.proposed)} ${plural(num(g.proposed), "proposal")} sent.` +
-      (g.stoppedEarly === "time_budget" ? " The goal step stopped early at its time budget." : "")
+  const reported = g !== null && typeof g.checked === "number";
+  const goalsStopped = reported && g.stoppedEarly === "time_budget";
+  const goalsNotSent = reported ? num(g.notSent) : 0;
+  const goals = reported
+    ? ` Goals: ${num(g.checked)} ${plural(num(g.checked), "business", "es")} worked, ${num(g.transitioned)} ${plural(num(g.transitioned), "goal")} started or ended, ${num(g.proposed)} ${plural(num(g.proposed), "proposal")} sent` +
+      (goalsNotSent > 0 ? `, ${goalsNotSent} could not be sent` : "") +
+      "." +
+      (goalsStopped ? " The goal step stopped early at its time budget." : "")
     : "";
   const msg =
     `${d.checked} ${plural(d.checked, "business", "es")} checked: ${num(d.committed)} ${plural(num(d.committed), "recommendation")}, ` +
     `${num(d.declined)} declined, ${unavailable} could not be reviewed.` + stopped + goals;
-  return stopped || unavailable > 0 ? { message: msg, level: "warning" } : msg;
+  return stopped || unavailable > 0 || goalsStopped || goalsNotSent > 0 ? { message: msg, level: "warning" } : msg;
 }
 
 /** `expireDecisions` closes at most this many a run (peakhour-api services/growth/decisions.ts). */
