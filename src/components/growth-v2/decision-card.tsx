@@ -101,7 +101,7 @@ export function DecisionCard({ decision: d, currency, unit, now, onAction, actio
         <ToneBadge tone={STATUS_TONE[d.status] ?? "neutral"} dot>
           {STATUS_LABEL[d.status]}
         </ToneBadge>
-        {d.status === "proposed" && !d.needsPerson ? <ToneBadge tone="good">Within your mandate</ToneBadge> : null}
+        {d.status === "proposed" && !d.needsPerson ? <ToneBadge tone="good">Within your plan</ToneBadge> : null}
       </div>
 
       <h2 className="text-balance text-lg font-semibold">{d.title}</h2>

@@ -249,7 +249,7 @@ function summarizeWeeklyReport(data: unknown): CronSummary | null {
   return failed > 0 ? { message: msg, level: "warning" } : msg;
 }
 
-/** growth-council-review: `MonthlyResult { checked, committed, declined, unavailable, notReleased, stoppedEarly? }`. */
+/** growth-council-review: `MonthlyResult { checked, committed, declined, unavailable, notReleased, stoppedEarly? }`, and (PL-4) `goals`: the daily goal step's counts. */
 function summarizeCouncilReview(data: unknown): CronSummary | null {
   const d = asRecord(data);
   if (!d || typeof d.checked !== "number") return null;
@@ -263,9 +263,14 @@ function summarizeCouncilReview(data: unknown): CronSummary | null {
         ? " Stopped early at the time budget — trigger again to continue."
         : "";
   const unavailable = num(d.unavailable);
+  const g = asRecord(d.goals);
+  const goals = g
+    ? ` Goals: ${num(g.checked)} ${plural(num(g.checked), "business", "es")} worked, ${num(g.transitioned)} ${plural(num(g.transitioned), "goal")} started or ended, ${num(g.proposed)} ${plural(num(g.proposed), "proposal")} sent.` +
+      (g.stoppedEarly === "time_budget" ? " The goal step stopped early at its time budget." : "")
+    : "";
   const msg =
     `${d.checked} ${plural(d.checked, "business", "es")} checked: ${num(d.committed)} ${plural(num(d.committed), "recommendation")}, ` +
-    `${num(d.declined)} declined, ${unavailable} could not be reviewed.` + stopped;
+    `${num(d.declined)} declined, ${unavailable} could not be reviewed.` + stopped + goals;
   return stopped || unavailable > 0 ? { message: msg, level: "warning" } : msg;
 }
 
@@ -1490,7 +1495,10 @@ export const CRON_METADATA: Record<string, CronMetadata> = {
       "a first review 14 days after its plan was confirmed, then one each calendar month in its own time zone (a " +
       "first review counts as that month's). As many as fit in one run; later hours pick up the rest, and a review " +
       "that could not run is retried the next day. Up to three model calls per business, so AI spend. A " +
-      "recommendation becomes a decision under the business's autonomy rules.",
+      "recommendation becomes a decision under the business's autonomy rules. The same run first does the daily " +
+      "goal step: a scheduled goal starts, and a goal with an end day ends, on its day (the only change made " +
+      "without a confirmation), and a business may be sent one proposal about its goals (a seasonal goal, a move to " +
+      "its next step) to confirm with a code on WhatsApp.",
     summarize: summarizeCouncilReview,
   },
 
