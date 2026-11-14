@@ -280,7 +280,7 @@ export function FirstRunView(p: FirstRunViewProps) {
     <>
       <PageHead
         title={unit ? `Let's get you more ${unit.many}` : "Let's get you more of what matters"}
-        description={`Three questions, then Peakhour drafts your first plan from the ${draft.playbook?.title ?? "right"} playbook. Nothing spends until you confirm on WhatsApp.`}
+        description={`${linesMode ? "Four steps" : "Three questions"}, then Peakhour drafts your first plan from the ${draft.playbook?.title ?? "right"} playbook. Nothing spends until you confirm on WhatsApp.`}
       />
 
       {linesMode ? <LinesQuestions {...p} /> : (
