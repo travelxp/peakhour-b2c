@@ -61,7 +61,7 @@ export function describeErrorLine(err: unknown): { text: string; topUp: boolean 
     case "NO_OUTCOMES":
       return { text: `This could not be done for your plan yet. ${NOT_CHARGED}`, topUp: false };
     default:
-      return { text: `We could not turn that into a goal just now. ${NOT_CHARGED} Try again in a moment, or fill in the form below.`, topUp: false };
+      return { text: "We could not turn that into a goal just now. Try again in a moment, or fill in the form below. If you were charged, it shows on your Peaks page.", topUp: false };
   }
 }
 
@@ -83,7 +83,11 @@ export function DescribeGoal({ ready, onDraft }: { ready: boolean; onDraft: (goa
     parse.mutate(
       { text: trimmed, ...quoteTokenFor(price) },
       {
-        onSuccess: (r) => onDraft(r.goal),
+        onSuccess: (r) => {
+          onDraft(r.goal);
+          // The receipt that was shown has been used: the next press reads a fresh one.
+          void queryClient.invalidateQueries({ queryKey: ["peaks-quote"] });
+        },
         // A refused receipt is thrown away, not re-sent: the next press must carry a fresh one.
         onError: (err) => {
           if (err instanceof ApiError && err.code === "QUOTE_NOT_HONOURED") void queryClient.resetQueries({ queryKey: ["peaks-quote"] });
@@ -102,7 +106,11 @@ export function DescribeGoal({ ready, onDraft }: { ready: boolean; onDraft: (goa
       </h3>
       <Textarea
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => {
+          setText(e.target.value);
+          // An answer to the old sentence is not shown beside a new one.
+          if (!parse.isPending && !parse.isIdle) parse.reset();
+        }}
         disabled={parse.isPending || !canDescribe}
         maxLength={GOAL_TEXT_MAX}
         rows={3}

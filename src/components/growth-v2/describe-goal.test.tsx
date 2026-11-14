@@ -261,6 +261,27 @@ describe("a goal comes back: it fills the form and is never sent on its own", ()
   });
 });
 
+describe("review fixes", () => {
+  it("an answer to the old sentence is not shown beside a new one, and the used receipt is read again", async () => {
+    let n = 0;
+    h.get.mockImplementation(async () => quote({ token: `tok-${++n}` }));
+    h.post.mockImplementation(async (path: string) => (path === "/v1/growth/v2/onboarding/draft" ? DRAFT : PARSED));
+    await mount();
+    await openAdd();
+    await type(SENTENCE);
+    await click(FILL);
+    expect(text()).toContain(RESTATEMENT);
+    expect(n).toBeGreaterThan(1); // the quote was read again after the charge
+    await type(`${SENTENCE} in December`);
+    expect(text()).not.toContain(RESTATEMENT);
+  });
+  it("an error the client cannot judge does not claim the merchant was not charged", () => {
+    const { text: t } = describeErrorLine(new ApiError("NETWORK", "x", 0));
+    expect(t).not.toContain("You were not charged");
+    expect(t).toContain("If you were charged, it shows on your Peaks page.");
+  });
+});
+
 describe("a question back is not charged", () => {
   const UNCLEAR = new ApiError("GOAL_UNCLEAR", "Which hotels do you mean?", 422, undefined, { question: "Which hotels do you mean?", charged: false });
   it("shows the question and says nothing was charged and nothing was changed; the form is left as it was", async () => {
@@ -295,7 +316,6 @@ describe("a question back is not charged", () => {
 
 describe("failures say the merchant was not charged", () => {
   it.each([
-    ["GOAL_PARSE_FAILED", 500],
     ["GOAL_PARSE_NOT_RELEASED", 409],
     ["PRICE_UNAVAILABLE", 503],
     ["QUOTE_NOT_HONOURED", 409],
