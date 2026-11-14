@@ -358,7 +358,9 @@ function AddGoalDialog({ m, onClose }: { m: MandateView; onClose: () => void }) 
   const pct = parsePct(form.share);
   // PL-9: a draft from a sentence only fills the form; nothing is sent until the merchant presses the dialog's own button.
   const fill = (goal: GoalParseResponse["goal"]): string[] => {
-    const next = formFromParsed(goal, lines, draft?.offers ?? []);
+    const drafted = formFromParsed(goal, lines, draft?.offers ?? []);
+    // A share the merchant already typed is theirs: the sentence only replaces it when it gave one.
+    const next = drafted.share === "" ? { ...drafted, share: form.share } : drafted;
     setForm(next);
     return unfilledOf(goal, next);
   };

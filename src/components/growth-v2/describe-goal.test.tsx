@@ -294,6 +294,22 @@ describe("review fixes", () => {
     expect(text()).toContain("We filled in the form below. Check it");
     expect(text()).not.toContain("could not match");
   });
+  it("a share the merchant already typed survives a sentence that names none, and a sentence that names one replaces it", async () => {
+    const noShare = { ...PARSED, goal: { ...PARSED.goal, share: undefined } };
+    h.post.mockImplementation(async (path: string) => (path === "/v1/growth/v2/onboarding/draft" ? DRAFT : noShare));
+    await mount();
+    await openAdd();
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field("goal-new-share"), "30");
+      field("goal-new-share").dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await type(SENTENCE);
+    await click(FILL);
+    expect(field("goal-new-share").value).toBe("30");
+    h.post.mockImplementation(async (path: string) => (path === "/v1/growth/v2/onboarding/draft" ? DRAFT : PARSED));
+    await click(FILL);
+    expect(field("goal-new-share").value).toBe("20");
+  });
   it("an error the client cannot judge does not claim the merchant was not charged", () => {
     const { text: t } = describeErrorLine(new ApiError("NETWORK", "x", 0));
     expect(t).not.toContain("You were not charged");
