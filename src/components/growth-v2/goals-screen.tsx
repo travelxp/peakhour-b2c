@@ -195,7 +195,7 @@ function GoalRow({
   onEnd: () => void;
 }) {
   return (
-    <li className="grid gap-3 py-3 sm:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))_auto] sm:items-center">
+    <li className="grid gap-3 py-3 sm:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))_9rem] sm:items-center">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <b className="text-sm">{g.label}</b>
