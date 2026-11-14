@@ -11,6 +11,7 @@ import {
   useGrowthV2Rules,
   type DraftOffer,
   type GoalCampaignView,
+  type GoalParseResponse,
   type HomeGoal,
   type MandateGoalView,
   type MandateView,
@@ -28,6 +29,7 @@ import {
   editFormOf,
   editGoalPatch,
   endGoalPatch,
+  formFromParsed,
   namedGoal,
   parsePct,
   pctOf,
@@ -38,6 +40,7 @@ import {
   type GoalAddForm,
   type GoalEditForm,
 } from "@/lib/growth-v2-goals";
+import { DescribeGoal } from "./describe-goal";
 import { PageHead } from "./page-head";
 import { PageShell } from "@/components/dashboard/page-shell";
 import { PendingChangeNote, PlanChangeDialog } from "./plan-change";
@@ -352,9 +355,12 @@ function AddGoalDialog({ m, onClose }: { m: MandateView; onClose: () => void }) 
   const offer = offers.find((o) => offerKey(o) === form.offer) ?? offers[0];
   const chosen: GoalAddForm = { ...form, offer: offer ? offerKey(offer) : "" };
   const pct = parsePct(form.share);
+  // PL-9: a draft from a sentence only fills the form; nothing is sent until the merchant presses the dialog's own button.
+  const fill = (goal: GoalParseResponse["goal"]) => setForm(formFromParsed(goal, lines, draft?.offers ?? []));
   return (
     <PlanChangeDialog title="Add a goal" build={() => addGoalPatch(m, chosen, offers)} onClose={onClose}>
       {!draft ? <p className="text-sm text-muted-foreground">Loading what your business can be measured on.</p> : null}
+      <DescribeGoal ready={draft !== undefined} onDraft={fill} />
       {lines.length > 0 ? (
         <div className="grid gap-1.5">
           <label htmlFor="goal-line" className="text-sm font-medium">
@@ -401,7 +407,7 @@ function AddGoalDialog({ m, onClose }: { m: MandateView; onClose: () => void }) 
         </label>
         <Input id="goal-new-share" inputMode="decimal" className="tabular-nums" value={form.share} onChange={(e) => setForm({ ...form, share: e.target.value })} />
       </div>
-      {pct !== undefined && pct > 0 && pct < 100 ? <SplitPreview m={m} pcts={sharesAfterAdd(m, pct)} /> : null}
+      {pct !== undefined && pct > 0 && pct < 100 && form.timing?.status !== "scheduled" ? <SplitPreview m={m} pcts={sharesAfterAdd(m, pct)} /> : null}
     </PlanChangeDialog>
   );
 }
