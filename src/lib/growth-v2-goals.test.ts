@@ -47,6 +47,10 @@ describe("Edit: a goal's target or share", () => {
     expect(editGoalPatch(m, flights, { ...editFormOf(flights), share: "120" })).toHaveProperty("error");
     const solo = goal("main", 1);
     expect(editGoalPatch(plan([solo]), solo, { ...editFormOf(solo), share: "50" })).toHaveProperty("error");
+    // an active goal at 0% or 100% beside others: end a goal instead; two decimals cannot be carried
+    expect(editGoalPatch(m, flights, { ...editFormOf(flights), share: "100" })).toHaveProperty("error");
+    expect(editGoalPatch(m, flights, { ...editFormOf(flights), share: "0" })).toHaveProperty("error");
+    expect(editGoalPatch(m, flights, { ...editFormOf(flights), share: "33.35" })).toHaveProperty("error");
   });
   it("a roas goal keeps its kind", () => {
     const value = goal("sales", 1, { outcome: { kind: "sales", source: "orders", optimizeFor: "value" }, target: { kind: "roas", value: 3 } });
@@ -140,6 +144,9 @@ describe("campaigns: which goal each serves", () => {
     expect(assignPatch(m, campaigns, { "meta:1": "hotels", "meta:2": "", "meta:4": "" })).toEqual({ assign: [{ campaignId: "meta:1", goalId: "hotels" }] });
     expect(assignPatch(m, campaigns, { "meta:1": "" , "meta:2": "", "meta:4": "" })).toEqual({ assign: [{ campaignId: "meta:1" }] });
     expect(assignPatch(m, [campaigns[0]!, campaigns[2]!], {})).toBeUndefined();
+    // the one goal of a plan owns an "only" campaign already: nothing to save
+    const solo = plan([goal("main", 1)]);
+    expect(assignPatch(solo, [c("meta:9", { goalId: "main", how: "only" })], {})).toBeUndefined();
   });
 });
 

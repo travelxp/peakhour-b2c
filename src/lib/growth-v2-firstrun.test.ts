@@ -249,6 +249,7 @@ describe("PL-3: one goal per line the business sells", () => {
     expect(planBlockedReason(d, answers({ shares: { flights: "60", holidays: "30" } }), true)).toMatch(/add up to 90%/);
     expect(planBlockedReason(d, answers({ shares: { flights: "60", holidays: "abc" } }), true)).toMatch(/share of the ceiling/);
     expect(planBlockedReason(d, answers({ shares: { flights: "60", holidays: "40" } }), true)).toBeUndefined();
+    expect(planBlockedReason(d, answers({ shares: { flights: "100", holidays: "0" } }), true)).toMatch(/Holidays has no share/);
     expect(buildPlanBody(d, answers({ shares: { flights: "60", holidays: "40" } }))!.goals.map((g) => g.share)).toEqual([0.6, 0.4]);
     expect(lineShares(d, answers({ shares: { flights: "60" } }))).toEqual({ flights: 60, holidays: 25 });
     expect(lineShares(d, answers({ shares: { flights: "150", holidays: "-50" } }))).toEqual({ flights: undefined, holidays: undefined });

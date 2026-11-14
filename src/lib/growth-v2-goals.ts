@@ -52,10 +52,10 @@ export function rebalance(goals: ReadonlyArray<Pick<MandateGoalView, "goalId" | 
 /** Percentages to the api's fractions. */
 const fractions = (pcts: Record<string, number>) => Object.fromEntries(Object.entries(pcts).map(([id, p]) => [id, Math.round(p * 10) / 1000]));
 
-/** A typed percentage, 0 to 100, or undefined. */
+/** A typed percentage, 0 to 100 with at most one decimal (what the api's 0.001 of slack can carry), or undefined. */
 export function parsePct(text: string): number | undefined {
   const t = text.trim();
-  if (!/^\d+(\.\d+)?$/.test(t)) return undefined;
+  if (!/^\d+(\.\d)?$/.test(t)) return undefined;
   const n = Number(t);
   return n <= 100 ? n : undefined;
 }
@@ -84,6 +84,8 @@ export function editGoalPatch(m: Pick<MandateView, "goals">, goal: MandateGoalVi
   const active = activeGoals(m);
   if (goal.status === "active" && pct !== pctOf(goal.share)) {
     if (active.length === 1) return { error: "This is your only active goal, so it has all of the ceiling." };
+    // an active goal with no share spends nothing, and one with all of it leaves the others none: end a goal instead
+    if (pct <= 0 || pct >= 100) return { error: "Give this goal a share between 0% and 100%. To stop a goal spending, end it." };
     patch.shares = fractions(rebalance(active, { [goal.goalId]: pct }));
   }
   return Object.keys(patch).length === 0 ? undefined : patch;
@@ -165,6 +167,8 @@ export function assignPatch(m: Pick<MandateView, "goals">, campaigns: readonly G
   for (const c of campaigns) {
     const chosen = picks[c.campaignId] ?? preselected(c);
     if (chosen === namedGoal(m, c.campaignId)) continue;
+    // the plan's one active goal owns it already: nothing to save, and naming it would pin it there when a goal is added
+    if (c.how === "only" && chosen === c.goalId) continue;
     assign.push(chosen === "" ? { campaignId: c.campaignId } : { campaignId: c.campaignId, goalId: chosen });
   }
   return assign.length > 0 ? { assign } : undefined;

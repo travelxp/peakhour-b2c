@@ -215,6 +215,8 @@ function linesBlockedReason(draft: FirstRunDraftResponse, answers: FirstRunAnswe
   if (parseAmount(answers.ceiling) === undefined) return "Enter your monthly ceiling.";
   const shares = lineShares(draft, answers);
   if (lines.some((l) => shares[l.id] === undefined)) return "Enter each goal's share of the ceiling as a percentage.";
+  const none = lines.find((l) => shares[l.id] === 0);
+  if (none) return `${none.label} has no share of the ceiling. Give it one, or untick it.`;
   const sum = lines.reduce((t, l) => t + shares[l.id]!, 0);
   if (Math.abs(sum - 100) > 0.1) return `The goals' shares add up to ${Math.round(sum * 10) / 10}%. Make them add up to 100%.`;
   const noTarget = lines.find((l) => !lineTarget(l, answers));
