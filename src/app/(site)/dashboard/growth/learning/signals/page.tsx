@@ -24,6 +24,7 @@ import {
   useRemoveSignal,
   useSignalSnippet,
   useSignals,
+  useSiteTag,
   useUpdateSignal,
 } from "@/hooks/use-signals";
 import type { Signal, SignalProvider, SignalRail } from "@/lib/api/signals";
@@ -31,6 +32,7 @@ import {
   PARTNER_ID_CHANGE_WARNING,
   SITE_TAG_CONSENT,
   SITE_TAG_HEADLINE,
+  siteTagSeen,
   SITE_TAG_WHAT,
   SITE_TAG_WHERE,
   evidenceChain,
@@ -124,6 +126,7 @@ export default function SignalsPage() {
         <EmptyState {...listErrorState(error, () => void refetch())} icon={Radar} />
       ) : (
         <div className="space-y-4">
+          <SiteTagCard />
           {data.availableProviders.map((provider) => {
             const signal = data.signals.find((s) => s.provider === provider);
             return signal ? (
@@ -391,8 +394,7 @@ function SignalCard({
             description={
               "This removes our record and our proof that it works — not the code on your site. " +
               "Setting it up again issues a NEW site key, so you would have to replace the snippet " +
-              "on every page that carries it. The Peakhour site tag uses the same key, so it stops " +
-              "sending too until you replace it."
+              "on every page that carries it."
             }
             variant="destructive"
             confirmLabel="Remove"
@@ -481,29 +483,47 @@ function SnippetBlock({ provider }: { provider: SignalProvider }) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <p className="text-sm text-muted-foreground">{data.placement}</p>
-        <CopyableSnippet text={data.snippet} copyLabel="Copy snippet" />
-      </div>
-      {/* GG-3c: the Peakhour site tag, on the same site key. The consent rule is
-          said before the code, in plain words, because it decides whether the
-          tag ever sends anything. */}
-      {data.tagSnippet && (
-        <div className="space-y-2 border-t pt-4">
-          <p className="text-sm font-medium">Peakhour site tag</p>
-          <p className="text-sm text-muted-foreground">
-            {SITE_TAG_WHAT}
-          </p>
-          <p className="text-sm">
-            <span className="font-medium">{SITE_TAG_HEADLINE}</span>{" "}
-            {SITE_TAG_CONSENT}
-          </p>
-          <p className="text-sm text-muted-foreground">{SITE_TAG_WHERE}</p>
-          <CopyableSnippet text={data.tagSnippet} copyLabel="Copy site tag" />
-        </div>
-      )}
+    <div className="space-y-2">
+      <p className="text-sm text-muted-foreground">{data.placement}</p>
+      <CopyableSnippet text={data.snippet} copyLabel="Copy snippet" />
     </div>
+  );
+}
+
+/**
+ * GG-3c+: the business's OWN Peakhour site tag, shown whether or not any
+ * third-party tag is set up. Its key is the tag's own (issued on first
+ * request), so removing a LinkedIn signal leaves it alone. The consent rule is
+ * said before the code, in plain words, because it decides whether the tag ever
+ * sends anything.
+ */
+function SiteTagCard() {
+  const { data, isPending, isError } = useSiteTag();
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Peakhour site tag</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <p className="text-sm text-muted-foreground">{SITE_TAG_WHAT}</p>
+        <p className="text-sm">
+          <span className="font-medium">{SITE_TAG_HEADLINE}</span> {SITE_TAG_CONSENT}
+        </p>
+        <p className="text-sm text-muted-foreground">{SITE_TAG_WHERE}</p>
+        {isPending ? (
+          <Skeleton className="h-24 w-full" />
+        ) : isError || !data ? (
+          <p className="text-sm text-destructive">
+            We couldn&apos;t build your site tag just now. Try again in a moment.
+          </p>
+        ) : (
+          <>
+            <p className="text-sm text-muted-foreground">{siteTagSeen(data.state, data.lastFiredAt, data.lastFiredHost)}</p>
+            <CopyableSnippet text={data.tagSnippet} copyLabel="Copy site tag" />
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
