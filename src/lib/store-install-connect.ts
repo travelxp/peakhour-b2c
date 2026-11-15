@@ -8,7 +8,7 @@ export const ISSUER_ID_EXAMPLE = "57246542-96fe-1a63-e053-0824d011072a";
 export const BUCKET_EXAMPLE = "pubsite_prod_rev_01234567890987654321";
 
 const ISSUER_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const KEY_ID_RE = /^[A-Z0-9]{10}$/;
+const KEY_ID_RE = /^[A-Za-z0-9]{10}$/;
 const VENDOR_RE = /^\d{1,12}$/;
 const BUCKET_RE = /^pubsite_prod_rev_\d{6,30}$/;
 
@@ -48,7 +48,7 @@ export function appStoreFormProblem(f: AppStoreForm): string | null {
 
 /** The request body parts the api takes: the key is the credential, the ids are settings. */
 export function appStoreConnectBody(f: AppStoreForm): { apiKey: string; config: Record<string, string> } {
-  return { apiKey: f.p8.trim(), config: { issuerId: f.issuerId.trim(), keyId: f.keyId.trim(), vendorNumber: f.vendorNumber.trim() } };
+  return { apiKey: f.p8.trim(), config: { issuerId: f.issuerId.trim(), keyId: f.keyId.trim().toUpperCase(), vendorNumber: f.vendorNumber.trim() } };
 }
 
 export interface PlayForm {

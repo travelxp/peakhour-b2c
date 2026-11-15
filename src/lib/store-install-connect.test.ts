@@ -23,6 +23,10 @@ describe("App Store Connect form", () => {
       config: { issuerId: ISSUER_ID_EXAMPLE, keyId: "2X9R4HXF34", vendorNumber: "85012345" },
     });
   });
+  it("a Key ID typed in lowercase is accepted and sent as Apple writes it", () => {
+    expect(appStoreFormProblem({ ...apple, keyId: "2x9r4hxf34" })).toBeNull();
+    expect(appStoreConnectBody({ ...apple, keyId: "2x9r4hxf34" }).config.keyId).toBe("2X9R4HXF34");
+  });
   it("names the first thing wrong", () => {
     expect(appStoreFormProblem({ ...apple, issuerId: "nope" })).toMatch(/Issuer ID/);
     expect(appStoreFormProblem({ ...apple, keyId: "short" })).toMatch(/Key ID/);

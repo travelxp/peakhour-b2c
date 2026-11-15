@@ -364,8 +364,18 @@ export function AppsFlyerConnectModal({
 
 // ── App Store Connect and Play Console Connect Modals ──────────────
 
-function readFileInto(file: File | undefined, set: (text: string) => void, onFail: () => void) {
+/** A key file is a few KB; anything bigger is the wrong file and is never read into the page. */
+const MAX_KEY_FILE_BYTES = 64 * 1024;
+
+/** Reads the chosen key file into the form, and clears the picker so choosing the same file again still fires. */
+function readKeyFile(input: HTMLInputElement, set: (text: string) => void, onFail: () => void) {
+  const file = input.files?.[0];
+  input.value = "";
   if (!file) return;
+  if (file.size > MAX_KEY_FILE_BYTES) {
+    onFail();
+    return;
+  }
   file.text().then(set).catch(onFail);
 }
 
@@ -429,7 +439,7 @@ export function AppStoreConnectConnectModal({
   const set = (k: keyof AppStoreForm) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   return (
-    <Dialog open={open} onOpenChange={(next) => { if (!next) close(); }}>
+    <Dialog open={open} onOpenChange={(next) => { if (!next && !connecting) close(); }}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Connect App Store Connect</DialogTitle>
@@ -466,7 +476,7 @@ export function AppStoreConnectConnectModal({
           <div className="space-y-2">
             <Label htmlFor="asc-p8">The .p8 key</Label>
             <Textarea id="asc-p8" value={form.p8} onChange={(e) => set("p8")(e.target.value)} disabled={connecting} rows={4} placeholder={"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"} spellCheck={false} autoComplete="off" className="font-mono text-xs" />
-            <input type="file" accept=".p8" disabled={connecting} className="text-xs" onChange={(e) => readFileInto(e.target.files?.[0], set("p8"), () => setError("We couldn't read that file. Paste its text instead."))} />
+            <input type="file" accept=".p8" disabled={connecting} className="text-xs" onChange={(e) => readKeyFile(e.target, set("p8"), () => setError("We couldn't read that file. Paste its text instead."))} />
           </div>
 
           <DialogFooter>
@@ -539,7 +549,7 @@ export function PlayConsoleConnectModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => { if (!next) close(); }}>
+    <Dialog open={open} onOpenChange={(next) => { if (!next && !connecting) close(); }}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Connect Play Console</DialogTitle>
@@ -566,7 +576,7 @@ export function PlayConsoleConnectModal({
           <div className="space-y-2">
             <Label htmlFor="play-key">Service account key (JSON)</Label>
             <Textarea id="play-key" value={form.serviceAccountJson} onChange={(e) => setForm((f) => ({ ...f, serviceAccountJson: e.target.value }))} disabled={connecting} rows={5} spellCheck={false} autoComplete="off" className="font-mono text-xs" />
-            <input type="file" accept=".json,application/json" disabled={connecting} className="text-xs" onChange={(e) => readFileInto(e.target.files?.[0], (text) => setForm((f) => ({ ...f, serviceAccountJson: text })), () => setError("We couldn't read that file. Paste its text instead."))} />
+            <input type="file" accept=".json,application/json" disabled={connecting} className="text-xs" onChange={(e) => readKeyFile(e.target, (text) => setForm((f) => ({ ...f, serviceAccountJson: text })), () => setError("We couldn't read that file. Paste its text instead."))} />
           </div>
 
           <DialogFooter>
