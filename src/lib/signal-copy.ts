@@ -321,6 +321,6 @@ export function siteTagSeen(state: Signal["state"], lastFiredAt: string | null, 
   if (state === "never_fired" || !lastFiredAt) {
     return "We haven't heard from this tag yet. It reports only after a visitor agrees to analytics, so a quiet start is normal.";
   }
-  if (state === "firing") return `Seen working: last heard${where} ${formatWhen(lastFiredAt)}.`;
-  return `Last heard${where} ${formatWhen(lastFiredAt)}, and nothing since. The tag may have been removed, or no visitor has agreed to analytics lately; we can't tell which.`;
+  if (state === "firing") return `Seen working. Last heard${where}: ${formatWhen(lastFiredAt)}.`;
+  return `Last heard${where}: ${formatWhen(lastFiredAt)}, and nothing since. The tag may have been removed, or no visitor has agreed to analytics lately; we can't tell which.`;
 }

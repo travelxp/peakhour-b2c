@@ -393,8 +393,8 @@ describe("siteTagSeen (GG-3c+): the tag's own evidence, the three absences apart
     expect(s).not.toMatch(/broken|error|fail/i);
   });
   it("firing: seen working, with the host when known", () => {
-    expect(siteTagSeen("firing", ago(5 * 60_000), "kala.example")).toBe("Seen working: last heard from kala.example 5 minutes ago.");
-    expect(siteTagSeen("firing", ago(5 * 60_000), null)).toBe("Seen working: last heard 5 minutes ago.");
+    expect(siteTagSeen("firing", ago(5 * 60_000), "kala.example")).toBe("Seen working. Last heard from kala.example: 5 minutes ago.");
+    expect(siteTagSeen("firing", ago(5 * 60_000), null)).toBe("Seen working. Last heard: 5 minutes ago.");
   });
   it("not seen recently: a fact and an honest 'we can't tell', never 'broken'", () => {
     const s = siteTagSeen("not_seen_recently", ago(10 * 86_400_000), "kala.example");
