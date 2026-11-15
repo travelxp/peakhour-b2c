@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, Check } from "lucide-react";
-import { PeakMark } from "@/components/marketing/shopify/shopify-art";
+import { PeakhourLogo } from "@/components/shared/peakhour-logo";
 import { SITE, cn } from "@/lib/utils";
 
 /**
@@ -40,11 +40,8 @@ export const LAUNCH_STEPS: { title: string; body: string }[] = [
 export function LaunchTopBar({ back = false }: { back?: boolean }) {
   return (
     <header className={cn(launchWrap, "flex items-center justify-between gap-4 py-4 sm:py-5")}>
-      <Link prefetch={false} href="/" className="flex items-center gap-2.5 text-lg font-extrabold tracking-tight">
-        <span className="grid size-8 place-items-center rounded-[9px] bg-brand-gradient">
-          <PeakMark className="size-5" />
-        </span>
-        {SITE.name}
+      <Link prefetch={false} href="/" className="flex items-center" aria-label={`${SITE.name} home`}>
+        <PeakhourLogo className="h-7 w-auto sm:h-8" decorative />
       </Link>
       <nav className="flex items-center gap-2">
         {back && (
