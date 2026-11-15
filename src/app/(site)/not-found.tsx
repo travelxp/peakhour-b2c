@@ -18,7 +18,7 @@ import { Footer } from "@/components/shared/footer";
  * the index, but the tag also covers a crawler that reads a soft error.
  */
 export const metadata: Metadata = {
-  title: "Page not found | Peakhour",
+  title: "Page not found",
   robots: { index: false, follow: true },
 };
 
