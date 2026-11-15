@@ -1,5 +1,5 @@
-import type { ComparisonPageContent } from "@/components/marketing/seo/content-types";
-import type { CompetitorBrief } from "./types";
+import type { ComparisonCell, ComparisonPageContent } from "@/components/marketing/seo/content-types";
+import type { CompetitorBrief, PeakhourClaim } from "./types";
 
 /** The vendor id the kit's ComparisonTable keys Peakhour's column on. */
 const PH = "ph";
@@ -67,9 +67,7 @@ export function buildComparisonContent(b: CompetitorBrief): ComparisonPageConten
   };
 }
 
-function stripInternal<T extends { capabilityId?: string; pendingCapability?: string }>(c: T) {
-  const { capabilityId: _a, pendingCapability: _b, ...cell } = c;
-  void _a;
-  void _b;
-  return cell;
+/** Only the public cell fields reach the page; the capability bookkeeping stays in the brief. */
+function stripInternal(c: PeakhourClaim): ComparisonCell {
+  return { value: c.value, note: c.note, source: c.source, observedAt: c.observedAt };
 }

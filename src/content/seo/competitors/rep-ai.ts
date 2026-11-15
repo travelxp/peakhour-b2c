@@ -72,7 +72,7 @@ export const REP_AI: CompetitorBrief = {
   ],
   pricing: {
     currency: "USD",
-    region: "Not stated on the page",
+    region: "any country (none named on the page)",
     rows: [
       { plan: "Sales (up to 3,000 sessions)", price: "$29 per month billed annually, $39 billed monthly", currency: "USD (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
       { plan: "Support (up to 3,000 sessions)", price: "$15 per month billed annually, $19 billed monthly", currency: "USD (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
