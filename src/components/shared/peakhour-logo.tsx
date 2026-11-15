@@ -1,32 +1,47 @@
+import type { CSSProperties } from "react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
-import {
-  BRAND_MARK_SHAPES,
-  BRAND_NAME,
-  BRAND_WORD_SHAPES,
-  LOCKUP_VIEWBOX,
-  WORDMARK_VIEWBOX,
-  type BrandShape,
-} from "@/lib/brand-artwork";
+import { BRAND_NAME, LOCKUP_VIEWBOX, WORDMARK_VIEWBOX } from "@/lib/brand";
 
 /**
  * The ONLY way to show the Peakhour brand. The owner made it non-negotiable on 2026-11-15:
  * wherever the logo or the name stands as a brand (a header, a footer, an avatar, a hub, a share image),
- * it is the official artwork from src/lib/brand-artwork.ts. It is never an icon someone drew, and never
+ * it is the official artwork (src/lib/brand-artwork.ts). It is never an icon someone drew, and never
  * the name set in a font. `brand-guard.test.ts` enforces this.
  *
  *   PeakhourLogo      the lockup: mark + "Peakhour.ai". The default everywhere.
  *   PeakhourWordmark  the letters alone, ONLY beside a `PeakhourMark` (so the mark is not drawn twice).
  *   PeakhourMark      the solid-disc mark, for square slots: an avatar, a collapsed rail, a channel tile.
  *
- * The lockup and wordmark are inline SVG filled with `currentColor`, so they take the text colour of
- * wherever they sit: ink on Daylight, white on an ink band, the theme's foreground in the app. No
- * `dark:invert`, and no blurry PNG at large sizes.
+ * ★The lockup and wordmark are the official SVG files used as a CSS MASK over `currentColor`. They take the text
+ * colour of wherever they sit (ink on Daylight, white on an ink band, the theme's foreground in the app), with no
+ * `dark:invert`, crisp at any size, and NO path data in client JavaScript: inline paths copied 6.7 KB into four
+ * client chunks and broke the bundle budget. Size them with a height (`h-8`); the width follows the artwork's
+ * aspect ratio. `forced-color-adjust: none` keeps them visible in Windows high-contrast mode, which drops
+ * background colours.
  */
 
-/** The artwork's shapes as SVG children. Exported so the share image draws them through the same renderer. */
-export function Shapes({ shapes }: { shapes: readonly BrandShape[] }) {
-  return shapes.map((s, i) => ("d" in s ? <path key={i} d={s.d} /> : <polygon key={i} points={s.points} />));
+const LOCKUP_SRC = "/brand/peakhour-lockup.svg";
+const WORDMARK_SRC = "/brand/peakhour-wordmark.svg";
+
+function ratio(viewBox: string) {
+  const [, , w, h] = viewBox.split(" ").map(Number);
+  return `${w} / ${h}`;
+}
+
+function masked(src: string, viewBox: string): CSSProperties {
+  const url = `url(${src})`;
+  return {
+    aspectRatio: ratio(viewBox),
+    maskImage: url,
+    WebkitMaskImage: url,
+    maskSize: "contain",
+    WebkitMaskSize: "contain",
+    maskRepeat: "no-repeat",
+    WebkitMaskRepeat: "no-repeat",
+    maskPosition: "left center",
+    WebkitMaskPosition: "left center",
+  };
 }
 
 type ArtProps = {
@@ -39,28 +54,14 @@ function a11y(decorative: boolean | undefined) {
   return decorative ? ({ "aria-hidden": true } as const) : ({ role: "img", "aria-label": BRAND_NAME } as const);
 }
 
+const ART = "inline-block shrink-0 bg-current forced-color-adjust-none";
+
 export function PeakhourLogo({ className = "h-8 w-auto", decorative }: ArtProps) {
-  return (
-    <svg viewBox={LOCKUP_VIEWBOX} fill="currentColor" focusable="false" className={cn("shrink-0", className)} {...a11y(decorative)}>
-      <Shapes shapes={BRAND_MARK_SHAPES} />
-      <Shapes shapes={BRAND_WORD_SHAPES} />
-    </svg>
-  );
+  return <span className={cn(ART, className)} style={masked(LOCKUP_SRC, LOCKUP_VIEWBOX)} {...a11y(decorative)} />;
 }
 
 export function PeakhourWordmark({ className = "h-5 w-auto", decorative }: ArtProps) {
-  return (
-    <svg
-      viewBox={WORDMARK_VIEWBOX}
-      preserveAspectRatio="xMinYMid meet"
-      fill="currentColor"
-      focusable="false"
-      className={cn("shrink-0", className)}
-      {...a11y(decorative)}
-    >
-      <Shapes shapes={BRAND_WORD_SHAPES} />
-    </svg>
-  );
+  return <span className={cn(ART, className)} style={masked(WORDMARK_SRC, WORDMARK_VIEWBOX)} {...a11y(decorative)} />;
 }
 
 /**

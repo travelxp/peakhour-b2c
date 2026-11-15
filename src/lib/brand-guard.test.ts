@@ -201,6 +201,17 @@ describe("brand guard: the official artwork, everywhere", () => {
     }
   });
 
+  it("the static files the site draws are the artwork, shape for shape (regenerate them from brand-artwork.ts)", () => {
+    const shapesOf = (svg: string) =>
+      [...svg.matchAll(/<(path|polygon) (?:d|points)="([^"]+)"/g)].map(([, kind, v]) => (kind === "path" ? { d: v } : { points: v }));
+    const lockup = readFileSync(join(ROOT, "public/brand/peakhour-lockup.svg"), "utf8");
+    const letters = readFileSync(join(ROOT, "public/brand/peakhour-wordmark.svg"), "utf8");
+    expect(lockup).toContain(`viewBox="${LOCKUP_VIEWBOX}"`);
+    expect(letters).toContain(`viewBox="${WORDMARK_VIEWBOX}"`);
+    expect(shapesOf(lockup)).toEqual([...BRAND_MARK_SHAPES, ...BRAND_WORD_SHAPES]);
+    expect(shapesOf(letters)).toEqual([...BRAND_WORD_SHAPES]);
+  });
+
   it("the artwork is the official file's: seven mark shapes, eleven letter shapes, measured view boxes", () => {
     expect(BRAND_MARK_SHAPES).toHaveLength(7);
     expect(BRAND_WORD_SHAPES).toHaveLength(11);

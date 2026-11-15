@@ -11,21 +11,15 @@
  * shipped on the live coming-soon header before this file existed. `brand-guard.test.ts` fails the build on
  * both.
  *
- * The lockup is the mark (seven shapes) followed by the "Peakhour.ai" letters (eleven shapes). The view boxes
- * below are their measured bounds, rounded outwards.
+ * The lockup is the mark (seven shapes) followed by the "Peakhour.ai" letters (eleven shapes); their view boxes
+ * are in brand.ts. ★SERVER AND TESTS ONLY: the site draws these shapes from the static files
+ * public/brand/peakhour-lockup.svg and peakhour-wordmark.svg (built from this file, and brand-guard.test.ts fails if
+ * they differ), so no path data ships in client JavaScript. The share image draws them inline (Satori).
  */
 
 export type BrandShape = { d: string } | { points: string };
 
-import { SITE } from "@/lib/utils";
-
-/** The name the artwork spells, for `aria-label` and `alt`: the site's one spelling (SITE.name). */
-export const BRAND_NAME = SITE.name;
-
-/** Mark + letters. */
-export const LOCKUP_VIEWBOX = "33 34 1088 214";
-/** The letters alone, for a slot that already shows the mark beside it. */
-export const WORDMARK_VIEWBOX = "285 85 836 117";
+export { BRAND_NAME, LOCKUP_VIEWBOX, WORDMARK_VIEWBOX } from "@/lib/brand";
 
 export const BRAND_MARK_SHAPES: readonly BrandShape[] = [
   {"d": "M144.8505,183.692l-53.2266,53.6618c-9.6409-6.1955-18.2772-13.4786-25.9859-22.3274l76.441-77.4056c1.7072-1.7287,3.9248-1.3323,5.6773.1021l76.789,77.1651c-7.4974,8.314-15.8884,16.0101-26.1698,22.4491l-53.5251-53.645ZM144.8218,167.2676l54.3733,54.8096,8.7026-7.5511-63.0263-63.3821-62.8186,63.5223,8.8757,7.2688,53.8934-54.6676Z"},

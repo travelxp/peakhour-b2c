@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 import { SITE } from "@/lib/utils";
 import { OG_IMAGE } from "@/components/brand/brand-colors";
 import { BRAND_MARK_SHAPES, BRAND_WORD_SHAPES, LOCKUP_VIEWBOX } from "@/lib/brand-artwork";
-import { Shapes } from "@/components/shared/peakhour-logo";
+import { brandShapes } from "@/components/shared/brand-shapes";
 
 // Shared social-share image for the marketing surface. Text-only + inline
 // styles (Satori has no Tailwind and finicky gradient-text support), so we use
@@ -36,11 +36,11 @@ export default function OpengraphImage() {
         }}
       >
         {/* The official lockup (brand-artwork.ts) through the site's own renderer, never the name set in a font.
-            ⚠️`Shapes(...)` is CALLED, not rendered as <Shapes />: Satori throws "Only intrinsic elements are
-            supported inside <svg>" on a function component there, and the share image would 500. */}
+            ⚠️`brandShapes(...)` is CALLED, never rendered as a component: Satori throws "Only intrinsic elements
+            are supported inside <svg>" on a function component there, and the share image would 500. */}
         <svg viewBox={LOCKUP_VIEWBOX} width={LOGO_WIDTH} height={LOGO_HEIGHT} fill={OG_IMAGE.paper}>
-          {Shapes({ shapes: BRAND_MARK_SHAPES })}
-          {Shapes({ shapes: BRAND_WORD_SHAPES })}
+          {brandShapes(BRAND_MARK_SHAPES)}
+          {brandShapes(BRAND_WORD_SHAPES)}
         </svg>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
