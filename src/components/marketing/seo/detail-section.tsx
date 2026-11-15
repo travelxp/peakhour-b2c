@@ -24,6 +24,7 @@ function lastCardClass(n: number): string {
  * grid (one column on a phone, two from sm, then three or four from lg), then what the part does not do. A server component.
  */
 export function DetailSection({ section, tone = "plain" }: { section: DetailSectionContent; tone?: "plain" | "muted" }) {
+  const items = section.items ?? [];
   return (
     <Section id={section.id} eyebrow={section.eyebrow} title={section.title} tone={tone}>
       <div className="grid max-w-3xl gap-3 text-[17px] text-muted-foreground">
@@ -31,10 +32,10 @@ export function DetailSection({ section, tone = "plain" }: { section: DetailSect
           <p key={p}>{p}</p>
         ))}
       </div>
-      {section.items && section.items.length > 0 && (
-        <ul role="list" className={`mt-7 grid gap-3 sm:grid-cols-2 sm:gap-4 ${columnsClass(section.items.length)}`}>
-          {section.items.map((i) => (
-            <li key={i.title} className={`${cardCls} p-5 ${lastCardClass(section.items.length)}`}>
+      {items.length > 0 && (
+        <ul role="list" className={`mt-7 grid gap-3 sm:grid-cols-2 sm:gap-4 ${columnsClass(items.length)}`}>
+          {items.map((i) => (
+            <li key={i.title} className={`${cardCls} p-5 ${lastCardClass(items.length)}`}>
               <h3 className="text-lg font-extrabold tracking-tight">{i.title}</h3>
               <p className="mt-1.5 text-[15px] text-muted-foreground">
                 {i.body}
