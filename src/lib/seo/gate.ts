@@ -120,6 +120,8 @@ export const MARKETING_PATHS: readonly MarketingPath[] = [
   { path: "/peaks", sitemap: { priority: 0.7, changeFrequency: "monthly" } },
   { path: "/how-it-works", sitemap: { priority: 0.7, changeFrequency: "monthly" } },
   { path: "/contact", sitemap: { priority: 0.5, changeFrequency: "yearly" } },
+  // The SEO template kit review route (SEO-5): a real page on dev, 404 on Production, deliberately NEVER in the sitemap (no `sitemap` key).
+  { path: "/seo-kit" },
   { path: "/privacy-policy", sitemap: { priority: 0.3, changeFrequency: "yearly" } },
   { path: "/terms", sitemap: { priority: 0.3, changeFrequency: "yearly" } },
   { path: "/cookie-policy", sitemap: { priority: 0.3, changeFrequency: "yearly" } },
