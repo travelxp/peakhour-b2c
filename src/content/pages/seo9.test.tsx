@@ -157,7 +157,7 @@ describe("SEO-9 owner rules on the copy", () => {
     expect(ints[0].pillar).toBe("Presence");
     expect(featuresDirectory().items.map((i) => i.title)).not.toContain("AI blog writer");
     expect(ints.length).toBe(9);
-    expect(featuresDirectory().items.length).toBe(6);
+    expect(featuresDirectory().items.length).toBe(5);
   });
 
   it("is reachable from the hubs through registry data", () => {

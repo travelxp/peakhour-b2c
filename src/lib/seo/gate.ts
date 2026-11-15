@@ -1,3 +1,4 @@
+import { SEO9_PAGES } from "./pages-seo9";
 import { PILLAR_ORDER } from "@/lib/pillars";
 import { isAppRoute } from "@/lib/route-theme";
 
@@ -133,16 +134,8 @@ export const MARKETING_PATHS: readonly MarketingPath[] = [
   { path: "/guides" },
   { path: "/shopify/guides/whatsapp-cod-confirmation" },
   { path: "/coming-soon" },
-  // SEO-9: the integration and global feature pages and their directories. A page held in review 404s on its own.
-  ...["/integrations", "/features"].map((path) => ({ path })),
-  ...[
-    "whatsapp", "linkedin", "x", "beehiiv", "meta-ads", "instagram", "facebook-pages", "google-business-profile", "x-ads",
-    "google-ads", "google-search-console", "linkedin-ads",
-  ].map((s) => ({ path: `/integrations/${s}` })),
-  ...[
-    "google-business-profile-management", "review-management", "local-listing-health", "brand-voice", "social-media-content",
-    "beehiiv-newsletter", "ai-blog-writer",
-  ].map((s) => ({ path: `/features/${s}` })),
+  // SEO-9: the integration and feature pages and their directories, from the registry. A page held in review 404s on its own.
+  ...SEO9_PAGES.map((p) => ({ path: p.path })),
 ];
 
 const MARKETING_SET = new Set(MARKETING_PATHS.map((m) => m.path));

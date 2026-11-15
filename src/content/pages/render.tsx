@@ -1,9 +1,6 @@
 import { notFound } from "next/navigation";
-import { Footer } from "@/components/shared/footer";
-import { Header } from "@/components/shared/header";
+import { RouteShell, renderablePage } from "@/components/marketing/seo/route-shell";
 import { DirectoryPage, FeaturePage, IntegrationPage } from "@/components/marketing/seo/templates";
-import { getPage } from "@/lib/seo/pages";
-import { isPreviewable, isPublishable } from "@/lib/seo/publish";
 import { featuresDirectory, integrationsDirectory } from "./seo9-directories";
 import { FEATURE_CONTENT } from "./features";
 import { INTEGRATION_CONTENT } from "./integrations";
@@ -13,8 +10,7 @@ import { INTEGRATION_CONTENT } from "./integrations";
  * is a real 404, so a page held in review never reaches production. Server component, no client JS.
  */
 export function SeoPage({ pageId }: { pageId: string }) {
-  const page = getPage(pageId);
-  if (!isPublishable(page) && !isPreviewable(page)) notFound();
+  const page = renderablePage(pageId);
 
   let body: React.ReactNode;
   if (pageId === "integrations.index") body = <DirectoryPage page={page} content={integrationsDirectory()} />;
@@ -23,11 +19,5 @@ export function SeoPage({ pageId }: { pageId: string }) {
   else if (FEATURE_CONTENT[pageId]) body = <FeaturePage page={page} content={FEATURE_CONTENT[pageId].content} />;
   else notFound();
 
-  return (
-    <div className="theme-daylight flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
-      <Header />
-      {body}
-      <Footer />
-    </div>
-  );
+  return <RouteShell>{body}</RouteShell>;
 }

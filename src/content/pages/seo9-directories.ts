@@ -31,7 +31,6 @@ const FEATURES: Entry[] = [
   { pageId: "features.local.listing.health", title: "Listing health", body: "A score for your Google listing, the next fixes, and alerts.", pillar: "Presence", evidenceId: "presence.listing_health" },
   { pageId: "features.brand.voice", title: "Brand voice", body: "Drafts written in the voice Peakhour learned from your posts.", pillar: "Content", evidenceId: "content.brand_voice" },
   { pageId: "features.social.media.content", title: "Social media publishing", body: "LinkedIn, X, Facebook Pages and Instagram, on your schedule.", pillar: "Content", evidenceId: "content.social_publishing" },
-  { pageId: "feature.peakhour.summit", title: "Peakhour Summit", body: "A four-part AI review of a growth decision. It advises; you approve.", pillar: "Growth", evidenceId: "growth.peakhour_summit" },
 ];
 
 function items(entries: Entry[]): DirectoryItem[] {
