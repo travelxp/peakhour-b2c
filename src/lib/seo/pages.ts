@@ -1,5 +1,6 @@
 import { PEAKS_REFUND_SENTENCE } from "@/lib/peaks-refund-terms";
 import { SHOPIFY_SEO } from "@/lib/shopify-features";
+import { SEO9_PAGES } from "./pages-seo9";
 import { COMPETITOR_BRIEFS } from "@/content/seo/competitors";
 import type { CtaKind, EditorialStatus, PageFamily, PageRecord, PageScope, Pillar, Surface } from "./types";
 
@@ -78,7 +79,7 @@ export const PAGES: readonly PageRecord[] = [
     title: "Peakhour.ai — The AI business platform for growing brands",
     description:
       "Five AI modules — Commerce, Content, Growth, Support, Presence — that sell, publish, advertise, answer, and get you found. One plan for all five.",
-    relatedIds: ["pricing", "how.it.works", "shopify", "commerce", "content", "growth", "support", "presence"],
+    relatedIds: ["pricing", "how.it.works", "shopify", "commerce", "content", "growth", "support", "presence", "integrations.index", "features.index"],
   }),
   page({
     pageId: "pricing",
@@ -120,6 +121,12 @@ export const PAGES: readonly PageRecord[] = [
     title: "Presence — own how you show up on Google | Peakhour.ai",
     description:
       "Your Google Business Profile — listings, hours, photos, and reviews — managed from one place, always current. Included in Peakhour Suite.",
+    relatedIds: [
+      "features.google.business.profile.management",
+      "features.review.management",
+      "features.local.listing.health",
+      "integrations.google.business.profile",
+    ],
   }),
   page({
     pageId: "commerce",
@@ -128,7 +135,7 @@ export const PAGES: readonly PageRecord[] = [
     title: "Commerce — AI storefront assistant | Peakhour.ai",
     description:
       "An AI assistant that knows your whole catalog and sells on WhatsApp and your storefront, 24/7. Included in Peakhour Suite.",
-    relatedIds: ["shopify"],
+    relatedIds: ["shopify", "integrations.whatsapp"],
   }),
   page({
     pageId: "content",
@@ -137,6 +144,14 @@ export const PAGES: readonly PageRecord[] = [
     title: "Content — AI writers in your voice | Peakhour.ai",
     description:
       "AI writers that publish in your brand voice — blogs, newsletters, socials — from your news desk to every channel. Included in Peakhour Suite.",
+    relatedIds: [
+      "features.brand.voice",
+      "features.social.media.content",
+      "integrations.beehiiv",
+      "integrations.x",
+      "integrations.facebook",
+      "integrations.instagram",
+    ],
   }),
   page({
     pageId: "support",
@@ -156,6 +171,7 @@ export const PAGES: readonly PageRecord[] = [
     title: "Growth — ads & LinkedIn, with your approval | Peakhour.ai",
     description:
       "Campaigns drafted, LinkedIn leads captured and budgets reviewed every week, with your approval. Peakhour Growth takes on acquisition work for you. Included in Peakhour Suite.",
+    relatedIds: ["integrations.linkedin", "integrations.meta.ads", "integrations.x.ads"],
   }),
   page({
     pageId: "shopify",
@@ -343,6 +359,7 @@ export const PAGES: readonly PageRecord[] = [
     title: "Data Retention - Peakhour",
     description: "How long Peakhour keeps the data it pulls from connected platforms, and why.",
   }),
+  ...SEO9_PAGES,
   // SEO-11 ----------------------------------------------------------------------------------------------------
   page({
     pageId: "feature.peakhour.summit",
