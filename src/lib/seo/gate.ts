@@ -85,6 +85,11 @@ export function matchesPrefix(pathname: string, entries: readonly string[]): boo
   return entries.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
+/** Whether the coming-soon gate is on (COMING_SOON=true): the one place the variable is read for the gate. */
+export function isGateOn(env: Record<string, string | undefined> = process.env): boolean {
+  return env.COMING_SOON === "true";
+}
+
 /** True when the gate lets this path reach the real app with the gate on and no bypass. */
 export function isPublicPath(pathname: string): boolean {
   return matchesPrefix(pathname, PUBLIC_PATHS);
@@ -136,7 +141,7 @@ const MARKETING_SET = new Set(MARKETING_PATHS.map((m) => m.path));
 
 /** What the gate does with a path it is about to rewrite. */
 export type GateVerdict =
-  /** The teaser, as the page itself: "/" and "/coming-soon". */
+  /** The teaser, as the page itself: "/". */
   | "teaser"
   /** A real page the gate is hiding: the teaser, which is not that page, so noindex. */
   | "teaser-noindex"
@@ -151,8 +156,10 @@ export type GateVerdict =
  * prefix (a path under one of those is the real app's to answer).
  */
 export function gatedVerdict(pathname: string): GateVerdict {
-  if (pathname === "/" || pathname === "/coming-soon") return "teaser";
-  if (MARKETING_SET.has(pathname) || isAppRoute(pathname) || isPublicPath(pathname)) {
+  // Only called for a path the middleware is about to rewrite, which never includes
+  // /coming-soon (the teaser itself) or an allowlisted path.
+  if (pathname === "/") return "teaser";
+  if (MARKETING_SET.has(pathname) || isAppRoute(pathname)) {
     return "teaser-noindex";
   }
   return "not-found";

@@ -151,11 +151,19 @@ describe("wiring", () => {
   it("lists /shopify in the sitemap", async () => {
     const { default: sitemap } = await import("../app/sitemap");
     // The sitemap is empty off Production (SEO-1), so ask it as Production.
-    const before = process.env.VERCEL_ENV;
+    const keys = ["VERCEL_ENV", "SITE_INDEXABLE", "COMING_SOON"] as const;
+    const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+    for (const k of keys) delete process.env[k];
     process.env.VERCEL_ENV = "production";
-    const urls = (await sitemap()).map((e) => e.url);
-    if (before === undefined) delete process.env.VERCEL_ENV;
-    else process.env.VERCEL_ENV = before;
+    let urls: string[];
+    try {
+      urls = (await sitemap()).map((e) => e.url);
+    } finally {
+      for (const k of keys) {
+        if (saved[k] === undefined) delete process.env[k];
+        else process.env[k] = saved[k];
+      }
+    }
     expect(urls).toContain(`${SITE.url.replace(/\/$/, "")}/shopify`);
   });
   it("lets /shopify through the coming-soon gate, and keeps /shopify/connect", () => {

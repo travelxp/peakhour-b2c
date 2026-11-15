@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { SITE } from "@/lib/utils";
 import { getMarketingSitemapEntries } from "@/lib/marketing-pages";
-import { MARKETING_PATHS, pathsThroughTheGate } from "@/lib/seo/gate";
+import { MARKETING_PATHS, isGateOn, pathsThroughTheGate } from "@/lib/seo/gate";
 import { isIndexableDeployment } from "@/lib/seo/indexable";
 
 // Read per request: whether this deployment is indexable, and whether the
@@ -27,7 +27,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   if (!isIndexableDeployment()) return [];
 
   const base = SITE.url.replace(/\/$/, "");
-  const gated = process.env.COMING_SOON === "true";
+  const gated = isGateOn();
 
   const codeEntries: MetadataRoute.Sitemap = (gated ? pathsThroughTheGate() : MARKETING_PATHS)
     .filter((m) => m.sitemap)

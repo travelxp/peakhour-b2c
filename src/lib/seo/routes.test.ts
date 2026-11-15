@@ -71,6 +71,23 @@ describe("sitemap", () => {
   });
 });
 
+describe("next.config headers(): noindex on every path off Production", () => {
+  const noindex = async () =>
+    ((await nextConfig.headers!()) as { source: string; headers: { key: string; value: string }[] }[]).filter((h) =>
+      h.headers.some((x) => x.key === "X-Robots-Tag"),
+    );
+  it("sends X-Robots-Tag: noindex, nofollow on /:path* off Production", async () => {
+    const rules = await noindex();
+    expect(rules).toHaveLength(1);
+    expect(rules[0].source).toBe("/:path*");
+    expect(rules[0].headers[0].value).toBe("noindex, nofollow");
+  });
+  it("sends none on Production", async () => {
+    process.env.VERCEL_ENV = "production";
+    expect(await noindex()).toEqual([]);
+  });
+});
+
 describe("one trailing-slash policy: none, except the root", () => {
   it("next.config does not switch trailingSlash on, so /pricing/ is a 308 to /pricing", () => {
     // Next's default (trailingSlash false) answers /pricing/ with a 308 to /pricing.

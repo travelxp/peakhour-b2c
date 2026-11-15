@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { b2cAccessCookieName, b2cRefreshCookieName } from "@/lib/auth-cookies";
 import { isAppRoute } from "@/lib/route-theme";
-import { gatedVerdict, isPublicPath } from "@/lib/seo/gate";
+import { gatedVerdict, isGateOn, isPublicPath } from "@/lib/seo/gate";
 import { NOINDEX_HEADER, isIndexableDeployment } from "@/lib/seo/indexable";
 
 const isDev = process.env.NODE_ENV !== "production";
@@ -111,7 +111,7 @@ export function middleware(req: NextRequest) {
   // (sets a 1-week httpOnly cookie); `?preview=off` clears it. To preview the
   // teaser in dev, visit /coming-soon directly, or set COMING_SOON=true locally
   // and use the preview secret to get back into the app.
-  const comingSoon = process.env.COMING_SOON === "true";
+  const comingSoon = isGateOn();
   const previewSecret = process.env.COMING_SOON_PREVIEW_SECRET ?? "";
   const PREVIEW_COOKIE = "ph_preview";
   const previewParam = searchParams.get("preview");

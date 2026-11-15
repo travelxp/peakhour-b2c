@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 import { PILLAR_ORDER } from "@/lib/pillars";
 import {
   MARKETING_PATHS,
+  isGateOn,
   PUBLIC_PATHS,
   gatedVerdict,
   isPublicPath,
@@ -37,10 +38,16 @@ describe("the coming-soon gate's allowlist", () => {
   });
 });
 
+describe("isGateOn", () => {
+  it("is true only for COMING_SOON=true", () => {
+    expect(isGateOn({ COMING_SOON: "true" })).toBe(true);
+    for (const v of [undefined, "", "false", "1", "TRUE"]) expect(isGateOn({ COMING_SOON: v })).toBe(false);
+  });
+});
+
 describe("gatedVerdict: what a gated path becomes", () => {
-  it("serves the teaser as itself at / and /coming-soon", () => {
+  it("serves the teaser as itself at /", () => {
     expect(gatedVerdict("/")).toBe("teaser");
-    expect(gatedVerdict("/coming-soon")).toBe("teaser");
   });
 
   it("serves the teaser with noindex for a known gated marketing page", () => {
@@ -108,7 +115,7 @@ describe("every real route is known to the gate", () => {
       }
     };
     walk(root, "");
-    const unknown = [...new Set(routes)].filter((r) => r !== "/gate-404" && gatedVerdict(r) === "not-found");
+    const unknown = [...new Set(routes)].filter((r) => r !== "/gate-404" && !isPublicPath(r) && gatedVerdict(r) === "not-found");
     expect(routes.length).toBeGreaterThan(20);
     expect(unknown).toEqual([]);
   }, 60_000);

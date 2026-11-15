@@ -22,6 +22,8 @@
  * Exits 1 when any check fails.
  */
 
+import { isPublicPath } from "../../src/lib/seo/gate";
+
 const args = process.argv.slice(2);
 const base = (args.find((a) => !a.startsWith("--")) ?? "http://localhost:3000").replace(/\/$/, "");
 const flag = (name: string, dflt: string) =>
@@ -30,9 +32,7 @@ const gateOn = flag("gate", "off") === "on";
 const indexable = flag("indexable", "no") === "yes";
 
 const TEASER_TITLE = "your AI team behind every channel you sell on";
-/** What the gate lets through while it is on (src/lib/seo/gate.ts PUBLIC_PATHS). */
-const ALLOWED = ["/privacy-policy", "/terms", "/cookie-policy", "/data-deletion", "/launch-partner", "/auth", "/pricing", "/peaks", "/shopify", "/shopify/connect", "/claim", "/reconnect", "/growth/confirm", "/share"];
-const isAllowed = (p: string) => ALLOWED.some((a) => p === a || p.startsWith(`${a}/`));
+const isAllowed = isPublicPath;
 
 let failed = 0;
 function check(name: string, ok: boolean, detail = "") {
@@ -60,7 +60,12 @@ async function main() {
     check("robots.txt is Disallow: / for every agent", /user-agent:\s*\*/i.test(robots.body) && /^disallow:\s*\/\s*$/im.test(robots.body), robots.body);
     check("robots.txt has no Allow line and no sitemap line", !/^allow:/im.test(robots.body) && !/^sitemap:/im.test(robots.body), robots.body);
   }
+  if (!indexable) {
+    // Dotted paths are outside the middleware matcher; next.config headers() covers them.
+    check("X-Robots-Tag noindex, nofollow on /robots.txt (a dotted path)", noindexAll(robots.robots), String(robots.robots));
+  }
   const sitemap = await get("/sitemap.xml");
+  if (!indexable) check("X-Robots-Tag noindex, nofollow on /sitemap.xml (a dotted path)", noindexAll(sitemap.robots), String(sitemap.robots));
   check("sitemap.xml answers 200", sitemap.status === 200, String(sitemap.status));
   const locs = [...sitemap.body.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
   if (!indexable) {
