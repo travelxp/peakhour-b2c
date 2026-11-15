@@ -25,7 +25,9 @@ import {
   suiteTrialDays,
   type PricingResponse,
 } from "@/lib/pricing";
+import { Breadcrumbs } from "@/components/marketing/seo/breadcrumbs";
 import { safeJsonLd } from "@/lib/json-ld";
+import { pathFor } from "@/lib/seo/resolve";
 import {
   SHOPIFY_CLOSING,
   SHOPIFY_GROUPS,
@@ -84,6 +86,12 @@ const MORE_DOTS: Record<string, string> = {
   "/growth": "var(--daylight-dot-growth)",
   "/presence": "var(--daylight-dot-presence)",
 };
+
+/** The trail the hero draws and the BreadcrumbList states: one array, through the kit's Breadcrumbs. */
+const SHOPIFY_CRUMBS = [
+  { label: "Home", href: "/" },
+  { label: "Peakhour for Shopify", href: SHOPIFY_SEO.path },
+];
 
 /**
  * The body of /shopify ("Peakhour for Shopify"), between the Header and the
@@ -155,21 +163,7 @@ export function ShopifyPageView({
       <section className="bg-[linear-gradient(180deg,var(--daylight-hero)_0%,var(--background)_88%)]">
         <div className={cn(wrap, "grid grid-cols-1 items-center gap-10 py-10 sm:py-14 lg:grid-cols-[1fr_1.05fr] lg:gap-14 lg:py-20")}>
           <div className="min-w-0">
-            <nav aria-label="Breadcrumb" className="text-sm font-medium text-muted-foreground">
-              <ol className="flex items-center gap-1.5">
-                <li>
-                  <Link href="/" className="transition-colors hover:text-foreground">
-                    Home
-                  </Link>
-                </li>
-                <li aria-hidden className="opacity-40">
-                  &rsaquo;
-                </li>
-                <li aria-current="page" className="text-foreground">
-                  Peakhour for Shopify
-                </li>
-              </ol>
-            </nav>
+            <Breadcrumbs crumbs={SHOPIFY_CRUMBS} />
             <p className={cn(eyebrow, "mt-5")}>{SHOPIFY_HERO.eyebrow}</p>
             <h1 className="mt-3 text-[2.6rem] font-black leading-[1.02] tracking-[-0.04em] text-balance sm:text-6xl lg:text-[4.25rem]">
               {SHOPIFY_HERO.headline} <span className="daylight-mark">{SHOPIFY_HERO.accent}</span>
@@ -226,6 +220,10 @@ export function ShopifyPageView({
             <a href="#control" className="font-semibold text-foreground underline decoration-brand decoration-2 underline-offset-4">
               you stay in charge of all of it
             </a>
+            .{" "}
+            <Link href={pathFor("shopify.features")} className="font-semibold text-foreground underline decoration-brand decoration-2 underline-offset-4">
+              Read about each feature, with its status
+            </Link>
             .
           </p>
           <div className="mt-8 sm:mt-10">
