@@ -207,7 +207,8 @@ describe("every public marketing route has a registry record", () => {
   it("covers SEO-1's list (MARKETING_PATHS, minus the teaser)", () => {
     const registered = new Set(PAGES.map((p) => p.path));
     for (const m of MARKETING_PATHS) {
-      if (m.path === "/coming-soon") continue;
+      // The teaser, and the dev-only template-kit review route (404 on Production, not a public page).
+      if (m.path === "/coming-soon" || m.path === "/seo-kit") continue;
       expect(registered.has(m.path), m.path).toBe(true);
     }
   });
