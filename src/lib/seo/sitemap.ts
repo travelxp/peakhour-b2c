@@ -37,6 +37,13 @@ export function sitemapNameFor(page: Pick<PageRecord, "family" | "scope" | "surf
   return "core";
 }
 
+/** An ISO timestamp, or undefined for a value that is not a date: one bad row must not take the whole sitemap down. */
+function iso(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+}
+
 function base(): string {
   return SITE.url.replace(/\/$/, "");
 }
@@ -55,10 +62,10 @@ export async function sitemapEntries(name: SitemapName, env: Env = process.env):
     if (gated) return [];
     // The PLATFORM site's sitemap (SITE.url): no visitor-host forwarding. A per-tenant sitemap is a follow-up for
     // when b2c serves customer custom domains. Degrades to [] if the API is down.
-    return (await getMarketingSitemapEntries()).map((e) => ({
-      url: `${base()}/${e.slug}`,
-      ...(e.updatedAt ? { lastModified: new Date(e.updatedAt).toISOString() } : {}),
-    }));
+    return (await getMarketingSitemapEntries()).map((e) => {
+      const lastModified = iso(e.updatedAt);
+      return { url: `${base()}/${e.slug}`, ...(lastModified ? { lastModified } : {}) };
+    });
   }
 
   return PAGES.flatMap((page) => {
@@ -66,15 +73,15 @@ export async function sitemapEntries(name: SitemapName, env: Env = process.env):
     if (!isPublishable(page)) return [];
     if (gated && !isListedThroughGate(page.path)) return [];
     const path = pathFor(page.pageId);
-    return [{ url: path === "/" ? `${base()}/` : `${base()}${path}`, lastModified: new Date(page.lastReviewedAt).toISOString() }];
+    const lastModified = iso(page.lastReviewedAt);
+    return [{ url: path === "/" ? `${base()}/` : `${base()}${path}`, ...(lastModified ? { lastModified } : {}) }];
   });
 }
 
 /** The names the index lists: the non-empty ones, so a crawler is never sent to an empty file. */
 export async function sitemapIndexNames(env: Env = process.env): Promise<SitemapName[]> {
-  const out: SitemapName[] = [];
-  for (const name of SITEMAP_NAMES) if ((await sitemapEntries(name, env)).length > 0) out.push(name);
-  return out;
+  const sizes = await Promise.all(SITEMAP_NAMES.map(async (name) => (await sitemapEntries(name, env)).length));
+  return SITEMAP_NAMES.filter((_, i) => sizes[i] > 0);
 }
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

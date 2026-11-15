@@ -38,5 +38,5 @@ export function eyebrowFor(page: Pick<PageRecord, "family" | "scope" | "primaryP
 
 /** The H1 as the card shows it: a trailing "| Peakhour.ai" or "- Peakhour.ai" is dropped, the logo already says it. */
 export function ogTitleFor(page: Pick<PageRecord, "h1">): string {
-  return page.h1.replace(/\s*[|–—-]\s*Peakhour(\.ai)?$/i, "").trim();
+  return page.h1.replace(/\s+[|–—-]\s+Peakhour(\.ai)?$/i, "").trim();
 }

@@ -61,7 +61,8 @@ export function breadcrumbListLd(crumbs: readonly { label: string; href: string 
       "@type": "ListItem",
       position: i + 1,
       name: c.label,
-      item: absolute(c.href),
+      // A site path becomes absolute; a full URL stays as it is.
+      item: c.href.startsWith("/") ? absolute(c.href) : c.href,
     })),
   };
 }
@@ -106,7 +107,8 @@ export function articleLd(a: { headline: string; path: string; author?: string; 
     headline: a.headline,
     mainEntityOfPage: absolute(a.path),
     ...(author ? { author: { "@type": author === SITE.name ? "Organization" : "Person", name: author } } : {}),
-    ...(a.dateModified ? { dateModified: a.dateModified } : {}),
+    // Only an ISO date: Google rejects any other format, and the page's own <time dateTime> needs one too.
+    ...(a.dateModified && /^\d{4}-\d{2}-\d{2}/.test(a.dateModified) ? { dateModified: a.dateModified } : {}),
     publisher: { "@type": "Organization", name: SITE.name, url: absolute("/") },
   };
 }

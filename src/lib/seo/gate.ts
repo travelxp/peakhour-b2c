@@ -121,7 +121,7 @@ export const MARKETING_PATHS: readonly MarketingPath[] = [
   // The Agency/Enterprise page. The per-pillar pricing pages went with the
   // per-module plans (billing plan D19, P4.7).
   { path: "/pricing/teams" },
-  // Public pages the registry does not list (or lists, and the registry decides the sitemap).
+  // Public pages with no own sitemap rule: the registry decides what the sitemap lists.
   { path: "/launch-partner" },
   { path: "/data-deletion" },
   { path: "/help/data-retention" },

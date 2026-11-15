@@ -172,6 +172,11 @@ describe("the builders", () => {
     const a = articleLd({ headline: "H", path: "/g" });
     expect("author" in a).toBe(false);
     expect("dateModified" in a).toBe(false);
+    // A date that is not ISO is left out; a full URL in a crumb is not prefixed with the origin.
+    expect("dateModified" in articleLd({ headline: "H", path: "/g", dateModified: "March 2026" })).toBe(false);
+    expect(articleLd({ headline: "H", path: "/g", dateModified: "2026-03-01" }).dateModified).toBe("2026-03-01");
+    const ext = breadcrumbListLd([{ label: "Out", href: "https://example.com/x" }]).itemListElement as { item: string }[];
+    expect(ext[0].item).toBe("https://example.com/x");
     const s = softwareApplicationLd({ name: "N", url: "u", description: "d" });
     expect("offers" in s).toBe(false);
     expect("installUrl" in s).toBe(false);

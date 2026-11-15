@@ -58,6 +58,10 @@ export function ogCard({ eyebrow, title, footer }: { eyebrow: string; title: str
         </div>
       </div>
     ),
-    { ...OG_SIZE },
+    {
+      ...OG_SIZE,
+      // The URL carries no version, so a title change must reach a scraper within a day, not a year.
+      headers: { "Cache-Control": "public, max-age=0, s-maxage=86400, stale-while-revalidate=604800" },
+    },
   );
 }
