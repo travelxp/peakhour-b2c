@@ -79,7 +79,24 @@ export type FeatureContent = BaseContent & {
   pricingNote: string;
 };
 
+/** An extra section on a feature page: a short explanation, with an optional grid of named parts. */
+export type DetailSectionContent = {
+  id: string;
+  eyebrow: string;
+  title: string;
+  paragraphs: string[];
+  /**
+   * Named parts of the feature (a kind of shelf, a step of a flow). An odd last card spans the row, so any count is safe.
+   * `linkLabel` is the descriptive anchor text when `href` is set (never "read more").
+   */
+  items?: { title: string; body: string; href?: string; linkLabel?: string }[];
+  /** What this part does NOT do, shown under the items. */
+  limitations?: string[];
+};
+
 export type ShopifyFeatureContent = BaseContent & {
+  /** Sections between the status and the setup, for what the feature is made of (Smart Rails kinds, Find my match). */
+  sections?: DetailSectionContent[];
   status: ReleaseStatus;
   limitations: string[];
   verifiedAt: string;
@@ -148,4 +165,24 @@ export type GuideContent = BaseContent & {
 export type DirectoryItem = { title: string; body: string; href: string; status: ReleaseStatus; pillar?: string };
 export type DirectoryContent = BaseContent & {
   items: DirectoryItem[];
+};
+
+/** One thing a module does (or will), with the status the capability record gives it on its surface. */
+export type HubItem = {
+  title: string;
+  body: string;
+  status: ReleaseStatus;
+  surface: Surface;
+  /** What it does not do, one sentence, from the capability's limitations. */
+  limitation?: string;
+};
+/** A module hub (/commerce, /growth ...): what runs today, what is coming, where, and where you stay in charge. */
+export type HubContent = BaseContent & {
+  items: HubItem[];
+  /** Where it runs, one card per surface, each with its own status. */
+  platforms: PlatformItem[];
+  /** Where you stay in charge. */
+  control: string[];
+  /** Shown under "Coming soon", so a reader never mistakes it for a live feature. */
+  comingSoonNote: string;
 };

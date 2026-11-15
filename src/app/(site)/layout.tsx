@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { preconnect } from "react-dom";
 import { getLocale } from "next-intl/server";
 import { SITE } from "@/lib/utils";
+import { getPage } from "@/lib/seo/pages";
 import { API_BASE_URL } from "@/lib/api";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { QueryProvider } from "@/providers/query-provider";
@@ -46,9 +47,9 @@ const fraunces = Fraunces({
   display: "swap",
 });
 
-const DEFAULT_TITLE = "Peakhour.ai — The AI business platform for growing brands";
-const DEFAULT_DESCRIPTION =
-  "Five AI modules — Commerce, Content, Growth, Support, Presence — that sell, publish, advertise, answer, and get you found. One plan for all five.";
+// The site default is the home page record's own words, so a page with no metadata of its own says what / says.
+const DEFAULT_TITLE = getPage("home").title;
+const DEFAULT_DESCRIPTION = getPage("home").description;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),

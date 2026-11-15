@@ -55,6 +55,17 @@ describe("robots.txt", () => {
   });
 });
 
+const SHOPIFY_FEATURE_PATHS = [
+  "/shopify/features",
+  "/shopify/features/ai-product-descriptions",
+  "/shopify/features/ai-seo",
+  "/shopify/features/ai-shopping-assistant",
+  "/shopify/features/frequently-bought-together",
+  "/shopify/features/product-recommendations",
+  "/shopify/features/whatsapp-ai-shopping",
+  "/shopify/features/whatsapp-cod-confirmation",
+];
+
 describe("sitemap", () => {
   it("is empty off Production", async () => {
     process.env.VERCEL_ENV = "preview";
@@ -75,13 +86,14 @@ describe("sitemap", () => {
     // Every published registry page, plus the one CMS page. A page at review (the SEO-10 comparisons) is not listed.
     expect(urls).toHaveLength(PAGES.filter((p) => p.editorialStatus === "published").length + 1);
     expect(urls.some((u) => u.includes("/shopify/compare/"))).toBe(false);
+    for (const held of ["/integrations/google-ads", "/integrations/google-search-console", "/integrations/linkedin-ads", "/features/beehiiv-newsletter", "/features/ai-blog-writer"]) expect(urls).not.toContain(held);
   });
 
   it("lists only what the gate lets through while COMING_SOON=true", async () => {
     process.env.VERCEL_ENV = "production";
     process.env.COMING_SOON = "true";
     const urls = (await allPaths()).sort();
-    expect(urls).toEqual(["/", "/cookie-policy", "/data-deletion", "/launch-partner", "/peaks", "/pricing", "/pricing/teams", "/privacy-policy", "/shopify", "/terms"]);
+    expect(urls).toEqual(["/", "/cookie-policy", "/data-deletion", "/launch-partner", "/peaks", "/pricing", "/pricing/teams", "/privacy-policy", "/shopify", ...SHOPIFY_FEATURE_PATHS, "/terms"].sort());
   });
 });
 
@@ -89,7 +101,7 @@ describe("the sitemap index", () => {
   it("is /sitemap.xml, lists the named sitemaps that have pages, and each one resolves", async () => {
     process.env.VERCEL_ENV = "production";
     const names = await sitemapIndexNames();
-    expect(names).toEqual(["core", "shopify", "cms"]);
+    expect(names).toEqual(["core", "shopify", "features", "integrations", "cms"]);
     const body = await (await indexRoute()).text();
     expect(body).toBe(renderIndex(names));
     for (const n of names) {

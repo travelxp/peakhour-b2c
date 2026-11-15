@@ -46,6 +46,7 @@ import {
 import { SITE, cn } from "@/lib/utils";
 import { ShopifyAutopilotDemo } from "./shopify-autopilot-demo";
 import { Disclosure } from "./shopify-disclosure";
+import { ShopifyFeaturesSection } from "./shopify-features-section";
 import { ShopifyHeroDemo } from "./shopify-hero-demo";
 import { ShopifyJobs } from "./shopify-jobs";
 import { ShopifyOwnerChat } from "./shopify-owner-chat";
@@ -226,6 +227,9 @@ export function ShopifyPageView({
           </div>
         </div>
       </section>
+
+      {/* One link per published Shopify feature page (SEO-8), from the registry; nothing until one is published. */}
+      <ShopifyFeaturesSection />
 
       {/* Peakhour on WhatsApp, for the merchant: the page's one dark band */}
       <section id="whatsapp" aria-labelledby="whatsapp-h" className="scroll-mt-20 bg-ink text-on-ink">

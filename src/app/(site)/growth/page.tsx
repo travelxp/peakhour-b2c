@@ -1,8 +1,9 @@
+import { HubRoute } from "@/components/marketing/seo/hub-route";
+import { GROWTH } from "@/content/pages/growth";
 import { pageMeta } from "@/lib/seo/metadata";
-import { PillarPage } from "@/components/marketing/pillar-page";
 
 export const metadata = pageMeta("growth");
 
-export default function GrowthPillar() {
-  return <PillarPage slug="growth" />;
+export default function GrowthPage() {
+  return <HubRoute pageId="growth" content={GROWTH} />;
 }

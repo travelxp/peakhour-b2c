@@ -1,3 +1,4 @@
+import { SEO9_PAGES } from "./pages-seo9";
 import { PILLAR_ORDER } from "@/lib/pillars";
 import { isAppRoute } from "@/lib/route-theme";
 
@@ -109,6 +110,15 @@ export const MARKETING_PATHS: readonly MarketingPath[] = [
   { path: "/" },
   { path: "/pricing" },
   { path: "/shopify" },
+  // SEO-8: the wave-1 Shopify feature pages (/shopify/* already passes the coming-soon gate).
+  { path: "/shopify/features" },
+  { path: "/shopify/features/ai-shopping-assistant" },
+  { path: "/shopify/features/whatsapp-ai-shopping" },
+  { path: "/shopify/features/product-recommendations" },
+  { path: "/shopify/features/frequently-bought-together" },
+  { path: "/shopify/features/whatsapp-cod-confirmation" },
+  { path: "/shopify/features/ai-seo" },
+  { path: "/shopify/features/ai-product-descriptions" },
   { path: "/peaks" },
   { path: "/how-it-works" },
   { path: "/contact" },
@@ -125,7 +135,16 @@ export const MARKETING_PATHS: readonly MarketingPath[] = [
   { path: "/launch-partner" },
   { path: "/data-deletion" },
   { path: "/help/data-retention" },
+  // SEO-11: the entity, industry and guide pages. Published or not, a known path answers the teaser (or 404 for a draft) rather than an unknown-URL 404.
+  { path: "/about" },
+  { path: "/features/peakhour-summit" },
+  { path: "/industries" },
+  { path: "/industries/fashion-apparel" },
+  { path: "/guides" },
+  { path: "/shopify/guides/whatsapp-cod-confirmation" },
   { path: "/coming-soon" },
+  // SEO-9: the integration and feature pages and their directories, from the registry. A page held in review 404s on its own.
+  ...SEO9_PAGES.map((p) => ({ path: p.path })),
 ];
 
 const MARKETING_SET = new Set(MARKETING_PATHS.map((m) => m.path));

@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { articleLd } from "@/lib/seo/structured-data";
+import { PAGES } from "@/lib/seo/pages";
+import { isPublishable } from "@/lib/seo/publish";
+import { pathFor } from "@/lib/seo/resolve";
 import type { PageRecord } from "@/lib/seo/types";
 import { CapabilityStatus, StatusChip } from "./capability-status";
 import { ComparisonTable } from "./comparison-table";
@@ -8,6 +11,7 @@ import type {
   DirectoryContent,
   FeatureContent,
   GuideContent,
+  HubContent,
   IndustryContent,
   IntegrationContent,
   PlatformContent,
@@ -15,6 +19,7 @@ import type {
   SolutionContent,
 } from "./content-types";
 import { ContextualLinks } from "./contextual-links";
+import { DetailSection } from "./detail-section";
 import { DirectoryGrid } from "./directory-grid";
 import { Bullets, FactsCard, Frame, ListCard } from "./frame";
 import { JsonLd } from "./json-ld";
@@ -58,6 +63,9 @@ export function FeaturePage({ page, content }: { page: PageRecord; content: Feat
   );
 }
 
+/** Bands alternate plain and muted down the page; the status section is band 0 (plain). */
+const bandTone = (index: number) => (index % 2 === 0 ? "plain" : "muted");
+
 /** 7.1 Platform variant: installation and setup, the platform-native workflow, permissions only as supported. */
 export function ShopifyFeaturePage({ page, content }: { page: PageRecord; content: ShopifyFeatureContent }) {
   return (
@@ -65,14 +73,17 @@ export function ShopifyFeaturePage({ page, content }: { page: PageRecord; conten
       <Section id="status" eyebrow="On Shopify" title="Where this stands on Shopify.">
         <CapabilityStatus status={content.status} limitations={content.limitations} verifiedAt={content.verifiedAt} subject="On Shopify" />
       </Section>
-      <Section id="setup" eyebrow="Set up" title="Install to first result." tone="muted">
+      {content.sections?.map((s, i) => (
+        <DetailSection key={s.id} section={s} tone={bandTone(i + 1)} />
+      ))}
+      <Section id="setup" eyebrow="Set up" title="Install to first result." tone={bandTone((content.sections?.length ?? 0) + 1)}>
         <WorkflowSteps steps={content.setupSteps} />
       </Section>
-      <Section id="permissions" eyebrow="Permissions" title="What the app asks for, and why.">
+      <Section id="permissions" eyebrow="Permissions" title="What the app asks for, and why." tone={bandTone((content.sections?.length ?? 0) + 2)}>
         <dl className="grid gap-3 sm:grid-cols-2 sm:gap-4">
           {content.permissions.map((p) => (
-            <div key={p.name} className={`${cardCls} p-5`}>
-              <dt className="font-mono text-sm font-bold">{p.name}</dt>
+            <div key={p.name} className={`${cardCls} p-5 sm:[&:last-child:nth-child(odd)]:col-span-2`}>
+              <dt className="font-mono text-sm font-bold [overflow-wrap:anywhere]">{p.name}</dt>
               <dd className="mt-1.5 text-[15px] text-muted-foreground">{p.why}</dd>
             </div>
           ))}
@@ -438,5 +449,93 @@ export function DirectoryPage({ page, content }: { page: PageRecord; content: Di
         <DirectoryGrid items={content.items} />
       </Section>
     </Frame>
+  );
+}
+
+/** A module hub: what runs today, what is coming soon, where it runs, and where you stay in charge. */
+export function HubPage({ page, content }: { page: PageRecord; content: HubContent }) {
+  const shipped = content.items.filter((i) => i.status === "live" || i.status === "beta");
+  const coming = content.items.filter((i) => i.status !== "live" && i.status !== "beta");
+  // The hub's publishable feature and integration pages, from the registry's relatedIds, so a page appears here the
+  // moment it is publishable and never before. Anything the hub already links in "Keep going" is left out (no duplicates).
+  const already = new Set(content.related.map((l) => l.href));
+  const children = page.relatedIds
+    .map((id) => PAGES.find((p) => p.pageId === id))
+    .filter((p): p is PageRecord => !!p && (p.family === "feature" || p.family === "integration") && isPublishable(p))
+    .map((p) => ({ label: p.title, href: pathFor(p.pageId), note: p.description }))
+    .filter((l) => !already.has(l.href))
+    .slice(0, 6);
+  return (
+    <Frame
+      page={page}
+      content={content}
+      art={
+        <FactsCard
+          title="Where it stands today"
+          facts={content.items.map((i) => ({ label: i.title, value: <StatusChip status={i.status} /> }))}
+        />
+      }
+    >
+      {shipped.length > 0 && (
+        <Section id="today" eyebrow="Available now" title="What it does today.">
+          <HubCards items={shipped} />
+        </Section>
+      )}
+      {coming.length > 0 && (
+        <Section id="soon" eyebrow="Coming soon" title="Built, and not switched on yet." tone="muted" intro={content.comingSoonNote}>
+          <HubCards items={coming} />
+        </Section>
+      )}
+      {content.platforms.length > 0 && (
+        <Section id="platforms" eyebrow="Where it runs" title="Each platform has its own status.">
+          <PlatformChooser platforms={content.platforms} />
+        </Section>
+      )}
+      <Section id="control" eyebrow="You stay in charge" title="How it stays in your hands." tone="muted">
+        <div className="max-w-3xl">
+          <Bullets items={content.control} />
+        </div>
+      </Section>
+      {children.length > 0 && (
+        <Section id="deeper" eyebrow="Go deeper" title="Each feature and connection, on its own page.">
+          <ContextualLinks links={children} />
+        </Section>
+      )}
+    </Frame>
+  );
+}
+
+/**
+ * Column classes by card count, so a row is never left with one orphaned card: 1 is one wide card, 3 and 9 split in
+ * threes, 2, 4 and 8 in pairs, 6 and 12 either way. 5, 7 and 11 would leave one alone, so a hub keeps each group clear
+ * of them (existing-pages.test.tsx holds that).
+ */
+function hubCols(n: number): string {
+  if (n === 1) return "max-w-2xl";
+  if (n % 3 === 0 && n % 2 === 1) return "md:grid-cols-3";
+  if (n % 3 === 0) return "sm:grid-cols-2 lg:grid-cols-3";
+  if (n % 2 === 0) return "sm:grid-cols-2";
+  return "sm:grid-cols-2 lg:grid-cols-3";
+}
+
+function HubCards({ items }: { items: HubContent["items"] }) {
+  return (
+    <ul role="list" className={`grid gap-3 sm:gap-4 ${hubCols(items.length)}`}>
+      {items.map((i) => (
+        <li key={i.title} className={`${cardCls} flex flex-col gap-2 p-5`}>
+          <span className="flex items-start justify-between gap-3">
+            <h3 className="text-lg font-extrabold tracking-tight">{i.title}</h3>
+            <StatusChip status={i.status} className="shrink-0" />
+          </span>
+          <p className="text-[15px] text-muted-foreground">{i.body}</p>
+          {i.limitation && (
+            <p className="mt-auto pt-1 text-sm text-muted-foreground">
+              <b className="font-bold text-foreground">Limit: </b>
+              {i.limitation}
+            </p>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }
