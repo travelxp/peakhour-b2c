@@ -9,6 +9,8 @@ import { safeHref } from "./safe-href";
  * can never differ from what is drawn (Bible 9.3). The last crumb is the current page.
  */
 export function Breadcrumbs({ crumbs }: { crumbs: Crumb[] }) {
+  // The home page has no trail; a one-crumb trail is only the page's own name.
+  if (crumbs.length < 2) return null;
   return (
     <>
     <JsonLd data={breadcrumbListLd(crumbs)} />

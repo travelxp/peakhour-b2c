@@ -432,23 +432,23 @@ export const SHOPIFY_TRUST: string[] = [
 export const SHOPIFY_MORE: { href: string; title: string; body: string }[] = [
   {
     href: "/support",
-    title: "Inbox",
-    body: "Your WhatsApp and storefront conversations in one inbox, answered by AI or by you.",
+    title: "Support",
+    body: "See what shoppers asked your assistant that it could not answer. A shared inbox is coming soon.",
   },
   {
     href: "/content",
     title: "Content",
-    body: "Posts for LinkedIn and X, and newsletters on Beehiiv, written in your voice.",
+    body: "Posts for LinkedIn, X, Facebook and Instagram, and newsletters on Beehiiv, written in your voice for you to approve.",
   },
   {
     href: "/growth",
     title: "Growth",
-    body: "Ads and LinkedIn growth, with Peakhour Summit to review the plan before you approve it.",
+    body: "Meta and X ads and LinkedIn posts, with Peakhour Summit (beta) to review growth decisions before you approve them.",
   },
   {
     href: "/presence",
     title: "Presence",
-    body: "Connect your Google Business Profile and see how people find you.",
+    body: "Prepare Google Business Profile edits and review replies, approved by you. In beta.",
   },
 ];
 
@@ -517,13 +517,13 @@ export const SHOPIFY_STEPS: { title: string; body: string }[] = [
 /** The closing band: what sets Peakhour apart from a chatbot. */
 export const SHOPIFY_CLOSING = {
   headline: "Chatbots answer. Peakhour does the work.",
-  body: "It answers shoppers from your real catalogue, then builds your shelves, plans restocks, confirms COD orders and fixes product pages. You approve what goes live, and almost everything can be undone.",
+  body: "It answers shoppers from your real catalogue, then builds your shelves, warns you before a product runs out, confirms COD orders and fixes product pages. You approve what goes live, and almost everything can be undone.",
 } as const;
 
 export const SHOPIFY_SEO = {
-  title: "Peakhour for Shopify — AI shopping assistant and store autopilot",
+  title: "Peakhour for Shopify: AI assistant and store autopilot",
   description:
-    "Answer shoppers from your real catalogue, build product shelves that sell, plan restocks and fix product pages for Google, all inside Shopify. Billed through Shopify.",
+    "Answer shoppers from your catalogue, build product shelves that sell, flag low stock and fix product pages for Google, inside Shopify. Billed through Shopify.",
   path: "/shopify",
 } as const;
 
@@ -653,7 +653,7 @@ export function shopifyFaq({
     },
     {
       q: "What else is in Peakhour?",
-      a: "Your plan also covers an Inbox, content for LinkedIn, X and Beehiiv, Growth with Peakhour Summit, and Google Business Profile. They run in your peakhour.ai dashboard.",
+      a: "Your plan also covers content for LinkedIn, X, Facebook, Instagram and Beehiiv, Growth with Peakhour Summit (beta) and Google Business Profile tools (beta). Support shows what shoppers asked that your assistant could not answer; a shared inbox is coming soon. They run in your peakhour.ai dashboard.",
     },
   ];
   return comingSoon ? faqs.filter((f) => f.q !== BILLING_Q) : faqs;
