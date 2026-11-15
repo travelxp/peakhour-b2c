@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { Header } from "@/components/shared/header";
-import { Footer } from "@/components/shared/footer";
 
 /**
  * The 404 for every public URL: an unknown path, an explicit `notFound()` in a
@@ -28,42 +26,47 @@ const quiet =
   "inline-flex items-center rounded-full px-6 py-3.5 text-[15px] font-bold shadow-[inset_0_0_0_2px_var(--foreground)] transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
 
 /**
- * `chrome` adds the shared Header and Footer. Only the routes that own a public 404 of
- * their own ask for it ([...slug] and the gate's /gate-404): the root `not-found` sits
- * above EVERY route, the dashboard included, so anything client-side it imports lands
- * in every route's first load (the bundle budget caught +22KB per dashboard route and
- * +104KB on /dashboard/commerce/knowledge). The root one renders the page without them.
+ * The 404's content. It must NOT import the shared Header or Footer: the root `not-found`
+ * sits above EVERY route, the dashboard included, and Header carries a client component,
+ * so any module on the root's import path puts that code in every route's first load (the
+ * bundle budget caught +22KB per dashboard route and +104KB on /dashboard/commerce/knowledge).
+ * The version with the header and footer is public-not-found-with-chrome.tsx, used only by
+ * [...slug] and the gate's /gate-404.
  */
-export function PublicNotFound({ chrome = false }: { chrome?: boolean }) {
+export function PublicNotFoundMain() {
+  return (
+    <main className="flex flex-1 bg-[linear-gradient(180deg,var(--daylight-hero)_0%,var(--background)_88%)]">
+      <div className="mx-auto flex w-full max-w-3xl flex-col justify-center px-4 py-20 sm:px-6 sm:py-28">
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
+          Error 404
+        </p>
+        <h1 className="mt-3 text-4xl font-black leading-[1.05] tracking-[-0.04em] text-balance sm:text-6xl">
+          We couldn&apos;t find that page
+        </h1>
+        <p className="mt-5 max-w-xl text-lg text-muted-foreground">
+          The link may be old, or the address mistyped. These are good places to start.
+        </p>
+        <div className="mt-8 flex flex-wrap items-center gap-3">
+          <Link href="/" className={link}>
+            Go to the home page
+            <ArrowRight aria-hidden className="size-4 transition-transform group-hover:translate-x-0.5" />
+          </Link>
+          <Link href="/shopify" className={quiet}>
+            Peakhour for Shopify
+          </Link>
+          <Link href="/pricing" className={quiet}>
+            Pricing
+          </Link>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+export function PublicNotFound() {
   return (
     <div className="theme-daylight flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
-      {chrome && <Header />}
-      <main className="flex flex-1 bg-[linear-gradient(180deg,var(--daylight-hero)_0%,var(--background)_88%)]">
-        <div className="mx-auto flex w-full max-w-3xl flex-col justify-center px-4 py-20 sm:px-6 sm:py-28">
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
-            Error 404
-          </p>
-          <h1 className="mt-3 text-4xl font-black leading-[1.05] tracking-[-0.04em] text-balance sm:text-6xl">
-            We couldn&apos;t find that page
-          </h1>
-          <p className="mt-5 max-w-xl text-lg text-muted-foreground">
-            The link may be old, or the address mistyped. These are good places to start.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Link href="/" className={link}>
-              Go to the home page
-              <ArrowRight aria-hidden className="size-4 transition-transform group-hover:translate-x-0.5" />
-            </Link>
-            <Link href="/shopify" className={quiet}>
-              Peakhour for Shopify
-            </Link>
-            <Link href="/pricing" className={quiet}>
-              Pricing
-            </Link>
-          </div>
-        </div>
-      </main>
-      {chrome && <Footer />}
+      <PublicNotFoundMain />
     </div>
   );
 }
