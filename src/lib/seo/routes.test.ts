@@ -60,14 +60,30 @@ describe("sitemap", () => {
     expect(urls).toContain("/commerce");
     expect(urls).toContain("/pricing/teams");
     expect(urls).toContain("/guides/x");
-    expect(urls).toHaveLength(16);
+    expect(urls).toHaveLength(23);
   });
 
   it("lists only what the gate lets through while COMING_SOON=true", async () => {
     process.env.VERCEL_ENV = "production";
     process.env.COMING_SOON = "true";
     const urls = (await sitemap()).map((e) => new URL(e.url).pathname).sort();
-    expect(urls).toEqual(["/", "/cookie-policy", "/peaks", "/pricing", "/pricing/teams", "/privacy-policy", "/shopify", "/terms"]);
+    expect(urls).toEqual([
+      "/",
+      "/cookie-policy",
+      "/peaks",
+      "/pricing",
+      "/pricing/teams",
+      "/privacy-policy",
+      "/shopify",
+      "/shopify/features",
+      "/shopify/features/ai-product-descriptions",
+      "/shopify/features/ai-seo",
+      "/shopify/features/frequently-bought-together",
+      "/shopify/features/product-recommendations",
+      "/shopify/features/ai-shopping-assistant",
+      "/shopify/features/whatsapp-cod-confirmation",
+      "/terms",
+    ].sort());
   });
 });
 

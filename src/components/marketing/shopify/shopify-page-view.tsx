@@ -26,6 +26,7 @@ import {
   type PricingResponse,
 } from "@/lib/pricing";
 import { safeJsonLd } from "@/lib/json-ld";
+import { pathFor } from "@/lib/seo/resolve";
 import {
   SHOPIFY_CLOSING,
   SHOPIFY_GROUPS,
@@ -226,6 +227,10 @@ export function ShopifyPageView({
             <a href="#control" className="font-semibold text-foreground underline decoration-brand decoration-2 underline-offset-4">
               you stay in charge of all of it
             </a>
+            .{" "}
+            <Link href={pathFor("shopify.features")} className="font-semibold text-foreground underline decoration-brand decoration-2 underline-offset-4">
+              Read about each feature, with its status
+            </Link>
             .
           </p>
           <div className="mt-8 sm:mt-10">
