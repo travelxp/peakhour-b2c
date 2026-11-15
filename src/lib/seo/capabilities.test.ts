@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { CAPABILITIES } from "./capabilities";
 import { statusSatisfies } from "./publish";
@@ -46,14 +48,30 @@ describe("SEO-3: capability evidence", () => {
     }
   });
 
-  it("no implementation is live or beta while one of its catalog keys is coming_soon or in_development in the snapshot", () => {
+  it("every catalog key is in the snapshot, and no live or beta implementation sits on a key that is not active, live or beta", () => {
     for (const c of CAPABILITIES) {
       for (const i of c.implementations) {
-        if (i.status !== "live" && i.status !== "beta") continue;
         for (const key of i.catalogKeys ?? []) {
           const row = snap[key];
-          if (!row) continue;
-          expect(["coming_soon", "in_development"], `${c.id} [${i.surface}] is ${i.status} but "${key}" is ${row.status}`).not.toContain(row.status);
+          expect(row, `${c.id} [${i.surface}] names "${key}", which is not in the snapshot`).toBeDefined();
+          if (i.status !== "live" && i.status !== "beta") continue;
+          expect(["live", "active", "beta"], `${c.id} [${i.surface}] is ${i.status} but "${key}" is ${row.status}`).toContain(row.status);
+        }
+      }
+    }
+  });
+
+  // Evidence paths are checked against the sibling checkouts when they are present (b2c CI has only this repo).
+  const SIBLINGS = resolve(process.cwd(), "..");
+  const haveSiblings = REPOS.filter((r) => r !== "peakhour-b2c").every((r) => existsSync(resolve(SIBLINGS, r)));
+  it.skipIf(!haveSiblings)("every evidence path exists in its repo's checkout", () => {
+    for (const c of CAPABILITIES) {
+      for (const i of c.implementations) {
+        for (const e of i.evidence) {
+          const [repo, path] = e.split(":");
+          // This worktree stands in for peakhour-b2c, so a b2c path is read from the cwd.
+          const root = repo === "peakhour-b2c" ? process.cwd() : resolve(SIBLINGS, repo);
+          expect(existsSync(resolve(root, path)), `${c.id}: ${e}`).toBe(true);
         }
       }
     }

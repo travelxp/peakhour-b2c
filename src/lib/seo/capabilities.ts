@@ -78,7 +78,6 @@ export const CAPABILITIES: readonly Capability[] = [
     ],
     approvedClaims: [
       claim("commerce.ai_shopping_assistant", "answers_from_catalogue", "Answers shoppers from your real catalogue, inside Shopify.", "live"),
-      claim("commerce.ai_shopping_assistant", "on_whatsapp", "Shoppers can ask the same assistant questions on WhatsApp, and it answers from your own catalogue.", "live"),
     ],
   },
   {
