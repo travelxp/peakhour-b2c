@@ -221,14 +221,22 @@ export function AppsFlyerConnectModal({
   useEffect(() => {
     if (!open) return;
     let live = true;
+    setApps(null);
     listBusinessApps()
       .then((all) => {
         if (!live) return;
         const confirmed = splitApps(all).confirmed;
         setApps(confirmed);
-        setAppId((cur) => cur || (confirmed[0] ? appsFlyerAppId(confirmed[0]) : ""));
+        // keep the pick only while that app is still confirmed
+        setAppId((cur) => (confirmed.some((a) => appsFlyerAppId(a) === cur) ? cur : confirmed[0] ? appsFlyerAppId(confirmed[0]) : ""));
       })
-      .catch(() => live && setApps([]));
+      .catch(() => {
+        if (!live) return;
+        // ★A FAILED LIST IS NOT "NO APPS": say so, instead of sending a merchant who has apps to add one.
+        setApps(null);
+        setAppId("");
+        setError("We couldn't load your apps. Close this and try again.");
+      });
     return () => {
       live = false;
     };
@@ -236,8 +244,15 @@ export function AppsFlyerConnectModal({
 
   function reset() {
     setApiKey("");
+    setAppId("");
+    setApps(null);
     setError("");
     setConnecting(false);
+  }
+
+  function close() {
+    reset();
+    onClose();
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -316,7 +331,7 @@ export function AppsFlyerConnectModal({
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose} disabled={connecting}>
+            <Button type="button" variant="outline" onClick={close} disabled={connecting}>
               Cancel
             </Button>
             <Button type="submit" disabled={connecting || !apiKey.trim() || !appId} className="gap-1.5">
