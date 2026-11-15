@@ -15,6 +15,8 @@ import {
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
+  // Its own canonical: with none, /coming-soon is an indexable duplicate of /.
+  alternates: { canonical: "/" },
   title: "Peakhour — your AI team behind every channel you sell on",
   description:
     "Peakhour answers your customers, fixes your product pages, writes in your voice and runs your growth, across your store, your website and Google. You approve what goes live. Launching soon: become a launch partner.",

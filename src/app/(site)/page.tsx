@@ -10,7 +10,9 @@ import {
 } from "lucide-react";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
-import { pageMetadata } from "@/lib/seo";
+import { pageMeta } from "@/lib/seo/metadata";
+import { organizationLd, webSiteLd } from "@/lib/seo/structured-data";
+import { JsonLd } from "@/components/marketing/seo/json-ld";
 import { heroTrustPoints } from "@/lib/pillar-console";
 import { marketingTrialDays } from "@/lib/pricing";
 import { announcementBar, hasTrial, startPanel, trialNote } from "@/lib/trial-copy";
@@ -33,12 +35,7 @@ import {
 } from "@/components/marketing/integration-brand";
 import { STATIC_FALLBACK_INTEGRATIONS } from "@/lib/integrations-fallback";
 
-export const metadata = pageMetadata({
-  title: "Peakhour.ai — The AI business platform for growing brands",
-  description:
-    "Five AI modules — Commerce, Content, Growth, Support, Presence — that sell, publish, advertise, answer, and get you found. One plan for all five.",
-  path: "/",
-});
+export const metadata = pageMeta("home");
 
 /**
  * Trial → plan — the current pricing architecture (billing plan D19). There is
@@ -194,6 +191,9 @@ export default async function Home({
       ) : null}
 
       <Header />
+      {/* The company and the site, on the home page only (Bible 9.2): from SITE and the brand lockup, nothing the page does not show. */}
+      <JsonLd data={organizationLd()} />
+      <JsonLd data={webSiteLd()} />
 
       <main>
         {/* Hero — the H1 states the visitor's problem, the orbit answers it.

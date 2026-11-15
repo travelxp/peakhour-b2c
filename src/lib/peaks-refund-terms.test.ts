@@ -28,7 +28,10 @@ describe("the refund sentence", () => {
 
   it("the Peaks page says it in its description, its top-up card and its policy, and nowhere calls Peaks flatly non-refundable", () => {
     const p = flat(page("peaks/page.tsx"));
-    expect(p.match(/\$\{PEAKS_REFUND_SENTENCE\}/g)).toHaveLength(2);
+    // The description moved into the page registry (SEO-2); the top-up card and the policy stay on the page.
+    const registry = flat(readFileSync(resolve(import.meta.dirname, "seo", "pages.ts"), "utf8"));
+    expect(registry.match(/\$\{PEAKS_REFUND_SENTENCE\}/g)).toHaveLength(1);
+    expect(p.match(/\$\{PEAKS_REFUND_SENTENCE\}/g)).toHaveLength(1);
     expect(p).toContain("{PEAKS_REFUND_SENTENCE}{\" \"}");
     expect(p).not.toMatch(/are non-refundable,/);
     expect(p).not.toMatch(/>non-refundable</);

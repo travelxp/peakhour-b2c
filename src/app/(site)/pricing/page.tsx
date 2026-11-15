@@ -12,18 +12,13 @@ import {
   pricingPillar,
   suiteModuleSlugs,
 } from "@/lib/pricing-catalog";
-import { pageMetadata } from "@/lib/seo";
+import { pageMeta } from "@/lib/seo/metadata";
 import { SuiteCard } from "@/components/marketing/pricing/suite-card";
 import { ChannelsStrip } from "@/components/marketing/pricing/channels-strip";
 import { TeamsCtaBand } from "@/components/marketing/pricing/teams-cta";
 import { PricingFaq } from "@/components/marketing/pricing/pricing-faq";
 
-export const metadata = pageMetadata({
-  title: "Pricing — Peakhour Suite, Agency and Enterprise",
-  description:
-    "Peakhour Suite is one plan for Commerce, Content, Growth, Support and Presence — one login, one Peaks wallet, one price. Agency and Enterprise plans for teams.",
-  path: "/pricing",
-});
+export const metadata = pageMeta("pricing");
 
 /**
  * /pricing — the pricing hub. One catalog (billing plan D19): Peakhour Suite

@@ -20,7 +20,7 @@ import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { Reveal } from "@/components/marketing/reveal";
 import { RevealNoScript } from "@/components/marketing/reveal-noscript";
-import { pageMetadata } from "@/lib/seo";
+import { pageMeta } from "@/lib/seo/metadata";
 import { getPublicCatalog, signupCta } from "@/lib/catalog";
 import { marketingTrialDays } from "@/lib/pricing";
 import { trialNote } from "@/lib/trial-copy";
@@ -35,14 +35,7 @@ import {
   UNDERSTANDS,
 } from "@/lib/how-peakhour-works";
 
-export const metadata = pageMetadata({
-  title: "See how Peakhour works — one intelligence layer for your whole business",
-  // Kept under ~160 characters: past that, search engines truncate it and the
-  // last clause — which is the actual promise — is what gets cut.
-  description:
-    "Peakhour connects to the tools you already use, learns how your business runs, and links what happens across it — so the next action comes to you.",
-  path: "/how-it-works",
-});
+export const metadata = pageMeta("how.it.works");
 
 /** Icon per flow step — keyed on the step id so the two lists can't drift. */
 const FLOW_ICONS: Record<(typeof PLATFORM_FLOW)[number]["id"], typeof Plug> = {

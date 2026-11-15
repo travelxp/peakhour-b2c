@@ -1,4 +1,4 @@
-import { PeakMark } from "./shopify-art";
+import { PeakhourMark } from "@/components/shared/peakhour-logo";
 
 /**
  * A sample owner chat with Peakhour on WhatsApp: a question, an approval, and
@@ -64,9 +64,7 @@ export function ShopifyOwnerChat() {
     >
       <div className="overflow-hidden rounded-[30px] bg-wa-wallpaper text-wa-text">
         <div className="flex items-center gap-2.5 bg-wa-header px-3.5 pb-3 pt-3.5 text-white">
-          <span className="grid size-9 place-items-center rounded-full bg-brand-gradient">
-            <PeakMark className="size-5" />
-          </span>
+          <PeakhourMark className="size-9 shrink-0" />
           <span className="leading-tight">
             <b className="block text-sm">Peakhour</b>
             <span className="text-micro opacity-80">Business account</span>

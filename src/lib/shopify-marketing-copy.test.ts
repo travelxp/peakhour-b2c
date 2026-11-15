@@ -149,12 +149,25 @@ describe("shopifyJsonLd", () => {
 
 describe("wiring", () => {
   it("lists /shopify in the sitemap", async () => {
-    const { default: sitemap } = await import("../app/sitemap");
-    const urls = (await sitemap()).map((e) => e.url);
+    const { sitemapEntries } = await import("./seo/sitemap");
+    // The sitemap is empty off Production (SEO-1), so ask it as Production.
+    const keys = ["VERCEL_ENV", "SITE_INDEXABLE", "COMING_SOON"] as const;
+    const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+    for (const k of keys) delete process.env[k];
+    process.env.VERCEL_ENV = "production";
+    let urls: string[];
+    try {
+      urls = (await sitemapEntries("shopify")).map((e) => e.url);
+    } finally {
+      for (const k of keys) {
+        if (saved[k] === undefined) delete process.env[k];
+        else process.env[k] = saved[k];
+      }
+    }
     expect(urls).toContain(`${SITE.url.replace(/\/$/, "")}/shopify`);
   });
   it("lets /shopify through the coming-soon gate, and keeps /shopify/connect", () => {
-    const mw = read("middleware.ts");
+    const mw = read("lib/seo/gate.ts");
     expect(mw).toMatch(/PUBLIC_PATHS = \[[\s\S]*?"\/shopify",[\s\S]*?"\/shopify\/connect",[\s\S]*?\];/);
   });
   it("footer has a Works with group naming Shopify and WordPress", () => {
