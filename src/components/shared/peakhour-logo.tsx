@@ -24,7 +24,8 @@ import {
  * `dark:invert`, and no blurry PNG at large sizes.
  */
 
-function Shapes({ shapes }: { shapes: readonly BrandShape[] }) {
+/** The artwork's shapes as SVG children. Exported so the share image draws them through the same renderer. */
+export function Shapes({ shapes }: { shapes: readonly BrandShape[] }) {
   return shapes.map((s, i) => ("d" in s ? <path key={i} d={s.d} /> : <polygon key={i} points={s.points} />));
 }
 
@@ -64,7 +65,14 @@ export function PeakhourWordmark({ className = "h-5 w-auto", decorative }: ArtPr
  * No `dark:invert`: the disc is high-contrast on light and dark grounds as drawn, and inverting it reads
  * as a photo negative.
  */
-export function PeakhourMark({ className = "size-8" }: { className?: string }) {
+export function PeakhourMark({
+  className = "size-8",
+  priority = false,
+}: {
+  className?: string;
+  /** Only where the mark is visible on first paint (the sidebar, a hero). Mock-ups below the fold leave it off. */
+  priority?: boolean;
+}) {
   return (
     <Image
       src="/peakhour-icon.svg"
@@ -73,7 +81,7 @@ export function PeakhourMark({ className = "size-8" }: { className?: string }) {
       width={2000}
       height={2000}
       className={className}
-      priority
+      priority={priority}
       unoptimized
     />
   );

@@ -26,21 +26,24 @@ const SRC = join(ROOT, "src");
 const HOME = "src/components/shared/peakhour-logo.tsx";
 
 const NAME = /^\s*peak\s?hour(?:\.ai)?\s*$/i;
-const BRAND_FILES = /\/peakhour-(?:icon\.svg|logo\.png)/;
-const OWN_COMPONENT = /^Peak\w*(?:Logo|Mark|Wordmark|Icon|Lockup)$/;
+/** Any Peakhour image file, with or without a leading slash or folder. */
+const BRAND_FILES = /peakhour-[\w@-]*\.(?:svg|png|jpe?g|webp|gif)/i;
+const OWN_COMPONENT = /^(?:Peak\w*|PH|Brand|Site|App)(?:Logo|Mark|Wordmark|Icon|Lockup)$/;
 const INVENTED_ICON = "M5 24l8-11";
 /** A cheap superset of the five rules, to skip parsing files that cannot break any of them. */
-const MAY_VIOLATE = /peak\s?hour|SITE\.name|M5 24l8-11|Peak\w*(?:Logo|Mark|Wordmark|Icon|Lockup)|(?:^|[>}])\s*P\s*(?:$|[<{])/im;
+const MAY_VIOLATE =
+  /peak\s?hour|SITE\s*\.\s*name|BRAND_NAME|M5 24l8-11|(?:Peak\w*|PH|Brand|Site|App)(?:Logo|Mark|Wordmark|Icon|Lockup)|(?:^|[>}"])\s*P\s*(?:$|[<{"])/im;
 
 /**
- * Places where the name is TEXT on purpose, each with a reason a reviewer can check. They name something as
- * another product shows it, where artwork would be wrong. Add an entry only for that.
+ * Labels where the name is TEXT on purpose: file -> the exact labels allowed there, each with a reason a reviewer
+ * can check. They name something as another product shows it, where artwork would be wrong. The count is exact, so
+ * a second typed label in the same file still fails, and so does a stale entry.
  */
-const ALLOWED_LABELS = new Map<string, string>([
-  ["src/app/(site)/shopify/connect/_components/shopify-connect-status.tsx", "an instruction naming the app as it appears in Shopify's Apps list"],
-  ["src/app/(site)/data-deletion/page.tsx", "an instruction naming the app as it appears in Facebook's settings"],
-  ["src/components/marketing/shopify/shopify-owner-chat.tsx", "the contact name in a WhatsApp chat header mock-up: WhatsApp shows it as text (the avatar is the mark)"],
-  ["src/components/growth-v2/decisions-screen.tsx", "the contact name in a WhatsApp chat header preview: WhatsApp shows it as text (the avatar is the mark)"],
+const ALLOWED_LABELS = new Map<string, { labels: string[]; reason: string }>([
+  ["src/app/(site)/shopify/connect/_components/shopify-connect-status.tsx", { labels: ["Peakhour.ai"], reason: "an instruction naming the app as Shopify's Apps list shows it (shopify.app.toml name)" }],
+  ["src/app/(site)/data-deletion/page.tsx", { labels: ["Peakhour.ai"], reason: "an instruction naming the app as Facebook's settings show it" }],
+  ["src/components/marketing/shopify/shopify-owner-chat.tsx", { labels: ["Peakhour"], reason: "the contact name in a WhatsApp chat header mock-up; WhatsApp shows it as text (the avatar is the mark)" }],
+  ["src/components/growth-v2/decisions-screen.tsx", { labels: ["Peakhour"], reason: "the contact name in a WhatsApp chat header preview; WhatsApp shows it as text (the avatar is the mark)" }],
 ]);
 
 function sourceFiles(dir: string): string[] {
@@ -59,17 +62,42 @@ export function findBrandViolations(file: string, src: string): BrandViolation[]
   const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const isHome = file.replace(/\\/g, "/").endsWith(HOME);
 
-  const onlyMeaningfulChild = (children: ts.NodeArray<ts.JsxChild>) => {
-    const real = children.filter((c) => !(ts.isJsxText(c) && c.containsOnlyTriviaWhiteSpaces));
-    return real.length === 1 ? real[0] : undefined;
+  /**
+   * The text an element shows, read across its children: JSX text, string literals, the name constants and nested
+   * elements. A self-closing element (an icon, an image) adds no text, so "drawn icon + typed name" reads as the
+   * name. Any other expression is unknown text, so the element is not judged (null).
+   */
+  const shown = (children: ts.NodeArray<ts.JsxChild>): string | null => {
+    let text = "";
+    for (const c of children) {
+      if (ts.isJsxText(c)) text += c.text;
+      else if (ts.isJsxSelfClosingElement(c)) continue;
+      else if (ts.isJsxElement(c) || ts.isJsxFragment(c)) {
+        const inner = shown(c.children);
+        if (inner === null) return null;
+        text += inner;
+      } else if (ts.isJsxExpression(c)) {
+        const e = c.expression;
+        if (!e) continue;
+        if (ts.isStringLiteralLike(e)) text += e.text;
+        else if (/^(?:SITE\.name|BRAND_NAME)$/.test(e.getText(sf).replace(/\s+/g, ""))) text += "Peakhour.ai";
+        else return null;
+      }
+    }
+    return text.replace(/\s+/g, " ").trim();
   };
 
   const walk = (n: ts.Node) => {
-    if (ts.isJsxElement(n)) {
-      const only = onlyMeaningfulChild(n.children);
-      if (only && ts.isJsxText(only) && NAME.test(only.text)) out.push({ rule: 1, text: only.text.trim() });
-      if (only && ts.isJsxExpression(only) && only.expression?.getText(sf) === "SITE.name") out.push({ rule: 1, text: "{SITE.name}" });
-      if (only && ts.isJsxText(only) && only.text.trim() === "P") out.push({ rule: 5, text: "P" });
+    if (ts.isJsxElement(n) || ts.isJsxFragment(n)) {
+      const t = shown(n.children);
+      if (t !== null && NAME.test(t)) {
+        out.push({ rule: 1, text: t });
+        return; // one finding per label, not one per wrapper
+      }
+      if (t === "P") {
+        out.push({ rule: 5, text: "P" });
+        return;
+      }
     }
     if (!isHome && (ts.isStringLiteralLike(n) || ts.isJsxText(n)) && BRAND_FILES.test(n.text)) {
       out.push({ rule: 2, text: n.text.match(BRAND_FILES)![0] });
@@ -93,16 +121,31 @@ describe("brand guard: the official artwork, everywhere", () => {
     const f = "src/x.tsx";
     expect(findBrandViolations(f, `const a = <b className="x">Peakhour</b>;`)).toEqual([{ rule: 1, text: "Peakhour" }]);
     expect(findBrandViolations(f, `const a = <span>\n  Peakhour.ai\n</span>;`)).toEqual([{ rule: 1, text: "Peakhour.ai" }]);
-    expect(findBrandViolations(f, `const a = <a href="/">{SITE.name}</a>;`)).toEqual([{ rule: 1, text: "{SITE.name}" }]);
-    expect(findBrandViolations(f, `const a = <img src="/peakhour-logo.png" />;`)).toEqual([{ rule: 2, text: "/peakhour-logo.png" }]);
+    expect(findBrandViolations(f, `const a = <a href="/">{SITE.name}</a>;`)).toEqual([{ rule: 1, text: "Peakhour.ai" }]);
+    expect(findBrandViolations(f, `const a = <img src="/peakhour-logo.png" />;`)).toEqual([{ rule: 2, text: "peakhour-logo.png" }]);
     expect(findBrandViolations(f, `export function PeakMark() { return null; }`)).toEqual([{ rule: 3, text: "PeakMark" }]);
     expect(findBrandViolations(f, `const PeakhourIcon = () => null;`)).toEqual([{ rule: 3, text: "PeakhourIcon" }]);
     expect(findBrandViolations(f, `const a = <path d="M5 24l8-11 4 5 3-4 7 10z" />;`)).toEqual([{ rule: 4, text: INVENTED_ICON }]);
     expect(findBrandViolations(f, `const a = <span className="font-bold">P</span>;`)).toEqual([{ rule: 5, text: "P" }]);
+    // the ways the first version missed: fragments, literals, the constant, a name split across children,
+    // a drawn icon beside the typed name (the live header's exact shape), and asset paths without a slash
+    expect(findBrandViolations(f, `const a = <>Peakhour</>;`)).toEqual([{ rule: 1, text: "Peakhour" }]);
+    expect(findBrandViolations(f, `const a = <b>{"Peakhour"}</b>;`)).toEqual([{ rule: 1, text: "Peakhour" }]);
+    expect(findBrandViolations(f, `const a = <b>{BRAND_NAME}</b>;`)).toEqual([{ rule: 1, text: "Peakhour.ai" }]);
+    expect(findBrandViolations(f, `const a = <span>{SITE .name}</span>;`)).toEqual([{ rule: 1, text: "Peakhour.ai" }]);
+    expect(findBrandViolations(f, `const a = <span>Peakhour<span className="text-gold">.ai</span></span>;`)).toEqual([{ rule: 1, text: "Peakhour.ai" }]);
+    expect(findBrandViolations(f, `const a = <Link href="/"><span className="tile"><Icon /></span>{SITE.name}</Link>;`)).toEqual([{ rule: 1, text: "Peakhour.ai" }]);
+    expect(findBrandViolations(f, `const a = <span>{"P"}</span>;`)).toEqual([{ rule: 5, text: "P" }]);
+    expect(findBrandViolations(f, `const a = <img src="peakhour-logo.png" />;`)).toEqual([{ rule: 2, text: "peakhour-logo.png" }]);
+    expect(findBrandViolations(f, `const a = <img src="/brand/peakhour-mark.svg" />;`)).toEqual([{ rule: 2, text: "peakhour-mark.svg" }]);
+    expect(findBrandViolations(f, `function BrandLogo() { return null; }`)).toEqual([{ rule: 3, text: "BrandLogo" }]);
+    expect(findBrandViolations(f, `const PHMark = () => null;`)).toEqual([{ rule: 3, text: "PHMark" }]);
     // The scan below skips files the pre-filter rejects, so the pre-filter must pass every one of these.
     for (const bad of [
       `<b>Peakhour</b>`, `<span>\n  Peakhour.ai\n</span>`, `<a>{SITE.name}</a>`, `"/peakhour-icon.svg"`,
       `function PeakMark() {}`, `"M5 24l8-11 4 5"`, `<span>P</span>`, `<div className="x">\n          P\n        </div>`,
+      `<>Peakhour</>`, `<b>{BRAND_NAME}</b>`, `<span>{SITE .name}</span>`, `<span>{"P"}</span>`, `src="peakhour-logo.png"`,
+      `function BrandLogo() {}`, `const PHMark = () => null`,
     ]) {
       expect(MAY_VIOLATE.test(bad), bad).toBe(true);
     }
@@ -112,7 +155,7 @@ describe("brand guard: the official artwork, everywhere", () => {
         f,
         `// Peakhour <b>Peakhour</b> /peakhour-logo.png\nconst a = <p>Peakhour answers your customers.</p>;\nconst b = <p>Open <b>{SITE.name}</b> now and {SITE.name} helps.</p>;\nfunction ChannelLogo() { return null; }\nconst c = <span>{SITE.name} home</span>;`,
       ),
-    ).toEqual([{ rule: 1, text: "{SITE.name}" }]);
+    ).toEqual([{ rule: 1, text: "Peakhour.ai" }]);
   });
 
   it("the shared logo module is the one place allowed to touch the brand files and define the components", () => {
@@ -127,18 +170,25 @@ describe("brand guard: the official artwork, everywhere", () => {
       const text = readFileSync(file, "utf8");
       // Parse only files that could break a rule: the whole tree through the TS parser is too slow.
       if (!MAY_VIOLATE.test(text)) continue;
+      const allowed = [...(ALLOWED_LABELS.get(rel)?.labels ?? [])];
       for (const v of findBrandViolations(file, text)) {
-        if (v.rule === 1 && ALLOWED_LABELS.has(rel)) continue;
+        const i = v.rule === 1 ? allowed.indexOf(v.text) : -1;
+        if (i >= 0) {
+          allowed.splice(i, 1); // each allowed label covers exactly one occurrence
+          continue;
+        }
         found.push(`${rel}: rule ${v.rule}: ${v.text}`);
       }
     }
     expect(found, "Use PeakhourLogo / PeakhourWordmark / PeakhourMark from src/components/shared/peakhour-logo.tsx").toEqual([]);
   });
 
-  it("every allow-listed file still needs its exemption (a stale entry is a hole)", () => {
-    for (const rel of ALLOWED_LABELS.keys()) {
-      const v = findBrandViolations(join(ROOT, rel), readFileSync(join(ROOT, rel), "utf8"));
-      expect(v.some((x) => x.rule === 1), rel).toBe(true);
+  it("every allow-listed label is still there, exactly (a stale entry is a hole)", () => {
+    for (const [rel, { labels }] of ALLOWED_LABELS) {
+      const hits = findBrandViolations(join(ROOT, rel), readFileSync(join(ROOT, rel), "utf8"))
+        .filter((x) => x.rule === 1)
+        .map((x) => x.text);
+      expect(hits.sort(), rel).toEqual([...labels].sort());
     }
   });
 

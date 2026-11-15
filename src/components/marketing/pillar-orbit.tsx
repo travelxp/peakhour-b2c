@@ -120,8 +120,10 @@ export function PillarOrbit() {
           style={{ width: `${HUB_RADIUS * 2}%`, height: `${HUB_RADIUS * 2}%` }}
         >
           {/* The official mark over the official letters (brand-artwork.ts), never the name set in a font. */}
-          <PeakhourMark className="h-auto w-[42%]" />
-          <PeakhourWordmark className="h-auto w-[62%]" />
+          {/* Hero-visible, so `priority` (next/image would lazy-load it otherwise). The wordmark keeps a floor so
+              it never shrinks below legibility on a small screen. */}
+          <PeakhourMark className="h-auto w-[42%]" priority />
+          <PeakhourWordmark className="h-auto w-[62%] min-w-14" />
         </div>
 
         {/* Nodes. A list, not decoration — this is the only place on the page

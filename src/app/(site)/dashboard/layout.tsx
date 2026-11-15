@@ -353,9 +353,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                       The mark is present in BOTH states — it is the one element
                       that survives the collapse — so it is not duplicated the
                       way the lockup duplicated it. */}
-                  <PeakhourMark className="size-8 shrink-0 group-data-[collapsible=icon]:size-6" />
+                  <PeakhourMark className="size-8 shrink-0 group-data-[collapsible=icon]:size-6" priority />
                   <span className="grid min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-                    <PeakhourWordmark className="h-[0.95rem] w-auto self-start" />
+                    <PeakhourWordmark className="h-auto max-h-[0.95rem] w-full max-w-[6.75rem] shrink self-start" />
                     <span className="truncate text-xs leading-tight text-muted-foreground">
                       Your AI business engine.
                     </span>

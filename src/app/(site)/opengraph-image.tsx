@@ -2,6 +2,7 @@ import { ImageResponse } from "next/og";
 import { SITE } from "@/lib/utils";
 import { OG_IMAGE } from "@/components/brand/brand-colors";
 import { BRAND_MARK_SHAPES, BRAND_WORD_SHAPES, LOCKUP_VIEWBOX } from "@/lib/brand-artwork";
+import { Shapes } from "@/components/shared/peakhour-logo";
 
 // Shared social-share image for the marketing surface. Text-only + inline
 // styles (Satori has no Tailwind and finicky gradient-text support), so we use
@@ -12,6 +13,11 @@ export const contentType = "image/png";
 
 const GOLD = OG_IMAGE.gold;
 const INK = OG_IMAGE.ink;
+
+/** The lockup 56px tall, its width from the view box so a new artwork cut cannot stretch it. */
+const LOGO_HEIGHT = 56;
+const [, , VB_W, VB_H] = LOCKUP_VIEWBOX.split(" ").map(Number);
+const LOGO_WIDTH = Math.round((LOGO_HEIGHT * VB_W) / VB_H);
 
 export default function OpengraphImage() {
   return new ImageResponse(
@@ -29,11 +35,10 @@ export default function OpengraphImage() {
           fontFamily: "sans-serif",
         }}
       >
-        {/* The official lockup (brand-artwork.ts), never the name set in a font. 1088×214 view box at 56px tall. */}
-        <svg viewBox={LOCKUP_VIEWBOX} width={285} height={56} fill={OG_IMAGE.paper}>
-          {[...BRAND_MARK_SHAPES, ...BRAND_WORD_SHAPES].map((s, i) =>
-            "d" in s ? <path key={i} d={s.d} /> : <polygon key={i} points={s.points} />,
-          )}
+        {/* The official lockup (brand-artwork.ts) through the site's own renderer, never the name set in a font. */}
+        <svg viewBox={LOCKUP_VIEWBOX} width={LOGO_WIDTH} height={LOGO_HEIGHT} fill={OG_IMAGE.paper}>
+          <Shapes shapes={BRAND_MARK_SHAPES} />
+          <Shapes shapes={BRAND_WORD_SHAPES} />
         </svg>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
