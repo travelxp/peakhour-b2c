@@ -18,6 +18,8 @@
  *      an allowlisted page serves itself; the sitemap lists only what the gate lets
  *      through.
  *   4. One trailing-slash policy: /pricing/ answers 308 to /pricing.
+ *   5. (SEO-6) /sitemap.xml is an index of named sitemaps; every URL in them answers 200 with a self-canonical, and every
+ *      JSON-LD block on it parses with @context and @type.
  *
  * Exits 1 when any check fails.
  */
@@ -67,7 +69,19 @@ async function main() {
   const sitemap = await get("/sitemap.xml");
   if (!indexable) check("X-Robots-Tag noindex, nofollow on /sitemap.xml (a dotted path)", noindexAll(sitemap.robots), String(sitemap.robots));
   check("sitemap.xml answers 200", sitemap.status === 200, String(sitemap.status));
-  const locs = [...sitemap.body.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+  const locOf = (xml: string) => [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+  // /sitemap.xml is an index: follow each named sitemap (by path, so a local base URL works) and collect the page URLs.
+  const isIndex = /<sitemapindex/.test(sitemap.body);
+  const locs: string[] = [];
+  if (isIndex) {
+    for (const child of locOf(sitemap.body)) {
+      const r = await get(new URL(child).pathname);
+      check(`named sitemap ${new URL(child).pathname} answers 200`, r.status === 200, String(r.status));
+      locs.push(...locOf(r.body));
+    }
+  } else {
+    locs.push(...locOf(sitemap.body));
+  }
   if (!indexable) {
     check("sitemap is empty", locs.length === 0, `${locs.length} urls`);
   } else {
@@ -76,6 +90,30 @@ async function main() {
       const paths = locs.map((l) => new URL(l).pathname);
       const bad = paths.filter((p) => p !== "/" && !isAllowed(p));
       check("sitemap lists only what the gate lets through", bad.length === 0, bad.join(", "));
+    }
+  }
+
+  // 1b. every sitemap URL: 200, a self-canonical, JSON-LD that parses
+  if (indexable) {
+    check("sitemap.xml is an index", isIndex, "no <sitemapindex>");
+    for (const loc of locs) {
+      const path = new URL(loc).pathname;
+      const r = await get(path);
+      check(`sitemap url ${path} answers 200`, r.status === 200, String(r.status));
+      if (r.status !== 200) continue;
+      const canonical = /<link[^>]+rel="canonical"[^>]+href="([^"]+)"/i.exec(r.body)?.[1] ?? /<link[^>]+href="([^"]+)"[^>]+rel="canonical"/i.exec(r.body)?.[1];
+      check(`sitemap url ${path} has a self-canonical`, !!canonical && new URL(canonical).pathname === path, String(canonical));
+      const ld = [...r.body.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+      let ldOk = true;
+      for (const raw of ld) {
+        try {
+          const j = JSON.parse(raw);
+          if (j["@context"] !== "https://schema.org" || !j["@type"]) ldOk = false;
+        } catch {
+          ldOk = false;
+        }
+      }
+      check(`sitemap url ${path}: ${ld.length} JSON-LD block(s) parse with @context and @type`, ldOk, "bad JSON-LD");
     }
   }
 

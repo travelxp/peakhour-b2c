@@ -107,8 +107,8 @@ describe("T02: a non-published or non-indexable page is never publishable and ne
     process.env.VERCEL_ENV = "production";
     delete process.env.COMING_SOON;
     delete process.env.SITE_INDEXABLE;
-    const sitemap = (await import("@/app/sitemap")).default;
-    const urls = (await sitemap()).map((e) => new URL(e.url).pathname);
+    const { sitemapEntries } = await import("./sitemap");
+    const urls = (await sitemapEntries("core")).map((e) => new URL(e.url).pathname);
     expect(urls).not.toContain("/peaks");
     expect(urls).not.toContain("/contact");
     expect(urls).toContain("/pricing");
@@ -120,9 +120,9 @@ describe("T02: a non-published or non-indexable page is never publishable and ne
     process.env.VERCEL_ENV = "production";
     delete process.env.COMING_SOON;
     delete process.env.SITE_INDEXABLE;
-    const sitemap = (await import("@/app/sitemap")).default;
-    const entry = (await sitemap()).find((e) => new URL(e.url).pathname === "/pricing");
-    expect(entry?.lastModified).toEqual(new Date(getPage("pricing").lastReviewedAt));
+    const { sitemapEntries } = await import("./sitemap");
+    const entry = (await sitemapEntries("core")).find((e) => new URL(e.url).pathname === "/pricing");
+    expect(entry?.lastModified).toEqual(new Date(getPage("pricing").lastReviewedAt).toISOString());
   });
 });
 

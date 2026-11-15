@@ -7,8 +7,18 @@ vi.mock("@/lib/marketing-pages", () => ({
   getMarketingSitemapEntries: async () => [{ slug: "guides/x", updatedAt: "2026-11-01T00:00:00Z" }],
 }));
 
+import { PAGES } from "@/lib/seo/pages";
 import robots from "@/app/robots";
-import sitemap from "@/app/sitemap";
+import { renderIndex, sitemapEntries, sitemapIndexNames, type SitemapName } from "@/lib/seo/sitemap";
+import { GET as indexRoute } from "@/app/sitemap.xml/route";
+import { GET as namedRoute } from "@/app/sitemaps/[name]/route";
+
+/** Every URL path in the named sitemaps (CMS included), as the index would reach them. */
+async function allPaths(): Promise<string[]> {
+  const out: string[] = [];
+  for (const n of await sitemapIndexNames()) out.push(...(await sitemapEntries(n as SitemapName)).map((e) => new URL(e.url).pathname));
+  return out;
+}
 import { nextConfig } from "../../../next.config";
 
 const ENV_KEYS = ["VERCEL_ENV", "SITE_INDEXABLE", "COMING_SOON"] as const;
@@ -48,26 +58,46 @@ describe("robots.txt", () => {
 describe("sitemap", () => {
   it("is empty off Production", async () => {
     process.env.VERCEL_ENV = "preview";
-    expect(await sitemap()).toEqual([]);
+    expect(await allPaths()).toEqual([]);
     delete process.env.VERCEL_ENV;
-    expect(await sitemap()).toEqual([]);
+    expect(await allPaths()).toEqual([]);
+    const body = await (await indexRoute()).text();
+    expect(body).not.toContain("<loc>");
   });
 
   it("lists the code routes and the CMS pages on Production with the gate off", async () => {
     process.env.VERCEL_ENV = "production";
-    const urls = (await sitemap()).map((e) => new URL(e.url).pathname);
+    const urls = await allPaths();
     expect(urls).toContain("/how-it-works");
     expect(urls).toContain("/commerce");
     expect(urls).toContain("/pricing/teams");
     expect(urls).toContain("/guides/x");
-    expect(urls).toHaveLength(16);
+    // Every registry page (all published), plus the one CMS page.
+    expect(urls).toHaveLength(PAGES.length + 1);
   });
 
   it("lists only what the gate lets through while COMING_SOON=true", async () => {
     process.env.VERCEL_ENV = "production";
     process.env.COMING_SOON = "true";
-    const urls = (await sitemap()).map((e) => new URL(e.url).pathname).sort();
-    expect(urls).toEqual(["/", "/cookie-policy", "/peaks", "/pricing", "/pricing/teams", "/privacy-policy", "/shopify", "/terms"]);
+    const urls = (await allPaths()).sort();
+    expect(urls).toEqual(["/", "/cookie-policy", "/data-deletion", "/launch-partner", "/peaks", "/pricing", "/pricing/teams", "/privacy-policy", "/shopify", "/terms"]);
+  });
+});
+
+describe("the sitemap index", () => {
+  it("is /sitemap.xml, lists the named sitemaps that have pages, and each one resolves", async () => {
+    process.env.VERCEL_ENV = "production";
+    const names = await sitemapIndexNames();
+    expect(names).toEqual(["core", "shopify", "cms"]);
+    const body = await (await indexRoute()).text();
+    expect(body).toBe(renderIndex(names));
+    for (const n of names) {
+      const res = await namedRoute(new Request("http://x"), { params: Promise.resolve({ name: `${n}.xml` }) });
+      expect(res.status).toBe(200);
+      expect(await res.text()).toContain("<loc>");
+    }
+    expect((await namedRoute(new Request("http://x"), { params: Promise.resolve({ name: "nope.xml" }) })).status).toBe(404);
+    expect((await namedRoute(new Request("http://x"), { params: Promise.resolve({ name: "core" }) })).status).toBe(404);
   });
 });
 

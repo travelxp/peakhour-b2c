@@ -1,4 +1,6 @@
 import { Disclosure } from "@/components/marketing/shopify/shopify-disclosure";
+import { faqPageLd } from "@/lib/seo/structured-data";
+import { JsonLd } from "./json-ld";
 import type { FaqItem } from "./content-types";
 import { eyebrowCls, h2Cls, subCls, wrap } from "./styles";
 
@@ -11,6 +13,7 @@ export function FaqSection({ faqs, id = "faq" }: { faqs: FaqItem[]; id?: string 
   if (faqs.length === 0) return null;
   return (
     <section id={id} aria-labelledby={`${id}-h`} className="scroll-mt-20 py-12 sm:py-16">
+      <JsonLd data={faqPageLd(faqs)} />
       <div className={`${wrap} grid grid-cols-1 gap-7 lg:grid-cols-[0.8fr_1.2fr] lg:gap-14`}>
         <div className="lg:sticky lg:top-28 lg:self-start">
           <p className={eyebrowCls}>FAQ</p>
