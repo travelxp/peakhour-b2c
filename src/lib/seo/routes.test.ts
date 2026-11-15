@@ -55,6 +55,17 @@ describe("robots.txt", () => {
   });
 });
 
+const SHOPIFY_FEATURE_PATHS = [
+  "/shopify/features",
+  "/shopify/features/ai-product-descriptions",
+  "/shopify/features/ai-seo",
+  "/shopify/features/ai-shopping-assistant",
+  "/shopify/features/frequently-bought-together",
+  "/shopify/features/product-recommendations",
+  "/shopify/features/whatsapp-ai-shopping",
+  "/shopify/features/whatsapp-cod-confirmation",
+];
+
 describe("sitemap", () => {
   it("is empty off Production", async () => {
     process.env.VERCEL_ENV = "preview";
@@ -82,7 +93,7 @@ describe("sitemap", () => {
     process.env.VERCEL_ENV = "production";
     process.env.COMING_SOON = "true";
     const urls = (await allPaths()).sort();
-    expect(urls).toEqual(["/", "/cookie-policy", "/data-deletion", "/launch-partner", "/peaks", "/pricing", "/pricing/teams", "/privacy-policy", "/shopify", "/terms"]);
+    expect(urls).toEqual(["/", "/cookie-policy", "/data-deletion", "/launch-partner", "/peaks", "/pricing", "/pricing/teams", "/privacy-policy", "/shopify", ...SHOPIFY_FEATURE_PATHS, "/terms"].sort());
   });
 });
 
