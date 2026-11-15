@@ -119,7 +119,8 @@ export interface HookScore {
   signals: {
     wordCount: number;
     visibleChars: number;
-    opener: "number" | "question" | "contrarian" | "named_entity" | "generic";
+    /** How the hook opens, in the labels the whole product shares (GG-6a): a figure is `number`, a how-to `how_to`; a contrarian or named-person opener reads `other`. */
+    opener: "question" | "number" | "offer" | "problem" | "testimonial" | "how_to" | "news" | "other";
     hasSpecificNumber: boolean;
     hasAudienceNoun: boolean;
     isActiveOpening: boolean;

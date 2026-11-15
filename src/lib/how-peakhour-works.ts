@@ -1,191 +1,108 @@
 /**
- * Content for the standalone "See how Peakhour works" page (/how-it-works).
+ * Content for the standalone "How Peakhour works" page (/how-it-works).
  *
- * This page explains the PLATFORM LOGIC — connect, understand, connect the
- * dots, find what matters, act, and hand the founder less to manage. It is
- * deliberately NOT a feature page: everything a single pillar does lives on
- * /commerce, /content, /growth, /support and /presence, and repeating it here
- * would turn the one page that explains the whole idea into a sixth feature
- * list. If you're tempted to add a capability bullet, it belongs on a pillar
- * page instead.
+ * This page explains the PLATFORM LOGIC (connect, understand, connect the dots, find what matters, act, and hand the
+ * founder less to manage). It is deliberately NOT a feature page: what each module does lives on /commerce, /content,
+ * /growth, /support and /presence, with its status. If you are tempted to add a capability bullet, it belongs there.
  *
- * Copy lives here rather than inline in the page for the same reason
- * HOW_IT_WORKS_STEPS and PILLAR_CONSOLE_ROWS do: it is brand messaging that
- * gets edited far more often than the layout around it, and a data file is a
- * reviewable diff.
- *
- * ⚠️ Every example below is ILLUSTRATIVE — a plausible day, not a claim about
- * live data or a shipped screen. Keep them generic (no named customer, no
- * specific figure we'd have to stand behind) so nothing here becomes a promise
- * the product has to keep.
+ * Every sentence here is held to what src/lib/seo/capabilities.ts says is built (SEO-7). The examples are labelled as
+ * examples on the page, and each one is something a connected module can show today, never a promise of a result.
  */
 
-/**
- * The six-step spine of the page. This is the whole argument in order, and the
- * order is load-bearing: understanding has to precede connecting, connecting
- * has to precede finding, and the payoff step ("less to manage") only lands
- * once the five before it have been earned.
- */
+/** The six-step spine of the page, in an order that is load-bearing: understanding precedes connecting, and so on. */
 export const PLATFORM_FLOW = [
   {
     id: "connect",
     step: "01",
     title: "Connect your business",
     description:
-      "Sign in to the tools you already run on — your store, your site, WhatsApp, your social accounts, your ad accounts, your Google listing. One click each, no data exports, no setup project.",
+      "Connect the tools you already run on from your dashboard: your Shopify store, WhatsApp, LinkedIn, X, Facebook, Instagram, Beehiiv and, in beta, your Google Business Profile. WordPress and WooCommerce are coming soon.",
   },
   {
     id: "understand",
     step: "02",
-    title: "Peakhour understands it",
+    title: "Peakhour reads what is there",
     description:
-      "It reads what is actually there rather than asking you to describe it — how you write, who buys from you, what you sell, what is moving, what people ask.",
+      "It works from your real catalogue and policies, and learns how your brand writes from the posts you have already published, instead of asking you to describe either.",
   },
   {
     id: "connect-dots",
     step: "03",
-    title: "Peakhour connects the dots",
+    title: "It joins what it finds",
     description:
-      "Everything lands in one place, so what happens in one part of your business can inform another. Stock knows what your ads are doing. Content knows what your customers keep asking.",
+      "What it learns in one place is used in another. Your catalogue answers shoppers, and the questions it could not answer are shown back to you.",
   },
   {
     id: "find",
     step: "04",
-    title: "Peakhour finds what matters",
+    title: "It puts the decisions in front of you",
     description:
-      "Out of thousands of small signals, only a handful change what you should do this week. Peakhour is looking for those, all the time, so you don't have to go hunting.",
+      "You can ask Peakhour questions about your own data. Anything it would change comes to you as a card to approve, and Peakhour Summit reviews your growth proposals before you decide.",
   },
   {
     id: "act",
     step: "05",
-    title: "Peakhour suggests or takes action",
+    title: "You approve, or set the limits",
     description:
-      "Some things come to you as a recommendation you approve in one tap. The repetitive ones it simply handles, once you've told it that it can.",
+      "Some work arrives as a proposal to approve. Inside limits you set, Autopilot handles the repetitive work and can reverse it. New channels and changes to your subscription always need your approval.",
   },
   {
     id: "less",
     step: "06",
     title: "You have less to manage",
-    description:
-      "Fewer tabs open, fewer dashboards to reconcile, fewer things you have to remember to check. The work still happens.",
+    description: "Fewer tabs open, fewer things to remember to check. The work still happens, and you still decide.",
   },
 ] as const;
 
-/**
- * What Peakhour picks up on its own once the connections are in place. These
- * are the eleven things the founder would otherwise have to explain to a new
- * hire — which is exactly the point of the section that renders them.
- */
+/** What Peakhour reads once the connections are in place, limited to what is built. */
 export const UNDERSTANDS = [
-  "Your brand voice",
-  "Your writing style",
-  "Your audience",
-  "Your products",
+  "Your brand voice, from your own posts",
+  "Your products and policies",
   "Your stock health",
-  "Your sales",
-  "Your customer conversations",
-  "Your content performance",
-  "Your ad performance",
-  "Your reviews",
+  "What shoppers ask your assistant",
+  "How your social posts perform",
+  "How your Meta and X ads perform",
+  "Your Google reviews and listing (beta)",
   "Your business information",
 ] as const;
 
 /**
- * The heart of the page: one thing observed in a corner of the business
- * changing what you should do somewhere else. `signal` is what happened,
- * `connection` is the link only a shared intelligence layer can make, and
- * `suggestion` is what lands in front of the founder.
- *
- * `from` / `to` name the two parts of the business being joined — they're what
- * makes the row read as a CONNECTION rather than a single tool being clever.
+ * Three examples of one module's result changing what you do in another. They are EXAMPLES, labelled so on the page:
+ * each is a thing the connected modules can show today, with the action left to you.
  */
 export const CONNECTED_SIGNALS = [
   {
     id: "repeat-question",
     from: "Support",
     to: "Content",
-    signal: "Customers keep asking the same question about a product.",
-    connection: "Peakhour notices the pattern across every conversation, not just the last one.",
-    suggestion: "Publish a piece that answers it — once, properly, everywhere.",
+    signal: "Several shoppers ask your assistant the same thing and it cannot answer.",
+    connection: "Conversation insights shows the question, how often it comes up and whether it is rising.",
+    suggestion: "You decide whether to write the answer once, properly, as a post or a product description.",
   },
   {
-    id: "slow-mover",
-    from: "Commerce",
-    to: "Growth",
-    signal: "A product is moving more slowly than it should.",
-    connection: "Peakhour puts your stock position next to what your marketing is actually doing.",
-    suggestion: "Give it a push before the stock ages.",
-  },
-  {
-    id: "breakout-reel",
-    from: "Content",
-    to: "Growth",
-    signal: "One Reel is performing far better than the rest.",
-    connection: "Peakhour spots the outlier while it's still fresh.",
-    suggestion: "Put money behind it and use it as ad creative.",
-  },
-  {
-    id: "demand-vs-stock",
+    id: "unsold-demand",
     from: "Support",
     to: "Commerce",
-    signal: "Customers keep asking for something you're low on.",
-    connection: "Peakhour compares what people are asking for with what you actually have.",
-    suggestion: "Look at reordering before you're out.",
+    signal: "Shoppers keep asking for a product you do not sell.",
+    connection: "The same insights list shows products people wanted that are not in your catalogue.",
+    suggestion: "You decide whether it is worth stocking.",
   },
   {
-    id: "review-theme",
-    from: "Presence",
-    to: "the business",
-    signal: "Reviews keep mentioning the same issue.",
-    connection: "Peakhour reads them as a theme rather than as one-star events.",
-    suggestion: "Here's the thing worth fixing, in your own words.",
+    id: "strong-post",
+    from: "Content",
+    to: "Growth",
+    signal: "One LinkedIn post does far better than the rest.",
+    connection: "Peakhour tracks engagement on your posts.",
+    suggestion: "You can boost that post into an ad campaign, and Peakhour Summit can review the plan first.",
   },
 ] as const;
 
-/**
- * The "brought to you" list — the same idea as CONNECTED_SIGNALS, but framed
- * as the founder's actual inbox: a plain-language observation and the single
- * next action attached to it. Rendered as a product panel, so keep the
- * observations short enough to sit on one line at tablet width.
- */
-export const NEXT_ACTIONS = [
-  { pillar: "Support", observation: "Customers keep asking about this product.", action: "Create content" },
-  { pillar: "Commerce", observation: "Stock is moving slowly.", action: "Promote it" },
-  { pillar: "Growth", observation: "This creative is outperforming.", action: "Use it in your campaign" },
-  { pillar: "Presence", observation: "Your business information needs updating.", action: "Fix it" },
-] as const;
-
-/**
- * The tools a founder currently opens one at a time to work out what needs
- * attention. Names only — this list exists to be recognised, and the section
- * that renders it deliberately makes no claim about which are connected today
- * (the homepage integrations grid is catalog-driven and does that honestly).
- *
- * ⚠️ SIX entries, and the count is load-bearing: the section heading above it
- * reads "six dashboards" and the caption beneath it reads "Six tabs". Adding a
- * seventh name here silently makes both lines wrong. Change the list and the
- * copy together, or don't change either.
- */
-export const SCATTERED_TOOLS = [
-  "Store",
-  "WhatsApp",
-  "Instagram",
-  "Ads manager",
-  "Google",
-  "Reviews",
-] as const;
-
-/**
- * What is safe to hand over versus what stays the founder's call. The split is
- * the promise of the page's control section: automation earns its way in on
- * the repetitive work, and never quietly takes the decisions.
- */
+/** What is safe to hand over versus what stays the founder's call. */
 export const CONTROL_SPLIT = {
   automatic: [
-    "Watching every channel for what changed",
     "Drafting the post, the reply, the description",
-    "Keeping your listing and catalog in step",
-    "Chasing the routine follow-up",
+    "Reading your catalogue and past posts so drafts start from what is true",
+    "Repetitive work inside the limits you set, which you can reverse",
   ],
   yours: [
     "What you sell, and at what price",
@@ -194,10 +111,3 @@ export const CONTROL_SPLIT = {
     "How much you hand over, and when",
   ],
 } as const;
-
-/** The emotional close. Three lines of relief, then the one line of payoff. */
-export const RELIEF_LINES = [
-  "Less keeping track.",
-  "Less switching between tools.",
-  "Less mental load.",
-] as const;

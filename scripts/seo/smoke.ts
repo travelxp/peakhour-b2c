@@ -21,10 +21,23 @@
  *   5. (SEO-6) /sitemap.xml is an index of named sitemaps; every URL in them answers 200 with a self-canonical, and every
  *      JSON-LD block on it parses with @context and @type.
  *
+ *   6. (SEO-12) The registry crawl, from the registry's own lists: every publishable page (T03 canonical
+ *      origin, T04 H1 equals the registry's, T05 H1 + direct answer + <a href> links in the server HTML,
+ *      T06 trailing slash is one 308 hop, T09 noindex on every response when not indexable, T14 JSON-LD parses
+ *      and matches the page, T15 every internal link answers 200); T07 unknown URLs are 404 under every
+ *      family and locale prefix; and, off Production, every draft renders with the draft ribbon.
+ *
+ *   --canonical-origin   the one origin every canonical must carry (default https://peakhour.ai, the
+ *                        configured NEXT_PUBLIC_SITE_URL: dev canonicals point at the production host on purpose)
+ *
  * Exits 1 when any check fails.
  */
 
-import { isPublicPath } from "../../src/lib/seo/gate";
+import { isListedThroughGate, isPublicPath } from "../../src/lib/seo/gate";
+import { PAGES } from "../../src/lib/seo/pages";
+import { isPreviewable, isPublishable } from "../../src/lib/seo/publish";
+import { LOCALES, PUBLISHED_LOCALES } from "../../src/lib/seo/types";
+import { crawlChecks } from "./crawl-checks";
 
 const args = process.argv.slice(2);
 const base = (args.find((a) => !a.startsWith("--")) ?? "http://localhost:3000").replace(/\/$/, "");
@@ -168,6 +181,24 @@ async function main() {
   // 5. trailing slash
   const slash = got["/pricing/"];
   check("/pricing/ is a 308 to /pricing", slash.status === 308 && /\/pricing$/.test(slash.location ?? ""), `${slash.status} ${slash.location}`);
+
+  // 6. the registry crawl (SEO-12)
+  // With the gate on, only what the gate lets through is crawled as a page; the rest must answer the teaser, under noindex.
+  const publishableAll = PAGES.filter((p) => isPublishable(p));
+  const publishable = gateOn ? publishableAll.filter((p) => isListedThroughGate(p.path)) : publishableAll;
+  const gatedOut = gateOn ? publishableAll.filter((p) => !isListedThroughGate(p.path)) : [];
+  const drafts = PAGES.filter((p) => isPreviewable(p, {}));
+  await crawlChecks({
+    base,
+    indexable,
+    canonicalOrigin: flag("canonical-origin", "https://peakhour.ai").replace(/\/$/, ""),
+    publishable: publishable.map((p) => ({ pageId: p.pageId, path: p.path, h1: p.h1 })),
+    drafts: drafts.map((p) => ({ pageId: p.pageId, path: p.path, h1: p.h1, gated: gateOn && !isListedThroughGate(p.path) })),
+    unpublishedLocales: LOCALES.filter((l) => !PUBLISHED_LOCALES.includes(l)).map((l) => l.toLowerCase()),
+    gatedOut: gatedOut.map((p) => ({ pageId: p.pageId, path: p.path, h1: p.h1 })),
+    teaserTitle: TEASER_TITLE,
+    check,
+  });
 
   console.log(failed === 0 ? "\nALL PASS" : `\n${failed} FAILED`);
   process.exit(failed === 0 ? 0 : 1);

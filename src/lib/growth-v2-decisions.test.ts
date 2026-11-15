@@ -8,6 +8,7 @@ import {
   decisionNotice,
   describeImpact,
   describeOp,
+  suggestionNote,
   isSpendDecision,
   KIND_LABEL,
   queueTab,
@@ -147,6 +148,14 @@ describe("decisionNotice: a refusal as something to do", () => {
   });
   it("a failure that is not the api's says nothing changed", () => {
     expect(decisionNotice(new TypeError("Failed to fetch"), "approve")).toEqual({ tone: "bad", text: "That didn't go through. Nothing changed." });
+  });
+});
+
+describe("suggestionNote", () => {
+  it("says what a new channel and a bidding change do, and nothing for the other kinds", () => {
+    expect(suggestionNote("channel_add")).toContain("changes nothing on your ad accounts");
+    expect(suggestionNote("bid_strategy")).toContain("at most one a month for each campaign");
+    expect(suggestionNote("budget_move")).toBeUndefined();
   });
 });
 

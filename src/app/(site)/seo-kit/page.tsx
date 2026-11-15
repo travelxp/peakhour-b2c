@@ -7,6 +7,7 @@ import {
   DirectoryPage,
   FeaturePage,
   GuidePage,
+  HubPage,
   IndustryPage,
   IntegrationPage,
   PlatformPage,
@@ -14,6 +15,8 @@ import {
   SolutionPage,
 } from "@/components/marketing/seo/templates";
 import { isIndexableDeployment } from "@/lib/seo/indexable";
+import { COMMERCE } from "@/content/pages/commerce";
+import { getPage } from "@/lib/seo/pages";
 import * as fx from "./fixtures";
 
 // A review surface, never a public page: it is out of the index on every deployment that can be indexed (404 there)
@@ -52,6 +55,10 @@ export default async function SeoKitPage({ searchParams }: { searchParams: Promi
       break;
     case "comparison":
       body = <ComparisonPage page={fx.COMPARISON_PAGE} content={fx.COMPARISON} />;
+      break;
+    case "hub":
+      // The module hub, rendered with the real /commerce content (its statuses come from the capability records).
+      body = <HubPage page={getPage("commerce")} content={COMMERCE} />;
       break;
     case "guide":
       body = <GuidePage page={fx.GUIDE_PAGE} content={fx.GUIDE} />;

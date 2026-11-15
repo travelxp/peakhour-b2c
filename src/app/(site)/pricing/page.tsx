@@ -13,6 +13,9 @@ import {
   suiteModuleSlugs,
 } from "@/lib/pricing-catalog";
 import { pageMeta } from "@/lib/seo/metadata";
+import { pathFor } from "@/lib/seo/resolve";
+import { Breadcrumbs } from "@/components/marketing/seo/breadcrumbs";
+import { ContextualLinks } from "@/components/marketing/seo/contextual-links";
 import { SuiteCard } from "@/components/marketing/pricing/suite-card";
 import { ChannelsStrip } from "@/components/marketing/pricing/channels-strip";
 import { TeamsCtaBand } from "@/components/marketing/pricing/teams-cta";
@@ -84,7 +87,13 @@ export default async function PricingPage({
         <section className="py-16 sm:py-24">
           <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 sm:px-6 lg:grid-cols-[1.1fr_0.9fr]">
             <div>
-              <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
+              <Breadcrumbs
+                crumbs={[
+                  { label: "Home", href: pathFor("home") },
+                  { label: "Pricing", href: pathFor("pricing") },
+                ]}
+              />
+              <span className="mt-5 inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
                 <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
                 Pricing
               </span>
@@ -96,8 +105,10 @@ export default async function PricingPage({
                 </span>
               </h1>
               <p className="mt-5 max-w-xl text-lg text-muted-foreground">
-                Commerce, Content, Growth, Support and Presence — five products,
-                one login, one Peaks wallet, one price.
+                Peakhour Suite is one plan for one business: Commerce, Content,
+                Growth, Support and Presence, with one login and one Peaks
+                wallet. Agency and Enterprise are for teams running many
+                businesses.
                 {heroTrial ? ` ${heroTrial}` : null}
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-4">
@@ -240,7 +251,7 @@ export default async function PricingPage({
         </section>
 
         {/* ── FAQ ──────────────────────────────────────────────────────── */}
-        <section className="pb-24">
+        <section className="pb-16">
           <div className="mx-auto max-w-3xl px-4 sm:px-6">
             <div className="mb-8">
               <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
@@ -252,6 +263,24 @@ export default async function PricingPage({
               </h2>
             </div>
             <PricingFaq trialDays={trialDays} />
+          </div>
+        </section>
+
+        {/* ── Related ──────────────────────────────────────────────────── */}
+        <section aria-labelledby="related-h" className="pb-24">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <h2 id="related-h" className="text-2xl font-extrabold tracking-tight">
+              Keep reading
+            </h2>
+            <ContextualLinks
+              className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+              links={[
+                { label: "Peaks, the AI credits", href: pathFor("peaks"), note: "What Peaks pay for, and how top-ups work." },
+                { label: "Agency and Enterprise plans", href: pathFor("pricing.teams"), note: "Many businesses under one account." },
+                { label: "Peakhour for Shopify", href: pathFor("shopify"), note: "Install it and be billed through Shopify." },
+                { label: "How Peakhour works", href: pathFor("how.it.works"), note: "Connect, approve, then let it run." },
+              ]}
+            />
           </div>
         </section>
       </main>

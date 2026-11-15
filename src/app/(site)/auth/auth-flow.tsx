@@ -553,7 +553,7 @@ export function AuthFlow({
 
         <div className="relative z-10">
           {/* text-brand, not the theme-aware text-brand-label — see Eyebrow. */}
-          <Eyebrow className="text-brand">Five modules · one account</Eyebrow>
+          <Eyebrow className="text-brand">One account · one plan</Eyebrow>
           {/* Deliberately not a heading: this panel disappears below lg, so an
               h1 here would leave small screens with no h1 at all. The state
               heading in the form column is the h1 at every breakpoint. */}
@@ -569,8 +569,8 @@ export function AuthFlow({
             ) : null}
           </p>
           <p className="mt-4 max-w-md text-on-ink-dim">
-            Commerce, Content, Growth, Support and Presence — five modules on
-            one account
+            Commerce, Content, Growth and Presence on one account, with
+            Support coming soon
             {hasTrial(trialDays) ? `, free for your first ${trialDays} days.` : "."}
           </p>
         </div>
@@ -688,7 +688,7 @@ export function AuthFlow({
               </h1>
               <p className="mt-2 text-sm text-muted-foreground">
                 {SITE.name} is invite-only while we onboard launch partners.
-                Apply and you&rsquo;ll get all five modules free, plus a setup
+                Apply and you&rsquo;ll get every module free, plus a setup
                 call.
               </p>
               <div className="mt-5">
