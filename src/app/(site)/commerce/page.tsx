@@ -1,13 +1,8 @@
 import Link from "next/link";
-import { pageMetadata } from "@/lib/seo";
+import { pageMeta } from "@/lib/seo/metadata";
 import { PillarPage } from "@/components/marketing/pillar-page";
 
-export const metadata = pageMetadata({
-  title: "Commerce — AI storefront assistant | Peakhour.ai",
-  description:
-    "An AI assistant that knows your whole catalog and sells on WhatsApp and your storefront, 24/7. Included in Peakhour Suite.",
-  path: "/commerce",
-});
+export const metadata = pageMeta("commerce");
 
 export default function CommercePillar() {
   return (

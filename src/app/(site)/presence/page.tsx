@@ -1,12 +1,7 @@
-import { pageMetadata } from "@/lib/seo";
+import { pageMeta } from "@/lib/seo/metadata";
 import { PillarPage } from "@/components/marketing/pillar-page";
 
-export const metadata = pageMetadata({
-  title: "Presence — own how you show up on Google | Peakhour.ai",
-  description:
-    "Your Google Business Profile — listings, hours, photos, and reviews — managed from one place, always current. Included in Peakhour Suite.",
-  path: "/presence",
-});
+export const metadata = pageMeta("presence");
 
 export default function PresencePillar() {
   return <PillarPage slug="presence" />;

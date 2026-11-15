@@ -1,0 +1,179 @@
+id,path,family,group,scope,priority,release_gate,intent,locale,state,keyword_validation
+home,/,core,Platform and pillars,global,P0,verify-existing,Unified AI platform; launch partner acquisition,en,proposed,required
+pricing,/pricing,core,Platform and pillars,global,P0,verify-existing,Pillar pricing and Peaks pricing narrative,en,proposed,required
+peaks,/peaks,core,Platform and pillars,global,P0,verify-existing,AI usage currency and billing explainers,en,proposed,required
+how.it.works,/how-it-works,core,Platform and pillars,global,P0,verify-existing,"Approvals, controls, audit history and workflow overview",en,proposed,required
+presence,/presence,core,Platform and pillars,global,P0,verify-existing,Presence pillar overview,en,proposed,required
+commerce,/commerce,core,Platform and pillars,global,P0,verify-existing,Commerce pillar overview,en,proposed,required
+content,/content,core,Platform and pillars,global,P0,verify-existing,Content pillar overview,en,proposed,required
+support,/support,core,Platform and pillars,global,P0,verify-existing,Support pillar overview,en,proposed,required
+growth,/growth,core,Platform and pillars,global,P0,verify-existing,Growth pillar overview,en,proposed,required
+platforms,/platforms,core,Platform and pillars,global,P0,verify-existing,Supported platforms directory,en,proposed,required
+features,/features,core,Platform and pillars,global,P0,verify-existing,Cross-platform features directory,en,proposed,required
+solutions,/solutions,core,Platform and pillars,global,P0,verify-existing,Business outcomes directory,en,proposed,required
+industries,/industries,core,Platform and pillars,global,P0,verify-existing,Industries directory,en,proposed,required
+integrations,/integrations,core,Platform and pillars,global,P0,verify-existing,Connectors directory,en,proposed,required
+guides,/guides,core,Platform and pillars,global,P0,verify-existing,Guides directory,en,proposed,required
+tools,/tools,core,Platform and pillars,global,P0,verify-existing,Free tools directory,en,proposed,required
+compare,/compare,core,Platform and pillars,global,P0,verify-existing,Global comparison directory,en,proposed,required
+case.studies,/case-studies,core,Platform and pillars,global,P0,verify-existing,Customer evidence directory,en,proposed,required
+for.agencies,/for/agencies,core,Audience and trust,global,P1,product-and-policy-review,AI operations for agencies and consultants,en,proposed,required
+for.marketing.teams,/for/marketing-teams,core,Audience and trust,global,P1,product-and-policy-review,AI marketing workflows for lean teams,en,proposed,required
+for.ecommerce.brands,/for/ecommerce-brands,core,Audience and trust,global,P1,product-and-policy-review,Unified AI workflows for ecommerce businesses,en,proposed,required
+for.local.businesses,/for/local-businesses,core,Audience and trust,global,P1,product-and-policy-review,Local presence and customer engagement,en,proposed,required
+for.enterprises,/for/enterprises,core,Audience and trust,global,P1,product-and-policy-review,Enterprise security and governance overview,en,proposed,required
+security,/security,core,Audience and trust,global,P1,product-and-policy-review,Product security and data handling summary,en,proposed,required
+trust.ai.controls,/trust/ai-controls,core,Audience and trust,global,P1,product-and-policy-review,"Human approvals, rollback and AI governance",en,proposed,required
+trust.data.processing,/trust/data-processing,core,Audience and trust,global,P1,product-and-policy-review,Data protection and retention information,en,proposed,required
+features.google.business.profile.management,/features/google-business-profile-management,feature,Presence,global,P1,capability-live,Manage Google Business Profile from Peakhour,en,proposed,required
+features.review.management,/features/review-management,feature,Presence,global,P1,capability-live,Manage business reviews,en,proposed,required
+features.local.listing.health,/features/local-listing-health,feature,Presence,global,P1,capability-live,Audit local business listings,en,proposed,required
+features.local.search.visibility,/features/local-search-visibility,feature,Presence,global,P1,capability-live,Local search presence insights,en,proposed,required
+features.ai.shopping.assistant,/features/ai-shopping-assistant,feature,Commerce,global,P1,capability-live,Cross-platform AI shopping assistant,en,proposed,required
+features.product.recommendations,/features/product-recommendations,feature,Commerce,global,P1,capability-live,AI product recommendations,en,proposed,required
+features.cart.upsell.cross.sell,/features/cart-upsell-cross-sell,feature,Commerce,global,P1,capability-live,Cart upsell and cross-sell automation,en,proposed,required
+features.whatsapp.commerce,/features/whatsapp-commerce,feature,Commerce,global,P1,capability-live,WhatsApp commerce experiences,en,proposed,required
+features.cod.order.confirmation,/features/cod-order-confirmation,feature,Commerce,global,P1,capability-live,COD confirmation through WhatsApp,en,proposed,required
+features.catalogue.optimization,/features/catalogue-optimization,feature,Commerce,global,P1,capability-live,Product catalogue optimization,en,proposed,required
+features.inventory.insights,/features/inventory-insights,feature,Commerce,global,P1,capability-live,Inventory intelligence and actionable alerts,en,proposed,required
+features.ai.blog.writer,/features/ai-blog-writer,feature,Content,global,P1,capability-live,AI-assisted blogs and website publishing,en,proposed,required
+features.ai.product.descriptions,/features/ai-product-descriptions,feature,Content,global,P1,capability-live,AI product content generation,en,proposed,required
+features.brand.voice,/features/brand-voice,feature,Content,global,P1,capability-live,Brand voice for content,en,proposed,required
+features.social.media.content,/features/social-media-content,feature,Content,global,P1,capability-live,Social media content creation,en,proposed,required
+features.newsletter.writer,/features/newsletter-writer,feature,Content,global,P1,capability-live,Newsletter content generation,en,proposed,required
+features.content.approval.workflows,/features/content-approval-workflows,feature,Content,global,P1,capability-live,Content review and approvals,en,proposed,required
+features.seo.content.optimization,/features/seo-content-optimization,feature,Content,global,P1,capability-live,Search-oriented content improvement,en,proposed,required
+features.ai.customer.support,/features/ai-customer-support,feature,Support,global,P1,capability-live,AI-assisted customer support,en,proposed,required
+features.unified.inbox,/features/unified-inbox,feature,Support,global,P1,capability-live,Multi-channel support inbox,en,proposed,required
+features.whatsapp.customer.support,/features/whatsapp-customer-support,feature,Support,global,P1,capability-live,WhatsApp customer support,en,proposed,required
+features.conversation.insights,/features/conversation-insights,feature,Support,global,P1,capability-live,Customer intent and conversation analytics,en,proposed,required
+features.ai.campaign.planning,/features/ai-campaign-planning,feature,Growth,global,P1,capability-live,AI-assisted marketing plans,en,proposed,required
+features.google.meta.ad.management,/features/google-meta-ad-management,feature,Growth,global,P1,capability-live,Google and Meta campaign operations,en,proposed,required
+features.linkedin.growth,/features/linkedin-growth,feature,Growth,global,P1,capability-live,LinkedIn growth workflows,en,proposed,required
+features.audience.segmentation,/features/audience-segmentation,feature,Growth,global,P1,capability-live,Audience and lead segmentation,en,proposed,required
+features.ai.search.visibility,/features/ai-search-visibility,feature,Growth,global,P1,capability-live,AI-assisted search visibility monitoring,en,proposed,required
+features.ai.business.agent,/features/ai-business-agent,feature,Cross-pillar,global,P2,capability-live,AI agent with controlled business actions,en,proposed,required
+features.automated.workflows,/features/automated-workflows,feature,Cross-pillar,global,P2,capability-live,Business workflow automation,en,proposed,required
+features.approval.and.undo,/features/approval-and-undo,feature,Cross-pillar,global,P2,capability-live,AI approval and reversal controls,en,proposed,required
+solutions.get.found.on.google,/solutions/get-found-on-google,solution,Acquisition,global,P1,solution-proof,Increase local search discoverability,en,proposed,required
+solutions.improve.seo.visibility,/solutions/improve-seo-visibility,solution,Acquisition,global,P1,solution-proof,Improve organic visibility,en,proposed,required
+solutions.get.discovered.in.ai.search,/solutions/get-discovered-in-ai-search,solution,Acquisition,global,P1,solution-proof,Increase AI search discoverability,en,proposed,required
+solutions.generate.marketing.content,/solutions/generate-marketing-content,solution,Acquisition,global,P1,solution-proof,Create more on-brand marketing content,en,proposed,required
+solutions.automate.ad.campaigns,/solutions/automate-ad-campaigns,solution,Acquisition,global,P1,solution-proof,Reduce manual campaign operations,en,proposed,required
+solutions.increase.ecommerce.conversion,/solutions/increase-ecommerce-conversion,solution,Conversion,global,P1,solution-proof,Improve ecommerce purchase conversion,en,proposed,required
+solutions.increase.average.order.value,/solutions/increase-average-order-value,solution,Conversion,global,P1,solution-proof,Lift average order value,en,proposed,required
+solutions.automate.pre.purchase.questions,/solutions/automate-pre-purchase-questions,solution,Conversion,global,P1,solution-proof,Answer pre-sale shopper questions,en,proposed,required
+solutions.personalize.product.discovery,/solutions/personalize-product-discovery,solution,Conversion,global,P1,solution-proof,Personalize product discovery,en,proposed,required
+solutions.reduce.cod.rto,/solutions/reduce-cod-rto,solution,Conversion,global,P1,solution-proof,Reduce COD-related return-to-origin exposure,en,proposed,required
+solutions.automate.customer.support,/solutions/automate-customer-support,solution,Operations,global,P1,solution-proof,Scale customer support operations,en,proposed,required
+solutions.manage.customer.conversations,/solutions/manage-customer-conversations,solution,Operations,global,P1,solution-proof,Consolidate conversations,en,proposed,required
+solutions.optimize.product.catalogue,/solutions/optimize-product-catalogue,solution,Operations,global,P1,solution-proof,Improve catalogue information and searchability,en,proposed,required
+solutions.reduce.manual.store.work,/solutions/reduce-manual-store-work,solution,Operations,global,P1,solution-proof,Reduce repetitive store operations,en,proposed,required
+solutions.manage.online.reviews,/solutions/manage-online-reviews,solution,Operations,global,P1,solution-proof,Improve response processes for reviews,en,proposed,required
+industries.fashion.apparel,/industries/fashion-apparel,industry,Retail and ecommerce,global,P1,unique-industry-evidence,AI workflows for fashion and apparel brands,en,proposed,required
+industries.beauty.cosmetics,/industries/beauty-cosmetics,industry,Retail and ecommerce,global,P1,unique-industry-evidence,Beauty and skincare commerce workflows,en,proposed,required
+industries.electronics,/industries/electronics,industry,Retail and ecommerce,global,P1,unique-industry-evidence,Electronics buying assistance and content,en,proposed,required
+industries.home.furniture,/industries/home-furniture,industry,Retail and ecommerce,global,P1,unique-industry-evidence,Home and furniture product assistance,en,proposed,required
+industries.jewellery.accessories,/industries/jewellery-accessories,industry,Retail and ecommerce,global,P1,unique-industry-evidence,Jewellery and accessories ecommerce,en,proposed,required
+industries.food.beverage,/industries/food-beverage,industry,Retail and ecommerce,global,P1,unique-industry-evidence,Food and beverage brand workflows,en,proposed,required
+industries.health.wellness,/industries/health-wellness,industry,Retail and ecommerce,global,P1,unique-industry-evidence,Wellness business content and customer service,en,proposed,required
+industries.restaurants.hospitality,/industries/restaurants-hospitality,industry,Services and media,global,P2,unique-industry-evidence,Local presence and hospitality engagement,en,proposed,required
+industries.professional.services,/industries/professional-services,industry,Services and media,global,P2,unique-industry-evidence,Local services visibility and engagement,en,proposed,required
+industries.education.training,/industries/education-training,industry,Services and media,global,P2,unique-industry-evidence,Education marketing and enquiry workflows,en,proposed,required
+industries.publishers.media,/industries/publishers-media,industry,Services and media,global,P2,unique-industry-evidence,Publisher content and growth operations,en,proposed,required
+industries.real.estate,/industries/real-estate,industry,Services and media,global,P2,unique-industry-evidence,Real estate business marketing workflows,en,proposed,required
+industries.travel.experiences,/industries/travel-experiences,industry,Services and media,global,P2,unique-industry-evidence,Travel brand content and customer engagement,en,proposed,required
+shopify,/shopify,platform,Platform hubs,shopify,P0,verify-existing,Shopify app and integrated suite overview,en,proposed,required
+wordpress,/wordpress,platform,Platform hubs,platform,P1,integration-verified,WordPress plugin and content workflow overview,en,proposed,required
+woocommerce,/woocommerce,platform,Platform hubs,platform,P1,integration-verified,WooCommerce commerce integration overview,en,proposed,required
+amazon,/amazon,platform,Platform hubs,platform,P2,integration-verified,Amazon seller integration; not storefront control,en,proposed,required
+bigcommerce,/bigcommerce,platform,Platform hubs,platform,P2,integration-verified,"BigCommerce integration, if shipped",en,proposed,required
+integrations.whatsapp,/integrations/whatsapp,integration,Channels and connectors,global,P1,integration-verified,WhatsApp Business workflows,en,proposed,required
+integrations.google.business.profile,/integrations/google-business-profile,integration,Channels and connectors,global,P1,integration-verified,Google Business Profile connectivity,en,proposed,required
+integrations.linkedin,/integrations/linkedin,integration,Channels and connectors,global,P1,integration-verified,LinkedIn publishing and growth,en,proposed,required
+integrations.x,/integrations/x,integration,Channels and connectors,global,P1,integration-verified,X publishing integration,en,proposed,required
+integrations.beehiiv,/integrations/beehiiv,integration,Channels and connectors,global,P1,integration-verified,Newsletter publishing via Beehiiv,en,proposed,required
+integrations.google.ads,/integrations/google-ads,integration,Channels and connectors,global,P1,integration-verified,Google Ads integration,en,proposed,required
+integrations.meta.ads,/integrations/meta-ads,integration,Channels and connectors,global,P1,integration-verified,Meta advertising integration,en,proposed,required
+integrations.google.search.console,/integrations/google-search-console,integration,Channels and connectors,global,P1,integration-verified,Google Search Console data integration,en,proposed,required
+integrations.shopify,/integrations/shopify,integration,Additional connectors,global,P2,integration-verified,Shopify connection reference; distinct from /shopify landing,en,proposed,required
+integrations.wordpress,/integrations/wordpress,integration,Additional connectors,global,P2,integration-verified,WordPress connector reference,en,proposed,required
+integrations.woocommerce,/integrations/woocommerce,integration,Additional connectors,global,P2,integration-verified,WooCommerce connector reference,en,proposed,required
+integrations.amazon.seller,/integrations/amazon-seller,integration,Additional connectors,global,P2,integration-verified,Amazon seller account connector,en,proposed,required
+shopify.features.ai.shopping.assistant,/shopify/features/ai-shopping-assistant,shopify-feature,Assistance,shopify,P0,shopify-capability-verified,Shopify AI shopping assistant,en,proposed,required
+shopify.features.ai.chatbot,/shopify/features/ai-chatbot,shopify-feature,Assistance,shopify,P0,shopify-capability-verified,Shopify AI chatbot,en,proposed,required
+shopify.features.whatsapp.ai.shopping,/shopify/features/whatsapp-ai-shopping,shopify-feature,Assistance,shopify,P0,shopify-capability-verified,WhatsApp AI shopping for Shopify,en,proposed,required
+shopify.features.product.recommendations,/shopify/features/product-recommendations,shopify-feature,Merchandising,shopify,P0,shopify-capability-verified,Shopify product recommendations,en,proposed,required
+shopify.features.frequently.bought.together,/shopify/features/frequently-bought-together,shopify-feature,Merchandising,shopify,P0,shopify-capability-verified,Shopify frequently bought together,en,proposed,required
+shopify.features.smart.rails,/shopify/features/smart-rails,shopify-feature,Merchandising,shopify,P0,shopify-capability-verified,Shopify Smart Rails merchandising,en,proposed,required
+shopify.features.whatsapp.cod.confirmation,/shopify/features/whatsapp-cod-confirmation,shopify-feature,Store operations,shopify,P0,shopify-capability-verified,Shopify WhatsApp COD confirmation,en,proposed,required
+shopify.features.manage.store.from.whatsapp,/shopify/features/manage-store-from-whatsapp,shopify-feature,Store operations,shopify,P0,shopify-capability-verified,Store operations and approvals through WhatsApp,en,proposed,required
+shopify.features.ai.seo,/shopify/features/ai-seo,shopify-feature,Search and content,shopify,P0,shopify-capability-verified,Shopify AI SEO automation,en,proposed,required
+shopify.features.ai.product.descriptions,/shopify/features/ai-product-descriptions,shopify-feature,Search and content,shopify,P0,shopify-capability-verified,Shopify product descriptions,en,proposed,required
+shopify.features.seo.audit,/shopify/features/seo-audit,shopify-feature,Search and content,shopify,P0,shopify-capability-verified,Shopify store SEO audit,en,proposed,required
+shopify.features.ai.blog.generator,/shopify/features/ai-blog-generator,shopify-feature,Extended features,shopify,P1,shopify-capability-verified,Blog generation within Shopify workflows,en,proposed,required
+shopify.features.cart.upsells,/shopify/features/cart-upsells,shopify-feature,Extended features,shopify,P1,shopify-capability-verified,Shopify cart upselling,en,proposed,required
+shopify.features.merchandising.ab.testing,/shopify/features/merchandising-ab-testing,shopify-feature,Extended features,shopify,P1,shopify-capability-verified,Shopify merchandising A/B tests,en,proposed,required
+shopify.features.inventory.alerts,/shopify/features/inventory-alerts,shopify-feature,Extended features,shopify,P1,shopify-capability-verified,Shopify inventory alerts,en,proposed,required
+shopify.features.purchase.orders,/shopify/features/purchase-orders,shopify-feature,Extended features,shopify,P1,shopify-capability-verified,Shopify purchase order workflows,en,proposed,required
+shopify.features.automatic.markdowns,/shopify/features/automatic-markdowns,shopify-feature,Extended features,shopify,P1,shopify-capability-verified,Shopify automated markdown proposals,en,proposed,required
+shopify.features.ai.search.visibility,/shopify/features/ai-search-visibility,shopify-feature,Extended features,shopify,P1,shopify-capability-verified,Shopify AI search discovery monitoring,en,proposed,required
+shopify.features.catalogue.health,/shopify/features/catalogue-health,shopify-feature,Extended features,shopify,P1,shopify-capability-verified,Shopify catalogue health,en,proposed,required
+shopify.features.customer.conversation.insights,/shopify/features/customer-conversation-insights,shopify-feature,Extended features,shopify,P1,shopify-capability-verified,Shopify conversation and demand insights,en,proposed,required
+shopify.features.ai.growth.campaigns,/shopify/features/ai-growth-campaigns,shopify-feature,Extended features,shopify,P1,shopify-capability-verified,Shopify marketing campaigns via Peakhour,en,proposed,required
+shopify.solutions.reduce.cod.rto,/shopify/solutions/reduce-cod-rto,shopify-solution,Merchant outcomes,shopify,P1,distinct-shopify-workflow,Reduce COD failure for Shopify stores,en,proposed,required
+shopify.solutions.increase.aov,/shopify/solutions/increase-aov,shopify-solution,Merchant outcomes,shopify,P1,distinct-shopify-workflow,Raise Shopify AOV with AI recommendations,en,proposed,required
+shopify.solutions.convert.more.shoppers,/shopify/solutions/convert-more-shoppers,shopify-solution,Merchant outcomes,shopify,P1,distinct-shopify-workflow,Improve Shopify conversion,en,proposed,required
+shopify.solutions.automate.pre.sales.support,/shopify/solutions/automate-pre-sales-support,shopify-solution,Merchant outcomes,shopify,P1,distinct-shopify-workflow,Automate Shopify pre-sales support,en,proposed,required
+shopify.solutions.optimize.product.pages,/shopify/solutions/optimize-product-pages,shopify-solution,Merchant outcomes,shopify,P1,distinct-shopify-workflow,Optimize Shopify product pages,en,proposed,required
+shopify.solutions.streamline.store.operations,/shopify/solutions/streamline-store-operations,shopify-solution,Merchant outcomes,shopify,P1,distinct-shopify-workflow,Automate Shopify store workflows,en,proposed,required
+shopify.compare.aisensy,/shopify/compare/aisensy,shopify-compare,WhatsApp-first competitors,shopify,P0,competitor-verified,Peakhour versus AiSensy for Shopify,en,proposed,required
+shopify.compare.interakt,/shopify/compare/interakt,shopify-compare,WhatsApp-first competitors,shopify,P0,competitor-verified,Peakhour versus Interakt for Shopify,en,proposed,required
+shopify.compare.wati,/shopify/compare/wati,shopify-compare,WhatsApp-first competitors,shopify,P0,competitor-verified,Peakhour versus Wati for Shopify,en,proposed,required
+shopify.compare.gorgias,/shopify/compare/gorgias,shopify-compare,AI assistant,shopify,P0,competitor-verified,Peakhour versus Gorgias for Shopify,en,proposed,required
+shopify.compare.rep.ai,/shopify/compare/rep-ai,shopify-compare,AI assistant,shopify,P0,competitor-verified,Peakhour versus Rep AI for Shopify,en,proposed,required
+shopify.compare.rebuy,/shopify/compare/rebuy,shopify-compare,Merchandising,shopify,P1,competitor-verified,Peakhour versus Rebuy,en,proposed,required
+shopify.compare.nosto,/shopify/compare/nosto,shopify-compare,Merchandising,shopify,P1,competitor-verified,Peakhour versus Nosto,en,proposed,required
+shopify.compare.limespot,/shopify/compare/limespot,shopify-compare,Merchandising,shopify,P1,competitor-verified,Peakhour versus LimeSpot,en,proposed,required
+shopify.compare.tinyimg,/shopify/compare/tinyimg,shopify-compare,SEO,shopify,P1,competitor-verified,Peakhour versus TinyIMG,en,proposed,required
+shopify.compare.searchpie,/shopify/compare/searchpie,shopify-compare,SEO,shopify,P1,competitor-verified,Peakhour versus SearchPie,en,proposed,required
+shopify.compare.seowill,/shopify/compare/seowill,shopify-compare,SEO,shopify,P1,competitor-verified,Peakhour versus SEOWILL,en,proposed,required
+shopify.compare.zoko,/shopify/compare/zoko,shopify-compare,Other WhatsApp and assistants,shopify,P2,competitor-verified,Peakhour versus Zoko,en,proposed,required
+shopify.compare.tidio,/shopify/compare/tidio,shopify-compare,Other WhatsApp and assistants,shopify,P2,competitor-verified,Peakhour versus Tidio,en,proposed,required
+shopify.compare.manifest.ai,/shopify/compare/manifest-ai,shopify-compare,Other WhatsApp and assistants,shopify,P2,competitor-verified,Peakhour versus Manifest AI,en,proposed,required
+shopify.compare.shopify.inbox,/shopify/compare/shopify-inbox,shopify-compare,Other WhatsApp and assistants,shopify,P2,competitor-verified,Peakhour versus Shopify Inbox,en,proposed,required
+shopify.alternatives.whatsapp.apps,/shopify/alternatives/whatsapp-apps,shopify-alternatives,Shopify category alternatives,shopify,P1,independent-comparison-research,Best Shopify WhatsApp apps,en,proposed,required
+shopify.alternatives.ai.shopping.assistants,/shopify/alternatives/ai-shopping-assistants,shopify-alternatives,Shopify category alternatives,shopify,P1,independent-comparison-research,Best Shopify shopping assistants,en,proposed,required
+shopify.alternatives.product.recommendations,/shopify/alternatives/product-recommendations,shopify-alternatives,Shopify category alternatives,shopify,P1,independent-comparison-research,Best Shopify recommendation apps,en,proposed,required
+shopify.alternatives.seo.apps,/shopify/alternatives/seo-apps,shopify-alternatives,Shopify category alternatives,shopify,P1,independent-comparison-research,Best Shopify SEO apps,en,proposed,required
+shopify.alternatives.all.in.one.growth.apps,/shopify/alternatives/all-in-one-growth-apps,shopify-alternatives,Shopify category alternatives,shopify,P1,independent-comparison-research,Best all-in-one Shopify growth apps,en,proposed,required
+shopify.guides.whatsapp.cod.confirmation,/shopify/guides/whatsapp-cod-confirmation,shopify-guide,How-to content,shopify,P1,original-expert-guide,Set up WhatsApp COD confirmation,en,proposed,required
+shopify.guides.ai.chatbot.setup,/shopify/guides/ai-chatbot-setup,shopify-guide,How-to content,shopify,P1,original-expert-guide,Configure an AI shopping assistant,en,proposed,required
+shopify.guides.increase.average.order.value,/shopify/guides/increase-average-order-value,shopify-guide,How-to content,shopify,P1,original-expert-guide,Shopify AOV strategies,en,proposed,required
+shopify.guides.seo.checklist,/shopify/guides/seo-checklist,shopify-guide,How-to content,shopify,P1,original-expert-guide,Shopify SEO checklist,en,proposed,required
+shopify.guides.product.description.seo,/shopify/guides/product-description-seo,shopify-guide,How-to content,shopify,P1,original-expert-guide,Shopify product description SEO,en,proposed,required
+shopify.guides.ai.search.optimization,/shopify/guides/ai-search-optimization,shopify-guide,Advanced guidance,shopify,P2,original-expert-guide,AI search visibility for Shopify,en,proposed,required
+shopify.guides.merchandising.experiments,/shopify/guides/merchandising-experiments,shopify-guide,Advanced guidance,shopify,P2,original-expert-guide,Shopify merchandising experiments,en,proposed,required
+shopify.guides.inventory.automation,/shopify/guides/inventory-automation,shopify-guide,Advanced guidance,shopify,P2,original-expert-guide,Shopify inventory automations,en,proposed,required
+shopify.tools.cod.rto.calculator,/shopify/tools/cod-rto-calculator,shopify-tool,Lead generation tools,shopify,P1,functional-tool-live,COD RTO exposure calculator,en,proposed,required
+shopify.tools.upsell.revenue.calculator,/shopify/tools/upsell-revenue-calculator,shopify-tool,Lead generation tools,shopify,P1,functional-tool-live,Upsell revenue scenario calculator,en,proposed,required
+shopify.tools.seo.health.checker,/shopify/tools/seo-health-checker,shopify-tool,Lead generation tools,shopify,P1,functional-tool-live,Shopify public site SEO checker,en,proposed,required
+shopify.tools.ai.assistant.roi,/shopify/tools/ai-assistant-roi,shopify-tool,Other tools,shopify,P2,functional-tool-live,Shopping assistant ROI estimator,en,proposed,required
+compare.klaviyo,/compare/klaviyo,compare,Platform-wide competitor intent,global,P1,competitor-verified,Peakhour versus Klaviyo: overlapping marketing capabilities,en,proposed,required
+compare.omnisend,/compare/omnisend,compare,Platform-wide competitor intent,global,P1,competitor-verified,Peakhour versus Omnisend: marketing automation,en,proposed,required
+compare.hubspot,/compare/hubspot,compare,Platform-wide competitor intent,global,P1,competitor-verified,Peakhour versus HubSpot: appropriate overlapping workflows,en,proposed,required
+compare.hootsuite,/compare/hootsuite,compare,Platform-wide competitor intent,global,P1,competitor-verified,Peakhour versus Hootsuite: content and social,en,proposed,required
+compare.buffer,/compare/buffer,compare,Platform-wide competitor intent,global,P1,competitor-verified,Peakhour versus Buffer: content scheduling,en,proposed,required
+compare.jasper,/compare/jasper,compare,Platform-wide competitor intent,global,P1,competitor-verified,Peakhour versus Jasper: content operations,en,proposed,required
+guides.ai.search.optimization,/guides/ai-search-optimization,guide,Foundational knowledge,global,P1,original-expert-guide,AI search visibility best practices,en,proposed,required
+guides.seo.vs.aeo,/guides/seo-vs-aeo,guide,Foundational knowledge,global,P1,original-expert-guide,SEO versus AEO: practical differences,en,proposed,required
+guides.ai.customer.engagement,/guides/ai-customer-engagement,guide,Foundational knowledge,global,P1,original-expert-guide,Automate customer conversations responsibly,en,proposed,required
+guides.local.seo.checklist,/guides/local-seo-checklist,guide,Foundational knowledge,global,P1,original-expert-guide,Local SEO checklist for businesses,en,proposed,required
+guides.brand.voice.guide,/guides/brand-voice-guide,guide,Foundational knowledge,global,P1,original-expert-guide,Build a consistent brand voice,en,proposed,required
+guides.multilingual.content.seo,/guides/multilingual-content-seo,guide,Foundational knowledge,global,P1,original-expert-guide,International and multilingual content SEO,en,proposed,required
+tools.local.seo.audit,/tools/local-seo-audit,tool,Global free tools,global,P2,functional-tool-live,Local presence audit tool,en,proposed,required
+tools.seo.meta.preview,/tools/seo-meta-preview,tool,Global free tools,global,P2,functional-tool-live,SERP title and description preview,en,proposed,required
+tools.utm.builder,/tools/utm-builder,tool,Global free tools,global,P2,functional-tool-live,Campaign UTM builder,en,proposed,required
+tools.roi.calculator,/tools/roi-calculator,tool,Global free tools,global,P2,functional-tool-live,AI marketing ROI scenario estimator,en,proposed,required
+case.studies.shopify.fashion.brand,/case-studies/shopify-fashion-brand,case-study,Verified results,global,P2,merchant-permission-and-evidence,Example Shopify fashion brand case study; only publish after real proof,en,proposed,required
+case.studies.local.business.presence,/case-studies/local-business-presence,case-study,Verified results,global,P2,merchant-permission-and-evidence,Example local business case study; proof required,en,proposed,required
