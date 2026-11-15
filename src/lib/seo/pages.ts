@@ -1,6 +1,7 @@
 import { PEAKS_REFUND_SENTENCE } from "@/lib/peaks-refund-terms";
 import { SHOPIFY_SEO } from "@/lib/shopify-features";
-import type { CtaKind, EditorialStatus, PageFamily, PageRecord, Pillar, Surface } from "./types";
+import { COMPETITOR_BRIEFS } from "@/content/seo/competitors";
+import type { CtaKind, EditorialStatus, PageFamily, PageRecord, PageScope, Pillar, Surface } from "./types";
 
 /*
  * The PageRecord registry: every page the site renders on purpose.
@@ -35,26 +36,26 @@ type Seed = {
   relatedIds?: string[];
   parentId?: string;
   queryClusterId?: string;
-  /** Default "published". A page waiting on evidence or on the owner is "review" and is never indexable. */
-  status?: EditorialStatus;
+  scope?: PageScope;
+  editorialStatus?: EditorialStatus;
+  indexable?: boolean;
 };
 
-const LAUNCH_PARTNER_CTA = { label: "Join the waitlist", href: "/launch-partner", kind: "launch-partner" as const };
+export const LAUNCH_PARTNER_CTA = { label: "Join the waitlist", href: "/launch-partner", kind: "launch-partner" as const };
 
 function page(s: Seed): PageRecord {
-  const status = s.status ?? "published";
   return {
     pageId: s.pageId,
     family: s.family ?? "core",
-    scope: s.surface === "shopify" ? "shopify" : "global",
+    scope: s.scope ?? (s.surface === "shopify" ? "shopify" : "global"),
     path: s.path,
     ...(s.primaryPillar ? { primaryPillar: s.primaryPillar } : {}),
     ...(s.parentId ? { parentId: s.parentId } : {}),
     ...(s.queryClusterId ? { queryClusterId: s.queryClusterId } : {}),
     capabilityIds: s.capabilityIds ?? [],
     surface: s.surface ?? "web",
-    editorialStatus: status,
-    indexable: status === "published",
+    editorialStatus: s.editorialStatus ?? "published",
+    indexable: s.indexable ?? true,
     title: s.title,
     description: s.description,
     h1: s.h1 ?? s.title,
@@ -226,7 +227,8 @@ export const PAGES: readonly PageRecord[] = [
     path: "/about",
     queryClusterId: "organization",
     // Draft until the owner confirms the company facts it states (docs: SEO-11 report lists them).
-    status: "review",
+    editorialStatus: "review",
+    indexable: false,
     title: "About Peakhour: the AI business platform for growing brands",
     description:
       "Peakhour is an AI business platform with five modules: Commerce, Content, Growth, Support and Presence. Who runs it, where it works and how to reach us.",
@@ -236,7 +238,8 @@ export const PAGES: readonly PageRecord[] = [
   page({
     pageId: "industries",
     path: "/industries",
-    status: "review",
+    editorialStatus: "review",
+    indexable: false,
     title: "Peakhour by industry",
     description: "How Peakhour helps different kinds of business, with what is live and what is not.",
     h1: "Peakhour by industry",
@@ -253,7 +256,8 @@ export const PAGES: readonly PageRecord[] = [
     surface: "shopify",
     capabilityIds: ["commerce.find_my_match", "commerce.product_recommendations", "commerce.cod_confirmation", "commerce.ai_shopping_assistant"],
     queryClusterId: "industry-fashion",
-    status: "review",
+    editorialStatus: "review",
+    indexable: false,
     title: "Peakhour for fashion and apparel stores",
     description:
       "Shopify fashion stores: a Complete the look shelf, a Find my match quiz, a shopping assistant and WhatsApp confirmation of cash-on-delivery orders.",
@@ -264,7 +268,8 @@ export const PAGES: readonly PageRecord[] = [
   page({
     pageId: "guides",
     path: "/guides",
-    status: "review",
+    editorialStatus: "review",
+    indexable: false,
     title: "Peakhour guides",
     description: "Original how-to guides for running a store with Peakhour.",
     h1: "Peakhour guides",
@@ -279,7 +284,8 @@ export const PAGES: readonly PageRecord[] = [
     primaryPillar: "commerce",
     capabilityIds: ["commerce.cod_confirmation"],
     queryClusterId: "cod-confirmation",
-    status: "review",
+    editorialStatus: "review",
+    indexable: false,
     title: "Set up WhatsApp COD confirmation on Shopify",
     description:
       "How to ask cash-on-delivery shoppers to confirm on WhatsApp: what you need, the setup steps, what happens to unanswered orders and the limits.",
@@ -287,6 +293,25 @@ export const PAGES: readonly PageRecord[] = [
     cta: { label: "Install on Shopify", href: "/shopify", kind: "install" },
     relatedIds: ["shopify", "pricing", "commerce"],
   }),
+  // SEO-10: the wave-1 Shopify comparisons. At `review` they render on dev with the draft ribbon and 404 on
+  // production until Growth signs off each source (plan D4, Q1). capabilityIds hold only what the Peakhour cells claim.
+  ...COMPETITOR_BRIEFS.map((b) =>
+    page({
+      pageId: b.pageId,
+      path: `/shopify/compare/${b.slug}`,
+      family: "shopify-compare",
+      surface: "shopify",
+      primaryPillar: "commerce",
+      capabilityIds: [...new Set(b.claims.map((c) => c.peakhour.capabilityId).filter((id): id is string => !!id))],
+      title: b.title,
+      description: b.description,
+      h1: b.h1,
+      cta: LAUNCH_PARTNER_CTA,
+      relatedIds: ["shopify", "pricing"],
+      editorialStatus: "review",
+      indexable: false,
+    }),
+  ),
 ];
 
 const BY_ID = new Map(PAGES.map((p) => [p.pageId, p]));

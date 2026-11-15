@@ -10,3 +10,8 @@ export function safeHref(href: string): string {
   if (/^(https?:|mailto:)/i.test(h)) return h;
   return "#";
 }
+
+/** Link attributes for a content link: an http(s) URL opens in a new tab with no referrer or endorsement; a site path is a normal link. */
+export function linkAttrs(href: string): { target?: "_blank"; rel?: string } {
+  return /^https?:/i.test(href.trim()) ? { target: "_blank", rel: "noopener noreferrer nofollow" } : {};
+}
