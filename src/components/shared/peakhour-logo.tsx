@@ -50,7 +50,14 @@ export function PeakhourLogo({ className = "h-8 w-auto", decorative }: ArtProps)
 
 export function PeakhourWordmark({ className = "h-5 w-auto", decorative }: ArtProps) {
   return (
-    <svg viewBox={WORDMARK_VIEWBOX} fill="currentColor" focusable="false" className={cn("shrink-0", className)} {...a11y(decorative)}>
+    <svg
+      viewBox={WORDMARK_VIEWBOX}
+      preserveAspectRatio="xMinYMid meet"
+      fill="currentColor"
+      focusable="false"
+      className={cn("shrink-0", className)}
+      {...a11y(decorative)}
+    >
       <Shapes shapes={BRAND_WORD_SHAPES} />
     </svg>
   );

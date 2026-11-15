@@ -20,6 +20,9 @@ import { BRAND_MARK_SHAPES, BRAND_WORD_SHAPES, LOCKUP_VIEWBOX, WORDMARK_VIEWBOX 
  *   4. the invented icon's path, should it ever come back;
  *   5. a letter logo: an element whose only content is "P" (the onboarding header and the growth WhatsApp preview
  *      both had one).
+ *
+ * Known limit: the name through a local alias (`const { name } = SITE; <b>{name}</b>`) is unknown text to the AST and
+ * is not judged. Use `SITE.name` or `BRAND_NAME` directly; review catches the rest.
  */
 const ROOT = resolve(__dirname, "..", "..");
 const SRC = join(ROOT, "src");
@@ -32,7 +35,7 @@ const OWN_COMPONENT = /^(?:Peak\w*|PH|Brand|Site|App)(?:Logo|Mark|Wordmark|Icon|
 const INVENTED_ICON = "M5 24l8-11";
 /** A cheap superset of the five rules, to skip parsing files that cannot break any of them. */
 const MAY_VIOLATE =
-  /peak\s?hour|SITE\s*\.\s*name|BRAND_NAME|M5 24l8-11|(?:Peak\w*|PH|Brand|Site|App)(?:Logo|Mark|Wordmark|Icon|Lockup)|(?:^|[>}"])\s*P\s*(?:$|[<{"])/im;
+  /peak\s?hour|SITE\s*\.\s*name|BRAND_NAME|M5 24l8-11|(?:Peak\w*|PH|Brand|Site|App)(?:Logo|Mark|Wordmark|Icon|Lockup)|(?:^|[>}"'`])\s*P\s*(?:$|[<{"'`])/im;
 
 /**
  * Labels where the name is TEXT on purpose: file -> the exact labels allowed there, each with a reason a reviewer
@@ -102,6 +105,10 @@ export function findBrandViolations(file: string, src: string): BrandViolation[]
     if (!isHome && (ts.isStringLiteralLike(n) || ts.isJsxText(n)) && BRAND_FILES.test(n.text)) {
       out.push({ rule: 2, text: n.text.match(BRAND_FILES)![0] });
     }
+    // `/peakhour-${variant}.svg`: a built path is still a path to the brand files.
+    if (!isHome && ts.isTemplateExpression(n) && /peakhour-/i.test(n.getText(sf))) {
+      out.push({ rule: 2, text: n.getText(sf) });
+    }
     if (!isHome) {
       const name =
         ts.isFunctionDeclaration(n) && n.name ? n.name.text
@@ -140,12 +147,14 @@ describe("brand guard: the official artwork, everywhere", () => {
     expect(findBrandViolations(f, `const a = <img src="/brand/peakhour-mark.svg" />;`)).toEqual([{ rule: 2, text: "peakhour-mark.svg" }]);
     expect(findBrandViolations(f, `function BrandLogo() { return null; }`)).toEqual([{ rule: 3, text: "BrandLogo" }]);
     expect(findBrandViolations(f, `const PHMark = () => null;`)).toEqual([{ rule: 3, text: "PHMark" }]);
+    expect(findBrandViolations(f, "const a = <img src={`/peakhour-${v}.svg`} />;")).toEqual([{ rule: 2, text: "`/peakhour-${v}.svg`" }]);
+    expect(findBrandViolations(f, "const a = <span>{'P'}</span>;")).toEqual([{ rule: 5, text: "P" }]);
     // The scan below skips files the pre-filter rejects, so the pre-filter must pass every one of these.
     for (const bad of [
       `<b>Peakhour</b>`, `<span>\n  Peakhour.ai\n</span>`, `<a>{SITE.name}</a>`, `"/peakhour-icon.svg"`,
       `function PeakMark() {}`, `"M5 24l8-11 4 5"`, `<span>P</span>`, `<div className="x">\n          P\n        </div>`,
       `<>Peakhour</>`, `<b>{BRAND_NAME}</b>`, `<span>{SITE .name}</span>`, `<span>{"P"}</span>`, `src="peakhour-logo.png"`,
-      `function BrandLogo() {}`, `const PHMark = () => null`,
+      `function BrandLogo() {}`, `const PHMark = () => null`, `<span>{'P'}</span>`, "<span>{`P`}</span>",
     ]) {
       expect(MAY_VIOLATE.test(bad), bad).toBe(true);
     }

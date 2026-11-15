@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
 import { PeakhourLogo } from "@/components/shared/peakhour-logo";
 import { HOME_ROUTE } from "@/lib/nav-home";
+import { SITE } from "@/lib/utils";
 
 // The five modules are the product — each has its own page. Pricing and Peaks
 // are real routes today.
@@ -83,7 +84,7 @@ export function HeaderNav({
   return (
     <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-        <Link href="/" className="flex items-center" aria-label="Peakhour.ai home">
+        <Link href="/" className="flex items-center" aria-label={`${SITE.name} home`}>
           <PeakhourLogo className="h-8 w-auto" decorative />
         </Link>
 

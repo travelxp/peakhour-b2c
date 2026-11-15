@@ -35,10 +35,12 @@ export default function OpengraphImage() {
           fontFamily: "sans-serif",
         }}
       >
-        {/* The official lockup (brand-artwork.ts) through the site's own renderer, never the name set in a font. */}
+        {/* The official lockup (brand-artwork.ts) through the site's own renderer, never the name set in a font.
+            ⚠️`Shapes(...)` is CALLED, not rendered as <Shapes />: Satori throws "Only intrinsic elements are
+            supported inside <svg>" on a function component there, and the share image would 500. */}
         <svg viewBox={LOCKUP_VIEWBOX} width={LOGO_WIDTH} height={LOGO_HEIGHT} fill={OG_IMAGE.paper}>
-          <Shapes shapes={BRAND_MARK_SHAPES} />
-          <Shapes shapes={BRAND_WORD_SHAPES} />
+          {Shapes({ shapes: BRAND_MARK_SHAPES })}
+          {Shapes({ shapes: BRAND_WORD_SHAPES })}
         </svg>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>

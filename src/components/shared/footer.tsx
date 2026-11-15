@@ -51,7 +51,7 @@ export function Footer() {
             <Link
               href="/"
               className="flex items-center"
-              aria-label="Peakhour.ai home"
+              aria-label={`${SITE.name} home`}
             >
               <PeakhourLogo className="h-7 w-auto" decorative />
             </Link>

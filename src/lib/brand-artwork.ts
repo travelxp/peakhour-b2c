@@ -17,8 +17,10 @@
 
 export type BrandShape = { d: string } | { points: string };
 
-/** The name the artwork spells, for `aria-label` and `alt`. */
-export const BRAND_NAME = "Peakhour.ai";
+import { SITE } from "@/lib/utils";
+
+/** The name the artwork spells, for `aria-label` and `alt`: the site's one spelling (SITE.name). */
+export const BRAND_NAME = SITE.name;
 
 /** Mark + letters. */
 export const LOCKUP_VIEWBOX = "33 34 1088 214";
