@@ -42,8 +42,8 @@ export interface NotBuiltDetails {
 
 // -- Mandate, as the screens see it (plan 2.1) ---------------------------------
 
-export type OutcomeKind = "sales" | "bookings" | "leads" | "calls" | "store_visits";
-export type OutcomeSource = "orders" | "win_definition" | "gbp_actions" | "ads_conversions";
+export type OutcomeKind = "sales" | "bookings" | "leads" | "calls" | "store_visits" | "app_installs";
+export type OutcomeSource = "orders" | "win_definition" | "gbp_actions" | "ads_conversions" | "app_analytics";
 
 export interface MandateOutcome {
   kind: OutcomeKind;

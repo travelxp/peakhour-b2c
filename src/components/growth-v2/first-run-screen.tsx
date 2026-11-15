@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Building2, MapPin, MessageSquare, Phone, ShoppingCart, type LucideIcon } from "lucide-react";
+import { Building2, MapPin, MessageSquare, Phone, ShoppingCart, Smartphone, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -55,13 +55,14 @@ import { ToneBadge } from "./tone";
  * only when the one-time code on that link's page is accepted (`/growth/confirm/[token]`).
  */
 
-const ICON: Record<OutcomeKind, LucideIcon> = { bookings: Building2, leads: MessageSquare, sales: ShoppingCart, calls: Phone, store_visits: MapPin };
+const ICON: Record<OutcomeKind, LucideIcon> = { bookings: Building2, leads: MessageSquare, sales: ShoppingCart, calls: Phone, store_visits: MapPin, app_installs: Smartphone };
 const HINT: Record<OutcomeKind, string> = {
   bookings: "Paid bookings",
   leads: "Enquiries and forms",
   sales: "Shop orders",
   calls: "Phone and WhatsApp",
   store_visits: "Walk-ins Google can count",
+  app_installs: "Installs of your app",
 };
 const ROLE_LABEL = { lead: "Lead channel", test: "Test" } as const;
 

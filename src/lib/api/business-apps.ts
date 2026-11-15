@@ -28,6 +28,11 @@ export interface BusinessApp {
   lastCheckedAt?: string;
 }
 
+/** The id AppsFlyer knows an app by: `id` + the App Store id for an iPhone app, the package name for an Android one. */
+export function appsFlyerAppId(app: Pick<BusinessApp, "platform" | "storeId">): string {
+  return app.platform === "ios" ? `id${app.storeId}` : app.storeId;
+}
+
 /** The name when the store gave one, otherwise a plain platform label. */
 export function appLabel(app: Pick<BusinessApp, "name" | "platform">): string {
   const name = app.name?.trim();
