@@ -42,6 +42,7 @@ type Seed = {
 const LAUNCH_PARTNER_CTA = { label: "Join the waitlist", href: "/launch-partner", kind: "launch-partner" as const };
 
 function page(s: Seed): PageRecord {
+  const status = s.status ?? "published";
   return {
     pageId: s.pageId,
     family: s.family ?? "core",
@@ -52,8 +53,8 @@ function page(s: Seed): PageRecord {
     ...(s.queryClusterId ? { queryClusterId: s.queryClusterId } : {}),
     capabilityIds: s.capabilityIds ?? [],
     surface: s.surface ?? "web",
-    editorialStatus: s.status ?? "published",
-    indexable: (s.status ?? "published") === "published",
+    editorialStatus: status,
+    indexable: status === "published",
     title: s.title,
     description: s.description,
     h1: s.h1 ?? s.title,

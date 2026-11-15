@@ -8,6 +8,7 @@ import type { BaseContent } from "@/components/marketing/seo/content-types";
  * policy already print. Nothing is added: no founders, team, funding, offices beyond the two registered addresses,
  * customer counts or press. The page ships as "review" until the owner confirms these facts.
  */
+// The market list is the owner's launch list (SEO-11 brief), not a SITE fact: the owner confirms it with the rest before publishing.
 export const ABOUT_MARKETS = ["India", "UK", "USA", "Canada", "Australia", "New Zealand"] as const;
 
 export const ABOUT_PILLARS = PILLAR_ORDER.map((slug) => ({

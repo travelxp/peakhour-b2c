@@ -35,7 +35,7 @@ export const PEAKHOUR_SUMMIT: FeatureContent = {
     { title: "Final call", body: "A recommendation. If it suggests an action, the action waits in Suggested actions until you answer it." },
   ],
   prerequisites: [
-    "A Peakhour account with a growth plan switched on (a growth autonomy level above 0).",
+    "A Peakhour account whose growth autonomy level is above 0.",
     "An editor role or higher to ask it a question, because asking uses Peaks.",
     "Peaks in your wallet if you want to ask your own question.",
   ],
