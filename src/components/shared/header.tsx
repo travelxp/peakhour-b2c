@@ -7,6 +7,7 @@ import { LanguageSwitcher } from "@/components/shared/language-switcher";
 import { PATH_HEADER } from "@/i18n/config";
 import type { Translate } from "@/i18n/types";
 import { SITE } from "@/lib/utils";
+import { languageOptions } from "@/lib/seo/language-options";
 import { pageForPublicPath } from "@/lib/seo/locale-route";
 import type { Locale } from "@/lib/seo/types";
 
@@ -63,6 +64,7 @@ export async function Header({ minimal = false }: { minimal?: boolean } = {}) {
 
   const locale = (await getLocale()) as Locale;
   const found = pageForPublicPath((await headers()).get(PATH_HEADER) ?? "");
-  const languageSwitcher = await LanguageSwitcher({ page: found?.page, locale });
+  // Null (so the static English chip stays) until a second locale is published.
+  const languageSwitcher = languageOptions(found?.page, locale).length > 0 ? <LanguageSwitcher page={found?.page} locale={locale} /> : null;
   return <HeaderNav minimal={false} cta={cta} labels={labels} languageSwitcher={languageSwitcher} />;
 }

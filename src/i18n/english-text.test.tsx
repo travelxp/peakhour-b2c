@@ -23,7 +23,7 @@ import { PublicNotFoundBody } from "@/components/marketing/public-not-found";
  * in document order. The year is substituted: the golden holds {YEAR}.
  */
 
-const tr = (namespace: string) => createTranslator({ locale: "en", messages: en, namespace }) as (key: string, values?: Record<string, string | number>) => string;
+const tr = (namespace: string) => createTranslator({ locale: "en", messages: en, namespace: namespace as never }) as (key: string, values?: Record<string, string | number>) => string;
 
 /** Every text node, then every aria-label and title, one per line. */
 function text(html: string): string {

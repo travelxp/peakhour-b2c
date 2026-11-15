@@ -98,7 +98,7 @@ describe("the middleware", () => {
   });
 
   it("strips a caller's x-ph-locale and x-ph-path and sets its own path", () => {
-    for (const extra of [{}, { rsc: "1" }]) {
+    for (const extra of [{}, { rsc: "1" }] as Record<string, string>[]) {
       const res = middleware(req("/pricing", { [LOCALE_HEADER]: "fr-CA", [PATH_HEADER]: "/fr-ca/x", ...extra }));
       expect(sent(res, LOCALE_HEADER)).toBeNull();
       expect(sent(res, PATH_HEADER)).toBe("/pricing");
