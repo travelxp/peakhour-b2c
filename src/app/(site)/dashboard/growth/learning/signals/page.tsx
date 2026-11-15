@@ -24,6 +24,7 @@ import {
   useRemoveSignal,
   useSignalSnippet,
   useSignals,
+  useSiteTag,
   useUpdateSignal,
 } from "@/hooks/use-signals";
 import type { Signal, SignalProvider, SignalRail } from "@/lib/api/signals";
@@ -31,6 +32,7 @@ import {
   PARTNER_ID_CHANGE_WARNING,
   SITE_TAG_CONSENT,
   SITE_TAG_HEADLINE,
+  siteTagSeen,
   SITE_TAG_WHAT,
   SITE_TAG_WHERE,
   evidenceChain,
@@ -106,6 +108,10 @@ export default function SignalsPage() {
           its own `NO_ACTIVE_BUSINESS` branch unreachable in the same commit.
           The pattern the rest of this app uses (`dashboard/pages`) checks the
           business before the query state, which is what this does now. */}
+      {/* GG-3c+: the business's own site tag, on its own query, so it shows whatever
+          the LinkedIn list is doing (loading, failed, or nothing set up). */}
+      {business && <SiteTagCard />}
+
       {!business ? (
         <EmptyState
           icon={Radar}
@@ -391,8 +397,7 @@ function SignalCard({
             description={
               "This removes our record and our proof that it works — not the code on your site. " +
               "Setting it up again issues a NEW site key, so you would have to replace the snippet " +
-              "on every page that carries it. The Peakhour site tag uses the same key, so it stops " +
-              "sending too until you replace it."
+              "on every page that carries it."
             }
             variant="destructive"
             confirmLabel="Remove"
@@ -481,29 +486,59 @@ function SnippetBlock({ provider }: { provider: SignalProvider }) {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <p className="text-sm text-muted-foreground">{data.placement}</p>
-        <CopyableSnippet text={data.snippet} copyLabel="Copy snippet" />
-      </div>
-      {/* GG-3c: the Peakhour site tag, on the same site key. The consent rule is
-          said before the code, in plain words, because it decides whether the
-          tag ever sends anything. */}
-      {data.tagSnippet && (
-        <div className="space-y-2 border-t pt-4">
-          <p className="text-sm font-medium">Peakhour site tag</p>
-          <p className="text-sm text-muted-foreground">
-            {SITE_TAG_WHAT}
-          </p>
-          <p className="text-sm">
-            <span className="font-medium">{SITE_TAG_HEADLINE}</span>{" "}
-            {SITE_TAG_CONSENT}
-          </p>
-          <p className="text-sm text-muted-foreground">{SITE_TAG_WHERE}</p>
-          <CopyableSnippet text={data.tagSnippet} copyLabel="Copy site tag" />
-        </div>
-      )}
+    <div className="space-y-2">
+      <p className="text-sm text-muted-foreground">{data.placement}</p>
+      <CopyableSnippet text={data.snippet} copyLabel="Copy snippet" />
     </div>
+  );
+}
+
+/**
+ * GG-3c+: the business's OWN Peakhour site tag, shown whether or not any
+ * third-party tag is set up. Its key is the tag's own (issued on first
+ * request), so removing a LinkedIn signal leaves it alone. The consent rule is
+ * said before the code, in plain words, because it decides whether the tag ever
+ * sends anything.
+ */
+function SiteTagCard() {
+  const { data, isPending, isError, refetch, isFetching } = useSiteTag();
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Peakhour site tag</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <p className="text-sm text-muted-foreground">{SITE_TAG_WHAT}</p>
+        <p className="text-sm">
+          <span className="font-medium">{SITE_TAG_HEADLINE}</span> {SITE_TAG_CONSENT}
+        </p>
+        <p className="text-sm text-muted-foreground">{SITE_TAG_WHERE}</p>
+        {/* `!data`, not `isError`, as for the list: a failed background refetch keeps
+            the tag that already loaded on screen. */}
+        {data ? (
+          <>
+            <p className="text-sm text-muted-foreground">{siteTagSeen(data.state, data.lastFiredAt, data.lastFiredHost)}</p>
+            <CopyableSnippet text={data.tagSnippet} copyLabel="Copy site tag" />
+            <Button variant="outline" size="sm" disabled={isFetching} onClick={() => void refetch()}>
+              {isFetching ? "Checking…" : "Check again"}
+            </Button>
+            {/* A failed re-check must not read as a fresh check that found nothing. */}
+            {isError && !isFetching && (
+              <p className="text-sm text-destructive">We couldn&apos;t check just now, so this is what we knew before.</p>
+            )}
+          </>
+        ) : isPending ? (
+          <Skeleton className="h-24 w-full" />
+        ) : (
+          <div className="space-y-2">
+            <p className="text-sm text-destructive">We couldn&apos;t build your site tag just now.</p>
+            <Button variant="outline" size="sm" disabled={isFetching} onClick={() => void refetch()}>
+              Try again
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

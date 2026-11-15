@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { evidenceChain, stateCopy, formatWhen, railLabel, SITE_TAG_CONSENT, SITE_TAG_HEADLINE, SITE_TAG_WHAT, SITE_TAG_WHERE } from "@/lib/signal-copy";
+import { evidenceChain, stateCopy, formatWhen, railLabel, siteTagSeen, SITE_TAG_CONSENT, SITE_TAG_HEADLINE, SITE_TAG_WHAT, SITE_TAG_WHERE } from "@/lib/signal-copy";
 import type { Signal, SignalRail } from "@/lib/api/signals";
 
 /**
@@ -381,5 +381,25 @@ describe("the Peakhour site tag's words (GG-3c)", () => {
     expect(SITE_TAG_WHERE).toMatch(/once you switch it on \(Peakhour > Site tag\)/);
     // Bible naming: never the internal words
     for (const s of [SITE_TAG_HEADLINE, SITE_TAG_CONSENT, SITE_TAG_WHAT, SITE_TAG_WHERE]) expect(s).not.toMatch(/mandate|intent|pixel|siteKey/i);
+  });
+});
+
+describe("siteTagSeen (GG-3c+): the tag's own evidence, the three absences apart", () => {
+  const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
+  it("never heard: the ordinary first state, said as normal, never as a fault", () => {
+    const s = siteTagSeen("never_fired", null, null);
+    expect(s).toMatch(/haven't heard from this tag yet/);
+    expect(s).toMatch(/quiet start is normal/);
+    expect(s).not.toMatch(/broken|error|fail/i);
+  });
+  it("firing: seen working, with the host when known", () => {
+    expect(siteTagSeen("firing", ago(5 * 60_000), "kala.example")).toBe("Seen working. Last heard from kala.example: 5 minutes ago.");
+    expect(siteTagSeen("firing", ago(5 * 60_000), null)).toBe("Seen working. Last heard: 5 minutes ago.");
+  });
+  it("not seen recently: a fact and an honest 'we can't tell', never 'broken'", () => {
+    const s = siteTagSeen("not_seen_recently", ago(10 * 86_400_000), "kala.example");
+    expect(s).toMatch(/nothing since/);
+    expect(s).toMatch(/can't tell which/);
+    expect(s).not.toMatch(/broken/i);
   });
 });
