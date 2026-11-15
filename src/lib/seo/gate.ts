@@ -1,3 +1,4 @@
+import { SEO9_PAGES } from "./pages-seo9";
 import { PILLAR_ORDER } from "@/lib/pillars";
 import { isAppRoute } from "@/lib/route-theme";
 
@@ -142,6 +143,8 @@ export const MARKETING_PATHS: readonly MarketingPath[] = [
   { path: "/guides" },
   { path: "/shopify/guides/whatsapp-cod-confirmation" },
   { path: "/coming-soon" },
+  // SEO-9: the integration and feature pages and their directories, from the registry. A page held in review 404s on its own.
+  ...SEO9_PAGES.map((p) => ({ path: p.path })),
 ];
 
 const MARKETING_SET = new Set(MARKETING_PATHS.map((m) => m.path));

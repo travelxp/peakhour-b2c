@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { articleLd } from "@/lib/seo/structured-data";
+import { PAGES } from "@/lib/seo/pages";
+import { isPublishable } from "@/lib/seo/publish";
+import { pathFor } from "@/lib/seo/resolve";
 import type { PageRecord } from "@/lib/seo/types";
 import { CapabilityStatus, StatusChip } from "./capability-status";
 import { ComparisonTable } from "./comparison-table";
@@ -453,6 +456,15 @@ export function DirectoryPage({ page, content }: { page: PageRecord; content: Di
 export function HubPage({ page, content }: { page: PageRecord; content: HubContent }) {
   const shipped = content.items.filter((i) => i.status === "live" || i.status === "beta");
   const coming = content.items.filter((i) => i.status !== "live" && i.status !== "beta");
+  // The hub's publishable feature and integration pages, from the registry's relatedIds, so a page appears here the
+  // moment it is publishable and never before. Anything the hub already links in "Keep going" is left out (no duplicates).
+  const already = new Set(content.related.map((l) => l.href));
+  const children = page.relatedIds
+    .map((id) => PAGES.find((p) => p.pageId === id))
+    .filter((p): p is PageRecord => !!p && (p.family === "feature" || p.family === "integration") && isPublishable(p))
+    .map((p) => ({ label: p.title, href: pathFor(p.pageId), note: p.description }))
+    .filter((l) => !already.has(l.href))
+    .slice(0, 6);
   return (
     <Frame
       page={page}
@@ -484,6 +496,11 @@ export function HubPage({ page, content }: { page: PageRecord; content: HubConte
           <Bullets items={content.control} />
         </div>
       </Section>
+      {children.length > 0 && (
+        <Section id="deeper" eyebrow="Go deeper" title="Each feature and connection, on its own page.">
+          <ContextualLinks links={children} />
+        </Section>
+      )}
     </Frame>
   );
 }

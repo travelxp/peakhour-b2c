@@ -108,6 +108,22 @@ describe("the module hubs are built from approved claims", () => {
     }
   });
 
+  it("each hub links its publishable feature and integration pages from the registry, with no link listed twice", () => {
+    for (const [id, content] of Object.entries(HUBS)) {
+      const page = getPage(id);
+      const html = renderToStaticMarkup(<HubPage page={page} content={content} />);
+      const hrefs = [...html.matchAll(/<a [^>]*href="([^"#]+)"/g)].map((m) => m[1]);
+      for (const rid of page.relatedIds) {
+        const rel = PAGES.find((p) => p.pageId === rid);
+        if (rel && (rel.family === "feature" || rel.family === "integration") && isPublishable(rel)) {
+          expect(hrefs, `${id} -> ${rid}`).toContain(rel.path);
+        }
+      }
+      const body = hrefs.filter((h) => h.startsWith("/") && h !== "/" && !["/pricing", "/peaks", "/how-it-works", "/shopify", "/commerce", "/content", "/growth", "/support", "/presence", "/launch-partner", "/auth"].includes(h));
+      expect(new Set(body).size, `${id} lists a link twice`).toBe(body.length);
+    }
+  });
+
   it("support makes no live claim on the switched-off channels (plan Q3)", () => {
     const live = SUPPORT.items.filter((i) => i.status === "live" || i.status === "beta").map((i) => i.title);
     expect(live).toEqual(["Conversation insights"]);

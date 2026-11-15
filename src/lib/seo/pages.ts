@@ -1,4 +1,5 @@
 import { SHOPIFY_SEO } from "@/lib/shopify-features";
+import { SEO9_PAGES } from "./pages-seo9";
 import { COMPETITOR_BRIEFS } from "@/content/seo/competitors";
 import type { CtaKind, EditorialStatus, PageFamily, PageRecord, PageScope, Pillar, Surface } from "./types";
 
@@ -78,7 +79,7 @@ export const PAGES: readonly PageRecord[] = [
     description:
       "Peakhour answers shoppers, drafts content, plans and reviews ads and prepares Google listing changes. You approve each change. One plan for five modules.",
     h1: "Still running one business across 10 different tools?",
-    relatedIds: ["pricing", "how.it.works", "shopify", "commerce", "content", "growth", "support", "presence"],
+    relatedIds: ["pricing", "how.it.works", "shopify", "commerce", "content", "growth", "support", "presence", "integrations.index", "features.index"],
   }),
   page({
     pageId: "pricing",
@@ -129,7 +130,7 @@ export const PAGES: readonly PageRecord[] = [
     description:
       "Prepare Google Business Profile edits, get AI drafts for review replies and see a listing health score. In beta; you approve every change.",
     h1: "Own how you show up on Google",
-    relatedIds: ["support", "content", "how.it.works", "pricing"],
+    relatedIds: ["features.google.business.profile.management", "features.review.management", "features.local.listing.health", "integrations.google.business.profile", "support", "content"],
   }),
   page({
     pageId: "commerce",
@@ -142,7 +143,7 @@ export const PAGES: readonly PageRecord[] = [
     description:
       "An AI assistant that answers shoppers from your catalogue on Shopify and WhatsApp, confirms COD orders and flags stock. WooCommerce is coming soon.",
     h1: "An AI shopping assistant that answers from your real catalogue",
-    relatedIds: ["shopify", "pricing", "support", "growth"],
+    relatedIds: ["shopify", "integrations.whatsapp", "pricing", "support", "growth"],
   }),
   page({
     pageId: "content",
@@ -154,7 +155,7 @@ export const PAGES: readonly PageRecord[] = [
     description:
       "Peakhour learns your brand voice from your posts, then drafts social posts, newsletters and Shopify blog articles for you to approve.",
     h1: "AI writers that publish in your voice",
-    relatedIds: ["growth", "commerce", "shopify", "how.it.works"],
+    relatedIds: ["features.brand.voice", "features.social.media.content", "integrations.beehiiv", "integrations.x", "integrations.facebook", "integrations.instagram"],
   }),
   page({
     pageId: "support",
@@ -187,7 +188,7 @@ export const PAGES: readonly PageRecord[] = [
     description:
       "Draft a growth strategy, pause Meta and X ads, manage LinkedIn posts, and have Peakhour Summit review growth decisions. You approve changes.",
     h1: "Plan and review your ads, with your approval",
-    relatedIds: ["content", "commerce", "how.it.works", "pricing"],
+    relatedIds: ["integrations.linkedin", "integrations.meta.ads", "integrations.x.ads", "content", "commerce"],
   }),
   page({
     pageId: "shopify",
@@ -377,6 +378,7 @@ export const PAGES: readonly PageRecord[] = [
     title: "Data Retention - Peakhour",
     description: "How long Peakhour keeps the data it pulls from connected platforms, and why.",
   }),
+  ...SEO9_PAGES,
   // SEO-11 ----------------------------------------------------------------------------------------------------
   page({
     pageId: "feature.peakhour.summit",
