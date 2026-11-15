@@ -27,10 +27,19 @@ export type CrawlOptions = {
 
 type Res = { status: number; robots: string | null; location: string | null; body: string };
 
+/** One request. A network error or a 20 s stall becomes status 0, which fails that URL's check and lets the run go on. */
 async function get(base: string, path: string): Promise<Res> {
-  const res = await fetch(`${base}${path}`, { redirect: "manual", headers: { "user-agent": "peakhour-seo-smoke" } });
-  const body = res.status >= 300 && res.status < 400 ? "" : await res.text();
-  return { status: res.status, robots: res.headers.get("x-robots-tag"), location: res.headers.get("location"), body };
+  try {
+    const res = await fetch(`${base}${path}`, {
+      redirect: "manual",
+      headers: { "user-agent": "peakhour-seo-smoke" },
+      signal: AbortSignal.timeout(20_000),
+    });
+    const body = res.status >= 300 && res.status < 400 ? "" : await res.text();
+    return { status: res.status, robots: res.headers.get("x-robots-tag"), location: res.headers.get("location"), body };
+  } catch (e) {
+    return { status: 0, robots: null, location: null, body: `request failed: ${e instanceof Error ? e.message : String(e)}` };
+  }
 }
 
 /** Run `fn` over `items`, `size` at a time, keeping order. */
@@ -107,7 +116,8 @@ export async function crawlChecks(o: CrawlOptions): Promise<void> {
     check(`T14 ${where} has JSON-LD, and it parses (${ld.nodes.length} node(s))`, (ld.nodes.length > 0 || !needsLd) && ld.errors.length === 0, ld.errors.join("; ") || "no JSON-LD found");
     const fabricated = hasFabricatedField(ld.nodes);
     check(`T14 ${where} JSON-LD has no review or rating field`, !fabricated, String(fabricated));
-    const text = textOf(r.body);
+    // The visible text only: JSON-LD and the flight payload live in <script>, and a question found there is not "drawn".
+    const text = textOf(r.body.replace(/<script(?=[\s>])[\s\S]*?<\/script>/gi, "").replace(/<style(?=[\s>])[\s\S]*?<\/style>/gi, ""));
     for (const n of ld.nodes) {
       const types = typesOf(n);
       const type = ["BreadcrumbList", "Article", "FAQPage", "SoftwareApplication"].find((t) => types.includes(t)) ?? "";
@@ -141,8 +151,8 @@ export async function crawlChecks(o: CrawlOptions): Promise<void> {
   });
 
   // T07: an unknown URL is a real 404 under every family and locale prefix.
-  for (const path of [...UNKNOWN_URLS, ...unpublishedLocaleUrls(o.unpublishedLocales)]) {
-    const r = await get(base, path);
+  const unknown = [...UNKNOWN_URLS, ...unpublishedLocaleUrls(o.unpublishedLocales)];
+  for (const { path, r } of await pool(unknown, 6, async (path) => ({ path, r: await get(base, path) }))) {
     check(`T07 ${path} is 404`, r.status === 404, String(r.status));
     if (!indexable) check(`T09 ${path} (404) carries noindex, nofollow`, noindexAll(r.robots), String(r.robots));
   }

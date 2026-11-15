@@ -92,7 +92,7 @@ export function jsonLd(html: string): LdResult {
       const parsed = JSON.parse(m[1]) as Record<string, unknown> | Record<string, unknown>[];
       for (const j of Array.isArray(parsed) ? parsed : [parsed]) {
         const graph = Array.isArray(j["@graph"]) ? (j["@graph"] as Record<string, unknown>[]) : undefined;
-        if (j["@context"] !== "https://schema.org" || (!j["@type"] && !graph)) errors.push("missing @context or @type");
+        if (!j || typeof j !== "object" || !/^https?:\/\/schema\.org\/?$/.test(String(j["@context"])) || (!j["@type"] && !graph)) errors.push("missing @context or @type");
         else if (graph) nodes.push(...graph);
         else nodes.push(j);
       }

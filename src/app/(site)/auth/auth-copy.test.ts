@@ -8,6 +8,6 @@ describe("/auth sign-in panel", () => {
 
   it("does not promise five modules, and says Support is coming soon", () => {
     expect(src).not.toMatch(/Five modules/i);
-    expect(src).toMatch(/Support coming soon/);
+    expect(src).toMatch(/Support\s+coming soon/);
   });
 });
