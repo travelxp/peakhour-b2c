@@ -150,11 +150,16 @@ describe("shopifyJsonLd", () => {
 describe("wiring", () => {
   it("lists /shopify in the sitemap", async () => {
     const { default: sitemap } = await import("../app/sitemap");
+    // The sitemap is empty off Production (SEO-1), so ask it as Production.
+    const before = process.env.VERCEL_ENV;
+    process.env.VERCEL_ENV = "production";
     const urls = (await sitemap()).map((e) => e.url);
+    if (before === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = before;
     expect(urls).toContain(`${SITE.url.replace(/\/$/, "")}/shopify`);
   });
   it("lets /shopify through the coming-soon gate, and keeps /shopify/connect", () => {
-    const mw = read("middleware.ts");
+    const mw = read("lib/seo/gate.ts");
     expect(mw).toMatch(/PUBLIC_PATHS = \[[\s\S]*?"\/shopify",[\s\S]*?"\/shopify\/connect",[\s\S]*?\];/);
   });
   it("footer has a Works with group naming Shopify and WordPress", () => {
