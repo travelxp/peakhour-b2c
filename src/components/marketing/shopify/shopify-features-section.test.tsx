@@ -10,7 +10,8 @@ async function render(extra: PageRecord[]) {
   vi.resetModules();
   vi.doMock("@/lib/seo/pages", async (orig) => {
     const real = await orig<typeof import("@/lib/seo/pages")>();
-    const PAGES = [...real.PAGES, ...extra];
+    // The real registry now has SEO-8's feature pages; the test controls the set, so drop them first.
+    const PAGES = [...real.PAGES.filter((p) => p.family !== "shopify-feature" || p.pageId === "shopify.features"), ...extra];
     return { ...real, PAGES, getPage: (id: string) => PAGES.find((p) => p.pageId === id)! };
   });
   const { ShopifyFeaturesSection } = await import("./shopify-features-section");

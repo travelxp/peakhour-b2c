@@ -11,10 +11,14 @@ export function ContextualLinks({ links, className }: { links: LinkItem[]; class
   // The kit's rule is 2 to 6; more than six reads as a link farm and is cut here rather than trusted to the author.
   const shown = links.slice(0, 6);
   if (shown.length === 0) return null;
+  // Four links in three columns would leave one card alone on the last row, so four sit two by two.
   return (
-    <ul role="list" className={className ?? `grid gap-3 sm:grid-cols-2 sm:gap-4 ${shown.length === 4 ? "" : "lg:grid-cols-3"}`}>
+    <ul
+      role="list"
+      className={className ?? `grid gap-3 sm:grid-cols-2 sm:gap-4 ${shown.length === 4 ? "lg:grid-cols-2" : "lg:grid-cols-3"}`}
+    >
       {shown.map((l) => (
-        <li key={l.href}>
+        <li key={l.href} className="sm:max-lg:[&:last-child:nth-child(odd)]:col-span-2">
           <Link
             href={safeHref(l.href)}
             className="group flex h-full flex-col gap-1.5 rounded-2xl border bg-card p-4 transition-all hover:-translate-y-1 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none motion-reduce:hover:translate-y-0"

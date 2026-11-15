@@ -16,6 +16,7 @@ import type {
   SolutionContent,
 } from "./content-types";
 import { ContextualLinks } from "./contextual-links";
+import { DetailSection } from "./detail-section";
 import { DirectoryGrid } from "./directory-grid";
 import { Bullets, FactsCard, Frame, ListCard } from "./frame";
 import { JsonLd } from "./json-ld";
@@ -59,6 +60,9 @@ export function FeaturePage({ page, content }: { page: PageRecord; content: Feat
   );
 }
 
+/** Bands alternate plain and muted down the page; the status section is band 0 (plain). */
+const bandTone = (index: number) => (index % 2 === 0 ? "plain" : "muted");
+
 /** 7.1 Platform variant: installation and setup, the platform-native workflow, permissions only as supported. */
 export function ShopifyFeaturePage({ page, content }: { page: PageRecord; content: ShopifyFeatureContent }) {
   return (
@@ -66,14 +70,17 @@ export function ShopifyFeaturePage({ page, content }: { page: PageRecord; conten
       <Section id="status" eyebrow="On Shopify" title="Where this stands on Shopify.">
         <CapabilityStatus status={content.status} limitations={content.limitations} verifiedAt={content.verifiedAt} subject="On Shopify" />
       </Section>
-      <Section id="setup" eyebrow="Set up" title="Install to first result." tone="muted">
+      {content.sections?.map((s, i) => (
+        <DetailSection key={s.id} section={s} tone={bandTone(i + 1)} />
+      ))}
+      <Section id="setup" eyebrow="Set up" title="Install to first result." tone={bandTone((content.sections?.length ?? 0) + 1)}>
         <WorkflowSteps steps={content.setupSteps} />
       </Section>
-      <Section id="permissions" eyebrow="Permissions" title="What the app asks for, and why.">
+      <Section id="permissions" eyebrow="Permissions" title="What the app asks for, and why." tone={bandTone((content.sections?.length ?? 0) + 2)}>
         <dl className="grid gap-3 sm:grid-cols-2 sm:gap-4">
           {content.permissions.map((p) => (
-            <div key={p.name} className={`${cardCls} p-5`}>
-              <dt className="font-mono text-sm font-bold">{p.name}</dt>
+            <div key={p.name} className={`${cardCls} p-5 sm:[&:last-child:nth-child(odd)]:col-span-2`}>
+              <dt className="font-mono text-sm font-bold [overflow-wrap:anywhere]">{p.name}</dt>
               <dd className="mt-1.5 text-[15px] text-muted-foreground">{p.why}</dd>
             </div>
           ))}

@@ -79,7 +79,24 @@ export type FeatureContent = BaseContent & {
   pricingNote: string;
 };
 
+/** An extra section on a feature page: a short explanation, with an optional grid of named parts. */
+export type DetailSectionContent = {
+  id: string;
+  eyebrow: string;
+  title: string;
+  paragraphs: string[];
+  /**
+   * Named parts of the feature (a kind of shelf, a step of a flow). An odd last card spans the row, so any count is safe.
+   * `linkLabel` is the descriptive anchor text when `href` is set (never "read more").
+   */
+  items?: { title: string; body: string; href?: string; linkLabel?: string }[];
+  /** What this part does NOT do, shown under the items. */
+  limitations?: string[];
+};
+
 export type ShopifyFeatureContent = BaseContent & {
+  /** Sections between the status and the setup, for what the feature is made of (Smart Rails kinds, Find my match). */
+  sections?: DetailSectionContent[];
   status: ReleaseStatus;
   limitations: string[];
   verifiedAt: string;
