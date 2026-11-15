@@ -193,11 +193,17 @@ describe("T12: a claim that requires live fails the gate when the capability is 
   it("an unknown capability id is not publishable", () => {
     expect(isPublishable(asPage({ capabilityIds: ["no.such.capability"] }))).toBe(false);
   });
-  it("the seeded registry has no live claim on a non-live implementation", () => {
+  it("the seeded registry has no live claim without a live implementation, and a non-live sibling says why", () => {
+    // A capability has one implementation per surface (SEO-3), so a live Shopify claim can sit beside a
+    // development WooCommerce record. The gate reads the page's own surface, so the sibling cannot leak
+    // the claim onto a WooCommerce page; the sibling must carry a limitation that explains it.
     for (const c of CAPABILITIES) {
       for (const claim of c.approvedClaims) {
         if (claim.requires !== "live") continue;
-        for (const i of c.implementations) expect(i.status, `${c.id} ${claim.id}`).toBe("live");
+        expect(c.implementations.some((i) => i.status === "live"), `${c.id} ${claim.id}`).toBe(true);
+        for (const i of c.implementations.filter((x) => x.status !== "live")) {
+          expect(i.limitations?.length ?? 0, `${c.id} [${i.surface}] is ${i.status} beside a live claim`).toBeGreaterThan(0);
+        }
       }
     }
   });

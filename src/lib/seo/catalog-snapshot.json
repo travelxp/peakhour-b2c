@@ -1,0 +1,426 @@
+{
+ "readAt": "2026-11-15",
+ "note": "Catalog key to status. source prod-public-api = GET https://api.peakhour.ai/v1/platform/catalog (production integrations; production wins). source dev-db = the dev database: cfg_features, and integrations the production list omits (shopify, google_business_profile, messenger, instagram_dm, x_dm). The production database read was refused by the permission system, so production cfg_features statuses were not read directly; plan section 2.4 records the production reading of 2026-11-15 (support.* coming_soon, commerce.woocommerce.* active).",
+ "entries": {
+  "account.multi_product": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "beehiiv": {
+   "status": "live",
+   "source": "prod-public-api"
+  },
+  "commerce.assistant": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "commerce.autopilot": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "commerce.catalog_sync": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "commerce.channels_all": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "commerce.command_center": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "commerce.in_app_assistant": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "commerce.insights_network": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "commerce.multilingual": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "commerce.nav": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "commerce.whatsapp": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "commerce.woocommerce.assistant": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "commerce.woocommerce.autopilot": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "commerce.woocommerce.brand_voice": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "commerce.woocommerce.campaigns": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "commerce.woocommerce.catalog_sync": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "commerce.woocommerce.in_app_assistant": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "commerce.woocommerce.insights_network": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "commerce.woocommerce.inventory": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "commerce.woocommerce.multilingual": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "commerce.woocommerce.product_descriptions": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "commerce.woocommerce.smart_rails": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "commerce.woocommerce.whatsapp": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "content.aeo_audit": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "content.ai_draft": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "content.assistant": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "content.autonomous_publish": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "content.autopilot_home": {
+   "status": "in_development",
+   "source": "dev-db"
+  },
+  "content.brand_voice": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "content.insights_lens": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "content.internal_links": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "content.meta_sync": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "content.multi_format": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "content.refresh": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "content.repurpose": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "content.scheduler": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "content.schema": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "content.studio": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "content.supervisor": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "content.trusted_sources": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "enterprise.dedicated_support": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "enterprise.sla": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "enterprise.sso": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "facebook_pages": {
+   "status": "live",
+   "source": "prod-public-api"
+  },
+  "ghost": {
+   "status": "coming_soon",
+   "source": "prod-public-api"
+  },
+  "google_ads": {
+   "status": "coming_soon",
+   "source": "prod-public-api"
+  },
+  "google_business_profile": {
+   "status": "live",
+   "source": "dev-db"
+  },
+  "growth.ads": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "growth.automation": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "growth.creator_campaigns": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "growth.optimizer": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "growth.performance_analytics": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "growth.seo": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "gsc": {
+   "status": "coming_soon",
+   "source": "prod-public-api"
+  },
+  "instagram": {
+   "status": "live",
+   "source": "prod-public-api"
+  },
+  "instagram_dm": {
+   "status": "in_development",
+   "source": "dev-db"
+  },
+  "kit": {
+   "status": "coming_soon",
+   "source": "prod-public-api"
+  },
+  "linkedin.aqs.engager_scoring": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "linkedin.boost.recommender": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "linkedin.content.basic": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "linkedin.content.full": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "linkedin.hook_dna.tier_b": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "linkedin.voice_card.synthesis": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "linkedin_ads": {
+   "status": "coming_soon",
+   "source": "prod-public-api"
+  },
+  "linkedin_content": {
+   "status": "live",
+   "source": "prod-public-api"
+  },
+  "mailchimp": {
+   "status": "coming_soon",
+   "source": "prod-public-api"
+  },
+  "messenger": {
+   "status": "in_development",
+   "source": "dev-db"
+  },
+  "meta_ads": {
+   "status": "live",
+   "source": "prod-public-api"
+  },
+  "newsletter.beehiiv.import": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "newsletter.beehiiv.publish": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "org.client_labels": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "org.custom_ai_models": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "org.dedicated_csm": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "org.multi_business": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "org.sso_audit_log": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "org.white_label": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "pin.content_benchmarks": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "pin.marketing_benchmarks": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "presence.control_plane": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "presence.insights": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "presence.listings": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "presence.nav": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "presence.reviews": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "scheduler.auto_approve": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "scheduler.bulk_csv": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "scheduler.bundles": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "scheduler.recurring": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "shopify": {
+   "status": "live",
+   "source": "dev-db"
+  },
+  "slack": {
+   "status": "coming_soon",
+   "source": "prod-public-api"
+  },
+  "substack": {
+   "status": "coming_soon",
+   "source": "prod-public-api"
+  },
+  "support.ai_replies": {
+   "status": "coming_soon",
+   "source": "dev-db"
+  },
+  "support.assignment": {
+   "status": "coming_soon",
+   "source": "dev-db"
+  },
+  "support.channels_all": {
+   "status": "coming_soon",
+   "source": "dev-db"
+  },
+  "support.channels_core": {
+   "status": "coming_soon",
+   "source": "dev-db"
+  },
+  "support.inbox": {
+   "status": "active",
+   "source": "dev-db"
+  },
+  "support.sla": {
+   "status": "coming_soon",
+   "source": "dev-db"
+  },
+  "threads": {
+   "status": "coming_soon",
+   "source": "prod-public-api"
+  },
+  "tiktok_ads": {
+   "status": "coming_soon",
+   "source": "prod-public-api"
+  },
+  "whatsapp": {
+   "status": "live",
+   "source": "prod-public-api"
+  },
+  "wordpress": {
+   "status": "coming_soon",
+   "source": "prod-public-api"
+  },
+  "x": {
+   "status": "live",
+   "source": "prod-public-api"
+  },
+  "x_ads": {
+   "status": "live",
+   "source": "prod-public-api"
+  },
+  "x_dm": {
+   "status": "in_development",
+   "source": "dev-db"
+  },
+  "youtube": {
+   "status": "coming_soon",
+   "source": "prod-public-api"
+  }
+ }
+}
