@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { ContextualLinks } from "./contextual-links";
 import type { BaseContent } from "./content-types";
 import { CtaBand } from "./cta-band";
-import { DraftRibbon } from "./draft-ribbon";
+import { DraftRibbon, isDraftPage } from "./draft-ribbon";
 import { FaqSection } from "./faq-section";
 import { PageHero } from "./page-hero";
 import { ProofStrip } from "./proof-strip";
@@ -32,7 +32,8 @@ export function Frame({
 }) {
   const heroArt = art ?? (heroProof && content.proof ? <ProofStrip proof={content.proof} /> : undefined);
   return (
-    <main>
+    // pb-16 on a draft keeps the fixed ribbon off the last lines of the page.
+    <main className={isDraftPage(page) ? "pb-16" : undefined}>
       <DraftRibbon page={page} />
       <PageHero
         crumbs={content.crumbs}
@@ -43,6 +44,12 @@ export function Frame({
         secondaryCta={content.secondaryCta}
         art={heroArt}
       />
+      {/* A page whose hero art is not its proof (a facts card) still shows its proof, as a band. */}
+      {art && heroProof && content.proof && (
+        <Section id="proof" eyebrow="See it" title="What it looks like.">
+          <ProofStrip proof={content.proof} className="max-w-3xl" />
+        </Section>
+      )}
       {children}
       <FaqSection faqs={content.faqs} />
       {content.related.length > 0 && (

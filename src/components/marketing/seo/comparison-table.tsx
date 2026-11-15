@@ -85,8 +85,9 @@ function CellBody({ cell }: { cell: ComparisonCell }) {
             </>
           )}
         </span>
-      ) : (
-        <span className="text-sm text-muted-foreground">No source yet</span>
+      ) : cell.value === "unknown" || cell.value === "not-documented" ? null : (
+        // A claim (Yes, Partial, Not supported) with no source is flagged, never silently shown.
+        <span className="text-sm font-semibold text-[var(--daylight-bad-ink)]">Source missing</span>
       )}
     </div>
   );

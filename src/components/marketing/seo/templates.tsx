@@ -152,6 +152,7 @@ export function IndustryPage({ page, content }: { page: PageRecord; content: Ind
     <Frame
       page={page}
       content={content}
+      heroProof={false}
       art={
         <FactsCard
           title="This industry"
@@ -365,7 +366,7 @@ export function GuidePage({ page, content }: { page: PageRecord; content: GuideC
             <ol role="list" className="mt-3 grid gap-1.5 text-[15px] font-semibold">
               {content.sections.map((s) => (
                 <li key={s.id}>
-                  <a href={`#${s.id}`} className="rounded-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <a href={`#guide-${s.id}`} className="rounded-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                     {s.heading}
                   </a>
                 </li>
@@ -374,8 +375,8 @@ export function GuidePage({ page, content }: { page: PageRecord; content: GuideC
           </nav>
           <div className="min-w-0 max-w-[68ch]">
             {content.sections.map((s) => (
-              <section key={s.id} id={s.id} aria-labelledby={`${s.id}-h`} className="scroll-mt-24 border-t-2 border-foreground pt-5 first:border-t-0 first:pt-0 [&:not(:first-child)]:mt-9">
-                <h2 id={`${s.id}-h`} className="text-2xl font-extrabold leading-tight tracking-tight">
+              <section key={s.id} id={`guide-${s.id}`} aria-labelledby={`guide-${s.id}-h`} className="scroll-mt-24 border-t-2 border-foreground pt-5 first:border-t-0 first:pt-0 [&:not(:first-child)]:mt-9">
+                <h2 id={`guide-${s.id}-h`} className="text-2xl font-extrabold leading-tight tracking-tight">
                   {s.heading}
                 </h2>
                 {s.paragraphs.map((p) => (
@@ -407,11 +408,12 @@ export function GuidePage({ page, content }: { page: PageRecord; content: GuideC
 
 /** A family hub: the cards of its children, each with a status chip. */
 export function DirectoryPage({ page, content }: { page: PageRecord; content: DirectoryContent }) {
-  const counts = (["live", "beta"] as const).map((s) => ({
-    s,
-    n: content.items.filter((i) => i.status === s).length,
-  }));
-  const soon = content.items.filter((i) => statusMeta(i.status).label === "Coming soon").length;
+  const labelCount = (label: string) => content.items.filter((i) => statusMeta(i.status).label === label).length;
+  const live = labelCount("Live");
+  const beta = labelCount("Beta");
+  const soon = labelCount("Coming soon");
+  // Paused and retired cards render in the grid too, so the summary counts them or it would not add up.
+  const other = content.items.length - live - beta - soon;
   return (
     <Frame
       page={page}
@@ -420,9 +422,10 @@ export function DirectoryPage({ page, content }: { page: PageRecord; content: Di
         <FactsCard
           title="On this page"
           facts={[
-            { label: "Live", value: counts[0].n },
-            { label: "Beta", value: counts[1].n },
+            { label: "Live", value: live },
+            { label: "Beta", value: beta },
             { label: "Coming soon", value: soon },
+            ...(other > 0 ? [{ label: "Paused or retired", value: other }] : []),
           ]}
         />
       }
