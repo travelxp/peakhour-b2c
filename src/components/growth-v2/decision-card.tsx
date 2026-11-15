@@ -24,6 +24,7 @@ import {
   isSpendDecision,
   KIND_LABEL,
   STATUS_LABEL,
+  suggestionNote,
   undoOpenUntil,
   type DecisionNotice,
 } from "@/lib/growth-v2-decisions";
@@ -106,6 +107,7 @@ export function DecisionCard({ decision: d, currency, unit, now, onAction, actio
 
       <h2 className="text-balance text-lg font-semibold">{d.title}</h2>
       <p className="text-sm text-muted-foreground">{d.summary}</p>
+      {suggestionNote(d.kind) ? <p className="text-xs text-muted-foreground">{suggestionNote(d.kind)}</p> : null}
       {d.delivery.whatsapp ? (
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <MessageCircle aria-hidden className="size-3.5" />
