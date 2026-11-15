@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ApiError } from "@/lib/api";
+import { appLabel, appsFlyerAppId, listBusinessApps, platformLabel, splitApps, type BusinessApp } from "@/lib/api/business-apps";
 import { Button } from "@/components/ui/button";
 import { WhatsAppEmbeddedSignup } from "@/components/integrations/whatsapp-embedded-signup";
 import { Input } from "@/components/ui/input";
@@ -180,6 +181,160 @@ export function BeehiivConnectModal({
               disabled={connecting || !apiKey.trim() || !publicationId.trim()}
               className="gap-1.5"
             >
+              {connecting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Connecting...
+                </>
+              ) : (
+                "Connect"
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── AppsFlyer Connect Modal ────────────────────────────────────────
+
+/**
+ * Connect AppsFlyer (GG-4a): an API token, proved against one of the business's own confirmed apps before it is stored. Peakhour
+ * then reads the daily installs of those apps and offers "App installs" as a goal.
+ */
+export function AppsFlyerConnectModal({
+  open,
+  onClose,
+  onConnect,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onConnect: (apiKey: string, appId: string) => Promise<unknown>;
+}) {
+  const [apiKey, setApiKey] = useState("");
+  const [apps, setApps] = useState<BusinessApp[] | null>(null);
+  const [appId, setAppId] = useState("");
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    let live = true;
+    setApps(null);
+    listBusinessApps()
+      .then((all) => {
+        if (!live) return;
+        const confirmed = splitApps(all).confirmed;
+        setApps(confirmed);
+        // keep the pick only while that app is still confirmed
+        setAppId((cur) => (confirmed.some((a) => appsFlyerAppId(a) === cur) ? cur : confirmed[0] ? appsFlyerAppId(confirmed[0]) : ""));
+      })
+      .catch(() => {
+        if (!live) return;
+        // ★A FAILED LIST IS NOT "NO APPS": say so, instead of sending a merchant who has apps to add one.
+        setApps(null);
+        setAppId("");
+        setError("We couldn't load your apps. Close this and try again.");
+      });
+    return () => {
+      live = false;
+    };
+  }, [open]);
+
+  function reset() {
+    setApiKey("");
+    setAppId("");
+    setApps(null);
+    setError("");
+    setConnecting(false);
+  }
+
+  function close() {
+    reset();
+    onClose();
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!apiKey.trim() || !appId) return;
+    setConnecting(true);
+    setError("");
+    try {
+      await onConnect(apiKey.trim(), appId);
+      reset();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to connect. Please check your token and try again.");
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  const noApps = apps !== null && apps.length === 0;
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) {
+          reset();
+          onClose();
+        }
+      }}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Connect AppsFlyer</DialogTitle>
+          <DialogDescription>Count your app installs as a goal. Peakhour only reads installs of the apps on your list.</DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">{error}</div>}
+          {noApps && (
+            <div className="rounded-lg border px-3 py-2.5 text-sm text-muted-foreground">
+              Add and confirm your app first (your app&apos;s store link), then connect AppsFlyer.
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="appsflyer-token">API token (V2.0)</Label>
+            <Input id="appsflyer-token" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} disabled={connecting} />
+            <p className="text-xs text-muted-foreground">
+              <a
+                href="https://dev.appsflyer.com/hc/reference/overview-11"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-2 hover:no-underline"
+              >
+                Where to find your token
+                <ExternalLink className="h-3 w-3" />
+              </a>
+              {" "}&mdash; an AppsFlyer admin copies it from the profile menu.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="appsflyer-app">Your app</Label>
+            <select
+              id="appsflyer-app"
+              value={appId}
+              onChange={(e) => setAppId(e.target.value)}
+              disabled={connecting || !apps || apps.length === 0}
+              className="h-9 w-full rounded-md border bg-transparent px-3 text-sm"
+            >
+              {(apps ?? []).map((a) => (
+                <option key={a.appId} value={appsFlyerAppId(a)}>
+                  {appLabel(a)} ({platformLabel(a.platform)})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={close} disabled={connecting}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={connecting || !apiKey.trim() || !appId} className="gap-1.5">
               {connecting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
