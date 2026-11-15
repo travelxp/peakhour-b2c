@@ -89,7 +89,7 @@ describe("the sitemap index", () => {
   it("is /sitemap.xml, lists the named sitemaps that have pages, and each one resolves", async () => {
     process.env.VERCEL_ENV = "production";
     const names = await sitemapIndexNames();
-    expect(names).toEqual(["core", "shopify", "cms"]);
+    expect(names).toEqual(["core", "shopify", "features", "cms"]);
     const body = await (await indexRoute()).text();
     expect(body).toBe(renderIndex(names));
     for (const n of names) {
