@@ -20,7 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertCircle, Search } from "lucide-react";
 import { flattenMetaIntegration as flattenMetaIntegrationBase, resolveProvider, isMetaVirtual, metaActionPurpose, metaCardsDisconnectedBy, metaGrantNote, metaLoginPurposeFor, withMetaLoginPurpose, type MetaLoginInfo } from "@/lib/integrations-meta";
 import { Integration } from "./_components/shared";
-import { AppsFlyerConnectModal, BeehiivConnectModal, WhatsAppConnectModal } from "./_components/connect-modals";
+import { AppStoreConnectConnectModal, AppsFlyerConnectModal, BeehiivConnectModal, PlayConsoleConnectModal, WhatsAppConnectModal } from "./_components/connect-modals";
 import { IntegrationCard } from "./_components/integration-card";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -725,6 +725,18 @@ export default function IntegrationsPage() {
         open={connectModal === "appsflyer"}
         onClose={() => setConnectModal(null)}
         onConnect={(apiKey, appId) => handleApiKeyConnect("appsflyer", apiKey, { appId })}
+      />
+
+      {/* The app stores' own install counts (GG-4b): a key the merchant creates, sealed by the api */}
+      <AppStoreConnectConnectModal
+        open={connectModal === "app_store_connect"}
+        onClose={() => setConnectModal(null)}
+        onConnect={(apiKey, config) => handleApiKeyConnect("app_store_connect", apiKey, config)}
+      />
+      <PlayConsoleConnectModal
+        open={connectModal === "play_console"}
+        onClose={() => setConnectModal(null)}
+        onConnect={(apiKey, config) => handleApiKeyConnect("play_console", apiKey, config)}
       />
 
       {/* WhatsApp — v4 Embedded Signup, the same flow as /dashboard/content/whatsapp */}

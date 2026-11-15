@@ -6,6 +6,17 @@ import { appLabel, appsFlyerAppId, listBusinessApps, platformLabel, splitApps, t
 import { Button } from "@/components/ui/button";
 import { WhatsAppEmbeddedSignup } from "@/components/integrations/whatsapp-embedded-signup";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  BUCKET_EXAMPLE,
+  ISSUER_ID_EXAMPLE,
+  appStoreConnectBody,
+  appStoreFormProblem,
+  playConsoleBody,
+  playFormProblem,
+  type AppStoreForm,
+  type PlayForm,
+} from "@/lib/store-install-connect";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ExternalLink, Loader2 } from "lucide-react";
@@ -335,6 +346,234 @@ export function AppsFlyerConnectModal({
               Cancel
             </Button>
             <Button type="submit" disabled={connecting || !apiKey.trim() || !appId} className="gap-1.5">
+              {connecting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Connecting...
+                </>
+              ) : (
+                "Connect"
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── App Store Connect and Play Console Connect Modals ──────────────
+
+function readFileInto(file: File | undefined, set: (text: string) => void, onFail: () => void) {
+  if (!file) return;
+  file.text().then(set).catch(onFail);
+}
+
+function GuideLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-2 hover:no-underline">
+      {children}
+      <ExternalLink className="h-3 w-3" />
+    </a>
+  );
+}
+
+/**
+ * Connect App Store Connect (GG-4b): the merchant's own API key, so Peakhour can check its app installs against Apple's download
+ * counts ("Store installs"). Read only. The key text is sent once and kept sealed; it is never shown again.
+ */
+export function AppStoreConnectConnectModal({
+  open,
+  onClose,
+  onConnect,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onConnect: (apiKey: string, config: Record<string, string>) => Promise<unknown>;
+}) {
+  const [form, setForm] = useState<AppStoreForm>({ issuerId: "", keyId: "", vendorNumber: "", p8: "" });
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState("");
+
+  function reset() {
+    setForm({ issuerId: "", keyId: "", vendorNumber: "", p8: "" });
+    setError("");
+    setConnecting(false);
+  }
+
+  function close() {
+    reset();
+    onClose();
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const problem = appStoreFormProblem(form);
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    setConnecting(true);
+    setError("");
+    try {
+      const body = appStoreConnectBody(form);
+      await onConnect(body.apiKey, body.config);
+      reset();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to connect. Please check the details and try again.");
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  const set = (k: keyof AppStoreForm) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => { if (!next) close(); }}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Connect App Store Connect</DialogTitle>
+          <DialogDescription>Check your app installs against Apple&apos;s own download counts. Peakhour only reads first-time downloads of the apps on your list.</DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">{error}</div>}
+
+          <ol className="list-decimal space-y-1 pl-5 text-xs text-muted-foreground">
+            <li>In App Store Connect, open Users and Access, then the App Store Connect API tab.</li>
+            <li>Create a Team key with the Sales access level (Admin also works). Copy the Issuer ID shown above the keys and the Key ID beside yours.</li>
+            <li>Download the .p8 file. Apple lets you download it only once. Open it in a text editor and paste all of it below.</li>
+            <li>Your vendor number is under Payments and Financial Reports.</li>
+          </ol>
+          <p className="text-xs text-muted-foreground">
+            <GuideLink href="https://developer.apple.com/documentation/appstoreconnectapi/creating-api-keys-for-app-store-connect-api">Apple&apos;s guide to API keys</GuideLink>
+          </p>
+
+          <div className="space-y-2">
+            <Label htmlFor="asc-issuer">Issuer ID</Label>
+            <Input id="asc-issuer" value={form.issuerId} onChange={(e) => set("issuerId")(e.target.value)} disabled={connecting} placeholder={ISSUER_ID_EXAMPLE} autoComplete="off" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="asc-key-id">Key ID</Label>
+              <Input id="asc-key-id" value={form.keyId} onChange={(e) => set("keyId")(e.target.value)} disabled={connecting} placeholder="2X9R4HXF34" autoComplete="off" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="asc-vendor">Vendor number</Label>
+              <Input id="asc-vendor" value={form.vendorNumber} onChange={(e) => set("vendorNumber")(e.target.value)} disabled={connecting} placeholder="85012345" autoComplete="off" />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="asc-p8">The .p8 key</Label>
+            <Textarea id="asc-p8" value={form.p8} onChange={(e) => set("p8")(e.target.value)} disabled={connecting} rows={4} placeholder={"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"} spellCheck={false} autoComplete="off" className="font-mono text-xs" />
+            <input type="file" accept=".p8" disabled={connecting} className="text-xs" onChange={(e) => readFileInto(e.target.files?.[0], set("p8"), () => setError("We couldn't read that file. Paste its text instead."))} />
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={close} disabled={connecting}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={connecting || !form.p8.trim()} className="gap-1.5">
+              {connecting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Connecting...
+                </>
+              ) : (
+                "Connect"
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Connect Play Console (GG-4b): Google offers install counts only through the reports bucket Play Console exports to, so the
+ * merchant gives a service account that can read it. Read only. The key text is sent once and kept sealed.
+ */
+export function PlayConsoleConnectModal({
+  open,
+  onClose,
+  onConnect,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onConnect: (apiKey: string, config: Record<string, string>) => Promise<unknown>;
+}) {
+  const [form, setForm] = useState<PlayForm>({ bucket: "", serviceAccountJson: "" });
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState("");
+
+  function reset() {
+    setForm({ bucket: "", serviceAccountJson: "" });
+    setError("");
+    setConnecting(false);
+  }
+
+  function close() {
+    reset();
+    onClose();
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const problem = playFormProblem(form);
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    setConnecting(true);
+    setError("");
+    try {
+      const body = playConsoleBody(form);
+      await onConnect(body.apiKey, body.config);
+      reset();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to connect. Please check the details and try again.");
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => { if (!next) close(); }}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Connect Play Console</DialogTitle>
+          <DialogDescription>Check your app installs against Google Play&apos;s own install counts. Peakhour only reads the install reports of the apps on your list.</DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive">{error}</div>}
+
+          <ol className="list-decimal space-y-1 pl-5 text-xs text-muted-foreground">
+            <li>In Google Cloud, create a service account and download its JSON key file.</li>
+            <li>In Play Console, open Users and permissions, invite the service account&apos;s email address and give it View app information (Global).</li>
+            <li>In Play Console, open Download reports, Statistics, and copy the Cloud Storage address (it begins pubsite_prod_rev_).</li>
+          </ol>
+          <p className="text-xs text-muted-foreground">
+            <GuideLink href="https://support.google.com/googleplay/android-developer/answer/6135870">Google&apos;s guide to Play Console reports</GuideLink>
+            {" "}&mdash; new reports can take 3 to 7 days to appear.
+          </p>
+
+          <div className="space-y-2">
+            <Label htmlFor="play-bucket">Reports bucket</Label>
+            <Input id="play-bucket" value={form.bucket} onChange={(e) => setForm((f) => ({ ...f, bucket: e.target.value }))} disabled={connecting} placeholder={BUCKET_EXAMPLE} autoComplete="off" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="play-key">Service account key (JSON)</Label>
+            <Textarea id="play-key" value={form.serviceAccountJson} onChange={(e) => setForm((f) => ({ ...f, serviceAccountJson: e.target.value }))} disabled={connecting} rows={5} spellCheck={false} autoComplete="off" className="font-mono text-xs" />
+            <input type="file" accept=".json,application/json" disabled={connecting} className="text-xs" onChange={(e) => readFileInto(e.target.files?.[0], (text) => setForm((f) => ({ ...f, serviceAccountJson: text })), () => setError("We couldn't read that file. Paste its text instead."))} />
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={close} disabled={connecting}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={connecting || !form.serviceAccountJson.trim()} className="gap-1.5">
               {connecting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
