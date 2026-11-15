@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { PILLAR_ORDER } from "@/lib/pillars";
 import {
@@ -85,4 +85,31 @@ describe("the sitemap's view of the gate", () => {
       expect(() => readFileSync(file), path).not.toThrow();
     }
   });
+});
+
+describe("every real route is known to the gate", () => {
+  it("no page.tsx under src/app/(site) (bar the gate's own 404 route and the catch-all) would answer 404 while the gate is on", () => {
+    // Add a marketing route and forget MARKETING_PATHS, and with the gate on it would 404 instead of the teaser.
+    const root = resolve(__dirname, "..", "..", "app", "(site)");
+    const routes: string[] = [];
+    const walk = (dir: string, url: string) => {
+      for (const f of readdirSync(dir)) {
+        const p = join(dir, f);
+        if (statSync(p).isDirectory()) {
+          if (f.startsWith("[")) {
+            // A dynamic segment: the route is its static parent (a prefix), unless it is the catch-all.
+            if (!f.startsWith("[...") && statSync(p).isDirectory()) routes.push(url || "/");
+            continue;
+          }
+          walk(p, `${url}/${f.replace(/^\((.*)\)$/, "")}`.replace(/\/$/, ""));
+        } else if (f === "page.tsx") {
+          routes.push(url || "/");
+        }
+      }
+    };
+    walk(root, "");
+    const unknown = [...new Set(routes)].filter((r) => r !== "/gate-404" && gatedVerdict(r) === "not-found");
+    expect(routes.length).toBeGreaterThan(20);
+    expect(unknown).toEqual([]);
+  }, 60_000);
 });
