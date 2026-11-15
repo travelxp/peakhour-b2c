@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { StatusChip } from "./capability-status";
 import type { DirectoryItem } from "./content-types";
+import { safeHref } from "./safe-href";
 
 /** The cards of a family hub (features, integrations, industries, guides), each with its own status chip. */
 export function DirectoryGrid({ items }: { items: DirectoryItem[] }) {
@@ -10,7 +11,7 @@ export function DirectoryGrid({ items }: { items: DirectoryItem[] }) {
       {items.map((it) => (
         <li key={it.href}>
           <Link
-            href={it.href}
+            href={safeHref(it.href)}
             className="group flex h-full flex-col gap-2 rounded-2xl border bg-card p-5 transition-all hover:-translate-y-1 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none motion-reduce:hover:translate-y-0"
           >
             <span className="flex items-start justify-between gap-3">

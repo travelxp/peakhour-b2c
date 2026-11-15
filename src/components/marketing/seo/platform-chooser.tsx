@@ -3,6 +3,7 @@ import { ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StatusChip } from "./capability-status";
 import type { PlatformItem } from "./content-types";
+import { safeHref } from "./safe-href";
 
 /**
  * One card per surface the thing runs on, each with its OWN status: a live Shopify build says nothing about
@@ -44,7 +45,7 @@ export function PlatformChooser({ platforms }: { platforms: PlatformItem[] }) {
           <li key={p.surface}>
             {p.href ? (
               <Link
-                href={p.href}
+                href={safeHref(p.href)}
                 className={cn(cls, "transition-all hover:-translate-y-1 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none motion-reduce:hover:translate-y-0")}
               >
                 {body}

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import type { Cta } from "./content-types";
 import { wrap } from "./styles";
+import { safeHref } from "./safe-href";
 
 /** The ink closing band, as on /shopify: one headline, one line, the page's primary action and an optional second. */
 export function CtaBand({
@@ -27,7 +28,7 @@ export function CtaBand({
           </div>
           <div className="flex shrink-0 flex-wrap gap-3">
             <Link
-              href={primary.href}
+              href={safeHref(primary.href)}
               className="group inline-flex items-center gap-2 rounded-full bg-brand-gradient px-6 py-3.5 text-[15px] font-bold text-brand-contrast transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white motion-reduce:transition-none motion-reduce:hover:translate-y-0"
             >
               {primary.label}
@@ -35,7 +36,7 @@ export function CtaBand({
             </Link>
             {secondary && (
               <Link
-                href={secondary.href}
+                href={safeHref(secondary.href)}
                 className="inline-flex items-center rounded-full px-6 py-3.5 text-[15px] font-bold text-on-ink shadow-[inset_0_0_0_2px_var(--on-ink)] transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
                 {secondary.label}

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Crumb } from "./content-types";
+import { safeHref } from "./safe-href";
 
 /** Semantic breadcrumb trail. No JSON-LD here: structured data is SEO-6's. The last crumb is the current page. */
 export function Breadcrumbs({ crumbs }: { crumbs: Crumb[] }) {
@@ -16,7 +17,7 @@ export function Breadcrumbs({ crumbs }: { crumbs: Crumb[] }) {
                 </span>
               ) : (
                 <Link
-                  href={c.href}
+                  href={safeHref(c.href)}
                   className="rounded-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   {c.label}

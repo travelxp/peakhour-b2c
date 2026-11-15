@@ -3,6 +3,7 @@ import { PeakhourWordmark } from "@/components/shared/peakhour-logo";
 import { cn } from "@/lib/utils";
 import type { CellValue, ComparisonCell, ComparisonContent, ComparisonVendor } from "./content-types";
 import { linkCls } from "./styles";
+import { safeHref } from "./safe-href";
 
 /**
  * The cell vocabulary (Bible 7.4). Each value has its own icon AND word, so colour is never the only signal, and
@@ -75,7 +76,7 @@ function CellBody({ cell }: { cell: ComparisonCell }) {
       {cell.note && <span className="text-sm text-muted-foreground">{cell.note}</span>}
       {cell.source ? (
         <span className="text-sm text-muted-foreground">
-          <a href={cell.source.href} target="_blank" rel="noopener noreferrer nofollow" className={linkCls}>
+          <a href={safeHref(cell.source.href)} target="_blank" rel="noopener noreferrer nofollow" className={linkCls}>
             {cell.source.label}
           </a>
           {cell.observedAt && (

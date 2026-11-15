@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import type { LinkItem } from "./content-types";
+import { safeHref } from "./safe-href";
 
 /**
  * Two to six related links, each with an anchor that says what is behind it ("WhatsApp COD confirmation for
@@ -15,7 +16,7 @@ export function ContextualLinks({ links, className }: { links: LinkItem[]; class
       {shown.map((l) => (
         <li key={l.href}>
           <Link
-            href={l.href}
+            href={safeHref(l.href)}
             className="group flex h-full flex-col gap-1.5 rounded-2xl border bg-card p-4 transition-all hover:-translate-y-1 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none motion-reduce:hover:translate-y-0"
           >
             <span className="flex items-center gap-2 font-extrabold tracking-tight">

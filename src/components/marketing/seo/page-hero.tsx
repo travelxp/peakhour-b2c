@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Breadcrumbs } from "./breadcrumbs";
 import type { Crumb, Cta } from "./content-types";
 import { eyebrowCls, ghostBtn, primaryBtn, wrap } from "./styles";
+import { safeHref } from "./safe-href";
 
 /**
  * The first screen. The H1 is the page's only one; the paragraph right under it is the DIRECT ANSWER (Bible
@@ -46,12 +47,12 @@ export function PageHero({
           </h1>
           <p className="mt-4 max-w-xl text-lg text-foreground/80 sm:text-xl">{directAnswer}</p>
           <div className="mt-6 flex flex-wrap items-center gap-3">
-            <Link href={primaryCta.href} className={primaryBtn}>
+            <Link href={safeHref(primaryCta.href)} className={primaryBtn}>
               {primaryCta.label}
               <ArrowRight className="size-4 transition-transform group-hover:translate-x-1 motion-reduce:transition-none" aria-hidden />
             </Link>
             {secondaryCta && (
-              <Link href={secondaryCta.href} className={ghostBtn}>
+              <Link href={safeHref(secondaryCta.href)} className={ghostBtn}>
                 {secondaryCta.label}
               </Link>
             )}

@@ -22,6 +22,7 @@ import { Section } from "./section";
 import { statusMeta } from "./status-meta";
 import { cardCls, linkCls } from "./styles";
 import { WorkflowSteps } from "./workflow-steps";
+import { safeHref } from "./safe-href";
 
 /*
  * The nine page templates. Each is one component taking a PageRecord plus a typed content object, and lays its
@@ -76,7 +77,7 @@ export function ShopifyFeaturePage({ page, content }: { page: PageRecord; conten
         </dl>
         <p className="mt-6 text-[15px] text-muted-foreground">
           This page covers Shopify only. For every platform and the full picture, read{" "}
-          <Link href={content.globalPage.href} className={linkCls}>
+          <Link href={safeHref(content.globalPage.href)} className={linkCls}>
             {content.globalPage.label}
           </Link>
           .
@@ -305,7 +306,7 @@ export function ComparisonPage({ page, content }: { page: PageRecord; content: C
                   <td className="px-2.5 py-3 sm:px-4">{r.price}</td>
                   <td className="px-2.5 py-3 sm:px-4">
                     {r.source ? (
-                      <a href={r.source.href} target="_blank" rel="noopener noreferrer nofollow" className={linkCls}>
+                      <a href={safeHref(r.source.href)} target="_blank" rel="noopener noreferrer nofollow" className={linkCls}>
                         {r.source.label}
                       </a>
                     ) : (
@@ -366,7 +367,7 @@ export function GuidePage({ page, content }: { page: PageRecord; content: GuideC
             <ol role="list" className="mt-3 grid gap-1.5 text-[15px] font-semibold">
               {content.sections.map((s) => (
                 <li key={s.id}>
-                  <a href={`#guide-${s.id}`} className="rounded-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <a href={safeHref(`#guide-${s.id}`)} className="rounded-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                     {s.heading}
                   </a>
                 </li>
@@ -394,7 +395,7 @@ export function GuidePage({ page, content }: { page: PageRecord; content: GuideC
         <ul role="list" className="grid gap-2 text-[15px]">
           {content.sources.map((s) => (
             <li key={s.href}>
-              <a href={s.href} target="_blank" rel="noopener noreferrer" className={linkCls}>
+              <a href={safeHref(s.href)} target="_blank" rel="noopener noreferrer" className={linkCls}>
                 {s.label}
               </a>
               {s.note && <span className="text-muted-foreground"> · {s.note}</span>}
