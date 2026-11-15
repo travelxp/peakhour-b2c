@@ -170,9 +170,9 @@ describe("structured data", () => {
     );
   }
 
-  it("PASS: a FAQPage and a SoftwareApplication are present", () => {
+  it("PASS: a BreadcrumbList, a FAQPage and a SoftwareApplication are present", () => {
     const g = graphs(html());
-    expect(g.map((x) => x["@type"]).sort()).toEqual(["FAQPage", "SoftwareApplication"]);
+    expect(g.map((x) => x["@type"]).sort()).toEqual(["BreadcrumbList", "FAQPage", "SoftwareApplication"]);
     expect(g.find((x) => x["@type"] === "FAQPage").mainEntity.length).toBeGreaterThanOrEqual(8);
   });
 
