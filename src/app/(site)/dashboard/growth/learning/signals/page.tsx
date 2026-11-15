@@ -391,7 +391,8 @@ function SignalCard({
             description={
               "This removes our record and our proof that it works — not the code on your site. " +
               "Setting it up again issues a NEW site key, so you would have to replace the snippet " +
-              "on every page that carries it."
+              "on every page that carries it. The Peakhour site tag uses the same key, so it stops " +
+              "sending too until you replace it."
             }
             variant="destructive"
             confirmLabel="Remove"
