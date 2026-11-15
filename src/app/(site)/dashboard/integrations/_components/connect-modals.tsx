@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApiError } from "@/lib/api";
 import { appLabel, appsFlyerAppId, listBusinessApps, platformLabel, splitApps, type BusinessApp } from "@/lib/api/business-apps";
 import { Button } from "@/components/ui/button";
@@ -379,6 +379,20 @@ function readKeyFile(input: HTMLInputElement, set: (text: string) => void, onFai
   file.text().then(set).catch(onFail);
 }
 
+/** readKeyFile for a form that can close first: a read that finishes after the form was reset (Cancel, Escape, a connect) is dropped, so a closed form never refills with a key. */
+function pickKeyFile(input: HTMLInputElement, session: { current: number }, set: (text: string) => void, setError: (message: string) => void) {
+  const at = session.current;
+  readKeyFile(
+    input,
+    (text) => {
+      if (session.current === at) set(text);
+    },
+    () => {
+      if (session.current === at) setError("We couldn't read that file. Paste its text instead.");
+    },
+  );
+}
+
 function GuideLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-2 hover:no-underline">
@@ -405,7 +419,10 @@ export function AppStoreConnectConnectModal({
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState("");
 
+  const session = useRef(0);
+
   function reset() {
+    session.current++;
     setForm({ issuerId: "", keyId: "", vendorNumber: "", p8: "" });
     setError("");
     setConnecting(false);
@@ -476,7 +493,7 @@ export function AppStoreConnectConnectModal({
           <div className="space-y-2">
             <Label htmlFor="asc-p8">The .p8 key</Label>
             <Textarea id="asc-p8" value={form.p8} onChange={(e) => set("p8")(e.target.value)} disabled={connecting} rows={4} placeholder={"-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"} spellCheck={false} autoComplete="off" className="font-mono text-xs" />
-            <input type="file" accept=".p8" disabled={connecting} className="text-xs" onChange={(e) => readKeyFile(e.target, set("p8"), () => setError("We couldn't read that file. Paste its text instead."))} />
+            <input type="file" accept=".p8" disabled={connecting} className="text-xs" onChange={(e) => pickKeyFile(e.target, session, set("p8"), setError)} />
           </div>
 
           <DialogFooter>
@@ -517,7 +534,10 @@ export function PlayConsoleConnectModal({
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState("");
 
+  const session = useRef(0);
+
   function reset() {
+    session.current++;
     setForm({ bucket: "", serviceAccountJson: "" });
     setError("");
     setConnecting(false);
@@ -576,7 +596,7 @@ export function PlayConsoleConnectModal({
           <div className="space-y-2">
             <Label htmlFor="play-key">Service account key (JSON)</Label>
             <Textarea id="play-key" value={form.serviceAccountJson} onChange={(e) => setForm((f) => ({ ...f, serviceAccountJson: e.target.value }))} disabled={connecting} rows={5} spellCheck={false} autoComplete="off" className="font-mono text-xs" />
-            <input type="file" accept=".json,application/json" disabled={connecting} className="text-xs" onChange={(e) => readKeyFile(e.target, (text) => setForm((f) => ({ ...f, serviceAccountJson: text })), () => setError("We couldn't read that file. Paste its text instead."))} />
+            <input type="file" accept=".json,application/json" disabled={connecting} className="text-xs" onChange={(e) => pickKeyFile(e.target, session, (text) => setForm((f) => ({ ...f, serviceAccountJson: text })), setError)} />
           </div>
 
           <DialogFooter>
