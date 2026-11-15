@@ -33,7 +33,7 @@ export const AISENSY: CompetitorBrief = {
     {
       dimension: "WhatsApp template broadcasts",
       vendor: { value: "yes", note: "Its own page promotes broadcasting, and scheduling broadcasts ahead of time.", source: S.broadcast, observedAt: D },
-      peakhour: pending("growth.whatsapp_broadcasts"),
+      peakhour: pending(),
     },
     {
       dimension: "COD confirmation on WhatsApp",
@@ -43,7 +43,7 @@ export const AISENSY: CompetitorBrief = {
     {
       dimension: "Abandoned-cart reminders",
       vendor: { value: "yes", note: "Up to three automated reminders, per its Shopify page.", source: S.shopify, observedAt: D },
-      peakhour: pending("commerce.abandoned_cart"),
+      peakhour: pending(),
     },
     {
       dimension: "AI replies from your product catalogue",
@@ -83,12 +83,10 @@ export const AISENSY: CompetitorBrief = {
         source: S.shopify,
         observedAt: D,
       },
-      peakhour: pending("shopify.install_without_developer"),
+      peakhour: pending(),
     },
   ],
   pricing: {
-    currency: "INR",
-    region: "India",
     rows: [
       { plan: "Chatbot builder (5 chatbots)", price: "₹2,500 per month, or ₹2,250 per month billed annually", currency: "INR", region: "India", observedAt: D, source: S.pricing },
       { plan: "AI agent builder (1,000 AI messages)", price: "₹1,350 per month, or ₹1,215 per month billed annually", currency: "INR", region: "India", observedAt: D, source: S.pricing },
@@ -107,7 +105,7 @@ export const AISENSY: CompetitorBrief = {
     "Where our own side says Unknown, the evidence for Peakhour is still being verified and nothing is claimed.",
   ],
   faqs: [
-    { q: "Is there an AiSensy alternative for Shopify?", a: "Peakhour is one option if you want an AI assistant on your storefront as well as on WhatsApp. If broadcasts are your main use, check AiSensy's own broadcasting page first." },
+    { q: "Is there an AiSensy alternative for Shopify?", a: "Peakhour is one option if you want an AI shopping assistant and product shelves on your storefront. If broadcasts are your main use, check AiSensy's own broadcasting page first." },
     { q: "Where does this information come from?", a: "Only from AiSensy's own public pages, each linked in the table with the date we read it." },
   ],
 };

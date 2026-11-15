@@ -33,13 +33,23 @@ export const PEAKHOUR = {
     source: SHOPIFY_PAGE,
     observedAt: OBSERVED,
   },
+  whatsappBuyingStep: {
+    value: "partial",
+    capabilityId: "commerce.whatsapp_shopping",
+    note: "Covers the buying step: when a shopper agrees to buy on WhatsApp, Peakhour sends a tappable link into your Shopify checkout, or a Razorpay payment link (UPI or card) when the business is not Shopify-only. Payment is not taken inside WhatsApp.",
+    source: SHOPIFY_PAGE,
+    observedAt: OBSERVED,
+  },
 } satisfies Record<string, PeakhourClaim>;
 
-/** A cell Peakhour cannot yet claim: unknown, with the capability the evidence audit still has to add. */
-export function pending(pendingCapability: string): PeakhourClaim {
+/**
+ * A cell Peakhour cannot claim: Unknown. Pass the id of an EXISTING capability whose claim is not yet approved;
+ * pass nothing where no capability exists.
+ */
+export function pending(pendingCapability?: string): PeakhourClaim {
   return {
     value: "unknown",
-    pendingCapability,
-    note: "Our own evidence for this is still being verified, so nothing is claimed.",
+    ...(pendingCapability ? { pendingCapability } : {}),
+    note: "Our own evidence for this is not yet approved, so nothing is claimed.",
   };
 }

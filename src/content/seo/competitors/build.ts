@@ -1,22 +1,27 @@
 import type { ComparisonCell, ComparisonPageContent } from "@/components/marketing/seo/content-types";
+import { getPage } from "@/lib/seo/pages";
+import { pathFor } from "@/lib/seo/resolve";
+import type { PageRecord } from "@/lib/seo/types";
 import type { CompetitorBrief, PeakhourClaim } from "./types";
 
 /** The vendor id the kit's ComparisonTable keys Peakhour's column on. */
 const PH = "ph";
 
-/** Builds the kit's page content from a brief. Pure: the brief is the only input. */
-export function buildComparisonContent(b: CompetitorBrief): ComparisonPageContent {
-  const peakhourPrice = {
-    vendor: "Peakhour",
-    plan: "Peakhour Suite",
-    price: "Priced in Peaks, not in money. See the pricing page.",
-    source: { href: "/pricing", label: "Peakhour pricing" },
-  };
+/**
+ * Builds the kit's page content from a brief and its registry record. Pure. Links come from the registry (the record's
+ * relatedIds, through pathFor), so no marketing URL is typed here.
+ */
+export function buildComparisonContent(b: CompetitorBrief, page: PageRecord = getPage(b.pageId)): ComparisonPageContent {
+  if (page.editorialStatus === "published" && !b.reviewer) {
+    throw new Error(`${b.pageId} is published without a named reviewer`);
+  }
+  const home = getPage("home");
+  const shopify = getPage("shopify");
   return {
     crumbs: [
-      { label: "Home", href: "/" },
-      { label: "Shopify", href: "/shopify" },
-      { label: `Compare with ${b.name}`, href: `/shopify/compare/${b.slug}` },
+      { label: "Home", href: pathFor(home.pageId) },
+      { label: "Shopify", href: pathFor(shopify.pageId) },
+      { label: `Compare with ${b.name}`, href: pathFor(page.pageId) },
     ],
     eyebrow: "Comparison",
     directAnswer: b.directAnswer,
@@ -29,22 +34,22 @@ export function buildComparisonContent(b: CompetitorBrief): ComparisonPageConten
       ],
       rows: b.claims.map((c) => ({
         dimension: c.dimension,
-        cells: {
-          [PH]: stripInternal(c.peakhour),
-          [b.slug]: c.vendor,
-        },
+        cells: { [PH]: publicCell(c.peakhour), [b.slug]: c.vendor },
       })),
     },
     buyerUseCases: b.buyerUseCases,
     pricing: {
       asOf: b.observedAt,
-      currency: b.pricing.currency,
-      country: b.pricing.region,
       rows: [
-        peakhourPrice,
+        {
+          vendor: "Peakhour",
+          plan: "Peakhour Suite · priced in Peaks",
+          price: "Priced in Peaks, not in money. See the pricing page.",
+          source: { href: pathFor("pricing"), label: "Peakhour pricing" },
+        },
         ...b.pricing.rows.map((r) => ({
           vendor: b.name,
-          plan: `${r.plan} (${r.currency}, ${r.region}, seen ${r.observedAt})`,
+          plan: `${r.plan} · ${r.currency} · ${/^not stated/i.test(r.region) ? "region not stated" : r.region}`,
           price: r.price,
           source: r.source,
         })),
@@ -53,13 +58,9 @@ export function buildComparisonContent(b: CompetitorBrief): ComparisonPageConten
     suitability: b.bestFor,
     limitations: b.limitations,
     author: "Peakhour Growth",
-    reviewer: "Pending review",
+    reviewer: b.reviewer ?? "Pending review",
     faqs: b.faqs,
-    related: [
-      { label: "Peakhour for Shopify", href: "/shopify", note: "What Peakhour does on a Shopify store." },
-      { label: "Peakhour pricing", href: "/pricing", note: "Prices in Peaks." },
-      { label: "Join the launch-partner waitlist", href: "/launch-partner", note: "Get early access." },
-    ],
+    related: page.relatedIds.map((id) => ({ label: getPage(id).title, href: pathFor(id) })),
     closing: {
       headline: "See it on your own store.",
       body: "Join the waitlist and we will show you the assistant and shelves on your catalogue.",
@@ -68,6 +69,6 @@ export function buildComparisonContent(b: CompetitorBrief): ComparisonPageConten
 }
 
 /** Only the public cell fields reach the page; the capability bookkeeping stays in the brief. */
-function stripInternal(c: PeakhourClaim): ComparisonCell {
+function publicCell(c: PeakhourClaim): ComparisonCell {
   return { value: c.value, note: c.note, source: c.source, observedAt: c.observedAt };
 }

@@ -21,7 +21,7 @@ export const REP_AI: CompetitorBrief = {
     "Peakhour and Rep AI compared for Shopify stores: catalogue answers, storefront chat, recommendations, handover and pricing, sourced.",
   h1: "Peakhour vs Rep AI for Shopify",
   directAnswer:
-    "Rep AI is an AI sales and support assistant for online stores, sold by sessions and per resolved conversation. Peakhour also puts an assistant and product shelves on your storefront, and works on WhatsApp too. Both answer from your Shopify catalogue. Every answer below links to the vendor's own page and shows the date we read it.",
+    "Rep AI is an AI sales and support assistant for online stores, sold by sessions and per resolved conversation. Peakhour also puts an assistant and product shelves on your storefront, and, on WhatsApp, sends a checkout link when a shopper agrees to buy. Both answer from your Shopify catalogue. Every answer below links to the vendor's own page and shows the date we read it.",
   buyerUseCases: [
     { title: "An assistant on the product page", body: "You want shoppers to ask questions and get product suggestions while they browse." },
     { title: "Support with handover", body: "You want routine questions answered and complex ones passed to your team with history." },
@@ -50,14 +50,14 @@ export const REP_AI: CompetitorBrief = {
       peakhour: pending("support.whatsapp_support"),
     },
     {
-      dimension: "AI on WhatsApp",
+      dimension: "Sales and checkout on WhatsApp",
       vendor: { value: "yes", note: "It says it handles sales questions, order updates and support on WhatsApp. WhatsApp is priced as an add-on.", source: S.whatsapp, observedAt: D },
-      peakhour: pending("commerce.whatsapp_shopping"),
+      peakhour: PEAKHOUR.whatsappBuyingStep,
     },
     {
       dimension: "WhatsApp template broadcasts",
       vendor: { value: "not-documented", note: "Its WhatsApp page does not mention broadcasts or templates.", source: S.whatsapp, observedAt: D },
-      peakhour: pending("growth.whatsapp_broadcasts"),
+      peakhour: pending(),
     },
     {
       dimension: "COD confirmation",
@@ -67,18 +67,16 @@ export const REP_AI: CompetitorBrief = {
     {
       dimension: "Setup without a developer",
       vendor: { value: "partial", note: "It says \"Live in 6 clicks\" and that its team handles the setup. It does not say \"no developer\" in so many words.", source: S.home, observedAt: D },
-      peakhour: pending("shopify.install_without_developer"),
+      peakhour: pending(),
     },
   ],
   pricing: {
-    currency: "USD",
-    region: "any country (none named on the page)",
     rows: [
-      { plan: "Sales (up to 3,000 sessions)", price: "$29 per month billed annually, $39 billed monthly", currency: "USD (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Support (up to 3,000 sessions)", price: "$15 per month billed annually, $19 billed monthly", currency: "USD (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Concierge (sales and support)", price: "$37 per month billed annually, $46 billed monthly", currency: "USD (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "AI on WhatsApp, email and social", price: "$0.75 per AI-resolved conversation, $0.50 billed annually", currency: "USD (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Enterprise (above 500,000 sessions)", price: "Not published (custom)", currency: "USD (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Sales (up to 3,000 sessions)", price: "$29 per month billed annually, $39 billed monthly", currency: "USD ($)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Support (up to 3,000 sessions)", price: "$15 per month billed annually, $19 billed monthly", currency: "USD ($)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Concierge (sales and support)", price: "$37 per month billed annually, $46 billed monthly", currency: "USD ($)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "AI on WhatsApp, email and social", price: "$0.75 per AI-resolved conversation, $0.50 billed annually", currency: "USD ($)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Enterprise (above 500,000 sessions)", price: "Not published (custom)", currency: "USD ($)", region: "Not stated", observedAt: D, source: S.pricing },
     ],
   },
   bestFor: [
@@ -91,7 +89,7 @@ export const REP_AI: CompetitorBrief = {
     "Where our own side says Unknown, the evidence for Peakhour is still being verified and nothing is claimed.",
   ],
   faqs: [
-    { q: "Is there a Rep AI alternative for Shopify?", a: "Peakhour is one option, with an assistant and product shelves on the storefront and on WhatsApp. Check Rep AI's own pages for its sales and support agents." },
+    { q: "Is there a Rep AI alternative for Shopify?", a: "Peakhour is one option, with an assistant and product shelves on the storefront, and a checkout link sent on WhatsApp when a shopper agrees to buy. Check Rep AI's own pages for its sales and support agents." },
     { q: "Where does this information come from?", a: "Only from Rep AI's own public pages, each linked in the table with the date we read it." },
   ],
 };

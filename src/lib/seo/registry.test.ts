@@ -156,7 +156,7 @@ describe("T03: every canonical uses SITE.url's origin and is self-referencing", 
 });
 
 describe("T12: a claim that requires live fails the gate when the capability is not live on the page's surface", () => {
-  const cap = (status: "live" | "beta" | "development", requires: "beta" | "live", surface: "web" | "shopify" = "web"): Capability => ({
+  const cap = (status: "live" | "beta" | "development", requires: "beta" | "live", surface: "web" | "shopify" | "whatsapp" = "web"): Capability => ({
     id: "fixture.cap",
     label: "Fixture",
     primaryPillar: "commerce",
@@ -190,6 +190,23 @@ describe("T12: a claim that requires live fails the gate when the capability is 
   });
   it("a page falls back to the capability's web implementation", async () => {
     expect(await gateWith(cap("live", "live", "web"), { surface: "shopify" })).toBe(true);
+  });
+  it("a WhatsApp implementation counts for any page surface, after the page's own and web", async () => {
+    expect(await gateWith(cap("live", "live", "whatsapp"), { surface: "shopify" })).toBe(true);
+    expect(await gateWith(cap("live", "live", "whatsapp"), { surface: "web" })).toBe(true);
+    // Still bound by status: a development WhatsApp build does not satisfy a live claim.
+    expect(await gateWith(cap("development", "live", "whatsapp"), { surface: "shopify" })).toBe(false);
+  });
+  it("a page's own surface wins over a WhatsApp build", async () => {
+    vi.resetModules();
+    const both: Capability = {
+      ...cap("development", "live", "shopify"),
+      implementations: [
+        { surface: "shopify", status: "development", evidence: ["fixture"], verifiedAt: "2026-11-15" },
+        { surface: "whatsapp", status: "live", evidence: ["fixture"], verifiedAt: "2026-11-15" },
+      ],
+    };
+    expect(await gateWith(both, { surface: "shopify" })).toBe(false);
   });
   it("an unknown capability id is not publishable", () => {
     expect(isPublishable(asPage({ capabilityIds: ["no.such.capability"] }))).toBe(false);

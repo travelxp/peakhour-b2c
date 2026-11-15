@@ -39,7 +39,7 @@ type Seed = {
   indexable?: boolean;
 };
 
-const LAUNCH_PARTNER_CTA = { label: "Join the waitlist", href: "/launch-partner", kind: "launch-partner" as const };
+export const LAUNCH_PARTNER_CTA = { label: "Join the waitlist", href: "/launch-partner", kind: "launch-partner" as const };
 
 function page(s: Seed): PageRecord {
   return {
@@ -217,7 +217,7 @@ export const PAGES: readonly PageRecord[] = [
       title: b.title,
       description: b.description,
       h1: b.h1,
-      cta: { label: "Join the waitlist", href: "/launch-partner", kind: "waitlist" },
+      cta: LAUNCH_PARTNER_CTA,
       relatedIds: ["shopify", "pricing"],
       editorialStatus: "review",
       indexable: false,

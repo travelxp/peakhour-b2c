@@ -19,9 +19,10 @@ export type VendorClaim = {
 };
 
 /**
- * A claim about Peakhour. It rests on a registry capability with an approved claim (src/lib/seo/capabilities.ts).
- * Where the registry has no such capability yet, the cell stays "unknown" and `pendingCapability` names the id the
- * evidence audit (SEO-3) must add; nothing is claimed until then.
+ * A claim about Peakhour. A claimed cell (Yes, Partial, Not supported) names the registry capability it rests on
+ * (`capabilityId`, which must carry an approved claim in src/lib/seo/capabilities.ts). An Unknown cell claims nothing;
+ * it may name `pendingCapability`: an EXISTING capability id whose claim is not yet approved. Where no capability
+ * exists at all, the cell is Unknown with neither id.
  */
 export type PeakhourClaim = VendorClaim & {
   capabilityId?: string;
@@ -60,12 +61,10 @@ export type CompetitorBrief = {
   directAnswer: string;
   buyerUseCases: { title: string; body: string }[];
   claims: ClaimRow[];
-  pricing: {
-    currency: string;
-    region: string;
-    rows: PricingRow[];
-  };
+  pricing: { rows: PricingRow[] };
   bestFor: { vendor: string; bestFor: string }[];
   limitations: string[];
   faqs: { q: string; a: string }[];
+  /** The named reviewer. Required before the page is published; "Pending review" shows until then. */
+  reviewer?: string;
 };

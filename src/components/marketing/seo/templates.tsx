@@ -22,7 +22,7 @@ import { Section } from "./section";
 import { statusMeta } from "./status-meta";
 import { cardCls, linkCls } from "./styles";
 import { WorkflowSteps } from "./workflow-steps";
-import { safeHref } from "./safe-href";
+import { linkAttrs, safeHref } from "./safe-href";
 
 /*
  * The nine page templates. Each is one component taking a PageRecord plus a typed content object, and lays its
@@ -284,11 +284,11 @@ export function ComparisonPage({ page, content }: { page: PageRecord; content: C
       <Section id="compare" eyebrow="Side by side" title="Feature by feature." tone="muted">
         <ComparisonTable comparison={comparison} />
       </Section>
-      <Section id="pricing" eyebrow="Pricing" title={`Pricing as of ${pricing.asOf}, in ${pricing.currency} for ${pricing.country}.`}>
+      <Section id="pricing" eyebrow="Pricing" title={`Pricing as listed on each vendor's page, seen ${pricing.asOf}.`}>
         <div className="overflow-x-auto rounded-2xl border">
           <table className="w-full min-w-0 border-collapse text-left text-sm sm:text-[15px]">
             <caption className="sr-only">
-              Pricing as of {pricing.asOf}, in {pricing.currency}, for {pricing.country}
+              Pricing as listed on each vendor&apos;s page, seen {pricing.asOf}; each row states its currency and region
             </caption>
             <thead className="bg-muted">
               <tr>
@@ -306,7 +306,7 @@ export function ComparisonPage({ page, content }: { page: PageRecord; content: C
                   <td className="px-2.5 py-3 sm:px-4">{r.price}</td>
                   <td className="px-2.5 py-3 sm:px-4">
                     {r.source ? (
-                      <a href={safeHref(r.source.href)} target="_blank" rel="noopener noreferrer nofollow" className={linkCls}>
+                      <a href={safeHref(r.source.href)} {...linkAttrs(r.source.href)} className={linkCls}>
                         {r.source.label}
                       </a>
                     ) : (

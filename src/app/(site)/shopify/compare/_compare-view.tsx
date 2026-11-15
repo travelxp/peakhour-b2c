@@ -13,7 +13,7 @@ import { isPreviewable, isPublishable } from "@/lib/seo/publish";
  * (production, once Growth has signed off) or previewable (dev and previews, with the draft ribbon). The decision reads
  * the deployment at request time, so it is never baked into a build.
  */
-export async function CompareView({ slug }: { slug: string }) {
+export async function renderCompare(slug: string) {
   await connection();
   const brief = getBrief(slug);
   if (!brief) notFound();

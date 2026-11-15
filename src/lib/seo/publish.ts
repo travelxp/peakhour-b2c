@@ -28,8 +28,9 @@ export function statusSatisfies(status: ReleaseStatus, requires: "beta" | "live"
 }
 
 /**
- * Every capability the page leans on must have an implementation on the page's surface (or on
- * "web" when it has none there), and that implementation's status must satisfy every approved
+ * Every capability the page leans on must have an implementation on the page's surface, else on
+ * "web", else on "whatsapp" (WhatsApp is a channel that serves every platform, so its build counts
+ * for a Shopify or WordPress page too), and that implementation's status must satisfy every approved
  * claim the capability carries (Bible T12: a "live" claim needs a live capability).
  */
 export function capabilitiesSatisfied(page: PageRecord): boolean {
@@ -38,7 +39,8 @@ export function capabilitiesSatisfied(page: PageRecord): boolean {
     if (!cap) return false;
     const impl =
       cap.implementations.find((i) => i.surface === page.surface) ??
-      cap.implementations.find((i) => i.surface === "web");
+      cap.implementations.find((i) => i.surface === "web") ??
+      cap.implementations.find((i) => i.surface === "whatsapp");
     if (!impl) return false;
     return cap.approvedClaims.every((claim) => statusSatisfies(impl.status, claim.requires));
   });
