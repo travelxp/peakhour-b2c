@@ -1,14 +1,15 @@
-import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { SITE, cn } from "@/lib/utils";
 import { LaunchFooter, LaunchPerks, LaunchSteps, LaunchTopBar, launchEyebrow, launchWrap } from "@/components/marketing/launch/launch-chrome";
 import { LaunchPartnerForm } from "./launch-partner-form";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "Become a Launch Partner — Peakhour",
   description:
     "Join the Peakhour launch partner program. Work directly with our team to shape Peakhour Suite, and get early access ahead of public launch.",
-};
+  path: "/launch-partner",
+});
 
 /**
  * Pre-launch "Become a Launch Partner" capture. Self-contained (no Header/
