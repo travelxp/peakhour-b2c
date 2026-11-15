@@ -2,13 +2,9 @@ import Link from "next/link";
 import { SITE } from "@/lib/utils";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
-import { pageMetadata } from "@/lib/seo";
+import { pageMeta } from "@/lib/seo/metadata";
 
-export const metadata = pageMetadata({
-  title: "Privacy Policy - Peakhour.ai",
-  description: "Peakhour.ai privacy policy — how we collect, use, and protect your data.",
-  path: "/privacy-policy",
-});
+export const metadata = pageMeta("legal.privacy");
 
 export default function PrivacyPolicyPage() {
   return (

@@ -3,14 +3,18 @@ import { SITE } from "@/lib/utils";
 import { getMarketingSitemapEntries } from "@/lib/marketing-pages";
 import { MARKETING_PATHS, isGateOn, pathsThroughTheGate } from "@/lib/seo/gate";
 import { isIndexableDeployment } from "@/lib/seo/indexable";
+import { PAGES } from "@/lib/seo/pages";
+import { isPublishable } from "@/lib/seo/publish";
+import { pathFor } from "@/lib/seo/resolve";
 
 // Read per request: whether this deployment is indexable, and whether the
 // coming-soon gate is on, are environment facts, not build facts.
 export const dynamic = "force-dynamic";
 
 /**
- * Marketing sitemap. Lists the public, indexable code routes (lib/seo/gate.ts
- * MARKETING_PATHS, the same list the coming-soon gate reads) AND the CMS-authored
+ * Marketing sitemap. Lists the PUBLISHABLE pages of the registry (lib/seo/pages.ts + publish.ts),
+ * within the coming-soon gate's rules (lib/seo/gate.ts MARKETING_PATHS), each with lastmod = its
+ * lastReviewedAt, AND the CMS-authored
  * pages from the Pages Manager (mkt_pages), never the gated app
  * (dashboard/onboarding/auth/cms), which stays out of the index. The API already
  * excludes noindex + draft pages. Absolute URLs from SITE.url.
@@ -29,13 +33,29 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = SITE.url.replace(/\/$/, "");
   const gated = isGateOn();
 
-  const codeEntries: MetadataRoute.Sitemap = (gated ? pathsThroughTheGate() : MARKETING_PATHS)
-    .filter((m) => m.sitemap)
-    .map(({ path, sitemap: meta }) => ({
-      url: path === "/" ? `${base}/` : `${base}${path}`,
-      changeFrequency: meta!.changeFrequency,
-      priority: meta!.priority,
-    }));
+  // The registry decides WHICH pages are listed (publishable only). MARKETING_PATHS carries the
+  // priority and frequency, and, with the gate on, which pages the gate lets through. A page it
+  // lists without `sitemap` meta is public but deliberately not in the sitemap. A registry page
+  // MARKETING_PATHS does not know (a page added after SEO-2) gets a default, but only with the gate
+  // off: with it on, an unknown page answers 404 or the teaser, and is not listed.
+  const known = new Map(MARKETING_PATHS.map((m) => [m.path, m.sitemap]));
+  const throughGate = new Set(pathsThroughTheGate().map((m) => m.path));
+  const DEFAULT_META = { priority: 0.5, changeFrequency: "monthly" } as const;
+  const codeEntries: MetadataRoute.Sitemap = PAGES.flatMap((page) => {
+    if (!isPublishable(page)) return [];
+    if (gated && !throughGate.has(page.path)) return [];
+    const meta = known.has(page.path) ? known.get(page.path) : gated ? undefined : DEFAULT_META;
+    if (!meta) return [];
+    const path = pathFor(page.pageId);
+    return [
+      {
+        url: path === "/" ? `${base}/` : `${base}${path}`,
+        lastModified: new Date(page.lastReviewedAt),
+        changeFrequency: meta.changeFrequency,
+        priority: meta.priority,
+      },
+    ];
+  });
   if (gated) return codeEntries;
 
   // CMS-authored pages (Pages Manager) — this is the PLATFORM site's sitemap
