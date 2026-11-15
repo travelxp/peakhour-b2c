@@ -195,4 +195,8 @@ describe("What's working counts customers and shoppers close to buying (GG-3d)",
     expect(closeToBuyingWords({ count: 3, windowDays: 14 })).toBe("Shoppers close to buying who didn't: 3 in the last 14 days");
     expect(customerWords({ new: 0, repeat: 0, loyal: 0, lapsing: 0, lapsed: 5 })).toBe("Customers: 0 new, 0 repeat, 0 loyal, 0 at risk of lapsing");
   });
+  it("large counts are grouped like every other count on the growth screens", () => {
+    expect(customerWords({ new: 125000, repeat: 4000, loyal: 12, lapsing: 9, lapsed: 0 })).toBe("Customers: 1,25,000 new, 4,000 repeat, 12 loyal, 9 at risk of lapsing");
+    expect(closeToBuyingWords({ count: 12500, windowDays: 7 })).toBe("Shoppers close to buying who didn't: 12,500 this week");
+  });
 });
