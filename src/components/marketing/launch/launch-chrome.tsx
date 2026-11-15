@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { ArrowLeft, Check } from "lucide-react";
+import { getTranslations } from "next-intl/server";
 import { PeakhourLogo } from "@/components/shared/peakhour-logo";
 import { SITE, cn } from "@/lib/utils";
+import type { Translate } from "@/i18n/types";
 
 /**
  * The chrome the two pre-launch pages share (/coming-soon, served for every
@@ -37,10 +39,16 @@ export const LAUNCH_STEPS: { title: string; body: string }[] = [
   { title: "Sign in", body: "Approved? We email you a sign-in link. No password needed." },
 ];
 
-export function LaunchTopBar({ back = false }: { back?: boolean }) {
+/** The top bar with its strings resolved for the request's locale (messages: Launch, Common). */
+export async function LaunchTopBar({ back = false }: { back?: boolean }) {
+  return <LaunchTopBarView back={back} t={await getTranslations("Launch")} commonT={await getTranslations("Common")} />;
+}
+
+/** Sync and prop-driven so the English-text test renders it without a request. */
+export function LaunchTopBarView({ back = false, t, commonT }: { back?: boolean; t: Translate; commonT: Translate }) {
   return (
     <header className={cn(launchWrap, "flex items-center justify-between gap-4 py-4 sm:py-5")}>
-      <Link prefetch={false} href="/" className="flex items-center" aria-label={`${SITE.name} home`}>
+      <Link prefetch={false} href="/" className="flex items-center" aria-label={commonT("homeAria", { name: SITE.name })}>
         <PeakhourLogo className="h-7 w-auto sm:h-8" decorative />
       </Link>
       <nav className="flex items-center gap-2">
@@ -51,7 +59,7 @@ export function LaunchTopBar({ back = false }: { back?: boolean }) {
             className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="size-4" aria-hidden />
-            Back
+            {t("back")}
           </Link>
         )}
         {/* For approved launch partners: the magic-link endpoint sends a real link only to approved emails. */}
@@ -60,7 +68,7 @@ export function LaunchTopBar({ back = false }: { back?: boolean }) {
           href="/auth"
           className="inline-flex items-center rounded-full px-4 py-2 text-sm font-bold shadow-[inset_0_0_0_1.5px_var(--border)] transition-colors hover:shadow-[inset_0_0_0_1.5px_var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          Sign in
+          {t("signIn")}
         </Link>
       </nav>
     </header>
@@ -99,25 +107,30 @@ export function LaunchSteps({ tone = "light" }: { tone?: "light" | "ink" }) {
   );
 }
 
-export function LaunchFooter() {
+/** The legal footer with its strings resolved for the request's locale (messages: Footer, Launch). */
+export async function LaunchFooter() {
+  return <LaunchFooterView footerT={await getTranslations("Footer")} t={await getTranslations("Launch")} />;
+}
+
+export function LaunchFooterView({ footerT, t }: { footerT: Translate; t: Translate }) {
   return (
     <footer className={cn(launchWrap, "flex flex-col items-center justify-between gap-3 border-t py-6 text-sm text-muted-foreground sm:flex-row")}>
       <nav className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
         <Link prefetch={false} href="/privacy-policy" className="transition-colors hover:text-foreground">
-          Privacy Policy
+          {footerT("privacy")}
         </Link>
         <Link prefetch={false} href="/terms" className="transition-colors hover:text-foreground">
-          Terms of Service
+          {footerT("terms")}
         </Link>
         <Link prefetch={false} href="/cookie-policy" className="transition-colors hover:text-foreground">
-          Cookie Policy
+          {footerT("cookies")}
         </Link>
         <Link prefetch={false} href="/data-deletion" className="transition-colors hover:text-foreground">
-          Data Deletion
+          {footerT("dataDeletion")}
         </Link>
       </nav>
       <p>
-        © {new Date().getFullYear()} {SITE.company.legalName}. All rights reserved.
+        {t("copyright", { year: new Date().getFullYear(), legalName: SITE.company.legalName })}
       </p>
     </footer>
   );

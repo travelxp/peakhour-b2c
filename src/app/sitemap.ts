@@ -6,6 +6,7 @@ import { isIndexableDeployment } from "@/lib/seo/indexable";
 import { PAGES } from "@/lib/seo/pages";
 import { isPublishable } from "@/lib/seo/publish";
 import { pathFor } from "@/lib/seo/resolve";
+import { DEFAULT_LOCALE, LOCALES, type Locale } from "@/lib/seo/types";
 
 // Read per request: whether this deployment is indexable, and whether the
 // coming-soon gate is on, are environment facts, not build facts.
@@ -46,15 +47,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     if (gated && !throughGate.has(page.path)) return [];
     const meta = known.has(page.path) ? known.get(page.path) : gated ? undefined : DEFAULT_META;
     if (!meta) return [];
-    const path = pathFor(page.pageId);
-    return [
-      {
+    const entry = (locale: Locale): MetadataRoute.Sitemap[number] => {
+      const path = pathFor(page.pageId, locale);
+      return {
         url: path === "/" ? `${base}/` : `${base}${path}`,
         lastModified: new Date(page.lastReviewedAt),
         changeFrequency: meta.changeFrequency,
         priority: meta.priority,
-      },
-    ];
+      };
+    };
+    const english = entry(DEFAULT_LOCALE);
+    // Published non-English variants are listed with their alternates (hreflang, self and x-default): the same
+    // cluster pageMeta emits on the page, so the sitemap and the page agree. None is published today, so this
+    // adds nothing. With the gate on none is listed: a locale path is never one the gate lets through.
+    const variants = gated ? [] : LOCALES.filter((l) => l !== DEFAULT_LOCALE && isPublishable(page, l));
+    if (variants.length === 0) return [english];
+    const cluster: Record<string, string> = {};
+    for (const l of [DEFAULT_LOCALE, ...variants]) cluster[l] = entry(l).url;
+    cluster["x-default"] = english.url;
+    return [DEFAULT_LOCALE, ...variants].map((l) => ({ ...entry(l), alternates: { languages: cluster } }));
   });
   if (gated) return codeEntries;
 

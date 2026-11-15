@@ -1,17 +1,19 @@
 import { getRequestConfig } from "next-intl/server";
-import { defaultLocale, type AppLocale } from "./config";
+import { headers } from "next/headers";
+import { LOCALE_HEADER, defaultLocale, isLocale, type AppLocale } from "./config";
 
 /**
- * i18n request config — English-only for now.
+ * i18n request config. English is the default and every English URL is unprefixed. A non-English page
+ * reaches here only through the middleware's rewrite (middleware.ts + lib/seo/locale-route.ts), which
+ * stamps LOCALE_HEADER after the page's variant passed the publish gate. There is NO detection: no
+ * Accept-Language, no cookie (Bible 10). A request without the header is English.
  *
- * The locale is fixed to `en` (see ./config) until more languages are added.
- * When they are, resolve it here from the request (a locale cookie,
- * `Accept-Language`, or a future URL segment) and add `messages/<locale>.json`
- * — no component changes needed. Kept deliberately minimal so this scaffold is
- * inert until strings are migrated into `messages/` incrementally.
+ * messages/<locale>.json must exist for a locale that is published; a missing file throws rather than
+ * falling back to English (a non-English URL never shows English by accident).
  */
 export default getRequestConfig(async () => {
-  const locale: AppLocale = defaultLocale;
+  const raw = (await headers()).get(LOCALE_HEADER);
+  const locale: AppLocale = isLocale(raw) ? raw : defaultLocale;
   return {
     locale,
     messages: (await import(`../../messages/${locale}.json`)).default,

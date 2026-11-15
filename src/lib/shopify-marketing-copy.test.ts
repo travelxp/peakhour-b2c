@@ -172,7 +172,10 @@ describe("wiring", () => {
   });
   it("footer has a Works with group naming Shopify and WordPress", () => {
     const f = read("components/shared/footer.tsx");
-    expect(f).toMatch(/heading: "Works with",\s*links: \[\s*\{ href: "\/shopify", label: "Shopify" \},\s*\{ href: "\/content", label: "WordPress" \},/);
+    // The labels are message keys since SEO-4; the English they resolve to is pinned against messages/en.json.
+    expect(f).toMatch(/heading: "worksWith",\s*links: \[\s*\{ href: "\/shopify", label: "shopify" \},\s*\{ href: "\/content", label: "wordpress" \},/);
+    const footer = JSON.parse(read("../messages/en.json")).Footer;
+    expect([footer.worksWith, footer.shopify, footer.wordpress]).toEqual(["Works with", "Shopify", "WordPress"]);
   });
   it("/commerce links to /shopify and the pricing strip's Shopify card links there too", () => {
     expect(flat(read("app/(site)/commerce/page.tsx"))).toContain("Using Shopify? <Link href=\"/shopify\"");

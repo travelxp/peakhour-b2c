@@ -19,12 +19,13 @@ export function absoluteUrl(pageId: string, locale: Locale = DEFAULT_LOCALE): st
  * Per-page metadata from the registry: title, description, an absolute self-referencing
  * canonical, OpenGraph and Twitter tags, robots (index only when publishable) and hreflang
  * from published variants only. Replaces `pageMetadata`; titles and descriptions come from the
- * page record, which carries each page's copy exactly as it was.
+ * page record, which carries each page's copy exactly as it was. `copy` overrides them for a localized page.
  */
-export function pageMeta(pageId: string, locale: Locale = DEFAULT_LOCALE): Metadata {
+export function pageMeta(pageId: string, locale: Locale = DEFAULT_LOCALE, copy?: { title: string; description: string }): Metadata {
   const page = getPage(pageId);
   const url = absoluteUrl(pageId, locale);
-  const { title, description } = page;
+  // A non-English page passes its own title and description (its PageContent); the record's are English.
+  const { title, description } = copy ?? page;
   const publishable = isPublishable(page, locale);
 
   const languages: Record<string, string> = {};
