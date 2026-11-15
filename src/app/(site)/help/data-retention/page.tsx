@@ -1,14 +1,15 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { SITE } from "@/lib/utils";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "Data Retention - Peakhour",
   description:
     "How long Peakhour keeps the data it pulls from connected platforms, and why.",
-};
+  path: "/help/data-retention",
+});
 
 /**
  * Public /help/data-retention page. Surfaces LinkedIn's Marketing API

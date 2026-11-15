@@ -53,7 +53,7 @@ describe("the link's host and route", () => {
   });
 
   it("is reachable with no session while the coming-soon gate is on, and is kept out of search and Referer headers", () => {
-    const middleware = readFileSync(path.join(SRC, "middleware.ts"), "utf8");
+    const middleware = readFileSync(path.join(SRC, "lib", "seo", "gate.ts"), "utf8");
     expect(middleware).toMatch(/PUBLIC_PATHS = \[[^\]]*"\/growth\/confirm"/);
     // `/growth` itself is a marketing page and stays behind the gate
     expect(middleware).not.toMatch(/PUBLIC_PATHS = \[[^\]]*"\/growth"/);

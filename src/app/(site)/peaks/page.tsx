@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { Sparkles, Zap, RefreshCw, ArrowRight } from "lucide-react";
@@ -12,11 +11,13 @@ import { bestValueKey, perThousandLabel } from "@/lib/peaks-pack-unit-price";
 import { marketingTrialDays } from "@/lib/pricing";
 import { hasTrial, trialCtaLabel } from "@/lib/trial-copy";
 import { PEAKS_REFUND_SENTENCE } from "@/lib/peaks-refund-terms";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "Peaks — AI credits that power Peakhour.ai",
   description: `Peaks are the AI credits behind every Peakhour.ai feature. Every plan includes a monthly allowance; purchased Peaks never expire and work across every Peakhour product. ${PEAKS_REFUND_SENTENCE}`,
-};
+  path: "/peaks",
+});
 
 /**
  * /peaks — public marketing page explaining the Peaks currency + the one-time

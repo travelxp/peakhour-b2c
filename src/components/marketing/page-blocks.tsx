@@ -1,5 +1,4 @@
 import Link from "next/link";
-import DOMPurify from "isomorphic-dompurify";
 import { ArrowRight, Check } from "lucide-react";
 import type {
   PageBlock,
@@ -241,7 +240,16 @@ function CrossLinks({ b }: { b: CrossLinksBlock }) {
   );
 }
 
-function RichText({ b }: { b: RichTextBlock }) {
+async function RichText({ b }: { b: RichTextBlock }) {
+  // ★ LOADED HERE, NOT AT THE TOP OF THE FILE. isomorphic-dompurify pulls jsdom in on the
+  // server, and on the Vercel runtime jsdom's dependency html-encoding-sniffer require()s an
+  // ES module ("ERR_REQUIRE_ESM ... @exodus/bytes/encoding-lite.js"), so the module throws
+  // as it loads. With a static import that happened for EVERY request the [...slug] route
+  // saw, including the one whose whole job is to call notFound(): an unknown URL answered
+  // 500 on dev instead of 404. Imported here, jsdom loads only for a page that has a
+  // rich_text block. (There are none today; when the first one is published, check it on a
+  // Vercel deployment, not locally: local Node loads the same module without complaint.)
+  const { default: DOMPurify } = await import("isomorphic-dompurify");
   const clean = DOMPurify.sanitize(b.html);
   return (
     <section className="py-16">
