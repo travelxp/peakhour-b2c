@@ -197,7 +197,7 @@ export const PAGES: readonly PageRecord[] = [
       "An AI chatbot for Shopify that answers shoppers from your own catalogue, with a Find my match quiz. You can pause it or take over any chat.",
     h1: "An AI shopping assistant for your Shopify store",
     cta: SHOPIFY_INSTALL_CTA,
-    relatedIds: ["shopify.features.whatsapp.ai.shopping", "shopify.features.product.recommendations", "shopify.features.ai.seo", "shopify"],
+    relatedIds: ["shopify.features.product.recommendations", "shopify.features.ai.seo", "shopify"],
   }),
   page({
     // review: the WhatsApp checkout-link claim (commerce.whatsapp_shopping) has no Shopify-surface record, so the gate cannot pass it.
@@ -264,7 +264,7 @@ export const PAGES: readonly PageRecord[] = [
       "Peakhour asks the shopper on WhatsApp to confirm or cancel each cash-on-delivery Shopify order. Needs your own WhatsApp number and a Meta-approved template.",
     h1: "Confirm cash-on-delivery orders on WhatsApp, on Shopify",
     cta: SHOPIFY_INSTALL_CTA,
-    relatedIds: ["shopify.features.whatsapp.ai.shopping", "shopify.features.ai.shopping.assistant", "shopify"],
+    relatedIds: ["shopify.features.ai.shopping.assistant", "shopify"],
   }),
   page({
     pageId: "shopify.features.ai.seo",
