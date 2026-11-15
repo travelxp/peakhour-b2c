@@ -387,7 +387,7 @@ export const INTEGRATION_CONTENT: Record<string, { content: IntegrationContent; 
       { q: "Can I see results?", a: "Yes. Peakhour shows the results of your X campaigns." },
     ],
     related: [
-      HUB("growth", "Peakhour Growth", "How ads fit your growth plan."),
+      HUB("growth", "Peakhour Growth", "How ads are planned for your approval."),
       link("integrations.x", "X integration", "Publish posts and threads."),
       link("integrations.meta.ads", "Meta Ads integration", "List and pause Meta campaigns."),
       ALL_INTEGRATIONS,

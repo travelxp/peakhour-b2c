@@ -8,7 +8,7 @@ import { capabilitiesSatisfied, isPublishable } from "@/lib/seo/publish";
 import { pathFor } from "@/lib/seo/resolve";
 import { MARKETING_PATHS } from "@/lib/seo/gate";
 import type { BaseContent } from "@/components/marketing/seo/content-types";
-import { featuresDirectory, integrationsDirectory } from "./directories";
+import { featuresDirectory, integrationsDirectory } from "./seo9-directories";
 import { FEATURE_CONTENT } from "./features";
 import { INTEGRATION_CONTENT } from "./integrations";
 
@@ -157,7 +157,7 @@ describe("SEO-9 owner rules on the copy", () => {
     expect(ints[0].pillar).toBe("Presence");
     expect(featuresDirectory().items.map((i) => i.title)).not.toContain("AI blog writer");
     expect(ints.length).toBe(9);
-    expect(featuresDirectory().items.length).toBe(5);
+    expect(featuresDirectory().items.length).toBe(6);
   });
 
   it("is reachable from the hubs through registry data", () => {

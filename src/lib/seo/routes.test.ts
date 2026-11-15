@@ -72,8 +72,9 @@ describe("sitemap", () => {
     expect(urls).toContain("/commerce");
     expect(urls).toContain("/pricing/teams");
     expect(urls).toContain("/guides/x");
-    // Every published registry page (a page held in review is left out), plus the one CMS page.
+    // Every published registry page, plus the one CMS page. A page at review (the SEO-10 comparisons) is not listed.
     expect(urls).toHaveLength(PAGES.filter((p) => p.editorialStatus === "published").length + 1);
+    expect(urls.some((u) => u.includes("/shopify/compare/"))).toBe(false);
     expect(urls).not.toContain("/integrations/google-ads");
   });
 

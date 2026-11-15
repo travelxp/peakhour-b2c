@@ -3,7 +3,7 @@ import { PeakhourWordmark } from "@/components/shared/peakhour-logo";
 import { cn } from "@/lib/utils";
 import type { CellValue, ComparisonCell, ComparisonContent, ComparisonVendor } from "./content-types";
 import { linkCls } from "./styles";
-import { safeHref } from "./safe-href";
+import { linkAttrs, safeHref } from "./safe-href";
 
 /**
  * The cell vocabulary (Bible 7.4). Each value has its own icon AND word, so colour is never the only signal, and
@@ -15,13 +15,13 @@ const CELL: Record<CellValue, { label: string; icon: typeof Check; cls: string; 
     label: "Yes",
     icon: Check,
     cls: "border-[var(--daylight-ok)]/30 bg-[var(--daylight-ok-soft)] text-[var(--daylight-ok-ink)]",
-    meaning: "The vendor's own documentation says it does this.",
+    meaning: "For a vendor: its own public documentation says it does this. For Peakhour: our own evidence says it does, and the claim is approved.",
   },
   partial: {
     label: "Partial",
     icon: Minus,
     cls: "border-[var(--daylight-amber)]/60 bg-[var(--daylight-warn-soft)] text-[var(--daylight-warn-ink)]",
-    meaning: "It does part of this, or only on some plans or setups. The note says which.",
+    meaning: "It does part of this, or only on some plans or setups. The note says which. For Peakhour this rests on our own evidence.",
   },
   "not-documented": {
     label: "Not documented",
@@ -76,7 +76,7 @@ function CellBody({ cell }: { cell: ComparisonCell }) {
       {cell.note && <span className="text-sm text-muted-foreground">{cell.note}</span>}
       {cell.source ? (
         <span className="text-sm text-muted-foreground">
-          <a href={safeHref(cell.source.href)} target="_blank" rel="noopener noreferrer nofollow" className={linkCls}>
+          <a href={safeHref(cell.source.href)} {...linkAttrs(cell.source.href)} className={linkCls}>
             {cell.source.label}
           </a>
           {cell.observedAt && (

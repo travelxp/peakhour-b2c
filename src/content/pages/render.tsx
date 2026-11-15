@@ -4,7 +4,7 @@ import { Header } from "@/components/shared/header";
 import { DirectoryPage, FeaturePage, IntegrationPage } from "@/components/marketing/seo/templates";
 import { getPage } from "@/lib/seo/pages";
 import { isPreviewable, isPublishable } from "@/lib/seo/publish";
-import { featuresDirectory, integrationsDirectory } from "./directories";
+import { featuresDirectory, integrationsDirectory } from "./seo9-directories";
 import { FEATURE_CONTENT } from "./features";
 import { INTEGRATION_CONTENT } from "./integrations";
 
