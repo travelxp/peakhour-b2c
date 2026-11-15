@@ -12,10 +12,10 @@ export const PRESENCE: HubContent = {
   directAnswer:
     "Peakhour Presence connects your Google Business Profile so you can prepare changes to your hours, details, photos and posts, get an AI draft of every review reply, and see a score of how complete your listing is. Google Business Profile support is in beta, and changes reach Google only once Peakhour switches sending on.",
   items: [
-    liveItem("presence.gbp_management.prepare_and_approve", "web", "Edits, photos and posts", 0),
+    liveItem("presence.gbp_management.prepare_and_approve", "web", "Edits, photos and posts", 1),
     liveItem("presence.review_management.draft_then_send", "web", "Review replies", 0),
     liveItem("presence.listing_health.score_and_alerts", "web", "Listing health score", 0),
-    liveItem("integration.google_business_profile.connect_google", "web", "Connect Google", 0),
+    liveItem("integration.google_business_profile.connect_google", "web", "Connect Google"),
   ],
   platforms: [],
   control: [

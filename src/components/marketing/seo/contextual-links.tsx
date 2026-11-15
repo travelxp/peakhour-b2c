@@ -12,7 +12,7 @@ export function ContextualLinks({ links, className }: { links: LinkItem[]; class
   const shown = links.slice(0, 6);
   if (shown.length === 0) return null;
   return (
-    <ul role="list" className={className ?? "grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3"}>
+    <ul role="list" className={className ?? `grid gap-3 sm:grid-cols-2 sm:gap-4 ${shown.length === 4 ? "" : "lg:grid-cols-3"}`}>
       {shown.map((l) => (
         <li key={l.href}>
           <Link
