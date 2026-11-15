@@ -51,9 +51,9 @@ export function Footer() {
             <Link
               href="/"
               className="flex items-center"
-              aria-label="Peakhour.ai home"
+              aria-label={`${SITE.name} home`}
             >
-              <PeakhourLogo className="h-7 w-auto" />
+              <PeakhourLogo className="h-7 w-auto" decorative />
             </Link>
             <p className="mt-4 text-sm text-muted-foreground">
               The AI business platform for growing brands. Five modules, one

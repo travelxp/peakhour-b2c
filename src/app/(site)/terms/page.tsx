@@ -1,13 +1,10 @@
-import type { Metadata } from "next";
 import { SITE } from "@/lib/utils";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { FEES_REFUND_SENTENCE, PEAKS_REFUND_SENTENCE, REFUND_LAW_SENTENCE } from "@/lib/peaks-refund-terms";
+import { pageMeta } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
-  title: "Terms of Service - Peakhour.ai",
-  description: "Peakhour.ai terms of service — the agreement between you and Peakhour.ai.",
-};
+export const metadata = pageMeta("legal.terms");
 
 export default function TermsPage() {
   return (

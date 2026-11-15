@@ -55,18 +55,16 @@ export const metadata: Metadata = {
   title: DEFAULT_TITLE,
   description: DEFAULT_DESCRIPTION,
   applicationName: SITE.name,
-  alternates: {
-    canonical: "/",
-    // hreflang-ready: English-only today (self-referencing). Add locales here
-    // alongside messages/<locale>.json when languages grow.
-    languages: { en: "/" },
-  },
+  // No `alternates` and no openGraph `url` here, on purpose: a layout value is
+  // inherited by every page that sets none of its own, so a canonical or og:url of
+  // "/" would name the home page as the canonical of /whatever-page-forgot. A page
+  // with no canonical is better than a wrong one. The home page sets "/" itself;
+  // every other page sets its own (pageMeta, lib/seo/metadata.ts). hreflang is emitted from published variants only.
   openGraph: {
     type: "website",
     siteName: SITE.name,
     title: DEFAULT_TITLE,
     description: DEFAULT_DESCRIPTION,
-    url: "/",
     locale: "en",
   },
   twitter: {

@@ -1,14 +1,10 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { SITE } from "@/lib/utils";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
+import { pageMeta } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
-  title: "Data Deletion - Peakhour.ai",
-  description:
-    "Request deletion of your data from Peakhour.ai and check the status of a data-deletion request.",
-};
+export const metadata = pageMeta("legal.data.deletion");
 
 type DeletionStatus = {
   status: "received" | "processing" | "completed" | "failed";

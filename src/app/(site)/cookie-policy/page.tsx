@@ -1,14 +1,10 @@
 import Link from "next/link";
-import type { Metadata } from "next";
 import { SITE } from "@/lib/utils";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
+import { pageMeta } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
-  title: "Cookie Policy - Peakhour.ai",
-  description:
-    "Peakhour.ai cookie policy — the cookies and similar technologies we use, why we use them, and how to control them.",
-};
+export const metadata = pageMeta("legal.cookies");
 
 export default function CookiePolicyPage() {
   return (

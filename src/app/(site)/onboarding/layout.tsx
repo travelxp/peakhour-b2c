@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn, SITE } from "@/lib/utils";
+import { PeakhourLogo } from "@/components/shared/peakhour-logo";
 
 /**
  * Four-step onboarding shell. Each step has plain-English labels —
@@ -30,11 +31,8 @@ export default function OnboardingLayout({
     <div className="flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col bg-background">
       <header className="border-b">
         <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-              <span className="text-sm font-bold text-primary-foreground">P</span>
-            </div>
-            <span className="text-lg font-bold tracking-tight">{SITE.name}</span>
+          <Link href="/" className="flex items-center" aria-label={`${SITE.name} home`}>
+            <PeakhourLogo className="h-7 w-auto" decorative />
           </Link>
           <StepIndicator />
         </div>

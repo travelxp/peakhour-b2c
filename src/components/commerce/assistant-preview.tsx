@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useCommercePreview } from "@/hooks/use-commerce-preview";
+import { PeakhourMark } from "@/components/shared/peakhour-logo";
 
 /**
  * Simulated-WhatsApp preview of the catalog-grounded assistant
@@ -35,9 +36,7 @@ export function CommerceAssistantPreview() {
     <div className="mx-auto flex h-[560px] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-border shadow-sm">
       {/* WhatsApp-style header */}
       <div className="flex items-center gap-3 bg-wa-header px-4 py-3 text-white">
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-sm font-semibold">
-          P
-        </div>
+        <PeakhourMark className="size-9 shrink-0" />
         <div className="leading-tight">
           <div className="text-sm font-medium">Store Assistant</div>
           <div className="text-xs text-white/70">preview · catalog-grounded</div>

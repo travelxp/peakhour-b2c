@@ -1,13 +1,9 @@
 import Link from "next/link";
-import type { Metadata } from "next";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
+import { pageMeta } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
-  title: "Contact Us - Peakhour",
-  description:
-    "Get in touch with the Peakhour team — we'd love to hear from you.",
-};
+export const metadata = pageMeta("contact");
 
 const CONTACT_CHANNELS = [
   {
