@@ -1,6 +1,7 @@
 import { PEAKS_REFUND_SENTENCE } from "@/lib/peaks-refund-terms";
 import { SHOPIFY_SEO } from "@/lib/shopify-features";
-import type { CtaKind, PageFamily, PageRecord, Pillar, Surface } from "./types";
+import { COMPETITOR_BRIEFS } from "@/content/seo/competitors";
+import type { CtaKind, EditorialStatus, PageFamily, PageRecord, PageScope, Pillar, Surface } from "./types";
 
 /*
  * The PageRecord registry: every page the site renders on purpose.
@@ -33,21 +34,24 @@ type Seed = {
   h1?: string;
   cta?: { label: string; href: string; kind: CtaKind };
   relatedIds?: string[];
+  scope?: PageScope;
+  editorialStatus?: EditorialStatus;
+  indexable?: boolean;
 };
 
-const LAUNCH_PARTNER_CTA = { label: "Join the waitlist", href: "/launch-partner", kind: "launch-partner" as const };
+export const LAUNCH_PARTNER_CTA = { label: "Join the waitlist", href: "/launch-partner", kind: "launch-partner" as const };
 
 function page(s: Seed): PageRecord {
   return {
     pageId: s.pageId,
     family: s.family ?? "core",
-    scope: s.surface === "shopify" ? "shopify" : "global",
+    scope: s.scope ?? (s.surface === "shopify" ? "shopify" : "global"),
     path: s.path,
     ...(s.primaryPillar ? { primaryPillar: s.primaryPillar } : {}),
     capabilityIds: s.capabilityIds ?? [],
     surface: s.surface ?? "web",
-    editorialStatus: "published",
-    indexable: true,
+    editorialStatus: s.editorialStatus ?? "published",
+    indexable: s.indexable ?? true,
     title: s.title,
     description: s.description,
     h1: s.h1 ?? s.title,
@@ -200,6 +204,25 @@ export const PAGES: readonly PageRecord[] = [
     title: "Data Retention - Peakhour",
     description: "How long Peakhour keeps the data it pulls from connected platforms, and why.",
   }),
+  // SEO-10: the wave-1 Shopify comparisons. At `review` they render on dev with the draft ribbon and 404 on
+  // production until Growth signs off each source (plan D4, Q1). capabilityIds hold only what the Peakhour cells claim.
+  ...COMPETITOR_BRIEFS.map((b) =>
+    page({
+      pageId: b.pageId,
+      path: `/shopify/compare/${b.slug}`,
+      family: "shopify-compare",
+      surface: "shopify",
+      primaryPillar: "commerce",
+      capabilityIds: [...new Set(b.claims.map((c) => c.peakhour.capabilityId).filter((id): id is string => !!id))],
+      title: b.title,
+      description: b.description,
+      h1: b.h1,
+      cta: LAUNCH_PARTNER_CTA,
+      relatedIds: ["shopify", "pricing"],
+      editorialStatus: "review",
+      indexable: false,
+    }),
+  ),
 ];
 
 const BY_ID = new Map(PAGES.map((p) => [p.pageId, p]));
