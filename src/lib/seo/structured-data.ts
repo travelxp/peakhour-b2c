@@ -108,7 +108,7 @@ export function articleLd(a: { headline: string; path: string; author?: string; 
     mainEntityOfPage: absolute(a.path),
     ...(author ? { author: { "@type": author === SITE.name ? "Organization" : "Person", name: author } } : {}),
     // Only an ISO date: Google rejects any other format, and the page's own <time dateTime> needs one too.
-    ...(a.dateModified && /^\d{4}-\d{2}-\d{2}/.test(a.dateModified) ? { dateModified: a.dateModified } : {}),
+    ...(a.dateModified && /^\d{4}-\d{2}-\d{2}/.test(a.dateModified) && !Number.isNaN(Date.parse(a.dateModified)) ? { dateModified: a.dateModified } : {}),
     publisher: { "@type": "Organization", name: SITE.name, url: absolute("/") },
   };
 }

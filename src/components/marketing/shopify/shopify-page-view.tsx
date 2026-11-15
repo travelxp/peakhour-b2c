@@ -56,12 +56,6 @@ import { ShopifyOwnerChat } from "./shopify-owner-chat";
  * from sm, and a heading block sits mt-8 (mt-10 from sm) above what it
  * introduces.
  */
-/** The trail the hero draws and the BreadcrumbList states: one array, through the kit's Breadcrumbs. */
-const SHOPIFY_CRUMBS = [
-  { label: "Home", href: "/" },
-  { label: "Peakhour for Shopify", href: SHOPIFY_SEO.path },
-];
-
 const wrap = "mx-auto max-w-6xl px-4 sm:px-6";
 const section = "py-14 sm:py-20";
 const eyebrow = "text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground";
@@ -91,6 +85,12 @@ const MORE_DOTS: Record<string, string> = {
   "/growth": "var(--daylight-dot-growth)",
   "/presence": "var(--daylight-dot-presence)",
 };
+
+/** The trail the hero draws and the BreadcrumbList states: one array, through the kit's Breadcrumbs. */
+const SHOPIFY_CRUMBS = [
+  { label: "Home", href: "/" },
+  { label: "Peakhour for Shopify", href: SHOPIFY_SEO.path },
+];
 
 /**
  * The body of /shopify ("Peakhour for Shopify"), between the Header and the
