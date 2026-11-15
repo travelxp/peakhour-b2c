@@ -218,7 +218,7 @@ export const INTEGRATION_CONTENT: Record<string, { content: IntegrationContent; 
       "Connect Meta and Peakhour lists your campaigns, ad sets and ads with their results, and lets you pause or resume them. It cannot create a campaign from the dashboard panel. New campaigns are planned in Growth, and nothing is created or spent without your approval.",
     limitations: [
       "The dashboard panel lists, expands, pauses and resumes. It does not create campaigns.",
-      "Meta write paths have not yet been used against a live ad account.",
+      "Pause and resume are new: check the campaign in Meta after you change it.",
       "It runs through your single Facebook (Meta) connection.",
     ],
     does: [
@@ -238,7 +238,7 @@ export const INTEGRATION_CONTENT: Record<string, { content: IntegrationContent; 
     faqs: [
       { q: "Can I create a Meta campaign in Peakhour?", a: "Not from the dashboard panel. It lists, expands, pauses and resumes. New campaigns go through Growth planning, with your approval." },
       { q: "Will Peakhour spend my budget on its own?", a: "No. Nothing is created or spent without your approval." },
-      { q: "Is the pause button tested on a live account?", a: "Meta write paths have not yet been used against a live ad account, so treat pausing as new." },
+      { q: "Does a pause show up in Meta?", a: "Pause and resume are new, so check the campaign in Meta after you change it." },
     ],
     related: [
       HUB("growth", "Peakhour Growth", "How campaigns are planned for your approval."),

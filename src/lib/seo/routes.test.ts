@@ -75,7 +75,7 @@ describe("sitemap", () => {
     // Every published registry page, plus the one CMS page. A page at review (the SEO-10 comparisons) is not listed.
     expect(urls).toHaveLength(PAGES.filter((p) => p.editorialStatus === "published").length + 1);
     expect(urls.some((u) => u.includes("/shopify/compare/"))).toBe(false);
-    expect(urls).not.toContain("/integrations/google-ads");
+    for (const held of ["/integrations/google-ads", "/integrations/google-search-console", "/integrations/linkedin-ads", "/features/beehiiv-newsletter", "/features/ai-blog-writer"]) expect(urls).not.toContain(held);
   });
 
   it("lists only what the gate lets through while COMING_SOON=true", async () => {
