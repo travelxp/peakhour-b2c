@@ -489,18 +489,20 @@ function SnippetBlock({ provider }: { provider: SignalProvider }) {
       {/* GG-3c: the Peakhour site tag, on the same site key. The consent rule is
           said before the code, in plain words, because it decides whether the
           tag ever sends anything. */}
-      <div className="space-y-2 border-t pt-4">
-        <p className="text-sm font-medium">Peakhour site tag</p>
-        <p className="text-sm text-muted-foreground">
-          {SITE_TAG_WHAT}
-        </p>
-        <p className="text-sm">
-          <span className="font-medium">{SITE_TAG_HEADLINE}</span>{" "}
-          {SITE_TAG_CONSENT}
-        </p>
-        <p className="text-sm text-muted-foreground">{SITE_TAG_WHERE}</p>
-        <CopyableSnippet text={data.tagSnippet} copyLabel="Copy site tag" />
-      </div>
+      {data.tagSnippet && (
+        <div className="space-y-2 border-t pt-4">
+          <p className="text-sm font-medium">Peakhour site tag</p>
+          <p className="text-sm text-muted-foreground">
+            {SITE_TAG_WHAT}
+          </p>
+          <p className="text-sm">
+            <span className="font-medium">{SITE_TAG_HEADLINE}</span>{" "}
+            {SITE_TAG_CONSENT}
+          </p>
+          <p className="text-sm text-muted-foreground">{SITE_TAG_WHERE}</p>
+          <CopyableSnippet text={data.tagSnippet} copyLabel="Copy site tag" />
+        </div>
+      )}
     </div>
   );
 }
