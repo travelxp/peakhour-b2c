@@ -59,7 +59,7 @@ export const metadata: Metadata = {
   // inherited by every page that sets none of its own, so a canonical or og:url of
   // "/" would name the home page as the canonical of /whatever-page-forgot. A page
   // with no canonical is better than a wrong one. The home page sets "/" itself;
-  // every other page sets its own (pageMetadata). hreflang arrives with SEO-4.
+  // every other page sets its own (pageMeta, lib/seo/metadata.ts). hreflang is emitted from published variants only.
   openGraph: {
     type: "website",
     siteName: SITE.name,

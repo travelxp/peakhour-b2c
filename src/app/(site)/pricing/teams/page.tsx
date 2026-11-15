@@ -5,14 +5,9 @@ import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { getPricing, findBundleTier, agencyCardPrice, formatPeaks, suiteTrialDays } from "@/lib/pricing";
 import { getPublicCatalog, signupCta } from "@/lib/catalog";
-import { pageMetadata } from "@/lib/seo";
+import { pageMeta } from "@/lib/seo/metadata";
 
-export const metadata = pageMetadata({
-  title: "Agency & Enterprise plans",
-  description:
-    "Every Peakhour module across many businesses — one unit per client, volume Peaks and central billing on Agency, plus SLAs and a dedicated team on Enterprise.",
-  path: "/pricing/teams",
-});
+export const metadata = pageMeta("pricing.teams");
 
 function countryFrom(header: string | null): string {
   return header && /^[A-Za-z]{2}$/.test(header) ? header.toUpperCase() : "DEFAULT";
