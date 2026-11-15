@@ -297,11 +297,9 @@ export const COMPARISON: ComparisonPageContent = {
   ],
   pricing: {
     asOf: "2026-11-15",
-    currency: "INR",
-    country: "India",
     rows: [
-      { vendor: "Peakhour", plan: "Suite", price: "See pricing", source: { href: "/pricing", label: "Pricing" } },
-      { vendor: "Example vendor", plan: "Unknown", price: "Unknown" },
+      { vendor: "Peakhour", plan: "Suite · priced in Peaks", price: "See pricing", source: { href: "/pricing", label: "Pricing" } },
+      { vendor: "Example vendor", plan: "Unknown · currency and region unknown", price: "Unknown" },
     ],
   },
   suitability: [

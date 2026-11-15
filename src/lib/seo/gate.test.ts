@@ -8,7 +8,7 @@ import {
   PUBLIC_PATHS,
   gatedVerdict,
   isPublicPath,
-  pathsThroughTheGate,
+  isListedThroughGate,
 } from "./gate";
 
 describe("the coming-soon gate's allowlist", () => {
@@ -71,7 +71,7 @@ describe("gatedVerdict: what a gated path becomes", () => {
 
 describe("the sitemap's view of the gate", () => {
   it("lists only paths the gate lets through, plus the teaser's own /", () => {
-    const paths = pathsThroughTheGate().map((m) => m.path);
+    const paths = MARKETING_PATHS.map((m) => m.path).filter(isListedThroughGate);
     expect(paths).toContain("/");
     expect(paths).toContain("/pricing");
     expect(paths).toContain("/shopify");

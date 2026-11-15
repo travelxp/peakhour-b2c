@@ -19,6 +19,8 @@ import { PILLARS } from "@/lib/pillars";
 import { marketingTrialDays } from "@/lib/pricing";
 import { getPage } from "@/lib/seo/pages";
 import { pageMeta } from "@/lib/seo/metadata";
+import { organizationLd, webSiteLd } from "@/lib/seo/structured-data";
+import { JsonLd } from "@/components/marketing/seo/json-ld";
 import { announcementBar, hasTrial, startPanel, trialNote } from "@/lib/trial-copy";
 
 export const metadata = pageMeta("home");
@@ -139,6 +141,9 @@ export default async function Home({
 
   return (
     <DaylightShell banner={banner}>
+      {/* The company and the site, on the home page only (Bible 9.2): from SITE and the brand lockup, nothing the page does not show. */}
+      <JsonLd data={organizationLd()} />
+      <JsonLd data={webSiteLd()} />
       <Frame
         page={page}
         content={content}

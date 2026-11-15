@@ -21,6 +21,13 @@ beforeEach(() => {
   for (const f of Object.values(h)) f.mockReset();
 });
 
+describe("appsFlyerAppId", () => {
+  it("is id + the App Store id for an iPhone app and the package name for an Android one", () => {
+    expect(m.appsFlyerAppId({ platform: "ios", storeId: "123456789" })).toBe("id123456789");
+    expect(m.appsFlyerAppId({ platform: "android", storeId: "com.brand.app" })).toBe("com.brand.app");
+  });
+});
+
 describe("appLabel", () => {
   it("uses the store name, trimmed", () => {
     expect(m.appLabel({ name: "  Acme  ", platform: "ios" })).toBe("Acme");

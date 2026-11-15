@@ -149,7 +149,7 @@ describe("shopifyJsonLd", () => {
 
 describe("wiring", () => {
   it("lists /shopify in the sitemap", async () => {
-    const { default: sitemap } = await import("../app/sitemap");
+    const { sitemapEntries } = await import("./seo/sitemap");
     // The sitemap is empty off Production (SEO-1), so ask it as Production.
     const keys = ["VERCEL_ENV", "SITE_INDEXABLE", "COMING_SOON"] as const;
     const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
@@ -157,7 +157,7 @@ describe("wiring", () => {
     process.env.VERCEL_ENV = "production";
     let urls: string[];
     try {
-      urls = (await sitemap()).map((e) => e.url);
+      urls = (await sitemapEntries("shopify")).map((e) => e.url);
     } finally {
       for (const k of keys) {
         if (saved[k] === undefined) delete process.env[k];
