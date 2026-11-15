@@ -1,6 +1,6 @@
 import { PEAKS_REFUND_SENTENCE } from "@/lib/peaks-refund-terms";
 import { SHOPIFY_SEO } from "@/lib/shopify-features";
-import type { CtaKind, PageFamily, PageRecord, Pillar, Surface } from "./types";
+import type { CtaKind, EditorialStatus, PageFamily, PageRecord, Pillar, Surface } from "./types";
 
 /*
  * The PageRecord registry: every page the site renders on purpose.
@@ -33,6 +33,10 @@ type Seed = {
   h1?: string;
   cta?: { label: string; href: string; kind: CtaKind };
   relatedIds?: string[];
+  parentId?: string;
+  queryClusterId?: string;
+  /** Default "published". A page waiting on evidence or on the owner is "review" and is never indexable. */
+  status?: EditorialStatus;
 };
 
 const LAUNCH_PARTNER_CTA = { label: "Join the waitlist", href: "/launch-partner", kind: "launch-partner" as const };
@@ -44,10 +48,12 @@ function page(s: Seed): PageRecord {
     scope: s.surface === "shopify" ? "shopify" : "global",
     path: s.path,
     ...(s.primaryPillar ? { primaryPillar: s.primaryPillar } : {}),
+    ...(s.parentId ? { parentId: s.parentId } : {}),
+    ...(s.queryClusterId ? { queryClusterId: s.queryClusterId } : {}),
     capabilityIds: s.capabilityIds ?? [],
     surface: s.surface ?? "web",
-    editorialStatus: "published",
-    indexable: true,
+    editorialStatus: s.status ?? "published",
+    indexable: (s.status ?? "published") === "published",
     title: s.title,
     description: s.description,
     h1: s.h1 ?? s.title,
@@ -199,6 +205,86 @@ export const PAGES: readonly PageRecord[] = [
     path: "/help/data-retention",
     title: "Data Retention - Peakhour",
     description: "How long Peakhour keeps the data it pulls from connected platforms, and why.",
+  }),
+  // SEO-11 ----------------------------------------------------------------------------------------------------
+  page({
+    pageId: "feature.peakhour.summit",
+    path: "/features/peakhour-summit",
+    family: "feature",
+    primaryPillar: "growth",
+    capabilityIds: ["growth.peakhour_summit"],
+    queryClusterId: "peakhour-summit",
+    title: "Peakhour Summit: a four-part AI review of growth decisions",
+    description:
+      "Peakhour Summit reviews your growth proposals with the case for, the case against, safety checks and a final call. You can ask it a question, priced in Peaks.",
+    h1: "Peakhour Summit reviews your growth decisions before you make them",
+    relatedIds: ["growth", "how.it.works", "pricing", "peaks"],
+  }),
+  page({
+    pageId: "about",
+    path: "/about",
+    queryClusterId: "organization",
+    // Draft until the owner confirms the company facts it states (docs: SEO-11 report lists them).
+    status: "review",
+    title: "About Peakhour: the AI business platform for growing brands",
+    description:
+      "Peakhour is an AI business platform with five modules: Commerce, Content, Growth, Support and Presence. Who runs it, where it works and how to reach us.",
+    h1: "About Peakhour",
+    relatedIds: ["home", "how.it.works", "contact", "legal.privacy", "legal.terms"],
+  }),
+  page({
+    pageId: "industries",
+    path: "/industries",
+    status: "review",
+    title: "Peakhour by industry",
+    description: "How Peakhour helps different kinds of business, with what is live and what is not.",
+    h1: "Peakhour by industry",
+    relatedIds: ["industries.fashion.apparel"],
+  }),
+  page({
+    pageId: "industries.fashion.apparel",
+    path: "/industries/fashion-apparel",
+    family: "industry",
+    parentId: "industries",
+    primaryPillar: "commerce",
+    // Claims: Find my match, Smart Rails (Shopify) and COD confirmation are live on the Shopify surface. The page is a
+    // draft until it has industry-specific evidence (Bible 7.3, 7.6), so it names the Shopify surface for the gate.
+    surface: "shopify",
+    capabilityIds: ["commerce.find_my_match", "commerce.product_recommendations", "commerce.cod_confirmation", "commerce.ai_shopping_assistant"],
+    queryClusterId: "industry-fashion",
+    status: "review",
+    title: "Peakhour for fashion and apparel stores",
+    description:
+      "Shopify fashion stores: a Complete the look shelf, a Find my match quiz, a shopping assistant and WhatsApp confirmation of cash-on-delivery orders.",
+    h1: "Peakhour for fashion and apparel stores",
+    cta: { label: "Install on Shopify", href: "/shopify", kind: "install" },
+    relatedIds: ["shopify", "commerce", "shopify.guides.whatsapp.cod.confirmation", "pricing"],
+  }),
+  page({
+    pageId: "guides",
+    path: "/guides",
+    status: "review",
+    title: "Peakhour guides",
+    description: "Original how-to guides for running a store with Peakhour.",
+    h1: "Peakhour guides",
+    relatedIds: ["shopify.guides.whatsapp.cod.confirmation"],
+  }),
+  page({
+    pageId: "shopify.guides.whatsapp.cod.confirmation",
+    path: "/shopify/guides/whatsapp-cod-confirmation",
+    family: "shopify-guide",
+    surface: "shopify",
+    parentId: "shopify",
+    primaryPillar: "commerce",
+    capabilityIds: ["commerce.cod_confirmation"],
+    queryClusterId: "cod-confirmation",
+    status: "review",
+    title: "Set up WhatsApp COD confirmation on Shopify",
+    description:
+      "How to ask cash-on-delivery shoppers to confirm on WhatsApp: what you need, the setup steps, what happens to unanswered orders and the limits.",
+    h1: "How to set up WhatsApp confirmation for cash-on-delivery orders on Shopify",
+    cta: { label: "Install on Shopify", href: "/shopify", kind: "install" },
+    relatedIds: ["shopify", "pricing", "commerce"],
   }),
 ];
 

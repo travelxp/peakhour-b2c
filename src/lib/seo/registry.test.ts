@@ -78,8 +78,11 @@ describe("T02: a non-published or non-indexable page is never publishable and ne
     for (const p of PAGES) for (const id of p.capabilityIds) expect(getCapability(id)!.approvedClaims.length, `${p.pageId} -> ${id}`).toBeGreaterThan(0);
   });
 
-  it("every registered page is publishable today (existing pages stay as they are)", () => {
-    for (const p of PAGES) expect(isPublishable(p), p.pageId).toBe(true);
+  it("every page marked published is publishable, and every page waiting on evidence is neither published nor indexable", () => {
+    for (const p of PAGES) {
+      if (p.editorialStatus === "published") expect(isPublishable(p), p.pageId).toBe(true);
+      else expect(p.indexable, p.pageId).toBe(false);
+    }
   });
 
   it("previews drafts, reviews and approved pages only off Production", () => {
