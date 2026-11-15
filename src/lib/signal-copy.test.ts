@@ -371,13 +371,14 @@ describe("the Peakhour site tag's words (GG-3c)", () => {
     expect(SITE_TAG_HEADLINE).toBe("It sends nothing until a visitor agrees to analytics.");
     expect(SITE_TAG_CONSENT).toMatch(/cookie banner/);
     expect(SITE_TAG_CONSENT).toMatch(/Google Consent Mode/);
-    expect(SITE_TAG_CONSENT).toMatch(/WP Consent API/);
+    // the WP Consent API is read only through the plugin, and the copy says so
+    expect(SITE_TAG_CONSENT).toMatch(/WP Consent API when the Peakhour WordPress plugin adds it/);
     expect(SITE_TAG_CONSENT).toMatch(/has not said yes, nothing is sent/);
     // what it records by itself, and what needs the plugin or the site's own calls
     expect(SITE_TAG_WHAT).toMatch(/page views by itself/);
     expect(SITE_TAG_WHAT).toMatch(/WooCommerce the Peakhour plugin also reports/);
     expect(SITE_TAG_WHAT).toMatch(/peakhour\("track"/);
-    expect(SITE_TAG_WHERE).toMatch(/Peakhour > Site tag/);
+    expect(SITE_TAG_WHERE).toMatch(/once you switch it on \(Peakhour > Site tag\)/);
     // Bible naming: never the internal words
     for (const s of [SITE_TAG_HEADLINE, SITE_TAG_CONSENT, SITE_TAG_WHAT, SITE_TAG_WHERE]) expect(s).not.toMatch(/mandate|intent|pixel|siteKey/i);
   });
