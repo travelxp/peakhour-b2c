@@ -1,5 +1,5 @@
 import type { LearningResponse } from "@/lib/api/growth-v2";
-import { formatCount } from "@/lib/growth-v2-figure";
+import { formatCount, formatDate } from "@/lib/growth-v2-figure";
 
 type Shoppers = NonNullable<LearningResponse["shoppers"]>;
 
@@ -19,7 +19,7 @@ export function CustomerCounts({ shoppers }: { shoppers: Shoppers }) {
     <div className="grid gap-1 text-sm">
       {shoppers.customers ? <p>{customerWords(shoppers.customers)}</p> : <p className="text-muted-foreground">No orders from customers to count yet.</p>}
       {shoppers.closeToBuying ? <p>{closeToBuyingWords(shoppers.closeToBuying)}</p> : <p className="text-muted-foreground">No shopper activity from your store to count yet.</p>}
-      <p className="text-xs text-muted-foreground">Counted on {shoppers.asOf}.</p>
+      <p className="text-xs text-muted-foreground">Counted on {formatDate(shoppers.asOf)}.</p>
     </div>
   );
 }

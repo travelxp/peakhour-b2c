@@ -179,7 +179,7 @@ describe("What's working counts customers and shoppers close to buying (GG-3d)",
     expect(out).toContain("Customers: 120 new, 40 repeat, 12 loyal, 9 at risk of lapsing");
     expect(out).toContain("Shoppers close to buying who didn&#x27;t: 8 this week");
     expect(out).toContain("BASIS-SHOPPERS");
-    expect(out).toContain("Counted on 2026-11-15.");
+    expect(out).toContain("Counted on 15 Nov 2026.");
   });
   it("a part the api did not count says so, never a zero", () => {
     const out = html(<LearningBody learning={{ ...LIVE, shoppers: { ...shoppers, closeToBuying: undefined } }} unitPlural="bookings" currency="INR" />);
