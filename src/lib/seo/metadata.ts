@@ -26,6 +26,9 @@ export function pageMeta(pageId: string, locale: Locale = DEFAULT_LOCALE): Metad
   const url = absoluteUrl(pageId, locale);
   const { title, description } = page;
   const publishable = isPublishable(page, locale);
+  // The page's own share card (app/og/[file]/route.tsx): its H1 and family on the Daylight card. Next replaces the
+  // layout's file-convention image when a page names its own, so it is named here.
+  const image = { url: `${siteOrigin()}/og/${page.pageId}.png`, width: 1200, height: 630, alt: page.h1 };
 
   const languages: Record<string, string> = {};
   // hreflang only when there is a real cluster: with English alone it would be two identical entries.
@@ -57,11 +60,13 @@ export function pageMeta(pageId: string, locale: Locale = DEFAULT_LOCALE): Metad
       description,
       url,
       locale: locale === DEFAULT_LOCALE ? "en" : locale.replace("-", "_"),
+      images: [image],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
+      images: [image.url],
     },
   };
 }

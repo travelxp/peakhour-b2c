@@ -50,11 +50,14 @@ export function brandTileStyle(brand: BrandName, fg: "light" | "dark" = "light")
   return { backgroundColor: BRAND_COLORS[brand], color: fg === "dark" ? DARK_FG : LIGHT_FG };
 }
 
-/** Peakhour's Open Graph card. satori cannot read CSS variables, so the
- *  values mirror the brand tokens in globals.css (gold, ink, paper). */
+/** Peakhour's Open Graph card, on the Daylight palette. satori cannot read CSS variables, so the values mirror the
+ *  `.theme-daylight` tokens in globals.css (--background, --foreground, --brand, --brand-ink, --muted-foreground,
+ *  --daylight-hero). Coral is the accent; the ink is the text. */
 export const OG_IMAGE = {
-  gold: "#F0A821",
-  ink: "#0B0A08",
-  paper: "#F7F4EC",
-  muted: "#B9B2A2",
+  ground: "#ffffff",
+  tint: "#fff4ee",
+  ink: "#0f1130",
+  muted: "#4a4e6a",
+  coral: "#ff5a2c",
+  coralInk: "#8a2a0a",
 } as const;

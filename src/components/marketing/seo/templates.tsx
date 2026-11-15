@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { articleLd } from "@/lib/seo/structured-data";
 import type { PageRecord } from "@/lib/seo/types";
 import { CapabilityStatus, StatusChip } from "./capability-status";
 import { ComparisonTable } from "./comparison-table";
@@ -16,6 +17,7 @@ import type {
 import { ContextualLinks } from "./contextual-links";
 import { DirectoryGrid } from "./directory-grid";
 import { Bullets, FactsCard, Frame, ListCard } from "./frame";
+import { JsonLd } from "./json-ld";
 import { PlatformChooser } from "./platform-chooser";
 import { ProofStrip } from "./proof-strip";
 import { Section } from "./section";
@@ -358,6 +360,7 @@ export function GuidePage({ page, content }: { page: PageRecord; content: GuideC
         />
       }
     >
+      <JsonLd data={articleLd({ headline: page.h1, path: page.path, author: content.author, dateModified: content.updatedAt })} />
       <section aria-labelledby="guide-h" className="py-12 sm:py-16">
         <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-4 sm:px-6 lg:grid-cols-[14rem_1fr] lg:gap-14">
           <nav aria-label="In this guide" className="lg:sticky lg:top-28 lg:self-start">
