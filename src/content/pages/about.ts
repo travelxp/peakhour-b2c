@@ -46,7 +46,7 @@ export const ABOUT: BaseContent = {
   ],
   related: [
     { label: "How Peakhour works", href: pathFor("how.it.works"), note: "One intelligence layer across the five modules." },
-    { label: "Pricing", href: pathFor("pricing"), note: "Peakhour Suite, Agency and Enterprise." },
+    { label: "Pricing", href: pathFor("pricing"), note: "What Peakhour costs, and how Peaks work." },
     { label: "Contact", href: pathFor("contact"), note: "Email addresses for general, support and privacy questions." },
     { label: "Privacy Policy", href: pathFor("legal.privacy"), note: "How your data is collected, used and protected." },
     { label: "Terms of Service", href: pathFor("legal.terms"), note: "The agreement between you and Peakhour." },
