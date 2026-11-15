@@ -244,7 +244,9 @@ export interface EngineOpView {
     | "attach_creative"
     | "detach_creative"
     | "set_geo_exclusions"
-    | "set_geo_inclusions";
+    | "set_geo_inclusions"
+    /** GG-1c: the engine starts a campaign; `to` is the keyed launch spec (name, goal, daily budget, currency, ...). */
+    | "create_campaign";
   from?: unknown;
   to: unknown;
 }
