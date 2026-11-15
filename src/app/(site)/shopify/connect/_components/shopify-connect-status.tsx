@@ -158,7 +158,7 @@ export function ShopifyConnectStatus() {
               <li>Open your Shopify admin.</li>
               <li>
                 Go to <span className="font-medium text-foreground">Apps</span> and open{" "}
-                <span className="font-medium text-foreground">Peakhour</span>
+                <span className="font-medium text-foreground">Peakhour.ai</span>
                 {stalled ? " — or reinstall it from the Shopify App Store if it isn't listed." : "."}
               </li>
               <li>If we need you to link an existing Peakhour account, the app will ask you there.</li>

@@ -1,5 +1,4 @@
 import type { ComponentType } from "react";
-import Image from "next/image";
 import {
   ShopifyIcon,
   WordPressIcon,
@@ -8,6 +7,7 @@ import {
 } from "@/components/brand/brand-icons";
 import { CHANNELS, type ChannelKey } from "@/lib/pricing-catalog";
 import { cn } from "@/lib/utils";
+import { PeakhourMark } from "@/components/shared/peakhour-logo";
 
 /**
  * The brand tile on a channel card — "Works where you already run" on /pricing
@@ -48,14 +48,7 @@ export function ChannelTile({
   const Icon = CHANNEL_ICONS[channel];
   if (channel === "native") {
     return (
-      <Image
-        src="/peakhour-icon.svg"
-        alt=""
-        width={40}
-        height={40}
-        aria-hidden
-        className={cn("shrink-0 object-contain dark:invert", className)}
-      />
+      <PeakhourMark className={cn("shrink-0 object-contain", className)} />
     );
   }
   return (

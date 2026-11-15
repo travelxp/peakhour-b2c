@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { PeakhourMark, PeakhourWordmark } from "@/components/shared/peakhour-logo";
 import { PILLAR_ORDER, PILLARS } from "@/lib/pillars";
 
 /**
@@ -119,26 +119,11 @@ export function PillarOrbit() {
           className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center gap-[3%] rounded-full border border-brand/35 bg-background shadow-lg shadow-brand/10"
           style={{ width: `${HUB_RADIUS * 2}%`, height: `${HUB_RADIUS * 2}%` }}
         >
-          {/* `alt=""` already marks the mark decorative — the pillar names
-              below are the content. `dark:invert` because the artwork is black
-              contours on transparent. */}
-          <Image
-            src="/peakhour-icon.svg"
-            alt=""
-            width={64}
-            height={64}
-            className="w-[42%] dark:invert"
-            unoptimized
-            // Hero-visible: without this next/image emits loading="lazy" and
-            // the centre of the figure arrives after everything around it.
-            priority
-          />
-          <span
-            className="font-extrabold leading-none tracking-tight"
-            style={{ fontSize: "clamp(0.62rem, 2.9cqw, 0.85rem)" }}
-          >
-            Peakhour
-          </span>
+          {/* The official mark over the official letters (brand-artwork.ts), never the name set in a font. */}
+          {/* Hero-visible, so `priority` (next/image would lazy-load it otherwise). The wordmark keeps a floor so
+              it never shrinks below legibility on a small screen. */}
+          <PeakhourMark className="h-auto w-[42%]" priority />
+          <PeakhourWordmark className="h-auto w-[62%] min-w-14" />
         </div>
 
         {/* Nodes. A list, not decoration — this is the only place on the page
