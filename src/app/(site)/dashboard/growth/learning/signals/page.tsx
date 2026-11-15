@@ -29,6 +29,10 @@ import {
 import type { Signal, SignalProvider, SignalRail } from "@/lib/api/signals";
 import {
   PARTNER_ID_CHANGE_WARNING,
+  SITE_TAG_CONSENT,
+  SITE_TAG_HEADLINE,
+  SITE_TAG_WHAT,
+  SITE_TAG_WHERE,
   evidenceChain,
   providerLabel,
   railLabel,
@@ -387,7 +391,8 @@ function SignalCard({
             description={
               "This removes our record and our proof that it works — not the code on your site. " +
               "Setting it up again issues a NEW site key, so you would have to replace the snippet " +
-              "on every page that carries it."
+              "on every page that carries it. The Peakhour site tag uses the same key, so it stops " +
+              "sending too until you replace it."
             }
             variant="destructive"
             confirmLabel="Remove"
@@ -460,15 +465,6 @@ function SignalCard({
 
 function SnippetBlock({ provider }: { provider: SignalProvider }) {
   const { data, isPending, isError } = useSignalSnippet(provider);
-  // ★KEYED ON THE SNIPPET ITSELF, NOT A BOOLEAN. A boolean never reset, so a
-  // customer who copied, changed their Partner ID and saved would be looking at
-  // a NEW snippet under a button still reading "Copied" — which is the precise
-  // failure the change warning exists to prevent, one component further down.
-  const [copiedText, setCopiedText] = useState<string | null>(null);
-  // ★KEYED ON THE SNIPPET TOO, for the reason is. A boolean stayed
-  // true across a refetch, so a stale "we could not copy that" sat under a NEW
-  // snippet — the same bug as the stale "Copied", one state variable along.
-  const [copyFailedFor, setCopyFailedFor] = useState<string | null>(null);
 
   if (isPending) return <Skeleton className="h-40 w-full" />;
   if (isError || !data) {
@@ -485,10 +481,47 @@ function SnippetBlock({ provider }: { provider: SignalProvider }) {
   }
 
   return (
-    <div className="space-y-2">
-      <p className="text-sm text-muted-foreground">{data.placement}</p>
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <p className="text-sm text-muted-foreground">{data.placement}</p>
+        <CopyableSnippet text={data.snippet} copyLabel="Copy snippet" />
+      </div>
+      {/* GG-3c: the Peakhour site tag, on the same site key. The consent rule is
+          said before the code, in plain words, because it decides whether the
+          tag ever sends anything. */}
+      {data.tagSnippet && (
+        <div className="space-y-2 border-t pt-4">
+          <p className="text-sm font-medium">Peakhour site tag</p>
+          <p className="text-sm text-muted-foreground">
+            {SITE_TAG_WHAT}
+          </p>
+          <p className="text-sm">
+            <span className="font-medium">{SITE_TAG_HEADLINE}</span>{" "}
+            {SITE_TAG_CONSENT}
+          </p>
+          <p className="text-sm text-muted-foreground">{SITE_TAG_WHERE}</p>
+          <CopyableSnippet text={data.tagSnippet} copyLabel="Copy site tag" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CopyableSnippet({ text, copyLabel }: { text: string; copyLabel: string }) {
+  // ★KEYED ON THE SNIPPET ITSELF, NOT A BOOLEAN. A boolean never reset, so a
+  // customer who copied, changed their Partner ID and saved would be looking at
+  // a NEW snippet under a button still reading "Copied" — which is the precise
+  // failure the change warning exists to prevent, one component further down.
+  const [copiedText, setCopiedText] = useState<string | null>(null);
+  // ★KEYED ON THE SNIPPET TOO, for the reason is. A boolean stayed
+  // true across a refetch, so a stale "we could not copy that" sat under a NEW
+  // snippet — the same bug as the stale "Copied", one state variable along.
+  const [copyFailedFor, setCopyFailedFor] = useState<string | null>(null);
+
+  return (
+    <>
       <pre className="max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs">
-        <code>{data.snippet}</code>
+        <code>{text}</code>
       </pre>
       <Button
         variant="outline"
@@ -502,24 +535,24 @@ function SnippetBlock({ provider }: { provider: SignalProvider }) {
           setCopyFailedFor(null);
           const clipboard = navigator.clipboard;
           if (!clipboard) {
-            setCopyFailedFor(data.snippet);
+            setCopyFailedFor(text);
             return;
           }
-          clipboard.writeText(data.snippet).then(
-            () => setCopiedText(data.snippet),
-            () => setCopyFailedFor(data.snippet),
+          clipboard.writeText(text).then(
+            () => setCopiedText(text),
+            () => setCopyFailedFor(text),
           );
         }}
       >
-        {copiedText === data.snippet ? "Copied" : "Copy snippet"}
+        {copiedText === text ? "Copied" : copyLabel}
       </Button>
-      {copyFailedFor === data.snippet && (
+      {copyFailedFor === text && (
         <p className="text-sm text-destructive">
           Your browser wouldn&apos;t let us copy that. Select the snippet above and copy it
           by hand.
         </p>
       )}
-    </div>
+    </>
   );
 }
 
