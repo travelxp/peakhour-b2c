@@ -11,6 +11,8 @@ import {
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { pageMeta } from "@/lib/seo/metadata";
+import { organizationLd, webSiteLd } from "@/lib/seo/structured-data";
+import { JsonLd } from "@/components/marketing/seo/json-ld";
 import { heroTrustPoints } from "@/lib/pillar-console";
 import { marketingTrialDays } from "@/lib/pricing";
 import { announcementBar, hasTrial, startPanel, trialNote } from "@/lib/trial-copy";
@@ -189,6 +191,9 @@ export default async function Home({
       ) : null}
 
       <Header />
+      {/* The company and the site, on the home page only (Bible 9.2): from SITE and the brand lockup, nothing the page does not show. */}
+      <JsonLd data={organizationLd()} />
+      <JsonLd data={webSiteLd()} />
 
       <main>
         {/* Hero — the H1 states the visitor's problem, the orbit answers it.

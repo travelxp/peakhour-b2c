@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { articleLd } from "@/lib/seo/structured-data";
 import type { PageRecord } from "@/lib/seo/types";
 import { CapabilityStatus, StatusChip } from "./capability-status";
 import { ComparisonTable } from "./comparison-table";
@@ -14,15 +15,17 @@ import type {
   SolutionContent,
 } from "./content-types";
 import { ContextualLinks } from "./contextual-links";
+import { DetailSection } from "./detail-section";
 import { DirectoryGrid } from "./directory-grid";
 import { Bullets, FactsCard, Frame, ListCard } from "./frame";
+import { JsonLd } from "./json-ld";
 import { PlatformChooser } from "./platform-chooser";
 import { ProofStrip } from "./proof-strip";
 import { Section } from "./section";
 import { statusMeta } from "./status-meta";
 import { cardCls, linkCls } from "./styles";
 import { WorkflowSteps } from "./workflow-steps";
-import { safeHref } from "./safe-href";
+import { linkAttrs, safeHref } from "./safe-href";
 
 /*
  * The nine page templates. Each is one component taking a PageRecord plus a typed content object, and lays its
@@ -56,6 +59,9 @@ export function FeaturePage({ page, content }: { page: PageRecord; content: Feat
   );
 }
 
+/** Bands alternate plain and muted down the page; the status section is band 0 (plain). */
+const bandTone = (index: number) => (index % 2 === 0 ? "plain" : "muted");
+
 /** 7.1 Platform variant: installation and setup, the platform-native workflow, permissions only as supported. */
 export function ShopifyFeaturePage({ page, content }: { page: PageRecord; content: ShopifyFeatureContent }) {
   return (
@@ -63,14 +69,17 @@ export function ShopifyFeaturePage({ page, content }: { page: PageRecord; conten
       <Section id="status" eyebrow="On Shopify" title="Where this stands on Shopify.">
         <CapabilityStatus status={content.status} limitations={content.limitations} verifiedAt={content.verifiedAt} subject="On Shopify" />
       </Section>
-      <Section id="setup" eyebrow="Set up" title="Install to first result." tone="muted">
+      {content.sections?.map((s, i) => (
+        <DetailSection key={s.id} section={s} tone={bandTone(i + 1)} />
+      ))}
+      <Section id="setup" eyebrow="Set up" title="Install to first result." tone={bandTone((content.sections?.length ?? 0) + 1)}>
         <WorkflowSteps steps={content.setupSteps} />
       </Section>
-      <Section id="permissions" eyebrow="Permissions" title="What the app asks for, and why.">
+      <Section id="permissions" eyebrow="Permissions" title="What the app asks for, and why." tone={bandTone((content.sections?.length ?? 0) + 2)}>
         <dl className="grid gap-3 sm:grid-cols-2 sm:gap-4">
           {content.permissions.map((p) => (
-            <div key={p.name} className={`${cardCls} p-5`}>
-              <dt className="font-mono text-sm font-bold">{p.name}</dt>
+            <div key={p.name} className={`${cardCls} p-5 sm:[&:last-child:nth-child(odd)]:col-span-2`}>
+              <dt className="font-mono text-sm font-bold [overflow-wrap:anywhere]">{p.name}</dt>
               <dd className="mt-1.5 text-[15px] text-muted-foreground">{p.why}</dd>
             </div>
           ))}
@@ -284,11 +293,11 @@ export function ComparisonPage({ page, content }: { page: PageRecord; content: C
       <Section id="compare" eyebrow="Side by side" title="Feature by feature." tone="muted">
         <ComparisonTable comparison={comparison} />
       </Section>
-      <Section id="pricing" eyebrow="Pricing" title={`Pricing as of ${pricing.asOf}, in ${pricing.currency} for ${pricing.country}.`}>
+      <Section id="pricing" eyebrow="Pricing" title={`Pricing as listed on each vendor's page, seen ${pricing.asOf}.`}>
         <div className="overflow-x-auto rounded-2xl border">
           <table className="w-full min-w-0 border-collapse text-left text-sm sm:text-[15px]">
             <caption className="sr-only">
-              Pricing as of {pricing.asOf}, in {pricing.currency}, for {pricing.country}
+              Pricing as listed on each vendor&apos;s page, seen {pricing.asOf}; each row states its currency and region
             </caption>
             <thead className="bg-muted">
               <tr>
@@ -306,7 +315,7 @@ export function ComparisonPage({ page, content }: { page: PageRecord; content: C
                   <td className="px-2.5 py-3 sm:px-4">{r.price}</td>
                   <td className="px-2.5 py-3 sm:px-4">
                     {r.source ? (
-                      <a href={safeHref(r.source.href)} target="_blank" rel="noopener noreferrer nofollow" className={linkCls}>
+                      <a href={safeHref(r.source.href)} {...linkAttrs(r.source.href)} className={linkCls}>
                         {r.source.label}
                       </a>
                     ) : (
@@ -358,6 +367,7 @@ export function GuidePage({ page, content }: { page: PageRecord; content: GuideC
         />
       }
     >
+      <JsonLd data={articleLd({ headline: page.h1, path: page.path, author: content.author, dateModified: content.updatedAt })} />
       <section aria-labelledby="guide-h" className="py-12 sm:py-16">
         <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-4 sm:px-6 lg:grid-cols-[14rem_1fr] lg:gap-14">
           <nav aria-label="In this guide" className="lg:sticky lg:top-28 lg:self-start">

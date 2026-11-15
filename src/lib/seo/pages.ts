@@ -1,6 +1,8 @@
 import { PEAKS_REFUND_SENTENCE } from "@/lib/peaks-refund-terms";
 import { SHOPIFY_SEO } from "@/lib/shopify-features";
-import type { CtaKind, PageFamily, PageRecord, Pillar, Surface } from "./types";
+import { SEO9_PAGES } from "./pages-seo9";
+import { COMPETITOR_BRIEFS } from "@/content/seo/competitors";
+import type { CtaKind, EditorialStatus, PageFamily, PageRecord, PageScope, Pillar, Surface } from "./types";
 
 /*
  * The PageRecord registry: every page the site renders on purpose.
@@ -33,21 +35,33 @@ type Seed = {
   h1?: string;
   cta?: { label: string; href: string; kind: CtaKind };
   relatedIds?: string[];
+  parentId?: string;
+  queryClusterId?: string;
+  scope?: PageScope;
+  editorialStatus?: EditorialStatus;
+  indexable?: boolean;
 };
 
-const LAUNCH_PARTNER_CTA = { label: "Join the waitlist", href: "/launch-partner", kind: "launch-partner" as const };
+// The CTA /shopify itself carries: a visitor lands there and it decides between the App Store and the waitlist.
+const SHOPIFY_INSTALL_CTA = { label: "Install on Shopify", href: "/shopify", kind: "install" as const };
+
+export const LAUNCH_PARTNER_CTA = { label: "Join the waitlist", href: "/launch-partner", kind: "launch-partner" as const };
 
 function page(s: Seed): PageRecord {
   return {
     pageId: s.pageId,
     family: s.family ?? "core",
-    scope: s.surface === "shopify" ? "shopify" : "global",
+    scope: s.scope ?? (s.surface === "shopify" ? "shopify" : "global"),
     path: s.path,
     ...(s.primaryPillar ? { primaryPillar: s.primaryPillar } : {}),
+    ...(s.parentId ? { parentId: s.parentId } : {}),
+    ...(s.queryClusterId ? { queryClusterId: s.queryClusterId } : {}),
     capabilityIds: s.capabilityIds ?? [],
     surface: s.surface ?? "web",
-    editorialStatus: "published",
-    indexable: true,
+    ...(s.parentId ? { parentId: s.parentId } : {}),
+    ...(s.queryClusterId ? { queryClusterId: s.queryClusterId } : {}),
+    editorialStatus: s.editorialStatus ?? "published",
+    indexable: s.indexable ?? true,
     title: s.title,
     description: s.description,
     h1: s.h1 ?? s.title,
@@ -65,7 +79,7 @@ export const PAGES: readonly PageRecord[] = [
     title: "Peakhour.ai — The AI business platform for growing brands",
     description:
       "Five AI modules — Commerce, Content, Growth, Support, Presence — that sell, publish, advertise, answer, and get you found. One plan for all five.",
-    relatedIds: ["pricing", "how.it.works", "shopify", "commerce", "content", "growth", "support", "presence"],
+    relatedIds: ["pricing", "how.it.works", "shopify", "commerce", "content", "growth", "support", "presence", "integrations.index", "features.index"],
   }),
   page({
     pageId: "pricing",
@@ -107,6 +121,12 @@ export const PAGES: readonly PageRecord[] = [
     title: "Presence — own how you show up on Google | Peakhour.ai",
     description:
       "Your Google Business Profile — listings, hours, photos, and reviews — managed from one place, always current. Included in Peakhour Suite.",
+    relatedIds: [
+      "features.google.business.profile.management",
+      "features.review.management",
+      "features.local.listing.health",
+      "integrations.google.business.profile",
+    ],
   }),
   page({
     pageId: "commerce",
@@ -115,7 +135,7 @@ export const PAGES: readonly PageRecord[] = [
     title: "Commerce — AI storefront assistant | Peakhour.ai",
     description:
       "An AI assistant that knows your whole catalog and sells on WhatsApp and your storefront, 24/7. Included in Peakhour Suite.",
-    relatedIds: ["shopify"],
+    relatedIds: ["shopify", "integrations.whatsapp"],
   }),
   page({
     pageId: "content",
@@ -124,6 +144,14 @@ export const PAGES: readonly PageRecord[] = [
     title: "Content — AI writers in your voice | Peakhour.ai",
     description:
       "AI writers that publish in your brand voice — blogs, newsletters, socials — from your news desk to every channel. Included in Peakhour Suite.",
+    relatedIds: [
+      "features.brand.voice",
+      "features.social.media.content",
+      "integrations.beehiiv",
+      "integrations.x",
+      "integrations.facebook",
+      "integrations.instagram",
+    ],
   }),
   page({
     pageId: "support",
@@ -143,6 +171,7 @@ export const PAGES: readonly PageRecord[] = [
     title: "Growth — ads & LinkedIn, with your approval | Peakhour.ai",
     description:
       "Campaigns drafted, LinkedIn leads captured and budgets reviewed every week, with your approval. Peakhour Growth takes on acquisition work for you. Included in Peakhour Suite.",
+    relatedIds: ["integrations.linkedin", "integrations.meta.ads", "integrations.x.ads"],
   }),
   page({
     pageId: "shopify",
@@ -154,6 +183,136 @@ export const PAGES: readonly PageRecord[] = [
     description: SHOPIFY_SEO.description,
     cta: { label: "Install on Shopify", href: "/shopify", kind: "install" },
     relatedIds: ["pricing", "commerce"],
+  }),
+  // SEO-8: wave-1 Shopify feature pages. Titles are <= 60 characters; every claim a page makes is an approved
+  // claim of the capabilities it lists (capabilities.ts). A page whose claim has no Shopify-surface record is "review".
+  page({
+    pageId: "shopify.features",
+    path: "/shopify/features",
+    family: "shopify-feature",
+    surface: "shopify",
+    primaryPillar: "commerce",
+    parentId: "shopify",
+    queryClusterId: "shopify-app-features",
+    title: "Peakhour features for Shopify stores",
+    description:
+      "Every Peakhour feature for Shopify with its status: the AI shopping assistant, Smart Rails, COD confirmation on WhatsApp, AI SEO and product descriptions.",
+    h1: "Everything Peakhour does on Shopify",
+    cta: SHOPIFY_INSTALL_CTA,
+    relatedIds: ["shopify", "pricing", "how.it.works"],
+  }),
+  page({
+    pageId: "shopify.features.ai.shopping.assistant",
+    path: "/shopify/features/ai-shopping-assistant",
+    family: "shopify-feature",
+    surface: "shopify",
+    primaryPillar: "commerce",
+    parentId: "shopify.features",
+    queryClusterId: "shopify-ai-shopping-assistant",
+    capabilityIds: ["commerce.ai_shopping_assistant", "commerce.find_my_match"],
+    title: "AI shopping assistant and chatbot for Shopify",
+    description:
+      "An AI chatbot for Shopify that answers shoppers from your own catalogue, with a Find my match quiz. You can pause it or take over any chat.",
+    h1: "An AI shopping assistant for your Shopify store",
+    cta: SHOPIFY_INSTALL_CTA,
+    relatedIds: ["shopify.features.whatsapp.ai.shopping", "shopify.features.product.recommendations", "shopify.features.ai.seo", "shopify"],
+  }),
+  page({
+    // commerce.whatsapp_shopping has a WhatsApp record only; the publish gate falls back to it (publish.ts), so this page publishes.
+    pageId: "shopify.features.whatsapp.ai.shopping",
+    path: "/shopify/features/whatsapp-ai-shopping",
+    family: "shopify-feature",
+    surface: "shopify",
+    primaryPillar: "commerce",
+    parentId: "shopify.features",
+    queryClusterId: "shopify-whatsapp-shopping",
+    capabilityIds: ["commerce.whatsapp_shopping"],
+    title: "WhatsApp AI shopping for Shopify stores",
+    description:
+      "Shoppers chat with your AI assistant on your WhatsApp Business number, and get a link into your own Shopify checkout when they agree to buy.",
+    h1: "Sell on WhatsApp with an AI assistant, and check out on your Shopify store",
+    cta: SHOPIFY_INSTALL_CTA,
+    relatedIds: ["shopify.features.ai.shopping.assistant", "shopify.features.whatsapp.cod.confirmation", "shopify"],
+  }),
+  page({
+    pageId: "shopify.features.product.recommendations",
+    path: "/shopify/features/product-recommendations",
+    family: "shopify-feature",
+    surface: "shopify",
+    primaryPillar: "commerce",
+    parentId: "shopify.features",
+    queryClusterId: "shopify-product-recommendations",
+    capabilityIds: ["commerce.product_recommendations"],
+    title: "Shopify product recommendations: Smart Rails",
+    description:
+      "Smart Rails builds product shelves that sell inside your Shopify store, with 11 kinds to choose from. Changes the engine suggests wait for your approval.",
+    h1: "Smart Rails: product recommendations that sell on Shopify",
+    cta: SHOPIFY_INSTALL_CTA,
+    relatedIds: ["shopify.features.frequently.bought.together", "shopify.features.ai.shopping.assistant", "shopify"],
+  }),
+  page({
+    pageId: "shopify.features.frequently.bought.together",
+    path: "/shopify/features/frequently-bought-together",
+    family: "shopify-feature",
+    surface: "shopify",
+    primaryPillar: "commerce",
+    parentId: "shopify.features",
+    queryClusterId: "shopify-frequently-bought-together",
+    capabilityIds: ["commerce.frequently_bought_together", "commerce.buy_together_bundles"],
+    title: "Frequently bought together for Shopify",
+    description:
+      "Peakhour works out what customers buy together from your own Shopify orders every night, and can take 5 to 30 percent off the companions.",
+    h1: "Show what customers buy together on your Shopify product pages",
+    cta: SHOPIFY_INSTALL_CTA,
+    relatedIds: ["shopify.features.product.recommendations", "shopify.features.ai.shopping.assistant", "shopify"],
+  }),
+  page({
+    pageId: "shopify.features.whatsapp.cod.confirmation",
+    path: "/shopify/features/whatsapp-cod-confirmation",
+    family: "shopify-feature",
+    surface: "shopify",
+    primaryPillar: "commerce",
+    parentId: "shopify.features",
+    queryClusterId: "shopify-cod-confirmation",
+    capabilityIds: ["commerce.cod_confirmation"],
+    title: "WhatsApp COD confirmation for Shopify stores",
+    description:
+      "Peakhour asks the shopper on WhatsApp to confirm or cancel each cash-on-delivery Shopify order. Needs your own WhatsApp number and a Meta-approved template.",
+    h1: "Confirm cash-on-delivery orders on WhatsApp, on Shopify",
+    cta: SHOPIFY_INSTALL_CTA,
+    relatedIds: ["shopify.features.whatsapp.ai.shopping", "shopify.features.ai.shopping.assistant", "shopify"],
+  }),
+  page({
+    pageId: "shopify.features.ai.seo",
+    path: "/shopify/features/ai-seo",
+    family: "shopify-feature",
+    surface: "shopify",
+    primaryPillar: "content",
+    parentId: "shopify.features",
+    queryClusterId: "shopify-ai-seo",
+    capabilityIds: ["content.ai_seo_fixes"],
+    title: "AI SEO for Shopify product pages",
+    description:
+      "Fix with AI drafts SEO titles, meta descriptions and image alt text for your Shopify products. You tick what to apply, and every change can be undone.",
+    h1: "Fix your Shopify SEO titles, meta descriptions and alt text with AI",
+    cta: SHOPIFY_INSTALL_CTA,
+    relatedIds: ["shopify.features.ai.product.descriptions", "shopify.features.ai.shopping.assistant", "shopify"],
+  }),
+  page({
+    pageId: "shopify.features.ai.product.descriptions",
+    path: "/shopify/features/ai-product-descriptions",
+    family: "shopify-feature",
+    surface: "shopify",
+    primaryPillar: "content",
+    parentId: "shopify.features",
+    queryClusterId: "shopify-ai-product-descriptions",
+    capabilityIds: ["content.ai_product_descriptions"],
+    title: "AI product descriptions for Shopify",
+    description:
+      "Peakhour writes descriptions for Shopify products that have none or very thin ones. You review and edit each draft, apply it, and can undo it.",
+    h1: "Write Shopify product descriptions with AI, and approve each one",
+    cta: SHOPIFY_INSTALL_CTA,
+    relatedIds: ["shopify.features.ai.seo", "shopify.features.ai.shopping.assistant", "shopify"],
   }),
   page({
     pageId: "launch.partner",
@@ -200,6 +359,111 @@ export const PAGES: readonly PageRecord[] = [
     title: "Data Retention - Peakhour",
     description: "How long Peakhour keeps the data it pulls from connected platforms, and why.",
   }),
+  ...SEO9_PAGES,
+  // SEO-11 ----------------------------------------------------------------------------------------------------
+  page({
+    pageId: "feature.peakhour.summit",
+    path: "/features/peakhour-summit",
+    family: "feature",
+    primaryPillar: "growth",
+    capabilityIds: ["growth.peakhour_summit"],
+    queryClusterId: "peakhour-summit",
+    title: "Peakhour Summit: a four-part AI review of growth decisions",
+    description:
+      "Peakhour Summit reviews your growth proposals with the case for, the case against, safety checks and a final call. You can ask it a question, priced in Peaks.",
+    h1: "Peakhour Summit reviews your growth decisions before you make them",
+    relatedIds: ["growth", "how.it.works", "pricing", "peaks"],
+  }),
+  page({
+    pageId: "about",
+    path: "/about",
+    queryClusterId: "organization",
+    // Draft until the owner confirms the company facts it states (docs: SEO-11 report lists them).
+    editorialStatus: "review",
+    indexable: false,
+    title: "About Peakhour: the AI business platform for growing brands",
+    description:
+      "Peakhour is an AI business platform with five modules: Commerce, Content, Growth, Support and Presence. Who runs it, where it works and how to reach us.",
+    h1: "About Peakhour",
+    relatedIds: ["home", "how.it.works", "contact", "legal.privacy", "legal.terms"],
+  }),
+  page({
+    pageId: "industries",
+    path: "/industries",
+    editorialStatus: "review",
+    indexable: false,
+    title: "Peakhour by industry",
+    description: "How Peakhour helps different kinds of business, with what is live and what is not.",
+    h1: "Peakhour by industry",
+    relatedIds: ["industries.fashion.apparel"],
+  }),
+  page({
+    pageId: "industries.fashion.apparel",
+    path: "/industries/fashion-apparel",
+    family: "industry",
+    parentId: "industries",
+    primaryPillar: "commerce",
+    // Claims: Find my match, Smart Rails (Shopify) and COD confirmation are live on the Shopify surface. The page is a
+    // draft until it has industry-specific evidence (Bible 7.3, 7.6), so it names the Shopify surface for the gate.
+    surface: "shopify",
+    capabilityIds: ["commerce.find_my_match", "commerce.product_recommendations", "commerce.cod_confirmation", "commerce.ai_shopping_assistant"],
+    queryClusterId: "industry-fashion",
+    editorialStatus: "review",
+    indexable: false,
+    title: "Peakhour for fashion and apparel stores",
+    description:
+      "Shopify fashion stores: a Complete the look shelf, a Find my match quiz, a shopping assistant and WhatsApp confirmation of cash-on-delivery orders.",
+    h1: "Peakhour for fashion and apparel stores",
+    cta: { label: "Install on Shopify", href: "/shopify", kind: "install" },
+    relatedIds: ["shopify", "commerce", "shopify.guides.whatsapp.cod.confirmation", "pricing"],
+  }),
+  page({
+    pageId: "guides",
+    path: "/guides",
+    editorialStatus: "review",
+    indexable: false,
+    title: "Peakhour guides",
+    description: "Original how-to guides for running a store with Peakhour.",
+    h1: "Peakhour guides",
+    relatedIds: ["shopify.guides.whatsapp.cod.confirmation"],
+  }),
+  page({
+    pageId: "shopify.guides.whatsapp.cod.confirmation",
+    path: "/shopify/guides/whatsapp-cod-confirmation",
+    family: "shopify-guide",
+    surface: "shopify",
+    parentId: "shopify",
+    primaryPillar: "commerce",
+    capabilityIds: ["commerce.cod_confirmation"],
+    queryClusterId: "cod-confirmation",
+    editorialStatus: "review",
+    indexable: false,
+    title: "Set up WhatsApp COD confirmation on Shopify",
+    description:
+      "How to ask cash-on-delivery shoppers to confirm on WhatsApp: what you need, the setup steps, what happens to unanswered orders and the limits.",
+    h1: "How to set up WhatsApp confirmation for cash-on-delivery orders on Shopify",
+    cta: { label: "Install on Shopify", href: "/shopify", kind: "install" },
+    relatedIds: ["shopify", "pricing", "commerce"],
+  }),
+  // SEO-10: the wave-1 Shopify comparisons. At `review` they render on dev with the draft ribbon and 404 on
+  // production until Growth signs off each source (plan D4, Q1). capabilityIds hold only what the Peakhour cells claim.
+  ...COMPETITOR_BRIEFS.map((b) =>
+    page({
+      pageId: b.pageId,
+      path: `/shopify/compare/${b.slug}`,
+      family: "shopify-compare",
+      surface: "shopify",
+      primaryPillar: "commerce",
+      capabilityIds: [...new Set(b.claims.map((c) => c.peakhour.capabilityId).filter((id): id is string => !!id))],
+      title: b.title,
+      description: b.description,
+      h1: b.h1,
+      cta: LAUNCH_PARTNER_CTA,
+      relatedIds: ["shopify", "pricing"],
+      editorialStatus: "review",
+      indexable: false,
+    }),
+  ),
 ];
 
 const BY_ID = new Map(PAGES.map((p) => [p.pageId, p]));
