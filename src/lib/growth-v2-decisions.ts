@@ -267,3 +267,13 @@ export function whatsappPreview(d: DecisionView, businessName: string): WhatsApp
     confirmNote: isSpendDecision(d.kind) ? "To confirm, reply CONFIRM." : undefined,
   };
 }
+
+/**
+ * A line under a suggestion that says what answering it does, for the two kinds the engine proposes on its own (GG-1). A new channel changes
+ * nothing on the ad accounts: Peakhour waits for the merchant to connect it. A bidding change restarts the platform's learning, for a few days.
+ */
+export function suggestionNote(kind: DecisionKind): string | undefined {
+  if (kind === "channel_add") return "Approving this changes nothing on your ad accounts. Connect the channel from Needs you when you are ready, and Peakhour will start with a small test.";
+  if (kind === "bid_strategy") return "The platform learns again for a few days after a change like this, so Peakhour makes at most one a month for each campaign.";
+  return undefined;
+}
