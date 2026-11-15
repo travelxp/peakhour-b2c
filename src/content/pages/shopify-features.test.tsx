@@ -4,7 +4,7 @@ import { ShopifyFeaturePage, DirectoryPage } from "@/components/marketing/seo/te
 import type { BaseContent, ShopifyFeatureContent } from "@/components/marketing/seo/content-types";
 import { getCapability } from "@/lib/seo/capabilities";
 import { getPage, PAGES } from "@/lib/seo/pages";
-import { isPublishable, statusSatisfies } from "@/lib/seo/publish";
+import { isPublishable } from "@/lib/seo/publish";
 import { pathFor } from "@/lib/seo/resolve";
 import * as directory from "./shopify.features";
 import * as assistant from "./shopify.features.ai.shopping.assistant";
@@ -18,7 +18,7 @@ import * as descriptions from "./shopify.features.ai.product.descriptions";
 /** SEO-8: the wave-1 Shopify feature pages. */
 const FEATURE_PAGES: { id: string; mod: { CONTENT: ShopifyFeatureContent; CLAIMS: readonly string[] }; published: boolean }[] = [
   { id: "shopify.features.ai.shopping.assistant", mod: assistant, published: true },
-  { id: "shopify.features.whatsapp.ai.shopping", mod: whatsapp, published: false },
+  { id: "shopify.features.whatsapp.ai.shopping", mod: whatsapp, published: true },
   { id: "shopify.features.product.recommendations", mod: rails, published: true },
   { id: "shopify.features.frequently.bought.together", mod: fbt, published: true },
   { id: "shopify.features.whatsapp.cod.confirmation", mod: cod, published: true },
@@ -43,16 +43,11 @@ describe("every claim a feature page leans on is an approved claim, on the page'
       for (const capId of page.capabilityIds) expect(mod.CLAIMS.some((c) => c.startsWith(`${capId}.`)), capId).toBe(true);
     });
 
-    it(`${id}: is published exactly when every claim is satisfied on its surface, and review otherwise`, () => {
+    it(`${id}: is publishable (the gate passes on its surface or the fallback) and registered as published`, () => {
       const page = getPage(id);
-      const satisfied = page.capabilityIds.every((capId) => {
-        const impl = getCapability(capId)!.implementations.find((i) => i.surface === page.surface);
-        return !!impl && getCapability(capId)!.approvedClaims.every((a) => statusSatisfies(impl.status, a.requires));
-      });
-      expect(satisfied).toBe(FEATURE_PAGES.find((f) => f.id === id)!.published);
-      expect(isPublishable(page)).toBe(satisfied);
-      expect(page.editorialStatus).toBe(satisfied ? "published" : "review");
-      expect(page.indexable).toBe(satisfied);
+      expect(isPublishable(page)).toBe(true);
+      expect(page.editorialStatus).toBe("published");
+      expect(page.indexable).toBe(true);
     });
   }
 });

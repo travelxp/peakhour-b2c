@@ -4,8 +4,8 @@ import { ADD_STORE_CLOSING, capabilityFacts, DEMO, featureCrumbs, PRICING_LINK, 
 const ID = "shopify.features.whatsapp.ai.shopping";
 
 /**
- * The approved claims this page leans on. commerce.whatsapp_shopping has a WhatsApp record but no Shopify record, so
- * the publish gate cannot pass it on the Shopify surface: the page stays "review" until a Shopify-surface record exists.
+ * The approved claims this page leans on. commerce.whatsapp_shopping has a WhatsApp record and no Shopify record; the
+ * publish gate falls back to the WhatsApp record (publish.ts), so the page publishes.
  */
 export const CLAIMS: PageClaims = ["commerce.whatsapp_shopping.checkout_link"];
 

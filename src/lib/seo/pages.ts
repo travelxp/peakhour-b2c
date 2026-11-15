@@ -199,10 +199,10 @@ export const PAGES: readonly PageRecord[] = [
       "An AI chatbot for Shopify that answers shoppers from your own catalogue, with a Find my match quiz. You can pause it or take over any chat.",
     h1: "An AI shopping assistant for your Shopify store",
     cta: SHOPIFY_INSTALL_CTA,
-    relatedIds: ["shopify.features.product.recommendations", "shopify.features.ai.seo", "shopify"],
+    relatedIds: ["shopify.features.whatsapp.ai.shopping", "shopify.features.product.recommendations", "shopify.features.ai.seo", "shopify"],
   }),
   page({
-    // review: the WhatsApp checkout-link claim (commerce.whatsapp_shopping) has no Shopify-surface record, so the gate cannot pass it.
+    // commerce.whatsapp_shopping has a WhatsApp record only; the publish gate falls back to it (publish.ts), so this page publishes.
     pageId: "shopify.features.whatsapp.ai.shopping",
     path: "/shopify/features/whatsapp-ai-shopping",
     family: "shopify-feature",
@@ -211,8 +211,6 @@ export const PAGES: readonly PageRecord[] = [
     parentId: "shopify.features",
     queryClusterId: "shopify-whatsapp-shopping",
     capabilityIds: ["commerce.whatsapp_shopping"],
-    editorialStatus: "review",
-    indexable: false,
     title: "WhatsApp AI shopping for Shopify stores",
     description:
       "Shoppers chat with your AI assistant on your WhatsApp Business number, and get a link into your own Shopify checkout when they agree to buy.",
@@ -266,7 +264,7 @@ export const PAGES: readonly PageRecord[] = [
       "Peakhour asks the shopper on WhatsApp to confirm or cancel each cash-on-delivery Shopify order. Needs your own WhatsApp number and a Meta-approved template.",
     h1: "Confirm cash-on-delivery orders on WhatsApp, on Shopify",
     cta: SHOPIFY_INSTALL_CTA,
-    relatedIds: ["shopify.features.ai.shopping.assistant", "shopify"],
+    relatedIds: ["shopify.features.whatsapp.ai.shopping", "shopify.features.ai.shopping.assistant", "shopify"],
   }),
   page({
     pageId: "shopify.features.ai.seo",

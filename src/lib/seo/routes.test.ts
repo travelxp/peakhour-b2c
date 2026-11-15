@@ -62,6 +62,7 @@ const SHOPIFY_FEATURE_PATHS = [
   "/shopify/features/ai-shopping-assistant",
   "/shopify/features/frequently-bought-together",
   "/shopify/features/product-recommendations",
+  "/shopify/features/whatsapp-ai-shopping",
   "/shopify/features/whatsapp-cod-confirmation",
 ];
 
