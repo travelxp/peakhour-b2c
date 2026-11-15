@@ -72,8 +72,9 @@ describe("sitemap", () => {
     expect(urls).toContain("/commerce");
     expect(urls).toContain("/pricing/teams");
     expect(urls).toContain("/guides/x");
-    // Every registry page (all published), plus the one CMS page.
-    expect(urls).toHaveLength(PAGES.length + 1);
+    // Every published registry page (a page held in review is left out), plus the one CMS page.
+    expect(urls).toHaveLength(PAGES.filter((p) => p.editorialStatus === "published").length + 1);
+    expect(urls).not.toContain("/integrations/google-ads");
   });
 
   it("lists only what the gate lets through while COMING_SOON=true", async () => {
@@ -88,7 +89,7 @@ describe("the sitemap index", () => {
   it("is /sitemap.xml, lists the named sitemaps that have pages, and each one resolves", async () => {
     process.env.VERCEL_ENV = "production";
     const names = await sitemapIndexNames();
-    expect(names).toEqual(["core", "shopify", "cms"]);
+    expect(names).toEqual(["core", "shopify", "features", "integrations", "cms"]);
     const body = await (await indexRoute()).text();
     expect(body).toBe(renderIndex(names));
     for (const n of names) {

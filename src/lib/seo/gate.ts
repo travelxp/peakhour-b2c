@@ -126,6 +126,16 @@ export const MARKETING_PATHS: readonly MarketingPath[] = [
   { path: "/data-deletion" },
   { path: "/help/data-retention" },
   { path: "/coming-soon" },
+  // SEO-9: the integration and global feature pages and their directories. A page held in review 404s on its own.
+  ...["/integrations", "/features"].map((path) => ({ path })),
+  ...[
+    "whatsapp", "linkedin", "x", "beehiiv", "meta-ads", "instagram", "facebook-pages", "google-business-profile", "x-ads",
+    "google-ads", "google-search-console", "linkedin-ads",
+  ].map((s) => ({ path: `/integrations/${s}` })),
+  ...[
+    "google-business-profile-management", "review-management", "local-listing-health", "brand-voice", "social-media-content",
+    "beehiiv-newsletter", "ai-blog-writer",
+  ].map((s) => ({ path: `/features/${s}` })),
 ];
 
 const MARKETING_SET = new Set(MARKETING_PATHS.map((m) => m.path));
