@@ -64,6 +64,7 @@ describe("the Peakhour site tag card", () => {
     h.siteTag = { data: undefined, isPending: false, isError: true, isFetching: false, refetch: () => {} };
     const html = renderToStaticMarkup(<SignalsPage />);
     expect(html).toContain("couldn&#x27;t build your site tag");
+    expect(html).toContain("Try again");
     expect(html).not.toContain(KEY);
   });
 
@@ -80,6 +81,8 @@ describe("the Peakhour site tag card", () => {
     expect(html).toContain(KEY);
     expect(html).not.toContain("couldn&#x27;t build your site tag");
     expect(html).toContain("Check again");
+    // and the failed check says so, rather than passing the old evidence off as new
+    expect(html).toContain("couldn&#x27;t check just now");
   });
 
   it("the page source no longer tells a LinkedIn removal that the site tag stops", async () => {

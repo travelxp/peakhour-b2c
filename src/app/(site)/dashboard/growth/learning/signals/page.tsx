@@ -501,7 +501,7 @@ function SnippetBlock({ provider }: { provider: SignalProvider }) {
  * sends anything.
  */
 function SiteTagCard() {
-  const { data, isPending, refetch, isFetching } = useSiteTag();
+  const { data, isPending, isError, refetch, isFetching } = useSiteTag();
   return (
     <Card>
       <CardHeader>
@@ -522,13 +522,20 @@ function SiteTagCard() {
             <Button variant="outline" size="sm" disabled={isFetching} onClick={() => void refetch()}>
               {isFetching ? "Checking…" : "Check again"}
             </Button>
+            {/* A failed re-check must not read as a fresh check that found nothing. */}
+            {isError && !isFetching && (
+              <p className="text-sm text-destructive">We couldn&apos;t check just now, so this is what we knew before.</p>
+            )}
           </>
         ) : isPending ? (
           <Skeleton className="h-24 w-full" />
         ) : (
-          <p className="text-sm text-destructive">
-            We couldn&apos;t build your site tag just now. Try again in a moment.
-          </p>
+          <div className="space-y-2">
+            <p className="text-sm text-destructive">We couldn&apos;t build your site tag just now.</p>
+            <Button variant="outline" size="sm" disabled={isFetching} onClick={() => void refetch()}>
+              Try again
+            </Button>
+          </div>
         )}
       </CardContent>
     </Card>
