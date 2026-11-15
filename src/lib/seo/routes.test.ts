@@ -72,8 +72,9 @@ describe("sitemap", () => {
     expect(urls).toContain("/commerce");
     expect(urls).toContain("/pricing/teams");
     expect(urls).toContain("/guides/x");
-    // Every registry page (all published), plus the one CMS page.
-    expect(urls).toHaveLength(PAGES.length + 1);
+    // Every published registry page, plus the one CMS page. A page at review (the SEO-10 comparisons) is not listed.
+    expect(urls).toHaveLength(PAGES.filter((p) => p.editorialStatus === "published").length + 1);
+    expect(urls.some((u) => u.includes("/shopify/compare/"))).toBe(false);
   });
 
   it("lists only what the gate lets through while COMING_SOON=true", async () => {
