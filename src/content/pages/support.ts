@@ -48,6 +48,6 @@ export const SUPPORT: HubContent = {
   ],
   closing: {
     headline: "Know what your shoppers could not get answered.",
-    body: "Join the waitlist and we will tell you when the support channels switch on.",
+    body: "We will tell you when the support channels switch on. Until then, see what shoppers asked that your assistant could not answer.",
   },
 };

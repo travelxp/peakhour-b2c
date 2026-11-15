@@ -11,13 +11,14 @@ import { HubPage } from "./templates";
 /**
  * The page's own primary CTA, unless the live catalog says another door is open: the record names the pre-launch
  * action (join the waitlist), and an open or invite-only platform names its own, the same resolver /pricing and the
- * homepage run, so the button can never disagree with the signup flow. With signups closed the record's action stays.
+ * homepage run, so the button can never disagree with the signup flow. With signups closed the record's own pre-launch action (join the waitlist) stays: the hub has no disabled button.
  */
 export async function withCatalogCta(page: PageRecord): Promise<PageRecord> {
   const [catalog, trialDays] = await Promise.all([getPublicCatalog(), marketingTrialDays()]);
   const cta = signupCta(catalog?.platform?.signupMode ?? "open", trialDays);
   if (cta.disabled) return page;
-  return { ...page, primaryCta: { label: cta.label, href: cta.href, kind: "waitlist" } };
+  const kind = (catalog?.platform?.signupMode ?? "open") === "open" ? "trial" : "waitlist";
+  return { ...page, primaryCta: { label: cta.label, href: cta.href, kind } };
 }
 
 /** One module hub route: 404 unless publishable (or a draft previewed off Production), then the Daylight hub. */

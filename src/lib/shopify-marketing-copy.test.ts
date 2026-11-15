@@ -172,7 +172,7 @@ describe("wiring", () => {
   });
   it("footer has a Works with group naming Shopify and WordPress", () => {
     const f = read("components/shared/footer.tsx");
-    expect(f).toMatch(/heading: "Works with",\s*links: \[\s*\{ href: "\/shopify", label: "Shopify" \},\s*\{ href: "\/content", label: "WordPress" \},/);
+    expect(f).toMatch(/heading: "Works with",\s*links: \[\s*\{ href: "\/shopify", label: "Shopify" \},\s*\{ href: "\/content", label: "WordPress \(soon\)" \},/);
   });
   it("/commerce links to /shopify and the pricing strip's Shopify card links there too", () => {
     expect(read("content/pages/commerce.ts")).toContain('{ label: "Peakhour for Shopify", href: pathFor("shopify")');

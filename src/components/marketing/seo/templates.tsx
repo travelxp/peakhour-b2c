@@ -478,7 +478,11 @@ export function HubPage({ page, content }: { page: PageRecord; content: HubConte
   );
 }
 
-/** Column classes by card count, so a row is never left with one orphaned card (3 and 9 split in threes, 2/4/8 in pairs). */
+/**
+ * Column classes by card count, so a row is never left with one orphaned card: 1 is one wide card, 3 and 9 split in
+ * threes, 2, 4 and 8 in pairs, 6 and 12 either way. 5, 7 and 11 would leave one alone, so a hub keeps each group clear
+ * of them (existing-pages.test.tsx holds that).
+ */
 function hubCols(n: number): string {
   if (n === 1) return "max-w-2xl";
   if (n % 3 === 0 && n % 2 === 1) return "md:grid-cols-3";

@@ -99,6 +99,15 @@ describe("the module hubs are built from approved claims", () => {
     });
   }
 
+  it("no hub card group has 5, 7 or 11 cards, which would leave one orphaned in a grid row", () => {
+    for (const [id, content] of Object.entries(HUBS)) {
+      const shipped = content.items.filter((i) => i.status === "live" || i.status === "beta").length;
+      const soon = content.items.length - shipped;
+      expect([5, 7, 11], `${id} shipped`).not.toContain(shipped);
+      expect([5, 7, 11], `${id} soon`).not.toContain(soon);
+    }
+  });
+
   it("support makes no live claim on the switched-off channels (plan Q3)", () => {
     const live = SUPPORT.items.filter((i) => i.status === "live" || i.status === "beta").map((i) => i.title);
     expect(live).toEqual(["Conversation insights"]);
