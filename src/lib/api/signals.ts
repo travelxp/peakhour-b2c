@@ -92,6 +92,10 @@ export interface SnippetResponse {
   rail: SignalRail;
   snippet: string;
   placement: string;
+  /** GG-3c: the Peakhour site tag on the same site key. It sends nothing until a
+   *  consent signal grants analytics, and the screen says so beside it. Optional:
+   *  an api without GG-3c sends none, and the screen then shows no tag section. */
+  tagSnippet?: string;
 }
 
 export const signalsApi = {
