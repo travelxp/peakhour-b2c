@@ -20,7 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertCircle, Search } from "lucide-react";
 import { flattenMetaIntegration as flattenMetaIntegrationBase, resolveProvider, isMetaVirtual, metaActionPurpose, metaCardsDisconnectedBy, metaGrantNote, metaLoginPurposeFor, withMetaLoginPurpose, type MetaLoginInfo } from "@/lib/integrations-meta";
 import { Integration } from "./_components/shared";
-import { BeehiivConnectModal, WhatsAppConnectModal } from "./_components/connect-modals";
+import { AppsFlyerConnectModal, BeehiivConnectModal, WhatsAppConnectModal } from "./_components/connect-modals";
 import { IntegrationCard } from "./_components/integration-card";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -718,6 +718,13 @@ export default function IntegrationsPage() {
         onConnect={(apiKey, publicationId) =>
           handleApiKeyConnect("beehiiv", apiKey, { publicationId })
         }
+      />
+
+      {/* AppsFlyer connect modal (GG-4a): an API token, proved against one of the business's own confirmed apps */}
+      <AppsFlyerConnectModal
+        open={connectModal === "appsflyer"}
+        onClose={() => setConnectModal(null)}
+        onConnect={(apiKey, appId) => handleApiKeyConnect("appsflyer", apiKey, { appId })}
       />
 
       {/* WhatsApp — v4 Embedded Signup, the same flow as /dashboard/content/whatsapp */}

@@ -141,9 +141,8 @@ export type ComparisonPageContent = BaseContent & {
   comparison: ComparisonContent;
   buyerUseCases: { title: string; body: string }[];
   pricing: {
+    /** ISO date the prices were read. Each row states its own currency and region in its plan label. */
     asOf: string;
-    currency: string;
-    country: string;
     rows: { vendor: string; plan: string; price: string; source?: { href: string; label: string } }[];
   };
   suitability: { vendor: string; bestFor: string }[];

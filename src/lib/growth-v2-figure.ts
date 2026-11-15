@@ -175,6 +175,7 @@ export const OUTCOME_UNIT: Record<OutcomeKind, { one: string; many: string }> = 
   leads: { one: "lead", many: "leads" },
   calls: { one: "call", many: "calls" },
   store_visits: { one: "store visit", many: "store visits" },
+  app_installs: { one: "install", many: "installs" },
 };
 
 /** The unit for a kind, or a neutral one when the mandate is not known. */
