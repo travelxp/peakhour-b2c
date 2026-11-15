@@ -365,3 +365,17 @@ describe("★the railOffered mechanism itself — asserted positively, not by ab
     }
   });
 });
+
+describe("the Peakhour site tag's words (GG-3c)", () => {
+  it("★say, in plain words, that nothing is sent until a visitor agrees, and that no answer means nothing", async () => {
+    const { SITE_TAG_CONSENT, SITE_TAG_WHAT, SITE_TAG_WHERE } = await import("@/lib/signal-copy");
+    expect(SITE_TAG_CONSENT).toMatch(/cookie banner/);
+    expect(SITE_TAG_CONSENT).toMatch(/Google Consent Mode/);
+    expect(SITE_TAG_CONSENT).toMatch(/WP Consent API/);
+    expect(SITE_TAG_CONSENT).toMatch(/never answers, nothing is sent/);
+    expect(SITE_TAG_WHAT).toMatch(/page views, product views, adds to cart and completed orders/);
+    expect(SITE_TAG_WHERE).toMatch(/Peakhour > Site tag/);
+    // Bible naming: never the internal words
+    for (const s of [SITE_TAG_CONSENT, SITE_TAG_WHAT, SITE_TAG_WHERE]) expect(s).not.toMatch(/mandate|intent|pixel|siteKey/i);
+  });
+});

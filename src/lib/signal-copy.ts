@@ -294,3 +294,16 @@ export function formatWhen(iso: string | undefined): string {
   if (days < 30) return `${days} day${days === 1 ? "" : "s"} ago`;
   return new Date(then).toLocaleDateString();
 }
+
+/**
+ * The Peakhour site tag's words (GG-3c), shown beside its snippet. ★THE CONSENT
+ * RULE IS STATED, NOT IMPLIED: the tag sends nothing until a visitor agrees to
+ * analytics, and a merchant who did not know that would read an empty week as
+ * a broken tag.
+ */
+export const SITE_TAG_WHAT =
+  "Lets Peakhour see page views, product views, adds to cart and completed orders on your site, so your plan can learn what your visitors do.";
+export const SITE_TAG_CONSENT =
+  'It waits for your cookie banner to say yes, through Google Consent Mode or the WP Consent API, or for your own code to call peakhour("consent", "granted"). If a visitor says no, or never answers, nothing is sent.';
+export const SITE_TAG_WHERE =
+  "On WordPress the Peakhour plugin adds it for you (Peakhour > Site tag). Anywhere else, paste it before the closing </head> tag on every page.";
