@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 import { SITE } from "@/lib/utils";
 import { OG_IMAGE } from "@/components/brand/brand-colors";
+import { BRAND_MARK_SHAPES, BRAND_WORD_SHAPES, LOCKUP_VIEWBOX } from "@/lib/brand-artwork";
 
 // Shared social-share image for the marketing surface. Text-only + inline
 // styles (Satori has no Tailwind and finicky gradient-text support), so we use
@@ -28,10 +29,12 @@ export default function OpengraphImage() {
           fontFamily: "sans-serif",
         }}
       >
-        <div style={{ display: "flex", alignItems: "baseline", fontSize: 40, fontWeight: 800 }}>
-          <span>Peakhour</span>
-          <span style={{ color: GOLD }}>.ai</span>
-        </div>
+        {/* The official lockup (brand-artwork.ts), never the name set in a font. 1088×214 view box at 56px tall. */}
+        <svg viewBox={LOCKUP_VIEWBOX} width={285} height={56} fill={OG_IMAGE.paper}>
+          {[...BRAND_MARK_SHAPES, ...BRAND_WORD_SHAPES].map((s, i) =>
+            "d" in s ? <path key={i} d={s.d} /> : <polygon key={i} points={s.points} />,
+          )}
+        </svg>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <div style={{ display: "flex", fontSize: 68, fontWeight: 800, lineHeight: 1.05, letterSpacing: -1.5, maxWidth: 900 }}>

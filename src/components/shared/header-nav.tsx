@@ -84,7 +84,7 @@ export function HeaderNav({
     <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link href="/" className="flex items-center" aria-label="Peakhour.ai home">
-          <PeakhourLogo className="h-8 w-auto" />
+          <PeakhourLogo className="h-8 w-auto" decorative />
         </Link>
 
         {!minimal && !isAuthPage && (

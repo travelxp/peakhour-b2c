@@ -33,7 +33,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { WorkspaceSwitcher } from "@/components/dashboard/workspace-switcher";
-import { PeakhourMark } from "@/components/shared/peakhour-logo";
+import { PeakhourMark, PeakhourWordmark } from "@/components/shared/peakhour-logo";
 import { UserAvatar } from "@/components/dashboard/user-avatar";
 import { PlanBadge } from "@/components/dashboard/plan-badge";
 import { AttentionBell } from "@/components/dashboard/attention-bell";
@@ -313,15 +313,12 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             Marketing" while the marketing header two clicks away used the actual
             mark.
 
-            ⚠️AND THE NAME IS TEXT, NOT THE WORDMARK IMAGE. An intermediate
-            version put `PeakhourLogo` here, which drew the mark TWICE:
-            `peakhour-logo.png` is the full lockup — mark AND wordmark — so it
-            already contains what sits beside it. Cropping an image would not
-            fix that; using type does, and it buys the things an image cannot:
-            it scales with the reader's font settings, recolours per theme with
-            no `dark:invert` hack, and truncates. The PNG stays on the marketing
-            header and footer, where it IS the whole lockup and nothing is
-            next to it.
+            ★AND THE NAME IS THE WORDMARK ARTWORK, `PeakhourWordmark`: the
+            letters alone, so the mark is not drawn twice (the full lockup
+            beside the disc drew it twice once). It is never the name set in a
+            font: owner rule 2026-11-15, enforced by brand-guard.test.ts. The
+            wordmark is inline SVG in `currentColor`, so it recolours per theme
+            with no `dark:invert`.
 
             ★The disc is its own asset rather than the lockup scaled down,
             because they are different artwork: the lockup draws the mark as
@@ -358,17 +355,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                       way the lockup duplicated it. */}
                   <PeakhourMark className="size-8 shrink-0 group-data-[collapsible=icon]:size-6" />
                   <span className="grid min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-                    {/* ★SET AS TEXT, NOT THE WORDMARK PNG. The lockup image
-                        carries the mark inside it, so pairing it with the mark
-                        drew the mark twice — and cropping an image is not a fix.
-                        Live text also scales with the reader's font settings,
-                        recolours per theme without a `dark:invert` hack, and can
-                        be truncated. The wordmark PNG stays where it belongs:
-                        the marketing header, where it IS the whole lockup and
-                        nothing sits beside it. */}
-                    <span className="truncate text-base font-semibold leading-tight">
-                      Peakhour.ai
-                    </span>
+                    <PeakhourWordmark className="h-[0.95rem] w-auto self-start" />
                     <span className="truncate text-xs leading-tight text-muted-foreground">
                       Your AI business engine.
                     </span>
