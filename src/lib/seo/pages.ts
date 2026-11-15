@@ -30,7 +30,6 @@ type Seed = {
   primaryPillar?: Pillar;
   capabilityIds?: string[];
   h1?: string;
-  queryClusterId?: string;
   cta?: { label: string; href: string; kind: CtaKind };
   relatedIds?: string[];
   parentId?: string;

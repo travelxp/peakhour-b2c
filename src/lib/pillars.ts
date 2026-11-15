@@ -42,6 +42,8 @@ export interface PillarContent {
   slug: PillarSlug;
   icon: LucideIcon;
   name: string;
+  /** One honest sentence for a card that lists the modules (the About page); no claim beyond the module hub. */
+  valueProp: string;
   /**
    * The channels and surfaces this pillar covers, in the order a visitor would look for them. Scope, not a promise:
    * a connector with a `key` is badged "soon" from the catalog on its own when the catalog says so.
@@ -64,6 +66,7 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
     slug: "commerce",
     icon: ShoppingBag,
     name: "Commerce",
+    valueProp: "Answers shoppers from your real catalogue on Shopify and WhatsApp, and you approve what changes.",
     channels: [
       { name: "Shopify", key: "shopify" },
       // No catalog row of its own: one WordPress plugin covers both, so
@@ -78,6 +81,7 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
     slug: "content",
     icon: PenLine,
     name: "Content",
+    valueProp: "Learns your brand voice and drafts posts, newsletters and blog articles for you to approve.",
     channels: [
       { name: "WordPress", key: "wordpress" },
       { name: "LinkedIn", key: "linkedin_content" },
@@ -91,6 +95,7 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
     slug: "growth",
     icon: TrendingUp,
     name: "Growth",
+    valueProp: "Drafts a growth strategy, manages Meta and X ads, and has Peakhour Summit review decisions.",
     channels: [
       { name: "Meta Ads", key: "meta_ads" },
       // The growth engine is the ORGANIC connector; Lead Gen forms come from
@@ -105,6 +110,7 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
     slug: "support",
     icon: MessageSquare,
     name: "Support",
+    valueProp: "Shows what shoppers asked that your assistant could not answer; the shared inbox and AI replies are coming soon.",
     channels: [
       { name: "WhatsApp", key: "whatsapp" },
       { name: "Instagram", key: "instagram" },
@@ -115,6 +121,7 @@ export const PILLARS: Record<PillarSlug, PillarContent> = {
     slug: "presence",
     icon: MapPin,
     name: "Presence",
+    valueProp: "Prepares Google Business Profile changes and review-reply drafts for you to approve, in beta.",
     channels: [
       { name: "Google Business Profile", key: "google_business_profile" },
       // Where the listing SHOWS UP. Neither is a connector, so neither is ever
