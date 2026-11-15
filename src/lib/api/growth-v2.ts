@@ -462,6 +462,16 @@ export interface LearningResponse {
   heatmap: { rows: string[]; columns: string[]; cells: Array<{ row: string; column: string; figure: Figure }> };
   /** What each section is made of, in words (H4). */
   basis: { experiments: string; creativePatterns: string; benchmarks: string; heatmap: string };
+  /**
+   * GG-3d: customers per stage and shoppers close to buying, as COUNTS from the api's daily step, as of `asOf` (the business-local day,
+   * `YYYY-MM-DD`). Absent with no fresh counts; each part absent when it was not counted. `basis` says what each is made of.
+   */
+  shoppers?: {
+    asOf: string;
+    customers?: { new: number; repeat: number; loyal: number; lapsing: number; lapsed: number };
+    closeToBuying?: { count: number; windowDays: number };
+    basis: string;
+  };
   /** What the plan's target still rests on; absent when the merchant set it or no layer's number is it any more. */
   targetStartingFrom?: StartingFrom;
 }
