@@ -6,6 +6,9 @@ import { Footer } from "@/components/shared/footer";
 import { getPricing, findBundleTier, agencyCardPrice, formatPeaks, suiteTrialDays } from "@/lib/pricing";
 import { getPublicCatalog, signupCta } from "@/lib/catalog";
 import { pageMeta } from "@/lib/seo/metadata";
+import { pathFor } from "@/lib/seo/resolve";
+import { Breadcrumbs } from "@/components/marketing/seo/breadcrumbs";
+import { ContextualLinks } from "@/components/marketing/seo/contextual-links";
 
 export const metadata = pageMeta("pricing.teams");
 
@@ -70,24 +73,15 @@ export default async function TeamsPricingPage() {
         {/* ── Hero ─────────────────────────────────────────────────────── */}
         <section className="py-16 sm:py-20">
           <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
-            <nav
-              aria-label="Breadcrumb"
-              className="text-sm font-medium text-muted-foreground"
-            >
-              <ol className="flex items-center justify-center gap-1.5">
-                <li>
-                  <Link href="/pricing" className="transition-colors hover:text-brand">
-                    Pricing
-                  </Link>
-                </li>
-                <li aria-hidden className="opacity-40">
-                  ›
-                </li>
-                <li aria-current="page" className="text-foreground">
-                  Agency &amp; Enterprise
-                </li>
-              </ol>
-            </nav>
+            <div className="flex justify-center">
+              <Breadcrumbs
+                crumbs={[
+                  { label: "Home", href: pathFor("home") },
+                  { label: "Pricing", href: pathFor("pricing") },
+                  { label: "Agency & Enterprise", href: pathFor("pricing.teams") },
+                ]}
+              />
+            </div>
             <span className="mt-6 inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
               <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
               For teams &amp; partners
@@ -99,9 +93,9 @@ export default async function TeamsPricingPage() {
               </span>
             </h1>
             <p className="mx-auto mt-5 max-w-xl text-lg text-muted-foreground">
-              Whether you manage a roster of clients or run a large brand, get
-              every module under one roof — with the billing, credits and
-              controls that scale.
+              Agency and Enterprise are Peakhour plans for teams that run many
+              businesses: every module for each client, with volume Peaks and
+              central billing.
             </p>
             {/* ★THIS PAGE SOLD THE TOP OF A LADDER WHOSE MIDDLE RUNG IT NEVER
                 MENTIONED. Peakhour Suite now sits directly below Agency, so a
@@ -136,7 +130,7 @@ export default async function TeamsPricingPage() {
             {/* Agency */}
             <div className="flex flex-col rounded-3xl border bg-background p-8 shadow-md">
               <span className="inline-flex self-start items-center rounded-full bg-brand-gradient px-3 py-1 text-xs font-bold text-brand-contrast">
-                Most chosen by agencies
+                For agencies
               </span>
               <h2 className="mt-4 text-2xl font-extrabold tracking-tight">Agency</h2>
               <div className="mt-3 flex items-baseline gap-1.5">
@@ -239,6 +233,22 @@ export default async function TeamsPricingPage() {
             </Link>{" "}
             — we&rsquo;ll size it to your client roster.
           </p>
+        </section>
+
+        <section aria-labelledby="related-h" className="pb-20">
+          <div className="mx-auto max-w-4xl px-4 sm:px-6">
+            <h2 id="related-h" className="text-2xl font-extrabold tracking-tight">
+              Keep reading
+            </h2>
+            <ContextualLinks
+              className="mt-6 grid gap-3 sm:grid-cols-3"
+              links={[
+                { label: "Peakhour pricing", href: pathFor("pricing"), note: "Peakhour Suite for a single business." },
+                { label: "Peaks, the AI credits", href: pathFor("peaks"), note: "Volume Peaks and top-ups explained." },
+                { label: "How Peakhour works", href: pathFor("how.it.works"), note: "What every module does for each client." },
+              ]}
+            />
+          </div>
         </section>
       </main>
 

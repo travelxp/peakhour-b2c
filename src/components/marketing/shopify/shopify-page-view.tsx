@@ -27,7 +27,6 @@ import {
 } from "@/lib/pricing";
 import { Breadcrumbs } from "@/components/marketing/seo/breadcrumbs";
 import { safeJsonLd } from "@/lib/json-ld";
-import { pathFor } from "@/lib/seo/resolve";
 import {
   SHOPIFY_CLOSING,
   SHOPIFY_GROUPS,
@@ -47,6 +46,7 @@ import {
 import { SITE, cn } from "@/lib/utils";
 import { ShopifyAutopilotDemo } from "./shopify-autopilot-demo";
 import { Disclosure } from "./shopify-disclosure";
+import { ShopifyFeaturesSection } from "./shopify-features-section";
 import { ShopifyHeroDemo } from "./shopify-hero-demo";
 import { ShopifyJobs } from "./shopify-jobs";
 import { ShopifyOwnerChat } from "./shopify-owner-chat";
@@ -220,10 +220,6 @@ export function ShopifyPageView({
             <a href="#control" className="font-semibold text-foreground underline decoration-brand decoration-2 underline-offset-4">
               you stay in charge of all of it
             </a>
-            .{" "}
-            <Link href={pathFor("shopify.features")} className="font-semibold text-foreground underline decoration-brand decoration-2 underline-offset-4">
-              Read about each feature, with its status
-            </Link>
             .
           </p>
           <div className="mt-8 sm:mt-10">
@@ -231,6 +227,9 @@ export function ShopifyPageView({
           </div>
         </div>
       </section>
+
+      {/* One link per published Shopify feature page (SEO-8), from the registry; nothing until one is published. */}
+      <ShopifyFeaturesSection />
 
       {/* Peakhour on WhatsApp, for the merchant: the page's one dark band */}
       <section id="whatsapp" aria-labelledby="whatsapp-h" className="scroll-mt-20 bg-ink text-on-ink">

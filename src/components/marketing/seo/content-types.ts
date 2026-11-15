@@ -166,3 +166,23 @@ export type DirectoryItem = { title: string; body: string; href: string; status:
 export type DirectoryContent = BaseContent & {
   items: DirectoryItem[];
 };
+
+/** One thing a module does (or will), with the status the capability record gives it on its surface. */
+export type HubItem = {
+  title: string;
+  body: string;
+  status: ReleaseStatus;
+  surface: Surface;
+  /** What it does not do, one sentence, from the capability's limitations. */
+  limitation?: string;
+};
+/** A module hub (/commerce, /growth ...): what runs today, what is coming, where, and where you stay in charge. */
+export type HubContent = BaseContent & {
+  items: HubItem[];
+  /** Where it runs, one card per surface, each with its own status. */
+  platforms: PlatformItem[];
+  /** Where you stay in charge. */
+  control: string[];
+  /** Shown under "Coming soon", so a reader never mistakes it for a live feature. */
+  comingSoonNote: string;
+};

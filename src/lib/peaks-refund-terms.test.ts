@@ -26,13 +26,16 @@ describe("the refund sentence", () => {
     expect(t).not.toContain("All fees are non-refundable");
   });
 
-  it("the Peaks page says it in its description, its top-up card and its policy, and nowhere calls Peaks flatly non-refundable", () => {
+  it("the Peaks page says it in its top-up card, its policy and its FAQ, and nowhere calls Peaks flatly non-refundable", () => {
     const p = flat(page("peaks/page.tsx"));
-    // The description moved into the page registry (SEO-2); the top-up card and the policy stay on the page.
+    // The description (registry, <= 160 characters since SEO-7) no longer has room for the sentence; the top-up card,
+    // the policy and the FAQ carry it.
     const registry = flat(readFileSync(resolve(import.meta.dirname, "seo", "pages.ts"), "utf8"));
-    expect(registry.match(/\$\{PEAKS_REFUND_SENTENCE\}/g)).toHaveLength(1);
+    expect(registry).not.toContain("PEAKS_REFUND_SENTENCE");
+    const content = flat(readFileSync(resolve(import.meta.dirname, "..", "content", "pages", "peaks.ts"), "utf8"));
+    expect(content).toContain("a: PEAKS_REFUND_SENTENCE");
     expect(p.match(/\$\{PEAKS_REFUND_SENTENCE\}/g)).toHaveLength(1);
-    expect(p).toContain("{PEAKS_REFUND_SENTENCE}{\" \"}");
+    expect(p).toContain("PEAKS_REFUND_SENTENCE,");
     expect(p).not.toMatch(/are non-refundable,/);
     expect(p).not.toMatch(/>non-refundable</);
   });

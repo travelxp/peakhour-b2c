@@ -1,4 +1,3 @@
-import { PEAKS_REFUND_SENTENCE } from "@/lib/peaks-refund-terms";
 import { SHOPIFY_SEO } from "@/lib/shopify-features";
 import { SEO9_PAGES } from "./pages-seo9";
 import { COMPETITOR_BRIEFS } from "@/content/seo/competitors";
@@ -12,16 +11,15 @@ import type { CtaKind, EditorialStatus, PageFamily, PageRecord, PageScope, Pilla
  * character, so nothing visible changes. Ids are the page audit's ids (docs/seo/page-audit-v2.csv)
  * where a row exists. New pages (SEO-7 to SEO-11) are added here, never inferred from candidates.ts.
  *
- * Titles over 60 characters (how-it-works, /shopify, /pricing, /pricing/teams) are unchanged on
- * purpose; SEO-7 rewrites them with the rest of each page's copy.
+ * SEO-7 rewrote the title, description and H1 of the existing public pages with their copy (title <= 60, description
+ * <= 160, a unique H1 each; registry.test.ts holds the limits).
  */
 
 const REVIEWED = "2026-11-15";
 const OWNER = "growth";
 
 // A page lists in capabilityIds only the capabilities its copy makes a CLAIM on (a capability with
-// no approved claim is not checked by the gate). Growth lists none yet: its Google Ads and lead-inbox
-// copy is "coming soon" and SEO-3/SEO-7 decide how the gate should treat it.
+// no approved claim is not checked by the gate). Coming-soon cards (Google Ads, the support inbox) make no claim.
 
 type Seed = {
   pageId: string;
@@ -76,113 +74,134 @@ export const PAGES: readonly PageRecord[] = [
   page({
     pageId: "home",
     path: "/",
-    title: "Peakhour.ai — The AI business platform for growing brands",
+    queryClusterId: "platform.overview",
+    title: "Peakhour.ai: the AI business platform for growing brands",
     description:
-      "Five AI modules — Commerce, Content, Growth, Support, Presence — that sell, publish, advertise, answer, and get you found. One plan for all five.",
+      "Peakhour answers shoppers, drafts content, plans and reviews ads and prepares Google listing changes. You approve each change. One plan for five modules.",
+    h1: "Still running one business across 10 different tools?",
     relatedIds: ["pricing", "how.it.works", "shopify", "commerce", "content", "growth", "support", "presence", "integrations.index", "features.index"],
   }),
   page({
     pageId: "pricing",
     path: "/pricing",
-    title: "Pricing — Peakhour Suite, Agency and Enterprise",
+    queryClusterId: "pricing",
+    title: "Pricing: Peakhour Suite, Agency and Enterprise",
     description:
-      "Peakhour Suite is one plan for Commerce, Content, Growth, Support and Presence — one login, one Peaks wallet, one price. Agency and Enterprise plans for teams.",
-    relatedIds: ["pricing.teams", "peaks"],
+      "Peakhour Suite is one plan for Commerce, Content, Growth, Support and Presence, with one login and one Peaks wallet. Agency and Enterprise are for teams.",
+    h1: "Everything a business does online. One plan.",
+    relatedIds: ["pricing.teams", "peaks", "shopify", "how.it.works", "commerce"],
   }),
   page({
     pageId: "pricing.teams",
     path: "/pricing/teams",
+    queryClusterId: "pricing",
     title: "Agency & Enterprise plans",
     description:
-      "Every Peakhour module across many businesses — one unit per client, volume Peaks and central billing on Agency, plus SLAs and a dedicated team on Enterprise.",
-    relatedIds: ["pricing"],
+      "Every Peakhour module across many businesses: one unit per client, volume Peaks and central billing on Agency, plus SLAs and a dedicated team on Enterprise.",
+    relatedIds: ["pricing", "peaks"],
   }),
   page({
     pageId: "peaks",
     path: "/peaks",
-    title: "Peaks — AI credits that power Peakhour.ai",
-    description: `Peaks are the AI credits behind every Peakhour.ai feature. Every plan includes a monthly allowance; purchased Peaks never expire and work across every Peakhour product. ${PEAKS_REFUND_SENTENCE}`,
-    relatedIds: ["pricing"],
+    queryClusterId: "pricing",
+    title: "Peaks: the AI credits behind every Peakhour feature",
+    description:
+      "Peaks are the AI credits behind every Peakhour feature. Every plan includes a monthly allowance, and purchased Peaks never expire. Top up any time.",
+    h1: "Peaks: the AI credits behind every Peakhour feature",
+    relatedIds: ["pricing", "pricing.teams", "how.it.works"],
   }),
   page({
-    // Description kept under ~160 characters: past that, search engines truncate it and the last clause (the promise) is cut.
     pageId: "how.it.works",
     path: "/how-it-works",
-    title: "See how Peakhour works — one intelligence layer for your whole business",
+    queryClusterId: "platform.overview",
+    title: "How Peakhour works: connect, approve, then let it run",
     description:
-      "Peakhour connects to the tools you already use, learns how your business runs, and links what happens across it — so the next action comes to you.",
-    relatedIds: ["home"],
+      "Peakhour connects to the tools you already use, learns how your business runs, and links what happens across it, so the next action comes to you.",
+    h1: "How Peakhour works",
+    relatedIds: ["home", "pricing", "commerce", "content", "growth", "support", "presence"],
   }),
   page({
     pageId: "presence",
     path: "/presence",
+    queryClusterId: "pillar.presence",
     primaryPillar: "presence",
-    capabilityIds: ["presence.gbp_management"],
-    title: "Presence — own how you show up on Google | Peakhour.ai",
+    capabilityIds: ["presence.gbp_management", "presence.review_management", "presence.listing_health", "integration.google_business_profile"],
+    title: "Presence: Google Business Profile tools | Peakhour.ai",
     description:
-      "Your Google Business Profile — listings, hours, photos, and reviews — managed from one place, always current. Included in Peakhour Suite.",
-    relatedIds: [
-      "features.google.business.profile.management",
-      "features.review.management",
-      "features.local.listing.health",
-      "integrations.google.business.profile",
-    ],
+      "Prepare Google Business Profile edits, get AI drafts for review replies and see a listing health score. In beta; you approve every change.",
+    h1: "Own how you show up on Google",
+    relatedIds: ["features.google.business.profile.management", "features.review.management", "features.local.listing.health", "integrations.google.business.profile", "support", "content"],
   }),
   page({
     pageId: "commerce",
     path: "/commerce",
+    queryClusterId: "pillar.commerce",
     primaryPillar: "commerce",
-    title: "Commerce — AI storefront assistant | Peakhour.ai",
+    // No capabilityIds: every commerce capability is on shopify or whatsapp, and the gate reads the page's own surface
+    // (web), so the hub states each card's status on ITS surface through hub-helpers instead (and the tests pin that).
+    title: "Commerce: AI shopping assistant for your store | Peakhour.ai",
     description:
-      "An AI assistant that knows your whole catalog and sells on WhatsApp and your storefront, 24/7. Included in Peakhour Suite.",
-    relatedIds: ["shopify", "integrations.whatsapp"],
+      "An AI assistant that answers shoppers from your catalogue on Shopify and WhatsApp, confirms COD orders and flags stock. WooCommerce is coming soon.",
+    h1: "An AI shopping assistant that answers from your real catalogue",
+    relatedIds: ["shopify", "integrations.whatsapp", "pricing", "support", "growth"],
   }),
   page({
     pageId: "content",
     path: "/content",
+    queryClusterId: "pillar.content",
     primaryPillar: "content",
-    title: "Content — AI writers in your voice | Peakhour.ai",
+    capabilityIds: ["content.brand_voice", "content.social_publishing", "content.beehiiv_newsletter"],
+    title: "Content: AI posts in your brand voice | Peakhour.ai",
     description:
-      "AI writers that publish in your brand voice — blogs, newsletters, socials — from your news desk to every channel. Included in Peakhour Suite.",
-    relatedIds: [
-      "features.brand.voice",
-      "features.social.media.content",
-      "integrations.beehiiv",
-      "integrations.x",
-      "integrations.facebook",
-      "integrations.instagram",
-    ],
+      "Peakhour learns your brand voice from your posts, then drafts social posts, newsletters and Shopify blog articles for you to approve.",
+    h1: "AI writers that publish in your voice",
+    relatedIds: ["features.brand.voice", "features.social.media.content", "integrations.beehiiv", "integrations.x", "integrations.facebook", "integrations.instagram"],
   }),
   page({
     pageId: "support",
     path: "/support",
+    queryClusterId: "pillar.support",
     primaryPillar: "support",
-    // No capability claim: support.channel_inbox is "development" (SEO-3; catalog support.channels_core is coming_soon), so
-    // the page's "one inbox for every channel" copy is not backed by a live claim. SEO-7 rewrites it.
-    capabilityIds: [],
-    title: "Support — one AI inbox for every channel | Peakhour.ai",
+    // Only conversation insights is live: the inbox, AI replies and the WhatsApp assistant are built and switched off
+    // pending the owner decision (plan Q3), so the page names them as coming soon and makes no claim on them.
+    capabilityIds: ["support.conversation_insights"],
+    title: "Support: shopper questions AI missed | Peakhour.ai",
     description:
-      "WhatsApp, Instagram, email — one inbox. AI answers the routine and hands you what needs a human, with full context. Included in Peakhour Suite.",
+      "AI support on WhatsApp is built and switching on soon. Today Peakhour shows what shoppers asked your assistant that it could not answer.",
+    h1: "Find what your shoppers asked that went unanswered",
+    relatedIds: ["commerce", "content", "pricing"],
   }),
   page({
     pageId: "growth",
     path: "/growth",
+    queryClusterId: "pillar.growth",
     primaryPillar: "growth",
-    title: "Growth — ads & LinkedIn, with your approval | Peakhour.ai",
+    capabilityIds: [
+      "growth.peakhour_summit",
+      "growth.campaign_planning",
+      "growth.meta_ads",
+      "growth.x_ads",
+      "growth.linkedin_growth",
+      "growth.ad_audiences",
+    ],
+    title: "Growth: plan and review ads with your approval | Peakhour.ai",
     description:
-      "Campaigns drafted, LinkedIn leads captured and budgets reviewed every week, with your approval. Peakhour Growth takes on acquisition work for you. Included in Peakhour Suite.",
-    relatedIds: ["integrations.linkedin", "integrations.meta.ads", "integrations.x.ads"],
+      "Draft a growth strategy, pause Meta and X ads, manage LinkedIn posts, and have Peakhour Summit review growth decisions. You approve changes.",
+    h1: "Plan and review your ads, with your approval",
+    relatedIds: ["integrations.linkedin", "integrations.meta.ads", "integrations.x.ads", "content", "commerce"],
   }),
   page({
     pageId: "shopify",
     path: "/shopify",
+    queryClusterId: "platform.shopify",
     surface: "shopify",
     primaryPillar: "commerce",
     capabilityIds: ["commerce.ai_shopping_assistant", "commerce.product_recommendations", "content.ai_seo_fixes"],
     title: SHOPIFY_SEO.title,
     description: SHOPIFY_SEO.description,
+    h1: "Your store's AI team, right inside Shopify",
     cta: { label: "Install on Shopify", href: "/shopify", kind: "install" },
-    relatedIds: ["pricing", "commerce"],
+    relatedIds: ["pricing", "commerce", "content", "growth"],
   }),
   // SEO-8: wave-1 Shopify feature pages. Titles are <= 60 characters; every claim a page makes is an approved
   // claim of the capabilities it lists (capabilities.ts). A page whose claim has no Shopify-surface record is "review".
