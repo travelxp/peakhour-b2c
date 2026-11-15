@@ -47,12 +47,12 @@ export const REP_AI: CompetitorBrief = {
     {
       dimension: "Human handover",
       vendor: { value: "yes", note: "Automatic routing to human support, with the conversation history.", source: S.home, observedAt: D },
-      peakhour: pending("support.human_handover"),
+      peakhour: pending("support.whatsapp_support"),
     },
     {
       dimension: "AI on WhatsApp",
       vendor: { value: "yes", note: "It says it handles sales questions, order updates and support on WhatsApp. WhatsApp is priced as an add-on.", source: S.whatsapp, observedAt: D },
-      peakhour: pending("commerce.whatsapp_shopping_assistant"),
+      peakhour: pending("commerce.whatsapp_shopping"),
     },
     {
       dimension: "WhatsApp template broadcasts",
@@ -62,7 +62,7 @@ export const REP_AI: CompetitorBrief = {
     {
       dimension: "COD confirmation",
       vendor: { value: "not-documented", note: "Cash on delivery is not mentioned on the pages we read.", source: S.home, observedAt: D },
-      peakhour: pending("commerce.cod_confirmation"),
+      peakhour: PEAKHOUR.codConfirmation,
     },
     {
       dimension: "Setup without a developer",

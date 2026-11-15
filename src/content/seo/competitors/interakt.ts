@@ -37,7 +37,7 @@ export const INTERAKT: CompetitorBrief = {
     {
       dimension: "COD confirmation or COD to prepaid",
       vendor: { value: "partial", note: "A \"CoD to Prepaid Flow\" is listed from its ₹2,799 tier up. Plain COD confirmation is not described.", source: S.pricing, observedAt: D },
-      peakhour: pending("commerce.cod_confirmation"),
+      peakhour: PEAKHOUR.codConfirmation,
     },
     {
       dimension: "Abandoned-cart reminders",
@@ -57,12 +57,12 @@ export const INTERAKT: CompetitorBrief = {
     {
       dimension: "Shared team inbox",
       vendor: { value: "yes", note: "WhatsApp on every plan; Instagram from Growth.", source: S.pricing, observedAt: D },
-      peakhour: PEAKHOUR.inbox,
+      peakhour: pending("support.channel_inbox"),
     },
     {
       dimension: "WhatsApp checkout and payments",
       vendor: { value: "yes", note: "Payment links from the inbox on the entry WhatsApp tier; checkout bot and WhatsApp Pay from the ₹2,799 tier.", source: S.pricing, observedAt: D },
-      peakhour: pending("commerce.whatsapp_checkout"),
+      peakhour: pending("commerce.whatsapp_shopping"),
     },
     {
       dimension: "Chat on your storefront",

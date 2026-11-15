@@ -26,11 +26,11 @@ export const PEAKHOUR = {
     source: SHOPIFY_PAGE,
     observedAt: OBSERVED,
   },
-  inbox: {
+  codConfirmation: {
     value: "yes",
-    capabilityId: "support.channel_inbox",
-    note: "One inbox for WhatsApp, website chat and Google reviews. Instagram DMs and Messenger are in development.",
-    source: { href: "/support", label: "Peakhour Support" },
+    capabilityId: "commerce.cod_confirmation",
+    note: "Asks the shopper on WhatsApp to confirm or cancel, and flags orders unanswered after 24 hours. It never cancels by itself, and needs your WhatsApp number connected.",
+    source: SHOPIFY_PAGE,
     observedAt: OBSERVED,
   },
 } satisfies Record<string, PeakhourClaim>;

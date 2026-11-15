@@ -38,7 +38,7 @@ export const AISENSY: CompetitorBrief = {
     {
       dimension: "COD confirmation on WhatsApp",
       vendor: { value: "yes", note: "Its Shopify page lists COD confirmation, follow-up and payment-request flows.", source: S.shopify, observedAt: D },
-      peakhour: pending("commerce.cod_confirmation"),
+      peakhour: PEAKHOUR.codConfirmation,
     },
     {
       dimension: "Abandoned-cart reminders",
@@ -73,7 +73,7 @@ export const AISENSY: CompetitorBrief = {
     {
       dimension: "Human handover",
       vendor: { value: "yes", note: "The AI agent \"escalates to humans when needed\".", source: S.agents, observedAt: D },
-      peakhour: pending("support.human_handover"),
+      peakhour: pending("support.whatsapp_support"),
     },
     {
       dimension: "Setup without a developer",
