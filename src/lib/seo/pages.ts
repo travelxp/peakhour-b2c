@@ -129,7 +129,9 @@ export const PAGES: readonly PageRecord[] = [
     pageId: "support",
     path: "/support",
     primaryPillar: "support",
-    capabilityIds: ["support.channel_inbox"],
+    // No capability claim: support.channel_inbox is "development" (SEO-3; catalog support.channels_core is coming_soon), so
+    // the page's "one inbox for every channel" copy is not backed by a live claim. SEO-7 rewrites it.
+    capabilityIds: [],
     title: "Support — one AI inbox for every channel | Peakhour.ai",
     description:
       "WhatsApp, Instagram, email — one inbox. AI answers the routine and hands you what needs a human, with full context. Included in Peakhour Suite.",
