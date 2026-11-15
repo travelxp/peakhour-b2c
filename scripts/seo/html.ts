@@ -7,8 +7,8 @@ const ENTITIES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"'
 
 export function decodeEntities(s: string): string {
   return s.replace(/&(?:#x([0-9a-f]+)|#(\d+)|([a-z]+));/gi, (m, hex, dec, name) => {
-    if (hex) return String.fromCodePoint(parseInt(hex, 16));
-    if (dec) return String.fromCodePoint(parseInt(dec, 10));
+    const code = hex ? parseInt(hex, 16) : dec ? parseInt(dec, 10) : NaN;
+    if (!Number.isNaN(code)) return code <= 0x10ffff ? String.fromCodePoint(code) : m;
     return ENTITIES[String(name).toLowerCase()] ?? m;
   });
 }
@@ -75,17 +75,27 @@ export function ogUrlOf(html: string): string | undefined {
   );
 }
 
+/** The @type values of a node, whether it is a string or an array. */
+export function typesOf(node: Record<string, unknown>): string[] {
+  const t = node["@type"];
+  return Array.isArray(t) ? t.map(String) : t === undefined ? [] : [String(t)];
+}
+
 export type LdResult = { nodes: Record<string, unknown>[]; errors: string[] };
 
 /** Every JSON-LD block, parsed. A block that does not parse, or lacks @context or @type, is an error. */
 export function jsonLd(html: string): LdResult {
   const nodes: Record<string, unknown>[] = [];
   const errors: string[] = [];
-  for (const m of html.matchAll(/<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)) {
+  for (const m of html.matchAll(/<script\b[^>]*\btype=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) {
     try {
-      const j = JSON.parse(m[1]) as Record<string, unknown>;
-      if (j["@context"] !== "https://schema.org" || !j["@type"]) errors.push("missing @context or @type");
-      else nodes.push(j);
+      const parsed = JSON.parse(m[1]) as Record<string, unknown> | Record<string, unknown>[];
+      for (const j of Array.isArray(parsed) ? parsed : [parsed]) {
+        const graph = Array.isArray(j["@graph"]) ? (j["@graph"] as Record<string, unknown>[]) : undefined;
+        if (j["@context"] !== "https://schema.org" || (!j["@type"] && !graph)) errors.push("missing @context or @type");
+        else if (graph) nodes.push(...graph);
+        else nodes.push(j);
+      }
     } catch {
       errors.push("does not parse");
     }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  anchorHrefs, canonicalOf, decodeEntities, directAnswer, h1s, hasFabricatedField, internalPaths, jsonLd, ogUrlOf, textOf,
+  anchorHrefs, canonicalOf, decodeEntities, directAnswer, h1s, hasFabricatedField, internalPaths, jsonLd, ogUrlOf, textOf, typesOf,
 } from "./html";
 
 describe("smoke html readers", () => {
@@ -55,5 +55,18 @@ describe("smoke html readers", () => {
   it("decodes named and numeric entities and leaves an unknown one alone", () => {
     expect(decodeEntities("a &amp; b &#39;c&#x27; &madeup;")).toBe("a & b 'c' &madeup;");
     expect(textOf("<p>a  <b>b</b>\n c</p>")).toBe("a b c");
+  });
+
+  it("reads JSON-LD with other attributes first, a top-level array, an @graph and an array @type", () => {
+    const a = `<script id="ld" nonce="n" type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"BreadcrumbList"},{"@type":["Article","X"]}]}</script>`;
+    const r = jsonLd(a);
+    expect(r.errors).toEqual([]);
+    expect(r.nodes.map(typesOf)).toEqual([["BreadcrumbList"], ["Article", "X"]]);
+    const arr = jsonLd(`<script type='application/ld+json'>[{"@context":"https://schema.org","@type":"WebSite"}]</script>`);
+    expect(arr.nodes).toHaveLength(1);
+  });
+
+  it("leaves an out-of-range numeric entity alone instead of throwing", () => {
+    expect(decodeEntities("a &#99999999; b &#xFFFFFFF; c")).toBe("a &#99999999; b &#xFFFFFFF; c");
   });
 });

@@ -36,6 +36,7 @@
 import { isListedThroughGate, isPublicPath } from "../../src/lib/seo/gate";
 import { PAGES } from "../../src/lib/seo/pages";
 import { isPreviewable, isPublishable } from "../../src/lib/seo/publish";
+import { LOCALES, PUBLISHED_LOCALES } from "../../src/lib/seo/types";
 import { crawlChecks } from "./crawl-checks";
 
 const args = process.argv.slice(2);
@@ -192,7 +193,8 @@ async function main() {
     indexable,
     canonicalOrigin: flag("canonical-origin", "https://peakhour.ai").replace(/\/$/, ""),
     publishable: publishable.map((p) => ({ pageId: p.pageId, path: p.path, h1: p.h1 })),
-    drafts: drafts.map((p) => ({ pageId: p.pageId, path: p.path, h1: p.h1 })),
+    drafts: drafts.map((p) => ({ pageId: p.pageId, path: p.path, h1: p.h1, gated: gateOn && !isListedThroughGate(p.path) })),
+    unpublishedLocales: LOCALES.filter((l) => !PUBLISHED_LOCALES.includes(l)).map((l) => l.toLowerCase()),
     gatedOut: gatedOut.map((p) => ({ pageId: p.pageId, path: p.path, h1: p.h1 })),
     teaserTitle: TEASER_TITLE,
     check,

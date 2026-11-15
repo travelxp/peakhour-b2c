@@ -1,4 +1,4 @@
-import { SHOPIFY_SEO } from "@/lib/shopify-features";
+import { SHOPIFY_HERO, SHOPIFY_SEO } from "@/lib/shopify-features";
 import { SEO9_PAGES } from "./pages-seo9";
 import { COMPETITOR_BRIEFS } from "@/content/seo/competitors";
 import type { CtaKind, EditorialStatus, PageFamily, PageRecord, PageScope, Pillar, Surface } from "./types";
@@ -200,7 +200,7 @@ export const PAGES: readonly PageRecord[] = [
     capabilityIds: ["commerce.ai_shopping_assistant", "commerce.product_recommendations", "content.ai_seo_fixes"],
     title: SHOPIFY_SEO.title,
     description: SHOPIFY_SEO.description,
-    h1: "Your store's AI team, right inside Shopify.",
+    h1: `${SHOPIFY_HERO.headline} ${SHOPIFY_HERO.accent}`,
     cta: { label: "Install on Shopify", href: "/shopify", kind: "install" },
     relatedIds: ["pricing", "commerce", "content", "growth"],
   }),

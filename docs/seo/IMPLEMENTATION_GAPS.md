@@ -125,6 +125,7 @@ Regenerate with `npx tsx scripts/seo/report-pages.ts --write`. A test fails when
 - **The directory card "live" badge:** the directory cards show a status chip, and the badge wording for a live capability needs a read against the rule that a page never says more than its status supports.
 - **The home integrations grid's last row** needs a look (listed by the SEO-7 and SEO-9 lanes); the grid reads from the catalog, so check it once the catalog is final.
 - **`check-catalog.ts` against production `cfg_features`.** SEO-3 could read only dev (the production database read was refused). Re-run `npx tsx scripts/seo/check-catalog.ts` against production before release.
+- **Seven plain pages carry no JSON-LD and no breadcrumb trail:** `/launch-partner`, `/contact`, the four legal pages and `/help/data-retention`. Plan SEO-6 said BreadcrumbList on every page under `/`, but the markup must match a visible trail (Bible 9.3) and these pages draw none. Moving them onto the kit's Frame is a design change, so the smoke suite lists them as an exemption (`NO_JSON_LD_YET`) instead of faking markup.
 - **Registry H1 for the legal, contact and launch-partner pages** fell back to the title (for example "Privacy Policy - Peakhour.ai") and disagreed with what the page renders. Fixed in this PR, found by the smoke suite's T04 check.
 - **Wave 2:** blog, cart upsells, A/B tests, inventory, markdowns (retitle first), AI search visibility, insights, campaigns, SEO audit, and the Google Ads, Search Console, WordPress and WooCommerce pages.
 
