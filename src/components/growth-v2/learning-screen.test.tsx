@@ -177,14 +177,14 @@ describe("What's working counts customers and shoppers close to buying (GG-3d)",
     const out = html(<LearningBody learning={{ ...LIVE, shoppers }} unitPlural="bookings" currency="INR" />);
     expect(out).toContain("Your customers");
     expect(out).toContain("Customers: 120 new, 40 repeat, 12 loyal, 9 at risk of lapsing");
-    expect(out).toContain("Shoppers close to buying who didn&#x27;t: 8 this week");
+    expect(out).toContain("Visits close to a purchase that didn&#x27;t buy: 8 this week");
     expect(out).toContain("BASIS-SHOPPERS");
     expect(out).toContain("Counted on 15 Nov 2026.");
   });
   it("a part the api did not count says so, never a zero", () => {
     const out = html(<LearningBody learning={{ ...LIVE, shoppers: { ...shoppers, closeToBuying: undefined } }} unitPlural="bookings" currency="INR" />);
     expect(out).toContain("No store visits to count from shoppers who allowed analytics in the last 7 days.");
-    expect(out).not.toContain("Shoppers close to buying who didn");
+    expect(out).not.toContain("close to a purchase");
     const none = html(<LearningBody learning={{ ...LIVE, shoppers: { ...shoppers, customers: undefined } }} unitPlural="bookings" currency="INR" />);
     expect(none).toContain("No sold orders in the last year to count customers from.");
   });
@@ -192,11 +192,11 @@ describe("What's working counts customers and shoppers close to buying (GG-3d)",
     expect(html(<LearningBody learning={LIVE} unitPlural="bookings" currency="INR" />)).not.toContain("Your customers");
   });
   it("a window that is not a week says its days", () => {
-    expect(closeToBuyingWords({ count: 3, windowDays: 14 })).toBe("Shoppers close to buying who didn't: 3 in the last 14 days");
+    expect(closeToBuyingWords({ count: 3, windowDays: 14 })).toBe("Visits close to a purchase that didn't buy: 3 in the last 14 days");
     expect(customerWords({ new: 0, repeat: 0, loyal: 0, lapsing: 0, lapsed: 5 })).toBe("Customers: 0 new, 0 repeat, 0 loyal, 0 at risk of lapsing");
   });
   it("large counts are grouped like every other count on the growth screens", () => {
     expect(customerWords({ new: 125000, repeat: 4000, loyal: 12, lapsing: 9, lapsed: 0 })).toBe("Customers: 1,25,000 new, 4,000 repeat, 12 loyal, 9 at risk of lapsing");
-    expect(closeToBuyingWords({ count: 12500, windowDays: 7 })).toBe("Shoppers close to buying who didn't: 12,500 this week");
+    expect(closeToBuyingWords({ count: 12500, windowDays: 7 })).toBe("Visits close to a purchase that didn't buy: 12,500 this week");
   });
 });
