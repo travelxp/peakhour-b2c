@@ -28,7 +28,11 @@ export function pageMeta(pageId: string, locale: Locale = DEFAULT_LOCALE): Metad
   const publishable = isPublishable(page, locale);
 
   const languages: Record<string, string> = {};
-  if (publishable) {
+  // hreflang only when there is a real cluster: with English alone it would be two identical entries.
+  const published = LOCALES.filter(
+    (l) => PUBLISHED_LOCALES.includes(l) && (l === DEFAULT_LOCALE || page.locales?.[l as Exclude<Locale, "en">]?.status === "published"),
+  );
+  if (publishable && published.length > 1) {
     for (const l of LOCALES) {
       if (!PUBLISHED_LOCALES.includes(l)) continue;
       if (l !== DEFAULT_LOCALE && page.locales?.[l as Exclude<Locale, "en">]?.status !== "published") continue;
@@ -40,10 +44,10 @@ export function pageMeta(pageId: string, locale: Locale = DEFAULT_LOCALE): Metad
   return {
     title,
     description,
-    alternates: { canonical: url, ...(publishable ? { languages } : {}) },
+    alternates: { canonical: url, ...(Object.keys(languages).length ? { languages } : {}) },
     // Only a page that is NOT publishable says so: Next replaces (not merges) a page-level robots object,
     // so a page that sets index:true would contradict dev and preview, which stay noindex by header.
-    ...(publishable ? {} : { robots: { index: false, follow: false } }),
+    ...(publishable ? {} : { robots: { index: false, follow: true } }),
     openGraph: {
       type: "website",
       // Next replaces (not deep-merges) openGraph per page, so siteName must be

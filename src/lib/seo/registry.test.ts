@@ -138,10 +138,10 @@ describe("T03: every canonical uses SITE.url's origin and is self-referencing", 
     }
   });
 
-  it("emits hreflang only for published variants, plus x-default at English", () => {
-    const langs = pageMeta("pricing").alternates?.languages as Record<string, string>;
-    expect(Object.keys(langs).sort()).toEqual(["en", "x-default"]);
-    expect(langs["x-default"]).toBe(absoluteUrl("pricing"));
+  it("emits hreflang only when a non-English variant is published (none is today)", () => {
+    const langs = pageMeta("pricing").alternates?.languages;
+    expect(langs).toBeUndefined(); // English alone is not a cluster
+    expect(pageMeta("pricing").alternates?.canonical).toBe(absoluteUrl("pricing"));
   });
 
   it("keeps siteName, and the title and description of the page record", () => {

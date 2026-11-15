@@ -58,7 +58,7 @@ const CATALOG_TO_RELEASE: Record<string, ReleaseStatus> = {
 
 async function main() {
   const env = readEnv(resolve(MONGODB_DIR, ".env"));
-  if (!env.MONGO_URL || !env.DB_NAME) throw new Error(`MONGO_URL and DB_NAME are needed in ${MONGODB_DIR}\.env`);
+  if (!env.MONGO_URL || !env.DB_NAME) throw new Error(`MONGO_URL and DB_NAME are needed in ${resolve(MONGODB_DIR, ".env")}`);
   const { MongoClient } = createRequire(resolve(API_DIR, "package.json"))("mongodb") as MongoModule;
   const client = new MongoClient(env.MONGO_URL, { readPreference: "secondaryPreferred" });
   await client.connect();
