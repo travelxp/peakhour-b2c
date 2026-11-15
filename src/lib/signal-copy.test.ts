@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { evidenceChain, stateCopy, formatWhen, railLabel } from "@/lib/signal-copy";
+import { evidenceChain, stateCopy, formatWhen, railLabel, SITE_TAG_CONSENT, SITE_TAG_HEADLINE, SITE_TAG_WHAT, SITE_TAG_WHERE } from "@/lib/signal-copy";
 import type { Signal, SignalRail } from "@/lib/api/signals";
 
 /**
@@ -367,15 +367,18 @@ describe("★the railOffered mechanism itself — asserted positively, not by ab
 });
 
 describe("the Peakhour site tag's words (GG-3c)", () => {
-  it("★say, in plain words, that nothing is sent until a visitor agrees, and that no answer means nothing", async () => {
-    const { SITE_TAG_CONSENT, SITE_TAG_WHAT, SITE_TAG_WHERE } = await import("@/lib/signal-copy");
+  it("★say, in plain words, that nothing is sent until a visitor agrees, and that no yes means nothing", () => {
+    expect(SITE_TAG_HEADLINE).toBe("It sends nothing until a visitor agrees to analytics.");
     expect(SITE_TAG_CONSENT).toMatch(/cookie banner/);
     expect(SITE_TAG_CONSENT).toMatch(/Google Consent Mode/);
     expect(SITE_TAG_CONSENT).toMatch(/WP Consent API/);
-    expect(SITE_TAG_CONSENT).toMatch(/never answers, nothing is sent/);
-    expect(SITE_TAG_WHAT).toMatch(/page views, product views, adds to cart and completed orders/);
+    expect(SITE_TAG_CONSENT).toMatch(/has not said yes, nothing is sent/);
+    // what it records by itself, and what needs the plugin or the site's own calls
+    expect(SITE_TAG_WHAT).toMatch(/page views by itself/);
+    expect(SITE_TAG_WHAT).toMatch(/WooCommerce the Peakhour plugin also reports/);
+    expect(SITE_TAG_WHAT).toMatch(/peakhour\("track"/);
     expect(SITE_TAG_WHERE).toMatch(/Peakhour > Site tag/);
     // Bible naming: never the internal words
-    for (const s of [SITE_TAG_CONSENT, SITE_TAG_WHAT, SITE_TAG_WHERE]) expect(s).not.toMatch(/mandate|intent|pixel|siteKey/i);
+    for (const s of [SITE_TAG_HEADLINE, SITE_TAG_CONSENT, SITE_TAG_WHAT, SITE_TAG_WHERE]) expect(s).not.toMatch(/mandate|intent|pixel|siteKey/i);
   });
 });

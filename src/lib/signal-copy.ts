@@ -302,8 +302,9 @@ export function formatWhen(iso: string | undefined): string {
  * a broken tag.
  */
 export const SITE_TAG_WHAT =
-  "Lets Peakhour see page views, product views, adds to cart and completed orders on your site, so your plan can learn what your visitors do.";
+  "Lets Peakhour see what visitors do on your site, so your plan can learn from it. It records page views by itself. On WooCommerce the Peakhour plugin also reports product views, adds to cart, checkouts and completed orders; on any other site your own code reports them with peakhour(\"track\", …).";
+export const SITE_TAG_HEADLINE = "It sends nothing until a visitor agrees to analytics.";
 export const SITE_TAG_CONSENT =
-  'It waits for your cookie banner to say yes, through Google Consent Mode or the WP Consent API, or for your own code to call peakhour("consent", "granted"). If a visitor says no, or never answers, nothing is sent.';
+  'It waits for your cookie banner to say yes, through Google Consent Mode or the WP Consent API, or for your own code to call peakhour("consent", "granted"). If a visitor says no, or your banner has not said yes, nothing is sent.';
 export const SITE_TAG_WHERE =
   "On WordPress the Peakhour plugin adds it for you (Peakhour > Site tag). Anywhere else, paste it before the closing </head> tag on every page.";

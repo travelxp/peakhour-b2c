@@ -30,6 +30,7 @@ import type { Signal, SignalProvider, SignalRail } from "@/lib/api/signals";
 import {
   PARTNER_ID_CHANGE_WARNING,
   SITE_TAG_CONSENT,
+  SITE_TAG_HEADLINE,
   SITE_TAG_WHAT,
   SITE_TAG_WHERE,
   evidenceChain,
@@ -493,7 +494,7 @@ function SnippetBlock({ provider }: { provider: SignalProvider }) {
           {SITE_TAG_WHAT}
         </p>
         <p className="text-sm">
-          <span className="font-medium">It sends nothing until a visitor agrees to analytics.</span>{" "}
+          <span className="font-medium">{SITE_TAG_HEADLINE}</span>{" "}
           {SITE_TAG_CONSENT}
         </p>
         <p className="text-sm text-muted-foreground">{SITE_TAG_WHERE}</p>
