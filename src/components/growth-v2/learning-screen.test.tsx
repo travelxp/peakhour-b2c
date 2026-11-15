@@ -5,6 +5,7 @@ import { FIXTURE_LEARNING } from "@/lib/growth-v2-fixtures";
 import { NOT_BUILT, loadLearning, type LearningResponse } from "@/lib/api/growth-v2";
 import { LearningBody } from "./learning-screen";
 import { ExperimentTimeline } from "./experiment-timeline";
+import { closeToBuyingWords, customerWords } from "./customer-counts";
 
 vi.mock("@/providers/auth-provider", () => ({ useAuth: () => ({ business: { _id: "biz-1" } }) }));
 vi.mock("next/navigation", () => ({ usePathname: () => "/dashboard/growth/learning", useRouter: () => ({ push: vi.fn() }) }));
@@ -162,5 +163,36 @@ describe("Learning says what the target still rests on (PL-7)", () => {
   });
   it("a starting guess is said as one", () => {
     expect(html(<LearningBody learning={{ ...LIVE, targetStartingFrom: { layer: "playbook" } }} unitPlural="bookings" currency="INR" />)).toContain("Your target. Starting guess.");
+  });
+});
+
+describe("What's working counts customers and shoppers close to buying (GG-3d)", () => {
+  const shoppers: NonNullable<LearningResponse["shoppers"]> = {
+    asOf: "2026-11-15",
+    customers: { new: 120, repeat: 40, loyal: 12, lapsing: 9, lapsed: 30 },
+    closeToBuying: { count: 8, windowDays: 7 },
+    basis: "BASIS-SHOPPERS",
+  };
+  it("says both lines in the merchant's words, with the api's basis and the day counted", () => {
+    const out = html(<LearningBody learning={{ ...LIVE, shoppers }} unitPlural="bookings" currency="INR" />);
+    expect(out).toContain("Your customers");
+    expect(out).toContain("Customers: 120 new, 40 repeat, 12 loyal, 9 at risk of lapsing");
+    expect(out).toContain("Shoppers close to buying who didn&#x27;t: 8 this week");
+    expect(out).toContain("BASIS-SHOPPERS");
+    expect(out).toContain("Counted on 2026-11-15.");
+  });
+  it("a part the api did not count says so, never a zero", () => {
+    const out = html(<LearningBody learning={{ ...LIVE, shoppers: { ...shoppers, closeToBuying: undefined } }} unitPlural="bookings" currency="INR" />);
+    expect(out).toContain("No shopper activity from your store to count yet.");
+    expect(out).not.toContain("Shoppers close to buying who didn");
+    const none = html(<LearningBody learning={{ ...LIVE, shoppers: { ...shoppers, customers: undefined } }} unitPlural="bookings" currency="INR" />);
+    expect(none).toContain("No orders from customers to count yet.");
+  });
+  it("no counts at all: no card", () => {
+    expect(html(<LearningBody learning={LIVE} unitPlural="bookings" currency="INR" />)).not.toContain("Your customers");
+  });
+  it("a window that is not a week says its days", () => {
+    expect(closeToBuyingWords({ count: 3, windowDays: 14 })).toBe("Shoppers close to buying who didn't: 3 in the last 14 days");
+    expect(customerWords({ new: 0, repeat: 0, loyal: 0, lapsing: 0, lapsed: 5 })).toBe("Customers: 0 new, 0 repeat, 0 loyal, 0 at risk of lapsing");
   });
 });
