@@ -108,6 +108,10 @@ export default function SignalsPage() {
           its own `NO_ACTIVE_BUSINESS` branch unreachable in the same commit.
           The pattern the rest of this app uses (`dashboard/pages`) checks the
           business before the query state, which is what this does now. */}
+      {/* GG-3c+: the business's own site tag, on its own query, so it shows whatever
+          the LinkedIn list is doing (loading, failed, or nothing set up). */}
+      {business && <SiteTagCard />}
+
       {!business ? (
         <EmptyState
           icon={Radar}
@@ -126,7 +130,6 @@ export default function SignalsPage() {
         <EmptyState {...listErrorState(error, () => void refetch())} icon={Radar} />
       ) : (
         <div className="space-y-4">
-          <SiteTagCard />
           {data.availableProviders.map((provider) => {
             const signal = data.signals.find((s) => s.provider === provider);
             return signal ? (
@@ -498,7 +501,7 @@ function SnippetBlock({ provider }: { provider: SignalProvider }) {
  * sends anything.
  */
 function SiteTagCard() {
-  const { data, isPending, isError } = useSiteTag();
+  const { data, isPending, refetch, isFetching } = useSiteTag();
   return (
     <Card>
       <CardHeader>
@@ -510,17 +513,22 @@ function SiteTagCard() {
           <span className="font-medium">{SITE_TAG_HEADLINE}</span> {SITE_TAG_CONSENT}
         </p>
         <p className="text-sm text-muted-foreground">{SITE_TAG_WHERE}</p>
-        {isPending ? (
-          <Skeleton className="h-24 w-full" />
-        ) : isError || !data ? (
-          <p className="text-sm text-destructive">
-            We couldn&apos;t build your site tag just now. Try again in a moment.
-          </p>
-        ) : (
+        {/* `!data`, not `isError`, as for the list: a failed background refetch keeps
+            the tag that already loaded on screen. */}
+        {data ? (
           <>
             <p className="text-sm text-muted-foreground">{siteTagSeen(data.state, data.lastFiredAt, data.lastFiredHost)}</p>
             <CopyableSnippet text={data.tagSnippet} copyLabel="Copy site tag" />
+            <Button variant="outline" size="sm" disabled={isFetching} onClick={() => void refetch()}>
+              {isFetching ? "Checking…" : "Check again"}
+            </Button>
           </>
+        ) : isPending ? (
+          <Skeleton className="h-24 w-full" />
+        ) : (
+          <p className="text-sm text-destructive">
+            We couldn&apos;t build your site tag just now. Try again in a moment.
+          </p>
         )}
       </CardContent>
     </Card>
