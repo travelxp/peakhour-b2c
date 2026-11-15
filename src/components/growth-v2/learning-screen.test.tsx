@@ -183,10 +183,10 @@ describe("What's working counts customers and shoppers close to buying (GG-3d)",
   });
   it("a part the api did not count says so, never a zero", () => {
     const out = html(<LearningBody learning={{ ...LIVE, shoppers: { ...shoppers, closeToBuying: undefined } }} unitPlural="bookings" currency="INR" />);
-    expect(out).toContain("No shopper activity from your store to count yet.");
+    expect(out).toContain("No store visits to count from shoppers who allowed analytics in the last 7 days.");
     expect(out).not.toContain("Shoppers close to buying who didn");
     const none = html(<LearningBody learning={{ ...LIVE, shoppers: { ...shoppers, customers: undefined } }} unitPlural="bookings" currency="INR" />);
-    expect(none).toContain("No orders from customers to count yet.");
+    expect(none).toContain("No sold orders in the last year to count customers from.");
   });
   it("no counts at all: no card", () => {
     expect(html(<LearningBody learning={LIVE} unitPlural="bookings" currency="INR" />)).not.toContain("Your customers");

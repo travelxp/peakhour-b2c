@@ -17,8 +17,8 @@ export function closeToBuyingWords(b: NonNullable<Shoppers["closeToBuying"]>): s
 export function CustomerCounts({ shoppers }: { shoppers: Shoppers }) {
   return (
     <div className="grid gap-1 text-sm">
-      {shoppers.customers ? <p>{customerWords(shoppers.customers)}</p> : <p className="text-muted-foreground">No orders from customers to count yet.</p>}
-      {shoppers.closeToBuying ? <p>{closeToBuyingWords(shoppers.closeToBuying)}</p> : <p className="text-muted-foreground">No shopper activity from your store to count yet.</p>}
+      {shoppers.customers ? <p>{customerWords(shoppers.customers)}</p> : <p className="text-muted-foreground">No sold orders in the last year to count customers from.</p>}
+      {shoppers.closeToBuying ? <p>{closeToBuyingWords(shoppers.closeToBuying)}</p> : <p className="text-muted-foreground">No store visits to count from shoppers who allowed analytics in the last 7 days.</p>}
       <p className="text-xs text-muted-foreground">Counted on {formatDate(shoppers.asOf)}.</p>
     </div>
   );
