@@ -356,6 +356,7 @@ export const DIRECTORY: DirectoryContent = {
     { title: "Integration page", body: "One connection.", href: "/seo-kit?template=integration", status: "live", pillar: "Support" },
     { title: "Comparison page", body: "Brand-safe table.", href: "/seo-kit?template=comparison", status: "planned", pillar: "Commerce" },
     { title: "Guide page", body: "How-to with sources.", href: "/seo-kit?template=guide", status: "beta", pillar: "Content" },
+    { title: "Module hub", body: "A module with each capability's status.", href: "/seo-kit?template=hub", status: "live", pillar: "Commerce" },
   ],
   faqs: [{ q: "Is this page public?", a: "No. It returns 404 on the production deployment and is never listed in the sitemap." }],
   related: [

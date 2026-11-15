@@ -4,6 +4,8 @@ import { safeHref } from "./safe-href";
 
 /** Semantic breadcrumb trail. No JSON-LD here: structured data is SEO-6's. The last crumb is the current page. */
 export function Breadcrumbs({ crumbs }: { crumbs: Crumb[] }) {
+  // The home page has no trail; a one-crumb trail is only the page's own name.
+  if (crumbs.length < 2) return null;
   return (
     <nav aria-label="Breadcrumb" className="text-sm font-medium text-muted-foreground">
       <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1">

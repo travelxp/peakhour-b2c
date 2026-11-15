@@ -48,7 +48,7 @@ export default function OpengraphImage() {
             {SITE.tagline}
           </div>
           <div style={{ display: "flex", fontSize: 30, color: OG_IMAGE.muted }}>
-            Five modules. One platform. One plan.
+            Peakhour does the work. You approve what goes out.
           </div>
         </div>
 

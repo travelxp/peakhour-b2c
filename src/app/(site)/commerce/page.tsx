@@ -1,21 +1,9 @@
-import Link from "next/link";
+import { HubRoute } from "@/components/marketing/seo/hub-route";
+import { COMMERCE } from "@/content/pages/commerce";
 import { pageMeta } from "@/lib/seo/metadata";
-import { PillarPage } from "@/components/marketing/pillar-page";
 
 export const metadata = pageMeta("commerce");
 
-export default function CommercePillar() {
-  return (
-    <PillarPage
-      slug="commerce"
-      aside={
-        <p className="mt-3 text-sm text-muted-foreground">
-          Using Shopify?{" "}
-          <Link href="/shopify" className="font-semibold text-brand-strong hover:underline">
-            See Peakhour for Shopify &rarr;
-          </Link>
-        </p>
-      }
-    />
-  );
+export default function CommercePage() {
+  return <HubRoute pageId="commerce" content={COMMERCE} />;
 }
