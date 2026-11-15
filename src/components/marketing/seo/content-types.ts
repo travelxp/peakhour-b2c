@@ -85,8 +85,10 @@ export type DetailSectionContent = {
   eyebrow: string;
   title: string;
   paragraphs: string[];
-  /** Named parts of the feature (a kind of shelf, a step of a flow). Use 2, 4, 6 or 8 parts so no row is left with one card. */
-  /** `linkLabel` is the descriptive anchor text when `href` is set (never "read more"). */
+  /**
+   * Named parts of the feature (a kind of shelf, a step of a flow). An odd last card spans the row, so any count is safe.
+   * `linkLabel` is the descriptive anchor text when `href` is set (never "read more").
+   */
   items?: { title: string; body: string; href?: string; linkLabel?: string }[];
   /** What this part does NOT do, shown under the items. */
   limitations?: string[];

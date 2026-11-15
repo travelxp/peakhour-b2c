@@ -5,17 +5,24 @@ import { Section } from "./section";
 import { safeHref } from "./safe-href";
 import { cardCls, linkCls } from "./styles";
 
-/**
- * A section of a feature page that explains what the feature is made of: a few paragraphs, then named parts in a
- * grid (one column on a phone, two from sm, then three or four from lg), then what the part does not do. A server component.
- */
-/** Three columns when the count divides by three, four when it divides by four, else two: a last row is never one card. */
+/** Three columns when the count divides by three, four when it divides by four, else two. */
 function columnsClass(n: number): string {
   if (n % 3 === 0) return "lg:grid-cols-3";
   if (n % 4 === 0) return "lg:grid-cols-4";
   return "lg:grid-cols-2";
 }
 
+/** An odd last card spans the row wherever the grid has two columns, so it is never left alone. */
+function lastCardClass(n: number): string {
+  return n % 3 === 0 || n % 4 === 0
+    ? "sm:max-lg:[&:last-child:nth-child(odd)]:col-span-2"
+    : "sm:[&:last-child:nth-child(odd)]:col-span-2";
+}
+
+/**
+ * A section of a feature page that explains what the feature is made of: a few paragraphs, then named parts in a
+ * grid (one column on a phone, two from sm, then three or four from lg), then what the part does not do. A server component.
+ */
 export function DetailSection({ section, tone = "plain" }: { section: DetailSectionContent; tone?: "plain" | "muted" }) {
   return (
     <Section id={section.id} eyebrow={section.eyebrow} title={section.title} tone={tone}>
@@ -27,7 +34,7 @@ export function DetailSection({ section, tone = "plain" }: { section: DetailSect
       {section.items && section.items.length > 0 && (
         <ul role="list" className={`mt-7 grid gap-3 sm:grid-cols-2 sm:gap-4 ${columnsClass(section.items.length)}`}>
           {section.items.map((i) => (
-            <li key={i.title} className={`${cardCls} p-5`}>
+            <li key={i.title} className={`${cardCls} p-5 ${lastCardClass(section.items.length)}`}>
               <h3 className="text-lg font-extrabold tracking-tight">{i.title}</h3>
               <p className="mt-1.5 text-[15px] text-muted-foreground">
                 {i.body}
