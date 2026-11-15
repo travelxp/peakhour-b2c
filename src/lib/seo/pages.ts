@@ -1,4 +1,4 @@
-import { SHOPIFY_SEO } from "@/lib/shopify-features";
+import { SHOPIFY_HERO, SHOPIFY_SEO } from "@/lib/shopify-features";
 import { SEO9_PAGES } from "./pages-seo9";
 import { COMPETITOR_BRIEFS } from "@/content/seo/competitors";
 import type { CtaKind, EditorialStatus, PageFamily, PageRecord, PageScope, Pillar, Surface } from "./types";
@@ -94,6 +94,7 @@ export const PAGES: readonly PageRecord[] = [
   page({
     pageId: "pricing.teams",
     path: "/pricing/teams",
+    h1: "Built for many businesses at once.",
     queryClusterId: "pricing",
     title: "Agency & Enterprise plans",
     description:
@@ -199,7 +200,7 @@ export const PAGES: readonly PageRecord[] = [
     capabilityIds: ["commerce.ai_shopping_assistant", "commerce.product_recommendations", "content.ai_seo_fixes"],
     title: SHOPIFY_SEO.title,
     description: SHOPIFY_SEO.description,
-    h1: "Your store's AI team, right inside Shopify",
+    h1: `${SHOPIFY_HERO.headline} ${SHOPIFY_HERO.accent}`,
     cta: { label: "Install on Shopify", href: "/shopify", kind: "install" },
     relatedIds: ["pricing", "commerce", "content", "growth"],
   }),
@@ -336,6 +337,7 @@ export const PAGES: readonly PageRecord[] = [
   page({
     pageId: "launch.partner",
     path: "/launch-partner",
+    h1: "Build Peakhour.ai with us.",
     title: "Become a Launch Partner — Peakhour",
     description:
       "Join the Peakhour launch partner program. Work directly with our team to shape Peakhour Suite, and get early access ahead of public launch.",
@@ -343,6 +345,7 @@ export const PAGES: readonly PageRecord[] = [
   page({
     pageId: "contact",
     path: "/contact",
+    h1: "Get in touch",
     title: "Contact Us - Peakhour",
     description: "Get in touch with the Peakhour team — we'd love to hear from you.",
     cta: { label: "Contact us", href: "/contact", kind: "contact" },
@@ -350,18 +353,21 @@ export const PAGES: readonly PageRecord[] = [
   page({
     pageId: "legal.privacy",
     path: "/privacy-policy",
+    h1: "Privacy Policy",
     title: "Privacy Policy - Peakhour.ai",
     description: "Peakhour.ai privacy policy — how we collect, use, and protect your data.",
   }),
   page({
     pageId: "legal.terms",
     path: "/terms",
+    h1: "Terms of Service",
     title: "Terms of Service - Peakhour.ai",
     description: "Peakhour.ai terms of service — the agreement between you and Peakhour.ai.",
   }),
   page({
     pageId: "legal.cookies",
     path: "/cookie-policy",
+    h1: "Cookie Policy",
     title: "Cookie Policy - Peakhour.ai",
     description:
       "Peakhour.ai cookie policy — the cookies and similar technologies we use, why we use them, and how to control them.",
@@ -369,12 +375,14 @@ export const PAGES: readonly PageRecord[] = [
   page({
     pageId: "legal.data.deletion",
     path: "/data-deletion",
+    h1: "Data Deletion",
     title: "Data Deletion - Peakhour.ai",
     description: "Request deletion of your data from Peakhour.ai and check the status of a data-deletion request.",
   }),
   page({
     pageId: "trust.data.processing",
     path: "/help/data-retention",
+    h1: "Data Retention",
     title: "Data Retention - Peakhour",
     description: "How long Peakhour keeps the data it pulls from connected platforms, and why.",
   }),
