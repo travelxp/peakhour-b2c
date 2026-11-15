@@ -41,7 +41,9 @@ export function pageMeta(pageId: string, locale: Locale = DEFAULT_LOCALE): Metad
     title,
     description,
     alternates: { canonical: url, ...(publishable ? { languages } : {}) },
-    robots: publishable ? { index: true, follow: true } : { index: false, follow: false },
+    // Only a page that is NOT publishable says so: Next replaces (not merges) a page-level robots object,
+    // so a page that sets index:true would contradict dev and preview, which stay noindex by header.
+    ...(publishable ? {} : { robots: { index: false, follow: false } }),
     openGraph: {
       type: "website",
       // Next replaces (not deep-merges) openGraph per page, so siteName must be

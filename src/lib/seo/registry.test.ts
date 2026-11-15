@@ -74,6 +74,10 @@ describe("T02: a non-published or non-indexable page is never publishable and ne
     expect(isPublishable(withVariant, "en")).toBe(true);
   });
 
+  it("a page names only capabilities that carry a claim (the gate checks claims, so an unclaimed one would pass vacuously)", () => {
+    for (const p of PAGES) for (const id of p.capabilityIds) expect(getCapability(id)!.approvedClaims.length, `${p.pageId} -> ${id}`).toBeGreaterThan(0);
+  });
+
   it("every registered page is publishable today (existing pages stay as they are)", () => {
     for (const p of PAGES) expect(isPublishable(p), p.pageId).toBe(true);
   });
@@ -146,7 +150,7 @@ describe("T03: every canonical uses SITE.url's origin and is self-referencing", 
     expect(meta.description).toBe(getPage("peaks").description);
     expect(meta.openGraph).toMatchObject({ siteName: SITE.name, locale: "en" });
     expect(meta.twitter).toMatchObject({ card: "summary_large_image" });
-    expect(meta.robots).toEqual({ index: true, follow: true });
+    expect(meta.robots).toBeUndefined(); // publishable: no page-level robots; dev stays noindex by header
   });
 });
 

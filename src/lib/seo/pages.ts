@@ -17,6 +17,10 @@ import type { CtaKind, PageFamily, PageRecord, Pillar, Surface } from "./types";
 const REVIEWED = "2026-11-15";
 const OWNER = "growth";
 
+// A page lists in capabilityIds only the capabilities its copy makes a CLAIM on (a capability with
+// no approved claim is not checked by the gate). Growth lists none yet: its Google Ads and lead-inbox
+// copy is "coming soon" and SEO-3/SEO-7 decide how the gate should treat it.
+
 type Seed = {
   pageId: string;
   path: string;
@@ -31,7 +35,7 @@ type Seed = {
   relatedIds?: string[];
 };
 
-const WAITLIST = { label: "Join the waitlist", href: "/launch-partner", kind: "launch-partner" as const };
+const LAUNCH_PARTNER_CTA = { label: "Join the waitlist", href: "/launch-partner", kind: "launch-partner" as const };
 
 function page(s: Seed): PageRecord {
   return {
@@ -47,7 +51,7 @@ function page(s: Seed): PageRecord {
     title: s.title,
     description: s.description,
     h1: s.h1 ?? s.title,
-    primaryCta: s.cta ?? WAITLIST,
+    primaryCta: s.cta ?? LAUNCH_PARTNER_CTA,
     owner: OWNER,
     lastReviewedAt: REVIEWED,
     relatedIds: s.relatedIds ?? [],
@@ -125,7 +129,7 @@ export const PAGES: readonly PageRecord[] = [
     pageId: "support",
     path: "/support",
     primaryPillar: "support",
-    capabilityIds: ["support.channel_inbox", "support.instagram_messenger_inbox"],
+    capabilityIds: ["support.channel_inbox"],
     title: "Support — one AI inbox for every channel | Peakhour.ai",
     description:
       "WhatsApp, Instagram, email — one inbox. AI answers the routine and hands you what needs a human, with full context. Included in Peakhour Suite.",
@@ -134,7 +138,6 @@ export const PAGES: readonly PageRecord[] = [
     pageId: "growth",
     path: "/growth",
     primaryPillar: "growth",
-    capabilityIds: ["growth.google_ads"],
     title: "Growth — ads & LinkedIn, with your approval | Peakhour.ai",
     description:
       "Campaigns drafted, LinkedIn leads captured and budgets reviewed every week, with your approval. Peakhour Growth takes on acquisition work for you. Included in Peakhour Suite.",
@@ -206,6 +209,8 @@ export function getPage(pageId: string): PageRecord {
   return p;
 }
 
+const BY_PATH = new Map(PAGES.map((p) => [p.path, p]));
+
 export function findPageByPath(path: string): PageRecord | undefined {
-  return PAGES.find((p) => p.path === path);
+  return BY_PATH.get(path);
 }

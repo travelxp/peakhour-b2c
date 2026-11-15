@@ -6,8 +6,9 @@ import { DEFAULT_LOCALE, PUBLISHED_LOCALES, type Locale, type PageRecord, type R
  * The publish gate (named publish.ts: gate.ts is the coming-soon gate and stays as it is).
  *
  * A page is publishable, meaning it may be indexed, listed in the sitemap and shown on
- * production, only when every one of these holds. A page that fails renders 404 on
- * production (and, with isPreviewable, a draft ribbon on dev).
+ * production, only when every one of these holds. This module only ANSWERS: pageMeta turns a "no" into
+ * noindex and the sitemap leaves the page out. A route that must 404 on production (the SEO-5 templates,
+ * with isPreviewable for the dev draft ribbon) calls isPublishable itself.
  */
 
 const RANK: Record<ReleaseStatus, number> = {
