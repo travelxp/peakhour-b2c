@@ -134,6 +134,13 @@ export const MARKETING_PATHS: readonly MarketingPath[] = [
   { path: "/launch-partner" },
   { path: "/data-deletion" },
   { path: "/help/data-retention" },
+  // SEO-11: the entity, industry and guide pages. Published or not, a known path answers the teaser (or 404 for a draft) rather than an unknown-URL 404.
+  { path: "/about" },
+  { path: "/features/peakhour-summit" },
+  { path: "/industries" },
+  { path: "/industries/fashion-apparel" },
+  { path: "/guides" },
+  { path: "/shopify/guides/whatsapp-cod-confirmation" },
   { path: "/coming-soon" },
 ];
 
