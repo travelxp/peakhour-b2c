@@ -12,6 +12,7 @@ import type {
   SolutionContent,
 } from "@/components/marketing/seo/content-types";
 import type { PageRecord } from "@/lib/seo/types";
+import { SITE } from "@/lib/utils";
 
 /**
  * Review fixtures for /seo-kit. English only. They use Peakhour's real capabilities (WhatsApp COD confirmation and
@@ -307,7 +308,7 @@ export const COMPARISON: ComparisonPageContent = {
     { vendor: "Example vendor", bestFor: "Unknown until we have read its documentation." },
   ],
   limitations: ["Every Unknown is a gap in our reading, not a finding about the vendor.", "Vendors change their products; check the linked source."],
-  author: "Peakhour Growth",
+  author: SITE.name,
   reviewer: "Pending review",
   faqs,
   related,
@@ -320,7 +321,7 @@ export const GUIDE: GuideContent = {
   eyebrow: "Guide",
   directAnswer: "Message each cash-on-delivery buyer on WhatsApp before you ship, hold the parcel until they reply, and review the orders that stay silent.",
   secondaryCta: { label: "Jump to the steps", href: "#steps" },
-  author: "Peakhour Growth",
+  author: SITE.name,
   reviewer: "Pending review",
   updatedAt: "2026-11-15",
   sections: [

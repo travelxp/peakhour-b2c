@@ -2,6 +2,7 @@ import type { ComparisonCell, ComparisonPageContent } from "@/components/marketi
 import { getPage } from "@/lib/seo/pages";
 import { pathFor } from "@/lib/seo/resolve";
 import type { PageRecord } from "@/lib/seo/types";
+import { SITE } from "@/lib/utils";
 import { buildMore } from "./more";
 import { compareRoute } from "./route";
 import type { CompetitorBrief, PeakhourClaim } from "./types";
@@ -63,7 +64,9 @@ export function buildComparisonContent(b: CompetitorBrief, page: PageRecord = ge
     },
     suitability: b.bestFor,
     limitations: b.limitations,
-    author: "Peakhour Growth",
+    // The company, never a team or product name ("Peakhour Growth" read as the product that wrote it,
+    // and the structured data filed it as a person). SITE.name makes articleLd an Organization.
+    author: SITE.name,
     reviewer: b.reviewer ?? "Pending review",
     faqs: b.faqs,
     related: page.relatedIds.map((id) => ({ label: getPage(id).title, href: pathFor(id) })),

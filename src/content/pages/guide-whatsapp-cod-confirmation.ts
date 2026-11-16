@@ -1,6 +1,7 @@
 import type { GuideContent } from "@/components/marketing/seo/content-types";
 import { getPage } from "@/lib/seo/pages";
 import { pathFor } from "@/lib/seo/resolve";
+import { SITE } from "@/lib/utils";
 
 /*
  * /shopify/guides/whatsapp-cod-confirmation, "review". Claim used: commerce.cod_confirmation.ask_on_whatsapp (live on Shopify)
@@ -29,7 +30,7 @@ export const COD_GUIDE: GuideContent = {
   directAnswer:
     "To confirm cash-on-delivery orders on Shopify, connect your own WhatsApp Business number to Peakhour and get its confirmation message approved by Meta. From then on Peakhour asks each new cash-on-delivery shopper on WhatsApp to confirm or cancel, and marks orders nobody answers after 24 hours.",
   secondaryCta: { label: "See the setup steps", href: "#guide-setup" },
-  author: "Peakhour",
+  author: SITE.name,
   reviewer: "Pending review",
   updatedAt: "2026-11-15",
   sections: [
