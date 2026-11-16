@@ -103,7 +103,8 @@ export function isPublishable(page: PageRecord, locale: Locale = DEFAULT_LOCALE,
     if (!page.indexable) return false;
     if (needsApproval(page) && !approved) return false;
   } else if (page.editorialStatus === "review") {
-    if (!approved) return false;
+    // Only a CMS approval publishes a review page; a placeholder row records a page that was already published.
+    if (!approved || approvalFor(page.pageId, approvals)?.source !== "cms") return false;
   } else {
     return false;
   }

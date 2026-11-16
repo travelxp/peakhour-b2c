@@ -51,6 +51,11 @@ describe("the publish rule with approvals", () => {
     expect(isPublishable(page, "en", [approve(page.pageId, { contentHash: STALE })])).toBe(false);
   });
 
+  it("does not publish a review page on a placeholder row", () => {
+    const page = getPage("shopify.compare.wati");
+    expect(isPublishable(page, "en", [approve(page.pageId, { source: "placeholder" })])).toBe(false);
+  });
+
   it("uses the last row for a page, and never publishes a draft, an idea or an archived page", () => {
     const page = getPage("shopify.compare.wati");
     expect(isPublishable(page, "en", [approve(page.pageId, { contentHash: STALE }), approve(page.pageId)])).toBe(true);
