@@ -26,13 +26,15 @@ function NeedLink({ need }: { need: DraftLockedGoal["needs"][number] }) {
 }
 
 export function LockedGoalCards({ locked }: { locked: readonly DraftLockedGoal[] }) {
-  if (locked.length === 0) return null;
+  // an older api answers without `locked`, and a goal with no needs has nothing to say
+  const shown = (locked ?? []).filter((l) => l.needs?.length > 0);
+  if (shown.length === 0) return null;
   return (
     <div className="grid gap-2" data-testid="locked-goals">
       <p className="text-xs text-muted-foreground">Not available yet. Connect what each one needs and it will appear above.</p>
       <ul className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-        {locked.map((l) => {
-          const first = l.needs[0]!;
+        {shown.map((l) => {
+          const first = l.needs[0]!; // filtered above
           return (
             <li key={l.kind}>
               <div role="group" aria-label={`${l.label}, not available yet`} aria-disabled="true" className="grid gap-1 rounded-xl border border-dashed bg-muted/30 p-3 text-left opacity-70" data-locked-kind={l.kind}>
@@ -55,7 +57,7 @@ export function LockedGoalCards({ locked }: { locked: readonly DraftLockedGoal[]
 
 /** The zero-offer message: it names what each missing goal needs, once each, each with its link. */
 export function NothingMeasurable({ locked, subject = "this business" }: { locked: readonly DraftLockedGoal[]; subject?: string }) {
-  const needs = distinctNeeds(locked);
+  const needs = distinctNeeds((locked ?? []).filter((l) => l.needs?.length > 0));
   if (needs.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">

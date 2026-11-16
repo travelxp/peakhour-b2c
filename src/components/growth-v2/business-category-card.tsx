@@ -5,9 +5,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { api, ApiError } from "@/lib/api";
-import { useDashboardOrg, DASHBOARD_ORG_KEY } from "@/hooks/use-dashboard-org";
+import { useDashboardOrg, useCanChangeCategory, DASHBOARD_ORG_KEY } from "@/hooks/use-dashboard-org";
 import { useAuth } from "@/providers/auth-provider";
-import { canChangeCategory, categoryChangeWords, categoryLabel, type CategoryChangeResult } from "@/lib/business-category";
+import { categoryChangeWords, categoryLabel, type CategoryChangeResult } from "@/lib/business-category";
 
 /**
  * The business category (FR), on "Your business". A first guess can be wrong (a travel business read as "Other" is never offered
@@ -15,9 +15,8 @@ import { canChangeCategory, categoryChangeWords, categoryLabel, type CategoryCha
  * Changing it saves at once; a plan that exists is never moved without the link and code (the api proposes the move and says so).
  */
 export function BusinessCategoryCard() {
-  const { org, orgs } = useAuth();
-  const role = orgs.find((o) => o._id === org?._id)?.role;
-  const can = canChangeCategory(role);
+  const can = useCanChangeCategory();
+  const { business } = useAuth();
   const { data } = useDashboardOrg();
   const qc = useQueryClient();
   const options = data?.businessCategoryOptions ?? [];
@@ -25,7 +24,16 @@ export function BusinessCategoryCard() {
   const [picked, setPicked] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [said, setSaid] = useState<{ text: string; tone: "ok" | "warn" } | null>(null);
-  const value = picked ?? current;
+  // an unsaved pick belongs to the business it was made on: switching business drops it
+  const businessId = business?._id ?? "";
+  const [pickedFor, setPickedFor] = useState(businessId);
+  if (pickedFor !== businessId) {
+    setPickedFor(businessId);
+    setPicked(null);
+    setSaid(null);
+  }
+  // a pick that the refetch has caught up with is no longer a pick
+  const value = picked !== null && picked !== current ? picked : current;
 
   async function save() {
     if (!value || value === current) return;
@@ -34,7 +42,7 @@ export function BusinessCategoryCard() {
     try {
       const r = await api.put<{ updated: boolean; category?: CategoryChangeResult }>("/v1/dashboard/org", { businessCategory: value });
       setSaid(r.category ? categoryChangeWords(r.category) : { text: "Saved.", tone: "ok" });
-      setPicked(null);
+      // `picked` is kept until `current` catches up, so the select never snaps back to the old category (or stays there if the refetch fails)
       // the cohorts, the playbook and the offered goals all follow the category; a refetch that fails is not a save that failed
       await Promise.all([qc.invalidateQueries({ queryKey: [DASHBOARD_ORG_KEY] }), qc.invalidateQueries({ queryKey: ["growth-v2"] })]).catch(() => undefined);
     } catch (e) {
@@ -63,6 +71,7 @@ export function BusinessCategoryCard() {
                 setSaid(null);
               }} disabled={saving}>
               {current === "" ? <option value="">Choose one</option> : null}
+              {current !== "" && !options.some((o) => o.value === current) ? <option value={current}>{categoryLabel(current, options)}</option> : null}
               {options.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}

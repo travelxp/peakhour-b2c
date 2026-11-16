@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
+import { canChangeCategory } from "@/lib/business-category";
 
 /** Shape of `/v1/dashboard/org` as relevant to plan/trial surfaces.
  *  Other fields (taxonomy, integrations, business meta) are returned by
@@ -138,4 +139,10 @@ export function useExtendTrial() {
       });
     },
   });
+}
+
+/** Whether the signed-in member may change the business category (an owner or admin of the active org). */
+export function useCanChangeCategory(): boolean {
+  const { org, orgs } = useAuth();
+  return canChangeCategory(orgs.find((o) => o._id === org?._id)?.role);
 }

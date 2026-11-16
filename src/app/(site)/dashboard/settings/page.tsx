@@ -8,8 +8,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
 import { api, ApiError } from "@/lib/api";
 import { useLocale } from "@/hooks/use-locale";
-import type { DashboardOrgPlanSummary } from "@/hooks/use-dashboard-org";
-import { canChangeCategory, categoryLabel } from "@/lib/business-category";
+import { useCanChangeCategory, type DashboardOrgPlanSummary } from "@/hooks/use-dashboard-org";
+import { categoryLabel } from "@/lib/business-category";
 import { activeBusiness, planRowLabel } from "@/lib/plan-status";
 // Shared with every other surface the OAuth callback can return to
 // (?returnTo=), so a new provider is labelled once, not per page.
@@ -117,11 +117,12 @@ function SettingsContent() {
   const queryClient = useQueryClient();
   const [orgDetails, setOrgDetails] = useState<OrgDetails | null>(null);
   // FR: the category in words, with a way to change it for an owner or admin (it lives on "Your business").
+  const canChangeCat = useCanChangeCategory();
   const categoryText = categoryLabel(orgDetails?.businessCategory, orgDetails?.businessCategoryOptions);
   const categoryValue = categoryText ? (
     <span className="inline-flex items-center gap-2">
       {categoryText}
-      {canChangeCategory(orgs.find((o) => o._id === org?._id)?.role) ? (
+      {canChangeCat ? (
         <Link href="/dashboard/growth/rules/business" className="text-xs font-normal underline underline-offset-2">
           Edit
         </Link>

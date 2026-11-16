@@ -655,7 +655,7 @@ function LineGoal({ line, p, currency }: { line: DraftLine; p: FirstRunViewProps
     <div className="grid gap-2 rounded-lg border p-3">
       <b className="text-sm">{line.label}</b>
       {line.offers.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Nothing can be measured for {line.label} yet. Untick it, or connect your shop, your inbox or your analytics.</p>
+        <NothingMeasurable locked={line.locked} subject={line.label} />
       ) : (
         <div className="flex flex-wrap gap-2" role="group" aria-label={`What ${line.label} should get you more of`}>
           {line.offers.map((o) => {
