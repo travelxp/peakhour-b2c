@@ -78,10 +78,10 @@ export const SEARCHPIE: CompetitorBrief = {
   ],
   pricing: {
     rows: [
-      { plan: "Starter", price: "$0 per month", currency: "USD ($)", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Premium, 250 AI requests", price: "$39 per month, or $374 per year", currency: "USD ($)", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Enterprise, 5,000 AI requests", price: "$99 per month, or $950 per year", currency: "USD ($)", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Plus, 10,000 AI requests", price: "$399 per month, or $3830 per year", currency: "USD ($)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Starter", price: "$0 per month", currency: "Not stated (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Premium, 250 AI requests", price: "$39 per month, or $374 per year", currency: "Not stated (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Enterprise, 5,000 AI requests", price: "$99 per month, or $950 per year", currency: "Not stated (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Plus, 10,000 AI requests", price: "$399 per month, or $3830 per year", currency: "Not stated (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
       { plan: "Premium on its Shopify listing", price: "₹1,838.06 per month, 7-day trial", currency: "INR", region: "India, as shown on its listing", observedAt: D, source: S.listing },
       { plan: "Enterprise on its Shopify listing", price: "₹4,665.85 per month, 7-day trial", currency: "INR", region: "India, as shown on its listing", observedAt: D, source: S.listing },
     ],

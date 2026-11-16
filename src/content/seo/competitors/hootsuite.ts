@@ -39,7 +39,7 @@ export const HOOTSUITE: CompetitorBrief = {
     {
       dimension: "AI drafting of posts",
       vendor: { value: "yes", note: "Its plans page lists AI post and image generation.", source: S.plans, observedAt: D },
-      peakhour: PEAKHOUR_C.brandVoice,
+      peakhour: pending(),
     },
     {
       dimension: "Brand voice learned from your posts",
@@ -77,7 +77,7 @@ export const HOOTSUITE: CompetitorBrief = {
       { plan: "Standard, per user, 10 social accounts", price: "$99 per user per month, annual billing rate, 14-day free trial", currency: "USD", region: "Not stated", observedAt: D, source: S.plans },
       { plan: "Professional, per user", price: "$199 per user per month, annual billing rate, 14-day free trial", currency: "USD", region: "Not stated", observedAt: D, source: S.plans },
       { plan: "Advanced, per user", price: "Up to $399 per user per month, annual billing rate, 14-day free trial", currency: "USD", region: "Not stated", observedAt: D, source: S.plans },
-      { plan: "Enterprise", price: "Not published (contact for pricing)", currency: "USD", region: "Not stated", observedAt: D, source: S.plans },
+      { plan: "Enterprise", price: "Not published (contact for pricing)", currency: "Not stated", region: "Not stated", observedAt: D, source: S.plans },
     ],
   },
   bestFor: [

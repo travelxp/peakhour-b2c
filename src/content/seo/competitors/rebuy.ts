@@ -74,11 +74,11 @@ export const REBUY: CompetitorBrief = {
   ],
   pricing: {
     rows: [
-      { plan: "Rebuy Monetize", price: "Free (\"always free\" on its pricing page)", currency: "USD ($)", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Cart and Merchandising package, up to 500 orders a month", price: "$45 per month", currency: "USD ($)", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Cart and Merchandising package, up to 5,000 orders a month", price: "$425 per month", currency: "USD ($)", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Checkout and Post-Purchase package, up to 500 orders a month", price: "$25 per month", currency: "USD ($)", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Any package above 10,000 orders a month", price: "Not published (talk to sales)", currency: "USD ($)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Rebuy Monetize", price: "Free (\"always free\" on its pricing page)", currency: "Not stated (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Cart and Merchandising package, up to 500 orders a month", price: "$45 per month", currency: "Not stated (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Cart and Merchandising package, up to 5,000 orders a month", price: "$425 per month", currency: "Not stated (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Checkout and Post-Purchase package, up to 500 orders a month", price: "$25 per month", currency: "Not stated (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Any package above 10,000 orders a month", price: "Not published (talk to sales)", currency: "Not stated (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
     ],
   },
   bestFor: [

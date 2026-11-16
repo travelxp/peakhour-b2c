@@ -79,7 +79,7 @@ export const JASPER: CompetitorBrief = {
   pricing: {
     rows: [
       { plan: "Pro, 1 seat", price: "$69 per seat per month billed monthly, or $59 billed yearly, 7-day free trial", currency: "USD", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Business", price: "Not published (custom pricing, contact sales, 12-month commitment)", currency: "USD", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Business", price: "Not published (custom pricing, contact sales, 12-month commitment)", currency: "Not stated", region: "Not stated", observedAt: D, source: S.pricing },
     ],
   },
   bestFor: [

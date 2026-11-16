@@ -38,7 +38,7 @@ export const BUFFER: CompetitorBrief = {
     {
       dimension: "AI help with posts",
       vendor: { value: "yes", note: "An AI assistant for ideas, rewrites and platform-specific posts, on all plans.", source: S.pricing, observedAt: D },
-      peakhour: PEAKHOUR_C.brandVoice,
+      peakhour: pending(),
     },
     {
       dimension: "Brand voice learned from your posts",
@@ -73,9 +73,9 @@ export const BUFFER: CompetitorBrief = {
   ],
   pricing: {
     rows: [
-      { plan: "Free, up to 3 channels", price: "Free forever", currency: "USD ($)", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Essentials, per channel", price: "$5 per month per channel, or $60 per year, 14-day free trial", currency: "USD ($)", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Team, per channel", price: "$10 per month per channel, or $120 per year, 14-day free trial", currency: "USD ($)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Free, up to 3 channels", price: "Free forever", currency: "Not stated (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Essentials, per channel", price: "$5 per month per channel, or $60 per year, 14-day free trial", currency: "Not stated (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Team, per channel", price: "$10 per month per channel, or $120 per year, 14-day free trial", currency: "Not stated (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
     ],
   },
   bestFor: [

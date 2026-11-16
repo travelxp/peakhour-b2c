@@ -78,10 +78,10 @@ export const TINYIMG: CompetitorBrief = {
   ],
   pricing: {
     rows: [
-      { plan: "Free, 50 images and 10 AI credits a month", price: "$0 per month", currency: "USD ($)", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Beginner, 1,500 images and 150 AI credits a month", price: "$14 per month, 7-day trial", currency: "USD ($)", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Advanced, 5,000 images and 300 AI credits a month", price: "$23 per month, 7-day trial", currency: "USD ($)", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Expert, 15,000 images and 1,000 AI credits a month", price: "$49 per month, 7-day trial", currency: "USD ($)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Free, 50 images and 10 AI credits a month", price: "$0 per month", currency: "Not stated (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Beginner, 1,500 images and 150 AI credits a month", price: "$14 per month, 7-day trial", currency: "Not stated (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Advanced, 5,000 images and 300 AI credits a month", price: "$23 per month, 7-day trial", currency: "Not stated (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Expert, 15,000 images and 1,000 AI credits a month", price: "$49 per month, 7-day trial", currency: "Not stated (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
       { plan: "Beginner on its Shopify listing", price: "₹1,319.63 per month, 7-day trial", currency: "INR", region: "India, as shown on its listing", observedAt: D, source: S.listing },
     ],
   },
