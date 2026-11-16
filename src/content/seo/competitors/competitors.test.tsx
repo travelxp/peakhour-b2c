@@ -14,6 +14,12 @@ vi.mock("@/components/shared/footer", () => ({ Footer: () => null }));
 import AisensyPage, { metadata as aisensyMeta } from "@/app/(site)/shopify/compare/aisensy/page";
 import InteraktPage, { metadata as interaktMeta } from "@/app/(site)/shopify/compare/interakt/page";
 import RepAiPage, { metadata as repMeta } from "@/app/(site)/shopify/compare/rep-ai/page";
+// CMP-B
+import GorgiasPage, { metadata as gorgiasMeta } from "@/app/(site)/shopify/compare/gorgias/page";
+import TidioPage, { metadata as tidioMeta } from "@/app/(site)/shopify/compare/tidio/page";
+import ManifestPage, { metadata as manifestMeta } from "@/app/(site)/shopify/compare/manifest-ai/page";
+import InboxPage, { metadata as inboxMeta } from "@/app/(site)/shopify/compare/shopify-inbox/page";
+import SidekickPage, { metadata as sidekickMeta } from "@/app/(site)/shopify/compare/shopify-sidekick/page";
 import { getCapability } from "@/lib/seo/capabilities";
 import { findPageByPath, getPage, LAUNCH_PARTNER_CTA, PAGES } from "@/lib/seo/pages";
 import { isPreviewable, isPublishable, statusSatisfies } from "@/lib/seo/publish";
@@ -27,11 +33,23 @@ const OWN_HOSTS: Record<string, string[]> = {
   aisensy: ["aisensy.com"],
   interakt: ["www.interakt.shop", "interakt.shop"],
   "rep-ai": ["hellorep.ai"],
+  // CMP-B (Shopify's own products are sourced from Shopify's own hosts only)
+  gorgias: ["www.gorgias.com"],
+  tidio: ["www.tidio.com"],
+  "manifest-ai": ["getmanifest.ai", "apps.shopify.com"],
+  "shopify-inbox": ["apps.shopify.com", "www.shopify.com", "help.shopify.com"],
+  "shopify-sidekick": ["www.shopify.com", "help.shopify.com"],
 };
 const ROUTES: Record<string, { Page: () => Promise<React.ReactElement>; meta: unknown }> = {
   aisensy: { Page: AisensyPage, meta: aisensyMeta },
   interakt: { Page: InteraktPage, meta: interaktMeta },
   "rep-ai": { Page: RepAiPage, meta: repMeta },
+  // CMP-B
+  gorgias: { Page: GorgiasPage, meta: gorgiasMeta },
+  tidio: { Page: TidioPage, meta: tidioMeta },
+  "manifest-ai": { Page: ManifestPage, meta: manifestMeta },
+  "shopify-inbox": { Page: InboxPage, meta: inboxMeta },
+  "shopify-sidekick": { Page: SidekickPage, meta: sidekickMeta },
 };
 const ENV_KEYS = ["VERCEL_ENV", "SITE_INDEXABLE"] as const;
 const saved: Record<string, string | undefined> = {};
@@ -131,7 +149,7 @@ describe.each(COMPETITOR_BRIEFS.map((b) => [b.slug, b] as const))("%s brief (Bib
     expect(content.pricing.asOf).toMatch(ISO);
     // One currency is never stated for the whole table: each row's label carries its own, without nested brackets.
     for (const r of content.pricing.rows.filter((x) => x.vendor !== "Peakhour")) {
-      expect(r.plan, r.plan).toMatch(/ · [A-Z]{3}.* · /);
+      expect(r.plan, r.plan).toMatch(/ · ([A-Z]{3}.*|No charge) · /);
       expect(r.plan, r.plan).not.toMatch(/\([^)]*\([^)]*\)/);
     }
   });
@@ -215,7 +233,7 @@ describe.each(COMPETITOR_BRIEFS.map((b) => [b.slug, b] as const))("%s brief (Bib
     expect(html).toContain(b.h1);
     expect(html).toContain("Draft, not published");
     expect(html).toContain("Not documented");
-    expect(html).toMatch(/Pricing as listed on each vendor(?:'|&#x27;|&apos;)s page, seen 2026-11-15/);
+    expect(html).toMatch(/Pricing as listed on each vendor(?:'|&#x27;|&apos;)s page, seen \d{4}-\d{2}-\d{2}/);
     // Internal sources are normal links; only external ones open a new tab.
     expect(html).toMatch(/<a href="\/pricing"(?![^>]*target)/);
     expect(html).toMatch(/<a href="https:\/\/[^"]+" target="_blank" rel="noopener noreferrer nofollow"/);

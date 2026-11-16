@@ -47,7 +47,7 @@ export type PricingRow = {
 };
 
 export type CompetitorBrief = {
-  slug: "aisensy" | "interakt" | "rep-ai";
+  slug: "aisensy" | "interakt" | "rep-ai" | "gorgias" | "tidio" | "manifest-ai" | "shopify-inbox" | "shopify-sidekick";
   pageId: string;
   name: string;
   url: string;

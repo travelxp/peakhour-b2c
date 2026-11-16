@@ -142,6 +142,12 @@ export const MARKETING_PATHS: readonly MarketingPath[] = [
   { path: "/industries/fashion-apparel" },
   { path: "/guides" },
   { path: "/shopify/guides/whatsapp-cod-confirmation" },
+  // CMP-B: the Shopify comparison drafts (review status: they 404 on production on their own).
+  { path: "/shopify/compare/gorgias" },
+  { path: "/shopify/compare/tidio" },
+  { path: "/shopify/compare/manifest-ai" },
+  { path: "/shopify/compare/shopify-inbox" },
+  { path: "/shopify/compare/shopify-sidekick" },
   { path: "/coming-soon" },
   // SEO-9: the integration and feature pages and their directories, from the registry. A page held in review 404s on its own.
   ...SEO9_PAGES.map((p) => ({ path: p.path })),
