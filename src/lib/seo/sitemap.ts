@@ -5,7 +5,8 @@ import { isIndexableDeployment } from "./indexable";
 import { PAGES } from "./pages";
 import { isPublishable } from "./publish";
 import { pathFor } from "./resolve";
-import type { PageRecord } from "./types";
+import { hreflangCluster } from "./hreflang";
+import { DEFAULT_LOCALE, type Locale, type PageRecord } from "./types";
 
 /*
  * The sitemap, built from the registry alone (SEO-6). A page is listed when `isPublishable` says so
@@ -25,7 +26,8 @@ import type { PageRecord } from "./types";
 export const SITEMAP_NAMES = ["core", "shopify", "features", "integrations", "cms"] as const;
 export type SitemapName = (typeof SITEMAP_NAMES)[number];
 
-export type SitemapEntry = { url: string; lastModified?: string };
+/** `alternates` is the hreflang cluster (self, every published variant, x-default), set only when a page has a published non-English variant. */
+export type SitemapEntry = { url: string; lastModified?: string; alternates?: Record<string, string> };
 
 type Env = Record<string, string | undefined>;
 
@@ -72,9 +74,20 @@ export async function sitemapEntries(name: SitemapName, env: Env = process.env):
     if (sitemapNameFor(page) !== name) return [];
     if (!isPublishable(page)) return [];
     if (gated && !isListedThroughGate(page.path)) return [];
-    const path = pathFor(page.pageId);
     const lastModified = iso(page.lastReviewedAt);
-    return [{ url: path === "/" ? `${base()}/` : `${base()}${path}`, ...(lastModified ? { lastModified } : {}) }];
+    const urlOf = (locale: Locale) => {
+      const path = pathFor(page.pageId, locale);
+      return path === "/" ? `${base()}/` : `${base()}${path}`;
+    };
+    const english: SitemapEntry = { url: urlOf(DEFAULT_LOCALE), ...(lastModified ? { lastModified } : {}) };
+    // Published non-English variants are listed too, each with the same hreflang cluster pageMeta emits on the
+    // page (SEO-4). None is published today, so this adds nothing. With the gate on none is listed: a locale
+    // path is never one the gate lets through.
+    const alternates = gated ? undefined : hreflangCluster(page, urlOf);
+    if (!alternates) return [english];
+    return Object.entries(alternates)
+      .filter(([hreflang]) => hreflang !== "x-default")
+      .map(([, url]) => ({ url, ...(lastModified ? { lastModified } : {}), alternates }));
   });
 }
 
@@ -87,8 +100,14 @@ export async function sitemapIndexNames(env: Env = process.env): Promise<Sitemap
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 export function renderUrlset(entries: readonly SitemapEntry[]): string {
-  const rows = entries.map((e) => `<url><loc>${esc(e.url)}</loc>${e.lastModified ? `<lastmod>${e.lastModified}</lastmod>` : ""}</url>`);
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${rows.join("")}</urlset>\n`;
+  const alt = (e: SitemapEntry) =>
+    Object.entries(e.alternates ?? {})
+      .map(([hreflang, href]) => `<xhtml:link rel="alternate" hreflang="${esc(hreflang)}" href="${esc(href)}"/>`)
+      .join("");
+  const rows = entries.map((e) => `<url><loc>${esc(e.url)}</loc>${e.lastModified ? `<lastmod>${e.lastModified}</lastmod>` : ""}${alt(e)}</url>`);
+  // The xhtml namespace is declared only when a link uses it, so today (English only) the output is unchanged.
+  const xhtml = entries.some((e) => e.alternates) ? ` xmlns:xhtml="http://www.w3.org/1999/xhtml"` : "";
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"${xhtml}>${rows.join("")}</urlset>\n`;
 }
 
 export function renderIndex(names: readonly SitemapName[]): string {
