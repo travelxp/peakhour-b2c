@@ -29,7 +29,6 @@ export const COD_GUIDE: GuideContent = {
   directAnswer:
     "To confirm cash-on-delivery orders on Shopify, connect your own WhatsApp Business number to Peakhour and get its confirmation message approved by Meta. From then on Peakhour asks each new cash-on-delivery shopper on WhatsApp to confirm or cancel, and marks orders nobody answers after 24 hours.",
   secondaryCta: { label: "See the setup steps", href: "#guide-setup" },
-  author: "Peakhour",
   reviewer: "Pending review",
   updatedAt: "2026-11-15",
   sections: [
