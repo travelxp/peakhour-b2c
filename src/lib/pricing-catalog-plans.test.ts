@@ -157,4 +157,3 @@ describe("signup copy promises a trial, not a free plan (D19)", () => {
     }
   });
 });
-

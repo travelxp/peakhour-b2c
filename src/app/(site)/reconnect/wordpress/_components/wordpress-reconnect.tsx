@@ -136,7 +136,7 @@ export function WordpressReconnect() {
               <FlowButton onClick={handleApprove} disabled={!code.trim() || phase === "approving"}>
                 {phase === "approving" ? (
                   <span className="flex items-center gap-2">
-                    <FlowSpinner className="size-4 border-brand-contrast/40 border-t-brand-contrast" />
+                    <FlowSpinner onBrand className="size-4" />
                     Reconnecting…
                   </span>
                 ) : (

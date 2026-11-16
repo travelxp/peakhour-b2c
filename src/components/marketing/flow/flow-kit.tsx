@@ -177,7 +177,7 @@ export function FlowNotice({ tone, children, className, ...rest }: { tone: keyof
 const BTN_BASE = `inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-6 py-2.5 text-center text-[15px] font-bold transition-[transform,background-color] motion-reduce:transition-none motion-reduce:hover:translate-y-0 ${FOCUS}`;
 const BTN_VARIANT = {
   primary:
-    "bg-brand-gradient text-brand-contrast shadow-[0_8px_20px_-8px_var(--brand)] hover:-translate-y-0.5 focus-visible:-translate-y-0.5 disabled:pointer-events-none disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 aria-disabled:hover:translate-y-0",
+    "bg-brand-gradient text-brand-contrast shadow-[0_8px_20px_-8px_var(--brand)] hover:-translate-y-0.5 focus-visible:-translate-y-0.5 disabled:pointer-events-none disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 aria-disabled:hover:translate-y-0 aria-disabled:pointer-events-none",
   ghost:
     "shadow-[inset_0_0_0_2px_var(--foreground)] hover:bg-muted disabled:pointer-events-none disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60",
   quiet: "text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-60",
@@ -192,7 +192,9 @@ export function FlowButton({
   ...props
 }: ComponentProps<"button"> & { variant?: keyof typeof BTN_VARIANT; inline?: boolean; asChild?: boolean }) {
   const Comp = asChild ? Slot.Root : "button";
-  return <Comp className={cn(BTN_BASE, BTN_VARIANT[variant], inline ? "w-auto" : "w-full", className)} {...props} />;
+  // A button defaults to type="button": a FlowButton inside a form must not submit it by accident.
+  const typeProps = asChild ? {} : { type: "button" as const };
+  return <Comp {...typeProps} className={cn(BTN_BASE, BTN_VARIANT[variant], inline ? "w-auto" : "w-full", className)} {...props} />;
 }
 
 /** The same classes for a place that renders its own element. */
@@ -214,11 +216,15 @@ export function flowOption(selected: boolean, blocked = false) {
 export const flowFacts = "rounded-2xl bg-muted p-3.5 text-sm text-muted-foreground";
 
 /** The spinner, in coral, for an inline wait. Reduced motion stops the spin. */
-export function FlowSpinner({ className }: { className?: string }) {
+export function FlowSpinner({ className, onBrand = false }: { className?: string; onBrand?: boolean }) {
   return (
     <span
       aria-hidden
-      className={cn("inline-block size-5 shrink-0 animate-spin rounded-full border-2 border-border border-t-brand motion-reduce:animate-none", className)}
+      className={cn(
+        "inline-block size-5 shrink-0 animate-spin rounded-full border-2 motion-reduce:animate-none",
+        onBrand ? "border-brand-contrast/40 border-t-brand-contrast" : "border-border border-t-brand",
+        className,
+      )}
     />
   );
 }

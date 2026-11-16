@@ -86,7 +86,7 @@ function VerifyContent() {
   return (
     <FlowCard className="max-w-md">
       <FlowHead icon={XCircle} tone="bad" title="This link didn’t work">
-        It may have expired or been used already.
+        Request a new sign-in link to try again.
       </FlowHead>
       <FlowNotice tone="bad" role="alert" className="mt-5">
         {error}
