@@ -12,8 +12,8 @@ const S = {
   google: { href: "https://birdeye.com/blog/birdeye-google-partnership-integrations/", label: "Birdeye and Google" },
 };
 
-export const BIRDEYE: CompetitorBrief = {
-  slug: "birdeye",
+export const BIRDEYE = {
+  slug: "birdeye" as const,
   pageId: "compare.birdeye",
   scope: "global",
   pillar: "presence",
@@ -35,13 +35,8 @@ export const BIRDEYE: CompetitorBrief = {
   ],
   claims: [
     {
-      dimension: "Review monitoring across sites",
-      vendor: { value: "partial", note: "It promises every rating and review from every site in one place. The page we read does not name the sites.", source: S.reviews, observedAt: D },
-      peakhour: PEAKHOUR_C.reviews,
-    },
-    {
-      dimension: "AI-drafted review replies with approval",
-      vendor: { value: "yes", note: "A review response agent that posts on its own or holds for approval. A support article limits AI-assisted replies to US-based locations.", source: S.reviews, observedAt: D },
+      dimension: "Reviews in one place, with AI-drafted replies",
+      vendor: { value: "partial", note: "It promises every rating and review from every site in one place, without naming the sites, and a review response agent that posts on its own or holds for approval.", source: S.reviews, observedAt: D },
       peakhour: PEAKHOUR_C.reviews,
     },
     {
@@ -85,7 +80,7 @@ export const BIRDEYE: CompetitorBrief = {
     { vendor: "Peakhour", bestFor: "Businesses whose customers find them on Google and who want Google reviews answered by drafts a person approves, a Google listing health score, and profile changes prepared for approval." },
   ],
   limitations: [
-    "We read only Birdeye's own public pages. The sites it monitors, the channels it uses for review requests and WhatsApp were not confirmed on pages we read, so they are not stated here.",
+    "We read only Birdeye's own public pages. A Birdeye support article (support.birdeye.com, article 12654747) limits AI-assisted review replies to US-based locations, as we read it. The sites it monitors, the channels it uses for review requests and WhatsApp were not confirmed on pages we read, so they are not stated here.",
     "Birdeye publishes no prices and no currency, so no price comparison is possible.",
     "Where our own side says Unknown, the evidence for Peakhour is still being verified and nothing is claimed. Peakhour's Google profile management is in beta.",
   ],
@@ -93,4 +88,4 @@ export const BIRDEYE: CompetitorBrief = {
     { q: "Is there a Birdeye alternative for Google reviews?", a: "Peakhour is one option if Google is where your customers find you: reviews with AI-drafted replies a person sends, and a Google listing health score. If you need many review sites or directories, read Birdeye's own pages first." },
     { q: "Where does this information come from?", a: "Only from Birdeye's own public pages, each linked in the table with the date we read it." },
   ],
-};
+} satisfies CompetitorBrief;

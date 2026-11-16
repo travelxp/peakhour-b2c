@@ -8,8 +8,8 @@ const S = {
   pricing: { href: "https://buffer.com/pricing", label: "Buffer pricing" },
 };
 
-export const BUFFER: CompetitorBrief = {
-  slug: "buffer",
+export const BUFFER = {
+  slug: "buffer" as const,
   pageId: "compare.buffer",
   scope: "global",
   pillar: "content",
@@ -91,4 +91,4 @@ export const BUFFER: CompetitorBrief = {
     { q: "Is there a Buffer alternative with AI in my own voice?", a: "Peakhour is one option if you want drafts that learn your brand voice, published to LinkedIn, X, Facebook Pages and Instagram after you approve. If you need more networks or a no-charge option, read Buffer's own pages first." },
     { q: "Where does this information come from?", a: "Only from Buffer's own public pages, each linked in the table with the date we read it." },
   ],
-};
+} satisfies CompetitorBrief;

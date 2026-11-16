@@ -24,16 +24,22 @@ import HootsuitePage, { metadata as hootsuiteMeta } from "@/app/(site)/compare/h
 import BufferPage, { metadata as bufferMeta } from "@/app/(site)/compare/buffer/page";
 import JasperPage, { metadata as jasperMeta } from "@/app/(site)/compare/jasper/page";
 import BirdeyePage, { metadata as birdeyeMeta } from "@/app/(site)/compare/birdeye/page";
+// CMP-A
+import WatiPage, { metadata as watiMeta } from "@/app/(site)/shopify/compare/wati/page";
+import ZokoPage, { metadata as zokoMeta } from "@/app/(site)/shopify/compare/zoko/page";
+import GokwikPage, { metadata as gokwikMeta } from "@/app/(site)/shopify/compare/gokwik/page";
 import { getCapability } from "@/lib/seo/capabilities";
 import { findPageByPath, getPage, LAUNCH_PARTNER_CTA, PAGES } from "@/lib/seo/pages";
+import { MARKETING_PATHS } from "@/lib/seo/gate";
 import { isPreviewable, isPublishable, statusSatisfies } from "@/lib/seo/publish";
 import { pathFor } from "@/lib/seo/resolve";
 import { buildComparisonContent } from "./build";
-import { COMPETITOR_BRIEFS } from "./index";
+import { COMPETITOR_BRIEFS, type CompetitorSlug } from "./index";
+import { compareRoute } from "./route";
 import type { CompetitorBrief, VendorClaim } from "./types";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
-const OWN_HOSTS: Record<string, string[]> = {
+const OWN_HOSTS: Record<CompetitorSlug, string[]> = {
   aisensy: ["aisensy.com"],
   interakt: ["www.interakt.shop", "interakt.shop"],
   "rep-ai": ["hellorep.ai"],
@@ -48,19 +54,23 @@ const OWN_HOSTS: Record<string, string[]> = {
   buffer: ["buffer.com"],
   jasper: ["www.jasper.ai"],
   birdeye: ["birdeye.com", "www.birdeye.com"],
+  // CMP-A
+  wati: ["www.wati.io"],
+  zoko: ["www.zoko.io"],
+  gokwik: ["www.gokwik.co"],
 };
-const OWN_LISTINGS: Record<string, string> = {
+const OWN_LISTINGS: Partial<Record<CompetitorSlug, string>> = {
   limespot: "/limespot",
   nosto: "/nosto-personalization-for-shopify",
   tinyimg: "/smart-image-optimizer",
   searchpie: "/seo-booster",
   seowill: "/seo-master",
 };
-const hostOk = (slug: string, href: string) => {
+const hostOk = (slug: CompetitorSlug, href: string) => {
   const u = new URL(href);
   return OWN_HOSTS[slug].includes(u.host) && (u.host !== "apps.shopify.com" || u.pathname === OWN_LISTINGS[slug]);
 };
-const ROUTES: Record<string, { Page: () => Promise<React.ReactElement>; meta: unknown }> = {
+const ROUTES: Record<CompetitorSlug, { Page: () => Promise<React.ReactElement>; meta: unknown }> = {
   aisensy: { Page: AisensyPage, meta: aisensyMeta },
   interakt: { Page: InteraktPage, meta: interaktMeta },
   "rep-ai": { Page: RepAiPage, meta: repMeta },
@@ -74,6 +84,10 @@ const ROUTES: Record<string, { Page: () => Promise<React.ReactElement>; meta: un
   buffer: { Page: BufferPage, meta: bufferMeta },
   jasper: { Page: JasperPage, meta: jasperMeta },
   birdeye: { Page: BirdeyePage, meta: birdeyeMeta },
+  // CMP-A
+  wati: { Page: WatiPage, meta: watiMeta },
+  zoko: { Page: ZokoPage, meta: zokoMeta },
+  gokwik: { Page: GokwikPage, meta: gokwikMeta },
 };
 const ENV_KEYS = ["VERCEL_ENV", "SITE_INDEXABLE"] as const;
 const saved: Record<string, string | undefined> = {};
@@ -124,6 +138,13 @@ function proseViolations(text: string, capabilityIds: string[]): string[] {
     .flatMap((s) => PROSE_RULES.filter((r) => r.keyword.test(s) && !r.anyOf.some((id) => capabilityIds.includes(id))).map((r) => `${r.keyword}: ${s}`));
 }
 
+describe("the gate", () => {
+  it("lists every comparison path, Shopify and global, from the briefs", () => {
+    const gated = new Set(MARKETING_PATHS.map((m) => m.path));
+    for (const b of COMPETITOR_BRIEFS) expect(gated.has(compareRoute(b).path), b.slug).toBe(true);
+  });
+});
+
 describe("the prose rule itself", () => {
   it("flags a Peakhour sentence that names WhatsApp with no WhatsApp capability", () => {
     expect(proseViolations("Peakhour works on WhatsApp too.", ["commerce.ai_shopping_assistant"]).length).toBe(1);
@@ -132,7 +153,7 @@ describe("the prose rule itself", () => {
   });
 });
 
-describe.each(COMPETITOR_BRIEFS.map((b) => [b.slug, b] as const))("%s brief (Bible T13)", (slug, b) => {
+describe.each(COMPETITOR_BRIEFS.map((b) => [b.slug as CompetitorSlug, b] as const))("%s brief (Bible T13)", (slug, b) => {
   it("has 6 to 10 dimensions", () => {
     expect(b.claims.length).toBeGreaterThanOrEqual(6);
     expect(b.claims.length).toBeLessThanOrEqual(10);
@@ -156,9 +177,9 @@ describe.each(COMPETITOR_BRIEFS.map((b) => [b.slug, b] as const))("%s brief (Bib
 
   it("sources the vendor's cells only from the vendor's own public pages", () => {
     for (const c of b.claims) {
-      if (c.vendor.source) expect(hostOk(b.slug, c.vendor.source.href), c.dimension).toBe(true);
+      if (c.vendor.source) expect(hostOk(slug, c.vendor.source.href), c.dimension).toBe(true);
     }
-    for (const r of b.pricing.rows) expect(hostOk(b.slug, r.source.href), r.plan).toBe(true);
+    for (const r of b.pricing.rows) expect(hostOk(slug, r.source.href), r.plan).toBe(true);
   });
 
   it("points Peakhour's own sources at registered site pages", () => {
@@ -209,6 +230,16 @@ describe.each(COMPETITOR_BRIEFS.map((b) => [b.slug, b] as const))("%s brief (Bib
     }
   });
 
+  it("fills no two rows with the same Peakhour claim", () => {
+    const seen = new Map<string, string>();
+    for (const c of b.claims) {
+      if (c.peakhour.value === "unknown") continue;
+      const key = `${c.peakhour.capabilityId}|${c.peakhour.note}`;
+      expect(seen.get(key), `${c.dimension} repeats the claim already used for ${seen.get(key)}`).toBeUndefined();
+      seen.set(key, c.dimension);
+    }
+  });
+
   it("names a pendingCapability only when that capability exists and has no approved claim yet", () => {
     for (const c of b.claims) {
       const id = c.peakhour.pendingCapability;
@@ -227,11 +258,12 @@ describe.each(COMPETITOR_BRIEFS.map((b) => [b.slug, b] as const))("%s brief (Bib
 
   it("registers a review-status page whose capabilityIds are exactly what its Peakhour cells claim", () => {
     const page = getPage(b.pageId);
-    const global = b.scope === "global";
-    expect(page.family).toBe(global ? "compare" : "shopify-compare");
-    expect(page.scope).toBe(global ? "global" : "shopify");
-    expect(page.surface).toBe(global ? "web" : "shopify");
-    expect(page.path).toBe(global ? `/compare/${b.slug}` : `/shopify/compare/${b.slug}`);
+    const route = compareRoute(b);
+    expect(page.family).toBe(route.family);
+    expect(page.scope).toBe(route.scope);
+    expect(page.surface).toBe(route.surface);
+    expect(page.path).toBe(route.path);
+    expect(route.path).toBe(route.global ? `/compare/${b.slug}` : `/shopify/compare/${b.slug}`);
     expect(page.editorialStatus).toBe("review");
     expect(page.indexable).toBe(false);
     expect(page.title.length).toBeLessThanOrEqual(60);
@@ -267,6 +299,7 @@ describe.each(COMPETITOR_BRIEFS.map((b) => [b.slug, b] as const))("%s brief (Bib
     process.env.VERCEL_ENV = "preview";
     const html = renderToStaticMarkup(await ROUTES[slug].Page());
     expect(html).toContain(b.h1);
+    expect(html).toContain(compareRoute(b).global ? "See it on your own business." : "See it on your own store.");
     expect(html).toContain("Draft, not published");
     if (b.claims.some((c) => c.vendor.value === "not-documented")) expect(html).toContain("Not documented");
     expect(html).toMatch(new RegExp(`Pricing as listed on each vendor(?:'|&#x27;|&apos;)s page, seen ${b.observedAt}`));

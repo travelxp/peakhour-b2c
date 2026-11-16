@@ -11,8 +11,8 @@ const S = {
   listing: { href: "https://apps.shopify.com/limespot", label: "LimeSpot on the Shopify App Store" },
 };
 
-export const LIMESPOT: CompetitorBrief = {
-  slug: "limespot",
+export const LIMESPOT = {
+  slug: "limespot" as const,
   pageId: "shopify.compare.limespot",
   relatedIds: ["shopify", "shopify.features.product.recommendations", "shopify.features.frequently.bought.together", "pricing"],
   name: "LimeSpot",
@@ -93,4 +93,4 @@ export const LIMESPOT: CompetitorBrief = {
     { q: "Is there a LimeSpot alternative for Shopify?", a: "Peakhour is one option if you want shelves, bundles and shelf tests together with an AI shopping assistant. If personalised email and SMS matter most, check LimeSpot's own pages first." },
     { q: "Where does this information come from?", a: "Only from LimeSpot's own public pages and its Shopify App Store listing, each linked in the table with the date we read it." },
   ],
-};
+} satisfies CompetitorBrief;

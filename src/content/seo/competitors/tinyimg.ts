@@ -9,8 +9,8 @@ const S = {
   listing: { href: "https://apps.shopify.com/smart-image-optimizer", label: "Tiny SEO Speed Image Optimizer on the Shopify App Store" },
 };
 
-export const TINYIMG: CompetitorBrief = {
-  slug: "tinyimg",
+export const TINYIMG = {
+  slug: "tinyimg" as const,
   pageId: "shopify.compare.tinyimg",
   pillar: "content",
   relatedIds: ["shopify", "shopify.features.ai.seo", "shopify.features.ai.product.descriptions", "pricing"],
@@ -36,13 +36,8 @@ export const TINYIMG: CompetitorBrief = {
       peakhour: pending(),
     },
     {
-      dimension: "Image alt text",
-      vendor: { value: "yes", note: "Alt text and filename optimisation is listed. Whether the text is AI-written is not stated on the pages we read.", source: S.pricing, observedAt: D },
-      peakhour: PEAKHOUR_C.seoFixes,
-    },
-    {
-      dimension: "Meta titles and descriptions",
-      vendor: { value: "yes", note: "Its home page says it can generate metadata for any page; its pricing page lists AI metadata.", source: S.home, observedAt: D },
+      dimension: "Image alt text and meta tags",
+      vendor: { value: "yes", note: "Alt text and filename optimisation, plus generated metadata for any page. Whether alt text is AI-written is not stated on the pages we read.", source: S.pricing, observedAt: D },
       peakhour: PEAKHOUR_C.seoFixes,
     },
     {
@@ -98,4 +93,4 @@ export const TINYIMG: CompetitorBrief = {
     { q: "Is there a TinyIMG alternative for Shopify?", a: "Peakhour is one option if you want SEO fixes, product descriptions and blog drafts prepared for your approval. If image compression is your main need, read TinyIMG's own pages first." },
     { q: "Where does this information come from?", a: "Only from TinyIMG's own public pages and its Shopify App Store listing, each linked in the table with the date we read it." },
   ],
-};
+} satisfies CompetitorBrief;

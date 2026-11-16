@@ -8,12 +8,6 @@ const src = (href: string, label: string) => ({ source: { href, label }, observe
  * covers it. The note never goes beyond the approved text. A cell with no capability is `pending()` (Unknown).
  */
 export const PEAKHOUR_C = {
-  frequentlyBought: {
-    value: "yes",
-    capabilityId: "commerce.frequently_bought_together",
-    note: "Works out which products are bought together from your own Shopify orders every night, and can show them as a shelf on the product page.",
-    ...src("/shopify/features/frequently-bought-together", "Peakhour frequently bought together"),
-  },
   cartUpsells: {
     value: "yes",
     capabilityId: "commerce.cart_upsells",
@@ -30,12 +24,6 @@ export const PEAKHOUR_C = {
     value: "yes",
     capabilityId: "commerce.rail_ab_testing",
     note: "Tests two shelf strategies in the same spot, says which is ahead, and proposes the winner for your approval.",
-    ...src("/shopify", "Peakhour for Shopify"),
-  },
-  findMyMatch: {
-    value: "yes",
-    capabilityId: "commerce.find_my_match",
-    note: "Find my match asks a few quick questions, made from your store's own product attributes and price range, and returns a shortlist.",
     ...src("/shopify", "Peakhour for Shopify"),
   },
   seoFixes: {
@@ -74,12 +62,6 @@ export const PEAKHOUR_C = {
     note: "Posts approved content to LinkedIn (personal and company pages), X including threads, Facebook Pages and Instagram images and carousels, at the time you scheduled it. Only those four networks.",
     ...src("/content", "Peakhour for content"),
   },
-  linkedinGrowth: {
-    value: "yes",
-    capabilityId: "growth.linkedin_growth",
-    note: "Publish and manage LinkedIn posts, get AI reply and hook suggestions, track engagement, and boost a post into an ad campaign.",
-    ...src("/growth", "Peakhour for growth"),
-  },
   reviews: {
     value: "partial",
     capabilityId: "presence.review_management",
@@ -103,11 +85,5 @@ export const PEAKHOUR_C = {
     capabilityId: "content.beehiiv_newsletter",
     note: "Connects to Beehiiv, imports your past posts hourly, and sends approved newsletters to Beehiiv as drafts for you to send.",
     ...src("/content", "Peakhour for content"),
-  },
-  askPeakhour: {
-    value: "yes",
-    capabilityId: "platform.ask_peakhour",
-    note: "Answers questions from your own data and can only prepare a change as a card for you to approve.",
-    ...src("/how-it-works", "How Peakhour works"),
   },
 } satisfies Record<string, PeakhourClaim>;

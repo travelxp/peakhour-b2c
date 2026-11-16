@@ -13,8 +13,8 @@ const S = {
   integrations: { href: `${J}/integrations`, label: "Jasper integrations" },
 };
 
-export const JASPER: CompetitorBrief = {
-  slug: "jasper",
+export const JASPER = {
+  slug: "jasper" as const,
   pageId: "compare.jasper",
   scope: "global",
   pillar: "content",
@@ -95,4 +95,4 @@ export const JASPER: CompetitorBrief = {
     { q: "Is there a Jasper alternative that publishes after approval?", a: "Peakhour is one option if you want drafts in your own brand voice published to a Shopify blog or social accounts only after you approve them. For a broad team writing workspace, read Jasper's own pages first." },
     { q: "Where does this information come from?", a: "Only from Jasper's own public pages, each linked in the table with the date we read it." },
   ],
-};
+} satisfies CompetitorBrief;

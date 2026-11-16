@@ -1,6 +1,10 @@
 import { AISENSY } from "./aisensy";
 import { INTERAKT } from "./interakt";
 import { REP_AI } from "./rep-ai";
+// CMP-A
+import { GOKWIK } from "./gokwik";
+import { WATI } from "./wati";
+import { ZOKO } from "./zoko";
 // CMP-C1 (Shopify) and CMP-C2 (global) imports.
 import { BIRDEYE } from "./birdeye";
 import { BUFFER } from "./buffer";
@@ -14,10 +18,14 @@ import { SEOWILL } from "./seowill";
 import { TINYIMG } from "./tinyimg";
 import type { CompetitorBrief } from "./types";
 
-export const COMPETITOR_BRIEFS: readonly CompetitorBrief[] = [
+const BRIEFS = [
   AISENSY,
   INTERAKT,
   REP_AI,
+  // CMP-A
+  WATI,
+  ZOKO,
+  GOKWIK,
   // CMP-C1: Shopify
   REBUY,
   LIMESPOT,
@@ -30,7 +38,12 @@ export const COMPETITOR_BRIEFS: readonly CompetitorBrief[] = [
   BUFFER,
   JASPER,
   BIRDEYE,
-];
+] satisfies readonly CompetitorBrief[];
+
+export const COMPETITOR_BRIEFS: readonly CompetitorBrief[] = BRIEFS;
+
+/** Every brief's slug, as a literal union keyed off the briefs themselves. */
+export type CompetitorSlug = (typeof BRIEFS)[number]["slug"];
 
 export function getBrief(slug: string): CompetitorBrief | undefined {
   return COMPETITOR_BRIEFS.find((b) => b.slug === slug);

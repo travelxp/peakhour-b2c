@@ -7,10 +7,11 @@ const S = {
   home: { href: "https://www.hootsuite.com/", label: "Hootsuite home page" },
   plans: { href: "https://www.hootsuite.com/plans", label: "Hootsuite plans" },
   faq: { href: "https://www.hootsuite.com/faq", label: "Hootsuite FAQ" },
+  ai: { href: "https://www.hootsuite.com/platform/owly-writer-ai", label: "Hootsuite AI" },
 };
 
-export const HOOTSUITE: CompetitorBrief = {
-  slug: "hootsuite",
+export const HOOTSUITE = {
+  slug: "hootsuite" as const,
   pageId: "compare.hootsuite",
   scope: "global",
   pillar: "content",
@@ -43,7 +44,7 @@ export const HOOTSUITE: CompetitorBrief = {
     },
     {
       dimension: "Brand voice learned from your posts",
-      vendor: { value: "not-documented", note: "Its AI page says answers are grounded in your brand's data, which is not a brand-voice claim.", source: S.home, observedAt: D },
+      vendor: { value: "not-documented", note: "Its AI page says answers are grounded in your brand's data, which is not a brand-voice claim.", source: S.ai, observedAt: D },
       peakhour: PEAKHOUR_C.brandVoice,
     },
     {
@@ -93,4 +94,4 @@ export const HOOTSUITE: CompetitorBrief = {
     { q: "Is there a Hootsuite alternative for small teams?", a: "Peakhour is one option if you want approved posts published to LinkedIn, X, Facebook Pages and Instagram in your own voice. If you need many more networks, listening or a unified inbox, read Hootsuite's own pages first." },
     { q: "Where does this information come from?", a: "Only from Hootsuite's own public pages, each linked in the table with the date we read it." },
   ],
-};
+} satisfies CompetitorBrief;

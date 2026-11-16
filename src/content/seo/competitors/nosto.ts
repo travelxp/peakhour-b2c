@@ -9,8 +9,8 @@ const S = {
   listing: { href: "https://apps.shopify.com/nosto-personalization-for-shopify", label: "Nosto on the Shopify App Store" },
 };
 
-export const NOSTO: CompetitorBrief = {
-  slug: "nosto",
+export const NOSTO = {
+  slug: "nosto" as const,
   pageId: "shopify.compare.nosto",
   relatedIds: ["shopify", "shopify.features.product.recommendations", "pricing"],
   name: "Nosto",
@@ -84,4 +84,4 @@ export const NOSTO: CompetitorBrief = {
     { q: "Is there a Nosto alternative for Shopify?", a: "Peakhour is one option if you want shelves, shelf tests and an AI shopping assistant. If you need AI search or category merchandising at volume, read Nosto's own pages first." },
     { q: "Where does this information come from?", a: "Only from Nosto's own public pages and its Shopify App Store listing, each linked in the table with the date we read it." },
   ],
-};
+} satisfies CompetitorBrief;

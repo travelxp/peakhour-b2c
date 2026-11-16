@@ -10,8 +10,8 @@ const S = {
   agents: { href: "https://aisensy.com/features/ai-agents-on-whatsapp", label: "AiSensy AI agents" },
 };
 
-export const AISENSY: CompetitorBrief = {
-  slug: "aisensy",
+export const AISENSY = {
+  slug: "aisensy" as const,
   pageId: "shopify.compare.aisensy",
   name: "AiSensy",
   url: "https://aisensy.com/",
@@ -108,4 +108,4 @@ export const AISENSY: CompetitorBrief = {
     { q: "Is there an AiSensy alternative for Shopify?", a: "Peakhour is one option if you want an AI shopping assistant and product shelves on your storefront. If broadcasts are your main use, check AiSensy's own broadcasting page first." },
     { q: "Where does this information come from?", a: "Only from AiSensy's own public pages, each linked in the table with the date we read it." },
   ],
-};
+} satisfies CompetitorBrief;

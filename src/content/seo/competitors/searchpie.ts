@@ -9,8 +9,8 @@ const S = {
   listing: { href: "https://apps.shopify.com/seo-booster", label: "SearchPie on the Shopify App Store" },
 };
 
-export const SEARCHPIE: CompetitorBrief = {
-  slug: "searchpie",
+export const SEARCHPIE = {
+  slug: "searchpie" as const,
   pageId: "shopify.compare.searchpie",
   pillar: "content",
   relatedIds: ["shopify", "shopify.features.ai.seo", "shopify.features.ai.product.descriptions", "pricing"],
@@ -36,13 +36,8 @@ export const SEARCHPIE: CompetitorBrief = {
       peakhour: PEAKHOUR_C.seoAudit,
     },
     {
-      dimension: "Bulk meta titles and descriptions",
-      vendor: { value: "yes", note: "Bulk meta tags with templates, with AI generation counted in monthly requests.", source: S.listing, observedAt: D },
-      peakhour: PEAKHOUR_C.seoFixes,
-    },
-    {
-      dimension: "Image alt text",
-      vendor: { value: "yes", note: "Bulk alt text with templates, and AI-generated alt tags on its listing.", source: S.listing, observedAt: D },
+      dimension: "Bulk meta tags and image alt text",
+      vendor: { value: "yes", note: "Bulk meta tags and alt text with templates, with AI generation counted in monthly requests.", source: S.listing, observedAt: D },
       peakhour: PEAKHOUR_C.seoFixes,
     },
     {
@@ -99,4 +94,4 @@ export const SEARCHPIE: CompetitorBrief = {
     { q: "Is there a SearchPie alternative for Shopify?", a: "Peakhour is one option if you want SEO fixes and product descriptions prepared for your approval. If you need schema, speed tools or rank tracking, read SearchPie's own pages first." },
     { q: "Where does this information come from?", a: "Only from SearchPie's own public pages and its Shopify App Store listing, each linked in the table with the date we read it." },
   ],
-};
+} satisfies CompetitorBrief;

@@ -9,8 +9,8 @@ const S = {
   whatsapp: { href: "https://hellorep.ai/channel/whatsapp", label: "Rep AI on WhatsApp" },
 };
 
-export const REP_AI: CompetitorBrief = {
-  slug: "rep-ai",
+export const REP_AI = {
+  slug: "rep-ai" as const,
   pageId: "shopify.compare.rep.ai",
   name: "Rep AI",
   url: "https://hellorep.ai/",
@@ -92,4 +92,4 @@ export const REP_AI: CompetitorBrief = {
     { q: "Is there a Rep AI alternative for Shopify?", a: "Peakhour is one option, with an assistant and product shelves on the storefront, and a checkout link sent on WhatsApp when a shopper agrees to buy. Check Rep AI's own pages for its sales and support agents." },
     { q: "Where does this information come from?", a: "Only from Rep AI's own public pages, each linked in the table with the date we read it." },
   ],
-};
+} satisfies CompetitorBrief;

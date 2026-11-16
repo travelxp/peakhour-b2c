@@ -9,8 +9,8 @@ const S = {
   listing: { href: "https://apps.shopify.com/seo-master", label: "SEOWILL on the Shopify App Store" },
 };
 
-export const SEOWILL: CompetitorBrief = {
-  slug: "seowill",
+export const SEOWILL = {
+  slug: "seowill" as const,
   pageId: "shopify.compare.seowill",
   pillar: "content",
   relatedIds: ["shopify", "shopify.features.ai.seo", "shopify.features.ai.product.descriptions", "pricing"],
@@ -36,13 +36,8 @@ export const SEOWILL: CompetitorBrief = {
       peakhour: PEAKHOUR_C.seoAudit,
     },
     {
-      dimension: "Meta titles and descriptions",
-      vendor: { value: "yes", note: "Auto and bulk meta tag editing is listed on its Pro plan.", source: S.listing, observedAt: D },
-      peakhour: PEAKHOUR_C.seoFixes,
-    },
-    {
-      dimension: "Image alt text",
-      vendor: { value: "yes", note: "Alt text and image compression for 50 images at no charge. Whether the alt text is AI-written is not separately stated.", source: S.listing, observedAt: D },
+      dimension: "Meta tags and image alt text",
+      vendor: { value: "yes", note: "Auto and bulk meta tag editing on its Pro plan, and alt text for 50 images at no charge. Whether alt text is AI-written is not separately stated.", source: S.listing, observedAt: D },
       peakhour: PEAKHOUR_C.seoFixes,
     },
     {
@@ -98,4 +93,4 @@ export const SEOWILL: CompetitorBrief = {
     { q: "Is there a SEOWILL alternative for Shopify?", a: "Peakhour is one option if you want SEO fixes, product descriptions and blog drafts prepared for your approval. If you need structured data, redirects or speed tools, read SEOWILL's own pages first." },
     { q: "Where does this information come from?", a: "Only from SEOWILL's own public pages and its Shopify App Store listing, each linked in the table with the date we read it." },
   ],
-};
+} satisfies CompetitorBrief;

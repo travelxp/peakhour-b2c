@@ -16,8 +16,8 @@ const S = {
   checkout: { href: `${B}/product/checkout-extensions`, label: "Rebuy checkout extensions" },
 };
 
-export const REBUY: CompetitorBrief = {
-  slug: "rebuy",
+export const REBUY = {
+  slug: "rebuy" as const,
   pageId: "shopify.compare.rebuy",
   relatedIds: ["shopify", "shopify.features.product.recommendations", "shopify.features.frequently.bought.together", "pricing"],
   name: "Rebuy",
@@ -78,7 +78,7 @@ export const REBUY: CompetitorBrief = {
       { plan: "Cart and Merchandising package, up to 500 orders a month", price: "$45 per month", currency: "Not stated (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
       { plan: "Cart and Merchandising package, up to 5,000 orders a month", price: "$425 per month", currency: "Not stated (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
       { plan: "Checkout and Post-Purchase package, up to 500 orders a month", price: "$25 per month", currency: "Not stated (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Any package above 10,000 orders a month", price: "Not published (talk to sales)", currency: "Not stated (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Any package above 10,000 orders a month", price: "Not published (talk to sales)", currency: "Not stated", region: "Not stated", observedAt: D, source: S.pricing },
     ],
   },
   bestFor: [
@@ -94,4 +94,4 @@ export const REBUY: CompetitorBrief = {
     { q: "Is there a Rebuy alternative for Shopify?", a: "Peakhour is one option if you want shelves, cart suggestions and bundles together with an AI shopping assistant. If checkout and post-purchase offers are your main need, read Rebuy's own pages first." },
     { q: "Where does this information come from?", a: "Only from Rebuy's own public pages, each linked in the table with the date we read it." },
   ],
-};
+} satisfies CompetitorBrief;
