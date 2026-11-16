@@ -29,6 +29,9 @@
  *
  *   --canonical-origin   the one origin every canonical must carry (default https://peakhour.ai, the
  *                        configured NEXT_PUBLIC_SITE_URL: dev canonicals point at the production host on purpose)
+ *   7. (SEO-4) Languages: while only English is published, every locale-prefixed URL is a real 404
+ *      with the same Daylight body (/fr-ca/shopify, /de/pricing, /pt-br, ...), and carries no hreflang
+ *      on any English page; English URLs answer as before.
  *
  * Exits 1 when any check fails.
  */
@@ -131,7 +134,8 @@ async function main() {
   }
 
   // 2. page responses and X-Robots-Tag
-  const pages = ["/", "/pricing", "/shopify", "/how-it-works", "/does-not-exist", "/features/foo", "/pricing/"];
+  const LOCALE_404S = ["/fr-ca/shopify", "/de/pricing", "/pt-br", "/fr/anything", "/es-es/contact"];
+  const pages = ["/", "/pricing", "/shopify", "/how-it-works", "/does-not-exist", "/features/foo", "/pricing/", ...LOCALE_404S];
   const got: Record<string, Awaited<ReturnType<typeof get>>> = {};
   for (const p of pages) got[p] = await get(p);
   if (!indexable) {
@@ -142,7 +146,7 @@ async function main() {
   }
 
   // 3. real 404s
-  for (const p of ["/does-not-exist", "/features/foo"]) {
+  for (const p of ["/does-not-exist", "/features/foo", ...LOCALE_404S]) {
     const r = got[p];
     check(`${p} is 404`, r.status === 404, String(r.status));
     // Next streams the 404 UI inside the flight payload, so the markup is read from the whole
@@ -199,6 +203,15 @@ async function main() {
     teaserTitle: TEASER_TITLE,
     check,
   });
+  // 7. languages (SEO-4): no hreflang while only English is published, and no redirect by browser language
+  for (const p of ["/", "/pricing", "/shopify"]) {
+    check(`no hreflang on ${p} while only English is published`, !/hreflang/i.test(got[p].body), "found hreflang");
+  }
+  const lang = await fetch(`${base}/pricing`, {
+    redirect: "manual",
+    headers: { "user-agent": "peakhour-seo-smoke", "accept-language": "fr-CA,fr;q=0.9", cookie: "NEXT_LOCALE=fr-ca" },
+  });
+  check("/pricing is not redirected by Accept-Language or a locale cookie", (lang.status < 300 || lang.status >= 400) && !lang.headers.get("location"), `${lang.status} ${lang.headers.get("location")}`);
 
   console.log(failed === 0 ? "\nALL PASS" : `\n${failed} FAILED`);
   process.exit(failed === 0 ? 0 : 1);

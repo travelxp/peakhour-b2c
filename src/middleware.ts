@@ -3,6 +3,9 @@ import { b2cAccessCookieName, b2cRefreshCookieName } from "@/lib/auth-cookies";
 import { isAppRoute } from "@/lib/route-theme";
 import { gatedVerdict, isGateOn, isPublicPath } from "@/lib/seo/gate";
 import { NOINDEX_HEADER, isIndexableDeployment } from "@/lib/seo/indexable";
+import { resolveLocaleRoute } from "@/lib/seo/locale-route";
+import { LOCALE_HEADER, PATH_HEADER } from "@/i18n/config";
+import type { Locale } from "@/lib/seo/types";
 
 const isDev = process.env.NODE_ENV !== "production";
 
@@ -88,6 +91,19 @@ function buildCsp(req: NextRequest): { csp: string; reqHeaders: Headers } {
   return { csp, reqHeaders };
 }
 
+/**
+ * The two request headers the locale routing owns. Every inbound copy is dropped first, so a caller cannot
+ * pick a language or a path by sending them; then the middleware's own values are set. `locale` is set only
+ * on a rewrite to the localized route, after the page passed the publish gate.
+ */
+function stampLocaleHeaders(h: Headers, pathname: string, locale: Locale | null): Headers {
+  h.delete(LOCALE_HEADER);
+  h.delete(PATH_HEADER);
+  if (locale) h.set(LOCALE_HEADER, locale);
+  h.set(PATH_HEADER, pathname);
+  return h;
+}
+
 export function middleware(req: NextRequest) {
   const { pathname, searchParams } = req.nextUrl;
 
@@ -148,29 +164,50 @@ export function middleware(req: NextRequest) {
     !grantPreview &&
     !hasPreviewCookie;
 
+  // ── Locale routing (SEO-4) ──────────────────────────────────────────
+  // AFTER the gate: a gated request never reaches it, and the gate's own verdict stands (a locale-prefixed
+  // path matches no route, so a gated "/fr-ca/shopify" is already a 404). A not-gated request whose first
+  // segment is a lowercase non-English locale prefix is rewritten to the internal localized route when
+  // that page is published in that locale, and to the public 404 otherwise. No detection, no redirect.
+  const localeRoute = gated ? null : resolveLocaleRoute(pathname);
+
   let res: NextResponse;
   // A gated path that matches no route is a 404, not the teaser (a 200 teaser for
   // /does-not-exist is a soft 404); a gated KNOWN page is the teaser with noindex,
   // because the teaser is not that page. See gatedVerdict in lib/seo/gate.ts.
   const verdict = gated ? gatedVerdict(pathname) : null;
+  // Where this request is rewritten to, if anywhere, and the locale the page then renders in.
+  let rewriteTo: string | null = null;
+  let renderLocale: Locale | null = null;
   if (gated) {
+    rewriteTo = verdict === "not-found" ? "/gate-404" : "/coming-soon";
+  } else if (localeRoute?.kind === "rewrite") {
+    rewriteTo = localeRoute.target;
+    renderLocale = localeRoute.locale;
+  } else if (localeRoute) {
+    rewriteTo = "/gate-404";
+  }
+  if (rewriteTo !== null) {
     const url = req.nextUrl.clone();
-    url.pathname = verdict === "not-found" ? "/gate-404" : "/coming-soon";
-    url.search = "";
+    url.pathname = rewriteTo;
+    // A gate rewrite drops the query; a locale rewrite keeps it (it is the same page).
+    if (gated) url.search = "";
     if (isPassthrough) {
-      res = NextResponse.rewrite(url);
+      // No nonce or CSP on these (see above); only the locale headers.
+      res = NextResponse.rewrite(url, { request: { headers: stampLocaleHeaders(new Headers(req.headers), pathname, renderLocale) } });
     } else {
-      // Full-document gated request → carry the nonce so the teaser HTML matches.
+      // Full-document request → carry the nonce so the rewritten HTML matches.
       const { csp, reqHeaders } = buildCsp(req);
-      res = NextResponse.rewrite(url, { request: { headers: reqHeaders } });
+      res = NextResponse.rewrite(url, { request: { headers: stampLocaleHeaders(reqHeaders, pathname, renderLocale) } });
       res.headers.set("Content-Security-Policy", csp);
     }
   } else if (isPassthrough) {
-    // Preserve prior behavior: middleware did not modify these requests.
-    res = NextResponse.next();
+    // Prefetch / RSC / action: no nonce or CSP work; only the two locale headers are set (the header and
+    // language switcher read the path from them on an RSC render).
+    res = NextResponse.next({ request: { headers: stampLocaleHeaders(new Headers(req.headers), pathname, null) } });
   } else {
     const { csp, reqHeaders } = buildCsp(req);
-    res = NextResponse.next({ request: { headers: reqHeaders } });
+    res = NextResponse.next({ request: { headers: stampLocaleHeaders(reqHeaders, pathname, null) } });
     res.headers.set("Content-Security-Policy", csp);
   }
 
