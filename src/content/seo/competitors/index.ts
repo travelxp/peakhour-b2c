@@ -1,3 +1,11 @@
+// CMP-W3A
+import { AFTERSELL } from "./aftersell";
+import { CBB_FREQUENTLY_BOUGHT_TOGETHER } from "./cbb-frequently-bought-together";
+import { FAST_BUNDLE } from "./fast-bundle";
+import { OCTANE_AI } from "./octane-ai";
+import { RECONVERT } from "./reconvert";
+import { REVENUEHUNT } from "./revenuehunt";
+import { ZIPIFY_OCU } from "./zipify-ocu";
 import { AISENSY } from "./aisensy";
 import { INTERAKT } from "./interakt";
 import { REP_AI } from "./rep-ai";
@@ -29,6 +37,13 @@ import { INVENTORY_PLANNER } from "./inventory-planner";
 import { PREDIKO } from "./prediko";
 import { RELEASIT } from "./releasit";
 import { SHOPLIFT } from "./shoplift";
+// CMP-W3C
+import { BOLD_DISCOUNTS } from "./bold-discounts";
+import { BOOSTER_SEO } from "./booster-seo";
+import { DESCRIBELY } from "./describely";
+import { DISCOUNT_NINJA } from "./discount-ninja";
+import { HYPOTENUSE } from "./hypotenuse";
+import { PLUG_IN_SEO } from "./plug-in-seo";
 import type { CompetitorBrief } from "./types";
 
 const BRIEFS = [
@@ -64,6 +79,21 @@ const BRIEFS = [
   SHOPLIFT,
   RELEASIT,
   EASYSELL,
+  // CMP-W3A
+  RECONVERT,
+  AFTERSELL,
+  ZIPIFY_OCU,
+  FAST_BUNDLE,
+  CBB_FREQUENTLY_BOUGHT_TOGETHER,
+  OCTANE_AI,
+  REVENUEHUNT,
+  // CMP-W3C
+  DESCRIBELY,
+  HYPOTENUSE,
+  PLUG_IN_SEO,
+  BOOSTER_SEO,
+  DISCOUNT_NINJA,
+  BOLD_DISCOUNTS,
 ] satisfies readonly CompetitorBrief[];
 
 export const COMPETITOR_BRIEFS: readonly CompetitorBrief[] = BRIEFS;
