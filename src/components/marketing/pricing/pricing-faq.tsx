@@ -12,7 +12,7 @@ const FAQS: { q: string; a: string }[] = [
     a: "Peaks are your AI credits — one shared wallet across everything in Peakhour Suite. Every plan includes a monthly allowance — the cards above show it — and you can top up any time. We tell you before you run low.",
   },
   {
-    q: "Do I have to buy every module?",
+    q: "Do I have to buy the parts separately?",
     a: "There is nothing to assemble. Peakhour Suite is one plan and one price for everything Peakhour does, so you are never picking which parts of your business to leave out. Use the ones you need; the rest are there when you want them.",
   },
   {

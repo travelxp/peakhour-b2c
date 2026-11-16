@@ -76,7 +76,8 @@ export function footerGroups(t: Translate): { heading: string; links: { href?: s
       const page = findPageByPath(i.path);
       // A route the registry knows is shown only while it is publishable; one it does not know (pricing, legal) is a fixed route.
       if (page && !isPublishable(page)) return [];
-      return [{ href: i.path, label: "page" in i && page ? cardLabel(page) : t((i as { key: string }).key) }];
+      if ("page" in i) return page ? [{ href: i.path, label: cardLabel(page) }] : []; // a registry link with no record is dropped
+      return [{ href: i.path, label: t(i.key) }];
     }),
   }));
 }
@@ -92,7 +93,7 @@ export function FooterView({ t, commonT }: { t: Translate; commonT: Translate })
   return (
     <footer className="border-t bg-muted/30">
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-        <div className="flex flex-col gap-10 lg:flex-row lg:justify-between">
+        <div className="flex flex-col gap-10 xl:flex-row xl:justify-between">
           {/* Brand */}
           <div className="max-w-xs shrink-0">
             <Link
@@ -121,7 +122,7 @@ export function FooterView({ t, commonT }: { t: Translate; commonT: Translate })
                 <p className="text-xs font-semibold uppercase tracking-wider text-foreground">{group.heading}</p>
                 <ul className="mt-4 flex flex-col gap-2.5">
                   {group.links.map((link) => (
-                    <li key={link.label}>
+                    <li key={link.href ?? link.label}>
                       {link.href ? (
                         <Link href={link.href} className="text-sm text-muted-foreground transition-colors hover:text-brand">
                           {link.label}

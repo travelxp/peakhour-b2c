@@ -21,6 +21,11 @@ describe("footer links", () => {
     }
   });
 
+  it("the section links are registry pages, so the publish guard covers them", () => {
+    for (const h of ["/features", "/features/peakhour-summit", "/shopify", "/shopify/features", "/integrations", "/about"]) expect(findPageByPath(h), h).toBeDefined();
+    for (const h of hrefs.filter((x) => /^\/(shopify\/|integrations)/.test(x))) expect(findPageByPath(h), h).toBeDefined();
+  });
+
   it("carries the new sections, from the registry", () => {
     for (const h of ["/features", "/features/peakhour-summit", "/shopify/features", "/integrations"]) expect(hrefs).toContain(h);
     expect(hrefs.some((h) => h.startsWith("/shopify/features/"))).toBe(true);
