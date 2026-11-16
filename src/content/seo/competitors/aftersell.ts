@@ -70,12 +70,12 @@ export const AFTERSELL = {
       { plan: "Post-Purchase, 200 orders a month", price: "$34.99 per month, capped at $999.99; 30-day free trial", currency: "USD (bare $, code not stated)", region: "Not stated", observedAt: D, source: S.pricing },
       { plan: "Pre-Purchase, 200 orders a month", price: "$59.99 per month, capped at $599.99; 30-day free trial", currency: "USD (bare $, code not stated)", region: "Not stated", observedAt: D, source: S.pricing },
       { plan: "Complete, 500 orders a month", price: "$79.99 per month, capped at $1,359.99; 30-day free trial", currency: "USD (bare $, code not stated)", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Rokt Thanks, unlimited orders", price: "Free; it states stores can earn $0.30 to $0.80 profit per order from partner offers", currency: "USD (bare $, code not stated)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Rokt Thanks, unlimited orders", price: "Free (partner offers on the order confirmation page)", currency: "USD (bare $, code not stated)", region: "Not stated", observedAt: D, source: S.pricing },
       { plan: "Aftersell Max, high volume", price: "Not published (custom pricing)", currency: "Not stated", region: "Not stated", observedAt: D, source: S.pricing },
     ],
   },
   bestFor: [
-    { vendor: "Aftersell", bestFor: "Stores that want a dedicated engine for post-purchase and checkout offers, a rewards cart and thousands of tested offer combinations, and are fine paying by order volume." },
+    { vendor: "Aftersell", bestFor: "Stores that want a dedicated engine for post-purchase and checkout offers, a rewards cart and funnel testing, and are fine paying by order volume." },
     { vendor: "Peakhour", bestFor: "Shopify merchants who want cart suggestions and thank-you page links drawn from what their own customers bought together, inside one suite, and do not need to add an item to the order after checkout." },
   ],
   limitations: [

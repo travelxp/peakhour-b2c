@@ -68,7 +68,7 @@ export const FAST_BUNDLE = {
   ],
   pricing: {
     rows: [
-      { plan: "Free, bundle sales up to $500 a month", price: "Free, for development stores and eligible merchants", currency: "USD (bare $, code not stated)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Free, for development stores and eligible merchants", price: "Free, with bundle sales capped at $500 a month", currency: "USD (bare $, code not stated)", region: "Not stated", observedAt: D, source: S.pricing },
       { plan: "Standard, up to $1,000 of monthly bundle revenue", price: "$19 per month, or $15 per month billed annually; 7-day trial", currency: "USD (bare $, code not stated)", region: "Not stated", observedAt: D, source: S.pricing },
       { plan: "Standard, up to $3,000", price: "$49 per month, or $39 per month billed annually", currency: "USD (bare $, code not stated)", region: "Not stated", observedAt: D, source: S.pricing },
       { plan: "Standard, up to $10,000", price: "$139 per month, or $115 per month billed annually", currency: "USD (bare $, code not stated)", region: "Not stated", observedAt: D, source: S.pricing },

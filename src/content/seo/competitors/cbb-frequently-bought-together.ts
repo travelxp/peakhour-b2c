@@ -34,7 +34,7 @@ export const CBB_FREQUENTLY_BOUGHT_TOGETHER = {
       peakhour: PEAKHOUR_C.bundles,
     },
     {
-      dimension: "Choice of discount type",
+      dimension: "Discount amount you can set",
       vendor: { value: "yes", note: "Percentage, fixed amount, free item or free shipping, as its listing states.", source: S.listing, observedAt: D },
       peakhour: PEAKHOUR_W3A.onePercent,
     },
@@ -67,7 +67,7 @@ export const CBB_FREQUENTLY_BOUGHT_TOGETHER = {
   pricing: {
     rows: [
       { plan: "Starter, up to 3 manual bundles", price: "Free", currency: "INR", region: "Listing viewed from India; INR amounts are estimates and billing is in the store's currency", observedAt: D, source: S.listing },
-      { plan: "Professional I, up to 50 orders a month", price: "₹941.65 per month; 14-day trial", currency: "INR", region: "Listing viewed from India; INR amounts are estimates and billing is in the store's currency", observedAt: D, source: S.listing },
+      { plan: "Professional I, up to 50 orders a month", price: "₹941.65 per month (an estimate shown to a viewer in India); 14-day trial", currency: "INR", region: "Listing viewed from India; INR amounts are estimates and billing is in the store's currency", observedAt: D, source: S.listing },
       { plan: "Professional II, up to 500 orders a month", price: "₹2,355.55 per month", currency: "INR", region: "Listing viewed from India; INR amounts are estimates and billing is in the store's currency", observedAt: D, source: S.listing },
       { plan: "Professional III, above 500 orders a month", price: "₹3,769.44 per month", currency: "INR", region: "Listing viewed from India; INR amounts are estimates and billing is in the store's currency", observedAt: D, source: S.listing },
     ],

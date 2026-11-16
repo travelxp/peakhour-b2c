@@ -74,9 +74,9 @@ export const REVENUEHUNT = {
   pricing: {
     rows: [
       { plan: "Free, 100 quiz responses a month", price: "Free", currency: "USD", region: "RevenueHunt pricing page; region not stated", observedAt: D, source: S.pricing },
-      { plan: "Basic, 500 responses a month", price: "39 or 31 per month; the page does not label which is monthly and which is yearly", currency: "USD", region: "RevenueHunt pricing page; region not stated", observedAt: D, source: S.pricing },
-      { plan: "Pro, 1,000 responses a month", price: "99 or 79 per month; the page does not label which is monthly and which is yearly", currency: "USD", region: "RevenueHunt pricing page; region not stated", observedAt: D, source: S.pricing },
-      { plan: "Premium, 2,500 responses a month", price: "199 or 159 per month; the page does not label which is monthly and which is yearly", currency: "USD", region: "RevenueHunt pricing page; region not stated", observedAt: D, source: S.pricing },
+      { plan: "Basic, 500 responses a month", price: "39 or 31 per month; the page does not label which is monthly and which is yearly", currency: "USD (stated for Enterprise only; no symbol or code on this row)", region: "RevenueHunt pricing page; region not stated", observedAt: D, source: S.pricing },
+      { plan: "Pro, 1,000 responses a month", price: "99 or 79 per month; the page does not label which is monthly and which is yearly", currency: "USD (stated for Enterprise only; no symbol or code on this row)", region: "RevenueHunt pricing page; region not stated", observedAt: D, source: S.pricing },
+      { plan: "Premium, 2,500 responses a month", price: "199 or 159 per month; the page does not label which is monthly and which is yearly", currency: "USD (stated for Enterprise only; no symbol or code on this row)", region: "RevenueHunt pricing page; region not stated", observedAt: D, source: S.pricing },
       { plan: "Enterprise, unlimited responses", price: "Starting at 299 per month", currency: "USD", region: "RevenueHunt pricing page; region not stated", observedAt: D, source: S.pricing },
     ],
   },
