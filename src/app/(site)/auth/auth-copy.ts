@@ -1,5 +1,4 @@
-import type { PlatformSignupMode } from "@/lib/catalog";
-import { trialNote } from "@/lib/trial-copy";
+import { trialNote, type SignupModeInput } from "@/lib/trial-copy";
 
 /**
  * The words on /auth that are not the form: the panel beside it, and the ticks under the button.
@@ -35,7 +34,7 @@ export const PANEL_BETA: readonly PanelItem[] = [
  * no `trialDays`, no trial line, and "no credit card" travels with the trial because the signup trial collects none.
  * The second tick is about access: open signups are live the same day, a gated platform emails the link on approval.
  */
-export function signupTicks(trialDays: number | null, preLaunch: boolean, mode: PlatformSignupMode = preLaunch ? "waitlist_only" : "open"): readonly string[] {
+export function signupTicks(trialDays: number | null, preLaunch: boolean, mode: SignupModeInput): readonly string[] {
   const note = trialNote(trialDays, mode);
   return [...(note ? [note] : []), preLaunch ? "We’ll email your link" : "Live the same day"];
 }

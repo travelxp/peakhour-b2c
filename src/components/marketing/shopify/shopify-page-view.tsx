@@ -345,6 +345,7 @@ export function ShopifyPageView({
               includedSlugs={suiteModuleSlugs(pricing)}
               cta={cardCta}
               openSignup={false}
+              trialWhen={comingSoon ? "on_approval" : "none"}
               // Coming soon, the button is the peakhour.ai signup, so the card is
               // the plain Suite card: its trial is not billed through Shopify.
               channel={comingSoon ? undefined : "shopify"}

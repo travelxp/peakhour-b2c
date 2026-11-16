@@ -138,6 +138,7 @@ function EmailChip({ email }: { email: string }) {
 
 export function AuthFlow({
   signupMode,
+  trialSignupMode,
   /** Suite's trial length, resolved server-side so the client bundle carries
    *  no pricing logic. Null when the environment sells no Suite trial: then
    *  the page promises none (`suiteTrialDays`, `hasTrial`). */
@@ -151,6 +152,8 @@ export function AuthFlow({
   passwordSignIn = false,
 }: {
   signupMode: PlatformSignupMode;
+  /** The mode as the catalog gave it, undefined when it could not be read: then no trial line (fail closed). */
+  trialSignupMode: PlatformSignupMode | null | undefined;
   trialDays: number | null;
   passwordSignIn?: boolean;
 }) {
@@ -731,7 +734,7 @@ export function AuthFlow({
               <PasswordSignIn available={passwordSignIn} next={next} />
 
               <ul role="list" className="mt-4 flex flex-wrap justify-center gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground sm:mt-6 sm:gap-x-4 sm:text-sm">
-                {signupTicks(trialDays, isPreLaunch, signupMode).map((tick) => (
+                {signupTicks(trialDays, isPreLaunch, trialSignupMode).map((tick) => (
                   <li key={tick} className="flex items-center gap-1.5">
                     <Check className="size-3.5 shrink-0 text-brand-strong" strokeWidth={3} aria-hidden />
                     {tick}

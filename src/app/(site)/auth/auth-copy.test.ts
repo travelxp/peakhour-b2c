@@ -44,3 +44,11 @@ describe("/auth ticks follow the signup door", () => {
     expect(signupTicks(null, true, "waitlist_only")).toEqual(["We’ll email your link"]);
   });
 });
+
+describe("/auth ticks fail closed", () => {
+  it("an unreadable signup mode shows no trial tick", async () => {
+    const { signupTicks } = await import("./auth-copy");
+    expect(signupTicks(14, true, undefined)).toEqual(["We’ll email your link"]);
+    expect(signupTicks(14, true, null)).toEqual(["We’ll email your link"]);
+  });
+});

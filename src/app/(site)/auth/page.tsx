@@ -58,7 +58,7 @@ export default async function AuthPage() {
         </div>
       }
     >
-      <AuthFlow signupMode={signupMode} trialDays={trialDays} passwordSignIn={passwordSignIn} />
+      <AuthFlow signupMode={signupMode} trialSignupMode={catalog?.platform?.signupMode} trialDays={trialDays} passwordSignIn={passwordSignIn} />
     </Suspense>
   );
 }

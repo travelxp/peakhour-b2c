@@ -131,18 +131,18 @@ describe("suiteModuleSlugs: what Suite includes, asked of each product", () => {
 
 describe("signup copy promises a trial, not a free plan (D19)", () => {
   it("the /auth ticks state the Suite trial's length, and no module count", () => {
-    expect(signupTicks(14, false)).toEqual(["14-day free trial · No credit card", "Live the same day"]);
-    expect(signupTicks(7, true)).toEqual(["7-day free trial once approved · No credit card", "We’ll email your link"]);
+    expect(signupTicks(14, false, "open")).toEqual(["14-day free trial · No credit card", "Live the same day"]);
+    expect(signupTicks(7, true, "waitlist_only")).toEqual(["7-day free trial once approved · No credit card", "We’ll email your link"]);
   });
 
   it("★no Suite trial, no trial ticks: no 14-day stand-in (official review R1)", () => {
     // `suiteTrialDays` is null on purpose here, and /auth passes it through.
     const days = suiteTrialDays(catalog(tier("suite", { trialDays: 0 })));
     expect(days).toBeNull();
-    expect(signupTicks(days, false)).toEqual(["Live the same day"]);
-    expect(signupTicks(null, true)).toEqual(["We’ll email your link"]);
-    expect(signupTicks(0, false)).toEqual(["Live the same day"]);
-    for (const d of [days, null, 0]) expect(JSON.stringify(signupTicks(d, false))).not.toMatch(/free|credit card|trial/i);
+    expect(signupTicks(days, false, "open")).toEqual(["Live the same day"]);
+    expect(signupTicks(null, true, "waitlist_only")).toEqual(["We’ll email your link"]);
+    expect(signupTicks(0, false, "open")).toEqual(["Live the same day"]);
+    for (const d of [days, null, 0]) expect(JSON.stringify(signupTicks(d, false, "open"))).not.toMatch(/free|credit card|trial/i);
     expect(hasTrial(1)).toBe(true);
     expect(hasTrial(undefined)).toBe(false);
   });
@@ -150,7 +150,7 @@ describe("signup copy promises a trial, not a free plan (D19)", () => {
   it("no tick names a free plan, a module count, or every module", () => {
     for (const d of [14, null]) {
       for (const pre of [true, false]) {
-        const text = signupTicks(d, pre).join(" ").toLowerCase();
+        const text = signupTicks(d, pre, pre ? "waitlist_only" : "open").join(" ").toLowerCase();
         expect(text).not.toContain("free plan");
         expect(text).not.toMatch(/five modules|every module|5 modules/);
       }

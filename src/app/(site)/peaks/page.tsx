@@ -36,9 +36,10 @@ export default async function PeaksPage() {
 
   // The trial is named only when the catalog gives one (owner rule 2026-10-06, `lib/trial-copy`).
   const [peaks, trialDays, catalog] = await Promise.all([getPeaks(country), marketingTrialDays(), getPublicCatalog()]);
-  const signupMode = catalog?.platform?.signupMode ?? "open";
+  const knownMode = catalog?.platform?.signupMode;
+  const signupMode = knownMode ?? "open";
   const door = signupCta(signupMode, trialDays);
-  const when = trialStart(signupMode, trialDays);
+  const when = trialStart(knownMode, trialDays);
   const packs = peaks?.packs ?? [];
   const bestKey = bestValueKey(packs);
 
