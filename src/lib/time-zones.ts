@@ -118,6 +118,12 @@ export interface ZoneItem {
   search: string;
 }
 
+/** "Asia/Kolkata (UTC+05:30)": the id with its underscores taken out, and the offset when this browser can read the zone. */
+function labelOf(zone: string, off: string): string {
+  const spaced = zone.replace(/_/g, " ");
+  return off ? `${spaced} (UTC${off})` : spaced;
+}
+
 // An item is built once per zone per hour (the offset can change with daylight saving): opening the picker again does not rebuild 400.
 let cacheHour = -1;
 const itemCache = new Map<string, ZoneItem>();
@@ -148,7 +154,7 @@ function buildItem(zone: string, now: Date): ZoneItem {
   const writings = off ? [off, `utc${off}`, `gmt${off}`, ...(short ? [short, `utc${short}`, `gmt${short}`] : [])] : [];
   return {
     value: zone,
-    label: offset ? `${spaced} (${offset})` : spaced,
+    label: labelOf(zone, off),
     city,
     place: country || region,
     offset,
@@ -192,5 +198,5 @@ export function searchZones(groups: readonly ZoneGroup[], query: string): ZoneGr
   return groups.map((g) => ({ ...g, items: g.items.filter((i) => words.every((w) => i.search.includes(w))) })).filter((g) => g.items.length > 0);
 }
 
-/** How a chosen zone reads on the trigger: its label with the offset, whether or not the list holds it. */
-export const zoneLabel = (zone: string, now?: Date): string => zoneItem(zone, now).label;
+/** How a chosen zone reads on the trigger: its label with the offset, whether or not the list holds it. ★Does not build the country lookup: a closed picker pays for the offset only. */
+export const zoneLabel = (zone: string, now: Date = new Date()): string => labelOf(zone, zoneOffset(zone, now));

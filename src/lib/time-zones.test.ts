@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { browserZone, searchZones, supportedZones, timeZoneOptions, zoneGroups, zoneItem, zoneLabel, zoneOffset } from "./time-zones";
 
 const NOW = new Date("2026-11-16T12:00:00Z");
@@ -141,5 +141,31 @@ describe("zoneItem", () => {
   it("names the place: the country where the browser knows it, else the region", () => {
     expect(zoneItem("Asia/Kolkata", NOW)).toMatchObject({ value: "Asia/Kolkata", city: "Kolkata", place: "India", offset: "UTC+05:30" });
     expect(zoneItem("UTC", NOW).place).toBe("");
+  });
+});
+
+describe("a closed picker is cheap", () => {
+  it("the trigger's label does not build the country lookup; a search item does, once", async () => {
+    vi.resetModules();
+    const intl = Intl as unknown as { DisplayNames: typeof Intl.DisplayNames };
+    const Orig = intl.DisplayNames;
+    let built = 0;
+    intl.DisplayNames = class extends Orig {
+      constructor(...a: ConstructorParameters<typeof Orig>) {
+        super(...a);
+        built += 1;
+      }
+    } as typeof Intl.DisplayNames;
+    try {
+      const fresh = await import("./time-zones");
+      expect(fresh.zoneLabel("Asia/Kolkata", NOW)).toBe("Asia/Kolkata (UTC+05:30)");
+      expect(built).toBe(0);
+      expect(fresh.zoneItem("Asia/Kolkata", NOW).place).toBe("India");
+      expect(built).toBe(1);
+      fresh.zoneItem("Europe/London", NOW);
+      expect(built).toBe(1);
+    } finally {
+      intl.DisplayNames = Orig;
+    }
   });
 });
