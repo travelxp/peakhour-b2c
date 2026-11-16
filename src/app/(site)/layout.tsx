@@ -7,6 +7,7 @@ import { getLocale } from "next-intl/server";
 import { SITE } from "@/lib/utils";
 import { getPage } from "@/lib/seo/pages";
 import { API_BASE_URL } from "@/lib/api";
+import { DaylightBody } from "@/components/shared/daylight-body";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { QueryProvider } from "@/providers/query-provider";
 import { AuthProvider } from "@/providers/auth-provider";
@@ -112,7 +113,7 @@ export default async function SiteLayout({
 
   return (
     <html lang={locale} suppressHydrationWarning>
-      <body
+      <DaylightBody
         className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} ${fraunces.variable} font-sans antialiased`}
       >
         {/* Real-user speed data: one beacon per page load, route pattern only. */}
@@ -131,7 +132,7 @@ export default async function SiteLayout({
             </AuthProvider>
           </QueryProvider>
         </ThemeProvider>
-      </body>
+      </DaylightBody>
     </html>
   );
 }

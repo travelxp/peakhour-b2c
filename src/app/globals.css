@@ -788,8 +788,10 @@
 }
 
 /*
- * "Daylight": the new marketing palette, scoped to the pages that opt in by
- * wrapping themselves in `.theme-daylight` (today: /shopify). It redefines the
+ * "Daylight": the marketing palette. It is the default for every public route:
+ * components/shared/daylight-body.tsx puts `.theme-daylight` on <body> for any
+ * path that is not an app route (lib/route-theme.ts). Pages that wrap
+ * themselves in it too (/shopify) are unchanged: same tokens, same values. It redefines the
  * shared tokens instead of adding new utilities, so the Header, Footer and
  * pricing cards inside the wrapper follow without being forked.
  *
@@ -912,4 +914,55 @@
   .daylight-bubble { transition: none; }
   .daylight-bubble[data-on="false"] { opacity: 1; transform: none; visibility: visible; }
   .daylight-typing > i { animation: none; }
+}
+
+/*
+ * The legal documents (components/marketing/legal/legal-page.tsx): a calm reading column. The document's own JSX keeps
+ * its tags and classes (the text is pinned by a golden test), so the rhythm is set here, on the wrapper, by element:
+ * body copy 16px at a 1.75 line height in the muted ink, each h2 a clear step above its h3, a hairline above every
+ * section after the first, and lists with air between items.
+ */
+.legal-body {
+  font-size: 1rem;
+  line-height: 1.75;
+  color: var(--muted-foreground);
+}
+.legal-body > section + section {
+  border-top: 1px solid var(--border);
+  padding-top: 2.5rem;
+}
+.legal-body h2 {
+  font-size: 1.5rem;
+  line-height: 1.25;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--foreground);
+  scroll-margin-top: 6rem;
+}
+.legal-body h3 {
+  margin-top: 1.75rem;
+  font-size: 1.0625rem;
+  line-height: 1.4;
+  font-weight: 700;
+  color: var(--foreground);
+  scroll-margin-top: 6rem;
+}
+.legal-body p,
+.legal-body ul,
+.legal-body ol {
+  margin-top: 0.875rem;
+}
+.legal-body li + li {
+  margin-top: 0.375rem;
+}
+.legal-body a {
+  color: var(--foreground);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--brand);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+.legal-body a:hover {
+  color: var(--brand-strong);
 }
