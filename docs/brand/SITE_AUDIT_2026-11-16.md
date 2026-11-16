@@ -21,7 +21,7 @@ Lanes: **DL-1** owns the global Daylight default, /pricing, /pricing/teams, /con
    - `/coming-soon` says "conversations in one inbox, answered by AI or by you", which is not live (`support.channel_inbox`, `support.ai_replies`), and lists WordPress under "Works with";
    - `/peaks` says "Prices shown for IN" beside dollar prices, and "Peaks need an active paid plan" beside "your free trial included";
    - `/pricing/teams` lists SLAs, a dedicated success manager, a DPA and priority support, none of which is in `capabilities.ts`.
-6. **Writing.** No banned hype word and no exclamation mark survived. The dominant faults are length and abstraction: hero paragraphs of 40 to 55 words, "Built, and not switched on yet." for "Coming soon", "five modules" framing on `/`, `/about`, `/pricing` and `/how-it-works`, and slogan headings ("Own how you show up on Google"). Italic serif accents appear only on the old-theme pages.
+6. **Writing.** No banned hype word and no exclamation mark survived. The dominant faults are length and abstraction: hero paragraphs of 40 to 55 words, "Built, and not switched on yet." for "Coming soon", "five modules" framing on `/`, `/about`, `/pricing` and `/how-it-works`, and slogan headings ("Own how you show up on Google"). Italic serif accents appear on the old-theme pages and, as orange step numerals, on `/how-it-works`.
 
 
 ## Pages
@@ -74,7 +74,7 @@ Priority: P0 old theme, or a false or stale claim. P1 weak writing or UX. P2 pol
 - **Priority:** P0
 - **Design:** Daylight: yes. 1280: three explainer cards then three pack cards; the "Good to know" box is narrower than the grid above and leaves the right half empty. 390: clean; the Best value badge sits over the card border.
 - **Writing:**
-  - "Prices shown for IN, detected from your IP. (beside $5, $18 and $80)" -> A page that says it shows Indian prices must not show dollars. Show INR, or say "Prices in USD". Check against src/lib/peaks.ts: likely a stale or wrong claim.
+  - "Prices shown for IN, detected from your IP. (beside $5, $18 and $80)" -> A page that says it shows Indian prices must not show dollars. Pack prices are not job prices, so a currency is fine here: show INR, or say "Prices in USD". Check against src/lib/peaks.ts: likely a stale or wrong claim.
   - "Peaks need an active paid Peakhour plan. (Good to know)" -> Contradicts "your free trial included" in the cards above. Say which is true.
   - "Peaks: the AI credits behind every Peakhour feature" -> Peaks pay for the AI work Peakhour does.
   - "Start free trial (hero and CTA band)" -> Same trial decision as /pricing.
@@ -97,7 +97,7 @@ Priority: P0 old theme, or a false or stale claim. P1 weak writing or UX. P2 pol
 - **Owning files:** `src/app/(site)/commerce/page.tsx`, `src/content/pages/commerce.ts`
 - **Owner lane:** DL-3
 - **Priority:** P1
-- **Design:** Shared Daylight template (peach-to-white hero, orange CTA, grey bands, navy CTA band). 1280: the hero side card ("Where it stands today") repeats the status chips of the card grid directly below it, so every capability is stated twice; the grid is a wall of equal-weight cards, each carrying a grey "Limit:" footnote in small type. 390: single column is clean, but the page runs 4,000 to 5,000 px and the status panel pushes the first CTA down. Worst case on the site: twelve capability cards each with a "Limit:" footnote, then three platform cards that repeat a limit (the assistant's "it does not place orders itself" appears again on the Shopify card). 390: about 4,700 px.
+- **Design:** Shared Daylight template (peach-to-white hero, orange CTA, grey bands, navy CTA band). 1280: the hero side card ("Where it stands today") repeats the status chips of the card grid directly below it, so every capability is stated twice; the grid is a wall of equal-weight cards, each carrying a grey "Limit:" footnote in small type. Worst case on the site: twelve capability cards each with a "Limit:" footnote, then three platform cards that repeat a limit (the assistant's "it does not place orders itself" appears again on the Shopify card). 390: about 4,700 px.
 - **Writing:**
   - "Each platform has its own status." -> Where it runs: Shopify, WhatsApp, WooCommerce.
   - "Not yet: Answers use your own catalogue and policies; it does not place orders itself on the storefront. (Shopify card)" -> An assistant limit is repeated as a Shopify limit. Say "Not yet: WooCommerce." and keep the assistant limit on its own card.
@@ -157,7 +157,7 @@ Priority: P0 old theme, or a false or stale claim. P1 weak writing or UX. P2 pol
 - **Writing:**
   - "Header: Join the waitlist vs hero: Install on Shopify" -> On Shopify routes the header CTA should match the hero.
   - "Conversations deleted 180 days after the last message, with a legal hold when needed" -> Supported by the privacy policy. Keep.
-  - "Five jobs Peakhour takes off your plate." -> Keep. It is the standard.
+  - "Five jobs Peakhour takes off your plate." -> Keep. It counts jobs handed over, not modules, so it is not the retired "five modules" framing.
 
 ### `/launch-partner`
 
