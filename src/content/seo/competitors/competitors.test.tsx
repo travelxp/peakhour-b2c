@@ -14,6 +14,10 @@ vi.mock("@/components/shared/footer", () => ({ Footer: () => null }));
 import AisensyPage, { metadata as aisensyMeta } from "@/app/(site)/shopify/compare/aisensy/page";
 import InteraktPage, { metadata as interaktMeta } from "@/app/(site)/shopify/compare/interakt/page";
 import RepAiPage, { metadata as repMeta } from "@/app/(site)/shopify/compare/rep-ai/page";
+// CMP-A
+import WatiPage, { metadata as watiMeta } from "@/app/(site)/shopify/compare/wati/page";
+import ZokoPage, { metadata as zokoMeta } from "@/app/(site)/shopify/compare/zoko/page";
+import GokwikPage, { metadata as gokwikMeta } from "@/app/(site)/shopify/compare/gokwik/page";
 import { getCapability } from "@/lib/seo/capabilities";
 import { findPageByPath, getPage, LAUNCH_PARTNER_CTA, PAGES } from "@/lib/seo/pages";
 import { isPreviewable, isPublishable, statusSatisfies } from "@/lib/seo/publish";
@@ -27,11 +31,19 @@ const OWN_HOSTS: Record<string, string[]> = {
   aisensy: ["aisensy.com"],
   interakt: ["www.interakt.shop", "interakt.shop"],
   "rep-ai": ["hellorep.ai"],
+  // CMP-A
+  wati: ["www.wati.io"],
+  zoko: ["www.zoko.io"],
+  gokwik: ["www.gokwik.co"],
 };
 const ROUTES: Record<string, { Page: () => Promise<React.ReactElement>; meta: unknown }> = {
   aisensy: { Page: AisensyPage, meta: aisensyMeta },
   interakt: { Page: InteraktPage, meta: interaktMeta },
   "rep-ai": { Page: RepAiPage, meta: repMeta },
+  // CMP-A
+  wati: { Page: WatiPage, meta: watiMeta },
+  zoko: { Page: ZokoPage, meta: zokoMeta },
+  gokwik: { Page: GokwikPage, meta: gokwikMeta },
 };
 const ENV_KEYS = ["VERCEL_ENV", "SITE_INDEXABLE"] as const;
 const saved: Record<string, string | undefined> = {};
@@ -215,7 +227,7 @@ describe.each(COMPETITOR_BRIEFS.map((b) => [b.slug, b] as const))("%s brief (Bib
     expect(html).toContain(b.h1);
     expect(html).toContain("Draft, not published");
     expect(html).toContain("Not documented");
-    expect(html).toMatch(/Pricing as listed on each vendor(?:'|&#x27;|&apos;)s page, seen 2026-11-15/);
+    expect(html).toMatch(/Pricing as listed on each vendor(?:'|&#x27;|&apos;)s page, seen \d{4}-\d{2}-\d{2}/);
     // Internal sources are normal links; only external ones open a new tab.
     expect(html).toMatch(/<a href="\/pricing"(?![^>]*target)/);
     expect(html).toMatch(/<a href="https:\/\/[^"]+" target="_blank" rel="noopener noreferrer nofollow"/);
