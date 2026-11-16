@@ -14,7 +14,7 @@ import { SITE } from "@/lib/utils";
 import type { PlatformSignupMode } from "@/lib/catalog";
 import { FlowButton, FlowCard, FlowHead, FlowNotice, flowLink } from "@/components/marketing/flow/flow-kit";
 import { eyebrowCls } from "@/components/marketing/seo/styles";
-import { PANEL_BETA, PANEL_LIVE, signupTicks, type PanelItem } from "./auth-copy";
+import { PANEL_BETA, PANEL_HEADLINE, PANEL_LIVE, signupTicks, type PanelItem } from "./auth-copy";
 
 // Bounded length + char set so a tampered link can't smuggle arbitrary strings
 // into the waitlist payload. Mirrors the referredByCode validator on
@@ -483,9 +483,8 @@ export function AuthFlow({
           Left — what Peakhour does, on the Daylight hero tint. Every line
           is an approved claim (auth-copy.ts), the beta ones say so, and
           nothing here is a number or a made-up status.
-          Hidden below lg, where the form column is the whole page; the
-          access promise still reaches small screens through the ticks
-          under the button.
+          Hidden below lg, where the form column is the whole page; there
+          the same cards follow the form in a compact lg:hidden section.
          --------------------------------------------------------------- */}
       <section
         aria-label="What Peakhour does"
@@ -497,7 +496,9 @@ export function AuthFlow({
               h1 here would leave small screens with no h1 at all. The state
               heading in the form column is the h1 at every breakpoint. */}
           <p className="mt-3 text-4xl font-extrabold leading-[1.05] tracking-[-0.035em] text-balance xl:text-[2.75rem]">
-            Your shoppers, answered. Your orders, <span className="daylight-mark">confirmed.</span>
+            {PANEL_HEADLINE.lead}
+            <span className="daylight-mark">{PANEL_HEADLINE.mark}</span>
+            {PANEL_HEADLINE.tail}
           </p>
 
           <ul role="list" className="mt-8 grid gap-3">
