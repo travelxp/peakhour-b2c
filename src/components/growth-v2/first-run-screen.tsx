@@ -6,6 +6,7 @@ import { Building2, MapPin, MessageSquare, Phone, ShoppingCart, Smartphone, type
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { TimeZoneCombobox } from "@/components/ui/time-zone-combobox";
 import { LockedGoalCards, NothingMeasurable } from "./locked-goals";
 import { useConfirmPlan, useFirstRunDraft, usePatchRules, type DraftLine, type DraftOffer, type FirstRunDraftResponse, type OutcomeKind } from "@/lib/api/growth-v2";
 import { useSignalReadiness } from "@/lib/api/growth-v2-signal";
@@ -400,7 +401,7 @@ export function FirstRunView(p: FirstRunViewProps) {
             <label htmlFor="first-run-zone" className="sr-only">
               Time zone
             </label>
-            <Input id="first-run-zone" className="w-60" placeholder="Asia/Kolkata" value={p.zone} onChange={(e) => p.onZone(e.target.value)} />
+            <TimeZoneCombobox id="first-run-zone" className="w-72" placeholder="Choose your time zone" value={p.zone} onChange={p.onZone} />
             <Button type="button" onClick={p.onSaveZone} disabled={p.zoneSaving || p.zone.trim() === ""}>
               Save time zone
             </Button>

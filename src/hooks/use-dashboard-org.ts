@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
-import { canChangeCategory } from "@/lib/business-category";
+import { canChangeCategory, categoryLabel } from "@/lib/business-category";
 
 /** Shape of `/v1/dashboard/org` as relevant to plan/trial surfaces.
  *  Other fields (taxonomy, integrations, business meta) are returned by
@@ -145,4 +145,13 @@ export function useExtendTrial() {
 export function useCanChangeCategory(): boolean {
   const { org, orgs } = useAuth();
   return canChangeCategory(orgs.find((o) => o._id === org?._id)?.role);
+}
+
+/**
+ * The business category in words, read from the shared `/v1/dashboard/org` query, so a change made anywhere (the "Your business" card
+ * invalidates it) is on screen without a reload. ★NOT a page's own once-loaded copy: that goes stale while the page stays mounted.
+ */
+export function useBusinessCategoryLabel(): string | null {
+  const { data } = useDashboardOrg();
+  return categoryLabel(data?.businessCategory, data?.businessCategoryOptions);
 }

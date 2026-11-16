@@ -234,37 +234,6 @@ export function buildGuardrailsPatch(
   };
 }
 
-/**
- * Legacy zone ids some engines list INSTEAD of today's names (V8's
- * supportedValuesOf has Asia/Calcutta and no Asia/Kolkata). Both read the
- * same; the merchant should see — and store — the name they know.
- */
-const MODERN_ZONE: Readonly<Record<string, string>> = {
-  "Asia/Calcutta": "Asia/Kolkata",
-  "Asia/Katmandu": "Asia/Kathmandu",
-  "Asia/Saigon": "Asia/Ho_Chi_Minh",
-  "Asia/Rangoon": "Asia/Yangon",
-  "Europe/Kiev": "Europe/Kyiv",
-  "America/Buenos_Aires": "America/Argentina/Buenos_Aires",
-  "Atlantic/Faeroe": "Atlantic/Faroe",
-  "Pacific/Truk": "Pacific/Chuuk",
-  "Pacific/Ponape": "Pacific/Pohnpei",
-};
-
-/**
- * The zones the picker offers (review R3): the engine's list with legacy ids
- * written as today's names — kept only where this browser can read the
- * modern one — plus UTC, which V8 does not list. Sorted, each once.
- */
-export function timeZoneOptions(supported: readonly string[]): string[] {
-  const out = new Set<string>(["UTC"]);
-  for (const z of supported) {
-    const modern = MODERN_ZONE[z];
-    out.add(modern && isReadableZone(modern) ? modern : z);
-  }
-  return [...out].sort();
-}
-
 /** Today, "YYYY-MM-DD", on `zone`'s calendar (else the browser's). */
 export function todayIn(zone: string | undefined, now: Date = new Date()): string {
   const fmt = new Intl.DateTimeFormat("en-CA", {

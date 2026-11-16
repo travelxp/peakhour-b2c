@@ -23,7 +23,7 @@
  * the business summary — inside a channel panel it would read as that
  * channel's setting.
  */
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -36,7 +36,6 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -47,6 +46,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { TimeZoneCombobox } from "@/components/ui/time-zone-combobox";
 import { ApiError } from "@/lib/api";
 import { growthApi } from "@/lib/api/growth";
 import {
@@ -57,7 +57,6 @@ import {
   draftFromStored,
   guardrailsSaveError,
   hasGuardrails,
-  timeZoneOptions,
   type GuardrailsDraft,
 } from "@/lib/guardrails-copy";
 import {
@@ -76,9 +75,6 @@ class GuardrailsChangedError extends Error {
     this.name = "GuardrailsChangedError";
   }
 }
-
-/** The zone picker's value for "the business's own zone" (Radix needs non-empty). */
-const BUSINESS_ZONE = "__business__";
 
 export function GuardrailsCard() {
   const queryClient = useQueryClient();
@@ -105,13 +101,6 @@ export function GuardrailsCard() {
   /** The stored zone when Edit was opened (review R3): a conflict replaces the
    *  cache, and the draft's kept zone must stay an option and stay its own. */
   const [baseZone, setBaseZone] = useState<string | undefined>(undefined);
-  const zones = useMemo(() => {
-    try {
-      return timeZoneOptions(Intl.supportedValuesOf("timeZone"));
-    } catch {
-      return ["UTC", "Asia/Kolkata", "America/New_York", "Europe/London", "Asia/Dubai"];
-    }
-  }, []);
 
   const save = useMutation({
     mutationFn: async ({ patch, expectedSetAt }: { patch: Parameters<typeof growthApi.updateSettings>[0]; expectedSetAt: string | undefined }) => {
@@ -146,29 +135,8 @@ export function GuardrailsCard() {
     },
   });
 
-  // ★~400 items, built once per zone set (review R3), not on every keystroke.
-  //  The draft's kept zone and the stored one are always options.
+  // The draft's kept zone and the stored one are always options (the picker adds them when its list lacks them).
   const keptZone = baseZone ?? stored?.timeZone;
-  const zoneItems = useMemo(
-    () => [
-      <SelectItem key={BUSINESS_ZONE} value={BUSINESS_ZONE}>
-        Your business&rsquo;s time zone
-      </SelectItem>,
-      ...(keptZone && !zones.includes(keptZone)
-        ? [
-            <SelectItem key={`kept-${keptZone}`} value={keptZone}>
-              {keptZone}
-            </SelectItem>,
-          ]
-        : []),
-      ...zones.map((z) => (
-        <SelectItem key={z} value={z}>
-          {z}
-        </SelectItem>
-      )),
-    ],
-    [zones, keptZone],
-  );
 
   // ★NO DATA — which covers a query paused offline (pending, not loading:
   //  rendering then would claim "No guardrails set" from nothing) — and NOT
@@ -183,7 +151,6 @@ export function GuardrailsCard() {
     creatives.data,
     stored?.approvedAssetsOnly === true || draft?.approvedAssetsOnly === true,
   );
-  // (zoneItems is memoised above the early return.)
   const set = (over: Partial<GuardrailsDraft>) => setDraft((d) => (d ? { ...d, ...over } : d));
   // The list the channel boxes edit, and its setter — one place keyed by mode.
   const channelList = draft ? (draft.channelMode === "allow" ? draft.allowedChannels : draft.deniedChannels) : [];
@@ -475,15 +442,14 @@ export function GuardrailsCard() {
                     read, and would be stored as typed — EST without daylight
                     saving. The stored zone is always an option, readable here
                     or not (see draftFromStored). */}
-                <Select
-                  value={draft.timeZone || BUSINESS_ZONE}
-                  onValueChange={(v) => set({ timeZone: v === BUSINESS_ZONE ? "" : v })}
-                >
-                  <SelectTrigger id="guardrail-zone" className="w-64">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>{zoneItems}</SelectContent>
-                </Select>
+                <TimeZoneCombobox
+                  id="guardrail-zone"
+                  className="w-64"
+                  value={draft.timeZone}
+                  keep={keptZone}
+                  firstOption={{ label: "Your business’s time zone" }}
+                  onChange={(z) => set({ timeZone: z })}
+                />
                 <p className="text-xs text-muted-foreground">
                   Quiet hours and blackout dates are read in this zone. Choose &ldquo;Your business&rsquo;s time
                   zone&rdquo; to use the one Peakhour has for your business. Blackouts that have ended are removed when

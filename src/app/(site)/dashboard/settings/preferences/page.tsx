@@ -1,7 +1,7 @@
 "use client";
 
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useAuth } from "@/providers/auth-provider";
 import { updateProfile, type UserPreferences } from "@/lib/auth";
 import { useLocale } from "@/hooks/use-locale";
@@ -21,6 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { TimeZoneCombobox } from "@/components/ui/time-zone-combobox";
+import { browserZone } from "@/lib/time-zones";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Globe, CalendarDays, Check } from "lucide-react";
@@ -55,15 +57,7 @@ export default function PreferencesPage() {
   const [numberFormat, setNumberFormat] = useState(prefs?.numberFormat || "__browser__");
   const [timezone, setTimezone] = useState(prefs?.timezone || "");
 
-  const timezones = useMemo(() => {
-    try {
-      return Intl.supportedValuesOf("timeZone");
-    } catch {
-      return ["UTC", "Asia/Kolkata", "America/New_York", "Europe/London", "Asia/Dubai"];
-    }
-  }, []);
-
-  const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const browserTimezone = browserZone() ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
   const hasChanges =
     (dateFormat === "__browser__" ? undefined : dateFormat) !== prefs?.dateFormat ||
     (numberFormat === "__browser__" ? undefined : numberFormat) !== prefs?.numberFormat ||
@@ -153,18 +147,7 @@ export default function PreferencesPage() {
                 Current: {browserTimezone}
               </p>
             </div>
-            <Select value={timezone || browserTimezone} onValueChange={setTimezone}>
-              <SelectTrigger aria-label="Timezone">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="max-h-60">
-                {timezones.map((tz) => (
-                  <SelectItem key={tz} value={tz}>
-                    {tz.replace(/_/g, " ")}{tz === browserTimezone ? " (detected)" : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <TimeZoneCombobox ariaLabel="Timezone" value={timezone || browserTimezone} onChange={setTimezone} />
           </div>
 
           <Separator />
