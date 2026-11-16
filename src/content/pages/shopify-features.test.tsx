@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ShopifyFeaturePage, DirectoryPage } from "@/components/marketing/seo/templates";
 import { directoryItems, type BaseContent, type ShopifyFeatureContent } from "@/components/marketing/seo/content-types";
@@ -81,7 +81,10 @@ describe("registry records", () => {
 describe("each page renders its H1 and direct answer, with its status, limitations, steps, permissions, FAQ and links", () => {
   for (const { id, mod } of FEATURE_PAGES) {
     const page = getPage(id);
+    // Rendered as production: a published page links only to published pages, and the "Compared with" section lists drafts only off production.
+    vi.stubEnv("VERCEL_ENV", "production");
     const html = renderToStaticMarkup(<ShopifyFeaturePage page={page} content={mod.CONTENT} />);
+    vi.unstubAllEnvs();
     const flat = text(html);
 
     it(`${id}: H1 and direct answer`, () => {

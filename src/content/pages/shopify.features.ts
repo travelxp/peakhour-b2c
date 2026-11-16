@@ -143,6 +143,26 @@ const LAYOUT: { groupId: string; entries: Source[] }[] = [
   },
 ];
 
+/**
+ * Every capability the directory lists, once, with the surface it is shown on, the directory group it sits in and the
+ * page that owns it (its Shopify feature page, else the public page it points at). The comparison pages' "Peakhour
+ * Suite gives more" block reads this, so it lists exactly what this directory lists.
+ */
+export type DirectoryCapability = { capabilityId: string; surface: Surface; groupId: string; pageId?: string };
+export const DIRECTORY_CAPABILITIES: readonly DirectoryCapability[] = (() => {
+  const seen = new Map<string, DirectoryCapability>();
+  for (const { groupId, entries } of LAYOUT) {
+    for (const e of entries) {
+      if (!e.capabilityId) continue;
+      const ownPage = e.pageId ?? e.href?.pageId;
+      const prior = seen.get(e.capabilityId);
+      if (!prior) seen.set(e.capabilityId, { capabilityId: e.capabilityId, surface: e.surface ?? "shopify", groupId, ...(ownPage ? { pageId: ownPage } : {}) });
+      else if (!prior.pageId && ownPage) seen.set(e.capabilityId, { ...prior, pageId: ownPage });
+    }
+  }
+  return [...seen.values()];
+})();
+
 const FEATURES = new Map<string, ShopifyFeature>(SHOPIFY_GROUPS.flatMap((g) => g.features.map((f) => [f.id, f] as const)));
 const firstSentence = (s: string) => s.split(/(?<=[.!?])\s/)[0] ?? s;
 

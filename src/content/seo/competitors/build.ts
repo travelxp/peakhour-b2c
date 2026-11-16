@@ -2,6 +2,7 @@ import type { ComparisonCell, ComparisonPageContent } from "@/components/marketi
 import { getPage } from "@/lib/seo/pages";
 import { pathFor } from "@/lib/seo/resolve";
 import type { PageRecord } from "@/lib/seo/types";
+import { buildMore } from "./more";
 import { compareRoute } from "./route";
 import type { CompetitorBrief, PeakhourClaim } from "./types";
 
@@ -39,6 +40,7 @@ export function buildComparisonContent(b: CompetitorBrief, page: PageRecord = ge
         cells: { [PH]: publicCell(c.peakhour), [b.slug]: c.vendor },
       })),
     },
+    more: buildMore(b, page),
     buyerUseCases: b.buyerUseCases,
     pricing: {
       asOf: b.observedAt,

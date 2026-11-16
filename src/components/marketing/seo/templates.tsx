@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { comparedWith } from "@/content/seo/competitors/hub";
 import { articleLd } from "@/lib/seo/structured-data";
 import { cardLabel } from "@/lib/seo/labels";
 import { PAGES } from "@/lib/seo/pages";
@@ -68,6 +69,8 @@ const bandTone = (index: number) => (index % 2 === 0 ? "plain" : "muted");
 
 /** 7.1 Platform variant: installation and setup, the platform-native workflow, permissions only as supported. */
 export function ShopifyFeaturePage({ page, content }: { page: PageRecord; content: ShopifyFeatureContent }) {
+  // The comparison pages whose table covers this page's capability: published ones only on production, drafts too on dev.
+  const compared = comparedWith(page);
   return (
     <Frame page={page} content={content}>
       <Section id="status" eyebrow="On Shopify" title="Where this stands on Shopify">
@@ -105,6 +108,17 @@ export function ShopifyFeaturePage({ page, content }: { page: PageRecord; conten
           .
         </p>
       </Section>
+      {compared.length > 0 && (
+        <Section
+          id="compared"
+          eyebrow="Compare"
+          title="Compared with other apps."
+          intro="Side-by-side comparisons whose table covers this feature, each with its sources and the date it was checked."
+          tone={bandTone((content.sections?.length ?? 0) + 3)}
+        >
+          <DirectoryGrid items={compared} compact />
+        </Section>
+      )}
     </Frame>
   );
 }
@@ -371,6 +385,20 @@ export function ComparisonPage({ page, content }: { page: PageRecord; content: C
           </p>
         </div>
       </Section>
+      {content.more && (
+        <Section id="more" eyebrow="Peakhour Suite gives more" title={content.more.heading} intro={content.more.intro} tone="muted">
+          <DirectoryGrid items={content.more.items} compact />
+          {content.more.links.length > 0 && (
+            <p className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-[15px] font-semibold">
+              {content.more.links.map((l) => (
+                <Link key={l.href} href={safeHref(l.href)} className={linkCls}>
+                  {l.label}
+                </Link>
+              ))}
+            </p>
+          )}
+        </Section>
+      )}
     </Frame>
   );
 }

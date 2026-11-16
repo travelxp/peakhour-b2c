@@ -7,6 +7,8 @@ import type { PageRecord } from "./types";
  */
 const SHORT: Record<string, string> = {
   home: "Home",
+  "shopify.compare": "Compare",
+  compare: "Compare",
   "integrations.whatsapp": "WhatsApp Business",
   "integrations.linkedin": "LinkedIn",
   "integrations.x": "X",
