@@ -271,7 +271,7 @@ export function IntegrationPage({ page, content }: { page: PageRecord; content: 
 
 /** A reviewer line that is still a placeholder ("Pending review") is process, not proof: the reader sees a byline only once a person has reviewed the page. */
 export function isReviewed(reviewer: string): boolean {
-  return !/^s*(pending|none|tbd)b/i.test(reviewer);
+  return !/^\s*(pending|none|tbd)\b/i.test(reviewer);
 }
 
 function bylineFacts(content: { author: string; reviewer: string }): { label: string; value: string }[] {
