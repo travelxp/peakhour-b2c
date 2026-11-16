@@ -14,7 +14,7 @@ vi.mock("@/lib/marketing-pages", () => ({ getMarketingSitemapEntries: async () =
 
 import { middleware } from "@/middleware";
 import { NextRequest } from "next/server";
-import sitemap from "@/app/sitemap";
+import { renderUrlset, sitemapEntries } from "./sitemap";
 import { LanguageSwitcherView } from "@/components/shared/language-switcher";
 import { languageOptions } from "./language-options";
 import { resolveLocaleRoute, pageAtPath, pageForPublicPath } from "./locale-route";
@@ -171,15 +171,19 @@ describe("a fixture locale is published", () => {
       process.env.VERCEL_ENV = "production";
       delete process.env.COMING_SOON;
       try {
-        const entries = await sitemap();
+        const entries = await sitemapEntries("core");
         const leaf = entries.filter((e) => e.url.endsWith("/fx/leaf"));
         expect(leaf.map((e) => e.url).sort()).toEqual([`${ORIGIN}/fr-ca/fx/leaf`, `${ORIGIN}/fx/leaf`]);
         for (const e of leaf) {
-          expect(e.alternates?.languages).toEqual({ en: `${ORIGIN}/fx/leaf`, "fr-CA": `${ORIGIN}/fr-ca/fx/leaf`, "x-default": `${ORIGIN}/fx/leaf` });
+          expect(e.alternates).toEqual({ en: `${ORIGIN}/fx/leaf`, "fr-CA": `${ORIGIN}/fr-ca/fx/leaf`, "x-default": `${ORIGIN}/fx/leaf` });
         }
         expect(entries.some((e) => e.url.includes("/fx/draft") && e.url.includes("/fr-ca"))).toBe(false);
         const child = entries.find((e) => e.url === `${ORIGIN}/fx/child`);
         expect(child?.alternates).toBeUndefined();
+        const xml = renderUrlset(leaf);
+        expect(xml).toContain(`xmlns:xhtml="http://www.w3.org/1999/xhtml"`);
+        expect(xml).toContain(`<xhtml:link rel="alternate" hreflang="fr-CA" href="${ORIGIN}/fr-ca/fx/leaf"/>`);
+        expect(xml).toContain(`<xhtml:link rel="alternate" hreflang="x-default" href="${ORIGIN}/fx/leaf"/>`);
       } finally {
         for (const [k, v] of Object.entries(keep)) {
           if (v === undefined) delete process.env[k];
@@ -197,7 +201,6 @@ describe("a fixture locale is published", () => {
     it("contentFor never falls back to English at a non-English URL", () => {
       const byLocale = { en: "E" } as { en: string; "fr-CA"?: string };
       expect(contentFor(byLocale, "fr-CA")).toBeUndefined();
-      expect(contentFor(byLocale, "fr-CA", { previewFallback: false })).toBeUndefined();
     });
   });
 });

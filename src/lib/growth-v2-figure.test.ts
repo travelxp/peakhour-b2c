@@ -138,5 +138,6 @@ describe("review fixes", () => {
   it("uses a neutral unit when the mandate is unknown", () => {
     expect(unitFor(undefined)).toEqual({ one: "outcome", many: "outcomes" });
     expect(unitFor("bookings").many).toBe("bookings");
+    expect(unitFor("app_installs")).toEqual({ one: "install", many: "installs" });
   });
 });

@@ -21,7 +21,8 @@ import { BRAND_NAME, LOCKUP_VIEWBOX, WORDMARK_VIEWBOX } from "@/lib/brand";
  * background colours.
  */
 
-const LOCKUP_SRC = "/brand/peakhour-lockup.svg";
+/** The lockup file's public path: the one place it is named (the Organization JSON-LD reads it). */
+export const LOCKUP_SRC = "/brand/peakhour-lockup.svg";
 const WORDMARK_SRC = "/brand/peakhour-wordmark.svg";
 
 function ratio(viewBox: string) {

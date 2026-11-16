@@ -41,7 +41,7 @@ export function PageHero({
       >
         <div className={cn("min-w-0", !art && "max-w-3xl")}>
           <Breadcrumbs crumbs={crumbs} />
-          <p className={cn(eyebrowCls, "mt-5")}>{eyebrow}</p>
+          <p className={cn(eyebrowCls, crumbs.length > 1 && "mt-5")}>{eyebrow}</p>
           <h1 className="mt-3 text-[2.2rem] font-black leading-[1.04] tracking-[-0.04em] text-balance sm:text-5xl lg:text-[3.5rem]">
             {h1}
           </h1>

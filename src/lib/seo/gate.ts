@@ -1,3 +1,4 @@
+import { SEO9_PAGES } from "./pages-seo9";
 import { PILLAR_ORDER } from "@/lib/pillars";
 import { isAppRoute } from "@/lib/route-theme";
 
@@ -97,46 +98,53 @@ export function isPublicPath(pathname: string): boolean {
 
 /**
  * The site's public marketing paths: the explicit list "is this a real page?" is
- * answered from. One module for the gate and the sitemap.
- *
- * `sitemap` carries the sitemap's priority and frequency; a path without it is a
- * real, public page that is deliberately not in the sitemap today.
+ * answered from. The sitemap does NOT read it (SEO-6): the registry (pages.ts +
+ * publish.ts) decides what is listed, and `isListedThroughGate` below applies the gate.
  *
  * Adding a marketing route means adding it here: until then, with the gate on,
  * its path returns 404 rather than the teaser.
  */
-export type MarketingPath = {
-  path: string;
-  sitemap?: {
-    priority: number;
-    changeFrequency: "always" | "hourly" | "daily" | "weekly" | "monthly" | "yearly" | "never";
-  };
-};
+export type MarketingPath = { path: string };
 
 export const MARKETING_PATHS: readonly MarketingPath[] = [
-  { path: "/", sitemap: { priority: 1.0, changeFrequency: "weekly" } },
-  { path: "/pricing", sitemap: { priority: 0.9, changeFrequency: "weekly" } },
-  { path: "/shopify", sitemap: { priority: 0.8, changeFrequency: "monthly" } },
-  { path: "/peaks", sitemap: { priority: 0.7, changeFrequency: "monthly" } },
-  { path: "/how-it-works", sitemap: { priority: 0.7, changeFrequency: "monthly" } },
-  { path: "/contact", sitemap: { priority: 0.5, changeFrequency: "yearly" } },
-  // The SEO template kit review route (SEO-5): a real page on dev, 404 on Production, deliberately NEVER in the sitemap (no `sitemap` key).
+  { path: "/" },
+  { path: "/pricing" },
+  { path: "/shopify" },
+  // SEO-8: the wave-1 Shopify feature pages (/shopify/* already passes the coming-soon gate).
+  { path: "/shopify/features" },
+  { path: "/shopify/features/ai-shopping-assistant" },
+  { path: "/shopify/features/whatsapp-ai-shopping" },
+  { path: "/shopify/features/product-recommendations" },
+  { path: "/shopify/features/frequently-bought-together" },
+  { path: "/shopify/features/whatsapp-cod-confirmation" },
+  { path: "/shopify/features/ai-seo" },
+  { path: "/shopify/features/ai-product-descriptions" },
+  { path: "/peaks" },
+  { path: "/how-it-works" },
+  { path: "/contact" },
+  // The SEO template kit review route (SEO-5): a real page on dev, 404 on Production, never in the sitemap (it is not in the registry).
   { path: "/seo-kit" },
-  { path: "/privacy-policy", sitemap: { priority: 0.3, changeFrequency: "yearly" } },
-  { path: "/terms", sitemap: { priority: 0.3, changeFrequency: "yearly" } },
-  { path: "/cookie-policy", sitemap: { priority: 0.3, changeFrequency: "yearly" } },
-  ...PILLAR_ORDER.map((slug) => ({
-    path: `/${slug}`,
-    sitemap: { priority: 0.8, changeFrequency: "weekly" as const },
-  })),
+  { path: "/privacy-policy" },
+  { path: "/terms" },
+  { path: "/cookie-policy" },
+  ...PILLAR_ORDER.map((slug) => ({ path: `/${slug}` })),
   // The Agency/Enterprise page. The per-pillar pricing pages went with the
   // per-module plans (billing plan D19, P4.7).
-  { path: "/pricing/teams", sitemap: { priority: 0.6, changeFrequency: "monthly" } },
-  // Public pages that are not in the sitemap today.
+  { path: "/pricing/teams" },
+  // Public pages with no own sitemap rule: the registry decides what the sitemap lists.
   { path: "/launch-partner" },
   { path: "/data-deletion" },
   { path: "/help/data-retention" },
+  // SEO-11: the entity, industry and guide pages. Published or not, a known path answers the teaser (or 404 for a draft) rather than an unknown-URL 404.
+  { path: "/about" },
+  { path: "/features/peakhour-summit" },
+  { path: "/industries" },
+  { path: "/industries/fashion-apparel" },
+  { path: "/guides" },
+  { path: "/shopify/guides/whatsapp-cod-confirmation" },
   { path: "/coming-soon" },
+  // SEO-9: the integration and feature pages and their directories, from the registry. A page held in review 404s on its own.
+  ...SEO9_PAGES.map((p) => ({ path: p.path })),
 ];
 
 const MARKETING_SET = new Set(MARKETING_PATHS.map((m) => m.path));
@@ -168,9 +176,9 @@ export function gatedVerdict(pathname: string): GateVerdict {
 }
 
 /**
- * Marketing paths the sitemap may list while the gate is on: the ones the gate
- * lets through, plus "/", which serves the teaser as itself.
+ * Whether the sitemap may list this path while the gate is on: the paths the gate lets
+ * through, plus "/", which serves the teaser as itself.
  */
-export function pathsThroughTheGate(): readonly MarketingPath[] {
-  return MARKETING_PATHS.filter((m) => m.path === "/" || isPublicPath(m.path));
+export function isListedThroughGate(path: string): boolean {
+  return path === "/" || isPublicPath(path);
 }

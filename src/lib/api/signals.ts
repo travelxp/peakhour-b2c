@@ -94,6 +94,23 @@ export interface SnippetResponse {
   placement: string;
 }
 
+/**
+ * GG-3c+: the business's OWN Peakhour site tag. Its key is issued by the api on
+ * the first request (one per business), with or without any LinkedIn signal, so
+ * removing a LinkedIn signal never touches it. `state` and `lastFiredAt` are the
+ * same evidence every signal carries: the events route records a fire when a
+ * batch it stored arrives.
+ */
+export interface SiteTagResponse {
+  siteKey: string;
+  tagSnippet: string;
+  placement: string;
+  state: SignalState;
+  lastFiredAt: string | null;
+  lastFiredHost: string | null;
+  freshWindowDays: number;
+}
+
 export const signalsApi = {
   list: () => api.get<SignalsResponse>("/v1/signals"),
 
@@ -124,4 +141,7 @@ export const signalsApi = {
 
   snippet: (provider: SignalProvider) =>
     api.get<SnippetResponse>(`/v1/signals/${provider}/snippet`),
+
+  /** GG-3c+: the business's own Peakhour site tag (issued on first request). */
+  siteTag: () => api.get<SiteTagResponse>("/v1/signals/site-tag"),
 };

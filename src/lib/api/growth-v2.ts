@@ -42,8 +42,8 @@ export interface NotBuiltDetails {
 
 // -- Mandate, as the screens see it (plan 2.1) ---------------------------------
 
-export type OutcomeKind = "sales" | "bookings" | "leads" | "calls" | "store_visits";
-export type OutcomeSource = "orders" | "win_definition" | "gbp_actions" | "ads_conversions";
+export type OutcomeKind = "sales" | "bookings" | "leads" | "calls" | "store_visits" | "app_installs";
+export type OutcomeSource = "orders" | "win_definition" | "gbp_actions" | "ads_conversions" | "app_analytics";
 
 export interface MandateOutcome {
   kind: OutcomeKind;
@@ -244,7 +244,9 @@ export interface EngineOpView {
     | "attach_creative"
     | "detach_creative"
     | "set_geo_exclusions"
-    | "set_geo_inclusions";
+    | "set_geo_inclusions"
+    /** GG-1c: the engine starts a campaign; `to` is the keyed launch spec (name, goal, daily budget, currency, ...). */
+    | "create_campaign";
   from?: unknown;
   to: unknown;
 }
@@ -460,6 +462,16 @@ export interface LearningResponse {
   heatmap: { rows: string[]; columns: string[]; cells: Array<{ row: string; column: string; figure: Figure }> };
   /** What each section is made of, in words (H4). */
   basis: { experiments: string; creativePatterns: string; benchmarks: string; heatmap: string };
+  /**
+   * GG-3d: customers per stage and shoppers close to buying, as COUNTS from the api's daily step, as of `asOf` (the business-local day,
+   * `YYYY-MM-DD`). Absent with no fresh counts; each part absent when it was not counted. `basis` says what each is made of.
+   */
+  shoppers?: {
+    asOf: string;
+    customers?: { new: number; repeat: number; loyal: number; lapsing: number; lapsed: number };
+    closeToBuying?: { count: number; windowDays: number };
+    basis: string;
+  };
   /** What the plan's target still rests on; absent when the merchant set it or no layer's number is it any more. */
   targetStartingFrom?: StartingFrom;
 }

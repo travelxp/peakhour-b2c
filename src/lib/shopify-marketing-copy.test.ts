@@ -48,7 +48,7 @@ describe("the hero", () => {
   });
 
   it("pins the SEO title and description", () => {
-    expect(SHOPIFY_SEO.title).toBe("Peakhour for Shopify — AI shopping assistant and store autopilot");
+    expect(SHOPIFY_SEO.title).toBe("Peakhour for Shopify: AI assistant and store autopilot");
     expect(SHOPIFY_SEO.path).toBe("/shopify");
   });
 });
@@ -149,7 +149,7 @@ describe("shopifyJsonLd", () => {
 
 describe("wiring", () => {
   it("lists /shopify in the sitemap", async () => {
-    const { default: sitemap } = await import("../app/sitemap");
+    const { sitemapEntries } = await import("./seo/sitemap");
     // The sitemap is empty off Production (SEO-1), so ask it as Production.
     const keys = ["VERCEL_ENV", "SITE_INDEXABLE", "COMING_SOON"] as const;
     const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
@@ -157,7 +157,7 @@ describe("wiring", () => {
     process.env.VERCEL_ENV = "production";
     let urls: string[];
     try {
-      urls = (await sitemap()).map((e) => e.url);
+      urls = (await sitemapEntries("shopify")).map((e) => e.url);
     } finally {
       for (const k of keys) {
         if (saved[k] === undefined) delete process.env[k];
@@ -175,10 +175,10 @@ describe("wiring", () => {
     // The labels are message keys since SEO-4; the English they resolve to is pinned against messages/en.json.
     expect(f).toMatch(/heading: "worksWith",\s*links: \[\s*\{ href: "\/shopify", label: "shopify" \},\s*\{ href: "\/content", label: "wordpress" \},/);
     const footer = JSON.parse(read("../messages/en.json")).Footer;
-    expect([footer.worksWith, footer.shopify, footer.wordpress]).toEqual(["Works with", "Shopify", "WordPress"]);
+    expect([footer.worksWith, footer.shopify, footer.wordpress]).toEqual(["Works with", "Shopify", "WordPress (soon)"]);
   });
   it("/commerce links to /shopify and the pricing strip's Shopify card links there too", () => {
-    expect(flat(read("app/(site)/commerce/page.tsx"))).toContain("Using Shopify? <Link href=\"/shopify\"");
+    expect(read("content/pages/commerce.ts")).toContain('{ label: "Peakhour for Shopify", href: pathFor("shopify")');
     expect(read("lib/pricing-catalog.ts")).toMatch(/href: SHOPIFY_APP_STORE_URL,\s*pageHref: "\/shopify"/);
   });
 });
@@ -212,9 +212,8 @@ describe("retired names and over-claims are gone", () => {
     "lib/pricing-catalog.ts",
     "components/marketing/pricing/pricing-faq.tsx",
     "app/(site)/pricing/teams/page.tsx",
-    "app/(site)/growth/page.tsx",
+    "content/pages/growth.ts",
     "lib/how-it-works.ts",
-    "components/marketing/pillar-page.tsx",
   ];
   const body = (f: string) =>
     flat(
@@ -249,12 +248,12 @@ describe("retired names and over-claims are gone", () => {
   }
 
   it("the new live copy is there", () => {
-    expect(flat(read("lib/pillars.ts"))).toContain("AI replies instantly and shares a checkout link; you step in when needed.");
+    expect(flat(read("content/pages/commerce.ts"))).toContain("The shopper pays on your Shopify checkout page, or on a Razorpay link");
     expect(flat(read("lib/pricing-catalog.ts"))).toContain("Your AI team inside Shopify: assistant, Smart Rails, COD confirmation and more.");
     expect(flat(read("components/marketing/pricing/pricing-faq.tsx"))).toContain(
       "Install the Shopify app and the assistant, Smart Rails, COD confirmation, catalogue fixes and more run inside your Shopify admin; the rest of Peakhour is in your peakhour.ai dashboard.",
     );
-    expect(flat(read("lib/how-it-works.ts"))).toContain("WooCommerce connects with an API key");
+    expect(flat(read("lib/how-it-works.ts"))).toContain("WordPress and WooCommerce are coming soon");
     expect(flat(read("app/(site)/launch-partner/launch-partner-form.tsx"))).toContain('shopify: "Peakhour for Shopify"');
     // The teaser names what Peakhour does (owner 2026-11-13: not a count of modules), each job a built one.
     expect(flat(read("app/(site)/coming-soon/page.tsx"))).toContain("Your AI team behind");

@@ -294,3 +294,33 @@ export function formatWhen(iso: string | undefined): string {
   if (days < 30) return `${days} day${days === 1 ? "" : "s"} ago`;
   return new Date(then).toLocaleDateString();
 }
+
+/**
+ * The Peakhour site tag's words (GG-3c), shown beside its snippet. ★THE CONSENT
+ * RULE IS STATED, NOT IMPLIED: the tag sends nothing until a visitor agrees to
+ * analytics, and a merchant who did not know that would read an empty week as
+ * a broken tag.
+ */
+export const SITE_TAG_WHAT =
+  "Lets Peakhour see what visitors do on your site, so your plan can learn from it. It records page views by itself. On WooCommerce the Peakhour plugin also reports product views, adds to cart, checkouts and completed orders; on any other site your own code reports them with peakhour(\"track\", …).";
+export const SITE_TAG_HEADLINE = "It sends nothing until a visitor agrees to analytics.";
+export const SITE_TAG_CONSENT =
+  'It waits for your cookie banner to say yes: through Google Consent Mode, through the WP Consent API when the Peakhour WordPress plugin adds it, or by your own code calling peakhour("consent", "granted"). If a visitor says no, or your banner has not said yes, nothing is sent.';
+export const SITE_TAG_WHERE =
+  "On WordPress, the Peakhour plugin adds it once you switch it on (Peakhour > Site tag); it starts switched on when the WP Consent API plugin is installed. Anywhere else, paste it before the closing </head> tag on every page.";
+
+/**
+ * GG-3c+: what the Peakhour site tag's evidence says, in the same three
+ * absences every signal keeps apart. ★"Nothing yet" is the ordinary first
+ * state, and for this tag doubly so: it reports only after a visitor agrees to
+ * analytics. `not_seen_recently` is never "broken" (a removed tag and a quiet
+ * site look the same).
+ */
+export function siteTagSeen(state: Signal["state"], lastFiredAt: string | null, lastFiredHost: string | null): string {
+  const where = lastFiredHost ? ` from ${lastFiredHost}` : "";
+  if (state === "never_fired" || !lastFiredAt) {
+    return "We haven't heard from this tag yet. It reports only after a visitor agrees to analytics, so a quiet start is normal.";
+  }
+  if (state === "firing") return `Seen working. Last heard${where}: ${formatWhen(lastFiredAt)}.`;
+  return `Last heard${where}: ${formatWhen(lastFiredAt)}, and nothing since. The tag may have been removed, or no visitor has agreed to analytics lately; we can't tell which.`;
+}

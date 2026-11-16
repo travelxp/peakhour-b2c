@@ -78,8 +78,9 @@ describe("T02: a non-published or non-indexable page is never publishable and ne
     for (const p of PAGES) for (const id of p.capabilityIds) expect(getCapability(id)!.approvedClaims.length, `${p.pageId} -> ${id}`).toBeGreaterThan(0);
   });
 
-  it("every registered page is publishable today (existing pages stay as they are)", () => {
-    for (const p of PAGES) expect(isPublishable(p), p.pageId).toBe(true);
+  it("every published-status page is publishable today (existing pages stay as they are)", () => {
+    // Pages registered at `review` (the SEO-10 comparisons) are the deliberate exception: T02 above proves they are not.
+    for (const p of PAGES.filter((q) => q.editorialStatus === "published")) expect(isPublishable(p), p.pageId).toBe(true);
   });
 
   it("previews drafts, reviews and approved pages only off Production", () => {
@@ -107,8 +108,8 @@ describe("T02: a non-published or non-indexable page is never publishable and ne
     process.env.VERCEL_ENV = "production";
     delete process.env.COMING_SOON;
     delete process.env.SITE_INDEXABLE;
-    const sitemap = (await import("@/app/sitemap")).default;
-    const urls = (await sitemap()).map((e) => new URL(e.url).pathname);
+    const { sitemapEntries } = await import("./sitemap");
+    const urls = (await sitemapEntries("core")).map((e) => new URL(e.url).pathname);
     expect(urls).not.toContain("/peaks");
     expect(urls).not.toContain("/contact");
     expect(urls).toContain("/pricing");
@@ -120,9 +121,9 @@ describe("T02: a non-published or non-indexable page is never publishable and ne
     process.env.VERCEL_ENV = "production";
     delete process.env.COMING_SOON;
     delete process.env.SITE_INDEXABLE;
-    const sitemap = (await import("@/app/sitemap")).default;
-    const entry = (await sitemap()).find((e) => new URL(e.url).pathname === "/pricing");
-    expect(entry?.lastModified).toEqual(new Date(getPage("pricing").lastReviewedAt));
+    const { sitemapEntries } = await import("./sitemap");
+    const entry = (await sitemapEntries("core")).find((e) => new URL(e.url).pathname === "/pricing");
+    expect(entry?.lastModified).toEqual(new Date(getPage("pricing").lastReviewedAt).toISOString());
   });
 });
 
@@ -155,7 +156,7 @@ describe("T03: every canonical uses SITE.url's origin and is self-referencing", 
 });
 
 describe("T12: a claim that requires live fails the gate when the capability is not live on the page's surface", () => {
-  const cap = (status: "live" | "beta" | "development", requires: "beta" | "live", surface: "web" | "shopify" = "web"): Capability => ({
+  const cap = (status: "live" | "beta" | "development", requires: "beta" | "live", surface: "web" | "shopify" | "whatsapp" = "web"): Capability => ({
     id: "fixture.cap",
     label: "Fixture",
     primaryPillar: "commerce",
@@ -190,14 +191,37 @@ describe("T12: a claim that requires live fails the gate when the capability is 
   it("a page falls back to the capability's web implementation", async () => {
     expect(await gateWith(cap("live", "live", "web"), { surface: "shopify" })).toBe(true);
   });
+  it("a WhatsApp implementation counts for any page surface, after the page's own and web", async () => {
+    expect(await gateWith(cap("live", "live", "whatsapp"), { surface: "shopify" })).toBe(true);
+    expect(await gateWith(cap("live", "live", "whatsapp"), { surface: "web" })).toBe(true);
+    // Still bound by status: a development WhatsApp build does not satisfy a live claim.
+    expect(await gateWith(cap("development", "live", "whatsapp"), { surface: "shopify" })).toBe(false);
+  });
+  it("a page's own surface wins over a WhatsApp build", async () => {
+    vi.resetModules();
+    const both: Capability = {
+      ...cap("development", "live", "shopify"),
+      implementations: [
+        { surface: "shopify", status: "development", evidence: ["fixture"], verifiedAt: "2026-11-15" },
+        { surface: "whatsapp", status: "live", evidence: ["fixture"], verifiedAt: "2026-11-15" },
+      ],
+    };
+    expect(await gateWith(both, { surface: "shopify" })).toBe(false);
+  });
   it("an unknown capability id is not publishable", () => {
     expect(isPublishable(asPage({ capabilityIds: ["no.such.capability"] }))).toBe(false);
   });
-  it("the seeded registry has no live claim on a non-live implementation", () => {
+  it("the seeded registry has no live claim without a live implementation, and a non-live sibling says why", () => {
+    // A capability has one implementation per surface (SEO-3), so a live Shopify claim can sit beside a
+    // development WooCommerce record. The gate reads the page's own surface, so the sibling cannot leak
+    // the claim onto a WooCommerce page; the sibling must carry a limitation that explains it.
     for (const c of CAPABILITIES) {
       for (const claim of c.approvedClaims) {
         if (claim.requires !== "live") continue;
-        for (const i of c.implementations) expect(i.status, `${c.id} ${claim.id}`).toBe("live");
+        expect(c.implementations.some((i) => i.status === "live"), `${c.id} ${claim.id}`).toBe(true);
+        for (const i of c.implementations.filter((x) => x.status !== "live")) {
+          expect(i.limitations?.length ?? 0, `${c.id} [${i.surface}] is ${i.status} beside a live claim`).toBeGreaterThan(0);
+        }
       }
     }
   });

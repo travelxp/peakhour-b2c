@@ -18,14 +18,29 @@
  *      an allowlisted page serves itself; the sitemap lists only what the gate lets
  *      through.
  *   4. One trailing-slash policy: /pricing/ answers 308 to /pricing.
- *   5. Languages (SEO-4): while only English is published, every locale-prefixed URL is a real 404
+ *   5. (SEO-6) /sitemap.xml is an index of named sitemaps; every URL in them answers 200 with a self-canonical, and every
+ *      JSON-LD block on it parses with @context and @type.
+ *
+ *   6. (SEO-12) The registry crawl, from the registry's own lists: every publishable page (T03 canonical
+ *      origin, T04 H1 equals the registry's, T05 H1 + direct answer + <a href> links in the server HTML,
+ *      T06 trailing slash is one 308 hop, T09 noindex on every response when not indexable, T14 JSON-LD parses
+ *      and matches the page, T15 every internal link answers 200); T07 unknown URLs are 404 under every
+ *      family and locale prefix; and, off Production, every draft renders with the draft ribbon.
+ *
+ *   --canonical-origin   the one origin every canonical must carry (default https://peakhour.ai, the
+ *                        configured NEXT_PUBLIC_SITE_URL: dev canonicals point at the production host on purpose)
+ *   7. (SEO-4) Languages: while only English is published, every locale-prefixed URL is a real 404
  *      with the same Daylight body (/fr-ca/shopify, /de/pricing, /pt-br, ...), and carries no hreflang
  *      on any English page; English URLs answer as before.
  *
  * Exits 1 when any check fails.
  */
 
-import { isPublicPath } from "../../src/lib/seo/gate";
+import { isListedThroughGate, isPublicPath } from "../../src/lib/seo/gate";
+import { PAGES } from "../../src/lib/seo/pages";
+import { isPreviewable, isPublishable } from "../../src/lib/seo/publish";
+import { LOCALES, PUBLISHED_LOCALES } from "../../src/lib/seo/types";
+import { crawlChecks } from "./crawl-checks";
 
 const args = process.argv.slice(2);
 const base = (args.find((a) => !a.startsWith("--")) ?? "http://localhost:3000").replace(/\/$/, "");
@@ -70,7 +85,19 @@ async function main() {
   const sitemap = await get("/sitemap.xml");
   if (!indexable) check("X-Robots-Tag noindex, nofollow on /sitemap.xml (a dotted path)", noindexAll(sitemap.robots), String(sitemap.robots));
   check("sitemap.xml answers 200", sitemap.status === 200, String(sitemap.status));
-  const locs = [...sitemap.body.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+  const locOf = (xml: string) => [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+  // /sitemap.xml is an index: follow each named sitemap (by path, so a local base URL works) and collect the page URLs.
+  const isIndex = /<sitemapindex/.test(sitemap.body);
+  const locs: string[] = [];
+  if (isIndex) {
+    for (const child of locOf(sitemap.body)) {
+      const r = await get(new URL(child).pathname);
+      check(`named sitemap ${new URL(child).pathname} answers 200`, r.status === 200, String(r.status));
+      locs.push(...locOf(r.body));
+    }
+  } else {
+    locs.push(...locOf(sitemap.body));
+  }
   if (!indexable) {
     check("sitemap is empty", locs.length === 0, `${locs.length} urls`);
   } else {
@@ -79,6 +106,30 @@ async function main() {
       const paths = locs.map((l) => new URL(l).pathname);
       const bad = paths.filter((p) => p !== "/" && !isAllowed(p));
       check("sitemap lists only what the gate lets through", bad.length === 0, bad.join(", "));
+    }
+  }
+
+  // 1b. every sitemap URL: 200, a self-canonical, JSON-LD that parses
+  if (indexable) {
+    check("sitemap.xml is an index", isIndex, "no <sitemapindex>");
+    for (const loc of locs) {
+      const path = new URL(loc).pathname;
+      const r = await get(path);
+      check(`sitemap url ${path} answers 200`, r.status === 200, String(r.status));
+      if (r.status !== 200) continue;
+      const canonical = /<link[^>]+rel="canonical"[^>]+href="([^"]+)"/i.exec(r.body)?.[1] ?? /<link[^>]+href="([^"]+)"[^>]+rel="canonical"/i.exec(r.body)?.[1];
+      check(`sitemap url ${path} has a self-canonical`, !!canonical && new URL(canonical).pathname === path, String(canonical));
+      const ld = [...r.body.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+      let ldOk = true;
+      for (const raw of ld) {
+        try {
+          const j = JSON.parse(raw);
+          if (j["@context"] !== "https://schema.org" || !j["@type"]) ldOk = false;
+        } catch {
+          ldOk = false;
+        }
+      }
+      check(`sitemap url ${path}: ${ld.length} JSON-LD block(s) parse with @context and @type`, ldOk, "bad JSON-LD");
     }
   }
 
@@ -135,7 +186,24 @@ async function main() {
   const slash = got["/pricing/"];
   check("/pricing/ is a 308 to /pricing", slash.status === 308 && /\/pricing$/.test(slash.location ?? ""), `${slash.status} ${slash.location}`);
 
-  // 6. languages: no hreflang while only English is published, and no redirect by browser language
+  // 6. the registry crawl (SEO-12)
+  // With the gate on, only what the gate lets through is crawled as a page; the rest must answer the teaser, under noindex.
+  const publishableAll = PAGES.filter((p) => isPublishable(p));
+  const publishable = gateOn ? publishableAll.filter((p) => isListedThroughGate(p.path)) : publishableAll;
+  const gatedOut = gateOn ? publishableAll.filter((p) => !isListedThroughGate(p.path)) : [];
+  const drafts = PAGES.filter((p) => isPreviewable(p, {}));
+  await crawlChecks({
+    base,
+    indexable,
+    canonicalOrigin: flag("canonical-origin", "https://peakhour.ai").replace(/\/$/, ""),
+    publishable: publishable.map((p) => ({ pageId: p.pageId, path: p.path, h1: p.h1 })),
+    drafts: drafts.map((p) => ({ pageId: p.pageId, path: p.path, h1: p.h1, gated: gateOn && !isListedThroughGate(p.path) })),
+    unpublishedLocales: LOCALES.filter((l) => !PUBLISHED_LOCALES.includes(l)).map((l) => l.toLowerCase()),
+    gatedOut: gatedOut.map((p) => ({ pageId: p.pageId, path: p.path, h1: p.h1 })),
+    teaserTitle: TEASER_TITLE,
+    check,
+  });
+  // 7. languages (SEO-4): no hreflang while only English is published, and no redirect by browser language
   for (const p of ["/", "/pricing", "/shopify"]) {
     check(`no hreflang on ${p} while only English is published`, !/hreflang/i.test(got[p].body), "found hreflang");
   }

@@ -39,7 +39,7 @@ export interface PricingPillarMeta {
 export const PRICING_PILLARS: Record<PillarSlug, PricingPillarMeta> = {
   presence: {
     slug: "presence",
-    promise: "Connect your Google Business Profile and see how people find you.",
+    promise: "Prepare Google Business Profile edits and review replies, approved by you. In beta.",
   },
   commerce: {
     slug: "commerce",
@@ -51,11 +51,11 @@ export const PRICING_PILLARS: Record<PillarSlug, PricingPillarMeta> = {
   },
   support: {
     slug: "support",
-    promise: "Your WhatsApp and storefront chat conversations in one inbox.",
+    promise: "See what shoppers asked your assistant that it could not answer. The shared inbox is coming soon.",
   },
   growth: {
     slug: "growth",
-    promise: "Meta, Google and LinkedIn campaigns, drafted for you and launched when you approve.",
+    promise: "Campaign drafts, Meta and X ads and LinkedIn posts, with your approval. Google Ads is coming soon.",
   },
 };
 
@@ -171,7 +171,7 @@ export const CHANNELS: Record<ChannelKey, ChannelMeta> = {
     name: "WordPress Plugin",
     tag: "WP",
     color: "#21759B",
-    blurb: "Publish AI content straight into your site — no copy-paste.",
+    blurb: "Publish AI content straight into your site, with your approval.",
     href: "/content",
   },
   woocommerce: {
@@ -184,7 +184,7 @@ export const CHANNELS: Record<ChannelKey, ChannelMeta> = {
     tag: "Wo",
     // Woo's current brand purple — matches the supplied official mark.
     color: "#873EFF",
-    blurb: "Connect your WooCommerce catalog to the shop assistant.",
+    blurb: "Bring the shop assistant to your WooCommerce catalog.",
     href: "/commerce",
   },
   bigcommerce: {

@@ -7,6 +7,7 @@ import { unitFor } from "@/lib/growth-v2-figure";
 import { startingFromWords } from "@/lib/growth-v2-starting-from";
 import { BenchmarkRows } from "./benchmark-rows";
 import { CreativeLeaderboard } from "./creative-leaderboard";
+import { CustomerCounts } from "./customer-counts";
 import { EnquiryHeatmap } from "./enquiry-heatmap";
 import { ExperimentTimeline } from "./experiment-timeline";
 import { NotSetUp } from "./not-set-up";
@@ -74,6 +75,17 @@ export function LearningBody({ learning, unitPlural, currency }: { learning: Lea
           </Card>
         </div>
       </div>
+      {learning.shoppers ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Your customers</CardTitle>
+            <CardDescription>{learning.shoppers.basis}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CustomerCounts shoppers={learning.shoppers} />
+          </CardContent>
+        </Card>
+      ) : null}
       <Card>
         <CardHeader>
           <CardTitle>When people convert</CardTitle>

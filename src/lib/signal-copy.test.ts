@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { evidenceChain, stateCopy, formatWhen, railLabel } from "@/lib/signal-copy";
+import { evidenceChain, stateCopy, formatWhen, railLabel, siteTagSeen, SITE_TAG_CONSENT, SITE_TAG_HEADLINE, SITE_TAG_WHAT, SITE_TAG_WHERE } from "@/lib/signal-copy";
 import type { Signal, SignalRail } from "@/lib/api/signals";
 
 /**
@@ -363,5 +363,43 @@ describe("★the railOffered mechanism itself — asserted positively, not by ab
     for (const body of all) {
       expect(body).not.toMatch(/checks in hourly|every hour\b|within the hour\b/i);
     }
+  });
+});
+
+describe("the Peakhour site tag's words (GG-3c)", () => {
+  it("★say, in plain words, that nothing is sent until a visitor agrees, and that no yes means nothing", () => {
+    expect(SITE_TAG_HEADLINE).toBe("It sends nothing until a visitor agrees to analytics.");
+    expect(SITE_TAG_CONSENT).toMatch(/cookie banner/);
+    expect(SITE_TAG_CONSENT).toMatch(/Google Consent Mode/);
+    // the WP Consent API is read only through the plugin, and the copy says so
+    expect(SITE_TAG_CONSENT).toMatch(/WP Consent API when the Peakhour WordPress plugin adds it/);
+    expect(SITE_TAG_CONSENT).toMatch(/has not said yes, nothing is sent/);
+    // what it records by itself, and what needs the plugin or the site's own calls
+    expect(SITE_TAG_WHAT).toMatch(/page views by itself/);
+    expect(SITE_TAG_WHAT).toMatch(/WooCommerce the Peakhour plugin also reports/);
+    expect(SITE_TAG_WHAT).toMatch(/peakhour\("track"/);
+    expect(SITE_TAG_WHERE).toMatch(/once you switch it on \(Peakhour > Site tag\)/);
+    // Bible naming: never the internal words
+    for (const s of [SITE_TAG_HEADLINE, SITE_TAG_CONSENT, SITE_TAG_WHAT, SITE_TAG_WHERE]) expect(s).not.toMatch(/mandate|intent|pixel|siteKey/i);
+  });
+});
+
+describe("siteTagSeen (GG-3c+): the tag's own evidence, the three absences apart", () => {
+  const ago = (ms: number) => new Date(Date.now() - ms).toISOString();
+  it("never heard: the ordinary first state, said as normal, never as a fault", () => {
+    const s = siteTagSeen("never_fired", null, null);
+    expect(s).toMatch(/haven't heard from this tag yet/);
+    expect(s).toMatch(/quiet start is normal/);
+    expect(s).not.toMatch(/broken|error|fail/i);
+  });
+  it("firing: seen working, with the host when known", () => {
+    expect(siteTagSeen("firing", ago(5 * 60_000), "kala.example")).toBe("Seen working. Last heard from kala.example: 5 minutes ago.");
+    expect(siteTagSeen("firing", ago(5 * 60_000), null)).toBe("Seen working. Last heard: 5 minutes ago.");
+  });
+  it("not seen recently: a fact and an honest 'we can't tell', never 'broken'", () => {
+    const s = siteTagSeen("not_seen_recently", ago(10 * 86_400_000), "kala.example");
+    expect(s).toMatch(/nothing since/);
+    expect(s).toMatch(/can't tell which/);
+    expect(s).not.toMatch(/broken/i);
   });
 });

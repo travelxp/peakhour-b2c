@@ -8,6 +8,7 @@ import {
   type SignalProvider,
   type SignalRail,
   type SignalsResponse,
+  type SiteTagResponse,
   type SnippetResponse,
 } from "@/lib/api/signals";
 
@@ -58,6 +59,21 @@ export function useSignalSnippet(provider: SignalProvider | null) {
     queryKey: [...key(business?._id), "snippet", provider],
     queryFn: () => signalsApi.snippet(provider as SignalProvider),
     enabled: !!provider && !!business?._id,
+  });
+}
+
+/**
+ * GG-3c+: the business's own Peakhour site tag, whatever third-party tags exist.
+ * Business-keyed and gated like the list; the first request issues the key, so
+ * it is fetched only when the page shows the tag.
+ */
+export function useSiteTag() {
+  const { business } = useAuth();
+  return useQuery<SiteTagResponse>({
+    queryKey: [...key(business?._id), "site-tag"],
+    queryFn: () => signalsApi.siteTag(),
+    enabled: !!business?._id,
+    staleTime: 30_000,
   });
 }
 

@@ -407,6 +407,8 @@ const OFFER_SALES: DraftOffer = {
 const OFFER_LEADS: DraftOffer = { kind: "leads", source: "win_definition", optimizeFor: "count", label: "Leads", focusSuggestions: [], targetSource: "merchant" };
 const OFFER_STORE: DraftOffer = { kind: "store_visits", source: "ads_conversions", optimizeFor: "count", label: "Store visits", focusSuggestions: [], targetSource: "merchant" };
 
+const OFFER_INSTALLS: DraftOffer = { kind: "app_installs", source: "app_analytics", optimizeFor: "count", label: "App installs", focusSuggestions: [], targetSource: "merchant" };
+
 const DRAFT: FirstRunDraftResponse = {
   alreadyActive: false,
   currency: "INR",
@@ -465,6 +467,15 @@ describe("First run", () => {
     expect(withStore).not.toContain("Do customers visit you in person?");
     const without = html(<FirstRunView {...firstRun()} />);
     expect(without).toContain("Do customers visit you in person?");
+  });
+
+  it("offers App installs only when the api offered them, with its hint and the unit 'install'", () => {
+    const withInstalls = html(<FirstRunView {...firstRun({ draft: { ...DRAFT, offers: [OFFER_SALES, OFFER_INSTALLS] } })} />);
+    expect(withInstalls).toContain("App installs");
+    expect(withInstalls).toContain("Installs of your app");
+    const without = html(<FirstRunView {...firstRun()} />);
+    expect(without).not.toContain("App installs");
+    expect(without).not.toContain("Installs of your app");
   });
 
   it("when a store is suspected but cannot be offered, says how to get store visits and still does not offer them", () => {
