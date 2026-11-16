@@ -132,7 +132,7 @@ describe("suiteModuleSlugs: what Suite includes, asked of each product", () => {
 describe("signup copy promises a trial, not a free plan (D19)", () => {
   it("the /auth ticks state the Suite trial's length, and no module count", () => {
     expect(signupTicks(14, false)).toEqual(["14-day free trial · No credit card", "Live the same day"]);
-    expect(signupTicks(7, true)).toEqual(["7-day free trial · No credit card", "We’ll email your link"]);
+    expect(signupTicks(7, true)).toEqual(["7-day free trial once approved · No credit card", "We’ll email your link"]);
   });
 
   it("★no Suite trial, no trial ticks: no 14-day stand-in (official review R1)", () => {

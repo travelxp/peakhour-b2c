@@ -324,6 +324,7 @@ export const SEO9_PAGES: readonly PageRecord[] = [
     pageId: "features.newsletter.writer",
     path: "/features/beehiiv-newsletter",
     pillar: "content",
+    capabilityIds: ["content.beehiiv_newsletter"],
     status: "review",
     cluster: "newsletter-content-generation",
     title: "Beehiiv newsletter drafts written by AI | Peakhour",

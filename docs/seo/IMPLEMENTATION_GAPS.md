@@ -77,7 +77,7 @@ Regenerate with `npx tsx scripts/seo/report-pages.ts --write`. A test fails when
 | `/features/local-listing-health` | feature | published | `presence.listing_health` |
 | `/features/brand-voice` | feature | published | `content.brand_voice` |
 | `/features/social-media-content` | feature | published | `content.social_publishing` |
-| `/features/beehiiv-newsletter` | feature | review | none (no capability claim) |
+| `/features/beehiiv-newsletter` | feature | review | `content.beehiiv_newsletter` |
 | `/features/ai-blog-writer` | feature | review | none (no capability claim) |
 | `/features/peakhour-summit` | feature | published | `growth.peakhour_summit` |
 | `/about` | core | review | none (no capability claim) |

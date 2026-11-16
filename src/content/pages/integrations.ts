@@ -33,7 +33,7 @@ function build(s: Spec): { content: IntegrationContent; claimIds: string[] } {
       crumbs: crumbsFor("integrations.index", "Integrations", s.name, s.pageId),
       eyebrow: s.eyebrow,
       directAnswer: s.directAnswer,
-      secondaryCta: { label: "See what it does", href: "#does" },
+      secondaryCta: { label: `See what ${s.name} does`, href: "#does" },
       status: ev.status,
       limitations: s.limitations,
       verifiedAt: ev.verifiedAt,
