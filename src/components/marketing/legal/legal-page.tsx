@@ -61,6 +61,16 @@ function withHeadings(children: ReactNode, found: Heading[], used: Set<string>):
   });
 }
 
+/** Every id the document already sets on an h2, so a generated id never collides with a hand-written one that comes later. */
+function explicitIds(children: ReactNode, into: Set<string>) {
+  Children.forEach(children, (child) => {
+    if (!isValidElement(child)) return;
+    const el = child as Node;
+    if (el.type === "h2" && el.props.id) into.add(el.props.id);
+    else if (typeof el.type === "string" || el.type === Fragment) explicitIds(el.props.children, into);
+  });
+}
+
 export function LegalPage({
   title,
   lastUpdated,
@@ -75,7 +85,9 @@ export function LegalPage({
   children: ReactNode;
 }) {
   const headings: Heading[] = [];
-  const body = withHeadings(children, headings, new Set());
+  const used = new Set<string>();
+  explicitIds(children, used);
+  const body = withHeadings(children, headings, used);
   const toc = headings.length > 1;
 
   return (

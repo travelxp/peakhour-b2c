@@ -38,6 +38,8 @@ describe("legal text is byte-identical to the golden", () => {
       expect(`Last updated: ${el.props.lastUpdated}`).toBe(want.lastUpdated);
       expect(textOf(markup)).toBe(want.text);
       expect(hrefsOf(markup)).toEqual(want.hrefs);
+      // And through LegalPage itself (id injection, contents): the document text still arrives whole, in order.
+      expect(textOf(renderToStaticMarkup(el))).toContain(want.text);
     });
   }
 });
