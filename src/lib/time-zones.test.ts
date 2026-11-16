@@ -106,7 +106,8 @@ describe("searchZones", () => {
     expect(found("India")).not.toContain("Europe/London");
   });
   it("★★finds Kolkata by its offset, in the ways people write it", () => {
-    for (const q of ["+05:30", "UTC+05:30", "gmt+05:30", "+5:30"]) expect(found(q), q).toContain("Asia/Kolkata");
+    for (const q of ["+05:30", "UTC+05:30", "gmt+05:30", "+5:30", "utc+5:30", "GMT+5:30"]) expect(found(q), q).toContain("Asia/Kolkata");
+    expect(found("gmt-5:00")).toContain("America/New_York");
     expect(found("+05:30")).not.toContain("Europe/London");
     expect(found("+05:30")).not.toContain("Asia/Dubai");
   });
@@ -132,6 +133,11 @@ describe("searchZones", () => {
 });
 
 describe("zoneItem", () => {
+  it("is built once per zone and hour, so opening the picker again does not rebuild it", () => {
+    expect(zoneItem("Asia/Kolkata", NOW)).toBe(zoneItem("Asia/Kolkata", NOW));
+    // a later hour is a fresh item (the offset can have changed)
+    expect(zoneItem("Asia/Kolkata", new Date(NOW.getTime() + 3_600_000))).not.toBe(zoneItem("Asia/Kolkata", NOW));
+  });
   it("names the place: the country where the browser knows it, else the region", () => {
     expect(zoneItem("Asia/Kolkata", NOW)).toMatchObject({ value: "Asia/Kolkata", city: "Kolkata", place: "India", offset: "UTC+05:30" });
     expect(zoneItem("UTC", NOW).place).toBe("");

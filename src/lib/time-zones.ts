@@ -118,7 +118,24 @@ export interface ZoneItem {
   search: string;
 }
 
+// An item is built once per zone per hour (the offset can change with daylight saving): opening the picker again does not rebuild 400.
+let cacheHour = -1;
+const itemCache = new Map<string, ZoneItem>();
+
 export function zoneItem(zone: string, now: Date = new Date()): ZoneItem {
+  const hour = Math.floor(now.getTime() / 3_600_000);
+  if (hour !== cacheHour) {
+    itemCache.clear();
+    cacheHour = hour;
+  }
+  const hit = itemCache.get(zone);
+  if (hit) return hit;
+  const made = buildItem(zone, now);
+  itemCache.set(zone, made);
+  return made;
+}
+
+function buildItem(zone: string, now: Date): ZoneItem {
   const off = zoneOffset(zone, now);
   const spaced = zone.replace(/_/g, " ");
   const parts = spaced.split("/");
@@ -127,7 +144,8 @@ export function zoneItem(zone: string, now: Date = new Date()): ZoneItem {
   const country = countriesByZone().get(zone)?.[0] ?? "";
   const offset = off ? `UTC${off}` : "";
   // every way a person writes an offset: +05:30, UTC+05:30, GMT+05:30, +5:30
-  const writings = off ? [off, `utc${off}`, `gmt${off}`, ...(off[1] === "0" ? [off.replace(/^([+-])0/, "$1")] : [])] : [];
+  const short = off && off[1] === "0" ? off.replace(/^([+-])0/, "$1") : "";
+  const writings = off ? [off, `utc${off}`, `gmt${off}`, ...(short ? [short, `utc${short}`, `gmt${short}`] : [])] : [];
   return {
     value: zone,
     label: offset ? `${spaced} (${offset})` : spaced,

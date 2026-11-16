@@ -207,6 +207,20 @@ describe("TimeZoneCombobox", () => {
     expect(document.body.textContent).not.toMatch(/more\. Type a city/);
   });
 
+  it("the zone in force is in the list when it opens, even where the long list is cut", async () => {
+    await mount({ start: "Pacific/Auckland" });
+    await openIt();
+    expect(optionTexts().some((t) => t.includes("Pacific/Auckland"))).toBe(true);
+  });
+
+  it("a search with no zone hits says so, even when the first option matches the words typed", async () => {
+    await mount({ start: "", firstOption: { label: "Your business’s time zone" } });
+    await openIt();
+    await search("business");
+    expect(optionTexts()).toEqual(["Your business’s time zone"]);
+    expect(document.body.textContent).toContain("No time zone matches that.");
+  });
+
   it("a zone the caller keeps stays an option after the value has moved on", async () => {
     await mount({ start: "Europe/London", keep: "Asia/Calcutta" });
     await openIt();

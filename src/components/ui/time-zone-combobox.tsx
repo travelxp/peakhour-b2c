@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Command, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { browserZone, searchZones, zoneGroups, zoneLabel } from "@/lib/time-zones";
 import { cn } from "@/lib/utils";
@@ -58,7 +58,8 @@ export function TimeZoneCombobox({
   // the pinned groups (the stored zone, the detected one, those near) are always whole; the long tail is cut
   const pinned = found.reduce((n, g) => n + (g.key === "all" ? 0 : g.items.length), 0);
   const room = Math.max(MAX_LISTED - pinned, 20);
-  const shown = useMemo(() => found.map((g) => (g.key === "all" ? { ...g, items: g.items.slice(0, room) } : g)), [found, room]);
+  // the zone in force stays in the list wherever it falls, so its check mark is there when the picker opens
+  const shown = useMemo(() => found.map((g) => (g.key === "all" ? { ...g, items: g.items.filter((i, n) => n < room || i.value === value) } : g)), [found, room, value]);
   const cut = total - shown.reduce((n, g) => n + g.items.length, 0);
   const q = query.trim().toLowerCase();
   const showFirst = !!firstOption && (q === "" || firstOption.label.toLowerCase().includes(q));
@@ -71,7 +72,9 @@ export function TimeZoneCombobox({
   const triggerText = value ? zoneLabel(value) : firstOption ? firstOption.label : placeholder;
 
   return (
+    // modal, so the list scrolls with the wheel when the picker is inside a Sheet or dialog (it portals outside them)
     <Popover
+      modal
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
@@ -97,7 +100,11 @@ export function TimeZoneCombobox({
         <Command shouldFilter={false} label="Time zones">
           <CommandInput placeholder="Search by city, country or +05:30" aria-label="Search time zones" value={query} onValueChange={setQuery} />
           <CommandList>
-            {!showFirst && shown.length === 0 && <CommandEmpty>No time zone matches that.</CommandEmpty>}
+            {shown.length === 0 && (
+              <p role="status" className="py-4 text-center text-sm">
+                No time zone matches that.
+              </p>
+            )}
             {showFirst && (
               <CommandGroup>
                 <CommandItem value="__first__" onSelect={() => pick(FIRST_OPTION_VALUE)}>
