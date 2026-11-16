@@ -101,7 +101,7 @@
   "shopify.features.seo.audit": "sha256:95e517773cc0ea1b4bc1a7b72e5e003df188116c5f4edc0df2b269f54748eea4",
   "shopify.features.whatsapp.ai.shopping": "sha256:8058ed3f8e70c0042ec0a00da096c7f2f59643046634f71b473bc111911cfd37",
   "shopify.features.whatsapp.cod.confirmation": "sha256:9f6a639aeb0d054916ba36dcfef0648bda52439653e3e707ebb6d5333041d361",
-  "shopify.guides.whatsapp.cod.confirmation": "sha256:fb975fc069f4fb5ade9473860932526ed91ce1fdd53bdef369fd2df234b8633c",
+  "shopify.guides.whatsapp.cod.confirmation": "sha256:df6488e48d467887413a40c80702f4a912c87f977095353b9e1c4e03acdce368",
   "support": "sha256:2f2b92bec60060bf0b3d2951aeb0ae2f1f0750427d072db35c400b15a269595d",
   "trust.data.processing": "sha256:df3c389f72989d2c04771038f5784429115c35d6e651886f9a517c948120910c"
 }
