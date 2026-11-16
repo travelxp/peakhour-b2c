@@ -73,8 +73,8 @@ export const DESCRIBELY = {
   ],
   pricing: {
     rows: [
-      { plan: "Free, 5 products", price: "Free, with unlimited AI generations and audits for those 5 products", currency: "INR", region: "India, as shown on its listing", observedAt: D, source: S.listing },
-      { plan: "Pay as you go", price: "$0.75 per product for generations and audits, shown as a one-time ₹70.69 charge", currency: "INR", region: "India, as shown on its listing", observedAt: D, source: S.listing },
+      { plan: "Free, 5 products", price: "₹0, with unlimited AI generations and audits for those 5 products", currency: "INR", region: "India, as shown on its listing", observedAt: D, source: S.listing },
+      { plan: "Pay as you go", price: "₹70.69 one-time charge as shown; its listing also states $0.75 per product", currency: "INR", region: "India, as shown on its listing", observedAt: D, source: S.listing },
       { plan: "50 products", price: "₹2,639.27 per month or ₹26,392.69 per year", currency: "INR", region: "India, as shown on its listing", observedAt: D, source: S.listing },
       { plan: "250 products", price: "₹13,007.82 per month or ₹130,078.24 per year", currency: "INR", region: "India, as shown on its listing", observedAt: D, source: S.listing },
       { plan: "Pay as you go on its site", price: "$0.75 per product, first 5 products free", currency: "USD (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },

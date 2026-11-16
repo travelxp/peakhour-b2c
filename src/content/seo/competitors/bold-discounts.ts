@@ -30,12 +30,12 @@ export const BOLD_DISCOUNTS = {
   ],
   claims: [
     {
-      dimension: "Scheduled and flash sales",
+      dimension: "Sales that end on schedule",
       vendor: { value: "yes", note: "Flash sales, and advanced scheduling for offers, campaigns, events and holiday promotions.", source: S.listing, observedAt: D },
       peakhour: P.campaignDeadline,
     },
     {
-      dimension: "Automatic discounts without a code",
+      dimension: "Discounts created in your Shopify store",
       vendor: { value: "yes", note: "Automatic Scheduled Sales are listed on both of its plans.", source: S.listing, observedAt: D },
       peakhour: P.campaignDiscount,
     },
@@ -67,7 +67,7 @@ export const BOLD_DISCOUNTS = {
   ],
   pricing: {
     rows: [
-      { plan: "Free, development shops only", price: "Free, for development shops", currency: "INR", region: "India, as shown on its listing", observedAt: D, source: S.listing },
+      { plan: "Free, development shops only", price: "₹0, for development shops only", currency: "INR", region: "India, as shown on its listing", observedAt: D, source: S.listing },
       { plan: "Essentials", price: "₹1,884.25 per month, 14-day trial", currency: "INR", region: "India, as shown on its listing", observedAt: D, source: S.listing },
     ],
   },

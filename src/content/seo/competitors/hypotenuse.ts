@@ -73,7 +73,7 @@ export const HYPOTENUSE = {
   ],
   pricing: {
     rows: [
-      { plan: "Free, 20 credits on install", price: "Free to install", currency: "INR", region: "India, as shown on its listing", observedAt: D, source: S.listing },
+      { plan: "Free, 20 credits on install", price: "₹0, free to install", currency: "INR", region: "India, as shown on its listing", observedAt: D, source: S.listing },
       { plan: "Starter, 40 credits a month", price: "₹848.34 per month", currency: "INR", region: "India, as shown on its listing", observedAt: D, source: S.listing },
       { plan: "Pro, 200 credits a month", price: "₹3,676.12 per month", currency: "INR", region: "India, as shown on its listing", observedAt: D, source: S.listing },
       { plan: "Elite, 1,000 credits a month", price: "₹9,331.70 per month", currency: "INR", region: "India, as shown on its listing", observedAt: D, source: S.listing },

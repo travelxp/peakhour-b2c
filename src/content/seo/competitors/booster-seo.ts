@@ -35,8 +35,8 @@ export const BOOSTER_SEO = {
       peakhour: P.seoAudit,
     },
     {
-      dimension: "Fixes applied automatically",
-      vendor: { value: "yes", note: "AutoPilot applies SEO fixes and monitors your store, on its Pro plan.", source: S.listing, observedAt: D },
+      dimension: "Fixes: automatic or approved first",
+      vendor: { value: "yes", note: "AutoPilot applies SEO fixes automatically and monitors your store, on its Pro plan.", source: S.listing, observedAt: D },
       peakhour: P.seoTickAndUndo,
     },
     {
@@ -67,7 +67,7 @@ export const BOOSTER_SEO = {
   ],
   pricing: {
     rows: [
-      { plan: "Free", price: "Free, no price shown", currency: "INR", region: "India, as shown on its listing", observedAt: D, source: S.listing },
+      { plan: "Free", price: "₹0, no price shown", currency: "INR", region: "India, as shown on its listing", observedAt: D, source: S.listing },
       { plan: "Pro", price: "₹3,676.12 per month or ₹32,896.60 per year, 14-day trial", currency: "INR", region: "India, as shown on its listing", observedAt: D, source: S.listing },
       { plan: "Premium", price: "₹6,503.91 per month or ₹58,346.69 per year, 14-day trial", currency: "INR", region: "India, as shown on its listing", observedAt: D, source: S.listing },
       { plan: "Plans on its home page", price: "Not published, its pricing sits on a separate page we did not read", currency: "Not stated", region: "Not stated", observedAt: D, source: S.home },

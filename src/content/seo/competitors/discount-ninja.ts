@@ -36,12 +36,12 @@ export const DISCOUNT_NINJA = {
       peakhour: P.campaignDiscount,
     },
     {
-      dimension: "Scheduled start and stop",
+      dimension: "Promotion ends on its date",
       vendor: { value: "yes", note: "Promotions start and stop automatically on the dates you set, with recurring weekday schedules.", source: S.pricing, observedAt: D },
       peakhour: P.campaignDeadline,
     },
     {
-      dimension: "Bundle and buy-more offers",
+      dimension: "Bundle discounts",
       vendor: { value: "yes", note: "BOGO, free gift, tiered, volume and quantity-break offers are listed.", source: S.listing, observedAt: D },
       peakhour: P.bundles,
     },
