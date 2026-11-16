@@ -145,7 +145,7 @@ describe("the directories", () => {
     expect(isPublishable(getPage("compare"))).toBe(false);
     expect(getPage("shopify.compare").editorialStatus).toBe("review");
     const shopifyChild = children.find((c) => c.family === "shopify-compare")!;
-    const live = compareDirectories([{ ...shopifyChild, editorialStatus: "published", indexable: true }]);
+    const live = compareDirectories([{ ...shopifyChild, editorialStatus: "published", indexable: true, capabilityIds: [] }]); // no claims: a published page that makes claims also needs an approval (AR-1)
     expect(live.find((p) => p.pageId === "shopify.compare")).toMatchObject({ editorialStatus: "published", indexable: true });
     // A published Shopify comparison does not publish the global directory.
     expect(live.find((p) => p.pageId === "compare")).toMatchObject({ editorialStatus: "review", indexable: false });
@@ -340,7 +340,7 @@ describe("review round 2", () => {
     const saved = { editorialStatus: rec.editorialStatus, indexable: rec.indexable };
     production();
     try {
-      Object.assign(rec, { editorialStatus: "review", indexable: false });
+      Object.assign(rec, { editorialStatus: "draft", indexable: false }); // draft, not review: a review page with an approval is publishable (AR-1)
       const more = buildComparisonContent(b).more!;
       expect(more.links.some((l) => l.href === "/shopify/features")).toBe(false);
       expect(more.intro).not.toContain("Shopify");

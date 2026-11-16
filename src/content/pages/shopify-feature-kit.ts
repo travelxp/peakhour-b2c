@@ -1,7 +1,7 @@
 import type { Crumb, LinkItem, ShopifyFeatureContent } from "@/components/marketing/seo/content-types";
 import { getCapability } from "@/lib/seo/capabilities";
 import { getPage } from "@/lib/seo/pages";
-import { isPublishable } from "@/lib/seo/publish";
+import { isLinkable } from "@/lib/seo/publish";
 import { pathFor } from "@/lib/seo/resolve";
 import type { ReleaseStatus, Surface } from "@/lib/seo/types";
 
@@ -37,7 +37,7 @@ export function featureCrumbs(label: string, pageId: string): Crumb[] {
  * link is left out until the sibling publishes; a page still in review links to everything.
  */
 export function siblingLink(selfId: string, targetId: string, label: string, note: string): LinkItem[] {
-  if (isPublishable(getPage(selfId)) && !isPublishable(getPage(targetId))) return [];
+  if (isLinkable(getPage(selfId)) && !isLinkable(getPage(targetId))) return [];
   return [{ label, href: pathFor(targetId), note }];
 }
 
