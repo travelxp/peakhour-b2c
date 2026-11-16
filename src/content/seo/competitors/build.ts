@@ -73,7 +73,6 @@ export function buildComparisonContent(
     },
     suitability: b.bestFor,
     limitations: b.limitations,
-    author: "Peakhour Growth",
     reviewer: reviewer ?? "Pending review",
     faqs: b.faqs,
     related: page.relatedIds.map((id) => ({ label: getPage(id).title, href: pathFor(id) })),
