@@ -40,11 +40,11 @@ export const PEAKHOUR = {
     source: SHOPIFY_PAGE,
     observedAt: OBSERVED,
   },
-  askPeakhour: {
+  productDescriptions: {
     value: "yes",
-    capabilityId: "platform.ask_peakhour",
-    note: "Answers questions from your own data and can only prepare a change as a card for you to approve.",
-    source: SHOPIFY_PAGE,
+    capabilityId: "content.ai_product_descriptions",
+    note: "Writes product descriptions for products that have none or very thin ones; you review and edit each draft, apply it, and can undo it.",
+    source: { href: "/shopify/features/ai-product-descriptions", label: "AI product descriptions on Shopify" },
     observedAt: OBSERVED,
   },
 } satisfies Record<string, PeakhourClaim>;

@@ -45,7 +45,7 @@ export const SHOPIFY_INBOX: CompetitorBrief = {
     },
     {
       dimension: "Human handover",
-      vendor: { value: "partial", note: "Chat assignment is listed. Shopify's guide does not tie handover to Inbox in so many words.", source: S.blog, observedAt: D },
+      vendor: { value: "partial", note: "Chat assignment is listed on the listing. Shopify's guide does not tie handover to Inbox in so many words.", source: S.listing, observedAt: D },
       peakhour: pending("support.whatsapp_support"),
     },
     {
@@ -61,11 +61,11 @@ export const SHOPIFY_INBOX: CompetitorBrief = {
   ],
   pricing: {
     rows: [
-      { plan: "Shopify Inbox", price: "Free, as Shopify's guide states; the listing says it works only with certain stores", currency: "No charge", region: "Not stated", observedAt: D, source: S.blog },
+      { plan: "Shopify Inbox", price: "Free, as the listing shows; the listing says it works only with certain stores", currency: "No charge", region: "Not stated", observedAt: D, source: S.listing, noMoneyPrice: true },
     ],
   },
   bestFor: [
-    { vendor: "Shopify Inbox", bestFor: "Any Shopify store that wants chat and an AI sales associate built by Shopify, at no cost, with nothing outside Shopify to manage." },
+    { vendor: "Shopify Inbox", bestFor: "Shopify stores Inbox supports that want chat and an AI sales associate built by Shopify, at no cost, with nothing outside Shopify to manage." },
     { vendor: "Peakhour", bestFor: "Shopify merchants who also want product shelves, cash-on-delivery confirmation on WhatsApp and a checkout link sent on WhatsApp." },
   ],
   limitations: [

@@ -67,7 +67,7 @@ export const MANIFEST_AI: CompetitorBrief = {
   pricing: {
     rows: [
       { plan: "Shopify App Store listing", price: "Free to install, additional charges may apply; 7-day free trial; no amounts shown", currency: "USD (charges billed in USD)", region: "Not stated", observedAt: D, source: S.listing },
-      { plan: "Plans on its own site", price: "Not published (its pricing page lists no plans; it offers a demo)", currency: "USD (not stated on its own site)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Plans on its own site", price: "Not published (its pricing page lists no plans; it offers a demo)", currency: "Not stated", region: "Not stated", observedAt: D, source: S.pricing },
     ],
   },
   bestFor: [

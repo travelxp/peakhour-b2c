@@ -44,10 +44,15 @@ export type PricingRow = {
   region: string;
   observedAt: string;
   source: Source;
+  /** True where the vendor charges no money for the product (Shopify's own free or included products). Only then may `currency` be a non-code. */
+  noMoneyPrice?: boolean;
 };
 
 export type CompetitorBrief = {
-  slug: "aisensy" | "interakt" | "rep-ai" | "gorgias" | "tidio" | "manifest-ai" | "shopify-inbox" | "shopify-sidekick";
+  slug:
+    | "aisensy" | "interakt" | "rep-ai"
+    | "wati" | "zoko" | "gokwik"
+    | "gorgias" | "tidio" | "manifest-ai" | "shopify-inbox" | "shopify-sidekick";
   pageId: string;
   name: string;
   url: string;

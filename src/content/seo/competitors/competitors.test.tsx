@@ -20,6 +20,10 @@ import TidioPage, { metadata as tidioMeta } from "@/app/(site)/shopify/compare/t
 import ManifestPage, { metadata as manifestMeta } from "@/app/(site)/shopify/compare/manifest-ai/page";
 import InboxPage, { metadata as inboxMeta } from "@/app/(site)/shopify/compare/shopify-inbox/page";
 import SidekickPage, { metadata as sidekickMeta } from "@/app/(site)/shopify/compare/shopify-sidekick/page";
+// CMP-A
+import WatiPage, { metadata as watiMeta } from "@/app/(site)/shopify/compare/wati/page";
+import ZokoPage, { metadata as zokoMeta } from "@/app/(site)/shopify/compare/zoko/page";
+import GokwikPage, { metadata as gokwikMeta } from "@/app/(site)/shopify/compare/gokwik/page";
 import { getCapability } from "@/lib/seo/capabilities";
 import { findPageByPath, getPage, LAUNCH_PARTNER_CTA, PAGES } from "@/lib/seo/pages";
 import { isPreviewable, isPublishable, statusSatisfies } from "@/lib/seo/publish";
@@ -39,6 +43,10 @@ const OWN_HOSTS: Record<string, string[]> = {
   "manifest-ai": ["getmanifest.ai", "apps.shopify.com"],
   "shopify-inbox": ["apps.shopify.com", "www.shopify.com", "help.shopify.com"],
   "shopify-sidekick": ["www.shopify.com", "help.shopify.com"],
+  // CMP-A
+  wati: ["www.wati.io"],
+  zoko: ["www.zoko.io"],
+  gokwik: ["www.gokwik.co"],
 };
 const ROUTES: Record<string, { Page: () => Promise<React.ReactElement>; meta: unknown }> = {
   aisensy: { Page: AisensyPage, meta: aisensyMeta },
@@ -50,6 +58,10 @@ const ROUTES: Record<string, { Page: () => Promise<React.ReactElement>; meta: un
   "manifest-ai": { Page: ManifestPage, meta: manifestMeta },
   "shopify-inbox": { Page: InboxPage, meta: inboxMeta },
   "shopify-sidekick": { Page: SidekickPage, meta: sidekickMeta },
+  // CMP-A
+  wati: { Page: WatiPage, meta: watiMeta },
+  zoko: { Page: ZokoPage, meta: zokoMeta },
+  gokwik: { Page: GokwikPage, meta: gokwikMeta },
 };
 const ENV_KEYS = ["VERCEL_ENV", "SITE_INDEXABLE"] as const;
 const saved: Record<string, string | undefined> = {};
@@ -81,6 +93,7 @@ const PROSE_RULES: { keyword: RegExp; anyOf: string[] }[] = [
   { keyword: /cash.on.delivery|\bCOD\b/i, anyOf: ["commerce.cod_confirmation"] },
   { keyword: /shel(?:f|ves)|recommend/i, anyOf: ["commerce.product_recommendations"] },
   { keyword: /shopping assistant|\bassistant\b|catalogue/i, anyOf: ["commerce.ai_shopping_assistant"] },
+  { keyword: /merchant.side|assistant for the merchant|\bAsk Peakhour\b/i, anyOf: ["platform.ask_peakhour"] },
   { keyword: /\binbox\b|handover|hand over/i, anyOf: ["support.channel_inbox", "support.whatsapp_support"] },
 ];
 const sentences = (t: string) => t.split(/(?<=[.!?])\s+/);
@@ -148,12 +161,17 @@ describe.each(COMPETITOR_BRIEFS.map((b) => [b.slug, b] as const))("%s brief (Bib
     expect(own.price).not.toMatch(/[₹£$€]|\b(INR|USD|GBP)\b/);
     expect(content.pricing.asOf).toMatch(ISO);
     // One currency is never stated for the whole table: each row's label carries its own, without nested brackets.
-    for (const r of content.pricing.rows.filter((x) => x.vendor !== "Peakhour")) {
-      // A row with no money price (Shopify's own free or included products) says "No charge"; every other row names a currency.
-      const noMoney = r.plan.includes(" · No charge · ") && /^(Free|Shopify says it is included)/.test(r.price);
-      if (!noMoney) expect(r.plan, r.plan).toMatch(/ · [A-Z]{3}.* · /);
+    const vendorRows = content.pricing.rows.filter((x) => x.vendor !== "Peakhour");
+    expect(vendorRows.length).toBe(b.pricing.rows.length);
+    vendorRows.forEach((r, i) => {
+      const src = b.pricing.rows[i];
+      // Only a row marked noMoneyPrice (Shopify's own free or included products) may say "No charge"; a vendor that states no currency says "Not stated".
+      if (src.noMoneyPrice) expect(src.currency, r.plan).toBe("No charge");
+      else if (src.currency === "Not stated") expect(src.price, r.plan).toMatch(/^Not published/);
+      else expect(r.plan, r.plan).toMatch(/ · [A-Z]{3}.* · /);
+      if (!src.noMoneyPrice) expect(src.currency, r.plan).not.toBe("No charge");
       expect(r.plan, r.plan).not.toMatch(/\([^)]*\([^)]*\)/);
-    }
+    });
   });
 
   it("claims for Peakhour only what an approved capability claim supports", () => {
@@ -235,8 +253,7 @@ describe.each(COMPETITOR_BRIEFS.map((b) => [b.slug, b] as const))("%s brief (Bib
     expect(html).toContain(b.h1);
     expect(html).toContain("Draft, not published");
     expect(html).toContain("Not documented");
-    expect(html).toMatch(/Pricing as listed on each vendor(?:'|&#x27;|&apos;)s page, seen /);
-    expect(html).toContain(`seen ${b.observedAt}`);
+    expect(html).toMatch(new RegExp(`Pricing as listed on each vendor(?:'|&#x27;|&apos;)s page, seen ${b.observedAt}`));
     // Internal sources are normal links; only external ones open a new tab.
     expect(html).toMatch(/<a href="\/pricing"(?![^>]*target)/);
     expect(html).toMatch(/<a href="https:\/\/[^"]+" target="_blank" rel="noopener noreferrer nofollow"/);

@@ -17,10 +17,10 @@ export const GORGIAS: CompetitorBrief = {
   observedAt: D,
   title: "Peakhour vs Gorgias for Shopify",
   description:
-    "Peakhour and Gorgias compared on one job only, the pre-sales shopping assistant on a Shopify store. Sourced, dated and honest about scope.",
+    "Peakhour and Gorgias compared on the pre-sales shopping assistant for Shopify, noting where its helpdesk goes further. Sourced and dated.",
   h1: "Peakhour vs Gorgias for Shopify",
   directAnswer:
-    "Gorgias is a customer support helpdesk with an AI Agent and a Shopping Assistant. Peakhour does not offer a helpdesk today, so this page compares one job only: answering shoppers before they buy. On that job, Peakhour puts an AI shopping assistant and product shelves on your storefront. If you need tickets, a team inbox and support automation, Gorgias is the more complete choice. Every answer below links to the vendor's own page and shows the date we read it.",
+    "Gorgias is a customer support helpdesk with an AI Agent and a Shopping Assistant. Peakhour does not offer a helpdesk today, so this page compares the pre-sales assistant, and notes where the Gorgias helpdesk goes further. On that job, Peakhour puts an AI shopping assistant and product shelves on your storefront. If you need tickets, a team inbox and support automation, Gorgias is the more complete choice. Every answer below links to the vendor's own page and shows the date we read it.",
   buyerUseCases: [
     { title: "Questions before a purchase", body: "You want shoppers to get product answers and suggestions while they browse." },
     { title: "A full support desk", body: "You need tickets, a team inbox and support automation across channels." },
@@ -66,12 +66,12 @@ export const GORGIAS: CompetitorBrief = {
   ],
   pricing: {
     rows: [
-      { plan: "Starter (50 tickets, 30 automated AI interactions)", price: "$10 per month, monthly billing only", currency: "USD (as the page states)", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Basic (300 tickets, 30 automated AI interactions)", price: "$50 per month billed annually, $60 billed monthly", currency: "USD (as the page states)", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Pro (2,000 tickets, 190 automated AI interactions)", price: "$300 per month billed annually, $360 billed monthly", currency: "USD (as the page states)", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Advanced (5,000 tickets, 530 automated AI interactions)", price: "$750 per month billed annually, $900 billed monthly", currency: "USD (as the page states)", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "AI Agent add-on, per automated interaction", price: "$0.90 on annual contracts, $1.00 on monthly; $1.50 above the plan allowance", currency: "USD (as the page states)", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Enterprise (over 5,000 conversations a month)", price: "Not published (custom quote)", currency: "USD (as the page states)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Starter (50 tickets, 30 automated AI interactions)", price: "$10 per month, monthly billing only", currency: "USD (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Basic (300 tickets, 30 automated AI interactions)", price: "$50 per month billed annually, $60 billed monthly", currency: "USD (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Pro (2,000 tickets, 190 automated AI interactions)", price: "$300 per month billed annually, $360 billed monthly", currency: "USD (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Advanced (5,000 tickets, 530 automated AI interactions)", price: "$750 per month billed annually, $900 billed monthly", currency: "USD (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "AI Agent add-on, per automated interaction", price: "$0.90 on annual contracts, $1.00 on monthly; $1.50 above the plan allowance", currency: "USD (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Enterprise (over 5,000 conversations a month)", price: "Not published (custom quote)", currency: "USD (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
     ],
   },
   bestFor: [
@@ -79,7 +79,7 @@ export const GORGIAS: CompetitorBrief = {
     { vendor: "Peakhour", bestFor: "Shopify merchants who want a shopping assistant and product shelves on the storefront that answer from their own catalogue, and have no need to move their support desk." },
   ],
   limitations: [
-    "Gorgias is a helpdesk and Peakhour does not offer one today. This page does not compare support, tickets or team inboxes.",
+    "Gorgias is a helpdesk and Peakhour does not offer one today. The rows on handover, WhatsApp and setup note where Gorgias goes further; this page does not compare tickets or team inboxes.",
     "We read only Gorgias's own public pages. A feature it does not document is marked Not documented, which is not the same as No.",
     "Its pricing page shows $ plans; a separate block of structured data on the same page lists different monthly figures, and the page does not explain the gap. We record the plan table as shown.",
     "Where our own side says Unknown, the evidence for Peakhour is still being verified and nothing is claimed.",

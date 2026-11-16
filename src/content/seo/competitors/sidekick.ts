@@ -20,7 +20,7 @@ export const SIDEKICK: CompetitorBrief = {
     "Peakhour and Shopify Sidekick compared: Sidekick helps you run the store in the admin; Peakhour also answers shoppers. Sourced and dated.",
   h1: "Peakhour vs Shopify Sidekick",
   directAnswer:
-    "Shopify Sidekick is Shopify's AI assistant for the merchant: it works with your store data in the Shopify admin and, Shopify says, is included with your Shopify plan. It is not a chat for your shoppers, so the two do different jobs and can sit side by side. Peakhour also has an assistant for the merchant, and adds an AI shopping assistant and product shelves on your storefront. Every answer below links to Shopify's own page and shows the date we read it.",
+    "Shopify Sidekick is Shopify's AI assistant for the merchant: it works with your store data in the Shopify admin and, Shopify says, is included with your Shopify plan. It is not a chat for your shoppers, so the two do different jobs and can sit side by side. Peakhour does not act inside your Shopify admin; it adds an AI shopping assistant and product shelves on your storefront. Every answer below links to Shopify's own page and shows the date we read it.",
   buyerUseCases: [
     { title: "Running the store faster", body: "You want help with admin tasks, reports and content, from inside Shopify." },
     { title: "Answering shoppers", body: "You want an assistant that talks to shoppers on the storefront." },
@@ -29,14 +29,14 @@ export const SIDEKICK: CompetitorBrief = {
   ],
   claims: [
     {
-      dimension: "An AI assistant for you, the merchant",
+      dimension: "An AI assistant for you, the merchant, inside the Shopify admin",
       vendor: { value: "yes", note: "An AI-enabled commerce assistant that works with your store data and takes action in your admin; changes are presented for your review before they apply.", source: S.page, observedAt: D },
-      peakhour: PEAKHOUR.askPeakhour,
+      peakhour: { ...pending(), note: "Peakhour's own assistant for you works in the Peakhour dashboard; it does not read or act in your Shopify admin." },
     },
     {
       dimension: "Writes content such as product descriptions",
       vendor: { value: "yes", note: "It can create content such as product descriptions and images.", source: S.help, observedAt: D },
-      peakhour: pending(),
+      peakhour: PEAKHOUR.productDescriptions,
     },
     {
       dimension: "Chat that answers shoppers on your storefront",
@@ -61,7 +61,7 @@ export const SIDEKICK: CompetitorBrief = {
   ],
   pricing: {
     rows: [
-      { plan: "Shopify Sidekick", price: "Shopify says it is included with your Shopify plan; features and usage limits vary by plan", currency: "No charge", region: "Not stated", observedAt: D, source: S.page },
+      { plan: "Shopify Sidekick", price: "Shopify says it is included with your Shopify plan; features and usage limits vary by plan", currency: "No charge", region: "Not stated", observedAt: D, source: S.page, noMoneyPrice: true },
     ],
   },
   bestFor: [
