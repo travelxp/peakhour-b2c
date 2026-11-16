@@ -143,6 +143,10 @@ export const MARKETING_PATHS: readonly MarketingPath[] = [
   { path: "/guides" },
   { path: "/shopify/guides/whatsapp-cod-confirmation" },
   { path: "/coming-soon" },
+  // CMP-A: the Wati, Zoko and GoKwik comparisons (drafts; each 404s on its own until published).
+  { path: "/shopify/compare/wati" },
+  { path: "/shopify/compare/zoko" },
+  { path: "/shopify/compare/gokwik" },
   // SEO-9: the integration and feature pages and their directories, from the registry. A page held in review 404s on its own.
   ...SEO9_PAGES.map((p) => ({ path: p.path })),
 ];
