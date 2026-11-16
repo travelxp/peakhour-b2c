@@ -45,17 +45,18 @@ describe("/auth/accept-invite signup state", () => {
       sendButton().click();
     });
     const alert = host.querySelector('[role="alert"]');
-    expect(alert?.textContent).toBe("Failed to send sign-in link. Try again in a moment.");
+    expect(alert?.textContent).toBe("The sign-in link didn’t send. Try again in a moment.");
+    expect(sendMagicLink).toHaveBeenCalledWith("a@b.co");
     expect(sendButton()).toBeTruthy(); // still on the signup state, can retry
   });
 
-  it("falls back to plain copy, and clears the notice on a successful retry", async () => {
+  it("never shows the raw cause, and clears the notice on a successful retry", async () => {
     vi.mocked(sendMagicLink).mockRejectedValueOnce("boom").mockResolvedValueOnce(undefined as never);
     await openSignup();
     await act(async () => {
       sendButton().click();
     });
-    expect(host.querySelector('[role="alert"]')?.textContent).toBe("The sign-in link didn’t send. Try again.");
+    expect(host.querySelector('[role="alert"]')?.textContent).toBe("The sign-in link didn’t send. Try again in a moment.");
     await act(async () => {
       sendButton().click();
     });

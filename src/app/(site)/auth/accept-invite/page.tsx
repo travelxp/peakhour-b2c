@@ -87,13 +87,9 @@ function AcceptInviteContent() {
     try {
       await sendMagicLink(email);
       setMagicLinkSent(true);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "";
-      setSendError(
-        message
-          ? `${message.replace(/[.!]+$/, "")}. Try again in a moment.`
-          : "The sign-in link didn’t send. Try again.",
-      );
+    } catch {
+      // the cause (a network or API string) is not copy a person can act on
+      setSendError("The sign-in link didn’t send. Try again in a moment.");
     }
   };
 

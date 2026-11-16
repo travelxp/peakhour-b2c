@@ -112,7 +112,7 @@ export default async function TeamsPricingPage() {
                 >
                   Peakhour Suite
                 </Link>{" "}
-                gives a single business the same Peakhour, at a fraction of
+                covers everything Peakhour does for one business, at a fraction of
                 this price. These two are for running many.
               </p>
             )}
