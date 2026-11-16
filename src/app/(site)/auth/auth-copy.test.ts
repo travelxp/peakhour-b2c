@@ -19,9 +19,20 @@ describe("/auth sign-in panel", () => {
 
   it("names only what is live as live, and says beta where it is beta", () => {
     expect(PANEL_LIVE.every((i) => !i.beta)).toBe(true);
-    expect(PANEL_BETA.map((i) => i.name)).toEqual(["Google Business Profile", "Peakhour Summit"]);
+    expect(PANEL_BETA.map((i) => i.name)).toEqual(["Get found on Google", "Grow with Peakhour Summit"]);
     expect(PANEL_BETA.every((i) => i.beta)).toBe(true);
     expect(panel).not.toMatch(/Support|Google Ads|LinkedIn Ads|™/);
+  });
+
+  // Owner, 2026-11-16: the sign-in door spoke as a Shopify app ("Shopify assistant" as the first card). It is generic now:
+  // one card per area of the business, each an outcome; a channel is named only inside a line that is about it.
+  it("is generic: no card is named after a channel, and the panel does not open on Shopify", () => {
+    const names = [...PANEL_LIVE, ...PANEL_BETA].map((i) => i.name);
+    expect(names).toEqual(["Sell", "Publish", "Get found on Google", "Grow with Peakhour Summit"]);
+    for (const n of names) expect(n).not.toMatch(/Shopify|WooCommerce|WordPress|WhatsApp/);
+    expect(PANEL_LIVE[0].line).not.toMatch(/^.{0,20}Shopify/);
+    expect(files[0]).toMatch(/Your AI team behind <span className="daylight-mark">every channel<\/span> you sell on\./);
+    expect(files[0]).not.toMatch(/Your shoppers, answered/);
   });
 
   it("states no number and no price", () => {
