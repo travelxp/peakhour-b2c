@@ -58,6 +58,7 @@ const draft = (over: Partial<FirstRunDraftResponse> = {}): FirstRunDraftResponse
   currency: "INR",
   timeZone: { value: "Asia/Kolkata" },
   offers: [SALES, LEADS, CALLS],
+  locked: [],
   askAboutStores: false,
   playbook: { id: "growth-ecommerce-d2c", version: 3, title: "D2C" },
   channels: [],
@@ -202,7 +203,7 @@ describe("a failed send", () => {
 
 // -- PL-3: "What do you sell?" ---------------------------------------------------------------
 
-const line = (id: string, label: string, over: Partial<DraftLine> = {}): DraftLine => ({ id, label, matched: false, score: 0, why: "", offers: [LEADS], ...over });
+const line = (id: string, label: string, over: Partial<DraftLine> = {}): DraftLine => ({ id, label, matched: false, score: 0, why: "", offers: [LEADS], locked: [], ...over });
 const FLIGHTS = line("flights", "Flights", { matched: true, score: 1, minMonthlyBudget: 30000 });
 const HOTELS = line("hotels", "Hotels", { minMonthlyBudget: 20000 });
 const HOLIDAYS = line("holidays", "Holidays", { matched: true, score: 1, minMonthlyBudget: 10000, offers: [{ ...LEADS, defaultTarget: { kind: "cost_per_outcome", value: 900, low: 300, high: 3000, currency: "INR" } }] });

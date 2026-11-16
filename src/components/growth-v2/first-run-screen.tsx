@@ -6,6 +6,7 @@ import { Building2, MapPin, MessageSquare, Phone, ShoppingCart, Smartphone, type
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { LockedGoalCards, NothingMeasurable } from "./locked-goals";
 import { useConfirmPlan, useFirstRunDraft, usePatchRules, type DraftLine, type DraftOffer, type FirstRunDraftResponse, type OutcomeKind } from "@/lib/api/growth-v2";
 import { useSignalReadiness } from "@/lib/api/growth-v2-signal";
 import { canContinue } from "@/lib/growth-v2-signal";
@@ -299,10 +300,7 @@ export function FirstRunView(p: FirstRunViewProps) {
           <fieldset className="grid gap-2.5">
             <legend className="font-mono text-micro uppercase tracking-[0.2em] text-muted-foreground">1 &middot; What do you want more of?</legend>
             {draft.offers.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Nothing can be measured for this business yet. Connect your shop, your inbox or your analytics in{" "}
-                <Link href="/dashboard/integrations" className="underline underline-offset-2">Connected accounts</Link>, then come back.
-              </p>
+              <NothingMeasurable locked={draft.locked} />
             ) : (
               <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
                 {draft.offers.map((o) => {
@@ -323,6 +321,7 @@ export function FirstRunView(p: FirstRunViewProps) {
                 })}
               </div>
             )}
+            {draft.offers.length > 0 ? <LockedGoalCards locked={draft.locked} /> : null}
             {offer && offer.source === "orders" && offer.focusSuggestions.length > 0 ? <FocusPicker offer={offer} chosen={p.answers.focus} onFocus={p.onFocus} currency={currency} /> : null}
             {!hasStoreOffer ? (
               <div className="grid gap-1.5 rounded-lg border border-dashed p-3 text-sm">
@@ -656,7 +655,7 @@ function LineGoal({ line, p, currency }: { line: DraftLine; p: FirstRunViewProps
     <div className="grid gap-2 rounded-lg border p-3">
       <b className="text-sm">{line.label}</b>
       {line.offers.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Nothing can be measured for {line.label} yet. Untick it, or connect your shop, your inbox or your analytics.</p>
+        <NothingMeasurable locked={line.locked} subject={line.label} />
       ) : (
         <div className="flex flex-wrap gap-2" role="group" aria-label={`What ${line.label} should get you more of`}>
           {line.offers.map((o) => {
@@ -677,6 +676,7 @@ function LineGoal({ line, p, currency }: { line: DraftLine; p: FirstRunViewProps
           })}
         </div>
       )}
+      {line.offers.length > 0 ? <LockedGoalCards locked={line.locked} /> : null}
       {offer && offer.source === "orders" && offer.focusSuggestions.length > 0 ? (
         <FocusPicker offer={offer} chosen={chosenFocus} onFocus={(label) => p.onLineFocus?.(line.id, label)} currency={currency} id={`first-run-focus-${line.id}`} />
       ) : null}

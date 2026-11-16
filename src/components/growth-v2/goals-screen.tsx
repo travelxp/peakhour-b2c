@@ -42,6 +42,7 @@ import {
   type GoalEditForm,
 } from "@/lib/growth-v2-goals";
 import { DescribeGoal } from "./describe-goal";
+import { LockedGoalCards } from "./locked-goals";
 import { PageHead } from "./page-head";
 import { PageShell } from "@/components/dashboard/page-shell";
 import { PendingChangeNote, PlanChangeDialog } from "./plan-change";
@@ -395,6 +396,7 @@ function AddGoalDialog({ m, onClose }: { m: MandateView; onClose: () => void }) 
           ))}
         </select>
       </div>
+      <LockedGoalCards locked={line ? line.locked : lines.length > 0 ? [] : (draft?.locked ?? [])} />
       <div className="grid gap-1.5">
         <label htmlFor="goal-new-target" className="text-sm font-medium">
           {offer?.optimizeFor === "value" ? "Target return (x)" : `Target cost per outcome (${m.currency})`}

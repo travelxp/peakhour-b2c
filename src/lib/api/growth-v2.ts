@@ -613,6 +613,23 @@ export interface DraftOffer {
   startingFrom?: StartingFrom;
 }
 
+/** What would unlock a goal, as the api words it (FR). `url` is set only for Google's own help page. */
+export type NeedTarget = "connected_accounts" | "your_business" | "ga4_key_events_help";
+export interface DraftNeed {
+  need: string;
+  /** One plain sentence in the merchant's words. */
+  sentence: string;
+  target: NeedTarget;
+  url?: string;
+}
+/** A goal the business could plausibly have but cannot be measured on yet: shown dimmed, never selectable. */
+export interface DraftLockedGoal {
+  kind: OutcomeKind;
+  label: string;
+  /** Never empty; the first is the one a card shows. */
+  needs: DraftNeed[];
+}
+
 export interface DraftChannel {
   platform: AdPlatform;
   role: "lead" | "test";
@@ -635,6 +652,8 @@ export interface FirstRunDraftResponse {
   /** The business clock. Absent until it is set; the mandate cannot be confirmed without it. */
   timeZone: { value: string } | { absent: string; suggested?: string };
   offers: DraftOffer[];
+  /** FR: the plausible goals that are not offered, with what unlocks each. */
+  locked: DraftLockedGoal[];
   askAboutStores: boolean;
   /** `line` is the business's own line (PL-1). */
   playbook?: { id: string; version: number; title: string; line?: { id: string; label: string } };
@@ -659,6 +678,8 @@ export interface DraftLine {
   why: string;
   /** The outcomes it may be measured on, with its own default targets. */
   offers: DraftOffer[];
+  /** FR: the plausible goals this line cannot be measured on yet. */
+  locked: DraftLockedGoal[];
   /** Its minimum monthly budget in the plan's currency, for the suggested split. */
   minMonthlyBudget?: number;
 }
