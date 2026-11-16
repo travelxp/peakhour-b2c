@@ -6,7 +6,7 @@ import { ComparisonPage } from "@/components/marketing/seo/templates";
 import { buildComparisonContent } from "@/content/seo/competitors/build";
 import { getBrief } from "@/content/seo/competitors";
 import { getPage } from "@/lib/seo/pages";
-import { isPreviewable, isPublishable } from "@/lib/seo/publish";
+import { canOpen } from "@/lib/seo/publish";
 
 /**
  * The body of a /shopify/compare/<vendor> page, from its competitor brief. notFound() unless the page is publishable
@@ -18,7 +18,7 @@ export async function renderCompare(slug: string) {
   const brief = getBrief(slug);
   if (!brief) notFound();
   const page = getPage(brief.pageId);
-  if (!isPublishable(page) && !isPreviewable(page)) notFound();
+  if (!canOpen(page)) notFound();
   return (
     <div className="theme-daylight flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
       <Header />

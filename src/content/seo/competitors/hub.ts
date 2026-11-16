@@ -1,7 +1,7 @@
 import type { DirectoryContent, DirectoryGroup, DirectoryItem } from "@/components/marketing/seo/content-types";
 import { CANDIDATES } from "@/lib/seo/candidates";
 import { getPage } from "@/lib/seo/pages";
-import { isPreviewable, isPublishable } from "@/lib/seo/publish";
+import { canOpen, isPublishable } from "@/lib/seo/publish";
 import { pathFor } from "@/lib/seo/resolve";
 import type { PageRecord } from "@/lib/seo/types";
 import { COMPETITOR_BRIEFS } from "./index";
@@ -47,6 +47,24 @@ const SHOPIFY_JOBS: readonly Job[] = [
     blurb: "Apps that fix product pages, images and structured data for search, and write blog posts.",
     slugs: ["tinyimg", "searchpie", "seowill"],
   },
+  {
+    id: "seo-audits",
+    title: "SEO audits",
+    blurb: "Apps that scan your store for search problems and fix them.",
+    slugs: ["plug-in-seo", "booster-seo"],
+  },
+  {
+    id: "product-content",
+    title: "Product content",
+    blurb: "Tools that write product descriptions and catalogue copy.",
+    slugs: ["describely", "hypotenuse"],
+  },
+  {
+    id: "discounts",
+    title: "Discounts and promotions",
+    blurb: "Apps that run sales, automatic discounts and promotion rules.",
+    slugs: ["bold-discounts", "discount-ninja"],
+  },
 ];
 
 const GLOBAL_JOBS: readonly Job[] = [
@@ -69,11 +87,6 @@ const OTHER: Omit<Job, "slugs"> = { id: "more", title: "More comparisons", blurb
 export const jobsFor = (scope: DirectoryScope): readonly Job[] => (scope === "global" ? GLOBAL_JOBS : SHOPIFY_JOBS);
 
 const inScope = (b: CompetitorBrief, scope: DirectoryScope) => compareRoute(b).global === (scope === "global");
-
-/** Whether a visitor can open the comparison page: published, or a draft off production. */
-export function canOpen(page: PageRecord): boolean {
-  return isPublishable(page) || isPreviewable(page);
-}
 
 /** The briefs of a scope whose page a visitor can open, in brief order. */
 export function visibleBriefs(scope: DirectoryScope): CompetitorBrief[] {
@@ -147,8 +160,9 @@ export function directoryContent(scope: DirectoryScope): DirectoryContent {
           { label: "Peakhour for Shopify", href: pathFor("shopify"), note: "What the Shopify app does, on one page." },
           { label: "Peakhour pricing in Peaks", href: pathFor("pricing"), note: "What the plan includes and how Peaks are used." },
         ],
+    // The closing band's words match the page's own button (Install on Shopify, or Join the waitlist) and fit every comparison listed.
     closing: shopify
-      ? { headline: "See it on your own store.", body: "Join the waitlist and we will show you the assistant and shelves on your catalogue." }
+      ? { headline: "See it on your own store.", body: "Install Peakhour on your Shopify store and see it work on your own products and orders." }
       : { headline: "See it on your own business.", body: "Join the waitlist and we will walk you through Peakhour using your own accounts." },
   };
 }

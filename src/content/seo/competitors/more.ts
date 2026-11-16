@@ -1,9 +1,10 @@
 import type { DirectoryItem, LinkItem, MoreContent } from "@/components/marketing/seo/content-types";
 import { DIRECTORY_CAPABILITIES } from "@/content/pages/shopify.features";
 import { CAPABILITIES, getCapability } from "@/lib/seo/capabilities";
+import { capabilityFacts, firstSentence } from "@/content/pages/shopify-feature-kit";
 import { cardLabel } from "@/lib/seo/labels";
 import { PAGES, getPage } from "@/lib/seo/pages";
-import { isPreviewable, isPublishable, statusSatisfies } from "@/lib/seo/publish";
+import { canOpen, statusSatisfies } from "@/lib/seo/publish";
 import { pathFor } from "@/lib/seo/resolve";
 import type { PageFamily, PageRecord, ReleaseStatus } from "@/lib/seo/types";
 import { compareRoute } from "./route";
@@ -23,8 +24,6 @@ import type { CompetitorBrief } from "./types";
 /** A card and the capability it stands for, so a test can prove no card repeats a table row. */
 export type MoreItem = { capabilityId: string; item: DirectoryItem };
 
-// A comparison is not a feature page, and a hub (family core) covers a whole pillar, so neither is the page ABOUT one capability.
-const NOT_FEATURE_PAGES: readonly PageFamily[] = ["compare", "shopify-compare", "core"];
 
 /** A claim about how data is held, not something a merchant switches on, so it is not a feature to list beside a comparison. */
 const NOT_A_FEATURE = "platform.security";
@@ -39,11 +38,6 @@ export function comparedCapabilityIds(b: CompetitorBrief): Set<string> {
   return ids;
 }
 
-/** The first sentence of a claim: shorter than the claim, never different from it. */
-export function firstSentence(text: string): string {
-  return text.split(/(?<=[.!?])\s/)[0] ?? text;
-}
-
 /** The shortest approved claim the status satisfies, as its first sentence; undefined when none is satisfied. */
 function claimFor(capabilityId: string, status: ReleaseStatus): string | undefined {
   const cap = getCapability(capabilityId);
@@ -52,31 +46,27 @@ function claimFor(capabilityId: string, status: ReleaseStatus): string | undefin
   return firstSentence([...ok].sort((a, b) => a.text.length - b.text.length)[0]!.text);
 }
 
-/** Whether a visitor can open `target` from the comparison page: a published page links only to published pages, a draft to any previewable one. */
-function openable(selfPublic: boolean, target: PageRecord): boolean {
-  return selfPublic ? isPublishable(target) : isPublishable(target) || isPreviewable(target);
-}
+const FAMILY_RANK: Partial<Record<PageFamily, number>> = { feature: 0, integration: 1 };
 
-const FAMILY_RANK: Partial<Record<PageFamily, number>> = { feature: 0, "shopify-feature": 1, integration: 2 };
+/** A card shows its claim only when the first sentence is short enough for a compact card; a long one is left out whole, never cut. */
+const MAX_LINE = 120;
 
 /**
- * The page that is ABOUT a capability, so the card's label and link say what its claim says: the directory's own page for it, else
- * a page that lists it alone, else one that lists it first. A page that merely mentions it among several is not its page.
+ * The cross-platform page that is ABOUT a capability, for a global comparison: a /features or /integrations page that lists it
+ * alone, else first. A Shopify feature page is never it: a global reader is not sent to a Shopify-only page.
  */
-function ownerPage(capabilityId: string, selfPublic: boolean): PageRecord | undefined {
-  const designated = DIRECTORY_CAPABILITIES.find((d) => d.capabilityId === capabilityId)?.pageId;
-  if (designated && openable(selfPublic, getPage(designated))) return getPage(designated);
-  const candidates = [
+function globalOwnerPage(capabilityId: string): PageRecord | undefined {
+  return [
     ...PAGES.filter((p) => p.capabilityIds.length === 1 && p.capabilityIds[0] === capabilityId),
     ...PAGES.filter((p) => p.capabilityIds[0] === capabilityId),
-  ].filter((p) => !NOT_FEATURE_PAGES.includes(p.family) && openable(selfPublic, p));
-  return candidates.sort((a, z) => (FAMILY_RANK[a.family] ?? 9) - (FAMILY_RANK[z.family] ?? 9))[0];
+  ]
+    .filter((p) => FAMILY_RANK[p.family] !== undefined && canOpen(p))
+    .sort((a, z) => (FAMILY_RANK[a.family] ?? 9) - (FAMILY_RANK[z.family] ?? 9))[0];
 }
 
 /** The cards, with the capability each stands for. */
-export function moreItems(b: CompetitorBrief, page: PageRecord = getPage(b.pageId)): MoreItem[] {
+export function moreItems(b: CompetitorBrief): MoreItem[] {
   const covered = comparedCapabilityIds(b);
-  const selfPublic = isPublishable(page);
   const out: MoreItem[] = [];
 
   if (!compareRoute(b).global) {
@@ -84,20 +74,16 @@ export function moreItems(b: CompetitorBrief, page: PageRecord = getPage(b.pageI
     for (const d of DIRECTORY_CAPABILITIES) {
       if (covered.has(d.capabilityId)) continue;
       const cap = getCapability(d.capabilityId);
-      const impl = cap?.implementations.find((i) => i.surface === d.surface);
-      if (!cap || !impl || (impl.status !== "live" && impl.status !== "beta")) continue;
-      const body = claimFor(d.capabilityId, impl.status);
-      if (!body) continue;
+      if (!cap) continue;
+      const { status } = capabilityFacts(d.capabilityId, d.surface);
+      if (status !== "live" && status !== "beta") continue;
+      const claim = claimFor(d.capabilityId, status);
+      if (!claim) continue;
       const own = d.pageId ? getPage(d.pageId) : undefined;
-      const href =
-        own && openable(selfPublic, own)
-          ? pathFor(own.pageId)
-          : openable(selfPublic, directory)
-            ? `${pathFor(directory.pageId)}#${d.groupId}`
-            : undefined;
+      const href = own && canOpen(own) ? pathFor(own.pageId) : canOpen(directory) ? `${pathFor(directory.pageId)}#${d.groupId}` : undefined;
       out.push({
         capabilityId: d.capabilityId,
-        item: { title: own ? cardLabel(own) : cap.label, body, status: impl.status, ...(href ? { href } : {}) },
+        item: { title: own ? cardLabel(own) : cap.label, body: claim.length <= MAX_LINE ? claim : "", status, ...(href ? { href } : {}) },
       });
     }
     return out;
@@ -110,33 +96,38 @@ export function moreItems(b: CompetitorBrief, page: PageRecord = getPage(b.pageI
     if (covered.has(cap.id) || cap.id.startsWith("integration.") || cap.id === NOT_A_FEATURE) continue;
     const impl = cap.implementations.find((i) => i.status === "live" && i.surface !== "shopify");
     if (!impl) continue;
-    const body = claimFor(cap.id, impl.status);
-    if (!body) continue;
-    const own = ownerPage(cap.id, selfPublic);
-    out.push({ capabilityId: cap.id, item: { title: own ? cardLabel(own) : cap.label, body, status: impl.status, ...(own ? { href: pathFor(own.pageId) } : {}) } });
+    const { status } = capabilityFacts(cap.id, impl.surface);
+    const claim = claimFor(cap.id, status);
+    if (!claim) continue;
+    const own = globalOwnerPage(cap.id);
+    out.push({
+      capabilityId: cap.id,
+      item: { title: own ? cardLabel(own) : cap.label, body: claim.length <= MAX_LINE ? claim : "", status, ...(own ? { href: pathFor(own.pageId) } : {}) },
+    });
   }
   return out;
 }
 
-const directoryLink = (selfPublic: boolean, pageId: string, label: string): LinkItem[] =>
-  openable(selfPublic, getPage(pageId)) ? [{ label, href: pathFor(pageId) }] : [];
+const directoryLink = (pageId: string, label: string): LinkItem[] => (canOpen(getPage(pageId)) ? [{ label, href: pathFor(pageId) }] : []);
 
 /** The block for a comparison page, or undefined when there is nothing beyond the table to say. */
-export function buildMore(b: CompetitorBrief, page: PageRecord = getPage(b.pageId)): MoreContent | undefined {
-  const items = moreItems(b, page).map((m) => m.item);
+export function buildMore(b: CompetitorBrief): MoreContent | undefined {
+  const items = moreItems(b).map((m) => m.item);
   if (items.length === 0) return undefined;
-  const selfPublic = isPublishable(page);
-  return compareRoute(b).global
-    ? {
-        heading: "Beyond this comparison, Peakhour Suite also does this",
-        intro: "None of these is a row in the table above. Each is live today. Shopify stores have more, in the Shopify list.",
-        items,
-        links: [...directoryLink(selfPublic, "features.index", "See every feature"), ...directoryLink(selfPublic, "shopify.features", "See every Shopify feature")],
-      }
-    : {
-        heading: "Beyond this comparison, Peakhour Suite for Shopify also does this",
-        intro: "None of these is a row in the table above. Each is live or in beta on Shopify today, and its status is on the card.",
-        items,
-        links: directoryLink(selfPublic, "shopify.features", "See every Shopify feature"),
-      };
+  const shopifyLink = directoryLink("shopify.features", "See every Shopify feature");
+  if (!compareRoute(b).global) {
+    return {
+      heading: "Beyond this comparison, Peakhour Suite for Shopify also does this",
+      intro: "None of these is a row in the table above. Each is live or in beta on Shopify today, and its status is on the card.",
+      items,
+      links: shopifyLink,
+    };
+  }
+  return {
+    heading: "Beyond this comparison, Peakhour Suite also does this",
+    // The sentence about Shopify stores stands only while its link is on the page.
+    intro: `None of these is a row in the table above. Each is live today.${shopifyLink.length > 0 ? " Shopify stores have more, in the Shopify list." : ""}`,
+    items,
+    links: [...directoryLink("features.index", "See every feature"), ...shopifyLink],
+  };
 }

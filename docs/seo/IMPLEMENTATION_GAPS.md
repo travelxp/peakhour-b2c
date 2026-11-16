@@ -122,8 +122,8 @@ Regenerate with `npx tsx scripts/seo/report-pages.ts --write`. A test fails when
 | `/shopify/compare/booster-seo` | shopify-compare | review | `content.seo_audit`, `content.ai_seo_fixes`, `content.ai_product_descriptions` |
 | `/shopify/compare/discount-ninja` | shopify-compare | review | `growth.ai_growth_campaigns`, `commerce.buy_together_bundles`, `commerce.automatic_markdowns` |
 | `/shopify/compare/bold-discounts` | shopify-compare | review | `growth.ai_growth_campaigns`, `commerce.automatic_markdowns` |
-| `/shopify/compare` | shopify-compare | review | none (no capability claim) |
-| `/compare` | compare | review | none (no capability claim) |
+| `/shopify/compare` | core | review | none (no capability claim) |
+| `/compare` | core | review | none (no capability claim) |
 
 <!-- pages:end -->
 

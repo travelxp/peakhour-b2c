@@ -2,7 +2,7 @@ import Link from "next/link";
 import { DirectoryGrid } from "@/components/marketing/seo/directory-grid";
 import { topComparisons } from "@/content/seo/competitors/hub";
 import { getPage } from "@/lib/seo/pages";
-import { isPreviewable, isPublishable } from "@/lib/seo/publish";
+import { canOpen } from "@/lib/seo/publish";
 import { pathFor } from "@/lib/seo/resolve";
 
 /**
@@ -13,7 +13,7 @@ export function ShopifyCompareSection() {
   const items = topComparisons(3);
   if (items.length === 0) return null;
   const directory = getPage("shopify.compare");
-  const showDirectory = isPublishable(directory) || isPreviewable(directory);
+  const showDirectory = canOpen(directory);
   return (
     <section id="compare" aria-labelledby="compare-h" className="scroll-mt-20 border-t py-14 sm:py-20">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">

@@ -71,18 +71,21 @@ const bandTone = (index: number) => (index % 2 === 0 ? "plain" : "muted");
 export function ShopifyFeaturePage({ page, content }: { page: PageRecord; content: ShopifyFeatureContent }) {
   // The comparison pages whose table covers this page's capability: published ones only on production, drafts too on dev.
   const compared = comparedWith(page);
+  // Bands alternate plain and muted from the status band. With a "Compared" band the count runs back from the FAQ (plain), so the last band is muted and no two plain bands meet.
+  const total = (content.sections?.length ?? 0) + 3 + (compared.length > 0 ? 1 : 0);
+  const tone = (i: number) => (compared.length > 0 ? ((total - 1 - i) % 2 === 0 ? "muted" : "plain") : bandTone(i));
   return (
     <Frame page={page} content={content}>
-      <Section id="status" eyebrow="On Shopify" title="Where this stands on Shopify">
+      <Section id="status" eyebrow="On Shopify" title="Where this stands on Shopify" tone={tone(0)}>
         <CapabilityStatus status={content.status} limitations={content.limitations} verifiedAt={content.verifiedAt} subject="On Shopify" />
       </Section>
       {content.sections?.map((s, i) => (
-        <DetailSection key={s.id} section={s} tone={bandTone(i + 1)} />
+        <DetailSection key={s.id} section={s} tone={tone(i + 1)} />
       ))}
-      <Section id="setup" eyebrow="Set up" title="Install to first result." tone={bandTone((content.sections?.length ?? 0) + 1)}>
+      <Section id="setup" eyebrow="Set up" title="Install to first result." tone={tone((content.sections?.length ?? 0) + 1)}>
         <WorkflowSteps steps={content.setupSteps} />
       </Section>
-      <Section id="permissions" eyebrow="Permissions" title="What the app asks for, and why." tone={bandTone((content.sections?.length ?? 0) + 2)}>
+      <Section id="permissions" eyebrow="Permissions" title="What the app asks for, and why." tone={tone((content.sections?.length ?? 0) + 2)}>
         {content.permissions.length === 0 ? (
           <p className={`${cardCls} max-w-2xl p-5 text-[15px] text-muted-foreground`}>{content.permissionsNote}</p>
         ) : (
@@ -114,7 +117,7 @@ export function ShopifyFeaturePage({ page, content }: { page: PageRecord; conten
           eyebrow="Compare"
           title="Compared with other apps."
           intro="Side-by-side comparisons whose table covers this feature, each with its sources and the date it was checked."
-          tone={bandTone((content.sections?.length ?? 0) + 3)}
+          tone={tone((content.sections?.length ?? 0) + 3)}
         >
           <DirectoryGrid items={compared} compact />
         </Section>

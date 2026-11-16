@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Footer } from "@/components/shared/footer";
 import { Header } from "@/components/shared/header";
 import { getPage } from "@/lib/seo/pages";
-import { isPreviewable, isPublishable } from "@/lib/seo/publish";
+import { canOpen } from "@/lib/seo/publish";
 
 /**
  * The route wrapper for a registry page built from the SEO kit: 404 unless the page is publishable (production) or a
@@ -12,7 +12,7 @@ import { isPreviewable, isPublishable } from "@/lib/seo/publish";
  */
 export function renderablePage(pageId: string) {
   const page = getPage(pageId);
-  if (!isPublishable(page) && !isPreviewable(page)) notFound();
+  if (!canOpen(page)) notFound();
   return page;
 }
 

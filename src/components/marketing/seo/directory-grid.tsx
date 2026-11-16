@@ -19,7 +19,7 @@ function CardBody({ it, linked, compact }: { it: DirectoryItem; linked: boolean;
           {it.status && <StatusChip status={it.status} className="shrink-0" />}
         </span>
       </span>
-      <span className="text-[15px] text-muted-foreground">{it.body}</span>
+      {it.body && <span className="text-[15px] text-muted-foreground">{it.body}</span>}
       {it.meta && <span className="text-sm text-muted-foreground">{it.meta}</span>}
       {(it.pillar || linked) && (
         <span className="mt-auto flex items-center gap-2 pt-1 text-sm font-bold">
@@ -40,7 +40,9 @@ function CardBody({ it, linked, compact }: { it: DirectoryItem; linked: boolean;
  */
 export function DirectoryGrid({ items, balanced = false, compact = false }: { items: DirectoryItem[]; balanced?: boolean; compact?: boolean }) {
   const cardBase = compact ? compactCls : cardCls;
-  const cols = !balanced
+  const cols = compact && !balanced
+    ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+    : !balanced
     ? "grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3"
     : items.length % 3 === 0
       ? "grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 sm:max-lg:[&>li:last-child:nth-child(odd)]:col-span-2"

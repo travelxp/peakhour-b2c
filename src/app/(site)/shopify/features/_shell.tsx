@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { Footer } from "@/components/shared/footer";
 import { Header } from "@/components/shared/header";
 import { getPage } from "@/lib/seo/pages";
-import { isPreviewable, isPublishable } from "@/lib/seo/publish";
+import { canOpen } from "@/lib/seo/publish";
 import type { PageRecord } from "@/lib/seo/types";
 
 /**
@@ -12,7 +12,7 @@ import type { PageRecord } from "@/lib/seo/types";
  */
 export function featureRecord(pageId: string): PageRecord {
   const page = getPage(pageId);
-  if (!isPublishable(page) && !isPreviewable(page)) notFound();
+  if (!canOpen(page)) notFound();
   return page;
 }
 

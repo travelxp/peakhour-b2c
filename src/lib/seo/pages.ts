@@ -3,6 +3,7 @@ import { SEO9_PAGES } from "./pages-seo9";
 import { SF2_PAGES } from "./pages-sf2";
 import { COMPETITOR_BRIEFS } from "@/content/seo/competitors";
 import { compareRoute } from "@/content/seo/competitors/route";
+import { isPublishable } from "./publish";
 import type { CtaKind, EditorialStatus, PageFamily, PageRecord, PageScope, Pillar, Surface } from "./types";
 
 /*
@@ -86,6 +87,7 @@ const COMPARE_PAGES: readonly PageRecord[] = COMPETITOR_BRIEFS.map((b) => {
     description: b.description,
     h1: b.h1,
     cta: LAUNCH_PARTNER_CTA,
+    parentId: route.global ? "compare" : "shopify.compare",
     relatedIds: b.relatedIds ?? ["shopify", "pricing"],
     editorialStatus: "review",
     indexable: false,
@@ -98,12 +100,14 @@ const COMPARE_PAGES: readonly PageRecord[] = COMPETITOR_BRIEFS.map((b) => {
  * until then it is `review`, a draft on dev and a 404 on production.
  */
 export function compareDirectories(children: readonly PageRecord[]): PageRecord[] {
-  const live = (family: PageFamily) => children.some((c) => c.family === family && c.editorialStatus === "published" && c.indexable);
+  // The full publish gate, capabilities included: a child that is published and indexable but fails its capability 404s on production, and a directory of such children would be an empty page.
+  const live = (family: PageFamily) => children.some((c) => c.family === family && isPublishable(c));
   return [
     page({
       pageId: "shopify.compare",
       path: "/shopify/compare",
-      family: "shopify-compare",
+      // Family core, like the audit's /compare: `compare` and `shopify-compare` stay the families of the comparison pages themselves.
+      family: "core",
       surface: "shopify",
       primaryPillar: "commerce",
       parentId: "shopify",
@@ -120,7 +124,7 @@ export function compareDirectories(children: readonly PageRecord[]): PageRecord[
     page({
       pageId: "compare",
       path: "/compare",
-      family: "compare",
+      family: "core",
       parentId: "home",
       queryClusterId: "compare-directory",
       title: "Peakhour compared with other tools",

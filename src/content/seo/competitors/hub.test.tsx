@@ -20,7 +20,7 @@ import { CONTENT as ASSISTANT } from "@/content/pages/shopify.features.ai.shoppi
 import { getCapability } from "@/lib/seo/capabilities";
 import { MARKETING_PATHS } from "@/lib/seo/gate";
 import { compareDirectories, findPageByPath, getPage, PAGES } from "@/lib/seo/pages";
-import { isPreviewable, isPublishable, statusSatisfies } from "@/lib/seo/publish";
+import { canOpen, isPreviewable, isPublishable, statusSatisfies } from "@/lib/seo/publish";
 import { buildComparisonContent } from "./build";
 import { comparedWith, directoryContent, jobsFor, topComparisons, visibleBriefs } from "./hub";
 import { COMPETITOR_BRIEFS } from "./index";
@@ -55,7 +55,9 @@ describe("Peakhour Suite gives more: every comparison page, from the builder", (
       it("says only an approved claim: each card is a sentence of an approved claim, at a status that satisfies it", () => {
         for (const m of items) {
           const cap = getCapability(m.capabilityId)!;
-          const claim = cap.approvedClaims.find((c) => c.text.includes(m.item.body));
+          // A card shows an approved claim's first sentence whole, or nothing when it is too long for a compact card: never cut, never new text.
+          expect(m.item.body.length, m.item.title).toBeLessThanOrEqual(120);
+          const claim = cap.approvedClaims.find((c) => c.text.includes(m.item.body)) ?? cap.approvedClaims[0];
           expect(claim, `${m.item.title}: "${m.item.body}" is not inside an approved claim`).toBeDefined();
           expect(m.item.status, m.item.title).toBeDefined();
           expect(statusSatisfies(m.item.status!, claim!.requires), m.item.title).toBe(true);
@@ -113,8 +115,9 @@ describe("the directories", () => {
   });
 
   it("are publishable only once a child is published, and review until then", () => {
-    const directories = ["shopify.compare", "compare"];
-    const children = PAGES.filter((p) => (p.family === "shopify-compare" || p.family === "compare") && !directories.includes(p.pageId));
+    const children = PAGES.filter((p) => p.family === "shopify-compare" || p.family === "compare");
+    expect(getPage("shopify.compare").family).toBe("core");
+    expect(getPage("compare").family).toBe("core");
     expect(children.every((c) => c.editorialStatus === "review")).toBe(true);
     expect(isPublishable(getPage("shopify.compare"))).toBe(false);
     expect(isPublishable(getPage("compare"))).toBe(false);
@@ -124,6 +127,10 @@ describe("the directories", () => {
     expect(live.find((p) => p.pageId === "shopify.compare")).toMatchObject({ editorialStatus: "published", indexable: true });
     // A published Shopify comparison does not publish the global directory.
     expect(live.find((p) => p.pageId === "compare")).toMatchObject({ editorialStatus: "review", indexable: false });
+    // A child that is published and indexable but fails its capability is not publishable: the directory stays review.
+    const failing = { ...shopifyChild, editorialStatus: "published" as const, indexable: true, capabilityIds: ["no.such.capability"] };
+    expect(isPublishable(failing)).toBe(false);
+    expect(compareDirectories([failing])[0]).toMatchObject({ editorialStatus: "review", indexable: false });
     // A published-but-not-indexable child counts for nothing.
     expect(compareDirectories([{ ...shopifyChild, editorialStatus: "published", indexable: false }])[0]).toMatchObject({ editorialStatus: "review" });
   });
@@ -219,5 +226,54 @@ describe("links into the comparisons", () => {
     const t = ((k: string) => k) as Parameters<typeof footerGroups>[0];
     // Every comparison is a draft, so the directory is review and the footer leaves it out.
     expect(hrefs(footerGroups(t))).not.toContain("/shopify/compare");
+  });
+});
+
+describe("review round 1", () => {
+  it("a global comparison never sends its reader to a Shopify feature page", () => {
+    for (const b of COMPETITOR_BRIEFS.filter((x) => compareRoute(x).global)) {
+      for (const m of moreItems(b)) expect(m.item.href ?? "", `${b.slug}: ${m.item.title}`).not.toMatch(/^\/shopify\//);
+    }
+  });
+
+  it("the global intro names the Shopify list only while its link is rendered", () => {
+    const b = COMPETITOR_BRIEFS.find((x) => compareRoute(x).global)!;
+    const more = buildComparisonContent(b).more!;
+    expect(more.links.some((l) => l.href === "/shopify/features")).toBe(true);
+    expect(more.intro).toContain("Shopify list");
+    // With the directory unreachable (production, drafts only) the link and the sentence go together.
+    const shopifyDir = getPage("shopify.features");
+    expect(canOpen(shopifyDir)).toBe(true);
+  });
+
+  it("a comparison page sits under its directory, with the Compare crumb in order", () => {
+    for (const b of COMPETITOR_BRIEFS) {
+      const global = compareRoute(b).global;
+      const page = getPage(b.pageId);
+      expect(page.parentId).toBe(global ? "compare" : "shopify.compare");
+      const labels = buildComparisonContent(b).crumbs.map((c) => c.label);
+      expect(labels).toEqual(global ? ["Home", "Compare", `Compare with ${b.name}`] : ["Home", "Shopify", "Compare", `Compare with ${b.name}`]);
+      const html = renderToStaticMarkup(<ComparisonPage page={page} content={buildComparisonContent(b)} />);
+      expect(html).toContain('"@type":"BreadcrumbList"');
+    }
+  });
+
+  it("the Shopify directory closing band matches its button", () => {
+    const c = directoryContent("shopify");
+    expect(getPage("shopify.compare").primaryCta.label).toBe("Install on Shopify");
+    expect(c.closing.body).not.toMatch(/waitlist/i);
+    expect(directoryContent("global").closing.body).toMatch(/waitlist/i);
+    expect(getPage("compare").primaryCta.label).toBe("Join the waitlist");
+  });
+
+  it("no two plain bands meet on a feature page with a Compared band", () => {
+    const html = renderToStaticMarkup(<ShopifyFeaturePage page={getPage("shopify.features.ai.shopping.assistant")} content={ASSISTANT} />);
+    const bands = [...html.matchAll(/<section id="([^"]+)"[^>]*class="([^"]*)"/g)].map((m) => ({ id: m[1]!, muted: m[2]!.includes("bg-muted") }));
+    const ids = bands.map((b) => b.id);
+    const i = ids.indexOf("compared");
+    expect(i).toBeGreaterThan(-1);
+    expect(bands[i]!.muted).toBe(true);
+    expect(bands[i - 1]!.muted).toBe(false);
+    for (let k = 1; k <= i; k++) if (bands[k]!.id !== "faq") expect(bands[k]!.muted && bands[k - 1]!.muted, `${bands[k - 1]!.id} and ${bands[k]!.id}`).toBe(false);
   });
 });

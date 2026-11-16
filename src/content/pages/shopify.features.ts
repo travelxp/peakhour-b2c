@@ -4,7 +4,7 @@ import { isPublishable } from "@/lib/seo/publish";
 import { pathFor } from "@/lib/seo/resolve";
 import { SHOPIFY_GROUPS, type ShopifyFeature } from "@/lib/shopify-features";
 import type { Surface } from "@/lib/seo/types";
-import { capabilityFacts, PRICING_LINK, SHOPIFY_HOME_LINK } from "./shopify-feature-kit";
+import { capabilityFacts, firstSentence, PRICING_LINK, SHOPIFY_HOME_LINK } from "./shopify-feature-kit";
 
 /*
  * The directory lists EVERY Shopify app feature, in the groups the /shopify page uses (SHOPIFY_GROUPS), so a merchant finds
@@ -164,7 +164,6 @@ export const DIRECTORY_CAPABILITIES: readonly DirectoryCapability[] = (() => {
 })();
 
 const FEATURES = new Map<string, ShopifyFeature>(SHOPIFY_GROUPS.flatMap((g) => g.features.map((f) => [f.id, f] as const)));
-const firstSentence = (s: string) => s.split(/(?<=[.!?])\s/)[0] ?? s;
 
 /** Where a card with no page of its own goes: its place on /shopify, which anchors every SHOPIFY_GROUPS entry by id. */
 const onShopifyPage = (id: string) => `${pathFor("shopify")}#${id}`;
