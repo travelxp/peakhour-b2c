@@ -230,6 +230,13 @@ describe("links into the comparisons", () => {
 });
 
 describe("review round 1", () => {
+  it("every brief sits under a named job, so nothing lands in More comparisons by accident", () => {
+    for (const scope of ["shopify", "global"] as const) {
+      const named = new Set(jobsFor(scope).flatMap((j) => j.slugs));
+      for (const b of COMPETITOR_BRIEFS.filter((x) => compareRoute(x).global === (scope === "global"))) expect(named.has(b.slug), `add ${b.slug} to a job in hub.ts`).toBe(true);
+    }
+  });
+
   it("a global comparison never sends its reader to a Shopify feature page", () => {
     for (const b of COMPETITOR_BRIEFS.filter((x) => compareRoute(x).global)) {
       for (const m of moreItems(b)) expect(m.item.href ?? "", `${b.slug}: ${m.item.title}`).not.toMatch(/^\/shopify\//);

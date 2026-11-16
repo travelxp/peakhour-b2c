@@ -27,7 +27,7 @@ const SHOPIFY_JOBS: readonly Job[] = [
     id: "whatsapp-cod",
     title: "WhatsApp and cash on delivery",
     blurb: "Tools for talking to shoppers on WhatsApp and for confirming cash-on-delivery orders.",
-    slugs: ["aisensy", "interakt", "wati", "zoko", "gokwik"],
+    slugs: ["aisensy", "interakt", "wati", "zoko", "gokwik", "easysell", "releasit"],
   },
   {
     id: "chat-assistants",
@@ -40,6 +40,36 @@ const SHOPIFY_JOBS: readonly Job[] = [
     title: "Recommendations and merchandising",
     blurb: "Apps that choose which products to show, and where, to lift what a shopper adds to the cart.",
     slugs: ["rebuy", "limespot", "nosto"],
+  },
+  {
+    id: "upsells",
+    title: "Upsells and post-purchase",
+    blurb: "Apps that offer more at the cart, the checkout and after the order.",
+    slugs: ["aftersell", "reconvert", "zipify-ocu"],
+  },
+  {
+    id: "bundles",
+    title: "Bundles and bought-together",
+    blurb: "Apps that sell products together and show what shoppers buy as a set.",
+    slugs: ["cbb-frequently-bought-together", "fast-bundle"],
+  },
+  {
+    id: "finders",
+    title: "Product finders",
+    blurb: "Quizzes and finders that turn a few answers into a shortlist.",
+    slugs: ["octane-ai", "revenuehunt"],
+  },
+  {
+    id: "inventory",
+    title: "Inventory and purchase orders",
+    blurb: "Apps that forecast demand and plan what to reorder.",
+    slugs: ["inventory-planner", "prediko"],
+  },
+  {
+    id: "ab-testing",
+    title: "A/B testing",
+    blurb: "Apps that test prices, pages and themes against each other.",
+    slugs: ["intelligems", "shoplift"],
   },
   {
     id: "seo-content",

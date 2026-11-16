@@ -72,7 +72,10 @@ export const META_VIRTUAL_CARDS: MetaVirtualCard[] = [
     getResourceSummary: (extra) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const page = (extra?.pages || []).find((p: any) => p.instagramAccountId);
-      return page ? `@${page.instagramUsername}` : null;
+      if (!page) return null;
+      // The api keeps a linked account whose profile could not be read, with
+      // no username: name it by its Page rather than print "@undefined".
+      return page.instagramUsername ? `@${page.instagramUsername}` : `Linked to ${page.pageName ?? "your Page"}`;
     },
   },
   {

@@ -1,3 +1,11 @@
+// CMP-W3A
+import { AFTERSELL } from "./aftersell";
+import { CBB_FREQUENTLY_BOUGHT_TOGETHER } from "./cbb-frequently-bought-together";
+import { FAST_BUNDLE } from "./fast-bundle";
+import { OCTANE_AI } from "./octane-ai";
+import { RECONVERT } from "./reconvert";
+import { REVENUEHUNT } from "./revenuehunt";
+import { ZIPIFY_OCU } from "./zipify-ocu";
 import { AISENSY } from "./aisensy";
 import { INTERAKT } from "./interakt";
 import { REP_AI } from "./rep-ai";
@@ -22,6 +30,13 @@ import { MANIFEST_AI } from "./manifest-ai";
 import { SHOPIFY_INBOX } from "./shopify-inbox";
 import { SIDEKICK } from "./sidekick";
 import { TIDIO } from "./tidio";
+// CMP-W3B
+import { EASYSELL } from "./easysell";
+import { INTELLIGEMS } from "./intelligems";
+import { INVENTORY_PLANNER } from "./inventory-planner";
+import { PREDIKO } from "./prediko";
+import { RELEASIT } from "./releasit";
+import { SHOPLIFT } from "./shoplift";
 // CMP-W3C
 import { BOLD_DISCOUNTS } from "./bold-discounts";
 import { BOOSTER_SEO } from "./booster-seo";
@@ -57,6 +72,21 @@ const BRIEFS = [
   BUFFER,
   JASPER,
   BIRDEYE,
+  // CMP-W3B: store operations
+  PREDIKO,
+  INVENTORY_PLANNER,
+  INTELLIGEMS,
+  SHOPLIFT,
+  RELEASIT,
+  EASYSELL,
+  // CMP-W3A
+  RECONVERT,
+  AFTERSELL,
+  ZIPIFY_OCU,
+  FAST_BUNDLE,
+  CBB_FREQUENTLY_BOUGHT_TOGETHER,
+  OCTANE_AI,
+  REVENUEHUNT,
   // CMP-W3C
   DESCRIBELY,
   HYPOTENUSE,
