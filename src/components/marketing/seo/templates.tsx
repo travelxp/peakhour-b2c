@@ -467,7 +467,8 @@ export function HubPage({ page, content }: { page: PageRecord; content: HubConte
   return (
     <Frame
       page={page}
-      content={content}
+      // A single child would sit alone in its own grid, so it joins the related links instead.
+      content={children.length === 1 ? { ...content, related: [...content.related, ...children].slice(0, 6) } : content}
       art={
         <aside aria-label={content.controlTitle ?? "You stay in charge"} className={`${cardCls} p-5 shadow-[var(--daylight-shadow)] sm:p-6`}>
           <p className="text-sm font-extrabold uppercase tracking-[0.12em] text-muted-foreground">{content.controlTitle ?? "You stay in charge"}</p>
@@ -505,7 +506,6 @@ export function HubPage({ page, content }: { page: PageRecord; content: HubConte
           </ul>
         </Section>
       )}
-      {/* One card alone in a grid reads as a gap, so a single child is left to the related links. */}
       {children.length > 1 && (
         <Section id="deeper" eyebrow="Go deeper" title="Features and connections" tone={limits.length > 0 && content.platforms.length === 0 ? "muted" : "plain"}>
           <ContextualLinks links={children} />
