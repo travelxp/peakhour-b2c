@@ -149,7 +149,9 @@ describe.each(COMPETITOR_BRIEFS.map((b) => [b.slug, b] as const))("%s brief (Bib
     expect(content.pricing.asOf).toMatch(ISO);
     // One currency is never stated for the whole table: each row's label carries its own, without nested brackets.
     for (const r of content.pricing.rows.filter((x) => x.vendor !== "Peakhour")) {
-      expect(r.plan, r.plan).toMatch(/ · ([A-Z]{3}.*|No charge) · /);
+      // A row with no money price (Shopify's own free or included products) says "No charge"; every other row names a currency.
+      const noMoney = r.plan.includes(" · No charge · ") && /^(Free|Shopify says it is included)/.test(r.price);
+      if (!noMoney) expect(r.plan, r.plan).toMatch(/ · [A-Z]{3}.* · /);
       expect(r.plan, r.plan).not.toMatch(/\([^)]*\([^)]*\)/);
     }
   });
@@ -233,7 +235,8 @@ describe.each(COMPETITOR_BRIEFS.map((b) => [b.slug, b] as const))("%s brief (Bib
     expect(html).toContain(b.h1);
     expect(html).toContain("Draft, not published");
     expect(html).toContain("Not documented");
-    expect(html).toMatch(/Pricing as listed on each vendor(?:'|&#x27;|&apos;)s page, seen \d{4}-\d{2}-\d{2}/);
+    expect(html).toMatch(/Pricing as listed on each vendor(?:'|&#x27;|&apos;)s page, seen /);
+    expect(html).toContain(`seen ${b.observedAt}`);
     // Internal sources are normal links; only external ones open a new tab.
     expect(html).toMatch(/<a href="\/pricing"(?![^>]*target)/);
     expect(html).toMatch(/<a href="https:\/\/[^"]+" target="_blank" rel="noopener noreferrer nofollow"/);

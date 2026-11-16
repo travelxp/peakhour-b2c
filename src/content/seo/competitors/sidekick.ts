@@ -1,18 +1,10 @@
 import { PEAKHOUR, pending } from "./peakhour";
-import type { CompetitorBrief, PeakhourClaim } from "./types";
+import type { CompetitorBrief } from "./types";
 
 const D = "2026-11-16";
 const S = {
   page: { href: "https://www.shopify.com/sidekick", label: "Shopify Sidekick" },
   help: { href: "https://help.shopify.com/en/manual/shopify-admin/productivity-tools/sidekick", label: "Sidekick in the Shopify Help Center" },
-};
-
-const ASK_PEAKHOUR: PeakhourClaim = {
-  value: "yes",
-  capabilityId: "platform.ask_peakhour",
-  note: "Answers questions from your own data and can only prepare a change as a card for you to approve.",
-  source: { href: "/shopify", label: "Peakhour for Shopify" },
-  observedAt: D,
 };
 
 /** Shopify's own product, and a different job: Sidekick helps the merchant in the admin; it is not a shopper-facing chat. */
@@ -28,7 +20,7 @@ export const SIDEKICK: CompetitorBrief = {
     "Peakhour and Shopify Sidekick compared: Sidekick helps you run the store in the admin; Peakhour also answers shoppers. Sourced and dated.",
   h1: "Peakhour vs Shopify Sidekick",
   directAnswer:
-    "Shopify Sidekick is Shopify's AI assistant for the merchant: it works with your store data in the Shopify admin and is included with your Shopify plan. It is not a chat for your shoppers, so the two do different jobs and can sit side by side. Peakhour also has an assistant for the merchant, and adds an AI shopping assistant and product shelves on your storefront. Every answer below links to Shopify's own page and shows the date we read it.",
+    "Shopify Sidekick is Shopify's AI assistant for the merchant: it works with your store data in the Shopify admin and, Shopify says, is included with your Shopify plan. It is not a chat for your shoppers, so the two do different jobs and can sit side by side. Peakhour also has an assistant for the merchant, and adds an AI shopping assistant and product shelves on your storefront. Every answer below links to Shopify's own page and shows the date we read it.",
   buyerUseCases: [
     { title: "Running the store faster", body: "You want help with admin tasks, reports and content, from inside Shopify." },
     { title: "Answering shoppers", body: "You want an assistant that talks to shoppers on the storefront." },
@@ -39,7 +31,7 @@ export const SIDEKICK: CompetitorBrief = {
     {
       dimension: "An AI assistant for you, the merchant",
       vendor: { value: "yes", note: "An AI-enabled commerce assistant that works with your store data and takes action in your admin; changes are presented for your review before they apply.", source: S.page, observedAt: D },
-      peakhour: ASK_PEAKHOUR,
+      peakhour: PEAKHOUR.askPeakhour,
     },
     {
       dimension: "Writes content such as product descriptions",
@@ -69,11 +61,11 @@ export const SIDEKICK: CompetitorBrief = {
   ],
   pricing: {
     rows: [
-      { plan: "Shopify Sidekick", price: "Included with your Shopify plan at no extra cost; features and usage limits vary by plan", currency: "No charge", region: "Not stated", observedAt: D, source: S.page },
+      { plan: "Shopify Sidekick", price: "Shopify says it is included with your Shopify plan; features and usage limits vary by plan", currency: "No charge", region: "Not stated", observedAt: D, source: S.page },
     ],
   },
   bestFor: [
-    { vendor: "Shopify Sidekick", bestFor: "Merchants who want an assistant for running the store itself: admin tasks, workflows, content and questions about their own data, at no extra cost." },
+    { vendor: "Shopify Sidekick", bestFor: "Merchants who want an assistant for running the store itself: admin tasks, workflows, content and questions about their own data, as part of their Shopify plan." },
     { vendor: "Peakhour", bestFor: "Shopify merchants who also want an assistant that talks to shoppers, product shelves on the storefront, and cash-on-delivery confirmation on WhatsApp." },
   ],
   limitations: [

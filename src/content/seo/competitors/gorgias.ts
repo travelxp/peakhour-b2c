@@ -66,12 +66,12 @@ export const GORGIAS: CompetitorBrief = {
   ],
   pricing: {
     rows: [
-      { plan: "Starter (50 tickets, 30 automated AI interactions)", price: "$10 per month, monthly billing only", currency: "USD", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Basic (300 tickets, 30 automated AI interactions)", price: "$50 per month billed annually, $60 billed monthly", currency: "USD", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Pro (2,000 tickets, 190 automated AI interactions)", price: "$300 per month billed annually, $360 billed monthly", currency: "USD", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Advanced (5,000 tickets, 530 automated AI interactions)", price: "$750 per month billed annually, $900 billed monthly", currency: "USD", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "AI Agent add-on, per automated interaction", price: "$0.90 on annual contracts, $1.00 on monthly; $1.50 above the plan allowance", currency: "USD", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Enterprise (over 5,000 conversations a month)", price: "Not published (custom quote)", currency: "USD", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Starter (50 tickets, 30 automated AI interactions)", price: "$10 per month, monthly billing only", currency: "USD (as the page states)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Basic (300 tickets, 30 automated AI interactions)", price: "$50 per month billed annually, $60 billed monthly", currency: "USD (as the page states)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Pro (2,000 tickets, 190 automated AI interactions)", price: "$300 per month billed annually, $360 billed monthly", currency: "USD (as the page states)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Advanced (5,000 tickets, 530 automated AI interactions)", price: "$750 per month billed annually, $900 billed monthly", currency: "USD (as the page states)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "AI Agent add-on, per automated interaction", price: "$0.90 on annual contracts, $1.00 on monthly; $1.50 above the plan allowance", currency: "USD (as the page states)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Enterprise (over 5,000 conversations a month)", price: "Not published (custom quote)", currency: "USD (as the page states)", region: "Not stated", observedAt: D, source: S.pricing },
     ],
   },
   bestFor: [

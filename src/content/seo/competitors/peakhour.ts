@@ -40,6 +40,13 @@ export const PEAKHOUR = {
     source: SHOPIFY_PAGE,
     observedAt: OBSERVED,
   },
+  askPeakhour: {
+    value: "yes",
+    capabilityId: "platform.ask_peakhour",
+    note: "Answers questions from your own data and can only prepare a change as a card for you to approve.",
+    source: SHOPIFY_PAGE,
+    observedAt: OBSERVED,
+  },
 } satisfies Record<string, PeakhourClaim>;
 
 /**

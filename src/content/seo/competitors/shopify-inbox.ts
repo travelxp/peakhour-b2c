@@ -20,7 +20,7 @@ export const SHOPIFY_INBOX: CompetitorBrief = {
     "Peakhour and Shopify Inbox compared for Shopify stores: storefront chat, catalogue answers, recommendations, WhatsApp, COD and price, sourced.",
   h1: "Peakhour vs Shopify Inbox",
   directAnswer:
-    "Shopify Inbox is Shopify's own chat app, free for every store, with an AI sales associate that answers from your catalogue. Peakhour is a separate app that also puts an assistant and product shelves on your storefront, and adds cash-on-delivery confirmation and a checkout link on WhatsApp. The Shopify app is the simplest start; Peakhour covers more of the selling job. Every answer below links to Shopify's own page and shows the date we read it.",
+    "Shopify Inbox is Shopify's own chat app, which Shopify describes as free, with an AI sales associate that answers from your catalogue. Peakhour is a separate app that also puts an assistant and product shelves on your storefront, and adds cash-on-delivery confirmation and a checkout link on WhatsApp. The Shopify app is the simplest start; Peakhour covers more of the selling job. Every answer below links to Shopify's own page and shows the date we read it.",
   buyerUseCases: [
     { title: "Chat that comes with Shopify", body: "You want shoppers to ask questions on the storefront with nothing extra to pay for." },
     { title: "Product help from the catalogue", body: "You want answers and suggestions drawn from your own products." },
@@ -61,7 +61,7 @@ export const SHOPIFY_INBOX: CompetitorBrief = {
   ],
   pricing: {
     rows: [
-      { plan: "Shopify Inbox", price: "Free; Shopify says it is free for every Shopify store", currency: "No charge", region: "Not stated", observedAt: D, source: S.blog },
+      { plan: "Shopify Inbox", price: "Free, as Shopify's guide states; the listing says it works only with certain stores", currency: "No charge", region: "Not stated", observedAt: D, source: S.blog },
     ],
   },
   bestFor: [
@@ -75,7 +75,7 @@ export const SHOPIFY_INBOX: CompetitorBrief = {
     "Where our own side says Unknown, the evidence for Peakhour is still being verified and nothing is claimed.",
   ],
   faqs: [
-    { q: "Do I need Peakhour if I have Shopify Inbox?", a: "Not necessarily. Inbox is free and covers chat and a sales associate. Peakhour is an option when you also want product shelves and cash-on-delivery confirmation on WhatsApp." },
+    { q: "Do I need Peakhour if I have Shopify Inbox?", a: "Not necessarily. Inbox is described as free and covers chat and a sales associate. Peakhour is an option when you also want product shelves and cash-on-delivery confirmation on WhatsApp." },
     { q: "Where does this information come from?", a: "Only from Shopify's own pages, each linked in the table with the date we read it." },
   ],
 };
