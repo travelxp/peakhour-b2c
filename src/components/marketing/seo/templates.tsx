@@ -320,7 +320,7 @@ export function bylineAuthor(content: { author?: string }): string {
 function bylineFacts(content: { author?: string; reviewer: string }): { label: string; value: string }[] {
   return [
     { label: "Written by", value: bylineAuthor(content) },
-    ...(isReviewed(content.reviewer) ? [{ label: "Reviewed by", value: content.reviewer }] : []),
+    ...(isReviewed(content.reviewer) ? [{ label: "Reviewed by", value: content.reviewer.trim() }] : []),
   ];
 }
 
@@ -404,7 +404,7 @@ export function ComparisonPage({ page, content }: { page: PageRecord; content: C
           <Bullets items={content.limitations} />
           <p className="mt-5 text-sm text-muted-foreground">
             Last checked <time dateTime={comparison.lastChecked}>{comparison.lastChecked}</time>.
-            {isReviewed(content.reviewer) ? ` Written by ${bylineAuthor(content)}, reviewed by ${content.reviewer}.` : ` Written by ${bylineAuthor(content)}.`}
+            {` Written by ${bylineAuthor(content)}${isReviewed(content.reviewer) ? `, reviewed by ${content.reviewer.trim()}` : ""}.`}
           </p>
         </div>
       </Section>

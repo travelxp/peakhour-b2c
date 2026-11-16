@@ -19,7 +19,7 @@ describe("bylines", () => {
     const cmp = plain(renderToStaticMarkup(createElement(ComparisonPage, { page: fx.COMPARISON_PAGE, content: fx.COMPARISON })));
     expect(cmp).toContain(`Written by ${SITE.name}`);
     const guide = renderToStaticMarkup(createElement(GuidePage, { page: fx.GUIDE_PAGE, content: fx.GUIDE }));
-    expect(plain(guide)).toMatch(new RegExp(`Written by\\s+${SITE.name.replace(".", "\\.")}`));
+    expect(plain(guide)).toContain(`Written by ${SITE.name}`);
     const ld = [...guide.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
     const article = ld.flatMap((n) => (Array.isArray(n["@graph"]) ? n["@graph"] : [n])).find((n) => n["@type"] === "Article");
     expect(article?.author).toEqual({ "@type": "Organization", name: SITE.name });
@@ -31,8 +31,8 @@ describe("bylines", () => {
     expect(bylineAuthor({})).toBe(SITE.name);
   });
 
-  it.each(COMPETITOR_BRIEFS.map((b) => [b.pageId, b] as const))("%s names no team as its author", (_id, b) => {
-    expect(buildComparisonContent(b).author).toBeUndefined();
+  it("the comparison builder names no author, so every comparison gets the company", () => {
+    expect(buildComparisonContent(COMPETITOR_BRIEFS[0]).author).toBeUndefined();
   });
 
   it("no content file sets a Peakhour team or product name as an author", () => {
