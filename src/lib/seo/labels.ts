@@ -29,7 +29,7 @@ const SHORT: Record<string, string> = {
 };
 
 /** The site suffix an SEO title carries: " | Peakhour", " | Peakhour.ai", " - Peakhour", " — Peakhour.ai". */
-const SITE_SUFFIX = /\s*[|—–-]\s*Peakhour(\.ai)?\s*$/i;
+const SITE_SUFFIX = /(\s*\|\s*|\s+[—–-]\s+)Peakhour(\.ai)?\s*$/i;
 
 /** A card label for a page: the registry's short name when it has one, else the title with the suffix and the strapline cut. */
 export function cardLabel(page: Pick<PageRecord, "pageId" | "title">): string {
