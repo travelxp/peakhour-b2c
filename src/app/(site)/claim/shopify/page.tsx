@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { ShopifyClaim } from "./_components/shopify-claim";
 import { LoadingScreen } from "@/components/molecules/loading-screen";
+import { FlowCard, FlowPage } from "@/components/marketing/flow/flow-kit";
 
 /**
  * /claim/shopify?store=<connId>&t=<token>
@@ -12,7 +13,16 @@ import { LoadingScreen } from "@/components/molecules/loading-screen";
  */
 export default function ShopifyClaimPage() {
   return (
-    <Suspense fallback={<LoadingScreen fullScreen message="Loading your store…" />}>
+    <Suspense
+      fallback={
+        <FlowPage>
+          <FlowCard>
+            <h1 className="sr-only">Claim your Shopify store</h1>
+            <LoadingScreen message="Loading your store…" className="min-h-40 p-4" />
+          </FlowCard>
+        </FlowPage>
+      }
+    >
       <ShopifyClaim />
     </Suspense>
   );

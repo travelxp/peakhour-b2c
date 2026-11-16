@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { FlowCard, FlowPage } from "@/components/marketing/flow/flow-kit";
 import type { Metadata } from "next";
 import { ShopifyConnectStatus } from "./_components/shopify-connect-status";
 
@@ -31,9 +32,14 @@ export default function ShopifyConnectPage() {
   return (
     <Suspense
       fallback={
-        <div className="mx-auto flex min-h-[70vh] w-full max-w-lg items-center justify-center px-4 text-sm text-muted-foreground">
-          Loading…
-        </div>
+        <FlowPage>
+          <FlowCard>
+            <h1 className="sr-only">Peakhour for Shopify</h1>
+            <p role="status" className="py-8 text-center text-sm text-muted-foreground">
+              Loading…
+            </p>
+          </FlowCard>
+        </FlowPage>
       }
     >
       <ShopifyConnectStatus />

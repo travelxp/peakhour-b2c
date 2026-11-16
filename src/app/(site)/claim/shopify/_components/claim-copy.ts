@@ -130,9 +130,9 @@ export function errCopy(
     case "CLAIM_ALREADY_CLAIMED":
       return { title: "Already claimed", body: "This store is already linked to a Peakhour account." };
     case "CLAIM_EXPIRED":
-      return { title: "This link has expired", body: "Open the Peakhour app in your Shopify admin and use the fresh “Claim this store” button." };
+      return { title: "This link has expired", body: "Open the Peakhour app in your Shopify admin and select the new “Claim this store” button." };
     case "CLAIM_INVALID":
-      return { title: "Invalid claim link", body: "Open the Peakhour app in your Shopify admin and use the “Claim this store” button there." };
+      return { title: "This link is incomplete", body: "Open the Peakhour app in your Shopify admin and select “Claim this store”." };
     case "CLAIM_FORBIDDEN_ORG":
       return { title: "No permission", body: "You can only attach a store to an account you own or admin." };
     case "CLAIM_BUSINESS_LIMIT":
