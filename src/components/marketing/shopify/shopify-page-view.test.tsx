@@ -105,8 +105,8 @@ describe("★coming soon: nothing on the page assumes an App Store install or Sh
     expect(t).not.toMatch(/Install from the Shopify App Store/);
     expect(t).not.toMatch(/billed through Shopify/i);
     expect(t).not.toMatch(/invoice through Shopify/i);
-    // The signup trial collects no card, so the plain card's note is the true one.
-    expect(t).toContain("9-day free trial · no card to start");
+    // The signup trial collects no card, and a gated door starts it on approval, so the plain card says both.
+    expect(t).toContain("9-day free trial once approved · no card");
   });
 });
 

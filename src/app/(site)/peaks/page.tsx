@@ -15,7 +15,8 @@ import { marketingTrialDays } from "@/lib/pricing";
 import { pageMeta } from "@/lib/seo/metadata";
 import { getPage } from "@/lib/seo/pages";
 import { isPreviewable, isPublishable } from "@/lib/seo/publish";
-import { hasTrial, trialCtaLabel } from "@/lib/trial-copy";
+import { getPublicCatalog, signupCta } from "@/lib/catalog";
+import { trialStart } from "@/lib/trial-copy";
 
 export const metadata = pageMeta("peaks");
 
@@ -34,12 +35,15 @@ export default async function PeaksPage() {
   const country = vercelCountry && /^[A-Za-z]{2}$/.test(vercelCountry) ? vercelCountry.toUpperCase() : "DEFAULT";
 
   // The trial is named only when the catalog gives one (owner rule 2026-10-06, `lib/trial-copy`).
-  const [peaks, trialDays] = await Promise.all([getPeaks(country), marketingTrialDays()]);
+  const [peaks, trialDays, catalog] = await Promise.all([getPeaks(country), marketingTrialDays(), getPublicCatalog()]);
+  const signupMode = catalog?.platform?.signupMode ?? "open";
+  const door = signupCta(signupMode, trialDays);
+  const when = trialStart(signupMode, trialDays);
   const packs = peaks?.packs ?? [];
   const bestKey = bestValueKey(packs);
 
   const page = { ...record, primaryCta: { label: "View plans", href: "/pricing", kind: "trial" as const } };
-  const content = { ...peaksContent(hasTrial(trialDays)), secondaryCta: { label: trialCtaLabel(trialDays), href: "/auth" } };
+  const content = { ...peaksContent(when !== "none"), secondaryCta: door.disabled ? undefined : { label: door.label, href: door.href } };
 
   return (
     <DaylightShell>
@@ -62,7 +66,7 @@ export default async function PeaksPage() {
           <div className="grid gap-3 sm:gap-4 md:grid-cols-3">
             <HowCard
               title="Included with your plan"
-              body={`Peaks power every Peakhour product, and every plan comes with a monthly allowance${hasTrial(trialDays) ? ", your free trial included" : ""}. Agency and Enterprise carry more.`}
+              body={`Peaks power every Peakhour product, and every plan comes with a monthly allowance${when === "now" ? ", your free trial included" : when === "on_approval" ? ", and your free trial once you are approved" : ""}. Agency and Enterprise carry more.`}
             />
             <HowCard
               title="Spent only when AI works"
@@ -108,7 +112,7 @@ export default async function PeaksPage() {
             <Bullets
               className="mt-3 md:grid-cols-3 md:gap-x-8"
               items={[
-                peaksNeedPlanSentence(hasTrial(trialDays)),
+                peaksNeedPlanSentence(when !== "none"),
                 "Purchased Peaks never expire and work across any Peakhour product.",
                 PEAKS_REFUND_SENTENCE,
               ]}

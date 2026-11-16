@@ -7,6 +7,7 @@ import {
   trialCtaLabel,
   trialFaq,
   trialNote,
+  trialStart,
   pricingHeroTrial,
   EVERY_BUSINESS_TRIAL_PROMISE,
 } from "./trial-copy";
@@ -105,5 +106,51 @@ describe("module pages and the pricing FAQ (official review R2)", () => {
     expect(pricingHeroTrial(14)).toBe("Your first business starts with a free 14-day trial of all of it, one trial per person.");
     expect(pricingHeroTrial(14)).not.toMatch(EVERY_BUSINESS_TRIAL_PROMISE);
     for (const d of [null, 0]) expect(pricingHeroTrial(d)).toBeNull();
+  });
+});
+
+describe("DL-3: the trial wording follows the signup door, per mode (owner 2026-11-16)", () => {
+  // Read from the database on 2026-11-16: Suite grants 14 days in every country, and signupMode is waitlist_only, so the
+  // trial begins when a person is approved. The wording comes from signupMode + trialDays, never a typed claim.
+  const DAYS = 14;
+
+  it("waitlist_only (today): the trial starts on approval, beside Join the waitlist", () => {
+    expect(trialStart("waitlist_only", DAYS)).toBe("on_approval");
+    expect(signupCta("waitlist_only", DAYS).label).toBe("Join the waitlist");
+    const lines = [
+      announcementBar(DAYS, "waitlist_only")?.lead,
+      pricingHeroTrial(DAYS, "waitlist_only"),
+      trialNote(DAYS, "waitlist_only"),
+      trialFaq(DAYS, "waitlist_only").a,
+      startPanel(DAYS, "waitlist_only").lede,
+    ].join("\n");
+    expect(lines).toContain("When you’re approved, your first business starts with a 14-day free trial");
+    expect(lines).not.toMatch(/Start (your|a) (14-day )?free trial|Try every module free|Try it free/i);
+    expect(EVERY_BUSINESS_TRIAL_PROMISE.test(lines)).toBe(false);
+  });
+
+  it("invite_only is gated the same way", () => {
+    expect(trialStart("invite_only", DAYS)).toBe("on_approval");
+    expect(trialNote(DAYS, "invite_only")).toMatch(/once approved/);
+  });
+
+  it("open: the trial starts now, in today's words", () => {
+    expect(trialStart("open", DAYS)).toBe("now");
+    expect(announcementBar(DAYS, "open")?.lead).toBe("Try every module free for 14 days — no credit card required.");
+    expect(trialNote(DAYS, "open")).toBe("14-day free trial · No credit card");
+    expect(pricingHeroTrial(DAYS, "open")).toMatch(/^Your first business starts with a free 14-day trial/);
+    expect(trialFaq(DAYS, "open").a).toMatch(/^Your first business starts on a 14-day/);
+  });
+
+  it("no trial in the catalog, or a closed door: no trial line at all, in any mode", () => {
+    for (const mode of ["open", "waitlist_only", "invite_only", "closed"] as const) {
+      expect(trialStart(mode, null), mode).toBe("none");
+      expect(announcementBar(null, mode), mode).toBeNull();
+      expect(trialNote(null, mode), mode).toBeNull();
+      expect(pricingHeroTrial(null, mode), mode).toBeNull();
+      expect(startPanel(null, mode).lede, mode).not.toMatch(TRIAL_WORDS);
+    }
+    expect(trialStart("closed", DAYS)).toBe("none");
+    expect(announcementBar(DAYS, "closed")).toBeNull();
   });
 });

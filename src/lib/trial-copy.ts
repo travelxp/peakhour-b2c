@@ -1,3 +1,5 @@
+import type { PlatformSignupMode } from "./catalog";
+
 /**
  * Every marketing sentence that promises a trial, derived from the catalog.
  *
@@ -42,6 +44,26 @@
 export const EVERY_BUSINESS_TRIAL_PROMISE =
   /\b(?:every|each|all|any)\s+(?:your\s+)?(?:new\s+)?(?:business(?:es)?|accounts?|stores?|workspaces?)\b[^.,;:]{0,40}?\b(?:starts?|gets?|begins?|comes?|includes?|is|are)\b[^.,;:]{0,60}?\b(?<!\bno )(?:trials?|free)\b/i;
 
+/**
+ * ★WHEN THE TRIAL STARTS (owner decision 2026-11-16, read from the database: dev and prod agree). The Suite plan grants
+ * a trial in every country, but the platform stage is `coming_soon` with `signupMode` "waitlist_only", so the trial
+ * begins when a person is APPROVED, not today. Wording follows the two facts, both from the catalog and never typed:
+ *   - an open door with a trial  -> "now": "Start your 14-day free trial";
+ *   - a gated door with a trial  -> "on_approval": "When you're approved, your first business starts with a 14-day free trial";
+ *   - no trial, or a closed door -> "none": no trial line at all.
+ */
+export type TrialStart = "now" | "on_approval" | "none";
+
+export function trialStart(mode: PlatformSignupMode, trialDays: number | null | undefined): TrialStart {
+  if (!hasTrial(trialDays)) return "none";
+  if (mode === "open") return "now";
+  if (mode === "waitlist_only" || mode === "invite_only") return "on_approval";
+  return "none";
+}
+
+/** The sentence for a trial that starts on approval; the same words wherever a page needs one. */
+export const approvedTrialSentence = (trialDays: number) => `When you’re approved, your first business starts with a ${trialDays}-day free trial.`;
+
 /** Whether a trial may be promised: `suiteTrialDays` served a length. */
 export function hasTrial(trialDays: number | null | undefined): trialDays is number {
   return typeof trialDays === "number" && trialDays > 0;
@@ -55,13 +77,19 @@ export function trialCtaLabel(trialDays: number | null): string {
 
 /** The one-line trial note under a CTA ("14-day free trial · No credit
  *  card"), or null: no trial, no line. */
-export function trialNote(trialDays: number | null): string | null {
-  return hasTrial(trialDays) ? `${trialDays}-day free trial · No credit card` : null;
+export function trialNote(trialDays: number | null, mode: PlatformSignupMode = "open"): string | null {
+  const when = trialStart(mode, trialDays);
+  if (when === "none") return null;
+  return when === "now" ? `${trialDays}-day free trial · No credit card` : `${trialDays}-day free trial once approved · No credit card`;
 }
 
 /** The homepage's announcement bar, or null (the bar is not rendered). */
-export function announcementBar(trialDays: number | null): { lead: string; tail: string } | null {
-  if (!hasTrial(trialDays)) return null;
+export function announcementBar(trialDays: number | null, mode: PlatformSignupMode = "open"): { lead: string; tail: string } | null {
+  const when = trialStart(mode, trialDays);
+  if (when === "none") return null;
+  if (when === "on_approval") {
+    return { lead: approvedTrialSentence(trialDays as number), tail: "No credit card required. Join the waitlist to get in line." };
+  }
   return {
     lead: `Try every module free for ${trialDays} days — no credit card required.`,
     tail: "One plan keeps all five on when your trial ends.",
@@ -69,7 +97,7 @@ export function announcementBar(trialDays: number | null): { lead: string; tail:
 }
 
 /** The homepage's "start → keep going" panel: its eyebrow, lede and points. */
-export function startPanel(trialDays: number | null): {
+export function startPanel(trialDays: number | null, mode: PlatformSignupMode = "open"): {
   eyebrow: string;
   lede: string;
   points: ReadonlyArray<{ title: string; detail: string }>;
@@ -79,7 +107,21 @@ export function startPanel(trialDays: number | null): {
     detail:
       "Peaks power AI across Commerce, Content, Growth, Support, and Presence, giving you one simple way to manage AI usage across your business.",
   };
-  if (hasTrial(trialDays)) {
+  if (trialStart(mode, trialDays) === "on_approval") {
+    return {
+      eyebrow: "Join the waitlist. Scale when you’re ready.",
+      lede: `When you’re approved, your first business starts with a ${trialDays}-day free trial of everything Peakhour does. Keep going on Peakhour Suite when your trial ends, or on Agency when you run many businesses.`,
+      points: [
+        { title: "Get in line", detail: "Join the waitlist. We email your sign-in link when you are approved." },
+        {
+          title: "Keep going on one plan",
+          detail: "When your trial ends, Peakhour Suite keeps everything on for one monthly or yearly price. Running many businesses? Agency covers them all.",
+        },
+        peaks,
+      ],
+    };
+  }
+  if (trialStart(mode, trialDays) === "now") {
     return {
       eyebrow: "Try it free. Scale when you’re ready.",
       lede: `Start with a ${trialDays}-day free trial of everything Peakhour does. Connect your business, explore every product, and see real value before you buy. Keep going on Peakhour Suite when your trial ends, or on Agency when you run many businesses.`,
@@ -137,21 +179,24 @@ export function pillarTrialCopy(
 /** The pricing hub's hero sentence about the trial, or null without one.
  *  ★The first business, once per person (D19, P3.1d): never "every
  *  business". The page places it (review R2: no separator in the copy). */
-export function pricingHeroTrial(trialDays: number | null): string | null {
-  return hasTrial(trialDays) ? `Your first business starts with a free ${trialDays}-day trial of all of it, one trial per person.` : null;
+export function pricingHeroTrial(trialDays: number | null, mode: PlatformSignupMode = "open"): string | null {
+  const when = trialStart(mode, trialDays);
+  if (when === "none") return null;
+  return `${when === "now" ? "Your first business starts" : "When you’re approved, your first business starts"} with a free ${trialDays}-day trial of all of it, one trial per person.`;
 }
 
 /** The pricing FAQ's trial entry: how the trial works, or, without one, how
  *  a business starts. ★Who gets it (D19, P3.1d): a new account's first
  *  business, once per person; an added business, or another account the same
  *  person opens, pays first. */
-export function trialFaq(trialDays: number | null): { q: string; a: string } {
+export function trialFaq(trialDays: number | null, mode: PlatformSignupMode = "open"): { q: string; a: string } {
   const after =
     "buy Peakhour Suite (monthly or yearly) or Agency (quarterly or yearly) to keep going; until you do, your business has no plan and Peakhour pauses.";
-  return hasTrial(trialDays)
+  const starts = trialStart(mode, trialDays) === "on_approval" ? "When you’re approved, your first business starts" : "Your first business starts";
+  return trialStart(mode, trialDays) !== "none"
     ? {
         q: "How does the free trial work?",
-        a: `Your first business starts on a ${trialDays}-day Peakhour Suite trial — every module, no card. It is one trial per person: a business you add, or one in another account you open, pays from the start. When the trial ends, ${after}`,
+        a: `${starts} on a ${trialDays}-day Peakhour Suite trial — every module, no card. It is one trial per person: a business you add, or one in another account you open, pays from the start. When the trial ends, ${after}`,
       }
     : {
         q: "How do I start?",

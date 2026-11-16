@@ -27,7 +27,6 @@ import { JsonLd } from "./json-ld";
 import { PlatformChooser } from "./platform-chooser";
 import { ProofStrip } from "./proof-strip";
 import { Section } from "./section";
-import { statusMeta } from "./status-meta";
 import { cardCls, linkCls } from "./styles";
 import { WorkflowSteps } from "./workflow-steps";
 import { linkAttrs, safeHref } from "./safe-href";

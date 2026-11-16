@@ -95,6 +95,12 @@ Regenerate with `npx tsx scripts/seo/report-pages.ts --write`. A test fails when
 
 ## c) Open owner decisions
 
+**Settled 2026-11-16 (read from the database; dev and prod agree unless stated):**
+- **The trial question is closed, and the wording is database-driven.** `cfg_platform_stage` is `coming_soon` with `signupMode` `waitlist_only`, and the Suite plan grants `trialDays` 14 in all 11 country pricing entries. The trial is real, but it starts when a person is approved. Every trial line now comes from `signupMode` and `suiteTrialDays` through `src/lib/trial-copy.ts` (`trialStart`): waitlist or invite gives "When you're approved, your first business starts with a 14-day free trial"; open gives "Start your 14-day free trial"; no trial in the catalog, or a closed door, gives no trial line. A test pins each mode.
+- **Google Business Profile writes** are on in dev and OFF in production, so the beta copy ("changes reach Google only once Peakhour switches sending on") is correct.
+- **Google Ads, LinkedIn Ads and Search Console** are live on dev but `coming_soon` in production. Production wins: the pages stay unpublished and the hubs say "coming soon".
+- **Support channels and AI replies** (shared inbox, AI reply drafts, WhatsApp support assistant) are still `coming_soon` in both.
+
 1. **Q2, who signs off claims.** The plan proposes the owner, for every page. Every approved claim in `capabilities.ts` carries `approvedBy: "owner"` as a placeholder (one constant, `APPROVED_BY`); it is not a recorded sign-off until someone is named.
 2. **Q3, is Support live?** The code runs suggested replies, WhatsApp support and the inbox, but the catalog calls them coming soon. `/support` and the home Support card say "coming soon" and make no claim, and `/auth` now says the same. Three audit rows (`features.ai.customer.support`, `features.unified.inbox`, `features.whatsapp.customer.support`) wait on this answer.
 3. **Shopify.** Records are `live` because the production catalog reports the Shopify channel live. But the Shopify provider is hard-coded `coming_soon` in production, the app is not yet on the App Store, and `shopify.app.toml` still points at dev hosts. If the app is not promoted by the release, the Shopify records drop to `beta` and every Shopify page's "Install on Shopify" button needs a decision.

@@ -731,7 +731,7 @@ export function AuthFlow({
               <PasswordSignIn available={passwordSignIn} next={next} />
 
               <ul role="list" className="mt-4 flex flex-wrap justify-center gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground sm:mt-6 sm:gap-x-4 sm:text-sm">
-                {signupTicks(trialDays, isPreLaunch).map((tick) => (
+                {signupTicks(trialDays, isPreLaunch, signupMode).map((tick) => (
                   <li key={tick} className="flex items-center gap-1.5">
                     <Check className="size-3.5 shrink-0 text-brand-strong" strokeWidth={3} aria-hidden />
                     {tick}

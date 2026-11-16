@@ -78,7 +78,7 @@ export default async function PricingPage({
   const included = new Set(suiteModuleSlugs(pricing));
   // The one trial rule /auth reads too (`suiteTrialDays`): no trial, no promise.
   const trialDays = suiteTrialDays(pricing) ?? 0;
-  const heroTrial = pricingHeroTrial(trialDays);
+  const heroTrial = pricingHeroTrial(trialDays, signupMode);
 
   return (
     <div className="flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
@@ -121,12 +121,12 @@ export default async function PricingPage({
               </div>
               {/* No card: the signup trial collects none (D19). Only stated
                   when there is a trial to start. */}
-              {trialDays > 0 && (
+              {trialDays > 0 && signupMode !== "closed" && (
                 <p className="mt-4 text-sm text-muted-foreground">
                   <span aria-hidden className="font-bold text-brand-strong">
                     ✓
                   </span>{" "}
-                  No card to start · one Peaks wallet · cancel anytime
+                  {openSignup ? "No card to start · one Peaks wallet · cancel anytime" : "No card for the trial · one Peaks wallet · cancel anytime"}
                 </p>
               )}
             </div>
@@ -238,7 +238,7 @@ export default async function PricingPage({
               </h2>
             </div>
             <div className="min-w-0 border-t-2 border-foreground">
-              <PricingFaq trialDays={trialDays} />
+              <PricingFaq trialDays={trialDays} signupMode={signupMode} />
             </div>
           </div>
         </section>

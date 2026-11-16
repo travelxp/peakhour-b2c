@@ -75,9 +75,9 @@ export default async function Home({
   const [catalog, trialDays] = await Promise.all([getPublicCatalog(), marketingTrialDays()]);
   const platform = catalog?.platform;
   const signupMode = platform?.signupMode ?? "open";
-  const bar = announcementBar(trialDays);
-  const panel = startPanel(trialDays);
-  const closingNote = trialNote(trialDays);
+  const bar = announcementBar(trialDays, signupMode);
+  const panel = startPanel(trialDays, signupMode);
+  const closingNote = trialNote(trialDays, signupMode);
   const published = catalog ? publicMarketingIntegrations(catalog.integrations) : [];
   const badged = new Set(badgedComingSoonKeys({ published, all: catalog?.integrations ?? [] }));
   const integrationCards = published.length

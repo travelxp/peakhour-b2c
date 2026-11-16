@@ -191,7 +191,9 @@ export function SuiteCard({
             <p className="mt-2.5 text-micro text-muted-foreground">
               {shopify
                 ? shopifyTrialNote(p.trialDays)
-                : `${p.trialDays}-day free trial · no card to start`}
+                : openSignup
+                  ? `${p.trialDays}-day free trial · no card to start`
+                  : `${p.trialDays}-day free trial once approved · no card`}
             </p>
           )}
         </div>

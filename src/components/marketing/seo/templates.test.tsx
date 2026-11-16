@@ -29,7 +29,7 @@ describe("a module hub", () => {
       const html = hubHtml(id);
       expect(text(html)).not.toMatch(/Limit: /);
       const limits = hubLimits(HUBS[id]);
-      const block = html.match(/<section id="limits".*?<\/section>/s)?.[0] ?? "";
+      const block = html.match(/<section id="limits"[\s\S]*?<\/section>/)?.[0] ?? "";
       if (limits.length === 0) expect(block).toBe("");
       else {
         expect(block).toContain("What it does not do");
@@ -39,7 +39,7 @@ describe("a module hub", () => {
 
     it(`${id}: shows each status chip once, on its card, and never again in the hero`, () => {
       const html = hubHtml(id);
-      const hero = html.match(/<section class="bg-\[linear-gradient.*?<\/section>/s)?.[0] ?? "";
+      const hero = html.match(/<section class="bg-\[linear-gradient[\s\S]*?<\/section>/)?.[0] ?? "";
       expect(hero).not.toMatch(/Coming soon|>Live<|>Beta</);
       expect(hero).toContain("<aside");
     });
