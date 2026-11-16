@@ -72,14 +72,16 @@ describe("OAuthConnectResult", () => {
 
   it("★a Page with no Instagram account → says to link one", () => {
     mount("integration=connected&provider=facebook&meta_notice=no_instagram");
-    expect(String(h.warning.mock.calls[0][0])).toMatch(/no Instagram professional account linked/);
+    expect(String(h.warning.mock.calls[0][0])).toMatch(/Facebook Page is connected. To use Instagram too, link an Instagram professional account/);
   });
 
   it("★a failed Meta read → try again, never blamed on the merchant", () => {
     mount("integration=connected&provider=facebook&meta_notice=read_failed");
     const msg = String(h.warning.mock.calls[0][0]);
-    expect(msg).toMatch(/could not read your Facebook Pages/);
-    expect(msg).not.toMatch(/did not give|no Instagram/);
+    expect(msg).toMatch(/could not finish reading your Facebook Pages and Instagram account/);
+    // The card has no Refresh in this state: the copy must not send them to one.
+    expect(msg).not.toMatch(/Refresh/);
+    expect(msg).not.toMatch(/did not give|link an Instagram/);
   });
 
   it("an unknown notice is ignored — a success, as before", () => {
@@ -100,6 +102,9 @@ describe("meta-connect-notice", () => {
     expect(parseMetaConnectNotice("no_pages")).toBe("no_pages");
     expect(parseMetaConnectNotice("no_instagram")).toBe("no_instagram");
     expect(parseMetaConnectNotice(null)).toBeUndefined();
+    // Keyed on MESSAGES' OWN keys: a prototype name is not a code.
+    expect(parseMetaConnectNotice("toString")).toBeUndefined();
+    expect(parseMetaConnectNotice("constructor")).toBeUndefined();
     expect(metaConnectNoticeMessage("")).toBeNull();
   });
 });
