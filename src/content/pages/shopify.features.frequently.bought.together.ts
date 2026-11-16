@@ -7,6 +7,7 @@ export const CLAIMS: PageClaims = ["commerce.frequently_bought_together.from_ord
 
 const fbt = capabilityFacts("commerce.frequently_bought_together");
 const bundle = capabilityFacts("commerce.buy_together_bundles");
+const bundlesLink = siblingLink(ID, "shopify.features.bundles", "Buy together and save for Shopify", "How the saving works, how to set it up and the permission it needs.");
 
 export const CONTENT: ShopifyFeatureContent = {
   crumbs: featureCrumbs("Frequently bought together", ID),
@@ -45,6 +46,7 @@ export const CONTENT: ShopifyFeatureContent = {
         "Buy together and save gives 5 to 30 percent off a product's usual companions when they are bought in the same cart. It is one discount percentage for the whole store.",
         "It is off until you switch it on for a bought-together shelf.",
       ],
+      ...(bundlesLink[0] ? { items: [{ title: "Buy together and save, in full", body: bundlesLink[0].note ?? "", href: bundlesLink[0].href, linkLabel: bundlesLink[0].label }] } : {}),
       limitations: bundle.limitations.filter((l) => !l.startsWith("Off until")),
     },
   ],
@@ -83,6 +85,7 @@ export const CONTENT: ShopifyFeatureContent = {
   related: [
     ...siblingLink(ID, "shopify.features.product.recommendations", "Smart Rails product recommendations", "The other kinds of shelf you can place."),
     ...siblingLink(ID, "shopify.features.ai.shopping.assistant", "AI shopping assistant for Shopify", "The chat that answers from the same catalogue."),
+    ...siblingLink(ID, "shopify.features.cart.upsells", "Cart and thank-you upsells for Shopify", "The same lists, in the cart and after checkout."),
     SHOPIFY_HOME_LINK,
     PRICING_LINK,
   ],

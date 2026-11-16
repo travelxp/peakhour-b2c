@@ -101,8 +101,9 @@ export type ShopifyFeatureContent = BaseContent & {
   limitations: string[];
   verifiedAt: string;
   setupSteps: StepItem[];
-  /** Permissions only as the app really asks for them. */
+  /** Permissions only as the app really asks for them. Empty when the feature asks for none of its own: then `permissionsNote` says so. */
   permissions: { name: string; why: string }[];
+  permissionsNote?: string;
   /** The global page this variant stays a child of (Bible 7.1). */
   globalPage: LinkItem;
 };
@@ -162,9 +163,17 @@ export type GuideContent = BaseContent & {
   sources: LinkItem[];
 };
 
-export type DirectoryItem = { title: string; body: string; href: string; status: ReleaseStatus; pillar?: string };
+/**
+ * A card of a directory. `href` is a page or a section of one; without it the card is plain text (a feature with no page to
+ * open yet). `status` is the capability record's, and is left out where no record covers the feature.
+ */
+export type DirectoryItem = { title: string; body: string; href?: string; status?: ReleaseStatus; pillar?: string };
+/** A heading over a run of cards, for a directory that groups its features (the Shopify directory groups like the app). */
+export type DirectoryGroup = { id: string; title: string; blurb: string; items: DirectoryItem[] };
 export type DirectoryContent = BaseContent & {
   items: DirectoryItem[];
+  /** When set, the page shows these groups instead of one flat grid of `items`. */
+  groups?: DirectoryGroup[];
   /** The heading over the grid. */
   listTitle?: string;
 };

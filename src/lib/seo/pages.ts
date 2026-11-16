@@ -1,5 +1,6 @@
 import { SHOPIFY_HERO, SHOPIFY_SEO } from "@/lib/shopify-features";
 import { SEO9_PAGES } from "./pages-seo9";
+import { SF2_PAGES } from "./pages-sf2";
 import { COMPETITOR_BRIEFS } from "@/content/seo/competitors";
 import type { CtaKind, EditorialStatus, PageFamily, PageRecord, PageScope, Pillar, Surface } from "./types";
 
@@ -387,6 +388,8 @@ export const PAGES: readonly PageRecord[] = [
     description: "How long Peakhour keeps the data it pulls from connected platforms, and why.",
   }),
   ...SEO9_PAGES,
+  // SF-2: the remaining Shopify feature pages (every live or beta Shopify capability has one).
+  ...SF2_PAGES,
   // SEO-11 ----------------------------------------------------------------------------------------------------
   page({
     pageId: "feature.peakhour.summit",

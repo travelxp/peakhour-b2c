@@ -71,11 +71,10 @@ describe("registry records", () => {
     }
   });
 
-  it("the directory is published and lists exactly the published feature pages", () => {
+  it("the directory is published and links every published wave-1 feature page (SF-2 holds the full-directory tests)", () => {
     expect(isPublishable(getPage("shopify.features"))).toBe(true);
-    const listed = directory.CONTENT.items.map((i) => i.href).sort();
-    const expected = FEATURE_PAGES.filter((f) => f.published).map((f) => pathFor(f.id)).sort();
-    expect(listed).toEqual(expected);
+    const listed = new Set(directory.CONTENT.items.map((i) => i.href));
+    for (const f of FEATURE_PAGES.filter((x) => x.published)) expect(listed.has(pathFor(f.id)), f.id).toBe(true);
   });
 });
 
@@ -128,7 +127,7 @@ describe("each page renders its H1 and direct answer, with its status, limitatio
     const html = renderToStaticMarkup(<DirectoryPage page={page} content={directory.CONTENT} />);
     expect(html).toContain(page.h1);
     expect(text(html)).toContain(directory.CONTENT.directAnswer);
-    for (const i of directory.CONTENT.items) expect(html).toContain(`href="${i.href}"`);
+    for (const i of directory.CONTENT.items) if (i.href) expect(html).toContain(`href="${i.href}"`);
   });
 });
 

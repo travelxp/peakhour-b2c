@@ -8,6 +8,7 @@ export const CLAIMS: PageClaims = ["commerce.ai_shopping_assistant.answers_from_
 
 const assistant = capabilityFacts("commerce.ai_shopping_assistant");
 const finder = capabilityFacts("commerce.find_my_match");
+const finderLink = siblingLink(ID, "shopify.features.product.finder", "Find my match for Shopify", "How it asks, what it needs and what it does not do.");
 
 export const CONTENT: ShopifyFeatureContent = {
   crumbs: featureCrumbs("AI shopping assistant", ID),
@@ -45,6 +46,7 @@ export const CONTENT: ShopifyFeatureContent = {
       paragraphs: [
         "Find my match is part of the assistant, not a separate quiz tool. A shopper taps Find my match and answers a few quick questions, made from your store's own product attributes and price range, to get a shortlist.",
       ],
+      ...(finderLink[0] ? { items: [{ title: "Find my match, in full", body: finderLink[0].note ?? "", href: finderLink[0].href, linkLabel: finderLink[0].label }] } : {}),
       limitations: finder.limitations,
     },
   ],
@@ -83,6 +85,7 @@ export const CONTENT: ShopifyFeatureContent = {
     ...siblingLink(ID, "shopify.features.whatsapp.ai.shopping", "WhatsApp AI shopping for Shopify", "The same assistant on your WhatsApp Business number."),
     ...siblingLink(ID, "shopify.features.product.recommendations", "Smart Rails product recommendations", "Product shelves that sit beside the chat."),
     ...siblingLink(ID, "shopify.features.ai.seo", "AI SEO for Shopify product pages", "Better titles and alt text on the pages shoppers land on."),
+    ...siblingLink(ID, "shopify.features.customer.conversation.insights", "What shoppers ask your Shopify assistant", "What it could not answer, and what to do next."),
     SHOPIFY_HOME_LINK,
     PRICING_LINK,
   ],

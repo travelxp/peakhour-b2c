@@ -57,6 +57,17 @@ describe("robots.txt", () => {
 
 const SHOPIFY_FEATURE_PATHS = [
   "/shopify/features",
+  // SF-2: the remaining Shopify feature pages.
+  "/shopify/features/cart-upsells",
+  "/shopify/features/merchandising-ab-testing",
+  "/shopify/features/inventory-alerts",
+  "/shopify/features/automatic-markdowns",
+  "/shopify/features/ai-blog-generator",
+  "/shopify/features/seo-audit",
+  "/shopify/features/customer-conversation-insights",
+  "/shopify/features/ai-growth-campaigns",
+  "/shopify/features/product-finder",
+  "/shopify/features/bundles",
   "/shopify/features/ai-product-descriptions",
   "/shopify/features/ai-seo",
   "/shopify/features/ai-shopping-assistant",

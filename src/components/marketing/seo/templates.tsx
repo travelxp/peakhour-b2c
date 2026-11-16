@@ -83,6 +83,9 @@ export function ShopifyFeaturePage({ page, content }: { page: PageRecord; conten
         <p className="mb-5 max-w-2xl text-lg text-muted-foreground">
           The access the app asks Shopify for, in plain words. Each line names the permission and what it is used for.
         </p>
+        {content.permissions.length === 0 ? (
+          <p className={`${cardCls} max-w-2xl p-5 text-[15px] text-muted-foreground`}>{content.permissionsNote}</p>
+        ) : (
         <dl className="grid gap-3 sm:grid-cols-2 sm:gap-4">
           {content.permissions.map((p) => (
             <div key={p.name} className={`${cardCls} p-5 sm:[&:last-child:nth-child(odd)]:col-span-2`}>
@@ -91,6 +94,7 @@ export function ShopifyFeaturePage({ page, content }: { page: PageRecord; conten
             </div>
           ))}
         </dl>
+        )}
         <p className="mt-6 text-[15px] text-muted-foreground">
           This page covers Shopify only. For every platform and the full picture, read{" "}
           <Link href={safeHref(content.globalPage.href)} className={linkCls}>
@@ -436,9 +440,17 @@ export function GuidePage({ page, content }: { page: PageRecord; content: GuideC
 export function DirectoryPage({ page, content }: { page: PageRecord; content: DirectoryContent }) {
   return (
     <Frame page={page} content={content}>
-      <Section id="directory" eyebrow="Everything here" title={content.listTitle ?? "The list"}>
-        <DirectoryGrid items={content.items} />
-      </Section>
+      {content.groups ? (
+        content.groups.map((g, i) => (
+          <Section key={g.id} id={g.id} eyebrow="Shopify app" title={g.title} intro={g.blurb} tone={i % 2 === 1 ? "muted" : "plain"}>
+            <DirectoryGrid items={g.items} balanced />
+          </Section>
+        ))
+      ) : (
+        <Section id="directory" eyebrow="Everything here" title={content.listTitle ?? "The list"}>
+          <DirectoryGrid items={content.items} />
+        </Section>
+      )}
     </Frame>
   );
 }
