@@ -505,7 +505,8 @@ export function HubPage({ page, content }: { page: PageRecord; content: HubConte
           </ul>
         </Section>
       )}
-      {children.length > 0 && (
+      {/* One card alone in a grid reads as a gap, so a single child is left to the related links. */}
+      {children.length > 1 && (
         <Section id="deeper" eyebrow="Go deeper" title="Features and connections" tone={limits.length > 0 && content.platforms.length === 0 ? "muted" : "plain"}>
           <ContextualLinks links={children} />
         </Section>

@@ -119,7 +119,7 @@ export default function ComingSoonPage() {
           </h2>
           <ul className="mt-8 grid gap-3 sm:mt-10 sm:grid-cols-2 lg:grid-cols-5">
             {JOBS.map((j) => (
-              <li key={j.job} className="flex flex-col gap-2 rounded-2xl border bg-card p-5">
+              <li key={j.job} className="flex flex-col gap-2 rounded-2xl border bg-card p-5 sm:max-lg:last:col-span-2">
                 <span className="flex items-center gap-2.5 text-lg font-extrabold tracking-tight">
                   <span aria-hidden className="size-2.5 rounded-full" style={{ background: j.dot }} />
                   {j.job}

@@ -105,7 +105,7 @@ export function startPanel(trialDays: number | null, mode: PlatformSignupMode = 
   const peaks = {
     title: "One AI currency across every product",
     detail:
-      "Peaks power AI across Commerce, Content, Growth, Support, and Presence, giving you one simple way to manage AI usage across your business.",
+      "Peaks pay for the AI work across Peakhour, giving you one simple way to manage AI usage across your business.",
   };
   if (trialStart(mode, trialDays) === "on_approval") {
     return {
@@ -133,7 +133,7 @@ export function startPanel(trialDays: number | null, mode: PlatformSignupMode = 
         {
           title: "Keep going on one plan",
           detail:
-            "When your trial ends, Peakhour Suite keeps every module on for one monthly or yearly price. Running many businesses? Agency covers them all.",
+            "When your trial ends, Peakhour Suite keeps everything on for one monthly or yearly price. Running many businesses? Agency covers them all.",
         },
         peaks,
       ],
@@ -147,7 +147,7 @@ export function startPanel(trialDays: number | null, mode: PlatformSignupMode = 
       {
         title: "Everything on one plan",
         detail:
-          "Peakhour Suite keeps every module on for one monthly or yearly price. Running many businesses? Agency covers them all.",
+          "Peakhour Suite keeps everything on for one monthly or yearly price. Running many businesses? Agency covers them all.",
       },
       peaks,
     ],
@@ -196,7 +196,7 @@ export function trialFaq(trialDays: number | null, mode: PlatformSignupMode = "o
   return trialStart(mode, trialDays) !== "none"
     ? {
         q: "How does the free trial work?",
-        a: `${starts} on a ${trialDays}-day Peakhour Suite trial — every module, no card. It is one trial per person: a business you add, or one in another account you open, pays from the start. When the trial ends, ${after}`,
+        a: `${starts} on a ${trialDays}-day Peakhour Suite trial — everything Peakhour does, no card. It is one trial per person: a business you add, or one in another account you open, pays from the start. When the trial ends, ${after}`,
       }
     : {
         q: "How do I start?",
