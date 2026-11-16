@@ -2,6 +2,8 @@ import type { ComparisonCell, ComparisonPageContent } from "@/components/marketi
 import { getPage } from "@/lib/seo/pages";
 import { pathFor } from "@/lib/seo/resolve";
 import type { PageRecord } from "@/lib/seo/types";
+import { buildMore } from "./more";
+import { compareRoute } from "./route";
 import type { CompetitorBrief, PeakhourClaim } from "./types";
 
 /** The vendor id the kit's ComparisonTable keys Peakhour's column on. */
@@ -16,11 +18,14 @@ export function buildComparisonContent(b: CompetitorBrief, page: PageRecord = ge
     throw new Error(`${b.pageId} is published without a named reviewer`);
   }
   const home = getPage("home");
+  const { global } = compareRoute(b);
   const shopify = getPage("shopify");
+  const directory = getPage(global ? "compare" : "shopify.compare");
   return {
     crumbs: [
       { label: "Home", href: pathFor(home.pageId) },
-      { label: "Shopify", href: pathFor(shopify.pageId) },
+      ...(global ? [] : [{ label: "Shopify", href: pathFor(shopify.pageId) }]),
+      { label: "Compare", href: pathFor(directory.pageId) },
       { label: `Compare with ${b.name}`, href: pathFor(page.pageId) },
     ],
     eyebrow: "Comparison",
@@ -37,6 +42,7 @@ export function buildComparisonContent(b: CompetitorBrief, page: PageRecord = ge
         cells: { [PH]: publicCell(c.peakhour), [b.slug]: c.vendor },
       })),
     },
+    more: buildMore(b),
     buyerUseCases: b.buyerUseCases,
     pricing: {
       asOf: b.observedAt,
@@ -61,10 +67,15 @@ export function buildComparisonContent(b: CompetitorBrief, page: PageRecord = ge
     reviewer: b.reviewer ?? "Pending review",
     faqs: b.faqs,
     related: page.relatedIds.map((id) => ({ label: getPage(id).title, href: pathFor(id) })),
-    closing: {
-      headline: "See it on your own store.",
-      body: "Join the waitlist and we will show you the assistant and shelves on your catalogue.",
-    },
+    closing: global
+      ? {
+          headline: "See it on your own business.",
+          body: "Join the waitlist and we will walk you through Peakhour using your own accounts.",
+        }
+      : {
+          headline: "See it on your own store.",
+          body: "Join the waitlist and we will show you the assistant and shelves on your catalogue.",
+        },
   };
 }
 

@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ShopifyFeaturePage, DirectoryPage } from "@/components/marketing/seo/templates";
-import type { BaseContent, ShopifyFeatureContent } from "@/components/marketing/seo/content-types";
+import { directoryItems, type BaseContent, type ShopifyFeatureContent } from "@/components/marketing/seo/content-types";
 import { getCapability } from "@/lib/seo/capabilities";
 import { getPage, PAGES } from "@/lib/seo/pages";
 import { isPublishable } from "@/lib/seo/publish";
@@ -71,18 +71,25 @@ describe("registry records", () => {
     }
   });
 
-  it("the directory is published and lists exactly the published feature pages", () => {
+  it("the directory is published and links every published wave-1 feature page (SF-2 holds the full-directory tests)", () => {
     expect(isPublishable(getPage("shopify.features"))).toBe(true);
-    const listed = directory.CONTENT.items.map((i) => i.href).sort();
-    const expected = FEATURE_PAGES.filter((f) => f.published).map((f) => pathFor(f.id)).sort();
-    expect(listed).toEqual(expected);
+    const listed = new Set(directoryItems(directory.CONTENT).map((i) => i.href));
+    for (const f of FEATURE_PAGES.filter((x) => x.published)) expect(listed.has(pathFor(f.id)), f.id).toBe(true);
   });
 });
 
 describe("each page renders its H1 and direct answer, with its status, limitations, steps, permissions, FAQ and links", () => {
   for (const { id, mod } of FEATURE_PAGES) {
     const page = getPage(id);
-    const html = renderToStaticMarkup(<ShopifyFeaturePage page={page} content={mod.CONTENT} />);
+    // Rendered as production: a published page links only to published pages, and the "Compared with" section lists drafts only off production.
+    // The env is restored in a finally, so a failed render cannot leak the stub into other tests.
+    let html: string;
+    vi.stubEnv("VERCEL_ENV", "production");
+    try {
+      html = renderToStaticMarkup(<ShopifyFeaturePage page={page} content={mod.CONTENT} />);
+    } finally {
+      vi.unstubAllEnvs();
+    }
     const flat = text(html);
 
     it(`${id}: H1 and direct answer`, () => {
@@ -128,7 +135,7 @@ describe("each page renders its H1 and direct answer, with its status, limitatio
     const html = renderToStaticMarkup(<DirectoryPage page={page} content={directory.CONTENT} />);
     expect(html).toContain(page.h1);
     expect(text(html)).toContain(directory.CONTENT.directAnswer);
-    for (const i of directory.CONTENT.items) expect(html).toContain(`href="${i.href}"`);
+    for (const i of directoryItems(directory.CONTENT)) if (i.href) expect(html).toContain(`href="${i.href}"`);
   });
 });
 

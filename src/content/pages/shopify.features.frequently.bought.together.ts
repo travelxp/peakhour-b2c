@@ -1,5 +1,5 @@
 import type { ShopifyFeatureContent } from "@/components/marketing/seo/content-types";
-import { ADD_STORE_CLOSING, capabilityFacts, DEMO, featureCrumbs, PRICING_LINK, SHOPIFY_HOME_LINK, siblingLink, type PageClaims } from "./shopify-feature-kit";
+import { ADD_STORE_CLOSING, capabilityFacts, DEMO, featureCrumbs, PRICING_LINK, SHOPIFY_HOME_LINK, siblingItem, siblingLink, type PageClaims } from "./shopify-feature-kit";
 
 const ID = "shopify.features.frequently.bought.together";
 
@@ -45,6 +45,7 @@ export const CONTENT: ShopifyFeatureContent = {
         "Buy together and save gives 5 to 30 percent off a product's usual companions when they are bought in the same cart. It is one discount percentage for the whole store.",
         "It is off until you switch it on for a bought-together shelf.",
       ],
+      ...siblingItem(ID, "shopify.features.bundles", "Buy together and save, in full", "Buy together and save for Shopify", "How the saving works, how to set it up and the permission it needs."),
       limitations: bundle.limitations.filter((l) => !l.startsWith("Off until")),
     },
   ],
@@ -83,6 +84,7 @@ export const CONTENT: ShopifyFeatureContent = {
   related: [
     ...siblingLink(ID, "shopify.features.product.recommendations", "Smart Rails product recommendations", "The other kinds of shelf you can place."),
     ...siblingLink(ID, "shopify.features.ai.shopping.assistant", "AI shopping assistant for Shopify", "The chat that answers from the same catalogue."),
+    ...siblingLink(ID, "shopify.features.cart.upsells", "Cart and thank-you upsells for Shopify", "The same lists, in the cart and after checkout."),
     SHOPIFY_HOME_LINK,
     PRICING_LINK,
   ],

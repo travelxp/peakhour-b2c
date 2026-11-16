@@ -7,6 +7,8 @@ import type { PageRecord } from "./types";
  */
 const SHORT: Record<string, string> = {
   home: "Home",
+  "shopify.compare": "Compare",
+  compare: "Compare",
   "integrations.whatsapp": "WhatsApp Business",
   "integrations.linkedin": "LinkedIn",
   "integrations.x": "X",
@@ -26,6 +28,17 @@ const SHORT: Record<string, string> = {
   "shopify.features.whatsapp.cod.confirmation": "WhatsApp COD confirmation",
   "shopify.features.ai.seo": "AI SEO",
   "shopify.features.ai.product.descriptions": "AI product descriptions",
+  // SF-2: the remaining Shopify feature pages.
+  "shopify.features.cart.upsells": "Cart and thank-you upsells",
+  "shopify.features.merchandising.ab.testing": "Shelf A/B testing",
+  "shopify.features.inventory.alerts": "Stock-out alerts",
+  "shopify.features.automatic.markdowns": "Markdown suggestions",
+  "shopify.features.ai.blog.generator": "AI blog writer",
+  "shopify.features.seo.audit": "Catalogue and SEO audit",
+  "shopify.features.customer.conversation.insights": "Shopper questions",
+  "shopify.features.ai.growth.campaigns": "Campaign discounts",
+  "shopify.features.product.finder": "Find my match",
+  "shopify.features.bundles": "Buy together and save",
   "features.google.business.profile.management": "Google Business Profile management",
   "features.review.management": "Review replies",
   "features.local.listing.health": "Listing health",

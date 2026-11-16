@@ -46,6 +46,7 @@ import {
 import { SITE, cn } from "@/lib/utils";
 import { ShopifyAutopilotDemo } from "./shopify-autopilot-demo";
 import { Disclosure } from "./shopify-disclosure";
+import { ShopifyCompareSection } from "./shopify-compare-section";
 import { ShopifyFeaturesSection } from "./shopify-features-section";
 import { ShopifyHeroDemo } from "./shopify-hero-demo";
 import { ShopifyJobs } from "./shopify-jobs";
@@ -230,6 +231,9 @@ export function ShopifyPageView({
 
       {/* One link per published Shopify feature page (SEO-8), from the registry; nothing until one is published. */}
       <ShopifyFeaturesSection />
+
+      {/* The top comparisons and the directory link (CMP-HUB); only what a visitor can open, nothing while all are drafts on production. */}
+      <ShopifyCompareSection />
 
       {/* Peakhour on WhatsApp, for the merchant: the page's one dark band */}
       <section id="whatsapp" aria-labelledby="whatsapp-h" className="scroll-mt-20 bg-ink text-on-ink">

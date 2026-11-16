@@ -7,7 +7,7 @@ import { SEO9_PAGES } from "@/lib/seo/pages-seo9";
 import { capabilitiesSatisfied, isPublishable } from "@/lib/seo/publish";
 import { pathFor } from "@/lib/seo/resolve";
 import { MARKETING_PATHS } from "@/lib/seo/gate";
-import type { BaseContent } from "@/components/marketing/seo/content-types";
+import { directoryItems, type BaseContent } from "@/components/marketing/seo/content-types";
 import { featuresDirectory, integrationsDirectory } from "./seo9-directories";
 import { FEATURE_CONTENT } from "./features";
 import { INTEGRATION_CONTENT } from "./integrations";
@@ -151,13 +151,13 @@ describe("SEO-9 owner rules on the copy", () => {
   });
 
   it("lists only publishable pages in the directories, grouped with Presence first", () => {
-    const ints = integrationsDirectory().items;
+    const ints = directoryItems(integrationsDirectory());
     expect(ints.map((i) => i.title)).not.toContain("Google Ads");
     expect(ints.map((i) => i.title)).not.toContain("LinkedIn Ads");
     expect(ints[0].pillar).toBe("Presence");
-    expect(featuresDirectory().items.map((i) => i.title)).not.toContain("AI blog writer");
+    expect(directoryItems(featuresDirectory()).map((i) => i.title)).not.toContain("AI blog writer");
     expect(ints.length).toBe(9);
-    expect(featuresDirectory().items.length).toBe(5);
+    expect(directoryItems(featuresDirectory()).length).toBe(5);
   });
 
   it("is reachable from the hubs through registry data", () => {

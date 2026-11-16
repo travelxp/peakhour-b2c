@@ -64,3 +64,8 @@ export function isPreviewable(page: PageRecord, env: Record<string, string | und
   if (isIndexableDeployment(env)) return false;
   return page.editorialStatus === "draft" || page.editorialStatus === "review" || page.editorialStatus === "approved";
 }
+
+/** Whether a visitor can open the page: published (production) or a draft, review or approved page off production. The one test every route and link uses. */
+export function canOpen(page: PageRecord, env: Record<string, string | undefined> = process.env): boolean {
+  return isPublishable(page) || isPreviewable(page, env);
+}

@@ -9,8 +9,8 @@ const S = {
   shopify: { href: "https://www.interakt.shop/integrations/integrating-whatsapp-business-api-with-shopify/", label: "Interakt Shopify guide" },
 };
 
-export const INTERAKT: CompetitorBrief = {
-  slug: "interakt",
+export const INTERAKT = {
+  slug: "interakt" as const,
   pageId: "shopify.compare.interakt",
   name: "Interakt",
   url: "https://www.interakt.shop/",
@@ -97,4 +97,4 @@ export const INTERAKT: CompetitorBrief = {
     { q: "Is there an Interakt alternative for Shopify?", a: "Peakhour is one option if you want an AI assistant on your storefront. If a shared WhatsApp and Instagram inbox is the need, check Interakt's own pages first." },
     { q: "Where does this information come from?", a: "Only from Interakt's own public pages, each linked in the table with the date we read it." },
   ],
-};
+} satisfies CompetitorBrief;

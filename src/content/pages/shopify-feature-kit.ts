@@ -41,6 +41,15 @@ export function siblingLink(selfId: string, targetId: string, label: string, not
   return [{ label, href: pathFor(targetId), note }];
 }
 
+/**
+ * A one-card `items` for a short section that hands the reader on to a sibling page (the assistant's Find my match, the
+ * shelf page's Buy together and save). Spread it into the section; it is `{}` until the sibling publishes.
+ */
+export function siblingItem(selfId: string, targetId: string, title: string, label: string, note: string): { items?: { title: string; body: string; href: string; linkLabel: string }[] } {
+  const [link] = siblingLink(selfId, targetId, label, note);
+  return link ? { items: [{ title, body: note, href: link.href, linkLabel: link.label }] } : {};
+}
+
 export const SHOPIFY_HOME_LINK: LinkItem = {
   label: "Peakhour for Shopify",
   href: "/shopify",
@@ -60,3 +69,6 @@ export const ADD_STORE_CLOSING: ShopifyFeatureContent["closing"] = {
 
 /** Proof tiles are product art, never a store: every feature page labels its picture as a demo. */
 export const DEMO = "demo" as const;
+
+/** The first sentence of a claim or a feature's copy: shorter than the whole, never different from it. */
+export const firstSentence = (s: string): string => s.split(/(?<=[.!?])\s/)[0] ?? s;

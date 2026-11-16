@@ -1,4 +1,7 @@
+import { COMPETITOR_BRIEFS } from "@/content/seo/competitors";
+import { compareRoute } from "@/content/seo/competitors/route";
 import { SEO9_PAGES } from "./pages-seo9";
+import { SF2_PAGES } from "./pages-sf2";
 import { PILLAR_ORDER } from "@/lib/pillars";
 import { isAppRoute } from "@/lib/route-theme";
 
@@ -143,8 +146,16 @@ export const MARKETING_PATHS: readonly MarketingPath[] = [
   { path: "/guides" },
   { path: "/shopify/guides/whatsapp-cod-confirmation" },
   { path: "/coming-soon" },
+  // Every comparison draft, from the briefs (Shopify and global). With the gate on a known path shows the teaser
+  // (noindex); the page itself 404s on production until its editorial status is published.
+  ...COMPETITOR_BRIEFS.map((b) => ({ path: compareRoute(b).path })),
+  // CMP-HUB: the two comparison directories. Draft until a child is published.
+  { path: "/shopify/compare" },
+  { path: "/compare" },
   // SEO-9: the integration and feature pages and their directories, from the registry. A page held in review 404s on its own.
   ...SEO9_PAGES.map((p) => ({ path: p.path })),
+  // SF-2: the remaining Shopify feature pages, from the registry (/shopify/* already passes the gate; this keeps the path known).
+  ...SF2_PAGES.map((p) => ({ path: p.path })),
 ];
 
 const MARKETING_SET = new Set(MARKETING_PATHS.map((m) => m.path));

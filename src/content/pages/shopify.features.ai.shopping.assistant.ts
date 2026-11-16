@@ -1,5 +1,5 @@
 import type { ShopifyFeatureContent } from "@/components/marketing/seo/content-types";
-import { ADD_STORE_CLOSING, capabilityFacts, DEMO, featureCrumbs, PRICING_LINK, SHOPIFY_HOME_LINK, siblingLink, type PageClaims } from "./shopify-feature-kit";
+import { ADD_STORE_CLOSING, capabilityFacts, DEMO, featureCrumbs, PRICING_LINK, SHOPIFY_HOME_LINK, siblingItem, siblingLink, type PageClaims } from "./shopify-feature-kit";
 
 const ID = "shopify.features.ai.shopping.assistant";
 
@@ -45,6 +45,7 @@ export const CONTENT: ShopifyFeatureContent = {
       paragraphs: [
         "Find my match is part of the assistant, not a separate quiz tool. A shopper taps Find my match and answers a few quick questions, made from your store's own product attributes and price range, to get a shortlist.",
       ],
+      ...siblingItem(ID, "shopify.features.product.finder", "Find my match, in full", "Find my match for Shopify", "How it asks, what it needs and what it does not do."),
       limitations: finder.limitations,
     },
   ],
@@ -83,6 +84,7 @@ export const CONTENT: ShopifyFeatureContent = {
     ...siblingLink(ID, "shopify.features.whatsapp.ai.shopping", "WhatsApp AI shopping for Shopify", "The same assistant on your WhatsApp Business number."),
     ...siblingLink(ID, "shopify.features.product.recommendations", "Smart Rails product recommendations", "Product shelves that sit beside the chat."),
     ...siblingLink(ID, "shopify.features.ai.seo", "AI SEO for Shopify product pages", "Better titles and alt text on the pages shoppers land on."),
+    ...siblingLink(ID, "shopify.features.customer.conversation.insights", "What shoppers ask your Shopify assistant", "What it could not answer, and what to do next."),
     SHOPIFY_HOME_LINK,
     PRICING_LINK,
   ],

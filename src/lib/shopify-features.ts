@@ -211,11 +211,11 @@ export const SHOPIFY_GROUPS: ShopifyGroup[] = [
       {
         id: "markdowns",
         title: "Markdowns",
-        does: "Suggests lower prices for slow stock. After you switch markdowns on in Autopilot, Peakhour applies them for you, and you can Undo each one.",
+        does: "Suggests lower prices for slow stock. You preview each markdown and press Apply, and you can Undo each one.",
         benefit: "Slow stock moves, and every price change can be reversed.",
         steps: [
           "Switch on markdowns in Autopilot.",
-          "Review what Peakhour changes in the activity feed.",
+          "Preview the new prices and press Apply.",
           "Undo any change you do not want.",
         ],
       },

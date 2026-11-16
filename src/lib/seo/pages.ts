@@ -1,6 +1,9 @@
 import { SHOPIFY_HERO, SHOPIFY_SEO } from "@/lib/shopify-features";
 import { SEO9_PAGES } from "./pages-seo9";
+import { SF2_PAGES } from "./pages-sf2";
 import { COMPETITOR_BRIEFS } from "@/content/seo/competitors";
+import { compareRoute } from "@/content/seo/competitors/route";
+import { isPublishable } from "./publish";
 import type { CtaKind, EditorialStatus, PageFamily, PageRecord, PageScope, Pillar, Surface } from "./types";
 
 /*
@@ -68,6 +71,71 @@ function page(s: Seed): PageRecord {
     lastReviewedAt: REVIEWED,
     relatedIds: s.relatedIds ?? [],
   };
+}
+
+/** The comparison pages, one per brief. Every one is `review` until Growth signs off its sources. */
+const COMPARE_PAGES: readonly PageRecord[] = COMPETITOR_BRIEFS.map((b) => {
+  const route = compareRoute(b);
+  return page({
+    pageId: b.pageId,
+    path: route.path,
+    family: route.family,
+    surface: route.surface,
+    primaryPillar: b.pillar ?? "commerce",
+    capabilityIds: [...new Set(b.claims.map((c) => c.peakhour.capabilityId).filter((id): id is string => !!id))],
+    title: b.title,
+    description: b.description,
+    h1: b.h1,
+    cta: LAUNCH_PARTNER_CTA,
+    parentId: route.global ? "compare" : "shopify.compare",
+    relatedIds: b.relatedIds ?? ["shopify", "pricing"],
+    editorialStatus: "review",
+    indexable: false,
+  });
+});
+
+/**
+ * The comparison directories (CMP-HUB). A directory is thin until it has something to list, so each is `published` +
+ * `indexable` only when at least one of its own comparisons is (audit: "publish only once it has 1+ published children");
+ * until then it is `review`, a draft on dev and a 404 on production.
+ */
+export function compareDirectories(children: readonly PageRecord[]): PageRecord[] {
+  // The full publish gate, capabilities included: a child that is published and indexable but fails its capability 404s on production, and a directory of such children would be an empty page.
+  const live = (family: PageFamily) => children.some((c) => c.family === family && isPublishable(c));
+  return [
+    page({
+      pageId: "shopify.compare",
+      path: "/shopify/compare",
+      // Family core, like the audit's /compare: `compare` and `shopify-compare` stay the families of the comparison pages themselves.
+      family: "core",
+      surface: "shopify",
+      primaryPillar: "commerce",
+      parentId: "shopify",
+      queryClusterId: "shopify-compare-directory",
+      title: "Peakhour compared with other Shopify apps",
+      description:
+        "Side-by-side comparisons of Peakhour with the apps Shopify merchants weigh it against, each with its sources and the date it was checked.",
+      h1: "How Peakhour compares with other Shopify apps",
+      cta: SHOPIFY_INSTALL_CTA,
+      relatedIds: ["shopify", "shopify.features", "pricing"],
+      editorialStatus: live("shopify-compare") ? "published" : "review",
+      indexable: live("shopify-compare"),
+    }),
+    page({
+      pageId: "compare",
+      path: "/compare",
+      family: "core",
+      parentId: "home",
+      queryClusterId: "compare-directory",
+      title: "Peakhour compared with other tools",
+      description:
+        "Side-by-side comparisons of Peakhour with the tools businesses weigh it against, each with its sources and the date it was checked.",
+      h1: "How Peakhour compares with other tools",
+      relatedIds: ["features.index", "shopify", "pricing"],
+      editorialStatus: live("compare") ? "published" : "review",
+      indexable: live("compare"),
+    }),
+  ];
 }
 
 export const PAGES: readonly PageRecord[] = [
@@ -387,6 +455,8 @@ export const PAGES: readonly PageRecord[] = [
     description: "How long Peakhour keeps the data it pulls from connected platforms, and why.",
   }),
   ...SEO9_PAGES,
+  // SF-2: the remaining Shopify feature pages (every live or beta Shopify capability has one).
+  ...SF2_PAGES,
   // SEO-11 ----------------------------------------------------------------------------------------------------
   page({
     pageId: "feature.peakhour.summit",
@@ -472,25 +542,11 @@ export const PAGES: readonly PageRecord[] = [
     cta: { label: "Install on Shopify", href: "/shopify", kind: "install" },
     relatedIds: ["shopify", "pricing", "commerce"],
   }),
-  // SEO-10: the wave-1 Shopify comparisons. At `review` they render on dev with the draft ribbon and 404 on
+  // SEO-10, CMP-A and CMP-C: the comparison drafts, Shopify and global. At `review` they render on dev with the draft ribbon and 404 on
   // production until Growth signs off each source (plan D4, Q1). capabilityIds hold only what the Peakhour cells claim.
-  ...COMPETITOR_BRIEFS.map((b) =>
-    page({
-      pageId: b.pageId,
-      path: `/shopify/compare/${b.slug}`,
-      family: "shopify-compare",
-      surface: "shopify",
-      primaryPillar: "commerce",
-      capabilityIds: [...new Set(b.claims.map((c) => c.peakhour.capabilityId).filter((id): id is string => !!id))],
-      title: b.title,
-      description: b.description,
-      h1: b.h1,
-      cta: LAUNCH_PARTNER_CTA,
-      relatedIds: ["shopify", "pricing"],
-      editorialStatus: "review",
-      indexable: false,
-    }),
-  ),
+  ...COMPARE_PAGES,
+  // CMP-HUB: the two directories, published only when a child is.
+  ...compareDirectories(COMPARE_PAGES),
 ];
 
 const BY_ID = new Map(PAGES.map((p) => [p.pageId, p]));

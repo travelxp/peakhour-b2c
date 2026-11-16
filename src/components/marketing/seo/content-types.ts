@@ -94,15 +94,17 @@ export type DetailSectionContent = {
   limitations?: string[];
 };
 
-export type ShopifyFeatureContent = BaseContent & {
+/** Permissions the app really asks for; or, when the feature asks for none of its own, a note that says so (never an empty list). */
+export type PermissionsContent =
+  | { permissions: { name: string; why: string }[]; permissionsNote?: undefined }
+  | { permissions: []; permissionsNote: string };
+export type ShopifyFeatureContent = BaseContent & PermissionsContent & {
   /** Sections between the status and the setup, for what the feature is made of (Smart Rails kinds, Find my match). */
   sections?: DetailSectionContent[];
   status: ReleaseStatus;
   limitations: string[];
   verifiedAt: string;
   setupSteps: StepItem[];
-  /** Permissions only as the app really asks for them. */
-  permissions: { name: string; why: string }[];
   /** The global page this variant stays a child of (Bible 7.1). */
   globalPage: LinkItem;
 };
@@ -139,7 +141,18 @@ export type IntegrationContent = BaseContent & {
   steps: StepItem[];
 };
 
+/** "Peakhour Suite gives more": what Peakhour does beyond the rows of a comparison, each card from an approved claim. */
+export type MoreContent = {
+  heading: string;
+  intro: string;
+  items: DirectoryItem[];
+  /** The way on to every feature (the directories), only those a visitor can open. */
+  links: LinkItem[];
+};
+
 export type ComparisonPageContent = BaseContent & {
+  /** Built by buildComparisonContent for every brief; optional so a hand-made content object still renders. */
+  more?: MoreContent;
   comparison: ComparisonContent;
   buyerUseCases: { title: string; body: string }[];
   pricing: {
@@ -162,12 +175,31 @@ export type GuideContent = BaseContent & {
   sources: LinkItem[];
 };
 
-export type DirectoryItem = { title: string; body: string; href: string; status: ReleaseStatus; pillar?: string };
-export type DirectoryContent = BaseContent & {
-  items: DirectoryItem[];
-  /** The heading over the grid. */
-  listTitle?: string;
+/**
+ * A card of a directory. `href` is a page or a section of one; without it the card is plain text (a feature with no page to
+ * open yet). `status` is the capability record's, and is left out where no record covers the feature.
+ */
+export type DirectoryItem = {
+  title: string;
+  body: string;
+  href?: string;
+  status?: ReleaseStatus;
+  pillar?: string;
+  /** A small line under the body (a comparison card's "Checked <date>"). */
+  meta?: string;
+  /** The linked page is a draft: a "Draft" chip shows, so a reviewer on dev never mistakes the card for a published page. */
+  draft?: boolean;
 };
+/** A heading over a run of cards, for a directory that groups its features (the Shopify directory groups like the app). */
+export type DirectoryGroup = { id: string; eyebrow: string; title: string; blurb: string; items: DirectoryItem[] };
+/** One flat grid (`items`), or the groups of a directory that groups its features (`groups`): never both. */
+export type DirectoryContent = BaseContent &
+  (
+    | { items: DirectoryItem[]; /** The heading over the grid. */ listTitle?: string; groups?: undefined }
+    | { groups: DirectoryGroup[]; items?: undefined; listTitle?: undefined }
+  );
+/** Every card of a directory, flat. */
+export const directoryItems = (c: DirectoryContent): DirectoryItem[] => c.groups?.flatMap((g) => g.items) ?? c.items ?? [];
 
 /** One thing a module does (or will), with the status the capability record gives it on its surface. */
 export type HubItem = {
