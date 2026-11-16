@@ -202,6 +202,7 @@ Plan section 7, made concrete. All of these are owner actions: project settings 
 
    With `--indexable=yes` it checks that robots.txt names the sitemap, no page carries a blanket `noindex`, every sitemap URL answers 200 with a self-canonical and parseable JSON-LD, review pages 404, and the registry crawl (T03 to T07, T14, T15). Anything that fails blocks the release.
 6. **Also before release:** re-run `check-catalog.ts` (above), settle decisions 3 to 5 in section c, and decide Shopify's status.
+7. **After any claim-text edit, re-approve the pages whose hash moved.** A page that makes claims is published only while an approval carries its current content hash (`src/lib/seo/approvals.ts`), so an edit to `capabilities.ts` or to page copy moves the hash and takes the page off production until it is approved again. Run `npx tsx scripts/seo/review-manifest.ts --write`, then approve the changed pages in the CMS.
 
 ## The smoke suite
 

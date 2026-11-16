@@ -72,6 +72,15 @@ export function approvalFor(pageId: string, approvals: readonly PageApproval[] =
   return undefined;
 }
 
+/**
+ * The reviewer a page's byline names when it is live through an approval: the reviewer of a CURRENT `source: "cms"` row.
+ * A placeholder row never counts (it records a page that was already published, not a review), nor does a stale one.
+ */
+export function cmsReviewer(pageId: string, approvals: readonly PageApproval[] = PAGE_APPROVALS): string | null {
+  const a = approvalFor(pageId, approvals);
+  return a && a.source === "cms" && a.contentHash === currentContentHash(pageId) && a.reviewer.trim() !== "" ? a.reviewer : null;
+}
+
 /** "current": an approval carries the page's present hash. "stale": an approval exists for older content. "none": no approval. */
 export type ApprovalState = "current" | "stale" | "none";
 

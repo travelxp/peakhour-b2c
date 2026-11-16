@@ -5,7 +5,7 @@ import { getCapability } from "./capabilities";
 import { PAGES } from "./pages";
 import { implementationFor } from "./publish";
 import { PAGE_COPY } from "./review-copy";
-import { DEV_ORIGIN, latestApproval, type ReviewManifest, type ReviewManifestPage } from "./review-manifest-data";
+import { DEV_ORIGIN, approvalFields, type ReviewManifest, type ReviewManifestPage } from "./review-manifest-data";
 import type { PageRecord } from "./types";
 
 export { DEV_ORIGIN, overlayApprovals, withoutApprovals, type ReviewManifest, type ReviewManifestPage } from "./review-manifest-data";
@@ -117,6 +117,7 @@ export function buildReviewManifest(
   for (const p of pages) {
     if (p.editorialStatus !== "published" && p.editorialStatus !== "review") continue;
     const brief = BRIEFS_BY_PAGE.get(p.pageId);
+    const hash = contentHashOf(p);
     rows.push({
       pageId: p.pageId,
       path: p.path,
@@ -126,8 +127,8 @@ export function buildReviewManifest(
       devUrl: `${DEV_ORIGIN}${p.path}`,
       claims: claimsOf(p),
       ...(brief ? { comparison: comparisonOf(brief) } : {}),
-      contentHash: contentHashOf(p),
-      approval: latestApproval(p.pageId, approvals),
+      contentHash: hash,
+      ...approvalFields(p.pageId, hash, approvals),
     });
   }
   rows.sort((a, b) => (a.pageId < b.pageId ? -1 : a.pageId > b.pageId ? 1 : 0));

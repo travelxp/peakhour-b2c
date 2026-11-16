@@ -27,7 +27,7 @@ describe("the review manifest", () => {
     expect(m.pages.map((p) => p.pageId)).toEqual(want);
     for (const p of m.pages) {
       expect(Object.keys(p).filter((k) => k !== "comparison").sort()).toEqual(
-        ["approval", "claims", "contentHash", "devUrl", "editorialStatus", "family", "pageId", "path", "title"],
+        ["approval", "claims", "contentHash", "devUrl", "editorialStatus", "family", "pageId", "path", "reviewedBy", "title"],
       );
       expect(p.contentHash).toMatch(/^sha256:[0-9a-f]{64}$/);
       expect(p.devUrl).toBe(`https://dev.peakhour.ai${p.path}`);

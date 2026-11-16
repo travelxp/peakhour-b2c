@@ -3,7 +3,10 @@ import { describe, expect, it } from "vitest";
 import { DraftRibbon, isDraftPage, ribbonKind } from "@/components/marketing/seo/draft-ribbon";
 import type { PageApproval } from "./approvals";
 import { PAGES, getPage } from "./pages";
-import { approvalState, canOpen, capabilitiesSatisfied, currentContentHash, isPreviewable, isPublishable } from "./publish";
+import { buildComparisonContent } from "@/content/seo/competitors/build";
+import { getBrief } from "@/content/seo/competitors";
+import { overlayApprovals, type ReviewManifest } from "./review-manifest-data";
+import { approvalState, cmsReviewer, canOpen, capabilitiesSatisfied, currentContentHash, isPreviewable, isPublishable } from "./publish";
 
 const DEV = { VERCEL_ENV: "preview" };
 const PROD = { VERCEL_ENV: "production" };
@@ -117,5 +120,34 @@ describe("the ribbon", () => {
     // wati has no approval in the committed file, so the real ribbon is the draft one.
     expect(renderToStaticMarkup(<DraftRibbon page={wati} />)).toContain("Draft, not published");
     expect(renderToStaticMarkup(<DraftRibbon page={getPage("home")} />)).toBe("");
+  });
+});
+
+describe("the reviewer a CMS approval names", () => {
+  const wati = getPage("shopify.compare.wati");
+  const brief = getBrief("wati")!;
+
+  it("is the reviewer of a current cms approval, and never a placeholder or a stale one", () => {
+    expect(cmsReviewer(wati.pageId, [approve(wati.pageId)])).toBe("Asha Rao");
+    expect(cmsReviewer(wati.pageId, [approve(wati.pageId, { source: "placeholder" })])).toBeNull();
+    expect(cmsReviewer(wati.pageId, [approve(wati.pageId, { contentHash: STALE })])).toBeNull();
+    expect(cmsReviewer(wati.pageId, [])).toBeNull();
+  });
+
+  it("replaces the brief's reviewer (or Pending review) on the comparison, and meets the published-needs-a-reviewer rule", () => {
+    expect(buildComparisonContent(brief, wati, []).reviewer).toBe("Pending review");
+    expect(buildComparisonContent(brief, wati, [approve(wati.pageId)]).reviewer).toBe("Asha Rao");
+    expect(buildComparisonContent({ ...brief, reviewer: "A. Reviewer" }, wati, [approve(wati.pageId)]).reviewer).toBe("Asha Rao");
+    const published = { ...wati, editorialStatus: "published" as const };
+    expect(() => buildComparisonContent(brief, published, [])).toThrow(/reviewer/);
+    expect(() => buildComparisonContent(brief, published, [approve(wati.pageId, { source: "placeholder" })])).toThrow(/reviewer/);
+    expect(buildComparisonContent(brief, published, [approve(wati.pageId)]).reviewer).toBe("Asha Rao");
+  });
+
+  it("is exposed in the manifest as reviewedBy, null for a placeholder", () => {
+    const base = { version: 1, pages: [{ pageId: wati.pageId, contentHash: currentContentHash(wati.pageId), approval: null, reviewedBy: null }] } as unknown as ReviewManifest;
+    expect(overlayApprovals(base, [approve(wati.pageId)]).pages[0].reviewedBy).toBe("Asha Rao");
+    expect(overlayApprovals(base, [approve(wati.pageId, { source: "placeholder" })]).pages[0].reviewedBy).toBeNull();
+    expect(overlayApprovals(base, [approve(wati.pageId, { contentHash: STALE })]).pages[0].reviewedBy).toBeNull();
   });
 });

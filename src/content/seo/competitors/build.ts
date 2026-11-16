@@ -1,5 +1,7 @@
 import type { ComparisonCell, ComparisonPageContent } from "@/components/marketing/seo/content-types";
+import { PAGE_APPROVALS, type PageApproval } from "@/lib/seo/approvals";
 import { getPage } from "@/lib/seo/pages";
+import { cmsReviewer } from "@/lib/seo/publish";
 import { pathFor } from "@/lib/seo/resolve";
 import type { PageRecord } from "@/lib/seo/types";
 import { buildMore } from "./more";
@@ -12,9 +14,17 @@ const PH = "ph";
 /**
  * Builds the kit's page content from a brief and its registry record. Pure. Links come from the registry (the record's
  * relatedIds, through pathFor), so no marketing URL is typed here.
+ *
+ * The reviewer is the one on the page's current CMS approval when it has one (that approval IS the review), else the
+ * brief's. A placeholder approval never names a reviewer.
  */
-export function buildComparisonContent(b: CompetitorBrief, page: PageRecord = getPage(b.pageId)): ComparisonPageContent {
-  if (page.editorialStatus === "published" && !b.reviewer) {
+export function buildComparisonContent(
+  b: CompetitorBrief,
+  page: PageRecord = getPage(b.pageId),
+  approvals: readonly PageApproval[] = PAGE_APPROVALS,
+): ComparisonPageContent {
+  const reviewer = cmsReviewer(page.pageId, approvals) ?? b.reviewer;
+  if (page.editorialStatus === "published" && !reviewer) {
     throw new Error(`${b.pageId} is published without a named reviewer`);
   }
   const home = getPage("home");
@@ -64,7 +74,7 @@ export function buildComparisonContent(b: CompetitorBrief, page: PageRecord = ge
     suitability: b.bestFor,
     limitations: b.limitations,
     author: "Peakhour Growth",
-    reviewer: b.reviewer ?? "Pending review",
+    reviewer: reviewer ?? "Pending review",
     faqs: b.faqs,
     related: page.relatedIds.map((id) => ({ label: getPage(id).title, href: pathFor(id) })),
     closing: global
