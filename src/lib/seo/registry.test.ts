@@ -61,9 +61,11 @@ describe("T02: a non-published or non-indexable page is never publishable and ne
 
   it("is publishable only when published and indexable", () => {
     expect(isPublishable(asPage({}))).toBe(true);
-    for (const s of ["idea", "briefed", "draft", "review", "approved", "archived"] as const) {
+    for (const s of ["idea", "briefed", "draft", "approved", "archived"] as const) {
       expect(isPublishable(asPage({ editorialStatus: s })), s).toBe(false);
     }
+    // A review page is publishable only with an approval of its current content (approval-rule.test.tsx).
+    expect(isPublishable(asPage({ pageId: "no.such.page", editorialStatus: "review" }))).toBe(false);
     expect(isPublishable(asPage({ indexable: false }))).toBe(false);
   });
 

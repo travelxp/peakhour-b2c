@@ -1,6 +1,6 @@
 import type { ShopifyFeatureContent } from "@/components/marketing/seo/content-types";
 import { getPage } from "@/lib/seo/pages";
-import { isPublishable } from "@/lib/seo/publish";
+import { isLinkable } from "@/lib/seo/publish";
 import { ADD_STORE_CLOSING, capabilityFacts, featureCrumbs, PRICING_LINK, SHOPIFY_HOME_LINK, siblingLink, type PageClaims } from "./shopify-feature-kit";
 
 const ID = "shopify.features.ai.blog.generator";
@@ -11,7 +11,7 @@ const blog = capabilityFacts("content.ai_blog_writer");
 const voice = capabilityFacts("content.brand_voice");
 
 /** The global Brand voice page is the voice's own page; on Shopify there is no separate voice page (it would repeat it). */
-const voiceLink = isPublishable(getPage("features.brand.voice"))
+const voiceLink = isLinkable(getPage("features.brand.voice"))
   ? [{ label: "Brand voice, on every channel", href: "/features/brand-voice", note: "How Peakhour learns your voice, and what it keeps adjusting from." }]
   : [];
 
