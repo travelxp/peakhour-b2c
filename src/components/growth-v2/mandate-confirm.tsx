@@ -3,9 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CircleCheck, LinkIcon, ShieldCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { FlowButton, FlowCard, FlowHead, FlowNotice, FlowPage, FlowSpinner, flowFacts } from "@/components/marketing/flow/flow-kit";
 import { growthLinkApi, type LinkConfirmed, type LinkDescription } from "@/lib/api/growth-link";
 import { CODE_LENGTH, cleanCode, codeIsComplete, linkErrorMessage, linkIsDead } from "@/lib/growth-link";
 
@@ -32,7 +32,7 @@ export function MandateConfirm({ token }: { token: string }) {
   const lastError = confirm.isError ? confirm.error : send.isError ? send.error : undefined;
   const dead = lastError !== undefined && linkIsDead(lastError);
   return (
-    <div className="mx-auto grid min-h-[70vh] w-full max-w-lg content-center gap-4 px-4 py-10">
+    <FlowPage>
       <MandateConfirmView
         link={link}
         loading={described.isPending}
@@ -52,7 +52,7 @@ export function MandateConfirm({ token }: { token: string }) {
         }}
         onConfirm={() => confirm.mutate(code)}
       />
-    </div>
+    </FlowPage>
   );
 }
 
@@ -79,74 +79,69 @@ export interface MandateConfirmViewProps {
 export function MandateConfirmView(p: MandateConfirmViewProps) {
   if (p.loading) {
     return (
-      <Card aria-busy="true">
-        <CardContent className="py-10 text-center text-sm text-muted-foreground">Opening your plan.</CardContent>
-      </Card>
+      <FlowCard aria-busy="true">
+        <h1 className="sr-only">Confirm your plan</h1>
+        <p role="status" className="flex items-center justify-center gap-2.5 py-8 text-sm text-muted-foreground">
+          <FlowSpinner />
+          Opening your plan.
+        </p>
+      </FlowCard>
     );
   }
   if (p.loadError || !p.link) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>This link can&apos;t be used</CardTitle>
-          <CardDescription role="alert">{p.loadError ?? "This link is not valid."}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button asChild variant="outline">
-            <Link href="/dashboard/growth">Go to Growth</Link>
-          </Button>
-        </CardContent>
-      </Card>
+      <FlowCard>
+        <FlowHead icon={LinkIcon} tone="warn" title="This link can't be used">
+          <span role="alert">{p.loadError ?? "This link is not valid."}</span>
+        </FlowHead>
+        <FlowButton asChild variant="ghost" className="mt-5">
+          <Link href="/dashboard/growth">Go to Growth</Link>
+        </FlowButton>
+      </FlowCard>
     );
   }
   const { link } = p;
   if (p.done) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>{link.change ? "Your change is saved" : "Your plan is on"}</CardTitle>
-          <CardDescription>
-            {link.change
-              ? "Peakhour now works to your new plan. Nothing else changed."
-              : "Peakhour starts by watching and proposing. Every change waits for your approval until it has earned more, and nothing spends beyond your ceiling."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3">
-          <p className="text-sm">{link.plan}</p>
+      <FlowCard>
+        <FlowHead icon={CircleCheck} tone="ok" title={link.change ? "Your change is saved" : "Your plan is on"}>
+          {link.change
+            ? "Peakhour now works to your new plan. Nothing else changed."
+            : "Peakhour starts by watching and proposing. Every change waits for your approval until it has earned more, and nothing spends beyond your ceiling."}
+        </FlowHead>
+        <div className="mt-5 grid gap-3">
+          <p className={flowFacts + " text-[15px] text-foreground"}>{link.plan}</p>
           {!link.change && !p.done.holdout.started ? (
-            <p className="text-xs text-muted-foreground">Lift measurement has not started yet ({p.done.holdout.reason}). Peakhour will say so on Growth home.</p>
+            <p className="text-sm text-muted-foreground">Lift measurement has not started yet ({p.done.holdout.reason}). Peakhour will say so on Growth home.</p>
           ) : null}
-          <Button asChild>
+          <FlowButton asChild>
             <Link href="/dashboard/growth">Open Growth</Link>
-          </Button>
-        </CardContent>
-      </Card>
+          </FlowButton>
+        </div>
+      </FlowCard>
     );
   }
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{link.change ? "Confirm this change to your plan" : "Confirm your plan"}</CardTitle>
-        <CardDescription>
-          {link.change ? "Your plan changes only when you enter the code below." : "Nothing is spent until you enter the code below."}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        <p className="rounded-lg border bg-muted/40 p-3 text-sm">{link.plan}</p>
+    <FlowCard>
+      <FlowHead icon={ShieldCheck} title={link.change ? "Confirm this change to your plan" : "Confirm your plan"}>
+        {link.change ? "Your plan changes only when you enter the code below." : "Nothing is spent until you enter the code below."}
+      </FlowHead>
+      <div className="mt-5 grid gap-4">
+        <p className={flowFacts + " text-[15px] text-foreground"}>{link.plan}</p>
         {p.dead ? (
-          <p role="alert" className="text-sm text-destructive-on-tint">
+          <FlowNotice tone="bad" role="alert">
             {p.error}
-          </p>
+          </FlowNotice>
         ) : !p.codeAsked ? (
-          <div className="grid gap-2">
-            <p className="text-sm text-muted-foreground">We will text a six-digit code to your WhatsApp number {link.sentTo}.</p>
-            <Button type="button" onClick={p.onSend} disabled={p.sending}>
+          <div className="grid gap-3">
+            <p className="text-[15px] text-muted-foreground">We will text a six-digit code to your WhatsApp number {link.sentTo}.</p>
+            <FlowButton type="button" onClick={p.onSend} disabled={p.sending}>
               Text me the code
-            </Button>
+            </FlowButton>
             {p.error ? (
-              <p role="alert" className="text-sm text-destructive-on-tint">
+              <FlowNotice tone="bad" role="alert">
                 {p.error}
-              </p>
+              </FlowNotice>
             ) : null}
           </div>
         ) : (
@@ -158,34 +153,34 @@ export function MandateConfirmView(p: MandateConfirmViewProps) {
               if (codeIsComplete(p.code) && !p.confirming) p.onConfirm();
             }}
           >
-            <label htmlFor="mandate-code" className="text-sm font-medium">
+            <label htmlFor="mandate-code" className="text-sm font-bold">
               The {CODE_LENGTH}-digit code sent to your WhatsApp {link.sentTo}
             </label>
             <Input
               id="mandate-code"
               inputMode="numeric"
               autoComplete="one-time-code"
-              className="w-40 text-lg tracking-[0.3em] tabular-nums"
+              className="h-12 w-44 rounded-xl bg-card text-lg tracking-[0.3em] tabular-nums"
               maxLength={CODE_LENGTH + 2}
               value={p.code}
               onChange={(e) => p.onCode(e.target.value)}
             />
             {p.error ? (
-              <p role="alert" className="text-sm text-destructive-on-tint">
+              <FlowNotice tone="bad" role="alert">
                 {p.error}
-              </p>
+              </FlowNotice>
             ) : null}
-            <div className="flex flex-wrap gap-2">
-              <Button type="submit" disabled={!codeIsComplete(p.code) || p.confirming}>
+            <div className="flex flex-col gap-2.5 sm:flex-row">
+              <FlowButton type="submit" className="sm:flex-1" disabled={!codeIsComplete(p.code) || p.confirming}>
                 {link.change ? "Confirm the change" : "Confirm and start"}
-              </Button>
-              <Button type="button" variant="outline" onClick={p.onSend} disabled={p.sending}>
+              </FlowButton>
+              <FlowButton type="button" variant="ghost" className="sm:flex-1" onClick={p.onSend} disabled={p.sending}>
                 Send a new code
-              </Button>
+              </FlowButton>
             </div>
           </form>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </FlowCard>
   );
 }

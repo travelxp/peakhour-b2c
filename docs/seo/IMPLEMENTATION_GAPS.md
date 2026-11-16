@@ -119,7 +119,7 @@ Regenerate with `npx tsx scripts/seo/report-pages.ts --write`. A test fails when
 
 ## d) Known follow-ups
 
-- **`/auth`** said "Five modules" in two places. Fixed in this PR (the panel now lists four and says Support is coming soon; the invite-only message says "every module"). Other "five modules" copy remains outside the marketing pages and is tied to Q3: `signupPromises` and `heroTrustPoints` in `pricing-catalog-plans.test.ts` and `trial-copy.test.ts`, the pricing FAQ, and a few comments.
+- **`/auth`** said "Five modules" in two places. Fixed in SEO-7, and the panel was redrawn in DL-2 on approved claims only (no module count, no Support, no "every module"). `signupPromises`, `heroTrustPoints` and `lib/pillar-console.ts` are gone. Other "five modules" copy remains outside the marketing pages and is tied to Q3: the pricing FAQ and a few comments.
 - **The SEO-4 kit labels** (breadcrumb "Home", the status chips, the section headings, the CTA labels) still sit in the kit as literals. They move into `messages/*.json` when the first non-English locale is chosen (see `docs/seo/LOCALIZATION.md` once #794 merges).
 - **The guide's literal fallback link** needs swapping for `pathFor`.
 - **The directory card "live" badge:** the directory cards show a status chip, and the badge wording for a live capability needs a read against the rule that a page never says more than its status supports.

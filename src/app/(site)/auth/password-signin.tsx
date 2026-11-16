@@ -122,17 +122,17 @@ export function PasswordSignIn({
   if (!available) return null;
 
   return (
-    <details className="mt-6 rounded-lg border border-border/60 bg-muted/20">
+    <details className="mt-6 rounded-2xl border bg-muted">
       {/* ★`[&::-webkit-details-marker]:hidden` alongside `list-none`: Safari
           draws its own marker and ignores list-style, as
           feature-comparison.tsx notes one component over. */}
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 text-xs font-medium text-muted-foreground sm:text-sm marker:content-none [&::-webkit-details-marker]:hidden">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-2xl px-3.5 py-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring text-xs font-medium text-muted-foreground sm:text-sm marker:content-none [&::-webkit-details-marker]:hidden">
         <KeyRound className="size-3.5 shrink-0" aria-hidden />
         Sign in with password
         <span className="ml-auto text-micro font-normal">reviewers only</span>
       </summary>
 
-      <form onSubmit={onSubmit} className="flex flex-col gap-3 border-t border-border/60 p-3">
+      <form onSubmit={onSubmit} className="flex flex-col gap-3 border-t p-3.5">
         <p className="text-xs text-muted-foreground">
           For platform review accounts. Everyone else should use the magic link above.
         </p>
@@ -140,7 +140,7 @@ export function PasswordSignIn({
         {error && (
           <div
             role="alert"
-            className="rounded-md border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive-on-tint"
+            className="rounded-xl border border-[var(--daylight-bad)]/30 bg-[var(--daylight-bad-soft)] p-2.5 text-xs text-[var(--daylight-bad-ink)]"
           >
             {error}
           </div>
@@ -157,7 +157,7 @@ export function PasswordSignIn({
             onChange={(e) => setEmail(e.target.value)}
             required
             autoComplete="username"
-            className="h-10"
+            className="h-11 rounded-xl bg-card"
           />
         </div>
 
@@ -172,7 +172,7 @@ export function PasswordSignIn({
             onChange={(e) => setPassword(e.target.value)}
             required
             autoComplete="current-password"
-            className="h-10"
+            className="h-11 rounded-xl bg-card"
           />
         </div>
 
@@ -186,7 +186,7 @@ export function PasswordSignIn({
           // ★`aria-disabled:` and not `disabled:` — the element is never natively
           //  disabled, so the `disabled:` variant matched nothing and the busy
           //  state was invisible. GOLD_BUTTON in auth-flow.tsx does the same.
-          className="h-10 rounded-md border border-border bg-background text-sm font-semibold transition-colors hover:bg-muted aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+          className="min-h-11 rounded-full bg-card text-sm font-bold shadow-[inset_0_0_0_2px_var(--foreground)] transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
         >
           {submitting ? "Signing in…" : "Sign in"}
         </button>

@@ -3,16 +3,9 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle2, AlertCircle, Globe, Loader2 } from "lucide-react";
+import { Globe } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { FlowButton, FlowCard, FlowHead, FlowNotice, FlowPage, FlowSpinner, flowFacts, flowOption } from "@/components/marketing/flow/flow-kit";
 import {
   fetchClaimCandidates,
   claimWordpressSite,
@@ -29,13 +22,13 @@ function errCopy(code: string, fallback: string): { title: string; body: string 
     case "CLAIM_ALREADY_CLAIMED":
       return { title: "Already connected", body: "This site is already linked to a Peakhour account." };
     case "CLAIM_EXPIRED":
-      return { title: "This link has expired", body: "Open Peakhour in your WordPress admin and use the fresh “Claim” link." };
+      return { title: "This link has expired", body: "Open Peakhour in your WordPress admin and select the new “Claim” link." };
     case "CLAIM_INVALID":
-      return { title: "Invalid claim link", body: "Open Peakhour in your WordPress admin and use the “Claim” link there." };
+      return { title: "This link is incomplete", body: "Open Peakhour in your WordPress admin and select “Claim”." };
     case "CLAIM_FORBIDDEN_ORG":
-      return { title: "No permission", body: "You can only attach a site to an account you own or admin." };
+      return { title: "No permission", body: "You can only connect a site to an account you own or admin." };
     case "CLAIM_NO_BUSINESS":
-      return { title: "Set up a business first", body: "Create a business in that account, then open the claim link again." };
+      return { title: "Set up a business first", body: "Add a business to that account, then open the claim link again." };
     case "CLAIM_SITE_NOT_FOUND":
       return { title: "Site not found", body: "This site is no longer available to claim." };
     default:
@@ -90,7 +83,7 @@ export function WordpressClaim() {
       setFetchState("done");
     } catch (e: unknown) {
       setErrCode((e as { code?: string })?.code ?? "");
-      setErrMsg((e as { message?: string })?.message ?? "Couldn't connect the site.");
+      setErrMsg((e as { message?: string })?.message ?? "The site didn't connect. Try again.");
       setFetchState("error");
     }
   }
@@ -101,56 +94,46 @@ export function WordpressClaim() {
   const showSignIn = !isLoading && !!site && !!token && !isAuthenticated;
 
   return (
-    <div className="mx-auto flex min-h-[70vh] w-full max-w-lg items-center px-4 py-10">
-      <Card className="w-full">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Globe className="size-5 text-primary" aria-hidden />
-            Connect your WordPress site
-          </CardTitle>
-          {ready && fetchState === "choose" && data?.site?.host && (
-            <CardDescription>{data.site.host}</CardDescription>
-          )}
-        </CardHeader>
-        <CardContent className="space-y-4">
+    <FlowPage>
+      <FlowCard>
+        <FlowHead icon={Globe} title="Connect your WordPress site">
+          {ready && fetchState === "choose" && data?.site?.host ? data.site.host : null}
+        </FlowHead>
+        <div className="mt-5 space-y-4">
           {showLoading && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" aria-hidden />
+            <div role="status" className="flex items-center gap-2.5 text-sm text-muted-foreground">
+              <FlowSpinner />
               Loading…
             </div>
           )}
 
           {showMissing && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-medium text-destructive">
-                <AlertCircle className="size-5" aria-hidden />
-                Invalid claim link
-              </div>
-              <p className="text-sm text-muted-foreground">
-                This link is missing information. Open Peakhour in your WordPress admin and use the
-                “Claim” link there.
+            <FlowNotice tone="bad" role="alert">
+              <p className="font-bold">This link is incomplete</p>
+              <p className="mt-1">
+                Open Peakhour in your WordPress admin and select “Claim”.
               </p>
-            </div>
+            </FlowNotice>
           )}
 
           {showSignIn && (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Sign in to your Peakhour account to connect this WordPress site. After signing in,
-                reopen the “Claim” link from your WordPress admin.
+                Sign in to connect this WordPress site to your Peakhour account. Then open the
+                “Claim” link from your WordPress admin again.
               </p>
-              <Button asChild>
+              <FlowButton asChild>
                 <Link href="/auth">Sign in</Link>
-              </Button>
+              </FlowButton>
             </div>
           )}
 
           {ready && fetchState === "choose" && data && (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Choose which Peakhour account to attach this site to.
+                Pick the Peakhour account for this site.
               </p>
-              <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+              <div className={flowFacts}>
                 <div>
                   Signed in as{" "}
                   <span className="font-medium text-foreground">{data.signedInEmail ?? "your account"}</span>
@@ -165,7 +148,7 @@ export function WordpressClaim() {
 
               {data.orgs.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  No account found on your sign-in. Create one in Peakhour, then reopen this link.
+                  No account found. Create one in Peakhour, then open this link again.
                 </p>
               ) : data.orgs.length === 1 ? (
                 <p className="text-sm">
@@ -180,12 +163,11 @@ export function WordpressClaim() {
                         <button
                           type="button"
                           onClick={() => setSelectedOrg(o.orgId)}
-                          className={`flex w-full items-center justify-between rounded-md border p-3 text-left text-sm hover:bg-muted/40 ${
-                            selected ? "border-primary ring-1 ring-primary" : ""
-                          }`}
+                          aria-pressed={selected}
+                          className={flowOption(selected, false, true)}
                         >
                           <span className="font-medium">{o.name}</span>
-                          <span className="text-xs text-muted-foreground">{o.role}</span>
+                          <span className="text-sm text-muted-foreground">{o.role}</span>
                         </button>
                       </li>
                     );
@@ -193,36 +175,30 @@ export function WordpressClaim() {
                 </ul>
               )}
 
-              <Button
-                onClick={handleClaim}
-                disabled={!selectedOrg || data.orgs.length === 0}
-                className="w-full"
-              >
+              <FlowButton onClick={handleClaim} disabled={!selectedOrg || data.orgs.length === 0}>
                 Connect this site
-              </Button>
+              </FlowButton>
             </div>
           )}
 
           {ready && fetchState === "claiming" && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" aria-hidden />
+            <div role="status" className="flex items-center gap-2.5 text-sm text-muted-foreground">
+              <FlowSpinner />
               Connecting…
             </div>
           )}
 
           {ready && fetchState === "done" && (
             <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-medium text-success-on-tint">
-                <CheckCircle2 className="size-5" aria-hidden />
-                Connected!
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {data?.site?.host ?? "Your site"} is now linked to{" "}
-                <span className="font-medium text-foreground">{claimedName}</span>.
-              </p>
-              <Button asChild>
+              <FlowNotice tone="ok" role="status">
+                <p className="font-bold">Site connected</p>
+                <p className="mt-1">
+                  {data?.site?.host ?? "Your site"} is now linked to <span className="font-bold">{claimedName}</span>.
+                </p>
+              </FlowNotice>
+              <FlowButton asChild>
                 <Link href="/dashboard">Go to dashboard</Link>
-              </Button>
+              </FlowButton>
             </div>
           )}
 
@@ -230,19 +206,18 @@ export function WordpressClaim() {
             const ec = errCopy(errCode, errMsg);
             return (
               <div className="space-y-3">
-                <div className="flex items-center gap-2 text-sm font-medium text-destructive">
-                  <AlertCircle className="size-5" aria-hidden />
-                  {ec.title}
-                </div>
-                <p className="text-sm text-muted-foreground">{ec.body}</p>
-                <Button asChild variant="outline">
+                <FlowNotice tone="bad" role="alert">
+                  <p className="font-bold">{ec.title}</p>
+                  <p className="mt-1">{ec.body}</p>
+                </FlowNotice>
+                <FlowButton asChild variant="ghost">
                   <Link href="/dashboard">Go to dashboard</Link>
-                </Button>
+                </FlowButton>
               </div>
             );
           })()}
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </FlowCard>
+    </FlowPage>
   );
 }

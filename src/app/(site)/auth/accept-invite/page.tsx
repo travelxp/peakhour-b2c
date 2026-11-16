@@ -4,17 +4,17 @@ import { useEffect, useState, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { acceptInvite, sendMagicLink } from "@/lib/auth";
 import { useAuth } from "@/providers/auth-provider";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { CheckCircle, XCircle, Loader2, Mail } from "lucide-react";
+import { CheckCircle2, XCircle, Mail } from "lucide-react";
+import { FlowButton, FlowCard, FlowHead, FlowSpinner, flowStage } from "@/components/marketing/flow/flow-kit";
 import { Suspense } from "react";
 import { HOME_ROUTE } from "@/lib/nav-home";
 
 export default function AcceptInvitePage() {
   return (
     <Suspense fallback={
-      <div className="flex flex-1 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className={flowStage} role="status">
+        <FlowSpinner className="size-8" />
+        <span className="sr-only">Loading</span>
       </div>
     }>
       <AcceptInviteContent />
@@ -45,7 +45,7 @@ function AcceptInviteContent() {
     if (!token || !email) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time validation of URL search params on mount; necessary to surface the error UI
       setStatus("error");
-      setMessage("Invalid invitation link. Please ask for a new invite.");
+      setMessage("This invitation link is incomplete. Ask the person who invited you to send it again.");
       return;
     }
 
@@ -72,7 +72,7 @@ function AcceptInviteContent() {
         const message =
           err instanceof Error ? err.message : "";
         setMessage(
-          message || "This invitation has expired or already been used."
+          message || "This invitation has expired or was already used. Ask for a new one."
         );
       }
     })();
@@ -87,75 +87,59 @@ function AcceptInviteContent() {
       setMagicLinkSent(true);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "";
-      setMessage(message || "Failed to send sign-in link");
+      setMessage(message || "The sign-in link didn’t send. Try again.");
     }
   };
 
   return (
-    <div className="flex flex-1 items-center justify-center bg-background p-4">
-      <Card className="max-w-md w-full">
-        <CardContent className="pt-8 pb-8 text-center space-y-4">
-          {status === "loading" && (
-            <>
-              <Loader2 className="h-10 w-10 animate-spin text-muted-foreground mx-auto" />
-              <p className="text-muted-foreground">Accepting invitation...</p>
-            </>
-          )}
+    <div className={flowStage}>
+      <FlowCard className="max-w-md">
+        {status === "loading" && (
+          <div role="status" className="flex flex-col items-center gap-4 py-6 text-center">
+            <FlowSpinner className="size-9" />
+            <h1 className="text-lg font-bold">Opening your invitation…</h1>
+          </div>
+        )}
 
-          {status === "joined" && (
-            <>
-              <CheckCircle className="h-12 w-12 text-success mx-auto" />
-              <h2 className="text-xl font-semibold">Welcome to the team!</h2>
-              <p className="text-muted-foreground">{message}</p>
-              <p className="text-sm text-muted-foreground">
-                Redirecting to dashboard...
-              </p>
-            </>
-          )}
+        {status === "joined" && (
+          <>
+            <FlowHead icon={CheckCircle2} tone="ok" title="You’ve joined the team">
+              <span role="status">{message}</span>
+            </FlowHead>
+            <p className="mt-4 text-sm text-muted-foreground">Taking you to your dashboard…</p>
+          </>
+        )}
 
-          {status === "signup" && !magicLinkSent && (
-            <>
-              <Mail className="h-12 w-12 text-state-info mx-auto" />
-              <h2 className="text-xl font-semibold">
-                You&apos;re invited to {orgName}
-              </h2>
-              <p className="text-muted-foreground">
-                Create your Peakhour account to join the team. We&apos;ll send a
-                sign-in link to <strong>{email}</strong>.
-              </p>
-              <Button onClick={handleSignup} className="w-full">
-                Send sign-in link
-              </Button>
-            </>
-          )}
+        {status === "signup" && !magicLinkSent && (
+          <>
+            <FlowHead icon={Mail} title={<>You&apos;re invited to {orgName}</>}>
+              Create your account to join. We&apos;ll email a sign-in link to{" "}
+              <strong className="text-foreground">{email}</strong>.
+            </FlowHead>
+            <FlowButton onClick={handleSignup} className="mt-5">
+              Send sign-in link
+            </FlowButton>
+          </>
+        )}
 
-          {status === "signup" && magicLinkSent && (
-            <>
-              <CheckCircle className="h-12 w-12 text-success mx-auto" />
-              <h2 className="text-xl font-semibold">Check your email</h2>
-              <p className="text-muted-foreground">
-                We sent a sign-in link to <strong>{email}</strong>. Click the
-                link to create your account and join {orgName}.
-              </p>
-            </>
-          )}
+        {status === "signup" && magicLinkSent && (
+          <FlowHead icon={CheckCircle2} tone="ok" title="Check your email">
+            We sent a sign-in link to <strong className="text-foreground">{email}</strong>. Open it
+            to create your account and join {orgName}.
+          </FlowHead>
+        )}
 
-          {status === "error" && (
-            <>
-              <XCircle className="h-12 w-12 text-destructive mx-auto" />
-              <h2 className="text-xl font-semibold">Invitation expired</h2>
-              <p className="text-muted-foreground">{message}</p>
-              <Button
-                variant="outline"
-                onClick={() => router.push("/auth")}
-                className="mt-2"
-              >
-                Go to sign in
-              </Button>
-            </>
-          )}
-        </CardContent>
-      </Card>
+        {status === "error" && (
+          <>
+            <FlowHead icon={XCircle} tone="bad" title="This invitation can’t be used">
+              <span role="alert">{message}</span>
+            </FlowHead>
+            <FlowButton variant="ghost" onClick={() => router.push("/auth")} className="mt-5">
+              Go to sign in
+            </FlowButton>
+          </>
+        )}
+      </FlowCard>
     </div>
   );
 }

@@ -9,7 +9,7 @@ import {
   type ResolvedProductTier,
 } from "./pricing";
 import { suiteModuleSlugs } from "./pricing-catalog";
-import { heroTrustPoints, signupPromises, signupStats, SIGNUP_PROMISES, PRELAUNCH_PROMISES } from "./pillar-console";
+import { signupTicks } from "@/app/(site)/auth/auth-copy";
 import { hasTrial } from "./trial-copy";
 
 /**
@@ -130,35 +130,30 @@ describe("suiteModuleSlugs: what Suite includes, asked of each product", () => {
 });
 
 describe("signup copy promises a trial, not a free plan (D19)", () => {
-  it("the /auth stats state the Suite trial's length", () => {
-    expect(signupStats(14)).toContainEqual({ value: "14", label: "days of Peakhour Suite, free" });
-    expect(signupStats(7).map((s) => s.value)).toEqual(["5", "0", "7"]);
+  it("the /auth ticks state the Suite trial's length, and no module count", () => {
+    expect(signupTicks(14, false)).toEqual(["14-day free trial · No credit card", "Live the same day"]);
+    expect(signupTicks(7, true)).toEqual(["7-day free trial · No credit card", "We’ll email your link"]);
   });
 
-  it("★no Suite trial, no trial stats: no 14-day stand-in (official review R1)", () => {
+  it("★no Suite trial, no trial ticks: no 14-day stand-in (official review R1)", () => {
     // `suiteTrialDays` is null on purpose here, and /auth passes it through.
     const days = suiteTrialDays(catalog(tier("suite", { trialDays: 0 })));
     expect(days).toBeNull();
-    const stats = signupStats(days);
-    expect(stats.map((s) => s.value)).toEqual(["5", "1"]);
-    expect(JSON.stringify(stats)).not.toMatch(/free|credit card/i);
-    expect(signupStats(0).map((s) => s.value)).toEqual(["5", "1"]);
-  });
-
-  it("★no Suite trial, no trial ticks under the /auth form (official review R1)", () => {
-    expect(signupPromises(14, false)).toEqual(SIGNUP_PROMISES);
-    expect(signupPromises(14, true)).toEqual(PRELAUNCH_PROMISES);
-    expect(signupPromises(null, false)).toEqual(["All five modules, one platform", "Live the same day"]);
-    expect(signupPromises(null, true)).toEqual(["All five modules, one platform", "We’ll email your link"]);
-    expect(signupPromises(0, false)).toEqual(["All five modules, one platform", "Live the same day"]);
+    expect(signupTicks(days, false)).toEqual(["Live the same day"]);
+    expect(signupTicks(null, true)).toEqual(["We’ll email your link"]);
+    expect(signupTicks(0, false)).toEqual(["Live the same day"]);
+    for (const d of [days, null, 0]) expect(JSON.stringify(signupTicks(d, false))).not.toMatch(/free|credit card|trial/i);
     expect(hasTrial(1)).toBe(true);
     expect(hasTrial(undefined)).toBe(false);
   });
 
-  it("no promise names a free plan", () => {
-    for (const line of [...SIGNUP_PROMISES, ...PRELAUNCH_PROMISES, ...heroTrustPoints(14), ...heroTrustPoints(null)]) {
-      expect(line.toLowerCase()).not.toContain("free plan");
+  it("no tick names a free plan, a module count, or every module", () => {
+    for (const d of [14, null]) {
+      for (const pre of [true, false]) {
+        const text = signupTicks(d, pre).join(" ").toLowerCase();
+        expect(text).not.toContain("free plan");
+        expect(text).not.toMatch(/five modules|every module|5 modules/);
+      }
     }
-    expect(SIGNUP_PROMISES).toContain("Free trial of every module");
   });
 });

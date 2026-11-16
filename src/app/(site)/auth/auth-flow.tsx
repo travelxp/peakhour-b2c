@@ -10,17 +10,11 @@ import { PasswordSignIn } from "./password-signin";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api, ApiError } from "@/lib/api";
-import { SITE, cn } from "@/lib/utils";
+import { SITE } from "@/lib/utils";
 import type { PlatformSignupMode } from "@/lib/catalog";
-import { PeaksGlyph } from "@/components/peaks/peaks-glyph";
-import { hasTrial } from "@/lib/trial-copy";
-import {
-  PILLAR_CONSOLE_ROWS,
-  PILLAR_CONSOLE_LABEL,
-  PILLAR_CONSOLE_ROW_CLASS,
-  signupPromises,
-  signupStats,
-} from "@/lib/pillar-console";
+import { FlowButton, FlowCard, FlowHead, FlowNotice, flowLink } from "@/components/marketing/flow/flow-kit";
+import { eyebrowCls } from "@/components/marketing/seo/styles";
+import { PANEL_BETA, PANEL_LIVE, signupTicks, type PanelItem } from "./auth-copy";
 
 // Bounded length + char set so a tampered link can't smuggle arbitrary strings
 // into the waitlist payload. Mirrors the referredByCode validator on
@@ -71,16 +65,16 @@ const RESEND_COOLDOWN_SECONDS = 60;
 // is unchanged.
 const INTENT_COPY: Record<string, { eyebrow: string; title: string; subtitle: string }> = {
   waitlist: {
-    eyebrow: "Join the waitlist",
-    title: "Get your spot in the queue.",
+    eyebrow: "Waitlist",
+    title: "Get on the list for early access.",
     subtitle:
-      "Enter your email and we’ll send your access link as we roll out. No password, no card.",
+      "Enter your email. We’ll send your access link when your turn comes. No password needed.",
   },
   invite: {
-    eyebrow: "Request an invite",
-    title: "Ask for an invite.",
+    eyebrow: "Invite",
+    title: "Request an invite.",
     subtitle:
-      "Enter your email and we’ll be in touch with your access link. No password, no card.",
+      "Enter your email. We’ll send your access link once you’re approved. No password needed.",
   },
 };
 
@@ -91,66 +85,15 @@ const INTENT_COPY: Record<string, { eyebrow: string; title: string; subtitle: st
 const NUMERIC_FONT = { fontFamily: "var(--font-space-grotesk)" } as const;
 
 /**
- * Gold-gradient primary button, matching the header/landing CTA treatment.
- *
- * `ring-offset-background` is load-bearing: the Tailwind default offset colour
- * is white, which paints a halo around every focused button in dark mode.
+ * The panel's pillar dots. The colours are the --daylight-dot-* tokens (globals.css); a full class string per key so
+ * Tailwind sees each one.
  */
-const GOLD_BUTTON =
-  "inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-brand-gradient px-4 py-2 text-center text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background aria-disabled:cursor-not-allowed aria-disabled:opacity-60 aria-disabled:hover:translate-y-0 aria-disabled:focus-visible:translate-y-0";
-
-/** Underlined inline link, used in the legal/help microcopy. */
-const LEGAL_LINK =
-  "underline underline-offset-2 hover:text-foreground focus-visible:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-sm";
-
-/** Quiet secondary button — outlined, gains a foreground border on hover. */
-const GHOST_BUTTON =
-  "inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border-2 px-4 py-2 text-center text-sm font-bold transition-colors hover:border-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 focus-visible:ring-offset-background";
-
-/**
- * Eyebrow label — uppercase, gold, with the short gradient rule.
- *
- * `--brand-label` is the one theme-AWARE brand token: deep amber on light
- * grounds, bright gold on dark. That makes it right for the theme-following
- * form column and wrong for the always-dark panel, where a light-theme
- * visitor would get deep amber on near-black (~2.5:1). The panel passes
- * `text-brand` instead, which is theme-stable and ~8:1 on zinc-900.
- */
-function Eyebrow({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <span
-      // cn() so a caller passing a non-colour class (spacing, say) keeps the
-      // default colour, and one passing a colour overrides it cleanly rather
-      // than emitting two competing text-* classes.
-      className={cn(
-        "inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label",
-        className,
-      )}
-    >
-      <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-      {children}
-    </span>
-  );
-}
-
-/**
- * Gold icon tile used on the outcome cards — the same 11×11 rounded-xl
- * gradient tile the landing page gives each pillar, so these cards read as
- * part of the product rather than generic shadcn alerts.
- */
-function GoldTile({ icon: Icon }: { icon: typeof Mail }) {
-  return (
-    <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand-gradient shadow-inner">
-      <Icon className="size-5 text-brand-contrast" strokeWidth={2} aria-hidden />
-    </div>
-  );
-}
+const DOT: Record<PanelItem["dot"], string> = {
+  commerce: "bg-[var(--daylight-dot-commerce)]",
+  content: "bg-[var(--daylight-dot-content)]",
+  growth: "bg-[var(--daylight-dot-growth)]",
+  presence: "bg-[var(--daylight-dot-presence)]",
+};
 
 /**
  * Which outcome card a status renders, or null while the form is showing.
@@ -185,7 +128,7 @@ function outcomeOf(status: Status): OutcomeBranch {
 function EmailChip({ email }: { email: string }) {
   return (
     <p
-      className="break-all rounded-lg bg-muted px-3 py-2 text-sm font-semibold"
+      className="break-all rounded-xl bg-muted px-3.5 py-2.5 text-sm font-semibold"
       style={NUMERIC_FONT}
     >
       {email}
@@ -470,7 +413,7 @@ export function AuthFlow({
       });
     } catch (err) {
       if (abandoned()) return;
-      let message = `We couldn’t send your link. Try again in a moment — if it keeps failing, email ${SITE.contactGeneral}.`;
+      let message = `The link didn’t send. Try again in a moment. If it keeps failing, email ${SITE.contactGeneral}.`;
       let isRateLimited = false;
       if (err instanceof ApiError) {
         if (err.code === "RATE_LIMITED") {
@@ -479,7 +422,7 @@ export function AuthFlow({
           // drift, surface a friendly message instead of the raw
           // "magic link sent recently" copy from the API.
           message =
-            "You asked for a link a moment ago. Give it a minute, then try again — the first one is probably still landing.";
+            "A link was sent a moment ago. Check your inbox, or try again in a minute.";
           isRateLimited = true;
         } else if (err.message) {
           message = err.message;
@@ -534,97 +477,38 @@ export function AuthFlow({
   return (
     <div className="flex flex-1 flex-col lg:flex-row">
       {/* ---------------------------------------------------------------
-          Left — the always-dark product panel. Fixed zinc tones (not
-          theme tokens) so it reads identically on light and dark, exactly
-          like the landing hero's console and the free-first panel.
-          Hidden below lg; the promise still reaches small screens through
-          the tick row in the form column.
+          Left — what Peakhour does, on the Daylight hero tint. Every line
+          is an approved claim (auth-copy.ts), the beta ones say so, and
+          nothing here is a number or a made-up status.
+          Hidden below lg, where the form column is the whole page; the
+          access promise still reaches small screens through the ticks
+          under the button.
          --------------------------------------------------------------- */}
-      <section className="relative hidden flex-col justify-between gap-8 overflow-hidden bg-ink p-10 text-on-ink lg:flex lg:w-1/2 xl:w-[55%] xl:p-14">
-        {/* Single warm bloom — the only decoration on the panel. */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -bottom-56 -right-36 size-115 rounded-full"
-          style={{
-            background:
-              "radial-gradient(circle, color-mix(in oklch, var(--brand) 30%, transparent), transparent 68%)",
-          }}
-        />
-
-        <div className="relative z-10">
-          {/* text-brand, not the theme-aware text-brand-label — see Eyebrow. */}
-          <Eyebrow className="text-brand">One account · one plan</Eyebrow>
+      <section
+        aria-label="What Peakhour does"
+        className="hidden flex-col justify-center gap-7 bg-[var(--daylight-hero)] px-10 py-12 lg:flex lg:w-1/2 xl:w-[52%] xl:px-16"
+      >
+        <div className="mx-auto w-full max-w-xl">
+          <p className={eyebrowCls}>What Peakhour does</p>
           {/* Deliberately not a heading: this panel disappears below lg, so an
               h1 here would leave small screens with no h1 at all. The state
               heading in the form column is the h1 at every breakpoint. */}
-          <p className="mt-4 max-w-xl text-3xl font-extrabold leading-[1.06] tracking-tight text-pretty xl:text-4xl">
-            Your whole business, waiting on the other side.
-            {hasTrial(trialDays) ? (
-              <>
-                {" "}
-                <span className="font-serif font-normal italic text-brand-gradient">
-                  Free to try.
-                </span>
-              </>
-            ) : null}
+          <p className="mt-3 text-4xl font-extrabold leading-[1.05] tracking-[-0.035em] text-balance xl:text-[2.75rem]">
+            Your shoppers, answered. Your orders, <span className="daylight-mark">confirmed.</span>
           </p>
-          <p className="mt-4 max-w-md text-on-ink-dim">
-            Commerce, Content, Growth and Presence on one account, with
-            Support coming soon
-            {hasTrial(trialDays) ? `, free for your first ${trialDays} days.` : "."}
-          </p>
-        </div>
 
-        {/* Pillar console — same device as the landing hero. */}
-        <div
-          className="relative z-10"
-          role="img"
-          aria-label={PILLAR_CONSOLE_LABEL}
-        >
-          <div className="flex items-center justify-between px-1 pb-2 text-micro font-bold uppercase tracking-[0.18em] text-on-ink-dim">
-            <span>Your business, at a glance</span>
-            <span className="flex items-center gap-1.5 text-success">
-              <span className="size-1.5 rounded-full bg-success" aria-hidden />
-              live
-            </span>
-          </div>
-          <div className="flex flex-col gap-2.5">
-            {PILLAR_CONSOLE_ROWS.map((row) => (
-              <div
-                key={row.name}
-                className={PILLAR_CONSOLE_ROW_CLASS}
-              >
-                <span className="size-2 shrink-0 rounded-full bg-success" aria-hidden />
-                <span className="w-20 shrink-0 font-bold text-on-ink">{row.name}</span>
-                <span className="min-w-0 flex-1 truncate text-on-ink-dim">{row.status}</span>
-                <span className="shrink-0 rounded-full bg-success/15 px-2.5 py-0.5 text-micro font-bold uppercase tracking-wide text-[color-mix(in_oklch,var(--success)_75%,white)]">
-                  Free
-                </span>
-              </div>
+          <ul role="list" className="mt-8 grid gap-3">
+            {PANEL_LIVE.map((item) => (
+              <PanelRow key={item.name} item={item} />
             ))}
-          </div>
-          {/* Peaks is always the coin glyph, never a generic bolt. */}
-          <p className="flex items-center gap-1.5 px-1 pt-3 text-xs text-on-ink-dim">
-            Metered in
-            <PeaksGlyph size={16} />
-            <span className="font-bold text-brand-gradient">Peaks</span>
-          </p>
-        </div>
+          </ul>
 
-        <div className="relative z-10 flex gap-8 border-t border-ink-line pt-6">
-          {signupStats(trialDays).map((stat) => (
-            <div key={stat.label}>
-              <div
-                className="text-2xl font-bold tabular-nums text-brand-gradient"
-                style={NUMERIC_FONT}
-              >
-                {stat.value}
-              </div>
-              <div className="mt-1.5 max-w-[15ch] text-xs leading-snug text-on-ink-dim">
-                {stat.label}
-              </div>
-            </div>
-          ))}
+          <p className={`${eyebrowCls} mt-8`}>In beta</p>
+          <ul role="list" className="mt-3 grid gap-3">
+            {PANEL_BETA.map((item) => (
+              <PanelRow key={item.name} item={item} />
+            ))}
+          </ul>
         </div>
       </section>
 
@@ -638,101 +522,74 @@ export function AuthFlow({
             // Measured: at 375×553 (iPhone SE with the browser bars showing)
             // this banner was the one thing tipping /auth into scrolling. The
             // tighter padding and type keep it to a single line there.
-            className="border-b bg-brand-soft px-4 py-2.5 text-xs font-medium text-brand-ink sm:px-8 sm:py-3 sm:text-sm dark:bg-brand/12 dark:text-brand-soft"
+            className="border-b bg-brand-soft px-4 py-2.5 text-xs font-medium text-brand-ink sm:px-8 sm:py-3 sm:text-sm"
           >
             <div className="mx-auto flex max-w-md items-center gap-2">
               <Sparkles className="size-4 shrink-0" aria-hidden />
               {/* Says only what the ?ref= flow actually does — the code credits
                   the inviter on signup. Don't promise the invitee a bonus we
                   don't grant. */}
-              <span>A friend invited you — claim your spot.</span>
+              <span>A friend invited you. Sign in to claim your spot.</span>
             </div>
           </div>
         ) : null}
 
         {/* Vertical padding steps up only once there's room for it. At mobile
-            widths the dark panel is hidden, so this column is the whole page
-            and desktop-sized padding was pushing it past the viewport. */}
-        <div className="flex flex-1 items-center justify-center px-4 py-4 sm:px-8 sm:py-12">
+            widths the panel is hidden, so this column is the whole page and
+            desktop-sized padding was pushing it past the viewport. */}
+        <div className="flex flex-1 items-start justify-center px-4 py-6 sm:items-center sm:px-8 sm:py-12">
           {status.kind === "waitlisted" ? (
-            <div className="w-full max-w-md rounded-2xl border bg-card p-6 sm:p-7">
-              <GoldTile icon={Clock} />
-              <h1
-                ref={outcomeHeadingRef}
-                tabIndex={-1}
-                className="mt-5 text-2xl font-extrabold tracking-tight focus-visible:outline-none"
-              >
-                You&rsquo;re in the queue
-              </h1>
-              <p className="mt-2 text-sm text-muted-foreground">
-                We&rsquo;re onboarding launch partners in batches so every account
-                gets set up properly. We&rsquo;ll email your sign-in link the
-                moment yours is ready — no need to check back.
-              </p>
+            <FlowCard className="max-w-md">
+              <FlowHead icon={Clock} title="You’re on the waitlist" headingRef={outcomeHeadingRef} tabIndex={-1}>
+                We&rsquo;re approving launch partners in batches. We&rsquo;ll email
+                your sign-in link when yours is ready, so you don&rsquo;t need to
+                check back.
+              </FlowHead>
               <div className="mt-5">
                 <EmailChip email={status.email} />
               </div>
-              <button type="button" className={`${GHOST_BUTTON} mt-4`} onClick={handleReset}>
+              <FlowButton type="button" variant="ghost" className="mt-4" onClick={handleReset}>
                 Use a different email
-              </button>
-            </div>
+              </FlowButton>
+            </FlowCard>
           ) : status.kind === "notEligible" ? (
-            <div className="w-full max-w-md rounded-2xl border bg-card p-6 sm:p-7">
-              <GoldTile icon={ShieldAlert} />
-              <h1
-                ref={outcomeHeadingRef}
-                tabIndex={-1}
-                className="mt-5 text-2xl font-extrabold tracking-tight focus-visible:outline-none"
-              >
-                We don&rsquo;t have this email yet
-              </h1>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {SITE.name} is invite-only while we onboard launch partners.
-                Apply and you&rsquo;ll get every module free, plus a setup
-                call.
-              </p>
+            <FlowCard className="max-w-md">
+              <FlowHead icon={ShieldAlert} title="This email isn’t on the list yet" headingRef={outcomeHeadingRef} tabIndex={-1}>
+                Peakhour is invite-only for now. Apply as a launch partner and
+                our team will get in touch about early access and hands-on setup.
+              </FlowHead>
               <div className="mt-5">
                 <EmailChip email={status.email} />
               </div>
               <div className="mt-4 flex flex-col gap-2 sm:gap-2.5">
-                <Link href="/launch-partner" className={GOLD_BUTTON}>
-                  Apply as a launch partner
-                  <ArrowRight className="size-4" aria-hidden />
-                </Link>
-                <button type="button" className={GHOST_BUTTON} onClick={handleReset}>
+                <FlowButton asChild>
+                  <Link href="/launch-partner">
+                    Apply as a launch partner
+                    <ArrowRight className="size-4" aria-hidden />
+                  </Link>
+                </FlowButton>
+                <FlowButton type="button" variant="ghost" onClick={handleReset}>
                   Use a different email
-                </button>
+                </FlowButton>
               </div>
-            </div>
+            </FlowCard>
           ) : isCoolingDown ? (
             <div className="w-full max-w-md space-y-4">
-              <div className="rounded-2xl border bg-card p-6 sm:p-7">
-                <GoldTile icon={Mail} />
-                <h1
-                  ref={outcomeHeadingRef}
-                  tabIndex={-1}
-                  className="mt-5 text-2xl font-extrabold tracking-tight focus-visible:outline-none"
-                >
-                  Your link is on its way
-                </h1>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Open it within 15 minutes and you&rsquo;re in.
-                </p>
+              <FlowCard>
+                <FlowHead icon={Mail} title="Your link is on its way" headingRef={outcomeHeadingRef} tabIndex={-1}>
+                  Open it within 15 minutes to sign in.
+                </FlowHead>
                 <div className="mt-5">
                   <EmailChip email={status.email} />
                 </div>
                 {status.kind === "sent" && status.resendError && (
-                  <div
-                    role="alert"
-                    className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive-on-tint sm:p-3 sm:text-sm"
-                  >
+                  <FlowNotice tone="bad" role="alert" className="mt-4">
                     {status.resendError}
-                  </div>
+                  </FlowNotice>
                 )}
                 <div className="mt-4 flex flex-col gap-2 sm:gap-2.5">
-                  <button
+                  <FlowButton
                     type="button"
-                    className={GOLD_BUTTON}
                     // aria-disabled, not disabled: a disabled element is blurred
                     // by the browser, so pressing Resend would throw focus to
                     // <body> and the live region below would announce into
@@ -759,7 +616,7 @@ export function AuthFlow({
                         the label stable lets the visible text BE the name, and
                         the remaining seconds live in their own line below. */}
                     {status.kind === "resending" ? "Resending…" : "Resend link"}
-                  </button>
+                  </FlowButton>
                   {/* Static, NOT a live region: tabbing onto a dimmed button
                       and hearing only "Resend link, unavailable" — with no
                       reason and no idea for how long — is worse than the
@@ -790,11 +647,11 @@ export function AuthFlow({
                         ? resendNotice
                         : "You can resend the sign-in link now."}
                   </span>
-                  <button type="button" className={GHOST_BUTTON} onClick={handleReset}>
+                  <FlowButton type="button" variant="ghost" onClick={handleReset}>
                     Use a different email
-                  </button>
+                  </FlowButton>
                 </div>
-              </div>
+              </FlowCard>
               <p className="text-center text-xs text-muted-foreground">
                 Nothing yet? Check spam, or add{" "}
                 <span className="font-semibold text-foreground">
@@ -805,23 +662,24 @@ export function AuthFlow({
             </div>
           ) : (
             <div className="w-full max-w-md">
-              <Eyebrow>{intentCopy?.eyebrow ?? "Sign in or sign up"}</Eyebrow>
-              <h1 className="mt-4 text-2xl font-extrabold tracking-tight text-pretty sm:text-3xl">
-                {intentCopy?.title ?? "One email. No password. Ever."}
+              <p className={eyebrowCls}>{intentCopy?.eyebrow ?? "Sign in"}</p>
+              <h1 className="mt-3 text-[1.9rem] font-extrabold leading-[1.06] tracking-[-0.035em] text-balance sm:text-4xl">
+                {intentCopy?.title ?? (
+                  <>
+                    One email. <span className="daylight-mark">No password.</span> Ever.
+                  </>
+                )}
               </h1>
-              <p className="mt-2.5 text-sm text-muted-foreground sm:text-base">
+              <p className="mt-3 text-[15px] text-muted-foreground sm:text-base">
                 {intentCopy?.subtitle ??
-                  "We’ll send a link that signs you straight in. If you’re new, that same link creates your account."}
+                  "We’ll email you a link that signs you in. New here? The same link creates your account."}
               </p>
 
-              <form onSubmit={handleSubmit} className="mt-5 flex flex-col gap-3 sm:mt-8 sm:gap-4">
+              <form onSubmit={handleSubmit} className="mt-5 flex flex-col gap-3 sm:mt-7 sm:gap-4">
                 {status.kind === "error" && (
-                  <div
-                    role="alert"
-                    className="rounded-lg border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive-on-tint sm:p-3 sm:text-sm"
-                  >
+                  <FlowNotice tone="bad" role="alert">
                     {status.message}
-                  </div>
+                  </FlowNotice>
                 )}
                 <div className="space-y-2">
                   <Label htmlFor="email" className="font-bold">
@@ -836,12 +694,11 @@ export function AuthFlow({
                     required
                     autoComplete="email"
                     autoFocus
-                    className="h-11"
+                    className="h-12 rounded-xl bg-card text-base"
                   />
                 </div>
-                <button
+                <FlowButton
                   type="submit"
-                  className={GOLD_BUTTON}
                   // aria-disabled for the same reason as Resend above: a real
                   // `disabled` is blurred by the browser, so the primary path —
                   // which every visitor takes and few ever leave — would throw
@@ -854,11 +711,11 @@ export function AuthFlow({
                     "Sending your link…"
                   ) : (
                     <>
-                      Continue with email
+                      Email me a sign-in link
                       <ArrowRight className="size-4" aria-hidden />
                     </>
                   )}
-                </button>
+                </FlowButton>
               </form>
 
               {/* ★Dev-only, decided by the API and resolved server-side in
@@ -873,22 +730,22 @@ export function AuthFlow({
                   production regardless. */}
               <PasswordSignIn available={passwordSignIn} next={next} />
 
-              <ul className="mt-4 flex flex-wrap justify-center gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground sm:mt-6 sm:gap-x-4 sm:text-sm">
-                {signupPromises(trialDays, isPreLaunch).map((tick) => (
+              <ul role="list" className="mt-4 flex flex-wrap justify-center gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground sm:mt-6 sm:gap-x-4 sm:text-sm">
+                {signupTicks(trialDays, isPreLaunch).map((tick) => (
                   <li key={tick} className="flex items-center gap-1.5">
-                    <Check className="size-3.5 shrink-0 text-brand-label" strokeWidth={3} aria-hidden />
+                    <Check className="size-3.5 shrink-0 text-brand-strong" strokeWidth={3} aria-hidden />
                     {tick}
                   </li>
                 ))}
               </ul>
 
-              <p className="mt-4 text-center text-xs text-muted-foreground sm:mt-8">
+              <p className="mt-4 text-center text-xs text-muted-foreground sm:mt-7">
                 By continuing, you agree to our{" "}
-                <Link href="/terms" className={LEGAL_LINK}>
+                <Link href="/terms" className={flowLink}>
                   Terms of Service
                 </Link>{" "}
                 and{" "}
-                <Link href="/privacy-policy" className={LEGAL_LINK}>
+                <Link href="/privacy-policy" className={flowLink}>
                   Privacy Policy
                 </Link>
                 .
@@ -898,5 +755,25 @@ export function AuthFlow({
         </div>
       </div>
     </div>
+  );
+}
+
+/** One line of the panel: the pillar's dot, the capability's name, and what it does. A beta one carries the word. */
+function PanelRow({ item }: { item: PanelItem }) {
+  return (
+    <li className="flex gap-3.5 rounded-2xl border bg-card p-4">
+      <span aria-hidden className={`mt-2 size-2.5 shrink-0 rounded-full ${DOT[item.dot]}`} />
+      <div className="min-w-0">
+        <p className="flex flex-wrap items-center gap-2 font-extrabold tracking-tight">
+          {item.name}
+          {item.beta ? (
+            <span className="rounded-full bg-[var(--daylight-warn-soft)] px-2 py-0.5 text-micro font-bold uppercase tracking-wider text-[var(--daylight-warn-ink)]">
+              Beta
+            </span>
+          ) : null}
+        </p>
+        <p className="mt-0.5 text-[15px] text-muted-foreground">{item.line}</p>
+      </div>
+    </li>
   );
 }
