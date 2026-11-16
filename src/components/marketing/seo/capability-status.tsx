@@ -37,7 +37,7 @@ export function CapabilityStatus({
 }: {
   status: ReleaseStatus;
   limitations?: string[];
-  /** ISO date the evidence was last read. */
+  /** ISO date the evidence was last read. Kept as page metadata (data-verified-at), never shown as body text. */
   verifiedAt?: string;
   /** What the status is about, e.g. "WhatsApp COD confirmation on Shopify". */
   subject?: string;
@@ -45,7 +45,7 @@ export function CapabilityStatus({
 }) {
   const meta = statusMeta(status);
   return (
-    <div className={cn(cardCls, "p-5 sm:p-6", className)}>
+    <div className={cn(cardCls, "p-5 sm:p-6", className)} data-verified-at={verifiedAt}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <StatusChip status={status} />
         <p className="text-[15px] font-semibold">
@@ -55,7 +55,7 @@ export function CapabilityStatus({
       </div>
       {limitations.length > 0 && (
         <>
-          <h3 className="mt-5 text-sm font-extrabold uppercase tracking-[0.12em] text-muted-foreground">What it does not do</h3>
+          <h3 className="mt-5 text-sm font-extrabold uppercase tracking-[0.12em] text-muted-foreground">Limits</h3>
           <ul className="mt-2 grid gap-1.5 text-[15px]">
             {limitations.map((l) => (
               <li key={l} className="flex gap-2.5">
@@ -65,11 +65,6 @@ export function CapabilityStatus({
             ))}
           </ul>
         </>
-      )}
-      {verifiedAt && (
-        <p className="mt-4 text-sm text-muted-foreground">
-          Checked against the product on <time dateTime={verifiedAt}>{verifiedAt}</time>.
-        </p>
       )}
     </div>
   );

@@ -2,7 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AlertTriangle, ArrowRight, CheckCircle2, Info } from "lucide-react";
 import { DaylightShell } from "@/components/marketing/seo/shell";
-import { Frame, FactsCard } from "@/components/marketing/seo/frame";
+import { Frame } from "@/components/marketing/seo/frame";
+import { ShopifyHeroDemo } from "@/components/marketing/shopify/shopify-hero-demo";
 import { Section } from "@/components/marketing/seo/section";
 import { StatusChip } from "@/components/marketing/seo/capability-status";
 import { WorkflowSteps } from "@/components/marketing/seo/workflow-steps";
@@ -15,7 +16,6 @@ import { HOW_IT_WORKS_STEPS } from "@/lib/how-it-works";
 import { getPublicCatalog, publicMarketingIntegrations, type PlatformSignupMode } from "@/lib/catalog";
 import { STATIC_FALLBACK_INTEGRATIONS } from "@/lib/integrations-fallback";
 import { badgedComingSoonKeys } from "@/lib/pillar-channels";
-import { PILLARS } from "@/lib/pillars";
 import { marketingTrialDays } from "@/lib/pricing";
 import { getPage } from "@/lib/seo/pages";
 import { pageMeta } from "@/lib/seo/metadata";
@@ -38,7 +38,7 @@ const REFERRAL_CODE_PATTERN = /^[0-9A-Z]{4,32}$/;
 
 /** The closing ask, phrased for the door that is actually open (the sentence above the button, from the same fact). */
 function closingLede(mode: PlatformSignupMode, trialDays: number | null): string {
-  const tail = "bring Commerce, Content, Growth, Support and Presence onto one plan.";
+  const tail = "run your store, content, ads and Google listing on one plan.";
   switch (mode) {
     case "waitlist_only":
       return `Join the Peakhour waitlist and ${tail}`;
@@ -75,9 +75,10 @@ export default async function Home({
   const [catalog, trialDays] = await Promise.all([getPublicCatalog(), marketingTrialDays()]);
   const platform = catalog?.platform;
   const signupMode = platform?.signupMode ?? "open";
-  const bar = announcementBar(trialDays);
-  const panel = startPanel(trialDays);
-  const closingNote = trialNote(trialDays);
+  const knownMode = platform?.signupMode;
+  const bar = announcementBar(trialDays, knownMode);
+  const panel = startPanel(trialDays, knownMode);
+  const closingNote = trialNote(trialDays, knownMode);
   const published = catalog ? publicMarketingIntegrations(catalog.integrations) : [];
   const badged = new Set(badgedComingSoonKeys({ published, all: catalog?.integrations ?? [] }));
   const integrationCards = published.length
@@ -104,7 +105,7 @@ export default async function Home({
       });
 
   const page = await withCatalogCta(getPage("home"));
-  const content = homeContent(closingLede(signupMode, trialDays));
+  const content = homeContent(closingLede(signupMode, knownMode ? trialDays : null));
 
   const banner = (
     <>
@@ -148,16 +149,16 @@ export default async function Home({
         page={page}
         content={content}
         art={
-          <FactsCard
-            title="The five modules today"
-            facts={HOME_MODULES.map((m) => ({ label: m.title, value: <StatusChip status={m.status} /> }))}
-          />
+          // The sample store, labelled as one (SAMPLE STORE tag). Desktop only: on a phone the hero is the sentence and the button.
+          <div className="hidden lg:block">
+            <ShopifyHeroDemo />
+          </div>
         }
       >
-        <Section id="modules" eyebrow="The five modules" title="Each module works alone. Open one to see what runs.">
-          <ul role="list" className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
-            {HOME_MODULES.map((m) => (
-              <li key={m.title}>
+        <Section id="modules" eyebrow="What Peakhour does" title="Open a part to see what runs today.">
+          <ul role="list" className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-6">
+            {HOME_MODULES.map((m, i) => (
+              <li key={m.title} className={`sm:max-lg:last:col-span-2 ${i < 3 ? "lg:col-span-2" : "lg:col-span-3"}`}>
                 <Link
                   href={m.href}
                   className={`${cardCls} group flex h-full flex-col gap-2 p-5 transition-all hover:-translate-y-1 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none motion-reduce:hover:translate-y-0`}
@@ -174,19 +175,10 @@ export default async function Home({
                 </Link>
               </li>
             ))}
-            <li className="flex flex-col justify-center gap-2 rounded-2xl bg-ink p-5 text-on-ink">
-              <span className="text-lg font-extrabold tracking-tight">One plan, one wallet</span>
-              <span className="text-[15px] text-on-ink-dim">
-                All five modules sit on one Peakhour Suite plan and one Peaks wallet.
-              </span>
-              <Link href="/pricing" className="mt-1 inline-flex items-center gap-1.5 text-sm font-bold underline underline-offset-4">
-                See pricing <ArrowRight aria-hidden className="size-4" />
-              </Link>
-            </li>
           </ul>
         </Section>
 
-        <Section id="for" eyebrow="Who it is for" title="Built for businesses doing five jobs with one team." tone="muted">
+        <Section id="for" eyebrow="Who it is for" title="Who Peakhour is for" tone="muted">
           <ul role="list" className="grid gap-3 sm:grid-cols-2 sm:gap-4">
             {AUDIENCE_SEGMENTS.map((segment) => {
               const SegmentIcon = segment.icon;
@@ -200,13 +192,6 @@ export default async function Home({
                   </div>
                   <p className="font-semibold text-pretty">{segment.problem}</p>
                   <p className="text-[15px] text-muted-foreground">{segment.fit}</p>
-                  <ul className="mt-auto flex flex-wrap gap-1.5 pt-1">
-                    {segment.pillars.map((slug) => (
-                      <li key={slug} className="rounded-full border px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
-                        {PILLARS[slug].name}
-                      </li>
-                    ))}
-                  </ul>
                 </li>
               );
             })}
@@ -223,13 +208,13 @@ export default async function Home({
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-on-ink-dim">{panel.eyebrow}</p>
                 <h2 id="plan-h" className="mt-3 text-[1.75rem] font-black leading-[1.06] tracking-[-0.03em] text-balance sm:text-4xl">
-                  Everything on one plan. More power when you grow.
+                  One plan for everything Peakhour does.
                 </h2>
                 <p className="mt-3 max-w-lg text-lg text-on-ink-dim">{panel.lede}</p>
               </div>
-              <ul role="list" className="grid gap-3">
+              <ul role="list" className="grid content-center">
                 {panel.points.map((point) => (
-                  <li key={point.title} className="rounded-2xl border border-ink-line bg-white/5 px-4 py-3.5">
+                  <li key={point.title} className="border-t border-ink-line py-4 first:border-t-0 first:pt-0 last:pb-0">
                     <p className="font-bold">{point.title}</p>
                     <p className="mt-0.5 text-sm text-on-ink-dim">{point.detail}</p>
                   </li>
@@ -240,28 +225,39 @@ export default async function Home({
         </section>
 
         <Section id="stack" eyebrow="Works with your stack" title="Plugged into the tools you already use." tone="muted">
-          <ul role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
-            {integrationCards.map((item) => (
-              <li key={item.id} className={`${cardCls} flex items-center gap-3 p-4`}>
-                {/* No `text-white` here: the foreground ships with the brand style (see integrationBrandTile). */}
-                <div className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${item.tile.className}`} style={item.tile.style}>
-                  {item.icon}
-                </div>
-                <div className="min-w-0">
-                  <p className="flex items-center gap-2 text-sm font-bold">
-                    <span className="truncate">{item.name}</span>
-                    {item.comingSoon && (
-                      <span className="shrink-0 rounded-full border px-1.5 text-micro font-medium text-muted-foreground">Coming soon</span>
-                    )}
-                  </p>
-                  {item.description && <p className="line-clamp-1 text-xs text-muted-foreground">{item.description}</p>}
-                </div>
-              </li>
-            ))}
-          </ul>
+          <IntegrationList items={integrationCards.filter((i) => !i.comingSoon)} />
+          {integrationCards.some((i) => i.comingSoon) && (
+            <>
+              <h3 className="mt-8 text-sm font-extrabold uppercase tracking-[0.12em] text-muted-foreground">Coming soon</h3>
+              <div className="mt-3">
+                <IntegrationList items={integrationCards.filter((i) => i.comingSoon)} />
+              </div>
+            </>
+          )}
           {closingNote && <p className="mt-6 text-sm text-muted-foreground">{closingNote}</p>}
         </Section>
       </Frame>
     </DaylightShell>
+  );
+}
+
+type IntegrationCard = { id: string; name: string; description: string; tile: { className: string; style?: React.CSSProperties }; icon: React.ReactNode; comingSoon: boolean };
+
+function IntegrationList({ items }: { items: IntegrationCard[] }) {
+  return (
+    <ul role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+      {items.map((item) => (
+        <li key={item.id} className={`${cardCls} flex items-center gap-3 p-4`}>
+          {/* No `text-white` here: the foreground ships with the brand style (see integrationBrandTile). */}
+          <div className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${item.tile.className}`} style={item.tile.style}>
+            {item.icon}
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold">{item.name}</p>
+            {item.description && <p className="line-clamp-1 text-xs text-muted-foreground">{item.description}</p>}
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }

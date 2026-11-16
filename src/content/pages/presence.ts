@@ -8,11 +8,11 @@ export const PRESENCE: HubContent = {
     { label: "Home", href: pathFor("home") },
     { label: "Presence", href: pathFor("presence") },
   ],
-  eyebrow: "Presence",
+  eyebrow: "Presence · Beta",
   directAnswer:
-    "Peakhour Presence connects your Google Business Profile so you can prepare changes to your hours, details, photos and posts, get an AI draft of every review reply, and see a score of how complete your listing is. Google Business Profile support is in beta, and changes reach Google only once Peakhour switches sending on.",
+    "In beta: prepare changes to your Google listing, and approve each one. Changes reach Google only once Peakhour switches sending on. Peakhour also drafts review replies and scores your listing.",
   items: [
-    liveItem("presence.gbp_management.prepare_and_approve", "web", "Edits, photos and posts", 1),
+    liveItem("presence.gbp_management.prepare_and_approve", "web", "Edits, photos and posts"),
     liveItem("presence.review_management.draft_then_send", "web", "Review replies", 0),
     liveItem("presence.listing_health.score_and_alerts", "web", "Listing health score", 0),
     liveItem("integration.google_business_profile.connect_google", "web", "Connect Google"),
@@ -21,8 +21,10 @@ export const PRESENCE: HubContent = {
   control: [
     "Nothing is sent to Google until an admin on your team approves it, and undo is a new change that needs its own approval.",
     "Review replies are drafts: a person reads one and presses Send. There is no automatic reply.",
-    "Changing your name, address or main category can make Google ask you to verify again.",
-    "Edits are made on the web; Shopify and WordPress show the listing read-only.",
+  ],
+  limits: [
+    { title: "Verification", text: "Changing your name, address or main category can make Google ask you to verify again." },
+    { title: "Where you edit", text: "Edits are made on the web; Shopify and WordPress show the listing read-only." },
   ],
   comingSoonNote: "",
   faqs: [
@@ -47,7 +49,7 @@ export const PRESENCE: HubContent = {
     { label: "Support", href: pathFor("support"), note: "What shoppers ask that your assistant cannot answer." },
     { label: "Content", href: pathFor("content"), note: "Posts for your other channels." },
     { label: "How Peakhour works", href: pathFor("how.it.works"), note: "How the approvals work across the platform." },
-    { label: "Peakhour pricing", href: pathFor("pricing"), note: "Presence is part of Peakhour Suite." },
+    { label: "Peakhour pricing", href: pathFor("pricing"), note: "Presence is part of the one Peakhour plan." },
   ],
   closing: {
     headline: "Show up correctly where people search.",

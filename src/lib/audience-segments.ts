@@ -34,7 +34,7 @@ export const AUDIENCE_SEGMENTS: AudienceSegment[] = [
     name: "D2C & Ecommerce",
     problem:
       "Shoppers ask at midnight, best-sellers run out without warning, and ad spend quietly drifts the moment nobody is watching it.",
-    fit: "Peakhour answers shoppers from your real catalogue on Shopify and WhatsApp, warns you before a product runs out, and has Peakhour Summit review growth decisions before you make them.",
+    fit: "Peakhour answers shoppers from your real catalogue on Shopify and WhatsApp, warns you before a product runs out, and, in beta, has Peakhour Summit review growth decisions before you make them.",
     pillars: ["commerce", "growth", "support"],
   },
   {
@@ -60,8 +60,8 @@ export const AUDIENCE_SEGMENTS: AudienceSegment[] = [
     icon: Building2,
     name: "Growing Teams & Enterprise",
     problem:
-      "Five tools, five logins and five versions of the truth — and the handoffs between them are somebody's whole week.",
-    fit: "The modules share one account and one Peaks wallet, and Autopilot acts only inside limits you set, with approvals for new channels and plan changes.",
+      "Too many tools, too many logins, and handoffs between them that are somebody's whole week.",
+    fit: "Every part of Peakhour shares one account and one Peaks wallet. Autopilot acts only inside limits you set, with approvals for new channels and plan changes.",
     pillars: ["commerce", "content", "growth", "support", "presence"],
   },
 ];

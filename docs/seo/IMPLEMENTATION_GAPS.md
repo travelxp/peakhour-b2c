@@ -77,7 +77,7 @@ Regenerate with `npx tsx scripts/seo/report-pages.ts --write`. A test fails when
 | `/features/local-listing-health` | feature | published | `presence.listing_health` |
 | `/features/brand-voice` | feature | published | `content.brand_voice` |
 | `/features/social-media-content` | feature | published | `content.social_publishing` |
-| `/features/beehiiv-newsletter` | feature | review | none (no capability claim) |
+| `/features/beehiiv-newsletter` | feature | review | `content.beehiiv_newsletter` |
 | `/features/ai-blog-writer` | feature | review | none (no capability claim) |
 | `/features/peakhour-summit` | feature | published | `growth.peakhour_summit` |
 | `/about` | core | review | none (no capability claim) |
@@ -94,6 +94,12 @@ Regenerate with `npx tsx scripts/seo/report-pages.ts --write`. A test fails when
 "Review" pages render on dev under a "Draft, not published" ribbon and return 404 on production.
 
 ## c) Open owner decisions
+
+**Settled 2026-11-16 (read from the database; dev and prod agree unless stated):**
+- **The trial question is closed, and the wording is database-driven.** `cfg_platform_stage` is `coming_soon` with `signupMode` `waitlist_only`, and the Suite plan grants `trialDays` 14 in all 11 country pricing entries. The trial is real, but it starts when a person is approved. Every trial line now comes from `signupMode` and `suiteTrialDays` through `src/lib/trial-copy.ts` (`trialStart`): waitlist or invite gives "When you're approved, your first business starts with a 14-day free trial"; open gives "Start your 14-day free trial"; no trial in the catalog, or a closed door, gives no trial line. A test pins each mode.
+- **Google Business Profile writes** are on in dev and OFF in production, so the beta copy ("changes reach Google only once Peakhour switches sending on") is correct.
+- **Google Ads, LinkedIn Ads and Search Console** are live on dev but `coming_soon` in production. Production wins: the pages stay unpublished and the hubs say "coming soon".
+- **Support channels and AI replies** (shared inbox, AI reply drafts, WhatsApp support assistant) are still `coming_soon` in both.
 
 1. **Q2, who signs off claims.** The plan proposes the owner, for every page. Every approved claim in `capabilities.ts` carries `approvedBy: "owner"` as a placeholder (one constant, `APPROVED_BY`); it is not a recorded sign-off until someone is named.
 2. **Q3, is Support live?** The code runs suggested replies, WhatsApp support and the inbox, but the catalog calls them coming soon. `/support` and the home Support card say "coming soon" and make no claim, and `/auth` now says the same. Three audit rows (`features.ai.customer.support`, `features.unified.inbox`, `features.whatsapp.customer.support`) wait on this answer.

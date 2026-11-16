@@ -79,7 +79,7 @@ export const SEO9_PAGES: readonly PageRecord[] = [
     title: "Peakhour features for Presence and Content",
     description:
       "Google Business Profile, reviews, listing health, brand voice and social publishing: what each Peakhour feature does today, with its status and its limits.",
-    h1: "What Peakhour does for your Google listing and your content",
+    h1: "Features for your Google listing and your content",
     relatedIds: ["integrations.index", "presence", "content", "pricing"],
   }),
 
@@ -324,6 +324,7 @@ export const SEO9_PAGES: readonly PageRecord[] = [
     pageId: "features.newsletter.writer",
     path: "/features/beehiiv-newsletter",
     pillar: "content",
+    capabilityIds: ["content.beehiiv_newsletter"],
     status: "review",
     cluster: "newsletter-content-generation",
     title: "Beehiiv newsletter drafts written by AI | Peakhour",

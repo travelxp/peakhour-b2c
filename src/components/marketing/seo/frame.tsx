@@ -53,7 +53,7 @@ export function Frame({
       {children}
       <FaqSection faqs={content.faqs} />
       {content.related.length > 0 && (
-        <Section id="related" eyebrow="Related" title="Keep going." tone="muted">
+        <Section id="related" eyebrow="Related" title="Related pages" tone="muted">
           <ContextualLinks links={content.related} />
         </Section>
       )}

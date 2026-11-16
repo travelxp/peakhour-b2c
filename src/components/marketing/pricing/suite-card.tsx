@@ -15,6 +15,7 @@ import type { SignupCta } from "@/lib/catalog";
 import { pricingPillar } from "@/lib/pricing-catalog";
 import { shopifyTrialNote } from "@/lib/shopify-features";
 import type { PillarSlug } from "@/lib/pillars";
+import type { TrialStart } from "@/lib/trial-copy";
 
 /**
  * Peakhour Suite — one plan, all five modules.
@@ -40,6 +41,7 @@ export function SuiteCard({
   includedSlugs,
   cta,
   openSignup,
+  trialWhen,
   channel,
   country,
   scopeAction,
@@ -53,6 +55,8 @@ export function SuiteCard({
   includedSlugs: PillarSlug[];
   cta: SignupCta;
   openSignup: boolean;
+  /** When the trial starts, from `trialStart` (fail closed: "none" when the signup mode is unknown). */
+  trialWhen: TrialStart;
   /**
    * "shopify" is the /shopify page's card: the button is the App Store
    * install (an external link the caller passes in `cta`, opened in a new
@@ -187,11 +191,13 @@ export function SuiteCard({
           {/* ★NO CARD: signing up starts the business on the Suite trial
               (D19), which collects none. "Card required" was the rule for a
               trial bought at checkout, and this button goes to signup. */}
-          {p.trialDays > 0 && (
+          {p.trialDays > 0 && (shopify || trialWhen !== "none") && (
             <p className="mt-2.5 text-micro text-muted-foreground">
               {shopify
                 ? shopifyTrialNote(p.trialDays)
-                : `${p.trialDays}-day free trial · no card to start`}
+                : trialWhen === "now"
+                  ? `${p.trialDays}-day free trial · no card to start`
+                  : `${p.trialDays}-day free trial once approved · no card`}
             </p>
           )}
         </div>
@@ -207,9 +213,7 @@ export function SuiteCard({
               The count is counted for the same reason: "All five" is a fact
               about today's catalog, not about this component. */}
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand-label">
-            {includedSlugs.length > 0
-              ? `All ${includedSlugs.length} modules included`
-              : "What's included"}
+            {includedSlugs.length > 0 ? "Included in Peakhour Suite" : "What's included"}
           </p>
           <ul className="mt-4 space-y-3.5">
             {includedSlugs.map((slug) => {

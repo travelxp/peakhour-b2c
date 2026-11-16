@@ -13,28 +13,34 @@ export const SUPPORT: HubContent = {
   ],
   eyebrow: "Support",
   directAnswer:
-    "Peakhour Support is built to answer shoppers on WhatsApp and hand the hard ones to your team, and that part is switching on soon. Today it shows you what shoppers asked your assistant that it could not answer, so you can fix the gap.",
+    "Peakhour Support shows you what shoppers asked your assistant that it could not answer, so you can fix the gap. A shared inbox, AI reply drafts and a WhatsApp support assistant are coming soon.",
   items: [
     liveItem("support.conversation_insights.unmet_asks", "web", "Conversation insights", 0),
-    soonItem("support.channel_inbox", "web", "Shared inbox", "One view of your shopper conversations, with a thread for each customer. Built, and not switched on yet."),
-    soonItem("support.ai_replies", "web", "AI reply drafts", "AI drafts a reply for a person on your team to edit and send. It never sends by itself. Built, and not switched on yet."),
-    soonItem("support.whatsapp_support", "whatsapp", "WhatsApp support assistant", "Answers shoppers on your WhatsApp number and hands over to your team when asked or stuck. Built, and not switched on yet."),
+    soonItem("support.channel_inbox", "web", "Shared inbox", "One view of your shopper conversations, with a thread for each customer."),
+    soonItem("support.ai_replies", "web", "AI reply drafts", "AI drafts a reply for a person on your team to edit and send. It never sends by itself."),
+    soonItem("support.whatsapp_support", "whatsapp", "WhatsApp support assistant", "Answers shoppers on your WhatsApp number and hands over to your team when asked or stuck."),
   ],
   platforms: [],
+  controlTitle: "What you see today",
   control: [
-    "Replies are drafts for a person to edit and send; nothing is sent by itself.",
-    "After 24 hours, WhatsApp only allows an approved template message.",
-    "Instagram, Messenger and X messages and email are not in the inbox.",
+    "What several shoppers asked your assistant that it could not answer.",
+    "Products they wanted that you do not sell, and how often.",
+    "Whether a question is rising, and what to do next.",
   ],
-  comingSoonNote: "These are built. We switch them on once the support channels are ready for every store.",
+  limits: [
+    { title: "WhatsApp", text: "After 24 hours, WhatsApp only allows an approved template message." },
+    { title: "Shared inbox", text: "Instagram, Messenger and X messages and email are not in the inbox." },
+  ],
+  comingSoonNote: "",
+  comingSoonTitle: "Coming soon: shared inbox, AI reply drafts and a WhatsApp support assistant",
   faqs: [
     {
       q: "Can Peakhour answer my customers on WhatsApp today?",
-      a: "Not yet. The WhatsApp support assistant is built and not switched on. Peakhour's shopping assistant on WhatsApp, which answers product questions, is part of Commerce.",
+      a: "Not yet. The WhatsApp support assistant is coming soon. Peakhour's shopping assistant on WhatsApp, which answers product questions, is part of Commerce.",
     },
     {
       q: "Is there a shared inbox for every channel?",
-      a: "No. A shared inbox is built and not switched on, and Instagram, Messenger, X and email are not in it.",
+      a: "No. A shared inbox is coming soon, and Instagram, Messenger, X and email are not in it.",
     },
     {
       q: "What does it show me today?",
@@ -48,6 +54,6 @@ export const SUPPORT: HubContent = {
   ],
   closing: {
     headline: "Know what your shoppers could not get answered.",
-    body: "We will tell you when the support channels switch on. Until then, see what shoppers asked that your assistant could not answer.",
+    body: "We will tell you when the shared inbox and AI replies are ready. Until then, see what shoppers asked that your assistant could not answer.",
   },
 };

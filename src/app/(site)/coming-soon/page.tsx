@@ -42,7 +42,7 @@ const JOBS: { dot: string; job: string; body: string }[] = [
   {
     dot: "var(--daylight-dot-support)",
     job: "Answer",
-    body: "Your WhatsApp and website conversations in one inbox, answered by AI or by you.",
+    body: "Answers shoppers on your Shopify store and on WhatsApp, from your real catalogue.",
   },
   {
     dot: "var(--daylight-dot-content)",
@@ -61,7 +61,8 @@ const JOBS: { dot: string; job: string; body: string }[] = [
   },
 ];
 
-const CHANNELS = ["Shopify", "WordPress", "WhatsApp", "Google Business Profile", "LinkedIn", "X", "Beehiiv"];
+const CHANNELS = ["Shopify", "WhatsApp", "Google Business Profile", "LinkedIn", "X", "Beehiiv"];
+const CHANNELS_SOON = ["WordPress"];
 
 const eyebrow = launchEyebrow;
 const h2 = launchH2;
@@ -87,8 +88,8 @@ export default function ComingSoonPage() {
                 Your AI team behind <span className="daylight-mark">every channel you sell on.</span>
               </h1>
               <p className="mt-5 max-w-xl text-lg text-muted-foreground sm:text-xl">
-                Peakhour answers your customers, fixes your product pages, writes in your voice and runs your growth,
-                across your store, your website and Google. You approve what goes live, and almost everything can be undone.
+                Peakhour answers your shoppers, fixes your product pages, writes in your voice and plans your growth, across your
+                store and Google. You approve what goes live.
               </p>
               <div className="mt-7 flex flex-wrap items-center gap-3">
                 <Link prefetch={false} href="/launch-partner" className={coralBtn}>
@@ -118,7 +119,7 @@ export default function ComingSoonPage() {
           </h2>
           <ul className="mt-8 grid gap-3 sm:mt-10 sm:grid-cols-2 lg:grid-cols-5">
             {JOBS.map((j) => (
-              <li key={j.job} className="flex flex-col gap-2 rounded-2xl border bg-card p-5">
+              <li key={j.job} className="flex flex-col gap-2 rounded-2xl border bg-card p-5 sm:max-lg:last:col-span-2">
                 <span className="flex items-center gap-2.5 text-lg font-extrabold tracking-tight">
                   <span aria-hidden className="size-2.5 rounded-full" style={{ background: j.dot }} />
                   {j.job}
@@ -135,6 +136,11 @@ export default function ComingSoonPage() {
                   {c}
                 </li>
               ))}
+              {CHANNELS_SOON.map((c) => (
+                <li key={c} className="rounded-full border border-dashed px-3 py-1.5 text-sm font-semibold text-muted-foreground">
+                  {c} · coming soon
+                </li>
+              ))}
             </ul>
           </div>
         </div>
@@ -146,10 +152,10 @@ export default function ComingSoonPage() {
           <div className="min-w-0">
             <p className={cn(eyebrow, "text-on-ink-dim")}>Launch Partner programme</p>
             <h2 id="partner-h" className={h2}>
-              Build Peakhour <span className="text-brand">with us.</span>
+              Become a <span className="text-brand">Launch Partner.</span>
             </h2>
             <p className="mt-4 max-w-xl text-lg text-on-ink/85">
-              We are onboarding a small group of businesses ahead of public launch, with our team alongside them.
+              We are taking a small group of Launch Partners before public launch, with our team alongside them.
             </p>
             <LaunchPerks tone="ink" className="mt-7" />
           </div>
@@ -157,7 +163,7 @@ export default function ComingSoonPage() {
             <LaunchSteps tone="ink" />
             <div>
               <Link prefetch={false} href="/launch-partner" className={cn(coralBtn, "focus-visible:ring-white focus-visible:ring-offset-ink")}>
-                Apply to be a launch partner
+                Become a Launch Partner
                 <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" aria-hidden />
               </Link>
             </div>

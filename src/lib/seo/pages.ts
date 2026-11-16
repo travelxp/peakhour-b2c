@@ -77,8 +77,8 @@ export const PAGES: readonly PageRecord[] = [
     queryClusterId: "platform.overview",
     title: "Peakhour.ai: the AI business platform for growing brands",
     description:
-      "Peakhour answers shoppers, drafts content, plans and reviews ads and prepares Google listing changes. You approve each change. One plan for five modules.",
-    h1: "Still running one business across 10 different tools?",
+      "Peakhour answers shoppers, drafts content, plans and reviews ads and prepares Google listing changes. You approve each change. One plan covers it all.",
+    h1: "Run your store, content, ads and Google listing from one place.",
     relatedIds: ["pricing", "how.it.works", "shopify", "commerce", "content", "growth", "support", "presence", "integrations.index", "features.index"],
   }),
   page({
@@ -108,7 +108,7 @@ export const PAGES: readonly PageRecord[] = [
     title: "Peaks: the AI credits behind every Peakhour feature",
     description:
       "Peaks are the AI credits behind every Peakhour feature. Every plan includes a monthly allowance, and purchased Peaks never expire. Top up any time.",
-    h1: "Peaks: the AI credits behind every Peakhour feature",
+    h1: "Peaks pay for the AI work Peakhour does.",
     relatedIds: ["pricing", "pricing.teams", "how.it.works"],
   }),
   page({
@@ -337,7 +337,7 @@ export const PAGES: readonly PageRecord[] = [
   page({
     pageId: "launch.partner",
     path: "/launch-partner",
-    h1: "Build Peakhour.ai with us.",
+    h1: "Become a Launch Partner",
     title: "Become a Launch Partner — Peakhour",
     description:
       "Join the Peakhour launch partner program. Work directly with our team to shape Peakhour Suite, and get early access ahead of public launch.",
@@ -410,7 +410,7 @@ export const PAGES: readonly PageRecord[] = [
     indexable: false,
     title: "About Peakhour: the AI business platform for growing brands",
     description:
-      "Peakhour is an AI business platform with five modules: Commerce, Content, Growth, Support and Presence. Who runs it, where it works and how to reach us.",
+      "Peakhour is the AI business platform for growing brands. What it does, who runs it, where it works and how to reach us.",
     h1: "About Peakhour",
     relatedIds: ["home", "how.it.works", "contact", "legal.privacy", "legal.terms"],
   }),

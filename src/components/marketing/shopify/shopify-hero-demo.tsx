@@ -167,7 +167,7 @@ export function ShopifyHeroDemo() {
           <Tag className="size-3.5" aria-hidden />
         </span>
         <span>
-          <b className="block">Markdown applied</b>
+          <b className="block">You applied a markdown</b>
           <span className="text-muted-foreground">Linen dupatta ₹1,299 → ₹1,099</span>
         </span>
         <span className="ml-1 rounded-md border px-2 py-0.5 font-bold">Undo</span>

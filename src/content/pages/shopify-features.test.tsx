@@ -97,7 +97,7 @@ describe("each page renders its H1 and direct answer, with its status, limitatio
       expect(mod.CONTENT.permissions.length).toBeGreaterThan(0);
       expect(mod.CONTENT.faqs.length).toBeGreaterThanOrEqual(3);
       expect(mod.CONTENT.faqs.length).toBeLessThanOrEqual(5);
-      expect(html).toContain("What it does not do");
+      expect(html).toContain("Limits");
       expect(html).toContain("Demo");
     });
 

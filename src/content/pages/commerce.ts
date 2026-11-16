@@ -10,7 +10,7 @@ export const COMMERCE: HubContent = {
   ],
   eyebrow: "Commerce",
   directAnswer:
-    "Peakhour Commerce is an AI shopping assistant for your Shopify store and your WhatsApp number. It answers shoppers from your real catalogue, builds product shelves, confirms cash-on-delivery orders and warns you before a product runs out. WooCommerce is coming soon.",
+    "Peakhour Commerce answers shoppers from your real catalogue, on your Shopify store and on your WhatsApp number. It also builds product shelves, confirms cash-on-delivery orders and warns you before a product runs out. WooCommerce is coming soon.",
   secondaryCta: { label: "See Peakhour for Shopify", href: pathFor("shopify") },
   items: [
     liveItem("commerce.ai_shopping_assistant.answers_from_catalogue", "shopify", "Shopping assistant", 0),
@@ -45,7 +45,7 @@ export const COMMERCE: HubContent = {
       "commerce.ai_shopping_assistant",
       "woocommerce",
       "WooCommerce",
-      "The WooCommerce assistant is built and not switched on for stores yet.",
+      "Coming soon. The assistant is not available for WooCommerce stores yet.",
     ),
   ],
   control: [
@@ -55,10 +55,11 @@ export const COMMERCE: HubContent = {
     "Markdowns change prices only when you preview and press Apply, and each one can be undone.",
   ],
   comingSoonNote: "",
+  platformsTitle: "Where it runs: Shopify, WhatsApp, WooCommerce",
   faqs: [
     {
       q: "Does it work with WooCommerce?",
-      a: "Not yet. The WooCommerce version is built, but it is not switched on for stores, so Peakhour Commerce runs on Shopify and WhatsApp today.",
+      a: "Not yet. WooCommerce is coming soon, so Peakhour Commerce runs on Shopify and WhatsApp today.",
     },
     {
       q: "Can shoppers pay inside WhatsApp?",
@@ -75,7 +76,7 @@ export const COMMERCE: HubContent = {
   ],
   related: [
     { label: "Peakhour for Shopify", href: pathFor("shopify"), note: "Every Shopify feature, install and billing in one place." },
-    { label: "Peakhour pricing", href: pathFor("pricing"), note: "One plan for all five modules, with Peaks included." },
+    { label: "Peakhour pricing", href: pathFor("pricing"), note: "One plan for everything Peakhour does, with Peaks included." },
     { label: "Support", href: pathFor("support"), note: "What the assistant could not answer, and what is coming." },
     { label: "Growth", href: pathFor("growth"), note: "Plan and review the ads that bring shoppers in." },
   ],

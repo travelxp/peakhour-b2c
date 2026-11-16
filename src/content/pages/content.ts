@@ -10,7 +10,7 @@ export const CONTENT: HubContent = {
   ],
   eyebrow: "Content",
   directAnswer:
-    "Peakhour Content learns how your brand writes from your existing posts, then drafts social posts, newsletters and Shopify blog articles in that voice. You approve each one, and it posts at the time you scheduled.",
+    "Peakhour Content learns how your brand writes from your existing posts, then drafts social posts, newsletters and Shopify blog articles in that voice. You approve each one, and Peakhour posts at the time you scheduled.",
   items: [
     liveItem("content.brand_voice.learns_your_voice", "web", "Brand voice", 0),
     liveItem("content.social_publishing.four_networks", "web", "Social posts", 0),
@@ -18,8 +18,8 @@ export const CONTENT: HubContent = {
     liveItem("content.ai_blog_writer.draft_then_publish", "shopify", "Blog articles for Shopify", 0),
     liveItem("content.ai_product_descriptions.write_missing", "shopify", "Product descriptions", 0),
     liveItem("content.ai_seo_fixes.tick_and_undo", "shopify", "SEO fixes for product pages", 0),
-    soonItem("content.ai_blog_writer", "wordpress", "Publishing to WordPress", "Drafting and publishing blog articles straight into WordPress is built and not switched on yet."),
-    soonItem("content.seo_content_optimization", "wordpress", "SEO suggestions in WordPress", "Per-post SEO suggestions, with internal links you insert yourself, are built and not switched on yet."),
+    soonItem("content.ai_blog_writer", "wordpress", "Publishing to WordPress", "Draft and publish blog articles straight into WordPress."),
+    soonItem("content.seo_content_optimization", "wordpress", "SEO suggestions in WordPress", "Per-post SEO suggestions, with internal links you insert yourself."),
   ],
   platforms: [],
   control: [
@@ -28,15 +28,16 @@ export const CONTENT: HubContent = {
     "Product descriptions and SEO fixes are written only after you approve them, and each can be undone.",
     "Newsletters go to Beehiiv as drafts, and you click Send in Beehiiv.",
   ],
-  comingSoonNote: "The WordPress plugin is built, and its release is on hold until it is ready for everyone.",
+  comingSoonNote: "",
+  comingSoonTitle: "Coming soon: WordPress",
   faqs: [
     {
       q: "Which networks can it post to?",
-      a: "LinkedIn (personal and company pages), X including threads, Facebook Pages and Instagram. Instagram posts need an image or a carousel of 2 to 10 images; there is no video, reels or text-only posting. Threads is not available.",
+      a: "LinkedIn (personal and company pages), X including threads, Facebook Pages and Instagram. Instagram posts need an image, or 2 to 10 images. There is no video, reels or text-only posting, and Threads is not available.",
     },
     {
       q: "Can it write for WordPress?",
-      a: "Not yet. The WordPress plugin is built, but it is not released, so articles go to your Shopify blog today.",
+      a: "Not yet. WordPress is coming soon, so articles go to your Shopify blog today.",
     },
     {
       q: "Which newsletter tools work?",

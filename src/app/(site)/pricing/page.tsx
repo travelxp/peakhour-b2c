@@ -8,7 +8,7 @@ import { Section } from "@/components/marketing/seo/section";
 import { cardCls, eyebrowCls, ghostBtn, h2Cls, primaryBtn, wrap } from "@/components/marketing/seo/styles";
 import { getPricing, findBundleTier, hasCountryOverride, moduleBadge, PRICE_AT_SIGNUP, resolveCountry, suiteCtaLabel, suiteTrialDays } from "@/lib/pricing";
 import { getPublicCatalog, publicMarketingIntegrations, signupCta } from "@/lib/catalog";
-import { pricingHeroTrial } from "@/lib/trial-copy";
+import { pricingHeroTrial, trialStart } from "@/lib/trial-copy";
 import { badgedComingSoonKeys } from "@/lib/pillar-channels";
 import {
   PRICING_PILLAR_ORDER,
@@ -67,7 +67,9 @@ export default async function PricingPage({
     published,
     all: catalog?.integrations ?? [],
   });
-  const signupMode = catalog?.platform?.signupMode ?? "open";
+  const knownMode = catalog?.platform?.signupMode;
+  const signupMode = knownMode ?? "open";
+  const trialWhen = trialStart(knownMode, suiteTrialDays(pricing));
   const openSignup = signupMode === "open";
   const cta = signupCta(signupMode, suiteTrialDays(pricing));
 
@@ -78,7 +80,7 @@ export default async function PricingPage({
   const included = new Set(suiteModuleSlugs(pricing));
   // The one trial rule /auth reads too (`suiteTrialDays`): no trial, no promise.
   const trialDays = suiteTrialDays(pricing) ?? 0;
-  const heroTrial = pricingHeroTrial(trialDays);
+  const heroTrial = pricingHeroTrial(trialDays, knownMode);
 
   return (
     <div className="flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
@@ -97,8 +99,8 @@ export default async function PricingPage({
               />
               <p className={`${eyebrowCls} mt-5`}>Pricing</p>
               <h1 className="mt-3 text-[2.2rem] font-black leading-[1.04] tracking-[-0.04em] text-balance sm:text-5xl lg:text-[3.5rem]">
-                One plan for{" "}
-                <span className="daylight-mark">everything Peakhour does.</span>
+                One plan for everything{" "}
+                <span className="daylight-mark whitespace-nowrap">Peakhour does.</span>
               </h1>
               <p className="mt-4 max-w-xl text-lg text-foreground/80 sm:text-xl">
                 Peakhour Suite covers Commerce, Content, Growth, Support and
@@ -121,12 +123,12 @@ export default async function PricingPage({
               </div>
               {/* No card: the signup trial collects none (D19). Only stated
                   when there is a trial to start. */}
-              {trialDays > 0 && (
+              {trialWhen !== "none" && (
                 <p className="mt-4 text-sm text-muted-foreground">
                   <span aria-hidden className="font-bold text-brand-strong">
                     ✓
                   </span>{" "}
-                  No card to start · one Peaks wallet · cancel anytime
+                  {trialWhen === "now" ? "No card to start · one Peaks wallet · cancel anytime" : "No card for the trial · one Peaks wallet · cancel anytime"}
                 </p>
               )}
             </div>
@@ -201,6 +203,7 @@ export default async function PricingPage({
                 includedSlugs={[...included]}
                 cta={cta}
                 openSignup={openSignup}
+                trialWhen={trialWhen}
                 country={country}
                 scopeAction="/pricing#suite"
               />
@@ -238,7 +241,7 @@ export default async function PricingPage({
               </h2>
             </div>
             <div className="min-w-0 border-t-2 border-foreground">
-              <PricingFaq trialDays={trialDays} />
+              <PricingFaq trialDays={trialDays} signupMode={knownMode} />
             </div>
           </div>
         </section>

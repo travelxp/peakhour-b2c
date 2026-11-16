@@ -138,6 +138,7 @@ function EmailChip({ email }: { email: string }) {
 
 export function AuthFlow({
   signupMode,
+  trialSignupMode,
   /** Suite's trial length, resolved server-side so the client bundle carries
    *  no pricing logic. Null when the environment sells no Suite trial: then
    *  the page promises none (`suiteTrialDays`, `hasTrial`). */
@@ -151,6 +152,8 @@ export function AuthFlow({
   passwordSignIn = false,
 }: {
   signupMode: PlatformSignupMode;
+  /** The mode as the catalog gave it, undefined when it could not be read: then no trial line (fail closed). */
+  trialSignupMode: PlatformSignupMode | null | undefined;
   trialDays: number | null;
   passwordSignIn?: boolean;
 }) {
@@ -666,7 +669,7 @@ export function AuthFlow({
               <h1 className="mt-3 text-[1.9rem] font-extrabold leading-[1.06] tracking-[-0.035em] text-balance sm:text-4xl">
                 {intentCopy?.title ?? (
                   <>
-                    One email. <span className="daylight-mark">No password.</span> Ever.
+                    Sign in with <span className="daylight-mark">a link</span> to your email.
                   </>
                 )}
               </h1>
@@ -731,7 +734,7 @@ export function AuthFlow({
               <PasswordSignIn available={passwordSignIn} next={next} />
 
               <ul role="list" className="mt-4 flex flex-wrap justify-center gap-x-3.5 gap-y-1.5 text-xs text-muted-foreground sm:mt-6 sm:gap-x-4 sm:text-sm">
-                {signupTicks(trialDays, isPreLaunch).map((tick) => (
+                {signupTicks(trialDays, isPreLaunch, trialSignupMode).map((tick) => (
                   <li key={tick} className="flex items-center gap-1.5">
                     <Check className="size-3.5 shrink-0 text-brand-strong" strokeWidth={3} aria-hidden />
                     {tick}
@@ -750,6 +753,25 @@ export function AuthFlow({
                 </Link>
                 .
               </p>
+
+              {/* The panel beside the form is hidden below lg; its claims (the same approved ones) follow the form here,
+                  compact, so a phone does not end in an empty band. */}
+              <section aria-label="What Peakhour does" className="mt-8 border-t pt-6 lg:hidden">
+                <p className={eyebrowCls}>What Peakhour does</p>
+                <ul role="list" className="mt-3 grid gap-3">
+                  {[...PANEL_LIVE, ...PANEL_BETA].map((item) => (
+                    <li key={item.name} className="flex gap-3">
+                      <span aria-hidden className={`mt-1.5 size-2.5 shrink-0 rounded-full ${DOT[item.dot]}`} />
+                      <p className="min-w-0 text-sm text-muted-foreground">
+                        <b className="font-extrabold text-foreground">{item.name}</b>
+                        {item.beta ? <b className="font-bold text-[var(--daylight-warn-ink)]"> (beta)</b> : null}
+                        {". "}
+                        {item.line}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             </div>
           )}
         </div>

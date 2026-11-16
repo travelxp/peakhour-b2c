@@ -21,14 +21,14 @@ export const PLATFORM_FLOW = [
   {
     id: "understand",
     step: "02",
-    title: "Peakhour reads what is there",
+    title: "Peakhour starts from what you have",
     description:
       "It works from your real catalogue and policies, and learns how your brand writes from the posts you have already published, instead of asking you to describe either.",
   },
   {
     id: "connect-dots",
     step: "03",
-    title: "It joins what it finds",
+    title: "Peakhour connects what it finds",
     description:
       "What it learns in one place is used in another. Your catalogue answers shoppers, and the questions it could not answer are shown back to you.",
   },
@@ -37,7 +37,7 @@ export const PLATFORM_FLOW = [
     step: "04",
     title: "It puts the decisions in front of you",
     description:
-      "You can ask Peakhour questions about your own data. Anything it would change comes to you as a card to approve, and Peakhour Summit reviews your growth proposals before you decide.",
+      "You can ask Peakhour questions about your own data. Anything it would change comes to you as a card to approve, and, in beta, Peakhour Summit reviews your growth proposals before you decide.",
   },
   {
     id: "act",
@@ -49,7 +49,7 @@ export const PLATFORM_FLOW = [
   {
     id: "less",
     step: "06",
-    title: "You have less to manage",
+    title: "Fewer tabs to check",
     description: "Fewer tabs open, fewer things to remember to check. The work still happens, and you still decide.",
   },
 ] as const;

@@ -80,7 +80,8 @@ describe("the module hubs are built from approved claims", () => {
             expect(capabilityStatus(claim!.capability.id, item.surface)).toBe(item.status);
           } else {
             expect(["development", "planned", "idea", "paused", "retired"]).toContain(item.status);
-            expect(text, item.title).toMatch(/not switched on|built/i);
+            // A coming-soon card says so by its status chip and its section heading, not by repeating "built" in the body.
+            expect(text, item.title).not.toMatch(/available now|live/i);
           }
         }
       });
@@ -129,7 +130,7 @@ describe("the module hubs are built from approved claims", () => {
     expect(live).toEqual(["Conversation insights"]);
     const text = JSON.stringify(SUPPORT).toLowerCase();
     expect(text).not.toContain("one inbox for every channel");
-    expect(SUPPORT.directAnswer).toMatch(/switching on soon/);
+    expect(SUPPORT.directAnswer).toMatch(/coming soon/);
   });
 
   it("growth shows Google Ads and LinkedIn Ads as coming soon, and no lead inbox", () => {

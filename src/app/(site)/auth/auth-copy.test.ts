@@ -35,3 +35,20 @@ describe("/auth sign-in panel", () => {
     }
   });
 });
+
+describe("/auth ticks follow the signup door", () => {
+  it("a gated door says the trial starts on approval; an open door says it starts now; no trial, no trial tick", async () => {
+    const { signupTicks } = await import("./auth-copy");
+    expect(signupTicks(14, true, "waitlist_only")).toEqual(["14-day free trial once approved · No credit card", "We’ll email your link"]);
+    expect(signupTicks(14, false, "open")).toEqual(["14-day free trial · No credit card", "Live the same day"]);
+    expect(signupTicks(null, true, "waitlist_only")).toEqual(["We’ll email your link"]);
+  });
+});
+
+describe("/auth ticks fail closed", () => {
+  it("an unreadable signup mode shows no trial tick", async () => {
+    const { signupTicks } = await import("./auth-copy");
+    expect(signupTicks(14, true, undefined)).toEqual(["We’ll email your link"]);
+    expect(signupTicks(14, true, null)).toEqual(["We’ll email your link"]);
+  });
+});

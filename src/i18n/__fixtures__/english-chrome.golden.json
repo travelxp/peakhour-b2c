@@ -5,5 +5,5 @@
  "topBar": "Sign in\n@aria-label=Peakhour.ai home",
  "topBarBack": "Back\nSign in\n@aria-label=Peakhour.ai home",
  "launchFooter": "Privacy Policy\nTerms of Service\nCookie Policy\nData Deletion\n© {YEAR} Media Worldwide Limited. All rights reserved.",
- "notFound": "Error 404\nWe couldn't find that page\nThe link may be old, or the address mistyped. These are good places to start.\nGo to the home page\nPeakhour for Shopify\nPricing"
+ "notFound": "Error 404\nWe couldn't find that page\nThe link may be old. Try one of these.\nGo to the home page\nPeakhour for Shopify\nPricing"
 }

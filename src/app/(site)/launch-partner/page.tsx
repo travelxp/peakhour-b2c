@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { SITE, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { LaunchFooter, LaunchPerks, LaunchSteps, LaunchTopBar, launchEyebrow, launchWrap } from "@/components/marketing/launch/launch-chrome";
 import { LaunchPartnerForm } from "./launch-partner-form";
 import { pageMeta } from "@/lib/seo/metadata";
@@ -58,11 +58,11 @@ export default async function LaunchPartnerPage({
           <div className="min-w-0 lg:col-start-1 lg:row-start-1 lg:pt-4">
             <p className={launchEyebrow}>Launch Partner programme</p>
             <h1 className="mt-3 text-[2.4rem] font-black leading-[1.03] tracking-[-0.04em] text-balance sm:text-6xl">
-              Build {SITE.name} <span className="daylight-mark">with us.</span>
+              Become a <span className="daylight-mark">Launch Partner.</span>
             </h1>
             <p className="mt-5 max-w-xl text-lg text-muted-foreground">
-              We&rsquo;re onboarding a small group of launch partners ahead of public launch. Work directly with our team, shape the
-              roadmap for Peakhour Suite, and get early access, with hands-on setup.
+              We are taking a small group of Launch Partners before public launch. Work directly with our team, shape the roadmap,
+              and get early access with hands-on setup.
             </p>
           </div>
 
