@@ -1,5 +1,4 @@
-import { pending } from "./peakhour";
-import { PEAKHOUR } from "./peakhour";
+import { PEAKHOUR, pending } from "./peakhour";
 import { PEAKHOUR_W3B } from "./peakhour-cmp-w3b";
 import type { CompetitorBrief } from "./types";
 
@@ -59,7 +58,7 @@ export const SHOPLIFT = {
     },
     {
       dimension: "Winner proposed for your approval",
-      vendor: { value: "partial", note: "Core plans can apply a winner in one click, for stores under 100K monthly visitors. We did not find an approval step described.", source: S.pricing, observedAt: D },
+      vendor: { value: "partial", note: "Core plans can apply a winner in one click, below a monthly visitor limit. We did not find an approval step described.", source: S.pricing, observedAt: D },
       peakhour: PEAKHOUR_W3B.winnerForApproval,
     },
     {

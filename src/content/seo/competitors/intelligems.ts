@@ -1,5 +1,4 @@
-import { pending } from "./peakhour";
-import { PEAKHOUR } from "./peakhour";
+import { PEAKHOUR, pending } from "./peakhour";
 import { PEAKHOUR_W3B } from "./peakhour-cmp-w3b";
 import type { CompetitorBrief } from "./types";
 
@@ -34,12 +33,12 @@ export const INTELLIGEMS = {
   claims: [
     {
       dimension: "A/B tests of product shelves",
-      vendor: { value: "partial", note: "Recommended products can be tested at checkout and post-purchase. The page we read does not say whether shelves on product or collection pages can be tested.", source: S.home, observedAt: D },
+      vendor: { value: "not-documented", note: "Recommended products can be tested at checkout and post-purchase. The page we read does not say whether shelves on product or collection pages can be tested.", source: S.home, observedAt: D },
       peakhour: PEAKHOUR_W3B.shelfTests,
     },
     {
       dimension: "Product shelves to test",
-      vendor: { value: "partial", note: "It has a product recommendations feature page; we did not read it, so we record only that merchandising and recommended-product tests are listed.", source: S.home, observedAt: D },
+      vendor: { value: "partial", note: "Its home page lists merchandising tests and recommended products as testable elements. It does not describe building shelves.", source: S.home, observedAt: D },
       peakhour: PEAKHOUR.recommendations,
     },
     {
@@ -90,7 +89,7 @@ export const INTELLIGEMS = {
     { vendor: "Peakhour", bestFor: "Shopify merchants who want to compare two shelf strategies in the same spot and have the winner proposed for their approval." },
   ],
   limitations: [
-    "We read only Intelligems' own site, pricing page and Shopify App Store listing. A feature they do not document is marked Not documented, which is not the same as No.",
+    "We read only Intelligems' own site and pricing page. A feature they do not document is marked Not documented, which is not the same as No.",
     "Its pricing page shows a bare $ with no currency code or region; we record it as shown. Plans, trials and offers change, and price tests have a separate minimum term.",
     "Where our own side says Unknown, the evidence for Peakhour is still being verified and nothing is claimed.",
   ],

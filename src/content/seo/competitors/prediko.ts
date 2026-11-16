@@ -82,7 +82,7 @@ export const PREDIKO = {
   ],
   limitations: [
     "We read only Prediko's own site, pricing page and Shopify App Store listing. A feature they do not document is marked Not documented, which is not the same as No.",
-    "Its pricing is by annual sales; we list the first three tiers, the range above them and the Contact us tier. Plans, trials and offers change, and add-ons are priced separately.",
+    "Its pricing is by annual sales; we list the first three tiers, a summary of the tiers above them and the Contact us tier. Plans, trials and offers change, and add-ons are priced separately.",
     "Where our own side says Unknown, the evidence for Peakhour is still being verified and nothing is claimed.",
   ],
   faqs: [
