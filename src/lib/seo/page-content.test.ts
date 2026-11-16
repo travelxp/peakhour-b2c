@@ -5,8 +5,6 @@ import { contentFor, type ByLocale } from "./page-content";
 
 const copy: ByLocale<string> = { en: "English", "fr-CA": "Français" };
 const englishOnly: ByLocale<string> = { en: "English" };
-const dev = { VERCEL_ENV: "preview" };
-const prod = { VERCEL_ENV: "production" };
 
 describe("contentFor", () => {
   it("returns the locale's own copy", () => {
@@ -16,17 +14,7 @@ describe("contentFor", () => {
 
   it("returns nothing for a locale with no copy: no silent English at a non-English URL (T19)", () => {
     expect(contentFor(englishOnly, "fr-CA")).toBeUndefined();
-    expect(contentFor(englishOnly, "de", { env: dev })).toBeUndefined();
-  });
-
-  it("falls back to English only when a development preview asks for it", () => {
-    expect(contentFor(englishOnly, "fr-CA", { previewFallback: true, env: dev })).toBe("English");
-    expect(contentFor(englishOnly, "fr-CA", { previewFallback: true, env: {} })).toBe("English");
-  });
-
-  it("never falls back on Production, whatever is asked", () => {
-    expect(contentFor(englishOnly, "fr-CA", { previewFallback: true, env: prod })).toBeUndefined();
-    expect(contentFor(englishOnly, "fr-CA", { previewFallback: true, env: { ...prod, SITE_INDEXABLE: "true" } })).toBeUndefined();
+    expect(contentFor(englishOnly, "de")).toBeUndefined();
   });
 
   it("an unregistered page has no copy", () => {

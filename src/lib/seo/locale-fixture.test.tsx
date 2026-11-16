@@ -68,6 +68,13 @@ describe("a fixture locale is published", () => {
       expect(res.headers.get("x-middleware-request-x-ph-locale")).toBeNull();
     });
 
+    it("a translated slug resolves to the page that declares it, never to a page that merely has that English path", () => {
+      expect(pageAtPath("/fr-ca/boutique", "fr-CA")?.pageId).toBe("fx.boutique.b");
+      expect(resolveLocaleRoute("/fr-ca/boutique")).toMatchObject({ kind: "rewrite", page: { pageId: "fx.boutique.b" } });
+      expect(pageAtPath("/fr-ca/shop-b", "fr-CA")).toBeUndefined();
+      expect(pageAtPath("/fr-ca/boutique", "de")).toBeUndefined();
+    });
+
     it("finds the page behind a public URL, for the language switcher", () => {
       expect(pageForPublicPath("/fx/leaf")).toMatchObject({ locale: "en", page: { pageId: "fx.leaf" } });
       expect(pageForPublicPath("/fr-ca/fx/leaf")).toMatchObject({ locale: "fr-CA", page: { pageId: "fx.leaf" } });
@@ -134,6 +141,11 @@ describe("a fixture locale is published", () => {
       const html = render("fx.child", "en");
       expect(html).toContain('href="/fr-ca/fx"');
       expect(html).toContain("(section page only)");
+    });
+
+    it("an unknown parentId ends the ancestor walk without throwing; the switcher falls back to home", () => {
+      expect(() => languageOptions(getPage("fx.orphan"), "en")).not.toThrow();
+      expect(render("fx.orphan", "en")).toContain('href="/fr-ca"');
     });
 
     it("never links to a variant in review (it would be a 404); falls back to the parent, else home", () => {

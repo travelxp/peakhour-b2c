@@ -1,6 +1,6 @@
 import { getRequestConfig } from "next-intl/server";
 import { headers } from "next/headers";
-import { LOCALE_HEADER, defaultLocale, isLocale, type AppLocale } from "./config";
+import { LOCALE_HEADER, defaultLocale, isPublishedLocale, type AppLocale } from "./config";
 
 /**
  * i18n request config. English is the default and every English URL is unprefixed. A non-English page
@@ -13,7 +13,7 @@ import { LOCALE_HEADER, defaultLocale, isLocale, type AppLocale } from "./config
  */
 export default getRequestConfig(async () => {
   const raw = (await headers()).get(LOCALE_HEADER);
-  const locale: AppLocale = isLocale(raw) ? raw : defaultLocale;
+  const locale: AppLocale = isPublishedLocale(raw) ? raw : defaultLocale;
   return {
     locale,
     messages: (await import(`../../messages/${locale}.json`)).default,

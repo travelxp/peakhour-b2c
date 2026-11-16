@@ -57,15 +57,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       };
     };
     const english = entry(DEFAULT_LOCALE);
+    const entries = new Map<Locale, MetadataRoute.Sitemap[number]>([[DEFAULT_LOCALE, english]]);
     // Published non-English variants are listed with their alternates (hreflang, self and x-default): the same
     // cluster pageMeta emits on the page, so the sitemap and the page agree. None is published today, so this
     // adds nothing. With the gate on none is listed: a locale path is never one the gate lets through.
     const variants = gated ? [] : LOCALES.filter((l) => l !== DEFAULT_LOCALE && isPublishable(page, l));
     if (variants.length === 0) return [english];
+    for (const l of variants) entries.set(l, entry(l));
     const cluster: Record<string, string> = {};
-    for (const l of [DEFAULT_LOCALE, ...variants]) cluster[l] = entry(l).url;
+    for (const [l, e] of entries) cluster[l] = e.url;
     cluster["x-default"] = english.url;
-    return [DEFAULT_LOCALE, ...variants].map((l) => ({ ...entry(l), alternates: { languages: cluster } }));
+    return [...entries.values()].map((e) => ({ ...e, alternates: { languages: cluster } }));
   });
   if (gated) return codeEntries;
 

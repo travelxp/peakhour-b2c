@@ -1,7 +1,6 @@
 import { LOCALE_ROUTE_BASE, localeFromPrefix } from "@/i18n/config";
 import { PAGES } from "./pages";
 import { isPublishable } from "./publish";
-import { pathFor } from "./resolve";
 import { DEFAULT_LOCALE, type Locale, type PageRecord } from "./types";
 
 /*
@@ -27,13 +26,25 @@ export type LocaleRoute =
   | { kind: "not-found"; locale: Locale };
 
 /** The registry page whose URL in `locale` is exactly `pathname`, or undefined. */
+/**
+ * Keyed by `${locale}|${path}`, built once. A non-English URL is matched ONLY against a page that declares
+ * an explicit variant for that locale, so a page with no variant can never shadow a translated slug.
+ */
+const BY_LOCALE_PATH = new Map<string, PageRecord>();
+for (const p of PAGES) {
+  if (!BY_LOCALE_PATH.has(`${DEFAULT_LOCALE}|${p.path}`)) BY_LOCALE_PATH.set(`${DEFAULT_LOCALE}|${p.path}`, p);
+  for (const [locale, variant] of Object.entries(p.locales ?? {})) {
+    if (variant && !BY_LOCALE_PATH.has(`${locale}|${variant.path}`)) BY_LOCALE_PATH.set(`${locale}|${variant.path}`, p);
+  }
+}
+
 export function pageAtPath(pathname: string, locale: Locale): PageRecord | undefined {
-  return PAGES.find((p) => pathFor(p.pageId, locale) === pathname);
+  return BY_LOCALE_PATH.get(`${locale}|${pathname}`);
 }
 
 /**
  * What the middleware does with `pathname`, or null when it is not a locale path (English, the app, anything
- * whose first segment is not a lowercase non-English locale prefix).
+ * whose first segment is not a non-English locale prefix, in any letter case).
  */
 export function resolveLocaleRoute(pathname: string): LocaleRoute | null {
   const [, first = "", ...rest] = pathname.split("/");

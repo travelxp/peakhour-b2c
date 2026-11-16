@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { middleware } from "@/middleware";
 import { resolveLocaleRoute } from "./locale-route";
 import { LOCALES, PUBLISHED_LOCALES } from "./types";
-import { LOCALE_HEADER, PATH_HEADER } from "@/i18n/config";
+import { LOCALE_HEADER, PATH_HEADER, isPublishedLocale, localeFromPrefix } from "@/i18n/config";
 
 /*
  * Bible T19: with only English published, every non-English URL is a real 404, and every English URL is
@@ -45,10 +45,21 @@ describe("only English is published", () => {
     }
   });
 
-  it("only the lowercase prefix is a locale prefix (/fr-CA is not /fr-ca)", () => {
-    expect(resolveLocaleRoute("/fr-CA/shopify")).toBeNull();
-    expect(resolveLocaleRoute("/FR/shopify")).toBeNull();
-    expect(resolveLocaleRoute("/fr-ca/shopify")).not.toBeNull();
+  it("a locale prefix is reserved in any letter case: /fr-CA and /DE 404 like /fr-ca", () => {
+    for (const path of ["/fr-CA/shopify", "/FR/shopify", "/DE/pricing", "/Pt-Br", "/fr-ca/shopify"]) {
+      expect(resolveLocaleRoute(path)?.kind, path).toBe("not-found");
+    }
+    expect(localeFromPrefix("fr-CA")).toBe("fr-CA");
+    expect(localeFromPrefix("DE")).toBe("de");
+    expect(localeFromPrefix("en")).toBeNull();
+  });
+});
+
+describe("a request header is trusted only for a published locale", () => {
+  // Dotted paths skip the middleware, so x-ph-locale is caller-controlled there; request.ts and the localized route accept it only through this.
+  it("accepts en and nothing else while only English is published", () => {
+    expect(isPublishedLocale("en")).toBe(true);
+    for (const v of ["de", "fr-CA", "fr-ca", "xx", "", null, undefined, 3]) expect(isPublishedLocale(v), String(v)).toBe(false);
   });
 });
 

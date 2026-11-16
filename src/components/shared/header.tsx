@@ -65,6 +65,7 @@ export async function Header({ minimal = false }: { minimal?: boolean } = {}) {
   const locale = (await getLocale()) as Locale;
   const found = pageForPublicPath((await headers()).get(PATH_HEADER) ?? "");
   // Null (so the static English chip stays) until a second locale is published.
-  const languageSwitcher = languageOptions(found?.page, locale).length > 0 ? <LanguageSwitcher page={found?.page} locale={locale} /> : null;
+  const options = languageOptions(found?.page, locale);
+  const languageSwitcher = options.length > 0 ? <LanguageSwitcher options={options} /> : null;
   return <HeaderNav minimal={false} cta={cta} labels={labels} languageSwitcher={languageSwitcher} />;
 }

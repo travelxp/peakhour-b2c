@@ -36,6 +36,10 @@ export const FIXTURE_PAGES: PageRecord[] = [
     parentId: "fx.parent",
     locales: { "fr-CA": { path: "/fr-ca/fx/leaf", status: "published", reviewer: "fixture" } },
   }),
+  // A page with no variant listed BEFORE the page whose translated slug is /fr-ca/boutique: it must not shadow it.
+  base({ pageId: "fx.boutique.a", path: "/boutique" }),
+  base({ pageId: "fx.boutique.b", path: "/shop-b", locales: { "fr-CA": { path: "/fr-ca/boutique", status: "published", reviewer: "fixture" } } }),
+  base({ pageId: "fx.orphan", path: "/fx/orphan", parentId: "does.not.exist" }),
   base({ pageId: "fx.draft", path: "/fx/draft", locales: { "fr-CA": { path: "/fr-ca/fx/draft", status: "review" } } }),
 ];
 

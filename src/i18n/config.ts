@@ -1,4 +1,4 @@
-import { DEFAULT_LOCALE, LOCALES, type Locale } from "@/lib/seo/types";
+import { DEFAULT_LOCALE, LOCALES, PUBLISHED_LOCALES, type Locale } from "@/lib/seo/types";
 
 /**
  * Locale configuration. The locale list itself lives in lib/seo/types.ts (LOCALES, PUBLISHED_LOCALES,
@@ -38,6 +38,11 @@ export const LOCALE_NAMES: Record<Locale, string> = {
   "pt-BR": "Português (Brasil)",
 };
 
+/** A locale the site may render in: declared AND published. The only test a request header must pass (dotted paths skip the middleware, so the headers are caller-controlled there). */
+export function isPublishedLocale(value: unknown): value is Locale {
+  return isLocale(value) && PUBLISHED_LOCALES.includes(value);
+}
+
 export function isLocale(value: unknown): value is Locale {
   return typeof value === "string" && (LOCALES as readonly string[]).includes(value);
 }
@@ -47,7 +52,8 @@ export function prefixOf(locale: Locale): string {
   return locale === DEFAULT_LOCALE ? "" : `/${locale.toLowerCase()}`;
 }
 
-/** The non-English locale a first path segment names, exactly as written in lowercase; else null. */
+/** The non-English locale a first path segment names, in any letter case (so /fr-CA and /DE are reserved and 404 like /fr-ca); else null. */
 export function localeFromPrefix(segment: string): Locale | null {
-  return LOCALES.find((l) => l !== DEFAULT_LOCALE && l.toLowerCase() === segment) ?? null;
+  const s = segment.toLowerCase();
+  return LOCALES.find((l) => l !== DEFAULT_LOCALE && l.toLowerCase() === s) ?? null;
 }

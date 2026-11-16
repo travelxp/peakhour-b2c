@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import type { Translate } from "@/i18n/types";
-import { languageOptions, type LanguageOption } from "@/lib/seo/language-options";
-import type { Locale, PageRecord } from "@/lib/seo/types";
+import type { LanguageOption } from "@/lib/seo/language-options";
 
 const chip = "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold";
 
@@ -14,8 +13,7 @@ const chip = "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 tex
  * published ancestor and says so in visible text (Bible 10, T11); it never links to a 404 and never to the
  * English page under another language's name. `hrefLang` and `lang` mark each link for assistive tech.
  */
-export async function LanguageSwitcher({ page, locale }: { page: PageRecord | undefined; locale: Locale }) {
-  const options = languageOptions(page, locale);
+export async function LanguageSwitcher({ options }: { options: LanguageOption[] }) {
   if (options.length === 0) return null;
   return <LanguageSwitcherView options={options} t={await getTranslations("LanguageSwitcher")} />;
 }

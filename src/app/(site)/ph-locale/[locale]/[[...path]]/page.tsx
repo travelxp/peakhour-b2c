@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { PAGE_CONTENT } from "@/content/pages";
-import { LOCALE_HEADER, PATH_HEADER, isLocale } from "@/i18n/config";
+import { LOCALE_HEADER, PATH_HEADER, isPublishedLocale } from "@/i18n/config";
 import { pageMeta } from "@/lib/seo/metadata";
 import { contentFor } from "@/lib/seo/page-content";
 import { pageAtPath } from "@/lib/seo/locale-route";
@@ -27,7 +27,7 @@ type Params = { locale: string; path?: string[] };
 async function resolve(params: Promise<Params>) {
   const { locale } = await params;
   const h = await headers();
-  if (!isLocale(locale) || h.get(LOCALE_HEADER) !== locale) return null;
+  if (!isPublishedLocale(locale) || h.get(LOCALE_HEADER) !== locale) return null;
   const page = pageAtPath(h.get(PATH_HEADER) ?? "", locale);
   if (!page || !isPublishable(page, locale)) return null;
   const content = contentFor(PAGE_CONTENT[page.pageId], locale);

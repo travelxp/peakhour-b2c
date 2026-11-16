@@ -1,5 +1,5 @@
 import { LOCALE_NAMES } from "@/i18n/config";
-import { getPage } from "./pages";
+import { PAGES, getPage } from "./pages";
 import { isPublishable } from "./publish";
 import { pathFor } from "./resolve";
 import { LOCALES, PUBLISHED_LOCALES, type Locale, type PageRecord } from "./types";
@@ -15,12 +15,19 @@ export type LanguageOption = {
   equivalent: boolean;
 };
 
+function findPageById(id: string): PageRecord | undefined {
+  return PAGES.find((p) => p.pageId === id);
+}
+
 function nearestPublishedAncestor(page: PageRecord, locale: Locale): PageRecord | undefined {
   const seen = new Set<string>();
   let cur: PageRecord = page;
   while (cur.parentId && !seen.has(cur.parentId)) {
     seen.add(cur.parentId);
-    cur = getPage(cur.parentId);
+    // An unknown parentId ends the walk; it must not throw (the Header would 500).
+    const parent = findPageById(cur.parentId);
+    if (!parent) return undefined;
+    cur = parent;
     if (isPublishable(cur, locale)) return cur;
   }
   return undefined;

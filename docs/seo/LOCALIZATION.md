@@ -10,7 +10,7 @@ Policy: `Peakhour_SEO_AEO_Bible_v1.md` sections 4.8, 9.4 and 10. Code: `src/i18n
 - No detection. No `Accept-Language` redirect, no locale cookie. A visitor changes language only by clicking the switcher or following a link.
 - Scope is the public marketing pages in the registry (`src/lib/seo/pages.ts`). The dashboard, onboarding, CMS, auth, claim and reconnect stay English and unprefixed.
 - The middleware (after the coming-soon gate) rewrites `/{prefix}/{path}` to the internal route `src/app/(site)/ph-locale/[locale]/[[...path]]` **only** when that page's variant is publishable in that locale (`isPublishable`). Otherwise the visitor gets the public 404. A prefix is reserved even while nothing is published.
-- A non-English page renders only the copy written for that locale (`src/content/pages/`). There is never an English fallback at a non-English URL (Bible 10, T19). English is a fallback only for a development preview (`contentFor` with `previewFallback`, off Production).
+- A non-English page renders only the copy written for that locale (`src/content/pages/`). There is never an English fallback at a non-English URL (Bible 10, T19). There is no English fallback anywhere, preview included.
 
 ## Add a language, step by step
 
