@@ -21,16 +21,9 @@ import type {
  * render (the schema marks it app-sanitised — this is that layer).
  */
 
-const eyebrow = (
-  <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-);
-
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
-      {eyebrow}
-      {children}
-    </span>
+    <span className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">{children}</span>
   );
 }
 
@@ -62,9 +55,7 @@ function Hero({ b, asH1 = true }: { b: HeroBlock; asH1?: boolean }) {
             {b.accent && (
               <>
                 {" "}
-                <span className="font-serif font-normal italic text-brand-gradient">
-                  {b.accent}
-                </span>
+                <span className="daylight-mark">{b.accent}</span>
               </>
             )}
           </Heading>
@@ -147,7 +138,7 @@ function LearnsWithYou({ b }: { b: LearnsWithYouBlock }) {
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {b.timeline.map((t, i) => (
               <div key={`${t.when}-${i}`} className="border-l-2 border-brand/40 pl-4">
-                <div className="font-serif text-lg italic text-brand">{t.when}</div>
+                <div className="text-lg font-extrabold tracking-tight text-brand">{t.when}</div>
                 <div className="mt-2 text-sm text-on-ink-dim">{t.what}</div>
               </div>
             ))}
@@ -194,7 +185,7 @@ function Cta({ b }: { b: CtaBlock }) {
             {b.accent && (
               <>
                 {" "}
-                <span className="font-serif font-normal italic text-brand-gradient">{b.accent}</span>
+                <span className="text-brand">{b.accent}</span>
               </>
             )}
           </h2>
