@@ -165,6 +165,8 @@ export type GuideContent = BaseContent & {
 export type DirectoryItem = { title: string; body: string; href: string; status: ReleaseStatus; pillar?: string };
 export type DirectoryContent = BaseContent & {
   items: DirectoryItem[];
+  /** The heading over the grid. */
+  listTitle?: string;
 };
 
 /** One thing a module does (or will), with the status the capability record gives it on its surface. */
@@ -181,8 +183,16 @@ export type HubContent = BaseContent & {
   items: HubItem[];
   /** Where it runs, one card per surface, each with its own status. */
   platforms: PlatformItem[];
-  /** Where you stay in charge. */
+  /** Where you stay in charge: the lines of the hero card. */
   control: string[];
-  /** Shown under "Coming soon", so a reader never mistakes it for a live feature. */
+  /** The hero card's heading, when "You stay in charge" is not what its lines say. */
+  controlTitle?: string;
+  /** Limits that belong to no one card (a channel that is not in the inbox), added to the one "What it does not do" block. */
+  limits?: { title: string; text: string }[];
+  /** Shown under the coming-soon heading, so a reader never mistakes it for a live feature. Empty for none. */
   comingSoonNote: string;
+  /** The coming-soon band's heading when it needs to name the things ("Coming soon: WordPress"). */
+  comingSoonTitle?: string;
+  /** The heading over the platform cards ("Where it runs: Shopify, WhatsApp, WooCommerce"). */
+  platformsTitle?: string;
 };

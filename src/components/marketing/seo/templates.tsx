@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { articleLd } from "@/lib/seo/structured-data";
+import { cardLabel } from "@/lib/seo/labels";
 import { PAGES } from "@/lib/seo/pages";
 import { isPublishable } from "@/lib/seo/publish";
 import { pathFor } from "@/lib/seo/resolve";
@@ -40,10 +41,10 @@ import { linkAttrs, safeHref } from "./safe-href";
 export function FeaturePage({ page, content }: { page: PageRecord; content: FeatureContent }) {
   return (
     <Frame page={page} content={content}>
-      <Section id="status" eyebrow="What is verified" title="What it does today, and what it does not.">
+      <Section id="status" eyebrow="What is verified" title="What it does, and what it does not.">
         <CapabilityStatus status={content.status} limitations={content.limitations} verifiedAt={content.verifiedAt} />
       </Section>
-      <Section id="platforms" eyebrow="Where it runs" title="Pick your platform." tone="muted">
+      <Section id="platforms" eyebrow="Where it runs" title="Where it runs" tone="muted">
         <PlatformChooser platforms={content.platforms} />
       </Section>
       <Section id="workflow" eyebrow="How it works" title="From first message to done.">
@@ -70,7 +71,7 @@ const bandTone = (index: number) => (index % 2 === 0 ? "plain" : "muted");
 export function ShopifyFeaturePage({ page, content }: { page: PageRecord; content: ShopifyFeatureContent }) {
   return (
     <Frame page={page} content={content}>
-      <Section id="status" eyebrow="On Shopify" title="Where this stands on Shopify.">
+      <Section id="status" eyebrow="On Shopify" title="Where this stands on Shopify">
         <CapabilityStatus status={content.status} limitations={content.limitations} verifiedAt={content.verifiedAt} subject="On Shopify" />
       </Section>
       {content.sections?.map((s, i) => (
@@ -80,6 +81,9 @@ export function ShopifyFeaturePage({ page, content }: { page: PageRecord; conten
         <WorkflowSteps steps={content.setupSteps} />
       </Section>
       <Section id="permissions" eyebrow="Permissions" title="What the app asks for, and why." tone={bandTone((content.sections?.length ?? 0) + 2)}>
+        <p className="mb-5 max-w-2xl text-lg text-muted-foreground">
+          The access the app asks Shopify for, in plain words. Each line names the permission and what it is used for.
+        </p>
         <dl className="grid gap-3 sm:grid-cols-2 sm:gap-4">
           {content.permissions.map((p) => (
             <div key={p.name} className={`${cardCls} p-5 sm:[&:last-child:nth-child(odd)]:col-span-2`}>
@@ -216,7 +220,7 @@ export function IndustryPage({ page, content }: { page: PageRecord; content: Ind
 export function PlatformPage({ page, content }: { page: PageRecord; content: PlatformContent }) {
   return (
     <Frame page={page} content={content}>
-      <Section id="platforms" eyebrow="Platforms" title="Where Peakhour runs.">
+      <Section id="platforms" eyebrow="Platforms" title="Where Peakhour runs">
         <PlatformChooser platforms={content.platforms} />
       </Section>
       <Section id="included" eyebrow="What you get" title="What is included, and its status." tone="muted">
@@ -266,6 +270,20 @@ export function IntegrationPage({ page, content }: { page: PageRecord; content: 
   );
 }
 
+/** A reviewer line that is still a placeholder ("Pending review") is process, not proof: the reader sees a byline only once a person has reviewed the page. */
+export function isReviewed(reviewer: string): boolean {
+  return !/^\s*(pending|none|tbd)/i.test(reviewer);
+}
+
+function bylineFacts(content: { author: string; reviewer: string }): { label: string; value: string }[] {
+  return isReviewed(content.reviewer)
+    ? [
+        { label: "Written by", value: content.author },
+        { label: "Reviewed by", value: content.reviewer },
+      ]
+    : [];
+}
+
 /** 7.4 Comparison page (brand-safe): neutral answer, use cases, table, pricing with date, suitability, limits, last checked. */
 export function ComparisonPage({ page, content }: { page: PageRecord; content: ComparisonPageContent }) {
   const { comparison, pricing } = content;
@@ -278,8 +296,7 @@ export function ComparisonPage({ page, content }: { page: PageRecord; content: C
           title="How this was checked"
           facts={[
             { label: "Last checked", value: <time dateTime={comparison.lastChecked}>{comparison.lastChecked}</time> },
-            { label: "Written by", value: content.author },
-            { label: "Reviewed by", value: content.reviewer },
+            ...bylineFacts(content),
           ]}
         />
       }
@@ -346,7 +363,8 @@ export function ComparisonPage({ page, content }: { page: PageRecord; content: C
         <div className="max-w-3xl">
           <Bullets items={content.limitations} />
           <p className="mt-5 text-sm text-muted-foreground">
-            Last checked <time dateTime={comparison.lastChecked}>{comparison.lastChecked}</time>. Written by {content.author}, reviewed by {content.reviewer}.
+            Last checked <time dateTime={comparison.lastChecked}>{comparison.lastChecked}</time>.
+            {isReviewed(content.reviewer) && ` Written by ${content.author}, reviewed by ${content.reviewer}.`}
           </p>
         </div>
       </Section>
@@ -363,11 +381,7 @@ export function GuidePage({ page, content }: { page: PageRecord; content: GuideC
       art={
         <FactsCard
           title="About this guide"
-          facts={[
-            { label: "Written by", value: content.author },
-            { label: "Reviewed by", value: content.reviewer },
-            { label: "Updated", value: <time dateTime={content.updatedAt}>{content.updatedAt}</time> },
-          ]}
+          facts={[...bylineFacts(content), { label: "Updated", value: <time dateTime={content.updatedAt}>{content.updatedAt}</time> }]}
         />
       }
     >
@@ -421,48 +435,36 @@ export function GuidePage({ page, content }: { page: PageRecord; content: GuideC
   );
 }
 
-/** A family hub: the cards of its children, each with a status chip. */
+/** A family hub: the cards of its children, each with its own status chip. No count card: the chips on the cards are the status. */
 export function DirectoryPage({ page, content }: { page: PageRecord; content: DirectoryContent }) {
-  const labelCount = (label: string) => content.items.filter((i) => statusMeta(i.status).label === label).length;
-  const live = labelCount("Live");
-  const beta = labelCount("Beta");
-  const soon = labelCount("Coming soon");
-  // Paused and retired cards render in the grid too, so the summary counts them or it would not add up.
-  const other = content.items.length - live - beta - soon;
   return (
-    <Frame
-      page={page}
-      content={content}
-      art={
-        <FactsCard
-          title="On this page"
-          facts={[
-            { label: "Live", value: live },
-            { label: "Beta", value: beta },
-            { label: "Coming soon", value: soon },
-            ...(other > 0 ? [{ label: "Paused or retired", value: other }] : []),
-          ]}
-        />
-      }
-    >
-      <Section id="directory" eyebrow="Everything here" title="Browse, with the status of each.">
+    <Frame page={page} content={content}>
+      <Section id="directory" eyebrow="Everything here" title={content.listTitle ?? "The list"}>
         <DirectoryGrid items={content.items} />
       </Section>
     </Frame>
   );
 }
 
-/** A module hub: what runs today, what is coming soon, where it runs, and where you stay in charge. */
+/**
+ * A module hub: what runs today, what is coming soon, where it runs, and the limits.
+ *
+ * Two faults of the old hub are fixed here once, for every module page. The hero card no longer repeats the status
+ * chips of the grid under it: it holds "You stay in charge", the module's own control lines, which no other section
+ * says. And no card carries its own "Limit:" footnote: every limit is gathered, once each, in one "What it does not do"
+ * block, so a twelve-card page does not read as a wall of small print.
+ */
 export function HubPage({ page, content }: { page: PageRecord; content: HubContent }) {
   const shipped = content.items.filter((i) => i.status === "live" || i.status === "beta");
   const coming = content.items.filter((i) => i.status !== "live" && i.status !== "beta");
+  const limits = hubLimits(content);
   // The hub's publishable feature and integration pages, from the registry's relatedIds, so a page appears here the
-  // moment it is publishable and never before. Anything the hub already links in "Keep going" is left out (no duplicates).
+  // moment it is publishable and never before. Anything the hub already links in "Related pages" is left out (no duplicates).
   const already = new Set(content.related.map((l) => l.href));
   const children = page.relatedIds
     .map((id) => PAGES.find((p) => p.pageId === id))
     .filter((p): p is PageRecord => !!p && (p.family === "feature" || p.family === "integration") && isPublishable(p))
-    .map((p) => ({ label: p.title, href: pathFor(p.pageId), note: p.description }))
+    .map((p) => ({ label: cardLabel(p), href: pathFor(p.pageId), note: p.description }))
     .filter((l) => !already.has(l.href))
     .slice(0, 6);
   return (
@@ -470,39 +472,73 @@ export function HubPage({ page, content }: { page: PageRecord; content: HubConte
       page={page}
       content={content}
       art={
-        <FactsCard
-          title="Where it stands today"
-          facts={content.items.map((i) => ({ label: i.title, value: <StatusChip status={i.status} /> }))}
-        />
+        <aside aria-label={content.controlTitle ?? "You stay in charge"} className={`${cardCls} p-5 shadow-[var(--daylight-shadow)] sm:p-6`}>
+          <p className="text-sm font-extrabold uppercase tracking-[0.12em] text-muted-foreground">{content.controlTitle ?? "You stay in charge"}</p>
+          <Bullets items={content.control} className="mt-3 text-base" />
+        </aside>
       }
     >
       {shipped.length > 0 && (
-        <Section id="today" eyebrow="Available now" title="What it does today.">
+        <Section id="today" eyebrow="Available now" title="What it does today">
           <HubCards items={shipped} />
         </Section>
       )}
       {coming.length > 0 && (
-        <Section id="soon" eyebrow="Coming soon" title="Built, and not switched on yet." tone="muted" intro={content.comingSoonNote}>
+        <Section id="soon" eyebrow="Coming soon" title={content.comingSoonTitle ?? "Coming soon"} tone="muted" intro={content.comingSoonNote || undefined}>
           <HubCards items={coming} />
         </Section>
       )}
       {content.platforms.length > 0 && (
-        <Section id="platforms" eyebrow="Where it runs" title="Each platform has its own status.">
-          <PlatformChooser platforms={content.platforms} />
+        <Section id="platforms" eyebrow="Where it runs" title={content.platformsTitle ?? "Where it runs"}>
+          <PlatformChooser platforms={content.platforms} showLimits={false} />
         </Section>
       )}
-      <Section id="control" eyebrow="You stay in charge" title="How it stays in your hands." tone="muted">
-        <div className="max-w-3xl">
-          <Bullets items={content.control} />
-        </div>
-      </Section>
+      {limits.length > 0 && (
+        <Section id="limits" eyebrow="Limits" title="What it does not do" tone={content.platforms.length > 0 ? "muted" : "plain"}>
+          <ul role="list" className="grid max-w-4xl gap-2.5 text-[15px] md:grid-cols-2 md:gap-x-10">
+            {limits.map((l) => (
+              <li key={l.text} className="flex gap-2.5">
+                <span aria-hidden className="mt-2 size-1.5 shrink-0 rounded-full bg-foreground/60" />
+                <span>
+                  <b className="font-bold">{l.title}: </b>
+                  {l.text}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
       {children.length > 0 && (
-        <Section id="deeper" eyebrow="Go deeper" title="Each feature and connection, on its own page.">
+        <Section id="deeper" eyebrow="Go deeper" title="Features and connections" tone={limits.length > 0 && content.platforms.length === 0 ? "muted" : "plain"}>
           <ContextualLinks links={children} />
         </Section>
       )}
     </Frame>
   );
+}
+
+/** The limits of a hub's cards, each sentence once (two cards on one capability share a limit), keyed by the first card that has it. */
+export function hubLimits(content: HubContent): { title: string; text: string }[] {
+  const seen = new Set<string>();
+  const out: { title: string; text: string }[] = [];
+  for (const i of content.items) {
+    if (!i.limitation || seen.has(i.limitation)) continue;
+    seen.add(i.limitation);
+    out.push({ title: i.title, text: i.limitation });
+  }
+  for (const p of content.platforms) {
+    for (const l of p.limitations ?? []) {
+      if (seen.has(l)) continue;
+      seen.add(l);
+      out.push({ title: p.label, text: l });
+    }
+  }
+  for (const l of content.limits ?? []) {
+    if (seen.has(l.text)) continue;
+    seen.add(l.text);
+    out.push(l);
+  }
+  return out;
 }
 
 /**
@@ -528,12 +564,6 @@ function HubCards({ items }: { items: HubContent["items"] }) {
             <StatusChip status={i.status} className="shrink-0" />
           </span>
           <p className="text-[15px] text-muted-foreground">{i.body}</p>
-          {i.limitation && (
-            <p className="mt-auto pt-1 text-sm text-muted-foreground">
-              <b className="font-bold text-foreground">Limit: </b>
-              {i.limitation}
-            </p>
-          )}
         </li>
       ))}
     </ul>

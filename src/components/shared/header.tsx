@@ -2,14 +2,14 @@ import { headers } from "next/headers";
 import { getLocale, getTranslations } from "next-intl/server";
 import { getPublicCatalog, signupCta } from "@/lib/catalog";
 import { marketingTrialDays } from "@/lib/pricing";
-import { HeaderNav, type HeaderLabels } from "@/components/shared/header-nav";
+import { HeaderNav, type HeaderCta, type HeaderLabels } from "@/components/shared/header-nav";
 import { LanguageSwitcher } from "@/components/shared/language-switcher";
 import { PATH_HEADER } from "@/i18n/config";
 import type { Translate } from "@/i18n/types";
 import { SITE } from "@/lib/utils";
 import { languageOptions } from "@/lib/seo/language-options";
 import { pageForPublicPath } from "@/lib/seo/locale-route";
-import type { Locale } from "@/lib/seo/types";
+import type { Locale, PageRecord } from "@/lib/seo/types";
 
 /** The header's strings from the message catalog (namespaces Nav and Common). Pure, so a test builds them without a request. */
 export function headerLabels(nav: Translate, common: Translate): HeaderLabels {
@@ -40,6 +40,18 @@ export function headerLabels(nav: Translate, common: Translate): HeaderLabels {
 }
 
 /**
+ * On a Shopify page whose hero says "Install on Shopify", the header says it too: a visitor who reads one action in the
+ * hero and a different one in the header does not know which is the door. Every other page keeps the platform's own
+ * signup CTA (open, waitlist, invite). Pure, so a test needs no request.
+ */
+export function headerCtaForPage(page: Pick<PageRecord, "scope" | "primaryCta"> | undefined, platformCta: HeaderCta): HeaderCta {
+  if (page?.scope === "shopify" && page.primaryCta.kind === "install") {
+    return { label: page.primaryCta.label, href: page.primaryCta.href };
+  }
+  return platformCta;
+}
+
+/**
  * Site header (server wrapper). Resolves the signup CTA from the live platform
  * stage so the header's primary button tracks the launch state — "Start free trial"
  * when signups are open and the catalog gives a trial ("Get started" when it
@@ -60,10 +72,11 @@ export async function Header({ minimal = false }: { minimal?: boolean } = {}) {
   // Legal pages show no CTA — don't pay for the catalog fetch.
   if (minimal) return <HeaderNav minimal cta={{ label: nav("getStarted"), href: "/auth" }} labels={labels} />;
   const [catalog, trialDays] = await Promise.all([getPublicCatalog(), marketingTrialDays()]);
-  const cta = signupCta(catalog?.platform?.signupMode ?? "open", trialDays);
+  const platformCta = signupCta(catalog?.platform?.signupMode ?? "open", trialDays);
 
   const locale = (await getLocale()) as Locale;
   const found = pageForPublicPath((await headers()).get(PATH_HEADER) ?? "");
+  const cta = headerCtaForPage(found?.page, platformCta);
   // Null (so the static English chip stays) until a second locale is published.
   const options = languageOptions(found?.page, locale);
   const languageSwitcher = options.length > 0 ? <LanguageSwitcher options={options} /> : null;

@@ -2,7 +2,7 @@ import { Disclosure } from "@/components/marketing/shopify/shopify-disclosure";
 import { faqPageLd } from "@/lib/seo/structured-data";
 import { JsonLd } from "./json-ld";
 import type { FaqItem } from "./content-types";
-import { eyebrowCls, h2Cls, subCls, wrap } from "./styles";
+import { eyebrowCls, h2Cls, wrap } from "./styles";
 
 /**
  * The FAQ, on the /shopify Disclosure (a native <details>): every answer is in the server HTML whether the item is
@@ -18,9 +18,8 @@ export function FaqSection({ faqs, id = "faq" }: { faqs: FaqItem[]; id?: string 
         <div className="lg:sticky lg:top-28 lg:self-start">
           <p className={eyebrowCls}>FAQ</p>
           <h2 id={`${id}-h`} className={h2Cls}>
-            Questions people ask first.
+            Common questions
           </h2>
-          <p className={subCls}>Short answers, and what each one depends on.</p>
         </div>
         <div className="border-t-2 border-foreground">
           {faqs.map((f, i) => (

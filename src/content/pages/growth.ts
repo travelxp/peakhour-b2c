@@ -10,7 +10,7 @@ export const GROWTH: HubContent = {
   ],
   eyebrow: "Growth",
   directAnswer:
-    "Peakhour Growth drafts a growth strategy and a channel recommendation for you to approve, shows and pauses your Meta ads, creates and pauses X ads, manages your LinkedIn posts, and has Peakhour Summit review growth decisions before you make them. Google Ads and LinkedIn Ads are coming soon.",
+    "Plan your growth and approve every ad. Peakhour drafts a strategy, shows and pauses your Meta ads, creates and pauses X ads, and manages your LinkedIn posts. In beta, Peakhour Summit reviews growth decisions before you make them. Google Ads and LinkedIn Ads are coming soon.",
   items: [
     liveItem("growth.peakhour_summit.reviews_proposals", "web", "Peakhour Summit", 1),
     liveItem("growth.campaign_planning.plan_for_approval", "web", "Growth strategy", 0),
@@ -18,8 +18,8 @@ export const GROWTH: HubContent = {
     liveItem("growth.x_ads.create_and_pause", "web", "X Ads", 0),
     liveItem("growth.linkedin_growth.publish_and_boost", "web", "LinkedIn", 0),
     liveItem("growth.ad_audiences.targeting", "web", "Audiences", 0),
-    soonItem("growth.google_ads", "web", "Google Ads", "Google Ads campaigns are built and not switched on for stores yet."),
-    soonItem("growth.linkedin_ads", "web", "LinkedIn Ads", "Managing LinkedIn Ads campaigns is built and not switched on yet."),
+    soonItem("growth.google_ads", "web", "Google Ads", "Create and manage Google Ads campaigns from Peakhour."),
+    soonItem("growth.linkedin_ads", "web", "LinkedIn Ads", "Create and manage LinkedIn Ads campaigns from Peakhour."),
   ],
   platforms: [],
   control: [
@@ -28,15 +28,16 @@ export const GROWTH: HubContent = {
     "Applying an audience leaves a campaign as a draft; it never starts spend.",
     "Replies, comments and reactions on LinkedIn are sent when you or your team trigger them.",
   ],
-  comingSoonNote: "Both are built. They stay off until the connections are ready for stores.",
+  comingSoonNote: "",
+  comingSoonTitle: "Coming soon: Google Ads and LinkedIn Ads",
   faqs: [
     {
       q: "What is Peakhour Summit?",
-      a: "It is Peakhour's review of your growth decisions. It makes a case for and a case against, runs safety checks and gives a final call. It is in beta, and it only recommends: you approve any change.",
+      a: "It is Peakhour's review of your growth decisions, in beta. It gives The case for, The case against, Safety checks and a Final call. It only recommends: you approve any change.",
     },
     {
       q: "Can I run Google Ads or LinkedIn Ads from Peakhour?",
-      a: "Not yet. Both are built and not switched on. Meta Ads and X Ads work today, and you can boost a LinkedIn post you already published.",
+      a: "Not yet. Both are coming soon. Meta Ads and X Ads work today, and you can boost a LinkedIn post you already published.",
     },
     {
       q: "Can it create Meta campaigns?",

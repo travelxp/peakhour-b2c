@@ -54,7 +54,7 @@ export function DetailSection({ section, tone = "plain" }: { section: DetailSect
       )}
       {section.limitations && section.limitations.length > 0 && (
         <div className={`${cardCls} mt-6 max-w-3xl p-5`}>
-          <h3 className="text-sm font-extrabold uppercase tracking-[0.12em] text-muted-foreground">What this part does not do</h3>
+          <h3 className="text-sm font-extrabold uppercase tracking-[0.12em] text-muted-foreground">Limits</h3>
           <Bullets items={section.limitations} className="mt-2" />
         </div>
       )}

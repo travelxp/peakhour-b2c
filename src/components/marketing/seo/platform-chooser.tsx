@@ -8,8 +8,9 @@ import { safeHref } from "./safe-href";
 /**
  * One card per surface the thing runs on, each with its OWN status: a live Shopify build says nothing about
  * WooCommerce, so the chooser never shows one chip for all of them. A card links only when it has a page.
+ * A hub passes `showLimits={false}` and prints every limit once, in its own block, so no card carries a footnote.
  */
-export function PlatformChooser({ platforms }: { platforms: PlatformItem[] }) {
+export function PlatformChooser({ platforms, showLimits = true }: { platforms: PlatformItem[]; showLimits?: boolean }) {
   return (
     <ul
       role="list"
@@ -26,7 +27,7 @@ export function PlatformChooser({ platforms }: { platforms: PlatformItem[] }) {
               <StatusChip status={p.status} className="shrink-0" />
             </span>
             <span className="text-[15px] text-muted-foreground">{p.body}</span>
-            {p.limitations && p.limitations.length > 0 && (
+            {showLimits && p.limitations && p.limitations.length > 0 && (
               <span className="text-sm text-muted-foreground">
                 <b className="font-bold text-foreground">Not yet: </b>
                 {p.limitations.join("; ")}

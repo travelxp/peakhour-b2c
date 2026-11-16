@@ -11,15 +11,15 @@ export type StatusMeta = { label: string; tone: "ok" | "warn" | "mute"; descript
 export function statusMeta(status: ReleaseStatus): StatusMeta {
   switch (status) {
     case "live":
-      return { label: "Live", tone: "ok", description: "Available now." };
+      return { label: "Live", tone: "ok", description: "Live." };
     case "beta":
-      return { label: "Beta", tone: "warn", description: "Available to early users while we finish it." };
+      return { label: "Beta", tone: "warn", description: "In beta." };
     case "paused":
-      return { label: "Paused", tone: "mute", description: "Switched off for now." };
+      return { label: "Paused", tone: "mute", description: "Paused." };
     case "retired":
-      return { label: "Retired", tone: "mute", description: "No longer offered." };
+      return { label: "Retired", tone: "mute", description: "Retired." };
     default:
-      return { label: "Coming soon", tone: "mute", description: "Not available yet." };
+      return { label: "Coming soon", tone: "mute", description: "Coming soon." };
   }
 }
 
