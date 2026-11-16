@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { PageRecord } from "@/lib/seo/types";
-import { Bullets, FactsCard, Frame } from "@/components/marketing/seo/frame";
+import { Frame } from "@/components/marketing/seo/frame";
 import { Section } from "@/components/marketing/seo/section";
 import { cardCls, linkCls } from "@/components/marketing/seo/styles";
 import { ABOUT, ABOUT_COMPANIES, ABOUT_CONTACTS, ABOUT_MARKETS, ABOUT_PILLARS } from "./about";
@@ -12,21 +12,11 @@ export function AboutView({ page }: { page: PageRecord }) {
     <Frame
       page={page}
       content={ABOUT}
-      art={
-        <FactsCard
-          title="At a glance"
-          facts={[
-            { label: "Modules", value: ABOUT_PILLARS.length },
-            { label: "Markets", value: ABOUT_MARKETS.length },
-            { label: "Plan", value: "One, for all five" },
-          ]}
-        />
-      }
     >
-      <Section id="what" eyebrow="What Peakhour is" title="One platform, five modules.">
-        <ul role="list" className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
-          {ABOUT_PILLARS.map((p) => (
-            <li key={p.name} className={`${cardCls} p-5`}>
+      <Section id="what" eyebrow="What Peakhour is" title="What Peakhour does">
+        <ul role="list" className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-6">
+          {ABOUT_PILLARS.map((p, i) => (
+            <li key={p.name} className={`${cardCls} p-5 sm:max-lg:last:col-span-2 ${i < 3 ? "lg:col-span-2" : "lg:col-span-3"}`}>
               <h3 className="text-lg font-extrabold tracking-tight">
                 <Link href={p.href} className={linkCls}>
                   {p.name}
@@ -36,11 +26,11 @@ export function AboutView({ page }: { page: PageRecord }) {
             </li>
           ))}
         </ul>
+        <p className="mt-8 max-w-3xl text-lg text-foreground/80">
+          <b className="font-extrabold">Where Peakhour works:</b> {ABOUT_MARKETS.slice(0, -1).join(", ")} and {ABOUT_MARKETS.at(-1)}.
+        </p>
       </Section>
-      <Section id="markets" eyebrow="Where it works" title="The markets it is built for." tone="muted">
-        <Bullets items={[...ABOUT_MARKETS]} className="max-w-md text-base sm:grid-cols-2" />
-      </Section>
-      <Section id="company" eyebrow="The company" title="Who stands behind it.">
+      <Section id="company" eyebrow="The company" title="Who runs Peakhour">
         <div className="grid gap-4 md:grid-cols-2">
           {ABOUT_COMPANIES.map((c) => (
             <div key={c.region} className={`${cardCls} p-5 sm:p-6`}>

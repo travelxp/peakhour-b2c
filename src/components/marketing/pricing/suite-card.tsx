@@ -207,9 +207,7 @@ export function SuiteCard({
               The count is counted for the same reason: "All five" is a fact
               about today's catalog, not about this component. */}
           <p className="text-xs font-bold uppercase tracking-[0.18em] text-brand-label">
-            {includedSlugs.length > 0
-              ? `All ${includedSlugs.length} modules included`
-              : "What's included"}
+            {includedSlugs.length > 0 ? "Included in Peakhour Suite" : "What's included"}
           </p>
           <ul className="mt-4 space-y-3.5">
             {includedSlugs.map((slug) => {

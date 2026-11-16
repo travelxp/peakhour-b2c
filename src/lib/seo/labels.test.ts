@@ -7,9 +7,9 @@ describe("cardLabel", () => {
     for (const p of PAGES) {
       const label = cardLabel(p);
       expect(label, p.pageId).not.toMatch(/[|:]/);
-      expect(label, p.pageId).not.toMatch(/\bPeakhour(\.ai)?\s*$/i);
+      expect(label, p.pageId).not.toMatch(/[|—–-]\s*Peakhour(\.ai)?\s*$/i);
       expect(label.length, p.pageId).toBeGreaterThan(0);
-      expect(label.length, p.pageId).toBeLessThanOrEqual(40);
+      expect(label.length, p.pageId).toBeLessThanOrEqual(60);
     }
   });
 

@@ -276,12 +276,10 @@ export function isReviewed(reviewer: string): boolean {
 }
 
 function bylineFacts(content: { author: string; reviewer: string }): { label: string; value: string }[] {
-  return isReviewed(content.reviewer)
-    ? [
-        { label: "Written by", value: content.author },
-        { label: "Reviewed by", value: content.reviewer },
-      ]
-    : [];
+  return [
+    { label: "Written by", value: content.author },
+    ...(isReviewed(content.reviewer) ? [{ label: "Reviewed by", value: content.reviewer }] : []),
+  ];
 }
 
 /** 7.4 Comparison page (brand-safe): neutral answer, use cases, table, pricing with date, suitability, limits, last checked. */
@@ -364,7 +362,7 @@ export function ComparisonPage({ page, content }: { page: PageRecord; content: C
           <Bullets items={content.limitations} />
           <p className="mt-5 text-sm text-muted-foreground">
             Last checked <time dateTime={comparison.lastChecked}>{comparison.lastChecked}</time>.
-            {isReviewed(content.reviewer) && ` Written by ${content.author}, reviewed by ${content.reviewer}.`}
+            {isReviewed(content.reviewer) ? ` Written by ${content.author}, reviewed by ${content.reviewer}.` : ` Written by ${content.author}.`}
           </p>
         </div>
       </Section>

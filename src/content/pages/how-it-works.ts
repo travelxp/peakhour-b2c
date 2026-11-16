@@ -11,7 +11,7 @@ export const HOW_IT_WORKS: BaseContent = {
   ],
   eyebrow: "How it works",
   directAnswer:
-    "You connect the tools you already use, Peakhour reads your catalogue and your past posts, and then it drafts the work and shows you the decisions. You approve what goes out, and you set how much it may do on its own.",
+    "Connect the tools you already use. Peakhour starts from your catalogue and past posts, drafts the work and shows you the decisions. You approve what goes out.",
   secondaryCta: { label: "See pricing", href: pathFor("pricing") },
   faqs: [
     {
@@ -20,15 +20,15 @@ export const HOW_IT_WORKS: BaseContent = {
     },
     {
       q: "What does it connect to today?",
-      a: "Shopify, WhatsApp, LinkedIn, X, Facebook, Instagram and Beehiiv, plus Google Business Profile in beta. WordPress and WooCommerce are built and coming soon.",
+      a: "Shopify, WhatsApp, LinkedIn, X, Facebook, Instagram and Beehiiv, plus Google Business Profile in beta. WordPress and WooCommerce are coming soon.",
     },
     {
       q: "Is this all live?",
-      a: "Most of it. Peakhour Summit and Google Business Profile support are in beta, and the support channels, Google Ads and LinkedIn Ads are built and not switched on yet. Each module page says which is which.",
+      a: "Most of it. Peakhour Summit and Google Business Profile support are in beta. The Support inbox, Google Ads and LinkedIn Ads are coming soon. Each page says which is which.",
     },
     {
       q: "Do the examples on this page show real results?",
-      a: "No. They are examples of what the connected modules can show you. Your own data decides what you see.",
+      a: "No. They are examples of what the connected parts of Peakhour can show you. Your own data decides what you see.",
     },
   ],
   related: [

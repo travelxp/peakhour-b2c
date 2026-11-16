@@ -12,7 +12,7 @@ export const GROWTH: HubContent = {
   directAnswer:
     "Plan your growth and approve every ad. Peakhour drafts a strategy, shows and pauses your Meta ads, creates and pauses X ads, and manages your LinkedIn posts. In beta, Peakhour Summit reviews growth decisions before you make them. Google Ads and LinkedIn Ads are coming soon.",
   items: [
-    liveItem("growth.peakhour_summit.reviews_proposals", "web", "Peakhour Summit", 1),
+    liveItem("growth.peakhour_summit.reviews_proposals", "web", "Peakhour Summit"),
     liveItem("growth.campaign_planning.plan_for_approval", "web", "Growth strategy", 0),
     liveItem("growth.meta_ads.list_and_pause", "web", "Meta Ads", 0),
     liveItem("growth.x_ads.create_and_pause", "web", "X Ads", 0),

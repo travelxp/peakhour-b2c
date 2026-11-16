@@ -97,8 +97,8 @@ export default async function PricingPage({
               />
               <p className={`${eyebrowCls} mt-5`}>Pricing</p>
               <h1 className="mt-3 text-[2.2rem] font-black leading-[1.04] tracking-[-0.04em] text-balance sm:text-5xl lg:text-[3.5rem]">
-                One plan for{" "}
-                <span className="daylight-mark">everything Peakhour does.</span>
+                One plan for everything{" "}
+                <span className="daylight-mark whitespace-nowrap">Peakhour does.</span>
               </h1>
               <p className="mt-4 max-w-xl text-lg text-foreground/80 sm:text-xl">
                 Peakhour Suite covers Commerce, Content, Growth, Support and

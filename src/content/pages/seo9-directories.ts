@@ -45,16 +45,17 @@ export function integrationsDirectory(): DirectoryContent {
     crumbs: [{ label: "Home", href: "/" }, { label: "Integrations", href: pathFor("integrations.index") }],
     eyebrow: "Integrations",
     directAnswer:
-      "These are the channels and connectors Peakhour works with today, grouped by what they are for. Each page says what the connection does and what it does not, and a Beta chip means it is still being finished. Connections that are not yet switched on are not listed.",
+      "Each page says what a connection does and does not do. Beta means still being finished.",
     secondaryCta: { label: "See the features they power", href: pathFor("features.index") },
     items: items(INTEGRATIONS),
+    listTitle: "The connections",
     faqs: [
       { q: "What is the difference between a feature and an integration?", a: "An integration is a connection to another service, such as WhatsApp or LinkedIn. A feature is something Peakhour does with it, such as publishing posts or answering reviews." },
       { q: "Why is a connection I use not listed?", a: "A connection is listed only once it is switched on for merchants and we can say exactly what it does." },
     ],
     related: [
       link("features.index", "Presence and Content features", "What Peakhour does with these connections."),
-      link("presence", "Peakhour Presence", "Own how you show up on Google."),
+      link("presence", "Peakhour Presence", "Prepare Google listing changes and approve each one."),
       link("content", "Peakhour Content", "AI writers that publish in your voice."),
       link("growth", "Peakhour Growth", "Ads and LinkedIn, with your approval."),
       link("commerce", "Peakhour Commerce", "The AI assistant that sells on WhatsApp."),
@@ -69,18 +70,21 @@ export function featuresDirectory(): DirectoryContent {
     crumbs: [{ label: "Home", href: "/" }, { label: "Features", href: pathFor("features.index") }],
     eyebrow: "Features",
     directAnswer:
-      "These are the Peakhour features for your Google listing and your content, with the status of each and what it does not do. Peakhour drafts and prepares; a person on your team approves or sends.",
+      "Peakhour features for your Google listing and your content, each with its status. Peakhour drafts and prepares; a person on your team approves or sends.",
     secondaryCta: { label: "See the integrations", href: pathFor("integrations.index") },
     items: items(FEATURES),
+    listTitle: "The features",
     faqs: [
       { q: "Does Peakhour act without my approval?", a: "No. Listing changes need an admin's approval, review replies are sent by a person, and nothing posts without an approved plan." },
-      { q: "Where are the other features?", a: "This list covers Presence and Content. Other features are listed once each one is ready to be described accurately." },
+      { q: "Where are the other features?", a: "This list covers Presence and Content. Commerce features are on the Commerce page and in the Shopify features list, and Growth features are on the Growth page." },
     ],
     related: [
       link("integrations.index", "Integrations", "The connections these features use."),
-      link("presence", "Peakhour Presence", "Own how you show up on Google."),
+      link("commerce", "Commerce features", "The shopping assistant, shelves and COD confirmation."),
+      link("growth", "Growth features", "Strategy, Meta and X ads, and Peakhour Summit."),
+      link("shopify.features", "Shopify features", "Every feature of the Peakhour Shopify app."),
+      link("presence", "Peakhour Presence", "Prepare Google listing changes and approve each one."),
       link("content", "Peakhour Content", "AI writers that publish in your voice."),
-      PRICING_LINK(),
     ],
     closing: closingFor("Peakhour"),
   };

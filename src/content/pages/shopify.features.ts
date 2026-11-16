@@ -76,7 +76,7 @@ export const CONTENT: DirectoryContent = {
   ],
   eyebrow: "Peakhour for Shopify",
   directAnswer:
-    "Peakhour for Shopify is an app that answers your shoppers, builds product shelves, confirms cash-on-delivery orders on WhatsApp, and fixes your product pages for search. This page lists each feature that is ready to read about, with its status today.",
+    "Peakhour for Shopify is an app that answers your shoppers, builds product shelves, confirms cash-on-delivery orders on WhatsApp, and fixes your product pages for search. Seven features, each with its status.",
   items,
   faqs: [
     {

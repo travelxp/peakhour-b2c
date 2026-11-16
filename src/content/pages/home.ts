@@ -2,7 +2,7 @@ import type { BaseContent, HubItem } from "@/components/marketing/seo/content-ty
 import { pathFor } from "@/lib/seo/resolve";
 import { liveItem, soonItem } from "./hub-helpers";
 
-/** The home page: the five modules with the status each record gives it. Cards are built from approved claims. */
+/** The home page: what Peakhour does, one card per part, with the status each record gives it. Cards are built from approved claims. */
 export type HomeModule = HubItem & { href: string };
 
 export const HOME_MODULES: HomeModule[] = [
@@ -14,7 +14,7 @@ export const HOME_MODULES: HomeModule[] = [
       "support.channel_inbox",
       "web",
       "Support",
-      "Answering shoppers on WhatsApp and handing the hard ones to your team is built and switching on soon. Today it shows what shoppers asked your assistant that it could not answer.",
+      "Coming soon: answering shoppers on WhatsApp and handing the hard ones to your team. Today it shows what shoppers asked your assistant that it could not answer.",
     ),
     href: pathFor("support"),
   },
@@ -27,7 +27,7 @@ export function homeContent(closingBody: string): BaseContent {
     crumbs: [],
     eyebrow: "The AI business platform for growing brands",
     directAnswer:
-      "Peakhour is an AI business platform for growing brands. It answers shoppers on your Shopify store and WhatsApp, drafts and posts content in your brand voice, plans and reviews your ads, and prepares your Google Business Profile changes. You approve what goes out.",
+      "Peakhour answers shoppers on Shopify and WhatsApp, drafts and posts content in your brand voice, plans your ads, and prepares your Google listing changes. You approve what goes out.",
     secondaryCta: { label: "See how Peakhour works", href: pathFor("how.it.works") },
     faqs: [
       {
@@ -36,7 +36,7 @@ export function homeContent(closingBody: string): BaseContent {
       },
       {
         q: "What does it connect to today?",
-        a: "Shopify, WhatsApp, LinkedIn, X, Facebook, Instagram and Beehiiv, plus Google Business Profile in beta. WordPress and WooCommerce are built and coming soon.",
+        a: "Shopify, WhatsApp, LinkedIn, X, Facebook, Instagram and Beehiiv, plus Google Business Profile in beta. WordPress and WooCommerce are coming soon.",
       },
       {
         q: "Does it act without asking me?",
@@ -44,16 +44,16 @@ export function homeContent(closingBody: string): BaseContent {
       },
       {
         q: "What is not live yet?",
-        a: "The support channels, Google Ads, LinkedIn Ads, WordPress and WooCommerce are built and not switched on. Peakhour Summit and Google Business Profile support are in beta.",
+        a: "Coming soon: the shared inbox and AI replies in Support, Google Ads, LinkedIn Ads, WordPress and WooCommerce. Peakhour Summit and Google Business Profile support are in beta.",
       },
     ],
     related: [
       { label: "How Peakhour works", href: pathFor("how.it.works"), note: "Connect, approve, then let it run." },
       { label: "Peakhour for Shopify", href: pathFor("shopify"), note: "Every Shopify feature, install and billing." },
-      { label: "Peakhour pricing", href: pathFor("pricing"), note: "One plan for five modules, with Peaks included." },
+      { label: "Peakhour pricing", href: pathFor("pricing"), note: "One plan for everything Peakhour does, with Peaks included." },
       { label: "Commerce", href: pathFor("commerce"), note: "The shopping assistant for Shopify and WhatsApp." },
-      { label: "Growth", href: pathFor("growth"), note: "Plans, ads and Peakhour Summit." },
-      { label: "Peaks", href: pathFor("peaks"), note: "The AI credits behind every feature." },
+      { label: "Growth", href: pathFor("growth"), note: "Plans, ads and Peakhour Summit, in beta." },
+      { label: "Peaks", href: pathFor("peaks"), note: "Peaks pay for the AI work." },
     ],
     closing: { headline: "Stop being the glue between every part of your business.", body: closingBody },
   };

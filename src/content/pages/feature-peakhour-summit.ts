@@ -21,7 +21,7 @@ export const PEAKHOUR_SUMMIT: FeatureContent = {
   limitations: [
     "It runs only once its review steps are switched on for your account, so it is not available to every business yet.",
     "Peakhour Summit advises and never applies a change. You approve any change.",
-    "Reviews run only for businesses whose growth autonomy level is above 0.",
+    "Reviews run when autonomous growth is switched on for you.",
   ],
   verifiedAt: "2026-11-15",
   platforms: [
@@ -35,7 +35,7 @@ export const PEAKHOUR_SUMMIT: FeatureContent = {
     { title: "Final call", body: "A recommendation. If it suggests an action, the action waits in Suggested actions until you answer it." },
   ],
   prerequisites: [
-    "A Peakhour account whose growth autonomy level is above 0.",
+    "Autonomous growth switched on for your account.",
     "An editor role or higher to ask it a question, because asking uses Peaks.",
     "Peaks in your wallet if you want to ask your own question.",
   ],
@@ -70,7 +70,7 @@ export const PEAKHOUR_SUMMIT: FeatureContent = {
     },
     {
       q: "Is it available to everyone?",
-      a: "Not yet. It is in beta and runs only for accounts where it has been switched on and whose growth autonomy level is above 0.",
+      a: "Not yet. It is in beta and runs only for accounts where it has been switched on and where autonomous growth is switched on.",
     },
   ],
   related: [

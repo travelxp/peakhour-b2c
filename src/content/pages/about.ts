@@ -36,16 +36,16 @@ export const ABOUT: BaseContent = {
   ],
   eyebrow: "About",
   directAnswer:
-    "Peakhour is an AI business platform for growing brands. It has five modules, Commerce, Content, Growth, Support and Presence, that sell, publish, advertise, answer and get your business found, in one plan with one Peaks wallet.",
+    "Peakhour is the AI business platform for growing brands. It answers shoppers, writes and posts content, plans and reviews ads, and prepares your Google listing, and you approve what goes live.",
   secondaryCta: { label: "Contact us", href: pathFor("contact") },
   faqs: [
-    { q: "What is Peakhour?", a: "An AI business platform with five modules: Commerce, Content, Growth, Support and Presence. One login, one plan and one Peaks wallet cover all five." },
+    { q: "What is Peakhour?", a: "The AI business platform for growing brands. It answers shoppers, writes and posts content, plans and reviews ads, and prepares your Google listing. One login, one plan and one Peaks wallet cover it." },
     { q: "Which company runs Peakhour?", a: `${SITE.name} is a product of ${SITE.company.ref}. Outside India it is marketed and provided by ${SITE.companyUk.ref}. The two companies share one legal name.` },
     { q: "Which markets is Peakhour built for?", a: `${ABOUT_MARKETS.join(", ")}.` },
     { q: "How do I contact Peakhour?", a: `Write to ${SITE.contactGeneral}, or use the contact page.` },
   ],
   related: [
-    { label: "How Peakhour works", href: pathFor("how.it.works"), note: "One intelligence layer across the five modules." },
+    { label: "How Peakhour works", href: pathFor("how.it.works"), note: "What one part of Peakhour learns, another can use." },
     { label: "Pricing", href: pathFor("pricing"), note: "What Peakhour costs, and how Peaks work." },
     { label: "Contact", href: pathFor("contact"), note: "Email addresses for general, support and privacy questions." },
     { label: "Privacy Policy", href: pathFor("legal.privacy"), note: "How your data is collected, used and protected." },

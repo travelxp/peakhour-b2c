@@ -10,7 +10,7 @@ export const PEAKS: BaseContent = {
   ],
   eyebrow: "Peaks",
   directAnswer:
-    "Peaks are the AI credits behind every Peakhour feature: they pay for the drafting, answering and analysing the AI does. Every plan includes a monthly allowance, and you can top up any time. Peaks you buy never expire.",
+    "Peaks come with your plan. They pay for the drafting, answering and analysing the AI does. Top up any time: Peaks you buy never expire.",
   faqs: [
     {
       q: "What do Peaks pay for?",
@@ -22,7 +22,7 @@ export const PEAKS: BaseContent = {
     },
     {
       q: "Do I need a plan to use Peaks?",
-      a: "Yes. Peaks need an active paid Peakhour plan, which comes with its own monthly allowance.",
+      a: "Yes. Peaks need an active paid Peakhour plan. Each plan comes with its own monthly allowance.",
     },
     {
       q: "Can I get a refund on Peaks?",
@@ -36,6 +36,26 @@ export const PEAKS: BaseContent = {
   ],
   closing: {
     headline: "Start with a plan. Peaks come with it.",
-    body: "You need an active paid Peakhour plan to use Peaks. Pick a plan to get your allowance, then top up any time.",
+    body: "Peaks need an active paid Peakhour plan. Pick a plan to get your allowance, then top up any time.",
   },
 };
+
+/**
+ * The Peaks page's words for the door that is open. "Peaks need an active paid plan" is true once a trial ends, but on a
+ * page whose cards say "your free trial included" it reads as a contradiction, so with a trial the sentence is attached
+ * to the trial's end. Without a trial the plain sentence stands. The trial wording itself is the owner's (trial-copy.ts).
+ */
+export function peaksNeedPlanSentence(hasTrialOpen: boolean): string {
+  return hasTrialOpen ? "Once your trial ends, Peaks need an active paid Peakhour plan." : "Peaks need an active paid Peakhour plan.";
+}
+
+export function peaksContent(hasTrialOpen: boolean): BaseContent {
+  const need = peaksNeedPlanSentence(hasTrialOpen);
+  return {
+    ...PEAKS,
+    faqs: PEAKS.faqs.map((f) =>
+      f.q === "Do I need a plan to use Peaks?" ? { q: f.q, a: `${need} Each plan comes with its own monthly allowance.` } : f,
+    ),
+    closing: { ...PEAKS.closing, body: `${need} Pick a plan to get your allowance, then top up any time.` },
+  };
+}

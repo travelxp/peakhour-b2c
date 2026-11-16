@@ -10,7 +10,7 @@ export const PRESENCE: HubContent = {
   ],
   eyebrow: "Presence · Beta",
   directAnswer:
-    "Prepare changes to your Google listing, and approve each one. Peakhour also drafts a reply to every review and scores how complete your listing is. Google Business Profile support is in beta.",
+    "In beta: prepare changes to your Google listing, and approve each one. Changes reach Google only once Peakhour switches sending on. Peakhour also drafts review replies and scores your listing.",
   items: [
     liveItem("presence.gbp_management.prepare_and_approve", "web", "Edits, photos and posts"),
     liveItem("presence.review_management.draft_then_send", "web", "Review replies", 0),

@@ -196,7 +196,7 @@ export function LaunchPartnerForm({
     >
       {/* The card's heading lives here, so it goes away with the form once the application is in. */}
       <div>
-        <p className="text-xl font-extrabold tracking-tight">Apply to be a launch partner</p>
+        <p className="text-xl font-extrabold tracking-tight">Become a Launch Partner</p>
         <p className="mt-1 text-[15px] text-muted-foreground">Takes a minute. No card, no commitment.</p>
       </div>
       {productName ? (
@@ -249,7 +249,7 @@ export function LaunchPartnerForm({
           </>
         ) : (
           <>
-            Apply to be a launch partner
+            Become a Launch Partner
             <ArrowRight className="ml-1 size-4" aria-hidden />
           </>
         )}

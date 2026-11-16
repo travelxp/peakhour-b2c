@@ -30,11 +30,11 @@ export default async function HowItWorksPage() {
           />
         }
       >
-        <Section id="flow" eyebrow="The loop" title="Six steps, in this order.">
+        <Section id="flow" eyebrow="The loop" title="Six steps, in this order">
           <ol role="list" className="grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
             {PLATFORM_FLOW.map((s) => (
               <li key={s.id} className={`${cardCls} flex flex-col gap-2 p-5`}>
-                <span aria-hidden className="font-serif text-2xl italic text-brand-strong">
+                <span aria-hidden className="text-sm font-extrabold tabular-nums text-brand-strong">
                   {s.step}
                 </span>
                 <h3 className="text-lg font-extrabold tracking-tight">{s.title}</h3>
@@ -44,7 +44,7 @@ export default async function HowItWorksPage() {
           </ol>
         </Section>
 
-        <Section id="reads" eyebrow="What it reads" title="Once you connect, it works from what is already there." tone="muted">
+        <Section id="reads" eyebrow="What it reads" title="Peakhour starts from what you already have." tone="muted">
           <ul role="list" className="grid gap-x-8 gap-y-2 text-[15px] sm:grid-cols-2">
             {UNDERSTANDS.map((u) => (
               <li key={u} className="flex gap-2.5">
@@ -58,8 +58,8 @@ export default async function HowItWorksPage() {
         <Section
           id="examples"
           eyebrow="Examples"
-          title="One module's result can change what you do in another."
-          intro="These are examples of what the connected modules can show you, not live data. Each action stays yours."
+          title="What one part of Peakhour learns, another can use."
+          intro="These are examples, not live data. Each action stays yours."
         >
           <ul role="list" className="grid gap-3 md:grid-cols-3 sm:gap-4">
             {CONNECTED_SIGNALS.map((c) => (

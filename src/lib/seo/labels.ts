@@ -6,6 +6,7 @@ import type { PageRecord } from "./types";
  * the pipe and the site suffix leak. A card says "Meta Ads".
  */
 const SHORT: Record<string, string> = {
+  home: "Home",
   "integrations.whatsapp": "WhatsApp Business",
   "integrations.linkedin": "LinkedIn",
   "integrations.x": "X",

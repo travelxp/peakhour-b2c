@@ -7,7 +7,7 @@ import { Bullets, FactsCard, Frame } from "@/components/marketing/seo/frame";
 import { Section } from "@/components/marketing/seo/section";
 import { DaylightShell } from "@/components/marketing/seo/shell";
 import { cardCls, linkCls } from "@/components/marketing/seo/styles";
-import { PEAKS } from "@/content/pages/peaks";
+import { peaksContent, peaksNeedPlanSentence } from "@/content/pages/peaks";
 import { formatPackPrice, formatPackUnitPrice, getPeaks, type PeakPack } from "@/lib/peaks";
 import { bestValueKey, perThousandLabel } from "@/lib/peaks-pack-unit-price";
 import { PEAKS_REFUND_SENTENCE } from "@/lib/peaks-refund-terms";
@@ -39,7 +39,7 @@ export default async function PeaksPage() {
   const bestKey = bestValueKey(packs);
 
   const page = { ...record, primaryCta: { label: "View plans", href: "/pricing", kind: "trial" as const } };
-  const content = { ...PEAKS, secondaryCta: { label: trialCtaLabel(trialDays), href: "/auth" } };
+  const content = { ...peaksContent(hasTrial(trialDays)), secondaryCta: { label: trialCtaLabel(trialDays), href: "/auth" } };
 
   return (
     <DaylightShell>
@@ -58,10 +58,10 @@ export default async function PeaksPage() {
           />
         }
       >
-        <Section id="how" eyebrow="How Peaks work" title="Included, spent when the AI works, topped up when you need more.">
+        <Section id="how" eyebrow="How Peaks work" title="Peaks come with your plan. Top up any time.">
           <div className="grid gap-3 sm:gap-4 md:grid-cols-3">
             <HowCard
-              title="Included with every plan"
+              title="Included with your plan"
               body={`Peaks power every Peakhour product, and every plan comes with a monthly allowance${hasTrial(trialDays) ? ", your free trial included" : ""}. Agency and Enterprise carry more.`}
             />
             <HowCard
@@ -69,7 +69,7 @@ export default async function PeaksPage() {
               body="Peaks are consumed when the AI actually runs: drafting, generating, analysing. Writing and editing yourself costs nothing."
             />
             <HowCard
-              title="Top up, and Peaks never expire"
+              title="Top up when you need more"
               body={`Need more? Buy a Peaks pack any time. Purchased Peaks never expire and work across every Peakhour product. ${PEAKS_REFUND_SENTENCE}`}
             />
           </div>
@@ -78,7 +78,7 @@ export default async function PeaksPage() {
         <Section
           id="packs"
           eyebrow="Top-up packs"
-          title="One-time packs that add Peaks to your balance."
+          title="One-time packs add Peaks to your balance."
           tone="muted"
           intro="Purchased Peaks never expire and work across every Peakhour product. No new subscription, no monthly reset."
         >
@@ -89,11 +89,7 @@ export default async function PeaksPage() {
                   <PackCard key={pack.key} pack={pack} bestValue={pack.key === bestKey} />
                 ))}
               </div>
-              {peaks && peaks.country !== "DEFAULT" && (
-                <p className="mt-5 text-sm text-muted-foreground">
-                  Prices shown for <code className="font-mono">{peaks.country}</code>, detected from your IP.
-                </p>
-              )}
+              <p className="mt-5 text-sm text-muted-foreground">Pack prices are in {currencyList(packs)}.</p>
             </>
           ) : (
             <div className={`${cardCls} max-w-xl p-6`}>
@@ -107,12 +103,12 @@ export default async function PeaksPage() {
               </Link>
             </div>
           )}
-          <div className={`${cardCls} mt-6 max-w-3xl p-5`}>
+          <div className={`${cardCls} mt-6 p-5 sm:p-6`}>
             <h3 className="text-lg font-extrabold tracking-tight">Good to know</h3>
             <Bullets
-              className="mt-3"
+              className="mt-3 md:grid-cols-3 md:gap-x-8"
               items={[
-                "Peaks need an active paid Peakhour plan.",
+                peaksNeedPlanSentence(hasTrial(trialDays)),
                 "Purchased Peaks never expire and work across any Peakhour product.",
                 PEAKS_REFUND_SENTENCE,
               ]}
@@ -166,4 +162,13 @@ function PackCard({ pack, bestValue }: { pack: PeakPack; bestValue: boolean }) {
       </p>
     </div>
   );
+}
+
+/**
+ * The currency the packs are priced in, read from the packs themselves ("USD"). The old line said "Prices shown for IN,
+ * detected from your IP" beside dollar prices: the api answers a country with the currency it has packs for, which can
+ * be another one, so the page states the currency it was given and never the visitor's country.
+ */
+function currencyList(packs: PeakPack[]): string {
+  return [...new Set(packs.map((p) => p.currency.toUpperCase()))].join(" and ");
 }

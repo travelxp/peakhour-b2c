@@ -666,7 +666,7 @@ export function AuthFlow({
               <h1 className="mt-3 text-[1.9rem] font-extrabold leading-[1.06] tracking-[-0.035em] text-balance sm:text-4xl">
                 {intentCopy?.title ?? (
                   <>
-                    One email. <span className="daylight-mark">No password.</span> Ever.
+                    Sign in with <span className="daylight-mark">a link</span> to your email.
                   </>
                 )}
               </h1>
@@ -750,6 +750,25 @@ export function AuthFlow({
                 </Link>
                 .
               </p>
+
+              {/* The panel beside the form is hidden below lg; its claims (the same approved ones) follow the form here,
+                  compact, so a phone does not end in an empty band. */}
+              <section aria-label="What Peakhour does" className="mt-8 border-t pt-6 lg:hidden">
+                <p className={eyebrowCls}>What Peakhour does</p>
+                <ul role="list" className="mt-3 grid gap-3">
+                  {[...PANEL_LIVE, ...PANEL_BETA].map((item) => (
+                    <li key={item.name} className="flex gap-3">
+                      <span aria-hidden className={`mt-1.5 size-2.5 shrink-0 rounded-full ${DOT[item.dot]}`} />
+                      <p className="min-w-0 text-sm text-muted-foreground">
+                        <b className="font-extrabold text-foreground">{item.name}</b>
+                        {item.beta ? <b className="font-bold text-[var(--daylight-warn-ink)]"> (beta)</b> : null}
+                        {". "}
+                        {item.line}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             </div>
           )}
         </div>
