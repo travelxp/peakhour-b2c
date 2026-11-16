@@ -170,12 +170,12 @@ describe("wiring", () => {
     const mw = read("lib/seo/gate.ts");
     expect(mw).toMatch(/PUBLIC_PATHS = \[[\s\S]*?"\/shopify",[\s\S]*?"\/shopify\/connect",[\s\S]*?\];/);
   });
-  it("footer has a Works with group naming Shopify and WordPress", () => {
+  it("footer has Shopify and Integrations groups, and WordPress is plain text, not a link to /content", () => {
     const f = read("components/shared/footer.tsx");
-    // The labels are message keys since SEO-4; the English they resolve to is pinned against messages/en.json.
-    expect(f).toMatch(/heading: "worksWith",\s*links: \[\s*\{ href: "\/shopify", label: "shopify" \},\s*\{ href: "\/content", label: "wordpress" \},/);
+    expect(f).toMatch(/heading: "shopify",[\s\S]*?\{ path: "\/shopify", key: "shopify" \}/);
+    expect(f).toMatch(/\{ text: "wordpress" \}/);
     const footer = JSON.parse(read("../messages/en.json")).Footer;
-    expect([footer.worksWith, footer.shopify, footer.wordpress]).toEqual(["Works with", "Shopify", "WordPress (soon)"]);
+    expect([footer.integrations, footer.shopify, footer.wordpress]).toEqual(["Integrations", "Shopify", "WordPress (coming soon)"]);
   });
   it("/commerce links to /shopify and the pricing strip's Shopify card links there too", () => {
     expect(read("content/pages/commerce.ts")).toContain('{ label: "Peakhour for Shopify", href: pathFor("shopify")');
