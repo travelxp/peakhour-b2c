@@ -18,7 +18,7 @@ function countryFrom(header: string | null): string {
 }
 
 const AGENCY_FEATURES = [
-  "All five modules, fully unlocked",
+  "Everything in Peakhour Suite, fully unlocked",
   "One unit = one client business",
   "Central billing across every client",
   "Priority support & onboarding",
@@ -112,7 +112,7 @@ export default async function TeamsPricingPage() {
                 >
                   Peakhour Suite
                 </Link>{" "}
-                is the same five modules for a single business, at a fraction of
+                gives a single business the same Peakhour, at a fraction of
                 this price. These two are for running many.
               </p>
             )}

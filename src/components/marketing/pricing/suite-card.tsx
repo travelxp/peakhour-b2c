@@ -18,7 +18,7 @@ import type { PillarSlug } from "@/lib/pillars";
 import type { TrialStart } from "@/lib/trial-copy";
 
 /**
- * Peakhour Suite — one plan, all five modules.
+ * Peakhour Suite — one plan, everything Peakhour does.
  *
  * The plan a business buys (billing plan D19: one catalog, no free tier, no
  * per-module plans), and the one a new account's first business starts on as
@@ -164,7 +164,7 @@ export function SuiteCard({
               </div>
               <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Zap className="size-3.5 shrink-0 text-brand-strong" aria-hidden />
-                Peaks power AI actions across all five modules.
+                Peaks power AI actions across everything in Peakhour Suite.
               </p>
             </div>
           )}

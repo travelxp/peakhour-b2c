@@ -9,11 +9,11 @@ import { trialFaq, type SignupModeInput } from "@/lib/trial-copy";
 const FAQS: { q: string; a: string }[] = [
   {
     q: "What are Peaks?",
-    a: "Peaks are your AI credits — one shared wallet across all five modules. Every plan includes a monthly allowance — the cards above show it — and you can top up any time. We tell you before you run low.",
+    a: "Peaks are your AI credits — one shared wallet across everything in Peakhour Suite. Every plan includes a monthly allowance — the cards above show it — and you can top up any time. We tell you before you run low.",
   },
   {
     q: "Do I have to buy every module?",
-    a: "There is nothing to assemble. Peakhour Suite is one plan and one price for all five modules — Commerce, Content, Growth, Support and Presence — so you are never picking which parts of your business to leave out. Use the ones you need; the rest are there when you want them.",
+    a: "There is nothing to assemble. Peakhour Suite is one plan and one price for everything Peakhour does, so you are never picking which parts of your business to leave out. Use the ones you need; the rest are there when you want them.",
   },
   {
     q: "Can I use it inside Shopify?",
