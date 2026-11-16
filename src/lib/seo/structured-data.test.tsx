@@ -113,9 +113,9 @@ describe("T14: every JSON-LD block parses and says what the page says", () => {
     const html = rendered.find(([n]) => n === "guide")![1];
     const art = blocks(html).find((b) => b["@type"] === "Article") as Node;
     expect(art.headline).toBe(h1Of(html));
-    expect((art.author as Node).name).toBe(fx.GUIDE.author);
+    // No named author: the byline and the Article author are the company, as an Organization.
+    expect(art.author).toEqual({ "@type": "Organization", name: SITE.name });
     expect(art.dateModified).toBe(fx.GUIDE.updatedAt);
-    expect(text(html)).toContain(fx.GUIDE.author);
     // Only the guide template emits an Article.
     for (const [n, h] of rendered) if (n !== "guide") expect(blocks(h).some((b) => b["@type"] === "Article"), n).toBe(false);
   });

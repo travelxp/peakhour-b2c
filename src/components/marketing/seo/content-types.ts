@@ -162,13 +162,15 @@ export type ComparisonPageContent = BaseContent & {
   };
   suitability: { vendor: string; bestFor: string }[];
   limitations: string[];
-  author: string;
+  /** A named person who wrote the page. Left out, the byline is the company (SITE.name), never a team or product name. */
+  author?: string;
   reviewer: string;
 };
 
 export type GuideSection = { id: string; heading: string; paragraphs: string[]; list?: string[] };
 export type GuideContent = BaseContent & {
-  author: string;
+  /** A named person who wrote the page. Left out, the byline is the company (SITE.name), never a team or product name. */
+  author?: string;
   reviewer: string;
   updatedAt: string;
   sections: GuideSection[];

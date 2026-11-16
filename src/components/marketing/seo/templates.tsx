@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { comparedWith } from "@/content/seo/competitors/hub";
 import { articleLd } from "@/lib/seo/structured-data";
+import { SITE } from "@/lib/utils";
 import { cardLabel } from "@/lib/seo/labels";
 import { PAGES } from "@/lib/seo/pages";
 import { isPublishable } from "@/lib/seo/publish";
@@ -311,9 +312,14 @@ export function isReviewed(reviewer: string): boolean {
   return reviewer.trim() !== "" && !/^\s*(pending|none|tbd)\b/i.test(reviewer);
 }
 
-function bylineFacts(content: { author: string; reviewer: string }): { label: string; value: string }[] {
+/** The "Written by" name: a named person when the content gives one, otherwise the company. */
+export function bylineAuthor(content: { author?: string }): string {
+  return content.author?.trim() || SITE.name;
+}
+
+function bylineFacts(content: { author?: string; reviewer: string }): { label: string; value: string }[] {
   return [
-    { label: "Written by", value: content.author },
+    { label: "Written by", value: bylineAuthor(content) },
     ...(isReviewed(content.reviewer) ? [{ label: "Reviewed by", value: content.reviewer }] : []),
   ];
 }
@@ -398,7 +404,7 @@ export function ComparisonPage({ page, content }: { page: PageRecord; content: C
           <Bullets items={content.limitations} />
           <p className="mt-5 text-sm text-muted-foreground">
             Last checked <time dateTime={comparison.lastChecked}>{comparison.lastChecked}</time>.
-            {isReviewed(content.reviewer) ? ` Written by ${content.author}, reviewed by ${content.reviewer}.` : ` Written by ${content.author}.`}
+            {isReviewed(content.reviewer) ? ` Written by ${bylineAuthor(content)}, reviewed by ${content.reviewer}.` : ` Written by ${bylineAuthor(content)}.`}
           </p>
         </div>
       </Section>
@@ -433,7 +439,7 @@ export function GuidePage({ page, content }: { page: PageRecord; content: GuideC
         />
       }
     >
-      <JsonLd data={articleLd({ headline: page.h1, path: page.path, author: content.author, dateModified: content.updatedAt })} />
+      <JsonLd data={articleLd({ headline: page.h1, path: page.path, author: bylineAuthor(content), dateModified: content.updatedAt })} />
       <section aria-labelledby="guide-h" className="py-12 sm:py-16">
         <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 px-4 sm:px-6 lg:grid-cols-[14rem_1fr] lg:gap-14">
           <nav aria-label="In this guide" className="lg:sticky lg:top-28 lg:self-start">
