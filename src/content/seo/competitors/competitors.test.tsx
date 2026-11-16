@@ -34,6 +34,13 @@ import SidekickPage, { metadata as sidekickMeta } from "@/app/(site)/shopify/com
 import WatiPage, { metadata as watiMeta } from "@/app/(site)/shopify/compare/wati/page";
 import ZokoPage, { metadata as zokoMeta } from "@/app/(site)/shopify/compare/zoko/page";
 import GokwikPage, { metadata as gokwikMeta } from "@/app/(site)/shopify/compare/gokwik/page";
+// CMP-W3B
+import PredikoPage, { metadata as predikoMeta } from "@/app/(site)/shopify/compare/prediko/page";
+import InventoryPlannerPage, { metadata as inventoryPlannerMeta } from "@/app/(site)/shopify/compare/inventory-planner/page";
+import IntelligemsPage, { metadata as intelligemsMeta } from "@/app/(site)/shopify/compare/intelligems/page";
+import ShopliftPage, { metadata as shopliftMeta } from "@/app/(site)/shopify/compare/shoplift/page";
+import ReleasitPage, { metadata as releasitMeta } from "@/app/(site)/shopify/compare/releasit/page";
+import EasysellPage, { metadata as easysellMeta } from "@/app/(site)/shopify/compare/easysell/page";
 import { getCapability } from "@/lib/seo/capabilities";
 import { findPageByPath, getPage, LAUNCH_PARTNER_CTA, PAGES } from "@/lib/seo/pages";
 import { MARKETING_PATHS } from "@/lib/seo/gate";
@@ -70,6 +77,13 @@ const OWN_HOSTS: Record<CompetitorSlug, string[]> = {
   wati: ["www.wati.io"],
   zoko: ["www.zoko.io"],
   gokwik: ["www.gokwik.co"],
+  // CMP-W3B
+  prediko: ["www.prediko.io", "apps.shopify.com"],
+  "inventory-planner": ["www.inventory-planner.com", "apps.shopify.com"],
+  intelligems: ["www.intelligems.io"],
+  shoplift: ["www.shoplift.ai"],
+  releasit: ["apps.shopify.com"],
+  easysell: ["easysellapp.com", "apps.shopify.com"],
 };
 const OWN_LISTINGS: Partial<Record<CompetitorSlug, string>> = {
   limespot: "/limespot",
@@ -79,6 +93,11 @@ const OWN_LISTINGS: Partial<Record<CompetitorSlug, string>> = {
   seowill: "/seo-master",
   "manifest-ai": "/manifest-ai-shopping-assistant",
   "shopify-inbox": "/inbox",
+  // CMP-W3B
+  prediko: "/prediko",
+  "inventory-planner": "/inventory-planner",
+  releasit: "/releasit-cod-order-form",
+  easysell: "/easy-order-form",
 };
 const hostOk = (slug: CompetitorSlug, href: string) => {
   const u = new URL(href);
@@ -108,6 +127,13 @@ const ROUTES: Record<CompetitorSlug, { Page: () => Promise<React.ReactElement>; 
   wati: { Page: WatiPage, meta: watiMeta },
   zoko: { Page: ZokoPage, meta: zokoMeta },
   gokwik: { Page: GokwikPage, meta: gokwikMeta },
+  // CMP-W3B
+  prediko: { Page: PredikoPage, meta: predikoMeta },
+  "inventory-planner": { Page: InventoryPlannerPage, meta: inventoryPlannerMeta },
+  intelligems: { Page: IntelligemsPage, meta: intelligemsMeta },
+  shoplift: { Page: ShopliftPage, meta: shopliftMeta },
+  releasit: { Page: ReleasitPage, meta: releasitMeta },
+  easysell: { Page: EasysellPage, meta: easysellMeta },
 };
 const ENV_KEYS = ["VERCEL_ENV", "SITE_INDEXABLE"] as const;
 const saved: Record<string, string | undefined> = {};

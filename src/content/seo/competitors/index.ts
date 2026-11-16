@@ -22,6 +22,13 @@ import { MANIFEST_AI } from "./manifest-ai";
 import { SHOPIFY_INBOX } from "./shopify-inbox";
 import { SIDEKICK } from "./sidekick";
 import { TIDIO } from "./tidio";
+// CMP-W3B
+import { EASYSELL } from "./easysell";
+import { INTELLIGEMS } from "./intelligems";
+import { INVENTORY_PLANNER } from "./inventory-planner";
+import { PREDIKO } from "./prediko";
+import { RELEASIT } from "./releasit";
+import { SHOPLIFT } from "./shoplift";
 import type { CompetitorBrief } from "./types";
 
 const BRIEFS = [
@@ -50,6 +57,13 @@ const BRIEFS = [
   BUFFER,
   JASPER,
   BIRDEYE,
+  // CMP-W3B: store operations
+  PREDIKO,
+  INVENTORY_PLANNER,
+  INTELLIGEMS,
+  SHOPLIFT,
+  RELEASIT,
+  EASYSELL,
 ] satisfies readonly CompetitorBrief[];
 
 export const COMPETITOR_BRIEFS: readonly CompetitorBrief[] = BRIEFS;
