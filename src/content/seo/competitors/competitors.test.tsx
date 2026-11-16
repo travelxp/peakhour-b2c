@@ -34,6 +34,13 @@ import SidekickPage, { metadata as sidekickMeta } from "@/app/(site)/shopify/com
 import WatiPage, { metadata as watiMeta } from "@/app/(site)/shopify/compare/wati/page";
 import ZokoPage, { metadata as zokoMeta } from "@/app/(site)/shopify/compare/zoko/page";
 import GokwikPage, { metadata as gokwikMeta } from "@/app/(site)/shopify/compare/gokwik/page";
+// CMP-W3C
+import DescribelyPage, { metadata as describelyMeta } from "@/app/(site)/shopify/compare/describely/page";
+import HypotenusePage, { metadata as hypotenuseMeta } from "@/app/(site)/shopify/compare/hypotenuse/page";
+import PluginSeoPage, { metadata as pluginSeoMeta } from "@/app/(site)/shopify/compare/plug-in-seo/page";
+import BoosterSeoPage, { metadata as boosterSeoMeta } from "@/app/(site)/shopify/compare/booster-seo/page";
+import DiscountNinjaPage, { metadata as discountNinjaMeta } from "@/app/(site)/shopify/compare/discount-ninja/page";
+import BoldDiscountsPage, { metadata as boldDiscountsMeta } from "@/app/(site)/shopify/compare/bold-discounts/page";
 import { getCapability } from "@/lib/seo/capabilities";
 import { findPageByPath, getPage, LAUNCH_PARTNER_CTA, PAGES } from "@/lib/seo/pages";
 import { MARKETING_PATHS } from "@/lib/seo/gate";
@@ -70,6 +77,13 @@ const OWN_HOSTS: Record<CompetitorSlug, string[]> = {
   wati: ["www.wati.io"],
   zoko: ["www.zoko.io"],
   gokwik: ["www.gokwik.co"],
+  // CMP-W3C
+  describely: ["www.describely.ai", "apps.shopify.com"],
+  hypotenuse: ["www.hypotenuse.ai", "apps.shopify.com"],
+  "plug-in-seo": ["apps.shopify.com"],
+  "booster-seo": ["boosterseo.com", "apps.shopify.com"],
+  "discount-ninja": ["discountninja.io", "apps.shopify.com"],
+  "bold-discounts": ["support.boldcommerce.com", "apps.shopify.com"],
 };
 const OWN_LISTINGS: Partial<Record<CompetitorSlug, string>> = {
   limespot: "/limespot",
@@ -79,6 +93,13 @@ const OWN_LISTINGS: Partial<Record<CompetitorSlug, string>> = {
   seowill: "/seo-master",
   "manifest-ai": "/manifest-ai-shopping-assistant",
   "shopify-inbox": "/inbox",
+  // CMP-W3C
+  describely: "/describely",
+  hypotenuse: "/product-description-writer",
+  "plug-in-seo": "/plug-in-seo",
+  "booster-seo": "/seo-image-optimizer",
+  "discount-ninja": "/discount-url",
+  "bold-discounts": "/product-discount",
 };
 const hostOk = (slug: CompetitorSlug, href: string) => {
   const u = new URL(href);
@@ -108,6 +129,13 @@ const ROUTES: Record<CompetitorSlug, { Page: () => Promise<React.ReactElement>; 
   wati: { Page: WatiPage, meta: watiMeta },
   zoko: { Page: ZokoPage, meta: zokoMeta },
   gokwik: { Page: GokwikPage, meta: gokwikMeta },
+  // CMP-W3C
+  describely: { Page: DescribelyPage, meta: describelyMeta },
+  hypotenuse: { Page: HypotenusePage, meta: hypotenuseMeta },
+  "plug-in-seo": { Page: PluginSeoPage, meta: pluginSeoMeta },
+  "booster-seo": { Page: BoosterSeoPage, meta: boosterSeoMeta },
+  "discount-ninja": { Page: DiscountNinjaPage, meta: discountNinjaMeta },
+  "bold-discounts": { Page: BoldDiscountsPage, meta: boldDiscountsMeta },
 };
 const ENV_KEYS = ["VERCEL_ENV", "SITE_INDEXABLE"] as const;
 const saved: Record<string, string | undefined> = {};
