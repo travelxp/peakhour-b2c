@@ -14,7 +14,7 @@ import { SITE } from "@/lib/utils";
 import type { PlatformSignupMode } from "@/lib/catalog";
 import { FlowButton, FlowCard, FlowHead, FlowNotice, flowLink } from "@/components/marketing/flow/flow-kit";
 import { eyebrowCls } from "@/components/marketing/seo/styles";
-import { PANEL_BETA, PANEL_LIVE, PANEL_PROMISE, signupTicks, type PanelItem } from "./auth-copy";
+import { PANEL_BETA, PANEL_HEADLINE, PANEL_LIVE, PANEL_PROMISE, signupTicks, type PanelItem } from "./auth-copy";
 
 // Bounded length + char set so a tampered link can't smuggle arbitrary strings
 // into the waitlist payload. Mirrors the referredByCode validator on
@@ -497,7 +497,9 @@ export function AuthFlow({
               h1 here would leave small screens with no h1 at all. The state
               heading in the form column is the h1 at every breakpoint. */}
           <p className="mt-3 text-4xl font-extrabold leading-[1.05] tracking-[-0.035em] text-balance xl:text-[2.75rem]">
-            Your AI team behind <span className="daylight-mark">every channel</span> you sell on.
+            {PANEL_HEADLINE.lead}
+            <span className="daylight-mark">{PANEL_HEADLINE.mark}</span>
+            {PANEL_HEADLINE.tail}
           </p>
 
           <ul role="list" className="mt-8 grid gap-3">
@@ -773,6 +775,7 @@ export function AuthFlow({
                     </li>
                   ))}
                 </ul>
+                <p className="mt-4 text-sm font-semibold">{PANEL_PROMISE}</p>
               </section>
             </div>
           )}
