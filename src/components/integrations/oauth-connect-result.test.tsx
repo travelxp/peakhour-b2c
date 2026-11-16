@@ -75,6 +75,13 @@ describe("OAuthConnectResult", () => {
     expect(String(h.warning.mock.calls[0][0])).toMatch(/no Instagram professional account linked/);
   });
 
+  it("★a failed Meta read → try again, never blamed on the merchant", () => {
+    mount("integration=connected&provider=facebook&meta_notice=read_failed");
+    const msg = String(h.warning.mock.calls[0][0]);
+    expect(msg).toMatch(/could not read your Facebook Pages/);
+    expect(msg).not.toMatch(/did not give|no Instagram/);
+  });
+
   it("an unknown notice is ignored — a success, as before", () => {
     mount("integration=connected&provider=facebook&meta_notice=whatever");
     expect(h.success).toHaveBeenCalledTimes(1);
@@ -88,7 +95,8 @@ describe("OAuthConnectResult", () => {
 });
 
 describe("meta-connect-notice", () => {
-  it("parses only the two codes", () => {
+  it("parses only the api's three codes", () => {
+    expect(parseMetaConnectNotice("read_failed")).toBe("read_failed");
     expect(parseMetaConnectNotice("no_pages")).toBe("no_pages");
     expect(parseMetaConnectNotice("no_instagram")).toBe("no_instagram");
     expect(parseMetaConnectNotice(null)).toBeUndefined();

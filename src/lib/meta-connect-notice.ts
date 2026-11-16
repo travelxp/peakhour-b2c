@@ -9,9 +9,13 @@
  * card still on "Connect" and nothing saying why. These say what to do next.
  */
 
-export type MetaConnectNotice = "no_pages" | "no_instagram";
+export type MetaConnectNotice = "read_failed" | "no_pages" | "no_instagram";
 
 const MESSAGES: Record<MetaConnectNotice, string> = {
+  // A Meta read failed: the empty answer may not be the truth, so it is never
+  // put to the merchant as something they did wrong.
+  read_failed:
+    "Meta is connected, but Peakhour could not read your Facebook Pages just now. Wait a minute, then use Refresh on the Instagram card.",
   no_pages:
     "Meta is connected, but it did not give Peakhour access to any Facebook Page. Connect again and, on Meta's screen, make sure the Page your Instagram account is linked to is selected.",
   no_instagram:
@@ -19,7 +23,7 @@ const MESSAGES: Record<MetaConnectNotice, string> = {
 };
 
 export function parseMetaConnectNotice(value: string | null | undefined): MetaConnectNotice | undefined {
-  return value === "no_pages" || value === "no_instagram" ? value : undefined;
+  return value === "read_failed" || value === "no_pages" || value === "no_instagram" ? value : undefined;
 }
 
 /** The merchant-facing next step for a notice, or null for none. */
