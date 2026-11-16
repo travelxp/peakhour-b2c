@@ -103,6 +103,11 @@ describe("the ribbon", () => {
     expect(ribbonKind(wati, [approve(wati.pageId)])).toBeNull();
   });
 
+  it("still says Draft on an approved review page whose capability gate fails (production would 404 it)", () => {
+    const failing = { ...wati, capabilityIds: ["no.such.capability"] };
+    expect(ribbonKind(failing, [approve(wati.pageId)])).toBe("draft");
+  });
+
   it("renders the draft wording, and nothing for a published page", () => {
     // wati has no approval in the committed file, so the real ribbon is the draft one.
     expect(renderToStaticMarkup(<DraftRibbon page={wati} />)).toContain("Draft, not published");

@@ -1,8 +1,8 @@
 import type { PageApproval } from "@/lib/seo/approvals";
-import { approvalState } from "@/lib/seo/publish";
+import { approvalState, capabilitiesSatisfied } from "@/lib/seo/publish";
 import type { PageRecord } from "@/lib/seo/types";
 
-type RibbonPage = Pick<PageRecord, "editorialStatus" | "indexable" | "pageId" | "capabilityIds">;
+type RibbonPage = Pick<PageRecord, "editorialStatus" | "indexable" | "pageId" | "capabilityIds" | "surface">;
 
 /**
  * What the ribbon says, or null for a page that is as published:
@@ -13,7 +13,8 @@ type RibbonPage = Pick<PageRecord, "editorialStatus" | "indexable" | "pageId" | 
  */
 export function ribbonKind(page: RibbonPage, approvals?: readonly PageApproval[]): "draft" | "changed" | null {
   const state = approvalState(page.pageId, approvals);
-  if (page.editorialStatus === "review") return state === "current" ? null : state === "stale" ? "changed" : "draft";
+  // An approved review page whose claims the capabilities do not yet satisfy is still not publishable: production 404s it.
+  if (page.editorialStatus === "review") return state === "current" ? (capabilitiesSatisfied(page as PageRecord) ? null : "draft") : state === "stale" ? "changed" : "draft";
   if (page.editorialStatus === "published" && page.indexable && page.capabilityIds.length > 0 && state !== "current") {
     return state === "stale" ? "changed" : "draft";
   }
