@@ -14,7 +14,7 @@ import { PEAKS_REFUND_SENTENCE } from "@/lib/peaks-refund-terms";
 import { marketingTrialDays } from "@/lib/pricing";
 import { pageMeta } from "@/lib/seo/metadata";
 import { getPage } from "@/lib/seo/pages";
-import { isPreviewable, isPublishable } from "@/lib/seo/publish";
+import { canOpen } from "@/lib/seo/publish";
 import { getPublicCatalog, signupCta } from "@/lib/catalog";
 import { trialStart } from "@/lib/trial-copy";
 
@@ -28,7 +28,7 @@ export const metadata = pageMeta("peaks");
  */
 export default async function PeaksPage() {
   const record = getPage("peaks");
-  if (!isPublishable(record) && !isPreviewable(record)) notFound();
+  if (!canOpen(record)) notFound();
 
   const h = await headers();
   const vercelCountry = h.get("x-vercel-ip-country");

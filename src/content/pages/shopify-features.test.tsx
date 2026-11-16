@@ -82,9 +82,14 @@ describe("each page renders its H1 and direct answer, with its status, limitatio
   for (const { id, mod } of FEATURE_PAGES) {
     const page = getPage(id);
     // Rendered as production: a published page links only to published pages, and the "Compared with" section lists drafts only off production.
+    // The env is restored in a finally, so a failed render cannot leak the stub into other tests.
+    let html: string;
     vi.stubEnv("VERCEL_ENV", "production");
-    const html = renderToStaticMarkup(<ShopifyFeaturePage page={page} content={mod.CONTENT} />);
-    vi.unstubAllEnvs();
+    try {
+      html = renderToStaticMarkup(<ShopifyFeaturePage page={page} content={mod.CONTENT} />);
+    } finally {
+      vi.unstubAllEnvs();
+    }
     const flat = text(html);
 
     it(`${id}: H1 and direct answer`, () => {

@@ -9,14 +9,14 @@ import { CONNECTS, HOW_IT_WORKS } from "@/content/pages/how-it-works";
 import { CONNECTED_SIGNALS, CONTROL_SPLIT, PLATFORM_FLOW, UNDERSTANDS } from "@/lib/how-peakhour-works";
 import { getPage } from "@/lib/seo/pages";
 import { pageMeta } from "@/lib/seo/metadata";
-import { isPreviewable, isPublishable } from "@/lib/seo/publish";
+import { canOpen } from "@/lib/seo/publish";
 
 export const metadata = pageMeta("how.it.works");
 
 /** /how-it-works: the platform logic. What each module does lives on its own page; this page is the loop around them. */
 export default async function HowItWorksPage() {
   const record = getPage("how.it.works");
-  if (!isPublishable(record) && !isPreviewable(record)) notFound();
+  if (!canOpen(record)) notFound();
   const page = await withCatalogCta(record);
   return (
     <DaylightShell>

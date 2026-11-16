@@ -99,9 +99,14 @@ describe("each new page renders its H1, direct answer, status, limits, steps, pe
   for (const { id, mod } of NEW_PAGES) {
     const page = getPage(id);
     // Rendered as production: a published page links only to published pages, and the "Compared with" section lists drafts only off production.
+    // The env is restored in a finally, so a failed render cannot leak the stub into other tests.
+    let html: string;
     vi.stubEnv("VERCEL_ENV", "production");
-    const html = renderToStaticMarkup(<ShopifyFeaturePage page={page} content={mod.CONTENT} />);
-    vi.unstubAllEnvs();
+    try {
+      html = renderToStaticMarkup(<ShopifyFeaturePage page={page} content={mod.CONTENT} />);
+    } finally {
+      vi.unstubAllEnvs();
+    }
     const flat = text(html);
 
     it(`${id}: one H1, the direct answer first, and 3 to 5 questions`, () => {
@@ -245,14 +250,25 @@ describe("the directory lists every Shopify app feature, grouped like the app", 
       expect(Boolean(i.href), `${i.title} (${i.status ?? "no chip"})`).toBe(shipped);
     }
     // A shipped feature whose own page is not publishable falls back to its place on /shopify, never to a bare card.
-    const fallback = itemFor({ id: "smart-rails", capabilityId: "commerce.product_recommendations", pageId: "about" });
-    expect(fallback.status).toBe("live");
-    expect(fallback.href).toBe("/shopify#smart-rails");
+    // (The page "about" is a draft, which only production refuses to open, so this runs as production.)
+    vi.stubEnv("VERCEL_ENV", "production");
+    try {
+      const fallback = itemFor({ id: "smart-rails", capabilityId: "commerce.product_recommendations", pageId: "about" });
+      expect(fallback.status).toBe("live");
+      expect(fallback.href).toBe("/shopify#smart-rails");
+    } finally {
+      vi.unstubAllEnvs();
+    }
     // A card that is not shipped drops its link even when a page exists.
     const soon = itemFor({ id: "ranking-tracking", capabilityId: "growth.ai_search_visibility", pageId: "shopify.features.seo.audit" });
     expect(soon.href).toBeUndefined();
     // A shipped extra with no page and no fallback stops the build rather than render a dead card.
-    expect(() => itemFor({ id: "invented", title: "Invented", body: "Nothing opens this one.", capabilityId: "commerce.find_my_match", pageId: "about" })).toThrow(/no page, section or \/shopify anchor/);
+    vi.stubEnv("VERCEL_ENV", "production");
+    try {
+      expect(() => itemFor({ id: "invented", title: "Invented", body: "Nothing opens this one.", capabilityId: "commerce.find_my_match", pageId: "about" })).toThrow(/no page, section or \/shopify anchor/);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("shows a status chip from the record, and gives a feature that is not shipped no link", () => {

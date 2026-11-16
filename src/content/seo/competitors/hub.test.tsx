@@ -16,7 +16,9 @@ import { footerGroups } from "@/components/shared/footer";
 import { ShopifyCompareSection } from "@/components/marketing/shopify/shopify-compare-section";
 import { ComparisonPage, DirectoryPage, ShopifyFeaturePage } from "@/components/marketing/seo/templates";
 import { directoryItems } from "@/components/marketing/seo/content-types";
+import { DIRECTORY_CAPABILITIES, directoryCard } from "@/content/pages/shopify.features";
 import { CONTENT as ASSISTANT } from "@/content/pages/shopify.features.ai.shopping.assistant";
+import { capabilityFacts } from "@/content/pages/shopify-feature-kit";
 import { getCapability } from "@/lib/seo/capabilities";
 import { MARKETING_PATHS } from "@/lib/seo/gate";
 import { compareDirectories, findPageByPath, getPage, PAGES } from "@/lib/seo/pages";
@@ -24,13 +26,42 @@ import { canOpen, isPreviewable, isPublishable, statusSatisfies } from "@/lib/se
 import { buildComparisonContent } from "./build";
 import { comparedWith, directoryContent, jobsFor, topComparisons, visibleBriefs } from "./hub";
 import { COMPETITOR_BRIEFS } from "./index";
-import { comparedCapabilityIds, moreItems } from "./more";
+import { comparedCapabilityIds, MAX_LINE, moreItems, type MoreItem } from "./more";
+import { firstSentence } from "@/content/pages/shopify-feature-kit";
 import { compareRoute } from "./route";
 
 const text = (html: string) => html.replace(/<[^>]*>/g, " ").replace(/&#x27;/g, "'").replace(/&amp;/g, "&").replace(/\s+/g, " ");
 const hrefsOf = (html: string) => [...html.matchAll(/href="([^"]+)"/g)].map((m) => m[1]!);
 const production = () => vi.stubEnv("VERCEL_ENV", "production");
 afterEach(() => vi.unstubAllEnvs());
+
+
+/**
+ * Why a card is not what the registry allows, or undefined when it is. A card's body must be the first sentence of the exact approved
+ * claim it names (at a status that satisfies that claim), or the directory's own short copy for the capability. No fallback: a body
+ * that matches neither fails.
+ */
+function cardError(m: MoreItem, shopifyScope: boolean): string | undefined {
+  const cap = getCapability(m.capabilityId);
+  if (!cap) return "unknown capability";
+  if (m.source.kind === "claim") {
+    const claimId = m.source.claimId;
+    const claim = cap.approvedClaims.find((c) => c.id === claimId);
+    if (!claim) return `claim ${claimId} is not a claim of ${m.capabilityId}`;
+    if (m.item.body !== firstSentence(claim.text)) return `body is not the first sentence of ${claimId}`;
+    if (!m.item.status || !statusSatisfies(m.item.status, claim.requires)) return `status does not satisfy ${claimId}`;
+    if (shopifyScope && m.item.body.length > MAX_LINE) return "a long claim should have given way to the directory copy";
+  } else {
+    const d = DIRECTORY_CAPABILITIES.find((x) => x.capabilityId === m.capabilityId);
+    if (!d || m.item.body !== directoryCard(d).body) return "body is not the directory copy";
+  }
+  if (m.item.body.trim() === "") return "an empty card";
+  if (shopifyScope) {
+    const shopify = cap.implementations.find((i) => i.surface === "shopify");
+    if (!shopify || m.item.status !== capabilityFacts(m.capabilityId, "shopify").status) return "status is not the Shopify build's";
+  }
+  return undefined;
+}
 
 /** The "gives more" section of a rendered comparison page. */
 const moreSection = (html: string) => {
@@ -52,18 +83,9 @@ describe("Peakhour Suite gives more: every comparison page, from the builder", (
         expect(new Set(items.map((m) => m.capabilityId)).size).toBe(items.length);
       });
 
-      it("says only an approved claim: each card is a sentence of an approved claim, at a status that satisfies it", () => {
-        for (const m of items) {
-          const cap = getCapability(m.capabilityId)!;
-          // A card shows an approved claim's first sentence whole, or nothing when it is too long for a compact card: never cut, never new text.
-          expect(m.item.body.length, m.item.title).toBeLessThanOrEqual(120);
-          const claim = cap.approvedClaims.find((c) => c.text.includes(m.item.body)) ?? cap.approvedClaims[0];
-          expect(claim, `${m.item.title}: "${m.item.body}" is not inside an approved claim`).toBeDefined();
-          expect(m.item.status, m.item.title).toBeDefined();
-          expect(statusSatisfies(m.item.status!, claim!.requires), m.item.title).toBe(true);
-          if (global) expect(m.item.status, `${m.item.title} is not live`).toBe("live");
-          else expect(["live", "beta"]).toContain(m.item.status);
-        }
+      it("says only an approved claim: every card passes the exact-claim check, with no empty card and no foreign-surface status", () => {
+        for (const m of items) expect(cardError(m, !global), `${m.item.title}`).toBeUndefined();
+        if (global) for (const m of items) expect(m.item.status, m.item.title).toBe("live");
       });
 
       it("renders as its own section before the closing band, with the heading and the directory links", () => {
@@ -272,15 +294,97 @@ describe("review round 1", () => {
     expect(directoryContent("global").closing.body).toMatch(/waitlist/i);
     expect(getPage("compare").primaryCta.label).toBe("Join the waitlist");
   });
+});
 
-  it("no two plain bands meet on a feature page with a Compared band", () => {
-    const html = renderToStaticMarkup(<ShopifyFeaturePage page={getPage("shopify.features.ai.shopping.assistant")} content={ASSISTANT} />);
-    const bands = [...html.matchAll(/<section id="([^"]+)"[^>]*class="([^"]*)"/g)].map((m) => ({ id: m[1]!, muted: m[2]!.includes("bg-muted") }));
-    const ids = bands.map((b) => b.id);
-    const i = ids.indexOf("compared");
-    expect(i).toBeGreaterThan(-1);
-    expect(bands[i]!.muted).toBe(true);
-    expect(bands[i - 1]!.muted).toBe(false);
-    for (let k = 1; k <= i; k++) if (bands[k]!.id !== "faq") expect(bands[k]!.muted && bands[k - 1]!.muted, `${bands[k - 1]!.id} and ${bands[k]!.id}`).toBe(false);
+describe("review round 2", () => {
+  it("the card check can fail: an invented body, a wrong claim id, a borrowed status and an empty body are all caught", () => {
+    const shopify = COMPETITOR_BRIEFS.find((b) => !compareRoute(b).global)!;
+    const real = moreItems(shopify).find((m) => m.source.kind === "claim")!;
+    expect(cardError(real, true)).toBeUndefined();
+    expect(cardError({ ...real, item: { ...real.item, body: "Writes every product page for you." } }, true)).toMatch(/first sentence/);
+    expect(cardError({ ...real, source: { kind: "claim", claimId: "commerce.cod_confirmation.nope" } }, true)).toMatch(/not a claim/);
+    expect(cardError({ ...real, item: { ...real.item, body: "" } }, true)).toBeDefined();
+    const viaDirectory = moreItems(shopify).find((m) => m.source.kind === "directory")!;
+    expect(cardError(viaDirectory, true)).toBeUndefined();
+    expect(cardError({ ...viaDirectory, item: { ...viaDirectory.item, body: "Invented." } }, true)).toMatch(/directory copy/);
+  });
+
+  it("under the Shopify heading every card's status is its Shopify build's, and a capability with no live or beta Shopify build is left out", () => {
+    for (const b of COMPETITOR_BRIEFS.filter((x) => !compareRoute(x).global)) {
+      const ids = new Set(moreItems(b).map((m) => m.capabilityId));
+      for (const m of moreItems(b)) {
+        expect(["live", "beta"]).toContain(m.item.status);
+        expect(m.item.status, m.item.title).toBe(capabilityFacts(m.capabilityId, "shopify").status);
+      }
+      // WhatsApp shopping has no Shopify build of its own, so it is not listed with a WhatsApp status.
+      expect(ids.has("commerce.whatsapp_shopping")).toBe(false);
+    }
+    expect(buildComparisonContent(COMPETITOR_BRIEFS.find((b) => !compareRoute(b).global)!).more!.intro).toMatch(/build in the Shopify app/);
+  });
+
+  it("has no empty or title-only card on any comparison", () => {
+    for (const b of COMPETITOR_BRIEFS) for (const m of moreItems(b)) expect(m.item.body.length, `${b.slug}: ${m.item.title}`).toBeGreaterThan(0);
+  });
+
+  it("a feature's card links to the same place as its Shopify directory card", () => {
+    const shopify = COMPETITOR_BRIEFS.find((b) => !compareRoute(b).global)!;
+    for (const m of moreItems(shopify)) {
+      const d = DIRECTORY_CAPABILITIES.find((x) => x.capabilityId === m.capabilityId)!;
+      expect(m.item.href, m.item.title).toBe(directoryCard(d).href);
+    }
+  });
+
+  it("the global intro leaves out the Shopify-list sentence when the Shopify directory is not openable", () => {
+    const b = COMPETITOR_BRIEFS.find((x) => compareRoute(x).global)!;
+    const rec = getPage("shopify.features");
+    const saved = { editorialStatus: rec.editorialStatus, indexable: rec.indexable };
+    production();
+    try {
+      Object.assign(rec, { editorialStatus: "review", indexable: false });
+      const more = buildComparisonContent(b).more!;
+      expect(more.links.some((l) => l.href === "/shopify/features")).toBe(false);
+      expect(more.intro).not.toContain("Shopify");
+    } finally {
+      Object.assign(rec, saved);
+    }
+    const back = buildComparisonContent(b).more!;
+    expect(back.intro).toContain("Shopify list");
+  });
+
+  it("the footer links Compare once the directory is publishable (a published child)", () => {
+    const rec = getPage("shopify.compare");
+    const saved = { editorialStatus: rec.editorialStatus, indexable: rec.indexable };
+    const t = ((k: string) => k) as Parameters<typeof footerGroups>[0];
+    const hrefs = () => footerGroups(t).flatMap((g) => g.links.map((l) => l.href));
+    expect(hrefs()).not.toContain("/shopify/compare");
+    try {
+      Object.assign(rec, { editorialStatus: "published", indexable: true });
+      expect(isPublishable(rec)).toBe(true);
+      expect(hrefs()).toContain("/shopify/compare");
+    } finally {
+      Object.assign(rec, saved);
+    }
+  });
+
+  it("a Compared band never puts two equal tones together, and the status band keeps its tone on dev and production", () => {
+    const toneOf = (html: string) =>
+      [...html.matchAll(/<section id="([^"]+)"[^>]*class="([^"]*)"/g)].map((m) => ({ id: m[1]!, muted: m[2]!.includes("bg-muted") }));
+    const ids = ["shopify.features.ai.shopping.assistant", "shopify.features.whatsapp.cod.confirmation", "shopify.features.bundles", "shopify.features.seo.audit"];
+    for (const id of ids) {
+      const page = getPage(id);
+      const content = ({ ...ASSISTANT } as typeof ASSISTANT);
+      const dev = toneOf(renderToStaticMarkup(<ShopifyFeaturePage page={page} content={content} />));
+      production();
+      const prod = toneOf(renderToStaticMarkup(<ShopifyFeaturePage page={page} content={content} />));
+      vi.unstubAllEnvs();
+      expect(dev.find((b) => b.id === "status")?.muted, id).toBe(prod.find((b) => b.id === "status")?.muted);
+      // Plain bands carry no class marker, so adjacency is checked on the muted flag plus the plain FAQ that follows the last band.
+      for (let k = 1; k < dev.length; k++) {
+        if (dev[k]!.id === "faq" || dev[k]!.id === "related") continue;
+        expect(dev[k]!.muted && dev[k - 1]!.muted, `${id}: ${dev[k - 1]!.id} and ${dev[k]!.id}`).toBe(false);
+      }
+      // The Compared block is on the page either as its own muted band or inside the permissions band.
+      expect(renderToStaticMarkup(<ShopifyFeaturePage page={page} content={content} />)).toContain('id="compared"');
+    }
   });
 });

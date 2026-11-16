@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { getPublicCatalog, signupCta } from "@/lib/catalog";
 import { marketingTrialDays } from "@/lib/pricing";
 import { getPage } from "@/lib/seo/pages";
-import { isPreviewable, isPublishable } from "@/lib/seo/publish";
+import { canOpen } from "@/lib/seo/publish";
 import type { PageRecord } from "@/lib/seo/types";
 import type { HubContent } from "./content-types";
 import { DaylightShell } from "./shell";
@@ -24,7 +24,7 @@ export async function withCatalogCta(page: PageRecord): Promise<PageRecord> {
 /** One module hub route: 404 unless publishable (or a draft previewed off Production), then the Daylight hub. */
 export async function HubRoute({ pageId, content }: { pageId: string; content: HubContent }) {
   const page = getPage(pageId);
-  if (!isPublishable(page) && !isPreviewable(page)) notFound();
+  if (!canOpen(page)) notFound();
   return (
     <DaylightShell>
       <HubPage page={await withCatalogCta(page)} content={content} />
