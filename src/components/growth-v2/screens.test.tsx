@@ -414,6 +414,7 @@ const DRAFT: FirstRunDraftResponse = {
   currency: "INR",
   timeZone: { value: "Asia/Kolkata" },
   offers: [OFFER_SALES, OFFER_LEADS],
+  locked: [],
   askAboutStores: false,
   playbook: { id: "growth-ecommerce-d2c", version: 1, title: "D2C" },
   channels: [
@@ -489,6 +490,62 @@ describe("First run", () => {
     expect(out).toContain("Nothing can be measured for this business yet");
     expect(out).not.toContain(">Sales<");
     expect(out).not.toContain(">Leads<");
+  });
+
+  describe("FR: locked goals", () => {
+    const NEED_CAT = { need: "booking_category", sentence: "Bookings are for travel and service businesses. If that is you, set your business category under Your business.", target: "your_business" as const };
+    const NEED_GA = { need: "ga4_purchase_event", sentence: "Mark the action that counts as a key event in Google Analytics.", target: "ga4_key_events_help" as const, url: "https://support.google.com/analytics/answer/9267568" };
+    const NEED_STORE = { need: "connect_store", sentence: "Connect your store so Peakhour can count your orders.", target: "connected_accounts" as const };
+    const LOCKED = [
+      { kind: "sales" as const, label: "Sales", needs: [NEED_STORE] },
+      { kind: "bookings" as const, label: "Bookings", needs: [NEED_CAT] },
+      { kind: "leads" as const, label: "Leads", needs: [NEED_GA] },
+    ];
+
+    it("PASS: locked goals show after the offered ones, dimmed, each with its first need's sentence and a link", () => {
+      const out = html(<FirstRunView {...firstRun({ draft: { ...DRAFT, offers: [OFFER_LEADS], locked: LOCKED.slice(0, 2) } })} />);
+      expect(out).toContain('data-testid="locked-goals"');
+      expect(out.indexOf(">Leads<")).toBeLessThan(out.indexOf('data-testid="locked-goals"'));
+      expect(out).toContain(NEED_CAT.sentence);
+      expect(out).toContain(NEED_STORE.sentence);
+      expect(out).toContain('href="/dashboard/growth/rules/business"');
+      expect(out).toContain('href="/dashboard/integrations"');
+      expect(out).toContain("opacity-70");
+    });
+
+    it("FAIL: a locked card cannot be selected, it is not a button and carries no pressed state", () => {
+      const out = html(<FirstRunView {...firstRun({ draft: { ...DRAFT, offers: [OFFER_LEADS], locked: LOCKED } })} />);
+      const block = out.slice(out.indexOf('data-testid="locked-goals"'));
+      const locked = block.slice(0, block.indexOf("</ul>"));
+      expect(locked).not.toContain("<button");
+      expect(locked).not.toContain("aria-pressed");
+      expect(locked.match(/aria-disabled="true"/g)).toHaveLength(3);
+    });
+
+    it("a need that points at Google's own page opens it in a new tab, with the api's address", () => {
+      const out = html(<FirstRunView {...firstRun({ draft: { ...DRAFT, offers: [OFFER_LEADS], locked: LOCKED } })} />);
+      expect(out).toContain('href="https://support.google.com/analytics/answer/9267568" target="_blank" rel="noreferrer noopener"');
+    });
+
+    it("the zero-offer message stays, and lists each need once", () => {
+      const out = html(<FirstRunView {...firstRun({ draft: { ...DRAFT, offers: [], locked: [...LOCKED, { kind: "calls" as const, label: "Calls", needs: [NEED_STORE] }] } })} />);
+      expect(visibleText(out)).toContain("Nothing can be measured for this business yet");
+      expect(out).not.toContain('data-testid="locked-goals"');
+      expect(out.split(NEED_STORE.sentence).length - 1).toBe(1);
+      expect(out).toContain(NEED_CAT.sentence);
+      expect(out).toContain(NEED_GA.sentence);
+    });
+
+    it("nothing locked shows no locked block, and no offers with nothing locked keeps the old words", () => {
+      expect(html(<FirstRunView {...firstRun({ draft: { ...DRAFT, locked: [] } })} />)).not.toContain('data-testid="locked-goals"');
+      const none = html(<FirstRunView {...firstRun({ draft: { ...DRAFT, offers: [], locked: [] } })} />);
+      expect(visibleText(none)).toContain("Connect your shop, your inbox or your analytics");
+    });
+
+    it("★no retired word reaches the merchant in the locked words", () => {
+      const out = visibleText(html(<FirstRunView {...firstRun({ draft: { ...DRAFT, offers: [OFFER_LEADS], locked: LOCKED } })} />));
+      expect(out).not.toMatch(/mandate|intent|council|strategist|critic|chair/i);
+    });
   });
 
   it("asks 'Which best describes you?' on a tie, and shows no plan until it is answered", () => {
@@ -666,7 +723,7 @@ describe("PL-3: the Goals page", () => {
 });
 
 describe("PL-3: First run asks what the business sells first", () => {
-  const line = (id: string, label: string, matched: boolean, min?: number) => ({ id, label, matched, score: matched ? 1 : 0, why: matched ? `Your catalog has ${label}.` : "Nothing points to it yet.", offers: [OFFER_SALES], ...(min ? { minMonthlyBudget: min } : {}) });
+  const line = (id: string, label: string, matched: boolean, min?: number) => ({ id, label, matched, score: matched ? 1 : 0, why: matched ? `Your catalog has ${label}.` : "Nothing points to it yet.", offers: [OFFER_SALES], locked: [], ...(min ? { minMonthlyBudget: min } : {}) });
   const LINES_DRAFT: FirstRunDraftResponse = {
     ...DRAFT,
     lines: [line("flights", "Flights", true, 30000), line("hotels", "Hotels", false), line("holidays", "Holidays", true, 10000)],
@@ -711,7 +768,7 @@ describe("PL-3: First run asks what the business sells first", () => {
 
 describe("PL-3: no merchant-visible \"mandate\"", () => {
   it("★none of the Growth pages' rendered text says mandate", () => {
-    const LINED: FirstRunDraftResponse = { ...DRAFT, lines: [{ id: "flights", label: "Flights", matched: true, score: 1, why: "x", offers: [OFFER_SALES] }] };
+    const LINED: FirstRunDraftResponse = { ...DRAFT, lines: [{ id: "flights", label: "Flights", matched: true, score: 1, why: "x", offers: [OFFER_SALES], locked: [] }] };
     const pages = {
       home: html(<HomeBody result={{ data: FIXTURE_HOME, preview: true, row: "H1", ...seriesFromHome(FIXTURE_HOME) }} openDecisions={3} />),
       guardrails: html(withClient(<RulesBody rules={FIXTURE_RULES} preview />)),

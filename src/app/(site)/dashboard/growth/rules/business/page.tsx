@@ -3,6 +3,7 @@
 import { AudienceProfilePanel } from "@/components/audience/audience-profile-panel";
 import { WhatWeveLearned } from "@/components/audience/what-weve-learned";
 import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
+import { BusinessCategoryCard } from "@/components/growth-v2/business-category-card";
 
 /**
  * Your Business (G2) — what the platform understands about the customer.
@@ -28,6 +29,9 @@ export default function YourBusinessPage() {
       <PageHeader title="Your business" description="What we understand about you, and where we got it from. Every audience we
           suggest is built out of this — so telling us where we&apos;re wrong is the
           fastest way to make them better." />
+
+      {/* FR: the category decides the playbook and the goals offered, so a wrong guess is corrected here, first. */}
+      <BusinessCategoryCard />
 
       {/* Open by default: on its own page there is nothing else to look at, and
           collapsing the only content behind a click is how a surface stays

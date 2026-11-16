@@ -8,7 +8,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
 import { api, ApiError } from "@/lib/api";
 import { useLocale } from "@/hooks/use-locale";
-import type { DashboardOrgPlanSummary } from "@/hooks/use-dashboard-org";
+import { useCanChangeCategory, type DashboardOrgPlanSummary } from "@/hooks/use-dashboard-org";
+import { categoryLabel } from "@/lib/business-category";
 import { activeBusiness, planRowLabel } from "@/lib/plan-status";
 // Shared with every other surface the OAuth callback can return to
 // (?returnTo=), so a new provider is labelled once, not per page.
@@ -52,7 +53,7 @@ import { toast } from "sonner";
 
 /** `/v1/dashboard/org`; the plan row reads its `subscription` / `products`
  *  through `planRowLabel` (`planDisplayName`), as the top-bar badge does (D19, P4.7). */
-interface OrgDetails extends Pick<DashboardOrgPlanSummary, "subscription" | "products"> {
+interface OrgDetails extends Pick<DashboardOrgPlanSummary, "subscription" | "products" | "businessCategoryOptions"> {
   _id: string;
   name: string;
   slug: string;
@@ -115,6 +116,19 @@ function SettingsContent() {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const [orgDetails, setOrgDetails] = useState<OrgDetails | null>(null);
+  // FR: the category in words, with a way to change it for an owner or admin (it lives on "Your business").
+  const canChangeCat = useCanChangeCategory();
+  const categoryText = categoryLabel(orgDetails?.businessCategory, orgDetails?.businessCategoryOptions);
+  const categoryValue = categoryText ? (
+    <span className="inline-flex items-center gap-2">
+      {categoryText}
+      {canChangeCat ? (
+        <Link href="/dashboard/growth/rules/business" className="text-xs font-normal underline underline-offset-2">
+          Edit
+        </Link>
+      ) : null}
+    </span>
+  ) : undefined;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [justConnectedProvider, setJustConnectedProvider] = useState<string | null>(null);
@@ -400,7 +414,7 @@ function SettingsContent() {
               <>
                 <EditRow label="Business name" value={editName} onChange={setEditName} />
                 <SettingRow label="Slug" value={orgDetails?.slug} />
-                <SettingRow label="Category" value={orgDetails?.businessCategory} />
+                <SettingRow label="Category" value={categoryValue} />
                 <EditRow label="Type" value={editType} onChange={setEditType} />
                 <EditRow label="Website" value={editUrl} onChange={setEditUrl} type="url" />
                 <EditRow
@@ -425,7 +439,7 @@ function SettingsContent() {
               <>
                 <SettingRow label="Business name" value={orgDetails?.name} />
                 <SettingRow label="Slug" value={orgDetails?.slug} />
-                <SettingRow label="Category" value={orgDetails?.businessCategory} />
+                <SettingRow label="Category" value={categoryValue} />
                 <SettingRow label="Type" value={orgDetails?.businessType} />
                 <SettingRow label="Website" value={orgDetails?.websiteUrl} />
                 <SettingRow
