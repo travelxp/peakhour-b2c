@@ -1,4 +1,4 @@
-import type { DirectoryContent, DirectoryGroup, DirectoryItem } from "@/components/marketing/seo/content-types";
+﻿import type { DirectoryContent, DirectoryGroup, DirectoryItem } from "@/components/marketing/seo/content-types";
 import { getPage } from "@/lib/seo/pages";
 import { isPublishable } from "@/lib/seo/publish";
 import { pathFor } from "@/lib/seo/resolve";
@@ -191,7 +191,7 @@ export const CONTENT: DirectoryContent = {
     },
     {
       q: "What does Coming soon mean?",
-      a: "That the feature is not available to stores yet. Its card has no link, and the page says so plainly instead of promising it.",
+      a: "That the feature is not available to stores yet. A Coming soon card has no link, so the page says so plainly instead of promising it.",
     },
   ],
   related: [SHOPIFY_HOME_LINK, PRICING_LINK, { label: "How Peakhour works", href: "/how-it-works", note: "Ask, approve, undo." }],
