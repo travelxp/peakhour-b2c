@@ -51,7 +51,7 @@ export const RELEASIT = {
     },
     {
       dimension: "WhatsApp confirmation of orders already placed",
-      vendor: { value: "yes", note: "It lists confirming via SMS or WhatsApp. The listing does not say whether this asks the shopper to confirm an order after it is placed.", source: S.listing, observedAt: D },
+      vendor: { value: "partial", note: "It lists confirming via SMS or WhatsApp. The listing does not say whether this asks the shopper to confirm an order after it is placed.", source: S.listing, observedAt: D },
       peakhour: PEAKHOUR_W3B.codAsk,
     },
     {

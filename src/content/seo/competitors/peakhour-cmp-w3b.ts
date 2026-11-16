@@ -36,7 +36,7 @@ export const PEAKHOUR_W3B = {
     ...INV,
   },
   shopifyOnly: {
-    value: "partial",
+    value: "not-supported",
     capabilityId: "commerce.inventory_alerts",
     note: "Shopify stores only.",
     ...INV,

@@ -72,6 +72,7 @@ export const PREDIKO = {
       { plan: "Core, annual sales under 100K", price: "$49 per month, or $42 per month billed annually", currency: "USD", region: "Not stated", observedAt: D, source: S.pricing },
       { plan: "Core, annual sales 100K to 500K", price: "$119 per month, or $101 per month billed annually", currency: "USD", region: "Not stated", observedAt: D, source: S.pricing },
       { plan: "Core, annual sales 500K to 2M", price: "$199 per month, or $169 per month billed annually", currency: "USD", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Core, annual sales 2M to 50M", price: "From $349 per month, or $297 per month billed annually, rising to $3,999 per month, or $3,399 billed annually, by tier", currency: "USD", region: "Not stated", observedAt: D, source: S.pricing },
       { plan: "Core, annual sales 50M and above", price: "Not published (contact us)", currency: "Not stated", region: "Not stated", observedAt: D, source: S.pricing },
     ],
   },
@@ -81,7 +82,7 @@ export const PREDIKO = {
   ],
   limitations: [
     "We read only Prediko's own site, pricing page and Shopify App Store listing. A feature they do not document is marked Not documented, which is not the same as No.",
-    "Its pricing is by annual sales; we list the first three tiers and the Contact us tier. Plans, trials and offers change, and add-ons are priced separately.",
+    "Its pricing is by annual sales; we list the first three tiers, the range above them and the Contact us tier. Plans, trials and offers change, and add-ons are priced separately.",
     "Where our own side says Unknown, the evidence for Peakhour is still being verified and nothing is claimed.",
   ],
   faqs: [

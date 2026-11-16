@@ -77,6 +77,7 @@ export const EASYSELL = {
       { plan: "PRO, up to 440 orders a month", price: "₹937.88 per month, or ₹8,482.42 per year", currency: "INR, shown as an estimate and billed in the store currency", region: "Not stated", observedAt: D, source: S.listing },
       { plan: "ADVANCED, up to 10,000 orders a month", price: "₹2,351.78 per month, or ₹21,301.72 per year", currency: "INR, shown as an estimate and billed in the store currency", region: "Not stated", observedAt: D, source: S.listing },
       { plan: "UNLIMITED orders", price: "₹5,650.86 per month, or ₹50,899.24 per year", currency: "INR, shown as an estimate and billed in the store currency", region: "Not stated", observedAt: D, source: S.listing },
+      { plan: "Extra orders on paid plans", price: "$0.05 per additional order", currency: "USD", region: "Not stated", observedAt: D, source: S.listing },
     ],
   },
   bestFor: [
@@ -85,7 +86,7 @@ export const EASYSELL = {
   ],
   limitations: [
     "We read only EasySell's own site and Shopify App Store listing. A feature they do not document is marked Not documented, which is not the same as No.",
-    "The listing shows prices in INR as estimates, billed in the store's currency, and does not state a country. It also lists $0.05 per extra order on paid plans. Plans, messaging charges and offers change.",
+    "The listing shows prices in INR as estimates, billed in the store's currency, and does not state a country. The $0.05 per extra order is shown in dollars. Plans, messaging charges and offers change.",
     "Where our own side says Unknown, the evidence for Peakhour is still being verified and nothing is claimed.",
   ],
   faqs: [
