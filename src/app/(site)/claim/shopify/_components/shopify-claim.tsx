@@ -3,16 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { AlertCircle, AlertTriangle, ShoppingBag } from "lucide-react";
+import { AlertTriangle, ShoppingBag } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { FlowButton, FlowCard, FlowHead, FlowNotice, FlowPage, flowFacts, flowOption } from "@/components/marketing/flow/flow-kit";
 import {
   fetchShopifyClaimCandidates,
   claimShopifyStore,
@@ -176,7 +169,7 @@ export function ShopifyClaim() {
         // Nothing moved. Back to the choice, with the question asked (and no
         // stale refusal beside it).
         setSeparateNotice(null);
-        setConfirmPrompt(message || "This store may be a different brand from that workspace.");
+        setConfirmPrompt(message || "This store may be a different brand from that workspace. Is it the same business?");
         setFetchState("choose");
         return;
       }
@@ -250,56 +243,41 @@ export function ShopifyClaim() {
   const showMissing = !isLoading && (!store || !token);
   const showSignIn = !isLoading && !!store && !!token && !isAuthenticated;
 
-  const optionClass = (selected: boolean) =>
-    `flex w-full flex-col items-start rounded-md border p-3 text-left text-sm hover:bg-muted/40 ${
-      selected ? "border-primary ring-1 ring-primary" : ""
-    }`;
-
   return (
-    <div className="mx-auto flex min-h-[70vh] w-full max-w-lg items-center px-4 py-10">
-      <Card className="w-full">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShoppingBag className="size-5 text-primary" aria-hidden />
-            Claim your Shopify store
-          </CardTitle>
-          {ready && fetchState === "choose" && data?.store?.shopDomain && (
-            <CardDescription>{data.store.shopDomain}</CardDescription>
-          )}
-        </CardHeader>
-        <CardContent className="space-y-4">
+    <FlowPage>
+      <FlowCard>
+        <FlowHead icon={ShoppingBag} title="Claim your Shopify store">
+          {ready && fetchState === "choose" && data?.store?.shopDomain ? data.store.shopDomain : null}
+        </FlowHead>
+        <div className="mt-5 space-y-4">
           {showLoading && (
-            <LoadingScreen message="Loading your store…" />
+            <LoadingScreen message="Loading your store…" className="min-h-40 p-4" />
           )}
 
           {showMissing && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-medium text-destructive">
-                <AlertCircle className="size-5" aria-hidden />
-                Invalid claim link
-              </div>
-              <p className="text-sm text-muted-foreground">
-                This link is missing information. Open the Peakhour app in your Shopify admin and use
-                the “Claim this store” button there.
+            <FlowNotice tone="bad" role="alert">
+              <p className="font-bold">This link is incomplete</p>
+              <p className="mt-1">
+                Open the Peakhour app in your Shopify admin and select “Claim this store”.
               </p>
-            </div>
+            </FlowNotice>
           )}
 
           {showSignIn && (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Sign in to finish linking <span className="font-medium text-foreground">this store</span> to
-                your Peakhour account. We&apos;ll bring you right back here to finish.
+                Sign in to link <span className="font-medium text-foreground">this store</span> to your
+                Peakhour account. You&apos;ll come straight back here to finish.
               </p>
-              <Button asChild>
+              <FlowButton asChild>
                 <Link href={signInHref}>Sign in to continue</Link>
-              </Button>
+              </FlowButton>
             </div>
           )}
 
           {ready && fetchState === "choose" && data && (
             <div className="space-y-4">
-              <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+              <div className={flowFacts}>
                 <div>
                   Signed in as{" "}
                   <span className="font-medium text-foreground">{data.signedInEmail ?? "your account"}</span>
@@ -312,35 +290,38 @@ export function ShopifyClaim() {
               {data.orgs.length === 0 ? (
                 <div className="space-y-3">
                   <p className="text-sm text-muted-foreground">
-                    Set up your Peakhour account from{" "}
+                    Create your Peakhour account from{" "}
                     <span className="font-medium text-foreground">{storeName}</span>.
-                    Your catalog and Commerce plan are already in place — nothing to configure.
+                    Your catalog is already in place.
                   </p>
-                  <Button onClick={handleAdopt} className="w-full">
-                    Create my account with this store
-                  </Button>
+                  <FlowButton onClick={handleAdopt}>Create my account with this store</FlowButton>
                 </div>
               ) : (
                 <>
                   {separateNotice && (
-                    <div className="rounded-md border border-warning/30 bg-warning/10 p-3 text-sm" role="alert">
+                    <FlowNotice tone="warn" role="alert">
                       {separateNotice}
-                    </div>
+                    </FlowNotice>
                   )}
 
                   {boughtNotice && selectedTarget === into && (
-                    <div className="rounded-md border bg-muted/40 p-3 text-sm" role="status">
+                    <FlowNotice tone="info" role="status">
                       {boughtNotice}
-                    </div>
+                    </FlowNotice>
                   )}
 
                   {limitNotice && selectedTarget === NEW_BUSINESS && (
-                    <div className="space-y-3 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm" role="alert">
+                    <FlowNotice tone="warn" role="alert">
                       <p>{limitNotice}</p>
-                      <Button size="sm" onClick={() => void openPurchase()} disabled={openingPurchase || !selectedOrg}>
+                      <FlowButton
+                        inline
+                        className="mt-3 min-h-10 py-2"
+                        onClick={() => void openPurchase()}
+                        disabled={openingPurchase || !selectedOrg}
+                      >
                         {openingPurchase ? "Opening…" : `Buy a plan for ${storeName}`}
-                      </Button>
-                    </div>
+                      </FlowButton>
+                    </FlowNotice>
                   )}
 
                   {data.canKeepSeparate && (
@@ -351,10 +332,11 @@ export function ShopifyClaim() {
                           setSelectedTarget(SEPARATE);
                           setConfirmPrompt(null);
                         }}
-                        className={optionClass(selectedTarget === SEPARATE)}
+                        aria-pressed={selectedTarget === SEPARATE}
+                        className={flowOption(selectedTarget === SEPARATE)}
                       >
                         <span className="font-medium">Keep {storeName} as its own account</span>
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-sm text-muted-foreground">
                           A separate Peakhour account for this store, with its own workspace and content. Use it
                           when {storeName} is a different business from the ones you already run. You can switch
                           between accounts any time.
@@ -382,12 +364,11 @@ export function ShopifyClaim() {
                                   // Another account: its plan is its own.
                                   setLimitNotice(null);
                                 }}
-                                className={`flex w-full items-center justify-between rounded-md border p-3 text-left text-sm hover:bg-muted/40 ${
-                                  selected ? "border-primary ring-1 ring-primary" : ""
-                                }`}
+                                aria-pressed={selected}
+                                className={`${flowOption(selected)} flex-row items-center justify-between`}
                               >
                                 <span className="font-medium">{o.name}</span>
-                                <span className="text-xs text-muted-foreground">{o.role}</span>
+                                <span className="text-sm text-muted-foreground">{o.role}</span>
                               </button>
                             </li>
                           );
@@ -415,10 +396,11 @@ export function ShopifyClaim() {
                               setConfirmPrompt(null);
                               setSeparateNotice(null);
                             }}
-                            className={optionClass(selectedTarget === NEW_BUSINESS)}
+                            aria-pressed={selectedTarget === NEW_BUSINESS}
+                            className={flowOption(selectedTarget === NEW_BUSINESS)}
                           >
                             <span className="font-medium">A separate brand</span>
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-sm text-muted-foreground">
                               {storeName} gets its own workspace, with its own content and plan.
                             </span>
                           </button>
@@ -439,16 +421,15 @@ export function ShopifyClaim() {
                                   setConfirmPrompt(null);
                                   setSeparateNotice(null);
                                 }}
-                                className={`${optionClass(selectedTarget === b.businessId)} ${
-                                  blocked ? "cursor-not-allowed opacity-60 hover:bg-transparent" : ""
-                                }`}
+                                aria-pressed={selectedTarget === b.businessId}
+                                className={flowOption(selectedTarget === b.businessId, blocked)}
                               >
                                 <span className="font-medium">Another storefront of {b.name}</span>
-                                <span className="text-xs text-muted-foreground">
+                                <span className="text-sm text-muted-foreground">
                                   Added to the {b.name} workspace as a second store of the same business.
                                 </span>
                                 {note && (
-                                  <span className="mt-1 flex items-start gap-1 text-xs text-warning-on-tint">
+                                  <span className="mt-1 flex items-start gap-1 text-sm text-[var(--daylight-warn-ink)]">
                                     <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
                                     {note}
                                   </span>
@@ -464,14 +445,14 @@ export function ShopifyClaim() {
               )}
 
               {confirmPrompt && selectedTarget !== NEW_BUSINESS && selectedTarget !== SEPARATE && (
-                <div className="space-y-3 rounded-md border border-warning/30 bg-warning/10 p-3" role="alert">
-                  <p className="text-sm">{confirmPrompt}</p>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button onClick={() => handleClaim(selectedTarget, true)} className="sm:flex-1">
+                <FlowNotice tone="warn" role="alert">
+                  <p>{confirmPrompt}</p>
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                    <FlowButton onClick={() => handleClaim(selectedTarget, true)} className="sm:flex-1">
                       It&apos;s the same business, add it
-                    </Button>
-                    <Button
-                      variant="outline"
+                    </FlowButton>
+                    <FlowButton
+                      variant="ghost"
                       onClick={() => {
                         const out = data.canKeepSeparate ? SEPARATE : NEW_BUSINESS;
                         setSelectedTarget(out);
@@ -480,13 +461,13 @@ export function ShopifyClaim() {
                       className="sm:flex-1"
                     >
                       {data.canKeepSeparate ? "Keep it as its own account" : "Make it its own workspace"}
-                    </Button>
+                    </FlowButton>
                   </div>
-                </div>
+                </FlowNotice>
               )}
 
               {data.orgs.length > 0 && !(confirmPrompt && selectedTarget !== NEW_BUSINESS && selectedTarget !== SEPARATE) && (
-                <Button
+                <FlowButton
                   onClick={() => handleClaim(selectedTarget)}
                   disabled={
                     selectedTarget === SEPARATE
@@ -494,10 +475,9 @@ export function ShopifyClaim() {
                       : !selectedOrg ||
                         !!activeOrg?.businesses.find((b) => b.businessId === selectedTarget && businessOption(b).blocked)
                   }
-                  className="w-full"
                 >
                   {selectedTarget === SEPARATE ? "Keep it as its own account" : "Claim this store"}
-                </Button>
+                </FlowButton>
               )}
             </div>
           )}
@@ -517,6 +497,7 @@ export function ShopifyClaim() {
 
           {ready && fetchState === "claiming" && (
             <LoadingScreen
+              className="min-h-40 p-4"
               message="Setting up your store…"
               steps={[
                 "Linking your Shopify store",
@@ -534,19 +515,18 @@ export function ShopifyClaim() {
             const ec = errCopy(errCode, errMsg, { canKeepSeparate: data?.canKeepSeparate });
             return (
               <div className="space-y-3">
-                <div className="flex items-center gap-2 text-sm font-medium text-destructive">
-                  <AlertCircle className="size-5" aria-hidden />
-                  {ec.title}
-                </div>
-                <p className="text-sm text-muted-foreground">{ec.body}</p>
-                <Button asChild variant="outline">
+                <FlowNotice tone="bad" role="alert">
+                  <p className="font-bold">{ec.title}</p>
+                  <p className="mt-1">{ec.body}</p>
+                </FlowNotice>
+                <FlowButton asChild variant="ghost">
                   <Link href="/dashboard">Go to dashboard</Link>
-                </Button>
+                </FlowButton>
               </div>
             );
           })()}
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </FlowCard>
+    </FlowPage>
   );
 }

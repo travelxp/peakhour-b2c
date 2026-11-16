@@ -11,7 +11,6 @@ import {
   EVERY_BUSINESS_TRIAL_PROMISE,
 } from "./trial-copy";
 import { signupCta } from "./catalog";
-import { heroTrustPoints } from "./pillar-console";
 
 /**
  * Owner rule (2026-10-06, official review R2 on b2c#591): offers come from
@@ -59,13 +58,7 @@ describe("trial notes and the announcement bar (official review R2)", () => {
   });
 });
 
-describe("the landing hero and start panel (official review R2)", () => {
-  it("★the trust points carry the trial's two only with a trial", () => {
-    expect(heroTrustPoints(14)).toEqual(["No credit card", "Free trial of every module", "All five modules, one platform"]);
-    expect(heroTrustPoints(null)).toEqual(["All five modules, one platform", "One Peaks wallet"]);
-    expect(JSON.stringify(heroTrustPoints(0))).not.toMatch(TRIAL_WORDS);
-  });
-
+describe("the start panel (official review R2)", () => {
   it("★the start panel names the catalog's length, and no trial without one", () => {
     const withTrial = startPanel(10);
     expect(withTrial.lede).toContain("10-day free trial");

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { FlowCard, FlowPage } from "@/components/marketing/flow/flow-kit";
 import { WordpressReconnect } from "./_components/wordpress-reconnect";
 
 /**
@@ -12,9 +13,14 @@ export default function WordpressReconnectPage() {
   return (
     <Suspense
       fallback={
-        <div className="mx-auto flex min-h-[70vh] w-full max-w-lg items-center justify-center px-4 text-sm text-muted-foreground">
-          Loading…
-        </div>
+        <FlowPage>
+          <FlowCard>
+            <h1 className="sr-only">Reconnect your WordPress site</h1>
+            <p role="status" className="py-8 text-center text-sm text-muted-foreground">
+              Loading…
+            </p>
+          </FlowCard>
+        </FlowPage>
       }
     >
       <WordpressReconnect />

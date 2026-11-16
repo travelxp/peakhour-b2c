@@ -116,7 +116,7 @@ describe("the page", () => {
     });
     await act(async () => button("Open file")!.click());
     expect(open).toHaveBeenCalledWith("t".repeat(43), "guess");
-    expect(host.textContent).toContain("That password is not right.");
+    expect(host.textContent).toContain("That password isn’t right.");
     expect(host.textContent).toContain(NOTICE_90);
     const again = host.querySelector("input")!;
     await act(async () => {
@@ -132,14 +132,14 @@ describe("the page", () => {
 
   it("a dead link says so and offers nothing", async () => {
     await mount({ load: async () => ({ kind: "gone" }) });
-    expect(host.textContent).toContain("does not exist or has expired");
+    expect(host.textContent).toContain("has expired or doesn't exist");
     expect(button("Open file")).toBeUndefined();
   });
 
   it("a failed open keeps the page, the notice and the button, with an inline error", async () => {
     const { navigate } = await mount({ open: async () => ({ kind: "error" }) });
     await act(async () => button("Open file")!.click());
-    expect(host.textContent).toContain("not available right now");
+    expect(host.textContent).toContain("can't open this file right now");
     expect(host.textContent).toContain(NOTICE_90);
     expect(button("Open file")).toBeTruthy();
     expect(navigate).not.toHaveBeenCalled();

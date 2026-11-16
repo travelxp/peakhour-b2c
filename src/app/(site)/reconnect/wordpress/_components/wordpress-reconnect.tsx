@@ -3,17 +3,10 @@
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle2, AlertCircle, Plug, Loader2 } from "lucide-react";
+import { Plug } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { FlowButton, FlowCard, FlowHead, FlowNotice, FlowPage, FlowSpinner } from "@/components/marketing/flow/flow-kit";
 import { approveWordpressReconnect } from "@/lib/api/wordpress-reconnect";
 import { HOME_ROUTE } from "@/lib/nav-home";
 
@@ -24,9 +17,9 @@ function errCopy(code: string, fallback: string): { title: string; body: string 
     case "RECONNECT_CODE_MISMATCH":
       return { title: "That code doesn't match", body: "Check the code shown in your WordPress plugin and try again." };
     case "RECONNECT_EXPIRED":
-      return { title: "This request expired", body: "Open WordPress and click Reconnect again for a fresh code." };
+      return { title: "This request expired", body: "Select Reconnect in WordPress again to get a new code." };
     case "RECONNECT_NONE":
-      return { title: "Nothing to reconnect", body: "Open WordPress and click Reconnect first, then enter the code here." };
+      return { title: "Nothing to reconnect", body: "Select Reconnect in WordPress first, then enter the code here." };
     case "RECONNECT_FORBIDDEN":
       return { title: "No permission", body: "Sign in to the Peakhour account you want to move this site into, then approve the code again." };
     case "RECONNECT_NO_ACCOUNT":
@@ -68,7 +61,7 @@ export function WordpressReconnect() {
       setPhase("done");
     } catch (e: unknown) {
       setErrCode((e as { code?: string })?.code ?? "");
-      setErrMsg((e as { message?: string })?.message ?? "Couldn't reconnect the site.");
+      setErrMsg((e as { message?: string })?.message ?? "The site didn't reconnect. Try again.");
       setPhase("error");
     }
   }
@@ -79,47 +72,37 @@ export function WordpressReconnect() {
   const ready = !isLoading && !!site && isAuthenticated;
 
   return (
-    <div className="mx-auto flex min-h-[70vh] w-full max-w-lg items-center px-4 py-10">
-      <Card className="w-full">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Plug className="size-5 text-primary" aria-hidden />
-            Reconnect your WordPress site
-          </CardTitle>
-          <CardDescription>
-            Enter the code shown in your WordPress plugin to link this site back to your account.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+    <FlowPage>
+      <FlowCard>
+        <FlowHead icon={Plug} title="Reconnect your WordPress site">
+          Enter the code shown in your WordPress plugin to link this site back to your account.
+        </FlowHead>
+        <div className="mt-5 space-y-4">
           {showLoading && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" aria-hidden />
+            <div role="status" className="flex items-center gap-2.5 text-sm text-muted-foreground">
+              <FlowSpinner />
               Loading…
             </div>
           )}
 
           {showMissing && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-medium text-destructive">
-                <AlertCircle className="size-5" aria-hidden />
-                Invalid reconnect link
-              </div>
-              <p className="text-sm text-muted-foreground">
-                This link is missing information. Open Peakhour in your WordPress admin and click
-                Reconnect there.
+            <FlowNotice tone="bad" role="alert">
+              <p className="font-bold">This link is incomplete</p>
+              <p className="mt-1">
+                Open Peakhour in your WordPress admin and select Reconnect.
               </p>
-            </div>
+            </FlowNotice>
           )}
 
           {showSignIn && (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Sign in to your Peakhour account, then reopen the Reconnect link from your WordPress
-                admin.
+                Sign in to your Peakhour account. Then open the Reconnect link from your WordPress
+                admin again.
               </p>
-              <Button asChild>
+              <FlowButton asChild>
                 <Link href="/auth">Sign in</Link>
-              </Button>
+              </FlowButton>
             </div>
           )}
 
@@ -128,17 +111,14 @@ export function WordpressReconnect() {
               {phase === "error" && (() => {
                 const ec = errCopy(errCode, errMsg);
                 return (
-                  <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3">
-                    <div className="flex items-center gap-2 text-sm font-medium text-destructive">
-                      <AlertCircle className="size-4" aria-hidden />
-                      {ec.title}
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">{ec.body}</p>
-                  </div>
+                  <FlowNotice tone="bad" role="alert">
+                    <p className="font-bold">{ec.title}</p>
+                    <p className="mt-1">{ec.body}</p>
+                  </FlowNotice>
                 );
               })()}
               <div className="space-y-2">
-                <label htmlFor="reconnect-code" className="text-sm font-medium">
+                <label htmlFor="reconnect-code" className="text-sm font-bold">
                   Pairing code
                 </label>
                 <Input
@@ -149,45 +129,40 @@ export function WordpressReconnect() {
                   autoComplete="off"
                   autoCapitalize="characters"
                   maxLength={16}
-                  className="uppercase tracking-widest"
+                  className="h-12 rounded-xl bg-card text-base uppercase tracking-widest"
                   disabled={phase === "approving"}
                 />
               </div>
-              <Button
-                onClick={handleApprove}
-                disabled={!code.trim() || phase === "approving"}
-                className="w-full"
-              >
+              <FlowButton onClick={handleApprove} disabled={!code.trim() || phase === "approving"}>
                 {phase === "approving" ? (
                   <span className="flex items-center gap-2">
-                    <Loader2 className="size-4 animate-spin" aria-hidden />
+                    <FlowSpinner className="size-4 border-brand-contrast/40 border-t-brand-contrast" />
                     Reconnecting…
                   </span>
                 ) : (
                   "Reconnect this site"
                 )}
-              </Button>
+              </FlowButton>
             </div>
           )}
 
           {ready && phase === "done" && (
             <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm font-medium text-success-on-tint">
-                <CheckCircle2 className="size-5" aria-hidden />
-                {adopted ? "Moved to your account!" : "Reconnected!"}
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {adopted
-                  ? `${host || "Your site"} is now connected to this account. You can close this tab — WordPress will pick it up automatically.`
-                  : `${host || "Your site"} is linked again. You can close this tab — WordPress will pick it up automatically.`}
-              </p>
-              <Button asChild>
+              <FlowNotice tone="ok" role="status">
+                <p className="font-bold">{adopted ? "Site moved to your account" : "Site reconnected"}</p>
+                <p className="mt-1">
+                  {adopted
+                    ? `${host || "Your site"} is now connected to this account. You can close this tab — WordPress will pick it up automatically.`
+                    : `${host || "Your site"} is linked again. You can close this tab — WordPress will pick it up automatically.`}
+                </p>
+              </FlowNotice>
+              <FlowButton asChild>
                 <Link href={HOME_ROUTE}>Go to dashboard</Link>
-              </Button>
+              </FlowButton>
             </div>
           )}
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </FlowCard>
+    </FlowPage>
   );
 }

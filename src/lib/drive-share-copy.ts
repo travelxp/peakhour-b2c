@@ -34,6 +34,6 @@ export function openedAtText(iso: string, locale?: string): string {
 }
 
 /** How long a locked link asks the visitor to wait: the api locks for a fixed time and says so in words, not a number. */
-export const LOCKED_TEXT = "Too many wrong passwords. Please try again in a few minutes.";
-export const GONE_TEXT = "This link does not exist or has expired.";
-export const ERROR_TEXT = "This file is not available right now. Please try again in a moment.";
+export const LOCKED_TEXT = "Too many wrong passwords. Try again in a few minutes.";
+export const GONE_TEXT = "This link has expired or doesn't exist. Ask the sender for a new one.";
+export const ERROR_TEXT = "We can't open this file right now. Try again in a moment.";

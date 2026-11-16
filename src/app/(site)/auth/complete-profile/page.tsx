@@ -4,18 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { updateProfile, sendOtp, verifyOtp } from "@/lib/auth";
 import { useAuth } from "@/providers/auth-provider";
-import { Button } from "@/components/ui/button";
+import { Smartphone, UserRound } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { ApiError } from "@/lib/api";
+import { FlowButton, FlowCard, FlowHead, FlowNotice, flowStage } from "@/components/marketing/flow/flow-kit";
 
 type Step = "profile" | "otp";
 
@@ -51,7 +44,7 @@ export default function CompleteProfilePage() {
       if (err instanceof ApiError) {
         setError(err.message);
       } else {
-        setError("Something went wrong. Please try again.");
+        setError("That didn’t save. Try again.");
       }
     } finally {
       setLoading(false);
@@ -72,7 +65,7 @@ export default function CompleteProfilePage() {
       if (err instanceof ApiError) {
         setError(err.message);
       } else {
-        setError("Invalid code. Please try again.");
+        setError("That code didn’t work. Check it and try again.");
       }
     } finally {
       setLoading(false);
@@ -88,124 +81,120 @@ export default function CompleteProfilePage() {
       if (err instanceof ApiError) {
         setError(err.message);
       } else {
-        setError("Failed to resend code.");
+        setError("The code didn’t send. Try again.");
       }
     }
   }
 
   if (step === "otp") {
     return (
-      <div className="flex flex-1 items-center justify-center px-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl font-bold">Verify your mobile</CardTitle>
-            <CardDescription>
-              We sent a 6-digit code to <strong>{mobile}</strong>
-            </CardDescription>
-          </CardHeader>
-          <form onSubmit={handleOtpSubmit} className="flex flex-col gap-6">
-            <CardContent className="space-y-4">
-              {error && (
-                <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive-on-tint">
-                  {error}
-                </div>
-              )}
-              <div className="space-y-2">
-                <Label htmlFor="otp">Verification code</Label>
-                <Input
-                  id="otp"
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]{6}"
-                  maxLength={6}
-                  placeholder="000000"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                  required
-                  autoFocus
-                  className="text-center text-lg tracking-widest"
-                />
-              </div>
-            </CardContent>
-            <CardFooter className="flex flex-col gap-3">
-              <Button type="submit" className="w-full" disabled={loading || otp.length !== 6}>
-                {loading ? "Verifying..." : "Verify"}
-              </Button>
-              <div className="flex gap-2 text-sm">
-                <button
-                  type="button"
-                  onClick={handleResendOtp}
-                  className="text-primary underline-offset-4 hover:underline"
-                >
-                  Resend code
-                </button>
-                <span className="text-muted-foreground">or</span>
-                <button
-                  type="button"
-                  onClick={() => router.push("/onboarding/add-business")}
-                  className="text-muted-foreground underline-offset-4 hover:underline"
-                >
-                  Skip for now
-                </button>
-              </div>
-            </CardFooter>
+      <div className={flowStage}>
+        <FlowCard className="max-w-md">
+          <FlowHead icon={Smartphone} title="Confirm your mobile number">
+            We sent a 6-digit code to <strong className="text-foreground">{mobile}</strong>
+          </FlowHead>
+          <form onSubmit={handleOtpSubmit} className="mt-6 flex flex-col gap-4">
+            {error && (
+              <FlowNotice tone="bad" role="alert">
+                {error}
+              </FlowNotice>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="otp" className="font-bold">
+                Verification code
+              </Label>
+              <Input
+                id="otp"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]{6}"
+                maxLength={6}
+                placeholder="000000"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                required
+                autoFocus
+                autoComplete="one-time-code"
+                className="h-12 rounded-xl bg-card text-center text-lg tracking-widest"
+              />
+            </div>
+            <FlowButton type="submit" disabled={loading || otp.length !== 6}>
+              {loading ? "Confirming…" : "Confirm"}
+            </FlowButton>
+            <div className="flex items-center justify-center gap-1 text-sm">
+              <FlowButton type="button" variant="quiet" inline className="min-h-11 px-4" onClick={handleResendOtp}>
+                Resend code
+              </FlowButton>
+              <span className="text-muted-foreground" aria-hidden>
+                or
+              </span>
+              <FlowButton
+                type="button"
+                variant="quiet"
+                inline
+                className="min-h-11 px-4"
+                onClick={() => router.push("/onboarding/add-business")}
+              >
+                Skip for now
+              </FlowButton>
+            </div>
           </form>
-        </Card>
+        </FlowCard>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center px-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">Complete your profile</CardTitle>
-          <CardDescription>
-            Tell us a bit about yourself
-          </CardDescription>
-        </CardHeader>
-        <form onSubmit={handleProfileSubmit} className="flex flex-col gap-6">
-          <CardContent className="space-y-4">
-            {error && (
-              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive-on-tint">
-                {error}
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="name">Full name</Label>
-              <Input
-                id="name"
-                type="text"
-                placeholder="John Doe"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                autoComplete="name"
-                autoFocus
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="mobile">Mobile number (optional)</Label>
-              <Input
-                id="mobile"
-                type="tel"
-                placeholder="+91 98765 43210"
-                value={mobile}
-                onChange={(e) => setMobile(e.target.value)}
-                autoComplete="tel"
-              />
-              <p className="text-xs text-muted-foreground">
-                We&apos;ll send a verification code if provided
-              </p>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button type="submit" className="w-full" disabled={loading || !name.trim()}>
-              {loading ? "Saving..." : "Continue"}
-            </Button>
-          </CardFooter>
+    <div className={flowStage}>
+      <FlowCard className="max-w-md">
+        <FlowHead icon={UserRound} title="Finish your profile">
+          Add your name to continue. A mobile number is optional.
+        </FlowHead>
+        <form onSubmit={handleProfileSubmit} className="mt-6 flex flex-col gap-4">
+          {error && (
+            <FlowNotice tone="bad" role="alert">
+              {error}
+            </FlowNotice>
+          )}
+          <div className="space-y-2">
+            <Label htmlFor="name" className="font-bold">
+              Full name
+            </Label>
+            <Input
+              id="name"
+              type="text"
+              placeholder="Your full name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              autoComplete="name"
+              autoFocus
+              className="h-12 rounded-xl bg-card text-base"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="mobile" className="font-bold">
+              Mobile number (optional)
+            </Label>
+            <Input
+              id="mobile"
+              type="tel"
+              placeholder="+91 98765 43210"
+              value={mobile}
+              onChange={(e) => setMobile(e.target.value)}
+              autoComplete="tel"
+              aria-describedby="mobile-hint"
+              className="h-12 rounded-xl bg-card text-base"
+            />
+            <p id="mobile-hint" className="text-xs text-muted-foreground">
+              If you add one, we&apos;ll text you a code to confirm it.
+            </p>
+          </div>
+          <FlowButton type="submit" disabled={loading || !name.trim()}>
+            {loading ? "Saving…" : "Continue"}
+          </FlowButton>
         </form>
-      </Card>
+      </FlowCard>
     </div>
   );
 }

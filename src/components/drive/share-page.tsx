@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { FileDown, FileX2, Lock, ShieldCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { FlowButton, FlowCard, FlowHead, FlowNotice, FlowPage, FlowSpinner } from "@/components/marketing/flow/flow-kit";
 import { fetchSharePage, openSharedFile, type SharePageState } from "@/lib/api/drive-share";
 import { ERROR_TEXT, GONE_TEXT, LOCKED_TEXT, visitorNotice } from "@/lib/drive-share-copy";
 
@@ -45,74 +45,79 @@ export interface SharePageViewProps {
 export function SharePageView({ view, password, busy, onPassword, onOpen }: SharePageViewProps) {
   if (view.step === "loading") {
     return (
-      <Card aria-busy="true">
-        <CardContent className="py-10 text-center text-sm text-muted-foreground">Checking this link.</CardContent>
-      </Card>
+      <FlowCard aria-busy="true">
+        <h1 className="sr-only">Shared file</h1>
+        <p role="status" className="flex items-center justify-center gap-2.5 py-8 text-sm text-muted-foreground">
+          <FlowSpinner />
+          Checking this link.
+        </p>
+      </FlowCard>
     );
   }
   if (view.step === "gone" || view.step === "error") {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>{view.step === "gone" ? "This link can't be used" : "This file isn't available"}</CardTitle>
-          <CardDescription role="alert">{view.step === "gone" ? GONE_TEXT : ERROR_TEXT}</CardDescription>
-        </CardHeader>
-      </Card>
+      <FlowCard>
+        <FlowHead icon={FileX2} tone={view.step === "gone" ? "warn" : "bad"} title={view.step === "gone" ? "This link can't be used" : "This file isn't available"}>
+          <span role="alert">{view.step === "gone" ? GONE_TEXT : ERROR_TEXT}</span>
+        </FlowHead>
+      </FlowCard>
     );
   }
   if (view.step === "opened") {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Your file is on its way</CardTitle>
-          <CardDescription>{view.name} should open or download now. If it does not, use the button below.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3">
-          <Button asChild>
+      <FlowCard>
+        <FlowHead icon={FileDown} tone="ok" title="Your file is on its way">
+          {view.name} should open or download now. If it does not, use the button below.
+        </FlowHead>
+        <div className="mt-5 grid gap-3">
+          <FlowButton asChild>
             <a href={safeFileUrl(view.url) ?? "#"} rel="noreferrer">Open file</a>
-          </Button>
-          {view.retentionDays > 0 ? <p className="text-xs text-muted-foreground">{visitorNotice(view.retentionDays)}</p> : null}
-        </CardContent>
-      </Card>
+          </FlowButton>
+          {view.retentionDays > 0 ? <p className="text-sm text-muted-foreground">{visitorNotice(view.retentionDays)}</p> : null}
+        </div>
+      </FlowCard>
     );
   }
   const needsPassword = view.passwordRequired;
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{needsPassword ? "Enter the password to open this file" : "Someone shared a file with you"}</CardTitle>
+    <FlowCard>
+      <FlowHead
+        icon={needsPassword ? Lock : ShieldCheck}
+        title={needsPassword ? "Enter the password to open this file" : "Someone shared a file with you"}
+      >
         {/* The notice is part of the page, visible before anything can be pressed. */}
-        <CardDescription data-testid="visitor-notice">{visitorNotice(view.retentionDays)}</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-3">
+        <span data-testid="visitor-notice">{visitorNotice(view.retentionDays)}</span>
+      </FlowHead>
+      <div className="mt-5 grid gap-3">
         {view.locked ? (
-          <p role="alert" className="text-sm text-destructive-on-tint">{LOCKED_TEXT}</p>
+          <FlowNotice tone="bad" role="alert">{LOCKED_TEXT}</FlowNotice>
         ) : (
           <>
             {needsPassword ? (
               <div className="grid gap-1.5">
-                <label htmlFor="share-password" className="text-sm font-medium">Password</label>
+                <label htmlFor="share-password" className="text-sm font-bold">Password</label>
                 <Input
                   id="share-password"
                   type="password"
                   autoComplete="off"
                   value={password}
+                  className="h-12 rounded-xl bg-card text-base"
                   onChange={(e) => onPassword(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !busy && password.length > 0) onOpen();
                   }}
                 />
-                {view.wrongPassword ? <p role="alert" className="text-sm text-destructive-on-tint">That password is not right.</p> : null}
+                {view.wrongPassword ? <FlowNotice tone="bad" role="alert" className="mt-1">That password isn’t right. Try again.</FlowNotice> : null}
               </div>
             ) : null}
-            {view.failed ? <p role="alert" className="text-sm text-destructive-on-tint">{ERROR_TEXT}</p> : null}
-            <Button onClick={onOpen} disabled={busy || (needsPassword && password.length === 0)}>
+            {view.failed ? <FlowNotice tone="bad" role="alert">{ERROR_TEXT}</FlowNotice> : null}
+            <FlowButton onClick={onOpen} disabled={busy || (needsPassword && password.length === 0)}>
               {busy ? "Opening." : "Open file"}
-            </Button>
+            </FlowButton>
           </>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </FlowCard>
   );
 }
 
@@ -178,8 +183,8 @@ export function SharePage({ token, load = fetchSharePage, open = openSharedFile,
   }
 
   return (
-    <div className="mx-auto grid min-h-[70vh] w-full max-w-lg content-center gap-4 px-4 py-10">
+    <FlowPage>
       <SharePageView view={view} password={password} busy={busy} onPassword={setPassword} onOpen={onOpen} />
-    </div>
+    </FlowPage>
   );
 }

@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { CheckCircle2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { FlowButton, FlowNotice } from "@/components/marketing/flow/flow-kit";
 import { CLOSE_TAB_HINT, type DoneCopy } from "./claim-copy";
 
 /**
@@ -12,20 +11,19 @@ import { CLOSE_TAB_HINT, type DoneCopy } from "./claim-copy";
 export function ClaimDone({ done }: { done: DoneCopy }) {
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2 text-sm font-medium text-success-on-tint">
-        <CheckCircle2 className="size-5" aria-hidden />
-        {done.title}
-      </div>
-      <p className="text-sm text-muted-foreground">{done.body}</p>
+      <FlowNotice tone="ok" role="status">
+        <p className="font-bold">{done.title}</p>
+        <p className="mt-1">{done.body}</p>
+      </FlowNotice>
       <p className="text-sm text-muted-foreground">{CLOSE_TAB_HINT}</p>
       <div className="flex flex-col gap-2 sm:flex-row">
-        <Button asChild>
+        <FlowButton asChild className="sm:flex-1">
           <Link href="/dashboard">Go to dashboard</Link>
-        </Button>
+        </FlowButton>
         {done.integrationsHint && (
-          <Button asChild variant="outline">
+          <FlowButton asChild variant="ghost" className="sm:flex-1">
             <Link href="/dashboard/integrations">See it in Connected accounts</Link>
-          </Button>
+          </FlowButton>
         )}
       </div>
     </div>
