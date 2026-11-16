@@ -8,8 +8,8 @@ const S = {
 };
 
 /** Shopify's own product: factual and respectful, sourced from Shopify's own pages only. */
-export const SHOPIFY_INBOX: CompetitorBrief = {
-  slug: "shopify-inbox",
+export const SHOPIFY_INBOX = {
+  slug: "shopify-inbox" as const,
   pageId: "shopify.compare.shopify.inbox",
   name: "Shopify Inbox",
   url: "https://apps.shopify.com/inbox",
@@ -78,4 +78,4 @@ export const SHOPIFY_INBOX: CompetitorBrief = {
     { q: "Do I need Peakhour if I have Shopify Inbox?", a: "Not necessarily. Inbox is described as free and covers chat and a sales associate. Peakhour is an option when you also want product shelves and cash-on-delivery confirmation on WhatsApp." },
     { q: "Where does this information come from?", a: "Only from Shopify's own pages, each linked in the table with the date we read it." },
   ],
-};
+} satisfies CompetitorBrief;

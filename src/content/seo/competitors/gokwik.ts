@@ -9,8 +9,8 @@ const S = {
   shopify: { href: "https://www.gokwik.co/platform/shopify", label: "GoKwik for Shopify" },
 };
 
-export const GOKWIK: CompetitorBrief = {
-  slug: "gokwik",
+export const GOKWIK = {
+  slug: "gokwik" as const,
   pageId: "shopify.compare.gokwik",
   name: "GoKwik",
   url: "https://www.gokwik.co/",
@@ -92,4 +92,4 @@ export const GOKWIK: CompetitorBrief = {
     { q: "Is there a GoKwik alternative for Shopify?", a: "Peakhour does not replace a checkout. If you want an AI shopping assistant and product shelves on your storefront, and WhatsApp confirmation of cash-on-delivery orders, it may fit; for one-click checkout, check GoKwik's own pages." },
     { q: "Where does this information come from?", a: "Only from GoKwik's own public pages, each linked in the table with the date we read it." },
   ],
-};
+} satisfies CompetitorBrief;

@@ -8,8 +8,8 @@ const S = {
 };
 
 /** CMP-B. Gorgias is a helpdesk: only the pre-sales assistant use case is compared (registry audit note). */
-export const GORGIAS: CompetitorBrief = {
-  slug: "gorgias",
+export const GORGIAS = {
+  slug: "gorgias" as const,
   pageId: "shopify.compare.gorgias",
   name: "Gorgias",
   url: "https://www.gorgias.com/",
@@ -88,4 +88,4 @@ export const GORGIAS: CompetitorBrief = {
     { q: "Does Peakhour replace Gorgias?", a: "No. Peakhour does not offer a helpdesk today. It is an option for the pre-sales job: an assistant and product shelves on the storefront, answering from your catalogue." },
     { q: "Where does this information come from?", a: "Only from Gorgias's own public pages, each linked in the table with the date we read it." },
   ],
-};
+} satisfies CompetitorBrief;

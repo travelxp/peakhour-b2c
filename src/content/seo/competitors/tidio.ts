@@ -7,8 +7,8 @@ const S = {
   lyro: { href: "https://www.tidio.com/lyro/", label: "Tidio Lyro AI agent" },
 };
 
-export const TIDIO: CompetitorBrief = {
-  slug: "tidio",
+export const TIDIO = {
+  slug: "tidio" as const,
   pageId: "shopify.compare.tidio",
   name: "Tidio",
   url: "https://www.tidio.com/",
@@ -86,4 +86,4 @@ export const TIDIO: CompetitorBrief = {
     { q: "Is there a Tidio alternative for Shopify?", a: "Peakhour is one option, with an assistant and product shelves on the storefront, and cash-on-delivery confirmation on WhatsApp. Check Tidio's own pages for live chat and Lyro." },
     { q: "Where does this information come from?", a: "Only from Tidio's own public pages, each linked in the table with the date we read it." },
   ],
-};
+} satisfies CompetitorBrief;

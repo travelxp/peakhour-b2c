@@ -10,8 +10,8 @@ const S = {
   chatButton: { href: "https://www.wati.io/whatsapp-chat-button/", label: "Wati WhatsApp chat button" },
 };
 
-export const WATI: CompetitorBrief = {
-  slug: "wati",
+export const WATI = {
+  slug: "wati" as const,
   pageId: "shopify.compare.wati",
   name: "Wati",
   url: "https://www.wati.io/",
@@ -99,4 +99,4 @@ export const WATI: CompetitorBrief = {
     { q: "Is there a Wati alternative for Shopify?", a: "Peakhour is one option if you want an AI shopping assistant and product shelves on your storefront. If a team shared inbox and broadcasts are your main use, check Wati's own pages first." },
     { q: "Where does this information come from?", a: "Only from Wati's own public pages, each linked in the table with the date we read it." },
   ],
-};
+} satisfies CompetitorBrief;

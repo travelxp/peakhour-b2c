@@ -2,6 +2,7 @@ import { SHOPIFY_HERO, SHOPIFY_SEO } from "@/lib/shopify-features";
 import { SEO9_PAGES } from "./pages-seo9";
 import { SF2_PAGES } from "./pages-sf2";
 import { COMPETITOR_BRIEFS } from "@/content/seo/competitors";
+import { compareRoute } from "@/content/seo/competitors/route";
 import type { CtaKind, EditorialStatus, PageFamily, PageRecord, PageScope, Pillar, Surface } from "./types";
 
 /*
@@ -475,25 +476,26 @@ export const PAGES: readonly PageRecord[] = [
     cta: { label: "Install on Shopify", href: "/shopify", kind: "install" },
     relatedIds: ["shopify", "pricing", "commerce"],
   }),
-  // SEO-10: the wave-1 Shopify comparisons. At `review` they render on dev with the draft ribbon and 404 on
+  // SEO-10, CMP-A and CMP-C: the comparison drafts, Shopify and global. At `review` they render on dev with the draft ribbon and 404 on
   // production until Growth signs off each source (plan D4, Q1). capabilityIds hold only what the Peakhour cells claim.
-  ...COMPETITOR_BRIEFS.map((b) =>
-    page({
+  ...COMPETITOR_BRIEFS.map((b) => {
+    const route = compareRoute(b);
+    return page({
       pageId: b.pageId,
-      path: `/shopify/compare/${b.slug}`,
-      family: "shopify-compare",
-      surface: "shopify",
-      primaryPillar: "commerce",
+      path: route.path,
+      family: route.family,
+      surface: route.surface,
+      primaryPillar: b.pillar ?? "commerce",
       capabilityIds: [...new Set(b.claims.map((c) => c.peakhour.capabilityId).filter((id): id is string => !!id))],
       title: b.title,
       description: b.description,
       h1: b.h1,
       cta: LAUNCH_PARTNER_CTA,
-      relatedIds: ["shopify", "pricing"],
+      relatedIds: b.relatedIds ?? ["shopify", "pricing"],
       editorialStatus: "review",
       indexable: false,
-    }),
-  ),
+    });
+  }),
 ];
 
 const BY_ID = new Map(PAGES.map((p) => [p.pageId, p]));

@@ -9,8 +9,8 @@ const S = {
 };
 const R = "Not stated on the page (it says charges are always in USD)";
 
-export const ZOKO: CompetitorBrief = {
-  slug: "zoko",
+export const ZOKO = {
+  slug: "zoko" as const,
   pageId: "shopify.compare.zoko",
   name: "Zoko",
   url: "https://www.zoko.io/",
@@ -98,4 +98,4 @@ export const ZOKO: CompetitorBrief = {
     { q: "Is there a Zoko alternative for Shopify?", a: "Peakhour is one option if you want an AI shopping assistant and product shelves on your storefront. If selling inside WhatsApp is your main use, check Zoko's own pages first." },
     { q: "Where does this information come from?", a: "Only from Zoko's own public pages, each linked in the table with the date we read it." },
   ],
-};
+} satisfies CompetitorBrief;

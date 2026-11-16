@@ -8,8 +8,8 @@ const S = {
   listing: { href: "https://apps.shopify.com/manifest-ai-shopping-assistant", label: "Manifest AI on the Shopify App Store" },
 };
 
-export const MANIFEST_AI: CompetitorBrief = {
-  slug: "manifest-ai",
+export const MANIFEST_AI = {
+  slug: "manifest-ai" as const,
   pageId: "shopify.compare.manifest.ai",
   name: "Manifest AI",
   url: "https://getmanifest.ai/",
@@ -84,4 +84,4 @@ export const MANIFEST_AI: CompetitorBrief = {
     { q: "Is there a Manifest AI alternative for Shopify?", a: "Peakhour is one option, with an assistant and product shelves on the storefront, and a checkout link sent on WhatsApp when a shopper agrees to buy. Check Manifest AI's own pages for its channels." },
     { q: "Where does this information come from?", a: "Only from Manifest AI's own site and its Shopify App Store listing, each linked in the table with the date we read it." },
   ],
-};
+} satisfies CompetitorBrief;

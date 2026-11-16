@@ -8,8 +8,8 @@ const S = {
 };
 
 /** Shopify's own product, and a different job: Sidekick helps the merchant in the admin; it is not a shopper-facing chat. */
-export const SIDEKICK: CompetitorBrief = {
-  slug: "shopify-sidekick",
+export const SIDEKICK = {
+  slug: "shopify-sidekick" as const,
   pageId: "shopify.compare.sidekick",
   name: "Shopify Sidekick",
   url: "https://www.shopify.com/sidekick",
@@ -78,4 +78,4 @@ export const SIDEKICK: CompetitorBrief = {
     { q: "Is Shopify Sidekick a customer chatbot?", a: "Shopify's pages describe it as an assistant for the merchant in the admin, not a chat for shoppers. Shopify's shopper chat is Shopify Inbox." },
     { q: "Where does this information come from?", a: "Only from Shopify's own pages, each linked in the table with the date we read it." },
   ],
-};
+} satisfies CompetitorBrief;
