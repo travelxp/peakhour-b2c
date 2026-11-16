@@ -40,6 +40,8 @@ export const FIXTURE_PAGES: PageRecord[] = [
   base({ pageId: "fx.boutique.a", path: "/boutique" }),
   base({ pageId: "fx.boutique.b", path: "/shop-b", locales: { "fr-CA": { path: "/fr-ca/boutique", status: "published", reviewer: "fixture" } } }),
   base({ pageId: "fx.orphan", path: "/fx/orphan", parentId: "does.not.exist" }),
+  // A translated slug with a non-ASCII character: the URL arrives percent-encoded.
+  base({ pageId: "fx.accent", path: "/fx/features", locales: { "fr-CA": { path: "/fr-ca/fonctionnalités", status: "published", reviewer: "fixture" } } }),
   base({ pageId: "fx.draft", path: "/fx/draft", locales: { "fr-CA": { path: "/fr-ca/fx/draft", status: "review" } } }),
 ];
 

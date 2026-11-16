@@ -5,7 +5,8 @@ import { isIndexableDeployment } from "./indexable";
 import { PAGES } from "./pages";
 import { isPublishable } from "./publish";
 import { pathFor } from "./resolve";
-import { DEFAULT_LOCALE, LOCALES, type PageRecord } from "./types";
+import { hreflangCluster } from "./hreflang";
+import { DEFAULT_LOCALE, type Locale, type PageRecord } from "./types";
 
 /*
  * The sitemap, built from the registry alone (SEO-6). A page is listed when `isPublishable` says so
@@ -74,7 +75,7 @@ export async function sitemapEntries(name: SitemapName, env: Env = process.env):
     if (!isPublishable(page)) return [];
     if (gated && !isListedThroughGate(page.path)) return [];
     const lastModified = iso(page.lastReviewedAt);
-    const urlOf = (locale: (typeof LOCALES)[number]) => {
+    const urlOf = (locale: Locale) => {
       const path = pathFor(page.pageId, locale);
       return path === "/" ? `${base()}/` : `${base()}${path}`;
     };
@@ -82,13 +83,11 @@ export async function sitemapEntries(name: SitemapName, env: Env = process.env):
     // Published non-English variants are listed too, each with the same hreflang cluster pageMeta emits on the
     // page (SEO-4). None is published today, so this adds nothing. With the gate on none is listed: a locale
     // path is never one the gate lets through.
-    const variants = gated ? [] : LOCALES.filter((l) => l !== DEFAULT_LOCALE && isPublishable(page, l));
-    if (variants.length === 0) return [english];
-    const urls = new Map<string, string>([[DEFAULT_LOCALE, english.url]]);
-    for (const l of variants) urls.set(l, urlOf(l));
-    const alternates: Record<string, string> = Object.fromEntries(urls);
-    alternates["x-default"] = english.url;
-    return [...urls].map(([, url]) => ({ url, ...(lastModified ? { lastModified } : {}), alternates }));
+    const alternates = gated ? undefined : hreflangCluster(page, urlOf);
+    if (!alternates) return [english];
+    return Object.entries(alternates)
+      .filter(([hreflang]) => hreflang !== "x-default")
+      .map(([, url]) => ({ url, ...(lastModified ? { lastModified } : {}), alternates }));
   });
 }
 

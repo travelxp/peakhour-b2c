@@ -1,4 +1,4 @@
-import { LOCALE_ROUTE_BASE, localeFromPrefix } from "@/i18n/config";
+import { LOCALE_ROUTE_BASE, isPublishedLocale, localeFromPrefix } from "@/i18n/config";
 import { PAGES } from "./pages";
 import { isPublishable } from "./publish";
 import { DEFAULT_LOCALE, type Locale, type PageRecord } from "./types";
@@ -25,7 +25,6 @@ export type LocaleRoute =
   | { kind: "rewrite"; locale: Locale; page: PageRecord; target: string }
   | { kind: "not-found"; locale: Locale };
 
-/** The registry page whose URL in `locale` is exactly `pathname`, or undefined. */
 /**
  * Keyed by `${locale}|${path}`, built once. A non-English URL is matched ONLY against a page that declares
  * an explicit variant for that locale, so a page with no variant can never shadow a translated slug.
@@ -38,8 +37,19 @@ for (const p of PAGES) {
   }
 }
 
+/** The registry page whose URL in `locale` is exactly `pathname` (percent-decoded), or undefined. */
 export function pageAtPath(pathname: string, locale: Locale): PageRecord | undefined {
-  return BY_LOCALE_PATH.get(`${locale}|${pathname}`);
+  const decoded = safeDecode(pathname);
+  return decoded === null ? undefined : BY_LOCALE_PATH.get(`${locale}|${decoded}`);
+}
+
+/** The percent-decoded path, or null for malformed input (treated as no match, never a throw). A translated slug may be non-ASCII. */
+function safeDecode(pathname: string): string | null {
+  try {
+    return decodeURIComponent(pathname);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -54,6 +64,24 @@ export function resolveLocaleRoute(pathname: string): LocaleRoute | null {
   if (!page || !isPublishable(page, locale)) return { kind: "not-found", locale };
   const tail = rest.length ? `/${rest.join("/")}` : "";
   return { kind: "rewrite", locale, page, target: `${LOCALE_ROUTE_BASE}/${locale}${tail}` };
+}
+
+/**
+ * What the localized route may render, from the request alone: the route param, the locale header the
+ * middleware stamped, and the path header it stamped. The route does not trust the rewrite: it re-runs the
+ * resolution from the path header and requires the very same locale and a publishable page. English is never
+ * served here (its URLs are the ordinary routes), and a forged header on a path that skips the middleware
+ * (a dotted path) cannot make a page render, because the path must resolve to a rewrite for this locale.
+ */
+export function resolveLocalizedRequest(
+  localeParam: string,
+  localeHeader: string | null,
+  pathHeader: string | null,
+): { page: PageRecord; locale: Locale } | null {
+  if (!isPublishedLocale(localeParam) || localeParam === DEFAULT_LOCALE || localeHeader !== localeParam) return null;
+  const route = resolveLocaleRoute(pathHeader ?? "");
+  if (route?.kind !== "rewrite" || route.locale !== localeParam) return null;
+  return { page: route.page, locale: localeParam };
 }
 
 /**

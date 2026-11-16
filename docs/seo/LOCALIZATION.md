@@ -37,6 +37,14 @@ Use `fr-CA` as the example. Every step is a PR; nothing is published until step 
 | `npx tsx scripts/seo/smoke.ts <dev url>` | unpublished locale URLs are real 404s; no hreflang on English while only English is published |
 | a11y smoke | the switcher is a labelled `nav` with `lang` and `hrefLang` on each link |
 
+## Must fix before the first language
+
+Found in review; none is observable while only English is published, all are before the first non-English page goes live.
+
+- **`<html lang>` goes stale on client navigation between locales.** The root layout reads the locale per request, but a client-side navigation from `/fr-ca/...` to an English page does not re-render the layout. Either the locale must live in a route segment above the layout, or a locale switch must be a hard navigation (a plain `<a>`, no router prefetch or soft navigation).
+- **Share cards are English.** The Open Graph and Twitter images and their alt text (`/og/<pageId>.png`, `alt: page.h1`) are not per locale. Each published locale needs its own card with its own heading and alt text.
+- **The switcher's "current" on a locale 404 page.** `Header` takes the current locale from `getLocale()`, which is English on the 404 a locale URL rewrites to. It should use the locale the URL resolved to (`localeFromPrefix` of the path header).
+
 ## Things that are deliberately not done
 
 - No locale detection or redirects, and no locale cookie.

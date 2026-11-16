@@ -45,7 +45,8 @@ const FOOTER_GROUPS = [
 
 /** The footer with its strings resolved for the request's locale. */
 export async function Footer() {
-  return <FooterView t={await getTranslations("Footer")} commonT={await getTranslations("Common")} />;
+  const [t, commonT] = await Promise.all([getTranslations("Footer"), getTranslations("Common")]);
+  return <FooterView t={t} commonT={commonT} />;
 }
 
 /** Sync and prop-driven so it renders without a request (the English-text test renders it). */
@@ -64,7 +65,7 @@ export function FooterView({ t, commonT }: { t: Translate; commonT: Translate })
               <PeakhourLogo className="h-7 w-auto" decorative />
             </Link>
             <p className="mt-4 text-sm text-muted-foreground">
-              {t("tagline", { tagline: SITE.tagline })}
+              {t("tagline")}
             </p>
             <span
               className="mt-4 inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold text-muted-foreground"

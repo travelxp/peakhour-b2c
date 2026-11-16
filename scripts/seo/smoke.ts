@@ -211,7 +211,7 @@ async function main() {
     redirect: "manual",
     headers: { "user-agent": "peakhour-seo-smoke", "accept-language": "fr-CA,fr;q=0.9", cookie: "NEXT_LOCALE=fr-ca" },
   });
-  check("/pricing is not redirected by Accept-Language or a locale cookie", lang.status !== 307 && lang.status !== 308 && !lang.headers.get("location"), `${lang.status} ${lang.headers.get("location")}`);
+  check("/pricing is not redirected by Accept-Language or a locale cookie", (lang.status < 300 || lang.status >= 400) && !lang.headers.get("location"), `${lang.status} ${lang.headers.get("location")}`);
 
   console.log(failed === 0 ? "\nALL PASS" : `\n${failed} FAILED`);
   process.exit(failed === 0 ? 0 : 1);

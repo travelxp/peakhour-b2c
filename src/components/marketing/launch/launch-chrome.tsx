@@ -41,7 +41,8 @@ export const LAUNCH_STEPS: { title: string; body: string }[] = [
 
 /** The top bar with its strings resolved for the request's locale (messages: Launch, Common). */
 export async function LaunchTopBar({ back = false }: { back?: boolean }) {
-  return <LaunchTopBarView back={back} t={await getTranslations("Launch")} commonT={await getTranslations("Common")} />;
+  const [t, commonT] = await Promise.all([getTranslations("Launch"), getTranslations("Common")]);
+  return <LaunchTopBarView back={back} t={t} commonT={commonT} />;
 }
 
 /** Sync and prop-driven so the English-text test renders it without a request. */
@@ -109,7 +110,8 @@ export function LaunchSteps({ tone = "light" }: { tone?: "light" | "ink" }) {
 
 /** The legal footer with its strings resolved for the request's locale (messages: Footer, Launch). */
 export async function LaunchFooter() {
-  return <LaunchFooterView footerT={await getTranslations("Footer")} t={await getTranslations("Launch")} />;
+  const [footerT, t] = await Promise.all([getTranslations("Footer"), getTranslations("Launch")]);
+  return <LaunchFooterView footerT={footerT} t={t} />;
 }
 
 export function LaunchFooterView({ footerT, t }: { footerT: Translate; t: Translate }) {

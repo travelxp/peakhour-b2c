@@ -17,8 +17,8 @@ import { NextRequest } from "next/server";
 import { renderUrlset, sitemapEntries } from "./sitemap";
 import { LanguageSwitcherView } from "@/components/shared/language-switcher";
 import { languageOptions } from "./language-options";
-import { resolveLocaleRoute, pageAtPath, pageForPublicPath } from "./locale-route";
-import { pageMeta } from "./metadata";
+import { resolveLocaleRoute, resolveLocalizedRequest, pageAtPath, pageForPublicPath } from "./locale-route";
+import { absoluteUrl, pageMeta } from "./metadata";
 import { PAGES, getPage } from "./pages";
 import { isPublishable } from "./publish";
 import { contentFor } from "./page-content";
@@ -73,6 +73,14 @@ describe("a fixture locale is published", () => {
       expect(resolveLocaleRoute("/fr-ca/boutique")).toMatchObject({ kind: "rewrite", page: { pageId: "fx.boutique.b" } });
       expect(pageAtPath("/fr-ca/shop-b", "fr-CA")).toBeUndefined();
       expect(pageAtPath("/fr-ca/boutique", "de")).toBeUndefined();
+    });
+
+    it("matches a percent-encoded non-ASCII translated slug, and treats malformed encoding as no match", () => {
+      expect(resolveLocaleRoute("/fr-ca/fonctionnalit%C3%A9s")).toMatchObject({ kind: "rewrite", page: { pageId: "fx.accent" }, target: "/ph-locale/fr-CA/fonctionnalit%C3%A9s" });
+      expect(resolveLocaleRoute("/fr-ca/fonctionnalités")).toMatchObject({ kind: "rewrite" });
+      expect(resolveLocaleRoute("/fr-ca/fonctionnalit%E9s")).toEqual({ kind: "not-found", locale: "fr-CA" });
+      expect(resolveLocaleRoute("/fr-ca/%")).toEqual({ kind: "not-found", locale: "fr-CA" });
+      expect(pageForPublicPath("/fr-ca/fonctionnalit%C3%A9s")?.page.pageId).toBe("fx.accent");
     });
 
     it("finds the page behind a public URL, for the language switcher", () => {
@@ -189,6 +197,49 @@ describe("a fixture locale is published", () => {
           if (v === undefined) delete process.env[k];
           else process.env[k] = v;
         }
+      }
+    });
+  });
+
+  describe("the hreflang cluster is one decision", () => {
+    it("pageMeta and the sitemap read the same cluster for every registry page", async () => {
+      const keep = { VERCEL_ENV: process.env.VERCEL_ENV, COMING_SOON: process.env.COMING_SOON };
+      process.env.VERCEL_ENV = "production";
+      delete process.env.COMING_SOON;
+      try {
+        const entries = await sitemapEntries("core");
+        let clusters = 0;
+        for (const page of PAGES) {
+          if (!entries.some((e) => e.url === absoluteUrl(page.pageId))) continue;
+          const fromMeta = pageMeta(page.pageId, "en").alternates?.languages;
+          const fromSitemap = entries.find((e) => e.url === absoluteUrl(page.pageId))?.alternates;
+          expect(fromSitemap, page.pageId).toEqual(fromMeta);
+          if (fromMeta) clusters++;
+        }
+        expect(clusters).toBeGreaterThan(0);
+      } finally {
+        for (const [k, v] of Object.entries(keep)) {
+          if (v === undefined) delete process.env[k];
+          else process.env[k] = v;
+        }
+      }
+    });
+  });
+
+  describe("localized requests", () => {
+    const ok = (l: string, lh: string | null, ph: string | null) => resolveLocalizedRequest(l, lh, ph);
+    it("renders a published variant when the param, the locale header and the path header agree", () => {
+      expect(ok("fr-CA", "fr-CA", "/fr-ca/fx/leaf")).toMatchObject({ locale: "fr-CA", page: { pageId: "fx.leaf" } });
+    });
+    it("refuses English, a missing or different header, and an unpublished locale", () => {
+      expect(ok("en", "en", "/fx/leaf")).toBeNull();
+      expect(ok("fr-CA", null, "/fr-ca/fx/leaf")).toBeNull();
+      expect(ok("fr-CA", "de", "/fr-ca/fx/leaf")).toBeNull();
+      expect(ok("de", "de", "/de/fx/leaf")).toBeNull();
+    });
+    it("refuses forged headers: a path that is not a published page of that locale cannot render", () => {
+      for (const path of ["/fx/leaf", "/fr-ca/fx/draft", "/fr-ca/fx/child", "/de/fx", "/fr-ca/nothing", "", null]) {
+        expect(ok("fr-CA", "fr-CA", path), String(path)).toBeNull();
       }
     });
   });

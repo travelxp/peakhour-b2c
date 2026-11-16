@@ -4,12 +4,10 @@ import { notFound } from "next/navigation";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { PAGE_CONTENT } from "@/content/pages";
-import { LOCALE_HEADER, PATH_HEADER, isPublishedLocale } from "@/i18n/config";
+import { LOCALE_HEADER, PATH_HEADER } from "@/i18n/config";
 import { pageMeta } from "@/lib/seo/metadata";
 import { contentFor } from "@/lib/seo/page-content";
-import { pageAtPath } from "@/lib/seo/locale-route";
-import { isPublishable } from "@/lib/seo/publish";
-import type { Locale } from "@/lib/seo/types";
+import { resolveLocalizedRequest } from "@/lib/seo/locale-route";
 
 /**
  * The internal route every published non-English marketing page renders through. NOT a public URL: the
@@ -27,17 +25,17 @@ type Params = { locale: string; path?: string[] };
 async function resolve(params: Promise<Params>) {
   const { locale } = await params;
   const h = await headers();
-  if (!isPublishedLocale(locale) || h.get(LOCALE_HEADER) !== locale) return null;
-  const page = pageAtPath(h.get(PATH_HEADER) ?? "", locale);
-  if (!page || !isPublishable(page, locale)) return null;
-  const content = contentFor(PAGE_CONTENT[page.pageId], locale);
+  const req = resolveLocalizedRequest(locale, h.get(LOCALE_HEADER), h.get(PATH_HEADER));
+  if (!req) return null;
+  const content = contentFor(PAGE_CONTENT[req.page.pageId], req.locale);
   if (!content) return null;
-  return { page, locale: locale as Locale, content };
+  return { page: req.page, locale: req.locale, content };
 }
 
 export async function generateMetadata({ params }: { params: Promise<Params> }): Promise<Metadata> {
   const found = await resolve(params);
-  if (!found) return {};
+  // Not a page this route may render: it 404s, and it says noindex (belt and braces; a 404 is already out of the index).
+  if (!found) return { robots: { index: false, follow: false } };
   return pageMeta(found.page.pageId, found.locale, found.content);
 }
 

@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { SITE } from "@/lib/utils";
 import { getPage } from "./pages";
 import { pathFor } from "./resolve";
+import { hreflangCluster } from "./hreflang";
 import { isPublishable } from "./publish";
-import { DEFAULT_LOCALE, LOCALES, PUBLISHED_LOCALES, type Locale } from "./types";
+import { DEFAULT_LOCALE, type Locale } from "./types";
 
 /** The canonical origin, from NEXT_PUBLIC_SITE_URL alone (one value, one env var). */
 export function siteOrigin(): string {
@@ -31,24 +32,13 @@ export function pageMeta(pageId: string, locale: Locale = DEFAULT_LOCALE, copy?:
   // layout's file-convention image when a page names its own, so it is named here.
   const image = { url: `${siteOrigin()}/og/${page.pageId}.png`, width: 1200, height: 630, alt: page.h1 };
 
-  const languages: Record<string, string> = {};
-  // hreflang only when there is a real cluster: with English alone it would be two identical entries.
-  const published = LOCALES.filter(
-    (l) => PUBLISHED_LOCALES.includes(l) && (l === DEFAULT_LOCALE || page.locales?.[l as Exclude<Locale, "en">]?.status === "published"),
-  );
-  if (publishable && published.length > 1) {
-    for (const l of LOCALES) {
-      if (!PUBLISHED_LOCALES.includes(l)) continue;
-      if (l !== DEFAULT_LOCALE && page.locales?.[l as Exclude<Locale, "en">]?.status !== "published") continue;
-      languages[l] = absoluteUrl(pageId, l);
-    }
-    languages["x-default"] = absoluteUrl(pageId, DEFAULT_LOCALE);
-  }
+  // hreflang only when there is a real cluster, and only on a page that is itself publishable (hreflang.ts).
+  const languages = publishable ? hreflangCluster(page, (l) => absoluteUrl(pageId, l)) : undefined;
 
   return {
     title,
     description,
-    alternates: { canonical: url, ...(Object.keys(languages).length ? { languages } : {}) },
+    alternates: { canonical: url, ...(languages ? { languages } : {}) },
     // Only a page that is NOT publishable says so: Next replaces (not merges) a page-level robots object,
     // so a page that sets index:true would contradict dev and preview, which stay noindex by header.
     ...(publishable ? {} : { robots: { index: false, follow: true } }),
