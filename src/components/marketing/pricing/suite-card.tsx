@@ -187,7 +187,7 @@ export function SuiteCard({
           {/* ★NO CARD: signing up starts the business on the Suite trial
               (D19), which collects none. "Card required" was the rule for a
               trial bought at checkout, and this button goes to signup. */}
-          {p.trialDays > 0 && (
+          {p.trialDays > 0 && !(cta.disabled && !shopify) && (
             <p className="mt-2.5 text-micro text-muted-foreground">
               {shopify
                 ? shopifyTrialNote(p.trialDays)

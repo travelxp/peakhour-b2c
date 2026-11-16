@@ -88,7 +88,7 @@ export function announcementBar(trialDays: number | null, mode: PlatformSignupMo
   const when = trialStart(mode, trialDays);
   if (when === "none") return null;
   if (when === "on_approval") {
-    return { lead: approvedTrialSentence(trialDays as number), tail: "No credit card required. Join the waitlist to get in line." };
+    return { lead: approvedTrialSentence(trialDays as number), tail: `No credit card required. ${mode === "invite_only" ? "Request an invite" : "Join the waitlist"} to get in line.` };
   }
   return {
     lead: `Try every module free for ${trialDays} days — no credit card required.`,
@@ -109,10 +109,10 @@ export function startPanel(trialDays: number | null, mode: PlatformSignupMode = 
   };
   if (trialStart(mode, trialDays) === "on_approval") {
     return {
-      eyebrow: "Join the waitlist. Scale when you’re ready.",
+      eyebrow: `${mode === "invite_only" ? "Request an invite" : "Join the waitlist"}. Scale when you’re ready.`,
       lede: `When you’re approved, your first business starts with a ${trialDays}-day free trial of everything Peakhour does. Keep going on Peakhour Suite when your trial ends, or on Agency when you run many businesses.`,
       points: [
-        { title: "Get in line", detail: "Join the waitlist. We email your sign-in link when you are approved." },
+        { title: "Get in line", detail: `${mode === "invite_only" ? "Request an invite" : "Join the waitlist"}. We email your sign-in link when you are approved.` },
         {
           title: "Keep going on one plan",
           detail: "When your trial ends, Peakhour Suite keeps everything on for one monthly or yearly price. Running many businesses? Agency covers them all.",
