@@ -1,3 +1,11 @@
+// CMP-W3A
+import { AFTERSELL } from "./aftersell";
+import { CBB_FREQUENTLY_BOUGHT_TOGETHER } from "./cbb-frequently-bought-together";
+import { FAST_BUNDLE } from "./fast-bundle";
+import { OCTANE_AI } from "./octane-ai";
+import { RECONVERT } from "./reconvert";
+import { REVENUEHUNT } from "./revenuehunt";
+import { ZIPIFY_OCU } from "./zipify-ocu";
 import { AISENSY } from "./aisensy";
 import { INTERAKT } from "./interakt";
 import { REP_AI } from "./rep-ai";
@@ -57,6 +65,14 @@ const BRIEFS = [
   BUFFER,
   JASPER,
   BIRDEYE,
+  // CMP-W3A
+  RECONVERT,
+  AFTERSELL,
+  ZIPIFY_OCU,
+  FAST_BUNDLE,
+  CBB_FREQUENTLY_BOUGHT_TOGETHER,
+  OCTANE_AI,
+  REVENUEHUNT,
   // CMP-W3C
   DESCRIBELY,
   HYPOTENUSE,

@@ -34,6 +34,14 @@ import SidekickPage, { metadata as sidekickMeta } from "@/app/(site)/shopify/com
 import WatiPage, { metadata as watiMeta } from "@/app/(site)/shopify/compare/wati/page";
 import ZokoPage, { metadata as zokoMeta } from "@/app/(site)/shopify/compare/zoko/page";
 import GokwikPage, { metadata as gokwikMeta } from "@/app/(site)/shopify/compare/gokwik/page";
+// CMP-W3A
+import ReconvertPage, { metadata as reconvertMeta } from "@/app/(site)/shopify/compare/reconvert/page";
+import AftersellPage, { metadata as aftersellMeta } from "@/app/(site)/shopify/compare/aftersell/page";
+import ZipifyOcuPage, { metadata as zipifyOcuMeta } from "@/app/(site)/shopify/compare/zipify-ocu/page";
+import FastBundlePage, { metadata as fastBundleMeta } from "@/app/(site)/shopify/compare/fast-bundle/page";
+import CbbFbtPage, { metadata as cbbFbtMeta } from "@/app/(site)/shopify/compare/cbb-frequently-bought-together/page";
+import OctaneAiPage, { metadata as octaneAiMeta } from "@/app/(site)/shopify/compare/octane-ai/page";
+import RevenuehuntPage, { metadata as revenuehuntMeta } from "@/app/(site)/shopify/compare/revenuehunt/page";
 // CMP-W3C
 import DescribelyPage, { metadata as describelyMeta } from "@/app/(site)/shopify/compare/describely/page";
 import HypotenusePage, { metadata as hypotenuseMeta } from "@/app/(site)/shopify/compare/hypotenuse/page";
@@ -77,6 +85,14 @@ const OWN_HOSTS: Record<CompetitorSlug, string[]> = {
   wati: ["www.wati.io"],
   zoko: ["www.zoko.io"],
   gokwik: ["www.gokwik.co"],
+  // CMP-W3A
+  reconvert: ["upsell.com", "apps.shopify.com"],
+  aftersell: ["aftersell.com"],
+  "zipify-ocu": ["zipify.com", "help.zipify.com", "apps.shopify.com"],
+  "fast-bundle": ["fastbundle.co", "apps.shopify.com"],
+  "cbb-frequently-bought-together": ["apps.shopify.com"],
+  "octane-ai": ["octaneai.com", "apps.shopify.com"],
+  revenuehunt: ["revenuehunt.com", "apps.shopify.com"],
   // CMP-W3C
   describely: ["www.describely.ai", "apps.shopify.com"],
   hypotenuse: ["www.hypotenuse.ai", "apps.shopify.com"],
@@ -93,6 +109,13 @@ const OWN_LISTINGS: Partial<Record<CompetitorSlug, string>> = {
   seowill: "/seo-master",
   "manifest-ai": "/manifest-ai-shopping-assistant",
   "shopify-inbox": "/inbox",
+  // CMP-W3A
+  reconvert: "/reconvert-upsell-cross-sell",
+  "zipify-ocu": "/zipify-oneclickupsell",
+  "fast-bundle": "/fast-bundle-product-bundles",
+  "cbb-frequently-bought-together": "/frequently-bought-together",
+  "octane-ai": "/octane-ai-quiz-personalization",
+  revenuehunt: "/product-recommendation-quiz-revenuehunt",
   // CMP-W3C
   describely: "/describely",
   hypotenuse: "/product-description-writer",
@@ -129,6 +152,14 @@ const ROUTES: Record<CompetitorSlug, { Page: () => Promise<React.ReactElement>; 
   wati: { Page: WatiPage, meta: watiMeta },
   zoko: { Page: ZokoPage, meta: zokoMeta },
   gokwik: { Page: GokwikPage, meta: gokwikMeta },
+  // CMP-W3A
+  reconvert: { Page: ReconvertPage, meta: reconvertMeta },
+  aftersell: { Page: AftersellPage, meta: aftersellMeta },
+  "zipify-ocu": { Page: ZipifyOcuPage, meta: zipifyOcuMeta },
+  "fast-bundle": { Page: FastBundlePage, meta: fastBundleMeta },
+  "cbb-frequently-bought-together": { Page: CbbFbtPage, meta: cbbFbtMeta },
+  "octane-ai": { Page: OctaneAiPage, meta: octaneAiMeta },
+  revenuehunt: { Page: RevenuehuntPage, meta: revenuehuntMeta },
   // CMP-W3C
   describely: { Page: DescribelyPage, meta: describelyMeta },
   hypotenuse: { Page: HypotenusePage, meta: hypotenuseMeta },
