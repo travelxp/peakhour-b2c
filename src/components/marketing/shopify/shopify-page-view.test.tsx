@@ -228,3 +228,14 @@ describe("★coming soon: the features intro claims nothing about the app being 
     expect(t).not.toMatch(/in the app today/);
   });
 });
+
+// Owner, 2026-11-16: the hero demo's chat showed "From: product stock · Shipping policy" under the reply. The real storefront
+// chat shows no sources line, so the demo (on /, /shopify and /coming-soon) must not invent one.
+import { readFileSync as readDemoSource } from "node:fs";
+import { join as joinDemoPath } from "node:path";
+describe("hero demo shows only what the real chat shows", () => {
+  it("has no answer-sources line", () => {
+    const src = readDemoSource(joinDemoPath(__dirname, "shopify-hero-demo.tsx"), "utf8");
+    expect(src).not.toMatch(/>\s*From:/);
+  });
+});
