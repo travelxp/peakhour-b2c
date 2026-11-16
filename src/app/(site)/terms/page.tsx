@@ -1,6 +1,5 @@
 import { SITE } from "@/lib/utils";
-import { Header } from "@/components/shared/header";
-import { Footer } from "@/components/shared/footer";
+import { LegalPage } from "@/components/marketing/legal/legal-page";
 import { FEES_REFUND_SENTENCE, PEAKS_REFUND_SENTENCE, REFUND_LAW_SENTENCE } from "@/lib/peaks-refund-terms";
 import { pageMeta } from "@/lib/seo/metadata";
 
@@ -8,16 +7,9 @@ export const metadata = pageMeta("legal.terms");
 
 export default function TermsPage() {
   return (
-    <div className="flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
-      <Header minimal />
-
-      <main className="mx-auto max-w-3xl px-4 py-12">
-        <h1 className="text-3xl font-bold">Terms of Service</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Last updated: {SITE.legalLastUpdated}
-        </p>
-
-        <div className="mt-8 space-y-8 text-sm leading-relaxed text-muted-foreground">
+    <LegalPage
+      title="Terms of Service"
+      lastUpdated={SITE.legalLastUpdated}>
           <section>
             <h2 className="text-lg font-semibold text-foreground">1. Agreement to Terms</h2>
             <p className="mt-2">
@@ -482,10 +474,6 @@ export default function TermsPage() {
               </a>
             </p>
           </section>
-        </div>
-      </main>
-
-      <Footer />
-    </div>
+    </LegalPage>
   );
 }

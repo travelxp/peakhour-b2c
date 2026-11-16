@@ -2,18 +2,19 @@ import Link from "next/link";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { pageMeta } from "@/lib/seo/metadata";
+import { cardCls, eyebrowCls, primaryBtn, wrap } from "@/components/marketing/seo/styles";
 
 export const metadata = pageMeta("contact");
 
 const CONTACT_CHANNELS = [
   {
-    title: "General Inquiries",
+    title: "General inquiries",
     description: "Questions about Peakhour, partnerships, or anything else.",
     email: "hello@peakhour.ai",
     icon: (
       <svg
         aria-hidden="true"
-        className="h-6 w-6"
+        className="size-6"
         fill="none"
         viewBox="0 0 24 24"
         strokeWidth={1.5}
@@ -35,7 +36,7 @@ const CONTACT_CHANNELS = [
     icon: (
       <svg
         aria-hidden="true"
-        className="h-6 w-6"
+        className="size-6"
         fill="none"
         viewBox="0 0 24 24"
         strokeWidth={1.5}
@@ -50,13 +51,13 @@ const CONTACT_CHANNELS = [
     ),
   },
   {
-    title: "Privacy & Legal",
+    title: "Privacy and legal",
     description: "Data requests, privacy concerns, or legal matters.",
     email: "privacy@peakhour.ai",
     icon: (
       <svg
         aria-hidden="true"
-        className="h-6 w-6"
+        className="size-6"
         fill="none"
         viewBox="0 0 24 24"
         strokeWidth={1.5}
@@ -79,68 +80,68 @@ export default function ContactPage() {
 
       <main className="flex-1">
         {/* Hero */}
-        <section className="mx-auto max-w-6xl px-4 py-20 text-center sm:px-6">
-          <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
-            Get in touch
-          </h1>
-          <p className="mx-auto mt-4 max-w-xl text-lg text-muted-foreground">
-            Have a question, feedback, or want to explore how Peakhour can work
-            for your business? We&apos;d love to hear from you.
-          </p>
+        <section className="bg-[linear-gradient(180deg,var(--daylight-hero)_0%,var(--background)_92%)]">
+          <div className={`${wrap} py-10 sm:py-14 lg:py-16`}>
+            <p className={eyebrowCls}>Contact</p>
+            <h1 className="mt-3 text-[2.2rem] font-black leading-[1.04] tracking-[-0.04em] text-balance sm:text-5xl lg:text-[3.5rem]">
+              Write to <span className="daylight-mark">the right inbox</span>
+            </h1>
+            <p className="mt-4 max-w-xl text-lg text-foreground/80 sm:text-xl">
+              Questions about Peakhour, your account or your data? Pick the
+              address that fits and write to it.
+            </p>
+          </div>
         </section>
 
         {/* Contact cards */}
-        <section className="border-t bg-muted/40 py-16">
-          <div className="mx-auto max-w-4xl px-4 sm:px-6">
-            <div className="grid gap-6 sm:grid-cols-3">
+        <section aria-label="Ways to reach us" className="pb-10 sm:pb-14">
+          <div className={wrap}>
+            <ul className="grid gap-4 sm:grid-cols-3 sm:gap-5">
               {CONTACT_CHANNELS.map((channel) => (
-                <div
+                <li
                   key={channel.title}
-                  className="flex flex-col items-center rounded-xl border bg-background p-8 text-center shadow-sm transition-shadow hover:shadow-md"
+                  className={`${cardCls} flex flex-col p-6 shadow-[var(--daylight-shadow)] sm:p-7`}
                 >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <div className="flex size-12 items-center justify-center rounded-xl bg-brand-soft text-brand-ink">
                     {channel.icon}
                   </div>
-                  <h2 className="mt-4 text-lg font-semibold">
+                  <h2 className="mt-4 text-lg font-extrabold tracking-tight">
                     {channel.title}
                   </h2>
-                  <p className="mt-2 text-sm text-muted-foreground">
+                  <p className="mt-2 flex-1 text-sm text-muted-foreground">
                     {channel.description}
                   </p>
                   <a
                     href={`mailto:${channel.email}`}
-                    className="mt-4 text-sm font-medium text-primary underline-offset-4 hover:underline"
+                    className="mt-4 break-all rounded-sm text-sm font-bold text-brand-strong underline decoration-2 underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     {channel.email}
                   </a>
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
         </section>
 
         {/* Response time + CTA */}
-        <section className="py-16">
-          <div className="mx-auto max-w-xl px-4 text-center sm:px-6">
-            <div className="rounded-xl border bg-muted/30 p-8">
-              <h2 className="text-xl font-semibold">We respond quickly</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Most inquiries get a reply within 24 hours on business days.
-                For urgent support issues, mention &quot;urgent&quot; in your
-                subject line.
-              </p>
-            </div>
-
-            <div className="mt-12">
-              <p className="text-muted-foreground">
-                Ready to see Peakhour in action?
-              </p>
-              <Link
-                href="/auth"
-                className="mt-3 inline-flex h-11 items-center justify-center rounded-md bg-primary px-8 text-base font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90"
-              >
-                Get started free
-              </Link>
+        <section className="pb-12 sm:pb-16">
+          <div className={wrap}>
+            <div className="grid items-center gap-6 rounded-[28px] bg-muted p-6 sm:p-9 lg:grid-cols-[1.2fr_0.8fr] lg:gap-12">
+              <div>
+                <h2 className="text-xl font-extrabold tracking-tight">Not sure which inbox?</h2>
+                <p className="mt-2 max-w-xl text-sm text-muted-foreground">
+                  Use General inquiries. Put what you need in the subject line
+                  so it reaches the right person.
+                </p>
+              </div>
+              <div className="lg:justify-self-end">
+                <p className="text-muted-foreground">
+                  Ready to try Peakhour?
+                </p>
+                <Link href="/auth" className={`${primaryBtn} mt-3`}>
+                  Get started
+                </Link>
+              </div>
             </div>
           </div>
         </section>

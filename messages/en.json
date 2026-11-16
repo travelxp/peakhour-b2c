@@ -1,33 +1,68 @@
 {
   "Common": {
-    "startFree": "Start free",
-    "signIn": "Sign in",
-    "seePricing": "See pricing",
-    "noCreditCard": "No credit card",
-    "brandTagline": "The AI business platform for growing brands. You approve what goes out.",
+    "homeAria": "{name} home",
     "languageChip": "English",
     "languageChipShort": "EN",
     "languageMore": "· more soon",
     "languageTooltip": "Available in English; more languages coming"
   },
   "Nav": {
+    "primaryAria": "Primary",
     "commerce": "Commerce",
     "content": "Content",
     "growth": "Growth",
     "support": "Support",
     "presence": "Presence",
-    "pricing": "Pricing"
+    "peaks": "Peaks",
+    "pricing": "Pricing",
+    "signIn": "Sign in",
+    "signOut": "Sign out",
+    "getStarted": "Get started",
+    "dashboard": "Dashboard",
+    "settings": "Settings",
+    "userMenu": "User menu",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu"
   },
   "Footer": {
+    "tagline": "The AI business platform for growing brands. You approve what goes out.",
     "platform": "Platform",
+    "worksWith": "Works with",
     "product": "Product",
     "legal": "Legal",
+    "commerce": "Commerce",
+    "content": "Content",
+    "growth": "Growth",
+    "support": "Support",
+    "presence": "Presence",
+    "shopify": "Shopify",
+    "wordpress": "WordPress (soon)",
+    "pricing": "Pricing",
     "peaks": "Peaks",
+    "howItWorks": "How it works",
     "contact": "Contact",
     "privacy": "Privacy Policy",
     "terms": "Terms of Service",
     "cookies": "Cookie Policy",
     "dataDeletion": "Data Deletion",
-    "rights": "All rights reserved."
+    "copyright": "{name} © {year}. All rights reserved."
+  },
+  "Launch": {
+    "back": "Back",
+    "signIn": "Sign in",
+    "copyright": "© {year} {legalName}. All rights reserved."
+  },
+  "NotFound": {
+    "metaTitle": "Page not found",
+    "eyebrow": "Error 404",
+    "heading": "We couldn't find that page",
+    "body": "The link may be old, or the address mistyped. These are good places to start.",
+    "home": "Go to the home page",
+    "shopify": "Peakhour for Shopify",
+    "pricing": "Pricing"
+  },
+  "LanguageSwitcher": {
+    "label": "Language",
+    "sectionOnly": "section page only"
   }
 }

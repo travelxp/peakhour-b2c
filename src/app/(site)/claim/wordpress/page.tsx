@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { FlowCard, FlowPage } from "@/components/marketing/flow/flow-kit";
 import { WordpressClaim } from "./_components/wordpress-claim";
 
 /**
@@ -13,9 +14,14 @@ export default function WordpressClaimPage() {
   return (
     <Suspense
       fallback={
-        <div className="mx-auto flex min-h-[70vh] w-full max-w-lg items-center justify-center px-4 text-sm text-muted-foreground">
-          Loading…
-        </div>
+        <FlowPage>
+          <FlowCard>
+            <h1 className="sr-only">Connect your WordPress site</h1>
+            <p role="status" className="py-8 text-center text-sm text-muted-foreground">
+              Loading…
+            </p>
+          </FlowCard>
+        </FlowPage>
       }
     >
       <WordpressClaim />

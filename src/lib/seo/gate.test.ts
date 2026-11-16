@@ -96,6 +96,8 @@ describe("the sitemap's view of the gate", () => {
 
 describe("every real route is known to the gate", () => {
   it("no page.tsx under src/app/(site) (bar the gate's own 404 route and the catch-all) would answer 404 while the gate is on", () => {
+    // "/ph-locale" is the internal route the locale middleware rewrites to (SEO-4); it is not a public page and
+    // asked for directly it is a 404, which is what the gate says for it.
     // Add a marketing route and forget MARKETING_PATHS, and with the gate on it would 404 instead of the teaser.
     const root = resolve(__dirname, "..", "..", "app", "(site)");
     const routes: string[] = [];
@@ -115,7 +117,7 @@ describe("every real route is known to the gate", () => {
       }
     };
     walk(root, "");
-    const unknown = [...new Set(routes)].filter((r) => r !== "/gate-404" && !isPublicPath(r) && gatedVerdict(r) === "not-found");
+    const unknown = [...new Set(routes)].filter((r) => r !== "/gate-404" && r !== "/ph-locale" && !isPublicPath(r) && gatedVerdict(r) === "not-found");
     expect(routes.length).toBeGreaterThan(20);
     expect(unknown).toEqual([]);
   }, 60_000);
