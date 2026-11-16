@@ -14,7 +14,7 @@ import { SITE } from "@/lib/utils";
 import type { PlatformSignupMode } from "@/lib/catalog";
 import { FlowButton, FlowCard, FlowHead, FlowNotice, flowLink } from "@/components/marketing/flow/flow-kit";
 import { eyebrowCls } from "@/components/marketing/seo/styles";
-import { PANEL_BETA, PANEL_HEADLINE, PANEL_LIVE, PANEL_PROMISE, signupTicks, type PanelItem } from "./auth-copy";
+import { PANEL_BETA, PANEL_HEADLINE, PANEL_LIVE, signupTicks, type PanelItem } from "./auth-copy";
 
 // Bounded length + char set so a tampered link can't smuggle arbitrary strings
 // into the waitlist payload. Mirrors the referredByCode validator on
@@ -483,9 +483,8 @@ export function AuthFlow({
           Left — what Peakhour does, on the Daylight hero tint. Every line
           is an approved claim (auth-copy.ts), the beta ones say so, and
           nothing here is a number or a made-up status.
-          Hidden below lg, where the form column is the whole page; the
-          access promise still reaches small screens through the ticks
-          under the button.
+          Hidden below lg, where the form column is the whole page; there
+          the same cards follow the form in a compact lg:hidden section.
          --------------------------------------------------------------- */}
       <section
         aria-label="What Peakhour does"
@@ -514,8 +513,6 @@ export function AuthFlow({
               <PanelRow key={item.name} item={item} />
             ))}
           </ul>
-
-          <p className="mt-8 text-base font-semibold">{PANEL_PROMISE}</p>
         </div>
       </section>
 
@@ -775,7 +772,6 @@ export function AuthFlow({
                     </li>
                   ))}
                 </ul>
-                <p className="mt-4 text-sm font-semibold">{PANEL_PROMISE}</p>
               </section>
             </div>
           )}

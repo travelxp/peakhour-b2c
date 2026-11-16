@@ -2,13 +2,20 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { CAPABILITIES } from "@/lib/seo/capabilities";
-import { PANEL_BETA, PANEL_HEADLINE, PANEL_LIVE, PANEL_PROMISE } from "./auth-copy";
+import { PANEL_BETA, PANEL_HEADLINE, PANEL_LIVE } from "./auth-copy";
 
 // SEO-7 took "Five modules" off every public surface because Support is not live (plan Q3). DL-2 redrew the sign-in panel on
 // Daylight and with it dropped the made-up console ("3 leads in inbox", "Support: Inbox clear") and the module count.
 describe("/auth sign-in panel", () => {
   const files = ["auth-flow.tsx"].map((f) => readFileSync(path.join(__dirname, f), "utf8"));
-  const panel = [...PANEL_LIVE, ...PANEL_BETA].map((i) => `${i.name} ${i.line}`).join("\n");
+  const headline = `${PANEL_HEADLINE.lead}${PANEL_HEADLINE.mark}${PANEL_HEADLINE.tail}`;
+  // Every visible word of the panel, headline included, so each guard below covers all of it.
+  const panel = [headline, ...[...PANEL_LIVE, ...PANEL_BETA].map((i) => `${i.name} ${i.line}`)].join("\n");
+  const card = (name: string) => {
+    const found = [...PANEL_LIVE, ...PANEL_BETA].find((i) => i.name === name);
+    expect(found, `no panel card named "${name}" (renamed? move its limit check with it)`).toBeDefined();
+    return found!;
+  };
 
   it("does not promise five modules, a lead inbox, a live Support, or free modules", () => {
     for (const src of [...files, panel]) {
@@ -20,19 +27,20 @@ describe("/auth sign-in panel", () => {
 
   it("names only what is live as live, and says beta where it is beta", () => {
     expect(PANEL_LIVE.every((i) => !i.beta)).toBe(true);
-    expect(PANEL_BETA.map((i) => i.name)).toEqual(["Get found on Google", "Grow with Peakhour Summit"]);
+    expect(PANEL_BETA.map((i) => i.name)).toEqual(["Get found", "Grow"]);
     expect(PANEL_BETA.every((i) => i.beta)).toBe(true);
     expect(panel).not.toMatch(/Support|Google Ads|LinkedIn Ads|™/);
   });
 
   // Owner, 2026-11-16: the sign-in door spoke as a Shopify app ("Shopify assistant" as the first card). It is generic now:
-  // the headline says what Peakhour does, and no card is named after a channel.
-  it("is generic: the headline and every card name are free of channel names", () => {
-    const CHANNEL = /Shopify|WooCommerce|WordPress|WhatsApp|Amazon/;
-    const headline = `${PANEL_HEADLINE.lead}${PANEL_HEADLINE.mark}${PANEL_HEADLINE.tail}`;
+  // the headline says what Peakhour does (only what is live), no card is named after a channel or network, and the panel
+  // does not open on a store platform.
+  it("is generic: no channel or network in the headline or any card name, and it does not open on Shopify", () => {
+    const CHANNEL = /Shopify|WooCommerce|WordPress|WhatsApp|Amazon|Google|LinkedIn|Facebook|Instagram|\bX\b/;
     expect(headline).not.toMatch(CHANNEL);
-    expect(headline).not.toMatch(/every channel/i); // not a claim the live product meets (WooCommerce is not live)
+    expect(headline).not.toMatch(/every channel|get found|grow/i); // "every channel" is not met; find and grow are beta
     for (const i of [...PANEL_LIVE, ...PANEL_BETA]) expect(i.name, i.name).not.toMatch(CHANNEL);
+    expect(PANEL_LIVE[0].line).not.toMatch(/Shopify/);
     expect(files[0]).not.toMatch(/Your shoppers, answered/);
   });
 
@@ -50,17 +58,18 @@ describe("/auth sign-in panel", () => {
     }
   });
 
-  it("keeps the approved limits the review caught being widened", () => {
-    const line = (name: string) => [...PANEL_LIVE, ...PANEL_BETA].find((i) => i.name === name)!.line;
-    expect(line("Confirm orders")).toMatch(/Asks shoppers .* to confirm or cancel/);
-    expect(line("Get found on Google")).toMatch(/until an admin on your team approves it/);
-    expect(line("Grow with Peakhour Summit")).toMatch(/growth proposals/);
-    expect(line("Grow with Peakhour Summit")).toMatch(/only recommends/);
-    expect(PANEL_PROMISE).not.toMatch(/You approve what goes out/); // the assistant answers shoppers on its own
+  it("keeps the approved limits the review of #815 caught being widened", () => {
+    expect(card("Confirm orders").line).toMatch(/Asks shoppers .* to confirm or cancel/);
+    expect(card("Get found").line).toMatch(/until an admin on your team approves it/);
+    expect(card("Grow").line).toMatch(/growth proposals/);
+    expect(card("Grow").line).toMatch(/only recommends/);
+    expect(card("Publish").line).toMatch(/posts approved content/); // not "what you approve": auto-approve exists
+    // One card per claim pair it shortens: "Sell" no longer joins the store assistant to the WhatsApp checkout link.
+    expect(card("Sell").claims).toEqual(["commerce.ai_shopping_assistant.answers_from_catalogue"]);
   });
 
-  it("shows the promise line on phones as well as beside the form", () => {
-    expect(files[0].match(/\{PANEL_PROMISE\}/g)?.length).toBe(2);
+  it("makes no blanket promise under the cards (none is true of every card)", () => {
+    expect(files[0]).not.toMatch(/PANEL_PROMISE|You approve what goes out|You choose what waits/);
   });
 
   it("states no number and no price", () => {
