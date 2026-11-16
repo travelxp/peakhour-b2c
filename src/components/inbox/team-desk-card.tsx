@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { TimeZoneCombobox } from "@/components/ui/time-zone-combobox";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useDeskSettings, useDeskTags, useDeskTeam, useSaveDeskSettings, useTagAdmin } from "@/hooks/use-inbox-desk";
 import { useInsights } from "@/hooks/use-insights";
@@ -52,7 +53,6 @@ export function TeamDeskFormView({
   error,
   saving,
   onSave,
-  zones,
   tags,
   topics,
 }: {
@@ -65,7 +65,6 @@ export function TeamDeskFormView({
   error: string | null;
   saving: boolean;
   onSave: () => void;
-  zones: readonly string[];
   /** SA-10: the business's tags and the Insights topics a rule can name. Optional, so a caller that predates them still renders. */
   tags?: readonly DeskTag[];
   topics?: ReadonlyArray<{ key: string; title: string }>;
@@ -109,19 +108,7 @@ export function TeamDeskFormView({
           <div className="space-y-2">
             <div className="space-y-1">
               <Label htmlFor="desk-zone">Timezone</Label>
-              <select
-                id="desk-zone"
-                value={form.timezone}
-                disabled={disabled}
-                onChange={(e) => set({ timezone: e.target.value })}
-                className="h-8 w-full rounded-md border bg-background px-2 text-xs"
-              >
-                {(zones.includes(form.timezone) ? zones : [form.timezone, ...zones]).map((z) => (
-                  <option key={z} value={z}>
-                    {z.replace(/_/g, " ")}
-                  </option>
-                ))}
-              </select>
+              <TimeZoneCombobox id="desk-zone" value={form.timezone} disabled={disabled} onChange={(z) => set({ timezone: z })} />
             </div>
             <ul className="space-y-1.5">
               {form.days.map((d, i) => {
@@ -469,16 +456,6 @@ export function TagManagerView({
   );
 }
 
-function useZones(): string[] {
-  return useMemo(() => {
-    try {
-      return Intl.supportedValuesOf("timeZone");
-    } catch {
-      return ["UTC", "Asia/Kolkata", "America/New_York", "Europe/London", "Asia/Dubai"];
-    }
-  }, []);
-}
-
 export function TeamDeskCard({ role }: { role: string | null }) {
   const { user } = useAuth();
   const settings = useDeskSettings();
@@ -486,7 +463,6 @@ export function TeamDeskCard({ role }: { role: string | null }) {
   const tags = useDeskTags();
   const save = useSaveDeskSettings();
   const admin = useTagAdmin();
-  const zones = useZones();
   // the topics Insights has found, for the automatic-tag rules (SA-10). A failed read just leaves the list short.
   const insights = useInsights();
   const topics = useMemo(() => (insights.data?.items ?? []).map((i) => ({ key: i.key, title: i.title })), [insights.data]);
@@ -550,7 +526,6 @@ export function TeamDeskCard({ role }: { role: string | null }) {
         error={error}
         saving={save.isPending}
         onSave={() => void onSave()}
-        zones={zones}
         tags={tags.data?.tags ?? []}
         topics={topics}
       />

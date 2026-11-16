@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TimeZoneCombobox } from "@/components/ui/time-zone-combobox";
 import { usePresenceEditMutations } from "@/hooks/use-presence-edit";
-import { errorWords, zoneChoices, zoneLine, zoneRowLine, zoneWords, type ListingTimeZone } from "@/lib/presence-edit";
+import { errorWords, zoneChoices, zoneLine, zoneRowLine, type ListingTimeZone } from "@/lib/presence-edit";
+import { supportedZones } from "@/lib/time-zones";
 
 /**
  * The time zone a place keeps its calendar in: one line saying where it came from (from the address, or from the business settings),
@@ -42,20 +43,8 @@ export function ZoneControl({
   const row = variant === "row";
   const line = row ? zoneRowLine(tz, city) : zoneLine(tz, city);
 
-  // Built only while the picker is on screen: a name for each of 400 zones is not free.
-  const choices = useMemo(() => {
-    if (!editing) return null;
-    let supported: string[] = [];
-    try {
-      supported = Intl.supportedValuesOf("timeZone");
-    } catch {
-      supported = ["Asia/Kolkata", "Europe/London", "America/New_York", "America/Los_Angeles", "Australia/Sydney", "Pacific/Auckland", "Asia/Dubai"];
-    }
-    return zoneChoices(country, supported);
-  }, [editing, country]);
-
-  // Save needs a choice the list holds: nothing is pre-selected, so a save is always a change the merchant made.
-  const shown = pick && choices && (choices.near.includes(pick) || choices.all.includes(pick)) ? pick : "";
+  // The zones nearest the listing's country go first; the picker lists the rest. Built only while the picker is on screen.
+  const near = useMemo(() => (editing ? zoneChoices(country, supportedZones()).near : []), [editing, country]);
 
   if (!editing) {
     // Nothing to say and nothing to press: no empty box in the card.
@@ -76,32 +65,18 @@ export function ZoneControl({
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">{message ?? "Choose the time zone this place keeps, so holiday days land on the right date."}</p>
       <div className="flex flex-wrap items-center gap-2">
-        <Select value={shown} onValueChange={(z) => { m.setTimeZone.reset(); setPick(z); }}>
-          <SelectTrigger className="w-72" aria-label="Time zone">
-            <SelectValue placeholder="Choose your time zone" />
-          </SelectTrigger>
-          <SelectContent>
-            {choices && choices.near.length > 0 && (
-              <SelectGroup>
-                <SelectLabel>Where your business is</SelectLabel>
-                {choices.near.map((z) => (
-                  <SelectItem key={`near-${z}`} value={z}>
-                    {zoneWords(z)}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            )}
-            <SelectGroup>
-              <SelectLabel>All time zones</SelectLabel>
-              {(choices?.all ?? []).map((z) => (
-                <SelectItem key={z} value={z}>
-                  {zoneWords(z)}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-        <Button size="sm" disabled={!shown || m.setTimeZone.isPending} onClick={() => m.setTimeZone.mutate({ listingId, timeZone: shown }, { onSuccess: () => setOpen(false) })}>
+        <TimeZoneCombobox
+          ariaLabel="Time zone"
+          className="w-72"
+          placeholder="Choose your time zone"
+          value={pick}
+          near={near}
+          onChange={(z) => {
+            m.setTimeZone.reset();
+            setPick(z);
+          }}
+        />
+        <Button size="sm" disabled={!pick || m.setTimeZone.isPending} onClick={() => m.setTimeZone.mutate({ listingId, timeZone: pick }, { onSuccess: () => setOpen(false) })}>
           Save time zone
         </Button>
         {(tz || row) && (

@@ -253,7 +253,7 @@ describe("Team desk settings", () => {
   const baseForm = () =>
     formFromSettings({ aiPaused: false, aiPausedAt: null, autoAssign: { enabled: true, availableUserIds: ["u1"] }, firstResponseMinutes: 20, hours: { enabled: true, timezone: "Asia/Kolkata", days: [{ day: 1, open: "09:00", close: "18:00" }] }, awayMessage: null }, "UTC");
   const form = (over: Partial<ComponentProps<typeof TeamDeskFormView>> = {}) =>
-    renderToStaticMarkup(<TeamDeskFormView form={baseForm()} onChange={noop} canEdit team={team} defaults={defaults} error={null} saving={false} onSave={noop} zones={["Asia/Kolkata", "UTC"]} {...over} />);
+    renderToStaticMarkup(<TeamDeskFormView form={baseForm()} onChange={noop} canEdit team={team} defaults={defaults} error={null} saving={false} onSave={noop} {...over} />);
   it("an admin edits: the fields are live and there is a Save", () => {
     const h = form();
     expect(h).toContain("Save team desk settings");

@@ -570,8 +570,17 @@ describe("First run", () => {
   it("asks for the time zone while there is none, prefilled with the suggestion", () => {
     const out = html(<FirstRunView {...firstRun({ draft: { ...DRAFT, timeZone: { absent: "No time zone is set for this business yet.", suggested: "Asia/Kolkata" } }, zone: "Asia/Kolkata" })} />);
     expect(out).toContain("Your time zone");
-    expect(out).toContain('value="Asia/Kolkata"');
+    // a picker with the suggestion chosen, shown with its offset: not a box that takes typed text
+    expect(out).toMatch(/<button[^>]*id="first-run-zone"[^>]*role="combobox"/);
+    expect(out).toContain("Asia/Kolkata (UTC+05:30)");
+    expect(out).not.toMatch(/<input[^>]*id="first-run-zone"/);
     expect(html(<FirstRunView {...firstRun()} />)).not.toContain("Your time zone");
+  });
+
+  it("First run cannot submit typed text as the time zone: with none chosen the picker says so and Save is off", () => {
+    const out = html(<FirstRunView {...firstRun({ draft: { ...DRAFT, timeZone: { absent: "No time zone is set for this business yet." } }, zone: "" })} />);
+    expect(out).toContain("Choose your time zone");
+    expect(out).toMatch(/<button[^>]* disabled=""[^>]*>Save time zone/);
   });
 
   it("keeps Send to WhatsApp off, with the reason, until the plan can be sent", () => {

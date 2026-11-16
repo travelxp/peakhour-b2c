@@ -8,8 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
 import { api, ApiError } from "@/lib/api";
 import { useLocale } from "@/hooks/use-locale";
-import { useCanChangeCategory, type DashboardOrgPlanSummary } from "@/hooks/use-dashboard-org";
-import { categoryLabel } from "@/lib/business-category";
+import { DASHBOARD_ORG_KEY, useBusinessCategoryLabel, useCanChangeCategory, type DashboardOrgPlanSummary } from "@/hooks/use-dashboard-org";
 import { activeBusiness, planRowLabel } from "@/lib/plan-status";
 // Shared with every other surface the OAuth callback can return to
 // (?returnTo=), so a new provider is labelled once, not per page.
@@ -53,11 +52,10 @@ import { toast } from "sonner";
 
 /** `/v1/dashboard/org`; the plan row reads its `subscription` / `products`
  *  through `planRowLabel` (`planDisplayName`), as the top-bar badge does (D19, P4.7). */
-interface OrgDetails extends Pick<DashboardOrgPlanSummary, "subscription" | "products" | "businessCategoryOptions"> {
+interface OrgDetails extends Pick<DashboardOrgPlanSummary, "subscription" | "products"> {
   _id: string;
   name: string;
   slug: string;
-  businessCategory?: string;
   businessType?: string;
   websiteUrl?: string;
   adPlatforms?: {
@@ -118,7 +116,8 @@ function SettingsContent() {
   const [orgDetails, setOrgDetails] = useState<OrgDetails | null>(null);
   // FR: the category in words, with a way to change it for an owner or admin (it lives on "Your business").
   const canChangeCat = useCanChangeCategory();
-  const categoryText = categoryLabel(orgDetails?.businessCategory, orgDetails?.businessCategoryOptions);
+  // from the shared query the "Your business" card invalidates, not this page's once-loaded copy, which goes stale while the page stays open
+  const categoryText = useBusinessCategoryLabel();
   const categoryValue = categoryText ? (
     <span className="inline-flex items-center gap-2">
       {categoryText}
@@ -169,6 +168,8 @@ function SettingsContent() {
       if (r.grounded) {
         const updated = await api.get<OrgDetails>("/v1/dashboard/org");
         setOrgDetails(updated);
+        // the re-scan may have changed the category, which is read from the shared query
+        void queryClient.invalidateQueries({ queryKey: [DASHBOARD_ORG_KEY] });
         const cat = r.businessCategory ? ` — ${r.businessCategory.replace(/_/g, " ")}` : "";
         toast.success(`Updated from your ${r.productCount ?? ""} products${cat}`.replace("  ", " "));
       } else if (r.reason === "empty_catalog") {
