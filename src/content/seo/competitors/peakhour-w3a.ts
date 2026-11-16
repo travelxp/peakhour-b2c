@@ -21,9 +21,9 @@ export const PEAKHOUR_W3A = {
     ...SHOPIFY,
   },
   picks: {
-    value: "yes",
+    value: "partial",
     capabilityId: "commerce.cart_upsells",
-    note: "Suggestions are drawn from products customers bought together, so those bought-together lists need to exist first.",
+    note: "Suggestions come from one method, the products customers bought together, so those bought-together lists need to exist first.",
     ...SHOPIFY,
   },
   fromOrders: {

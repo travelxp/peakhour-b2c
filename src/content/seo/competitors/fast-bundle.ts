@@ -31,7 +31,7 @@ export const FAST_BUNDLE = {
   ],
   claims: [
     {
-      dimension: "A discount when companions are bought together",
+      dimension: "A percentage off when companions are bought together",
       vendor: { value: "yes", note: "Frequently bought together lets you add incentives to product combinations.", source: S.home, observedAt: D },
       peakhour: PEAKHOUR_C.bundles,
     },

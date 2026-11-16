@@ -75,7 +75,7 @@ export const RECONVERT = {
     ],
   },
   bestFor: [
-    { vendor: "ReConvert", bestFor: "Stores whose main job is post-purchase: one-click offers after checkout, thank-you page funnels, checkout upsells on Shopify Plus and built-in A/B testing, with every feature on every plan." },
+    { vendor: "ReConvert", bestFor: "Stores whose main job is post-purchase: one-click offers after checkout, thank-you page funnels, checkout upsells on Shopify Plus and built-in A/B testing." },
     { vendor: "Peakhour", bestFor: "Shopify merchants who want cart suggestions and thank-you page links drawn from what their own customers bought together, as part of one suite, and do not need to add an item to the order after checkout." },
   ],
   limitations: [

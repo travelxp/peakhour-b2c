@@ -1,5 +1,4 @@
-import { PEAKHOUR } from "./peakhour";
-import { pending } from "./peakhour";
+import { PEAKHOUR, pending } from "./peakhour";
 import { PEAKHOUR_W3A } from "./peakhour-w3a";
 import type { CompetitorBrief } from "./types";
 
