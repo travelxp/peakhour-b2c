@@ -474,23 +474,24 @@ export const PAGES: readonly PageRecord[] = [
   }),
   // SEO-10: the wave-1 Shopify comparisons. At `review` they render on dev with the draft ribbon and 404 on
   // production until Growth signs off each source (plan D4, Q1). capabilityIds hold only what the Peakhour cells claim.
-  ...COMPETITOR_BRIEFS.map((b) =>
-    page({
+  ...COMPETITOR_BRIEFS.map((b) => {
+    const global = b.scope === "global";
+    return page({
       pageId: b.pageId,
-      path: `/shopify/compare/${b.slug}`,
-      family: "shopify-compare",
-      surface: "shopify",
-      primaryPillar: "commerce",
+      path: global ? `/compare/${b.slug}` : `/shopify/compare/${b.slug}`,
+      family: global ? "compare" : "shopify-compare",
+      surface: global ? "web" : "shopify",
+      primaryPillar: b.pillar ?? "commerce",
       capabilityIds: [...new Set(b.claims.map((c) => c.peakhour.capabilityId).filter((id): id is string => !!id))],
       title: b.title,
       description: b.description,
       h1: b.h1,
       cta: LAUNCH_PARTNER_CTA,
-      relatedIds: ["shopify", "pricing"],
+      relatedIds: b.relatedIds ?? ["shopify", "pricing"],
       editorialStatus: "review",
       indexable: false,
-    }),
-  ),
+    });
+  }),
 ];
 
 const BY_ID = new Map(PAGES.map((p) => [p.pageId, p]));

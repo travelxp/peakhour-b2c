@@ -47,8 +47,13 @@ export type PricingRow = {
 };
 
 export type CompetitorBrief = {
-  slug: "aisensy" | "interakt" | "rep-ai";
+  slug: string;
   pageId: string;
+  /** Default "shopify": /shopify/compare/<slug>, family shopify-compare. "global": /compare/<slug>, family compare, surface web. */
+  scope?: "shopify" | "global";
+  /** Registry pillar and related page ids; default commerce and ["shopify", "pricing"]. */
+  pillar?: "presence" | "commerce" | "content" | "support" | "growth";
+  relatedIds?: string[];
   name: string;
   url: string;
   /** What the vendor is, in its own category. */

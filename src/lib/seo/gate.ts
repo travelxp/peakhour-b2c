@@ -119,6 +119,11 @@ export const MARKETING_PATHS: readonly MarketingPath[] = [
   { path: "/shopify/features/whatsapp-cod-confirmation" },
   { path: "/shopify/features/ai-seo" },
   { path: "/shopify/features/ai-product-descriptions" },
+  // CMP-C2: the global comparison drafts (review status: dev only, 404 on production).
+  { path: "/compare/hootsuite" },
+  { path: "/compare/buffer" },
+  { path: "/compare/jasper" },
+  { path: "/compare/birdeye" },
   { path: "/peaks" },
   { path: "/how-it-works" },
   { path: "/contact" },

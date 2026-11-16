@@ -16,11 +16,12 @@ export function buildComparisonContent(b: CompetitorBrief, page: PageRecord = ge
     throw new Error(`${b.pageId} is published without a named reviewer`);
   }
   const home = getPage("home");
+  const global = b.scope === "global";
   const shopify = getPage("shopify");
   return {
     crumbs: [
       { label: "Home", href: pathFor(home.pageId) },
-      { label: "Shopify", href: pathFor(shopify.pageId) },
+      ...(global ? [] : [{ label: "Shopify", href: pathFor(shopify.pageId) }]),
       { label: `Compare with ${b.name}`, href: pathFor(page.pageId) },
     ],
     eyebrow: "Comparison",
@@ -63,7 +64,9 @@ export function buildComparisonContent(b: CompetitorBrief, page: PageRecord = ge
     related: page.relatedIds.map((id) => ({ label: getPage(id).title, href: pathFor(id) })),
     closing: {
       headline: "See it on your own store.",
-      body: "Join the waitlist and we will show you the assistant and shelves on your catalogue.",
+      body: global
+        ? "Join the waitlist and we will show you Peakhour on your own business."
+        : "Join the waitlist and we will show you the assistant and shelves on your catalogue.",
     },
   };
 }
