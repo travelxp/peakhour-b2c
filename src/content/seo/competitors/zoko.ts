@@ -86,7 +86,7 @@ export const ZOKO: CompetitorBrief = {
     ],
   },
   bestFor: [
-    { vendor: "Zoko", bestFor: "Shopify merchants who sell and support inside WhatsApp: one shared official number, ready-made flows for cash-on-delivery confirmation and abandoned carts, and AI agents that answer, track orders and take orders in the chat. Its plans publish every feature in every tier." },
+    { vendor: "Zoko", bestFor: "Shopify merchants who sell and support inside WhatsApp: one shared official number, ready-made flows for cash-on-delivery confirmation and abandoned carts, and AI agents that answer, track orders and take orders in the chat." },
     { vendor: "Peakhour", bestFor: "Shopify merchants who want an AI shopping assistant and product shelves on the storefront, answering from their own catalogue, plus WhatsApp confirmation of cash-on-delivery orders." },
   ],
   limitations: [

@@ -92,7 +92,7 @@ export const WATI: CompetitorBrief = {
   ],
   limitations: [
     "We read only Wati's own public pages. A feature it does not document is marked Not documented, which is not the same as No.",
-    "Pricing is copied from its pricing page on the date shown; plans, taxes and message rates change.",
+    "Pricing is copied from its pricing page on the date shown; plans, taxes and message rates change. The plans are listed in INR and the Shopify add-on in USD, as the page shows them; the page names no region, so do not add the figures together.",
     "Where our own side says Unknown, the evidence for Peakhour is still being verified and nothing is claimed.",
   ],
   faqs: [

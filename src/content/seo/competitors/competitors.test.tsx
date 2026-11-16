@@ -227,7 +227,7 @@ describe.each(COMPETITOR_BRIEFS.map((b) => [b.slug, b] as const))("%s brief (Bib
     expect(html).toContain(b.h1);
     expect(html).toContain("Draft, not published");
     expect(html).toContain("Not documented");
-    expect(html).toMatch(/Pricing as listed on each vendor(?:'|&#x27;|&apos;)s page, seen \d{4}-\d{2}-\d{2}/);
+    expect(html).toMatch(new RegExp(`Pricing as listed on each vendor(?:'|&#x27;|&apos;)s page, seen ${b.observedAt}`));
     // Internal sources are normal links; only external ones open a new tab.
     expect(html).toMatch(/<a href="\/pricing"(?![^>]*target)/);
     expect(html).toMatch(/<a href="https:\/\/[^"]+" target="_blank" rel="noopener noreferrer nofollow"/);
