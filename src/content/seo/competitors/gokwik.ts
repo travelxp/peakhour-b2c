@@ -72,7 +72,8 @@ export const GOKWIK: CompetitorBrief = {
   ],
   pricing: {
     rows: [
-      { plan: "Emerging (up to 2,000 orders a month)", price: "₹3,000 per month platform fee, plus 3.5% COD charge on all transactions, plus payment aggregator charges where applicable", currency: "INR", region: "Not stated on the page", observedAt: D, source: S.pricing },
+      { plan: "Emerging platform fee (up to 2,000 orders a month)", price: "₹3,000 per month", currency: "INR", region: "Not stated on the page", observedAt: D, source: S.pricing },
+      { plan: "Emerging COD charge", price: "3.5%, which the page says applies on all transactions; payment aggregator charges apply where applicable", currency: "INR", region: "Not stated on the page", observedAt: D, source: S.pricing },
       { plan: "Enterprise (over 2,000 orders a month)", price: "Custom, through its sales team", currency: "INR", region: "Not stated on the page", observedAt: D, source: S.pricing },
     ],
   },
@@ -82,6 +83,7 @@ export const GOKWIK: CompetitorBrief = {
   ],
   limitations: [
     "We read only GoKwik's own public pages. A feature it does not document is marked Not documented, which is not the same as No.",
+    "We read GoKwik's home, Kwik Checkout, Shopify and pricing pages only; its other product pages (for example Kwik Engage) may describe more, which is why WhatsApp is marked Not documented rather than No.",
     "Its figures such as conversion and RTO gains are its own marketing claims; we have not verified them.",
     "Pricing is copied from its pricing page on the date shown; plans and charges change.",
     "Where our own side says Unknown, the evidence for Peakhour is still being verified and nothing is claimed.",
