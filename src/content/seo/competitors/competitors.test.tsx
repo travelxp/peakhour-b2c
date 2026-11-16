@@ -24,6 +24,12 @@ import HootsuitePage, { metadata as hootsuiteMeta } from "@/app/(site)/compare/h
 import BufferPage, { metadata as bufferMeta } from "@/app/(site)/compare/buffer/page";
 import JasperPage, { metadata as jasperMeta } from "@/app/(site)/compare/jasper/page";
 import BirdeyePage, { metadata as birdeyeMeta } from "@/app/(site)/compare/birdeye/page";
+// CMP-B
+import GorgiasPage, { metadata as gorgiasMeta } from "@/app/(site)/shopify/compare/gorgias/page";
+import TidioPage, { metadata as tidioMeta } from "@/app/(site)/shopify/compare/tidio/page";
+import ManifestPage, { metadata as manifestMeta } from "@/app/(site)/shopify/compare/manifest-ai/page";
+import InboxPage, { metadata as inboxMeta } from "@/app/(site)/shopify/compare/shopify-inbox/page";
+import SidekickPage, { metadata as sidekickMeta } from "@/app/(site)/shopify/compare/shopify-sidekick/page";
 // CMP-A
 import WatiPage, { metadata as watiMeta } from "@/app/(site)/shopify/compare/wati/page";
 import ZokoPage, { metadata as zokoMeta } from "@/app/(site)/shopify/compare/zoko/page";
@@ -54,6 +60,12 @@ const OWN_HOSTS: Record<CompetitorSlug, string[]> = {
   buffer: ["buffer.com"],
   jasper: ["www.jasper.ai"],
   birdeye: ["birdeye.com", "www.birdeye.com"],
+  // CMP-B (Shopify's own products are sourced from Shopify's own hosts only)
+  gorgias: ["www.gorgias.com"],
+  tidio: ["www.tidio.com"],
+  "manifest-ai": ["getmanifest.ai", "apps.shopify.com"],
+  "shopify-inbox": ["apps.shopify.com", "www.shopify.com", "help.shopify.com"],
+  "shopify-sidekick": ["www.shopify.com", "help.shopify.com"],
   // CMP-A
   wati: ["www.wati.io"],
   zoko: ["www.zoko.io"],
@@ -65,6 +77,8 @@ const OWN_LISTINGS: Partial<Record<CompetitorSlug, string>> = {
   tinyimg: "/smart-image-optimizer",
   searchpie: "/seo-booster",
   seowill: "/seo-master",
+  "manifest-ai": "/manifest-ai-shopping-assistant",
+  "shopify-inbox": "/inbox",
 };
 const hostOk = (slug: CompetitorSlug, href: string) => {
   const u = new URL(href);
@@ -84,6 +98,12 @@ const ROUTES: Record<CompetitorSlug, { Page: () => Promise<React.ReactElement>; 
   buffer: { Page: BufferPage, meta: bufferMeta },
   jasper: { Page: JasperPage, meta: jasperMeta },
   birdeye: { Page: BirdeyePage, meta: birdeyeMeta },
+  // CMP-B
+  gorgias: { Page: GorgiasPage, meta: gorgiasMeta },
+  tidio: { Page: TidioPage, meta: tidioMeta },
+  "manifest-ai": { Page: ManifestPage, meta: manifestMeta },
+  "shopify-inbox": { Page: InboxPage, meta: inboxMeta },
+  "shopify-sidekick": { Page: SidekickPage, meta: sidekickMeta },
   // CMP-A
   wati: { Page: WatiPage, meta: watiMeta },
   zoko: { Page: ZokoPage, meta: zokoMeta },
@@ -129,6 +149,7 @@ const PROSE_RULES: { keyword: RegExp; anyOf: string[] }[] = [
   { keyword: /bundle/i, anyOf: ["commerce.buy_together_bundles", "commerce.frequently_bought_together"] },
   { keyword: /cart suggestions/i, anyOf: ["commerce.cart_upsells"] },
   { keyword: /shelf tests?/i, anyOf: ["commerce.rail_ab_testing"] },
+  { keyword: /merchant.side|assistant for the merchant|\bAsk Peakhour\b/i, anyOf: ["platform.ask_peakhour"] },
   { keyword: /\binbox\b|handover|hand over/i, anyOf: ["support.channel_inbox", "support.whatsapp_support"] },
 ];
 const sentences = (t: string) => t.split(/(?<=[.!?])\s+/);
@@ -203,10 +224,17 @@ describe.each(COMPETITOR_BRIEFS.map((b) => [b.slug as CompetitorSlug, b] as cons
     expect(own.price).not.toMatch(/[₹£$€]|\b(INR|USD|GBP)\b/);
     expect(content.pricing.asOf).toMatch(ISO);
     // One currency is never stated for the whole table: each row's label carries its own, without nested brackets.
-    for (const r of content.pricing.rows.filter((x) => x.vendor !== "Peakhour")) {
-      expect(r.plan, r.plan).toMatch(/ · (?:[A-Z]{3}|Not stated).* · /);
+    const vendorRows = content.pricing.rows.filter((x) => x.vendor !== "Peakhour");
+    expect(vendorRows.length).toBe(b.pricing.rows.length);
+    vendorRows.forEach((r, i) => {
+      const src = b.pricing.rows[i];
+      // Only a row marked noMoneyPrice (Shopify's own free or included products) may say "No charge"; a vendor that states no currency says "Not stated".
+      if (src.noMoneyPrice) expect(src.currency, r.plan).toBe("No charge");
+      else if (src.currency === "Not stated") expect(src.price, r.plan).toMatch(/^Not published/);
+      else expect(r.plan, r.plan).toMatch(/ · [A-Z]{3}.* · /);
+      if (!src.noMoneyPrice) expect(src.currency, r.plan).not.toBe("No charge");
       expect(r.plan, r.plan).not.toMatch(/\([^)]*\([^)]*\)/);
-    }
+    });
   });
 
   it("claims for Peakhour only what an approved capability claim supports", () => {

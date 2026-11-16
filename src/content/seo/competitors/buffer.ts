@@ -73,9 +73,9 @@ export const BUFFER = {
   ],
   pricing: {
     rows: [
-      { plan: "Free, up to 3 channels", price: "Free forever", currency: "Not stated (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Essentials, per channel", price: "$5 per month per channel, or $60 per year, 14-day free trial", currency: "Not stated (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Team, per channel", price: "$10 per month per channel, or $120 per year, 14-day free trial", currency: "Not stated (shown as $)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Free, up to 3 channels", price: "Free forever", currency: "USD (bare $, code not stated)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Essentials, per channel", price: "$5 per month per channel, or $60 per year, 14-day free trial", currency: "USD (bare $, code not stated)", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Team, per channel", price: "$10 per month per channel, or $120 per year, 14-day free trial", currency: "USD (bare $, code not stated)", region: "Not stated", observedAt: D, source: S.pricing },
     ],
   },
   bestFor: [

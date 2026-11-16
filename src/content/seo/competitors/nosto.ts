@@ -67,7 +67,7 @@ export const NOSTO = {
   pricing: {
     rows: [
       { plan: "Platform plan", price: "Not published (a base fee plus a volume fee, quoted after a demo)", currency: "Not stated", region: "Not stated", observedAt: D, source: S.pricing },
-      { plan: "Self-service free trial", price: "None as standard; a proof of concept can be requested", currency: "Not stated", region: "Not stated", observedAt: D, source: S.pricing },
+      { plan: "Self-service free trial", price: "Not published (no self-service trial as standard; a proof of concept can be requested)", currency: "Not stated", region: "Not stated", observedAt: D, source: S.pricing },
       { plan: "Shopify listing", price: "Free to install, but a Nosto account is required and is not free; charges are billed in USD by Nosto", currency: "USD", region: "Not stated", observedAt: D, source: S.listing },
     ],
   },

@@ -16,6 +16,12 @@ import { REBUY } from "./rebuy";
 import { SEARCHPIE } from "./searchpie";
 import { SEOWILL } from "./seowill";
 import { TINYIMG } from "./tinyimg";
+// CMP-B
+import { GORGIAS } from "./gorgias";
+import { MANIFEST_AI } from "./manifest-ai";
+import { SHOPIFY_INBOX } from "./shopify-inbox";
+import { SIDEKICK } from "./sidekick";
+import { TIDIO } from "./tidio";
 import type { CompetitorBrief } from "./types";
 
 const BRIEFS = [
@@ -26,6 +32,12 @@ const BRIEFS = [
   WATI,
   ZOKO,
   GOKWIK,
+  // CMP-B
+  GORGIAS,
+  TIDIO,
+  MANIFEST_AI,
+  SHOPIFY_INBOX,
+  SIDEKICK,
   // CMP-C1: Shopify
   REBUY,
   LIMESPOT,
