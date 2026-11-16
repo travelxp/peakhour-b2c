@@ -30,6 +30,13 @@ import { MANIFEST_AI } from "./manifest-ai";
 import { SHOPIFY_INBOX } from "./shopify-inbox";
 import { SIDEKICK } from "./sidekick";
 import { TIDIO } from "./tidio";
+// CMP-W3B
+import { EASYSELL } from "./easysell";
+import { INTELLIGEMS } from "./intelligems";
+import { INVENTORY_PLANNER } from "./inventory-planner";
+import { PREDIKO } from "./prediko";
+import { RELEASIT } from "./releasit";
+import { SHOPLIFT } from "./shoplift";
 // CMP-W3C
 import { BOLD_DISCOUNTS } from "./bold-discounts";
 import { BOOSTER_SEO } from "./booster-seo";
@@ -65,6 +72,13 @@ const BRIEFS = [
   BUFFER,
   JASPER,
   BIRDEYE,
+  // CMP-W3B: store operations
+  PREDIKO,
+  INVENTORY_PLANNER,
+  INTELLIGEMS,
+  SHOPLIFT,
+  RELEASIT,
+  EASYSELL,
   // CMP-W3A
   RECONVERT,
   AFTERSELL,

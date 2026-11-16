@@ -34,6 +34,13 @@ import SidekickPage, { metadata as sidekickMeta } from "@/app/(site)/shopify/com
 import WatiPage, { metadata as watiMeta } from "@/app/(site)/shopify/compare/wati/page";
 import ZokoPage, { metadata as zokoMeta } from "@/app/(site)/shopify/compare/zoko/page";
 import GokwikPage, { metadata as gokwikMeta } from "@/app/(site)/shopify/compare/gokwik/page";
+// CMP-W3B
+import PredikoPage, { metadata as predikoMeta } from "@/app/(site)/shopify/compare/prediko/page";
+import InventoryPlannerPage, { metadata as inventoryPlannerMeta } from "@/app/(site)/shopify/compare/inventory-planner/page";
+import IntelligemsPage, { metadata as intelligemsMeta } from "@/app/(site)/shopify/compare/intelligems/page";
+import ShopliftPage, { metadata as shopliftMeta } from "@/app/(site)/shopify/compare/shoplift/page";
+import ReleasitPage, { metadata as releasitMeta } from "@/app/(site)/shopify/compare/releasit/page";
+import EasysellPage, { metadata as easysellMeta } from "@/app/(site)/shopify/compare/easysell/page";
 // CMP-W3A
 import ReconvertPage, { metadata as reconvertMeta } from "@/app/(site)/shopify/compare/reconvert/page";
 import AftersellPage, { metadata as aftersellMeta } from "@/app/(site)/shopify/compare/aftersell/page";
@@ -85,6 +92,13 @@ const OWN_HOSTS: Record<CompetitorSlug, string[]> = {
   wati: ["www.wati.io"],
   zoko: ["www.zoko.io"],
   gokwik: ["www.gokwik.co"],
+  // CMP-W3B
+  prediko: ["www.prediko.io", "apps.shopify.com"],
+  "inventory-planner": ["www.inventory-planner.com", "apps.shopify.com"],
+  intelligems: ["www.intelligems.io"],
+  shoplift: ["www.shoplift.ai"],
+  releasit: ["apps.shopify.com"],
+  easysell: ["easysellapp.com", "apps.shopify.com"],
   // CMP-W3A
   reconvert: ["upsell.com", "apps.shopify.com"],
   aftersell: ["aftersell.com"],
@@ -109,6 +123,11 @@ const OWN_LISTINGS: Partial<Record<CompetitorSlug, string>> = {
   seowill: "/seo-master",
   "manifest-ai": "/manifest-ai-shopping-assistant",
   "shopify-inbox": "/inbox",
+  // CMP-W3B
+  prediko: "/prediko",
+  "inventory-planner": "/inventory-planner",
+  releasit: "/releasit-cod-order-form",
+  easysell: "/easy-order-form",
   // CMP-W3A
   reconvert: "/reconvert-upsell-cross-sell",
   "zipify-ocu": "/zipify-oneclickupsell",
@@ -152,6 +171,13 @@ const ROUTES: Record<CompetitorSlug, { Page: () => Promise<React.ReactElement>; 
   wati: { Page: WatiPage, meta: watiMeta },
   zoko: { Page: ZokoPage, meta: zokoMeta },
   gokwik: { Page: GokwikPage, meta: gokwikMeta },
+  // CMP-W3B
+  prediko: { Page: PredikoPage, meta: predikoMeta },
+  "inventory-planner": { Page: InventoryPlannerPage, meta: inventoryPlannerMeta },
+  intelligems: { Page: IntelligemsPage, meta: intelligemsMeta },
+  shoplift: { Page: ShopliftPage, meta: shopliftMeta },
+  releasit: { Page: ReleasitPage, meta: releasitMeta },
+  easysell: { Page: EasysellPage, meta: easysellMeta },
   // CMP-W3A
   reconvert: { Page: ReconvertPage, meta: reconvertMeta },
   aftersell: { Page: AftersellPage, meta: aftersellMeta },
