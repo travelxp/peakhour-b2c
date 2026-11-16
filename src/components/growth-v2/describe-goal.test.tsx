@@ -48,12 +48,13 @@ const quote = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 const BOOKINGS: DraftOffer = { kind: "bookings", source: "orders", optimizeFor: "count", label: "Bookings", focusSuggestions: [], defaultTarget: { kind: "cost_per_outcome", value: 900, low: 300, high: 2000, currency: "INR" }, targetSource: "playbook" };
-const line = (id: string, label: string) => ({ id, label, matched: true, score: 1, why: "x", offers: [BOOKINGS] });
+const line = (id: string, label: string) => ({ id, label, matched: true, score: 1, why: "x", offers: [BOOKINGS], locked: [] });
 const DRAFT: FirstRunDraftResponse = {
   alreadyActive: true,
   currency: "INR",
   timeZone: { value: "Asia/Kolkata" },
   offers: [BOOKINGS],
+  locked: [],
   askAboutStores: false,
   channels: [],
   ceilingBands: { absent: "x" },
@@ -388,5 +389,32 @@ describe("failures say the merchant was not charged", () => {
     await click(FILL);
     expect(parsePosts()).toHaveLength(2);
     expect(parsePosts()[0]![2]!["x-peaks-quote"]).not.toBe(parsePosts()[1]![2]!["x-peaks-quote"]);
+  });
+});
+
+describe("FR: the Add goal form lists the goals that are locked, and never offers them", () => {
+  const LOCKED_CALLS = { kind: "calls", label: "Calls", needs: [{ need: "google_ads_call_conversions", sentence: "Turn on call tracking in Google Ads so phone calls from your ads can be counted.", target: "connected_accounts" }] };
+  const LOCKED_VISITS = { kind: "store_visits", label: "Store visits", needs: [{ need: "verify_business_profile", sentence: "Verify your Google Business Profile and link it to Google Ads so store visits can be counted.", target: "connected_accounts" }] };
+  it("a chosen line shows that line's locked goals with their sentences, and its select holds only offered outcomes", async () => {
+    const withLocked = { ...DRAFT, lines: [{ ...line("flights", "Flights"), locked: [LOCKED_CALLS] }, { ...line("hotels", "Hotels"), locked: [LOCKED_VISITS] }] };
+    h.post.mockImplementation(async (path: string) => {
+      if (path === "/v1/growth/v2/onboarding/draft") return withLocked;
+      throw new Error(`unplanned POST ${path}`);
+    });
+    await mount();
+    await openAdd();
+    expect(text()).not.toContain("Not available yet");
+    const select = field("goal-line") as HTMLSelectElement;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!.call(select, "hotels");
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await flush();
+    expect(text()).toContain("Not available yet");
+    expect(text()).toContain(LOCKED_VISITS.needs[0]!.sentence);
+    expect(text()).not.toContain(LOCKED_CALLS.needs[0]!.sentence);
+    const options = [...(field("goal-outcome") as HTMLSelectElement).options].map((o) => o.textContent);
+    expect(options).toEqual(["Bookings"]);
+    expect(document.querySelector('[data-testid="locked-goals"] button')).toBeNull();
   });
 });

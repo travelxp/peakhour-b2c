@@ -17,7 +17,7 @@ const VISITS: DraftOffer = {
   defaultTarget: { kind: "cost_per_outcome", value: 90, low: 20, high: 400, currency: "INR" }, targetSource: "playbook",
 };
 const draft = (offers: DraftOffer[], over: Partial<FirstRunDraftResponse> = {}): FirstRunDraftResponse => ({
-  alreadyActive: false, currency: "INR", timeZone: { value: "Asia/Kolkata" }, offers, askAboutStores: false,
+  alreadyActive: false, currency: "INR", timeZone: { value: "Asia/Kolkata" }, offers, locked: [], askAboutStores: false,
   playbook: { id: "local", version: 1, title: "Local" }, channels: [],
   ceilingBands: { currency: "INR", bands: [{ key: "starter", amount: 30000 }, { key: "steady", amount: 60000 }, { key: "growth", amount: 120000 }] },
   excludedByGuardrails: [], ...over,

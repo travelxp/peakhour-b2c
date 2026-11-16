@@ -163,7 +163,7 @@ describe("per-goal units", () => {
 describe("PL-9: a draft from a sentence fills the Add goal form", () => {
   const BOOKINGS: DraftOffer = { kind: "bookings", source: "orders", optimizeFor: "count", label: "Bookings", focusSuggestions: [], defaultTarget: { kind: "cost_per_outcome", value: 900, low: 300, high: 2000, currency: "INR" }, targetSource: "playbook" };
   const SALES: DraftOffer = { kind: "sales", source: "orders", optimizeFor: "value", label: "Sales", focusSuggestions: [], defaultTarget: { kind: "roas", value: 3, low: 2, high: 5 }, targetSource: "playbook" };
-  const line = (id: string, offers: DraftOffer[]) => ({ id, label: id, matched: true, score: 1, why: "", offers });
+  const line = (id: string, offers: DraftOffer[]) => ({ id, label: id, matched: true, score: 1, why: "", offers, locked: [] });
   const lines = [line("flights", [BOOKINGS]), line("hotels", [BOOKINGS, SALES])];
   const parsed = (over: Record<string, unknown> = {}) => ({ lineId: "hotels", outcome: { kind: "bookings", source: "orders", optimizeFor: "count" }, target: { kind: "cost_per_outcome", value: 1500 }, share: 0.2, status: "active", ...over }) as never;
 
