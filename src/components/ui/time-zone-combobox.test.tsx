@@ -108,6 +108,8 @@ describe("TimeZoneCombobox", () => {
     expect(trigger().textContent).toContain("Asia/Calcutta (UTC+05:30)");
     await openIt();
     expect(optionTexts().some((t) => t.startsWith("Asia/Calcutta"))).toBe(true);
+    // the modern name is in the list too; the long list is cut, so it is reached by search, whatever zone the host's browser is in
+    await search("Kolkata");
     expect(optionTexts().some((t) => t.startsWith("Asia/Kolkata"))).toBe(true);
     expect(chosen).not.toHaveBeenCalled();
   });
