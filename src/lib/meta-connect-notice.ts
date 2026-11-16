@@ -1,0 +1,29 @@
+/**
+ * What a Meta connect still owes, from the api callback's `?meta_notice=`
+ * (api `integrations/meta-connect-notice.ts`).
+ *
+ * ★A STORED TOKEN IS NOT A WORKING INSTAGRAM. The callback used to land every
+ * Meta connect on "Meta connected", including ones that stored no Facebook
+ * Page. The Instagram card connects only through a Page with an Instagram
+ * professional account linked, so the merchant saw a success toast beside a
+ * card still on "Connect" and nothing saying why. These say what to do next.
+ */
+
+export type MetaConnectNotice = "no_pages" | "no_instagram";
+
+const MESSAGES: Record<MetaConnectNotice, string> = {
+  no_pages:
+    "Meta is connected, but no Facebook Page was shared with Peakhour. Connect again and select the Page your Instagram account is linked to.",
+  no_instagram:
+    "Your Facebook Page is connected, but it has no Instagram professional account linked. Link one to the Page in Meta Business Suite, then connect Instagram again.",
+};
+
+export function parseMetaConnectNotice(value: string | null | undefined): MetaConnectNotice | undefined {
+  return value === "no_pages" || value === "no_instagram" ? value : undefined;
+}
+
+/** The merchant-facing next step for a notice, or null for none. */
+export function metaConnectNoticeMessage(value: string | null | undefined): string | null {
+  const notice = parseMetaConnectNotice(value);
+  return notice ? MESSAGES[notice] : null;
+}
