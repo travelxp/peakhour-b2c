@@ -141,7 +141,18 @@ export type IntegrationContent = BaseContent & {
   steps: StepItem[];
 };
 
+/** "Peakhour Suite gives more": what Peakhour does beyond the rows of a comparison, each card from an approved claim. */
+export type MoreContent = {
+  heading: string;
+  intro: string;
+  items: DirectoryItem[];
+  /** The way on to every feature (the directories), only those a visitor can open. */
+  links: LinkItem[];
+};
+
 export type ComparisonPageContent = BaseContent & {
+  /** Built by buildComparisonContent for every brief; optional so a hand-made content object still renders. */
+  more?: MoreContent;
   comparison: ComparisonContent;
   buyerUseCases: { title: string; body: string }[];
   pricing: {
@@ -168,7 +179,17 @@ export type GuideContent = BaseContent & {
  * A card of a directory. `href` is a page or a section of one; without it the card is plain text (a feature with no page to
  * open yet). `status` is the capability record's, and is left out where no record covers the feature.
  */
-export type DirectoryItem = { title: string; body: string; href?: string; status?: ReleaseStatus; pillar?: string };
+export type DirectoryItem = {
+  title: string;
+  body: string;
+  href?: string;
+  status?: ReleaseStatus;
+  pillar?: string;
+  /** A small line under the body (a comparison card's "Checked <date>"). */
+  meta?: string;
+  /** The linked page is a draft: a "Draft" chip shows, so a reviewer on dev never mistakes the card for a published page. */
+  draft?: boolean;
+};
 /** A heading over a run of cards, for a directory that groups its features (the Shopify directory groups like the app). */
 export type DirectoryGroup = { id: string; eyebrow: string; title: string; blurb: string; items: DirectoryItem[] };
 /** One flat grid (`items`), or the groups of a directory that groups its features (`groups`): never both. */

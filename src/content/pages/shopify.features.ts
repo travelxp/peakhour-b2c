@@ -1,10 +1,10 @@
 import type { DirectoryContent, DirectoryGroup, DirectoryItem } from "@/components/marketing/seo/content-types";
 import { getPage } from "@/lib/seo/pages";
-import { isPublishable } from "@/lib/seo/publish";
+import { canOpen } from "@/lib/seo/publish";
 import { pathFor } from "@/lib/seo/resolve";
 import { SHOPIFY_GROUPS, type ShopifyFeature } from "@/lib/shopify-features";
 import type { Surface } from "@/lib/seo/types";
-import { capabilityFacts, PRICING_LINK, SHOPIFY_HOME_LINK } from "./shopify-feature-kit";
+import { capabilityFacts, firstSentence, PRICING_LINK, SHOPIFY_HOME_LINK } from "./shopify-feature-kit";
 
 /*
  * The directory lists EVERY Shopify app feature, in the groups the /shopify page uses (SHOPIFY_GROUPS), so a merchant finds
@@ -143,8 +143,31 @@ const LAYOUT: { groupId: string; entries: Source[] }[] = [
   },
 ];
 
+/**
+ * Every capability the directory lists, once, with the surface it is shown on, the directory group it sits in and the
+ * page that owns it (its Shopify feature page, else the public page it points at). The comparison pages' "Peakhour
+ * Suite gives more" block reads this, so it starts from what this directory lists, keeps the features with a live or beta Shopify build, and links each the way this directory does.
+ */
+export type DirectoryCapability = { capabilityId: string; surface: Surface; groupId: string; source: Source };
+export const DIRECTORY_CAPABILITIES: readonly DirectoryCapability[] = (() => {
+  const seen = new Map<string, DirectoryCapability>();
+  for (const { groupId, entries } of LAYOUT) {
+    for (const e of entries) {
+      if (!e.capabilityId) continue;
+      const prior = seen.get(e.capabilityId);
+      const hasPage = !!(e.pageId ?? e.href?.pageId);
+      // The entry that stands for the capability is the first one with a page of its own, else the first.
+      if (!prior) seen.set(e.capabilityId, { capabilityId: e.capabilityId, surface: e.surface ?? "shopify", groupId, source: e })
+      else if (hasPage && !(prior.source.pageId ?? prior.source.href?.pageId)) seen.set(e.capabilityId, { ...prior, groupId, source: e });
+    }
+  }
+  return [...seen.values()];
+})();
+
+/** The directory's own card for a capability: its short approved-claim-derived copy and the link it opens, chosen by the one `canOpen` rule. */
+export const directoryCard = (d: DirectoryCapability): DirectoryItem => itemFor(d.source);
+
 const FEATURES = new Map<string, ShopifyFeature>(SHOPIFY_GROUPS.flatMap((g) => g.features.map((f) => [f.id, f] as const)));
-const firstSentence = (s: string) => s.split(/(?<=[.!?])\s/)[0] ?? s;
 
 /** Where a card with no page of its own goes: its place on /shopify, which anchors every SHOPIFY_GROUPS entry by id. */
 const onShopifyPage = (id: string) => `${pathFor("shopify")}#${id}`;
@@ -156,8 +179,8 @@ export function itemFor(src: Source): DirectoryItem {
   if (!title || !body) throw new Error(`Directory entry "${src.id}" has no title or sentence: it is neither a SHOPIFY_GROUPS entry nor given its own`);
   const status = src.capabilityId ? capabilityFacts(src.capabilityId, src.surface ?? "shopify").status : undefined;
   const shipped = status === undefined || status === "live" || status === "beta";
-  const own = src.pageId && isPublishable(getPage(src.pageId)) ? pathFor(src.pageId) + (src.anchor ? `#${src.anchor}` : "") : undefined;
-  const elsewhere = src.href && isPublishable(getPage(src.href.pageId)) ? pathFor(src.href.pageId) : undefined;
+  const own = src.pageId && canOpen(getPage(src.pageId)) ? pathFor(src.pageId) + (src.anchor ? `#${src.anchor}` : "") : undefined;
+  const elsewhere = src.href && canOpen(getPage(src.href.pageId)) ? pathFor(src.href.pageId) : undefined;
   // A card that is not shipped is plain text, even if /shopify describes it: a link would promise a thing a merchant cannot use.
   const fallback = group ? src.id : src.fallbackId;
   const href = !shipped ? undefined : (own ?? elsewhere ?? (fallback ? onShopifyPage(fallback) : undefined));

@@ -5,15 +5,22 @@ import type { DirectoryItem } from "./content-types";
 import { safeHref } from "./safe-href";
 
 const cardCls = "flex h-full flex-col gap-2 rounded-2xl border bg-card p-5";
+const compactCls = "flex h-full flex-col gap-1.5 rounded-2xl border bg-card p-4";
 
-function CardBody({ it, linked }: { it: DirectoryItem; linked: boolean }) {
+function CardBody({ it, linked, compact }: { it: DirectoryItem; linked: boolean; compact: boolean }) {
   return (
     <>
       <span className="flex items-start justify-between gap-3">
-        <span className="text-lg font-extrabold tracking-tight">{it.title}</span>
-        {it.status && <StatusChip status={it.status} className="shrink-0" />}
+        <span className={compact ? "text-base font-extrabold tracking-tight" : "text-lg font-extrabold tracking-tight"}>{it.title}</span>
+        <span className="flex shrink-0 items-center gap-1.5">
+          {it.draft && (
+            <span className="rounded-full border border-[var(--daylight-amber)] px-2 py-0.5 text-xs font-extrabold uppercase tracking-wide">Draft</span>
+          )}
+          {it.status && <StatusChip status={it.status} className="shrink-0" />}
+        </span>
       </span>
-      <span className="text-[15px] text-muted-foreground">{it.body}</span>
+      {it.body && <span className="text-[15px] text-muted-foreground">{it.body}</span>}
+      {it.meta && <span className="text-sm text-muted-foreground">{it.meta}</span>}
       {(it.pillar || linked) && (
         <span className="mt-auto flex items-center gap-2 pt-1 text-sm font-bold">
           {it.pillar && <span className="font-semibold text-muted-foreground">{it.pillar}</span>}
@@ -31,8 +38,11 @@ function CardBody({ it, linked }: { it: DirectoryItem; linked: boolean }) {
  * With `balanced` the columns follow the count, so no row ends on a lone card: a count divisible by three runs in threes from the desktop
  * width; any other count runs in twos from the tablet width up. An odd last card spans the row.
  */
-export function DirectoryGrid({ items, balanced = false }: { items: DirectoryItem[]; balanced?: boolean }) {
-  const cols = !balanced
+export function DirectoryGrid({ items, balanced = false, compact = false }: { items: DirectoryItem[]; balanced?: boolean; compact?: boolean }) {
+  const cardBase = compact ? compactCls : cardCls;
+  const cols = compact && !balanced
+    ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+    : !balanced
     ? "grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3"
     : items.length % 3 === 0
       ? "grid gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 sm:max-lg:[&>li:last-child:nth-child(odd)]:col-span-2"
@@ -44,13 +54,13 @@ export function DirectoryGrid({ items, balanced = false }: { items: DirectoryIte
           {it.href ? (
             <Link
               href={safeHref(it.href)}
-              className={`group ${cardCls} transition-all hover:-translate-y-1 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none motion-reduce:hover:translate-y-0`}
+              className={`group ${cardBase} transition-all hover:-translate-y-1 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none motion-reduce:hover:translate-y-0`}
             >
-              <CardBody it={it} linked />
+              <CardBody it={it} linked compact={compact} />
             </Link>
           ) : (
-            <div className={cardCls}>
-              <CardBody it={it} linked={false} />
+            <div className={cardBase}>
+              <CardBody it={it} linked={false} compact={compact} />
             </div>
           )}
         </li>

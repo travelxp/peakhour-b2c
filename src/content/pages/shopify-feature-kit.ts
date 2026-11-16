@@ -69,3 +69,6 @@ export const ADD_STORE_CLOSING: ShopifyFeatureContent["closing"] = {
 
 /** Proof tiles are product art, never a store: every feature page labels its picture as a demo. */
 export const DEMO = "demo" as const;
+
+/** The first sentence of a claim or a feature's copy: shorter than the whole, never different from it. */
+export const firstSentence = (s: string): string => s.split(/(?<=[.!?])\s/)[0] ?? s;

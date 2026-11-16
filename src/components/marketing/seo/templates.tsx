@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { comparedWith } from "@/content/seo/competitors/hub";
 import { articleLd } from "@/lib/seo/structured-data";
 import { cardLabel } from "@/lib/seo/labels";
 import { PAGES } from "@/lib/seo/pages";
@@ -68,18 +69,26 @@ const bandTone = (index: number) => (index % 2 === 0 ? "plain" : "muted");
 
 /** 7.1 Platform variant: installation and setup, the platform-native workflow, permissions only as supported. */
 export function ShopifyFeaturePage({ page, content }: { page: PageRecord; content: ShopifyFeatureContent }) {
+  // The comparison pages whose table covers this page's capability: published ones only on production, drafts too on dev.
+  const compared = comparedWith(page);
+  // The fixed bands keep their tones from the status band on, with or without a Compared section, on dev and on production. The FAQ after
+  // them is plain, so a Compared band is a band of its own (muted) only when the permissions band before it is plain; when permissions
+  // is muted, Compared sits inside that band under a rule, so no two equal tones ever meet.
+  const tone = bandTone;
+  const comparedBand = compared.length > 0 && bandTone((content.sections?.length ?? 0) + 2) === "plain";
+  const comparedInside = compared.length > 0 && !comparedBand;
   return (
     <Frame page={page} content={content}>
       <Section id="status" eyebrow="On Shopify" title="Where this stands on Shopify">
         <CapabilityStatus status={content.status} limitations={content.limitations} verifiedAt={content.verifiedAt} subject="On Shopify" />
       </Section>
       {content.sections?.map((s, i) => (
-        <DetailSection key={s.id} section={s} tone={bandTone(i + 1)} />
+        <DetailSection key={s.id} section={s} tone={tone(i + 1)} />
       ))}
-      <Section id="setup" eyebrow="Set up" title="Install to first result." tone={bandTone((content.sections?.length ?? 0) + 1)}>
+      <Section id="setup" eyebrow="Set up" title="Install to first result." tone={tone((content.sections?.length ?? 0) + 1)}>
         <WorkflowSteps steps={content.setupSteps} />
       </Section>
-      <Section id="permissions" eyebrow="Permissions" title="What the app asks for, and why." tone={bandTone((content.sections?.length ?? 0) + 2)}>
+      <Section id="permissions" eyebrow="Permissions" title="What the app asks for, and why." tone={tone((content.sections?.length ?? 0) + 2)}>
         {content.permissions.length === 0 ? (
           <p className={`${cardCls} max-w-2xl p-5 text-[15px] text-muted-foreground`}>{content.permissionsNote}</p>
         ) : (
@@ -104,7 +113,29 @@ export function ShopifyFeaturePage({ page, content }: { page: PageRecord; conten
           </Link>
           .
         </p>
+        {comparedInside && (
+          <div id="compared" className="mt-10 border-t pt-8 scroll-mt-20">
+            <h3 className="text-2xl font-extrabold tracking-tight">Compared with other apps.</h3>
+            <p className="mt-2 max-w-2xl text-[15px] text-muted-foreground">
+              Side-by-side comparisons whose table covers this feature, each with its sources and the date it was checked.
+            </p>
+            <div className="mt-5">
+              <DirectoryGrid items={compared} compact />
+            </div>
+          </div>
+        )}
       </Section>
+      {comparedBand && (
+        <Section
+          id="compared"
+          eyebrow="Compare"
+          title="Compared with other apps."
+          intro="Side-by-side comparisons whose table covers this feature, each with its sources and the date it was checked."
+          tone="muted"
+        >
+          <DirectoryGrid items={compared} compact />
+        </Section>
+      )}
     </Frame>
   );
 }
@@ -371,6 +402,20 @@ export function ComparisonPage({ page, content }: { page: PageRecord; content: C
           </p>
         </div>
       </Section>
+      {content.more && (
+        <Section id="more" eyebrow="Peakhour Suite gives more" title={content.more.heading} intro={content.more.intro} tone="muted">
+          <DirectoryGrid items={content.more.items} compact />
+          {content.more.links.length > 0 && (
+            <p className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-[15px] font-semibold">
+              {content.more.links.map((l) => (
+                <Link key={l.href} href={safeHref(l.href)} className={linkCls}>
+                  {l.label}
+                </Link>
+              ))}
+            </p>
+          )}
+        </Section>
+      )}
     </Frame>
   );
 }

@@ -32,6 +32,8 @@ const FOOTER_GROUPS: readonly { heading: string; items: readonly Item[] }[] = [
       { path: "/shopify/features/whatsapp-cod-confirmation", page: true },
       { path: "/shopify/features/product-recommendations", page: true },
       { path: "/shopify/features/ai-seo", page: true },
+      // Only while the directory is publishable: footerGroups drops a registry page that is not.
+      { path: "/shopify/compare", page: true },
     ],
   },
   {
