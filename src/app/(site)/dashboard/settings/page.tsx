@@ -14,6 +14,7 @@ import { activeBusiness, planRowLabel } from "@/lib/plan-status";
 // Shared with every other surface the OAuth callback can return to
 // (?returnTo=), so a new provider is labelled once, not per page.
 import { formatProviderName } from "@/lib/provider-names";
+import { metaConnectNoticeMessage } from "@/lib/meta-connect-notice";
 import { IntegrationFitAttention } from "@/components/integrations/integration-fit-attention";
 import { MeasurementHealthPanel } from "@/components/growth/measurement-health-panel";
 import { RequestReviewButton } from "@/components/integrations/request-review-button";
@@ -132,6 +133,8 @@ function SettingsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [justConnectedProvider, setJustConnectedProvider] = useState<string | null>(null);
+  // Set beside `justConnectedProvider` from the callback's `?meta_notice=`.
+  const [metaNotice, setMetaNotice] = useState<string | null>(null);
   // Set when the OAuth callback flags a multi-page LinkedIn connect
   // (`select_page=1`): the connected member admins several Company
   // Pages, and the auto-seeded default needs human confirmation.
@@ -224,6 +227,7 @@ function SettingsContent() {
   useEffect(() => {
     if (searchParams?.get("integration") === "connected") {
       setJustConnectedProvider(searchParams.get("provider") ?? "");
+      setMetaNotice(metaConnectNoticeMessage(searchParams.get("meta_notice")));
       setSelectPagePrompt(searchParams.get("select_page") === "1");
       // Refetch integration status everywhere immediately after a successful
       // OAuth. Otherwise the content/composer pages keep their cached
@@ -290,10 +294,19 @@ function SettingsContent() {
         actions={<ContactSupportDialog />}
       />
 
-      {justConnectedProvider !== null && (
+      {justConnectedProvider !== null && metaNotice === null && (
         <div className="flex items-center gap-2 rounded-lg bg-success/10 border border-success/20 p-4 text-sm text-success-on-tint">
           <CheckCircle2 className="h-4 w-4 shrink-0" />
           {formatProviderName(justConnectedProvider)} connected successfully!
+        </div>
+      )}
+
+      {/* A Meta connect that stored no Page, or no Instagram-linked Page: the
+          next step, not a success (lib/meta-connect-notice). */}
+      {justConnectedProvider !== null && metaNotice !== null && (
+        <div role="status" className="flex items-start gap-2 rounded-lg bg-warning/10 border border-warning/30 p-4 text-sm text-warning-on-tint">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>{metaNotice}</span>
         </div>
       )}
 
