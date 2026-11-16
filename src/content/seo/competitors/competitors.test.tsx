@@ -42,6 +42,13 @@ import FastBundlePage, { metadata as fastBundleMeta } from "@/app/(site)/shopify
 import CbbFbtPage, { metadata as cbbFbtMeta } from "@/app/(site)/shopify/compare/cbb-frequently-bought-together/page";
 import OctaneAiPage, { metadata as octaneAiMeta } from "@/app/(site)/shopify/compare/octane-ai/page";
 import RevenuehuntPage, { metadata as revenuehuntMeta } from "@/app/(site)/shopify/compare/revenuehunt/page";
+// CMP-W3C
+import DescribelyPage, { metadata as describelyMeta } from "@/app/(site)/shopify/compare/describely/page";
+import HypotenusePage, { metadata as hypotenuseMeta } from "@/app/(site)/shopify/compare/hypotenuse/page";
+import PluginSeoPage, { metadata as pluginSeoMeta } from "@/app/(site)/shopify/compare/plug-in-seo/page";
+import BoosterSeoPage, { metadata as boosterSeoMeta } from "@/app/(site)/shopify/compare/booster-seo/page";
+import DiscountNinjaPage, { metadata as discountNinjaMeta } from "@/app/(site)/shopify/compare/discount-ninja/page";
+import BoldDiscountsPage, { metadata as boldDiscountsMeta } from "@/app/(site)/shopify/compare/bold-discounts/page";
 import { getCapability } from "@/lib/seo/capabilities";
 import { findPageByPath, getPage, LAUNCH_PARTNER_CTA, PAGES } from "@/lib/seo/pages";
 import { MARKETING_PATHS } from "@/lib/seo/gate";
@@ -86,6 +93,13 @@ const OWN_HOSTS: Record<CompetitorSlug, string[]> = {
   "cbb-frequently-bought-together": ["apps.shopify.com"],
   "octane-ai": ["octaneai.com", "apps.shopify.com"],
   revenuehunt: ["revenuehunt.com", "apps.shopify.com"],
+  // CMP-W3C
+  describely: ["www.describely.ai", "apps.shopify.com"],
+  hypotenuse: ["www.hypotenuse.ai", "apps.shopify.com"],
+  "plug-in-seo": ["apps.shopify.com"],
+  "booster-seo": ["boosterseo.com", "apps.shopify.com"],
+  "discount-ninja": ["discountninja.io", "apps.shopify.com"],
+  "bold-discounts": ["support.boldcommerce.com", "apps.shopify.com"],
 };
 const OWN_LISTINGS: Partial<Record<CompetitorSlug, string>> = {
   limespot: "/limespot",
@@ -102,6 +116,13 @@ const OWN_LISTINGS: Partial<Record<CompetitorSlug, string>> = {
   "cbb-frequently-bought-together": "/frequently-bought-together",
   "octane-ai": "/octane-ai-quiz-personalization",
   revenuehunt: "/product-recommendation-quiz-revenuehunt",
+  // CMP-W3C
+  describely: "/describely",
+  hypotenuse: "/product-description-writer",
+  "plug-in-seo": "/plug-in-seo",
+  "booster-seo": "/seo-image-optimizer",
+  "discount-ninja": "/discount-url",
+  "bold-discounts": "/product-discount",
 };
 const hostOk = (slug: CompetitorSlug, href: string) => {
   const u = new URL(href);
@@ -139,6 +160,13 @@ const ROUTES: Record<CompetitorSlug, { Page: () => Promise<React.ReactElement>; 
   "cbb-frequently-bought-together": { Page: CbbFbtPage, meta: cbbFbtMeta },
   "octane-ai": { Page: OctaneAiPage, meta: octaneAiMeta },
   revenuehunt: { Page: RevenuehuntPage, meta: revenuehuntMeta },
+  // CMP-W3C
+  describely: { Page: DescribelyPage, meta: describelyMeta },
+  hypotenuse: { Page: HypotenusePage, meta: hypotenuseMeta },
+  "plug-in-seo": { Page: PluginSeoPage, meta: pluginSeoMeta },
+  "booster-seo": { Page: BoosterSeoPage, meta: boosterSeoMeta },
+  "discount-ninja": { Page: DiscountNinjaPage, meta: discountNinjaMeta },
+  "bold-discounts": { Page: BoldDiscountsPage, meta: boldDiscountsMeta },
 };
 const ENV_KEYS = ["VERCEL_ENV", "SITE_INDEXABLE"] as const;
 const saved: Record<string, string | undefined> = {};
