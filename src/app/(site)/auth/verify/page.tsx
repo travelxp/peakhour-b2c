@@ -85,9 +85,7 @@ function VerifyContent() {
 
   return (
     <FlowCard className="max-w-md">
-      <FlowHead icon={XCircle} tone="bad" title="This link didn’t work">
-        Request a new sign-in link to try again.
-      </FlowHead>
+      <FlowHead icon={XCircle} tone="bad" title="This link didn’t work" />
       <FlowNotice tone="bad" role="alert" className="mt-5">
         {error}
       </FlowNotice>

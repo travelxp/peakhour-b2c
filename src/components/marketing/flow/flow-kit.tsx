@@ -179,7 +179,7 @@ const BTN_VARIANT = {
   primary:
     "bg-brand-gradient text-brand-contrast shadow-[0_8px_20px_-8px_var(--brand)] hover:-translate-y-0.5 focus-visible:-translate-y-0.5 disabled:pointer-events-none disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 aria-disabled:hover:translate-y-0 aria-disabled:pointer-events-none",
   ghost:
-    "shadow-[inset_0_0_0_2px_var(--foreground)] hover:bg-muted disabled:pointer-events-none disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60",
+    "shadow-[inset_0_0_0_2px_var(--foreground)] hover:bg-muted disabled:pointer-events-none disabled:opacity-60 aria-disabled:cursor-not-allowed aria-disabled:opacity-60 aria-disabled:pointer-events-none",
   quiet: "text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-60",
 } as const;
 
@@ -197,17 +197,13 @@ export function FlowButton({
   return <Comp {...typeProps} className={cn(BTN_BASE, BTN_VARIANT[variant], inline ? "w-auto" : "w-full", className)} {...props} />;
 }
 
-/** The same classes for a place that renders its own element. */
-export function flowButtonClass(variant: keyof typeof BTN_VARIANT = "primary", inline = false) {
-  return cn(BTN_BASE, BTN_VARIANT[variant], inline ? "w-auto" : "w-full");
-}
-
 /** A choice in a "which one?" list: a selectable card, coral when picked. */
-export function flowOption(selected: boolean, blocked = false) {
+export function flowOption(selected: boolean, blocked = false, row = false) {
   return cn(
-    "flex w-full flex-col items-start gap-0.5 rounded-2xl border-2 bg-card p-3.5 text-left text-sm transition-colors",
+    "flex w-full gap-0.5 rounded-2xl border-2 bg-card p-3.5 text-left text-sm transition-colors",
     FOCUS,
     selected ? "border-brand bg-brand-soft" : "border-border hover:border-foreground/40 hover:bg-muted",
+    row ? "flex-row items-center justify-between" : "flex-col items-start",
     blocked && "cursor-not-allowed opacity-60 hover:border-border hover:bg-card",
   );
 }

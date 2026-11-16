@@ -365,7 +365,7 @@ export function ShopifyClaim() {
                                   setLimitNotice(null);
                                 }}
                                 aria-pressed={selected}
-                                className={`${flowOption(selected)} flex-row items-center justify-between`}
+                                className={flowOption(selected, false, true)}
                               >
                                 <span className="font-medium">{o.name}</span>
                                 <span className="text-sm text-muted-foreground">{o.role}</span>
