@@ -229,13 +229,21 @@ describe("★coming soon: the features intro claims nothing about the app being 
   });
 });
 
-// Owner, 2026-11-16: the hero demo's chat showed "From: product stock · Shipping policy" under the reply. The real storefront
-// chat shows no sources line, so the demo (on /, /shopify and /coming-soon) must not invent one.
-import { readFileSync as readDemoSource } from "node:fs";
-import { join as joinDemoPath } from "node:path";
+
+// Owner, 2026-11-16: the hero demo's chat showed a sources line under the reply. The real storefront chat shows the answer
+// and product cards, never where it looked, so the rendered demo (final frame, server markup) must carry no sources line.
+const SOURCES_LINE = /\b(From|Sources?|Answered from):\s/i;
+
 describe("hero demo shows only what the real chat shows", () => {
-  it("has no answer-sources line", () => {
-    const src = readDemoSource(joinDemoPath(__dirname, "shopify-hero-demo.tsx"), "utf8");
-    expect(src).not.toMatch(/>\s*From:/);
+  it("renders no answer-sources line under the reply", () => {
+    const page = text(html());
+    expect(page).toMatch(/XL is in stock/); // the demo reply rendered, so the check below is meaningful
+    expect(page).not.toMatch(SOURCES_LINE);
+  });
+
+  it("the pattern catches the removed line and its likely spellings", () => {
+    for (const line of ["From: product stock · Shipping policy", "Sources: catalogue", "Answered from: your policies"]) {
+      expect(line, line).toMatch(SOURCES_LINE);
+    }
   });
 });

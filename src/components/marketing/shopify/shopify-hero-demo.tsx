@@ -202,8 +202,7 @@ export function ShopifyHeroDemo() {
             Yes, XL is in stock, and there are 3 left. Orders to Pune usually arrive in 2–3 days, so Friday works. Shall I add it to
             your cart?
           </Bubble>
-          {/* No "From: product stock · Shipping policy" source line under the reply (owner, 2026-11-16): the real storefront
-              chat shows the answer and product cards, never a sources line, so the demo must not show one either. */}
+          {/* No sources line under the reply: the real storefront chat never shows one (shopify-page-view.test.tsx). */}
           <Bubble on={on(4)} me>Yes please</Bubble>
         </div>
       </div>
