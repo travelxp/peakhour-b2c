@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { isAppRoute } from "@/lib/route-theme";
 import { cn } from "@/lib/utils";
 
@@ -16,11 +16,15 @@ import { cn } from "@/lib/utils";
  * /dashboard. /dashboard, /onboarding and /cms never get it and keep following the device theme.
  *
  * suppressHydrationWarning: under the coming-soon gate the server may see the rewritten path and the browser the
- * original one; the gated page wraps itself in Daylight regardless, and the class settles on the first render.
+ * original one. React does not patch a mismatched attribute on hydration, so the effect below sets the class from the
+ * browser's own path after mount; the gated page also wraps itself in Daylight, so nothing shows the wrong palette.
  */
 export function DaylightBody({ className, children }: { className: string; children: ReactNode }) {
   const pathname = usePathname();
   const daylight = pathname ? !isAppRoute(pathname) : true;
+  useEffect(() => {
+    document.body.classList.toggle("theme-daylight", daylight);
+  }, [daylight]);
   return (
     <body className={cn(className, daylight && "theme-daylight")} suppressHydrationWarning>
       {children}

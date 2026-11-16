@@ -30,8 +30,8 @@ function slug(text: string): string {
       .toLowerCase()
       .replace(/^\d+(\.\d+)*\.?\s*/, "")
       .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 60) || "section"
+      .slice(0, 60)
+      .replace(/^-+|-+$/g, "") || "section"
   );
 }
 
@@ -79,7 +79,7 @@ export function LegalPage({
   const toc = headings.length > 1;
 
   return (
-    <div className="theme-daylight flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
+    <div className="flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
       <Header minimal />
 
       <main className="flex-1">

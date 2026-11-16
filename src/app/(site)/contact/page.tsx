@@ -75,7 +75,7 @@ const CONTACT_CHANNELS = [
 
 export default function ContactPage() {
   return (
-    <div className="theme-daylight flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
+    <div className="flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
       <Header />
 
       <main className="flex-1">

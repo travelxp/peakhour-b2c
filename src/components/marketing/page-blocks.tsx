@@ -185,7 +185,7 @@ function Cta({ b }: { b: CtaBlock }) {
             {b.accent && (
               <>
                 {" "}
-                <span className="daylight-mark">{b.accent}</span>
+                <span className="text-brand">{b.accent}</span>
               </>
             )}
           </h2>
