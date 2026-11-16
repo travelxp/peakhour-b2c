@@ -35,8 +35,13 @@ export const BOOSTER_SEO = {
       peakhour: P.seoAudit,
     },
     {
-      dimension: "Fixes: automatic or approved first",
+      dimension: "Fixes applied automatically",
       vendor: { value: "yes", note: "AutoPilot applies SEO fixes automatically and monitors your store, on its Pro plan.", source: S.listing, observedAt: D },
+      peakhour: pending(),
+    },
+    {
+      dimension: "Tick which fixes apply, and undo",
+      vendor: { value: "not-documented", note: "Choosing fixes one by one and undoing them is not described in the listing.", source: S.listing, observedAt: D },
       peakhour: P.seoTickAndUndo,
     },
     {

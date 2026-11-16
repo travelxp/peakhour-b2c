@@ -35,9 +35,9 @@ export const BOLD_DISCOUNTS = {
       peakhour: P.campaignDeadline,
     },
     {
-      dimension: "Discounts created in your Shopify store",
+      dimension: "Discounts that apply without a code",
       vendor: { value: "yes", note: "Automatic Scheduled Sales are listed on both of its plans.", source: S.listing, observedAt: D },
-      peakhour: P.campaignDiscount,
+      peakhour: pending(),
     },
     {
       dimension: "Tiered quantity breaks",
@@ -51,7 +51,7 @@ export const BOLD_DISCOUNTS = {
     },
     {
       dimension: "Discounts for specific customers",
-      vendor: { value: "partial", note: "Help-centre article titles cover specific customers and new customers' first orders. We read the titles, not the articles.", source: S.support, observedAt: D },
+      vendor: { value: "not-documented", note: "Help-centre article titles cover specific customers and new customers' first orders, but we read only the titles, not the articles.", source: S.support, observedAt: D },
       peakhour: pending(),
     },
     {
