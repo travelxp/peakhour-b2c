@@ -101,6 +101,15 @@ describe("the category card", () => {
     expect(document.querySelector('[role="status"]')!.textContent).toBe("Only an owner or admin can change the category.");
   });
 
+  it("a refetch that fails after a good save is not shown as a failed save, and the old message goes when another option is picked", async () => {
+    await mount();
+    await pick("hospitality_travel");
+    await act(async () => save()!.click());
+    expect(document.body.textContent).toContain("Saved.");
+    await pick("retail");
+    expect(document.querySelector('[role="status"]')).toBeNull();
+  });
+
   it("a business with no options yet (the api has not answered) shows no control", async () => {
     h.data = undefined;
     await mount();

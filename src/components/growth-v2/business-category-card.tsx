@@ -35,8 +35,8 @@ export function BusinessCategoryCard() {
       const r = await api.put<{ updated: boolean; category?: CategoryChangeResult }>("/v1/dashboard/org", { businessCategory: value });
       setSaid(r.category ? categoryChangeWords(r.category) : { text: "Saved.", tone: "ok" });
       setPicked(null);
-      // the cohorts, the playbook and the offered goals all follow the category
-      await Promise.all([qc.invalidateQueries({ queryKey: [DASHBOARD_ORG_KEY] }), qc.invalidateQueries({ queryKey: ["growth-v2"] })]);
+      // the cohorts, the playbook and the offered goals all follow the category; a refetch that fails is not a save that failed
+      await Promise.all([qc.invalidateQueries({ queryKey: [DASHBOARD_ORG_KEY] }), qc.invalidateQueries({ queryKey: ["growth-v2"] })]).catch(() => undefined);
     } catch (e) {
       setSaid({ text: e instanceof ApiError && e.status === 403 ? "Only an owner or admin can change the category." : "We could not save that. Try again in a moment.", tone: "warn" });
     } finally {
@@ -58,7 +58,10 @@ export function BusinessCategoryCard() {
             <label htmlFor="business-category" className="sr-only">
               Business category
             </label>
-            <select id="business-category" className="h-9 rounded-md border bg-background px-2 text-sm" value={value} onChange={(e) => setPicked(e.target.value)} disabled={saving}>
+            <select id="business-category" className="h-9 rounded-md border bg-background px-2 text-sm" value={value} onChange={(e) => {
+                setPicked(e.target.value);
+                setSaid(null);
+              }} disabled={saving}>
               {current === "" ? <option value="">Choose one</option> : null}
               {options.map((o) => (
                 <option key={o.value} value={o.value}>
