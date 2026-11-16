@@ -87,7 +87,7 @@ export const SF2_PAGES: readonly PageRecord[] = [
   }),
   rec({
     pageId: "shopify.features.automatic.markdowns",
-    path: "/shopify/features/automatic-markdowns",
+    path: "/shopify/features/markdown-suggestions",
     pillar: "commerce",
     capabilityIds: ["commerce.automatic_markdowns"],
     cluster: "shopify-markdown-suggestions",
@@ -139,7 +139,7 @@ export const SF2_PAGES: readonly PageRecord[] = [
     pillar: "growth",
     capabilityIds: ["growth.ai_growth_campaigns"],
     cluster: "shopify-growth-campaigns",
-    title: "Shopify campaign discounts and WhatsApp reminders",
+    title: "Shopify campaign discounts that end on schedule",
     description:
       "Approve a Peakhour campaign and it puts products on a storefront shelf and, if you switched discounts on, creates a Shopify discount that ends on schedule.",
     h1: "Run Shopify campaigns with discounts that end on schedule",

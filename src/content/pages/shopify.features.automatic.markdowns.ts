@@ -66,10 +66,7 @@ export const CONTENT: ShopifyFeatureContent = {
       q: "What if price changes are not switched on?",
       a: "Applying needs price changes switched on in Autopilot and the store's product-write permission. Without them nothing is changed, and Peakhour tells you so.",
     },
-    {
-      q: "Does the margin floor know my costs?",
-      a: "Only where your cost is known to Peakhour. Shopify stores often do not hold a cost for each product, and the discount limit applies either way.",
-    },
+
   ],
   related: [
     ...siblingLink(ID, "shopify.features.inventory.alerts", "Shopify stock-out alerts and purchase orders", "The other side of stock: what is about to run out."),

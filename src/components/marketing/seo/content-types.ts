@@ -94,16 +94,17 @@ export type DetailSectionContent = {
   limitations?: string[];
 };
 
-export type ShopifyFeatureContent = BaseContent & {
+/** Permissions the app really asks for; or, when the feature asks for none of its own, a note that says so (never an empty list). */
+export type PermissionsContent =
+  | { permissions: { name: string; why: string }[]; permissionsNote?: undefined }
+  | { permissions: []; permissionsNote: string };
+export type ShopifyFeatureContent = BaseContent & PermissionsContent & {
   /** Sections between the status and the setup, for what the feature is made of (Smart Rails kinds, Find my match). */
   sections?: DetailSectionContent[];
   status: ReleaseStatus;
   limitations: string[];
   verifiedAt: string;
   setupSteps: StepItem[];
-  /** Permissions only as the app really asks for them. Empty when the feature asks for none of its own: then `permissionsNote` says so. */
-  permissions: { name: string; why: string }[];
-  permissionsNote?: string;
   /** The global page this variant stays a child of (Bible 7.1). */
   globalPage: LinkItem;
 };
@@ -169,14 +170,15 @@ export type GuideContent = BaseContent & {
  */
 export type DirectoryItem = { title: string; body: string; href?: string; status?: ReleaseStatus; pillar?: string };
 /** A heading over a run of cards, for a directory that groups its features (the Shopify directory groups like the app). */
-export type DirectoryGroup = { id: string; title: string; blurb: string; items: DirectoryItem[] };
-export type DirectoryContent = BaseContent & {
-  items: DirectoryItem[];
-  /** When set, the page shows these groups instead of one flat grid of `items`. */
-  groups?: DirectoryGroup[];
-  /** The heading over the grid. */
-  listTitle?: string;
-};
+export type DirectoryGroup = { id: string; eyebrow: string; title: string; blurb: string; items: DirectoryItem[] };
+/** One flat grid (`items`), or the groups of a directory that groups its features (`groups`): never both. */
+export type DirectoryContent = BaseContent &
+  (
+    | { items: DirectoryItem[]; /** The heading over the grid. */ listTitle?: string; groups?: undefined }
+    | { groups: DirectoryGroup[]; items?: undefined; listTitle?: undefined }
+  );
+/** Every card of a directory, flat. */
+export const directoryItems = (c: DirectoryContent): DirectoryItem[] => c.groups?.flatMap((g) => g.items) ?? c.items ?? [];
 
 /** One thing a module does (or will), with the status the capability record gives it on its surface. */
 export type HubItem = {

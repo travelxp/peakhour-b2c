@@ -80,12 +80,13 @@ export function ShopifyFeaturePage({ page, content }: { page: PageRecord; conten
         <WorkflowSteps steps={content.setupSteps} />
       </Section>
       <Section id="permissions" eyebrow="Permissions" title="What the app asks for, and why." tone={bandTone((content.sections?.length ?? 0) + 2)}>
-        <p className="mb-5 max-w-2xl text-lg text-muted-foreground">
-          The access the app asks Shopify for, in plain words. Each line names the permission and what it is used for.
-        </p>
         {content.permissions.length === 0 ? (
           <p className={`${cardCls} max-w-2xl p-5 text-[15px] text-muted-foreground`}>{content.permissionsNote}</p>
         ) : (
+        <>
+        <p className="mb-5 max-w-2xl text-lg text-muted-foreground">
+          The access the app asks Shopify for, in plain words. Each line names the permission and what it is used for.
+        </p>
         <dl className="grid gap-3 sm:grid-cols-2 sm:gap-4">
           {content.permissions.map((p) => (
             <div key={p.name} className={`${cardCls} p-5 sm:[&:last-child:nth-child(odd)]:col-span-2`}>
@@ -94,6 +95,7 @@ export function ShopifyFeaturePage({ page, content }: { page: PageRecord; conten
             </div>
           ))}
         </dl>
+        </>
         )}
         <p className="mt-6 text-[15px] text-muted-foreground">
           This page covers Shopify only. For every platform and the full picture, read{" "}
@@ -442,7 +444,7 @@ export function DirectoryPage({ page, content }: { page: PageRecord; content: Di
     <Frame page={page} content={content}>
       {content.groups ? (
         content.groups.map((g, i) => (
-          <Section key={g.id} id={g.id} eyebrow="Shopify app" title={g.title} intro={g.blurb} tone={i % 2 === 1 ? "muted" : "plain"}>
+          <Section key={g.id} id={g.id} eyebrow={g.eyebrow} title={g.title} intro={g.blurb} tone={i % 2 === 1 ? "muted" : "plain"}>
             <DirectoryGrid items={g.items} balanced />
           </Section>
         ))

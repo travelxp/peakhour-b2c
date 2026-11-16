@@ -1,5 +1,5 @@
 import type { ShopifyFeatureContent } from "@/components/marketing/seo/content-types";
-import { ADD_STORE_CLOSING, capabilityFacts, DEMO, featureCrumbs, PRICING_LINK, SHOPIFY_HOME_LINK, siblingLink, type PageClaims } from "./shopify-feature-kit";
+import { ADD_STORE_CLOSING, capabilityFacts, DEMO, featureCrumbs, PRICING_LINK, SHOPIFY_HOME_LINK, siblingItem, siblingLink, type PageClaims } from "./shopify-feature-kit";
 
 const ID = "shopify.features.frequently.bought.together";
 
@@ -7,7 +7,6 @@ export const CLAIMS: PageClaims = ["commerce.frequently_bought_together.from_ord
 
 const fbt = capabilityFacts("commerce.frequently_bought_together");
 const bundle = capabilityFacts("commerce.buy_together_bundles");
-const bundlesLink = siblingLink(ID, "shopify.features.bundles", "Buy together and save for Shopify", "How the saving works, how to set it up and the permission it needs.");
 
 export const CONTENT: ShopifyFeatureContent = {
   crumbs: featureCrumbs("Frequently bought together", ID),
@@ -46,7 +45,7 @@ export const CONTENT: ShopifyFeatureContent = {
         "Buy together and save gives 5 to 30 percent off a product's usual companions when they are bought in the same cart. It is one discount percentage for the whole store.",
         "It is off until you switch it on for a bought-together shelf.",
       ],
-      ...(bundlesLink[0] ? { items: [{ title: "Buy together and save, in full", body: bundlesLink[0].note ?? "", href: bundlesLink[0].href, linkLabel: bundlesLink[0].label }] } : {}),
+      ...siblingItem(ID, "shopify.features.bundles", "Buy together and save, in full", "Buy together and save for Shopify", "How the saving works, how to set it up and the permission it needs."),
       limitations: bundle.limitations.filter((l) => !l.startsWith("Off until")),
     },
   ],

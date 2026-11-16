@@ -1,5 +1,5 @@
 import type { ShopifyFeatureContent } from "@/components/marketing/seo/content-types";
-import { ADD_STORE_CLOSING, capabilityFacts, DEMO, featureCrumbs, PRICING_LINK, SHOPIFY_HOME_LINK, siblingLink, type PageClaims } from "./shopify-feature-kit";
+import { ADD_STORE_CLOSING, capabilityFacts, DEMO, featureCrumbs, PRICING_LINK, SHOPIFY_HOME_LINK, siblingItem, siblingLink, type PageClaims } from "./shopify-feature-kit";
 
 const ID = "shopify.features.ai.shopping.assistant";
 
@@ -8,7 +8,6 @@ export const CLAIMS: PageClaims = ["commerce.ai_shopping_assistant.answers_from_
 
 const assistant = capabilityFacts("commerce.ai_shopping_assistant");
 const finder = capabilityFacts("commerce.find_my_match");
-const finderLink = siblingLink(ID, "shopify.features.product.finder", "Find my match for Shopify", "How it asks, what it needs and what it does not do.");
 
 export const CONTENT: ShopifyFeatureContent = {
   crumbs: featureCrumbs("AI shopping assistant", ID),
@@ -46,7 +45,7 @@ export const CONTENT: ShopifyFeatureContent = {
       paragraphs: [
         "Find my match is part of the assistant, not a separate quiz tool. A shopper taps Find my match and answers a few quick questions, made from your store's own product attributes and price range, to get a shortlist.",
       ],
-      ...(finderLink[0] ? { items: [{ title: "Find my match, in full", body: finderLink[0].note ?? "", href: finderLink[0].href, linkLabel: finderLink[0].label }] } : {}),
+      ...siblingItem(ID, "shopify.features.product.finder", "Find my match, in full", "Find my match for Shopify", "How it asks, what it needs and what it does not do."),
       limitations: finder.limitations,
     },
   ],

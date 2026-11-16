@@ -61,7 +61,7 @@ const SHOPIFY_FEATURE_PATHS = [
   "/shopify/features/cart-upsells",
   "/shopify/features/merchandising-ab-testing",
   "/shopify/features/inventory-alerts",
-  "/shopify/features/automatic-markdowns",
+  "/shopify/features/markdown-suggestions",
   "/shopify/features/ai-blog-generator",
   "/shopify/features/seo-audit",
   "/shopify/features/customer-conversation-insights",

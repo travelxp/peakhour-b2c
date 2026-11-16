@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ShopifyFeaturePage, DirectoryPage } from "@/components/marketing/seo/templates";
-import type { BaseContent, ShopifyFeatureContent } from "@/components/marketing/seo/content-types";
+import { directoryItems, type BaseContent, type ShopifyFeatureContent } from "@/components/marketing/seo/content-types";
 import { getCapability } from "@/lib/seo/capabilities";
 import { getPage, PAGES } from "@/lib/seo/pages";
 import { isPublishable } from "@/lib/seo/publish";
@@ -73,7 +73,7 @@ describe("registry records", () => {
 
   it("the directory is published and links every published wave-1 feature page (SF-2 holds the full-directory tests)", () => {
     expect(isPublishable(getPage("shopify.features"))).toBe(true);
-    const listed = new Set(directory.CONTENT.items.map((i) => i.href));
+    const listed = new Set(directoryItems(directory.CONTENT).map((i) => i.href));
     for (const f of FEATURE_PAGES.filter((x) => x.published)) expect(listed.has(pathFor(f.id)), f.id).toBe(true);
   });
 });
@@ -127,7 +127,7 @@ describe("each page renders its H1 and direct answer, with its status, limitatio
     const html = renderToStaticMarkup(<DirectoryPage page={page} content={directory.CONTENT} />);
     expect(html).toContain(page.h1);
     expect(text(html)).toContain(directory.CONTENT.directAnswer);
-    for (const i of directory.CONTENT.items) if (i.href) expect(html).toContain(`href="${i.href}"`);
+    for (const i of directoryItems(directory.CONTENT)) if (i.href) expect(html).toContain(`href="${i.href}"`);
   });
 });
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ShopifyFeaturePage, DirectoryPage } from "@/components/marketing/seo/templates";
 import { ShopifyFeaturesSection } from "@/components/marketing/shopify/shopify-features-section";
-import type { ShopifyFeatureContent } from "@/components/marketing/seo/content-types";
+import { directoryItems, type ShopifyFeatureContent } from "@/components/marketing/seo/content-types";
 import { CAPABILITIES, getCapability } from "@/lib/seo/capabilities";
 import { findPageByPath, getPage, PAGES } from "@/lib/seo/pages";
 import { SF2_PAGES } from "@/lib/seo/pages-sf2";
@@ -10,6 +10,7 @@ import { isPublishable } from "@/lib/seo/publish";
 import { pathFor } from "@/lib/seo/resolve";
 import { SHOPIFY_GROUPS } from "@/lib/shopify-features";
 import * as directory from "./shopify.features";
+import { itemFor } from "./shopify.features";
 import * as cartUpsells from "./shopify.features.cart.upsells";
 import * as abTesting from "./shopify.features.merchandising.ab.testing";
 import * as inventory from "./shopify.features.inventory.alerts";
@@ -153,8 +154,13 @@ describe("copy rules", () => {
     expect(all).not.toMatch(/\b(klaviyo|nosto|rebuy|limespot|wiser|searchanise|gorgias|zendesk|intercom|tidio|yotpo|judge\.me|vitals|growave|boost commerce|recharge|aftersell|zipify|manifest)\b/i);
   });
 
-  it("the markdown page never calls itself automatic, because each apply is a click", () => {
+  it("the markdown page never calls itself automatic, because each apply is a click: not its path, title, H1, description, copy or the /shopify copy that the directory links", () => {
     const p = getPage("shopify.features.automatic.markdowns");
+    expect(p.path).toBe("/shopify/features/markdown-suggestions");
+    expect(p.path).not.toMatch(/automatic/i);
+    expect(JSON.stringify({ ...markdowns.CONTENT, limitations: [] })).not.toMatch(/automatic/i);
+    const group = SHOPIFY_GROUPS.flatMap((g) => g.features).find((f) => f.id === "markdowns")!;
+    expect(JSON.stringify(group)).not.toMatch(/applies them for you|automatic/i);
     for (const s of [p.title, p.h1, p.description, markdowns.CONTENT.directAnswer, ...markdowns.CONTENT.crumbs.map((c) => c.label)]) expect(s).not.toMatch(/automatic/i);
     expect(p.title).toMatch(/markdown suggestions/i);
   });
@@ -166,7 +172,7 @@ describe("copy rules", () => {
 });
 
 describe("the directory lists every Shopify app feature, grouped like the app", () => {
-  const items = directory.CONTENT.items;
+  const items = directoryItems(directory.CONTENT);
   const hrefs = items.flatMap((i) => (i.href ? [i.href] : []));
 
   it("has the groups of SHOPIFY_GROUPS, in order, each with at least as many cards as the app lists", () => {
@@ -176,7 +182,6 @@ describe("the directory lists every Shopify app feature, grouped like the app", 
       expect(dg.title).toBe(g.name);
       expect(dg.items.length, g.id).toBeGreaterThanOrEqual(g.features.length);
     }
-    expect(items).toHaveLength(directory.CONTENT.groups!.reduce((n, g) => n + g.items.length, 0));
   });
 
   it("carries every feature of SHOPIFY_GROUPS (a renamed card is named here), with no invented card", () => {
@@ -229,6 +234,22 @@ describe("the directory lists every Shopify app feature, grouped like the app", 
       else if (path === "/shopify/features/seo-audit") expect(audited.has(anchor), `${h}: no #${anchor} on the page`).toBe(true);
       else throw new Error(`${h}: an anchor on a page this test does not know`);
     }
+  });
+
+  it("a shipped card always links and a Coming soon card never does, in both directions", () => {
+    for (const i of items) {
+      const shipped = i.status === undefined || i.status === "live" || i.status === "beta";
+      expect(Boolean(i.href), `${i.title} (${i.status ?? "no chip"})`).toBe(shipped);
+    }
+    // A shipped feature whose own page is not publishable falls back to its place on /shopify, never to a bare card.
+    const fallback = itemFor({ id: "smart-rails", capabilityId: "commerce.product_recommendations", pageId: "about" });
+    expect(fallback.status).toBe("live");
+    expect(fallback.href).toBe("/shopify#smart-rails");
+    // A card that is not shipped drops its link even when a page exists.
+    const soon = itemFor({ id: "ranking-tracking", capabilityId: "growth.ai_search_visibility", pageId: "shopify.features.seo.audit" });
+    expect(soon.href).toBeUndefined();
+    // A shipped extra with no page and no fallback stops the build rather than render a dead card.
+    expect(() => itemFor({ id: "invented", title: "Invented", body: "Nothing opens this one.", capabilityId: "commerce.find_my_match", pageId: "about" })).toThrow(/no page, section or \/shopify anchor/);
   });
 
   it("shows a status chip from the record, and gives a feature that is not shipped no link", () => {
