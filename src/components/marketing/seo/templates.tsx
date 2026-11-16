@@ -80,6 +80,10 @@ export function ShopifyFeaturePage({ page, content }: { page: PageRecord; conten
         <WorkflowSteps steps={content.setupSteps} />
       </Section>
       <Section id="permissions" eyebrow="Permissions" title="What the app asks for, and why." tone={bandTone((content.sections?.length ?? 0) + 2)}>
+        {content.permissions.length === 0 ? (
+          <p className={`${cardCls} max-w-2xl p-5 text-[15px] text-muted-foreground`}>{content.permissionsNote}</p>
+        ) : (
+        <>
         <p className="mb-5 max-w-2xl text-lg text-muted-foreground">
           The access the app asks Shopify for, in plain words. Each line names the permission and what it is used for.
         </p>
@@ -91,6 +95,8 @@ export function ShopifyFeaturePage({ page, content }: { page: PageRecord; conten
             </div>
           ))}
         </dl>
+        </>
+        )}
         <p className="mt-6 text-[15px] text-muted-foreground">
           This page covers Shopify only. For every platform and the full picture, read{" "}
           <Link href={safeHref(content.globalPage.href)} className={linkCls}>
@@ -436,9 +442,17 @@ export function GuidePage({ page, content }: { page: PageRecord; content: GuideC
 export function DirectoryPage({ page, content }: { page: PageRecord; content: DirectoryContent }) {
   return (
     <Frame page={page} content={content}>
-      <Section id="directory" eyebrow="Everything here" title={content.listTitle ?? "The list"}>
-        <DirectoryGrid items={content.items} />
-      </Section>
+      {content.groups ? (
+        content.groups.map((g, i) => (
+          <Section key={g.id} id={g.id} eyebrow={g.eyebrow} title={g.title} intro={g.blurb} tone={i % 2 === 1 ? "muted" : "plain"}>
+            <DirectoryGrid items={g.items} balanced />
+          </Section>
+        ))
+      ) : (
+        <Section id="directory" eyebrow="Everything here" title={content.listTitle ?? "The list"}>
+          <DirectoryGrid items={content.items} />
+        </Section>
+      )}
     </Frame>
   );
 }
