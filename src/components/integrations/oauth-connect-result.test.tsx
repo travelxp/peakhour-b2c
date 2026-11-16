@@ -67,7 +67,7 @@ describe("OAuthConnectResult", () => {
     mount("integration=connected&provider=facebook&meta_notice=no_pages");
     expect(h.success).not.toHaveBeenCalled();
     expect(h.warning).toHaveBeenCalledTimes(1);
-    expect(String(h.warning.mock.calls[0][0])).toMatch(/no Facebook Page was shared/);
+    expect(String(h.warning.mock.calls[0][0])).toMatch(/did not give Peakhour access to any Facebook Page/);
   });
 
   it("★a Page with no Instagram account → says to link one", () => {

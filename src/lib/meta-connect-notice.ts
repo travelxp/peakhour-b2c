@@ -13,7 +13,7 @@ export type MetaConnectNotice = "no_pages" | "no_instagram";
 
 const MESSAGES: Record<MetaConnectNotice, string> = {
   no_pages:
-    "Meta is connected, but no Facebook Page was shared with Peakhour. Connect again and select the Page your Instagram account is linked to.",
+    "Meta is connected, but it did not give Peakhour access to any Facebook Page. Connect again and, on Meta's screen, make sure the Page your Instagram account is linked to is selected.",
   no_instagram:
     "Your Facebook Page is connected, but it has no Instagram professional account linked. Link one to the Page in Meta Business Suite, then connect Instagram again.",
 };
