@@ -133,7 +133,7 @@ export default async function PricingPage({
               )}
             </div>
 
-            {/* The five modules: what one plan covers. No per-module price,
+            {/* What one plan covers. No per-module price,
                 there is no per-module plan to price (D19). Each row links to
                 the module's own page. */}
             <div className={`${cardCls} min-w-0 p-2 shadow-[var(--daylight-shadow)] sm:p-3`}>

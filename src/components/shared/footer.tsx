@@ -1,47 +1,86 @@
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { SITE } from "@/lib/utils";
+import { findPageByPath } from "@/lib/seo/pages";
+import { isPublishable } from "@/lib/seo/publish";
+import { cardLabel } from "@/lib/seo/labels";
 import type { Translate } from "@/i18n/types";
 import { PeakhourLogo } from "@/components/shared/peakhour-logo";
 
-// Grouped footer nav. Every href below is a route that exists today. Labels are message keys (messages/<locale>.json, namespace Footer).
-const FOOTER_GROUPS = [
+// Grouped footer nav. A link is either a registry page (shown only while isPublishable, so a draft never appears, and
+// labelled with the registry's short name) or a fixed public route with a message key (messages/<locale>.json, namespace Footer).
+type Item = { path: string; key: string } | { path: string; page: true } | { text: string };
+const FOOTER_GROUPS: readonly { heading: string; items: readonly Item[] }[] = [
   {
     heading: "platform",
-    links: [
-      { href: "/commerce", label: "commerce" },
-      { href: "/content", label: "content" },
-      { href: "/growth", label: "growth" },
-      { href: "/support", label: "support" },
-      { href: "/presence", label: "presence" },
+    items: [
+      { path: "/commerce", key: "commerce" },
+      { path: "/content", key: "content" },
+      { path: "/growth", key: "growth" },
+      { path: "/support", key: "support" },
+      { path: "/presence", key: "presence" },
+      { path: "/features", key: "features" },
+      { path: "/features/peakhour-summit", key: "summit" },
     ],
   },
   {
-    heading: "worksWith",
-    links: [
-      { href: "/shopify", label: "shopify" },
-      { href: "/content", label: "wordpress" },
+    heading: "shopify",
+    items: [
+      { path: "/shopify", key: "shopify" },
+      { path: "/shopify/features", key: "allFeatures" },
+      { path: "/shopify/features/ai-shopping-assistant", page: true },
+      { path: "/shopify/features/whatsapp-cod-confirmation", page: true },
+      { path: "/shopify/features/product-recommendations", page: true },
+      { path: "/shopify/features/ai-seo", page: true },
+    ],
+  },
+  {
+    heading: "integrations",
+    items: [
+      { path: "/integrations", key: "allIntegrations" },
+      { path: "/integrations/whatsapp", page: true },
+      { path: "/integrations/meta-ads", page: true },
+      { path: "/integrations/instagram", page: true },
+      { path: "/integrations/linkedin", page: true },
+      { path: "/integrations/google-business-profile", page: true },
+      { text: "wordpress" },
     ],
   },
   {
     heading: "product",
-    links: [
-      { href: "/pricing", label: "pricing" },
-      { href: "/peaks", label: "peaks" },
-      { href: "/how-it-works", label: "howItWorks" },
-      { href: "/contact", label: "contact" },
+    items: [
+      { path: "/pricing", key: "pricing" },
+      { path: "/peaks", key: "peaks" },
+      { path: "/how-it-works", key: "howItWorks" },
+      { path: "/about", key: "about" },
+      { path: "/contact", key: "contact" },
     ],
   },
   {
     heading: "legal",
-    links: [
-      { href: "/privacy-policy", label: "privacy" },
-      { href: "/terms", label: "terms" },
-      { href: "/cookie-policy", label: "cookies" },
-      { href: "/data-deletion", label: "dataDeletion" },
+    items: [
+      { path: "/privacy-policy", key: "privacy" },
+      { path: "/terms", key: "terms" },
+      { path: "/cookie-policy", key: "cookies" },
+      { path: "/data-deletion", key: "dataDeletion" },
     ],
   },
-] as const;
+];
+
+/** The footer's groups with labels resolved. A registry page that is not publishable is left out; a group's text-only items have no href. */
+export function footerGroups(t: Translate): { heading: string; links: { href?: string; label: string }[] }[] {
+  return FOOTER_GROUPS.map((g) => ({
+    heading: t(g.heading),
+    links: g.items.flatMap((i): { href?: string; label: string }[] => {
+      if ("text" in i) return [{ label: t(i.text) }];
+      const page = findPageByPath(i.path);
+      // A route the registry knows is shown only while it is publishable; one it does not know (pricing, legal) is a fixed route.
+      if (page && !isPublishable(page)) return [];
+      if ("page" in i) return page ? [{ href: i.path, label: cardLabel(page) }] : []; // a registry link with no record is dropped
+      return [{ href: i.path, label: t(i.key) }];
+    }),
+  }));
+}
 
 /** The footer with its strings resolved for the request's locale. */
 export async function Footer() {
@@ -54,9 +93,9 @@ export function FooterView({ t, commonT }: { t: Translate; commonT: Translate })
   return (
     <footer className="border-t bg-muted/30">
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
-        <div className="flex flex-col gap-10 lg:flex-row lg:justify-between">
+        <div className="flex flex-col gap-10 xl:flex-row xl:justify-between">
           {/* Brand */}
-          <div className="max-w-xs">
+          <div className="max-w-xs shrink-0">
             <Link
               href="/"
               className="flex items-center"
@@ -77,21 +116,20 @@ export function FooterView({ t, commonT }: { t: Translate; commonT: Translate })
           </div>
 
           {/* Link groups */}
-          <div className="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-4 lg:gap-x-14">
-            {FOOTER_GROUPS.map((group) => (
-              <nav key={group.heading} aria-label={t(group.heading)}>
-                <p className="text-xs font-semibold uppercase tracking-wider text-foreground">
-                  {t(group.heading)}
-                </p>
+          <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3 lg:grid-cols-5 lg:gap-x-8">
+            {footerGroups(t).map((group) => (
+              <nav key={group.heading} aria-label={group.heading}>
+                <p className="text-xs font-semibold uppercase tracking-wider text-foreground">{group.heading}</p>
                 <ul className="mt-4 flex flex-col gap-2.5">
                   {group.links.map((link) => (
-                    <li key={link.href}>
-                      <Link
-                        href={link.href}
-                        className="text-sm text-muted-foreground transition-colors hover:text-brand"
-                      >
-                        {t(link.label)}
-                      </Link>
+                    <li key={link.href ?? link.label}>
+                      {link.href ? (
+                        <Link href={link.href} className="text-sm text-muted-foreground transition-colors hover:text-brand">
+                          {link.label}
+                        </Link>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">{link.label}</span>
+                      )}
                     </li>
                   ))}
                 </ul>

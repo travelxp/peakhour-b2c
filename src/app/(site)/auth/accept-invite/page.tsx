@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { acceptInvite, sendMagicLink } from "@/lib/auth";
 import { useAuth } from "@/providers/auth-provider";
 import { CheckCircle2, XCircle, Mail } from "lucide-react";
-import { FlowButton, FlowCard, FlowHead, FlowSpinner, flowStage } from "@/components/marketing/flow/flow-kit";
+import { FlowButton, FlowCard, FlowHead, FlowNotice, FlowSpinner, flowStage } from "@/components/marketing/flow/flow-kit";
 import { Suspense } from "react";
 import { HOME_ROUTE } from "@/lib/nav-home";
 
@@ -36,6 +36,7 @@ function AcceptInviteContent() {
   const [message, setMessage] = useState("");
   const [orgName, setOrgName] = useState("");
   const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [sendError, setSendError] = useState("");
   const calledRef = useRef(false);
 
   useEffect(() => {
@@ -82,12 +83,13 @@ function AcceptInviteContent() {
 
   const handleSignup = async () => {
     if (!email) return;
+    setSendError("");
     try {
       await sendMagicLink(email);
       setMagicLinkSent(true);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "";
-      setMessage(message || "The sign-in link didn’t send. Try again.");
+    } catch {
+      // the cause (a network or API string) is not copy a person can act on
+      setSendError("The sign-in link didn’t send. Try again in a moment.");
     }
   };
 
@@ -116,6 +118,11 @@ function AcceptInviteContent() {
               Create your account to join. We&apos;ll email a sign-in link to{" "}
               <strong className="text-foreground">{email}</strong>.
             </FlowHead>
+            {sendError && (
+              <FlowNotice tone="bad" role="alert" className="mt-5">
+                {sendError}
+              </FlowNotice>
+            )}
             <FlowButton onClick={handleSignup} className="mt-5">
               Send sign-in link
             </FlowButton>
