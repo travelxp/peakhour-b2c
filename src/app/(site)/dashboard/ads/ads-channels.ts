@@ -159,16 +159,6 @@ interface AdsChannelShape {
   /** Sub-header copy shown while this channel is selected. */
   description: string;
   /**
-   * Crons this channel's data depends on — rendered by <CronToolbar/> in
-   * non-prod so the panel can be exercised without waiting for Vercel Cron.
-   */
-  crons: readonly string[];
-  /**
-   * react-query key prefixes to invalidate after a cron fires, so the panel
-   * reflects what the trigger just wrote.
-   */
-  invalidateQueryKeys: readonly (readonly string[])[];
-  /**
    * Search params this channel's panel owns. Switching away drops them —
    * they're meaningless to another channel and would leak across tabs.
    * Required (use []) so the hub can read it off any entry without narrowing.
@@ -184,8 +174,6 @@ export const ADS_CHANNELS = [
     providerKey: "linkedin_ads",
     description:
       "Boost your proven LinkedIn posts into campaigns — created as non-spending drafts you activate when ready.",
-    crons: ["ad-campaign-monitor", "performance-sync", "growth-optimizer"],
-    invalidateQueryKeys: [["linkedin-managed-campaigns"], ["content-hub-integrations"]],
     ownedParams: [],
   },
   {
@@ -193,20 +181,6 @@ export const ADS_CHANNELS = [
     label: "X Ads",
     providerKey: "x_ads",
     description: "Launch and manage promoted-tweet campaigns on X.",
-    // The campaign monitor watches X campaigns now — spend against the budget
-    // cap, flight end, auto-pause (api, 2026-09-29). It writes our own
-    // `ad_campaigns` rows; the panel's numbers come live from X, so the chip
-    // refreshes the panel, not a dataset the monitor fills.
-    crons: ["ad-campaign-monitor"],
-    // ★EVERY QUERY THE PANEL MAKES (b2c#573 round 1), incl. the connection
-    // state: a tick can mark the X connection needs_reauth.
-    invalidateQueryKeys: [
-      ["x-ads-analytics"],
-      ["x-ads-campaigns"],
-      ["x-ads-accounts"],
-      ["x-ads-funding"],
-      ["content-hub-integrations"],
-    ],
     ownedParams: ["account"],
   },
   /**
@@ -215,10 +189,6 @@ export const ADS_CHANNELS = [
    * the ads capability from it. So the hub expands before it matches — see
    * `connectedAdsProviderKeys` below — or a merchant with only Meta connected
    * opens onto an empty LinkedIn tab.
-   *
-   * `meta-conversion-sweep` is here because this panel's dataset card is the
-   * only way that sweep can ever have something to send; `ad-campaign-monitor`
-   * because it is what watches a managed Meta campaign's spend.
    */
   {
     key: "meta",
@@ -226,18 +196,6 @@ export const ADS_CHANNELS = [
     providerKey: "meta_ads",
     description:
       "See and pause your Facebook and Instagram campaigns, and choose where purchases from Meta ads are reported.",
-    crons: ["ad-campaign-monitor", "meta-conversion-sweep"],
-    // ⚠️Every level the table can show (review R1.6): the monitor can pause a
-    //  campaign, and an expanded ad set's "not serving" note reads its parent.
-    invalidateQueryKeys: [
-      ["meta-ads-accounts"],
-      ["meta-ads-campaigns"],
-      ["meta-ads-adsets"],
-      ["meta-ads-ads"],
-      ["meta-ads-insights"],
-      ["meta-ads-dataset"],
-      ["content-hub-integrations"],
-    ],
     ownedParams: ["adAccount"],
   },
   /**
@@ -245,10 +203,6 @@ export const ADS_CHANNELS = [
    * the three types the api creates (G-04, G-09, G19, G20), so neither the
    * description nor the panel names another. Its routes are
    * `lib/google-ads-surface.ts`'s.
-   *
-   * `ad-campaign-monitor` is what watches a Google campaign's spend, and
-   * re-reads a create Google did not confirm (the re-drive), so the chip
-   * refreshes the list it changes.
    */
   {
     key: "google",
@@ -256,8 +210,6 @@ export const ADS_CHANNELS = [
     providerKey: "google_ads",
     description:
       "Create Google Search, Performance Max and YouTube video (Demand Gen) campaigns, paused until you start them, and start or pause them here.",
-    crons: ["ad-campaign-monitor"],
-    invalidateQueryKeys: [["google-ads-accounts"], ["google-ads-campaigns"], ["content-hub-integrations"]],
     ownedParams: ["customer"],
   },
 ] as const satisfies readonly AdsChannelShape[];

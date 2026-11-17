@@ -8,7 +8,6 @@ import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
 import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { BrandKitTab } from "@/components/brand-kit/brand-kit-tab";
 import { CleanupView } from "@/components/drive/cleanup-view";
 import { FilesView, NewCollectionButton } from "@/components/drive/files-view";
@@ -30,7 +29,6 @@ import { cn } from "@/lib/utils";
  * (Read through useSearchParams, not the hash: the hash is not there on the first render.)
  */
 
-const MEDIA_CRONS = ["media-usage-scan", "media-cleanup-suggestions", "media-hard-delete", "media-storage-reconcile", "media-describe-sweep"] as const;
 
 /** True when a drag carries files (not text or a link dragged around the page). */
 const carriesFiles = (e: DragEvent) => !!e.dataTransfer && [...e.dataTransfer.types].includes("Files");
@@ -105,7 +103,6 @@ function DriveHome() {
 
   return (
     <PageShell width="wide">
-      <CronToolbar crons={MEDIA_CRONS} onTriggered={() => void qc.invalidateQueries({ queryKey: ["drive"] })} />
 
       <PageHeader
         title="Drive"

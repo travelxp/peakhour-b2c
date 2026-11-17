@@ -21,7 +21,6 @@
     "/cms/api-logs": 819402,
     "/cms/auth-logs": 819695,
     "/cms/catalog": 825638,
-    "/cms/crons": 853109,
     "/cms/feedback": 819793,
     "/cms/feedback/[id]": 828174,
     "/cms/integration-events": 885088,

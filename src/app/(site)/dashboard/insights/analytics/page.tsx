@@ -22,7 +22,6 @@ import {
   Activity,
   Lock,
 } from "lucide-react";
-import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { useSetAskEntityIds } from "@/providers/ask-context-provider";
 import { ASK_ENABLED } from "@/lib/flags";
 import { TrendChart } from "@/components/viz/trend-chart-lazy";
@@ -172,10 +171,9 @@ export default function AnalyticsInsightsPage() {
   // prompt.
   const winKnown = winQ.data !== undefined;
 
-  // Single toolbar instance survives the loading→loaded transition so
-  // the dev trigger is reachable during the very query its data refreshes,
-  // and so the toolbar's in-flight state isn't lost on remount.
-  const cronToolbar = (
+  // Single instance survives the loading→loaded transition, so the
+  // connect result is handled during the very query its data refreshes.
+  const oauthResult = (
     <>
       {/* Google Analytics is the ONE provider whose callback lands here
           rather than on the returnTo surface (its property picker is a
@@ -183,21 +181,13 @@ export default function AnalyticsInsightsPage() {
           ?integration=connected — so a GA connect was silent and the
           params lingered in the URL forever. */}
       <OAuthConnectResult />
-      <CronToolbar
-        crons={["performance-sync", "outcome-backfill"]}
-        onTriggered={() => {
-          qc.invalidateQueries({ queryKey: ["integration-status"] });
-          qc.invalidateQueries({ queryKey: ["integration-cap"] });
-          qc.invalidateQueries({ queryKey: [ANALYTICS_INSIGHTS_KEY] });
-        }}
-      />
     </>
   );
 
   if (statusQ.isLoading) {
     return (
       <PageShell width="wide">
-        {cronToolbar}
+        {oauthResult}
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-32 w-full" />
       </PageShell>
@@ -206,7 +196,7 @@ export default function AnalyticsInsightsPage() {
 
   return (
     <PageShell width="wide">
-      {cronToolbar}
+      {oauthResult}
       <PageHeader
         icon={
           <div className="rounded-lg p-2" style={brandTileStyle("googleAnalytics")}>

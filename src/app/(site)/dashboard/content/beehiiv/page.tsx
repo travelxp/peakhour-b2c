@@ -24,7 +24,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { FileX, LayoutGrid, List, Library, BrainCircuit, Plus } from "lucide-react";
 import { RepurposeSheet } from "@/components/repurpose/repurpose-sheet";
 import type { RepurposeSource } from "@/lib/api/repurpose";
-import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -252,22 +251,6 @@ export default function ContentPage() {
   return (
     <TooltipProvider>
       <PageShell width="wide">
-        {/* Cron toolbar — non-prod only. Always visible at the top of
-            pages whose data depends on a cron (the canonical
-            architecture pattern; see components/dev/cron-toolbar.tsx).
-            Beehiiv content depends on three: beehiiv-sync (pulls new
-            newsletters), jobs-runner (drains content_analyse children),
-            tag-catchup (tags newsletters via the sub-skill path).
-            Replaces the inline per-button row that was crammed into
-            the header's action row and caused header distortion when
-            "Re-analyse N incomplete" wrapped to a second line. */}
-        <CronToolbar
-          crons={["beehiiv-sync", "jobs-runner", "tag-catchup"]}
-          onTriggered={() => {
-            queryClient.invalidateQueries({ queryKey: ["content-library-all"] });
-            queryClient.invalidateQueries({ queryKey: ["content-stats"] });
-          }}
-        />
         {/* Header */}
         <PageHeader
           title="Content Intelligence"

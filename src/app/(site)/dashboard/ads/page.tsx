@@ -7,7 +7,7 @@
  * `ads-channels.ts`; the Content hub's "Manage" deep-links here with the
  * channel pre-selected.
  *
- * The hub owns the header, the selector, and the CronToolbar. Each panel owns
+ * The hub owns the header and the selector. Each panel owns
  * its own connection gate and empty states, because "connected" means something
  * different per channel: LinkedIn Ads lists local campaign rows and stays
  * usable while needs_reauth, whereas X Ads reads everything live from X and
@@ -17,13 +17,12 @@
 import dynamic from "next/dynamic";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
 import { BusinessProfileSummary } from "@/components/audience/business-profile-summary";
 import { GuardrailsCard } from "@/components/ads/guardrails-card";
@@ -70,16 +69,6 @@ const PANELS: Record<
   google: GoogleAdsPanel,
 };
 
-/** Every channel's crons — used while the resolved channel isn't known yet. */
-const ALL_CRONS: readonly string[] = Array.from(
-  new Set(ADS_CHANNELS.flatMap((c) => [...c.crons])),
-);
-
-/** Union of every channel's invalidation keys, for the same unresolved state. */
-const ALL_INVALIDATE_KEYS: readonly (readonly string[])[] = ADS_CHANNELS.flatMap((c) =>
-  c.invalidateQueryKeys.map((k) => [...k]),
-);
-
 export default function AdsHubPage() {
   // useSearchParams needs a Suspense boundary or the route bails out of
   // static rendering at build time. The fallback carries the header so
@@ -102,7 +91,6 @@ function AdsHub() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const queryClient = useQueryClient();
 
   const integrations = useQuery({
     queryKey: ["content-hub-integrations"],
@@ -198,20 +186,6 @@ function AdsHub() {
           ?returnTo=/dashboard/ads?channel=linkedin) and strips the callback's
           params without disturbing ?channel=. */}
       <OAuthConnectResult />
-      {/* CronToolbar is mandatory on a cron-backed page (see cron-toolbar.tsx),
-          so it renders before a channel resolves too — with every channel's
-          crons rather than none. */}
-      <CronToolbar
-        crons={channel ? channel.crons : ALL_CRONS}
-        onTriggered={() => {
-          const keys: readonly (readonly string[])[] = channel
-            ? channel.invalidateQueryKeys
-            : ALL_INVALIDATE_KEYS;
-          for (const key of keys) {
-            queryClient.invalidateQueries({ queryKey: [...key] });
-          }
-        }}
-      />
 
       <HubHeader description={channel?.description} />
 

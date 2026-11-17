@@ -51,10 +51,6 @@ export const ALLOWED: Record<string, { names: string[]; why: string }> = {
     names: ["Strategist", "Integrations"],
     why: "legacy fallback labels; at runtime the nav-copy label replaces them and the old name stays searchable as an alias",
   },
-  "src/components/dev/cron-metadata.ts": {
-    names: ["News Desk", "Trusted Sources"],
-    why: "internal /cms cron descriptions for operators, not merchant-visible",
-  },
   "src/components/support/contact-support-dialog.tsx": {
     names: ["Integrations"],
     why: "a support topic (problems with integrations), not the page name",

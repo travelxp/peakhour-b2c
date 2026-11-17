@@ -16,7 +16,6 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { featureLabel } from "@/lib/pricing";
 import { useQueryClient } from "@tanstack/react-query";
-import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { TaxAndInvoices } from "@/components/settings-tax-invoices";
 import { UpgradePlanDialog } from "@/components/upgrade/upgrade-plan-dialog";
@@ -148,17 +147,9 @@ export default function BillingPage() {
     })();
   }, [refreshBilling, arriveAtAddedBusiness]);
 
-  const cronToolbar = (
-    <CronToolbar
-      crons={["trial-expiry-sweep"]}
-      onTriggered={refreshBilling}
-    />
-  );
-
   if (isLoading) {
     return (
       <PageShell width="narrow">
-        {cronToolbar}
         {/* The header renders in the loading branch too: the title is static,
             so withholding it left the page headingless (and shifting) until
             the query resolved. */}
@@ -243,7 +234,6 @@ export default function BillingPage() {
 
   return (
     <PageShell width="narrow">
-      {cronToolbar}
       <PageHeader
         title="Billing"
         description="Manage your plan, usage, and payment details"

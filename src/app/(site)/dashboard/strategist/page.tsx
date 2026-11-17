@@ -15,7 +15,6 @@ import { KanbanBoard } from "./components/kanban-board";
 import { Sparkles, CalendarDays, Plus, Loader2, CheckCircle, Send, Mail, FileText, Megaphone, Newspaper } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { ElapsedTimer } from "@/components/molecules/elapsed-timer";
 import { QueryError } from "@/components/dashboard/query-error";
 import { queryViewState } from "@/lib/query-view-state";
@@ -194,18 +193,6 @@ export default function StrategistPage() {
 
   return (
     <PageShell width="full">
-      <CronToolbar
-        crons={[
-          "voice-card-refresh",
-          "voice-card-learning",
-          "archetype-centroids",
-          "tier-a-builder",
-          "per-stream-effectiveness-rollup",
-        ]}
-        onTriggered={() =>
-          queryClient.invalidateQueries({ queryKey: ["pipeline-ideas"] })
-        }
-      />
       <PageHeader
         title="Content plan"
         description="From idea to published — drag cards to move through stages"

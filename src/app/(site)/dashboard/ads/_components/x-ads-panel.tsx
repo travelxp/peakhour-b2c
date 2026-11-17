@@ -68,7 +68,7 @@ import {
 /**
  * X Ads panel, rendered inside the shared Ads hub
  * (`/dashboard/ads?channel=x`). The hub owns the page header, channel
- * selector, and CronToolbar; this component owns everything below it,
+ * selector; this component owns everything below it,
  * including its own connection gate and ad-account selector.
  */
 
@@ -755,7 +755,7 @@ function FundingSetupNote({ lead }: { lead: string }) {
   );
 }
 
-/** Panel-level wrapper. Header + CronToolbar now live in the Ads hub shell. */
+/** Panel-level wrapper. Header now lives in the Ads hub shell. */
 function PanelShell({ children, loading }: { children?: React.ReactNode; loading?: boolean }) {
   return <div className="space-y-6">{loading ? <SkeletonStack /> : children}</div>;
 }

@@ -199,20 +199,6 @@ describe("★★M-16 connectedAdsProviderKeys", () => {
   });
 
   /**
-   * ★★b2c#573 round 2: ONE helper, EVERY channel, BOTH directions (it
-   * replaces M-16's Meta-only R1.6 case, round 3). A key the registry refreshes
-   * but no panel reads is a rename nobody followed.
-   *
-   * ⚠️SCOPE, STATED (round 3): the panel FILE's literal keys. Queries in
-   * child components (the LinkedIn account picker, lead forms, targeting
-   * dialog) are theirs to refresh, and a non-literal key (`xKeys.all`) is
-   * invisible here.
-   */
-  const panelQueryPrefixes = (key: string) =>
-    queryPrefixesIn(
-      readFileSync(fileURLToPath(new URL(`./_components/${key}-ads-panel.tsx`, import.meta.url)), "utf8"),
-    );
-  /**
    * The keys a panel file MAKES queries with. ★THE TYPESCRIPT PARSER, NOT A
    * HAND LEXER (review of b2c#575 round 3): an apostrophe in JSX text or a
    * quote in a regex literal made the hand lexer swallow real queries. Each
@@ -291,26 +277,6 @@ describe("★★M-16 connectedAdsProviderKeys", () => {
       "x-ads-wrapped",
     ]);
   });
-  /**
-   * ★A FLOOR PER PANEL (review of b2c#573 round 3), as M-16's Meta case had:
-   * a panel whose queries moved into a child component would otherwise pass
-   * on an almost empty set, with the registry trimmed to match.
-   */
-  const MIN_PANEL_QUERIES: Record<string, number> = { linkedin: 2, meta: 7, x: 5, google: 3 };
-  for (const channel of ADS_CHANNELS) {
-    it(`★★b2c#573 the ${channel.key} toolbar refreshes exactly the queries its panel file makes`, () => {
-      const prefixes = panelQueryPrefixes(channel.key);
-      expect(prefixes, "the panel's query keys").toContain("content-hub-integrations");
-      // A new channel needs its own floor, and is told so (review of b2c#575).
-      const floor = MIN_PANEL_QUERIES[channel.key];
-      expect(floor, `add a MIN_PANEL_QUERIES floor for "${channel.key}"`).toBeTypeOf("number");
-      expect(prefixes.length, "too few query keys — did they move to a child?").toBeGreaterThanOrEqual(floor!);
-      const refreshed: readonly string[] = channel.invalidateQueryKeys.map((k) => k[0]);
-      expect(prefixes.filter((p) => !refreshed.includes(p)), "made but not refreshed").toEqual([]);
-      expect(refreshed.filter((p) => !prefixes.includes(p)), "refreshed but never made").toEqual([]);
-    });
-  }
-
   it("★G-15 leaving the Google tab drops its customer param", () => {
     expect(nextAdsHubSearch(new URLSearchParams("channel=google&customer=1234567890"), "meta")).toBe("channel=meta");
   });

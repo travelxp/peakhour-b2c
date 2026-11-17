@@ -4,7 +4,6 @@ import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { flexRender } from "@tanstack/react-table";
-import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -25,7 +24,6 @@ import {
   DataTablePagination,
   type FacetedFilterOption,
 } from "@/components/molecules/data-table";
-import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { ListChecks, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -49,7 +47,6 @@ function columnClass(id: string) {
 }
 
 export default function TasksPage() {
-  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const focusJobId = searchParams.get("jobId");
 
@@ -120,10 +117,6 @@ export default function TasksPage() {
 
   return (
     <PageShell width="wide">
-      <CronToolbar
-        crons={["jobs-runner"]}
-        onTriggered={() => queryClient.invalidateQueries({ queryKey: ["jobs"] })}
-      />
       <PageHeader
         title="Activity"
         description="Background work running on your library — analysis, syncs, and more."

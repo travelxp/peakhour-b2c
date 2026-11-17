@@ -94,8 +94,8 @@ import { GoogleCalloutsSection } from "./google-callouts-section";
 
 /**
  * ★★G-15 — the Google Ads panel, inside the shared Ads hub
- * (`/dashboard/ads?channel=google`). The hub owns the header, selector and
- * CronToolbar; this owns everything below them.
+ * (`/dashboard/ads?channel=google`). The hub owns the header and selector;
+ * this owns everything below them.
  *
  * ── WHAT IT DOES ─────────────────────────────────────────────────────────
  *

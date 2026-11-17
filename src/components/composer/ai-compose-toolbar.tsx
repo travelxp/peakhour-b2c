@@ -31,7 +31,7 @@
  * choice via `extras.targetTone`. Hosts that want a free-text tone
  * box can pass `customTones` to extend the list.
  *
- * Visual design: matches the Cron Toolbar band convention in this
+ * Visual design: matches the dashed-band convention in this
  * repo (border-dashed, muted background, sits as its own row above
  * the heading). Doesn't try to dock to the textarea — that's the
  * host's layout call.

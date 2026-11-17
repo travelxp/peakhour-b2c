@@ -1,14 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 import { useLocale } from "@/hooks/use-locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/molecules";
-import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { navLabel } from "@/lib/nav-copy";
 
 interface CalendarIdea {
@@ -40,7 +39,6 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function IdeasCalendarPage() {
-  const queryClient = useQueryClient();
   const { formatDate } = useLocale();
   const [view, setView] = useState<"week" | "month">("week");
   const [weekOffset, setWeekOffset] = useState(0);
@@ -87,12 +85,6 @@ export default function IdeasCalendarPage() {
 
   return (
     <PageShell width="full">
-      <CronToolbar
-        crons={["jobs-runner"]}
-        onTriggered={() =>
-          queryClient.invalidateQueries({ queryKey: ["content-ideas"] })
-        }
-      />
       <PageHeader
         title={navLabel("/dashboard/calendar")}
         description="Your scheduled and planned content"

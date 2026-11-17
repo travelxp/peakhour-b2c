@@ -77,7 +77,7 @@ export interface AnalyticsInsightsResponse {
   digest?: Ga4Digest;
 }
 
-/** Query key prefix — exported so CronToolbar onTriggered can invalidate it. */
+/** Query key prefix — exported so other pages can invalidate it. */
 export const ANALYTICS_INSIGHTS_KEY = "analytics-insights";
 
 /**
