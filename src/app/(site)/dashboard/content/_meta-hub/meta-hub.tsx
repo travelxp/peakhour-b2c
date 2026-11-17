@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApiError } from "@/lib/api";
 import { reconnectHref } from "@/lib/integrations-connect";
 import { useLocale } from "@/hooks/use-locale";
+import { navLabel } from "@/lib/nav-copy";
 import {
   metaContentApi,
   type MetaInstagramListed,
@@ -35,6 +36,9 @@ import {
   type InsightDays,
   type Tile,
 } from "@/lib/meta-content-view";
+
+/** The sidebar's current name for /dashboard/integrations (the retired-names test refuses the old one). */
+const CONNECTED_ACCOUNTS = navLabel("/dashboard/integrations");
 
 interface Subject {
   id: string;
@@ -125,8 +129,8 @@ export function MetaHub({ channel }: { channel: MetaHubChannel }) {
       <EmptyState
         icon={Unplug}
         title={`${copy.name} is switched off`}
-        description={`${channel === "facebook" ? "Pages" : "Instagram"} is turned off for your connection. Turn it on in Integrations to see your data here.`}
-        action={{ label: "Open Integrations", href: "/dashboard/integrations" }}
+        description={`${channel === "facebook" ? "Pages" : "Instagram"} is turned off for your connection. Turn it on in ${CONNECTED_ACCOUNTS} to see your data here.`}
+        action={{ label: `Open ${CONNECTED_ACCOUNTS}`, href: "/dashboard/integrations" }}
       />
     );
   }
@@ -238,7 +242,7 @@ function ErrorLine({ error, what, reconnect }: { error: unknown; what: string; r
   }
   const msg =
     code === "CAPABILITY_DISABLED"
-      ? `This is switched off for your connection. Turn it on in Integrations.`
+      ? `This is switched off for your connection. Turn it on in ${CONNECTED_ACCOUNTS}.`
       : error instanceof ApiError && error.status === 403
         ? `We do not have permission to read ${what}. Reconnect to allow it.`
       : `We could not load ${what} right now.`;
