@@ -68,12 +68,14 @@ function When({ iso }: { iso: string | null | undefined }) {
 export default function CmsSchedulesPage() {
   const { data, isPending, error, errorUpdatedAt } = useCmsSchedules();
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("all");
+  const [statusChoice, setStatus] = useState("all");
   const [area, setArea] = useState("all");
   const [selected, setSelected] = useState<string | null>(null);
 
   const environment = data?.environment;
   const isDev = environment === "dev";
+  // "Off on dev" only exists on dev: a choice left over from there filters nothing.
+  const status = statusChoice === "off_dev" && !isDev ? "all" : statusChoice;
   const all = data?.schedules ?? [];
   const rows = filterSchedules(all, { search, status, area });
   const counts = summarise(all);
@@ -199,6 +201,14 @@ export default function CmsSchedulesPage() {
                   <TableRow
                     key={row.name}
                     onClick={() => setSelected(row.name)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelected(row.name);
+                      }
+                    }}
+                    tabIndex={0}
+                    aria-label={`Open ${row.label}`}
                     className="cursor-pointer hover:bg-muted/50"
                   >
                     <TableCell>
@@ -347,8 +357,8 @@ function ScheduleDetail({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.runs.map((r) => (
-                  <TableRow key={`${r.startedAt}-${r.executionId ?? ""}`}>
+                {data.runs.map((r, i) => (
+                  <TableRow key={`${i}-${r.startedAt}`}>
                     <TableCell className="whitespace-nowrap text-xs">{formatDateTime(r.startedAt)}</TableCell>
                     <TableCell className="text-right text-xs tabular-nums">{formatMs(r.durationMs)}</TableCell>
                     <TableCell className="text-right text-xs tabular-nums">{r.httpStatus}</TableCell>
