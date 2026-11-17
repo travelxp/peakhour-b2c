@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { EyeOff, Eye, MessageSquare, Trash2, Reply, ExternalLink } from "lucide-react";
 import { metaEngagementApi, type MetaComment } from "@/lib/api/meta-engagement";
@@ -86,8 +86,8 @@ export function CommentsWorkspace({ platform }: { platform: MetaCommentsPlatform
     retry: false,
   });
 
-  // The first account until the merchant picks another.
-  const ownerId = pickedOwner || owners.data?.[0]?.id || "";
+  // The first account until the merchant picks another (and the first again if the picked one is gone).
+  const ownerId = owners.data?.find((o) => o.id === pickedOwner)?.id ?? owners.data?.[0]?.id ?? "";
 
   const posts = useQuery({
     queryKey: ["meta-comments", platform, "posts", ownerId],
@@ -158,9 +158,14 @@ export function CommentsWorkspace({ platform }: { platform: MetaCommentsPlatform
             <h2 className="px-2 py-2 text-sm font-medium">Recent posts</h2>
             {posts.isLoading && <Skeleton className="h-48 w-full" />}
             {posts.isError && (
-              <p className="p-2 text-sm text-muted-foreground">
-                {commentsErrorMessage(posts.error, "We could not load your posts. Try again in a moment.")}
-              </p>
+              <div className="space-y-2 p-2">
+                <p className="text-sm text-muted-foreground">
+                  {commentsErrorMessage(posts.error, "We could not load your posts. Try again in a moment.")}
+                </p>
+                <Button size="sm" variant="outline" onClick={() => posts.refetch()}>
+                  Try again
+                </Button>
+              </div>
             )}
             {posts.data?.length === 0 && <p className="p-2 text-sm text-muted-foreground">No posts yet.</p>}
             <ul className="space-y-1">
@@ -203,21 +208,18 @@ export function CommentsWorkspace({ platform }: { platform: MetaCommentsPlatform
 function Thread({ platform, ownerId, postId }: { platform: MetaCommentsPlatform; ownerId: string; postId: string }) {
   const qc = useQueryClient();
   const key = ["meta-comments", platform, "thread", ownerId, postId];
-  const thread = useQuery({
+  const thread = useInfiniteQuery({
     queryKey: key,
-    queryFn: () =>
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
       platform === "facebook"
-        ? metaEngagementApi.facebookComments(ownerId, postId)
-        : metaEngagementApi.instagramComments(ownerId, postId),
+        ? metaEngagementApi.facebookComments(ownerId, postId, pageParam)
+        : metaEngagementApi.instagramComments(ownerId, postId, pageParam),
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
     retry: false,
   });
   const refresh = () => qc.invalidateQueries({ queryKey: key });
   const fail = (fallback: string) => (err: unknown) => toast.error(commentsErrorMessage(err, fallback));
-
-  const target = (commentId: string) =>
-    platform === "facebook"
-      ? { pageId: ownerId, postId, commentId }
-      : { igUserId: ownerId, mediaId: postId, commentId };
 
   const reply = useMutation({
     mutationFn: (v: { commentId: string; message: string }) =>
@@ -231,12 +233,10 @@ function Thread({ platform, ownerId, postId }: { platform: MetaCommentsPlatform;
     onError: fail("We could not send your reply. Try again."),
   });
   const hide = useMutation({
-    mutationFn: (v: { commentId: string; hidden: boolean }) => {
-      const t = target(v.commentId);
-      return platform === "facebook"
-        ? metaEngagementApi.facebookHide({ ...(t as { pageId: string; postId: string; commentId: string }), hidden: v.hidden })
-        : metaEngagementApi.instagramHide({ ...(t as { igUserId: string; mediaId: string; commentId: string }), hidden: v.hidden });
-    },
+    mutationFn: ({ commentId, hidden }: { commentId: string; hidden: boolean }) =>
+      platform === "facebook"
+        ? metaEngagementApi.facebookHide({ pageId: ownerId, postId, commentId, hidden })
+        : metaEngagementApi.instagramHide({ igUserId: ownerId, mediaId: postId, commentId, hidden }),
     onSuccess: (_r, v) => {
       toast.success(v.hidden ? "Comment hidden." : "Comment is visible again.");
       refresh();
@@ -244,12 +244,10 @@ function Thread({ platform, ownerId, postId }: { platform: MetaCommentsPlatform;
     onError: fail("We could not change that comment. Try again."),
   });
   const remove = useMutation({
-    mutationFn: (commentId: string) => {
-      const t = target(commentId);
-      return platform === "facebook"
-        ? metaEngagementApi.facebookDelete(t as { pageId: string; postId: string; commentId: string })
-        : metaEngagementApi.instagramDelete(t as { igUserId: string; mediaId: string; commentId: string });
-    },
+    mutationFn: (commentId: string) =>
+      platform === "facebook"
+        ? metaEngagementApi.facebookDelete({ pageId: ownerId, postId, commentId })
+        : metaEngagementApi.instagramDelete({ igUserId: ownerId, mediaId: postId, commentId }),
     onSuccess: () => {
       toast.success("Comment deleted.");
       refresh();
@@ -261,16 +259,24 @@ function Thread({ platform, ownerId, postId }: { platform: MetaCommentsPlatform;
 
   if (thread.isLoading) return <Skeleton className="h-48 w-full" />;
   if (thread.isError) {
-    return <p className="text-sm text-muted-foreground">{commentsErrorMessage(thread.error, "We could not load these comments. Try again in a moment.")}</p>;
+    return (
+      <div className="space-y-2">
+        <p className="text-sm text-muted-foreground">{commentsErrorMessage(thread.error, "We could not load these comments. Try again in a moment.")}</p>
+        <Button size="sm" variant="outline" onClick={() => thread.refetch()}>
+          Try again
+        </Button>
+      </div>
+    );
   }
-  const list = thread.data?.comments ?? [];
+  const list = thread.data?.pages.flatMap((p) => p.comments) ?? [];
+  const hidden = hiddenCount(list);
   if (list.length === 0) return <p className="py-12 text-center text-sm text-muted-foreground">No comments on this post yet.</p>;
 
   const busy = reply.isPending || hide.isPending || remove.isPending;
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        {countComments(list)} comments{hiddenCount(list) > 0 && ` · ${hiddenCount(list)} hidden`}
+        {countComments(list)} comments{hidden > 0 && ` · ${hidden} hidden`}{thread.hasNextPage && " so far"}
       </p>
       <ul className="space-y-4">
         {list.map((c) => (
@@ -285,6 +291,11 @@ function Thread({ platform, ownerId, postId }: { platform: MetaCommentsPlatform;
           />
         ))}
       </ul>
+      {thread.hasNextPage && (
+        <Button variant="outline" size="sm" disabled={thread.isFetchingNextPage} onClick={() => thread.fetchNextPage()}>
+          {thread.isFetchingNextPage ? "Loading" : "Load more comments"}
+        </Button>
+      )}
       <AlertDialog open={!!toDelete} onOpenChange={(o) => !o && setToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

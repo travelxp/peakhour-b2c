@@ -3,6 +3,7 @@ import { ApiError } from "@/lib/api";
 import type { MetaComment } from "@/lib/api/meta-engagement";
 import {
   authorLabel,
+  canHide,
   commentsErrorMessage,
   countComments,
   hiddenCount,
@@ -38,6 +39,10 @@ describe("labels", () => {
     expect(hideLabel(c())).toBe("Hide");
     expect(hideLabel(c({ isHidden: true }))).toBe("Unhide");
   });
+  it("a hidden comment can always be unhidden, even when Meta says it cannot be hidden", () => {
+    expect(canHide(c({ isHidden: true, canHide: false }))).toBe(true);
+    expect(canHide(c({ isHidden: false, canHide: false }))).toBe(false);
+  });
   it("a missing author is Someone, never blank", () => {
     expect(authorLabel(c())).toBe("Someone");
     expect(authorLabel(c({ authorName: "  " }))).toBe("Someone");
@@ -53,6 +58,9 @@ describe("labels", () => {
 });
 
 describe("replyBlocker", () => {
+  it("counts characters, so an emoji is one", () => {
+    expect(replyBlocker("\u{1F600}".repeat(1200), "instagram")).toBeNull();
+  });
   it("blocks an empty or blank reply", () => {
     expect(replyBlocker("   ", "facebook")).not.toBeNull();
     expect(replyBlocker("Thanks", "facebook")).toBeNull();
