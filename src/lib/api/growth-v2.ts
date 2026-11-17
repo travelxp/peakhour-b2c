@@ -1010,9 +1010,11 @@ export function mandateFor(rules: V2Result<RulesResponse> | undefined, screenPre
 export function useFirstRunDraft(body: FirstRunDraftRequest, opts: { enabled?: boolean } = {}) {
   const { business } = useAuth();
   // PL-5b: while the api says it is building the playbook for a new type, ask again every 4 s, for at most 60 s from the first time it said so.
-  const waitStart = useRef<number | undefined>(undefined);
+  const waitStart = useRef<{ for: string; at: number } | undefined>(undefined);
+  const queryKey = key(business?._id, "first-run-draft", body);
+  const keyText = JSON.stringify(queryKey);
   return useQuery<FirstRunDraftResponse>({
-    queryKey: key(business?._id, "first-run-draft", body),
+    queryKey,
     queryFn: () => growthV2Api.draft(body),
     enabled: !!business?._id && opts.enabled !== false,
     placeholderData: keepPreviousData,
@@ -1021,8 +1023,9 @@ export function useFirstRunDraft(body: FirstRunDraftRequest, opts: { enabled?: b
     refetchInterval: (q) => {
       const drafting = isDraftingNewType(q.state.data);
       if (!drafting) { waitStart.current = undefined; return false; }
-      waitStart.current ??= Date.now();
-      return newTypeRefetchInterval(drafting, waitStart.current, Date.now());
+      // the 60 s belongs to one business and one set of answers: another key starts its own
+      if (waitStart.current?.for !== keyText) waitStart.current = { for: keyText, at: Date.now() };
+      return newTypeRefetchInterval(drafting, waitStart.current.at, Date.now());
     },
   });
 }
