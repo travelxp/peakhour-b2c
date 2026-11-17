@@ -43,10 +43,11 @@ import {
   templatePreview,
   templateValueProblem,
   textProblem,
-  REPLY_TEXT_MAX,
   STUDIO_LIST_CAP,
   TAKES_OVER_NOTE,
   WINDOW_TICK_MS,
+  replyTextMax,
+  savedReplyChannelFor,
   windowFor,
   type ComposerMemory,
   type ComposerStore,
@@ -188,7 +189,7 @@ export function WaComposer({
 }) {
   const mem = useComposerMemory(store, threadId);
   const win = windowFor(threadId, useReplyWindow(store, threadId, endsAt));
-  const mode = composerMode({ status, role, window: win });
+  const mode = composerMode({ status, role, window: win, threadId });
   const reply = useWaReply(threadId);
   const templates = useWaStudioTemplates(mode.kind === "template");
   const update = (patch: Parameters<ComposerStore["update"]>[1]) => store.update(threadId, patch);
@@ -215,7 +216,7 @@ export function WaComposer({
       if (!note) toast.success(sentToast(channel));
       return true;
     } catch (e) {
-      const copy = replyErrorCopy(e, payload.kind);
+      const copy = replyErrorCopy(e, payload.kind, threadId);
       update({
         error: copy,
         attempt: attemptAfterError(attempt, copy, prev),
@@ -241,7 +242,8 @@ export function WaComposer({
 
   if (mode.kind === "text") {
     const payload: ReplyPayload = { kind: "text", text: mem.text };
-    const problem = textProblem(mem.text);
+    const textMax = replyTextMax(threadId);
+    const problem = textProblem(mem.text, textMax);
     const confirm = needsResendConfirm(mem.attempt);
     const submit = (via: "button" | "keyboard") => {
       if (!maySend({ problem, pending: mem.pending, confirm, via })) return;
@@ -280,17 +282,17 @@ export function WaComposer({
           <span className="flex items-center gap-2 text-micro text-muted-foreground">
             {/* ★SAVED REPLIES ARE FREE TEXT, SO THEY ARE OFFERED ONLY HERE, INSIDE THE 24-HOUR WINDOW: outside it the box is the template picker. */}
             <SavedReplyPicker
-              channel="whatsapp"
+              channel={savedReplyChannelFor(threadId)}
               draft={mem.text}
               disabled={mem.pending}
               onInsert={(body) => {
-                const r = insertSavedReply(store.get(threadId).text, body);
+                const r = insertSavedReply(store.get(threadId).text, body, textMax);
                 if (!r.ok) return false;
                 update((cur) => ({ text: r.text, error: errorAfterEdit(cur.error, cur.attempt) }));
                 return true;
               }}
             />
-            <span>{mem.text.trim().length > REPLY_TEXT_MAX ? problem : `${mem.text.trim().length}/${REPLY_TEXT_MAX}`}</span>
+            <span>{mem.text.trim().length > textMax ? problem : `${mem.text.trim().length}/${textMax}`}</span>
           </span>
           <Button size="sm" disabled={Boolean(problem) || mem.pending} onClick={() => submit("button")}>
             {mem.pending ? "Sending…" : confirm ? "Send again anyway" : "Send"}
