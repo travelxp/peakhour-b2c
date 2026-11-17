@@ -38,7 +38,7 @@
 
 import { isListedThroughGate, isPublicPath } from "../../src/lib/seo/gate";
 import { PAGES } from "../../src/lib/seo/pages";
-import { isPreviewable, isPublishable } from "../../src/lib/seo/publish";
+import { isDevOnly, isPreviewable, isPublishable } from "../../src/lib/seo/publish";
 import { LOCALES, PUBLISHED_LOCALES } from "../../src/lib/seo/types";
 import { crawlChecks } from "./crawl-checks";
 
@@ -194,9 +194,8 @@ async function main() {
   const publishable = gateOn ? publishableAll.filter((p) => isListedThroughGate(p.path)) : publishableAll;
   const gatedOut = gateOn ? publishableAll.filter((p) => !isListedThroughGate(p.path)) : [];
   // Pages live on dev only (a claim page on a placeholder approval): 404 on production, found from the registry and the approvals.
-  const devOnly = indexable ? PAGES.filter((p) => isPublishable(p, "en", undefined, {}) && !isPublishable(p, "en", undefined, targetEnv)) : [];
-  if (indexable) console.log(`
-${devOnly.length} claim page(s) rest on a placeholder approval and must 404 on production`);
+  const devOnly = indexable ? PAGES.filter((p) => isDevOnly(p)) : [];
+  if (indexable) console.log(`${devOnly.length} claim page(s) rest on a placeholder approval and must 404 on production`);
   const drafts = [...PAGES.filter((p) => isPreviewable(p, {})), ...devOnly];
   await crawlChecks({
     base,

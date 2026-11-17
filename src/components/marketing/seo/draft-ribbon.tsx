@@ -15,7 +15,7 @@ type RibbonPage = Pick<PageRecord, "editorialStatus" | "indexable" | "pageId" | 
 export function ribbonKind(page: RibbonPage, approvals?: readonly PageApproval[]): "draft" | "changed" | "devOnly" | null {
   const state = approvalState(page.pageId, approvals);
   // An approved review page whose claims the capabilities do not yet satisfy is still not publishable: production 404s it.
-  if (page.editorialStatus === "review") return state === "current" ? (capabilitiesSatisfied(page as PageRecord) ? null : "draft") : state === "stale" ? "changed" : "draft";
+  if (page.editorialStatus === "review") return state === "current" ? (capabilitiesSatisfied(page as PageRecord) && approvalFor(page.pageId, approvals)?.source === "cms" ? null : "draft") : state === "stale" ? "changed" : "draft";
   if (page.editorialStatus === "published" && page.indexable && page.capabilityIds.length > 0 && state !== "current") {
     return state === "stale" ? "changed" : "draft";
   }
@@ -49,7 +49,7 @@ export function DraftRibbon({ page }: { page: RibbonPage }) {
       aria-label={LABEL[kind]}
       className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center px-3 pb-3"
     >
-      <p className="max-w-full truncate rounded-full border-2 border-[var(--daylight-amber)] bg-ink px-4 py-2 text-sm font-extrabold tracking-wide text-on-ink shadow-[var(--daylight-shadow)]">
+      <p className="max-w-full text-center rounded-3xl border-2 border-[var(--daylight-amber)] bg-ink px-4 py-2 text-sm font-extrabold tracking-wide text-on-ink shadow-[var(--daylight-shadow)]">
         {LABEL[kind]}
         <span className="ml-2 hidden font-mono text-xs font-semibold text-on-ink-dim sm:inline">
           {page.pageId} · {page.editorialStatus}
