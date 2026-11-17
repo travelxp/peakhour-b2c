@@ -4,8 +4,10 @@ import type { UseQueryResult } from "@tanstack/react-query";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { mandateFor, useGrowthV2Learning, useGrowthV2Rules, type LearningResponse, type V2Result } from "@/lib/api/growth-v2";
 import { unitFor } from "@/lib/growth-v2-figure";
+import { startingFromWords } from "@/lib/growth-v2-starting-from";
 import { BenchmarkRows } from "./benchmark-rows";
 import { CreativeLeaderboard } from "./creative-leaderboard";
+import { CustomerCounts } from "./customer-counts";
 import { EnquiryHeatmap } from "./enquiry-heatmap";
 import { ExperimentTimeline } from "./experiment-timeline";
 import { NotSetUp } from "./not-set-up";
@@ -55,7 +57,7 @@ export function LearningBody({ learning, unitPlural, currency }: { learning: Lea
           <Card>
             <CardHeader>
               <CardTitle>Creative patterns that win</CardTitle>
-              <CardDescription>Your extra {unitPlural} per 1,000 views, by hook, once something measures it.</CardDescription>
+              <CardDescription>Your {unitPlural} per 1,000 views by angle and format, from your own ads once a pattern has 10 {unitPlural}. Until then, what is typical for your industry.</CardDescription>
             </CardHeader>
             <CardContent>
               <CreativeLeaderboard patterns={learning.creativePatterns} unitPlural={unitPlural} emptyReason={learning.basis.creativePatterns} />
@@ -67,11 +69,23 @@ export function LearningBody({ learning, unitPlural, currency }: { learning: Lea
               <CardDescription>{learning.basis.benchmarks}</CardDescription>
             </CardHeader>
             <CardContent>
+              {startingFromWords(learning.targetStartingFrom) ? <p className="pb-2 text-xs text-muted-foreground">Your target. {startingFromWords(learning.targetStartingFrom)}.</p> : null}
               <BenchmarkRows benchmarks={learning.benchmarks} currency={currency} />
             </CardContent>
           </Card>
         </div>
       </div>
+      {learning.shoppers ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Your customers</CardTitle>
+            <CardDescription>{learning.shoppers.basis}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CustomerCounts shoppers={learning.shoppers} />
+          </CardContent>
+        </Card>
+      ) : null}
       <Card>
         <CardHeader>
           <CardTitle>When people convert</CardTitle>

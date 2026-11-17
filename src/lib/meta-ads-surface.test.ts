@@ -352,8 +352,8 @@ describe("★★M-16 — the ads hub HAS a Meta tab, and it reaches Meta only th
 // ══════════════════════════════════════════════════════════════════════════
 describe("★★M-13 — the prefix and the routes are peakhour-api's, not ours", () => {
   /**
-   * ⏸THE SIBLING CHECKOUT, OR A SKIP — `cron-metadata.test.ts`'s rule, for its
-   * reason: a b2c-only clone should still have a green suite.
+   * ⏸THE SIBLING CHECKOUT, OR A SKIP — a b2c-only clone should still have a
+   * green suite.
    *
    * ⚠️⚠️★★THE SKIP IS KEYED ON THE CHECKOUT, NOT ON THE FILE (review round 2).
    * It used to be `existsSync(<the 2,165-line route file>)`, which the
@@ -365,8 +365,8 @@ describe("★★M-13 — the prefix and the routes are peakhour-api's, not ours"
    * so nothing would have caught it and `META_ADS_MANAGED_ROUTES` would have
    * stopped being checked against the api for ever.
    *
-   * ★The precedent this file cites anchors on `peakhour-api/vercel.json` at
-   * the repo ROOT, which is exactly why its skip can only mean *no checkout*.
+   * ★The skip anchors on the checkout's repo ROOT, which is exactly why it can
+   * only mean *no checkout*.
    * **A missing checkout skips; a missing FILE inside a present checkout
    * fails.**
    */

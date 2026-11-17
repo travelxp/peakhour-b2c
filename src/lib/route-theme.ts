@@ -8,7 +8,8 @@
  * auth, share, claim and reconnect pages) is always light. It is designed as
  * a bright page, and following the visitor's device setting made it dark for
  * everyone whose phone or laptop is in dark mode. The signed-in app keeps
- * following the device setting.
+ * following the device setting. The same list decides which routes get the
+ * Daylight palette on <body> (components/shared/daylight-body.tsx).
  */
 export const APP_PREFIXES = ["/dashboard", "/onboarding", "/cms"] as const;
 

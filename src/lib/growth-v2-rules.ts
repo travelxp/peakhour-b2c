@@ -1,6 +1,6 @@
 import { ApiError } from "@/lib/api";
-import type { AdPlatform, DraftOffer, GuardrailsPatch, MandatePatch, MandateTarget, MandateView, RulesResponse } from "@/lib/api/growth-v2";
-import { offerKey, parseAmount, targetKindOf } from "@/lib/growth-v2-firstrun";
+import type { AdPlatform, GuardrailsPatch, MandatePatch, MandateView, RulesResponse } from "@/lib/api/growth-v2";
+import { parseAmount } from "@/lib/growth-v2-firstrun";
 
 /**
  * Rules (plan 1 and 2.10, row H5): turning a switch or an edit into the request the api takes, and saying what came back.
@@ -56,78 +56,18 @@ export function channelAllowed(g: Guardrails, platform: AdPlatform): boolean {
   return g.allowedChannels !== null ? g.allowedChannels.includes(platform) : !g.deniedChannels.includes(platform);
 }
 
-export interface MandateEdit {
-  /** `offerKey` of the chosen outcome. */
-  offer: string;
-  /** Label of the chosen focus suggestion; empty = every outcome of the kind counts. */
-  focus: string;
-  ceiling: string;
-  target: string;
-}
-
-/** The edit form's starting point: what the mandate says now. */
-export function editFrom(m: MandateView): MandateEdit {
-  return { offer: offerKey(m.outcome), focus: m.outcome.focus?.label ?? "", ceiling: String(m.monthlyCeiling), target: String(m.target.value) };
-}
-
 /**
- * What changed between the mandate and the form, as the api's `mandate` patch, or a sentence when the form cannot be sent,
- * or undefined when nothing changed. Only changed fields are named.
- *
- * ★A SAVED FOCUS IS NOT LOOKED UP IN THE SUGGESTIONS. The suggestions are re-ranked from the last 90 days, so the focus the
- * mandate already has may not be among them (or the list may not have loaded); an unchanged focus is not a change, and a
- * ceiling-only edit never touches the outcome.
- * ★A TARGET OF THE OTHER KIND IS NEVER CARRIED ACROSS: when the outcome flips between a cost and a return the form clears the
- * box (see `editAfterOutcome`), so an empty box then means "the playbook's default, or tell me", and a retyped number is the
- * merchant's own.
+ * The Guardrails page's one plan edit (PL-3): the monthly ceiling. Each goal's outcome, target and share are changed on Goals
+ * (`growth-v2-goals.ts`). Undefined when the ceiling is unchanged.
  */
-export function mandatePatchFor(m: MandateView, edit: MandateEdit, offers: readonly DraftOffer[]): MandatePatch | { error: string } | undefined {
-  const patch: MandatePatch = {};
-  const ceiling = parseAmount(edit.ceiling);
+export function ceilingPatchFor(m: Pick<MandateView, "monthlyCeiling">, typed: string): MandatePatch | { error: string } | undefined {
+  const ceiling = parseAmount(typed);
   if (ceiling === undefined) return { error: "Enter a monthly ceiling above zero." };
-  if (ceiling !== m.monthlyCeiling) patch.monthlyCeiling = ceiling;
-
-  const offer = offers.find((o) => offerKey(o) === edit.offer);
-  const outcomeChanged = offerKey(m.outcome) !== edit.offer || (m.outcome.focus?.label ?? "") !== edit.focus;
-  if (outcomeChanged) {
-    if (!offer) return { error: "Choose one of the outcomes your business can be measured on." };
-    const focus = offer.source === "orders" ? offer.focusSuggestions.find((f) => f.label === edit.focus) : undefined;
-    if (edit.focus !== "" && !focus) return { error: "Choose a focus from the list, or Everything." };
-    patch.outcome = {
-      kind: offer.kind,
-      source: offer.source,
-      optimizeFor: offer.optimizeFor,
-      ...(focus ? { focus: { by: focus.by, values: focus.values, label: focus.label } } : {}),
-    };
-  }
-
-  // The target's kind follows the outcome it measures: a return for value, a cost for a count.
-  const kind: MandateTarget["kind"] = outcomeChanged && offer ? targetKindOf(offer) : m.target.kind;
-  const typed = parseAmount(edit.target);
-  if (edit.target.trim() !== "" && typed === undefined) return { error: "Enter a target above zero." };
-  if (typed === undefined && !(outcomeChanged && kind !== m.target.kind)) return { error: "Enter a target above zero." };
-  if (typed !== undefined && (typed !== m.target.value || kind !== m.target.kind)) patch.target = { kind, value: typed };
-
-  return Object.keys(patch).length === 0 ? undefined : patch;
-}
-
-/**
- * The form after the outcome select moves: the focus follows the outcome (the saved one comes back with the saved outcome, none
- * with any other), and the target box is cleared when the outcome is measured the other way, because a cost is not a return.
- */
-export function editAfterOutcome(m: MandateView, edit: MandateEdit, offerKeyChosen: string, offers: readonly DraftOffer[]): MandateEdit {
-  const chosen = offers.find((o) => offerKey(o) === offerKeyChosen);
-  const sameKind = chosen === undefined || targetKindOf(chosen) === m.target.kind;
-  return {
-    ...edit,
-    offer: offerKeyChosen,
-    focus: offerKeyChosen === offerKey(m.outcome) ? (m.outcome.focus?.label ?? "") : "",
-    target: sameKind ? String(m.target.value) : "",
-  };
+  return ceiling === m.monthlyCeiling ? undefined : { monthlyCeiling: ceiling };
 }
 
 /** The words for a change request that came back refused. Codes the api writes for the merchant show their sentence. */
-const MERCHANT_FACING: ReadonlySet<string> = new Set(["NO_MANDATE", "NO_CHANGE", "OUTCOME_NOT_OFFERED", "TARGET_NEEDED", "NO_VERIFIED_CONTACT", "SEND_FAILED"]);
+const MERCHANT_FACING: ReadonlySet<string> = new Set(["NO_MANDATE", "NO_CHANGE", "OUTCOME_NOT_OFFERED", "TARGET_NEEDED", "NO_VERIFIED_CONTACT", "SEND_FAILED", "GOAL_NOT_FOUND", "SHARES_DONT_ADD_UP", "LINK_BUSY"]);
 
 export function patchErrorMessage(err: unknown): string {
   if (err instanceof ApiError && MERCHANT_FACING.has(err.code ?? "")) return err.message;

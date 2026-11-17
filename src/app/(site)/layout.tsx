@@ -5,7 +5,9 @@ import { headers } from "next/headers";
 import { preconnect } from "react-dom";
 import { getLocale } from "next-intl/server";
 import { SITE } from "@/lib/utils";
+import { getPage } from "@/lib/seo/pages";
 import { API_BASE_URL } from "@/lib/api";
+import { DaylightBody } from "@/components/shared/daylight-body";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { QueryProvider } from "@/providers/query-provider";
 import { AuthProvider } from "@/providers/auth-provider";
@@ -46,27 +48,25 @@ const fraunces = Fraunces({
   display: "swap",
 });
 
-const DEFAULT_TITLE = "Peakhour.ai — The AI business platform for growing brands";
-const DEFAULT_DESCRIPTION =
-  "Five AI modules — Commerce, Content, Growth, Support, Presence — that sell, publish, advertise, answer, and get you found. One plan for all five.";
+// The site default is the home page record's own words, so a page with no metadata of its own says what / says.
+const DEFAULT_TITLE = getPage("home").title;
+const DEFAULT_DESCRIPTION = getPage("home").description;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),
   title: DEFAULT_TITLE,
   description: DEFAULT_DESCRIPTION,
   applicationName: SITE.name,
-  alternates: {
-    canonical: "/",
-    // hreflang-ready: English-only today (self-referencing). Add locales here
-    // alongside messages/<locale>.json when languages grow.
-    languages: { en: "/" },
-  },
+  // No `alternates` and no openGraph `url` here, on purpose: a layout value is
+  // inherited by every page that sets none of its own, so a canonical or og:url of
+  // "/" would name the home page as the canonical of /whatever-page-forgot. A page
+  // with no canonical is better than a wrong one. The home page sets "/" itself;
+  // every other page sets its own (pageMeta, lib/seo/metadata.ts). hreflang is emitted from published variants only.
   openGraph: {
     type: "website",
     siteName: SITE.name,
     title: DEFAULT_TITLE,
     description: DEFAULT_DESCRIPTION,
-    url: "/",
     locale: "en",
   },
   twitter: {
@@ -113,7 +113,7 @@ export default async function SiteLayout({
 
   return (
     <html lang={locale} suppressHydrationWarning>
-      <body
+      <DaylightBody
         className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} ${fraunces.variable} font-sans antialiased`}
       >
         {/* Real-user speed data: one beacon per page load, route pattern only. */}
@@ -132,7 +132,7 @@ export default async function SiteLayout({
             </AuthProvider>
           </QueryProvider>
         </ThemeProvider>
-      </body>
+      </DaylightBody>
     </html>
   );
 }

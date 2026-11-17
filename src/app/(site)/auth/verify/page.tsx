@@ -5,16 +5,10 @@ import { landingRoute } from "@/lib/nav-home";
 import { useSearchParams, useRouter } from "next/navigation";
 import { verifyMagicLink } from "@/lib/auth";
 import { useAuth } from "@/providers/auth-provider";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { XCircle } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { LoadingScreen } from "@/components/molecules/loading-screen";
+import { FlowButton, FlowCard, FlowHead, FlowNotice, flowStage } from "@/components/marketing/flow/flow-kit";
 
 /**
  * Same-origin relative path only — the `next` return path is attacker-influenced
@@ -49,7 +43,7 @@ function VerifyContent() {
 
     if (!token || !uid) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time validation of URL search params on mount; necessary to surface the error UI
-      setError("Invalid verification link. Please request a new one.");
+      setError("This link is incomplete. Request a new sign-in link.");
       setVerifying(false);
       return;
     }
@@ -68,48 +62,50 @@ function VerifyContent() {
         if (err instanceof ApiError) {
           setError(err.message);
         } else {
-          setError("Verification failed. Please request a new sign-in link.");
+          setError("We couldn’t sign you in. Request a new sign-in link.");
         }
         setVerifying(false);
       });
   }, [searchParams, router, refreshUser]);
 
-  // While verifying (and until the redirect commits) show the sleek loader,
-  // never a blank card.
+  // While verifying (and until the redirect commits) show the loader in the
+  // card, never a blank page.
   if (verifying) {
     return (
-      <LoadingScreen
-        fullScreen
-        message="Signing you in…"
-        steps={["Verifying your link", "Setting up your session"]}
-      />
+      <FlowCard className="max-w-md">
+        <h1 className="sr-only">Signing you in</h1>
+        <LoadingScreen
+          message="Signing you in…"
+          steps={["Verifying your link", "Setting up your session"]}
+          className="min-h-48"
+        />
+      </FlowCard>
     );
   }
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader className="text-center">
-        <CardTitle className="text-2xl font-bold">Verification failed</CardTitle>
-        <CardDescription>We couldn&apos;t verify your sign-in link</CardDescription>
-      </CardHeader>
-      <CardContent className="text-center">
-        <div className="space-y-4">
-          <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive-on-tint">
-            {error}
-          </div>
-          <Button className="w-full" onClick={() => router.push("/auth")}>
-            Request a new link
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+    <FlowCard className="max-w-md">
+      <FlowHead icon={XCircle} tone="bad" title="This link didn’t work" />
+      <FlowNotice tone="bad" role="alert" className="mt-5">
+        {error}
+      </FlowNotice>
+      <FlowButton className="mt-4" onClick={() => router.push("/auth")}>
+        Request a new link
+      </FlowButton>
+    </FlowCard>
   );
 }
 
 export default function VerifyPage() {
   return (
-    <div className="flex flex-1 items-center justify-center px-4">
-      <Suspense fallback={<LoadingScreen fullScreen message="Loading…" />}>
+    <div className={flowStage}>
+      <Suspense
+        fallback={
+          <FlowCard className="max-w-md">
+            <LoadingScreen message="Loading…" className="min-h-48" />
+          </FlowCard>
+        }
+      >
         <VerifyContent />
       </Suspense>
     </div>

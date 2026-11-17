@@ -13,7 +13,8 @@
 import type { HoursPeriod, PresenceNetworkEntry, PresencePublishing, SpecialHours } from "@/lib/presence-panels";
 import { photoValueLines } from "@/lib/presence-photos";
 import { PANEL_TITLES, extraValueLines, type ExtraField } from "@/lib/presence-extras";
-import { isReadableZone, timeZoneOptions } from "@/lib/guardrails-copy";
+import { isReadableZone } from "@/lib/guardrails-copy";
+import { timeZoneOptions } from "@/lib/time-zones";
 
 // ── Shapes the api returns ───────────────────────────────────────────────────
 

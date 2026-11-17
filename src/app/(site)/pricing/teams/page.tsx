@@ -5,21 +5,20 @@ import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
 import { getPricing, findBundleTier, agencyCardPrice, formatPeaks, suiteTrialDays } from "@/lib/pricing";
 import { getPublicCatalog, signupCta } from "@/lib/catalog";
-import { pageMetadata } from "@/lib/seo";
+import { pageMeta } from "@/lib/seo/metadata";
+import { pathFor } from "@/lib/seo/resolve";
+import { Breadcrumbs } from "@/components/marketing/seo/breadcrumbs";
+import { ContextualLinks } from "@/components/marketing/seo/contextual-links";
+import { cardCls, eyebrowCls, ghostBtn, primaryBtn, wrap } from "@/components/marketing/seo/styles";
 
-export const metadata = pageMetadata({
-  title: "Agency & Enterprise plans",
-  description:
-    "Every Peakhour module across many businesses — one unit per client, volume Peaks and central billing on Agency, plus SLAs and a dedicated team on Enterprise.",
-  path: "/pricing/teams",
-});
+export const metadata = pageMeta("pricing.teams");
 
 function countryFrom(header: string | null): string {
   return header && /^[A-Za-z]{2}$/.test(header) ? header.toUpperCase() : "DEFAULT";
 }
 
 const AGENCY_FEATURES = [
-  "All five modules, fully unlocked",
+  "Everything in Peakhour Suite, fully unlocked",
   "One unit = one client business",
   "Central billing across every client",
   "Priority support & onboarding",
@@ -73,40 +72,25 @@ export default async function TeamsPricingPage() {
 
       <main>
         {/* ── Hero ─────────────────────────────────────────────────────── */}
-        <section className="py-16 sm:py-20">
-          <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
-            <nav
-              aria-label="Breadcrumb"
-              className="text-sm font-medium text-muted-foreground"
-            >
-              <ol className="flex items-center justify-center gap-1.5">
-                <li>
-                  <Link href="/pricing" className="transition-colors hover:text-brand">
-                    Pricing
-                  </Link>
-                </li>
-                <li aria-hidden className="opacity-40">
-                  ›
-                </li>
-                <li aria-current="page" className="text-foreground">
-                  Agency &amp; Enterprise
-                </li>
-              </ol>
-            </nav>
-            <span className="mt-6 inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
-              <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-              For teams &amp; partners
-            </span>
-            <h1 className="mt-4 text-4xl font-extrabold tracking-tight text-pretty sm:text-5xl">
-              Built for many businesses{" "}
-              <span className="font-serif font-normal italic text-brand-gradient">
-                at once.
-              </span>
+        <section className="bg-[linear-gradient(180deg,var(--daylight-hero)_0%,var(--background)_92%)]">
+          <div className={`${wrap} py-8 sm:py-12 lg:pb-6 lg:pt-16`}>
+            <div className="max-w-3xl">
+              <Breadcrumbs
+                crumbs={[
+                  { label: "Home", href: pathFor("home") },
+                  { label: "Pricing", href: pathFor("pricing") },
+                  { label: "Agency & Enterprise", href: pathFor("pricing.teams") },
+                ]}
+              />
+            </div>
+            <p className={`${eyebrowCls} mt-5`}>For teams &amp; partners</p>
+            <h1 className="mt-3 text-[2.2rem] font-black leading-[1.04] tracking-[-0.04em] text-balance sm:text-5xl lg:text-[3.5rem]">
+              One account for{" "}
+              <span className="daylight-mark">many client businesses.</span>
             </h1>
-            <p className="mx-auto mt-5 max-w-xl text-lg text-muted-foreground">
-              Whether you manage a roster of clients or run a large brand, get
-              every module under one roof — with the billing, credits and
-              controls that scale.
+            <p className="mt-4 max-w-xl text-lg text-foreground/80 sm:text-xl">
+              Agency and Enterprise give each client business every module,
+              with volume Peaks and central billing.
             </p>
             {/* ★THIS PAGE SOLD THE TOP OF A LADDER WHOSE MIDDLE RUNG IT NEVER
                 MENTIONED. Peakhour Suite now sits directly below Agency, so a
@@ -120,28 +104,28 @@ export default async function TeamsPricingPage() {
                 that has not run migration 258, and links to an `#suite` anchor
                 the hub does not render there. */}
             {suite && (
-              <p className="mx-auto mt-4 max-w-xl text-sm text-muted-foreground">
+              <p className="mt-4 max-w-xl text-sm text-muted-foreground">
                 Running one business?{" "}
                 <Link
                   href="/pricing#suite"
-                  className="font-bold text-brand-strong underline underline-offset-2"
+                  className="font-bold text-brand-strong underline decoration-2 underline-offset-4"
                 >
                   Peakhour Suite
                 </Link>{" "}
-                is the same five modules for a single business, at a fraction of
-                this. These two are for running many.
+                covers everything Peakhour does for one business, at a fraction of
+                this price. These two are for running many.
               </p>
             )}
           </div>
         </section>
 
         {/* ── Cards ────────────────────────────────────────────────────── */}
-        <section className="pb-16">
-          <div className="mx-auto grid max-w-4xl gap-6 px-4 sm:px-6 md:grid-cols-2">
+        <section className="pb-8 pt-4 sm:pb-12">
+          <div className={`${wrap} grid gap-5 md:grid-cols-2 md:gap-6`}>
             {/* Agency */}
-            <div className="flex flex-col rounded-3xl border bg-background p-8 shadow-md">
-              <span className="inline-flex self-start items-center rounded-full bg-brand-gradient px-3 py-1 text-xs font-bold text-brand-contrast">
-                Most chosen by agencies
+            <div className={`${cardCls} flex flex-col rounded-3xl border-2 border-brand p-6 shadow-[var(--daylight-shadow)] sm:p-8`}>
+              <span className="inline-flex self-start items-center rounded-full bg-brand-gradient px-3 py-1 text-micro font-bold uppercase tracking-wide text-brand-contrast">
+                For agencies
               </span>
               <h2 className="mt-4 text-2xl font-extrabold tracking-tight">Agency</h2>
               <div className="mt-3 flex items-baseline gap-1.5">
@@ -163,7 +147,7 @@ export default async function TeamsPricingPage() {
               {/* The campaign behind the struck-through price: its own name
                   beside its percent, as the Suite badge says it. */}
               {agencyPrice?.offer && (
-                <p className="mt-1 text-xs font-bold text-brand-ink dark:text-brand">{agencyPrice.offer}</p>
+                <p className="mt-1 text-xs font-bold text-brand-ink">{agencyPrice.offer}</p>
               )}
               <p className="mt-3 text-sm text-muted-foreground">
                 Every product, for one business — one unit per client. Add units
@@ -187,7 +171,7 @@ export default async function TeamsPricingPage() {
               {!cta.disabled && (
                 <Link
                   href={cta.href}
-                  className="mt-7 inline-flex items-center justify-center rounded-xl bg-foreground px-5 py-3 text-sm font-bold text-background transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+                  className={`${primaryBtn} mt-7 justify-center`}
                 >
                   {openSignup ? "Start an Agency plan" : cta.label}
                 </Link>
@@ -195,8 +179,8 @@ export default async function TeamsPricingPage() {
             </div>
 
             {/* Enterprise */}
-            <div className="flex flex-col rounded-3xl border border-ink-line bg-ink p-8 text-on-ink shadow-2xl">
-              <span className="inline-flex self-start items-center rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-bold text-on-ink">
+            <div className={`${cardCls} flex flex-col rounded-3xl p-6 sm:p-8`}>
+              <span className="inline-flex self-start items-center rounded-full bg-muted px-3 py-1 text-micro font-bold uppercase tracking-wide">
                 Custom
               </span>
               <h2 className="mt-4 text-2xl font-extrabold tracking-tight">Enterprise</h2>
@@ -207,43 +191,59 @@ export default async function TeamsPricingPage() {
                 >
                   Let&rsquo;s talk
                 </span>
-                <span className="text-sm text-on-ink-dim">custom terms</span>
+                <span className="text-sm text-muted-foreground">custom terms</span>
               </div>
-              <p className="mt-3 text-sm text-on-ink-dim">
+              <p className="mt-3 text-sm text-muted-foreground">
                 Everything in Agency, plus the security, scale and support a large
                 organization needs.
               </p>
               <ul className="mt-6 flex flex-1 flex-col gap-3">
                 <li className="flex items-start gap-2.5 text-sm">
-                  <Check className="mt-0.5 size-4 shrink-0 text-brand" strokeWidth={2.5} aria-hidden />
+                  <Check className="mt-0.5 size-4 shrink-0 text-brand-strong" strokeWidth={2.5} aria-hidden />
                   <span>
                     <strong className="font-semibold tabular-nums">{enterprisePeaks}+</strong>{" "}
                     Peaks / month, custom
                   </span>
                 </li>
                 {ENTERPRISE_FEATURES.map((f) => (
-                  <li key={f} className="flex items-start gap-2.5 text-sm text-on-ink-dim">
-                    <Check className="mt-0.5 size-4 shrink-0 text-brand" strokeWidth={2.5} aria-hidden />
+                  <li key={f} className="flex items-start gap-2.5 text-sm">
+                    <Check className="mt-0.5 size-4 shrink-0 text-brand-strong" strokeWidth={2.5} aria-hidden />
                     {f}
                   </li>
                 ))}
               </ul>
               <Link
                 href="/contact"
-                className="mt-7 inline-flex items-center justify-center rounded-xl bg-brand-gradient px-5 py-3 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
+                className={`${ghostBtn} mt-7 justify-center`}
               >
                 Talk to sales
               </Link>
             </div>
           </div>
 
-          <p className="mx-auto mt-8 max-w-xl px-4 text-center text-sm text-muted-foreground">
-            Not sure which fits?{" "}
-            <Link href="/contact" className="font-semibold text-foreground underline underline-offset-2">
-              Talk to our team
+          <p className={`${wrap} mt-6 text-sm text-muted-foreground`}>
+            Not sure which plan fits?{" "}
+            <Link href="/contact" className="font-semibold text-foreground underline decoration-brand decoration-2 underline-offset-4">
+              Write to us
             </Link>{" "}
-            — we&rsquo;ll size it to your client roster.
+            and we&rsquo;ll size it to your client roster.
           </p>
+        </section>
+
+        <section aria-labelledby="related-h" className="pb-12 sm:pb-16">
+          <div className={wrap}>
+            <h2 id="related-h" className="text-2xl font-extrabold tracking-tight">
+              Keep reading
+            </h2>
+            <ContextualLinks
+              className="mt-5 grid gap-3 sm:grid-cols-3"
+              links={[
+                { label: "Peakhour pricing", href: pathFor("pricing"), note: "Peakhour Suite for a single business." },
+                { label: "Peaks, the AI credits", href: pathFor("peaks"), note: "Volume Peaks and top-ups explained." },
+                { label: "How Peakhour works", href: pathFor("how.it.works"), note: "What every module does for each client." },
+              ]}
+            />
+          </div>
         </section>
       </main>
 

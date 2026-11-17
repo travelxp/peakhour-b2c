@@ -1,14 +1,9 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { SITE } from "@/lib/utils";
-import { Header } from "@/components/shared/header";
-import { Footer } from "@/components/shared/footer";
+import { LegalPage } from "@/components/marketing/legal/legal-page";
+import { pageMeta } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
-  title: "Data Retention - Peakhour",
-  description:
-    "How long Peakhour keeps the data it pulls from connected platforms, and why.",
-};
+export const metadata = pageMeta("trust.data.processing");
 
 /**
  * Public /help/data-retention page. Surfaces LinkedIn's Marketing API
@@ -19,16 +14,9 @@ export const metadata: Metadata = {
  */
 export default function DataRetentionPage() {
   return (
-    <div className="flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
-      <Header />
-
-      <main className="mx-auto max-w-3xl px-4 py-12">
-        <h1 className="text-3xl font-bold">Data Retention</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Last updated: {SITE.helpLastUpdated}
-        </p>
-
-        <div className="mt-8 space-y-8 text-sm leading-relaxed text-muted-foreground">
+    <LegalPage
+      title="Data Retention"
+      lastUpdated={SITE.helpLastUpdated}>
           <section>
             <h2 className="text-lg font-semibold text-foreground">
               1. Why some panels only show the last 48 hours
@@ -232,10 +220,6 @@ export default function DataRetentionPage() {
               .
             </p>
           </section>
-        </div>
-      </main>
-
-      <Footer />
-    </div>
+    </LegalPage>
   );
 }

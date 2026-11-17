@@ -8,7 +8,9 @@ import {
   decisionNotice,
   describeImpact,
   describeOp,
+  suggestionNote,
   isSpendDecision,
+  KIND_LABEL,
   queueTab,
   tabCounts,
   undoOpenUntil,
@@ -149,6 +151,17 @@ describe("decisionNotice: a refusal as something to do", () => {
   });
 });
 
+describe("suggestionNote", () => {
+  it("says what a new channel and a bidding change do, and nothing for the other kinds", () => {
+    expect(suggestionNote("channel_add")).toContain("changes nothing on your ad accounts");
+    expect(suggestionNote("bid_strategy")).toContain("at most one a month for each campaign");
+    expect(suggestionNote("campaign_launch")).toContain("starts paused");
+    expect(suggestionNote("campaign_launch")).toContain("never deleted");
+    expect(suggestionNote("campaign_launch")).not.toMatch(/mandate|intent|council|strategist|critic|chair/i);
+    expect(suggestionNote("budget_move")).toBeUndefined();
+  });
+});
+
 describe("describeOp", () => {
   it("names the platform and campaign and shows the change in the currency", () => {
     expect(describeOp({ platform: "meta", campaignRef: "trip-videos", op: "set_daily_budget", from: 590, to: 653 }, "INR")).toBe(
@@ -160,6 +173,14 @@ describe("describeOp", () => {
     expect(describeOp({ platform: "google_ads", campaignRef: "search", op: "set_bid_strategy", from: "maximize_clicks", to: "target_cpa" }, "INR")).toBe(
       "Google Ads, search: bid strategy maximize clicks to target cpa",
     );
+  });
+
+  it("names a new campaign and its starting budget, not Peakhour's own reference", () => {
+    const op = { platform: "google_ads", campaignRef: "ph-65f0c0ffee0000000000f2c1", op: "create_campaign", from: { exists: false }, to: { name: "Hotels · Search", dailyBudget: 300, currency: "INR", goalId: "hotels" } } as const;
+    expect(describeOp(op, "INR")).toBe("Google Ads: start Hotels · Search at ₹300 a day");
+    expect(describeOp(op, "INR")).not.toContain("ph-");
+    expect(describeOp({ ...op, to: { currency: "USD" } }, "INR")).toBe("Google Ads: start a new campaign");
+    expect(describeOp({ ...op, to: {} }, "INR")).toBe("Google Ads: start a new campaign");
   });
 
   it("has no 'from' for a creative attach", () => {
@@ -220,5 +241,12 @@ describe("describeOp units", () => {
 
   it("prints a zero bound of a cost change without a plus sign", () => {
     expect(describeImpact({ metric: "cost_per_outcome", low: 0, high: 40, confidence: 0.5, horizonDays: 7 }, "INR", { one: "lead", many: "leads" }).range).toBe("\u20B90 to +\u20B940");
+  });
+});
+
+describe("PL-4: a seasonal goal or a phase move reads as a change to the plan", () => {
+  it("the kind a merchant sees on a plan change says plan, never mandate (the engine proposes goals over time as plan changes)", () => {
+    expect(KIND_LABEL.mandate_change).toBe("Plan change");
+    for (const label of Object.values(KIND_LABEL)) expect(label).not.toMatch(/mandate|intent|council|strategist/i);
   });
 });

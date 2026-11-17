@@ -8,11 +8,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
 import { api, ApiError } from "@/lib/api";
 import { useLocale } from "@/hooks/use-locale";
-import type { DashboardOrgPlanSummary } from "@/hooks/use-dashboard-org";
+import { DASHBOARD_ORG_KEY, useBusinessCategoryLabel, useCanChangeCategory, type DashboardOrgPlanSummary } from "@/hooks/use-dashboard-org";
 import { activeBusiness, planRowLabel } from "@/lib/plan-status";
 // Shared with every other surface the OAuth callback can return to
 // (?returnTo=), so a new provider is labelled once, not per page.
 import { formatProviderName } from "@/lib/provider-names";
+import { metaConnectNoticeMessage } from "@/lib/meta-connect-notice";
 import { IntegrationFitAttention } from "@/components/integrations/integration-fit-attention";
 import { MeasurementHealthPanel } from "@/components/growth/measurement-health-panel";
 import { RequestReviewButton } from "@/components/integrations/request-review-button";
@@ -56,7 +57,6 @@ interface OrgDetails extends Pick<DashboardOrgPlanSummary, "subscription" | "pro
   _id: string;
   name: string;
   slug: string;
-  businessCategory?: string;
   businessType?: string;
   websiteUrl?: string;
   adPlatforms?: {
@@ -115,9 +115,25 @@ function SettingsContent() {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const [orgDetails, setOrgDetails] = useState<OrgDetails | null>(null);
+  // FR: the category in words, with a way to change it for an owner or admin (it lives on "Your business").
+  const canChangeCat = useCanChangeCategory();
+  // from the shared query the "Your business" card invalidates, not this page's once-loaded copy, which goes stale while the page stays open
+  const categoryText = useBusinessCategoryLabel();
+  const categoryValue = categoryText ? (
+    <span className="inline-flex items-center gap-2">
+      {categoryText}
+      {canChangeCat ? (
+        <Link href="/dashboard/growth/rules/business" className="text-xs font-normal underline underline-offset-2">
+          Edit
+        </Link>
+      ) : null}
+    </span>
+  ) : undefined;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [justConnectedProvider, setJustConnectedProvider] = useState<string | null>(null);
+  // Set beside `justConnectedProvider` from the callback's `?meta_notice=`.
+  const [metaNotice, setMetaNotice] = useState<string | null>(null);
   // Set when the OAuth callback flags a multi-page LinkedIn connect
   // (`select_page=1`): the connected member admins several Company
   // Pages, and the auto-seeded default needs human confirmation.
@@ -155,6 +171,8 @@ function SettingsContent() {
       if (r.grounded) {
         const updated = await api.get<OrgDetails>("/v1/dashboard/org");
         setOrgDetails(updated);
+        // the re-scan may have changed the category, which is read from the shared query
+        void queryClient.invalidateQueries({ queryKey: [DASHBOARD_ORG_KEY] });
         const cat = r.businessCategory ? ` — ${r.businessCategory.replace(/_/g, " ")}` : "";
         toast.success(`Updated from your ${r.productCount ?? ""} products${cat}`.replace("  ", " "));
       } else if (r.reason === "empty_catalog") {
@@ -210,6 +228,7 @@ function SettingsContent() {
   useEffect(() => {
     if (searchParams?.get("integration") === "connected") {
       setJustConnectedProvider(searchParams.get("provider") ?? "");
+      setMetaNotice(metaConnectNoticeMessage(searchParams.get("meta_notice")));
       setSelectPagePrompt(searchParams.get("select_page") === "1");
       // Refetch integration status everywhere immediately after a successful
       // OAuth. Otherwise the content/composer pages keep their cached
@@ -276,10 +295,19 @@ function SettingsContent() {
         actions={<ContactSupportDialog />}
       />
 
-      {justConnectedProvider !== null && (
+      {justConnectedProvider !== null && metaNotice === null && (
         <div className="flex items-center gap-2 rounded-lg bg-success/10 border border-success/20 p-4 text-sm text-success-on-tint">
           <CheckCircle2 className="h-4 w-4 shrink-0" />
           {formatProviderName(justConnectedProvider)} connected successfully!
+        </div>
+      )}
+
+      {/* A Meta connect that stored no Page, or no Instagram-linked Page: the
+          next step, not a success (lib/meta-connect-notice). */}
+      {justConnectedProvider !== null && metaNotice !== null && (
+        <div role="status" className="flex items-start gap-2 rounded-lg bg-warning/10 border border-warning/30 p-4 text-sm text-warning-on-tint">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          <span>{metaNotice}</span>
         </div>
       )}
 
@@ -400,7 +428,7 @@ function SettingsContent() {
               <>
                 <EditRow label="Business name" value={editName} onChange={setEditName} />
                 <SettingRow label="Slug" value={orgDetails?.slug} />
-                <SettingRow label="Category" value={orgDetails?.businessCategory} />
+                <SettingRow label="Category" value={categoryValue} />
                 <EditRow label="Type" value={editType} onChange={setEditType} />
                 <EditRow label="Website" value={editUrl} onChange={setEditUrl} type="url" />
                 <EditRow
@@ -425,7 +453,7 @@ function SettingsContent() {
               <>
                 <SettingRow label="Business name" value={orgDetails?.name} />
                 <SettingRow label="Slug" value={orgDetails?.slug} />
-                <SettingRow label="Category" value={orgDetails?.businessCategory} />
+                <SettingRow label="Category" value={categoryValue} />
                 <SettingRow label="Type" value={orgDetails?.businessType} />
                 <SettingRow label="Website" value={orgDetails?.websiteUrl} />
                 <SettingRow

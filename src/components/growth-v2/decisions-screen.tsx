@@ -17,12 +17,15 @@ import {
   type DecisionsScreenData,
   type DecisionView,
   type GuardrailBlockView,
+  type MandateView,
   type WaitingReviewView,
 } from "@/lib/api/growth-v2";
 import { PREVIEW_BUSINESS_NAME, PREVIEW_NOW } from "@/lib/growth-v2-fixtures";
 import { decisionNotice, isAnswerable, KIND_LABEL, QUEUE_TABS, recheckNotice, TAB_QUEUE, whatsappPreview, type DecisionNotice, type QueueTab } from "@/lib/growth-v2-decisions";
 import { formatDay, unitFor } from "@/lib/growth-v2-figure";
+import { goalUnit } from "@/lib/growth-v2-goals";
 import { cn } from "@/lib/utils";
+import { PeakhourMark } from "@/components/shared/peakhour-logo";
 import { AskSummit } from "./ask-summit";
 import { DecisionAsk } from "./decision-ask";
 import { DecisionCard } from "./decision-card";
@@ -90,6 +93,7 @@ export function DecisionsScreen() {
             result={r}
             currency={mandateFor(rules.data, r.preview)?.currency ?? ""}
             unit={unitFor(mandateFor(rules.data, r.preview)?.outcome.kind)}
+            mandate={mandateFor(rules.data, r.preview)}
             businessName={r.preview ? PREVIEW_BUSINESS_NAME : (business?.name ?? "your business")}
             onLoadMore={() => void query.fetchNextPage()}
             loadingMore={query.isFetchingNextPage}
@@ -114,6 +118,7 @@ export function Inbox({
   result,
   currency,
   unit,
+  mandate,
   businessName,
   onLoadMore,
   loadingMore,
@@ -123,6 +128,8 @@ export function Inbox({
   result: DecisionsScreenData;
   currency: string;
   unit: { one: string; many: string };
+  /** PL-3: a decision's figures are counted in its own goal's unit; `unit` (the primary goal's) when it names none. */
+  mandate?: Pick<MandateView, "goals" | "outcome">;
   businessName: string;
   onLoadMore?: () => void;
   loadingMore?: boolean;
@@ -225,7 +232,7 @@ export function Inbox({
                 key={selectedDecision.id}
                 decision={selectedDecision}
                 currency={currency}
-                unit={unit}
+                unit={mandate ? goalUnit(mandate, selectedDecision.goalId) : unit}
                 now={now}
                 onAction={preview ? undefined : act}
                 actionsDisabled={preview ? PREVIEW_NOTE : undefined}
@@ -370,7 +377,7 @@ function WhatsAppPhone({ d, businessName }: { d: DecisionView; businessName: str
   return (
     <div className="mx-auto w-full max-w-[300px] overflow-hidden rounded-3xl border bg-wa-wallpaper">
       <div className="flex items-center gap-2 bg-wa-header px-3 py-2.5 text-[13px] text-white">
-        <span className="grid size-6 place-items-center rounded-full bg-white text-xs font-bold text-wa-header">P</span>
+        <PeakhourMark className="size-6 shrink-0" />
         <span>
           <b className="block leading-tight">Peakhour</b>
           <span className="text-micro opacity-80">Business account</span>

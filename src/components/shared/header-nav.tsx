@@ -15,17 +15,17 @@ import { HOME_ROUTE } from "@/lib/nav-home";
 // reachable only from the bottom of the page. It sits next to Pricing because
 // that is the question it answers.
 const NAV_LINKS = [
-  { href: "/commerce", label: "Commerce" },
-  { href: "/content", label: "Content" },
-  { href: "/growth", label: "Growth" },
-  { href: "/support", label: "Support" },
-  { href: "/presence", label: "Presence" },
+  { href: "/commerce", label: "commerce" },
+  { href: "/content", label: "content" },
+  { href: "/growth", label: "growth" },
+  { href: "/support", label: "support" },
+  { href: "/presence", label: "presence" },
   // ★Peaks sits BEFORE Pricing, not after it. Last place in a nav is the
   // weakest slot there is, and the order is also the argument: the five
   // modules are what you get, Peaks is what powers them, Pricing is what it
   // costs. Pricing stays rightmost because it is the rung nearest the CTA.
-  { href: "/peaks", label: "Peaks" },
-  { href: "/pricing", label: "Pricing" },
+  { href: "/peaks", label: "peaks" },
+  { href: "/pricing", label: "pricing" },
 ] as const;
 
 // Nav link with a gold underline that wipes in on hover/focus.
@@ -36,6 +36,28 @@ const navLinkClass =
 // Button variant's background. Near-black ink (--brand-contrast) on molten gold.
 const ctaClass =
   "inline-flex items-center justify-center rounded-md bg-brand-gradient px-4 py-2 text-sm font-semibold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2";
+
+/**
+ * Every string the header shows, resolved on the server (header.tsx) from messages/<locale>.json and
+ * passed down, so this client component carries no i18n runtime and adds no client JS. `navLinks` is
+ * keyed by NAV_LINKS' `label` key.
+ */
+export interface HeaderLabels {
+  homeAria: string;
+  primaryAria: string;
+  navLinks: Record<(typeof NAV_LINKS)[number]["label"], string>;
+  signIn: string;
+  signOut: string;
+  dashboard: string;
+  settings: string;
+  userMenu: string;
+  openMenu: string;
+  closeMenu: string;
+  languageChip: string;
+  languageChipShort: string;
+  languageMore: string;
+  languageTooltip: string;
+}
 
 /** The signup CTA resolved from the platform stage (see `signupCta`). Passed
  *  down from the server `Header` so the header label tracks the launch stage
@@ -55,13 +77,19 @@ export interface HeaderCta {
  *   coming-soon gate allowlist) where those links would point at gated or
  *   non-existent routes.
  * @param cta The signup CTA resolved from the platform stage.
+ * @param labels The header's strings for the request's locale.
+ * @param languageSwitcher The LanguageSwitcher, when more than one locale is published; it replaces the static English chip.
  */
 export function HeaderNav({
   minimal = false,
   cta,
+  labels,
+  languageSwitcher,
 }: {
   minimal?: boolean;
   cta: HeaderCta;
+  labels: HeaderLabels;
+  languageSwitcher?: React.ReactNode;
 }) {
   const pathname = usePathname();
   const isAuthPage = pathname?.startsWith("/auth");
@@ -83,8 +111,8 @@ export function HeaderNav({
   return (
     <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-        <Link href="/" className="flex items-center" aria-label="Peakhour.ai home">
-          <PeakhourLogo className="h-8 w-auto" />
+        <Link href="/" className="flex items-center" aria-label={labels.homeAria}>
+          <PeakhourLogo className="h-8 w-auto" decorative />
         </Link>
 
         {!minimal && !isAuthPage && (
@@ -94,10 +122,10 @@ export function HeaderNav({
                 tablets. Seven is one more than this was measured at, so the
                 gap tightens at lg and only opens back up at xl, where there is
                 room for it. */}
-            <nav aria-label="Primary" className="hidden items-center gap-5 lg:flex xl:gap-6">
+            <nav aria-label={labels.primaryAria} className="hidden items-center gap-5 lg:flex xl:gap-6">
               {NAV_LINKS.map((link) => (
                 <Link key={link.href} href={link.href} className={navLinkClass}>
-                  {link.label}
+                  {labels.navLinks[link.label]}
                 </Link>
               ))}
             </nav>
@@ -108,22 +136,24 @@ export function HeaderNav({
         {!minimal && (
         <div className="flex items-center gap-3">
           {!isLoading && isAuthenticated && user ? (
-            <UserMenu user={user} onLogout={logout} />
+            <UserMenu user={user} onLogout={logout} labels={labels} />
           ) : !isAuthPage ? (
             <>
               {/* Desktop CTA */}
               <div className="hidden items-center gap-4 lg:flex">
-                <span
-                  className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold text-muted-foreground"
-                  title="Available in English; more languages coming"
-                >
-                  <span aria-hidden="true">🌐</span> EN
-                </span>
+                {languageSwitcher ?? (
+                  <span
+                    className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold text-muted-foreground"
+                    title={labels.languageTooltip}
+                  >
+                    <span aria-hidden="true">🌐</span> {labels.languageChipShort}
+                  </span>
+                )}
                 <Link
                   href="/auth"
                   className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  Sign in
+                  {labels.signIn}
                 </Link>
                 {!cta.disabled && (
                   <Link href={cta.href} className={ctaClass}>
@@ -137,7 +167,7 @@ export function HeaderNav({
                 type="button"
                 onClick={() => setMenuOpen(!menuOpen)}
                 className="flex h-9 w-9 items-center justify-center rounded-md border lg:hidden"
-                aria-label={menuOpen ? "Close menu" : "Open menu"}
+                aria-label={menuOpen ? labels.closeMenu : labels.openMenu}
                 aria-expanded={menuOpen}
                 aria-controls="mobile-nav"
               >
@@ -165,7 +195,7 @@ export function HeaderNav({
       {/* Mobile nav panel */}
       {!minimal && !isAuthPage && menuOpen && (
         <div id="mobile-nav" className="border-t bg-background px-4 pb-4 pt-2 lg:hidden">
-          <nav aria-label="Primary" className="flex flex-col gap-3">
+          <nav aria-label={labels.primaryAria} className="flex flex-col gap-3">
             {NAV_LINKS.map((link) => (
               <Link
                 key={link.href}
@@ -173,17 +203,19 @@ export function HeaderNav({
                 onClick={() => setMenuOpen(false)}
                 className="text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
-                {link.label}
+                {labels.navLinks[link.label]}
               </Link>
             ))}
             <div className="mt-2 flex flex-col items-start gap-3 border-t pt-3">
-              <span
-                className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold text-muted-foreground"
-                title="Available in English; more languages coming"
-              >
-                <span aria-hidden="true">🌐</span> English
-                <span className="font-normal">· more soon</span>
-              </span>
+              {languageSwitcher ?? (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold text-muted-foreground"
+                  title={labels.languageTooltip}
+                >
+                  <span aria-hidden="true">🌐</span> {labels.languageChip}
+                  <span className="font-normal">{labels.languageMore}</span>
+                </span>
+              )}
               {!isLoading && isAuthenticated ? (
                 <>
                   <Link
@@ -191,13 +223,13 @@ export function HeaderNav({
                     onClick={() => setMenuOpen(false)}
                     className="text-sm font-medium transition-colors hover:text-foreground"
                   >
-                    Dashboard
+                    {labels.dashboard}
                   </Link>
                   <button
                     onClick={() => { setMenuOpen(false); logout(); }}
                     className="text-left text-sm text-muted-foreground transition-colors hover:text-foreground"
                   >
-                    Sign out
+                    {labels.signOut}
                   </button>
                 </>
               ) : (
@@ -207,7 +239,7 @@ export function HeaderNav({
                     onClick={() => setMenuOpen(false)}
                     className="text-sm text-muted-foreground transition-colors hover:text-foreground"
                   >
-                    Sign in
+                    {labels.signIn}
                   </Link>
                   {!cta.disabled && (
                     <Link
@@ -231,9 +263,11 @@ export function HeaderNav({
 function UserMenu({
   user,
   onLogout,
+  labels,
 }: {
   user: { name?: string | null; email: string };
   onLogout: () => void;
+  labels: HeaderLabels;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -268,7 +302,7 @@ function UserMenu({
         type="button"
         onClick={() => setOpen(!open)}
         className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-medium text-primary-foreground transition-opacity hover:opacity-80"
-        aria-label="User menu"
+        aria-label={labels.userMenu}
         aria-expanded={open}
       >
         {initials}
@@ -287,14 +321,14 @@ function UserMenu({
             onClick={() => setOpen(false)}
             className="block w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
           >
-            Dashboard
+            {labels.dashboard}
           </Link>
           <Link
             href="/dashboard/settings"
             onClick={() => setOpen(false)}
             className="block w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
           >
-            Settings
+            {labels.settings}
           </Link>
           <div className="border-t mt-1 pt-1">
             <button
@@ -302,7 +336,7 @@ function UserMenu({
               onClick={() => { setOpen(false); onLogout(); }}
               className="block w-full rounded-md px-3 py-2 text-left text-sm text-destructive transition-colors hover:bg-destructive/10"
             >
-              Sign out
+              {labels.signOut}
             </button>
           </div>
         </div>

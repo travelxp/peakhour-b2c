@@ -7,54 +7,31 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useFirstRunDraft, useGrowthV2Rules, usePatchRules, type MandateView, type RulesResponse } from "@/lib/api/growth-v2";
-import { GROWTH_HOME } from "@/lib/growth-v2-nav";
+import { useGrowthV2Rules, usePatchRules, type MandateView, type RulesResponse } from "@/lib/api/growth-v2";
+import { GOALS_ROUTE, GROWTH_HOME } from "@/lib/growth-v2-nav";
 import { PREVIEW_NOW } from "@/lib/growth-v2-fixtures";
-import { OUTCOME_UNIT, PLATFORM_COLOR, PLATFORM_LABEL, formatDate, formatMoney } from "@/lib/growth-v2-figure";
-import { offerKey } from "@/lib/growth-v2-firstrun";
-import {
-  DEFAULT_QUIET_HOURS,
-  SENT_FOR_CONFIRMATION,
-  channelAllowed,
-  editAfterOutcome,
-  editFrom,
-  guardrailPatchFor,
-  mandatePatchFor,
-  patchErrorMessage,
-  type GuardrailChange,
-  type MandateEdit,
-} from "@/lib/growth-v2-rules";
+import { PLATFORM_COLOR, PLATFORM_LABEL, formatDate, formatMoney } from "@/lib/growth-v2-figure";
+import { activeGoals, pctOf } from "@/lib/growth-v2-goals";
+import { DEFAULT_QUIET_HOURS, ceilingPatchFor, channelAllowed, guardrailPatchFor, patchErrorMessage, type GuardrailChange } from "@/lib/growth-v2-rules";
 import { AutonomyLadder } from "./autonomy-ladder";
+import { PendingChangeNote, PlanChangeDialog } from "./plan-change";
 import { PageHead } from "./page-head";
 import { PageShell } from "@/components/dashboard/page-shell";
 import { QueryBoundary } from "./query-boundary";
 import { ToneBadge } from "./tone";
 
-/** Rules: "What may Peakhour do?" Your mandate, how much it may do alone, and the lines it never crosses (plan 1, H5). */
+/** Guardrails: "What may Peakhour do?" Your plan, how much it may do alone, and the lines it never crosses (plan 1, H5; PL-3 moved the goals to Goals). */
 export function RulesScreen({ intro }: { intro?: React.ReactNode } = {}) {
   const query = useGrowthV2Rules();
   return (
     <PageShell width="standard">
-      <PageHead title="What may Peakhour do?" description="Your mandate, how much Peakhour may do on its own, and the lines it never crosses." />
+      <PageHead title="What may Peakhour do?" description="Your plan, how much Peakhour may do on its own, and the lines it never crosses." />
       {/* The route's "What is this page?" strip: under the title, inside the shell. */}
       {intro}
       <QueryBoundary query={query}>{(r) => <RulesBody rules={r.data} preview={r.preview} />}</QueryBoundary>
     </PageShell>
   );
 }
-
-/** What the mandate counts, in the merchant's words: the focus label, else the kind's own word. */
-export function outcomeLabel(m: MandateView["outcome"]): string {
-  return m.focus?.label ?? OUTCOME_UNIT[m.kind].many;
-}
-
-const SOURCE_NOTE: Record<MandateView["outcome"]["source"], string> = {
-  orders: "counted from paid orders",
-  win_definition: "counted from the win you chose",
-  gbp_actions: "counted from Business Profile actions",
-  ads_conversions: "counted from the ad platform's conversions",
-};
 
 const SIGNAL_BADGE = {
   ready: { tone: "good", label: "Signal on" },
@@ -76,7 +53,7 @@ export function RulesBody({ rules, preview }: { rules: RulesResponse; preview: b
           <CardContent className="space-y-3 py-8 text-center">
             <p className="font-medium">Peakhour is off for this business.</p>
             <p className="mx-auto max-w-prose text-sm text-muted-foreground">
-              There is no mandate yet. Answer three questions and confirm on WhatsApp, and Peakhour starts by watching and proposing.
+              There is no plan yet. Answer a few questions and confirm on WhatsApp, and Peakhour starts by watching and proposing.
             </p>
             <Button asChild>
               <Link href={`${GROWTH_HOME}/start`}>Start the first run</Link>
@@ -90,13 +67,7 @@ export function RulesBody({ rules, preview }: { rules: RulesResponse; preview: b
 
   return (
     <div className="grid gap-4">
-      {rules.pendingChange ? (
-        <div role="status" className="rounded-lg border border-warning/30 bg-warning/10 p-4 text-sm">
-          <b>A change is waiting for your confirmation.</b>
-          <p className="mt-0.5">{rules.pendingChange.summary}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">Until you confirm it, your plan is exactly as it was. The request expires on {formatDate(rules.pendingChange.expiresAt)}.</p>
-        </div>
-      ) : null}
+      {rules.pendingChange ? <PendingChangeNote change={rules.pendingChange} /> : null}
       <Card>
         <CardHeader>
           <CardTitle>Autonomy</CardTitle>
@@ -115,14 +86,14 @@ export function RulesBody({ rules, preview }: { rules: RulesResponse; preview: b
       </Card>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <MandateCard mandate={m} preview={preview} />
+        <PlanCard mandate={m} preview={preview} />
         <GuardrailsCard rules={rules} preview={preview} />
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Connections</CardTitle>
-          <CardDescription>Peakhour only manages accounts that bill in your mandate&apos;s currency ({m.currency}).</CardDescription>
+          <CardDescription>Peakhour only manages accounts that bill in your plan&apos;s currency ({m.currency}).</CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <table className="w-full min-w-[520px] text-sm">
@@ -210,151 +181,70 @@ function NeverCrossed({ lines }: { lines: string[] }) {
   );
 }
 
-// -- The mandate -----------------------------------------------------------------
+// -- The plan -------------------------------------------------------------------
 
-function MandateCard({ mandate: m, preview }: { mandate: MandateView; preview: boolean }) {
+/**
+ * The plan summary (PL-3): the ceiling, the goals in one line each with a link to Goals, and who approves. The goals' outcomes and
+ * targets are changed on Goals; the ceiling is the plan's own, changed here with the same WhatsApp code.
+ */
+function PlanCard({ mandate: m, preview }: { mandate: MandateView; preview: boolean }) {
   const [open, setOpen] = useState(false);
-  const target = m.target.kind === "roas" ? `${m.target.value.toFixed(1)}x return` : formatMoney(m.target.value, m.currency);
+  const [ceiling, setCeiling] = useState(String(m.monthlyCeiling));
+  const active = activeGoals(m);
+  const later = m.goals.filter((g) => g.status === "scheduled").length;
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Your mandate</CardTitle>
+        <CardTitle>Your plan</CardTitle>
         <CardDescription>
           Confirmed with a one-time code on {formatDate(m.confirmation.at)}. Renews on {formatDate(m.confirmation.renewsAt)}.
         </CardDescription>
         <CardAction>
-          <Button type="button" size="sm" variant="outline" disabled={preview} onClick={() => setOpen(true)}>
-            Change
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={preview}
+            onClick={() => {
+              setCeiling(String(m.monthlyCeiling));
+              setOpen(true);
+            }}
+          >
+            Change ceiling
           </Button>
         </CardAction>
       </CardHeader>
       <CardContent>
         <dl className="divide-y">
-          <Row term="Outcome" detail={`${outcomeLabel(m.outcome)}, ${SOURCE_NOTE[m.outcome.source]}`}>
-            <ToneBadge tone="good" dot>
-              {m.outcome.optimizeFor === "value" ? "By value" : "By count"}
-            </ToneBadge>
-          </Row>
-          {m.goal ? <Row term="Monthly goal" detail="What you are aiming for">{m.goal.perMonth}</Row> : <Row term="Monthly goal" detail="No goal set">None</Row>}
           <Row term="Monthly ceiling" detail="Peakhour can never spend more than this">
             {formatMoney(m.monthlyCeiling, m.currency)}
           </Row>
-          <Row
-            term={m.target.kind === "roas" ? "Target return" : `Target cost per ${OUTCOME_UNIT[m.outcome.kind].one}`}
-            detail={m.targetSource === "playbook" ? `From the ${m.playbook.id} playbook, version ${m.playbook.version}` : "Set by you"}
-          >
-            {target}
+          <Row term={active.length === 1 ? "Goal" : "Goals"} detail={later > 0 ? `${later} more scheduled` : "What the ceiling is split between"}>
+            <span className="text-right">{active.map((g) => (active.length === 1 ? `${g.label}` : `${g.label} ${pctOf(g.share)}%`)).join(", ")}</span>
           </Row>
           <Row term="Who can approve" detail={m.approvers.length === 0 ? "Only the owner" : "People on your approvals list"}>
             {m.approvers.length === 0 ? "Owner" : `${m.approvers.length} ${m.approvers.length === 1 ? "person" : "people"}`}
           </Row>
         </dl>
-        <p className="mt-3 text-xs text-muted-foreground">A change to the outcome, the ceiling or the target is confirmed on WhatsApp first, as your plan was. Until then nothing changes.</p>
-      </CardContent>
-      {open ? <MandateEditDialog mandate={m} onClose={() => setOpen(false)} /> : null}
-    </Card>
-  );
-}
-
-function MandateEditDialog({ mandate: m, onClose }: { mandate: MandateView; onClose: () => void }) {
-  const [edit, setEdit] = useState<MandateEdit>(() => editFrom(m));
-  const [error, setError] = useState<string>();
-  const patch = usePatchRules();
-  const offers = useFirstRunDraft({}).data?.offers ?? [];
-  const offer = offers.find((o) => offerKey(o) === edit.offer);
-  const sent = patch.isSuccess && patch.data.mandateChange !== undefined;
-  // A 200 that started no change leaves nothing to wait for: say so rather than sit there looking dead.
-  const notSent = patch.isSuccess && !sent;
-
-  function submit() {
-    const p = mandatePatchFor(m, edit, offers);
-    if (p === undefined) return setError("Nothing is different from your plan.");
-    if ("error" in p) return setError(p.error);
-    setError(undefined);
-    patch.mutate({ mandate: p });
-  }
-
-  return (
-    <Dialog open onOpenChange={(o) => (o ? undefined : onClose())}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Change your plan</DialogTitle>
-          <DialogDescription>We send a link to your WhatsApp. Your plan changes only when you open it and enter the code.</DialogDescription>
-        </DialogHeader>
-        {sent ? (
-          <p role="status" className="rounded-lg border border-success/30 bg-success/10 p-3 text-sm">
-            {SENT_FOR_CONFIRMATION}
-          </p>
-        ) : (
-          <div className="grid gap-4">
-            <div className="grid gap-1.5">
-              <label htmlFor="rules-outcome" className="text-sm font-medium">
-                What you want more of
-              </label>
-              <select
-                id="rules-outcome"
-                className="h-9 rounded-md border bg-background px-2 text-sm"
-                value={edit.offer}
-                onChange={(e) => setEdit(editAfterOutcome(m, edit, e.target.value, offers))}
-              >
-                {offers.length === 0 ? <option value={edit.offer}>{outcomeLabel(m.outcome)}</option> : null}
-                {offers.map((o) => (
-                  <option key={offerKey(o)} value={offerKey(o)}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-              {offer && offer.source === "orders" && (offer.focusSuggestions.length > 0 || (offerKey(offer) === offerKey(m.outcome) && m.outcome.focus)) ? (
-                <select
-                  aria-label="Focus"
-                  className="h-9 rounded-md border bg-background px-2 text-sm"
-                  value={edit.focus}
-                  onChange={(e) => setEdit({ ...edit, focus: e.target.value })}
-                >
-                  <option value="">Everything</option>
-                  {/* The saved focus stays choosable when this week's suggestions no longer rank it. */}
-                  {offerKey(offer) === offerKey(m.outcome) && m.outcome.focus && !offer.focusSuggestions.some((f) => f.label === m.outcome.focus!.label) ? (
-                    <option value={m.outcome.focus.label}>{m.outcome.focus.label} (current)</option>
-                  ) : null}
-                  {offer.focusSuggestions.map((f) => (
-                    <option key={`${f.by}:${f.label}`} value={f.label}>
-                      {f.label}
-                    </option>
-                  ))}
-                </select>
-              ) : null}
-            </div>
-            <div className="grid gap-1.5">
-              <label htmlFor="rules-ceiling" className="text-sm font-medium">
-                Monthly ceiling ({m.currency})
-              </label>
-              <Input id="rules-ceiling" inputMode="numeric" className="tabular-nums" value={edit.ceiling} onChange={(e) => setEdit({ ...edit, ceiling: e.target.value })} />
-            </div>
-            <div className="grid gap-1.5">
-              <label htmlFor="rules-target" className="text-sm font-medium">
-                {(offer ? offer.optimizeFor === "value" : m.target.kind === "roas") ? "Target return (x)" : `Target cost per outcome (${m.currency})`}
-              </label>
-              <Input id="rules-target" inputMode="decimal" className="tabular-nums" value={edit.target} onChange={(e) => setEdit({ ...edit, target: e.target.value })} />
-            </div>
-            {error || patch.isError || notSent ? (
-              <p role="alert" className="text-sm text-destructive-on-tint">
-                {error ?? (notSent ? "The change was not sent. Check your WhatsApp number in Settings and try again." : patchErrorMessage(patch.error))}
-              </p>
-            ) : null}
-          </div>
-        )}
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose}>
-            {sent ? "Close" : "Cancel"}
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">Each goal&apos;s outcome, target and share are on Goals. A change is confirmed on WhatsApp first, as your plan was.</p>
+          <Button asChild size="sm" variant="outline">
+            <Link href={GOALS_ROUTE}>Open Goals</Link>
           </Button>
-          {sent ? null : (
-            <Button type="button" onClick={submit} disabled={patch.isPending}>
-              Send for confirmation
-            </Button>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </CardContent>
+      {open ? (
+        <PlanChangeDialog title="Change your monthly ceiling" build={() => ceilingPatchFor(m, ceiling)} onClose={() => setOpen(false)}>
+          <div className="grid gap-1.5">
+            <label htmlFor="rules-ceiling" className="text-sm font-medium">
+              Monthly ceiling ({m.currency})
+            </label>
+            <Input id="rules-ceiling" inputMode="numeric" className="tabular-nums" value={ceiling} onChange={(e) => setCeiling(e.target.value)} />
+            <p className="text-xs text-muted-foreground">Each goal keeps its share of the new ceiling.</p>
+          </div>
+        </PlanChangeDialog>
+      ) : null}
+    </Card>
   );
 }
 

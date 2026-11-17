@@ -59,7 +59,6 @@ import type {
   ListItemsResponse,
   ScheduledItemStatus,
 } from "@/lib/scheduler/types";
-import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { PageShell } from "@/components/dashboard/page-shell";
 
 // Opened on demand (item click / compose button), so neither ships in the first load.
@@ -483,12 +482,6 @@ export default function CalendarPage() {
 
   return (
     <PageShell width="full">
-      <CronToolbar
-        crons={["publish-scheduled", "publish-retry", "recurring-spawn"]}
-        onTriggered={() =>
-          queryClient.invalidateQueries({ queryKey: ["scheduler:items"] })
-        }
-      />
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>

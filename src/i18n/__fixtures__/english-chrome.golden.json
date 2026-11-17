@@ -1,0 +1,9 @@
+{
+ "footer": "The AI business platform for growing brands. You approve what goes out.\n🌐\nEnglish\n· more soon\nPlatform\nCommerce\nContent\nGrowth\nSupport\nPresence\nFeatures\nPeakhour Summit\nShopify\nShopify\nAll Shopify features\nAI shopping assistant\nWhatsApp COD confirmation\nProduct recommendations\nAI SEO\nIntegrations\nAll integrations\nWhatsApp Business\nMeta Ads\nInstagram\nLinkedIn\nGoogle Business Profile\nWordPress (coming soon)\nProduct\nPricing\nPeaks\nHow it works\nContact\nLegal\nPrivacy Policy\nTerms of Service\nCookie Policy\nData Deletion\nPeakhour.ai © {YEAR}. All rights reserved.\n@aria-label=Peakhour.ai home\n@title=Available in English; more languages coming\n@aria-label=Platform\n@aria-label=Shopify\n@aria-label=Integrations\n@aria-label=Product\n@aria-label=Legal",
+ "headerNav": "Commerce\nContent\nGrowth\nSupport\nPresence\nPeaks\nPricing\n🌐\nEN\nSign in\nGet started\n@aria-label=Peakhour.ai home\n@aria-label=Primary\n@title=Available in English; more languages coming\n@aria-label=Open menu",
+ "headerNavMinimal": "@aria-label=Peakhour.ai home",
+ "topBar": "Sign in\n@aria-label=Peakhour.ai home",
+ "topBarBack": "Back\nSign in\n@aria-label=Peakhour.ai home",
+ "launchFooter": "Privacy Policy\nTerms of Service\nCookie Policy\nData Deletion\n© {YEAR} Media Worldwide Limited. All rights reserved.",
+ "notFound": "Error 404\nWe couldn't find that page\nThe link may be old. Try one of these.\nGo to the home page\nPeakhour for Shopify\nPricing"
+}

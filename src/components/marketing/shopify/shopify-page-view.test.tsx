@@ -105,8 +105,8 @@ describe("★coming soon: nothing on the page assumes an App Store install or Sh
     expect(t).not.toMatch(/Install from the Shopify App Store/);
     expect(t).not.toMatch(/billed through Shopify/i);
     expect(t).not.toMatch(/invoice through Shopify/i);
-    // The signup trial collects no card, so the plain card's note is the true one.
-    expect(t).toContain("9-day free trial · no card to start");
+    // The signup trial collects no card, and a gated door starts it on approval, so the plain card says both.
+    expect(t).toContain("9-day free trial once approved · no card");
   });
 });
 
@@ -170,9 +170,9 @@ describe("structured data", () => {
     );
   }
 
-  it("PASS: a FAQPage and a SoftwareApplication are present", () => {
+  it("PASS: a BreadcrumbList, a FAQPage and a SoftwareApplication are present", () => {
     const g = graphs(html());
-    expect(g.map((x) => x["@type"]).sort()).toEqual(["FAQPage", "SoftwareApplication"]);
+    expect(g.map((x) => x["@type"]).sort()).toEqual(["BreadcrumbList", "FAQPage", "SoftwareApplication"]);
     expect(g.find((x) => x["@type"] === "FAQPage").mainEntity.length).toBeGreaterThanOrEqual(8);
   });
 
@@ -226,5 +226,24 @@ describe("★coming soon: the features intro claims nothing about the app being 
     const t = text(html({ comingSoon: true }));
     expect(t).toContain("Every feature here is built");
     expect(t).not.toMatch(/in the app today/);
+  });
+});
+
+
+// Owner, 2026-11-16: the hero demo's chat showed a sources line under the reply. The real storefront chat shows the answer
+// and product cards, never where it looked, so the rendered demo (final frame, server markup) must carry no sources line.
+const SOURCES_LINE = /\b(From|Sources?|Answered from):\s/i;
+
+describe("hero demo shows only what the real chat shows", () => {
+  it("renders no answer-sources line under the reply", () => {
+    const page = text(html());
+    expect(page).toMatch(/XL is in stock/); // the demo reply rendered, so the check below is meaningful
+    expect(page).not.toMatch(SOURCES_LINE);
+  });
+
+  it("the pattern catches the removed line and its likely spellings", () => {
+    for (const line of ["From: product stock · Shipping policy", "Sources: catalogue", "Answered from: your policies"]) {
+      expect(line, line).toMatch(SOURCES_LINE);
+    }
   });
 });

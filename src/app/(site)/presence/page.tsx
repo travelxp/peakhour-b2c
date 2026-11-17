@@ -1,13 +1,9 @@
-import { pageMetadata } from "@/lib/seo";
-import { PillarPage } from "@/components/marketing/pillar-page";
+import { HubRoute } from "@/components/marketing/seo/hub-route";
+import { PRESENCE } from "@/content/pages/presence";
+import { pageMeta } from "@/lib/seo/metadata";
 
-export const metadata = pageMetadata({
-  title: "Presence — own how you show up on Google | Peakhour.ai",
-  description:
-    "Your Google Business Profile — listings, hours, photos, and reviews — managed from one place, always current. Included in Peakhour Suite.",
-  path: "/presence",
-});
+export const metadata = pageMeta("presence");
 
-export default function PresencePillar() {
-  return <PillarPage slug="presence" />;
+export default function PresencePage() {
+  return <HubRoute pageId="presence" content={PRESENCE} />;
 }

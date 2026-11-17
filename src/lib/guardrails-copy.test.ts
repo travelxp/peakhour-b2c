@@ -12,7 +12,6 @@ import {
   isHourMinute,
   isReadableZone,
   parseTerms,
-  timeZoneOptions,
   todayIn,
   type GuardrailsDraft,
 } from "./guardrails-copy";
@@ -166,20 +165,6 @@ describe("buildGuardrailsPatch", () => {
 
   it("quiet hours OFF are not validated — the stored times are just not sent", () => {
     expect(buildGuardrailsPatch({ ...empty(), quietEnabled: false, quietStart: "", quietEnd: "" }).ok).toBe(true);
-  });
-});
-
-describe("timeZoneOptions", () => {
-  it("★★legacy ids are offered by today's name, UTC is always offered, each once, sorted (R3)", () => {
-    expect(timeZoneOptions(["Asia/Calcutta", "Europe/Kiev", "Asia/Kolkata", "America/New_York"])).toEqual([
-      "America/New_York",
-      "Asia/Kolkata",
-      "Europe/Kyiv",
-      "UTC",
-    ]);
-  });
-  it("an id with no modern name is kept as listed", () => {
-    expect(timeZoneOptions(["Europe/London"])).toEqual(["Europe/London", "UTC"]);
   });
 });
 

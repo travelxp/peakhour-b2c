@@ -48,7 +48,7 @@ describe("the hero", () => {
   });
 
   it("pins the SEO title and description", () => {
-    expect(SHOPIFY_SEO.title).toBe("Peakhour for Shopify — AI shopping assistant and store autopilot");
+    expect(SHOPIFY_SEO.title).toBe("Peakhour for Shopify: AI assistant and store autopilot");
     expect(SHOPIFY_SEO.path).toBe("/shopify");
   });
 });
@@ -149,20 +149,36 @@ describe("shopifyJsonLd", () => {
 
 describe("wiring", () => {
   it("lists /shopify in the sitemap", async () => {
-    const { default: sitemap } = await import("../app/sitemap");
-    const urls = (await sitemap()).map((e) => e.url);
+    const { sitemapEntries } = await import("./seo/sitemap");
+    // The sitemap is empty off Production (SEO-1), so ask it as Production.
+    const keys = ["VERCEL_ENV", "SITE_INDEXABLE", "COMING_SOON"] as const;
+    const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+    for (const k of keys) delete process.env[k];
+    process.env.VERCEL_ENV = "production";
+    let urls: string[];
+    try {
+      urls = (await sitemapEntries("shopify")).map((e) => e.url);
+    } finally {
+      for (const k of keys) {
+        if (saved[k] === undefined) delete process.env[k];
+        else process.env[k] = saved[k];
+      }
+    }
     expect(urls).toContain(`${SITE.url.replace(/\/$/, "")}/shopify`);
   });
   it("lets /shopify through the coming-soon gate, and keeps /shopify/connect", () => {
-    const mw = read("middleware.ts");
+    const mw = read("lib/seo/gate.ts");
     expect(mw).toMatch(/PUBLIC_PATHS = \[[\s\S]*?"\/shopify",[\s\S]*?"\/shopify\/connect",[\s\S]*?\];/);
   });
-  it("footer has a Works with group naming Shopify and WordPress", () => {
+  it("footer has Shopify and Integrations groups, and WordPress is plain text, not a link to /content", () => {
     const f = read("components/shared/footer.tsx");
-    expect(f).toMatch(/heading: "Works with",\s*links: \[\s*\{ href: "\/shopify", label: "Shopify" \},\s*\{ href: "\/content", label: "WordPress" \},/);
+    expect(f).toMatch(/heading: "shopify",[\s\S]*?\{ path: "\/shopify", key: "shopify" \}/);
+    expect(f).toMatch(/\{ text: "wordpress" \}/);
+    const footer = JSON.parse(read("../messages/en.json")).Footer;
+    expect([footer.integrations, footer.shopify, footer.wordpress]).toEqual(["Integrations", "Shopify", "WordPress (coming soon)"]);
   });
   it("/commerce links to /shopify and the pricing strip's Shopify card links there too", () => {
-    expect(flat(read("app/(site)/commerce/page.tsx"))).toContain("Using Shopify? <Link href=\"/shopify\"");
+    expect(read("content/pages/commerce.ts")).toContain('{ label: "Peakhour for Shopify", href: pathFor("shopify")');
     expect(read("lib/pricing-catalog.ts")).toMatch(/href: SHOPIFY_APP_STORE_URL,\s*pageHref: "\/shopify"/);
   });
 });
@@ -196,9 +212,8 @@ describe("retired names and over-claims are gone", () => {
     "lib/pricing-catalog.ts",
     "components/marketing/pricing/pricing-faq.tsx",
     "app/(site)/pricing/teams/page.tsx",
-    "app/(site)/growth/page.tsx",
+    "content/pages/growth.ts",
     "lib/how-it-works.ts",
-    "components/marketing/pillar-page.tsx",
   ];
   const body = (f: string) =>
     flat(
@@ -233,12 +248,12 @@ describe("retired names and over-claims are gone", () => {
   }
 
   it("the new live copy is there", () => {
-    expect(flat(read("lib/pillars.ts"))).toContain("AI replies instantly and shares a checkout link; you step in when needed.");
+    expect(flat(read("content/pages/commerce.ts"))).toContain("The shopper pays on your Shopify checkout page, or on a Razorpay link");
     expect(flat(read("lib/pricing-catalog.ts"))).toContain("Your AI team inside Shopify: assistant, Smart Rails, COD confirmation and more.");
     expect(flat(read("components/marketing/pricing/pricing-faq.tsx"))).toContain(
       "Install the Shopify app and the assistant, Smart Rails, COD confirmation, catalogue fixes and more run inside your Shopify admin; the rest of Peakhour is in your peakhour.ai dashboard.",
     );
-    expect(flat(read("lib/how-it-works.ts"))).toContain("WooCommerce connects with an API key");
+    expect(flat(read("lib/how-it-works.ts"))).toContain("WordPress and WooCommerce are coming soon");
     expect(flat(read("app/(site)/launch-partner/launch-partner-form.tsx"))).toContain('shopify: "Peakhour for Shopify"');
     // The teaser names what Peakhour does (owner 2026-11-13: not a count of modules), each job a built one.
     expect(flat(read("app/(site)/coming-soon/page.tsx"))).toContain("Your AI team behind");

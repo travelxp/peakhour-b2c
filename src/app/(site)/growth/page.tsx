@@ -1,13 +1,9 @@
-import { pageMetadata } from "@/lib/seo";
-import { PillarPage } from "@/components/marketing/pillar-page";
+import { HubRoute } from "@/components/marketing/seo/hub-route";
+import { GROWTH } from "@/content/pages/growth";
+import { pageMeta } from "@/lib/seo/metadata";
 
-export const metadata = pageMetadata({
-  title: "Growth — ads & LinkedIn, with your approval | Peakhour.ai",
-  description:
-    "Campaigns drafted, LinkedIn leads captured and budgets reviewed every week, with your approval. Peakhour Growth takes on acquisition work for you. Included in Peakhour Suite.",
-  path: "/growth",
-});
+export const metadata = pageMeta("growth");
 
-export default function GrowthPillar() {
-  return <PillarPage slug="growth" />;
+export default function GrowthPage() {
+  return <HubRoute pageId="growth" content={GROWTH} />;
 }

@@ -4,20 +4,20 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { trialFaq } from "@/lib/trial-copy";
+import { trialFaq, type SignupModeInput } from "@/lib/trial-copy";
 
 const FAQS: { q: string; a: string }[] = [
   {
     q: "What are Peaks?",
-    a: "Peaks are your AI credits — one shared wallet across all five modules. Every plan includes a monthly allowance — the cards above show it — and you can top up any time. We tell you before you run low.",
+    a: "Peaks are your AI credits — one shared wallet across everything in Peakhour Suite. Every plan includes a monthly allowance — the cards above show it — and you can top up any time. We tell you before you run low.",
   },
   {
-    q: "Do I have to buy every module?",
-    a: "There is nothing to assemble. Peakhour Suite is one plan and one price for all five modules — Commerce, Content, Growth, Support and Presence — so you are never picking which parts of your business to leave out. Use the ones you need; the rest are there when you want them.",
+    q: "Do I have to buy the parts separately?",
+    a: "There is nothing to assemble. Peakhour Suite is one plan and one price for everything Peakhour does, so you are never picking which parts of your business to leave out. Use the ones you need; the rest are there when you want them.",
   },
   {
-    q: "Can I use it inside Shopify or WordPress?",
-    a: "Install the Shopify app and the assistant, Smart Rails, COD confirmation, catalogue fixes and more run inside your Shopify admin; the rest of Peakhour is in your peakhour.ai dashboard. The WordPress plugin works the same way for your WordPress site. Buy Peakhour Suite inside the Shopify admin and Shopify bills you; buy it on peakhour.ai and you're billed here, whatever you have connected.",
+    q: "Can I use it inside Shopify?",
+    a: "Install the Shopify app and the assistant, Smart Rails, COD confirmation, catalogue fixes and more run inside your Shopify admin; the rest of Peakhour is in your peakhour.ai dashboard. The WordPress plugin and WooCommerce are coming soon. Buy Peakhour Suite inside the Shopify admin and Shopify bills you; buy it on peakhour.ai and you're billed here, whatever you have connected.",
   },
   {
     q: "Which prices will I see?",
@@ -29,8 +29,8 @@ const FAQS: { q: string; a: string }[] = [
  *  wrapper stays data-only so the copy lives in one place. ★The trial entry
  *  is the catalog's (`trialFaq`: Suite's `trialDays`, or how to start when
  *  there is no trial; owner rule 2026-10-06), placed where it always stood. */
-export function PricingFaq({ trialDays }: { trialDays: number | null }) {
-  const faqs = [...FAQS.slice(0, 3), trialFaq(trialDays), ...FAQS.slice(3)];
+export function PricingFaq({ trialDays, signupMode }: { trialDays: number | null; signupMode: SignupModeInput }) {
+  const faqs = [...FAQS.slice(0, 3), trialFaq(trialDays, signupMode), ...FAQS.slice(3)];
   return (
     <Accordion type="single" collapsible className="w-full">
       {faqs.map((faq) => (

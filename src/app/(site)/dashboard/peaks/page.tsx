@@ -45,7 +45,6 @@ import { bestValueKey, perThousandLabel } from "@/lib/peaks-pack-unit-price";
 import type { CheckoutResult } from "@/components/upgrade/payment-modal";
 import { PaymentModal } from "@/components/upgrade/payment-modal-lazy";
 import { ApiError } from "@/lib/api";
-import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { toastUnhandledApiError } from "@/lib/toast-errors";
 import { onePress } from "@/lib/one-press";
 import { StoragePeaksCard } from "@/components/media/storage-peaks-card";
@@ -411,7 +410,6 @@ export default function PeaksPage() {
   const { data: balance, isLoading: balanceLoading } = useCreditsBalance();
   const { data: rateCard, isLoading: rateLoading } = useCreditsRateCard();
   const [historyOpen, setHistoryOpen] = useState(false);
-  const pageQc = useQueryClient();
 
   // ⚠️★AGAINST THE SPENDABLE CAP, AND THE PAUSE COMES FROM THE SERVER. This page
   //  is where every cap CTA now lands, and it was the last surface still deriving
@@ -440,21 +438,6 @@ export default function PeaksPage() {
       <UsageHistorySheet open={historyOpen} onOpenChange={setHistoryOpen} />
 
       <PageShell width="standard">
-        {/* The architecture requirement, applied to the page it matters most on:
-            every number here is downstream of ai-credits-rollup, and on dev
-            Vercel never fires it. Without this the balance sits at 0 used
-            forever while "Where your Peaks go" fills up, which is exactly how
-            the wallet looked broken. */}
-        <CronToolbar
-          crons={["ai-credits-rollup"]}
-          onTriggered={() => {
-            // Balance AND history: the rollup writes the meters both read, so
-            // refreshing one would leave the page disagreeing with itself.
-            void pageQc.invalidateQueries({ queryKey: ["/v1/dashboard/credits"] });
-            void pageQc.invalidateQueries({ queryKey: ["/v1/dashboard/credits/history"] });
-          }}
-        />
-
         {/* Page header */}
         <PageHeader
           icon={<Zap className="mt-0.5 size-6" />}

@@ -1,7 +1,9 @@
+import { useRef } from "react";
 import { keepPreviousData, useInfiniteQuery, useMutation, queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError, newActionKey } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import { CREDITS_KEY } from "@/hooks/use-credits";
+import { isDraftingNewType, newTypeRefetchInterval } from "@/lib/growth-v2-firstrun";
 import { seriesFromHome, type HomeSeries, type PacingSeries } from "@/lib/growth-v2-series";
 
 /**
@@ -42,8 +44,8 @@ export interface NotBuiltDetails {
 
 // -- Mandate, as the screens see it (plan 2.1) ---------------------------------
 
-export type OutcomeKind = "sales" | "bookings" | "leads" | "calls" | "store_visits";
-export type OutcomeSource = "orders" | "win_definition" | "gbp_actions" | "ads_conversions";
+export type OutcomeKind = "sales" | "bookings" | "leads" | "calls" | "store_visits" | "app_installs";
+export type OutcomeSource = "orders" | "win_definition" | "gbp_actions" | "ads_conversions" | "app_analytics";
 
 export interface MandateOutcome {
   kind: OutcomeKind;
@@ -54,7 +56,53 @@ export interface MandateOutcome {
 
 export type MandateTarget = { kind: "cost_per_outcome"; value: number } | { kind: "roas"; value: number };
 
+/** One goal of the plan (PL-2), as the screens see it. */
+export interface MandateGoalView {
+  goalId: string;
+  /** PL-3: its name in words (the focus's label, the line, else the kind). */
+  label: string;
+  /** The playbook line it serves. */
+  lineId?: string;
+  outcome: MandateOutcome;
+  perMonth?: number;
+  /** Its fraction of the monthly ceiling. */
+  share: number;
+  /** `share x monthlyCeiling` while active; 0 for a scheduled or done goal. */
+  monthlyBudget: number;
+  target: MandateTarget;
+  targetSource: "playbook" | "merchant";
+  status: "active" | "scheduled" | "done";
+  phase?: "awareness" | "conversion" | "retention";
+  startsAt?: string;
+  endsAt?: string;
+  /** PL-3: the campaigns the merchant gave this goal (`platform:platformCampaignId`); absent when none. */
+  campaignIds?: string[];
+  /** PL-4: its days in words on the business calendar ("Starts 1 Nov", "1 to 31 Dec", "Ended 15 Nov"); shown as it is, never re-formatted. */
+  dayWords?: string;
+  /** PL-4: the "goal reached its end date" Needs You row about this goal (`goal-ended-<goalId>-<endDay>`). */
+  note?: { id: string; title: string; detail: string };
+}
+
+/**
+ * One of the business's campaigns on the Goals page (PL-3). `assigned` is the merchant's own answer; `trail` the goal of the
+ * latest decision that acted on it; `only` the plan's one active goal; `unknown` none, and the engine moves none of its money.
+ * `suggested` is shown pre-selected for a campaign no goal names, and applied only when the merchant saves.
+ */
+export interface GoalCampaignView {
+  campaignId: string;
+  platform: AdPlatform;
+  name: string;
+  status: "active" | "paused";
+  goalId?: string;
+  how: "assigned" | "trail" | "only" | "unknown";
+  suggested?: { goalId: string; why: string };
+}
+
 export interface MandateView {
+  /** PL-2: every goal of the plan, in the plan's order. The Goals page reads these. */
+  goals: MandateGoalView[];
+  /** The primary goal (the active goal with the largest share): the one the four single-goal fields below describe. */
+  goalId: string;
   outcome: MandateOutcome;
   goal?: { perMonth: number };
   currency: string;
@@ -106,6 +154,22 @@ export interface HomeSpendPoint {
 
 export type HomeFeedKind = "budget" | "pause" | "creative" | "blocked" | "change" | "check";
 
+/** One goal of the plan on Home (PL-2). */
+export interface HomeGoal {
+  goalId: string;
+  label: string;
+  kind: OutcomeKind;
+  status: "active" | "scheduled";
+  share: number;
+  monthlyBudget: Money;
+  target: MandateTarget;
+  perMonth?: number;
+  /** Its outcomes this calendar month so far. */
+  soFar: Figure;
+  /** The goal the headline describes. */
+  primary: boolean;
+}
+
 export interface HomeResponse {
   /** The window the figures cover, on the business clock; `to` is exclusive. */
   window: { key: HomeWindowKey; from: string; to: string; days: number; compare: HomeCompare };
@@ -140,6 +204,8 @@ export interface HomeResponse {
   waterfallBasis: { basis: string } | { absent: string };
   funnel: { stages: Array<{ key: string; label: string; figure: Figure }>; basis: string };
   feed: Array<{ at: string; kind: HomeFeedKind; title: string; detail?: string; decisionId?: string }>;
+  /** PL-2: every active or scheduled goal with this month's outcomes, and their total (absent with the reason when they count different things). */
+  goals: { items: HomeGoal[]; monthSoFar: Figure };
 }
 
 // -- Decisions (H2 reads, C5 acts) ------------------------------------------------------
@@ -180,7 +246,9 @@ export interface EngineOpView {
     | "attach_creative"
     | "detach_creative"
     | "set_geo_exclusions"
-    | "set_geo_inclusions";
+    | "set_geo_inclusions"
+    /** GG-1c: the engine starts a campaign; `to` is the keyed launch spec (name, goal, daily budget, currency, ...). */
+    | "create_campaign";
   from?: unknown;
   to: unknown;
 }
@@ -203,6 +271,8 @@ export interface DecisionStepView {
 export interface DecisionView {
   id: string;
   kind: DecisionKind;
+  /** PL-2: the plan goal it acts for (`MandateView.goals[].goalId`); absent on a plan-wide kind and on one from before goals. */
+  goalId?: string;
   source: { engine: string; refId?: string };
   title: string;
   summary: string;
@@ -373,8 +443,12 @@ export interface LearningResponse {
     /** Why it stopped, for an abandoned holdout. */
     note?: string;
   }>;
-  /** Empty, with `basis.creativePatterns` saying why, when nothing records a pattern's lift with a sample size. */
-  creativePatterns: Array<{ key: string; label: string; hookFormat: string; liftPer1k: Figure; n: Figure }>;
+  /**
+   * `source: "yours"` rows are this business's own angle and format groups: `liftPer1k` is OUTCOMES per 1,000 views (not lift) and `n` its
+   * outcomes. `source: "playbook"` rows are the playbook's priors: `liftPer1k` is the playbook's lift, `n` its samples. Empty, with
+   * `basis.creativePatterns` saying why, when there is neither.
+   */
+  creativePatterns: Array<{ key: string; label: string; hookFormat: string; source: "yours" | "playbook"; liftPer1k: Figure; costPerOutcome: Figure; n: Figure }>;
   benchmarks: Array<{
     metric: string;
     you: Figure;
@@ -390,6 +464,18 @@ export interface LearningResponse {
   heatmap: { rows: string[]; columns: string[]; cells: Array<{ row: string; column: string; figure: Figure }> };
   /** What each section is made of, in words (H4). */
   basis: { experiments: string; creativePatterns: string; benchmarks: string; heatmap: string };
+  /**
+   * GG-3d: customers per stage and shoppers close to buying, as COUNTS from the api's daily step, as of `asOf` (the business-local day,
+   * `YYYY-MM-DD`). Absent with no fresh counts; each part absent when it was not counted. `basis` says what each is made of.
+   */
+  shoppers?: {
+    asOf: string;
+    customers?: { new: number; repeat: number; loyal: number; lapsing: number; lapsed: number };
+    closeToBuying?: { count: number; windowDays: number };
+    basis: string;
+  };
+  /** What the plan's target still rests on; absent when the merchant set it or no layer's number is it any more. */
+  targetStartingFrom?: StartingFrom;
 }
 
 // -- Rules (H5) --------------------------------------------------------------------------
@@ -422,6 +508,8 @@ export interface RulesResponse {
   neverCrossed: string[];
   /** A mandate change waiting for its signed link and code; absent when none is. */
   pendingChange?: { decisionId: string; summary: string; expiresAt: string };
+  /** PL-3: the live and paused campaigns and the goal each serves; absent with no plan. */
+  campaigns?: GoalCampaignView[];
 }
 
 export type SignalStateView = "ready" | "untracked_accepted" | "needed" | "needs_primary_goal" | "not_connected";
@@ -442,11 +530,48 @@ export interface GuardrailsPatch {
   timeZone?: string;
 }
 
+/** A goal to add (PL-2): its target may be left to the playbook's default for its outcome. */
+export interface GoalAdd {
+  lineId?: string;
+  outcome: { kind: OutcomeKind; source: OutcomeSource; focus?: NonNullable<MandateOutcome["focus"]>; optimizeFor?: "count" | "value" };
+  perMonth?: number;
+  share: number;
+  target?: MandateTarget;
+  targetSource?: "playbook" | "merchant";
+  /** PL-9: a goal that starts later is `scheduled`; the dates are ISO instants. */
+  status?: "active" | "scheduled";
+  startsAt?: string;
+  endsAt?: string;
+}
+
+/** The api's bounds on a goal sentence (`zGoalParseRequest`: 3 to 300 characters once trimmed). */
+export const GOAL_TEXT_MIN = 3;
+export const GOAL_TEXT_MAX = 300;
+
+/** What `POST /v1/growth/v2/goals/parse` answers when a goal comes back (PL-9): a DRAFT in the shape of `GoalAdd` (`share` only if the sentence gave one), and a sentence saying it. Nothing is applied. */
+export interface GoalParseResponse {
+  goal: Omit<GoalAdd, "share" | "outcome"> & { share?: number; outcome: { kind: OutcomeKind; source: OutcomeSource; optimizeFor: "count" | "value" }; status: "active" | "scheduled" };
+  restatement: string;
+  charged: boolean;
+}
+
 /** The mandate edit of `PATCH /rules`: it never writes the mandate, it sends a confirmation link. */
 export interface MandatePatch {
+  /** The goal an `outcome` or `target` change is for. The Goals page always names it. */
+  goalId?: string;
   outcome?: { kind: OutcomeKind; source: OutcomeSource; focus?: NonNullable<MandateOutcome["focus"]>; optimizeFor?: "count" | "value" };
   monthlyCeiling?: number;
   target?: MandateTarget;
+  /** A new goal, listed last. */
+  add?: GoalAdd;
+  /** Goals that end: each stays in the plan as done. */
+  end?: string[];
+  /** Every goal, in the order to list them. */
+  order?: string[];
+  /** Each named goal's share of the ceiling; the active goals' shares must add up to 1. */
+  shares?: Record<string, number>;
+  /** PL-3: campaigns given to a goal, or to none (no `goalId`). */
+  assign?: Array<{ campaignId: string; goalId?: string }>;
 }
 
 export type RulesPatchBody = { guardrails: GuardrailsPatch } | { mandate: MandatePatch };
@@ -461,6 +586,21 @@ export interface FirstRunDraftRequest {
   customersVisitInPerson?: boolean;
 }
 
+/**
+ * PL-7: which layer a starting number came from (api `StartingFrom`). `own` carries `n`, the outcomes behind it; `pooled` and `everyone`
+ * a `band` ("20-49", "50-99", "100+") and the `industry` slug; `line` and `playbook` a `label` (none for the default playbook).
+ * The words live in `startingFromWords`, nowhere else.
+ */
+export interface StartingFrom {
+  layer: "own" | "pooled" | "line" | "playbook" | "everyone";
+  n?: number;
+  band?: string;
+  industry?: string;
+  label?: string;
+  /** PL-5: the whole sentence for a plan that starts from a guess (its business type has no plan yet); shown as it is. */
+  reason?: string;
+}
+
 export interface DraftOffer {
   kind: OutcomeKind;
   source: OutcomeSource;
@@ -471,6 +611,25 @@ export interface DraftOffer {
   focusWindowDays?: number;
   defaultTarget?: { kind: "cost_per_outcome"; value: number; low: number; high: number; currency: string } | { kind: "roas"; value: number; low: number; high: number };
   targetSource: "playbook" | "merchant";
+  /** Where `defaultTarget` came from. Absent with no default. */
+  startingFrom?: StartingFrom;
+}
+
+/** What would unlock a goal, as the api words it (FR). `url` is set only for Google's own help page. */
+export type NeedTarget = "connected_accounts" | "your_business" | "ga4_key_events_help";
+export interface DraftNeed {
+  need: string;
+  /** One plain sentence in the merchant's words. */
+  sentence: string;
+  target: NeedTarget;
+  url?: string;
+}
+/** A goal the business could plausibly have but cannot be measured on yet: shown dimmed, never selectable. */
+export interface DraftLockedGoal {
+  kind: OutcomeKind;
+  label: string;
+  /** Never empty; the first is the one a card shows. */
+  needs: DraftNeed[];
 }
 
 export interface DraftChannel {
@@ -480,32 +639,82 @@ export interface DraftChannel {
   monthlyShare: number;
   reason: string;
   connected: boolean;
+  /** Where `monthlyShare` came from. */
+  startingFrom: StartingFrom;
+  /** Where the channel's response curve came from; shown nowhere (the allocator's detail), kept for the mirror. */
+  curveStartingFrom?: StartingFrom;
 }
 
 export interface FirstRunDraftResponse {
+  /** PL-5: present while the plan starts from a broader or new playbook: every number is a starting guess their results replace. Show `reason` as it is. */
+  startingFrom?: StartingFrom;
+  /** PL-5b: present only while a playbook for this business's new type is being built. Ask again every few seconds (`newTypeRefetchInterval`). */
+  newType?: { state: "drafting" };
   /** True when the business already has a mandate: the plan is changed from Rules, not drafted again. */
   alreadyActive: boolean;
   currency?: string;
   /** The business clock. Absent until it is set; the mandate cannot be confirmed without it. */
   timeZone: { value: string } | { absent: string; suggested?: string };
   offers: DraftOffer[];
+  /** FR: the plausible goals that are not offered, with what unlocks each. */
+  locked: DraftLockedGoal[];
   askAboutStores: boolean;
-  playbook?: { id: string; version: number; title: string };
+  /** `line` is the business's own line (PL-1). */
+  playbook?: { id: string; version: number; title: string; line?: { id: string; label: string } };
   /** More than one playbook fits equally: ask "Which best describes you?" and send the answer back as `playbookId`. */
   tie?: { candidates: Array<{ playbookId: string; version: number; title: string }> };
   channels: DraftChannel[];
   ceilingBands: { currency: string; bands: Array<{ key: "starter" | "steady" | "growth"; amount: number }> } | { absent: string };
   excludedByGuardrails: AdPlatform[];
+  /** PL-3: "What do you sell?": every line of the playbook, scored. Absent when it has none: one goal, as before. */
+  lines?: DraftLine[];
+  /** PL-3: the campaigns, each with the line its words suggest, for the last step. */
+  campaigns?: DraftCampaign[];
+}
+
+/** One line of the playbook on First run (PL-3). */
+export interface DraftLine {
+  id: string;
+  label: string;
+  /** Any evidence the business sells it: pre-ticked. */
+  matched: boolean;
+  score: number;
+  why: string;
+  /** The outcomes it may be measured on, with its own default targets. */
+  offers: DraftOffer[];
+  /** FR: the plausible goals this line cannot be measured on yet. */
+  locked: DraftLockedGoal[];
+  /** Its minimum monthly budget in the plan's currency, for the suggested split. */
+  minMonthlyBudget?: number;
+}
+
+export interface DraftCampaign {
+  campaignId: string;
+  platform: AdPlatform;
+  name: string;
+  status: "active" | "paused";
+  /** The line its name or targeting points to; absent on a tie or no hit. */
+  suggestedLineId?: string;
+  why: string;
+}
+
+/** One goal of the plan First run sends (PL-2). The server names it. */
+export interface ConfirmGoal {
+  lineId?: string;
+  outcome: MandateOutcome;
+  perMonth?: number;
+  share: number;
+  target: MandateTarget;
+  targetSource: "playbook" | "merchant";
+  /** PL-3: the campaigns given to this goal at First run's last step. */
+  campaignIds?: string[];
 }
 
 /** The plan `POST /onboarding/confirm` validates (W1) and stores pending until its link and code are accepted. */
 export interface ConfirmPlanBody {
-  outcome: MandateOutcome;
-  goal?: { perMonth: number };
+  goals: ConfirmGoal[];
   currency: string;
   monthlyCeiling: number;
-  target: MandateTarget;
-  targetSource: "playbook" | "merchant";
   playbook?: { id: string; version: number };
   approvers?: string[];
 }
@@ -537,6 +746,9 @@ export const growthV2Api = {
   /** Ask Peakhour Summit. A priced task: the signed quote the merchant was shown travels as `x-peaks-quote`, and one key per click makes a retry one charge. */
   askSummit: (question: string, quoteToken?: string) =>
     api.post<SummitAskResponse>(BASE + "/council", { question }, { ...newActionKey(), ...(quoteToken ? { "x-peaks-quote": quoteToken } : {}) }),
+  /** Turn a sentence into a draft goal. A priced task, like `askSummit`: the quote travels as `x-peaks-quote`, one key per click. */
+  parseGoal: (text: string, quoteToken?: string) =>
+    api.post<GoalParseResponse>(BASE + "/goals/parse", { text }, { ...newActionKey(), ...(quoteToken ? { "x-peaks-quote": quoteToken } : {}) }),
   ask: (id: string, question: string) =>
     api.post<DecisionAskResponse>(`${BASE}/decisions/${encodeURIComponent(id)}/ask`, { question }),
   channels: (window: HomeWindowKey = "7d") => api.get<ChannelsResponse>(`${BASE}/channels?window=${window}`),
@@ -797,13 +1009,24 @@ export function mandateFor(rules: V2Result<RulesResponse> | undefined, screenPre
  */
 export function useFirstRunDraft(body: FirstRunDraftRequest, opts: { enabled?: boolean } = {}) {
   const { business } = useAuth();
+  // PL-5b: while the api says it is building the playbook for a new type, ask again every 4 s, for at most 60 s from the first time it said so.
+  const waitStart = useRef<{ for: string; at: number } | undefined>(undefined);
+  const queryKey = key(business?._id, "first-run-draft", body);
+  const keyText = JSON.stringify(queryKey);
   return useQuery<FirstRunDraftResponse>({
-    queryKey: key(business?._id, "first-run-draft", body),
+    queryKey,
     queryFn: () => growthV2Api.draft(body),
     enabled: !!business?._id && opts.enabled !== false,
     placeholderData: keepPreviousData,
     staleTime: 0,
     retry: false,
+    refetchInterval: (q) => {
+      const drafting = isDraftingNewType(q.state.data);
+      if (!drafting) { waitStart.current = undefined; return false; }
+      // the 60 s belongs to one business and one set of answers: another key starts its own
+      if (waitStart.current?.for !== keyText) waitStart.current = { for: keyText, at: Date.now() };
+      return newTypeRefetchInterval(drafting, waitStart.current.at, Date.now());
+    },
   });
 }
 
@@ -862,6 +1085,15 @@ export function useRecheckReviewV2() {
 /** Ask a question about one decision. Free, and moves nothing: no refetch. */
 export function useAskDecisionV2() {
   return useMutation({ mutationFn: (v: { id: string; question: string }) => growthV2Api.ask(v.id, v.question) });
+}
+
+/** Describe a goal in your own words (PL-9). One call of `mutate` is one click. Only the Peaks balance changed: the plan did not. */
+export function useParseGoal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { text: string; quoteToken?: string }) => growthV2Api.parseGoal(v.text, v.quoteToken),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: [CREDITS_KEY] }),
+  });
 }
 
 /**

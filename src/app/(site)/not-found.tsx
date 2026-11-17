@@ -1,48 +1,13 @@
-import Link from "next/link";
-import { FileQuestion } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
+import { PublicNotFound, generateNotFoundMetadata } from "@/components/marketing/public-not-found";
 
 /**
- * Root 404 page — fires for any URL that doesn't match a route or for
- * explicit `notFound()` calls inside server components. Renders the same
- * `Empty` chrome as ErrorFallback / EmptyState so the look stays consistent
- * across error, empty, and not-found states.
+ * Root 404: any `notFound()` below the site layout that has no closer one. The public
+ * Daylight page, WITHOUT the shared header and footer, which would put their client
+ * code in every route's bundle (see PublicNotFound). Unknown URLs and the coming-soon
+ * gate's 404 reach the fuller version through [...slug] and gate-404.
  */
+export const generateMetadata = generateNotFoundMetadata;
+
 export default function NotFound() {
-  return (
-    <div className="container mx-auto p-6 md:p-10">
-      <Empty role="status">
-        <EmptyHeader>
-          <EmptyMedia variant="icon">
-            <FileQuestion />
-          </EmptyMedia>
-          {/* The page's one heading: EmptyTitle alone renders a div. */}
-          <EmptyTitle>
-            <h1>Page not found</h1>
-          </EmptyTitle>
-          <EmptyDescription>
-            The page you&apos;re looking for doesn&apos;t exist or has moved.
-          </EmptyDescription>
-        </EmptyHeader>
-        <EmptyContent>
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            <Button asChild>
-              <Link href="/dashboard">Go to dashboard</Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link href="/">Home</Link>
-            </Button>
-          </div>
-        </EmptyContent>
-      </Empty>
-    </div>
-  );
+  return <PublicNotFound />;
 }

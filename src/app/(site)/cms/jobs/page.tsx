@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -32,7 +31,6 @@ import {
 import { TimeRangeSelector } from "@/components/cms/ai/time-range-selector";
 import { formatDateTime } from "@/components/cms/ai/format";
 import { StatusBadge } from "@/components/molecules/status-badge";
-import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { useCmsJobs, useCmsJobDetail, useCmsJobKinds } from "@/hooks/use-jobs";
 import {
   childrenModeFor,
@@ -50,7 +48,6 @@ const STATUS_OPTIONS = ["pending", "running", "done", "failed", "cancelled"] as 
 const PAGE_SIZE = 50;
 
 export default function CmsJobsPage() {
-  const queryClient = useQueryClient();
   const [days, setDays] = useState("7");
   // The kinds the api serves (its registered handlers plus the kinds bg_jobs
   // holds within the list's reach) — no list kept here. Each state of the
@@ -126,12 +123,6 @@ export default function CmsJobsPage() {
 
   return (
     <div className="space-y-6">
-      <CronToolbar
-        crons={["jobs-runner"]}
-        onTriggered={() =>
-          queryClient.invalidateQueries({ queryKey: ["cms-jobs"] })
-        }
-      />
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Background Jobs</h2>
         <p className="mt-1 text-muted-foreground">

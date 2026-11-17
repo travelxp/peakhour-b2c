@@ -1,8 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CronToolbar } from "@/components/dev/cron-toolbar";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useAuth } from "@/providers/auth-provider";
 import { api } from "@/lib/api";
@@ -122,7 +121,6 @@ const GLANCE_ICON: Record<GlanceKey, { icon: LucideIcon; series: 1 | 2 | 3 | 4 |
  * stack under the main column below that.
  */
 export default function OverviewPage() {
-  const queryClient = useQueryClient();
   const { org, business } = useAuth();
 
   const statsQuery = useQuery({
@@ -187,20 +185,6 @@ export default function OverviewPage() {
 
   return (
     <PageShell width="wide" rail={rail}>
-      <CronToolbar
-        crons={[
-          "discovery-runner",
-          "jobs-runner",
-          "tag-catchup",
-          "beehiiv-sync",
-          "linkedin-post-sync",
-        ]}
-        onTriggered={() => {
-          queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
-          queryClient.invalidateQueries({ queryKey: ["dashboard-discovery"] });
-        }}
-      />
-
       {/* The business name, not the org name: they are usually the same string,
           and where they differ the business is what every surface below is
           scoped to. The org is a billing container. */}

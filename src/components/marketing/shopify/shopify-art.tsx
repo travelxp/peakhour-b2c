@@ -97,12 +97,3 @@ export function SampleTag({ className }: { className?: string }) {
   );
 }
 
-/** Peakhour's mark on the Daylight palette: a peak and a rising sun. */
-export function PeakMark({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 32 32" aria-hidden className={className}>
-      <path d="M5 24l8-11 4 5 3-4 7 10z" fill="#fff" />
-      <circle cx="23" cy="9" r="3" fill="var(--daylight-amber)" />
-    </svg>
-  );
-}

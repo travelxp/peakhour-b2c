@@ -2,8 +2,7 @@
 
 import { TabPanelStubs } from "@/components/dashboard/tab-panel-stubs";
 import { useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CronToolbar } from "@/components/dev/cron-toolbar";
+import { useQuery } from "@tanstack/react-query";
 import { Activity, AlertCircle, BookMarked, FileSearch, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -96,7 +95,6 @@ export default function TrustedSourcesPage() {
 }
 
 function TrustedSourcesSurface() {
-  const queryClient = useQueryClient();
   // Pull all rows up front (cap at 200 — current schema validation
   // ceiling on the listing endpoint). Per-status counts come from
   // the in-memory split below; saves four sequential round-trips
@@ -159,16 +157,6 @@ function TrustedSourcesSurface() {
 
   return (
     <PageShell>
-      {/* jobs-runner drains the source_fetch / discovery jobs these crons
-          enqueue (they don't inline-drain on dev) — click the scheduler/runner
-          first, then jobs-runner to actually fetch source content. */}
-      <CronToolbar
-        crons={["discovery-runner", "refresh-recommendations", "source-fetch-scheduler", "jobs-runner"]}
-        onTriggered={() => {
-          void queryClient.invalidateQueries({ queryKey: ["trusted-sources"] });
-          void queryClient.invalidateQueries({ queryKey: ["citations"] });
-        }}
-      />
       <PageHeader
         title="Content sources"
         description="What your AI reads, watches, and cites."

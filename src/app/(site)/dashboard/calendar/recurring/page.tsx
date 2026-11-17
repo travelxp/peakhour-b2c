@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChannelIconCompact } from "@/components/brand/channel-icon";
-import { CronToolbar } from "@/components/dev/cron-toolbar";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -31,9 +30,6 @@ import { EmptyState } from "@/components/molecules/empty-state";
  * last spawn, channels, run counters, and any spawn error, plus
  * Pause/Resume controls. Rules are CREATED from the composer's schedule
  * mode (recurring option); this surface is the management + health view.
- *
- * The recurring-spawn cron turns due rules into publish plans, so this
- * page renders the <CronToolbar/> band (non-prod) for it.
  */
 
 const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -118,7 +114,6 @@ export default function RecurringRulesPage() {
 
   return (
     <PageShell width="standard">
-      <CronToolbar crons={["recurring-spawn"]} onTriggered={invalidate} />
 
       {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

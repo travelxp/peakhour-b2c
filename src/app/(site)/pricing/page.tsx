@@ -3,27 +3,27 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Header } from "@/components/shared/header";
 import { Footer } from "@/components/shared/footer";
+import { CtaBand } from "@/components/marketing/seo/cta-band";
+import { Section } from "@/components/marketing/seo/section";
+import { cardCls, eyebrowCls, ghostBtn, h2Cls, primaryBtn, wrap } from "@/components/marketing/seo/styles";
 import { getPricing, findBundleTier, hasCountryOverride, moduleBadge, PRICE_AT_SIGNUP, resolveCountry, suiteCtaLabel, suiteTrialDays } from "@/lib/pricing";
 import { getPublicCatalog, publicMarketingIntegrations, signupCta } from "@/lib/catalog";
-import { pricingHeroTrial } from "@/lib/trial-copy";
+import { pricingHeroTrial, trialStart } from "@/lib/trial-copy";
 import { badgedComingSoonKeys } from "@/lib/pillar-channels";
 import {
   PRICING_PILLAR_ORDER,
   pricingPillar,
   suiteModuleSlugs,
 } from "@/lib/pricing-catalog";
-import { pageMetadata } from "@/lib/seo";
+import { pageMeta } from "@/lib/seo/metadata";
+import { pathFor } from "@/lib/seo/resolve";
+import { Breadcrumbs } from "@/components/marketing/seo/breadcrumbs";
+import { ContextualLinks } from "@/components/marketing/seo/contextual-links";
 import { SuiteCard } from "@/components/marketing/pricing/suite-card";
 import { ChannelsStrip } from "@/components/marketing/pricing/channels-strip";
-import { TeamsCtaBand } from "@/components/marketing/pricing/teams-cta";
 import { PricingFaq } from "@/components/marketing/pricing/pricing-faq";
 
-export const metadata = pageMetadata({
-  title: "Pricing — Peakhour Suite, Agency and Enterprise",
-  description:
-    "Peakhour Suite is one plan for Commerce, Content, Growth, Support and Presence — one login, one Peaks wallet, one price. Agency and Enterprise plans for teams.",
-  path: "/pricing",
-});
+export const metadata = pageMeta("pricing");
 
 /**
  * /pricing — the pricing hub. One catalog (billing plan D19): Peakhour Suite
@@ -67,7 +67,9 @@ export default async function PricingPage({
     published,
     all: catalog?.integrations ?? [],
   });
-  const signupMode = catalog?.platform?.signupMode ?? "open";
+  const knownMode = catalog?.platform?.signupMode;
+  const signupMode = knownMode ?? "open";
+  const trialWhen = trialStart(knownMode, suiteTrialDays(pricing));
   const openSignup = signupMode === "open";
   const cta = signupCta(signupMode, suiteTrialDays(pricing));
 
@@ -78,7 +80,7 @@ export default async function PricingPage({
   const included = new Set(suiteModuleSlugs(pricing));
   // The one trial rule /auth reads too (`suiteTrialDays`): no trial, no promise.
   const trialDays = suiteTrialDays(pricing) ?? 0;
-  const heroTrial = pricingHeroTrial(trialDays);
+  const heroTrial = pricingHeroTrial(trialDays, knownMode);
 
   return (
     <div className="flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
@@ -86,61 +88,56 @@ export default async function PricingPage({
 
       <main>
         {/* ── Hero ─────────────────────────────────────────────────────── */}
-        <section className="py-16 sm:py-24">
-          <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 sm:px-6 lg:grid-cols-[1.1fr_0.9fr]">
-            <div>
-              <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
-                <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-                Pricing
-              </span>
-              <h1 className="mt-4 text-4xl font-extrabold leading-[1.05] tracking-tight text-pretty sm:text-5xl">
-                Everything a business does online.
-                <br />
-                <span className="font-serif font-normal italic text-brand-gradient">
-                  One plan.
-                </span>
+        <section className="bg-[linear-gradient(180deg,var(--daylight-hero)_0%,var(--background)_92%)]">
+          <div className={`${wrap} grid items-center gap-8 py-8 sm:py-12 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14 lg:py-16`}>
+            <div className="min-w-0">
+              <Breadcrumbs
+                crumbs={[
+                  { label: "Home", href: pathFor("home") },
+                  { label: "Pricing", href: pathFor("pricing") },
+                ]}
+              />
+              <p className={`${eyebrowCls} mt-5`}>Pricing</p>
+              <h1 className="mt-3 text-[2.2rem] font-black leading-[1.04] tracking-[-0.04em] text-balance sm:text-5xl lg:text-[3.5rem]">
+                One plan for everything{" "}
+                <span className="daylight-mark whitespace-nowrap">Peakhour does.</span>
               </h1>
-              <p className="mt-5 max-w-xl text-lg text-muted-foreground">
-                Commerce, Content, Growth, Support and Presence — five products,
-                one login, one Peaks wallet, one price.
+              <p className="mt-4 max-w-xl text-lg text-foreground/80 sm:text-xl">
+                Peakhour Suite covers Commerce, Content, Growth, Support and
+                Presence for one business, with one login and one Peaks wallet.
+                Running many businesses? Agency and Enterprise are for you.
                 {heroTrial ? ` ${heroTrial}` : null}
               </p>
-              <div className="mt-8 flex flex-wrap items-center gap-4">
+              <div className="mt-6 flex flex-wrap items-center gap-3">
                 {!cta.disabled && (
-                  <Link
-                    href={cta.href}
-                    className="group inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-6 py-3.5 text-sm font-bold text-brand-contrast shadow-sm transition-transform hover:-translate-y-0.5 focus-visible:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
-                  >
+                  <Link href={cta.href} className={primaryBtn}>
                     {openSignup ? suiteCtaLabel(trialDays) : cta.label}
-                    <ArrowRight className="size-4 transition-transform group-hover:translate-x-1" />
+                    <ArrowRight className="size-4 transition-transform group-hover:translate-x-1 motion-reduce:transition-none" aria-hidden />
                   </Link>
                 )}
                 {suite && (
-                  <Link
-                    href="#suite"
-                    className="inline-flex items-center rounded-xl border-2 px-6 py-3 text-sm font-bold transition-colors hover:border-brand hover:text-brand"
-                  >
+                  <Link href="#suite" className={ghostBtn}>
                     See what&rsquo;s included
                   </Link>
                 )}
               </div>
               {/* No card: the signup trial collects none (D19). Only stated
                   when there is a trial to start. */}
-              {trialDays > 0 && (
+              {trialWhen !== "none" && (
                 <p className="mt-4 text-sm text-muted-foreground">
-                  <span aria-hidden className="font-bold text-brand-label">
+                  <span aria-hidden className="font-bold text-brand-strong">
                     ✓
                   </span>{" "}
-                  No card to start · one Peaks wallet · cancel anytime
+                  {trialWhen === "now" ? "No card to start · one Peaks wallet · cancel anytime" : "No card for the trial · one Peaks wallet · cancel anytime"}
                 </p>
               )}
             </div>
 
-            {/* The five modules, in a dark panel: what one plan covers. No
-                per-module price — there is no per-module plan to price (D19).
-                Each row links to the module's own page. */}
-            <div className="overflow-hidden rounded-2xl border border-ink-line bg-ink p-3 text-on-ink shadow-2xl">
-              <ul className="flex flex-col gap-1.5">
+            {/* What one plan covers. No per-module price,
+                there is no per-module plan to price (D19). Each row links to
+                the module's own page. */}
+            <div className={`${cardCls} min-w-0 p-2 shadow-[var(--daylight-shadow)] sm:p-3`}>
+              <ul className="flex flex-col">
                 {PRICING_PILLAR_ORDER.map((slug) => {
                   const pillar = pricingPillar(slug);
                   const Icon = pillar.icon;
@@ -150,16 +147,16 @@ export default async function PricingPage({
                     <li key={slug}>
                       <Link
                         href={`/${slug}`}
-                        className="flex items-start gap-3.5 rounded-xl px-4 py-3 transition-colors hover:bg-white/5"
+                        className="flex items-start gap-3.5 rounded-xl px-3 py-2.5 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-4 sm:py-3"
                       >
-                        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white/10">
+                        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand-ink">
                           <Icon className="size-4" strokeWidth={2} aria-hidden />
                         </span>
                         <span className="min-w-0">
                           <span className="block text-sm font-bold">
                             {pillar.name}
                           </span>
-                          <span className="block text-xs text-on-ink-dim">
+                          <span className="block text-xs text-muted-foreground">
                             {pillar.promise}
                           </span>
                         </span>
@@ -173,7 +170,7 @@ export default async function PricingPage({
                         {badge && (
                           <span
                             className={`ml-auto shrink-0 pt-0.5 text-sm font-bold tabular-nums ${
-                              isIn ? "text-success" : "text-on-ink-dim"
+                              isIn ? "text-[color:var(--daylight-ok)]" : "text-muted-foreground"
                             }`}
                             style={{ fontFamily: "var(--font-space-grotesk)" }}
                           >
@@ -186,7 +183,7 @@ export default async function PricingPage({
                 })}
               </ul>
               {!suite && (
-                <p className="px-4 pb-2 pt-3 text-xs text-on-ink-dim">
+                <p className="px-3 pb-2 pt-3 text-xs text-muted-foreground sm:px-4">
                   {PRICE_AT_SIGNUP}
                 </p>
               )}
@@ -199,13 +196,14 @@ export default async function PricingPage({
           // ★`scroll-mt` BECAUSE THE HEADER IS `sticky top-0`: `/pricing/teams`
           // and the hero link to `#suite`, and without this they land with the
           // card's badge behind the header.
-          <section id="suite" className="scroll-mt-20 pb-16 sm:pb-20">
-            <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <section id="suite" className="scroll-mt-20 py-8 sm:py-12">
+            <div className={wrap}>
               <SuiteCard
                 tier={suite}
                 includedSlugs={[...included]}
                 cta={cta}
                 openSignup={openSignup}
+                trialWhen={trialWhen}
                 country={country}
                 scopeAction="/pricing#suite"
               />
@@ -214,49 +212,55 @@ export default async function PricingPage({
         )}
 
         {/* ── Agency / Enterprise ──────────────────────────────────────── */}
-        <section className="pb-14">
-          <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <TeamsCtaBand />
-          </div>
-        </section>
+        <div className="pt-4 sm:pt-6">
+          <CtaBand
+            headline="Running many businesses?"
+            body="Agency and Enterprise give each client business every module, with volume Peaks, one unit per client and central billing."
+            primary={{ label: "See Agency and Enterprise plans", href: "/pricing/teams" }}
+          />
+        </div>
 
         {/* ── Channels ─────────────────────────────────────────────────── */}
-        <section className="pb-14">
-          <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <div className="rounded-3xl border bg-muted/30 p-8 sm:p-10">
-              <div className="max-w-2xl">
-                <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
-                  <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-                  Works where you already run
-                </span>
-                <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty lg:text-4xl">
-                  Bring Peakhour into your stack
-                </h2>
-                <p className="mt-3 text-muted-foreground">
-                  Your modules light up inside the tools you already use, each
-                  one the moment it opens. Each card shows what runs there.
-                </p>
-              </div>
-              <div className="mt-8">
-                <ChannelsStrip comingSoonKeys={comingSoonKeys} country={carried} />
-              </div>
+        <Section
+          id="channels"
+          tone="muted"
+          eyebrow="Where it runs"
+          title="Use Peakhour where you already work"
+          intro="Each card shows what runs in that tool, and whether it is live yet."
+        >
+          <ChannelsStrip comingSoonKeys={comingSoonKeys} country={carried} />
+        </Section>
+
+        {/* ── FAQ ──────────────────────────────────────────────────────── */}
+        <section id="faq" aria-labelledby="faq-h" className="scroll-mt-20 py-12 sm:py-16">
+          <div className={`${wrap} grid grid-cols-1 gap-7 lg:grid-cols-[0.8fr_1.2fr] lg:gap-14`}>
+            <div className="lg:sticky lg:top-28 lg:self-start">
+              <p className={eyebrowCls}>Good to know</p>
+              <h2 id="faq-h" className={h2Cls}>
+                Questions merchants ask first
+              </h2>
+            </div>
+            <div className="min-w-0 border-t-2 border-foreground">
+              <PricingFaq trialDays={trialDays} signupMode={knownMode} />
             </div>
           </div>
         </section>
 
-        {/* ── FAQ ──────────────────────────────────────────────────────── */}
-        <section className="pb-24">
-          <div className="mx-auto max-w-3xl px-4 sm:px-6">
-            <div className="mb-8">
-              <span className="inline-flex items-center gap-2.5 text-xs font-bold uppercase tracking-[0.2em] text-brand-label">
-                <span className="h-0.5 w-7 bg-brand-gradient" aria-hidden />
-                Good to know
-              </span>
-              <h2 className="mt-4 text-3xl font-extrabold tracking-tight text-pretty">
-                Questions, answered simply
-              </h2>
-            </div>
-            <PricingFaq trialDays={trialDays} />
+        {/* ── Related ──────────────────────────────────────────────────── */}
+        <section aria-labelledby="related-h" className="pb-12 sm:pb-16">
+          <div className={wrap}>
+            <h2 id="related-h" className="text-2xl font-extrabold tracking-tight">
+              Keep reading
+            </h2>
+            <ContextualLinks
+              className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+              links={[
+                { label: "Peaks, the AI credits", href: pathFor("peaks"), note: "What Peaks pay for, and how top-ups work." },
+                { label: "Agency and Enterprise plans", href: pathFor("pricing.teams"), note: "Many businesses under one account." },
+                { label: "Peakhour for Shopify", href: pathFor("shopify"), note: "Install it and be billed through Shopify." },
+                { label: "How Peakhour works", href: pathFor("how.it.works"), note: "Connect, approve, then let it run." },
+              ]}
+            />
           </div>
         </section>
       </main>

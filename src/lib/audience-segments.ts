@@ -34,7 +34,7 @@ export const AUDIENCE_SEGMENTS: AudienceSegment[] = [
     name: "D2C & Ecommerce",
     problem:
       "Shoppers ask at midnight, best-sellers run out without warning, and ad spend quietly drifts the moment nobody is watching it.",
-    fit: "Peakhour answers from your live catalog, flags what to restock before it costs you a sale, and keeps budget pointed at what actually converts.",
+    fit: "Peakhour answers shoppers from your real catalogue on Shopify and WhatsApp, warns you before a product runs out, and, in beta, has Peakhour Summit review growth decisions before you make them.",
     pillars: ["commerce", "growth", "support"],
   },
   {
@@ -43,7 +43,7 @@ export const AUDIENCE_SEGMENTS: AudienceSegment[] = [
     name: "Small & Local Businesses",
     problem:
       "You are the marketing team, the support team, and the person who has not updated the opening hours on Google since last winter.",
-    fit: "Peakhour keeps your listing, your reviews and your replies current, so the people searching nearby find you first and find you right.",
+    fit: "Peakhour helps you prepare Google Business Profile changes, drafts replies to your Google reviews for you to send, and scores how complete your listing is. Google Business Profile support is in beta.",
     pillars: ["presence", "support", "content"],
   },
   {
@@ -52,7 +52,7 @@ export const AUDIENCE_SEGMENTS: AudienceSegment[] = [
     name: "Agencies",
     problem:
       "Every client wants more output than the retainer covers, and every new logo means running the same setup from scratch again.",
-    fit: "Run each client as its own workspace with its own brand voice and approvals, and let AI do the drafting your team reviews instead of writes.",
+    fit: "Run several businesses under one account and switch between them, and let AI do the drafting your team reviews instead of writes.",
     pillars: ["content", "growth", "presence"],
   },
   {
@@ -60,8 +60,8 @@ export const AUDIENCE_SEGMENTS: AudienceSegment[] = [
     icon: Building2,
     name: "Growing Teams & Enterprise",
     problem:
-      "Five tools, five logins and five versions of the truth — and the handoffs between them are somebody's whole week.",
-    fit: "One intelligence layer across all five modules, sharing one catalog and one brand voice, with approvals before anything reaches a customer.",
+      "Too many tools, too many logins, and handoffs between them that are somebody's whole week.",
+    fit: "Every part of Peakhour shares one account and one Peaks wallet. Autopilot acts only inside limits you set, with approvals for new channels and plan changes.",
     pillars: ["commerce", "content", "growth", "support", "presence"],
   },
 ];

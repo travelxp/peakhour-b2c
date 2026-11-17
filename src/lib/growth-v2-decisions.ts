@@ -50,7 +50,7 @@ export const KIND_LABEL: Record<DecisionKind, string> = {
   campaign_pause: "Pause",
   playbook_upgrade: "Playbook",
   autonomy_change: "Autonomy",
-  mandate_change: "Mandate",
+  mandate_change: "Plan change",
   channel_add: "New channel",
   content_adjustment: "Content",
 };
@@ -108,6 +108,7 @@ const OP_VERB: Record<EngineOpView["op"], string> = {
   detach_creative: "detach creative",
   set_geo_exclusions: "excluded areas",
   set_geo_inclusions: "targeted areas",
+  create_campaign: "new campaign",
 };
 
 const showMoney = (n: number, currency: string) => (currency ? formatMoney(n, currency) : formatCount(n));
@@ -124,6 +125,13 @@ const show = (v: unknown, currency: string, isMoney: boolean): string => {
  * decision (`description`, with the campaign by name); this is the fallback for an op that has none.
  */
 export function describeOp(op: EngineOpView, currency: string): string {
+  // GG-1c: a new campaign has no platform id yet (its ref is Peakhour's own), so it is named, with the budget it starts with, not by the ref.
+  if (op.op === "create_campaign") {
+    const spec = (op.to ?? {}) as { name?: unknown; dailyBudget?: unknown; currency?: unknown };
+    const name = typeof spec.name === "string" && spec.name !== "" ? spec.name : "a new campaign";
+    const cur = typeof spec.currency === "string" ? spec.currency : currency;
+    return `${PLATFORM_LABEL[op.platform]}: start ${name}${typeof spec.dailyBudget === "number" ? ` at ${showMoney(spec.dailyBudget, cur)} a day` : ""}`;
+  }
   const where = `${PLATFORM_LABEL[op.platform]}, ${op.campaignRef}`;
   // Only a budget is an amount of money. A target may be a cost or a multiplier and its unit is not in the op.
   const money = op.op === "set_daily_budget";
@@ -266,4 +274,15 @@ export function whatsappPreview(d: DecisionView, businessName: string): WhatsApp
     buttons: d.kind === "creative_approval" ? ["Review", "Hold"] : ["Approve", "Hold", "Details"],
     confirmNote: isSpendDecision(d.kind) ? "To confirm, reply CONFIRM." : undefined,
   };
+}
+
+/**
+ * A line under a suggestion that says what answering it does, for the kinds the engine proposes on its own (GG-1; a campaign launch, GG-1c). A new channel changes
+ * nothing on the ad accounts: Peakhour waits for the merchant to connect it. A bidding change restarts the platform's learning, for a few days.
+ */
+export function suggestionNote(kind: DecisionKind): string | undefined {
+  if (kind === "channel_add") return "Approving this changes nothing on your ad accounts. Connect the channel from Needs you when you are ready, and Peakhour will start with a small test.";
+  if (kind === "bid_strategy") return "The platform learns again for a few days after a change like this, so Peakhour makes at most one a month for each campaign.";
+  if (kind === "campaign_launch") return "Peakhour makes the campaign from an ad you have already approved. It starts paused and is switched on only once your goal owns it, and Undo pauses it: it is never deleted.";
+  return undefined;
 }

@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { formatProviderName } from "@/lib/provider-names";
+import { metaConnectNoticeMessage } from "@/lib/meta-connect-notice";
 
 /**
  * Post-OAuth confirmation for any surface the connect flow can return to.
@@ -48,7 +49,12 @@ export function OAuthConnectResult() {
     announced.current = true;
 
     const provider = searchParams.get("provider") ?? "";
-    toast.success(`${formatProviderName(provider)} connected.`);
+    // A Meta connect that stored no Page, or no Instagram-linked Page, says
+    // what is still missing instead of a bare success (lib/meta-connect-notice).
+    // Held on screen: it asks the merchant to do something.
+    const notice = metaConnectNoticeMessage(searchParams.get("meta_notice"));
+    if (notice) toast.warning(notice, { duration: 20_000 });
+    else toast.success(`${formatProviderName(provider)} connected.`);
 
     // Same keys the settings page invalidates on connect.
     queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] });
@@ -62,6 +68,7 @@ export function OAuthConnectResult() {
     const next = new URLSearchParams(searchParams.toString());
     next.delete("integration");
     next.delete("provider");
+    next.delete("meta_notice");
     const qs = next.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }, [searchParams, pathname, router, queryClient]);

@@ -15,8 +15,8 @@ import {
   type HomeScreenData,
   type HomeWindowKey,
 } from "@/lib/api/growth-v2";
-import { GROWTH_HOME } from "@/lib/growth-v2-nav";
-import { absentReason, unitFor, currencyOf, figureValue, formatCount, formatMoney, homeHeadline, WINDOWS } from "@/lib/growth-v2-figure";
+import { GOALS_ROUTE, GROWTH_HOME } from "@/lib/growth-v2-nav";
+import { absentReason, unitFor, currencyOf, figureText, figureValue, formatCount, formatMoney, homeHeadline, moneyText, WINDOWS } from "@/lib/growth-v2-figure";
 import { sparkValues } from "@/lib/growth-v2-series";
 import { NotSetUp } from "./not-set-up";
 import { ActivityFeed } from "./activity-feed";
@@ -173,6 +173,8 @@ export function HomeBody({ result, openDecisions }: { result: HomeScreenData; op
         </CardContent>
       </Card>
 
+      {home.goals && home.goals.items.length > 1 ? <GoalsCard goals={home.goals} currency={currency} /> : null}
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {home.kpis.map((k) => (
           <KpiCard
@@ -249,5 +251,49 @@ export function HomeBody({ result, openDecisions }: { result: HomeScreenData; op
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/**
+ * PL-2/PL-3: a plan of several goals, each with its share, budget, target and this month so far, and their total (absent with the
+ * reason when the goals count different things). The headline above stays the primary goal's.
+ */
+export function GoalsCard({ goals, currency }: { goals: HomeResponse["goals"]; currency: string }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Your goals this month</CardTitle>
+        <CardDescription>
+          {"value" in goals.monthSoFar ? `${formatCount(goals.monthSoFar.value)} in all so far.` : (absentReason(goals.monthSoFar) ?? "")}{" "}
+          <Link href={GOALS_ROUTE} className="underline underline-offset-2">
+            Change your goals
+          </Link>
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {goals.items.map((g) => {
+            const so = figureValue(g.soFar);
+            const pct = g.perMonth && so !== undefined ? Math.min(100, Math.round((so / g.perMonth) * 100)) : undefined;
+            return (
+              <li key={g.goalId} className="grid gap-1.5 rounded-lg border p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <b className="text-sm">{g.label}</b>
+                  <span className="text-xs text-muted-foreground">{g.status === "scheduled" ? "Scheduled" : `${Math.round(g.share * 1000) / 10}% · ${moneyText(g.monthlyBudget)}`}</span>
+                </div>
+                <p className="text-2xl font-semibold tabular-nums">
+                  {figureText(g.soFar)}
+                  {g.perMonth ? <span className="text-sm font-normal text-muted-foreground"> of {formatCount(g.perMonth)}</span> : null}
+                </p>
+                {pct !== undefined ? <Progress value={pct} aria-label={`${g.label}: ${pct}% of the monthly goal`} /> : null}
+                <p className="text-xs text-muted-foreground">
+                  {unitFor(g.kind).many}, aiming at {g.target.kind === "roas" ? `${g.target.value}x return` : `${formatMoney(g.target.value, currency)} each`}
+                </p>
+              </li>
+            );
+          })}
+        </ul>
+      </CardContent>
+    </Card>
   );
 }

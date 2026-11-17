@@ -3,14 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { AlertCircle, Store } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { FlowButton, FlowCard, FlowHead, FlowPage, flowFacts } from "@/components/marketing/flow/flow-kit";
 import { SITE } from "@/lib/utils";
 
 /**
@@ -117,26 +110,14 @@ export function ShopifyConnectStatus() {
       : "Finish in your Shopify admin";
 
   return (
-    <div className="mx-auto w-full max-w-lg px-4 py-16">
-      <Card>
-        <CardHeader>
-          <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-            {err ? (
-              <AlertCircle className="h-5 w-5 text-muted-foreground" aria-hidden />
-            ) : (
-              <Store className="h-5 w-5 text-muted-foreground" aria-hidden />
-            )}
-          </div>
-          {/* asChild, so a standalone page reached by redirect actually has a
-              heading element — CardTitle renders a div otherwise, and this page
-              has no other h1 to anchor a screen reader to. */}
-          <CardTitle asChild>
-            <h1>{heading}</h1>
-          </CardTitle>
-          <CardDescription>{shop || "Peakhour for Shopify"}</CardDescription>
-        </CardHeader>
+    <FlowPage>
+      <FlowCard>
+        {/* The page is reached by redirect and has no other heading, so the title is its h1. */}
+        <FlowHead icon={err ? AlertCircle : Store} tone={err ? "warn" : "brand"} title={heading}>
+          {shop || "Peakhour for Shopify"}
+        </FlowHead>
 
-        <CardContent className="space-y-4 text-sm text-muted-foreground">
+        <div className="mt-5 space-y-4 text-[15px] text-muted-foreground">
           {err ? (
             <p>{err.body}</p>
           ) : stalled ? (
@@ -152,13 +133,13 @@ export function ShopifyConnectStatus() {
             </p>
           )}
 
-          <div className="rounded-lg border bg-muted/40 p-4">
-            <p className="mb-2 font-medium text-foreground">What to do</p>
-            <ol className="list-decimal space-y-1 pl-4">
+          <div className={flowFacts + " text-[15px]"}>
+            <p className="mb-2 font-bold text-foreground">What to do</p>
+            <ol className="list-decimal space-y-1 pl-5">
               <li>Open your Shopify admin.</li>
               <li>
-                Go to <span className="font-medium text-foreground">Apps</span> and open{" "}
-                <span className="font-medium text-foreground">Peakhour</span>
+                Go to <span className="font-semibold text-foreground">Apps</span> and open{" "}
+                <span className="font-semibold text-foreground">Peakhour.ai</span>
                 {stalled ? " — or reinstall it from the Shopify App Store if it isn't listed." : "."}
               </li>
               <li>If we need you to link an existing Peakhour account, the app will ask you there.</li>
@@ -170,14 +151,14 @@ export function ShopifyConnectStatus() {
             to connect it for you.
           </p>
 
-          <div className="flex flex-wrap gap-3 pt-2">
+          <div className="flex flex-col gap-2.5 pt-1 sm:flex-row">
             {/* ★A mailto, NOT a route. Every internal page except this one is
                 rewritten to the teaser while COMING_SOON is on — which is the
                 only condition under which this page's own exemption matters. A
                 "Get help" button that lands on "coming soon" is worse than no
                 button, and email works in every state this page can be reached
                 in. */}
-            <Button asChild variant="outline">
+            <FlowButton asChild variant="ghost" className="sm:flex-1">
               <a
                 href={`mailto:${SITE.contactGeneral}?subject=${encodeURIComponent(
                   "Shopify install didn't finish",
@@ -185,13 +166,13 @@ export function ShopifyConnectStatus() {
               >
                 Email us
               </a>
-            </Button>
-            <Button asChild variant="ghost">
+            </FlowButton>
+            <FlowButton asChild variant="quiet" className="sm:flex-1">
               <Link href="/">Back to Peakhour</Link>
-            </Button>
+            </FlowButton>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </FlowCard>
+    </FlowPage>
   );
 }

@@ -5,10 +5,9 @@ import { ShopifyPageView } from "@/components/marketing/shopify/shopify-page-vie
 import { getPublicCatalog, publicMarketingIntegrations, signupCta } from "@/lib/catalog";
 import { badgedComingSoonKeys, channelIsComingSoon } from "@/lib/pillar-channels";
 import { getPricing, resolveCountry, suiteTrialDays } from "@/lib/pricing";
-import { pageMetadata } from "@/lib/seo";
-import { SHOPIFY_SEO } from "@/lib/shopify-features";
+import { pageMeta } from "@/lib/seo/metadata";
 
-export const metadata = pageMetadata(SHOPIFY_SEO);
+export const metadata = pageMeta("shopify");
 
 /**
  * /shopify: "Peakhour for Shopify". The merchant-facing page for the embedded

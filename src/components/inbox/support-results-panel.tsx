@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { CheckCircle2, Clock, Download, MessageSquareHeart, ShoppingBag, Star, UserRoundCheck, Bot } from "lucide-react";
-import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { KpiCard } from "@/components/molecules/kpi-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -90,7 +89,6 @@ export function SupportResultsPanel() {
 
   return (
     <section aria-label="How conversations are going" className="space-y-6">
-      <CronToolbar crons={["wa-conversation-outcomes"]} />
 
       <div>
         <h2 className="text-lg font-semibold tracking-tight">How conversations are going</h2>

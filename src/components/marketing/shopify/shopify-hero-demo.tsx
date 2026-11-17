@@ -167,7 +167,7 @@ export function ShopifyHeroDemo() {
           <Tag className="size-3.5" aria-hidden />
         </span>
         <span>
-          <b className="block">Markdown applied</b>
+          <b className="block">You applied a markdown</b>
           <span className="text-muted-foreground">Linen dupatta ₹1,299 → ₹1,099</span>
         </span>
         <span className="ml-1 rounded-md border px-2 py-0.5 font-bold">Undo</span>
@@ -201,8 +201,8 @@ export function ShopifyHeroDemo() {
           <Bubble on={on(3)}>
             Yes, XL is in stock, and there are 3 left. Orders to Pune usually arrive in 2–3 days, so Friday works. Shall I add it to
             your cart?
-            <span className="mt-1 block text-micro text-muted-foreground">From: product stock · Shipping policy</span>
           </Bubble>
+          {/* No sources line under the reply: the real storefront chat never shows one (shopify-page-view.test.tsx). */}
           <Bubble on={on(4)} me>Yes please</Bubble>
         </div>
       </div>

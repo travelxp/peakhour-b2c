@@ -1,26 +1,15 @@
 import Link from "next/link";
-import type { Metadata } from "next";
 import { SITE } from "@/lib/utils";
-import { Header } from "@/components/shared/header";
-import { Footer } from "@/components/shared/footer";
+import { LegalPage } from "@/components/marketing/legal/legal-page";
+import { pageMeta } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
-  title: "Privacy Policy - Peakhour.ai",
-  description: "Peakhour.ai privacy policy — how we collect, use, and protect your data.",
-};
+export const metadata = pageMeta("legal.privacy");
 
 export default function PrivacyPolicyPage() {
   return (
-    <div className="flex min-h-screen supports-[min-height:100dvh]:min-h-dvh flex-col">
-      <Header minimal />
-
-      <main className="mx-auto max-w-3xl px-4 py-12">
-        <h1 className="text-3xl font-bold">Privacy Policy</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Last updated: {SITE.legalLastUpdated}
-        </p>
-
-        <div className="mt-8 space-y-8 text-sm leading-relaxed text-muted-foreground">
+    <LegalPage
+      title="Privacy Policy"
+      lastUpdated={SITE.legalLastUpdated}>
           <section>
             <h2 id="introduction" className="text-lg font-semibold text-foreground scroll-mt-24">1. Introduction</h2>
             <p className="mt-2">
@@ -1007,10 +996,6 @@ export default function PrivacyPolicyPage() {
               </a>
             </p>
           </section>
-        </div>
-      </main>
-
-      <Footer />
-    </div>
+    </LegalPage>
   );
 }

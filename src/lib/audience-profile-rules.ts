@@ -139,6 +139,8 @@ export function correctionBlockedReason(
     }
     const tooLong = clean.find((v) => v.length > spec.maxLength);
     if (tooLong) return `Keep each one under ${spec.maxLength} characters.`;
+    // A list with a closed vocabulary (sales channels, shopper age): only its own values.
+    if (spec.values && clean.some((v) => !spec.values!.includes(v))) return "Choose from the options.";
     // ★AN EMPTY LIST IS NOT BLOCKED. "None of these apply" is a real
     // correction and clearing the list is the only way to say it — the server
     // treats an explicitly-empty list as a statement, and a client that

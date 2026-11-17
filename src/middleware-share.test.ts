@@ -24,11 +24,13 @@ describe("the coming-soon gate", () => {
 
   it("still gates an ordinary page, so the check above is not vacuous", () => {
     expect(rewrittenTo("/dashboard/drive")).toContain("/coming-soon");
-    expect(rewrittenTo("/some-private-page")).toContain("/coming-soon");
+    expect(rewrittenTo("/how-it-works")).toContain("/coming-soon");
+    // A path that matches no route is a 404, not the teaser (SEO-1).
+    expect(rewrittenTo("/some-private-page")).toContain("/gate-404");
   });
 
   it("does not let a look-alike prefix through", () => {
-    expect(rewrittenTo("/shared")).toContain("/coming-soon");
-    expect(rewrittenTo("/share-me")).toContain("/coming-soon");
+    expect(rewrittenTo("/shared")).toContain("/gate-404");
+    expect(rewrittenTo("/share-me")).toContain("/gate-404");
   });
 });

@@ -1,6 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { b2cAccessCookieName, b2cRefreshCookieName } from "@/lib/auth-cookies";
 import { isAppRoute } from "@/lib/route-theme";
+import { gatedVerdict, isGateOn, isPublicPath } from "@/lib/seo/gate";
+import { NOINDEX_HEADER, isIndexableDeployment } from "@/lib/seo/indexable";
+import { resolveLocaleRoute } from "@/lib/seo/locale-route";
+import { LOCALE_HEADER, PATH_HEADER } from "@/i18n/config";
+import type { Locale } from "@/lib/seo/types";
 
 const isDev = process.env.NODE_ENV !== "production";
 
@@ -86,6 +91,19 @@ function buildCsp(req: NextRequest): { csp: string; reqHeaders: Headers } {
   return { csp, reqHeaders };
 }
 
+/**
+ * The two request headers the locale routing owns. Every inbound copy is dropped first, so a caller cannot
+ * pick a language or a path by sending them; then the middleware's own values are set. `locale` is set only
+ * on a rewrite to the localized route, after the page passed the publish gate.
+ */
+function stampLocaleHeaders(h: Headers, pathname: string, locale: Locale | null): Headers {
+  h.delete(LOCALE_HEADER);
+  h.delete(PATH_HEADER);
+  if (locale) h.set(LOCALE_HEADER, locale);
+  h.set(PATH_HEADER, pathname);
+  return h;
+}
+
 export function middleware(req: NextRequest) {
   const { pathname, searchParams } = req.nextUrl;
 
@@ -109,7 +127,7 @@ export function middleware(req: NextRequest) {
   // (sets a 1-week httpOnly cookie); `?preview=off` clears it. To preview the
   // teaser in dev, visit /coming-soon directly, or set COMING_SOON=true locally
   // and use the preview secret to get back into the app.
-  const comingSoon = process.env.COMING_SOON === "true";
+  const comingSoon = isGateOn();
   const previewSecret = process.env.COMING_SOON_PREVIEW_SECRET ?? "";
   const PREVIEW_COOKIE = "ph_preview";
   const previewParam = searchParams.get("preview");
@@ -119,78 +137,9 @@ export function middleware(req: NextRequest) {
     !revokePreview &&
     !!previewSecret &&
     req.cookies.get(PREVIEW_COOKIE)?.value === previewSecret;
-  // Pages that stay PUBLICLY reachable even while the coming-soon gate is on.
-  // Three reasons: (1) legal/compliance pages — Meta, Google, X, LinkedIn etc.
-  // fetch these URLs to validate app/developer onboarding, and they must
-  // resolve to the real document (not the teaser) before launch; (2) the
-  // pre-launch /launch-partner capture, linked from the coming-soon CTAs;
-  // (3) /auth (and /auth/verify) — the invite-only sign-in entry for approved
-  // launch partners (e.g. quests.travel). The page itself reveals nothing
-  // sensitive; the magic-link endpoint only sends a real link to ops-approved
-  // emails (see peakhour-api auth/magic-link.ts), so exposing the form is safe.
-  // (4) /pricing (hub + /pricing/teams) — the plans are a public
-  // marketing asset; prospects and launch partners evaluate them pre-launch, and
-  // the CTAs already resolve to "Join the waitlist" while signups aren't open
-  // (see signupCta + the pricing pages). It surfaces no gated data.
-  // This is a plain allowlist entry on the already-running middleware — it
-  // adds NO new edge function (the middleware runs on every request for the
-  // CSP nonce regardless).
-  // (5) /shopify/connect, /claim and /reconnect — the pages a merchant is SENT to
-  // from inside another platform, with no Peakhour session, mid-flow. /shopify/connect
-  // is where peakhour-api lands a failed install or reconnect; /claim/{shopify,
-  // wordpress} is where the embedded app's BLOCKING claim gate sends a
-  // cold-installed store to be adopted, carrying a one-shot token in the URL.
-  // With the gate on and neither exempt, a cold App Store install dead-ends on
-  // the teaser holding a token it can no longer spend, and the store stays stuck
-  // — while /shopify/connect cheerfully advises the merchant to go and do exactly
-  // that. b2c#384 removed the first exemption along with the embedded app; the
-  // second was never added. /reconnect/wordpress is the same shape from the other
-  // platform: the WP plugin renders it as its "Approve on Peakhour.ai" button
-  // (wp-bridge.ts returns it as `reconnect_url`), and the gate would leave a
-  // reinstalled site permanently unable to approve its pairing code — sessionBypass
-  // does not help, since it is scoped to /dashboard, /onboarding and /cms.
-  //
-  // (6) /growth/confirm — the page behind the signed link in the `growth_mandate_confirm_v1`
-  // WhatsApp message (https://peakhour.ai/growth/confirm/{token}). The owner opens it from
-  // WhatsApp, often with no Peakhour session on that device, and confirms with the one-time
-  // code sent to their verified number. With the gate on it would rewrite to the teaser and a
-  // mandate could never be confirmed. Only this prefix: `/growth` itself is a marketing page.
-  //
-  // That is the whole set: enumerating every B2C_URL/DASHBOARD_URL the API hands
-  // out gives /auth, /claim/*, /reconnect/wordpress, /shopify/connect and
-  // /dashboard/*. These are the pages whose entire job is to work for someone who
-  // has never heard of us.
-  const PUBLIC_PATHS = [
-    "/privacy-policy",
-    "/terms",
-    "/cookie-policy",
-    "/data-deletion",
-    "/launch-partner",
-    "/auth",
-    "/pricing",
-    // ★★`/peaks` RIDES WITH `/pricing`, BECAUSE THE HEADER NOW OFFERS BOTH AND
-    // A NAV WHOSE LINKS DISAGREE ABOUT WHETHER THE SITE IS LIVE IS WORSE THAN
-    // ONE THAT HIDES BOTH. `/pricing` is on this list so a prospect can
-    // evaluate us before launch; Peaks is the currency every price on that page
-    // is quoted in, so a visitor who clicks Pricing, reads "500 Peaks", clicks
-    // Peaks and lands on the teaser has been stopped exactly where the
-    // allowlist exists to let them through.
-    "/peaks",
-    // The "Peakhour for Shopify" page. A visitor reaches it from the App Store
-    // listing and from /pricing, before there is any account to sign in to.
-    "/shopify",
-    "/shopify/connect",
-    "/claim",
-    "/reconnect",
-    "/growth/confirm",
-    // (7) /share, where a Drive share link lands. The person opening it has no Peakhour account and is reached from an email or a
-    // message; with the gate on it would show the teaser and the file could never be opened. Only this prefix: it holds nothing but
-    // the share page, which says what opening the link records before it serves the file.
-    "/share",
-  ];
-  const isPublicPath = PUBLIC_PATHS.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`),
-  );
+  // The allowlist of pages that stay publicly reachable while the gate is on, with the reason for each
+  // exemption, lives in lib/seo/gate.ts (PUBLIC_PATHS) so the sitemap reads the same list the gate enforces.
+  const publicPath = isPublicPath(pathname);
   // Authenticated-session bypass — SCOPED TO APP ROUTES ONLY. The b2c
   // access/refresh cookies are scoped to the root domain (.peakhour.ai) and so
   // are visible here. An approved launch partner who has signed in carries
@@ -210,31 +159,66 @@ export function middleware(req: NextRequest) {
   const gated =
     comingSoon &&
     pathname !== "/coming-soon" &&
-    !isPublicPath &&
+    !publicPath &&
     !sessionBypass &&
     !grantPreview &&
     !hasPreviewCookie;
 
+  // ── Locale routing (SEO-4) ──────────────────────────────────────────
+  // AFTER the gate: a gated request never reaches it, and the gate's own verdict stands (a locale-prefixed
+  // path matches no route, so a gated "/fr-ca/shopify" is already a 404). A not-gated request whose first
+  // segment is a lowercase non-English locale prefix is rewritten to the internal localized route when
+  // that page is published in that locale, and to the public 404 otherwise. No detection, no redirect.
+  const localeRoute = gated ? null : resolveLocaleRoute(pathname);
+
   let res: NextResponse;
+  // A gated path that matches no route is a 404, not the teaser (a 200 teaser for
+  // /does-not-exist is a soft 404); a gated KNOWN page is the teaser with noindex,
+  // because the teaser is not that page. See gatedVerdict in lib/seo/gate.ts.
+  const verdict = gated ? gatedVerdict(pathname) : null;
+  // Where this request is rewritten to, if anywhere, and the locale the page then renders in.
+  let rewriteTo: string | null = null;
+  let renderLocale: Locale | null = null;
   if (gated) {
+    rewriteTo = verdict === "not-found" ? "/gate-404" : "/coming-soon";
+  } else if (localeRoute?.kind === "rewrite") {
+    rewriteTo = localeRoute.target;
+    renderLocale = localeRoute.locale;
+  } else if (localeRoute) {
+    rewriteTo = "/gate-404";
+  }
+  if (rewriteTo !== null) {
     const url = req.nextUrl.clone();
-    url.pathname = "/coming-soon";
-    url.search = "";
+    url.pathname = rewriteTo;
+    // A gate rewrite drops the query; a locale rewrite keeps it (it is the same page).
+    if (gated) url.search = "";
     if (isPassthrough) {
-      res = NextResponse.rewrite(url);
+      // No nonce or CSP on these (see above); only the locale headers.
+      res = NextResponse.rewrite(url, { request: { headers: stampLocaleHeaders(new Headers(req.headers), pathname, renderLocale) } });
     } else {
-      // Full-document gated request → carry the nonce so the teaser HTML matches.
+      // Full-document request → carry the nonce so the rewritten HTML matches.
       const { csp, reqHeaders } = buildCsp(req);
-      res = NextResponse.rewrite(url, { request: { headers: reqHeaders } });
+      res = NextResponse.rewrite(url, { request: { headers: stampLocaleHeaders(reqHeaders, pathname, renderLocale) } });
       res.headers.set("Content-Security-Policy", csp);
     }
   } else if (isPassthrough) {
-    // Preserve prior behavior: middleware did not modify these requests.
-    res = NextResponse.next();
+    // Prefetch / RSC / action: no nonce or CSP work; only the two locale headers are set (the header and
+    // language switcher read the path from them on an RSC render).
+    res = NextResponse.next({ request: { headers: stampLocaleHeaders(new Headers(req.headers), pathname, null) } });
   } else {
     const { csp, reqHeaders } = buildCsp(req);
-    res = NextResponse.next({ request: { headers: reqHeaders } });
+    res = NextResponse.next({ request: { headers: stampLocaleHeaders(reqHeaders, pathname, null) } });
     res.headers.set("Content-Security-Policy", csp);
+  }
+
+  // Indexing. A deployment that is not Production sends noindex on EVERY response
+  // this middleware sees (rewrites and passthrough requests included), so a crawler
+  // that finds dev or a preview URL leaves it out of the index whatever its robots.txt
+  // said. Production sends none, except on a gated known page (see above).
+  if (!isIndexableDeployment()) {
+    res.headers.set("X-Robots-Tag", NOINDEX_HEADER);
+  } else if (verdict === "teaser-noindex") {
+    res.headers.set("X-Robots-Tag", "noindex");
   }
 
   if (grantPreview) {

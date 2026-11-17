@@ -47,6 +47,27 @@ export interface AudienceProfile {
     marketType?: { value: string; confidence: number; sources?: ProfileSource[] };
     lifecycleStage?: ProfileClaim;
     regionalPresence?: ProfileClaim[];
+    // PL-0 positioning. `subIndustry` above holds the sub-category: a slug of the category's list, or the merchant's
+    // own words (its sources then carry a kind of "unlisted").
+    styles?: ProfileClaim[];
+    priceTier?: {
+      value: string;
+      confidence: number;
+      sources?: ProfileSource[];
+      basis?: { ownMedianPrice?: number; currency?: string; sampleSize?: number };
+    };
+    buyingPattern?: {
+      value: string;
+      confidence: number;
+      sources?: ProfileSource[];
+      basis?: { repeatCustomerShare?: number; customers?: number; windowDays?: number };
+    };
+    salesChannels?: Array<{ value: string; confidence: number; sources?: ProfileSource[] }>;
+    shopper?: {
+      ageBands?: Array<{ value: string; confidence: number; sources?: ProfileSource[] }>;
+      genderLean?: { value: string; confidence: number; sources?: ProfileSource[] };
+      spendingPower?: { value: string; confidence: number; sources?: ProfileSource[] };
+    };
   };
   icp: Array<{
     label: string;
@@ -117,9 +138,34 @@ export interface CorrectableFieldSpec {
   maxCount?: number;
 }
 
+/** How the business is positioned, read by the api's one reader (`readPositioning`): words and tiers, ready to show. */
+export interface Positioning {
+  category: string | null;
+  /** `slug` is null for words the category's list does not name. */
+  subCategory: { slug: string | null; label: string; tier: EvidenceTier } | null;
+  styles: Array<{ slug: string | null; label: string; tier: EvidenceTier }>;
+  priceTier: { value: string; tier: EvidenceTier } | null;
+  buyingPattern: { value: string; tier: EvidenceTier } | null;
+  salesChannels: Array<{ value: string; tier: EvidenceTier }>;
+  shopper: {
+    ageBands: Array<{ value: string; tier: EvidenceTier }>;
+    genderLean: { value: string; tier: EvidenceTier } | null;
+    spendingPower: { value: string; tier: EvidenceTier } | null;
+  } | null;
+}
+
+/** The business category's sub-categories and styles: what a merchant picks a correction from. */
+export interface PositioningOptions {
+  category: string | null;
+  subCategories: Array<{ slug: string; label: string; styles: Array<{ slug: string; label: string }> }>;
+}
+
 export interface ProfileResponse {
   profile: AudienceProfile | null;
   correctableFields: CorrectableFieldSpec[];
+  positioning: Positioning;
+  /** Null when the category has no list yet: every sub-category and style is then typed in. */
+  positioningOptions: PositioningOptions | null;
 }
 
 export interface RefreshResponse {

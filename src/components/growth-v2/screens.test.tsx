@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider, type UseQueryResult } from "@tanstack/react-query";
-import { FIXTURE_CHANNELS, FIXTURE_DECISIONS, FIXTURE_HOME, FIXTURE_LEARNING, FIXTURE_PACING_SERIES, FIXTURE_RULES, previewDecisions } from "@/lib/growth-v2-fixtures";
+import { FIXTURE_CHANNELS, FIXTURE_DECISIONS, FIXTURE_HOME, FIXTURE_LEARNING, FIXTURE_PACING_SERIES, FIXTURE_RULES, PREVIEW_NOW, previewDecisions } from "@/lib/growth-v2-fixtures";
 import type { ChannelsResponse, DecisionsScreenData, DraftOffer, FirstRunDraftResponse, HomeResponse, HomeScreenData } from "@/lib/api/growth-v2";
 import { EMPTY_ANSWERS } from "@/lib/growth-v2-firstrun";
 import { seriesFromHome } from "@/lib/growth-v2-series";
@@ -12,6 +12,8 @@ import { HomeBody } from "./home-screen";
 import { LearningBody } from "./learning-screen";
 import { QueryBoundary } from "./query-boundary";
 import { RulesBody } from "./rules-screen";
+import { GoalsBody } from "./goals-screen";
+import { KIND_LABEL, STATUS_LABEL } from "@/lib/growth-v2-decisions";
 import { Inbox } from "./decisions-screen";
 import { DecisionCard } from "./decision-card";
 
@@ -78,6 +80,8 @@ describe("the screens render their preview sample", () => {
       data: {
         ...FIXTURE_HOME,
         goal: undefined,
+        // one goal: the headline is the goal, and no goals card is shown
+        goals: { items: [FIXTURE_HOME.goals.items[0]!].map((g) => ({ ...g, soFar: { absent: "No data yet" } })), monthSoFar: { absent: "No data yet" } },
         efficiency: { metric: "cost_per_outcome", you: { absent: "No outcomes yet" }, target: { absent: "No target" }, industry: { absent: "No benchmark" }, basis: "Ad spend divided by all paid orders." },
         lift: { liftPct: { absent: "Holdout not started" }, confidence: { absent: "n/a" }, windowDays: 28 },
         pacing: { spentThisMonth: { absent: "Not connected" }, monthlyCeiling: { absent: "Not connected" }, daysLeft: 9 },
@@ -270,12 +274,17 @@ describe("the screens render their preview sample", () => {
     expect(out).toContain("5 experiments");
   });
 
-  it("Rules shows the ladder, the mandate, the guardrail switches and the lines it never crosses", () => {
+  it("Guardrails shows the ladder, the plan summary with a link to Goals, the guardrail switches and the lines it never crosses", () => {
     const out = html(withClient(<RulesBody rules={FIXTURE_RULES} preview />));
     expect(out).toContain("Propose");
     expect(out).toContain("3 of 5 cleared decisions");
-    expect(out).toContain("Your mandate");
+    expect(out).toContain("Your plan");
     expect(out).toContain("₹20,000");
+    // PL-3: the goals in one line, the single-goal edit moved to Goals
+    expect(out).toContain("Treks 70%, Stays 30%");
+    expect(out).toContain('href="/dashboard/growth/goals"');
+    expect(out).toContain("Change ceiling");
+    expect(out).not.toContain("Target cost per");
     expect(out).toContain("Only use creatives I approved");
     expect(out).toContain("Blocked words");
     expect(out).toContain("Let Peakhour use Meta");
@@ -398,16 +407,19 @@ const OFFER_SALES: DraftOffer = {
 const OFFER_LEADS: DraftOffer = { kind: "leads", source: "win_definition", optimizeFor: "count", label: "Leads", focusSuggestions: [], targetSource: "merchant" };
 const OFFER_STORE: DraftOffer = { kind: "store_visits", source: "ads_conversions", optimizeFor: "count", label: "Store visits", focusSuggestions: [], targetSource: "merchant" };
 
+const OFFER_INSTALLS: DraftOffer = { kind: "app_installs", source: "app_analytics", optimizeFor: "count", label: "App installs", focusSuggestions: [], targetSource: "merchant" };
+
 const DRAFT: FirstRunDraftResponse = {
   alreadyActive: false,
   currency: "INR",
   timeZone: { value: "Asia/Kolkata" },
   offers: [OFFER_SALES, OFFER_LEADS],
+  locked: [],
   askAboutStores: false,
   playbook: { id: "growth-ecommerce-d2c", version: 1, title: "D2C" },
   channels: [
-    { platform: "meta", role: "lead", monthlyShare: 0.625, reason: "Short videos.", connected: true },
-    { platform: "google_ads", role: "test", monthlyShare: 0.375, reason: "Search on your products.", connected: false },
+    { platform: "meta", role: "lead", monthlyShare: 0.625, reason: "Short videos.", connected: true, startingFrom: { layer: "playbook", label: "D2C" } },
+    { platform: "google_ads", role: "test", monthlyShare: 0.375, reason: "Search on your products.", connected: false, startingFrom: { layer: "playbook", label: "D2C" } },
   ],
   ceilingBands: { currency: "INR", bands: [{ key: "starter", amount: 30000 }, { key: "steady", amount: 60000 }, { key: "growth", amount: 120000 }] },
   excludedByGuardrails: ["x"],
@@ -458,6 +470,15 @@ describe("First run", () => {
     expect(without).toContain("Do customers visit you in person?");
   });
 
+  it("offers App installs only when the api offered them, with its hint and the unit 'install'", () => {
+    const withInstalls = html(<FirstRunView {...firstRun({ draft: { ...DRAFT, offers: [OFFER_SALES, OFFER_INSTALLS] } })} />);
+    expect(withInstalls).toContain("App installs");
+    expect(withInstalls).toContain("Installs of your app");
+    const without = html(<FirstRunView {...firstRun()} />);
+    expect(without).not.toContain("App installs");
+    expect(without).not.toContain("Installs of your app");
+  });
+
   it("when a store is suspected but cannot be offered, says how to get store visits and still does not offer them", () => {
     const out = html(<FirstRunView {...firstRun({ draft: { ...DRAFT, askAboutStores: true } })} />);
     expect(out).toContain("verified Business Profile");
@@ -469,6 +490,77 @@ describe("First run", () => {
     expect(out).toContain("Nothing can be measured for this business yet");
     expect(out).not.toContain(">Sales<");
     expect(out).not.toContain(">Leads<");
+  });
+
+  describe("FR: locked goals", () => {
+    const NEED_CAT = { need: "booking_category", sentence: "Bookings are for travel and service businesses. If that is you, set your business category under Your business.", target: "your_business" as const };
+    const NEED_GA = { need: "ga4_purchase_event", sentence: "Mark the action that counts as a key event in Google Analytics.", target: "ga4_key_events_help" as const, url: "https://support.google.com/analytics/answer/9267568" };
+    const NEED_STORE = { need: "connect_store", sentence: "Connect your store so Peakhour can count your orders.", target: "connected_accounts" as const };
+    const LOCKED = [
+      { kind: "sales" as const, label: "Sales", needs: [NEED_STORE] },
+      { kind: "bookings" as const, label: "Bookings", needs: [NEED_CAT] },
+      { kind: "leads" as const, label: "Leads", needs: [NEED_GA] },
+    ];
+
+    it("PASS: locked goals show after the offered ones, dimmed, each with its first need's sentence and a link", () => {
+      const out = html(<FirstRunView {...firstRun({ draft: { ...DRAFT, offers: [OFFER_LEADS], locked: LOCKED.slice(0, 2) } })} />);
+      expect(out).toContain('data-testid="locked-goals"');
+      expect(out.indexOf(">Leads<")).toBeLessThan(out.indexOf('data-testid="locked-goals"'));
+      expect(out).toContain(NEED_CAT.sentence);
+      expect(out).toContain(NEED_STORE.sentence);
+      expect(out).toContain('href="/dashboard/growth/rules/business"');
+      expect(out).toContain('href="/dashboard/integrations"');
+      expect(out).toContain("opacity-70");
+    });
+
+    it("FAIL: a locked card cannot be selected, it is not a button and carries no pressed state", () => {
+      const out = html(<FirstRunView {...firstRun({ draft: { ...DRAFT, offers: [OFFER_LEADS], locked: LOCKED } })} />);
+      const block = out.slice(out.indexOf('data-testid="locked-goals"'));
+      const locked = block.slice(0, block.indexOf("</ul>"));
+      expect(locked).not.toContain("<button");
+      expect(locked).not.toContain("aria-pressed");
+      expect(locked.match(/aria-disabled="true"/g)).toHaveLength(3);
+    });
+
+    it("a need that points at Google's own page opens it in a new tab, with the api's address", () => {
+      const out = html(<FirstRunView {...firstRun({ draft: { ...DRAFT, offers: [OFFER_LEADS], locked: LOCKED } })} />);
+      expect(out).toContain('href="https://support.google.com/analytics/answer/9267568" target="_blank" rel="noreferrer noopener"');
+    });
+
+    it("the zero-offer message stays, and lists each need once", () => {
+      const out = html(<FirstRunView {...firstRun({ draft: { ...DRAFT, offers: [], locked: [...LOCKED, { kind: "calls" as const, label: "Calls", needs: [NEED_STORE] }] } })} />);
+      expect(visibleText(out)).toContain("Nothing can be measured for this business yet");
+      expect(out).not.toContain('data-testid="locked-goals"');
+      expect(out.split(NEED_STORE.sentence).length - 1).toBe(1);
+      expect(out).toContain(NEED_CAT.sentence);
+      expect(out).toContain(NEED_GA.sentence);
+    });
+
+    it("nothing locked shows no locked block, and no offers with nothing locked keeps the old words", () => {
+      expect(html(<FirstRunView {...firstRun({ draft: { ...DRAFT, locked: [] } })} />)).not.toContain('data-testid="locked-goals"');
+      const none = html(<FirstRunView {...firstRun({ draft: { ...DRAFT, offers: [], locked: [] } })} />);
+      expect(visibleText(none)).toContain("Connect your shop, your inbox or your analytics");
+    });
+
+    it("★no retired word reaches the merchant in the locked words", () => {
+      const out = visibleText(html(<FirstRunView {...firstRun({ draft: { ...DRAFT, offers: [OFFER_LEADS], locked: LOCKED } })} />));
+      expect(out).not.toMatch(/mandate|intent|council|strategist|critic|chair/i);
+    });
+  });
+
+  it("says a starting plan is being built while the api drafts a new type, and shows the draft beside it (PL-5b)", () => {
+    const drafting = { ...DRAFT, newType: { state: "drafting" as const } };
+    const out = html(<FirstRunView {...firstRun({ draft: drafting, buildingType: true })} />);
+    expect(out).toContain("Building a starting plan for businesses like yours");
+    // the rest of First run is not held hostage: the questions and the plan are on screen
+    expect(out).toContain("SIGNAL-STEP");
+    expect(out).toContain("Short videos.");
+  });
+
+  it("shows no building line once the wait is over or the api is not drafting (PL-5b)", () => {
+    const drafting = { ...DRAFT, newType: { state: "drafting" as const } };
+    expect(html(<FirstRunView {...firstRun({ draft: drafting, buildingType: false })} />)).not.toContain("Building a starting plan");
+    expect(html(<FirstRunView {...firstRun()} />)).not.toContain("Building a starting plan");
   });
 
   it("asks 'Which best describes you?' on a tie, and shows no plan until it is answered", () => {
@@ -487,14 +579,23 @@ describe("First run", () => {
     expect(out).toContain("63%");
     expect(out).toContain("₹37,500");
     expect(out).toContain("Not connected yet");
-    expect(out).toContain("Left out because you turned them off in Rules: X");
+    expect(out).toContain("Left out because you turned them off in Guardrails: X");
   });
 
   it("asks for the time zone while there is none, prefilled with the suggestion", () => {
     const out = html(<FirstRunView {...firstRun({ draft: { ...DRAFT, timeZone: { absent: "No time zone is set for this business yet.", suggested: "Asia/Kolkata" } }, zone: "Asia/Kolkata" })} />);
     expect(out).toContain("Your time zone");
-    expect(out).toContain('value="Asia/Kolkata"');
+    // a picker with the suggestion chosen, shown with its offset: not a box that takes typed text
+    expect(out).toMatch(/<button[^>]*id="first-run-zone"[^>]*role="combobox"/);
+    expect(out).toContain("Asia/Kolkata (UTC+05:30)");
+    expect(out).not.toMatch(/<input[^>]*id="first-run-zone"/);
     expect(html(<FirstRunView {...firstRun()} />)).not.toContain("Your time zone");
+  });
+
+  it("First run cannot submit typed text as the time zone: with none chosen the picker says so and Save is off", () => {
+    const out = html(<FirstRunView {...firstRun({ draft: { ...DRAFT, timeZone: { absent: "No time zone is set for this business yet." } }, zone: "" })} />);
+    expect(out).toContain("Choose your time zone");
+    expect(out).toMatch(/<button[^>]* disabled=""[^>]*>Save time zone/);
   });
 
   it("keeps Send to WhatsApp off, with the reason, until the plan can be sent", () => {
@@ -517,10 +618,10 @@ describe("First run", () => {
     expect(html(<FirstRunView {...firstRun({ sendError: "Verify your WhatsApp number in Settings first." })} />)).toContain("Verify your WhatsApp number");
   });
 
-  it("points a business that already has a mandate at Rules instead of drafting again", () => {
+  it("points a business that already has a plan at Goals instead of drafting again", () => {
     const out = html(<FirstRunView {...firstRun({ draft: { ...DRAFT, alreadyActive: true } })} />);
     expect(out).toContain("already running");
-    expect(out).toContain("/dashboard/growth/rules");
+    expect(out).toContain("/dashboard/growth/goals");
     expect(out).not.toContain("What do you want more of?");
   });
 
@@ -590,5 +691,120 @@ describe("The confirmation link page", () => {
     expect(out).toContain("This link can&#x27;t be used");
     expect(out).toContain("Links last 24 hours");
     expect(out).not.toContain("mandate-code");
+  });
+});
+
+// -- PL-3: Goals, "What do you sell?", and no "mandate" a merchant can see ----------------------------
+
+/** The text a merchant reads: tags, attribute values and entities out. */
+const visibleText = (markup: string) => markup.replace(/<[^>]*>/g, " ").replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+
+describe("PL-3: the Goals page", () => {
+  it("lists every goal with its share, target, this month and status, and each campaign with its goal or suggestion", () => {
+    const out = html(<GoalsBody rules={FIXTURE_RULES} preview results={FIXTURE_HOME.goals.items} />);
+    const text = visibleText(out);
+    expect(text).toContain("Your goals");
+    expect(text).toMatch(/Treks\s+Active/);
+    expect(text).toContain("70% · ₹14,000");
+    expect(text).toContain("30% · ₹6,000");
+    expect(text).toContain("₹450 each");
+    expect(out).toContain(">34<");
+    expect(text).toContain("Which goal does each campaign serve?");
+    // the campaign the merchant gave Treks, the one with a suggestion (pre-selected, marked), the one with none
+    expect(out).toMatch(/<option value="treks" selected="">Treks<\/option>/);
+    expect(text).toContain("Suggested");
+    expect(text).toContain('mentions "homestay"');
+    expect(out).toMatch(/<option value="stays" selected="">Stays<\/option>/);
+    // a preview cannot change anything
+    expect(out).toMatch(/<button[^>]*disabled=""[^>]*>Add goal<\/button>/);
+  });
+  it("a plan of one active goal offers no \"No goal\": that goal owns every campaign", () => {
+    const m = FIXTURE_RULES.mandate!;
+    const one = { ...m, goals: [{ ...m.goals[0]!, share: 1 }] };
+    const out = html(<GoalsBody rules={{ ...FIXTURE_RULES, mandate: one, campaigns: [{ ...FIXTURE_RULES.campaigns![0]!, how: "only" as const }] }} preview={false} />);
+    expect(out).not.toContain(">No goal<");
+  });
+  it("★PL-4: a scheduled or ended goal shows the api's day words as they are, and the end-date note sits on its goal", () => {
+    const text = visibleText(html(<GoalsBody rules={FIXTURE_RULES} preview results={FIXTURE_HOME.goals.items} />));
+    expect(text).toMatch(/Winter treks\s+Scheduled\s+1 Dec to 1 Feb/);
+    expect(text).toMatch(/Monsoon stays\s+Ended 15 Sep\s+Counts/);
+    const m = FIXTURE_RULES.mandate!;
+    const note = { id: "goal-ended-treks-2026-10-20", title: 'Your goal "Treks" reached its end date', detail: 'Your goal "Treks" reached its end date on 20 Oct. Add a new goal or extend this one; until then Peakhour will not raise spend.' };
+    const out = html(<GoalsBody rules={{ ...FIXTURE_RULES, mandate: { ...m, goals: [{ ...m.goals[0]!, note }, ...m.goals.slice(1)] } }} preview={false} />);
+    expect(out).toContain('data-note-id="goal-ended-treks-2026-10-20"');
+    expect(visibleText(out)).toContain("reached its end date on 20 Oct");
+  });
+  it("a plan with no goals yet points to First run", () => {
+    expect(visibleText(html(<GoalsBody rules={{ ...FIXTURE_RULES, mandate: undefined }} preview={false} />))).toContain("There is no plan yet.");
+  });
+  it("an ended goal shows as ended, with no Edit or End", () => {
+    const m = FIXTURE_RULES.mandate!;
+    const ended = { ...m, goals: [{ ...m.goals[0]!, share: 1 }, { ...m.goals[1]!, status: "done" as const, share: 0 }] };
+    const out = html(<GoalsBody rules={{ ...FIXTURE_RULES, mandate: ended }} preview={false} />);
+    expect(visibleText(out)).toMatch(/Stays\s+Ended/);
+    expect(out.match(/>Edit</g)).toHaveLength(1);
+  });
+});
+
+describe("PL-3: First run asks what the business sells first", () => {
+  const line = (id: string, label: string, matched: boolean, min?: number) => ({ id, label, matched, score: matched ? 1 : 0, why: matched ? `Your catalog has ${label}.` : "Nothing points to it yet.", offers: [OFFER_SALES], locked: [], ...(min ? { minMonthlyBudget: min } : {}) });
+  const LINES_DRAFT: FirstRunDraftResponse = {
+    ...DRAFT,
+    lines: [line("flights", "Flights", true, 30000), line("hotels", "Hotels", false), line("holidays", "Holidays", true, 10000)],
+    campaigns: [
+      { campaignId: "meta:1", platform: "meta", name: "Cheap airfare", status: "active", suggestedLineId: "flights", why: 'Its name or targeting mentions "airfare".' },
+      { campaignId: "meta:2", platform: "meta", name: "Brand", status: "paused", why: "Nothing names a line." },
+    ],
+  };
+
+  it("★pre-ticks the matched lines, drafts one goal each, suggests the split and asks each target, then gives the campaigns their goals", () => {
+    const out = html(<FirstRunView {...firstRun({ draft: LINES_DRAFT })} />);
+    const text = visibleText(out);
+    expect(text).toContain("What do you sell?");
+    expect(out.match(/type="checkbox"[^>]*checked=""/g)).toHaveLength(2);
+    expect(text).toContain("One goal for each");
+    // the suggested split: 30,000 : 10,000 of the minimums
+    expect(out).toContain('id="first-run-share-flights"');
+    expect(out).toMatch(/id="first-run-share-flights"[^>]*value="75"/);
+    expect(out).toMatch(/id="first-run-share-holidays"[^>]*value="25"/);
+    expect(text).toContain("₹45,000");
+    expect(text).toContain("Each goal's target");
+    expect(out).toContain('id="first-run-target-flights"');
+    expect(out).not.toContain('id="first-run-target-hotels"');
+    // the three-question form is not shown beside it
+    expect(text).not.toContain("What do you want more of?");
+    expect(text).toContain("Which goal does each campaign serve?");
+    expect(out).toMatch(/<option value="flights" selected="">Flights<\/option>/);
+  });
+  it("one line ticked: one goal, no split, no campaign step", () => {
+    const out = html(<FirstRunView {...firstRun({ draft: LINES_DRAFT, answers: { ...EMPTY_ANSWERS, ceiling: "60000", lines: ["hotels"] } })} />);
+    const text = visibleText(out);
+    expect(text).toContain("Your goal");
+    expect(out).not.toContain("first-run-share-");
+    expect(text).not.toContain("Which goal does each campaign serve?");
+  });
+  it("a playbook without lines skips the step: the three questions, as before", () => {
+    const text = visibleText(html(<FirstRunView {...firstRun()} />));
+    expect(text).not.toContain("What do you sell?");
+    expect(text).toContain("What do you want more of?");
+  });
+});
+
+describe("PL-3: no merchant-visible \"mandate\"", () => {
+  it("★none of the Growth pages' rendered text says mandate", () => {
+    const LINED: FirstRunDraftResponse = { ...DRAFT, lines: [{ id: "flights", label: "Flights", matched: true, score: 1, why: "x", offers: [OFFER_SALES], locked: [] }] };
+    const pages = {
+      home: html(<HomeBody result={{ data: FIXTURE_HOME, preview: true, row: "H1", ...seriesFromHome(FIXTURE_HOME) }} openDecisions={3} />),
+      guardrails: html(withClient(<RulesBody rules={FIXTURE_RULES} preview />)),
+      guardrailsOff: html(withClient(<RulesBody rules={{ ...FIXTURE_RULES, mandate: undefined }} preview={false} />)),
+      goals: html(<GoalsBody rules={FIXTURE_RULES} preview results={FIXTURE_HOME.goals.items} />),
+      firstRun: html(<FirstRunView {...firstRun()} />),
+      firstRunLines: html(<FirstRunView {...firstRun({ draft: LINED })} />),
+      firstRunActive: html(<FirstRunView {...firstRun({ draft: { ...DRAFT, alreadyActive: true } })} />),
+      ...Object.fromEntries(FIXTURE_DECISIONS.decisions.map((d) => [`decision ${d.id}`, html(withClient(<DecisionCard decision={d} currency="INR" unit={{ one: "booking", many: "bookings" }} now={PREVIEW_NOW} />))])),
+    };
+    for (const [name, out] of Object.entries(pages)) expect(visibleText(out), name).not.toMatch(/mandate/i);
+    // the words a decision's kind and status are shown in
+    expect([...Object.values(KIND_LABEL), ...Object.values(STATUS_LABEL)].filter((w) => /mandate/i.test(w))).toEqual([]);
   });
 });

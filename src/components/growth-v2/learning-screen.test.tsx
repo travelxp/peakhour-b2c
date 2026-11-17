@@ -5,6 +5,7 @@ import { FIXTURE_LEARNING } from "@/lib/growth-v2-fixtures";
 import { NOT_BUILT, loadLearning, type LearningResponse } from "@/lib/api/growth-v2";
 import { LearningBody } from "./learning-screen";
 import { ExperimentTimeline } from "./experiment-timeline";
+import { closeToBuyingWords, customerWords } from "./customer-counts";
 
 vi.mock("@/providers/auth-provider", () => ({ useAuth: () => ({ business: { _id: "biz-1" } }) }));
 vi.mock("next/navigation", () => ({ usePathname: () => "/dashboard/growth/learning", useRouter: () => ({ push: vi.fn() }) }));
@@ -88,7 +89,7 @@ describe("Learning, live", () => {
   });
 
   it("shows you against the quartiles with n, and a benchmark under 20 as absences without a comparison", () => {
-    expect(out).toContain("214 businesses");
+    expect(out).toContain("214+ businesses");
     expect(out).toContain("Better than most");
     expect(out).toContain("Return on ad spend");
     expect(out).toContain("Fewer than 20 businesses");
@@ -148,5 +149,54 @@ describe("the experiment timeline's label", () => {
     expect(out.match(/>Peakhour Summit bet</g)).toHaveLength(LIVE.experiments.filter((e) => e.kind === "council_bet").length);
     expect(out.match(/>Holdout</g)).toHaveLength(LIVE.experiments.filter((e) => e.kind === "holdout").length);
     expect(out).not.toMatch(/[\u2122\u00ae]/);
+  });
+});
+
+describe("Learning says what the target still rests on (PL-7)", () => {
+  it("shows the words for the layer the api names, above the benchmarks", () => {
+    const out = html(<LearningBody learning={{ ...LIVE, targetStartingFrom: { layer: "pooled", band: "20-49", industry: "travel" } }} unitPlural="bookings" currency="INR" />);
+    expect(out).toContain("Your target. Starting from 20+ travel businesses like yours.");
+    expect(out.indexOf("Your target.")).toBeLessThan(out.indexOf("BASIS-BENCHMARKS") + 4000);
+  });
+  it("says nothing when the api names no layer (the merchant set the target, or the evidence moved)", () => {
+    expect(html(<LearningBody learning={LIVE} unitPlural="bookings" currency="INR" />)).not.toContain("Your target.");
+  });
+  it("a starting guess is said as one", () => {
+    expect(html(<LearningBody learning={{ ...LIVE, targetStartingFrom: { layer: "playbook" } }} unitPlural="bookings" currency="INR" />)).toContain("Your target. Starting guess.");
+  });
+});
+
+describe("What's working counts customers and shoppers close to buying (GG-3d)", () => {
+  const shoppers: NonNullable<LearningResponse["shoppers"]> = {
+    asOf: "2026-11-15",
+    customers: { new: 120, repeat: 40, loyal: 12, lapsing: 9, lapsed: 30 },
+    closeToBuying: { count: 8, windowDays: 7 },
+    basis: "BASIS-SHOPPERS",
+  };
+  it("says both lines in the merchant's words, with the api's basis and the day counted", () => {
+    const out = html(<LearningBody learning={{ ...LIVE, shoppers }} unitPlural="bookings" currency="INR" />);
+    expect(out).toContain("Your customers");
+    expect(out).toContain("Customers: 120 new, 40 repeat, 12 loyal, 9 at risk of lapsing");
+    expect(out).toContain("Visits close to a purchase that didn&#x27;t buy: 8 this week");
+    expect(out).toContain("BASIS-SHOPPERS");
+    expect(out).toContain("Counted on 15 Nov 2026.");
+  });
+  it("a part the api did not count says so, never a zero", () => {
+    const out = html(<LearningBody learning={{ ...LIVE, shoppers: { ...shoppers, closeToBuying: undefined } }} unitPlural="bookings" currency="INR" />);
+    expect(out).toContain("No store visits to count from shoppers who allowed analytics in the last 7 days.");
+    expect(out).not.toContain("close to a purchase");
+    const none = html(<LearningBody learning={{ ...LIVE, shoppers: { ...shoppers, customers: undefined } }} unitPlural="bookings" currency="INR" />);
+    expect(none).toContain("No sold orders in the last year to count customers from.");
+  });
+  it("no counts at all: no card", () => {
+    expect(html(<LearningBody learning={LIVE} unitPlural="bookings" currency="INR" />)).not.toContain("Your customers");
+  });
+  it("a window that is not a week says its days", () => {
+    expect(closeToBuyingWords({ count: 3, windowDays: 14 })).toBe("Visits close to a purchase that didn't buy: 3 in the last 14 days");
+    expect(customerWords({ new: 0, repeat: 0, loyal: 0, lapsing: 0, lapsed: 5 })).toBe("Customers: 0 new, 0 repeat, 0 loyal, 0 at risk of lapsing");
+  });
+  it("large counts are grouped like every other count on the growth screens", () => {
+    expect(customerWords({ new: 125000, repeat: 4000, loyal: 12, lapsing: 9, lapsed: 0 })).toBe("Customers: 1,25,000 new, 4,000 repeat, 12 loyal, 9 at risk of lapsing");
+    expect(closeToBuyingWords({ count: 12500, windowDays: 7 })).toBe("Visits close to a purchase that didn't buy: 12,500 this week");
   });
 });

@@ -58,8 +58,8 @@ import { ADS_CHANNEL_PARAM, getAdsChannel, panelConnection, type AdsChannelKey }
 
 /**
  * ★★M-16 — the Meta (Facebook + Instagram) panel, inside the shared Ads hub
- * (`/dashboard/ads?channel=meta`). The hub owns the header, selector and
- * CronToolbar; this owns everything below them.
+ * (`/dashboard/ads?channel=meta`). The hub owns the header and selector;
+ * this owns everything below them.
  *
  * ── WHAT IT SHOWS, AND WHY IN THIS SHAPE ─────────────────────────────────
  *
@@ -98,7 +98,7 @@ const INSIGHTS_DAYS = 30;
  * `MAX_ANALYTICS_CAMPAIGNS`) — so a 50-campaign account would fire ~100 Graph
  * calls every time the merchant switched back to this tab. That is M-11's
  * quota hazard arriving from the client. A status change still invalidates
- * the lists at once, and the CronToolbar still refreshes on demand.
+ * the lists at once.
  */
 const LIST_STALE_MS = 60_000;
 const INSIGHTS_STALE_MS = 5 * 60_000;

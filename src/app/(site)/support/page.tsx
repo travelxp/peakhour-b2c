@@ -1,13 +1,9 @@
-import { pageMetadata } from "@/lib/seo";
-import { PillarPage } from "@/components/marketing/pillar-page";
+import { HubRoute } from "@/components/marketing/seo/hub-route";
+import { SUPPORT } from "@/content/pages/support";
+import { pageMeta } from "@/lib/seo/metadata";
 
-export const metadata = pageMetadata({
-  title: "Support — one AI inbox for every channel | Peakhour.ai",
-  description:
-    "WhatsApp, Instagram, email — one inbox. AI answers the routine and hands you what needs a human, with full context. Included in Peakhour Suite.",
-  path: "/support",
-});
+export const metadata = pageMeta("support");
 
-export default function SupportPillar() {
-  return <PillarPage slug="support" />;
+export default function SupportPage() {
+  return <HubRoute pageId="support" content={SUPPORT} />;
 }

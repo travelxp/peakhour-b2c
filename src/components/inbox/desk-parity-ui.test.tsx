@@ -169,7 +169,6 @@ describe("the three new settings in the form", () => {
         error={null}
         saving={false}
         onSave={noop}
-        zones={["UTC"]}
         tags={tags}
         topics={[{ key: "returns", title: "Customers ask about returns" }]}
         {...over}

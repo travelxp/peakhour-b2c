@@ -1,9 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -72,35 +71,15 @@ const CHECKLIST_LABELS: Record<keyof HealthResponse["checklist"], string> = {
 };
 
 export default function AiHealthPage() {
-  const queryClient = useQueryClient();
   const { data, isLoading, error } = useQuery({
     queryKey: ["cms-ai-health"],
     queryFn: () => api.get<HealthResponse>(`/v1/cms/ai-health`),
     refetchInterval: 30_000,
   });
 
-  const cronToolbar = (
-    <CronToolbar
-      crons={[
-        "beehiiv-sync",
-        "linkedin-post-sync",
-        "performance-sync",
-        "x-metrics-sync",
-        "x-mentions-sync",
-        "sync-ai-models",
-        "pipeline-run-janitor",
-      ]}
-      onTriggered={() => {
-        queryClient.invalidateQueries({ queryKey: ["cms-ai-health"] });
-        queryClient.invalidateQueries({ queryKey: ["cms-ingest-health"] });
-      }}
-    />
-  );
-
   if (error) {
     return (
       <div className="space-y-6">
-        {cronToolbar}
         <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-destructive-on-tint">
           Failed to load health: {(error as Error).message}
         </div>
@@ -117,7 +96,6 @@ export default function AiHealthPage() {
 
   return (
     <div className="space-y-6">
-      {cronToolbar}
       <div>
         <h2 className="text-2xl font-bold tracking-tight">AI Health</h2>
         <p className="text-muted-foreground mt-1">

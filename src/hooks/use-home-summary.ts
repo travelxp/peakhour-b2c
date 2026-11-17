@@ -9,9 +9,7 @@ import { api } from "@/lib/api";
  * Backed by GET /v1/home/summary — one round trip returns the KPIs, the
  * autopilot status, the priority-ordered Needs-you rail, and per-channel
  * widgets. Polls on a gentle cadence because the underlying data
- * (scheduled items, pipeline runs) is moved by crons; the page also wires
- * a CronToolbar (non-prod) whose onTriggered invalidates this key for an
- * instant refresh after a manual trigger.
+ * (scheduled items, pipeline runs) is moved by crons.
  */
 
 export type AutopilotState = "working" | "waiting" | "stalled";

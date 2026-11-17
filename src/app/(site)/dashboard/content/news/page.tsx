@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Newspaper, AlertCircle, CalendarPlus } from "lucide-react";
 import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
-import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { api, ApiError } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -42,22 +41,6 @@ export default function NewsDeskPage() {
 
   return (
     <PageShell>
-      {/* Dev-only (auto-hidden in prod). The News Desk queue is fed by a
-          cron pipeline; these buttons run each stage on demand so you don't
-          wait for the schedule. Click left-to-right in pipeline order:
-          fetch sources → classify → corroborate → compose drafts → run the
-          enqueued background jobs. */}
-      <CronToolbar
-        crons={[
-          "source-fetch-scheduler",
-          "news-classify",
-          "news-corroborate",
-          "news-compose",
-          "jobs-runner",
-        ]}
-        onTriggered={invalidateQueue}
-      />
-
       <PageHeader
         icon={<Newspaper className="size-6" aria-hidden />}
         title="Industry news"
