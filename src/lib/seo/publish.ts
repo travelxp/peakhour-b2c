@@ -1,6 +1,6 @@
 import { PAGE_APPROVALS, type PageApproval } from "./approvals";
 import CONTENT_HASHES from "./content-hashes.json";
-import { isIndexableDeployment, isProductionDeployment } from "./indexable";
+import { isProductionDeployment } from "./indexable";
 import { getCapability } from "./capabilities";
 import { DEFAULT_LOCALE, PUBLISHED_LOCALES, type Capability, type Locale, type PageRecord, type ReleaseStatus } from "./types";
 
@@ -158,7 +158,7 @@ export function isLinkable(page: PageRecord): boolean {
  * ("Draft, not published" with no approval, "Changed since approval" with an older one). Production 404s them.
  */
 export function isPreviewable(page: PageRecord, env: Record<string, string | undefined> = process.env): boolean {
-  if (isIndexableDeployment(env)) return false;
+  if (isProductionDeployment(env)) return false;
   if (page.editorialStatus === "draft" || page.editorialStatus === "review" || page.editorialStatus === "approved") return true;
   // A published page the approval rule holds back (no approval, or content changed since) shows on dev under its ribbon.
   return page.editorialStatus === "published" && page.indexable && needsApproval(page) && approvalState(page.pageId) !== "current";

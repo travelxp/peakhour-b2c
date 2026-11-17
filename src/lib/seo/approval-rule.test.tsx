@@ -176,6 +176,17 @@ describe("AR-5: on production only a CMS approval publishes a page that makes cl
     expect(isPublishable(seo, "en", [approve(seo.pageId)], { VERCEL_ENV: "production", SITE_INDEXABLE: "false" })).toBe(true);
   });
 
+  it("production with SITE_INDEXABLE=false never renders a draft: 404 and no ribbon", () => {
+    const noindexProd = { VERCEL_ENV: "production", SITE_INDEXABLE: "false" };
+    const draft = getPage("shopify.compare.wati");
+    expect(isPreviewable(draft, DEV)).toBe(true);
+    expect(isPreviewable(draft, noindexProd)).toBe(false);
+    expect(canOpen(draft, noindexProd)).toBe(false);
+    // a claim page held back by the approval rule is no preview either
+    const held = { ...seo, editorialStatus: "published" as const };
+    expect(isPreviewable(held, noindexProd)).toBe(false);
+  });
+
   it("a page with no claim is unaffected", () => {
     for (const id of ["home", "pricing", "legal.terms", "contact"]) {
       const page = getPage(id);
