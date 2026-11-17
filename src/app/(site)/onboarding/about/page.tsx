@@ -26,6 +26,9 @@ import { Sparkles, ArrowLeft, ArrowRight, AlertCircle } from "lucide-react";
 import { HOME_ROUTE } from "@/lib/nav-home";
 import { AddBusinessDialog } from "@/components/upgrade/add-business-dialog";
 import { isBusinessLimit } from "@/lib/add-business";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { MARKET_TYPE_CHOICES, MARKET_TYPE_LABEL, isMarketTypeChoice, type MarketTypeChoice } from "@/lib/market-type-labels";
+import { BUSINESS_TYPE_MAX, buildConfirmBody } from "@/lib/onboarding-confirm";
 
 const BUSINESS_CATEGORIES = [
   { value: "health_medical", label: "Health & Medical" },
@@ -52,6 +55,8 @@ interface ExtractedProfile {
   type: "business" | "individual";
   businessCategory: string;
   businessType?: string;
+  /** Present when the page read said who the business sells to; pre-selects "Who you sell to". */
+  marketType?: string;
   description: string;
   valueProposition?: string;
   avatarUrl?: string;
@@ -131,6 +136,9 @@ export default function AboutPage() {
   const [displayName, setDisplayName] = useState(() => stash?.profile.displayName ?? "");
   const [businessCategory, setBusinessCategory] = useState(() => stash?.profile.businessCategory ?? "other");
   const [description, setDescription] = useState(() => stash?.profile.description ?? "");
+  const [businessType, setBusinessType] = useState(() => stash?.profile.businessType ?? "");
+  // Pre-selected from the read when it said, otherwise none chosen: the question is optional.
+  const [marketType, setMarketType] = useState<MarketTypeChoice | "">(() => (isMarketTypeChoice(stash?.profile.marketType) ? stash.profile.marketType : ""));
 
   // Bounce to step 1 if there's no stash to confirm.
   useEffect(() => {
@@ -142,15 +150,10 @@ export default function AboutPage() {
     setError("");
     setSubmitting(true);
     try {
-      const profile: ExtractedProfile = editing
-        ? { ...stash.profile, displayName, businessCategory, description }
-        : stash.profile;
-
-      const result = await api.post<ConfirmResponse>("/v1/onboarding/confirm", {
-        url: stash.url,
-        profile,
-        notifyByEmail: false,
-      });
+      const result = await api.post<ConfirmResponse>(
+        "/v1/onboarding/confirm",
+        buildConfirmBody(stash.url, stash.profile, editing ? { displayName, businessCategory, description, businessType } : null, marketType),
+      );
 
       sessionStorage.setItem("onboarding:jobId", result.jobId);
       sessionStorage.removeItem("onboarding:extract");
@@ -278,6 +281,39 @@ export default function AboutPage() {
             )}
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="business-type">What you sell</Label>
+            {editing ? (
+              <Input
+                id="business-type"
+                value={businessType}
+                maxLength={BUSINESS_TYPE_MAX}
+                onChange={(e) => setBusinessType(e.target.value)}
+                placeholder="For example: handmade candles"
+                className="h-11"
+              />
+            ) : (
+              <p className="text-base">{profile.businessType || "We could not tell. Tap Edit details to say."}</p>
+            )}
+          </div>
+
+          <fieldset className="space-y-2" disabled={submitting}>
+            <legend className="text-sm font-medium leading-none">Who you sell to <span className="font-normal text-muted-foreground">(optional)</span></legend>
+            <RadioGroup
+              value={marketType}
+              onValueChange={(v) => setMarketType(isMarketTypeChoice(v) ? v : "")}
+              aria-label="Who you sell to"
+              className="gap-2"
+            >
+              {MARKET_TYPE_CHOICES.map((v) => (
+                <div key={v} className="flex items-center gap-2">
+                  <RadioGroupItem id={`market-type-${v}`} value={v} />
+                  <Label htmlFor={`market-type-${v}`} className="font-normal">{MARKET_TYPE_LABEL[v]}</Label>
+                </div>
+              ))}
+            </RadioGroup>
+          </fieldset>
+
           {profile.location?.city && (
             <div className="space-y-2">
               <Label>Location</Label>
@@ -338,6 +374,7 @@ export default function AboutPage() {
                   setDisplayName(profile.displayName);
                   setBusinessCategory(profile.businessCategory);
                   setDescription(profile.description);
+                  setBusinessType(profile.businessType ?? "");
                 }}
               >
                 Cancel edits

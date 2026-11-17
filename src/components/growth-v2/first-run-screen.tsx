@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Building2, MapPin, MessageSquare, Phone, ShoppingCart, Smartphone, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,8 @@ import {
   targetKindOf,
   targetQuestion,
   TARGET_NOT_A_FEE,
+  NEW_TYPE_WAIT_MS,
+  isDraftingNewType,
   type FirstRunAnswers,
   type GoalAnswers,
 } from "@/lib/growth-v2-firstrun";
@@ -87,6 +89,7 @@ export function FirstRunScreen() {
   const confirm = useConfirmPlan();
   const saveZone = usePatchRules();
   const draft = query.data;
+  const buildingType = useBuildingNewType(draft);
 
   // The ceiling starts at the playbook's middle band; the merchant's own typing always wins, including an empty box.
   const defaultCeiling = draft ? String(ceilingChips(draft).find((c) => c.key === "steady")?.amount ?? "") : "";
@@ -122,6 +125,7 @@ export function FirstRunScreen() {
       <FirstRunView
         draft={draft}
         loadFailed={query.isError}
+        buildingType={buildingType}
         answers={answers}
         typedTarget={typedTarget}
         inPerson={inPerson}
@@ -195,6 +199,8 @@ export function FirstRunScreen() {
 export interface FirstRunViewProps {
   draft: FirstRunDraftResponse | undefined;
   loadFailed?: boolean;
+  /** PL-5b: the api is still building the playbook for this business's new type (and it is within the 60 s wait). The draft below is usable meanwhile. */
+  buildingType?: boolean;
   answers: FirstRunAnswers;
   /** What the merchant typed into the target box, if anything; the box otherwise shows the playbook's default. */
   typedTarget?: string;
@@ -227,6 +233,22 @@ export interface FirstRunViewProps {
   onLineTarget?: (lineId: string, text: string) => void;
   onShare?: (lineId: string, text: string) => void;
   onCampaign?: (campaignId: string, lineId: string) => void;
+}
+
+/**
+ * PL-5b: true while the api says it is building a playbook for a new type, for at most 60 s from the first time it said so.
+ * ★AFTER 60 S THE DRAFT IS SHOWN AS IT IS (with its existing starting-point line): a slow draft never holds First run.
+ */
+function useBuildingNewType(draft: FirstRunDraftResponse | undefined): boolean {
+  const drafting = isDraftingNewType(draft);
+  const [timedOut, setTimedOut] = useState(false);
+  useEffect(() => {
+    if (!drafting) return;
+    const t = setTimeout(() => setTimedOut(true), NEW_TYPE_WAIT_MS);
+    // a later wait on this screen starts its own 60 s
+    return () => { clearTimeout(t); setTimedOut(false); };
+  }, [drafting]);
+  return drafting && !timedOut;
 }
 
 export function FirstRunView(p: FirstRunViewProps) {
@@ -294,6 +316,12 @@ export function FirstRunView(p: FirstRunViewProps) {
         title={unit ? `Let's get you more ${unit.many}` : "Let's get you more of what matters"}
         description={`${linesMode ? "Four steps" : "Three questions"}, then Peakhour drafts your first plan from the ${draft.playbook?.title ?? "right"} playbook. Nothing spends until you confirm on WhatsApp.`}
       />
+
+      {p.buildingType ? (
+        <p role="status" data-testid="building-new-type" className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+          Building a starting plan for businesses like yours&hellip;
+        </p>
+      ) : null}
 
       {linesMode ? <LinesQuestions {...p} /> : (
       <Card>

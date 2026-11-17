@@ -48,6 +48,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { AlertTriangle, ChevronDown, Pencil, RefreshCw, X } from "lucide-react";
+import { MARKET_TYPE_LABEL } from "@/lib/market-type-labels";
 
 /**
  * "Here's what we understand about your business" — the Audience Engine's
@@ -103,13 +104,6 @@ const FIELD_LABEL: Record<string, string> = {
   personas: "The people inside them",
   painPoints: "Problems you solve",
   decisionMakers: "Who signs",
-};
-
-const MARKET_TYPE_LABEL: Record<string, string> = {
-  b2b: "Businesses (B2B)",
-  b2c: "People (B2C)",
-  b2b2c: "Both — you serve people, businesses pay (B2B2C)",
-  unknown: "Not sure yet",
 };
 
 function EvidenceBadge({ sources }: { sources?: ProfileSource[] }) {

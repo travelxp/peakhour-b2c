@@ -292,3 +292,21 @@ export function sendErrorMessage(err: unknown): string {
   if (err instanceof ApiError && err.code === "VALIDATION_ERROR") return "That plan is not one we can start. Check the ceiling and the target.";
   return "We could not send the plan. Try again in a moment.";
 }
+
+/** PL-5b: how often First run asks again while the api builds a playbook for a new business type. */
+export const NEW_TYPE_POLL_MS = 4_000;
+/** PL-5b: how long First run waits for it. After this the draft is shown as it is, with its starting-point line. */
+export const NEW_TYPE_WAIT_MS = 60_000;
+
+/** True while the api says it is building the playbook for this business's new type. */
+export function isDraftingNewType(draft: FirstRunDraftResponse | undefined): boolean {
+  return draft?.newType?.state === "drafting";
+}
+
+/**
+ * The refetch interval for the draft: 4 s while it is drafting, and `false` (stop) once 60 s have passed since the wait began.
+ * ★THE WAIT NEVER HOLDS FIRST RUN: the draft is on screen the whole time; this only decides whether to ask again.
+ */
+export function newTypeRefetchInterval(drafting: boolean, startedAt: number, now: number): number | false {
+  return drafting && now - startedAt < NEW_TYPE_WAIT_MS ? NEW_TYPE_POLL_MS : false;
+}
