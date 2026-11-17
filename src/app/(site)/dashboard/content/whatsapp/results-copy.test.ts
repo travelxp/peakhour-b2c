@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { CRON_METADATA, summarizeCronBody } from "@/components/dev/cron-metadata";
 
 /**
  * C8 (2026-11-04): what a merchant reads about WhatsApp results. One rule across Peakhour: AI credits are for a task Peakhour does,
@@ -43,8 +42,7 @@ describe("the WhatsApp results page", () => {
     }
   });
 
-  it("the toolbar fires the renamed cron", () => {
-    expect(ANALYTICS).toContain('<CronToolbar crons={["wa-conversation-outcomes"]} />');
+  it("never names the retired billing cron", () => {
     expect(ANALYTICS).not.toContain("wa-outcome-billing");
   });
 });
@@ -75,23 +73,5 @@ describe("the LinkedIn qualified-lead column", () => {
   it("calls them qualified leads, not billable ones", () => {
     expect(LINKEDIN).toContain('title="Qualified leads · cost per qualified lead (spend ÷ qualified leads)"');
     expect(LINKEDIN).not.toContain("Billable qualified leads");
-  });
-});
-
-describe("the retired billing cron's replacement", () => {
-  it("is described as recording outcomes and charging nothing", () => {
-    expect(CRON_METADATA["wa-outcome-billing"]).toBeUndefined();
-    const meta = CRON_METADATA["wa-conversation-outcomes"];
-    expect(meta?.label).toBe("Review quiet chats");
-    expect(meta?.description).toMatch(/Nothing is charged for an outcome\./);
-    expect(meta?.description).not.toMatch(/charges Peaks/);
-  });
-
-  it("summarises a run in terms of outcomes reached, with PASS cases for zero, some and a failure count", () => {
-    const sum = (d: unknown) => summarizeCronBody("wa-conversation-outcomes", JSON.stringify({ ok: true, data: d }))?.message;
-    expect(sum({ scanned: 0 })).toBe("No quiet conversations to review yet.");
-    expect(sum({ scanned: 4, recorded: 0 })).toBe("4 conversations reviewed — none reached an outcome.");
-    expect(sum({ scanned: 4, recorded: 3, humanTakeover: 1, errors: 2 })).toBe("3 of 4 conversations reached an outcome, 1 handed to a human, 2 failed.");
-    expect(JSON.stringify(sum({ scanned: 4, recorded: 3 }))).not.toMatch(/billed|billable/);
   });
 });

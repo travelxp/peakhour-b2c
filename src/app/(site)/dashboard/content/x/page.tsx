@@ -18,7 +18,6 @@ import { createDraft } from "@/lib/api/content";
 import { RepurposeSheet } from "@/components/repurpose/repurpose-sheet";
 import type { RepurposeSource } from "@/lib/api/repurpose";
 import { TweetComposer } from "./_components/tweet-composer";
-import { CronToolbar } from "@/components/dev/cron-toolbar";
 
 // The Recent and Mentions tabs are not shown first, so they load on demand.
 const TweetCard = dynamic(() => import("./_components/tweet-card").then((mod) => mod.TweetCard));
@@ -266,27 +265,15 @@ function XContentDashboardInner() {
 }
 
 /**
- * Page-local wrapper: cron toolbar + rhythm + loading state. Named for this
+ * Page-local wrapper: rhythm + loading state. Named for this
  * route specifically because it is NOT the shared layout primitive — that is
  * <PageShell> in @/components/dashboard/page-shell, which owns measure. This
  * was called `PageShell` too until the shared one landed and the collision
  * became a trap for anyone importing the real thing here.
  */
 function XPageShell({ children, loading }: { children?: React.ReactNode; loading?: boolean }) {
-  const queryClient = useQueryClient();
   return (
     <PageShell width="standard">
-      <CronToolbar
-        crons={["x-metrics-sync", "x-mentions-sync", "performance-sync"]}
-        onTriggered={() => {
-          queryClient.invalidateQueries({ queryKey: ["x-tweets"] });
-          queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] });
-          // x-mentions-sync writes the mentions inbox — invalidate it so
-          // the Mentions tab reflects a manual sync instead of keeping its
-          // cached page. Prefix match covers the [filter, sort] variants.
-          queryClient.invalidateQueries({ queryKey: ["x-mentions"] });
-        }}
-      />
       <div>
         {/* h1: this was the page's only heading and it was an h2, so the
             route had no page title in the document outline at all. */}

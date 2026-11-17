@@ -3,8 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CronToolbar } from "@/components/dev/cron-toolbar";
+import { useQuery } from "@tanstack/react-query";
 import { contentHubCatalogQuery, contentHubIntegrationsQuery, type ContentHubIntegration } from "@/lib/nav-queries";
 import { resolveBrandLogo } from "@/lib/brand-logos";
 import { cn } from "@/lib/utils";
@@ -38,7 +37,6 @@ const ALL_TAB = "All" as const;
 // The extra click is worth a discoverable hub.
 
 export default function ContentChannelsHubPage() {
-  const queryClient = useQueryClient();
   // Default refetch behavior is fine here. We DON'T disable focus / reconnect
   // refetches: a user who connects Beehiiv in another tab and returns should
   // see fresh connection state. (Earlier code disabled these to keep the
@@ -98,24 +96,9 @@ export default function ContentChannelsHubPage() {
     [connections, search],
   );
 
-  const cronToolbar = (
-    <CronToolbar
-      crons={[
-        "beehiiv-sync",
-        "linkedin-post-sync",
-        "performance-sync",
-        "x-metrics-sync",
-      ]}
-      onTriggered={() =>
-        queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] })
-      }
-    />
-  );
-
   if (isLoading) {
     return (
       <PageShell width="wide">
-        {cronToolbar}
         <HubSkeleton />
       </PageShell>
     );
@@ -123,7 +106,6 @@ export default function ContentChannelsHubPage() {
 
   return (
     <PageShell width="wide">
-      {cronToolbar}
       <header className="space-y-2 border-b pb-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 space-y-2">

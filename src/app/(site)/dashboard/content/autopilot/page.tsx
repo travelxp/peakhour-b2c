@@ -2,11 +2,9 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useQueryClient } from "@tanstack/react-query";
-import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { useHomeSummary, homeSummaryKey } from "@/hooks/use-home-summary";
+import { useHomeSummary } from "@/hooks/use-home-summary";
 import { AutopilotStatus } from "./_components/autopilot-status";
 import { KpiRow } from "./_components/kpi-row";
 import { NeedsYouRail } from "./_components/needs-you-rail";
@@ -55,7 +53,6 @@ function LoadingState() {
 
 export default function AutopilotHomePage() {
   const router = useRouter();
-  const queryClient = useQueryClient();
   const isProd = isProductionEnv();
 
   // Hard guard: a direct prod URL must not render the dark page.
@@ -69,12 +66,6 @@ export default function AutopilotHomePage() {
 
   return (
     <PageShell width="wide">
-      <CronToolbar
-        crons={["publish-scheduled", "publish-retry", "recurring-spawn"]}
-        onTriggered={() =>
-          queryClient.invalidateQueries({ queryKey: homeSummaryKey })
-        }
-      />
 
       {/* Header */}
       <div className="flex flex-col gap-1">

@@ -2,11 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { PageShell } from "@/components/dashboard/page-shell";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CronToolbar } from "@/components/dev/cron-toolbar";
+import { useQuery } from "@tanstack/react-query";
 import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
 import { reconnectHref, LINKEDIN_CONTENT_PROVIDER } from "@/lib/integrations-connect";
-import { invalidateLinkedInContentQueries } from "@/lib/linkedin-cache";
 import { api, ApiError } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -310,7 +308,7 @@ function LinkedInTabs({
 }
 
 /**
- * Page-local wrapper: cron toolbar + rhythm + loading state. Named for this
+ * Page-local wrapper: rhythm + loading state. Named for this
  * route specifically because it is NOT the shared layout primitive — that is
  * <PageShell> in @/components/dashboard/page-shell, which owns measure. This
  * was called `PageShell` too until the shared one landed and the collision
@@ -329,48 +327,12 @@ function LinkedInPageShell({
    *  the screen is about. */
   identity?: LinkedInIdentity;
 }) {
-  const queryClient = useQueryClient();
   return (
     <PageShell width="wide">
       {/* Confirms a reconnect that started here (the Boost dialog's CTAs pass
           ?returnTo=/dashboard/content/linkedin) — in the shell so every branch
           of this page, including the empty states, announces it. */}
       <OAuthConnectResult />
-      {/* jobs-runner is required AFTER linkedin-post-sync on dev: the sync cron
-          ENQUEUES a linkedin_post_sync job (it doesn't drain inline), so click
-          linkedin-post-sync first, then jobs-runner to actually run it and
-          populate posts + KPIs. */}
-      {/* ★`linkedin-subscription-reconcile` is the only way a LinkedIn
-          subscription gets CREATED on dev — its seed phase arms connections
-          that have none, and Vercel Cron fires only on production. Without
-          it the Feed tab is permanently empty here, and empty is exactly
-          what a quiet week looks like. */}
-      <CronToolbar
-        crons={[
-          "linkedin-post-sync",
-          "jobs-runner",
-          "performance-sync",
-          "linkedin-subscription-reconcile",
-          // ★Must be pressed BEFORE retention-cleanup, always. The rollup
-          // is what turns 48-hour member activity into the year-retainable
-          // daily numbers the Audience tab reads; the cleanup is what
-          // deletes the source. Run them the other way round on dev and
-          // those days are gone for good.
-          "linkedin-community-rollup",
-          "linkedin-retention-cleanup",
-        ]}
-        // These crons write the very data every panel here renders — without
-        // invalidating, a sync completes and the Boost / Audience / Feed tabs
-        // keep serving their cached (often empty) result, so nothing visibly
-        // changes. The panels also set refetchOnMount:false, which makes
-        // invalidation the ONLY thing that refreshes them after a trigger.
-        //
-        // The key list is shared with the Integrations page's Page toggle (see
-        // lib/linkedin-cache.ts) because both need every key and the failure
-        // mode of missing one is invisible: the panel that forgot renders old
-        // data, which looks exactly like a quiet week.
-        onTriggered={() => invalidateLinkedInContentQueries(queryClient)}
-      />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           {/* h1: this was the page's only heading and it was an h2, so the

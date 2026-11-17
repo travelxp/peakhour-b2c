@@ -1,11 +1,10 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { AlertTriangle, CalendarClock, Repeat } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -15,8 +14,7 @@ import { cn } from "@/lib/utils";
  * gated server-side). Surfaces the in-play item backlog, the statuses
  * an operator must act on (failed / awaiting_retry / needs_action),
  * recurring-rule health (spawn errors + overdue), and the orgs with the
- * largest live backlog. The <CronToolbar/> band covers the three crons
- * that move this data.
+ * largest live backlog.
  */
 
 interface SchedulerHealth {
@@ -51,7 +49,6 @@ const ITEM_STATUS_ORDER = [
 const RULE_STATUS_ORDER = ["active", "paused", "completed", "expired"];
 
 export default function CmsSchedulerPage() {
-  const queryClient = useQueryClient();
   const { data, isLoading, isError } = useQuery({
     queryKey: ["cms:scheduler-health"],
     queryFn: () => api.get<SchedulerHealth>("/v1/cms/scheduler-health"),
@@ -60,14 +57,6 @@ export default function CmsSchedulerPage() {
 
   return (
     <div className="space-y-6">
-      <CronToolbar
-        crons={["publish-scheduled", "publish-retry", "recurring-spawn"]}
-        // These crons move the very data this page shows — refresh after
-        // a manual trigger instead of waiting for staleTime.
-        onTriggered={() =>
-          queryClient.invalidateQueries({ queryKey: ["cms:scheduler-health"] })
-        }
-      />
 
       <div>
         <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">

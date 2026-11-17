@@ -29,7 +29,6 @@ import {
   Lock,
   ShieldCheck,
 } from "lucide-react";
-import { CronToolbar } from "@/components/dev/cron-toolbar";
 import { TrendChart } from "@/components/viz/trend-chart-lazy";
 import { ComparisonChart } from "@/components/viz/comparison-chart-lazy";
 import { DeltaChip } from "@/components/viz/delta-chip";
@@ -225,20 +224,9 @@ export default function SearchConsoleInsightsPage() {
   // insights response resolves the default.
   useSetAskEntityIds({ siteUrl: insightsQ.data?.siteUrl ?? property });
 
-  const cronToolbar = (
-    <CronToolbar
-      crons={["performance-sync"]}
-      onTriggered={() => {
-        qc.invalidateQueries({ queryKey: ["integration-status"] });
-        qc.invalidateQueries({ queryKey: ["search-insights"] });
-      }}
-    />
-  );
-
   if (statusQ.isLoading) {
     return (
       <PageShell width="wide">
-        {cronToolbar}
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-32 w-full" />
       </PageShell>
@@ -266,7 +254,6 @@ export default function SearchConsoleInsightsPage() {
 
   return (
     <PageShell width="wide">
-      {cronToolbar}
 
       <PageHeader
         icon={

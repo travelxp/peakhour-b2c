@@ -67,7 +67,7 @@ import { UseSavedAudienceDialog } from "@/components/audience/use-saved-audience
 /**
  * LinkedIn Ads panel (G1 MVP) — the Growth pillar's first live surface,
  * rendered inside the shared Ads hub (`/dashboard/ads?channel=linkedin`).
- * The hub owns the page header, channel selector, and CronToolbar; this
+ * The hub owns the page header and channel selector; this
  * component owns everything below it, including its own connection gate.
  *
  * Lists the business's MANAGED campaigns (Peakhour-created via
