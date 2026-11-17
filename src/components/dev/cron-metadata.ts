@@ -10,7 +10,7 @@
  *
  * The keys (cron names) MUST match peakhour-api's DEV_TRIGGERABLE_CRONS
  * whitelist (src/v1/routes/dev/index.ts) and the routes registered in
- * vercel.json. When a new cron ships in the api, add it here so the UI
+ * vercel.json `schedules`. When a new cron ships in the api, add it here so the UI
  * can surface a friendly button for it.
  *
  * Each entry:
