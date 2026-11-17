@@ -164,7 +164,13 @@ describe("wiring", () => {
         else process.env[k] = saved[k];
       }
     }
-    expect(urls).toContain(`${SITE.url.replace(/\/$/, "")}/shopify`);
+    // AR-5: production lists /shopify only once a CMS approval publishes it; the sitemap and the publish rule agree.
+    const { PAGES } = await import("./seo/pages");
+    const { isPublishable } = await import("./seo/publish");
+    const page = PAGES.find((p) => p.pageId === "shopify");
+    const onProd = isPublishable(page!, "en", undefined, { VERCEL_ENV: "production" });
+    expect(urls.includes(`${SITE.url.replace(/\/$/, "")}/shopify`)).toBe(onProd);
+    expect(urls.length).toBeGreaterThan(0);
   });
   it("lets /shopify through the coming-soon gate, and keeps /shopify/connect", () => {
     const mw = read("lib/seo/gate.ts");

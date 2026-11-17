@@ -8,6 +8,7 @@ vi.mock("@/lib/marketing-pages", () => ({
 }));
 
 import { PAGES } from "@/lib/seo/pages";
+import { isPublishable } from "@/lib/seo/publish";
 import robots from "@/app/robots";
 import { renderIndex, sitemapEntries, sitemapIndexNames, type SitemapName } from "@/lib/seo/sitemap";
 import { GET as indexRoute } from "@/app/sitemap.xml/route";
@@ -55,28 +56,6 @@ describe("robots.txt", () => {
   });
 });
 
-const SHOPIFY_FEATURE_PATHS = [
-  "/shopify/features",
-  // SF-2: the remaining Shopify feature pages.
-  "/shopify/features/cart-upsells",
-  "/shopify/features/merchandising-ab-testing",
-  "/shopify/features/inventory-alerts",
-  "/shopify/features/markdown-suggestions",
-  "/shopify/features/ai-blog-generator",
-  "/shopify/features/seo-audit",
-  "/shopify/features/customer-conversation-insights",
-  "/shopify/features/ai-growth-campaigns",
-  "/shopify/features/product-finder",
-  "/shopify/features/bundles",
-  "/shopify/features/ai-product-descriptions",
-  "/shopify/features/ai-seo",
-  "/shopify/features/ai-shopping-assistant",
-  "/shopify/features/frequently-bought-together",
-  "/shopify/features/product-recommendations",
-  "/shopify/features/whatsapp-ai-shopping",
-  "/shopify/features/whatsapp-cod-confirmation",
-];
-
 describe("sitemap", () => {
   it("is empty off Production", async () => {
     process.env.VERCEL_ENV = "preview";
@@ -94,8 +73,8 @@ describe("sitemap", () => {
     expect(urls).toContain("/commerce");
     expect(urls).toContain("/pricing/teams");
     expect(urls).toContain("/guides/x");
-    // Every published registry page, plus the one CMS page. A page at review (the SEO-10 comparisons) is not listed.
-    expect(urls).toHaveLength(PAGES.filter((p) => p.editorialStatus === "published").length + 1);
+    // Every registry page production publishes (AR-5: a claim page only on a CMS approval), plus the one CMS page. A page at review (the SEO-10 comparisons) is not listed.
+    expect(urls).toHaveLength(PAGES.filter((p) => isPublishable(p, "en", undefined, { VERCEL_ENV: "production" })).length + 1);
     expect(urls.some((u) => u.includes("/shopify/compare/"))).toBe(false);
     for (const held of ["/integrations/google-ads", "/integrations/google-search-console", "/integrations/linkedin-ads", "/features/beehiiv-newsletter", "/features/ai-blog-writer"]) expect(urls).not.toContain(held);
   });
@@ -104,7 +83,7 @@ describe("sitemap", () => {
     process.env.VERCEL_ENV = "production";
     process.env.COMING_SOON = "true";
     const urls = (await allPaths()).sort();
-    expect(urls).toEqual(["/", "/cookie-policy", "/data-deletion", "/launch-partner", "/peaks", "/pricing", "/pricing/teams", "/privacy-policy", "/shopify", ...SHOPIFY_FEATURE_PATHS, "/terms"].sort());
+    expect(urls).toEqual(["/", "/cookie-policy", "/data-deletion", "/launch-partner", "/peaks", "/pricing", "/pricing/teams", "/privacy-policy", "/shopify/features", "/terms"].sort());
   });
 });
 

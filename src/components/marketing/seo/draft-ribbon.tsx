@@ -1,5 +1,5 @@
 import type { PageApproval } from "@/lib/seo/approvals";
-import { approvalState, capabilitiesSatisfied } from "@/lib/seo/publish";
+import { approvalFor, approvalState, capabilitiesSatisfied } from "@/lib/seo/publish";
 import type { PageRecord } from "@/lib/seo/types";
 
 type RibbonPage = Pick<PageRecord, "editorialStatus" | "indexable" | "pageId" | "capabilityIds" | "surface">;
@@ -7,17 +7,19 @@ type RibbonPage = Pick<PageRecord, "editorialStatus" | "indexable" | "pageId" | 
 /**
  * What the ribbon says, or null for a page that is as published:
  *  - "changed": the page makes claims and has an approval, but for older content (its copy or claims moved since);
+ *  - "devOnly": published on dev through a placeholder approval; production needs a CMS approval before it shows (AR-5);
  *  - "draft": not published, or published with no approval yet (a page with claims needs one), or not indexable.
  * A review page whose approval matches its current content is approved: no ribbon. The rule is publish.ts's; this only
  * names the reason.
  */
-export function ribbonKind(page: RibbonPage, approvals?: readonly PageApproval[]): "draft" | "changed" | null {
+export function ribbonKind(page: RibbonPage, approvals?: readonly PageApproval[]): "draft" | "changed" | "devOnly" | null {
   const state = approvalState(page.pageId, approvals);
   // An approved review page whose claims the capabilities do not yet satisfy is still not publishable: production 404s it.
   if (page.editorialStatus === "review") return state === "current" ? (capabilitiesSatisfied(page as PageRecord) ? null : "draft") : state === "stale" ? "changed" : "draft";
   if (page.editorialStatus === "published" && page.indexable && page.capabilityIds.length > 0 && state !== "current") {
     return state === "stale" ? "changed" : "draft";
   }
+  if (page.editorialStatus === "published" && page.indexable && page.capabilityIds.length > 0 && approvalFor(page.pageId, approvals)?.source !== "cms") return "devOnly";
   return page.editorialStatus !== "published" || !page.indexable ? "draft" : null;
 }
 
@@ -26,7 +28,11 @@ export function isDraftPage(page: RibbonPage): boolean {
   return ribbonKind(page) !== null;
 }
 
-const LABEL = { draft: "Draft, not published", changed: "Changed since approval" } as const;
+const LABEL = {
+  draft: "Draft, not published",
+  changed: "Changed since approval",
+  devOnly: "Live on dev only: needs a CMS approval before it shows on production.",
+} as const;
 
 /**
  * A fixed, unmistakable ribbon: "Draft, not published" on a page with no approval, "Changed since approval" on a page whose
