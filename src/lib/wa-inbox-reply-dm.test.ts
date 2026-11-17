@@ -152,6 +152,15 @@ describe("the length limit and the other errors on a DM thread", () => {
       expect(`${c.title} ${c.detail}`).not.toMatch(/WhatsApp/);
     }
   });
+  it("NOT_FOUND on a DM thread does not talk about a number", () => {
+    const c = replyErrorCopy(apiErr("NOT_FOUND", 404), "text", M);
+    expect(c.detail).not.toMatch(/number|WhatsApp/i);
+    expect(c.detail).toMatch(/Nothing was sent/);
+    expect(replyErrorCopy(apiErr("NOT_FOUND", 404), "text", W).detail).toMatch(/WhatsApp number/);
+  });
+  it("CHANNEL_UNAVAILABLE without a DM thread names no carrier", () => {
+    expect(replyErrorCopy(apiErr("CHANNEL_UNAVAILABLE", 409), "text", undefined).title).toBe("This channel isn't available right now");
+  });
   it("a WhatsApp thread still says WhatsApp", () => {
     expect(replyErrorCopy(new ApiError("X", "boom", 503), "text", W).title).toMatch(/WhatsApp/);
   });

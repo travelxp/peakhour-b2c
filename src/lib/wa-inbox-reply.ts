@@ -531,6 +531,8 @@ export function replyErrorCopy(err: unknown, kind: ReplyPayload["kind"] = "text"
   // ★ON A MESSENGER OR INSTAGRAM THREAD THE CARRIER IS NOT WHATSAPP: the api's own sentences already name the right one, and the ones
   //  written here say whose it is.
   const carrier = dm === "messenger" ? "Messenger" : "Instagram";
+  // a Page has no phone number: this one is not a rewrite of WhatsApp's sentence
+  if (err instanceof ApiError && err.code === "NOT_FOUND") return { ...copy, detail: `It may have been deleted. ${NOTHING_SENT}` };
   return { ...copy, title: copy.title.replaceAll("WhatsApp", carrier), detail: copy.detail.replaceAll("WhatsApp", carrier) };
 }
 
@@ -625,7 +627,7 @@ function replyErrorCopyOf(err: unknown, kind: ReplyPayload["kind"], threadId: st
       const dm = dmChannelOfThread(threadId);
       return {
         ...base,
-        title: `${dm === "instagram" ? "Instagram" : "Messenger"} isn't available right now`,
+        title: `${dm === "instagram" ? "Instagram" : dm === "messenger" ? "Messenger" : "This channel"} isn't available right now`,
         detail: `${serverMessage(err, "Check your Meta connection in Connected accounts.")} ${NOTHING_SENT}`,
       };
     }
