@@ -41,18 +41,17 @@ describe("resolveChannelCta", () => {
   });
 
   it("(c) connected + no path anywhere → Connected, managed via Integrations", () => {
-    // This is the NORMAL state for the Meta capability rows (facebook_pages,
-    // instagram) and wordpress: /dashboard/integrations IS where you
-    // manage them. The action must stay enabled — only the label changes.
+    // This is the NORMAL state for wordpress: /dashboard/integrations IS where you
+    // manage it. The action must stay enabled — only the label changes.
     const r = resolveChannelCta(
-      chan({ status: "available", dashboardPath: undefined, providerKey: "facebook_pages" }),
+      chan({ status: "available", dashboardPath: undefined, providerKey: "wordpress" }),
       { connected: true },
       STATIC,
     );
     expect(r.isConnected).toBe(true);
     expect(r.dashboardPath).toBeUndefined();
     expect(r.manageViaIntegrations).toBe(true);
-    // facebook_pages is integrations-managed BY DESIGN, so no dev warning.
+    // wordpress is integrations-managed BY DESIGN, so no dev warning.
     // (meta_ads WAS the example here until M-16 gave it a panel.)
     expect(r.configGap).toBe(false);
   });
@@ -307,5 +306,21 @@ describe("resolveChannelCta — showsComingSoon", () => {
     expect(r.dashboardPath).toBe("/dashboard/ads?channel=meta");
     expect(r.manageViaIntegrations).toBe(false);
     expect(INTEGRATIONS_MANAGED_PROVIDERS.has("meta_ads")).toBe(false);
+  });
+
+  it("MR-E1: Facebook Pages and Instagram reach their own hubs from the static map", () => {
+    for (const [providerKey, path] of [
+      ["facebook_pages", "/dashboard/content/facebook"],
+      ["instagram", "/dashboard/content/instagram"],
+    ] as const) {
+      const r = resolveChannelCta(
+        chan({ status: "available", dashboardPath: undefined, providerKey }),
+        { connected: true },
+        STATIC_DASHBOARD_PATHS,
+      );
+      expect(r.dashboardPath).toBe(path);
+      expect(r.manageViaIntegrations).toBe(false);
+      expect(INTEGRATIONS_MANAGED_PROVIDERS.has(providerKey)).toBe(false);
+    }
   });
 });

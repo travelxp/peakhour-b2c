@@ -125,22 +125,24 @@ export const CHANNELS: readonly ChannelConfig[] = [
   {
     slug: "facebook-pages",
     name: "Facebook Pages",
-    description: "Post to Pages, sync insights.",
+    description: "See how your Page is doing and everything posted on it.",
     category: "Social",
     // Virtual Meta capability — flattenMetaIntegration in lib/integrations-meta.ts
     // expands the parent `facebook` connection into per-capability rows so each
     // surface shows its own connection state.
     providerKey: "facebook_pages",
     status: "available",
+    dashboardPath: "/dashboard/content/facebook",
     logoUrl: `${SHADCN_LOGOS}/facebook-icon.svg`,
   },
   {
     slug: "instagram",
     name: "Instagram",
-    description: "Publish carousels and reels via Meta Graph API.",
+    description: "See how your account is doing and everything posted on it.",
     category: "Social",
     providerKey: "instagram",
     status: "available",
+    dashboardPath: "/dashboard/content/instagram",
     logoUrl: `${SHADCN_LOGOS}/instagram-icon.svg`,
   },
   {
