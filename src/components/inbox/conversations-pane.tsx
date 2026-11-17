@@ -16,6 +16,7 @@ import {
   useStorefrontChats,
   useStorefrontThread,
   useWaConnection,
+  useDmStatus,
   useWaConversations,
   useWaResume,
   useWaThread,
@@ -57,6 +58,7 @@ import { ResumeDraftDialog } from "@/components/inbox/resume-draft-dialog";
 import {
   memberNameLookup,
   replyingAsLine,
+  dmChannelOfThread,
   senderLabel,
   draftAtRisk,
   statusErrorMessage,
@@ -317,7 +319,10 @@ export function ConversationsPane({
   const markDone = useMarkDone();
   const eraseContact = useDeleteContactData();
   const members = useOrgMembers();
-  const connection = useWaConnection(selectedChannel === "whatsapp");
+  // ★A MESSENGER OR INSTAGRAM THREAD IS READ THROUGH WHATSAPP'S MOUNT BUT HAS NO WHATSAPP NUMBER: its line comes from the connected Pages.
+  const isDmThread = dmChannelOfThread(selected) !== null;
+  const connection = useWaConnection(selectedChannel === "whatsapp" && !isDmThread);
+  const dmStatus = useDmStatus(isDmThread);
   const memberName = memberNameLookup(members.data);
   // the team's notes, laid into the timeline by time (the side panel reads the same query)
   const notesQuery = useThreadNotes(selected);
@@ -782,7 +787,7 @@ export function ConversationsPane({
                         status={waThread.status}
                         role={role}
                         endsAt={waThread.replyWindowEndsAt}
-                        replyingAs={replyingAsLine(selected, connection.data)}
+                        replyingAs={replyingAsLine(selected, connection.data, dmStatus.data?.pages)}
                         store={composerStore}
                       />
                     </div>
