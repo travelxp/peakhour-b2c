@@ -4,16 +4,18 @@ import { fileURLToPath } from "node:url";
 import { CRON_METADATA, getCronMetadata, summarizeCronBody } from "./cron-metadata";
 
 /**
- * Cron metadata vs the crons the api will actually let us fire.
+ * Cron metadata vs the schedules the api will actually let us fire.
  *
  * WHY: this file's own header says its keys "MUST match peakhour-api's
  * DEV_TRIGGERABLE_CRONS", and that was enforced by nothing. It had drifted to
- * 35 entries against 56 scheduled crons — so /cms/crons rendered a row of
+ * 35 entries against 56 scheduled jobs — so /cms/crons rendered a row of
  * buttons labelled "Run einvoice-register" with "(undocumented schedule)",
  * on a tenant that has real stores on it.
  *
  * The api is the source of truth and lives in a sibling repo, so this reads
- * `peakhour-api/vercel.json` directly. That coupling is deliberate and cheap:
+ * `peakhour-api/vercel.json` directly (its `schedules` object, keyed by the
+ * name `/cms/crons` uses; Vercel Schedules replaced the legacy `crons` array,
+ * and there is deliberately no fallback to it). That coupling is deliberate and cheap:
  * the alternative is a third hand-maintained list, which is what caused the
  * problem. If the sibling checkout isn't present the test SKIPS rather than
  * fails — a b2c-only clone should still have a green suite.
@@ -29,16 +31,23 @@ const VERCEL_JSON = fileURLToPath(
  *
  * ONLY the read is allowed to produce a skip. A first draft threw its sanity
  * checks inside the same try, so the local catch swallowed them and an emptied
- * or renamed `crons` key silently disabled both coverage assertions — the exact
+ * or renamed `schedules` key silently disabled both coverage assertions — the exact
  * invisible no-op this file exists to prevent, reproduced one level up. The
  * checks now live outside, where they fail loudly.
  */
+function readSchedules(): Record<string, { path: string; schedule: string }> {
+  const config = JSON.parse(readFileSync(VERCEL_JSON, "utf8")) as {
+    schedules?: Record<string, { path: string; schedule: string }>;
+  };
+  return config.schedules ?? {};
+}
+
 function readVercelJson(): string[] | null {
   try {
     const config = JSON.parse(readFileSync(VERCEL_JSON, "utf8")) as {
-      crons?: Array<{ path: string }>;
+      schedules?: Record<string, { path: string; schedule: string }>;
     };
-    return (config.crons ?? []).map((c) => c.path.replace(/^\/v1\/cron\//, ""));
+    return Object.keys(config.schedules ?? {});
   } catch (err) {
     // A silent skip is indistinguishable from a pass, so say it out loud.
     console.warn(
@@ -58,9 +67,11 @@ describe("cron metadata coverage", () => {
   // emptied, which would otherwise turn both assertions below into no-ops that
   // report green.
   it.runIf(scheduled)("read a usable schedule from the api", () => {
-    expect(scheduled!.length, "vercel.json parsed but listed no crons").toBeGreaterThan(20);
-    const malformed = scheduled!.filter((n) => n.includes("/"));
-    expect(malformed, `cron paths did not match /v1/cron/: ${malformed.join(", ")}`).toEqual([]);
+    expect(scheduled!.length, "vercel.json parsed but its `schedules` object is missing or empty").toBeGreaterThan(20);
+    const malformed = scheduled!.filter((n) => !/^[a-z0-9-]+$/.test(n));
+    expect(malformed, `schedule names are not [a-z0-9-]+: ${malformed.join(", ")}`).toEqual([]);
+    const wrongPath = Object.entries(readSchedules()).filter(([n, e]) => e.path !== `/v1/cron/${n}`);
+    expect(wrongPath.map(([n]) => n), "schedule key must equal its path minus /v1/cron/").toEqual([]);
   });
 
   it.runIf(scheduled)("documents every cron the api schedules", () => {
@@ -880,9 +891,9 @@ describe("meta-conversion-sweep summary", () => {
       // ⚠️It said "3:15pm UTC" against `0 15 * * *` — 15:00. A label read off
       // the schedule by eye is the defect; pin the pair so neither can move alone.
       const config = JSON.parse(readFileSync(VERCEL_JSON, "utf8")) as {
-        crons: Array<{ path: string; schedule: string }>;
+        schedules?: Record<string, { path: string; schedule: string }>;
       };
-      const entry = config.crons.find((c) => c.path === "/v1/cron/meta-conversion-sweep");
+      const entry = config.schedules?.["meta-conversion-sweep"];
       expect(entry, "meta-conversion-sweep is not scheduled in vercel.json").toBeDefined();
       const m = /^(\d+) (\d+) \* \* \*$/.exec(entry!.schedule);
       expect(m, `not a daily schedule: ${entry!.schedule}`).not.toBeNull();
