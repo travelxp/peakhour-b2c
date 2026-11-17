@@ -193,7 +193,7 @@ describe("T08: the sitemap lists only publishable, canonical, unique, ungated UR
     }
     expect(new Set(urls).size).toBe(urls.length);
     const origin = SITE.url.replace(/\/$/, "");
-    const expected = PAGES.filter((p) => isPublishable(p)).map((p) => `${origin}${pathFor(p.pageId)}`.replace(/^(https?:\/\/[^/]+)$/, "$1/"));
+    const expected = PAGES.filter((p) => isPublishable(p, "en", undefined, env)).map((p) => `${origin}${pathFor(p.pageId)}`.replace(/^(https?:\/\/[^/]+)$/, "$1/"));
     expect([...urls].sort()).toEqual(expected.sort());
   });
 

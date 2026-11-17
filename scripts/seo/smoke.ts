@@ -5,7 +5,8 @@
  *
  * Say what the target is, and the script checks it behaves like that:
  *   --gate        whether COMING_SOON=true is set on the target (default off)
- *   --indexable   whether the target is a production deployment (default no)
+ *   --indexable   whether the target is a production deployment (default no). It also selects the production publish rule
+ *                 (a claim page needs a CMS approval). Production with SITE_INDEXABLE=false is not a smoke mode.
  *
  * What it checks (plan SEO-1):
  *   1. Not indexable: robots.txt is "Disallow: /" with no sitemap line, the sitemap is
@@ -38,7 +39,7 @@
 
 import { isListedThroughGate, isPublicPath } from "../../src/lib/seo/gate";
 import { PAGES } from "../../src/lib/seo/pages";
-import { isPreviewable, isPublishable } from "../../src/lib/seo/publish";
+import { isDevOnly, isPreviewable, isPublishable } from "../../src/lib/seo/publish";
 import { LOCALES, PUBLISHED_LOCALES } from "../../src/lib/seo/types";
 import { crawlChecks } from "./crawl-checks";
 
@@ -188,10 +189,15 @@ async function main() {
 
   // 6. the registry crawl (SEO-12)
   // With the gate on, only what the gate lets through is crawled as a page; the rest must answer the teaser, under noindex.
-  const publishableAll = PAGES.filter((p) => isPublishable(p));
+  // The target's own environment decides what it publishes (AR-5): on production a page that makes claims needs a CMS approval.
+  const targetEnv = indexable ? { VERCEL_ENV: "production" } : {};
+  const publishableAll = PAGES.filter((p) => isPublishable(p, "en", undefined, targetEnv));
   const publishable = gateOn ? publishableAll.filter((p) => isListedThroughGate(p.path)) : publishableAll;
   const gatedOut = gateOn ? publishableAll.filter((p) => !isListedThroughGate(p.path)) : [];
-  const drafts = PAGES.filter((p) => isPreviewable(p, {}));
+  // Pages live on dev only (a claim page on a placeholder approval): 404 on production, found from the registry and the approvals.
+  const devOnly = indexable ? PAGES.filter((p) => isDevOnly(p)) : [];
+  if (indexable) console.log(`${devOnly.length} claim page(s) rest on a placeholder approval and must 404 on production`);
+  const drafts = [...PAGES.filter((p) => isPreviewable(p, {})), ...devOnly];
   await crawlChecks({
     base,
     indexable,

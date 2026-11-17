@@ -2,6 +2,7 @@ import { getMarketingSitemapEntries } from "@/lib/marketing-pages";
 import { SITE } from "@/lib/utils";
 import { isGateOn, isListedThroughGate } from "./gate";
 import { isIndexableDeployment } from "./indexable";
+import { PAGE_APPROVALS } from "./approvals";
 import { PAGES } from "./pages";
 import { isPublishable } from "./publish";
 import { pathFor } from "./resolve";
@@ -72,7 +73,7 @@ export async function sitemapEntries(name: SitemapName, env: Env = process.env):
 
   return PAGES.flatMap((page) => {
     if (sitemapNameFor(page) !== name) return [];
-    if (!isPublishable(page)) return [];
+    if (!isPublishable(page, DEFAULT_LOCALE, PAGE_APPROVALS, env)) return [];
     if (gated && !isListedThroughGate(page.path)) return [];
     const lastModified = iso(page.lastReviewedAt);
     const urlOf = (locale: Locale) => {

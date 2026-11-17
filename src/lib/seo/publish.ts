@@ -1,6 +1,6 @@
 import { PAGE_APPROVALS, type PageApproval } from "./approvals";
 import CONTENT_HASHES from "./content-hashes.json";
-import { isIndexableDeployment } from "./indexable";
+import { isProductionDeployment } from "./indexable";
 import { getCapability } from "./capabilities";
 import { DEFAULT_LOCALE, PUBLISHED_LOCALES, type Capability, type Locale, type PageRecord, type ReleaseStatus } from "./types";
 
@@ -104,13 +104,23 @@ export function needsApproval(page: Pick<PageRecord, "capabilityIds">): boolean 
  *   publishable with no edit to the registry, and its `indexable: false` (the registry's "held" marker for a draft) does
  *   not hold it back. The CMS approval screen therefore only ever edits src/lib/seo/approvals.ts. The capability gate
  *   still applies on top: an approved page whose claim is not satisfied stays unpublished.
+ * ★ ON PRODUCTION (isProductionDeployment(env): VERCEL_ENV, never the SITE_INDEXABLE switch) the approval must be `source: "cms"` for a published page too: a placeholder
+ *   row publishes on dev and previews only. `env` is injectable like isPreviewable's, so a test can set the deployment.
  * Draft, idea, briefed and archived pages are never publishable, approved or not.
  */
-export function isPublishable(page: PageRecord, locale: Locale = DEFAULT_LOCALE, approvals: readonly PageApproval[] = PAGE_APPROVALS): boolean {
+export function isPublishable(
+  page: PageRecord,
+  locale: Locale = DEFAULT_LOCALE,
+  approvals: readonly PageApproval[] = PAGE_APPROVALS,
+  env: Record<string, string | undefined> = process.env,
+): boolean {
   const approved = approvalState(page.pageId, approvals) === "current";
   if (page.editorialStatus === "published") {
     if (!page.indexable) return false;
     if (needsApproval(page) && !approved) return false;
+    // ★ AR-5: on production only a CMS approval publishes a page that makes claims. A placeholder row records a page that
+    //   was already live before approvals existed; dev and previews honour it, production does not.
+    if (needsApproval(page) && isProductionDeployment(env) && approvalFor(page.pageId, approvals)?.source !== "cms") return false;
   } else if (page.editorialStatus === "review") {
     // Only a CMS approval publishes a review page; a placeholder row records a page that was already published.
     if (!approved || approvalFor(page.pageId, approvals)?.source !== "cms") return false;
@@ -148,13 +158,18 @@ export function isLinkable(page: PageRecord): boolean {
  * ("Draft, not published" with no approval, "Changed since approval" with an older one). Production 404s them.
  */
 export function isPreviewable(page: PageRecord, env: Record<string, string | undefined> = process.env): boolean {
-  if (isIndexableDeployment(env)) return false;
+  if (isProductionDeployment(env)) return false;
   if (page.editorialStatus === "draft" || page.editorialStatus === "review" || page.editorialStatus === "approved") return true;
   // A published page the approval rule holds back (no approval, or content changed since) shows on dev under its ribbon.
   return page.editorialStatus === "published" && page.indexable && needsApproval(page) && approvalState(page.pageId) !== "current";
 }
 
+/** Live on dev only: publishable here on a placeholder approval, but production needs a CMS approval before it shows. */
+export function isDevOnly(page: PageRecord, approvals: readonly PageApproval[] = PAGE_APPROVALS): boolean {
+  return isPublishable(page, DEFAULT_LOCALE, approvals, {}) && !isPublishable(page, DEFAULT_LOCALE, approvals, { VERCEL_ENV: "production" });
+}
+
 /** Whether a visitor can open the page: published (production) or a draft, review or approved page off production. The one test every route and link uses. */
 export function canOpen(page: PageRecord, env: Record<string, string | undefined> = process.env): boolean {
-  return isPublishable(page) || isPreviewable(page, env);
+  return isPublishable(page, DEFAULT_LOCALE, PAGE_APPROVALS, env) || isPreviewable(page, env);
 }
