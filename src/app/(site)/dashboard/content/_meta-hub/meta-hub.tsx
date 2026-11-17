@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { ExternalLink, MessageSquare, RefreshCw, Unplug } from "lucide-react";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { Button } from "@/components/ui/button";
@@ -12,9 +12,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApiError } from "@/lib/api";
 import { reconnectHref } from "@/lib/integrations-connect";
+import { useLocale } from "@/hooks/use-locale";
 import {
   metaContentApi,
-  type MetaInstagramAccount,
+  type MetaInstagramListed,
   type MetaInstagramMedia,
   type MetaPage,
   type MetaPagePost,
@@ -24,7 +25,9 @@ import {
   hubState,
   instagramOverviewTiles,
   mediaInsightTiles,
+  mediaThumbnail,
   mediaTypeLabel,
+  parseGraphTime,
   pageOverviewTiles,
   postExcerpt,
   postInsightTiles,
@@ -32,6 +35,11 @@ import {
   type InsightDays,
   type Tile,
 } from "@/lib/meta-content-view";
+
+interface Subject {
+  id: string;
+  label: string;
+}
 
 export type MetaHubChannel = "facebook" | "instagram";
 
@@ -59,39 +67,27 @@ export function MetaHub({ channel }: { channel: MetaHubChannel }) {
   const copy = COPY[channel];
   const reconnect = reconnectHref(copy.path, copy.provider);
 
-  const pagesQ = useQuery({
-    queryKey: ["meta-content", "pages"],
-    queryFn: () => metaContentApi.pages().then((r) => r.pages),
+  // ONE query per hub. Facebook reads the Pages (the `pages` capability); Instagram reads the linked
+  // accounts in a single call (the `instagram` capability), so an org with Instagram on and Pages off
+  // still works and there is no per-Page fan-out.
+  const subjectsQ = useQuery({
+    queryKey: ["meta-content", channel, "subjects"],
+    queryFn: async (): Promise<Subject[]> =>
+      channel === "facebook"
+        ? (await metaContentApi.pages()).pages.map((p: MetaPage) => ({ id: p.id, label: p.name }))
+        : (await metaContentApi.instagramAccounts()).accounts.map((a: MetaInstagramListed) => ({
+            id: a.id,
+            label: a.username ? `@${a.username}` : (a.name ?? a.id),
+          })),
     staleTime: 60_000,
     retry: false,
   });
-  const pages = pagesQ.data ?? [];
-
-  // Instagram rides on a Page, so its accounts are found by asking each Page.
-  const igQs = useQueries({
-    queries:
-      channel === "instagram"
-        ? pages.map((p) => ({
-            queryKey: ["meta-content", "instagram-for", p.id],
-            queryFn: () => metaContentApi.instagramFor(p.id).then((r) => r.instagram),
-            staleTime: 60_000,
-            retry: false,
-          }))
-        : [],
-  });
-  const igAccounts: MetaInstagramAccount[] = igQs.flatMap((q) => (q.data ? [q.data] : []));
-  const igSettled = igQs.every((q) => !q.isLoading);
-  // "This Page has no Instagram" is a 404 IG_NOT_FOUND; anything else is a failure, not an absence.
-  const igFailed = igQs.some((q) => q.isError && !(q.error instanceof ApiError && q.error.code === "IG_NOT_FOUND"));
+  const subjects = subjectsQ.data ?? [];
 
   const state = hubState({
-    pagesLoading: pagesQ.isLoading,
-    pagesError: pagesQ.error instanceof ApiError ? pagesQ.error : pagesQ.error ? {} : null,
-    instagramFailed: igFailed,
-    pageCount: pages.length,
-    instagramSettled: igSettled,
-    instagramCount: igAccounts.length,
-    channel,
+    loading: subjectsQ.isLoading,
+    error: subjectsQ.error instanceof ApiError ? subjectsQ.error : subjectsQ.error ? {} : null,
+    count: subjects.length,
   });
 
   const [chosen, setChosen] = useState<string | null>(null);
@@ -110,12 +106,16 @@ export function MetaHub({ channel }: { channel: MetaHubChannel }) {
       />
     );
   }
-  if (state === "needs_permission") {
+  if (state === "needs_reauth" || state === "needs_permission") {
     return (
       <EmptyState
         icon={RefreshCw}
         title={`${copy.name} needs a quick reconnect`}
-        description={`We do not have permission to read your ${copy.name} ${channel === "facebook" ? "Page" : "account"}. Reconnect and allow access to continue.`}
+        description={
+          state === "needs_reauth"
+            ? `Your ${copy.name} connection has expired. Reconnect to continue.`
+            : `We do not have permission to read your ${copy.name} ${channel === "facebook" ? "Page" : "account"}. Reconnect and allow access to continue.`
+        }
         action={{ label: `Reconnect ${copy.name}`, href: reconnect }}
       />
     );
@@ -125,7 +125,7 @@ export function MetaHub({ channel }: { channel: MetaHubChannel }) {
       <EmptyState
         icon={Unplug}
         title={`${copy.name} is switched off`}
-        description="Pages is turned off for your connection. Turn it on in Integrations to see your data here."
+        description={`${channel === "facebook" ? "Pages" : "Instagram"} is turned off for your connection. Turn it on in Integrations to see your data here.`}
         action={{ label: "Open Integrations", href: "/dashboard/integrations" }}
       />
     );
@@ -136,22 +136,19 @@ export function MetaHub({ channel }: { channel: MetaHubChannel }) {
         icon={RefreshCw}
         title={`We could not reach ${copy.name}`}
         description="Something went wrong on our side or theirs. Try again in a moment."
-        action={{ label: "Try again", onClick: () => void pagesQ.refetch() }}
+        action={{ label: "Try again", onClick: () => void subjectsQ.refetch() }}
       />
     );
   }
-  if (state === "no_pages") {
-    return (
+  if (state === "empty") {
+    return channel === "facebook" ? (
       <EmptyState
         icon={Unplug}
         title="No Facebook Pages found"
         description="Your Facebook login does not manage any Pages. Reconnect and choose the Pages you want Peakhour to see."
         action={{ label: "Reconnect", href: reconnect }}
       />
-    );
-  }
-  if (state === "no_instagram") {
-    return (
+    ) : (
       <EmptyState
         icon={Unplug}
         title="No Instagram account linked"
@@ -162,11 +159,7 @@ export function MetaHub({ channel }: { channel: MetaHubChannel }) {
   }
 
   // Ready. One selectable subject: a Page, or an Instagram account.
-  const subjects: Array<{ id: string; label: string }> =
-    channel === "facebook"
-      ? pages.map((p: MetaPage) => ({ id: p.id, label: p.name }))
-      : igAccounts.map((a) => ({ id: a.id, label: a.username ? `@${a.username}` : (a.name ?? a.id) }));
-  const subject = subjects.find((s) => s.id === chosen) ?? subjects[0]!;
+  const subject = subjects.find((x) => x.id === chosen) ?? subjects[0]!;
 
   return (
     <div className="space-y-4">
@@ -231,8 +224,18 @@ function TileGrid({ tiles }: { tiles: Tile[] }) {
   );
 }
 
-function ErrorLine({ error, what }: { error: unknown; what: string }) {
+function ErrorLine({ error, what, reconnect }: { error: unknown; what: string; reconnect: string }) {
   const code = error instanceof ApiError ? error.code : "";
+  if (code === "NEEDS_REAUTH") {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Your connection has expired.{" "}
+        <a href={reconnect} className="font-medium underline underline-offset-4">
+          Reconnect
+        </a>
+      </p>
+    );
+  }
   const msg =
     code === "CAPABILITY_DISABLED"
       ? `This is switched off for your connection. Turn it on in Integrations.`
@@ -273,7 +276,7 @@ function Overview({
           </Button>
         ))}
       </div>
-      {q.isLoading ? <Skeleton className="h-40 w-full" /> : q.isError ? <ErrorLine error={q.error} what="these figures" /> : <TileGrid tiles={q.data!} />}
+      {q.isLoading ? <Skeleton className="h-40 w-full" /> : q.isError ? <ErrorLine error={q.error} what="these figures" reconnect={reconnectHref(COPY[channel].path, COPY[channel].provider)} /> : <TileGrid tiles={q.data!} />}
     </div>
   );
 }
@@ -293,11 +296,12 @@ const igRow = (m: MetaInstagramMedia): Row => ({
   text: m.caption,
   date: m.timestamp,
   permalink: m.permalink,
-  image: m.mediaType === "VIDEO" || m.mediaType === "REELS" ? undefined : m.mediaUrl,
+  image: mediaThumbnail(m),
   badge: mediaTypeLabel(m.mediaType),
 });
 
 function Posts({ channel, subjectId }: { channel: MetaHubChannel; subjectId: string }) {
+  const { formatDate } = useLocale();
   const q = useQuery({
     queryKey: ["meta-content", channel, "posts", subjectId],
     queryFn: () =>
@@ -310,7 +314,7 @@ function Posts({ channel, subjectId }: { channel: MetaHubChannel; subjectId: str
   const [open, setOpen] = useState<string | null>(null);
 
   if (q.isLoading) return <Skeleton className="h-64 w-full" />;
-  if (q.isError) return <ErrorLine error={q.error} what="your posts" />;
+  if (q.isError) return <ErrorLine error={q.error} what="your posts" reconnect={reconnectHref(COPY[channel].path, COPY[channel].provider)} />;
   const rows = q.data ?? [];
   if (rows.length === 0) {
     return <p className="text-sm text-muted-foreground">No posts yet.</p>;
@@ -331,7 +335,7 @@ function Posts({ channel, subjectId }: { channel: MetaHubChannel; subjectId: str
                   <p className="text-sm">{postExcerpt(r.text)}</p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {r.badge ? `${r.badge} · ` : ""}
-                    {new Date(r.date).toLocaleDateString(undefined, { dateStyle: "medium" })}
+                    {formatDate(parseGraphTime(r.date), { dateStyle: "medium" })}
                   </p>
                 </div>
               </div>
@@ -368,6 +372,6 @@ function PostResults({ channel, id, igUserId }: { channel: MetaHubChannel; id: s
     retry: false,
   });
   if (q.isLoading) return <Skeleton className="h-24 w-full" />;
-  if (q.isError) return <ErrorLine error={q.error} what="this post's results" />;
+  if (q.isError) return <ErrorLine error={q.error} what="this post's results" reconnect={reconnectHref(COPY[channel].path, COPY[channel].provider)} />;
   return <TileGrid tiles={q.data!} />;
 }

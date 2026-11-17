@@ -23,6 +23,12 @@ export interface MetaInstagramAccount {
   mediaCount?: number;
 }
 
+/** One linked Instagram account with the Page it is linked through. */
+export interface MetaInstagramListed extends MetaInstagramAccount {
+  pageId: string;
+  pageName: string;
+}
+
 export interface MetaPagePost {
   id: string;
   message?: string;
@@ -36,6 +42,8 @@ export interface MetaInstagramMedia {
   caption?: string;
   mediaType: string;
   mediaUrl?: string;
+  /** Present on videos and reels, and on a carousel whose cover is a video. */
+  thumbnailUrl?: string;
   permalink?: string;
   timestamp: string;
   likeCount?: number;
@@ -99,8 +107,8 @@ const BASE = "/v1/meta/content";
 
 export const metaContentApi = {
   pages: () => api.get<{ pages: MetaPage[] }>(`${BASE}/pages`),
-  instagramFor: (pageId: string) =>
-    api.get<{ instagram: MetaInstagramAccount }>(`${BASE}/pages/${encodeURIComponent(pageId)}/instagram`),
+  /** Every linked Instagram account in one call. */
+  instagramAccounts: () => api.get<{ accounts: MetaInstagramListed[] }>(`${BASE}/instagram/accounts`),
   pageInsights: (pageId: string, w: InsightWindow) =>
     api.get<{ insights: MetaPageInsights }>(`${BASE}/pages/${encodeURIComponent(pageId)}/insights`, { ...w }),
   pagePosts: (pageId: string, limit = 25) =>

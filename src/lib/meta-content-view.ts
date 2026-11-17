@@ -15,6 +15,16 @@ import type {
 
 export type InsightDays = 7 | 28;
 
+/**
+ * Parse a timestamp as Graph sends it ("2026-11-01T08:00:00+0000"). Safari does not accept an offset
+ * without its colon, so it is added; an unparseable value is null, never "Invalid Date".
+ */
+export function parseGraphTime(s: string | undefined): Date | null {
+  if (!s) return null;
+  const d = new Date(s.replace(/([+-]\d{2})(\d{2})$/, "$1:$2"));
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 /** The last `days` days ending today (UTC), both ends inclusive, as the api expects. */
 export function windowFor(days: InsightDays, now: Date = new Date()): InsightWindow {
   const until = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
@@ -79,15 +89,16 @@ export function pageOverviewTiles(i: MetaPageInsights): Tile[] {
 
 export function instagramOverviewTiles(i: MetaInstagramAccountInsights): Tile[] {
   const u = i.unavailable;
-  // Meta's follower_count is the number of NEW followers per day, not a net change.
-  const newFollowers = i.followerSeries ? i.followerSeries.reduce((n, p) => n + p.value, 0) : null;
+  // Meta's reference does not say whether follower_count is new follows or net of unfollows, so this
+  // is a "change", not "new followers" (the api type says the same).
+  const followerChange = i.followerSeries ? i.followerSeries.reduce((n, p) => n + p.value, 0) : null;
   return [
     tile("followers", "Followers", "People following your account today.", i.followers, u),
     tile("views", "Views", "How many times your posts, reels and stories were seen.", i.views, u),
     tile("reach", "Accounts reached", "Different accounts that saw your content.", i.reach, u),
     tile("accountsEngaged", "Accounts engaged", "Different accounts that liked, commented, saved or shared.", i.accountsEngaged, u),
     tile("totalInteractions", "Interactions", "Likes, comments, saves and shares.", i.totalInteractions, u),
-    tile("followerSeries", "New followers", "People who started following you.", newFollowers, u),
+    tile("followerSeries", "Follower change", "How your follower count changed over this period.", followerChange, u),
   ];
 }
 
@@ -132,42 +143,39 @@ export function mediaTypeLabel(t: string): string {
   return IG_TYPES[t] ?? "Post";
 }
 
+/** The picture for a post row: a thumbnail when Meta gives one, else the media itself unless it is a video. */
+export function mediaThumbnail(m: { mediaType: string; mediaUrl?: string; thumbnailUrl?: string }): string | undefined {
+  if (m.thumbnailUrl) return m.thumbnailUrl;
+  return m.mediaType === "VIDEO" || m.mediaType === "REELS" ? undefined : m.mediaUrl;
+}
+
 export type HubState =
   | "loading"
   | "not_connected"
+  | "needs_reauth"
   | "needs_permission"
   | "capability_off"
-  | "no_pages"
-  | "no_instagram"
+  | "empty"
   | "error"
   | "ready";
 
 export interface HubStateInput {
-  pagesLoading: boolean;
-  pagesError?: { status?: number; code?: string } | null;
-  pageCount: number;
-  /** Instagram hub only: every Page's Instagram lookup has finished. */
-  instagramSettled?: boolean;
-  instagramCount?: number;
-  /** Instagram hub only: a Page lookup failed for a reason other than "no Instagram linked". */
-  instagramFailed?: boolean;
-  channel: "facebook" | "instagram";
+  loading: boolean;
+  error?: { status?: number; code?: string } | null;
+  /** Pages (Facebook hub) or linked Instagram accounts (Instagram hub). */
+  count: number;
 }
 
 /** What the hub shows, decided in one place so each state has a test. */
 export function hubState(s: HubStateInput): HubState {
-  if (s.pagesLoading) return "loading";
-  if (s.pagesError) {
-    if (s.pagesError.status === 404) return "not_connected";
-    // A switched-off capability is fixed by a switch, not by reconnecting.
-    if (s.pagesError.code === "CAPABILITY_DISABLED") return "capability_off";
-    if (s.pagesError.status === 403) return "needs_permission";
+  if (s.loading) return "loading";
+  if (s.error) {
+    // The api's codes (peakhour-api routes/meta-content handleCapabilityError).
+    if (s.error.code === "NEEDS_REAUTH") return "needs_reauth";
+    if (s.error.code === "CAPABILITY_DISABLED") return "capability_off";
+    if (s.error.status === 404) return "not_connected";
+    if (s.error.status === 403) return "needs_permission";
     return "error";
   }
-  if (s.pageCount === 0) return "no_pages";
-  if (s.channel === "instagram") {
-    if (!s.instagramSettled) return "loading";
-    if ((s.instagramCount ?? 0) === 0) return s.instagramFailed ? "error" : "no_instagram";
-  }
-  return "ready";
+  return s.count === 0 ? "empty" : "ready";
 }

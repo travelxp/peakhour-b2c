@@ -4,7 +4,9 @@ import {
   hubState,
   instagramOverviewTiles,
   mediaInsightTiles,
+  mediaThumbnail,
   mediaTypeLabel,
+  parseGraphTime,
   pageOverviewTiles,
   postExcerpt,
   postInsightTiles,
@@ -20,6 +22,29 @@ describe("windowFor", () => {
   });
   it("crosses a month and a year boundary", () => {
     expect(windowFor(7, new Date("2027-01-03T00:00:00Z"))).toEqual({ since: "2026-12-28", until: "2027-01-03" });
+  });
+});
+
+describe("parseGraphTime", () => {
+  it("reads Graph's colon-less offset, which Safari rejects as written", () => {
+    expect(parseGraphTime("2026-11-01T08:00:00+0000")?.toISOString()).toBe("2026-11-01T08:00:00.000Z");
+    expect(parseGraphTime("2026-11-01T08:00:00+0530")?.toISOString()).toBe("2026-11-01T02:30:00.000Z");
+    expect(parseGraphTime("2026-11-01T08:00:00-0800")?.toISOString()).toBe("2026-11-01T16:00:00.000Z");
+    expect(parseGraphTime("2026-11-01T08:00:00Z")?.toISOString()).toBe("2026-11-01T08:00:00.000Z");
+  });
+  it("is null for nothing or nonsense, never Invalid Date", () => {
+    expect(parseGraphTime(undefined)).toBeNull();
+    expect(parseGraphTime("")).toBeNull();
+    expect(parseGraphTime("not a date")).toBeNull();
+  });
+});
+
+describe("mediaThumbnail", () => {
+  it("uses Meta's thumbnail first, and never a video file as a picture", () => {
+    expect(mediaThumbnail({ mediaType: "REELS", mediaUrl: "v.mp4", thumbnailUrl: "t.jpg" })).toBe("t.jpg");
+    expect(mediaThumbnail({ mediaType: "VIDEO", mediaUrl: "v.mp4" })).toBeUndefined();
+    expect(mediaThumbnail({ mediaType: "IMAGE", mediaUrl: "i.jpg" })).toBe("i.jpg");
+    expect(mediaThumbnail({ mediaType: "CAROUSEL_ALBUM", mediaUrl: "v.mp4", thumbnailUrl: "c.jpg" })).toBe("c.jpg");
   });
 });
 
@@ -71,7 +96,7 @@ describe("tiles keep absent apart from zero", () => {
     expect(by.followers.value).toBe(910);
   });
 
-  it("instagram overview sums the follower series into a net change, and null stays null", () => {
+  it("instagram overview sums the follower series into a change, and null stays null", () => {
     const tiles = instagramOverviewTiles({
       reach: 5,
       views: null,
@@ -85,7 +110,7 @@ describe("tiles keep absent apart from zero", () => {
       unavailable: { views: "insights_request_failed:http_400_code_100" },
     });
     const by = Object.fromEntries(tiles.map((t) => [t.key, t]));
-    expect(by.followerSeries.label).toBe("New followers");
+    expect(by.followerSeries.label).toBe("Follower change");
     expect(by.followerSeries.value).toBe(1);
     expect(by.views.value).toBeNull();
     expect(by.accountsEngaged.value).toBe(0);
@@ -139,30 +164,20 @@ describe("mediaTypeLabel", () => {
 });
 
 describe("hubState", () => {
-  const base = { pagesLoading: false, pagesError: null, pageCount: 2, channel: "facebook" as const };
+  const base = { loading: false, error: null, count: 2 };
   it("loading, not connected, missing permission, error", () => {
-    expect(hubState({ ...base, pagesLoading: true })).toBe("loading");
-    expect(hubState({ ...base, pagesError: { status: 404 } })).toBe("not_connected");
-    expect(hubState({ ...base, pagesError: { status: 403 } })).toBe("needs_permission");
-    expect(hubState({ ...base, pagesError: { status: 500 } })).toBe("error");
-    expect(hubState({ ...base, pagesError: {} })).toBe("error");
+    expect(hubState({ ...base, loading: true })).toBe("loading");
+    expect(hubState({ ...base, error: { status: 404 } })).toBe("not_connected");
+    expect(hubState({ ...base, error: { status: 403, code: "CAPABILITY_SCOPE_MISSING" } })).toBe("needs_permission");
+    expect(hubState({ ...base, error: { status: 500 } })).toBe("error");
+    expect(hubState({ ...base, error: {} })).toBe("error");
   });
-  it("a switched-off capability is not a reconnect", () => {
-    expect(hubState({ ...base, pagesError: { status: 403, code: "CAPABILITY_DISABLED" } })).toBe("capability_off");
-    expect(hubState({ ...base, pagesError: { status: 403, code: "CAPABILITY_SCOPE_MISSING" } })).toBe("needs_permission");
+  it("a switched-off capability is not a reconnect, and a dead token IS one", () => {
+    expect(hubState({ ...base, error: { status: 403, code: "CAPABILITY_DISABLED" } })).toBe("capability_off");
+    expect(hubState({ ...base, error: { status: 409, code: "NEEDS_REAUTH" } })).toBe("needs_reauth");
   });
-  it("connected with no Pages", () => {
-    expect(hubState({ ...base, pageCount: 0 })).toBe("no_pages");
-  });
-  it("facebook is ready with Pages", () => {
+  it("connected with nothing to show is empty, otherwise ready", () => {
+    expect(hubState({ ...base, count: 0 })).toBe("empty");
     expect(hubState(base)).toBe("ready");
-  });
-  it("instagram waits for every lookup, then says not linked, or is ready", () => {
-    const ig = { ...base, channel: "instagram" as const };
-    expect(hubState({ ...ig, instagramSettled: false, instagramCount: 0 })).toBe("loading");
-    expect(hubState({ ...ig, instagramSettled: true, instagramCount: 0 })).toBe("no_instagram");
-    expect(hubState({ ...ig, instagramSettled: true, instagramCount: 1 })).toBe("ready");
-    // A lookup that failed is not "no account linked".
-    expect(hubState({ ...ig, instagramSettled: true, instagramCount: 0, instagramFailed: true })).toBe("error");
   });
 });

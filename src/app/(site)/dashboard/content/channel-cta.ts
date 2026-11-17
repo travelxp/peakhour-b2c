@@ -45,10 +45,8 @@ import { hasConnection } from "@/lib/integration-card-state";
  *    missing the path still routes to the real in-app dashboard instead of
  *    stranding the user on the OAuth grid.
  *  - `manageViaIntegrations`: connected, but the channel has NO in-app surface
- *    of its own. That is normal, not broken, for the Meta capability rows
- *    (facebook_pages / instagram, expanded by
- *    flattenMetaIntegration) and for wordpress: /dashboard/integrations IS
- *    their management screen — capability toggles, resources, Disconnect. The
+ *    of its own. That is normal, not broken, for wordpress (and shopify):
+ *    /dashboard/integrations IS their management screen — capability toggles, resources, Disconnect. The
  *    row must still be clickable; only the LABEL changes, so landing on the
  *    integrations grid reads as intended rather than as the bounce that made
  *    linkedin_ads look broken.
