@@ -72,6 +72,8 @@ interface StatusBadgeProps {
   variant?: StatusVariant;
   className?: string;
   dot?: boolean;
+  /** Overrides the label derived from `status` (e.g. "Didn't finish"). */
+  label?: string;
 }
 
 export function StatusBadge({
@@ -79,9 +81,10 @@ export function StatusBadge({
   variant,
   className,
   dot = false,
+  label: labelOverride,
 }: StatusBadgeProps) {
   const resolvedVariant = variant || STATUS_MAP[status] || "muted";
-  const label = status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  const label = labelOverride ?? status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
   return (
     <Badge

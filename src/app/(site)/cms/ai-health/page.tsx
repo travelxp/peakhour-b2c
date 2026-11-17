@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
@@ -49,7 +50,6 @@ interface HealthResponse {
     avgLatencyMs: number;
     maxLatencyMs: number;
   };
-  crons: { job: string; lastRunAt?: string; status?: string }[];
   serverTime: string;
 }
 
@@ -225,38 +225,12 @@ export default function AiHealthPage() {
       {/* Ingest health — per-connection ingest pipeline state. */}
       <IngestHealthPanel />
 
-      {/* Crons */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Cron jobs</CardTitle>
-          <CardDescription>Schedule + last run status (populated as jobs report).</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {isLoading || !data ? (
-            <Skeleton className="h-12 w-full" />
-          ) : data.crons.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No cron status reported yet.</p>
-          ) : (
-            <div className="space-y-2">
-              {data.crons.map((cron) => (
-                <div key={cron.job} className="flex items-center justify-between text-sm">
-                  <span>{cron.job}</span>
-                  <div className="flex items-center gap-2">
-                    {cron.status && (
-                      <Badge variant={cron.status === "completed" ? "secondary" : "destructive"}>
-                        {cron.status}
-                      </Badge>
-                    )}
-                    <span className="text-xs text-muted-foreground">
-                      {formatDateTime(cron.lastRunAt)}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Scheduled runs are recorded on their own page. */}
+      <p className="text-sm text-muted-foreground">
+        <Link href="/cms/schedules" className="underline underline-offset-2 hover:text-foreground">
+          Schedule runs
+        </Link>
+      </p>
     </div>
   );
 }
