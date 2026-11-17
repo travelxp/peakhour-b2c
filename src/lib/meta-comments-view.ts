@@ -62,6 +62,8 @@ const BY_CODE: Record<string, string> = {
   IG_NOT_FOUND: "That Instagram account is not linked to your Pages.",
   COMMENT_NOT_FOUND: "That comment is gone. It may have been deleted already.",
   CAPABILITY_SCOPE_MISSING: `Meta has not given Peakhour permission for this yet. Reconnect Facebook in ${ACCOUNTS} and accept every request.`,
+  META_PERMISSION_MISSING: `Meta has not given Peakhour permission for this yet. Reconnect Facebook in ${ACCOUNTS} and accept every request.`,
+  META_AUTH_EXPIRED: `Your Meta sign-in has expired. Reconnect Facebook in ${ACCOUNTS}.`,
   FORBIDDEN: "Only an admin can reply, hide or delete comments.",
 };
 

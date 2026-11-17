@@ -72,9 +72,12 @@ describe("commentsErrorMessage", () => {
     expect(commentsErrorMessage(e("COMMENT_NOT_FOUND", 404), "x")).toContain("gone");
   });
   it("a Meta permission problem points at Integrations and never shows Meta's text", () => {
-    const m = commentsErrorMessage(e("META_ERROR", 403, "(#200) Requires pages_manage_engagement permission"), "x");
+    const m = commentsErrorMessage(e("META_PERMISSION_MISSING", 403, "(#200) Requires pages_manage_engagement permission"), "x");
     expect(m).toContain("Connected accounts");
     expect(m).not.toContain("#200");
+  });
+  it("an expired sign-in says reconnect", () => {
+    expect(commentsErrorMessage(e("META_AUTH_EXPIRED", 401), "x")).toContain("Reconnect");
   });
   it("rate limits ask for a minute", () => {
     expect(commentsErrorMessage(e("META_ERROR", 429, "Rate limited"), "x")).toContain("minute");
