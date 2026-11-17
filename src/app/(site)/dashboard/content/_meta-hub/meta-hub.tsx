@@ -42,7 +42,7 @@ const COPY = {
     provider: "facebook_pages",
     connectTitle: "Connect Facebook to see your Page",
     connectBody: "Once connected, you can see how your Page is doing and everything posted on it.",
-    postsHelp: "Everything posted on this Page, newest first, including posts made outside Peakhour.",
+    postsHelp: "Your latest 25 posts, newest first, including posts made outside Peakhour.",
   },
   instagram: {
     name: "Instagram",
@@ -50,7 +50,7 @@ const COPY = {
     provider: "instagram",
     connectTitle: "Connect Instagram to see your account",
     connectBody: "Once connected, you can see how your account is doing and everything posted on it.",
-    postsHelp: "Everything posted on this account, newest first, including posts made outside Peakhour.",
+    postsHelp: "Your latest 25 posts, newest first, including posts made outside Peakhour.",
   },
 } as const;
 
@@ -81,10 +81,13 @@ export function MetaHub({ channel }: { channel: MetaHubChannel }) {
   });
   const igAccounts: MetaInstagramAccount[] = igQs.flatMap((q) => (q.data ? [q.data] : []));
   const igSettled = igQs.every((q) => !q.isLoading);
+  // "This Page has no Instagram" is a 404 IG_NOT_FOUND; anything else is a failure, not an absence.
+  const igFailed = igQs.some((q) => q.isError && !(q.error instanceof ApiError && q.error.code === "IG_NOT_FOUND"));
 
   const state = hubState({
     pagesLoading: pagesQ.isLoading,
     pagesError: pagesQ.error instanceof ApiError ? pagesQ.error : pagesQ.error ? {} : null,
+    instagramFailed: igFailed,
     pageCount: pages.length,
     instagramSettled: igSettled,
     instagramCount: igAccounts.length,
@@ -92,6 +95,8 @@ export function MetaHub({ channel }: { channel: MetaHubChannel }) {
   });
 
   const [chosen, setChosen] = useState<string | null>(null);
+  // Held here so the choice survives a trip to the Posts tab.
+  const [days, setDays] = useState<InsightDays>(28);
 
   if (state === "loading") return <Skeleton className="h-64 w-full" />;
 
@@ -112,6 +117,16 @@ export function MetaHub({ channel }: { channel: MetaHubChannel }) {
         title={`${copy.name} needs a quick reconnect`}
         description={`We do not have permission to read your ${copy.name} ${channel === "facebook" ? "Page" : "account"}. Reconnect and allow access to continue.`}
         action={{ label: `Reconnect ${copy.name}`, href: reconnect }}
+      />
+    );
+  }
+  if (state === "capability_off") {
+    return (
+      <EmptyState
+        icon={Unplug}
+        title={`${copy.name} is switched off`}
+        description="Pages is turned off for your connection. Turn it on in Integrations to see your data here."
+        action={{ label: "Open Integrations", href: "/dashboard/integrations" }}
       />
     );
   }
@@ -185,7 +200,7 @@ export function MetaHub({ channel }: { channel: MetaHubChannel }) {
           <TabsTrigger value="posts">Posts</TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="mt-4">
-          <Overview channel={channel} subjectId={subject.id} />
+          <Overview channel={channel} subjectId={subject.id} days={days} onDays={setDays} />
         </TabsContent>
         <TabsContent value="posts" className="mt-4">
           <p className="mb-3 text-xs text-muted-foreground">{copy.postsHelp}</p>
@@ -219,14 +234,25 @@ function TileGrid({ tiles }: { tiles: Tile[] }) {
 function ErrorLine({ error, what }: { error: unknown; what: string }) {
   const code = error instanceof ApiError ? error.code : "";
   const msg =
-    code === "META_SCOPE_MISSING" || (error instanceof ApiError && error.status === 403)
-      ? `We do not have permission to read ${what}. Reconnect to allow it.`
+    code === "CAPABILITY_DISABLED"
+      ? `This is switched off for your connection. Turn it on in Integrations.`
+      : error instanceof ApiError && error.status === 403
+        ? `We do not have permission to read ${what}. Reconnect to allow it.`
       : `We could not load ${what} right now.`;
   return <p className="text-sm text-muted-foreground">{msg}</p>;
 }
 
-function Overview({ channel, subjectId }: { channel: MetaHubChannel; subjectId: string }) {
-  const [days, setDays] = useState<InsightDays>(28);
+function Overview({
+  channel,
+  subjectId,
+  days,
+  onDays,
+}: {
+  channel: MetaHubChannel;
+  subjectId: string;
+  days: InsightDays;
+  onDays: (d: InsightDays) => void;
+}) {
   const w = windowFor(days);
   const q = useQuery({
     queryKey: ["meta-content", channel, "insights", subjectId, w.since, w.until],
@@ -242,7 +268,7 @@ function Overview({ channel, subjectId }: { channel: MetaHubChannel; subjectId: 
     <div className="space-y-3">
       <div className="flex items-center gap-2" role="group" aria-label="Time range">
         {([7, 28] as const).map((d) => (
-          <Button key={d} size="sm" variant={days === d ? "default" : "outline"} onClick={() => setDays(d)}>
+          <Button key={d} size="sm" variant={days === d ? "default" : "outline"} onClick={() => onDays(d)}>
             Last {d} days
           </Button>
         ))}

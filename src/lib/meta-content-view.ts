@@ -79,14 +79,15 @@ export function pageOverviewTiles(i: MetaPageInsights): Tile[] {
 
 export function instagramOverviewTiles(i: MetaInstagramAccountInsights): Tile[] {
   const u = i.unavailable;
-  const netNew = i.followerSeries ? i.followerSeries.reduce((n, p) => n + p.value, 0) : null;
+  // Meta's follower_count is the number of NEW followers per day, not a net change.
+  const newFollowers = i.followerSeries ? i.followerSeries.reduce((n, p) => n + p.value, 0) : null;
   return [
     tile("followers", "Followers", "People following your account today.", i.followers, u),
     tile("views", "Views", "How many times your posts, reels and stories were seen.", i.views, u),
     tile("reach", "Accounts reached", "Different accounts that saw your content.", i.reach, u),
     tile("accountsEngaged", "Accounts engaged", "Different accounts that liked, commented, saved or shared.", i.accountsEngaged, u),
     tile("totalInteractions", "Interactions", "Likes, comments, saves and shares.", i.totalInteractions, u),
-    tile("followerSeries", "Follower change", "New followers minus people who left.", netNew, u),
+    tile("followerSeries", "New followers", "People who started following you.", newFollowers, u),
   ];
 }
 
@@ -135,6 +136,7 @@ export type HubState =
   | "loading"
   | "not_connected"
   | "needs_permission"
+  | "capability_off"
   | "no_pages"
   | "no_instagram"
   | "error"
@@ -142,11 +144,13 @@ export type HubState =
 
 export interface HubStateInput {
   pagesLoading: boolean;
-  pagesError?: { status?: number } | null;
+  pagesError?: { status?: number; code?: string } | null;
   pageCount: number;
   /** Instagram hub only: every Page's Instagram lookup has finished. */
   instagramSettled?: boolean;
   instagramCount?: number;
+  /** Instagram hub only: a Page lookup failed for a reason other than "no Instagram linked". */
+  instagramFailed?: boolean;
   channel: "facebook" | "instagram";
 }
 
@@ -155,13 +159,15 @@ export function hubState(s: HubStateInput): HubState {
   if (s.pagesLoading) return "loading";
   if (s.pagesError) {
     if (s.pagesError.status === 404) return "not_connected";
+    // A switched-off capability is fixed by a switch, not by reconnecting.
+    if (s.pagesError.code === "CAPABILITY_DISABLED") return "capability_off";
     if (s.pagesError.status === 403) return "needs_permission";
     return "error";
   }
   if (s.pageCount === 0) return "no_pages";
   if (s.channel === "instagram") {
     if (!s.instagramSettled) return "loading";
-    if ((s.instagramCount ?? 0) === 0) return "no_instagram";
+    if ((s.instagramCount ?? 0) === 0) return s.instagramFailed ? "error" : "no_instagram";
   }
   return "ready";
 }

@@ -85,6 +85,7 @@ describe("tiles keep absent apart from zero", () => {
       unavailable: { views: "insights_request_failed:http_400_code_100" },
     });
     const by = Object.fromEntries(tiles.map((t) => [t.key, t]));
+    expect(by.followerSeries.label).toBe("New followers");
     expect(by.followerSeries.value).toBe(1);
     expect(by.views.value).toBeNull();
     expect(by.accountsEngaged.value).toBe(0);
@@ -146,6 +147,10 @@ describe("hubState", () => {
     expect(hubState({ ...base, pagesError: { status: 500 } })).toBe("error");
     expect(hubState({ ...base, pagesError: {} })).toBe("error");
   });
+  it("a switched-off capability is not a reconnect", () => {
+    expect(hubState({ ...base, pagesError: { status: 403, code: "CAPABILITY_DISABLED" } })).toBe("capability_off");
+    expect(hubState({ ...base, pagesError: { status: 403, code: "CAPABILITY_SCOPE_MISSING" } })).toBe("needs_permission");
+  });
   it("connected with no Pages", () => {
     expect(hubState({ ...base, pageCount: 0 })).toBe("no_pages");
   });
@@ -157,5 +162,7 @@ describe("hubState", () => {
     expect(hubState({ ...ig, instagramSettled: false, instagramCount: 0 })).toBe("loading");
     expect(hubState({ ...ig, instagramSettled: true, instagramCount: 0 })).toBe("no_instagram");
     expect(hubState({ ...ig, instagramSettled: true, instagramCount: 1 })).toBe("ready");
+    // A lookup that failed is not "no account linked".
+    expect(hubState({ ...ig, instagramSettled: true, instagramCount: 0, instagramFailed: true })).toBe("error");
   });
 });
