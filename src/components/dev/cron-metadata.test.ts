@@ -25,6 +25,8 @@ const VERCEL_JSON = fileURLToPath(
   new URL("../../../../peakhour-api/vercel.json", import.meta.url),
 );
 
+type Schedules = Record<string, { path: string; schedule: string }>;
+
 /**
  * Read the sibling api's schedule, or null when that checkout simply isn't
  * there (a b2c-only clone should still have a green suite).
@@ -35,19 +37,10 @@ const VERCEL_JSON = fileURLToPath(
  * invisible no-op this file exists to prevent, reproduced one level up. The
  * checks now live outside, where they fail loudly.
  */
-function readSchedules(): Record<string, { path: string; schedule: string }> {
-  const config = JSON.parse(readFileSync(VERCEL_JSON, "utf8")) as {
-    schedules?: Record<string, { path: string; schedule: string }>;
-  };
-  return config.schedules ?? {};
-}
-
-function readVercelJson(): string[] | null {
+function readVercelJson(): Schedules | null {
   try {
-    const config = JSON.parse(readFileSync(VERCEL_JSON, "utf8")) as {
-      schedules?: Record<string, { path: string; schedule: string }>;
-    };
-    return Object.keys(config.schedules ?? {});
+    const config = JSON.parse(readFileSync(VERCEL_JSON, "utf8")) as { schedules?: Schedules };
+    return config.schedules ?? {};
   } catch (err) {
     // A silent skip is indistinguishable from a pass, so say it out loud.
     console.warn(
@@ -59,7 +52,8 @@ function readVercelJson(): string[] | null {
   }
 }
 
-const scheduled = readVercelJson();
+const schedules = readVercelJson();
+const scheduled = schedules && Object.keys(schedules);
 
 describe("cron metadata coverage", () => {
   // Outside the reader's try/catch on purpose — these FAIL, they do not skip.
@@ -70,7 +64,7 @@ describe("cron metadata coverage", () => {
     expect(scheduled!.length, "vercel.json parsed but its `schedules` object is missing or empty").toBeGreaterThan(20);
     const malformed = scheduled!.filter((n) => !/^[a-z0-9-]+$/.test(n));
     expect(malformed, `schedule names are not [a-z0-9-]+: ${malformed.join(", ")}`).toEqual([]);
-    const wrongPath = Object.entries(readSchedules()).filter(([n, e]) => e.path !== `/v1/cron/${n}`);
+    const wrongPath = Object.entries(schedules!).filter(([n, e]) => e.path !== `/v1/cron/${n}`);
     expect(wrongPath.map(([n]) => n), "schedule key must equal its path minus /v1/cron/").toEqual([]);
   });
 
@@ -890,10 +884,7 @@ describe("meta-conversion-sweep summary", () => {
     () => {
       // ⚠️It said "3:15pm UTC" against `0 15 * * *` — 15:00. A label read off
       // the schedule by eye is the defect; pin the pair so neither can move alone.
-      const config = JSON.parse(readFileSync(VERCEL_JSON, "utf8")) as {
-        schedules?: Record<string, { path: string; schedule: string }>;
-      };
-      const entry = config.schedules?.["meta-conversion-sweep"];
+      const entry = schedules!["meta-conversion-sweep"];
       expect(entry, "meta-conversion-sweep is not scheduled in vercel.json").toBeDefined();
       const m = /^(\d+) (\d+) \* \* \*$/.exec(entry!.schedule);
       expect(m, `not a daily schedule: ${entry!.schedule}`).not.toBeNull();
