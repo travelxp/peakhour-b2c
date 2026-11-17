@@ -133,6 +133,54 @@ export function memberNameLookup(
   };
 }
 
+// ── Messenger and Instagram threads ──────────────────────────────────
+
+/** A Messenger or Instagram direct-message thread: `messenger:<pageId>:<key>` or `instagram:<igAccountId>:<key>`. */
+export type DmThreadChannel = "messenger" | "instagram";
+
+export function dmChannelOfThread(threadId: string | null | undefined): DmThreadChannel | null {
+  const head = (threadId ?? "").split(":", 1)[0];
+  return head === "messenger" || head === "instagram" ? head : null;
+}
+
+/**
+ * What the api says when a DM reply is refused for the 24-hour rule: the same words as `OUTSIDE_WINDOW_DM_MESSAGE` in
+ * peakhour-api `services/support/dm-conversations.ts`. ★Messenger and Instagram have no template to fall back on (WhatsApp's
+ * template picker is WhatsApp's alone), so a closed window is a sentence and a disabled box, never a picker. The two files are
+ * not one module, so a test pins this text; change both together.
+ */
+export function dmOutsideWindowMessage(channel: DmThreadChannel): string {
+  return `It has been more than 24 hours since this customer last messaged, and ${channel === "messenger" ? "Messenger" : "Instagram"} only allows replies within 24 hours. You can reply once they message you again.`;
+}
+
+/** The slice of `GET /v1/meta/dm/status`'s `pages` the line above the composer needs. */
+export interface DmPageLike {
+  pageId: string;
+  pageName: string | null;
+  instagramUsername: string | null;
+}
+
+/**
+ * ★NAMED ONLY WHEN THE NAME IS CERTAIN. A Messenger thread's key holds the Page's id, so its Page is looked up. An Instagram
+ * thread's key holds the Instagram account's id, which the status does not list: its username is used only when exactly one
+ * connected Page has an Instagram account, and the plain line is shown otherwise rather than a guess.
+ */
+function dmReplyingAsLine(threadId: string, channel: DmThreadChannel, pages: ReadonlyArray<DmPageLike> | null | undefined): string {
+  if (channel === "messenger") {
+    const id = threadId.split(":")[1];
+    const name = pages?.find((p) => p.pageId === id)?.pageName?.trim();
+    return name ? `Replying as ${name} on Messenger` : "Replying on Messenger";
+  }
+  const linked = (pages ?? []).map((p) => p.instagramUsername?.trim().replace(/^@/, "")).filter((u): u is string => Boolean(u));
+  return linked.length === 1 ? `Replying as @${linked[0]} on Instagram` : "Replying on Instagram";
+}
+
+/** The channel a saved reply is scoped to for this thread: the picker shows the replies for it and the ones with no scope. */
+export function savedReplyChannelFor(threadId: string): "whatsapp" | "facebook" | "instagram" {
+  const dm = dmChannelOfThread(threadId);
+  return dm === "messenger" ? "facebook" : dm === "instagram" ? "instagram" : "whatsapp";
+}
+
 // ── "Replying as" ────────────────────────────────────────────────────
 
 /** The phone-number id a thread belongs to: `whatsapp:<phoneNumberId>:<waId>`. */
@@ -159,7 +207,13 @@ export interface ConnectionLike {
  * display, and is absent when the row does not list it, which falls through
  * to the generic line below.
  */
-export function replyingAsLine(threadId: string, conn: ConnectionLike | null | undefined): string {
+export function replyingAsLine(
+  threadId: string,
+  conn: ConnectionLike | null | undefined,
+  dmPages?: ReadonlyArray<DmPageLike> | null,
+): string {
+  const dm = dmChannelOfThread(threadId);
+  if (dm) return dmReplyingAsLine(threadId, dm, dmPages);
   const pnid = threadPhoneNumberId(threadId);
   if (pnid && conn?.phoneNumberId === pnid && conn.phoneNumber?.trim()) {
     return `Replying as ${conn.phoneNumber.trim()}`;
@@ -205,7 +259,7 @@ export function windowFor(threadId: string, win: ReplyWindow): ReplyWindow {
  * offered on an assistant-held thread too, with a note (`TAKES_OVER_NOTE`) that sending pauses the assistant. A viewer gets the
  * reason and no box.
  */
-export function composerMode(args: { status: string; role: string | null | undefined; window: ReplyWindow }): ComposerMode {
+export function composerMode(args: { status: string; role: string | null | undefined; window: ReplyWindow; threadId?: string }): ComposerMode {
   if (!canReply(args.role)) {
     return {
       kind: "readonly",
@@ -214,6 +268,9 @@ export function composerMode(args: { status: string; role: string | null | undef
   }
   const takesOver = args.status !== "escalated";
   if (args.window.open) return { kind: "text", takesOver };
+  // ★NO TEMPLATE MODE FOR A MESSENGER OR INSTAGRAM THREAD: a closed window disables the box and says why, in the api's own sentence.
+  const dm = dmChannelOfThread(args.threadId);
+  if (dm) return { kind: "readonly", reason: dmOutsideWindowMessage(dm) };
   return {
     kind: "template",
     takesOver,
@@ -453,7 +510,7 @@ export function sendFailedOutcome(details: unknown): "not_sent" | "unknown" {
  *    check before a confirmed resend.
  *  - A lost connection or a 5xx is the same unknown, with the same safe advice.
  */
-export function replyErrorCopy(err: unknown, kind: ReplyPayload["kind"] = "text"): ReplyErrorCopy {
+export function replyErrorCopy(err: unknown, kind: ReplyPayload["kind"] = "text", threadId?: string): ReplyErrorCopy {
   const base = { attempt: "keep" as const, refetchTemplates: false, closesWindow: false };
   // ★A 5XX THAT CARRIES THE API'S OWN ANSWER IS THAT ANSWER (SA-12). "Outcome unknown" and "still being handled" are the api telling us what it knows;
   //  read as a bare 5xx they became "pressing Send again is safe", the one sentence an unknown outcome must never say.
@@ -515,13 +572,24 @@ export function replyErrorCopy(err: unknown, kind: ReplyPayload["kind"] = "text"
             : `${said} Check this conversation before sending it again.`,
         };
       }
-    case "OUTSIDE_24H":
+    case "OUTSIDE_24H": {
+      // ★A MESSENGER OR INSTAGRAM THREAD GETS THE API'S SENTENCE, NOT WHATSAPP'S TEMPLATE ADVICE: there is no template to pick.
+      const dm = dmChannelOfThread(threadId);
+      if (dm) {
+        return {
+          ...base,
+          title: "The 24-hour window has closed",
+          detail: `${serverMessage(err, dmOutsideWindowMessage(dm))} ${NOTHING_SENT}`,
+          closesWindow: true,
+        };
+      }
       return {
         ...base,
         title: "The 24-hour window has closed",
         detail: `WhatsApp only allows an approved template for this shopper now. ${NOTHING_SENT}`,
         closesWindow: true,
       };
+    }
     case "STATUS_CHANGED":
       return {
         ...base,

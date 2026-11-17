@@ -47,6 +47,7 @@ import {
   STUDIO_LIST_CAP,
   TAKES_OVER_NOTE,
   WINDOW_TICK_MS,
+  savedReplyChannelFor,
   windowFor,
   type ComposerMemory,
   type ComposerStore,
@@ -188,7 +189,7 @@ export function WaComposer({
 }) {
   const mem = useComposerMemory(store, threadId);
   const win = windowFor(threadId, useReplyWindow(store, threadId, endsAt));
-  const mode = composerMode({ status, role, window: win });
+  const mode = composerMode({ status, role, window: win, threadId });
   const reply = useWaReply(threadId);
   const templates = useWaStudioTemplates(mode.kind === "template");
   const update = (patch: Parameters<ComposerStore["update"]>[1]) => store.update(threadId, patch);
@@ -215,7 +216,7 @@ export function WaComposer({
       if (!note) toast.success(sentToast(channel));
       return true;
     } catch (e) {
-      const copy = replyErrorCopy(e, payload.kind);
+      const copy = replyErrorCopy(e, payload.kind, threadId);
       update({
         error: copy,
         attempt: attemptAfterError(attempt, copy, prev),
@@ -280,7 +281,7 @@ export function WaComposer({
           <span className="flex items-center gap-2 text-micro text-muted-foreground">
             {/* ★SAVED REPLIES ARE FREE TEXT, SO THEY ARE OFFERED ONLY HERE, INSIDE THE 24-HOUR WINDOW: outside it the box is the template picker. */}
             <SavedReplyPicker
-              channel="whatsapp"
+              channel={savedReplyChannelFor(threadId)}
               draft={mem.text}
               disabled={mem.pending}
               onInsert={(body) => {
