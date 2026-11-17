@@ -210,12 +210,15 @@ describe("AR-5: on production only a CMS approval publishes a page that makes cl
     const { vi } = await import("vitest");
     vi.resetModules();
     vi.doMock("@/lib/marketing-pages", () => ({ getMarketingSitemapEntries: async () => [] }));
-    const { sitemapEntries, SITEMAP_NAMES } = await import("./sitemap");
-    const listed = new Set<string>();
-    for (const n of SITEMAP_NAMES.filter((x) => x !== "cms")) for (const e of await sitemapEntries(n, PROD)) listed.add(new URL(e.url).pathname);
-    const expected = PAGES.filter((p) => isPublishable(p, "en", undefined, PROD)).map((p) => p.path);
-    expect([...listed].sort()).toEqual([...expected].sort());
-    vi.doUnmock("@/lib/marketing-pages");
-    vi.resetModules();
+    try {
+      const { sitemapEntries, SITEMAP_NAMES } = await import("./sitemap");
+      const listed = new Set<string>();
+      for (const n of SITEMAP_NAMES.filter((x) => x !== "cms")) for (const e of await sitemapEntries(n, PROD)) listed.add(new URL(e.url).pathname);
+      const expected = PAGES.filter((p) => isPublishable(p, "en", undefined, PROD)).map((p) => p.path);
+      expect([...listed].sort()).toEqual([...expected].sort());
+    } finally {
+      vi.doUnmock("@/lib/marketing-pages");
+      vi.resetModules();
+    }
   });
 });

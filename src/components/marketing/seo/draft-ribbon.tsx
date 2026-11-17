@@ -19,7 +19,7 @@ export function ribbonKind(page: RibbonPage, approvals?: readonly PageApproval[]
   if (page.editorialStatus === "published" && page.indexable && page.capabilityIds.length > 0 && state !== "current") {
     return state === "stale" ? "changed" : "draft";
   }
-  if (page.editorialStatus === "published" && page.indexable && page.capabilityIds.length > 0 && approvalFor(page.pageId, approvals)?.source !== "cms") return "devOnly";
+  if (page.editorialStatus === "published" && page.indexable && page.capabilityIds.length > 0 && approvalFor(page.pageId, approvals)?.source !== "cms" && capabilitiesSatisfied(page as PageRecord)) return "devOnly";
   return page.editorialStatus !== "published" || !page.indexable ? "draft" : null;
 }
 
