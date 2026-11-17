@@ -1,6 +1,6 @@
 import { PAGE_APPROVALS, type PageApproval } from "./approvals";
 import CONTENT_HASHES from "./content-hashes.json";
-import { isIndexableDeployment } from "./indexable";
+import { isIndexableDeployment, isProductionDeployment } from "./indexable";
 import { getCapability } from "./capabilities";
 import { DEFAULT_LOCALE, PUBLISHED_LOCALES, type Capability, type Locale, type PageRecord, type ReleaseStatus } from "./types";
 
@@ -104,7 +104,7 @@ export function needsApproval(page: Pick<PageRecord, "capabilityIds">): boolean 
  *   publishable with no edit to the registry, and its `indexable: false` (the registry's "held" marker for a draft) does
  *   not hold it back. The CMS approval screen therefore only ever edits src/lib/seo/approvals.ts. The capability gate
  *   still applies on top: an approved page whose claim is not satisfied stays unpublished.
- * ★ ON PRODUCTION (isIndexableDeployment(env)) the approval must be `source: "cms"` for a published page too: a placeholder
+ * ★ ON PRODUCTION (isProductionDeployment(env): VERCEL_ENV, never the SITE_INDEXABLE switch) the approval must be `source: "cms"` for a published page too: a placeholder
  *   row publishes on dev and previews only. `env` is injectable like isPreviewable's, so a test can set the deployment.
  * Draft, idea, briefed and archived pages are never publishable, approved or not.
  */
@@ -120,7 +120,7 @@ export function isPublishable(
     if (needsApproval(page) && !approved) return false;
     // ★ AR-5: on production only a CMS approval publishes a page that makes claims. A placeholder row records a page that
     //   was already live before approvals existed; dev and previews honour it, production does not.
-    if (needsApproval(page) && isIndexableDeployment(env) && approvalFor(page.pageId, approvals)?.source !== "cms") return false;
+    if (needsApproval(page) && isProductionDeployment(env) && approvalFor(page.pageId, approvals)?.source !== "cms") return false;
   } else if (page.editorialStatus === "review") {
     // Only a CMS approval publishes a review page; a placeholder row records a page that was already published.
     if (!approved || approvalFor(page.pageId, approvals)?.source !== "cms") return false;

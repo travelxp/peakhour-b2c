@@ -171,8 +171,9 @@ describe("AR-5: on production only a CMS approval publishes a page that makes cl
     expect(isPublishable(seo, "en", [approve(seo.pageId)], DEV)).toBe(true);
   });
 
-  it("SITE_INDEXABLE=false holds a production deployment out of the index, so it is not the production rule", () => {
-    expect(isPublishable(seo, "en", [placeholder(seo.pageId)], { VERCEL_ENV: "production", SITE_INDEXABLE: "false" })).toBe(true);
+  it("SITE_INDEXABLE=false only controls noindex: production still hides a placeholder claim page", () => {
+    expect(isPublishable(seo, "en", [placeholder(seo.pageId)], { VERCEL_ENV: "production", SITE_INDEXABLE: "false" })).toBe(false);
+    expect(isPublishable(seo, "en", [approve(seo.pageId)], { VERCEL_ENV: "production", SITE_INDEXABLE: "false" })).toBe(true);
   });
 
   it("a page with no claim is unaffected", () => {

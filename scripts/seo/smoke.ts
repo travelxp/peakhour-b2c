@@ -5,7 +5,8 @@
  *
  * Say what the target is, and the script checks it behaves like that:
  *   --gate        whether COMING_SOON=true is set on the target (default off)
- *   --indexable   whether the target is a production deployment (default no)
+ *   --indexable   whether the target is a production deployment (default no). It also selects the production publish rule
+ *                 (a claim page needs a CMS approval). Production with SITE_INDEXABLE=false is not a smoke mode.
  *
  * What it checks (plan SEO-1):
  *   1. Not indexable: robots.txt is "Disallow: /" with no sitemap line, the sitemap is
