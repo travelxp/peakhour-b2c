@@ -3,8 +3,12 @@ import { readFileSync } from "node:fs";
 import { ApiError } from "@/lib/api";
 import {
   composerMode,
+  DM_REPLY_TEXT_MAX,
   dmChannelOfThread,
   dmOutsideWindowMessage,
+  insertSavedReply,
+  replyTextMax,
+  textProblem,
   replyErrorCopy,
   replyWindow,
   replyingAsLine,
@@ -14,7 +18,7 @@ import {
 
 /** MR-M1: the Inbox reply box speaks Messenger and Instagram on their threads, not WhatsApp. */
 
-const KEY = "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm";
+const KEY = "0123456789abcdef0123456789abcdef";
 const M = `messenger:123456:${KEY}`;
 const I = `instagram:998877:${KEY}`;
 const W = "whatsapp:111:919800000000";
@@ -32,6 +36,11 @@ describe("which thread is a DM thread", () => {
     expect(dmChannelOfThread(M)).toBe("messenger");
     expect(dmChannelOfThread(I)).toBe("instagram");
     for (const t of [W, X, "storefront:a:b", "", null, undefined]) expect(dmChannelOfThread(t)).toBeNull();
+  });
+  it("takes only the api's own shape: a malformed id is not a DM thread", () => {
+    for (const t of ["messenger:", "instagram:foo", "messenger:12:short", `messenger:abc:${KEY}`, `messenger:12:${KEY}:x`]) {
+      expect(dmChannelOfThread(t), t).toBeNull();
+    }
   });
 });
 
@@ -104,6 +113,50 @@ describe("OUTSIDE_24H on a DM thread", () => {
   });
 });
 
+describe("the length limit and the other errors on a DM thread", () => {
+  it("a Messenger or Instagram reply is cut at the api's 2000, WhatsApp's stays 4096", () => {
+    expect(replyTextMax(M)).toBe(2000);
+    expect(replyTextMax(I)).toBe(DM_REPLY_TEXT_MAX);
+    expect(replyTextMax(W)).toBe(4096);
+    const long = "a".repeat(2001);
+    expect(textProblem(long, replyTextMax(M))).toMatch(/At most 2,000 characters/);
+    expect(textProblem(long, replyTextMax(W))).toBeNull();
+  });
+  it("a saved reply that would pass 2000 is refused on a DM thread and not on WhatsApp", () => {
+    const body = "b".repeat(1500);
+    expect(insertSavedReply("a".repeat(600), body, replyTextMax(M))).toEqual({ ok: false });
+    expect(insertSavedReply("a".repeat(600), body, replyTextMax(W)).ok).toBe(true);
+  });
+  it("a validation error names the channel's own limit", () => {
+    expect(replyErrorCopy(apiErr("VALIDATION_ERROR", 400), "text", M).detail).toMatch(/at most 2,000 characters/);
+    expect(replyErrorCopy(apiErr("VALIDATION_ERROR", 400), "text", W).detail).toMatch(/at most 4,096 characters/);
+  });
+  it("TEXT_TOO_LONG says nothing was sent and does not invite the same text again", () => {
+    const c = replyErrorCopy(apiErr("TEXT_TOO_LONG", 400), "text", M);
+    expect(c.title).toBe("This reply is too long");
+    expect(c.detail).toMatch(/Nothing was sent/);
+    expect(c.detail).not.toMatch(/safe/);
+  });
+  it("CHANNEL_UNAVAILABLE shows the api's reason and says nothing was sent", () => {
+    const c = replyErrorCopy(apiErr("CHANNEL_UNAVAILABLE", 409, "Your Meta connection needs to be reconnected."), "text", I);
+    expect(c.title).toBe("Instagram isn't available right now");
+    expect(c.detail).toContain("Your Meta connection needs to be reconnected.");
+    expect(c.detail).toMatch(/Nothing was sent/);
+  });
+  it("a send failure or a lost connection names Messenger or Instagram, never WhatsApp", () => {
+    const notSent = replyErrorCopy(new ApiError("SEND_FAILED", "Meta refused it", 502, undefined, { outcome: "not_sent" }), "text", M);
+    expect(notSent.title).toBe("Messenger didn't accept this reply");
+    const lost = replyErrorCopy(new ApiError("X", "boom", 503), "text", I);
+    expect(lost.title).toMatch(/Instagram/);
+    for (const c of [notSent, lost, replyErrorCopy(apiErr("REPLY_OUTCOME_UNKNOWN", 409), "text", M)]) {
+      expect(`${c.title} ${c.detail}`).not.toMatch(/WhatsApp/);
+    }
+  });
+  it("a WhatsApp thread still says WhatsApp", () => {
+    expect(replyErrorCopy(new ApiError("X", "boom", 503), "text", W).title).toMatch(/WhatsApp/);
+  });
+});
+
 describe("the Replying as line", () => {
   const pages = [
     { pageId: "123456", pageName: "Acme Coffee", instagramUsername: "acme.coffee" },
@@ -121,6 +174,12 @@ describe("the Replying as line", () => {
   it("Instagram names the account when exactly one connected Page has one", () => {
     expect(replyingAsLine(I, undefined, pages)).toBe("Replying as @acme.coffee on Instagram");
     expect(replyingAsLine(I, undefined, [{ pageId: "1", pageName: "P", instagramUsername: "@brand" }])).toBe("Replying as @brand on Instagram");
+  });
+  it("Instagram does not name an account that is switched off", () => {
+    const off = [{ pageId: "1", pageName: "P", instagramUsername: "brand", instagram: { enabled: false } }];
+    expect(replyingAsLine(I, undefined, off)).toBe("Replying on Instagram");
+    const on = [{ pageId: "1", pageName: "P", instagramUsername: "brand", instagram: { enabled: true } }];
+    expect(replyingAsLine(I, undefined, on)).toBe("Replying as @brand on Instagram");
   });
   it("Instagram does not guess between two accounts, or with none", () => {
     const two = [...pages, { pageId: "888", pageName: "Third", instagramUsername: "third" }];

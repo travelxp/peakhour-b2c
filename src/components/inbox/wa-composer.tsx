@@ -43,10 +43,10 @@ import {
   templatePreview,
   templateValueProblem,
   textProblem,
-  REPLY_TEXT_MAX,
   STUDIO_LIST_CAP,
   TAKES_OVER_NOTE,
   WINDOW_TICK_MS,
+  replyTextMax,
   savedReplyChannelFor,
   windowFor,
   type ComposerMemory,
@@ -242,7 +242,8 @@ export function WaComposer({
 
   if (mode.kind === "text") {
     const payload: ReplyPayload = { kind: "text", text: mem.text };
-    const problem = textProblem(mem.text);
+    const textMax = replyTextMax(threadId);
+    const problem = textProblem(mem.text, textMax);
     const confirm = needsResendConfirm(mem.attempt);
     const submit = (via: "button" | "keyboard") => {
       if (!maySend({ problem, pending: mem.pending, confirm, via })) return;
@@ -285,13 +286,13 @@ export function WaComposer({
               draft={mem.text}
               disabled={mem.pending}
               onInsert={(body) => {
-                const r = insertSavedReply(store.get(threadId).text, body);
+                const r = insertSavedReply(store.get(threadId).text, body, textMax);
                 if (!r.ok) return false;
                 update((cur) => ({ text: r.text, error: errorAfterEdit(cur.error, cur.attempt) }));
                 return true;
               }}
             />
-            <span>{mem.text.trim().length > REPLY_TEXT_MAX ? problem : `${mem.text.trim().length}/${REPLY_TEXT_MAX}`}</span>
+            <span>{mem.text.trim().length > textMax ? problem : `${mem.text.trim().length}/${textMax}`}</span>
           </span>
           <Button size="sm" disabled={Boolean(problem) || mem.pending} onClick={() => submit("button")}>
             {mem.pending ? "Sending…" : confirm ? "Send again anyway" : "Send"}
