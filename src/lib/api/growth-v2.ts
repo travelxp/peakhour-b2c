@@ -1,7 +1,9 @@
+import { useRef } from "react";
 import { keepPreviousData, useInfiniteQuery, useMutation, queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError, newActionKey } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import { CREDITS_KEY } from "@/hooks/use-credits";
+import { isDraftingNewType, newTypeRefetchInterval } from "@/lib/growth-v2-firstrun";
 import { seriesFromHome, type HomeSeries, type PacingSeries } from "@/lib/growth-v2-series";
 
 /**
@@ -644,8 +646,10 @@ export interface DraftChannel {
 }
 
 export interface FirstRunDraftResponse {
-  /** PL-5: present while the business type waits for the team: every number starts from a broader plan. Show `reason` as it is. */
+  /** PL-5: present while the plan starts from a broader or new playbook: every number is a starting guess their results replace. Show `reason` as it is. */
   startingFrom?: StartingFrom;
+  /** PL-5b: present only while a playbook for this business's new type is being built. Ask again every few seconds (`newTypeRefetchInterval`). */
+  newType?: { state: "drafting" };
   /** True when the business already has a mandate: the plan is changed from Rules, not drafted again. */
   alreadyActive: boolean;
   currency?: string;
@@ -1005,13 +1009,24 @@ export function mandateFor(rules: V2Result<RulesResponse> | undefined, screenPre
  */
 export function useFirstRunDraft(body: FirstRunDraftRequest, opts: { enabled?: boolean } = {}) {
   const { business } = useAuth();
+  // PL-5b: while the api says it is building the playbook for a new type, ask again every 4 s, for at most 60 s from the first time it said so.
+  const waitStart = useRef<{ for: string; at: number } | undefined>(undefined);
+  const queryKey = key(business?._id, "first-run-draft", body);
+  const keyText = JSON.stringify(queryKey);
   return useQuery<FirstRunDraftResponse>({
-    queryKey: key(business?._id, "first-run-draft", body),
+    queryKey,
     queryFn: () => growthV2Api.draft(body),
     enabled: !!business?._id && opts.enabled !== false,
     placeholderData: keepPreviousData,
     staleTime: 0,
     retry: false,
+    refetchInterval: (q) => {
+      const drafting = isDraftingNewType(q.state.data);
+      if (!drafting) { waitStart.current = undefined; return false; }
+      // the 60 s belongs to one business and one set of answers: another key starts its own
+      if (waitStart.current?.for !== keyText) waitStart.current = { for: keyText, at: Date.now() };
+      return newTypeRefetchInterval(drafting, waitStart.current.at, Date.now());
+    },
   });
 }
 

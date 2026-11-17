@@ -3,6 +3,10 @@ import { ApiError } from "@/lib/api";
 import type { DraftLine, DraftOffer, FirstRunDraftResponse } from "@/lib/api/growth-v2";
 import {
   EMPTY_ANSWERS,
+  NEW_TYPE_POLL_MS,
+  NEW_TYPE_WAIT_MS,
+  isDraftingNewType,
+  newTypeRefetchInterval,
   asksForCampaigns,
   buildPlanBody,
   campaignLine,
@@ -283,5 +287,23 @@ describe("PL-3: one goal per line the business sells", () => {
     // one goal owns every campaign implicitly: none are named, and the step is not asked
     expect(asksForCampaigns(d, answers({ lines: ["flights"] }))).toBe(false);
     expect(buildPlanBody(d, answers({ lines: ["flights"] }))!.goals[0]).not.toHaveProperty("campaignIds");
+  });
+});
+
+describe("the wait for a new type's playbook (PL-5b)", () => {
+  it("is drafting only when the api says so", () => {
+    expect(isDraftingNewType(undefined)).toBe(false);
+    expect(isDraftingNewType({ alreadyActive: false } as FirstRunDraftResponse)).toBe(false);
+    expect(isDraftingNewType({ alreadyActive: false, newType: { state: "drafting" } } as FirstRunDraftResponse)).toBe(true);
+  });
+  it("asks again every 4 s inside 60 s and stops at 60 s", () => {
+    expect(newTypeRefetchInterval(true, 1000, 1000)).toBe(NEW_TYPE_POLL_MS);
+    expect(NEW_TYPE_POLL_MS).toBe(4000);
+    expect(newTypeRefetchInterval(true, 1000, 1000 + NEW_TYPE_WAIT_MS - 1)).toBe(4000);
+    expect(newTypeRefetchInterval(true, 1000, 1000 + NEW_TYPE_WAIT_MS)).toBe(false);
+    expect(NEW_TYPE_WAIT_MS).toBe(60000);
+  });
+  it("does not ask again once it is not drafting", () => {
+    expect(newTypeRefetchInterval(false, 1000, 1001)).toBe(false);
   });
 });

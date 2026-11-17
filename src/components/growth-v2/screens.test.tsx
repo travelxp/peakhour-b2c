@@ -548,6 +548,21 @@ describe("First run", () => {
     });
   });
 
+  it("says a starting plan is being built while the api drafts a new type, and shows the draft beside it (PL-5b)", () => {
+    const drafting = { ...DRAFT, newType: { state: "drafting" as const } };
+    const out = html(<FirstRunView {...firstRun({ draft: drafting, buildingType: true })} />);
+    expect(out).toContain("Building a starting plan for businesses like yours");
+    // the rest of First run is not held hostage: the questions and the plan are on screen
+    expect(out).toContain("SIGNAL-STEP");
+    expect(out).toContain("Short videos.");
+  });
+
+  it("shows no building line once the wait is over or the api is not drafting (PL-5b)", () => {
+    const drafting = { ...DRAFT, newType: { state: "drafting" as const } };
+    expect(html(<FirstRunView {...firstRun({ draft: drafting, buildingType: false })} />)).not.toContain("Building a starting plan");
+    expect(html(<FirstRunView {...firstRun()} />)).not.toContain("Building a starting plan");
+  });
+
   it("asks 'Which best describes you?' on a tie, and shows no plan until it is answered", () => {
     const tie: FirstRunDraftResponse = { ...DRAFT, playbook: undefined, channels: [], tie: { candidates: [{ playbookId: "growth-travel", version: 1, title: "Travel" }, { playbookId: "growth-ecommerce-d2c", version: 1, title: "D2C" }] } };
     const out = html(<FirstRunView {...firstRun({ draft: tie })} />);
