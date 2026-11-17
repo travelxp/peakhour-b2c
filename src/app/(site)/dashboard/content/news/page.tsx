@@ -41,7 +41,6 @@ export default function NewsDeskPage() {
 
   return (
     <PageShell>
-
       <PageHeader
         icon={<Newspaper className="size-6" aria-hidden />}
         title="Industry news"

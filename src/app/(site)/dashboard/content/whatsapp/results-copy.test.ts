@@ -75,4 +75,3 @@ describe("the LinkedIn qualified-lead column", () => {
     expect(LINKEDIN).not.toContain("Billable qualified leads");
   });
 });
-

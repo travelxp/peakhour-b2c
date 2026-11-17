@@ -186,7 +186,6 @@ function AdsHub() {
           ?returnTo=/dashboard/ads?channel=linkedin) and strips the callback's
           params without disturbing ?channel=. */}
       <OAuthConnectResult />
-
       <HubHeader description={channel?.description} />
 
       {/* ★A SUMMARY AND A LINK, NOT THE PANEL ITSELF (G2). What we understand

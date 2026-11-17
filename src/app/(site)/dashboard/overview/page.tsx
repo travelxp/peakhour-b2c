@@ -185,7 +185,6 @@ export default function OverviewPage() {
 
   return (
     <PageShell width="wide" rail={rail}>
-
       {/* The business name, not the org name: they are usually the same string,
           and where they differ the business is what every surface below is
           scoped to. The org is a billing container. */}

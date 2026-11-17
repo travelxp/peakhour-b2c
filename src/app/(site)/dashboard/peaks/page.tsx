@@ -438,7 +438,6 @@ export default function PeaksPage() {
       <UsageHistorySheet open={historyOpen} onOpenChange={setHistoryOpen} />
 
       <PageShell width="standard">
-
         {/* Page header */}
         <PageHeader
           icon={<Zap className="mt-0.5 size-6" />}
