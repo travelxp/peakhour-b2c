@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   patch: vi.fn(),
   success: vi.fn(),
   error: vi.fn(),
+  getStatus: vi.fn((): Promise<unknown> => Promise.reject(new Error("404"))),
 }));
 
 vi.mock("@/lib/api", () => {
@@ -24,7 +25,7 @@ vi.mock("@/lib/api", () => {
       super(message);
     }
   }
-  return { api: { patch: h.patch, get: vi.fn(() => new Promise(() => {})) }, API_BASE_URL: "https://api.example", ApiError };
+  return { api: { patch: h.patch, get: h.getStatus }, API_BASE_URL: "https://api.example", ApiError };
 });
 vi.mock("sonner", () => ({ toast: { success: h.success, error: h.error } }));
 // Radix Select does not open in jsdom; a native select keeps the assertion on what the panel sends.
@@ -69,6 +70,7 @@ beforeEach(() => {
   h.patch.mockReset();
   h.success.mockReset();
   h.error.mockReset();
+  h.getStatus.mockReset().mockRejectedValue(new Error("404"));
 });
 afterEach(() => {
   act(() => root.unmount());
@@ -221,7 +223,9 @@ describe("MetaAccountsPanel messaging switches", () => {
   });
 
   it("hides them while a Page pick saves", async () => {
-    client.setQueryData(["meta-dm-status"], { ...dm, pages: [...dm.pages, { ...dm.pages[0], pageId: "1002", pageName: "Other" }] });
+    const both = { ...dm, pages: [...dm.pages, { ...dm.pages[0], pageId: "1002", pageName: "Other" }] };
+    client.setQueryData(["meta-dm-status"], both);
+    h.getStatus.mockResolvedValue(both);
     let resolve!: () => void;
     h.patch.mockReturnValue(new Promise<void>((r) => (resolve = r)));
     mount(EXTRA);
@@ -233,5 +237,7 @@ describe("MetaAccountsPanel messaging switches", () => {
     expect(container.querySelector('[data-testid="meta-messaging-switches"]')).toBeNull();
     await act(async () => resolve());
     expect(container.querySelector('[data-testid="meta-messaging-switches"]')).not.toBeNull();
+    // the re-read after the pick really fetched: the switches stayed mounted and observed the status
+    expect(h.getStatus).toHaveBeenCalled();
   });
 });

@@ -140,7 +140,7 @@ export function MetaAccountsPanel({
             )}
           </div>
           {/* Not while a pick is being saved: the status still describes the old Page until it is re-read. */}
-          {saving ? null : <MetaMessagingSwitches pageId={activeId} />}
+          <MetaMessagingSwitches pageId={activeId} hidden={saving} />
           <ul className="space-y-0.5 text-micro text-muted-foreground" aria-label="Pages and their Instagram accounts">
             {pages.map((p) => (
               <li key={p.pageId} className="truncate">

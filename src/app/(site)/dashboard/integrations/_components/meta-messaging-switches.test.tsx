@@ -101,11 +101,55 @@ describe("MetaMessagingSwitches", () => {
   });
 
   it("no Instagram linked: disabled, with the plain line", async () => {
-    await mount(status(), "1002");
+    await mount(status({ pages: [page({ instagramUsername: null, instagram: { available: false, enabled: false } })] }));
     expect(sw("instagram")!.disabled).toBe(true);
     expect(why("instagram")).toBe("No Instagram account is linked to this Page.");
     expect(container.textContent).toContain("Instagram messages");
     expect(container.textContent).not.toContain("(@");
+  });
+
+  it("a linked Instagram account whose name could not be read is not called unlinked", async () => {
+    await mount(status({ pages: [page({ instagramUsername: null })] }));
+    expect(sw("instagram")!.disabled).toBe(false);
+    expect(why("instagram")).toBeNull();
+    expect(container.textContent).toContain("Instagram messages");
+  });
+
+  it("a missing permission or a connection that needs signing in again offers Reconnect Meta, even if the channel looks available", async () => {
+    await mount(status({ missingPermissions: { instagram: ["instagram_manage_messages"] } }));
+    expect(why("instagram")).toContain("Meta did not give Peakhour messaging access.");
+    expect(container.querySelector('[data-testid="dm-why-instagram"] a')).not.toBeNull();
+    await remount(status({ needsReauth: true }));
+    expect(why("instagram")).toContain("Reconnect Meta");
+    expect(sw("instagram")!.disabled).toBe(true);
+  });
+
+  it("the reason is tied to its switch for screen readers", async () => {
+    await mount(status({ pages: [page({ messenger: { available: false, enabled: false } })] }));
+    const id = sw("messenger")!.getAttribute("aria-describedby")!;
+    expect(container.querySelector(`#${id}`)!.textContent).toContain("messaging access");
+  });
+
+  it("a failed re-read after the api accepted the change keeps the new value", async () => {
+    await mount(status());
+    h.post.mockResolvedValue({});
+    h.get.mockRejectedValue(new Error("network"));
+    await act(async () => sw("messenger")!.click());
+    expect(sw("messenger")!.getAttribute("aria-checked")).toBe("false");
+    expect(h.error).not.toHaveBeenCalled();
+  });
+
+  it("hidden renders nothing but keeps the status query observed", async () => {
+    await mount(status());
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={client}>
+          <MetaMessagingSwitches pageId="1001" hidden />
+        </QueryClientProvider>,
+      );
+    });
+    expect(container.innerHTML).toBe("");
+    expect(client.getQueryCache().find({ queryKey: ["meta-dm-status"] })!.getObserversCount()).toBe(1);
   });
 
   it("no messaging access: disabled, says why, and Reconnect Meta points at the messaging login", async () => {

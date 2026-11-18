@@ -60,14 +60,19 @@ const RETURN_TO = "/dashboard/integrations";
 export const metaMessagingAuthorizeUrl = (): string =>
   `${API_BASE_URL}/v1/integrations/facebook/authorize?messaging=1&returnTo=${encodeURIComponent(RETURN_TO)}`;
 
-/** Why a channel that is off cannot be switched on, or null when it can. Most specific first. */
-export function dmWhyNot(page: DmStatusPage, channel: DmChannel): { text: string; reconnect: boolean } | null {
+/**
+ * Why a channel that is off cannot be switched on, or null when it can. Most specific first.
+ * Instagram "not linked" is the api saying the channel is unavailable with NO permission gap: the api counts a permission gap only
+ * on a Page that has the account, so a linked account whose profile name could not be read never lands here.
+ */
+export function dmWhyNot(status: DmStatus, page: DmStatusPage, channel: DmChannel): { text: string; reconnect: boolean } | null {
   const state = page[channel];
   if (state.enabled) return null;
-  if (channel === "instagram" && !page.instagramUsername) return { text: DM_COPY.noInstagram, reconnect: false };
   if (state.otherBusiness) return { text: DM_COPY.otherBusiness, reconnect: false };
-  if (!state.available) return { text: DM_COPY.noAccess, reconnect: true };
-  return null;
+  const gap = (status.missingPermissions?.[channel]?.length ?? 0) > 0;
+  if (status.needsReauth || gap) return { text: DM_COPY.noAccess, reconnect: true };
+  if (state.available) return null;
+  return channel === "instagram" ? { text: DM_COPY.noInstagram, reconnect: false } : { text: DM_COPY.noAccess, reconnect: true };
 }
 
 /** The api's own sentence when it sent one, else a next step: never a bare code. */
