@@ -13,7 +13,7 @@
  */
 
 import { PLATFORM_LIMITS } from "@/components/composer/types";
-import { flattenMetaIntegration } from "@/lib/integrations-meta";
+import { flattenMetaIntegration, savedMetaPageId } from "@/lib/integrations-meta";
 import { navLabel } from "@/lib/nav-copy";
 
 export type MetaComposeChannel = "facebook" | "instagram" | "threads";
@@ -264,20 +264,23 @@ interface StoredPage {
 }
 
 /**
- * The Page the connection has saved, to NAME it on screen: the stored primary Page, else the first Page. The publisher is the one that
- * decides where a post lands; this only tells the merchant the name it will find.
+ * The Page the connection has saved, to NAME it on screen: the merchant's pick while the connection still lists it, else the first Page
+ * (`savedMetaPageId`, the mirror of the api's `savedPageId`). The publisher decides where a post lands; this only tells the merchant
+ * the name it will find.
  */
 export function savedPageOf(extra: Record<string, unknown> | undefined): StoredPage | undefined {
   const pages = Array.isArray(extra?.pages) ? (extra.pages as StoredPage[]) : [];
-  const primary = typeof extra?.primaryPageId === "string" ? extra.primaryPageId : undefined;
-  return pages.find((p) => primary !== undefined && p.pageId === primary) ?? pages[0];
+  const id = savedMetaPageId(extra);
+  return pages.find((p) => id !== undefined && p.pageId === id);
 }
 
-/** The Page that carries the saved Instagram account, else the first with one. */
+/** The Instagram account the api publishes to: the one linked to the saved Page, else the connection's own `instagramAccountId`. */
 export function savedInstagramOf(extra: Record<string, unknown> | undefined): StoredPage | undefined {
   const pages = Array.isArray(extra?.pages) ? (extra.pages as StoredPage[]) : [];
-  const saved = typeof extra?.instagramAccountId === "string" ? extra.instagramAccountId : undefined;
-  return pages.find((p) => saved !== undefined && p.instagramAccountId === saved) ?? pages.find((p) => p.instagramAccountId);
+  const own = savedPageOf(extra);
+  if (own?.instagramAccountId) return own;
+  const fallback = typeof extra?.instagramAccountId === "string" ? extra.instagramAccountId : undefined;
+  return pages.find((p) => fallback !== undefined && p.instagramAccountId === fallback);
 }
 
 /**

@@ -162,14 +162,14 @@ describe("metaComposeTargets: only what is connected", () => {
   });
 
   it("offers Facebook and Instagram from one connection, naming the saved Page and account", () => {
-    expect(metaComposeTargets([facebookRow({ pages, primaryPageId: "p2", instagramAccountId: "ig1" })])).toEqual([
+    expect(metaComposeTargets([facebookRow({ pages, capabilities: { pages: { activeResourceId: "p2" } }, instagramAccountId: "ig1" })])).toEqual([
       { channel: "facebook", postingTo: "Posting to Acme Cafe" },
       { channel: "instagram", postingTo: "Posting to @acmebakery" },
     ]);
   });
 
   it("does not offer Instagram when no Page has an account linked", () => {
-    expect(metaComposeTargets([facebookRow({ pages: [pages[1]], primaryPageId: "p2" })])).toEqual([{ channel: "facebook", postingTo: "Posting to Acme Cafe" }]);
+    expect(metaComposeTargets([facebookRow({ pages: [pages[1]], capabilities: { pages: { activeResourceId: "p2" } } })])).toEqual([{ channel: "facebook", postingTo: "Posting to Acme Cafe" }]);
   });
 
   it("does not offer Facebook when the Pages capability is off, but still offers Instagram", () => {
