@@ -1,7 +1,9 @@
 import type { ScheduleRow } from "@/hooks/use-schedules";
 
+const KNOWN_STATUSES = ["healthy", "failing", "missed", "did_not_finish", "running", "waiting"] as const;
+
 /** The statuses the page knows how to show. */
-export type KnownStatus = "healthy" | "failing" | "missed" | "did_not_finish" | "running" | "waiting";
+export type KnownStatus = (typeof KNOWN_STATUSES)[number];
 
 /** What the Result column shows: the api's status, or "off_dev" for a schedule switched off on dev. */
 export type ShownStatus = KnownStatus | "off_dev";
@@ -27,7 +29,7 @@ const STATUS_RANK: Record<ShownStatus, number> = {
   off_dev: 6,
 };
 
-const KNOWN: ReadonlySet<string> = new Set(["healthy", "failing", "missed", "did_not_finish", "running", "waiting"]);
+const KNOWN: ReadonlySet<string> = new Set(KNOWN_STATUSES);
 
 /** The legacy `never_ran`, and any status this page does not know, read as waiting. */
 export function normaliseStatus(status: string): KnownStatus {

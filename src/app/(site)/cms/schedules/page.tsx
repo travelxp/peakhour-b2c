@@ -87,7 +87,6 @@ export default function CmsSchedulesPage() {
   // Never loaded, and failed at least once: `error` alone resets on each retry.
   const failedWithoutData = !data && errorUpdatedAt > 0;
 
-  const missedCount = counts.missed;
   const chips: ShownStatus[] = ["healthy", "failing", "missed", "did_not_finish", "running", "waiting"];
   if (isDev) chips.push("off_dev");
 
@@ -109,9 +108,9 @@ export default function CmsSchedulesPage() {
         </Button>
       </div>
 
-      {data && missedCount > 0 && (
+      {data && counts.missed > 0 && (
         <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-on-tint">
-          {missedCount === 1 ? "1 schedule missed a run" : `${missedCount} schedules missed a run`}: Vercel did not fire {missedCount === 1 ? "it" : "them"} when due.
+          {counts.missed === 1 ? "1 schedule missed a run" : `${counts.missed} schedules missed a run`}: no run was recorded when due.
         </div>
       )}
 
@@ -308,6 +307,7 @@ function ScheduleDetail({
 }) {
   const { data, isPending, error } = useCmsScheduleRuns(name, RUNS_LIMIT);
   const label = row?.label ?? data?.schedule.label ?? name;
+  const note = row ? statusNote(row, recordingSince, formatDateTime) : null;
 
   return (
     <>
@@ -325,9 +325,7 @@ function ScheduleDetail({
                 <span className="text-xs text-muted-foreground">{row.consecutiveFailures} failed in a row</span>
               )}
             </div>
-            {statusNote(row, recordingSince, formatDateTime) && (
-              <p className="text-xs text-muted-foreground">{statusNote(row, recordingSince, formatDateTime)}</p>
-            )}
+            {note && <p className="text-xs text-muted-foreground">{note}</p>}
             {row.description && <p>{row.description}</p>}
             <div className="grid grid-cols-2 gap-2 rounded-lg border p-3">
               <div className="flex justify-between gap-3">
