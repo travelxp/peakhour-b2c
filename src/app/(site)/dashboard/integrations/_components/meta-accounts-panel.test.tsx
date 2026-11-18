@@ -24,7 +24,7 @@ vi.mock("@/lib/api", () => {
       super(message);
     }
   }
-  return { api: { patch: h.patch }, ApiError };
+  return { api: { patch: h.patch, get: vi.fn(() => new Promise(() => {})) }, API_BASE_URL: "https://api.example", ApiError };
 });
 vi.mock("sonner", () => ({ toast: { success: h.success, error: h.error } }));
 // Radix Select does not open in jsdom; a native select keeps the assertion on what the panel sends.
@@ -144,26 +144,6 @@ describe("MetaAccountsPanel", () => {
     expect((container.querySelector("select") as HTMLSelectElement).value).toBe("1002");
   });
 
-  it("shows where messages stand for the Page Peakhour uses, from the same status the panel below reads", () => {
-    client.setQueryData(["meta-dm-status"], {
-      channels: { messenger: true, instagram: false },
-      connected: true,
-      needsReauth: false,
-      savedPageId: "1003",
-      missingPermissions: {},
-      pages: [{ pageId: "1003", pageName: "Third", instagramUsername: null, connectionId: "c", messenger: { available: true, enabled: true }, instagram: { available: false, enabled: false } }],
-    });
-    mount(EXTRA);
-    const line = container.querySelector('[data-testid="meta-dm-pointer"]') as HTMLAnchorElement;
-    expect(line.textContent).toBe("Messages: on for Third");
-    expect(line.getAttribute("href")).toBe("#meta-dm-connect");
-  });
-
-  it("shows no messages line while messaging is not released (no answer from the api)", () => {
-    mount(EXTRA);
-    expect(container.querySelector('[data-testid="meta-dm-pointer"]')).toBeNull();
-  });
-
   it("a Page row with no id is not offered", () => {
     mount({ ...EXTRA, pages: [...EXTRA.pages, { pageName: "Broken" }, { pageId: "", pageName: "Empty" }] });
     expect(container.querySelectorAll("option")).toHaveLength(3);
@@ -219,5 +199,39 @@ describe("MetaAccountsPanel", () => {
     mount({ pages: [], adAccounts: EXTRA.adAccounts });
     expect(container.textContent).toContain("No Facebook Pages found");
     expect(container.textContent).toContain("Acme Ads");
+  });
+});
+
+describe("MetaAccountsPanel messaging switches", () => {
+  const dm = {
+    channels: { messenger: true, instagram: false },
+    connected: true,
+    needsReauth: false,
+    savedPageId: "1003",
+    missingPermissions: {},
+    pages: [{ pageId: "1003", pageName: "Third", instagramUsername: null, connectionId: "c", messenger: { available: true, enabled: true }, instagram: { available: false, enabled: false } }],
+  };
+
+  it("shows the switches for the Page Peakhour uses, and none without a status", () => {
+    mount(EXTRA);
+    expect(container.querySelector('[data-testid="meta-messaging-switches"]')).toBeNull();
+    client.setQueryData(["meta-dm-status"], dm);
+    mount(EXTRA);
+    expect(container.querySelector('[data-testid="meta-messaging-switches"]')).not.toBeNull();
+  });
+
+  it("hides them while a Page pick saves", async () => {
+    client.setQueryData(["meta-dm-status"], { ...dm, pages: [...dm.pages, { ...dm.pages[0], pageId: "1002", pageName: "Other" }] });
+    let resolve!: () => void;
+    h.patch.mockReturnValue(new Promise<void>((r) => (resolve = r)));
+    mount(EXTRA);
+    const select = container.querySelector("select") as HTMLSelectElement;
+    await act(async () => {
+      select.value = "1002";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(container.querySelector('[data-testid="meta-messaging-switches"]')).toBeNull();
+    await act(async () => resolve());
+    expect(container.querySelector('[data-testid="meta-messaging-switches"]')).not.toBeNull();
   });
 });
