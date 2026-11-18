@@ -28,6 +28,34 @@ export type SourceOrigin = "user_suggested" | "ai_suggested";
 
 export type FetchFrequency = "hourly" | "daily" | "weekly" | "manual";
 
+export type FetchIssueKind =
+  | "not_found"
+  | "gone"
+  | "no_such_domain"
+  | "blocked"
+  | "network"
+  | "unreadable"
+  | "other";
+
+export interface FetchIssueSuggestedFix {
+  kind: "replace_handle" | "replace_url";
+  value: string;
+  /** Merchant-readable reason, shown as "Suggested fix: <reason>". */
+  reason: string;
+  foundAt?: string;
+}
+
+/** Why we can't read a source. Absent or null while the source is healthy. */
+export interface FetchIssue {
+  kind: FetchIssueKind;
+  permanent?: boolean;
+  message: string;
+  firstSeenAt?: string;
+  lastSeenAt?: string;
+  notifiedAt?: string | null;
+  suggestedFix?: FetchIssueSuggestedFix | null;
+}
+
 export interface TrustedSourceMetadata {
   followerCount?: number;
   description?: string;
@@ -56,7 +84,10 @@ export interface TrustedSource {
   updatedAt?: string;
   acceptedAt?: string;
   rejectedAt?: string;
-  inactivatedAt?: string;
+  inactivatedAt?: string | null;
+  /** "fetch_failing" = we paused it because we could not reach it. */
+  inactiveReason?: "fetch_failing" | "user" | null;
+  fetchIssue?: FetchIssue | null;
   lastUsedAt?: string;
   lastFetchedAt?: string;
   lastSuccessfulFetchAt?: string;
