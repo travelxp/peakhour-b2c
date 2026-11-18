@@ -6,7 +6,18 @@ import { api } from "@/lib/api";
 // ── Types: the fixed contract of GET /v1/cms/schedules (peakhour-api) ──
 // Friendly names, areas and cadences are served by the api; b2c keeps no copy.
 
-export type ScheduleStatus = "healthy" | "failing" | "did_not_finish" | "running" | "never_ran";
+/**
+ * `never_ran` is legacy: an older api sends it where the current one sends
+ * `waiting`. The page treats it, and any status it does not know, as `waiting`.
+ */
+export type ScheduleStatus =
+  | "healthy"
+  | "failing"
+  | "missed"
+  | "did_not_finish"
+  | "running"
+  | "waiting"
+  | "never_ran";
 
 export interface ScheduleArea {
   area: string;
@@ -24,6 +35,8 @@ export interface ScheduleRow {
   /** null on production. */
   devEnabled: boolean | null;
   nextRunAt: string | null;
+  /** The latest fire time that has passed its grace period; absent on an older api. */
+  dueAt?: string | null;
   status: ScheduleStatus;
   lastStartedAt: string | null;
   lastFinishedAt: string | null;
@@ -38,6 +51,8 @@ export interface ScheduleRow {
 export interface SchedulesResponse {
   environment: "production" | "dev";
   areas: ScheduleArea[];
+  /** When the run log began; absent on an older api. */
+  recordingSince?: string | null;
   schedules: ScheduleRow[];
 }
 
