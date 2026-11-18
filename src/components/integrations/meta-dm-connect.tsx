@@ -57,7 +57,7 @@ function ChannelRow({ page, channel, busy, onSwitch }: { page: DmStatusPage; cha
             {DM_COPY.turnOff}
           </Button>
         ) : (
-          <Button size="sm" disabled={busy !== null || !state.available || note !== null} onClick={() => onSwitch(page, channel, true)}>
+          <Button size="sm" disabled={busy !== null || note !== null} onClick={() => onSwitch(page, channel, true)}>
             {DM_COPY.turnOn}
           </Button>
         )}

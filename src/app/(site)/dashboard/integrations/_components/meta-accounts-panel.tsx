@@ -139,7 +139,8 @@ export function MetaAccountsPanel({
               <p className="text-xs font-medium">{pages[0]!.pageName || `Page ${pages[0]!.pageId}`}</p>
             )}
           </div>
-          <MetaDmPointer pageId={activeId} />
+          {/* Not while a pick is being saved: the status still describes the old Page until it is re-read. */}
+          {saving ? null : <MetaDmPointer pageId={activeId} />}
           <ul className="space-y-0.5 text-micro text-muted-foreground" aria-label="Pages and their Instagram accounts">
             {pages.map((p) => (
               <li key={p.pageId} className="truncate">

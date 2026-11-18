@@ -62,7 +62,6 @@ export const DM_COPY = {
   otherBusiness: "Another Peakhour account already uses this Page for messages, so it cannot be turned on here.",
   noAccess: "Meta did not give Peakhour messaging access. Use the button above to connect Meta again and accept the messaging permissions, then turn this on.",
   noInstagram: "Link an Instagram professional account to this Page in Instagram settings to use Instagram messages.",
-  on: "On",
   onFor: (page: string) => `On for ${page}`,
   pointerOn: (page: string) => `Messages: on for ${page}`,
   pointerOff: "Messages: off",

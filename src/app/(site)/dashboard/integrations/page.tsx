@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
 import { MetaDmConnect } from "@/components/integrations/meta-dm-connect";
+import { DM_STATUS_KEY } from "@/lib/meta-dm";
 import { XDmConnect } from "@/components/integrations/x-dm-connect";
 import { WordPressConnectModal } from "@/components/integrations/wordpress-connect-modal";
 import { MeasurementHealthPanel } from "@/components/growth/measurement-health-panel";
@@ -211,6 +212,9 @@ export default function IntegrationsPage() {
    */
   async function loadIntegrations(opts?: { allowCached?: boolean }) {
     invalidateLinkedInContentQueries(queryClient);
+    // Messenger and Instagram messages follow the Meta connection and its Pages: re-read them with the list (connect, reconnect,
+    // refresh and disconnect all land here).
+    void queryClient.invalidateQueries({ queryKey: DM_STATUS_KEY });
     try {
       const listQuery = integrationsListQuery(org?._id, business?._id);
       // Stale-while-revalidate, never stale-only: a list a nav-link prefetch
