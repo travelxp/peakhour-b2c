@@ -15,7 +15,7 @@ export function sinceLabel(iso: string | undefined, now: Date = new Date()): str
 /** The problem line for a source we cannot read: what failed, and since when. */
 export function problemLine(issue: FetchIssue, now?: Date): string {
   const since = sinceLabel(issue.firstSeenAt, now);
-  const msg = issue.message.replace(/[.\s]+$/, "");
+  const msg = (typeof issue.message === "string" ? issue.message : "").replace(/[.\s]+$/, "") || "unknown error";
   return since ? `We can't read this source: ${msg} (${since})` : `We can't read this source: ${msg}`;
 }
 

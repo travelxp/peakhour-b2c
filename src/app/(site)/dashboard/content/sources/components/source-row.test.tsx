@@ -148,6 +148,12 @@ describe("SourceRow fetch problems", () => {
     expect(button("Turn back on")).toBeUndefined();
   });
 
+  it("a paused source with no issue details still explains and can be turned on", () => {
+    render({ ...BASE, status: "inactive", inactiveReason: "fetch_failing" });
+    expect(container.textContent).toContain("Paused: we couldn't reach it");
+    expect(button("Turn back on")).toBeDefined();
+  });
+
   it("a user-paused source is not shown as unreachable", () => {
     render({ ...BASE, status: "inactive", inactiveReason: "user" });
     expect(container.textContent).not.toContain("Paused: we couldn't");

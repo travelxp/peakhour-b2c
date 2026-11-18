@@ -65,6 +65,7 @@ async function mount() {
       </QueryClientProvider>,
     );
   });
+  await vi.waitFor(() => expect(container.querySelector("[id^=source-]")).not.toBeNull());
   await act(async () => {});
 }
 

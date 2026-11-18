@@ -186,7 +186,7 @@ export function SourceRow({ source, highlighted = false }: SourceRowProps) {
   const paused = isPausedForFetch(source);
   const fix = issue?.suggestedFix ?? null;
   // A healthy-looking suggested/rejected row never shows a problem.
-  const showProblem = Boolean(issue) && (source.status === "active" || paused);
+  const showProblem = paused || (Boolean(issue) && source.status === "active");
 
   return (
     <div
@@ -241,14 +241,14 @@ export function SourceRow({ source, highlighted = false }: SourceRowProps) {
           )}
           <LastFetched source={source} />
         </div>
-        {showProblem && issue ? (
+        {showProblem ? (
           <div className="mt-2 space-y-1 text-xs" role="status">
             {paused ? (
               <p className="font-medium text-foreground">
                 Paused: we couldn&apos;t reach it
               </p>
             ) : null}
-            <p className="text-destructive">{problemLine(issue)}</p>
+            {issue ? <p className="text-destructive">{problemLine(issue)}</p> : null}
             {fix ? (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-muted-foreground">
