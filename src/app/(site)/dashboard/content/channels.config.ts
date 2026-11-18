@@ -146,6 +146,15 @@ export const CHANNELS: readonly ChannelConfig[] = [
     logoUrl: `${SHADCN_LOGOS}/instagram-icon.svg`,
   },
   {
+    slug: "threads",
+    name: "Threads",
+    description: "See your profile and everything posted on it.",
+    category: "Social",
+    providerKey: "threads",
+    status: "available",
+    dashboardPath: "/dashboard/content/threads",
+  },
+  {
     slug: "youtube",
     name: "YouTube",
     description: "Pull video metadata and engagement for repurposing.",
