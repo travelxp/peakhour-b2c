@@ -4,6 +4,8 @@
  * `POST /v1/meta/dm/connect` and `POST /v1/meta/dm/disconnect`.
  */
 
+import { navLabel } from "@/lib/nav-copy";
+
 export type DmChannel = "messenger" | "instagram";
 
 export interface DmStatusPage {
@@ -11,24 +13,34 @@ export interface DmStatusPage {
   pageName: string | null;
   instagramUsername: string | null;
   connectionId: string;
-  messenger: { available: boolean; enabled: boolean };
-  instagram: { available: boolean; enabled: boolean };
+  messenger: DmStatusChannel;
+  instagram: DmStatusChannel;
+}
+
+export interface DmStatusChannel {
+  available: boolean;
+  enabled: boolean;
+  /** Another Peakhour account already uses this Page (or Instagram account) for messages. */
+  otherBusiness?: boolean;
 }
 
 export interface DmStatus {
   channels: Record<DmChannel, boolean>;
   connected: boolean;
   needsReauth: boolean;
+  /** The Page Peakhour uses for this business: the one whose messages are switched on by default. */
+  savedPageId?: string | null;
   missingPermissions: Partial<Record<DmChannel, string[]>>;
   pages: DmStatusPage[];
 }
 
 export const DM_CHANNEL_LABEL: Record<DmChannel, string> = { messenger: "Messenger", instagram: "Instagram messages" };
 
+export const DM_PANEL_ID = "meta-dm-connect";
+
 export const DM_COPY = {
   title: "Messenger and Instagram messages",
-  intro:
-    "Peakhour answers shoppers who message your Facebook Page or Instagram account, and hands the chat to your team when it should. Every conversation shows in your Inbox.",
+  intro: `Peakhour answers shoppers who message your Facebook Page or Instagram account, and hands the chat to your team when it should. Every conversation shows in your Inbox. This is on by default for the Page Peakhour uses, which you choose under ${navLabel("/dashboard/integrations")}. Turn it off here any time.`,
   window: "You can reply to a customer for 24 hours after their last message. Meta sets that rule for these channels.",
   connectMeta: "Connect Meta",
   reconnectMeta: "Reconnect Meta",
@@ -37,13 +49,42 @@ export const DM_COPY = {
   connectWhy: "Connect Meta to choose a Page.",
   reconnectWhy: "Your Meta connection needs to be reconnected first.",
   noPages: "We could not find a Facebook Page on your Meta connection. Reconnect Meta and choose the Page you want to use.",
-  needsAccess: "Grant messaging access first, then turn this on.",
+  otherBusiness: "Another Peakhour account already uses this Page for messages, so it cannot be turned on here.",
+  noAccess: "Meta did not give Peakhour messaging access. Reconnect Meta and accept the messaging permissions, then turn this on.",
   noInstagram: "Link an Instagram professional account to this Page in Instagram settings to use Instagram messages.",
   on: "On",
+  onFor: (page: string) => `On for ${page}`,
+  pointerOn: (page: string) => `Messages: on for ${page}`,
+  pointerOff: "Messages: off",
   off: "Off",
   turnOn: "Turn on",
   turnOff: "Turn off",
 } as const;
+
+/** The Page's name for a sentence: never an empty string. */
+export const dmPageName = (page: Pick<DmStatusPage, "pageName">): string => page.pageName?.trim() || "your Facebook Page";
+
+/** Why a channel that is off cannot be switched on, in words, or null when it can (or simply is off). Most specific first. */
+export function dmWhyNot(page: DmStatusPage, channel: DmChannel): string | null {
+  const state = page[channel];
+  if (state.enabled) return null;
+  if (channel === "instagram" && !page.instagramUsername) return DM_COPY.noInstagram;
+  if (state.otherBusiness) return DM_COPY.otherBusiness;
+  if (!state.available) return DM_COPY.noAccess;
+  return null;
+}
+
+/**
+ * The one line on the Facebook Pages card: whether messages are on for the Page Peakhour uses. Null while messaging is not released
+ * (the panel is hidden too) or there is no Page.
+ */
+export function dmPointer(status: DmStatus): { on: boolean; text: string } | null {
+  if (!status.channels.messenger && !status.channels.instagram) return null;
+  const saved = status.pages.find((p) => p.pageId === status.savedPageId) ?? status.pages[0];
+  if (!saved) return null;
+  const on = (["messenger", "instagram"] as const).some((c) => status.channels[c] && saved[c].enabled);
+  return { on, text: on ? DM_COPY.pointerOn(dmPageName(saved)) : DM_COPY.pointerOff };
+}
 
 /** Whether the screen offers the Meta permission step: not connected, or a released channel's permissions are not all granted. */
 export function needsMetaStep(status: DmStatus): "connect" | "reconnect" | "grant" | null {

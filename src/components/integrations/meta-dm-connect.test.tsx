@@ -5,8 +5,8 @@ import type { DmStatus } from "@/lib/meta-dm";
 // The view is pure; the api client is replaced so nothing here reaches the network.
 vi.mock("@/lib/api", () => ({ api: { get: vi.fn(), post: vi.fn() }, API_BASE_URL: "https://api.example" }));
 
-const { MetaDmConnectView, metaMessagingAuthorizeUrl } = await import("./meta-dm-connect");
-const { needsMetaStep, dmErrorMessage, DM_COPY } = await import("@/lib/meta-dm");
+const { MetaDmConnectView, MetaDmPointerView, metaMessagingAuthorizeUrl } = await import("./meta-dm-connect");
+const { needsMetaStep, dmErrorMessage, dmPointer, dmWhyNot, DM_COPY } = await import("@/lib/meta-dm");
 
 const page = (over: Record<string, unknown> = {}) => ({
   pageId: "1055550001",
@@ -21,6 +21,7 @@ const status = (over: Partial<DmStatus> = {}): DmStatus => ({
   channels: { messenger: true, instagram: true },
   connected: true,
   needsReauth: false,
+  savedPageId: "1055550001",
   missingPermissions: {},
   pages: [page()],
   ...over,
@@ -69,8 +70,11 @@ describe("the page rows", () => {
   });
   it("an enabled channel reads On with Turn off", () => {
     const out = html(status({ pages: [page({ messenger: { available: true, enabled: true } })] }));
-    expect(out).toContain(DM_COPY.on);
+    expect(out).toContain(DM_COPY.onFor("Acme Store"));
+    expect(out).toContain("On for Acme Store");
     expect(out).toContain(DM_COPY.turnOff);
+    // the Turn on button of the OTHER channel is still there, and the enabled one has none
+    expect(out.match(/>Turn on<\/button>/g) ?? []).toHaveLength(1);
   });
   it("a channel that is not available is a disabled Turn on, and a Page with no Instagram says how to fix it", () => {
     const out = html(status({ pages: [page({ instagramUsername: null, instagram: { available: false, enabled: false } })] }));
@@ -86,7 +90,25 @@ describe("the page rows", () => {
     for (const b of idle) expect(b).not.toContain('disabled=""');
   });
   it("an unavailable channel says why instead of showing a dead button", () => {
-    expect(html(status({ pages: [page({ messenger: { available: false, enabled: false } })] }))).toContain(DM_COPY.needsAccess);
+    const out = html(status({ pages: [page({ messenger: { available: false, enabled: false } })] }));
+    expect(out).toContain(DM_COPY.noAccess);
+    expect(out).toContain("Reconnect Meta");
+  });
+  it("a Page another Peakhour account already uses says so, in words, with a dead Turn on", () => {
+    const out = html(status({ pages: [page({ messenger: { available: true, enabled: false, otherBusiness: true } })] }));
+    expect(out).toContain("Another Peakhour account already uses this Page for messages");
+    const row = out.split('data-testid="dm-row-messenger"')[1]!.split('data-testid="dm-row-instagram"')[0]!;
+    expect(row).toMatch(/<button[^>]*disabled=""[^>]*>Turn on<\/button>/);
+  });
+  it("the reason for a channel that is ON is never shown", () => {
+    expect(dmWhyNot(page({ messenger: { available: false, enabled: true, otherBusiness: true } }), "messenger")).toBeNull();
+  });
+  it("Instagram without a linked account wins over every other reason", () => {
+    expect(dmWhyNot(page({ instagramUsername: null, instagram: { available: false, enabled: false, otherBusiness: true } }), "instagram")).toBe(DM_COPY.noInstagram);
+  });
+  it("the intro names the Connected accounts page through the shared label, and says it is on by default", () => {
+    expect(DM_COPY.intro).toContain("Connected accounts");
+    expect(DM_COPY.intro).toContain("on by default");
   });
   it("an api that omits missingPermissions does not crash the screen", () => {
     const s = { ...status(), missingPermissions: undefined } as unknown as DmStatus;
@@ -100,5 +122,37 @@ describe("the page rows", () => {
     expect(html(status(), { error: "This Page is already connected to another Peakhour account." })).toContain("already connected to another Peakhour account");
     expect(dmErrorMessage(new Error("boom"))).toBe("boom");
     expect(dmErrorMessage(null)).toMatch(/try again/);
+  });
+});
+
+describe("the line on the Facebook Pages card", () => {
+  it("on: names the Page Peakhour uses and links to the panel", () => {
+    const s = status({ pages: [page({ messenger: { available: true, enabled: true } })] });
+    expect(dmPointer(s)).toEqual({ on: true, text: "Messages: on for Acme Store" });
+    const out = renderToStaticMarkup(<MetaDmPointerView status={s} />);
+    expect(out).toContain("Messages: on for Acme Store");
+    expect(out).toContain('href="#meta-dm-connect"');
+  });
+  it("off: says so (a turned-off channel, or nothing could be switched on)", () => {
+    expect(dmPointer(status())).toEqual({ on: false, text: "Messages: off" });
+    expect(renderToStaticMarkup(<MetaDmPointerView status={status()} />)).toContain("Messages: off");
+  });
+  it("reads the SAVED Page, not the first listed", () => {
+    const s = status({
+      savedPageId: "2",
+      pages: [page({ messenger: { available: true, enabled: true } }), page({ pageId: "2", pageName: "Outlet", messenger: { available: true, enabled: false } })],
+    });
+    expect(dmPointer(s)).toEqual({ on: false, text: "Messages: off" });
+  });
+  it("a channel that is not released does not count as on, and nothing shows while messaging is not released or there is no Page", () => {
+    const s = status({ channels: { messenger: false, instagram: true }, pages: [page({ messenger: { available: true, enabled: true } })] });
+    expect(dmPointer(s)).toEqual({ on: false, text: "Messages: off" });
+    expect(dmPointer(status({ channels: { messenger: false, instagram: false } }))).toBeNull();
+    expect(dmPointer(status({ pages: [] }))).toBeNull();
+    expect(renderToStaticMarkup(<MetaDmPointerView status={status({ pages: [] })} />)).toBe("");
+  });
+  it("an api that does not send savedPageId falls back to the first Page", () => {
+    const s = { ...status(), savedPageId: undefined } as DmStatus;
+    expect(dmPointer(s)?.text).toBe("Messages: off");
   });
 });

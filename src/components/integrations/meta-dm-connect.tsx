@@ -9,7 +9,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import {
   DM_CHANNEL_LABEL,
   DM_COPY,
+  DM_PANEL_ID,
   dmErrorMessage,
+  dmPageName,
+  dmPointer,
+  dmWhyNot,
   needsMetaStep,
   type DmChannel,
   type DmStatus,
@@ -35,12 +39,7 @@ interface ViewProps {
 
 function ChannelRow({ page, channel, busy, onSwitch }: { page: DmStatusPage; channel: DmChannel; busy: string | null; onSwitch: ViewProps["onSwitch"] }) {
   const state = page[channel];
-  const note =
-    channel === "instagram" && !page.instagramUsername
-      ? DM_COPY.noInstagram
-      : !state.available && !state.enabled
-        ? DM_COPY.needsAccess
-        : null;
+  const note = dmWhyNot(page, channel);
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 py-2" data-testid={`dm-row-${channel}`}>
       <div className="min-w-0">
@@ -48,16 +47,16 @@ function ChannelRow({ page, channel, busy, onSwitch }: { page: DmStatusPage; cha
           {DM_CHANNEL_LABEL[channel]}
           {channel === "instagram" && page.instagramUsername ? <span className="text-muted-foreground"> @{page.instagramUsername}</span> : null}
         </div>
-        {note && !state.enabled ? <div className="text-xs text-muted-foreground">{note}</div> : null}
+        {note ? <div className="text-xs text-muted-foreground">{note}</div> : null}
       </div>
       <div className="flex items-center gap-2">
-        <Badge variant={state.enabled ? "default" : "outline"}>{state.enabled ? DM_COPY.on : DM_COPY.off}</Badge>
+        <Badge variant={state.enabled ? "default" : "outline"}>{state.enabled ? DM_COPY.onFor(dmPageName(page)) : DM_COPY.off}</Badge>
         {state.enabled ? (
           <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => onSwitch(page, channel, false)}>
             {DM_COPY.turnOff}
           </Button>
         ) : (
-          <Button size="sm" disabled={busy !== null || !state.available} onClick={() => onSwitch(page, channel, true)}>
+          <Button size="sm" disabled={busy !== null || !state.available || state.otherBusiness === true} onClick={() => onSwitch(page, channel, true)}>
             {DM_COPY.turnOn}
           </Button>
         )}
@@ -71,7 +70,7 @@ export function MetaDmConnectView({ status, busy, error, onMeta, onSwitch }: Vie
   const step = needsMetaStep(status);
   const channels = (["messenger", "instagram"] as const).filter((c) => status.channels[c]);
   return (
-    <Card data-testid="meta-dm-connect">
+    <Card id={DM_PANEL_ID} data-testid="meta-dm-connect">
       <CardHeader>
         <CardTitle>{DM_COPY.title}</CardTitle>
         <CardDescription>{DM_COPY.intro}</CardDescription>
@@ -103,6 +102,28 @@ export function MetaDmConnectView({ status, busy, error, onMeta, onSwitch }: Vie
       </CardContent>
     </Card>
   );
+}
+
+/** The pure line for the Facebook Pages card: where messages stand for the Page Peakhour uses, linking to the panel. */
+export function MetaDmPointerView({ status }: { status: DmStatus }) {
+  const pointer = dmPointer(status);
+  if (!pointer) return null;
+  return (
+    <a href={`#${DM_PANEL_ID}`} className="block text-micro text-muted-foreground underline-offset-2 hover:underline" data-testid="meta-dm-pointer" data-on={pointer.on ? "true" : "false"}>
+      {pointer.text}
+    </a>
+  );
+}
+
+/** The pointer for the Facebook Pages card. Reads the SAME status as the panel (one request); renders nothing without an answer. */
+export function MetaDmPointer() {
+  const query = useQuery({
+    queryKey: STATUS_KEY,
+    queryFn: () => api.get<DmStatus>("/v1/meta/dm/status"),
+    retry: false,
+    staleTime: 30_000,
+  });
+  return query.data ? <MetaDmPointerView status={query.data} /> : null;
 }
 
 /**
