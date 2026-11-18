@@ -44,7 +44,6 @@ export function instagramLine(page: MetaPageRow): string {
  * without reconnecting.
  */
 export function MetaAccountsPanel({
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   extra,
   onRefresh,
   refreshing,
