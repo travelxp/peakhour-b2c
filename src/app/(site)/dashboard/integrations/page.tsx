@@ -13,6 +13,7 @@ import { OAuthConnectResult } from "@/components/integrations/oauth-connect-resu
 import { MetaDmConnect } from "@/components/integrations/meta-dm-connect";
 import { DM_STATUS_KEY } from "@/lib/meta-dm";
 import { XDmConnect } from "@/components/integrations/x-dm-connect";
+import { XPostingCard } from "@/components/integrations/x-posting-card";
 import { WordPressConnectModal } from "@/components/integrations/wordpress-connect-modal";
 import { MeasurementHealthPanel } from "@/components/growth/measurement-health-panel";
 import { affectsMeasurementHealth } from "@/lib/measurement-health";
@@ -711,6 +712,9 @@ export default function IntegrationsPage() {
 
       {/* Messenger and Instagram messages (Inbox lane I3e): renders nothing until the api says a channel is released. */}
       <MetaDmConnect />
+
+      {/* Posting to X in Peaks, and the switch for posts with links (MR-X1). */}
+      <XPostingCard />
 
       {/* X messages (Inbox lane I3g): renders nothing until the api says they are released. */}
       <XDmConnect />

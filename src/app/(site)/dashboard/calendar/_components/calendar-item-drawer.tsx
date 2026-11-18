@@ -39,6 +39,8 @@ import {
   statusTone,
 } from "@/lib/scheduler/format";
 import type { ScheduledItemDto } from "@/lib/scheduler/types";
+import { XLinkHeld, isHeldForLink } from "@/components/scheduler/x-link-held";
+import { X_LINK_HELD_CODE } from "@/lib/x-posting";
 
 const STATUS_ICON = {
   published: CheckCircle2,
@@ -137,6 +139,8 @@ export function CalendarItemDrawer({
                     : " Saving the post below releases it — what goes out is what you see."}
                 </p>
               </>
+            ) : isHeldForLink(item, X_LINK_HELD_CODE) ? (
+              <XLinkHeld itemId={item._id} onChanged={onChanged} />
             ) : (
               <>
                 <div className="font-medium">Needs your attention</div>
