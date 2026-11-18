@@ -39,7 +39,8 @@ describe("threadsHubState", () => {
     expect(threadsHubState({ loading: false, error: { status: 409, code: "NEEDS_REAUTH" } })).toBe("needs_reauth");
     expect(threadsHubState({ loading: false, error: { status: 403 } })).toBe("needs_permission");
     expect(threadsHubState({ loading: false, error: { status: 404 } })).toBe("error");
-    expect(threadsHubState({ loading: false, error: { status: 502, code: "THREADS_UNAVAILABLE" } })).toBe("error");
+    expect(threadsHubState({ loading: false, error: { status: 429, code: "RATE_LIMITED" } })).toBe("busy");
+    expect(threadsHubState({ loading: false, error: { status: 502, code: "META_UNAVAILABLE" } })).toBe("error");
     expect(threadsHubState({ loading: false, error: {} })).toBe("error");
   });
 });

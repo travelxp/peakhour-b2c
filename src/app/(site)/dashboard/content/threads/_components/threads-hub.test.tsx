@@ -135,7 +135,7 @@ describe("ThreadsHub", () => {
   });
 
   it("any other failure says so and offers Try again", async () => {
-    threadsApi.profile.mockRejectedValue(new FakeApiError(502, "THREADS_UNAVAILABLE"));
+    threadsApi.profile.mockRejectedValue(new FakeApiError(502, "META_UNAVAILABLE"));
     await mount();
     expect(text()).toContain("We could not reach Threads");
     expect(text()).toContain("Try again");
@@ -143,7 +143,7 @@ describe("ThreadsHub", () => {
 
   it("a posts failure keeps the profile and says the posts could not load", async () => {
     threadsApi.profile.mockResolvedValue({ profile: PROFILE });
-    threadsApi.posts.mockRejectedValue(new FakeApiError(502, "THREADS_UNAVAILABLE"));
+    threadsApi.posts.mockRejectedValue(new FakeApiError(502, "META_UNAVAILABLE"));
     await mount();
     expect(text()).toContain("Acme Co");
     expect(text()).toContain("We could not load your posts right now.");
@@ -152,7 +152,7 @@ describe("ThreadsHub", () => {
   it("a failed second page keeps the posts already shown and says so beside Show more", async () => {
     threadsApi.profile.mockResolvedValue({ profile: PROFILE });
     threadsApi.posts.mockResolvedValueOnce({ posts: [POST], nextCursor: "AFT" });
-    threadsApi.posts.mockRejectedValueOnce(new FakeApiError(502, "THREADS_UNAVAILABLE"));
+    threadsApi.posts.mockRejectedValueOnce(new FakeApiError(502, "META_UNAVAILABLE"));
     await mount();
     const more = [...host.querySelectorAll("button")].find((b) => b.textContent === "Show more")!;
     await act(async () => more.click());
@@ -168,5 +168,64 @@ describe("ThreadsHub", () => {
     expect(text()).toContain("needs a quick reconnect");
     expect(text()).not.toContain("Try again");
     expect(hrefs().some((h) => h?.startsWith("/dashboard/integrations"))).toBe(true);
+  });
+
+  it("a profile refetch that fails after a success keeps the profile and the posts on screen", async () => {
+    threadsApi.profile.mockResolvedValueOnce({ profile: PROFILE });
+    threadsApi.profile.mockRejectedValue(new FakeApiError(502, "META_UNAVAILABLE"));
+    threadsApi.posts.mockResolvedValue({ posts: [POST], nextCursor: null });
+    const client = new QueryClient();
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={client}>
+          <ThreadsHub />
+        </QueryClientProvider>,
+      );
+    });
+    for (let i = 0; i < 3; i++) await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(text()).toContain("Acme Co");
+    await act(async () => {
+      await client.refetchQueries({ queryKey: ["threads", "profile"] });
+    });
+    expect(threadsApi.profile).toHaveBeenCalledTimes(2);
+    expect(text()).toContain("Acme Co");
+    expect(text()).toContain("Hello from Peakhour");
+    expect(text()).not.toContain("We could not reach Threads");
+  });
+
+  it("a refetch that finds the connection expired still shows the reconnect screen", async () => {
+    threadsApi.profile.mockResolvedValueOnce({ profile: PROFILE });
+    threadsApi.profile.mockRejectedValue(new FakeApiError(409, "NEEDS_REAUTH"));
+    threadsApi.posts.mockResolvedValue({ posts: [POST], nextCursor: null });
+    const client = new QueryClient();
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={client}>
+          <ThreadsHub />
+        </QueryClientProvider>,
+      );
+    });
+    for (let i = 0; i < 3; i++) await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    await act(async () => {
+      await client.refetchQueries({ queryKey: ["threads", "profile"] });
+    });
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(text()).toContain("Threads needs a quick reconnect");
+  });
+
+  it("a 403 on the profile shows the permission screen with Reconnect", async () => {
+    threadsApi.profile.mockRejectedValue(new FakeApiError(403, "PERMISSION_MISSING"));
+    await mount();
+    expect(text()).toContain("do not have permission to read your Threads profile");
+    expect(text()).toContain("Reconnect Threads");
+    expect(threadsApi.posts).not.toHaveBeenCalled();
+  });
+
+  it("a rate limit says to try again in a minute, not that something went wrong", async () => {
+    threadsApi.profile.mockRejectedValue(new FakeApiError(429, "RATE_LIMITED"));
+    await mount();
+    expect(text()).toContain("Threads is busy");
+    expect(text()).toContain("in a minute");
+    expect(text()).not.toContain("went wrong");
   });
 });

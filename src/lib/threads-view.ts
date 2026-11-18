@@ -23,7 +23,7 @@ export function threadsViewHref(p: Pick<ThreadsPost, "permalink">): string | und
   return p.permalink && /^https:\/\/(www\.)?threads\.(com|net)\//.test(p.permalink) ? p.permalink : undefined;
 }
 
-export type ThreadsHubState = "loading" | "not_connected" | "needs_reauth" | "needs_permission" | "error" | "ready";
+export type ThreadsHubState = "loading" | "not_connected" | "needs_reauth" | "needs_permission" | "busy" | "error" | "ready";
 
 /** What the hub shows for the profile read, decided in one place so each state has a test. */
 export function threadsHubState(s: {
@@ -36,5 +36,6 @@ export function threadsHubState(s: {
   // The code, not the bare 404: a route that is not deployed yet also answers 404 and must not read as "connect".
   if (s.error.code === "THREADS_NOT_CONNECTED") return "not_connected";
   if (s.error.status === 403) return "needs_permission";
+  if (s.error.code === "RATE_LIMITED" || s.error.status === 429) return "busy";
   return "error";
 }

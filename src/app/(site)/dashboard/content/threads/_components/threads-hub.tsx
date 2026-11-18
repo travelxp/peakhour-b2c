@@ -29,10 +29,13 @@ export function ThreadsHub() {
     retry: false,
   });
 
-  const state = threadsHubState({
+  const rawState = threadsHubState({
     loading: profileQ.isLoading,
     error: profileQ.error instanceof ApiError ? profileQ.error : profileQ.error ? {} : null,
   });
+  // A background refetch that fails (busy, unreachable) must not replace a profile already on screen.
+  // A connection that is gone, expired or refused still wins: that is news, not noise.
+  const state = profileQ.data && (rawState === "error" || rawState === "busy") ? "ready" : rawState;
 
   if (state === "loading") return <Skeleton className="h-64 w-full" />;
   if (state === "not_connected") {
@@ -56,6 +59,16 @@ export function ThreadsHub() {
             : "We do not have permission to read your Threads profile. Reconnect and allow access to continue."
         }
         action={{ label: "Reconnect Threads", href: reconnect }}
+      />
+    );
+  }
+  if (state === "busy") {
+    return (
+      <EmptyState
+        icon={RefreshCw}
+        title="Threads is busy"
+        description="Threads is getting a lot of requests right now. Try again in a minute."
+        action={{ label: "Try again", onClick: () => void profileQ.refetch() }}
       />
     );
   }
@@ -115,6 +128,8 @@ function Posts({ reconnect }: { reconnect: string }) {
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
     staleTime: 60_000,
+    // Every loaded page would be fetched again on a focus; a Show more history is not worth that.
+    refetchOnWindowFocus: false,
     retry: false,
   });
 
@@ -123,6 +138,9 @@ function Posts({ reconnect }: { reconnect: string }) {
   if (q.isError && !q.data) {
     const state = threadsHubState({ loading: false, error: q.error instanceof ApiError ? q.error : {} });
     const reconnectNeeded = state === "needs_reauth" || state === "needs_permission" || state === "not_connected";
+    if (state === "busy") {
+      return <p className="text-sm text-muted-foreground">Threads is busy. Try again in a minute.</p>;
+    }
     return (
       <p className="text-sm text-muted-foreground">
         {reconnectNeeded ? "Your Threads connection needs a quick reconnect. " : "We could not load your posts right now. "}
