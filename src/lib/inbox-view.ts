@@ -11,8 +11,8 @@ import type { Priority, ResponseTimer, ThreadAssignee, Viewer } from "@/lib/inbo
 
 // ── the one subtitle ───────────────────────────────────────────────────────────────────────────────────────────────
 
-/** The line under the page title. Storefront chats are listed beside WhatsApp, so it says so. */
-export const INBOX_SUBTITLE = "Your WhatsApp and storefront conversations, leads and reviews in one place.";
+/** The line under the page title. It names no channel: WhatsApp, Messenger, Instagram, X and storefront chats share this list, each behind its own release switch, so a list of names would be wrong somewhere. */
+export const INBOX_SUBTITLE = "Messages from every channel you have connected, plus leads and reviews, in one place.";
 
 // ── channels ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
