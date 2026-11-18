@@ -372,12 +372,12 @@ export function NewCampaignDialog({
               </p>
             ) : pageRow ? (
               <p className="text-sm text-muted-foreground">
-                Shown as <span className="font-medium text-foreground">{pageRow.name ?? "your Facebook Page"}</span>
+                Shown as <span className="font-medium text-foreground">{pageRow.name ?? "your saved Facebook Page"}</span>
               </p>
             ) : (
               <p role="status" className="text-sm text-destructive">
-                No Facebook Page is saved for this business, and Meta ads are shown as a Page. Reconnect Meta with
-                a Page selected, then try again.
+                No Facebook Page is saved for this business, and Meta ads are shown as a Page. Choose one under
+                Integrations, then try again.
               </p>
             )}
 
