@@ -46,6 +46,7 @@ import {
   META_IMAGE_TYPES,
   buildAdSetEdit,
   buildCampaignEdit,
+  budgetKey,
   buildCreateBodies,
   countryName,
   fileToBase64,
@@ -70,6 +71,9 @@ import {
  *
  * ⏸EVERYTHING IS MADE PAUSED. Nothing here can spend; turning it on is the switch in the list.
  */
+
+/** The image upload failed; its message is already merchant-facing. Any other Error is ours and is not shown raw. */
+class UploadFailed extends Error {}
 
 const ADS_KEYS = ["meta-ads-campaigns", "meta-ads-adsets", "meta-ads-ads", "meta-ads-insights"] as const;
 
@@ -202,7 +206,7 @@ export function NewCampaignDialog({
             data: await fileToBase64(file),
           })
           .catch((err: unknown) => {
-            throw new Error(metaAdsErrorMessage(err, "Couldn't upload that image. Try a different one."), { cause: err });
+            throw new UploadFailed(metaAdsErrorMessage(err, "Couldn't upload that image. Try a different one."));
           });
         uploaded.current = { key, hash: upload.imageHash };
       }
@@ -229,7 +233,7 @@ export function NewCampaignDialog({
             ? `${base} A paused campaign called "${form.name.trim()}" may be in your Meta account — remove it in Ads Manager before trying again.`
             : `${base} Nothing was created.`,
         );
-      } else if (err instanceof Error && err.message !== "not ready") {
+      } else if (err instanceof UploadFailed) {
         setFailure(err.message);
       } else {
         setFailure(metaAdsErrorMessage(err, "Couldn't create the campaign. Nothing was created."));
@@ -521,11 +525,12 @@ function EditCampaignSheet({
   onClose: () => void;
 }) {
   const refresh = useRefreshAds(account.id);
-  const hasBudget = campaign.dailyBudget !== undefined || campaign.lifetimeBudget !== undefined;
-  const budgetKind = campaign.dailyBudget !== undefined ? "daily" : "lifetime";
+  const campaignBudget = budgetKey(campaign);
+  const hasBudget = campaignBudget !== null;
+  const budgetKind = campaignBudget === "dailyBudget" ? "daily" : "lifetime";
   const [name, setName] = useState(campaign.name);
   const [budget, setBudget] = useState(
-    metaMinorToInput(campaign.dailyBudget ?? campaign.lifetimeBudget, account.currency),
+    metaMinorToInput(campaignBudget ? campaign[campaignBudget] : undefined, account.currency),
   );
   const [error, setError] = useState<string | null>(null);
 
@@ -646,12 +651,13 @@ function AdSetEditor({
   onSaved: () => void;
 }) {
   const was = readTargeting(adSet.targeting);
-  const hasBudget = adSet.dailyBudget !== undefined || adSet.lifetimeBudget !== undefined;
+  const adSetBudget = budgetKey(adSet);
+  const hasBudget = adSetBudget !== null;
   const [form, setForm] = useState<AdSetEditForm>({
     countries: was.countries,
     ageMin: was.ageMin,
     ageMax: was.ageMax,
-    budget: metaMinorToInput(adSet.dailyBudget ?? adSet.lifetimeBudget, account.currency),
+    budget: metaMinorToInput(adSetBudget ? adSet[adSetBudget] : undefined, account.currency),
     start: isoToDayInZone(adSet.startTime, account.timezone),
     end: isoToDayInZone(adSet.endTime, account.timezone),
   });
@@ -728,7 +734,7 @@ function AdSetEditor({
       {hasBudget ? (
         <div className="space-y-1.5">
           <Label htmlFor={id("budget")}>
-            {adSet.dailyBudget !== undefined ? "Daily budget" : "Total budget"} ({account.currency})
+            {adSetBudget === "dailyBudget" ? "Daily budget" : "Total budget"} ({account.currency})
           </Label>
           <Input
             id={id("budget")}

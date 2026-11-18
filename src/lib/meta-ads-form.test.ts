@@ -314,3 +314,22 @@ describe("buildAdSetEdit", () => {
     expect(buildAdSetEdit(was, { ...same, ageMin: "60" }, "USD", "UTC")).toHaveProperty("error");
   });
 });
+
+describe("budgets Meta reports as zero, and boxes left as pre-filled", () => {
+  it("a lifetime ad set that reports daily_budget 0 is a lifetime ad set", () => {
+    const was = { dailyBudget: "0", lifetimeBudget: "300000", startTime: "2026-10-01T00:00:00+0000" };
+    const form = { countries: [], ageMin: "", ageMax: "", budget: "3000", start: "2026-10-01", end: "2026-12-01" };
+    expect(buildAdSetEdit(was, form, "USD", "UTC")).toEqual({ endTime: "2026-12-01T23:59:59.000Z" });
+    expect(buildAdSetEdit(was, { ...form, end: "", budget: "4000" }, "USD", "UTC")).toEqual({ lifetimeBudget: "400000" });
+  });
+
+  it("a campaign whose budget is on its ad sets can be renamed", () => {
+    expect(buildCampaignEdit({ name: "x", dailyBudget: "0" }, { name: "y", budget: "0" }, "USD")).toEqual({ name: "y" });
+  });
+
+  it("an untouched age Meta allows but this form does not offer does not block the save", () => {
+    const was = { dailyBudget: "1000", targeting: { geo_locations: { countries: ["IN"] }, age_min: 13, age_max: 44 } };
+    const form = { countries: ["IN"], ageMin: "13", ageMax: "44", budget: "10", start: "", end: "" };
+    expect(buildAdSetEdit(was, { ...form, budget: "12" }, "USD", "UTC")).toEqual({ dailyBudget: "1200" });
+  });
+});

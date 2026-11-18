@@ -313,6 +313,28 @@ export function readTargeting(targeting: Record<string, unknown> | undefined): {
   return { countries, ageMin: age(targeting?.age_min), ageMax: age(targeting?.age_max), finerGeo };
 }
 
+/** Which budget a node carries: Meta sends "0" for the kind it does not use, so only a positive amount counts. */
+export function budgetKey(node: { dailyBudget?: string; lifetimeBudget?: string }): "dailyBudget" | "lifetimeBudget" | null {
+  const positive = (v: string | undefined) => typeof v === "string" && /^\d+$/.test(v) && Number(v) > 0;
+  if (positive(node.dailyBudget)) return "dailyBudget";
+  if (positive(node.lifetimeBudget)) return "lifetimeBudget";
+  return null;
+}
+
+/** The budget field of an edit: nothing when the box is as it was pre-filled, an error when it was changed to nonsense. */
+function budgetPatch(
+  original: { dailyBudget?: string; lifetimeBudget?: string },
+  text: string,
+  currency: string | undefined,
+): { key: "dailyBudget" | "lifetimeBudget"; minor: string } | { error: string } | null {
+  const key = budgetKey(original);
+  if (!key) return null;
+  if (text.trim() === metaMinorToInput(original[key], currency)) return null;
+  const minor = metaMajorToMinor(text, currency);
+  if (minor === null) return { error: `Enter a budget in ${currency ?? "your account's currency"}, like 10 or 25.50.` };
+  return minor === original[key] ? null : { key, minor };
+}
+
 export interface CampaignEditForm {
   name: string;
   /** The text of the budget box; "" when the campaign has no budget of its own. */
@@ -330,13 +352,9 @@ export function buildCampaignEdit(
   if (!name) return { error: "Give the campaign a name." };
   if (name.length > 100) return { error: "Keep the name under 100 characters." };
   if (name !== original.name) body.name = name;
-  const hasBudget = original.dailyBudget !== undefined || original.lifetimeBudget !== undefined;
-  if (hasBudget) {
-    const minor = metaMajorToMinor(form.budget, currency);
-    if (minor === null) return { error: `Enter a budget in ${currency ?? "your account's currency"}, like 10 or 25.50.` };
-    const key = original.dailyBudget !== undefined ? "dailyBudget" : "lifetimeBudget";
-    if (minor !== (original[key] ?? "")) body[key] = minor;
-  }
+  const patch = budgetPatch(original, form.budget, currency);
+  if (patch && "error" in patch) return { error: patch.error };
+  if (patch) body[patch.key] = patch.minor;
   return Object.keys(body).length ? body : null;
 }
 
@@ -387,24 +405,22 @@ export function buildAdSetEdit(
 
   // Ages: an empty box that was empty is "no age limit stored", not an error.
   const ageBox = (raw: string, stored: string): number | null | "unchanged" => {
-    if (raw.trim() === "" && stored === "") return "unchanged";
+    if (raw.trim() === stored) return "unchanged";
     return parseAge(raw);
   };
   const min = ageBox(form.ageMin, was.ageMin);
   const max = ageBox(form.ageMax, was.ageMax);
   if (min === null || max === null) return { error: `Ages must be ${META_MIN_AGE} to ${META_MAX_AGE}.` };
-  if (typeof min === "number" && typeof max === "number" && min > max) return { error: "The oldest age can't be below the youngest." };
+  const lo = parseAge(form.ageMin);
+  const hi = parseAge(form.ageMax);
+  if (lo !== null && hi !== null && lo > hi) return { error: "The oldest age can't be below the youngest." };
   if (typeof min === "number" && String(min) !== was.ageMin) targeting.ageMin = min;
   if (typeof max === "number" && String(max) !== was.ageMax) targeting.ageMax = max;
   if (Object.keys(targeting).length) body.targeting = targeting;
 
-  const hasBudget = original.dailyBudget !== undefined || original.lifetimeBudget !== undefined;
-  if (hasBudget) {
-    const minor = metaMajorToMinor(form.budget, currency);
-    if (minor === null) return { error: `Enter a budget in ${currency ?? "your account's currency"}, like 10 or 25.50.` };
-    const key = original.dailyBudget !== undefined ? "dailyBudget" : "lifetimeBudget";
-    if (minor !== (original[key] ?? "")) body[key] = minor;
-  }
+  const patch = budgetPatch(original, form.budget, currency);
+  if (patch && "error" in patch) return { error: patch.error };
+  if (patch) body[patch.key] = patch.minor;
 
   const wasStart = isoToDayInZone(original.startTime, zone);
   const wasEnd = isoToDayInZone(original.endTime, zone);
