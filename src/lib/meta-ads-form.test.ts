@@ -41,6 +41,17 @@ describe("metaMajorToMinor", () => {
     expect(metaMajorToMinor(input, currency)).toBe(minor);
   });
 
+  it("refuses a decimal comma instead of reading 25,50 as 2550", () => {
+    expect(metaMajorToMinor("25,50", "EUR")).toBeNull();
+    expect(metaMajorToMinor("1,5", "EUR")).toBeNull();
+    expect(metaMajorToMinor("1,250,000", "USD")).toBe("125000000");
+  });
+
+  it("refuses to build a number when the currency is unknown", () => {
+    expect(metaMajorToMinor("10", undefined)).toBeNull();
+    expect(metaMajorToMinor("10", "")).toBeNull();
+  });
+
   it("does the sum on digits, so 1.15 is 115 and not 114.99999999999999", () => {
     expect(metaMajorToMinor("1.15", "USD")).toBe("115");
     expect(metaMajorToMinor("4.35", "USD")).toBe("435");
@@ -257,8 +268,8 @@ describe("buildAdSetEdit", () => {
   const same = { countries: ["IN"], ageMin: "25", ageMax: "44", budget: "10", start: "2026-10-01", end: "" };
 
   it("reads what the stored targeting says", () => {
-    expect(readTargeting(targeting)).toEqual({ countries: ["IN"], ageMin: "25", ageMax: "44" });
-    expect(readTargeting(undefined)).toEqual({ countries: [], ageMin: "", ageMax: "" });
+    expect(readTargeting(targeting)).toEqual({ countries: ["IN"], ageMin: "25", ageMax: "44", finerGeo: false });
+    expect(readTargeting(undefined)).toEqual({ countries: [], ageMin: "", ageMax: "", finerGeo: false });
   });
 
   it("is null when nothing changed", () => {
@@ -283,6 +294,18 @@ describe("buildAdSetEdit", () => {
 
   it("sends a changed budget in the minor unit, as the same kind it was", () => {
     expect(buildAdSetEdit(was, { ...same, budget: "12.5" }, "USD", "UTC")).toEqual({ dailyBudget: "1250" });
+  });
+
+  it("lets an ad set that stores no countries or ages change its end day, without inventing a targeting", () => {
+    const bare = { dailyBudget: "1000", startTime: "2026-10-01T00:00:00+0000" };
+    const empty = { countries: [], ageMin: "", ageMax: "", budget: "10", start: "2026-10-01", end: "2026-12-01" };
+    expect(buildAdSetEdit(bare, empty, "USD", "UTC")).toEqual({ endTime: "2026-12-01T23:59:59.000Z" });
+  });
+
+  it("leaves the countries alone on an ad set that targets cities or regions", () => {
+    const city = { ...was, targeting: { ...targeting, geo_locations: { countries: ["US"], cities: [{ key: "1" }] } } };
+    expect(readTargeting(city.targeting).finerGeo).toBe(true);
+    expect(buildAdSetEdit(city, { ...same, countries: [], ageMax: "50" }, "USD", "UTC")).toEqual({ targeting: { ageMax: 50 } });
   });
 
   it("refuses an end before the start, no countries, and ages the wrong way round", () => {

@@ -254,7 +254,13 @@ export const metaAdsApi = {
    * left behind, paused, so the screen can tell the merchant instead of pretending it is gone.
    */
   launchCampaign: async (bodies: MetaLaunchBodies): Promise<{ campaignId: string; adSetId: string; adId: string }> => {
-    const campaign = await api.post<{ campaignId: string }>(metaAdsUrl("/v1/meta/ads/campaigns"), bodies.campaign);
+    // Level one is wrapped too: a refusal here (the weekly limit, a missing declaration) must reach the screen
+    // the same way, through the merchant-facing filter, and say that nothing was created.
+    const campaign = await api
+      .post<{ campaignId: string }>(metaAdsUrl("/v1/meta/ads/campaigns"), bodies.campaign)
+      .catch((cause: unknown) => {
+        throw new MetaLaunchError(cause, null, false);
+      });
     try {
       const adSet = await api.post<{ adSetId: string }>(
         metaAdsUrl("/v1/meta/ads/ad-sets"),

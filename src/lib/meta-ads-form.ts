@@ -45,10 +45,13 @@ export const META_COUNTRY_CODES: readonly string[] = [
 ];
 
 /** A country's English name, or the code itself when the runtime has no name for it. */
+let regionNames: Intl.DisplayNames | null | undefined;
 export function countryName(code: string): string {
   try {
-    return new Intl.DisplayNames(["en"], { type: "region" }).of(code) ?? code;
+    regionNames ??= new Intl.DisplayNames(["en"], { type: "region" });
+    return regionNames.of(code) ?? code;
   } catch {
+    regionNames = null;
     return code;
   }
 }
@@ -67,7 +70,12 @@ export const META_IMAGE_TYPES = ["image/jpeg", "image/png"] as const;
  * ⚠️DIGIT ARITHMETIC, NOT `Math.round(x * 100)`: 1.15 * 100 is 114.99999999999999.
  */
 export function metaMajorToMinor(input: string, currency: string | undefined): string | null {
-  const text = input.trim().replace(/,/g, "");
+  // ⚠️NO CURRENCY, NO NUMBER: the offset is a guess without it (a yen budget would be 100x).
+  if (!currency) return null;
+  // A comma is accepted ONLY as a thousands separator ("1,250.00"). "25,50" is a decimal comma in much of
+  // the world, and stripping it would send 2550.00 for 25.50: refused, so the merchant retypes it.
+  const raw = input.trim();
+  const text = /^\d{1,3}(,\d{3})+(\.\d+)?$/.test(raw) ? raw.replace(/,/g, "") : raw;
   if (!/^\d+(\.\d+)?$/.test(text)) return null;
   const decimals = metaCurrencyOffsetDecimals(currency);
   const [whole = "0", frac = ""] = text.split(".");
@@ -293,11 +301,16 @@ export function readTargeting(targeting: Record<string, unknown> | undefined): {
   countries: string[];
   ageMin: string;
   ageMax: string;
+  /** True when the ad set targets cities, regions and the like, which this sheet can neither show nor edit. */
+  finerGeo: boolean;
 } {
-  const geo = targeting?.geo_locations as { countries?: unknown } | undefined;
+  const geo = targeting?.geo_locations as Record<string, unknown> | undefined;
+  const finerGeo = ["cities", "regions", "geo_markets", "custom_locations", "places", "electoral_districts", "zips"].some(
+    (k) => Array.isArray(geo?.[k]) && (geo?.[k] as unknown[]).length > 0,
+  );
   const countries = Array.isArray(geo?.countries) ? geo.countries.filter((c): c is string => typeof c === "string") : [];
   const age = (v: unknown) => (typeof v === "number" ? String(v) : "");
-  return { countries, ageMin: age(targeting?.age_min), ageMax: age(targeting?.age_max) };
+  return { countries, ageMin: age(targeting?.age_min), ageMax: age(targeting?.age_max), finerGeo };
 }
 
 export interface CampaignEditForm {
@@ -363,17 +376,26 @@ export function buildAdSetEdit(
   const was = readTargeting(original.targeting);
   const targeting: { countries?: string[]; ageMin?: number; ageMax?: number } = {};
 
-  if (form.countries.length === 0) return { error: "Choose at least one country." };
-  const sameCountries =
-    form.countries.length === was.countries.length && [...form.countries].sort().join() === [...was.countries].sort().join();
-  if (!sameCountries) targeting.countries = form.countries;
+  // Countries: not touched for an ad set that targets cities or regions (the api refuses that edit), and not
+  // demanded of one that stores none (Advantage+ audiences, an ad set made in Ads Manager): only a change is checked.
+  if (!was.finerGeo) {
+    if (form.countries.length === 0 && was.countries.length > 0) return { error: "Choose at least one country." };
+    const sameCountries =
+      form.countries.length === was.countries.length && [...form.countries].sort().join() === [...was.countries].sort().join();
+    if (!sameCountries) targeting.countries = form.countries;
+  }
 
-  const min = parseAge(form.ageMin);
-  const max = parseAge(form.ageMax);
+  // Ages: an empty box that was empty is "no age limit stored", not an error.
+  const ageBox = (raw: string, stored: string): number | null | "unchanged" => {
+    if (raw.trim() === "" && stored === "") return "unchanged";
+    return parseAge(raw);
+  };
+  const min = ageBox(form.ageMin, was.ageMin);
+  const max = ageBox(form.ageMax, was.ageMax);
   if (min === null || max === null) return { error: `Ages must be ${META_MIN_AGE} to ${META_MAX_AGE}.` };
-  if (min > max) return { error: "The oldest age can't be below the youngest." };
-  if (String(min) !== was.ageMin) targeting.ageMin = min;
-  if (String(max) !== was.ageMax) targeting.ageMax = max;
+  if (typeof min === "number" && typeof max === "number" && min > max) return { error: "The oldest age can't be below the youngest." };
+  if (typeof min === "number" && String(min) !== was.ageMin) targeting.ageMin = min;
+  if (typeof max === "number" && String(max) !== was.ageMax) targeting.ageMax = max;
   if (Object.keys(targeting).length) body.targeting = targeting;
 
   const hasBudget = original.dailyBudget !== undefined || original.lifetimeBudget !== undefined;

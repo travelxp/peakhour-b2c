@@ -246,6 +246,49 @@ describe("New campaign dialog", () => {
     expect(mocks.launchCampaign).not.toHaveBeenCalled();
   });
 
+  it("uploads the image once, however many times the launch is retried", async () => {
+    mocks.launchCampaign.mockRejectedValueOnce(
+      new MetaLaunchError(new ApiError("META_UNAVAILABLE", "Couldn't reach Meta just now.", 502), null, false),
+    );
+    await open();
+    await fillValidForm();
+    click(byText("button", "Create paused campaign"));
+    await flush();
+    click(byText("button", "Create paused campaign"));
+    await flush();
+    expect(mocks.uploadImage).toHaveBeenCalledTimes(1);
+    expect(mocks.launchCampaign).toHaveBeenCalledTimes(2);
+  });
+
+  it("starts clean when reopened after a cancel: no old form, no old warning", async () => {
+    mocks.launchCampaign.mockRejectedValue(
+      new MetaLaunchError(new ApiError("META_UNAVAILABLE", "Couldn't reach Meta just now.", 502), "c1", true),
+    );
+    await open();
+    await fillValidForm();
+    click(byText("button", "Create paused campaign"));
+    await flush();
+    expect(document.body.textContent).toContain("may be in your Meta account");
+    click(byText("button", "Cancel"));
+    await flush();
+    click(byText("button", /New campaign/));
+    await flush();
+    expect(document.body.textContent).not.toContain("may be in your Meta account");
+    expect(q<HTMLInputElement>("#mc-name")?.value).toBe("");
+  });
+
+  it("shows a level-one refusal in the merchant's words, never raw text", async () => {
+    mocks.launchCampaign.mockRejectedValue(
+      new MetaLaunchError(new ApiError("CREATE_FAILED", "(#100) raw graph text act_111", 400), null, false),
+    );
+    await open();
+    await fillValidForm();
+    click(byText("button", "Create paused campaign"));
+    await flush();
+    expect(document.body.textContent).not.toContain("raw graph text");
+    expect(byText('[role="alert"]', /Nothing was created/)).toBeTruthy();
+  });
+
   it("removes a country with its own button", async () => {
     await open();
     setValue(q<HTMLSelectElement>('select[aria-label="Add a country"]')!, "IN");
@@ -337,6 +380,19 @@ describe("Edit sheet", () => {
     await flush();
     expect(byText('[role="alert"]', /oldest age/)).toBeTruthy();
     expect(mocks.editAdSet).not.toHaveBeenCalled();
+  });
+
+  it("explains, instead of offering countries, an ad set that targets cities", async () => {
+    mocks.listAdSets.mockResolvedValue({
+      adSets: [{ ...AD_SET, targeting: { geo_locations: { countries: ["US"], cities: [{ key: "1" }] }, age_min: 25, age_max: 44 } }],
+      truncated: false,
+    });
+    mocks.editCampaign.mockResolvedValue({ campaign: null });
+    mount(<EditCampaignButton account={ACCOUNT} campaign={CAMPAIGN} />);
+    click(q('button[aria-label="Edit campaign Spring sale"]'));
+    await flush();
+    expect(document.body.textContent).toContain("specific cities or regions");
+    expect(q('select[aria-label="Add a country"]')).toBeNull();
   });
 
   it("shows the start day in the ad account's zone, not UTC", async () => {

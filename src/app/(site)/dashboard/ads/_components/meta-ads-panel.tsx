@@ -291,7 +291,11 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
     retry: false,
     staleTime: LIST_STALE_MS,
   });
-  const campaignList = campaigns.data?.campaigns;
+  // A campaign that was removed (a launch rolled back, or deleted in Ads Manager) is not one to show or edit.
+  const campaignList = useMemo(
+    () => campaigns.data?.campaigns.filter((c) => c.status !== "DELETED"),
+    [campaigns.data],
+  );
   const campaignIds = useMemo(() => (campaignList ?? []).map((c) => c.id), [campaignList]);
   // ⚠️R1.2 (b2c#571): figures are requested for the first
   //  META_INSIGHTS_MAX_CAMPAIGNS only — see its note on what each id costs.
@@ -430,7 +434,7 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
                           insightSet.has(c.id),
                         )}
                         note={null}
-                        editor={<EditCampaignButton account={account} campaign={c} />}
+                        editor={metaStatusToggle(c.status) ? <EditCampaignButton account={account} campaign={c} /> : undefined}
                         open={open}
                         onExpand={() =>
                           setExpanded((prev) => {

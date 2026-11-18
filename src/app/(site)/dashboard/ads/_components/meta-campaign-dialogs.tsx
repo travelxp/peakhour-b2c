@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Pencil, Plus, X } from "lucide-react";
@@ -163,6 +163,9 @@ export function NewCampaignDialog({
   const [file, setFile] = useState<File | null>(null);
   const [showErrors, setShowErrors] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  // ★ONE UPLOAD PER FILE: Meta's library is content-addressed, so a retry after a failed launch reuses the hash
+  // instead of putting a duplicate in the merchant's account.
+  const uploaded = useRef<{ key: string; hash: string } | null>(null);
 
   const page = useQuery({
     queryKey: ["meta-ads-page"],
@@ -183,26 +186,31 @@ export function NewCampaignDialog({
     setFile(null);
     setShowErrors(false);
     setFailure(null);
+    uploaded.current = null;
   };
 
   const create = useMutation({
     mutationFn: async () => {
       if (!file || !pageRow) throw new Error("not ready");
-      const upload = await metaAdsApi
-        .uploadImage({
-          adAccountId: account.id,
-          name: file.name.slice(0, 100),
-          contentType: file.type as "image/jpeg" | "image/png",
-          data: await fileToBase64(file),
-        })
-        .catch((err: unknown) => {
-          throw new Error(metaAdsErrorMessage(err, "Couldn't upload that image. Try a different one."), { cause: err });
-        });
+      const key = `${account.id}|${file.name}|${file.size}|${file.lastModified}`;
+      if (uploaded.current?.key !== key) {
+        const upload = await metaAdsApi
+          .uploadImage({
+            adAccountId: account.id,
+            name: file.name.slice(0, 100),
+            contentType: file.type as "image/jpeg" | "image/png",
+            data: await fileToBase64(file),
+          })
+          .catch((err: unknown) => {
+            throw new Error(metaAdsErrorMessage(err, "Couldn't upload that image. Try a different one."), { cause: err });
+          });
+        uploaded.current = { key, hash: upload.imageHash };
+      }
       const bodies = buildCreateBodies(form, {
         adAccountId: account.id,
         currency: account.currency,
         pageId: pageRow.id,
-        imageHash: upload.imageHash,
+        imageHash: uploaded.current.hash,
       });
       return metaAdsApi.launchCampaign(bodies);
     },
@@ -242,6 +250,8 @@ export function NewCampaignDialog({
       open={open}
       onOpenChange={(next) => {
         if (create.isPending) return;
+        // A closed dialog starts clean: no old form, and no old "may be in your Meta account" warning.
+        if (!next) reset();
         setOpen(next);
       }}
     >
@@ -456,7 +466,14 @@ export function NewCampaignDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)} disabled={create.isPending}>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              reset();
+              setOpen(false);
+            }}
+            disabled={create.isPending}
+          >
             Cancel
           </Button>
           <Button onClick={submit} disabled={create.isPending || page.isLoading} aria-busy={create.isPending}>
@@ -674,10 +691,17 @@ function AdSetEditor({
         </p>
       </div>
 
-      <div className="space-y-1.5">
-        <Label>Countries</Label>
-        <CountryPicker value={form.countries} onChange={(countries) => setForm((f) => ({ ...f, countries }))} />
-      </div>
+      {was.finerGeo ? (
+        <p className="text-xs text-muted-foreground">
+          This ad set targets specific cities or regions. Change where it runs in Meta Ads Manager; you can still
+          change the ages here.
+        </p>
+      ) : (
+        <div className="space-y-1.5">
+          <Label>Countries</Label>
+          <CountryPicker value={form.countries} onChange={(countries) => setForm((f) => ({ ...f, countries }))} />
+        </div>
+      )}
       <div className="flex gap-4">
         <div className="space-y-1.5">
           <Label htmlFor={id("min")}>Youngest age</Label>
