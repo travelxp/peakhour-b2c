@@ -10,7 +10,6 @@ import { api, ApiError, API_BASE_URL } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
-import { MetaDmConnect } from "@/components/integrations/meta-dm-connect";
 import { DM_STATUS_KEY } from "@/lib/meta-dm";
 import { XDmConnect } from "@/components/integrations/x-dm-connect";
 import { XPostingCard } from "@/components/integrations/x-posting-card";
@@ -709,9 +708,6 @@ export default function IntegrationsPage() {
           </div>
         ))
       )}
-
-      {/* Messenger and Instagram messages (Inbox lane I3e): renders nothing until the api says a channel is released. */}
-      <MetaDmConnect />
 
       {/* Posting to X in Peaks, and the switch for posts with links (MR-X1). */}
       <XPostingCard />

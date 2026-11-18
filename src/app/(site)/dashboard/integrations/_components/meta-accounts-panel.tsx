@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api";
 import { savedMetaPageId } from "@/lib/integrations-meta";
 import { Button } from "@/components/ui/button";
-import { MetaDmPointer } from "@/components/integrations/meta-dm-connect";
+import { MetaMessagingSwitches } from "./meta-messaging-switches";
 import { DM_STATUS_KEY } from "@/lib/meta-dm";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -84,7 +84,7 @@ export function MetaAccountsPanel({
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["meta-content"] }),
         queryClient.invalidateQueries({ queryKey: ["meta-comments"] }),
-        // Messenger and Instagram messages follow the Page: the panel below and the line under the picker re-read it.
+        // Messenger and Instagram messages follow the Page: the switches under the picker re-read it.
         queryClient.invalidateQueries({ queryKey: DM_STATUS_KEY }),
       ]);
       toast.success("Peakhour will use that Page.");
@@ -140,7 +140,7 @@ export function MetaAccountsPanel({
             )}
           </div>
           {/* Not while a pick is being saved: the status still describes the old Page until it is re-read. */}
-          {saving ? null : <MetaDmPointer pageId={activeId} />}
+          <MetaMessagingSwitches pageId={activeId} hidden={saving} />
           <ul className="space-y-0.5 text-micro text-muted-foreground" aria-label="Pages and their Instagram accounts">
             {pages.map((p) => (
               <li key={p.pageId} className="truncate">
