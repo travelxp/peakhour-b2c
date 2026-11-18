@@ -53,17 +53,23 @@ export function MetaAccountsPanel({
   extra: Record<string, any>;
   onRefresh: () => void;
   refreshing: boolean;
-  onChanged?: () => void;
+  onChanged?: () => void | Promise<unknown>;
 }) {
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
-  const pages: MetaPageRow[] = Array.isArray(extra?.pages) ? extra.pages : [];
+  // Rows without a usable id cannot be picked (a Select item may not have an empty value) and the api never saves one.
+  const pages: MetaPageRow[] = (Array.isArray(extra?.pages) ? extra.pages : []).filter(
+    (p: MetaPageRow) => typeof p?.pageId === "string" && p.pageId !== "",
+  );
   const adAccounts: MetaAdAccountRow[] = Array.isArray(extra?.adAccounts) ? extra.adAccounts : [];
-  const activeId = savedMetaPageId(extra);
+  // The pick shows at once; the integrations list behind `extra` follows when `onChanged` has reloaded it.
+  const [picked, setPicked] = useState<string | null>(null);
+  const activeId = picked && pages.some((p) => p.pageId === picked) ? picked : savedMetaPageId(extra);
 
   async function choose(pageId: string) {
     if (pageId === activeId) return;
     setSaving(true);
+    setPicked(pageId);
     try {
       await api.patch("/v1/integrations/facebook/capabilities", {
         capability: "pages",
@@ -77,9 +83,10 @@ export function MetaAccountsPanel({
         queryClient.invalidateQueries({ queryKey: ["meta-content"] }),
         queryClient.invalidateQueries({ queryKey: ["meta-comments"] }),
       ]);
-      onChanged?.();
       toast.success("Peakhour will use that Page.");
+      await onChanged?.();
     } catch (err) {
+      setPicked(null);
       toast.error(
         err instanceof ApiError && err.code === "PAGE_NOT_FOUND"
           ? "That Page is no longer on your Facebook login. Refresh your Pages and try again."
@@ -94,7 +101,7 @@ export function MetaAccountsPanel({
     <div className="space-y-2 rounded-md border border-border/40 p-2" aria-label="Meta accounts">
       <div className="flex items-center justify-between gap-2">
         <p className="text-micro font-medium">Meta accounts</p>
-        <Button size="sm" variant="ghost" onClick={onRefresh} disabled={refreshing} className="h-6 gap-1 px-1.5 text-micro">
+        <Button size="sm" variant="ghost" onClick={onRefresh} disabled={refreshing || saving} className="h-6 gap-1 px-1.5 text-micro">
           <RefreshCw className={`h-2.5 w-2.5 ${refreshing ? "animate-spin" : ""}`} />
           {refreshing ? "Refreshing" : "Refresh"}
         </Button>

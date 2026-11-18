@@ -106,9 +106,9 @@ export interface InsightWindow {
 const BASE = "/v1/meta/content";
 
 export const metaContentApi = {
-  pages: () => api.get<{ pages: MetaPage[]; activePageId: string | null }>(`${BASE}/pages`),
+  pages: () => api.get<{ pages: MetaPage[]; activePageId?: string | null }>(`${BASE}/pages`),
   /** Every linked Instagram account in one call. */
-  instagramAccounts: () => api.get<{ accounts: MetaInstagramListed[]; activeAccountId: string | null }>(`${BASE}/instagram/accounts`),
+  instagramAccounts: () => api.get<{ accounts: MetaInstagramListed[]; activeAccountId?: string | null }>(`${BASE}/instagram/accounts`),
   pageInsights: (pageId: string, w: InsightWindow) =>
     api.get<{ insights: MetaPageInsights }>(`${BASE}/pages/${encodeURIComponent(pageId)}/insights`, { ...w }),
   pagePosts: (pageId: string, limit = 25) =>

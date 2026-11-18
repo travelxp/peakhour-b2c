@@ -133,6 +133,23 @@ describe("MetaAccountsPanel", () => {
     expect(h.success).toHaveBeenCalled();
   });
 
+  it("shows the new Page in the picker at once, before the list behind it has reloaded", async () => {
+    h.patch.mockResolvedValue({});
+    mount(EXTRA, { onChanged: () => {} });
+    const select = container.querySelector("select") as HTMLSelectElement;
+    await act(async () => {
+      select.value = "1002";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect((container.querySelector("select") as HTMLSelectElement).value).toBe("1002");
+  });
+
+  it("a Page row with no id is not offered", () => {
+    mount({ ...EXTRA, pages: [...EXTRA.pages, { pageName: "Broken" }, { pageId: "", pageName: "Empty" }] });
+    expect(container.querySelectorAll("option")).toHaveLength(3);
+    expect(container.textContent).not.toContain("Broken");
+  });
+
   it("keeps the Pages switch as it was when the pick is saved", async () => {
     h.patch.mockResolvedValue({});
     mount({ ...EXTRA, capabilities: { pages: { enabled: false, activeResourceId: "1003" } } });
