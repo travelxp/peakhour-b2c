@@ -1,0 +1,124 @@
+"use client";
+
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+
+import { api } from "@/lib/api";
+import { Switch } from "@/components/ui/switch";
+import {
+  DM_COPY,
+  DM_STATUS_KEY,
+  dmErrorMessage,
+  dmStatusQuery,
+  dmWhyNot,
+  metaMessagingAuthorizeUrl,
+  type DmChannel,
+  type DmStatus,
+  type DmStatusPage,
+} from "@/lib/meta-dm";
+
+interface RowProps {
+  status: DmStatus;
+  page: DmStatusPage;
+  channel: DmChannel;
+  checked: boolean;
+  disabled: boolean;
+  onToggle: (on: boolean) => void;
+}
+
+function ChannelSwitch({ status, page, channel, checked, disabled, onToggle }: RowProps) {
+  const why = dmWhyNot(status, page, channel);
+  const label = channel === "messenger" ? DM_COPY.messenger : DM_COPY.instagram(page.instagramUsername);
+  const id = `dm-switch-${page.pageId}-${channel}`;
+  return (
+    <div className="space-y-0.5" data-testid={`dm-row-${channel}`}>
+      <div className="flex items-center justify-between gap-2">
+        <label htmlFor={id} className="text-xs">
+          {label}
+        </label>
+        <Switch
+          id={id}
+          size="sm"
+          checked={checked}
+          disabled={disabled || (!checked && why !== null)}
+          aria-describedby={why && !checked ? `${id}-why` : undefined}
+          onCheckedChange={onToggle}
+        />
+      </div>
+      {why && !checked ? (
+        <p id={`${id}-why`} className="text-micro text-muted-foreground" data-testid={`dm-why-${channel}`}>
+          {why.text}
+          {why.reconnect ? (
+            <>
+              {" "}
+              <a href={metaMessagingAuthorizeUrl()} className="underline underline-offset-2">
+                {DM_COPY.reconnect}
+              </a>
+            </>
+          ) : null}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * The Messenger and Instagram message switches for the Page Peakhour uses (Facebook Pages card, under the Page picker).
+ *
+ * ★ONE READ: the Inbox's own status query. Nothing renders while it has no answer (a 404 means no channel is released), and a
+ * channel the api has not released has no switch. Only the Page in `pageId` is shown; a Page the status does not list shows nothing.
+ * `hidden` (a Page pick is saving) renders nothing but KEEPS THE COMPONENT MOUNTED, so the status query keeps an observer and the
+ * re-read after the pick really fetches. The switch moves at once, rolls back when the api refuses, and the status is re-read after every change.
+ */
+export function MetaMessagingSwitches({ pageId, hidden = false }: { pageId?: string | null; hidden?: boolean }) {
+  const queryClient = useQueryClient();
+  const query = useQuery(dmStatusQuery);
+  const [busy, setBusy] = useState<DmChannel | null>(null);
+  // optimistic value per channel while a change is in flight
+  const [optimistic, setOptimistic] = useState<{ pageId: string; channel: DmChannel; on: boolean } | null>(null);
+  const status = query.data;
+  const page = status && pageId ? status.pages.find((p) => p.pageId === pageId) : undefined;
+  if (hidden || !status || !page) return null;
+  const channels = (["messenger", "instagram"] as const).filter((c) => status.channels[c]);
+  if (channels.length === 0) return null;
+
+  async function toggle(channel: DmChannel, on: boolean) {
+    if (!page || busy) return;
+    setBusy(channel);
+    setOptimistic({ pageId: page.pageId, channel, on });
+    try {
+      await api.post(on ? "/v1/meta/dm/connect" : "/v1/meta/dm/disconnect", { pageId: page.pageId, channel, connectionId: page.connectionId });
+      // The api accepted it: show that answer at once, and keep it if the re-read below fails (a successful re-read then replaces it).
+      queryClient.setQueryData<DmStatus>(DM_STATUS_KEY, (old) =>
+        old ? { ...old, pages: old.pages.map((p) => (p.pageId === page.pageId ? { ...p, [channel]: { ...p[channel], enabled: on } } : p)) } : old,
+      );
+    } catch (err) {
+      toast.error(dmErrorMessage(err));
+    } finally {
+      // re-read BEFORE the switch is live again; the optimistic value then gives way to the api's answer (the old one after a failure)
+      await queryClient.invalidateQueries({ queryKey: DM_STATUS_KEY }).catch(() => undefined);
+      setOptimistic(null);
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="space-y-1.5" data-testid="meta-messaging-switches">
+      {channels.map((c) => (
+        <ChannelSwitch
+          key={c}
+          status={status}
+          page={page}
+          channel={c}
+          checked={optimistic && optimistic.pageId === page.pageId && optimistic.channel === c ? optimistic.on : page[c].enabled}
+          disabled={busy !== null}
+          onToggle={(on) => void toggle(c, on)}
+        />
+      ))}
+      {/* Only when something is on: with every switch off and explained, "turning this off" has nothing to say. */}
+      {channels.some((c) => page[c].enabled) ? <p className="text-micro text-muted-foreground">{DM_COPY.note}</p> : null}
+      <p className="text-micro text-muted-foreground">{DM_COPY.window}</p>
+    </div>
+  );
+}
