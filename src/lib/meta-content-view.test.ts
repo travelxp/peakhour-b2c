@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  activeFirst,
   formatFigure,
   hubState,
   instagramOverviewTiles,
@@ -179,5 +180,20 @@ describe("hubState", () => {
   it("connected with nothing to show is empty, otherwise ready", () => {
     expect(hubState({ ...base, count: 0 })).toBe("empty");
     expect(hubState(base)).toBe("ready");
+  });
+});
+
+describe("activeFirst", () => {
+  const rows = [{ id: "a" }, { id: "b" }, { id: "c" }];
+  it("moves the saved row to the front and keeps the rest in order", () => {
+    expect(activeFirst(rows, "c").map((r) => r.id)).toEqual(["c", "a", "b"]);
+    expect(activeFirst(rows, "b").map((r) => r.id)).toEqual(["b", "a", "c"]);
+  });
+  it("changes nothing for no id, an unknown id, or the first row", () => {
+    for (const id of [null, undefined, "zzz", "a"]) expect(activeFirst(rows, id).map((r) => r.id)).toEqual(["a", "b", "c"]);
+  });
+  it("does not mutate its input", () => {
+    activeFirst(rows, "c");
+    expect(rows.map((r) => r.id)).toEqual(["a", "b", "c"]);
   });
 });

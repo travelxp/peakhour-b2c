@@ -22,6 +22,7 @@ import {
   type MetaPagePost,
 } from "@/lib/api/meta-content";
 import {
+  activeFirst,
   formatFigure,
   hubState,
   instagramOverviewTiles,
@@ -76,13 +77,19 @@ export function MetaHub({ channel }: { channel: MetaHubChannel }) {
   // still works and there is no per-Page fan-out.
   const subjectsQ = useQuery({
     queryKey: ["meta-content", channel, "subjects"],
-    queryFn: async (): Promise<Subject[]> =>
-      channel === "facebook"
-        ? (await metaContentApi.pages()).pages.map((p: MetaPage) => ({ id: p.id, label: p.name }))
-        : (await metaContentApi.instagramAccounts()).accounts.map((a: MetaInstagramListed) => ({
-            id: a.id,
-            label: a.username ? `@${a.username}` : (a.name ?? a.id),
-          })),
+    // ★The saved Page (or its Instagram account) comes first, so the hub opens on the one the merchant
+    // picked in Connected accounts and shows a change there as soon as the query is invalidated.
+    queryFn: async (): Promise<Subject[]> => {
+      if (channel === "facebook") {
+        const r = await metaContentApi.pages();
+        return activeFirst(r.pages.map((p: MetaPage) => ({ id: p.id, label: p.name })), r.activePageId);
+      }
+      const r = await metaContentApi.instagramAccounts();
+      return activeFirst(
+        r.accounts.map((a: MetaInstagramListed) => ({ id: a.id, label: a.username ? `@${a.username}` : (a.name ?? a.id) })),
+        r.activeAccountId,
+      );
+    },
     staleTime: 60_000,
     retry: false,
   });
