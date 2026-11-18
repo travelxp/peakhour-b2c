@@ -193,25 +193,24 @@ describe("MetaComposer", () => {
     expect(h.publishItemNow).not.toHaveBeenCalled();
   });
 
-  it("never posts twice: after a failed attempt the screen locks to that item and Try again re-sends it", async () => {
+  it("never posts twice: after a failed attempt the screen locks to that item and offers no second send", async () => {
     h.publishItemNow.mockResolvedValueOnce({ itemId: "item1", outcome: "transient_error", published: false });
     mount("facebook");
     type("Spring sale");
     await click(button(/Publish now/));
     expect(h.commitPlan).toHaveBeenCalledTimes(1);
     expect(host.querySelector('[role="alert"] a')?.getAttribute("href")).toBe("/dashboard/calendar");
-    // locked: the text cannot change under the item that is already on the calendar, and Schedule is off
+    // locked: the text cannot change under the item that is already on the calendar, and nothing can send it again from here
     expect(host.querySelector("textarea")!.readOnly).toBe(true);
     expect(button(/Schedule/).disabled).toBe(true);
-
-    await click(button(/Try again/));
+    expect(button(/Publish now/).disabled).toBe(true);
+    await click(button(/Publish now/));
     expect(h.commitPlan).toHaveBeenCalledTimes(1);
-    expect(h.publishItemNow).toHaveBeenCalledTimes(2);
-    expect(h.publishItemNow).toHaveBeenLastCalledWith("item1");
-    expect(host.textContent).toContain("Published to Facebook.");
-    // and the composer is free again for the next post
+    expect(h.publishItemNow).toHaveBeenCalledTimes(1);
+
+    // Start a new post frees the composer
+    await click(button(/Start a new post/));
     expect(host.querySelector("textarea")!.readOnly).toBe(false);
-    expect(button(/Publish now/)).toBeTruthy();
   });
 
   it("a network error after the commit also keeps the item, so a second press does not commit another", async () => {
@@ -232,5 +231,11 @@ describe("MetaComposer", () => {
     expect(host.textContent).toContain("Published to Facebook.");
     type("Autumn sale");
     expect(host.textContent).not.toContain("Published to Facebook.");
+  });
+
+  it("a trailing newline does not count against the limit", () => {
+    mount("threads");
+    type("a".repeat(500) + String.fromCharCode(10));
+    expect(button(/Publish now/).disabled).toBe(false);
   });
 });

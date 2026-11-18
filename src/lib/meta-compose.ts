@@ -97,7 +97,7 @@ export const META_COMPOSE_RULES: Record<MetaComposeChannel, MetaChannelRules> = 
 
 // ── Counting ──────────────────────────────────────────────────────────────
 
-const EMOJI = /\p{Emoji_Presentation}|️/u;
+const EMOJI = /\p{Emoji_Presentation}|\uFE0F/u;
 const PICTOGRAPHIC = /\p{Extended_Pictographic}/u;
 function isEmoji(segment: string): boolean {
   if (EMOJI.test(segment)) return true;
@@ -191,16 +191,16 @@ export function metaPostProblems(channel: MetaComposeChannel, draft: MetaDraft):
     if (!rules.mediaKinds.includes("video")) out.push(`${rules.label} posts from here take pictures only. Remove the video.`);
     else if (media.length > 1) out.push("A video goes on its own. Remove the other items, or use pictures only.");
   }
-  const length = metaTextLength(channel, draft.text);
+  const length = metaTextLength(channel, text);
   if (length > rules.maxChars) {
     out.push(`${rules.label} allows ${rules.maxChars.toLocaleString("en-US")} characters. This is ${length.toLocaleString("en-US")}.`);
   }
   if (rules.maxHashtags !== undefined) {
-    const tags = countHashtags(draft.text);
+    const tags = countHashtags(text);
     if (tags > rules.maxHashtags) out.push(`${rules.label} allows ${rules.maxHashtags} hashtags. This has ${tags}.`);
   }
   if (rules.maxLinks !== undefined) {
-    const links = threadsLinkCount(draft.text);
+    const links = threadsLinkCount(text);
     if (links > rules.maxLinks) out.push(`${rules.label} allows ${rules.maxLinks} links in a post. This has ${links}.`);
   }
   if (channel === "facebook" && draft.link.trim() !== "") {

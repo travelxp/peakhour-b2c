@@ -102,6 +102,9 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
   const touched = text !== "" || media.length > 0 || link !== "";
   const blocked = problems.length > 0;
   const locked = sent !== null;
+  // Once the post is on the calendar the scheduler owns it: a failed attempt is retried (or left failed) there, and the api refuses a second
+  // send of an item in those states. Only a send that never reached the api (a network error) can be pressed again from here.
+  const [resend, setResend] = useState(false);
   const limits = useMemo(() => ({ ...PLATFORM_LIMITS[channel], maxChars: rules.maxChars }), [channel, rules.maxChars]);
 
   /** The merchant changed something: a banner about the last attempt no longer describes what is on screen. */
@@ -120,7 +123,8 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
     setFailure(null);
     setDone(null);
     setSent(null);
-  }, []);
+    setResend(false);
+  }, [setSent]);
 
   const insertSnippet = useCallback((snippet: string): string => {
     const { text: next, caret: nextCaret } = insertAtCaret(textareaRef.current?.value ?? "", caretRef.current, snippet);
@@ -196,13 +200,14 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
       const willRetry = result.outcome === "transient_error" || result.outcome === "rate_limited";
       return {
         failed:
-          (reason ? `${rules.label} said: ${reason}. ` : `${rules.label} did not take the post. `) +
-          (willRetry ? "We will try again shortly; you can follow it on the calendar." : "It is on the calendar if you want to fix it and try again."),
+          (reason ? `${rules.label} said: ${reason.trim().replace(/[.\s]+$/, "")}. ` : `${rules.label} did not take the post. `) +
+          (willRetry ? "We will try again shortly; you can follow it on the calendar." : "You can see it on the calendar."),
       };
     },
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["scheduler:items"] });
       if ("failed" in res) {
+        setResend(false);
         setFailure({ message: res.failed, calendar: true });
         return;
       }
@@ -216,7 +221,10 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
       const raw = err instanceof ApiError || err instanceof Error ? err.message : "";
       const message =
         raw === "" || raw === "Invalid request body" ? "This post was not accepted. Check the text and pictures, then try again." : raw;
-      setFailure({ message, calendar: sentRef.current !== null });
+      const created = sentRef.current !== null;
+      // 409 is the api saying the item cannot be sent again (queued to retry, already finished, waiting for approval): not something to press again.
+      setResend(created && !(err instanceof ApiError && err.status === 409));
+      setFailure({ message, calendar: created });
     },
   });
 
@@ -265,16 +273,16 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
           </span>
         </div>
       }
-      toolbarSlot={<AiComposeToolbar text={text} platform={channel} onAiAction={handleAiAction} />}
+      toolbarSlot={locked ? undefined : <AiComposeToolbar text={text} platform={channel} onAiAction={handleAiAction} />}
       actionsBordered
       actionsSlot={
         <>
           <Button type="button" variant="outline" size="sm" onClick={() => setMode("schedule")} disabled={blocked || locked} className="gap-1.5">
             <CalendarClock className="size-4" /> Schedule
           </Button>
-          <Button onClick={() => publishNow.mutate()} disabled={blocked || publishNow.isPending} aria-busy={publishNow.isPending} className="gap-1.5">
+          <Button onClick={() => publishNow.mutate()} disabled={blocked || publishNow.isPending || (locked && !resend)} aria-busy={publishNow.isPending} className="gap-1.5">
             {publishNow.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-            {publishNow.isPending ? "Publishing…" : locked ? "Try again" : "Publish now"}
+            {publishNow.isPending ? "Publishing…" : locked && resend ? "Try again" : "Publish now"}
           </Button>
         </>
       }
@@ -350,6 +358,7 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
         </div>
       </div>
 
+      {locked ? null : (
       <HashtagSuggest
         containerRef={wrapRef}
         targetRef={textareaRef}
@@ -360,6 +369,7 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
         validateTag={isValidTag}
         minQueryLength={2}
       />
+      )}
 
       {media.length > 0 ? (
         <ul className="flex flex-wrap gap-2" aria-label="Attached media">
@@ -389,8 +399,8 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
-        <EmojiPickerTrigger onInsert={insertSnippet} />
-        {locked ? null : (
+        {locked ? null : <EmojiPickerTrigger onInsert={insertSnippet} />}
+        {locked || media.length >= rules.maxMedia ? null : (
           <DrivePicker
             kinds={[...rules.mediaKinds]}
             maxSelection={Math.max(1, rules.maxMedia - media.length)}

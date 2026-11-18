@@ -136,11 +136,24 @@ export function ComposeNewSheet({ open, onOpenChange }: ComposeNewSheetProps) {
                 </li>
               ))}
               <li className="px-1 pt-1 text-xs text-muted-foreground">
-                Facebook, Instagram or Threads missing? Connect it in{" "}
-                <Link href="/dashboard/integrations" className="font-medium text-primary underline underline-offset-2 hover:no-underline">
-                  {CONNECTED_ACCOUNTS_LABEL}
-                </Link>
-                .
+                {integrations.isError ? (
+                  <>
+                    We could not check your Facebook, Instagram and Threads connections.{" "}
+                    <button type="button" onClick={() => void integrations.refetch()} className="font-medium text-primary underline underline-offset-2 hover:no-underline">
+                      Try again
+                    </button>
+                  </>
+                ) : integrations.isLoading ? (
+                  "Checking your connected accounts…"
+                ) : (
+                  <>
+                    Facebook, Instagram or Threads missing? Connect it in{" "}
+                    <Link href="/dashboard/integrations" className="font-medium text-primary underline underline-offset-2 hover:no-underline">
+                      {CONNECTED_ACCOUNTS_LABEL}
+                    </Link>
+                    .
+                  </>
+                )}
               </li>
             </ul>
           ) : (
