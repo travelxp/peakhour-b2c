@@ -54,7 +54,6 @@ const BADGE_VARIANT = {
   did_not_finish: "warning",
   running: "info",
   waiting: "muted",
-  off_dev: "muted",
 } as const;
 
 function ResultBadge({ row, recordingSince }: { row: ScheduleRow; recordingSince?: string | null }) {
@@ -72,14 +71,12 @@ function When({ iso }: { iso: string | null | undefined }) {
 export default function CmsSchedulesPage() {
   const { data, isPending, error, errorUpdatedAt } = useCmsSchedules();
   const [search, setSearch] = useState("");
-  const [statusChoice, setStatus] = useState("all");
+  const [status, setStatus] = useState("all");
   const [area, setArea] = useState("all");
   const [selected, setSelected] = useState<string | null>(null);
 
   const environment = data?.environment;
   const isDev = environment === "dev";
-  // "Off on dev" only exists on dev: a choice left over from there filters nothing.
-  const status = statusChoice === "off_dev" && !isDev ? "all" : statusChoice;
   const all = data?.schedules ?? [];
   const rows = filterSchedules(all, { search, status, area });
   const counts = summarise(all);
@@ -88,7 +85,6 @@ export default function CmsSchedulesPage() {
   const failedWithoutData = !data && errorUpdatedAt > 0;
 
   const chips: ShownStatus[] = ["healthy", "failing", "missed", "did_not_finish", "running", "waiting"];
-  if (isDev) chips.push("off_dev");
 
   return (
     <div className="space-y-6">
@@ -99,7 +95,7 @@ export default function CmsSchedulesPage() {
             {!environment
               ? "Every scheduled run of the api, and how the last one went."
               : isDev
-                ? "Dev: only schedules switched on for dev run here"
+                ? "Dev (master branch): runs every schedule, like production"
                 : "Production"}
           </p>
         </div>
@@ -149,11 +145,9 @@ export default function CmsSchedulesPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
-              {(Object.keys(STATUS_LABEL) as ShownStatus[])
-                .filter((s) => s !== "off_dev" || isDev)
-                .map((s) => (
-                  <SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>
-                ))}
+              {(Object.keys(STATUS_LABEL) as ShownStatus[]).map((s) => (
+                <SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Select value={area} onValueChange={setArea}>
@@ -238,7 +232,7 @@ export default function CmsSchedulesPage() {
                       )}
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-xs">
-                      {row.devEnabled === false ? <span className="text-muted-foreground">—</span> : <When iso={row.nextRunAt} />}
+                      <When iso={row.nextRunAt} />
                     </TableCell>
                   </TableRow>
                 ))
