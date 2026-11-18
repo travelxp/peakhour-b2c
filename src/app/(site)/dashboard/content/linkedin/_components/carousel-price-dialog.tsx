@@ -26,7 +26,7 @@ export const CAROUSEL_PRICE_COPY = {
 export function carouselPriceSentence(price: Pick<PeaksQuoteState, "quote">): string | null {
   const quote = price.quote;
   if (!quote || quote.free) return null;
-  return `This costs ${formatPeaks(quote.peaks)} Peaks, and only when your preview is ready. Nothing is charged if it fails. Publishing the preview is free.`;
+  return `This costs ${formatPeaks(quote.peaks)} Peaks, and you pay only for the images that are made. If one fails, you are not charged for it. Publishing the preview is free.`;
 }
 
 /**

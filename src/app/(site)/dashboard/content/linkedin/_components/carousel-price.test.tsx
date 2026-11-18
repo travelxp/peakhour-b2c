@@ -60,7 +60,7 @@ describe("the price dialog", () => {
     h.quote.mockResolvedValue(quote());
     await mount(true);
     expect(h.quote).toHaveBeenCalledWith("linkedin.newsletter_carousel");
-    expect(dialog()!.querySelector('[data-testid="carousel-price"]')!.textContent).toBe("This costs 1,250 Peaks, and only when your preview is ready. Nothing is charged if it fails. Publishing the preview is free.");
+    expect(dialog()!.querySelector('[data-testid="carousel-price"]')!.textContent).toBe("This costs 1,250 Peaks, and you pay only for the images that are made. If one fails, you are not charged for it. Publishing the preview is free.");
     expect(dialog()!.textContent).toContain("Five slides, each with its own AI image.");
     expect(dialog()!.textContent).not.toMatch(/[$₹£€]/);
   });
