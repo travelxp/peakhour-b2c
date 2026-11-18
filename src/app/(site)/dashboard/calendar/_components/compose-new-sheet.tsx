@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Sheet,
   SheetContent,
@@ -18,6 +19,15 @@ import {
   useLinkedInIdentity,
 } from "@/app/(site)/dashboard/content/linkedin/_components/composer-identity";
 import { TweetComposer } from "@/app/(site)/dashboard/content/x/_components/tweet-composer";
+import { contentHubIntegrationsQuery } from "@/lib/nav-queries";
+import {
+  CONNECTED_ACCOUNTS_LABEL,
+  META_COMPOSE_RULES,
+  metaComposeTargets,
+  isMetaComposeChannel,
+  type MetaComposeChannel,
+} from "@/lib/meta-compose";
+import { MetaComposer } from "./meta-composer";
 
 /**
  * <ComposeNewSheet/> — the "create from scratch" entry point that
@@ -29,8 +39,11 @@ import { TweetComposer } from "@/app/(site)/dashboard/content/x/_components/twee
  * (LinkedIn PostComposer, X TweetComposer) — each already bundles the
  * AI toolbar, emoji/hashtag primitives, AND a compose/schedule toggle
  * (<SchedulerComposer/>), so "schedule" is always available here with
- * no extra wiring. When the Beehiiv composer lands (buildout #5) it
- * slots into the picker the same way.
+ * no extra wiring. Facebook, Instagram and Threads share ONE composer
+ * (<MetaComposer/>) and appear in the picker only once that channel is
+ * connected: the same connection list the content hub reads. When the
+ * Beehiiv composer lands (buildout #5) it slots into the picker the
+ * same way.
  *
  * On schedule, each composer invalidates the ["scheduler:items"] query
  * the calendar subscribes to, so the grid behind the sheet refreshes
@@ -39,9 +52,17 @@ import { TweetComposer } from "@/app/(site)/dashboard/content/x/_components/twee
  * it needs the composers to expose a completion callback).
  */
 
-type Platform = "linkedin" | "x";
+type Platform = "linkedin" | "x" | MetaComposeChannel;
 
-const PLATFORMS: { value: Platform; label: string; blurb: string }[] = [
+interface PlatformOption {
+  value: Platform;
+  label: string;
+  blurb: string;
+  /** "Posting to ..." for a Meta channel, from the connection. */
+  postingTo?: string | null;
+}
+
+const BASE_PLATFORMS: PlatformOption[] = [
   { value: "linkedin", label: "LinkedIn", blurb: "Personal feed or a company page" },
   { value: "x", label: "X (Twitter)", blurb: "A single tweet or a thread" },
 ];
@@ -54,6 +75,22 @@ export interface ComposeNewSheetProps {
 export function ComposeNewSheet({ open, onOpenChange }: ComposeNewSheetProps) {
   const [platform, setPlatform] = useState<Platform | null>(null);
 
+  // Facebook, Instagram and Threads are offered only when connected. While the list is loading (or failed) none is offered:
+  // a channel that is not known to be connected is not shown, rather than shown and then refused.
+  const integrations = useQuery({ ...contentHubIntegrationsQuery, enabled: open });
+  const platforms = useMemo<PlatformOption[]>(
+    () => [
+      ...BASE_PLATFORMS,
+      ...metaComposeTargets(integrations.data?.integrations).map((t) => ({
+        value: t.channel,
+        label: META_COMPOSE_RULES[t.channel].label,
+        blurb: META_COMPOSE_RULES[t.channel].blurb,
+        postingTo: t.postingTo,
+      })),
+    ],
+    [integrations.data],
+  );
+
   function handleOpenChange(next: boolean) {
     // Reset the platform choice whenever the sheet closes so the next
     // open starts at the picker.
@@ -61,7 +98,8 @@ export function ComposeNewSheet({ open, onOpenChange }: ComposeNewSheetProps) {
     onOpenChange(next);
   }
 
-  const activeLabel = PLATFORMS.find((p) => p.value === platform)?.label;
+  const active = platforms.find((p) => p.value === platform);
+  const activeLabel = active?.label;
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
@@ -80,7 +118,7 @@ export function ComposeNewSheet({ open, onOpenChange }: ComposeNewSheetProps) {
         <div className="flex-1 px-6 py-4">
           {!platform ? (
             <ul className="space-y-2">
-              {PLATFORMS.map((p) => (
+              {platforms.map((p) => (
                 <li key={p.value}>
                   <button
                     type="button"
@@ -95,6 +133,13 @@ export function ComposeNewSheet({ open, onOpenChange }: ComposeNewSheetProps) {
                   </button>
                 </li>
               ))}
+              <li className="px-1 pt-1 text-xs text-muted-foreground">
+                Facebook, Instagram or Threads missing? Connect it in{" "}
+                <Link href="/dashboard/integrations" className="font-medium text-primary underline underline-offset-2 hover:no-underline">
+                  {CONNECTED_ACCOUNTS_LABEL}
+                </Link>
+                .
+              </li>
             </ul>
           ) : (
             <div className="space-y-3">
@@ -107,7 +152,14 @@ export function ComposeNewSheet({ open, onOpenChange }: ComposeNewSheetProps) {
               >
                 <ArrowLeft className="size-3.5" /> Change channel
               </Button>
-              {platform === "linkedin" ? <LinkedInCompose /> : <TweetComposer />}
+              {platform === "linkedin" ? (
+                <LinkedInCompose />
+              ) : platform === "x" ? (
+                <TweetComposer />
+              ) : isMetaComposeChannel(platform) ? (
+                // keyed by channel so the text and pictures never carry from one channel to another
+                <MetaComposer key={platform} channel={platform} postingTo={active?.postingTo ?? null} />
+              ) : null}
             </div>
           )}
         </div>
