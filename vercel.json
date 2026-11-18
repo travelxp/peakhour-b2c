@@ -28,6 +28,13 @@
       ]
     },
     {
+      "source": "/email/(.*)",
+      "headers": [
+        { "key": "Cross-Origin-Resource-Policy", "value": "cross-origin" },
+        { "key": "Cache-Control", "value": "public, max-age=86400, stale-while-revalidate=604800" }
+      ]
+    },
+    {
       "source": "/(api|auth|oauth)/(.*)",
       "headers": [
         { "key": "Cache-Control", "value": "no-store, max-age=0" }
