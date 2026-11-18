@@ -50,6 +50,7 @@ export const DM_COPY = {
   otherBusiness: "Another Peakhour business already uses this Page for messages, so it cannot be turned on here.",
   noAccess: "Meta did not give Peakhour messaging access.",
   reconnect: "Reconnect Meta",
+  window: "You can reply to a customer for 24 hours after their last message. Meta sets that rule for these channels.",
   note: "Turning this off stops new messages reaching your Inbox. Past conversations stay.",
   failed: "Couldn't change messages. Try again in a moment.",
 } as const;
@@ -72,7 +73,8 @@ export function dmWhyNot(status: DmStatus, page: DmStatusPage, channel: DmChanne
   const gap = (status.missingPermissions?.[channel]?.length ?? 0) > 0;
   if (status.needsReauth || gap) return { text: DM_COPY.noAccess, reconnect: true };
   if (state.available) return null;
-  return channel === "instagram" ? { text: DM_COPY.noInstagram, reconnect: false } : { text: DM_COPY.noAccess, reconnect: true };
+  // an Instagram account with a name that is unavailable for another reason is not "unlinked": send the merchant to reconnect
+  return channel === "instagram" && !page.instagramUsername ? { text: DM_COPY.noInstagram, reconnect: false } : { text: DM_COPY.noAccess, reconnect: true };
 }
 
 /** The api's own sentence when it sent one, else a next step: never a bare code. */

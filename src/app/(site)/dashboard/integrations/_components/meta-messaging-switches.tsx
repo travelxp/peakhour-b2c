@@ -76,7 +76,7 @@ export function MetaMessagingSwitches({ pageId, hidden = false }: { pageId?: str
   const query = useQuery(dmStatusQuery);
   const [busy, setBusy] = useState<DmChannel | null>(null);
   // optimistic value per channel while a change is in flight
-  const [optimistic, setOptimistic] = useState<Partial<Record<DmChannel, boolean>>>({});
+  const [optimistic, setOptimistic] = useState<{ pageId: string; channel: DmChannel; on: boolean } | null>(null);
   const status = query.data;
   const page = status && pageId ? status.pages.find((p) => p.pageId === pageId) : undefined;
   if (hidden || !status || !page) return null;
@@ -86,10 +86,10 @@ export function MetaMessagingSwitches({ pageId, hidden = false }: { pageId?: str
   async function toggle(channel: DmChannel, on: boolean) {
     if (!page || busy) return;
     setBusy(channel);
-    setOptimistic({ [channel]: on });
+    setOptimistic({ pageId: page.pageId, channel, on });
     try {
       await api.post(on ? "/v1/meta/dm/connect" : "/v1/meta/dm/disconnect", { pageId: page.pageId, channel, connectionId: page.connectionId });
-      // The api accepted it: keep that answer even if the re-read below fails, so the switch does not fall back to the old value.
+      // The api accepted it: show that answer at once, and keep it if the re-read below fails (a successful re-read then replaces it).
       queryClient.setQueryData<DmStatus>(DM_STATUS_KEY, (old) =>
         old ? { ...old, pages: old.pages.map((p) => (p.pageId === page.pageId ? { ...p, [channel]: { ...p[channel], enabled: on } } : p)) } : old,
       );
@@ -98,7 +98,7 @@ export function MetaMessagingSwitches({ pageId, hidden = false }: { pageId?: str
     } finally {
       // re-read BEFORE the switch is live again; the optimistic value then gives way to the api's answer (the old one after a failure)
       await queryClient.invalidateQueries({ queryKey: DM_STATUS_KEY }).catch(() => undefined);
-      setOptimistic({});
+      setOptimistic(null);
       setBusy(null);
     }
   }
@@ -111,12 +111,14 @@ export function MetaMessagingSwitches({ pageId, hidden = false }: { pageId?: str
           status={status}
           page={page}
           channel={c}
-          checked={optimistic[c] ?? page[c].enabled}
+          checked={optimistic && optimistic.pageId === page.pageId && optimistic.channel === c ? optimistic.on : page[c].enabled}
           disabled={busy !== null}
           onToggle={(on) => void toggle(c, on)}
         />
       ))}
-      <p className="text-micro text-muted-foreground">{DM_COPY.note}</p>
+      {/* Only when something is on: with every switch off and explained, "turning this off" has nothing to say. */}
+      {channels.some((c) => page[c].enabled) ? <p className="text-micro text-muted-foreground">{DM_COPY.note}</p> : null}
+      <p className="text-micro text-muted-foreground">{DM_COPY.window}</p>
     </div>
   );
 }

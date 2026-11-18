@@ -152,6 +152,29 @@ describe("MetaMessagingSwitches", () => {
     expect(client.getQueryCache().find({ queryKey: ["meta-dm-status"] })!.getObserversCount()).toBe(1);
   });
 
+  it("the turn-off note shows only while something is on, and the 24-hour rule always shows", async () => {
+    await mount(status({ pages: [page({ messenger: { available: true, enabled: false }, instagram: { available: true, enabled: false } })] }));
+    expect(container.textContent).not.toContain("Turning this off");
+    expect(container.textContent).toContain("24 hours after their last message");
+  });
+
+  it("an in-flight change on one Page does not show on another", async () => {
+    const both = status();
+    both.pages[1]!.messenger.enabled = true;
+    await mount(both, "1001");
+    h.post.mockReturnValue(new Promise(() => {}));
+    await act(async () => sw("messenger")!.click());
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={client}>
+          <MetaMessagingSwitches pageId="1002" />
+        </QueryClientProvider>,
+      );
+    });
+    // Page 1002 has Messenger on; Page 1001's pending "off" must not show on it
+    expect(sw("messenger")!.getAttribute("aria-checked")).toBe("true");
+  });
+
   it("no messaging access: disabled, says why, and Reconnect Meta points at the messaging login", async () => {
     await mount(status({ pages: [page({ messenger: { available: false, enabled: false } })] }));
     expect(sw("messenger")!.disabled).toBe(true);
