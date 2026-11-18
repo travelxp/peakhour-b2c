@@ -15,7 +15,7 @@ vi.mock("@/lib/api", () => ({ api: { get: h.get, post: h.post, put: h.put }, API
 vi.mock("@/lib/scheduler/client", () => ({ scheduler: { resolveXLink: h.resolve } }));
 
 const { XPostingCard } = await import("./x-posting-card");
-const { XLinkHeldView, isHeldForLink } = await import("@/components/scheduler/x-link-held");
+const { XLinkHeld, XLinkHeldView, isHeldForLink } = await import("@/components/scheduler/x-link-held");
 const lib = await import("@/lib/x-posting");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -102,6 +102,21 @@ describe("the X card", () => {
     expect(button("No")).toBeDefined();
     expect(h.put).not.toHaveBeenCalled();
   });
+  it("the switch still reads OFF while the dialog is open", async () => {
+    await mount(status());
+    await click(sw());
+    expect(dialog()).not.toBeNull();
+    expect(sw().getAttribute("aria-checked")).toBe("false");
+  });
+  it("a failed save says so in the api's words and the switch stays as the api has it", async () => {
+    await mount(status());
+    h.put.mockRejectedValueOnce(new Error("Only an admin can change this."));
+    await click(sw());
+    await click(button("Yes"));
+    expect(host.querySelector('[data-testid="x-posting-error"]')!.textContent).toBe("Only an admin can change this.");
+    expect(sw().getAttribute("aria-checked")).toBe("false");
+    expect(sw().disabled).toBe(false);
+  });
   it("No leaves it off and saves nothing", async () => {
     await mount(status());
     await click(sw());
@@ -145,6 +160,56 @@ describe("the wording", () => {
     ).toBe("This thread costs 260 Peaks (2 posts). 1 post has a link.");
     expect(lib.postCostLine(undefined)).toBeNull();
     expect(lib.postCostLine({ total: null, posts: [{ hasLink: false, peaks: null }] })).toBeNull();
+  });
+});
+
+describe("a held post: the container", () => {
+  async function mountHeld(onChanged: () => void) {
+    h.get.mockResolvedValue(status());
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={client}>
+          <XLinkHeld itemId="i1" onChanged={onChanged} />
+        </QueryClientProvider>,
+      );
+    });
+    await settle();
+  }
+  const choice = (label: string) => [...host.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === label)!;
+  it("shows the price from the api on the second choice", async () => {
+    await mountHeld(() => {});
+    expect(choice("Post with the link: 240 Peaks")).toBeDefined();
+  });
+  it("after a choice both buttons stay off until the drawer has re-read the item", async () => {
+    h.resolve.mockResolvedValue({ itemId: "i1", status: "queued", choice: "without_link" });
+    const changed = vi.fn();
+    await mountHeld(changed);
+    await click(choice("Post without the link"));
+    expect(h.resolve).toHaveBeenCalledWith("i1", "without_link");
+    expect(changed).toHaveBeenCalledTimes(1);
+    expect(choice("Post without the link").disabled).toBe(true);
+    expect(choice("Post with the link: 240 Peaks").disabled).toBe(true);
+  });
+  it("while a choice is in flight the buttons are off", async () => {
+    let done!: () => void;
+    h.resolve.mockReturnValue(new Promise((r) => (done = () => r({}))));
+    await mountHeld(() => {});
+    await click(choice("Post with the link: 240 Peaks"));
+    expect(choice("Post without the link").disabled).toBe(true);
+    await act(async () => done());
+  });
+  it("a failed choice says why and turns the buttons back on", async () => {
+    h.resolve.mockRejectedValue(new Error("This post changed while you were choosing. Look at it again."));
+    const changed = vi.fn();
+    await mountHeld(changed);
+    await click(choice("Post without the link"));
+    expect(host.querySelector('[data-testid="x-link-held-error"]')!.textContent).toBe("This post changed while you were choosing. Look at it again.");
+    expect(changed).not.toHaveBeenCalled();
+    expect(choice("Post without the link").disabled).toBe(false);
   });
 });
 

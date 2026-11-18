@@ -47,6 +47,8 @@ export function XLinkHeld({ itemId, onChanged }: { itemId: string; onChanged: ()
   const posting = useXPosting();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // after a choice the buttons stay off until the drawer has re-read the item and this block goes away; a failed choice turns them back on
+  const [chosen, setChosen] = useState(false);
 
   async function choose(choice: "without_link" | "with_link") {
     if (busy) return;
@@ -54,6 +56,7 @@ export function XLinkHeld({ itemId, onChanged }: { itemId: string; onChanged: ()
     setError(null);
     try {
       await scheduler.resolveXLink(itemId, choice);
+      setChosen(true);
       onChanged();
     } catch (err) {
       setError(xPostingErrorMessage(err));
@@ -62,5 +65,5 @@ export function XLinkHeld({ itemId, onChanged }: { itemId: string; onChanged: ()
     }
   }
 
-  return <XLinkHeldView linkPeaks={posting.data?.prices.link ?? null} busy={busy} error={error} onChoose={(c) => void choose(c)} />;
+  return <XLinkHeldView linkPeaks={posting.data?.prices.link ?? null} busy={busy || chosen} error={error} onChoose={(c) => void choose(c)} />;
 }

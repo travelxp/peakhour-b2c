@@ -208,13 +208,15 @@ export function TweetComposer() {
     staleTime: 10_000,
     placeholderData: (prev) => prev,
   });
-  const quote = quoteTexts.length > 0 ? quoteQuery.data : undefined;
+  // ★A quote counts only for the text it was made for. While the draft is ahead of the quote (the debounce, or the previous text's
+  // quote held as placeholder) there is NO quote for the current text, and nothing is sent. A refetch in the background with a quote in
+  // hand blocks nothing. A quote that failed is said, with a retry, and blocks too: the api checks again at the send either way.
+  const sameText = JSON.stringify(quoteTexts) === JSON.stringify(postTexts);
+  const quote = postTexts.length > 0 && sameText && !quoteQuery.isPlaceholderData ? quoteQuery.data : undefined;
+  const quoteFailed = postTexts.length > 0 && sameText && quoteQuery.isError && !quote;
   const costLine = postCostLine(quote);
   const linkRefused = quote?.allowed === false && quote.reason === "x_link_held";
-  // Nothing goes while the api says it may not (a link while links are off, too few Peaks, no price), nor while the quote is still
-  // catching up with the text on screen: the quote is the api's answer for the draft, and the api checks again at the send.
-  const quoteStale = JSON.stringify(quoteTexts) !== JSON.stringify(postTexts) || quoteQuery.isFetching;
-  const sendBlocked = (quote?.allowed === false && quote.reason !== "not_connected") || (postTexts.length > 0 && quoteStale);
+  const sendBlocked = (quote?.allowed === false && quote.reason !== "not_connected") || (postTexts.length > 0 && !quote);
   const posting = useXPosting();
   const [confirmLinks, setConfirmLinks] = useState(false);
   const turnOnLinks = useMutation({
@@ -599,6 +601,14 @@ export function TweetComposer() {
             <p className="text-sm text-muted-foreground" data-testid="x-post-cost">
               {costLine}
             </p>
+          ) : null}
+          {quoteFailed ? (
+            <div className="flex flex-wrap items-center gap-2 text-sm text-destructive" role="alert" data-testid="x-quote-failed">
+              <span>Couldn&apos;t check this post&apos;s price. Try again.</span>
+              <Button type="button" size="sm" variant="outline" onClick={() => void quoteQuery.refetch()}>
+                Try again
+              </Button>
+            </div>
           ) : null}
           {linkRefused ? (
             <div className="space-y-2 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-warning-on-tint" role="alert" data-testid="x-link-refused">
