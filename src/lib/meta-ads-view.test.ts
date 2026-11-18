@@ -400,6 +400,13 @@ describe("★★M-16 — the copies are peakhour-api's, checked against its sour
   const CAPABILITY = fileURLToPath(
     new URL("../../../peakhour-api/src/v1/helpers/meta-capability.ts", import.meta.url),
   );
+  /** MR-F1: the ceiling's and the guardrails' refusal codes are sent by the routes but spelled in these. */
+  const CEILING = fileURLToPath(
+    new URL("../../../peakhour-api/src/v1/services/growth/ceiling.ts", import.meta.url),
+  );
+  const GUARDRAILS = fileURLToPath(
+    new URL("../../../peakhour-api/src/v1/services/growth/guardrails.ts", import.meta.url),
+  );
   const present = existsSync(SIBLING);
   const read = (p: string) => {
     if (!existsSync(p)) throw new Error(`[m16] peakhour-api is checked out but ${p} is missing`);
@@ -446,9 +453,9 @@ describe("★★M-16 — the copies are peakhour-api's, checked against its sour
     // whose merchant-facing sentence is silently replaced by the fallback —
     // the allowlist would permit nothing it names.
     const routes = read(ROUTES);
-    const capability = read(CAPABILITY);
+    const others = [read(CAPABILITY), read(CEILING), read(GUARDRAILS)];
     const missing = [...META_MERCHANT_FACING_CODES].filter(
-      (code) => !routes.includes(`"${code}"`) && !capability.includes(`"${code}"`),
+      (code) => !routes.includes(`"${code}"`) && !others.some((src) => src.includes(`"${code}"`)),
     );
     expect(missing).toEqual([]);
   });

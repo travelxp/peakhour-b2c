@@ -53,12 +53,16 @@ export const META_ADS_MANAGED_ROUTES = [
   `${META_ADS_PREFIX}/datasets`,
   `${META_ADS_PREFIX}/datasets/selected`,
   `${META_ADS_PREFIX}/campaigns`,
+  `${META_ADS_PREFIX}/campaigns/:campaignId`,
   `${META_ADS_PREFIX}/campaigns/:campaignId/status`,
   `${META_ADS_PREFIX}/ad-sets`,
+  `${META_ADS_PREFIX}/ad-sets/:adSetId`,
   `${META_ADS_PREFIX}/ad-sets/:adSetId/status`,
   `${META_ADS_PREFIX}/ads`,
   `${META_ADS_PREFIX}/ads/:adId/status`,
   `${META_ADS_PREFIX}/analytics`,
+  `${META_ADS_PREFIX}/images`,
+  `${META_ADS_PREFIX}/page`,
 ] as const;
 
 /**

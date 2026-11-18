@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -54,6 +54,7 @@ import {
   sumReported,
   type MetaKpiState,
 } from "@/lib/meta-ads-view";
+import { EditCampaignButton, NewCampaignDialog } from "./meta-campaign-dialogs";
 import { ADS_CHANNEL_PARAM, getAdsChannel, panelConnection, type AdsChannelKey } from "../ads-channels";
 
 /**
@@ -80,12 +81,14 @@ import { ADS_CHANNEL_PARAM, getAdsChannel, panelConnection, type AdsChannelKey }
  * them. The sweep's own header: *"NO-OPS FOR EVERY BUSINESS until a human has
  * chosen a dataset"*. That human act is this card.
  *
- * ── ⏸NOT HERE, DELIBERATELY ───────────────────────────────────────────────
+ * ── ★NEW CAMPAIGN AND EDIT (MR-F1) ────────────────────────────────────────
  *
- * No "Create campaign". See `lib/api/meta-ads.ts`: a Meta campaign is three
- * levels plus a special-ad-category declaration and a creative, and no row has
- * designed that flow. An empty-shell create would be a campaign that can never
- * serve.
+ * "New campaign" makes the whole three-level thing (campaign, ad set, ad)
+ * PAUSED, never a campaign shell; the pencil beside a campaign edits its name,
+ * budget, countries, ages and schedule. Both live in `meta-campaign-dialogs.tsx`
+ * and use the managed routes, so the weekly limit, the kill switch and the
+ * budget cap see what they make. Turning a campaign on stays this table's
+ * switch.
  */
 
 const ACCOUNT_PARAM = "adAccount";
@@ -288,7 +291,11 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
     retry: false,
     staleTime: LIST_STALE_MS,
   });
-  const campaignList = campaigns.data?.campaigns;
+  // A campaign that was removed (a launch rolled back, or deleted in Ads Manager) is not one to show or edit.
+  const campaignList = useMemo(
+    () => campaigns.data?.campaigns.filter((c) => c.status !== "DELETED"),
+    [campaigns.data],
+  );
   const campaignIds = useMemo(() => (campaignList ?? []).map((c) => c.id), [campaignList]);
   // ⚠️R1.2 (b2c#571): figures are requested for the first
   //  META_INSIGHTS_MAX_CAMPAIGNS only — see its note on what each id costs.
@@ -349,6 +356,12 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <NewCampaignDialog
+          account={account}
+          onCreated={(campaignId) => setExpanded((prev) => new Set(prev).add(campaignId))}
+        />
+      </div>
       <div className="grid gap-4 sm:grid-cols-3">
         <Kpi title={`Spend (${INSIGHTS_DAYS}d)`} total={spend} state={kpiState} render={(n) => formatMetaMoney(n, account.currency)} />
         <Kpi title="Impressions" total={impressions} state={kpiState} render={(n) => n.toLocaleString("en-US")} />
@@ -421,6 +434,7 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
                           insightSet.has(c.id),
                         )}
                         note={null}
+                        editor={metaStatusToggle(c.status) ? <EditCampaignButton account={account} campaign={c} /> : undefined}
                         open={open}
                         onExpand={() =>
                           setExpanded((prev) => {
@@ -583,6 +597,7 @@ function NodeRow({
   budget,
   spend,
   note,
+  editor,
   open,
   onExpand,
   pending,
@@ -594,6 +609,8 @@ function NodeRow({
   budget: string;
   spend: string;
   note: string | null;
+  /** An edit control beside the name; only campaigns have one. */
+  editor?: ReactNode;
   /** `null` for a leaf (an ad), which has nothing to expand. */
   open: boolean | null;
   onExpand: (() => void) | undefined;
@@ -624,6 +641,7 @@ function NodeRow({
             <span className={depth === 0 ? "font-medium" : undefined}>{name}</span>
             {note ? <span className="block text-xs text-warning-on-tint">{note}</span> : null}
           </div>
+          {editor}
         </div>
       </TableCell>
       <TableCell>
