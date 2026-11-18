@@ -163,8 +163,8 @@ export const peaksApi = {
  * at a call site is a string nothing checks until a merchant presses the
  * button and gets a 404 where a price should be.
  *
- * ⏸FOUR ENTRIES, and that is the api's shape rather than a sketch: the routes wrapped in `chargedAct` that have a button here are
- * `POST /v1/audiences/plan`, the content image route, Ask Peakhour Summit and Describe a goal in your own words. A further entry is a further wrapped route with a button.
+ * ⏸FIVE ENTRIES, and that is the api's shape rather than a sketch: the routes wrapped in `chargedAct` that have a button here are
+ * `POST /v1/audiences/plan`, the content image route, Ask Peakhour Summit, Describe a goal in your own words and the LinkedIn carousel preview. A further entry is a further wrapped route with a button.
  */
 export const PEAKS_ACTIONS = {
   proposeAudiences: "growth.propose_audiences",
@@ -174,6 +174,8 @@ export const PEAKS_ACTIONS = {
   askSummit: "growth.summit_review",
   /** PL-9: one sentence turned into a draft goal (`POST /v1/growth/v2/goals/parse`), one price per goal that comes back. */
   parseGoal: "growth.goal_parse",
+  /** CS-5b: a LinkedIn carousel preview from a newsletter (`POST /v1/linkedin/content/repurpose-newsletter-carousel/preview`): one AI image per slide, five slides, one price. */
+  linkedinCarousel: "linkedin.newsletter_carousel",
 } as const;
 
 export type PeaksActionKey = (typeof PEAKS_ACTIONS)[keyof typeof PEAKS_ACTIONS];

@@ -11,6 +11,7 @@ import { linkedInContentApi, type HookVariant, type LinkedInAuthor, type LinkedI
 import { emptyPoll, isPollValid, type PollState } from "./poll-editor";
 import { buildCommentarySegments, type ResolvedMention } from "./commentary-segments";
 import { ApiError } from "@/lib/api";
+import { chargedTaskRefusal } from "@/hooks/use-audience-plan";
 import { rewriteContent, createDraft, updateDraft, type ComposerDraftRef } from "@/lib/api/content";
 import { insertAtCaret } from "@/lib/composer/caret";
 import {
@@ -35,6 +36,7 @@ import { ComposerActions } from "./composer-actions";
 import { buildComposerCommands } from "./composer-commands";
 import { ComposerHeader } from "./composer-header";
 import { OffBrandVoiceNotice, VoiceCardPanel } from "./composer-voice-card";
+import { CarouselPriceDialog } from "./carousel-price-dialog";
 
 // Interaction-gated pieces: each mounts only after the user opens it.
 const CarouselPreviewDialog = dynamic(() => import("./carousel-preview-dialog").then((m) => m.CarouselPreviewDialog), { ssr: false });
@@ -267,11 +269,22 @@ export function PostComposer({ identity, seedText }: Props) {
     visibility: LinkedInVisibility;
     label: string;
   } | null>(null);
+  // The preview makes one AI image per slide, so it is a PRICED task (CS-5b): the merchant sees the price in a dialog first, and the signed receipt for
+  // that price travels with the click (`x-peaks-quote`). `carouselConfirmOpen` is that dialog.
+  const [carouselConfirmOpen, setCarouselConfirmOpen] = useState(false);
   const carousel = useMutation({
-    mutationFn: (input: CarouselPreviewInput) => linkedInContentApi.previewCarousel(input),
-    onSuccess: (res) => setCarouselPreview(res),
+    mutationFn: (v: { input: CarouselPreviewInput; quoteToken?: string }) => linkedInContentApi.previewCarousel(v.input, v.quoteToken),
+    onSuccess: (res) => {
+      setCarouselPreview(res);
+      // The receipt that was shown has been used: the next press reads a fresh one.
+      void queryClient.invalidateQueries({ queryKey: ["peaks-quote"] });
+    },
     onError: (err: unknown) => {
-      const message = err instanceof ApiError ? err.message : "Couldn't build the carousel preview.";
+      // A refused receipt is thrown away, not re-sent: the next press must carry a fresh one.
+      if (err instanceof ApiError && err.code === "QUOTE_NOT_HONOURED") void queryClient.resetQueries({ queryKey: ["peaks-quote"] });
+      setCarouselTarget(null);
+      const refusal = err instanceof ApiError ? chargedTaskRefusal(err.code, err.message) : undefined;
+      const message = refusal ? `${refusal.title} ${refusal.description}` : err instanceof ApiError ? err.message : "Couldn't build the carousel preview.";
       setFeedback({ kind: "error", message });
     },
   });
@@ -343,7 +356,14 @@ export function PostComposer({ identity, seedText }: Props) {
     publish.mutate(body);
   }
 
+  /** The Carousel button: ask first. Nothing is made until the merchant has seen the price and said yes. */
   function onCarousel() {
+    if (carouselDisabled) return;
+    setCarouselConfirmOpen(true);
+  }
+
+  /** Yes, with the receipt for the price that was on screen. */
+  function startCarousel(quoteToken: string | undefined) {
     if (carouselDisabled) return;
     setFeedback(null);
     // The composer text IS the source the server splits into slides. Snapshot
@@ -352,7 +372,7 @@ export function PostComposer({ identity, seedText }: Props) {
     const author: LinkedInAuthor = authorFromKey(authorKey);
     const label = authorOptions.find((o) => o.value === authorKey)?.label ?? "your feed";
     setCarouselTarget({ author, visibility: effectiveVisibility, label });
-    carousel.mutate({ newsletterText: text.trim() });
+    carousel.mutate({ input: { newsletterText: text.trim() }, quoteToken });
   }
 
   // ── Caret-aware snippet insertion ───────────────────────────────
@@ -732,6 +752,15 @@ export function PostComposer({ identity, seedText }: Props) {
           }}
         />
       )}
+
+      <CarouselPriceDialog
+        open={carouselConfirmOpen}
+        onConfirm={(quoteToken) => {
+          setCarouselConfirmOpen(false);
+          startCarousel(quoteToken);
+        }}
+        onCancel={() => setCarouselConfirmOpen(false)}
+      />
 
       {carouselPreview && carouselTarget && (
         <CarouselPreviewDialog
