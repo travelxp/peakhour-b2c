@@ -377,7 +377,7 @@ export function NewCampaignDialog({
             ) : (
               <p role="status" className="text-sm text-destructive">
                 No Facebook Page is saved for this business, and Meta ads are shown as a Page. Choose one under
-                Integrations, then try again.
+                Connected accounts, then try again.
               </p>
             )}
 
@@ -614,7 +614,7 @@ function EditCampaignSheet({
             ) : adSets.isError ? (
               <p role="status" className="text-sm text-muted-foreground">
                 {metaAdsErrorMessage(adSets.error, "Couldn't load this campaign's ad sets.")}
-                {metaAdsNeedsReconnect(adSets.error) ? " Reconnect Meta from Integrations." : ""}
+                {metaAdsNeedsReconnect(adSets.error) ? " Reconnect Meta from Connected accounts." : ""}
               </p>
             ) : (adSets.data?.adSets ?? []).length === 0 ? (
               <p className="text-sm text-muted-foreground">This campaign has no ad sets yet.</p>
