@@ -46,7 +46,6 @@ function row(over: Partial<ScheduleRow> & Pick<ScheduleRow, "name" | "label" | "
     cron: "*/15 * * * *",
     cadence: "Every 15 minutes",
     slotGated: false,
-    devEnabled: null,
     nextRunAt: new Date(Date.now() + 5 * 60_000).toISOString(),
     lastStartedAt: iso(10),
     lastFinishedAt: iso(9),
@@ -119,10 +118,10 @@ function type(input: HTMLInputElement, value: string) {
 
 describe("CMS schedules page", () => {
   it("shows each result badge, with the api's labels", () => {
-    listAnswer = { data: response("dev", [...ROWS, row({ name: "dd-off-one", label: "Dee off", status: "healthy", devEnabled: false })]), isPending: false, error: null, errorUpdatedAt: 0 };
+    listAnswer = { data: response("dev", [...ROWS]), isPending: false, error: null, errorUpdatedAt: 0 };
     mount();
     const table = host!.querySelector("table")!.textContent!;
-    for (const label of ["Healthy", "Failing", "Didn't finish", "Running", "Missed", "Waiting for first run", "Off on dev"]) {
+    for (const label of ["Healthy", "Failing", "Didn't finish", "Running", "Missed", "Waiting for first run"]) {
       expect(table).toContain(label);
     }
     // friendly label and the technical name below it
@@ -184,24 +183,24 @@ describe("CMS schedules page", () => {
     expect(document.querySelector('[role="dialog"]')!.textContent).toContain(note);
   });
 
-  it("Off on dev wins over any status, including Missed", () => {
-    listAnswer = { data: response("dev", [row({ name: "dd-off-one", label: "Dee off", status: "missed", dueAt: iso(30), devEnabled: false })]), isPending: false, error: null, errorUpdatedAt: 0 };
+  it("ignores devEnabled: a payload carrying false renders its real status", () => {
+    const odd = { ...row({ name: "dd-off-one", label: "Dee off", status: "missed", dueAt: iso(30) }), devEnabled: false } as ScheduleRow;
+    listAnswer = { data: response("dev", [odd]), isPending: false, error: null, errorUpdatedAt: 0 };
     mount();
     const table = host!.querySelector("table")!.textContent!;
-    expect(table).toContain("Off on dev");
-    expect(table).not.toContain("Missed");
-    expect(host!.querySelector('[role="alert"]')).toBeNull();
+    expect(table).toContain("Missed");
+    expect(table).not.toContain("Off on dev");
   });
 
   it("the chips sum to the total, so every schedule counts in exactly one", () => {
     const rows = [
       ...ROWS,
-      row({ name: "dd-off-one", label: "Dee off", status: "failing", devEnabled: false }),
+      { ...row({ name: "dd-off-one", label: "Dee off", status: "failing" }), devEnabled: false } as ScheduleRow,
       row({ name: "xx-odd-one", label: "Ex odd", status: "something_new" as never }),
     ];
     listAnswer = { data: response("dev", rows), isPending: false, error: null, errorUpdatedAt: 0 };
     mount();
-    const labels = ["Healthy", "Failing", "Missed", "Didn't finish", "Running", "Waiting for first run", "Off on dev"];
+    const labels = ["Healthy", "Failing", "Missed", "Didn't finish", "Running", "Waiting for first run"];
     const chipButtons = Array.from(host!.querySelectorAll('[aria-label="Summary"] button'));
     expect(chipButtons.length).toBe(labels.length);
     const sum = chipButtons.reduce((n, b) => n + Number(b.querySelector("span")!.textContent), 0);
@@ -209,21 +208,18 @@ describe("CMS schedules page", () => {
     for (const l of labels) expect(chipButtons.some((b) => b.textContent?.startsWith(l))).toBe(true);
   });
 
-  it("production: says Production, and has no dev chip or dev badge", () => {
+  it("production: says Production, and has no dev wording", () => {
     mount();
     expect(body()).toContain("Production");
     expect(body()).not.toContain("Off on dev");
-    expect(body()).not.toContain("Dev: only schedules");
+    expect(body()).not.toContain("Dev (master branch)");
   });
 
-  it("dev: names the environment, shows the Off on dev chip and badge, and counts it apart", () => {
-    listAnswer = { data: response("dev", [...ROWS, row({ name: "dd-off-one", label: "Dee off", status: "healthy", devEnabled: false })]), isPending: false, error: null, errorUpdatedAt: 0 };
+  it("dev: names the environment and says every schedule runs", () => {
+    listAnswer = { data: response("dev", ROWS), isPending: false, error: null, errorUpdatedAt: 0 };
     mount();
-    expect(body()).toContain("Dev: only schedules switched on for dev run here");
-    const chip = Array.from(host!.querySelectorAll("button")).find((b) => b.textContent?.startsWith("Off on dev"))!;
-    expect(chip.textContent).toContain("1");
-    const healthy = Array.from(host!.querySelectorAll("button")).find((b) => b.textContent?.startsWith("Healthy"))!;
-    expect(healthy.textContent).toContain("1"); // the off-on-dev row is not counted healthy
+    expect(body()).toContain("Dev (master branch): runs every schedule, like production");
+    expect(body()).not.toContain("Off on dev");
   });
 
   it("searches by the technical name and by the label", () => {

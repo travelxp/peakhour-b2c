@@ -5,8 +5,8 @@ const KNOWN_STATUSES = ["healthy", "failing", "missed", "did_not_finish", "runni
 /** The statuses the page knows how to show. */
 export type KnownStatus = (typeof KNOWN_STATUSES)[number];
 
-/** What the Result column shows: the api's status, or "off_dev" for a schedule switched off on dev. */
-export type ShownStatus = KnownStatus | "off_dev";
+/** What the Result column shows: the api's status. */
+export type ShownStatus = KnownStatus;
 
 export const STATUS_LABEL: Record<ShownStatus, string> = {
   healthy: "Healthy",
@@ -15,7 +15,6 @@ export const STATUS_LABEL: Record<ShownStatus, string> = {
   did_not_finish: "Didn't finish",
   running: "Running",
   waiting: "Waiting for first run",
-  off_dev: "Off on dev",
 };
 
 /** Default sort: what needs a look comes first. */
@@ -26,7 +25,6 @@ const STATUS_RANK: Record<ShownStatus, number> = {
   running: 3,
   waiting: 4,
   healthy: 5,
-  off_dev: 6,
 };
 
 const KNOWN: ReadonlySet<string> = new Set(KNOWN_STATUSES);
@@ -37,13 +35,13 @@ export function normaliseStatus(status: string): KnownStatus {
 }
 
 export function shownStatus(s: ScheduleRow): ShownStatus {
-  return s.devEnabled === false ? "off_dev" : normaliseStatus(s.status);
+  return normaliseStatus(s.status);
 }
 
 /** Every schedule lands in exactly one bucket, so the buckets sum to the total. */
 export function summarise(rows: ScheduleRow[]): Record<ShownStatus, number> {
   const out: Record<ShownStatus, number> = {
-    healthy: 0, failing: 0, missed: 0, did_not_finish: 0, running: 0, waiting: 0, off_dev: 0,
+    healthy: 0, failing: 0, missed: 0, did_not_finish: 0, running: 0, waiting: 0,
   };
   for (const r of rows) out[shownStatus(r)]++;
   return out;

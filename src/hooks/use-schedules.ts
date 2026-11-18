@@ -32,8 +32,6 @@ export interface ScheduleRow {
   cron: string;
   cadence: string;
   slotGated: boolean;
-  /** null on production. */
-  devEnabled: boolean | null;
   nextRunAt: string | null;
   /** The latest fire time that has passed its grace period; absent on an older api. */
   dueAt?: string | null;
