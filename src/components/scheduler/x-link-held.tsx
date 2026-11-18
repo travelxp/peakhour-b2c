@@ -29,7 +29,7 @@ export function XLinkHeldView({ linkPeaks, busy, error, onChoose }: ViewProps) {
         <Button size="sm" variant="outline" disabled={busy} onClick={() => onChoose("without_link")}>
           {labels.without}
         </Button>
-        <Button size="sm" disabled={busy || linkPeaks === null} onClick={() => onChoose("with_link")}>
+        <Button size="sm" disabled={busy || linkPeaks === null} title={linkPeaks === null ? "The price is not available right now" : undefined} onClick={() => onChoose("with_link")}>
           {labels.with}
         </Button>
       </div>

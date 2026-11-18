@@ -28,9 +28,8 @@ import {
 } from "lucide-react";
 import { xApi, extractTweetId, type PublishTweetInput } from "@/lib/api/x";
 import { X_POSTING_KEY, XLinksConfirmDialog, useXPosting } from "@/components/integrations/x-posting-card";
-import { api } from "@/lib/api";
 import { postCostLine, xPostingErrorMessage } from "@/lib/x-posting";
-import { ApiError } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import {
   rewriteContent,
   createDraft,
@@ -212,6 +211,10 @@ export function TweetComposer() {
   const quote = quoteTexts.length > 0 ? quoteQuery.data : undefined;
   const costLine = postCostLine(quote);
   const linkRefused = quote?.allowed === false && quote.reason === "x_link_held";
+  // Nothing goes while the api says it may not (a link while links are off, too few Peaks, no price), nor while the quote is still
+  // catching up with the text on screen: the quote is the api's answer for the draft, and the api checks again at the send.
+  const quoteStale = JSON.stringify(quoteTexts) !== JSON.stringify(postTexts) || quoteQuery.isFetching;
+  const sendBlocked = (quote?.allowed === false && quote.reason !== "not_connected") || (postTexts.length > 0 && quoteStale);
   const posting = useXPosting();
   const [confirmLinks, setConfirmLinks] = useState(false);
   const turnOnLinks = useMutation({
@@ -423,6 +426,8 @@ export function TweetComposer() {
         message: posted > 1 ? `Thread published (${posted} tweets).` : "Tweet published.",
       });
       queryClient.invalidateQueries({ queryKey: ["x-tweets"] });
+      // the Peaks just spent change what the next draft may do
+      queryClient.invalidateQueries({ queryKey: ["x-post-quote"] });
     },
     onError: (err: unknown) => {
       const message = err instanceof Error ? err.message : "Failed to publish tweet.";
@@ -430,8 +435,8 @@ export function TweetComposer() {
     },
   });
 
-  const publishDisabled = empty || anyTooLong || publish.isPending || linkRefused;
-  const scheduleDisabled = empty || anyTooLong || linkRefused;
+  const publishDisabled = empty || anyTooLong || publish.isPending || sendBlocked;
+  const scheduleDisabled = empty || anyTooLong || sendBlocked;
 
   // ── Reply / quote reference ─────────────────────────────────────
   function attachReference(kind: "reply" | "quote") {
