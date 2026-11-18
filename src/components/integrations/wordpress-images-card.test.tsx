@@ -152,6 +152,16 @@ describe("the card", () => {
     expect(sw().getAttribute("aria-checked")).toBe("false");
   });
 
+  it("a limit that does not cover one image cannot be saved from the box either, and while a price rise is waiting the box is hidden", async () => {
+    await mount(status({ enabled: true, monthlyCapPeaks: 1000, acceptedPricePeaks: 250, remainingPeaks: 1000 }));
+    await type(host.querySelector<HTMLInputElement>("#wp-ai-images-limit")!, "100");
+    expect(button("Save limit")!.disabled).toBe(true);
+    act(() => root.unmount());
+    host.remove();
+    await mount(status({ enabled: true, monthlyCapPeaks: 1000, acceptedPricePeaks: 250, pricePerImagePeaks: 300, needsReaccept: true, remainingPeaks: 1000 }));
+    expect(host.querySelector("#wp-ai-images-limit")).toBeNull();
+  });
+
   it("when on, the limit can be changed and is saved with the price on screen", async () => {
     await mount(status({ enabled: true, monthlyCapPeaks: 1000, acceptedPricePeaks: 250, remainingPeaks: 1000, usedPeaks: 500 }));
     expect(host.querySelector('[data-testid="wp-images-usage"]')!.textContent).toBe("Used this month: 500 of 1,000 Peaks.");

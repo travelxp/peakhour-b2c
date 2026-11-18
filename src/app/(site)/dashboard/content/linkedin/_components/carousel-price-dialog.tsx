@@ -22,7 +22,7 @@ export const CAROUSEL_PRICE_COPY = {
   yes: "Make the preview",
 } as const;
 
-/** "This costs 1,250 Peaks, and only when your preview is ready." once a receipt is held; the shared price line for every other state. */
+/** "This costs 1,250 Peaks, and you pay only for the images that are made." once a receipt is held; the shared price line for every other state. */
 export function carouselPriceSentence(price: Pick<PeaksQuoteState, "quote">): string | null {
   const quote = price.quote;
   if (!quote || quote.free) return null;

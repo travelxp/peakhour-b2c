@@ -115,7 +115,7 @@ export function WordPressImagesCardView(p: ViewProps) {
             {usage}
           </p>
         ) : null}
-        {status.enabled && p.canChange ? (
+        {status.enabled && p.canChange && !status.needsReaccept ? (
           <div className="flex flex-wrap items-end gap-2" data-testid="wp-images-limit">
             <div className="space-y-1">
               <Label htmlFor="wp-ai-images-limit" className="text-sm font-medium">
@@ -123,7 +123,7 @@ export function WordPressImagesCardView(p: ViewProps) {
               </Label>
               <Input id="wp-ai-images-limit" inputMode="numeric" className="w-40" value={p.limitText} onChange={(e) => p.onLimitText(e.target.value)} />
             </div>
-            <Button size="sm" variant="outline" disabled={p.busy || limitCap === null || limitCap === status.monthlyCapPeaks} onClick={p.onSaveLimit}>
+            <Button size="sm" variant="outline" disabled={p.busy || limitCap === null || limitCap === status.monthlyCapPeaks || (status.pricePerImagePeaks !== null && limitCap < status.pricePerImagePeaks)} onClick={p.onSaveLimit}>
               {WP_IMAGES_COPY.saveLimit}
             </Button>
           </div>
