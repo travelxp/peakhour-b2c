@@ -6,9 +6,9 @@ export function sinceLabel(iso: string | undefined, now: Date = new Date()): str
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
   const opts: Intl.DateTimeFormatOptions =
-    d.getFullYear() === now.getFullYear()
-      ? { day: "numeric", month: "short" }
-      : { day: "numeric", month: "short", year: "numeric" };
+    d.getUTCFullYear() === now.getUTCFullYear()
+      ? { day: "numeric", month: "short", timeZone: "UTC" }
+      : { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" };
   return `since ${d.toLocaleDateString("en-GB", opts)}`;
 }
 

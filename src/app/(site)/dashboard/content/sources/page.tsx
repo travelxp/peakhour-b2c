@@ -1,7 +1,7 @@
 "use client";
 
 import { TabPanelStubs } from "@/components/dashboard/tab-panel-stubs";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, AlertCircle, BookMarked, FileSearch, Sparkles } from "lucide-react";
@@ -134,6 +134,7 @@ function TrustedSourcesSurface() {
   // in, scroll to it and highlight it. Done once per id.
   const focusId = useSearchParams().get("source");
   const [focusDone, setFocusDone] = useState<string | null>(null);
+  const scrolledFor = useRef<string | null>(null);
   const focusRow = focusId ? rows.find((r) => r._id === focusId) : undefined;
   if (focusRow && focusDone !== focusRow._id) {
     // Adjusting state while rendering (React's documented pattern), not in an effect.
@@ -141,12 +142,16 @@ function TrustedSourcesSurface() {
     setTab(focusRow.status);
     setSearch("");
   }
+  const focusId2 = focusRow?._id;
+  const focusStatus = focusRow?.status;
   useEffect(() => {
-    if (!focusRow || focusDone !== focusRow._id || tab !== focusRow.status) return;
-    document
-      .getElementById(`source-${focusRow._id}`)
-      ?.scrollIntoView?.({ block: "center", behavior: "smooth" });
-  }, [focusRow, focusDone, tab]);
+    // Once per link: a later refetch or tab switch must not drag the page back.
+    if (!focusId2 || scrolledFor.current === focusId2 || tab !== focusStatus) return;
+    const el = document.getElementById(`source-${focusId2}`);
+    if (!el) return;
+    scrolledFor.current = focusId2;
+    el.scrollIntoView?.({ block: "center", behavior: "smooth" });
+  }, [focusId2, focusStatus, tab]);
 
   const byStatus = useMemo(() => {
     const groups: Record<StatusTab, TrustedSource[]> = {

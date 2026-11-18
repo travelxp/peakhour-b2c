@@ -33,6 +33,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ApiError } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { applySourceFix, deleteSource, patchSource } from "../api";
 import { isPausedForFetch, problemLine } from "../lib/fetch-issue";
 import {
@@ -191,9 +192,10 @@ export function SourceRow({ source, highlighted = false }: SourceRowProps) {
     <div
       id={`source-${source._id}`}
       data-highlighted={highlighted ? "true" : undefined}
-      className={`flex items-center gap-4 rounded-lg border bg-card p-4${
-        highlighted ? " ring-2 ring-primary" : ""
-      }`}
+      className={cn(
+        "flex items-center gap-4 rounded-lg border bg-card p-4",
+        highlighted && "ring-2 ring-primary",
+      )}
     >
       <div
         aria-hidden="true"
@@ -262,7 +264,7 @@ export function SourceRow({ source, highlighted = false }: SourceRowProps) {
                 </Button>
               </div>
             ) : null}
-            {paused ? (
+            {paused && !fix ? (
               <Button
                 size="sm"
                 variant="outline"

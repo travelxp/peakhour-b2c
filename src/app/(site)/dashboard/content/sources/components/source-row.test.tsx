@@ -142,6 +142,12 @@ describe("SourceRow fetch problems", () => {
     expect(h.patch).toHaveBeenCalledWith("/v1/sources/trusted/s1", { status: "active" });
   });
 
+  it("a paused source with a fix leads with Apply fix, not Turn back on", () => {
+    render({ ...BASE, status: "inactive", inactiveReason: "fetch_failing", fetchIssue: ISSUE });
+    expect(button("Apply fix")).toBeDefined();
+    expect(button("Turn back on")).toBeUndefined();
+  });
+
   it("a user-paused source is not shown as unreachable", () => {
     render({ ...BASE, status: "inactive", inactiveReason: "user" });
     expect(container.textContent).not.toContain("Paused: we couldn't");
