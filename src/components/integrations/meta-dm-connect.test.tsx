@@ -92,7 +92,7 @@ describe("the page rows", () => {
   it("an unavailable channel says why instead of showing a dead button", () => {
     const out = html(status({ pages: [page({ messenger: { available: false, enabled: false } })] }));
     expect(out).toContain(DM_COPY.noAccess);
-    expect(out).toContain("Reconnect Meta");
+    expect(out).toContain("connect Meta again");
   });
   it("a Page another Peakhour account already uses says so, in words, with a dead Turn on", () => {
     const out = html(status({ pages: [page({ messenger: { available: true, enabled: false, otherBusiness: true } })] }));
@@ -106,9 +106,15 @@ describe("the page rows", () => {
   it("Instagram without a linked account wins over every other reason", () => {
     expect(dmWhyNot(page({ instagramUsername: null, instagram: { available: false, enabled: false, otherBusiness: true } }), "instagram")).toBe(DM_COPY.noInstagram);
   });
-  it("the intro names the Connected accounts page through the shared label, and says it is on by default", () => {
-    expect(DM_COPY.intro).toContain("Connected accounts");
+  it("the intro says it is on by default and where the Page is chosen (the card above, not another page)", () => {
     expect(DM_COPY.intro).toContain("on by default");
+    expect(DM_COPY.intro).toContain("Meta accounts above");
+  });
+  it("Turn on is dead whenever a reason is shown, so the button and the words cannot disagree", () => {
+    const out = html(status({ pages: [page({ instagramUsername: null, instagram: { available: true, enabled: false } })] }));
+    const row = out.split('data-testid="dm-row-instagram"')[1]!;
+    expect(row).toContain(DM_COPY.noInstagram);
+    expect(row).toMatch(/<button[^>]*disabled=""[^>]*>Turn on<\/button>/);
   });
   it("an api that omits missingPermissions does not crash the screen", () => {
     const s = { ...status(), missingPermissions: undefined } as unknown as DmStatus;
@@ -151,8 +157,17 @@ describe("the line on the Facebook Pages card", () => {
     expect(dmPointer(status({ pages: [] }))).toBeNull();
     expect(renderToStaticMarkup(<MetaDmPointerView status={status({ pages: [] })} />)).toBe("");
   });
-  it("an api that does not send savedPageId falls back to the first Page", () => {
-    const s = { ...status(), savedPageId: undefined } as DmStatus;
-    expect(dmPointer(s)?.text).toBe("Messages: off");
+  it("never names a different Page: with no saved Page in the status there is no line", () => {
+    expect(dmPointer({ ...status(), savedPageId: undefined } as DmStatus)).toBeNull();
+    expect(dmPointer(status({ savedPageId: "999" }))).toBeNull();
+  });
+  it("the Page the card is showing wins over the api's, so the picker and the line cannot disagree", () => {
+    const s = status({
+      savedPageId: "1055550001",
+      pages: [page({ messenger: { available: true, enabled: true } }), page({ pageId: "2", pageName: "Outlet" })],
+    });
+    expect(dmPointer(s)?.text).toBe("Messages: on for Acme Store");
+    expect(dmPointer(s, "2")).toEqual({ on: false, text: "Messages: off" });
+    expect(renderToStaticMarkup(<MetaDmPointerView status={s} pageId="2" />)).toContain("Messages: off");
   });
 });

@@ -4,7 +4,7 @@
  * `POST /v1/meta/dm/connect` and `POST /v1/meta/dm/disconnect`.
  */
 
-import { navLabel } from "@/lib/nav-copy";
+import { api } from "@/lib/api";
 
 export type DmChannel = "messenger" | "instagram";
 
@@ -38,9 +38,19 @@ export const DM_CHANNEL_LABEL: Record<DmChannel, string> = { messenger: "Messeng
 
 export const DM_PANEL_ID = "meta-dm-connect";
 
+/** THE ONE READ OF THE STATUS: the panel, the line on the Facebook Pages card and the Inbox all share this key, fetch and cache time. */
+export const DM_STATUS_KEY = ["meta-dm-status"] as const;
+export const dmStatusQuery = {
+  queryKey: DM_STATUS_KEY,
+  queryFn: () => api.get<DmStatus>("/v1/meta/dm/status"),
+  retry: false,
+  staleTime: 30_000,
+} as const;
+
 export const DM_COPY = {
   title: "Messenger and Instagram messages",
-  intro: `Peakhour answers shoppers who message your Facebook Page or Instagram account, and hands the chat to your team when it should. Every conversation shows in your Inbox. This is on by default for the Page Peakhour uses, which you choose under ${navLabel("/dashboard/integrations")}. Turn it off here any time.`,
+  intro:
+    "Peakhour answers shoppers who message your Facebook Page or Instagram account, and hands the chat to your team when it should. Every conversation shows in your Inbox. It is on by default for the Page Peakhour uses, which you choose in Meta accounts above. Turn it off here any time.",
   window: "You can reply to a customer for 24 hours after their last message. Meta sets that rule for these channels.",
   connectMeta: "Connect Meta",
   reconnectMeta: "Reconnect Meta",
@@ -50,7 +60,7 @@ export const DM_COPY = {
   reconnectWhy: "Your Meta connection needs to be reconnected first.",
   noPages: "We could not find a Facebook Page on your Meta connection. Reconnect Meta and choose the Page you want to use.",
   otherBusiness: "Another Peakhour account already uses this Page for messages, so it cannot be turned on here.",
-  noAccess: "Meta did not give Peakhour messaging access. Reconnect Meta and accept the messaging permissions, then turn this on.",
+  noAccess: "Meta did not give Peakhour messaging access. Use the button above to connect Meta again and accept the messaging permissions, then turn this on.",
   noInstagram: "Link an Instagram professional account to this Page in Instagram settings to use Instagram messages.",
   on: "On",
   onFor: (page: string) => `On for ${page}`,
@@ -75,12 +85,14 @@ export function dmWhyNot(page: DmStatusPage, channel: DmChannel): string | null 
 }
 
 /**
- * The one line on the Facebook Pages card: whether messages are on for the Page Peakhour uses. Null while messaging is not released
- * (the panel is hidden too) or there is no Page.
+ * The one line on the Facebook Pages card: whether messages are on for the Page Peakhour uses (`pageId` when the card knows it, else
+ * the api's `savedPageId`). ★NEVER NAMES A DIFFERENT PAGE: when that Page is not in the status there is no line, not a guess.
+ * Null too while messaging is not released (the panel is hidden as well).
  */
-export function dmPointer(status: DmStatus): { on: boolean; text: string } | null {
+export function dmPointer(status: DmStatus, pageId?: string | null): { on: boolean; text: string } | null {
   if (!status.channels.messenger && !status.channels.instagram) return null;
-  const saved = status.pages.find((p) => p.pageId === status.savedPageId) ?? status.pages[0];
+  const id = pageId ?? status.savedPageId;
+  const saved = id ? status.pages.find((p) => p.pageId === id) : undefined;
   if (!saved) return null;
   const on = (["messenger", "instagram"] as const).some((c) => status.channels[c] && saved[c].enabled);
   return { on, text: on ? DM_COPY.pointerOn(dmPageName(saved)) : DM_COPY.pointerOff };

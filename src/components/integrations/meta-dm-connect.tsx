@@ -10,6 +10,8 @@ import {
   DM_CHANNEL_LABEL,
   DM_COPY,
   DM_PANEL_ID,
+  DM_STATUS_KEY,
+  dmStatusQuery,
   dmErrorMessage,
   dmPageName,
   dmPointer,
@@ -20,7 +22,6 @@ import {
   type DmStatusPage,
 } from "@/lib/meta-dm";
 
-const STATUS_KEY = ["meta-dm-status"] as const;
 const RETURN_TO = "/dashboard/integrations";
 
 /** The Meta login with the messaging permissions asked in addition (the api adds only the released channels' permissions). */
@@ -56,7 +57,7 @@ function ChannelRow({ page, channel, busy, onSwitch }: { page: DmStatusPage; cha
             {DM_COPY.turnOff}
           </Button>
         ) : (
-          <Button size="sm" disabled={busy !== null || !state.available || state.otherBusiness === true} onClick={() => onSwitch(page, channel, true)}>
+          <Button size="sm" disabled={busy !== null || !state.available || note !== null} onClick={() => onSwitch(page, channel, true)}>
             {DM_COPY.turnOn}
           </Button>
         )}
@@ -105,8 +106,8 @@ export function MetaDmConnectView({ status, busy, error, onMeta, onSwitch }: Vie
 }
 
 /** The pure line for the Facebook Pages card: where messages stand for the Page Peakhour uses, linking to the panel. */
-export function MetaDmPointerView({ status }: { status: DmStatus }) {
-  const pointer = dmPointer(status);
+export function MetaDmPointerView({ status, pageId }: { status: DmStatus; pageId?: string | null }) {
+  const pointer = dmPointer(status, pageId);
   if (!pointer) return null;
   return (
     <a href={`#${DM_PANEL_ID}`} className="block text-micro text-muted-foreground underline-offset-2 hover:underline" data-testid="meta-dm-pointer" data-on={pointer.on ? "true" : "false"}>
@@ -116,14 +117,9 @@ export function MetaDmPointerView({ status }: { status: DmStatus }) {
 }
 
 /** The pointer for the Facebook Pages card. Reads the SAME status as the panel (one request); renders nothing without an answer. */
-export function MetaDmPointer() {
-  const query = useQuery({
-    queryKey: STATUS_KEY,
-    queryFn: () => api.get<DmStatus>("/v1/meta/dm/status"),
-    retry: false,
-    staleTime: 30_000,
-  });
-  return query.data ? <MetaDmPointerView status={query.data} /> : null;
+export function MetaDmPointer({ pageId }: { pageId?: string | null }) {
+  const query = useQuery(dmStatusQuery);
+  return query.data ? <MetaDmPointerView status={query.data} pageId={pageId} /> : null;
 }
 
 /**
@@ -134,12 +130,7 @@ export function MetaDmConnect() {
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const query = useQuery({
-    queryKey: STATUS_KEY,
-    queryFn: () => api.get<DmStatus>("/v1/meta/dm/status"),
-    retry: false,
-    staleTime: 30_000,
-  });
+  const query = useQuery(dmStatusQuery);
   // Nothing while loading and nothing when there has never been an answer (a 404 means no channel is released): no skeleton, so a
   // merchant with the feature off sees no flash and no layout jump. ★A FAILED RE-READ KEEPS THE LAST ANSWER, so an error message
   // from a switch is not lost with the panel.
@@ -155,7 +146,7 @@ export function MetaDmConnect() {
       setError(dmErrorMessage(err));
     } finally {
       // re-read BEFORE the buttons come back, so the next click sees what the api now says
-      await queryClient.invalidateQueries({ queryKey: STATUS_KEY }).catch(() => undefined);
+      await queryClient.invalidateQueries({ queryKey: DM_STATUS_KEY }).catch(() => undefined);
       setBusy(null);
     }
   }

@@ -10,7 +10,7 @@ export type { ListView };
 import { useAuth } from "@/providers/auth-provider";
 import type { CustomerPanelData, InboxPrices } from "@/lib/inbox-customer";
 import type { InboxState } from "@/lib/inbox-view";
-import type { DmStatus } from "@/lib/meta-dm";
+import { dmStatusQuery, type DmStatus } from "@/lib/meta-dm";
 import type { Priority, ResponseTimer, ThreadAssignee, ThreadCsat, Viewer } from "@/lib/inbox-desk";
 import type { MessageMedia, ProductHit } from "@/lib/inbox-media";
 import { isStorefrontThread, storefrontMount, storefrontReplyRequest, storefrontResumeBody, type StorefrontDelivery, type StorefrontHandover } from "@/lib/storefront-handover";
@@ -274,11 +274,8 @@ export function useWaConnection(enabled: boolean) {
 export function useDmStatus(enabled: boolean) {
   const { business } = useAuth();
   return useQuery({
-    queryKey: ["meta-dm-status"],
-    queryFn: () => api.get<DmStatus>("/v1/meta/dm/status"),
+    ...dmStatusQuery,
     enabled: enabled && Boolean(business?._id),
-    retry: false,
-    staleTime: 30_000,
   });
 }
 

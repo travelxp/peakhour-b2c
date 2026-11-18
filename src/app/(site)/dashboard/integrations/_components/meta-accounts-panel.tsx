@@ -9,6 +9,7 @@ import { api, ApiError } from "@/lib/api";
 import { savedMetaPageId } from "@/lib/integrations-meta";
 import { Button } from "@/components/ui/button";
 import { MetaDmPointer } from "@/components/integrations/meta-dm-connect";
+import { DM_STATUS_KEY } from "@/lib/meta-dm";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface MetaPageRow {
@@ -84,7 +85,7 @@ export function MetaAccountsPanel({
         queryClient.invalidateQueries({ queryKey: ["meta-content"] }),
         queryClient.invalidateQueries({ queryKey: ["meta-comments"] }),
         // Messenger and Instagram messages follow the Page: the panel below and the line under the picker re-read it.
-        queryClient.invalidateQueries({ queryKey: ["meta-dm-status"] }),
+        queryClient.invalidateQueries({ queryKey: DM_STATUS_KEY }),
       ]);
       toast.success("Peakhour will use that Page.");
       await onChanged?.();
@@ -138,7 +139,7 @@ export function MetaAccountsPanel({
               <p className="text-xs font-medium">{pages[0]!.pageName || `Page ${pages[0]!.pageId}`}</p>
             )}
           </div>
-          <MetaDmPointer />
+          <MetaDmPointer pageId={activeId} />
           <ul className="space-y-0.5 text-micro text-muted-foreground" aria-label="Pages and their Instagram accounts">
             {pages.map((p) => (
               <li key={p.pageId} className="truncate">
