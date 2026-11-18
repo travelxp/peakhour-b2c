@@ -24,7 +24,7 @@ vi.mock("next/link", () => ({
   ),
 }));
 vi.mock("@/hooks/use-locale", () => ({
-  useLocale: () => ({ formatDate: (d: Date | null) => (d ? d.toISOString().slice(0, 10) : "") }),
+  useLocale: () => ({ formatDate: (d: Date | null) => (d ? d.toISOString().slice(0, 10) : "—") }),
 }));
 
 const { ThreadsHub } = await import("./threads-hub");
@@ -147,5 +147,26 @@ describe("ThreadsHub", () => {
     await mount();
     expect(text()).toContain("Acme Co");
     expect(text()).toContain("We could not load your posts right now.");
+  });
+
+  it("a failed second page keeps the posts already shown and says so beside Show more", async () => {
+    threadsApi.profile.mockResolvedValue({ profile: PROFILE });
+    threadsApi.posts.mockResolvedValueOnce({ posts: [POST], nextCursor: "AFT" });
+    threadsApi.posts.mockRejectedValueOnce(new FakeApiError(502, "THREADS_UNAVAILABLE"));
+    await mount();
+    const more = [...host.querySelectorAll("button")].find((b) => b.textContent === "Show more")!;
+    await act(async () => more.click());
+    for (let i = 0; i < 3; i++) await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+    expect(text()).toContain("Hello from Peakhour");
+    expect(text()).toContain("We could not load more posts");
+  });
+
+  it("a 403 on the posts offers Reconnect, not a retry that cannot work", async () => {
+    threadsApi.profile.mockResolvedValue({ profile: PROFILE });
+    threadsApi.posts.mockRejectedValue(new FakeApiError(403, "PERMISSION_MISSING"));
+    await mount();
+    expect(text()).toContain("needs a quick reconnect");
+    expect(text()).not.toContain("Try again");
+    expect(hrefs().some((h) => h?.startsWith("/dashboard/integrations"))).toBe(true);
   });
 });

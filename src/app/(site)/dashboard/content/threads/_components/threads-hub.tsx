@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { ExternalLink, RefreshCw, Unplug } from "lucide-react";
+import { ExternalLink, FileText, RefreshCw, Unplug } from "lucide-react";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -78,7 +78,7 @@ export function ThreadsHub() {
   );
 }
 
-export function ProfileCard({ profile }: { profile: ThreadsProfile }) {
+function ProfileCard({ profile }: { profile: ThreadsProfile }) {
   const handle = profile.username ? `@${profile.username}` : null;
   return (
     <Card>
@@ -119,12 +119,14 @@ function Posts({ reconnect }: { reconnect: string }) {
   });
 
   if (q.isLoading) return <Skeleton className="h-48 w-full" />;
-  if (q.isError) {
-    const reauth = q.error instanceof ApiError && q.error.code === "NEEDS_REAUTH";
+  // A failed first page is the whole story. A failed LATER page keeps what is already on screen (see below).
+  if (q.isError && !q.data) {
+    const state = threadsHubState({ loading: false, error: q.error instanceof ApiError ? q.error : {} });
+    const reconnectNeeded = state === "needs_reauth" || state === "needs_permission" || state === "not_connected";
     return (
       <p className="text-sm text-muted-foreground">
-        {reauth ? "Your connection has expired. " : "We could not load your posts right now. "}
-        {reauth ? (
+        {reconnectNeeded ? "Your Threads connection needs a quick reconnect. " : "We could not load your posts right now. "}
+        {reconnectNeeded ? (
           <a href={reconnect} className="font-medium underline underline-offset-4">
             Reconnect
           </a>
@@ -141,7 +143,7 @@ function Posts({ reconnect }: { reconnect: string }) {
   if (posts.length === 0) {
     return (
       <EmptyState
-        icon={Unplug}
+        icon={FileText}
         title="No posts yet"
         description="Posts made on Threads, including ones from Peakhour, show up here."
         action={{ label: "Compose a post", href: COMPOSE_HREF }}
@@ -188,9 +190,12 @@ function Posts({ reconnect }: { reconnect: string }) {
         })}
       </ul>
       {q.hasNextPage ? (
-        <Button variant="outline" size="sm" disabled={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()}>
-          {q.isFetchingNextPage ? "Loading..." : "Show more"}
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm" disabled={q.isFetchingNextPage} onClick={() => void q.fetchNextPage()}>
+            {q.isFetchingNextPage ? "Loading..." : "Show more"}
+          </Button>
+          {q.isFetchNextPageError ? <span className="text-xs text-muted-foreground">We could not load more posts. Try again.</span> : null}
+        </div>
       ) : null}
       <p className="text-xs text-muted-foreground">
         Want to post something new?{" "}

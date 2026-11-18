@@ -33,7 +33,8 @@ export function threadsHubState(s: {
   if (s.loading) return "loading";
   if (!s.error) return "ready";
   if (s.error.code === "NEEDS_REAUTH") return "needs_reauth";
-  if (s.error.status === 404) return "not_connected";
+  // The code, not the bare 404: a route that is not deployed yet also answers 404 and must not read as "connect".
+  if (s.error.code === "THREADS_NOT_CONNECTED") return "not_connected";
   if (s.error.status === 403) return "needs_permission";
   return "error";
 }
