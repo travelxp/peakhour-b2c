@@ -370,3 +370,17 @@ export function flattenMetaIntegration<T extends BaseIntegration>(
 
   return result;
 }
+
+/**
+ * The Facebook Page Peakhour uses, as the api resolves it (api
+ * `helpers/meta-saved-page.ts`): the merchant's pick while the connection still
+ * lists that Page, else the first listed Page. `extra` is the merged `facebook`
+ * row's `account.extra`, which carries `pages` and `capabilities`.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function savedMetaPageId(extra: Record<string, any> | undefined): string | undefined {
+  const pages: Array<{ pageId?: string }> = Array.isArray(extra?.pages) ? extra.pages : [];
+  const picked = extra?.capabilities?.pages?.activeResourceId;
+  if (typeof picked === "string" && pages.some((p) => p.pageId === picked)) return picked;
+  return pages.find((p) => typeof p.pageId === "string" && p.pageId !== "")?.pageId;
+}

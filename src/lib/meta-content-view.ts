@@ -149,6 +149,16 @@ export function mediaThumbnail(m: { mediaType: string; mediaUrl?: string; thumbn
   return m.mediaType === "VIDEO" || m.mediaType === "REELS" ? undefined : m.mediaUrl;
 }
 
+/**
+ * The saved Page's (or Instagram account's) row first, the rest in the order given. The api names it
+ * (`activePageId` / `activeAccountId`); every picker defaults to its first row, so ordering is the
+ * whole contract and a screen cannot forget to apply it. An unknown or missing id changes nothing.
+ */
+export function activeFirst<T extends { id: string }>(items: T[], activeId: string | null | undefined): T[] {
+  const at = activeId ? items.findIndex((i) => i.id === activeId) : -1;
+  return at <= 0 ? items : [items[at]!, ...items.slice(0, at), ...items.slice(at + 1)];
+}
+
 export type HubState =
   | "loading"
   | "not_connected"
