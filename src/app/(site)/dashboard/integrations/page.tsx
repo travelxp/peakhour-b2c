@@ -13,6 +13,7 @@ import { OAuthConnectResult } from "@/components/integrations/oauth-connect-resu
 import { DM_STATUS_KEY } from "@/lib/meta-dm";
 import { XDmConnect } from "@/components/integrations/x-dm-connect";
 import { XPostingCard } from "@/components/integrations/x-posting-card";
+import { WordPressImagesCard } from "@/components/integrations/wordpress-images-card";
 import { WordPressConnectModal } from "@/components/integrations/wordpress-connect-modal";
 import { MeasurementHealthPanel } from "@/components/growth/measurement-health-panel";
 import { affectsMeasurementHealth } from "@/lib/measurement-health";
@@ -711,6 +712,9 @@ export default function IntegrationsPage() {
 
       {/* Posting to X in Peaks, and the switch for posts with links (MR-X1). */}
       <XPostingCard />
+
+      {/* AI featured images for WordPress: off until turned on here, with a monthly limit in Peaks (CS-5b). Shown once a site is connected. */}
+      {integrations.some((i) => i.provider === "wordpress" && i.connected) ? <WordPressImagesCard /> : null}
 
       {/* X messages (Inbox lane I3g): renders nothing until the api says they are released. */}
       <XDmConnect />
