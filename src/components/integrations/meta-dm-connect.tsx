@@ -9,14 +9,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import {
   DM_CHANNEL_LABEL,
   DM_COPY,
+  DM_PANEL_ID,
+  DM_STATUS_KEY,
+  dmStatusQuery,
   dmErrorMessage,
+  dmPageName,
+  dmPointer,
+  dmWhyNot,
   needsMetaStep,
   type DmChannel,
   type DmStatus,
   type DmStatusPage,
 } from "@/lib/meta-dm";
 
-const STATUS_KEY = ["meta-dm-status"] as const;
 const RETURN_TO = "/dashboard/integrations";
 
 /** The Meta login with the messaging permissions asked in addition (the api adds only the released channels' permissions). */
@@ -35,12 +40,7 @@ interface ViewProps {
 
 function ChannelRow({ page, channel, busy, onSwitch }: { page: DmStatusPage; channel: DmChannel; busy: string | null; onSwitch: ViewProps["onSwitch"] }) {
   const state = page[channel];
-  const note =
-    channel === "instagram" && !page.instagramUsername
-      ? DM_COPY.noInstagram
-      : !state.available && !state.enabled
-        ? DM_COPY.needsAccess
-        : null;
+  const note = dmWhyNot(page, channel);
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 py-2" data-testid={`dm-row-${channel}`}>
       <div className="min-w-0">
@@ -48,16 +48,16 @@ function ChannelRow({ page, channel, busy, onSwitch }: { page: DmStatusPage; cha
           {DM_CHANNEL_LABEL[channel]}
           {channel === "instagram" && page.instagramUsername ? <span className="text-muted-foreground"> @{page.instagramUsername}</span> : null}
         </div>
-        {note && !state.enabled ? <div className="text-xs text-muted-foreground">{note}</div> : null}
+        {note ? <div className="text-xs text-muted-foreground">{note}</div> : null}
       </div>
       <div className="flex items-center gap-2">
-        <Badge variant={state.enabled ? "default" : "outline"}>{state.enabled ? DM_COPY.on : DM_COPY.off}</Badge>
+        <Badge variant={state.enabled ? "default" : "outline"}>{state.enabled ? DM_COPY.onFor(dmPageName(page)) : DM_COPY.off}</Badge>
         {state.enabled ? (
           <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => onSwitch(page, channel, false)}>
             {DM_COPY.turnOff}
           </Button>
         ) : (
-          <Button size="sm" disabled={busy !== null || !state.available} onClick={() => onSwitch(page, channel, true)}>
+          <Button size="sm" disabled={busy !== null || note !== null} onClick={() => onSwitch(page, channel, true)}>
             {DM_COPY.turnOn}
           </Button>
         )}
@@ -71,7 +71,7 @@ export function MetaDmConnectView({ status, busy, error, onMeta, onSwitch }: Vie
   const step = needsMetaStep(status);
   const channels = (["messenger", "instagram"] as const).filter((c) => status.channels[c]);
   return (
-    <Card data-testid="meta-dm-connect">
+    <Card id={DM_PANEL_ID} data-testid="meta-dm-connect">
       <CardHeader>
         <CardTitle>{DM_COPY.title}</CardTitle>
         <CardDescription>{DM_COPY.intro}</CardDescription>
@@ -105,6 +105,23 @@ export function MetaDmConnectView({ status, busy, error, onMeta, onSwitch }: Vie
   );
 }
 
+/** The pure line for the Facebook Pages card: where messages stand for the Page Peakhour uses, linking to the panel. */
+export function MetaDmPointerView({ status, pageId }: { status: DmStatus; pageId?: string | null }) {
+  const pointer = dmPointer(status, pageId);
+  if (!pointer) return null;
+  return (
+    <a href={`#${DM_PANEL_ID}`} className="block text-micro text-muted-foreground underline-offset-2 hover:underline" data-testid="meta-dm-pointer" data-on={pointer.on ? "true" : "false"}>
+      {pointer.text}
+    </a>
+  );
+}
+
+/** The pointer for the Facebook Pages card. Reads the SAME status as the panel (one request); renders nothing without an answer. */
+export function MetaDmPointer({ pageId }: { pageId?: string | null }) {
+  const query = useQuery(dmStatusQuery);
+  return query.data ? <MetaDmPointerView status={query.data} pageId={pageId} /> : null;
+}
+
 /**
  * The container. It renders NOTHING unless the api says a channel is released: the status route is a 404 while both are off, and
  * any failed read also hides the panel rather than show a half-working one. Every change is confirmed by re-reading the status.
@@ -113,12 +130,7 @@ export function MetaDmConnect() {
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const query = useQuery({
-    queryKey: STATUS_KEY,
-    queryFn: () => api.get<DmStatus>("/v1/meta/dm/status"),
-    retry: false,
-    staleTime: 30_000,
-  });
+  const query = useQuery(dmStatusQuery);
   // Nothing while loading and nothing when there has never been an answer (a 404 means no channel is released): no skeleton, so a
   // merchant with the feature off sees no flash and no layout jump. ★A FAILED RE-READ KEEPS THE LAST ANSWER, so an error message
   // from a switch is not lost with the panel.
@@ -134,7 +146,7 @@ export function MetaDmConnect() {
       setError(dmErrorMessage(err));
     } finally {
       // re-read BEFORE the buttons come back, so the next click sees what the api now says
-      await queryClient.invalidateQueries({ queryKey: STATUS_KEY }).catch(() => undefined);
+      await queryClient.invalidateQueries({ queryKey: DM_STATUS_KEY }).catch(() => undefined);
       setBusy(null);
     }
   }
