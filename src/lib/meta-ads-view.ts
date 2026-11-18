@@ -222,6 +222,20 @@ export const META_MERCHANT_FACING_CODES: ReadonlySet<string> = new Set([
   "DATASET_UNAVAILABLE",
   "DATASET_ID_UNSUPPORTED",
   "CONNECTION_GONE",
+  // MR-F1: the create and edit routes' own refusals, each written for the merchant.
+  "BUDGET_ENVELOPE_EXCEEDED",
+  "AD_ACCOUNT_CURRENCY_UNKNOWN",
+  "CURRENCY_MISMATCH",
+  "DECLARATION_MISSING",
+  "DECLARATION_SUPERSEDED",
+  "DECLARATION_COUNTRY_MISSING",
+  "CHANNEL_DENIED",
+  "BLACKOUT",
+  "QUIET_HOURS",
+  "BLOCKED_TERM",
+  "RATE_LIMITED",
+  "IMAGE_TOO_LARGE",
+  "IMAGE_INVALID",
 ]);
 
 /** What to show for a failed Meta ads call. */
