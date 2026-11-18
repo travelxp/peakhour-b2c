@@ -66,12 +66,17 @@ const ROWS: ScheduleRow[] = [
   row({ name: "mm-stuck-one", label: "Em stuck", status: "did_not_finish", area: "beta" }),
   row({ name: "bb-running-one", label: "Bee running", status: "running" }),
   row({ name: "cc-never-one", label: "Cee never", status: "never_ran", lastStartedAt: null, lastFinishedAt: null, lastHttpStatus: null, lastDurationMs: null, runs24h: 0 }),
+  row({ name: "ee-missed-one", label: "Eee missed", status: "missed", dueAt: iso(30), lastStartedAt: iso(300), lastFinishedAt: iso(299) }),
+  row({ name: "ff-waiting-one", label: "Eff waiting", status: "waiting", lastStartedAt: null, lastFinishedAt: null, lastHttpStatus: null, lastDurationMs: null, runs24h: 0 }),
 ];
+
+const SINCE = new Date(Date.now() - 3 * 86_400_000).toISOString();
 
 function response(environment: "production" | "dev", schedules: ScheduleRow[] = ROWS): SchedulesResponse {
   return {
     environment,
     areas: [{ area: "beta", label: "Beta area" }, { area: "alpha", label: "Alpha area" }],
+    recordingSince: SINCE,
     schedules,
   };
 }
@@ -117,7 +122,7 @@ describe("CMS schedules page", () => {
     listAnswer = { data: response("dev", [...ROWS, row({ name: "dd-off-one", label: "Dee off", status: "healthy", devEnabled: false })]), isPending: false, error: null, errorUpdatedAt: 0 };
     mount();
     const table = host!.querySelector("table")!.textContent!;
-    for (const label of ["Healthy", "Failing", "Didn't finish", "Running", "Never ran", "Off on dev"]) {
+    for (const label of ["Healthy", "Failing", "Didn't finish", "Running", "Missed", "Waiting for first run", "Off on dev"]) {
       expect(table).toContain(label);
     }
     // friendly label and the technical name below it
@@ -127,10 +132,81 @@ describe("CMS schedules page", () => {
     expect(table).toContain("Beta area");
   });
 
-  it("sorts Failing and Didn't finish first", () => {
+  it("sorts Missed, then Failing, then Didn't finish, then the rest", () => {
     mount();
-    expect(names().slice(0, 2)).toEqual(["aa-failing-one", "mm-stuck-one"]);
+    expect(names().slice(0, 3)).toEqual(["ee-missed-one", "aa-failing-one", "mm-stuck-one"]);
     expect(names()[names().length - 1]).toBe("zz-healthy-one");
+  });
+
+  it("Missed: a destructive-variant badge, the due time in the tooltip, and a header line with the count", () => {
+    mount();
+    const tr = Array.from(host!.querySelectorAll("tbody tr")).find((r) => r.textContent?.includes("ee-missed-one"))!;
+    const due = new Date(ROWS.find((r) => r.name === "ee-missed-one")!.dueAt!).toLocaleString();
+    expect(tr.querySelector(`[title="Was due at ${due}; no run arrived."]`)).not.toBeNull();
+    expect(host!.querySelector('[role="alert"]')!.textContent).toContain("1 schedule missed a run");
+    listAnswer = { data: response("production", [...ROWS, row({ name: "gg-missed-two", label: "Gee missed", status: "missed", dueAt: iso(20) })]), isPending: false, error: null, errorUpdatedAt: 0 };
+    act(() => root!.render(<Page />));
+    expect(host!.querySelector('[role="alert"]')!.textContent).toContain("2 schedules missed a run");
+  });
+
+  it("no Missed schedule, no header line", () => {
+    listAnswer = { data: response("production", ROWS.filter((r) => r.status !== "missed")), isPending: false, error: null, errorUpdatedAt: 0 };
+    mount();
+    expect(host!.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it("a legacy never_ran payload, with no dueAt or recordingSince, renders as Waiting", () => {
+    const legacy = response("production", [
+      row({ name: "cc-never-one", label: "Cee never", status: "never_ran", lastStartedAt: null, lastFinishedAt: null, runs24h: 0 }),
+    ]);
+    delete legacy.recordingSince;
+    listAnswer = { data: legacy, isPending: false, error: null, errorUpdatedAt: 0 };
+    mount();
+    const table = host!.querySelector("table")!.textContent!;
+    expect(table).toContain("Waiting for first run");
+    expect(table).not.toContain("Never ran");
+    const next = new Date(legacy.schedules[0].nextRunAt!).toLocaleString();
+    expect(host!.querySelector(`[title="No run recorded yet; next run ${next}."]`)).not.toBeNull();
+  });
+
+  it("an unknown status reads as Waiting", () => {
+    listAnswer = { data: response("production", [row({ name: "xx-odd-one", label: "Ex odd", status: "something_new" as never })]), isPending: false, error: null, errorUpdatedAt: 0 };
+    mount();
+    expect(host!.querySelector("table")!.textContent).toContain("Waiting for first run");
+  });
+
+  it("Waiting: the tooltip and the sheet say when recording began and the next run", () => {
+    mount();
+    const tr = Array.from(host!.querySelectorAll("tbody tr")).find((r) => r.textContent?.includes("ff-waiting-one"))!;
+    const note = `No run recorded since ${new Date(SINCE).toLocaleString()}; next run ${new Date(ROWS.find((r) => r.name === "ff-waiting-one")!.nextRunAt!).toLocaleString()}.`;
+    expect(tr.querySelector(`[title="${note}"]`)).not.toBeNull();
+    act(() => (tr as HTMLElement).click());
+    expect(document.querySelector('[role="dialog"]')!.textContent).toContain(note);
+  });
+
+  it("Off on dev wins over any status, including Missed", () => {
+    listAnswer = { data: response("dev", [row({ name: "dd-off-one", label: "Dee off", status: "missed", dueAt: iso(30), devEnabled: false })]), isPending: false, error: null, errorUpdatedAt: 0 };
+    mount();
+    const table = host!.querySelector("table")!.textContent!;
+    expect(table).toContain("Off on dev");
+    expect(table).not.toContain("Missed");
+    expect(host!.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it("the chips sum to the total, so every schedule counts in exactly one", () => {
+    const rows = [
+      ...ROWS,
+      row({ name: "dd-off-one", label: "Dee off", status: "failing", devEnabled: false }),
+      row({ name: "xx-odd-one", label: "Ex odd", status: "something_new" as never }),
+    ];
+    listAnswer = { data: response("dev", rows), isPending: false, error: null, errorUpdatedAt: 0 };
+    mount();
+    const labels = ["Healthy", "Failing", "Missed", "Didn't finish", "Running", "Waiting for first run", "Off on dev"];
+    const chipButtons = Array.from(host!.querySelectorAll('[aria-label="Summary"] button'));
+    expect(chipButtons.length).toBe(labels.length);
+    const sum = chipButtons.reduce((n, b) => n + Number(b.querySelector("span")!.textContent), 0);
+    expect(sum).toBe(rows.length);
+    for (const l of labels) expect(chipButtons.some((b) => b.textContent?.startsWith(l))).toBe(true);
   });
 
   it("production: says Production, and has no dev chip or dev badge", () => {

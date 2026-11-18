@@ -1,5 +1,6 @@
 import { api } from "@/lib/api";
 import type { MetaCommentsPlatform } from "@/lib/meta-comments-view";
+import { activeFirst } from "@/lib/meta-content-view";
 
 /**
  * Comments on Facebook Page posts and Instagram media. Live reads, nothing is stored. Comments, replies and the
@@ -66,10 +67,9 @@ const qs = (o: Record<string, string>) => new URLSearchParams(o).toString();
 const facebook: EngagementApi = {
   name: "Facebook",
   owners: async () =>
-    (await api.get<{ pages: Array<{ id: string; name: string }> }>(`${ENG}/facebook/pages`)).pages.map((p) => ({
-      id: p.id,
-      label: p.name,
-    })),
+    await api
+      .get<{ pages: Array<{ id: string; name: string }>; activePageId?: string | null }>(`${ENG}/facebook/pages`)
+      .then((r) => activeFirst(r.pages.map((p) => ({ id: p.id, label: p.name })), r.activePageId)),
   posts: async (pageId) =>
     (
       await api.get<{ posts: Array<{ id: string; message?: string; createdTime: string; permalink?: string }> }>(
@@ -90,11 +90,17 @@ const facebook: EngagementApi = {
 const instagram: EngagementApi = {
   name: "Instagram",
   owners: async () =>
-    (
-      await api.get<{ accounts: Array<{ id: string; username?: string; name?: string; pageName: string }> }>(
-        `${CONTENT}/instagram/accounts`,
-      )
-    ).accounts.map((a) => ({ id: a.id, label: a.username ? `@${a.username}` : (a.name ?? a.pageName) })),
+    await api
+      .get<{
+        accounts: Array<{ id: string; username?: string; name?: string; pageName: string }>;
+        activeAccountId?: string | null;
+      }>(`${CONTENT}/instagram/accounts`)
+      .then((r) =>
+        activeFirst(
+          r.accounts.map((a) => ({ id: a.id, label: a.username ? `@${a.username}` : (a.name ?? a.pageName) })),
+          r.activeAccountId,
+        ),
+      ),
   posts: async (igUserId) =>
     (
       await api.get<{

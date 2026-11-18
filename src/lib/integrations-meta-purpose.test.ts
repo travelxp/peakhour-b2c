@@ -6,6 +6,7 @@
 import { describe, it, expect } from "vitest";
 import {
   META_VIRTUAL_CARDS,
+  savedMetaPageId,
   metaActionPurpose,
   metaCardServedBy,
   metaCardStatus,
@@ -184,5 +185,20 @@ describe("★★Disconnect names exactly what goes", () => {
         expect(metaDisconnectCopy(info, p, [p])).not.toMatch(/WhatsApp/);
       }
     }
+  });
+});
+
+describe("savedMetaPageId", () => {
+  const pages = [{ pageId: "1001" }, { pageId: "1002" }];
+  it("is the pick while the connection still lists that Page", () => {
+    expect(savedMetaPageId({ pages, capabilities: { pages: { activeResourceId: "1002" } } })).toBe("1002");
+  });
+  it("is the first Page with no pick, or a pick the connection no longer lists", () => {
+    expect(savedMetaPageId({ pages })).toBe("1001");
+    expect(savedMetaPageId({ pages, capabilities: { pages: { activeResourceId: "GONE" } } })).toBe("1001");
+  });
+  it("is nothing without Pages", () => {
+    expect(savedMetaPageId({ pages: [] })).toBeUndefined();
+    expect(savedMetaPageId(undefined)).toBeUndefined();
   });
 });
