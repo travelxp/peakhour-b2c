@@ -33,6 +33,7 @@ export const BRAND_COLORS = {
   woocommerce: "#873EFF",
   ghost: "#15171A",
   x: "#000000",
+  threads: "#000000",
   tiktok: "#000000",
   slack: "#4A154B",
   discord: "#5865F2",
