@@ -173,7 +173,7 @@ export const scheduler = {
    * `with_link` sends it with the link, this once. Either way the post goes back in the queue. 409 NOT_HELD_FOR_LINK when it is not held.
    */
   resolveXLink(itemId: string, choice: "without_link" | "with_link") {
-    return api.post<{ itemId: string; status: "ready"; choice: string }>(`/v1/scheduler/items/${itemId}/x-link`, { choice });
+    return api.post<{ itemId: string; status: "queued"; choice: string }>(`/v1/scheduler/items/${itemId}/x-link`, { choice });
   },
 
   listPlans(query: ListPlansQuery = {}) {
