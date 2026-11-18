@@ -182,12 +182,55 @@ describe("MetaComposer", () => {
     expect(host.textContent).not.toContain("Published to Facebook.");
   });
 
-  it("shows the server's message when the commit itself is refused", async () => {
+  it("shows the server's message when the commit itself is refused, with no calendar link because nothing was created", async () => {
     h.commitPlan.mockRejectedValue(new Error("instagram: Instagram posts require at least one image"));
     mount("facebook");
     type("Spring sale");
     await click(button(/Publish now/));
-    expect(host.querySelector('[role="alert"]')?.textContent).toContain("Instagram posts require at least one image");
+    const alert = host.querySelector('[role="alert"]')!;
+    expect(alert.textContent).toContain("Instagram posts require at least one image");
+    expect(alert.querySelector("a")).toBeNull();
     expect(h.publishItemNow).not.toHaveBeenCalled();
+  });
+
+  it("never posts twice: after a failed attempt the screen locks to that item and Try again re-sends it", async () => {
+    h.publishItemNow.mockResolvedValueOnce({ itemId: "item1", outcome: "transient_error", published: false });
+    mount("facebook");
+    type("Spring sale");
+    await click(button(/Publish now/));
+    expect(h.commitPlan).toHaveBeenCalledTimes(1);
+    expect(host.querySelector('[role="alert"] a')?.getAttribute("href")).toBe("/dashboard/calendar");
+    // locked: the text cannot change under the item that is already on the calendar, and Schedule is off
+    expect(host.querySelector("textarea")!.readOnly).toBe(true);
+    expect(button(/Schedule/).disabled).toBe(true);
+
+    await click(button(/Try again/));
+    expect(h.commitPlan).toHaveBeenCalledTimes(1);
+    expect(h.publishItemNow).toHaveBeenCalledTimes(2);
+    expect(h.publishItemNow).toHaveBeenLastCalledWith("item1");
+    expect(host.textContent).toContain("Published to Facebook.");
+    // and the composer is free again for the next post
+    expect(host.querySelector("textarea")!.readOnly).toBe(false);
+    expect(button(/Publish now/)).toBeTruthy();
+  });
+
+  it("a network error after the commit also keeps the item, so a second press does not commit another", async () => {
+    h.publishItemNow.mockRejectedValueOnce(new Error("Network down"));
+    mount("threads");
+    type("New batch");
+    await click(button(/Publish now/));
+    expect(host.querySelector('[role="alert"] a')?.getAttribute("href")).toBe("/dashboard/calendar");
+    await click(button(/Try again/));
+    expect(h.commitPlan).toHaveBeenCalledTimes(1);
+    expect(h.publishItemNow).toHaveBeenCalledTimes(2);
+  });
+
+  it("clears the last attempt's banner when the post changes", async () => {
+    mount("facebook");
+    type("Spring sale");
+    await click(button(/Publish now/));
+    expect(host.textContent).toContain("Published to Facebook.");
+    type("Autumn sale");
+    expect(host.textContent).not.toContain("Published to Facebook.");
   });
 });

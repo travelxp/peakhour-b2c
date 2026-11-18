@@ -19,6 +19,7 @@ import {
   type AiActionContext,
   type HashtagCandidate,
 } from "@/components/composer";
+import { PLATFORM_LIMITS } from "@/components/composer/types";
 import { SchedulerComposer } from "@/components/scheduler/scheduler-composer";
 import { MediaImage } from "@/components/shared/media-image";
 import { ApiError } from "@/lib/api";
@@ -79,8 +80,17 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
   const [media, setMedia] = useState<(MetaMedia & { name?: string })[]>([]);
   const [link, setLink] = useState("");
   const [mode, setMode] = useState<"compose" | "schedule">("compose");
-  const [failure, setFailure] = useState<string | null>(null);
+  const [failure, setFailure] = useState<{ message: string; calendar: boolean } | null>(null);
   const [done, setDone] = useState<Published | null>(null);
+  // The item Publish now has already created. Once it exists the post is on the calendar, so pressing again must NOT make a second one:
+  // the screen locks to that post and "Try again" re-sends the same item (see `publishNow`).
+  const [sent, setSentState] = useState<{ itemId: string; planId: string } | null>(null);
+  // Mirrors `sent` for the mutation callbacks, which can run from a render older than the commit they are reporting on.
+  const sentRef = useRef<{ itemId: string; planId: string } | null>(null);
+  const setSent = useCallback((next: { itemId: string; planId: string } | null) => {
+    sentRef.current = next;
+    setSentState(next);
+  }, []);
 
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -91,6 +101,14 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
   // Nothing is said about an empty box until the merchant has typed or added something: "Write something" under a blank form is noise.
   const touched = text !== "" || media.length > 0 || link !== "";
   const blocked = problems.length > 0;
+  const locked = sent !== null;
+  const limits = useMemo(() => ({ ...PLATFORM_LIMITS[channel], maxChars: rules.maxChars }), [channel, rules.maxChars]);
+
+  /** The merchant changed something: a banner about the last attempt no longer describes what is on screen. */
+  const edited = useCallback(() => {
+    setDone(null);
+    setFailure(null);
+  }, []);
 
   const reset = useCallback(() => {
     setText("");
@@ -100,6 +118,8 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
     caretRef.current = 0;
     setMode("compose");
     setFailure(null);
+    setDone(null);
+    setSent(null);
   }, []);
 
   const insertSnippet = useCallback((snippet: string): string => {
@@ -149,19 +169,27 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
 
   const publishNow = useMutation({
     mutationFn: async (): Promise<Published | { failed: string }> => {
-      const plan = await scheduler.commitPlan({
-        title,
-        source,
-        channels: [entry],
-        staggerStrategy: "synchronized",
-        canonicalScheduledAtUtc: new Date().toISOString(),
-        timezone: detectTimezone(),
-      });
-      const itemId = plan.scheduledItemIds[0];
-      if (!itemId) return { failed: "Nothing was created. Try again." };
+      // ONE ITEM PER POST. The first press commits it; every later press (after a failed or retrying attempt, or a network error
+      // between the commit and the send) re-sends that same item instead of committing a second one that would post the text twice.
+      let target = sentRef.current;
+      if (!target) {
+        const plan = await scheduler.commitPlan({
+          title,
+          source,
+          channels: [entry],
+          staggerStrategy: "synchronized",
+          canonicalScheduledAtUtc: new Date().toISOString(),
+          timezone: detectTimezone(),
+        });
+        const created = plan.scheduledItemIds[0];
+        if (!created) return { failed: "Nothing was created. Try again." };
+        target = { itemId: created, planId: plan.planId };
+        setSent(target);
+      }
+      const itemId = target.itemId;
       const result = await scheduler.publishItemNow(itemId);
       // A 200 does not mean published: the server ran a real attempt and reports how it went.
-      const { items } = await scheduler.listItems({ planId: plan.planId, limit: 1 }).catch(() => ({ items: [] }));
+      const { items } = await scheduler.listItems({ planId: target.planId, limit: 1 }).catch(() => ({ items: [] }));
       const item = items[0];
       if (result.published) return { channel, ...publishedLink(channel, item?.externalUrl) };
       const reason = item?.attempts?.at(-1)?.errorMessage;
@@ -175,16 +203,20 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["scheduler:items"] });
       if ("failed" in res) {
-        setFailure(res.failed);
+        setFailure({ message: res.failed, calendar: true });
         return;
       }
       toast.success(`Published to ${rules.label}.`);
-      setDone(res);
       reset();
+      setDone(res);
     },
     onError: (err: unknown) => {
-      // The commit itself refused (a rule, a plan limit, a channel that is not connected): the server's words, as they are plain.
-      setFailure(err instanceof ApiError || err instanceof Error ? err.message : "Could not publish. Try again.");
+      // Either the commit was refused (a rule, a plan limit, a channel that is not connected: nothing was created) or the send failed
+      // after the post was created (then it is on the calendar, and the lock keeps it from being created again).
+      const raw = err instanceof ApiError || err instanceof Error ? err.message : "";
+      const message =
+        raw === "" || raw === "Invalid request body" ? "This post was not accepted. Check the text and pictures, then try again." : raw;
+      setFailure({ message, calendar: sentRef.current !== null });
     },
   });
 
@@ -237,12 +269,12 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
       actionsBordered
       actionsSlot={
         <>
-          <Button type="button" variant="outline" size="sm" onClick={() => setMode("schedule")} disabled={blocked} className="gap-1.5">
+          <Button type="button" variant="outline" size="sm" onClick={() => setMode("schedule")} disabled={blocked || locked} className="gap-1.5">
             <CalendarClock className="size-4" /> Schedule
           </Button>
           <Button onClick={() => publishNow.mutate()} disabled={blocked || publishNow.isPending} aria-busy={publishNow.isPending} className="gap-1.5">
             {publishNow.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-            {publishNow.isPending ? "Publishing…" : "Publish now"}
+            {publishNow.isPending ? "Publishing…" : locked ? "Try again" : "Publish now"}
           </Button>
         </>
       }
@@ -257,10 +289,20 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
           ) : null}
           {failure ? (
             <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-              {failure}{" "}
-              <Link href="/dashboard/calendar" className="font-medium underline underline-offset-2 hover:no-underline">
-                Open the calendar
-              </Link>
+              {failure.message}{" "}
+              {failure.calendar ? (
+                <Link href="/dashboard/calendar" className="font-medium underline underline-offset-2 hover:no-underline">
+                  Open the calendar
+                </Link>
+              ) : null}
+            </p>
+          ) : null}
+          {locked ? (
+            <p className="text-sm text-muted-foreground">
+              This post is on your calendar now, so it cannot be edited here.{" "}
+              <button type="button" onClick={reset} className="font-medium text-primary underline underline-offset-2 hover:no-underline">
+                Start a new post
+              </button>
             </p>
           ) : null}
           {done ? (
@@ -287,8 +329,7 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
           onChange={(e) => {
             setText(e.target.value);
             captureCaret(e.target);
-            setDone(null);
-            setFailure(null);
+            edited();
           }}
           onSelect={(e) => captureCaret(e.currentTarget)}
           onClick={(e) => captureCaret(e.currentTarget)}
@@ -297,6 +338,7 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
           onBlur={(e) => captureCaret(e.currentTarget)}
           placeholder={channel === "instagram" ? "Write a caption…" : channel === "threads" ? "What's on your mind?" : "What do you want to share?"}
           rows={5}
+          readOnly={locked}
           className="resize-none border-0 bg-transparent p-1 shadow-none focus-visible:ring-0"
           aria-label={`${rules.label} post text`}
         />
@@ -304,7 +346,7 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
           {rules.maxHashtags !== undefined ? (
             <span className="text-micro text-muted-foreground">Up to {rules.maxHashtags} hashtags</span>
           ) : null}
-          <PlatformCharCounter value={metaTextLength(channel, text)} platform={channel} size="sm" showCount />
+          <PlatformCharCounter value={metaTextLength(channel, text)} platform={channel} limits={limits} size="sm" showCount />
         </div>
       </div>
 
@@ -328,14 +370,19 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
               ) : (
                 <MediaImage src={m.url} alt={m.name ?? "Attached picture"} width={80} height={80} className="size-full object-cover" />
               )}
-              <button
-                type="button"
-                onClick={() => setMedia((prev) => prev.filter((_, j) => j !== i))}
-                className="absolute right-0.5 top-0.5 rounded-full bg-background/90 p-0.5 shadow"
-                aria-label={`Remove ${m.name ?? "picture"}`}
-              >
-                <XIcon className="size-3" />
-              </button>
+              {locked ? null : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMedia((prev) => prev.filter((_, j) => j !== i));
+                    edited();
+                  }}
+                  className="absolute right-0.5 top-0.5 rounded-full bg-background/90 p-0.5 shadow"
+                  aria-label={`Remove ${m.name ?? "picture"}`}
+                >
+                  <XIcon className="size-3" />
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -343,15 +390,23 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
 
       <div className="flex flex-wrap items-center gap-2">
         <EmojiPickerTrigger onInsert={insertSnippet} />
-        <DrivePicker
-          kinds={[...rules.mediaKinds]}
-          maxSelection={Math.max(1, rules.maxMedia - media.length)}
-          target={{ channel, label: rules.driveLabel }}
-          addLabel="Add to post"
-          onSelect={(assets) =>
-            setMedia((prev) => [...prev, ...assets.map((a) => ({ url: a.url, mime: a.mime, name: a.name }))].slice(0, rules.maxMedia))
-          }
-        />
+        {locked ? null : (
+          <DrivePicker
+            kinds={[...rules.mediaKinds]}
+            maxSelection={Math.max(1, rules.maxMedia - media.length)}
+            target={{ channel, label: rules.driveLabel }}
+            addLabel="Add to post"
+            onSelect={(assets) => {
+              // A file already on the post is not added twice; picks beyond the room left are dropped, and the merchant is told.
+              const have = new Set(media.map((m) => m.url));
+              const fresh = assets.filter((a) => !have.has(a.url));
+              const room = Math.max(0, rules.maxMedia - media.length);
+              if (fresh.length > room) toast.info(`${rules.label} takes up to ${rules.maxMedia} pictures. Only the first ${room} were added.`);
+              setMedia((prev) => [...prev, ...fresh.slice(0, room).map((a) => ({ url: a.url, mime: a.mime, name: a.name }))]);
+              edited();
+            }}
+          />
+        )}
         <span className="text-micro text-muted-foreground">
           {rules.mediaRequired ? "A picture or video is needed." : "Pictures are optional."}
         </span>
@@ -362,7 +417,17 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
           <Label htmlFor="meta-link" className="text-xs uppercase tracking-wide text-muted-foreground">
             Link (optional)
           </Label>
-          <Input id="meta-link" value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://" inputMode="url" />
+          <Input
+            id="meta-link"
+            value={link}
+            onChange={(e) => {
+              setLink(e.target.value);
+              edited();
+            }}
+            readOnly={locked}
+            placeholder="https://"
+            inputMode="url"
+          />
         </div>
       ) : null}
     </ComposerShell>

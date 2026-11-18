@@ -73,7 +73,10 @@ export interface ComposeNewSheetProps {
 }
 
 export function ComposeNewSheet({ open, onOpenChange }: ComposeNewSheetProps) {
-  const [platform, setPlatform] = useState<Platform | null>(null);
+  // The option as it was when picked. Held whole, not looked up again: the connection list refetches on window focus, and a channel
+  // that drops out of it mid-compose must not change the header or the "Posting to" line under the merchant's hands.
+  const [chosen, setChosen] = useState<PlatformOption | null>(null);
+  const platform = chosen?.value ?? null;
 
   // Facebook, Instagram and Threads are offered only when connected. While the list is loading (or failed) none is offered:
   // a channel that is not known to be connected is not shown, rather than shown and then refused.
@@ -94,12 +97,11 @@ export function ComposeNewSheet({ open, onOpenChange }: ComposeNewSheetProps) {
   function handleOpenChange(next: boolean) {
     // Reset the platform choice whenever the sheet closes so the next
     // open starts at the picker.
-    if (!next) setPlatform(null);
+    if (!next) setChosen(null);
     onOpenChange(next);
   }
 
-  const active = platforms.find((p) => p.value === platform);
-  const activeLabel = active?.label;
+  const activeLabel = chosen?.label;
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
@@ -122,7 +124,7 @@ export function ComposeNewSheet({ open, onOpenChange }: ComposeNewSheetProps) {
                 <li key={p.value}>
                   <button
                     type="button"
-                    onClick={() => setPlatform(p.value)}
+                    onClick={() => setChosen(p)}
                     className="flex w-full items-center gap-3 rounded-md border bg-card p-3 text-left transition-colors hover:bg-muted/40"
                   >
                     <ChannelIconCompact channel={p.value} size={18} />
@@ -147,7 +149,7 @@ export function ComposeNewSheet({ open, onOpenChange }: ComposeNewSheetProps) {
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => setPlatform(null)}
+                onClick={() => setChosen(null)}
                 className="gap-1.5"
               >
                 <ArrowLeft className="size-3.5" /> Change channel
@@ -158,7 +160,7 @@ export function ComposeNewSheet({ open, onOpenChange }: ComposeNewSheetProps) {
                 <TweetComposer />
               ) : isMetaComposeChannel(platform) ? (
                 // keyed by channel so the text and pictures never carry from one channel to another
-                <MetaComposer key={platform} channel={platform} postingTo={active?.postingTo ?? null} />
+                <MetaComposer key={platform} channel={platform} postingTo={chosen?.postingTo ?? null} />
               ) : null}
             </div>
           )}

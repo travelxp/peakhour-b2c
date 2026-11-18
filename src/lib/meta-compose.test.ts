@@ -59,6 +59,20 @@ describe("metaPostProblems: Threads", () => {
     expect(metaPostProblems("threads", draft("Look", [clip]))).toEqual(["Threads posts from here take pictures only. Remove the video."]);
   });
 
+  it("takes up to 12 pictures, the most the scheduler accepts in one post", () => {
+    expect(metaPostProblems("threads", draft("Look", photo(12)))).toEqual([]);
+    expect(metaPostProblems("threads", draft("Look", photo(13)))).toEqual(["Threads takes up to 12 pictures in one post. Remove 1."]);
+  });
+
+  it("allows 5 links, counting each once and a bare domain as a link, like the api", () => {
+    const links = (n: number) => Array.from({ length: n }, (_, i) => `https://shop${i}.example.com/p`).join(" ");
+    expect(metaPostProblems("threads", draft(links(5)))).toEqual([]);
+    expect(metaPostProblems("threads", draft(links(6)))).toEqual(["Threads allows 5 links in a post. This has 6."]);
+    expect(metaPostProblems("threads", draft("https://a.example.com/x/ www.a.example.com/x a.example.com/x"))).toEqual([]);
+    expect(metaPostProblems("threads", draft("a.com b.com c.com d.com e.com f.com"))).toEqual(["Threads allows 5 links in a post. This has 6."]);
+    expect(metaPostProblems("threads", draft("mail me@acme.com"))).toEqual([]);
+  });
+
   it("has no hashtag limit of its own", () => {
     const tags = Array.from({ length: 40 }, (_, i) => `#t${i}`).join(" ");
     expect(metaPostProblems("threads", draft(tags))).toEqual([]);
@@ -78,6 +92,11 @@ describe("metaPostProblems: Facebook", () => {
 
   it("refuses a link with pictures, because Facebook shows the pictures and drops the link", () => {
     expect(metaPostProblems("facebook", draft("Sale", photo(), "https://shop.example.com"))).toEqual(["A link can't go with pictures. Remove the pictures, or the link."]);
+  });
+
+  it("holds text to what the scheduler takes, 20,000 characters", () => {
+    expect(metaPostProblems("facebook", draft("x".repeat(20_000)))).toEqual([]);
+    expect(metaPostProblems("facebook", draft("x".repeat(20_001)))).toEqual(["Facebook allows 20,000 characters. This is 20,001."]);
   });
 
   it("takes up to 10 pictures and no video", () => {
@@ -112,6 +131,16 @@ describe("buildMetaChannel: what is sent", () => {
       payload: { text: "Sale", channelOptions: { link: "https://shop.example.com" } },
     });
     expect(buildMetaChannel("threads", draft("Hi", [], "https://shop.example.com")).payload).toEqual({ text: "Hi" });
+  });
+
+  it("says a single Instagram video is a Reel, because its address may not end in a video extension", () => {
+    const signed: MetaMedia = { url: "https://cdn.example.com/media/abc123", mime: "video/mp4" };
+    expect(buildMetaChannel("instagram", draft("Clip", [signed])).payload).toEqual({
+      text: "Clip",
+      mediaUrls: ["https://cdn.example.com/media/abc123"],
+      channelOptions: { mediaType: "REELS" },
+    });
+    expect(buildMetaChannel("instagram", draft("Pic", photo())).payload).not.toHaveProperty("channelOptions");
   });
 
   it("sends a text-only post with no media key at all", () => {

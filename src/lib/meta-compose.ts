@@ -12,6 +12,7 @@
  * `savedPageOf` below, the only place this file reads it, and only to NAME it on screen). Nothing here sends a page id.
  */
 
+import { PLATFORM_LIMITS } from "@/components/composer/types";
 import { flattenMetaIntegration } from "@/lib/integrations-meta";
 import { navLabel } from "@/lib/nav-copy";
 
@@ -34,6 +35,8 @@ export interface MetaChannelRules {
   maxChars: number;
   /** Hashtags the channel allows in one post, when it counts them. */
   maxHashtags?: number;
+  /** Links the channel allows in the text, when it counts them (Threads: 5). */
+  maxLinks?: number;
   /** How many pictures or videos one post can carry. */
   maxMedia: number;
   /** True when a post with no picture or video is refused (Instagram). */
@@ -46,11 +49,22 @@ export interface MetaChannelRules {
   driveLabel: string;
 }
 
+/**
+ * What `POST /v1/scheduler/plans` takes in one channel payload (`zPayload` in peakhour-api `routes/scheduler/index.ts`): text up to
+ * 20,000 characters and 12 media. Both are tighter than Facebook (63,206) and Threads (20 pictures) themselves, and a post over them
+ * is refused with a bare "Invalid request body", so the rules below stop at the smaller number.
+ */
+const SCHEDULER_MAX_TEXT_CHARS = 20_000;
+const SCHEDULER_MAX_MEDIA = 12;
+
+/** The channel's own limit (the one the character ring reads), held to what the scheduler takes. */
+const limitFor = (channel: MetaComposeChannel) => Math.min(PLATFORM_LIMITS[channel].maxChars, SCHEDULER_MAX_TEXT_CHARS);
+
 export const META_COMPOSE_RULES: Record<MetaComposeChannel, MetaChannelRules> = {
   facebook: {
-    label: "Facebook",
+    label: PLATFORM_LIMITS.facebook.label,
     blurb: "A post on your Facebook Page",
-    maxChars: 63_206,
+    maxChars: limitFor("facebook"),
     maxMedia: 10,
     mediaRequired: false,
     mediaKinds: ["image"],
@@ -58,9 +72,9 @@ export const META_COMPOSE_RULES: Record<MetaComposeChannel, MetaChannelRules> = 
     driveLabel: "a Facebook post",
   },
   instagram: {
-    label: "Instagram",
+    label: PLATFORM_LIMITS.instagram.label,
     blurb: "A picture or video post on your Instagram account",
-    maxChars: 2200,
+    maxChars: limitFor("instagram"),
     maxHashtags: 30,
     maxMedia: 10,
     mediaRequired: true,
@@ -69,10 +83,11 @@ export const META_COMPOSE_RULES: Record<MetaComposeChannel, MetaChannelRules> = 
     driveLabel: "an Instagram post",
   },
   threads: {
-    label: "Threads",
+    label: PLATFORM_LIMITS.threads.label,
     blurb: "A short post on your Threads profile",
-    maxChars: 500,
-    maxMedia: 20,
+    maxChars: limitFor("threads"),
+    maxLinks: 5,
+    maxMedia: SCHEDULER_MAX_MEDIA,
     mediaRequired: false,
     mediaKinds: ["image"],
     link: false,
@@ -106,6 +121,25 @@ export function threadsTextLength(text: string): number {
 /** The length the channel holds against its limit. */
 export function metaTextLength(channel: MetaComposeChannel, text: string): number {
   return channel === "threads" ? threadsTextLength(text) : text.length;
+}
+
+/** The links Threads counts in a post: a scheme URL, a `www.` host, or a bare `name.tld` on a common ending, each counted once. The same rule as
+ *  `threadsLinkCount` in peakhour-api `helpers/threads.ts`, so the merchant is told before the server refuses. */
+const URL_RE =
+  /(?<![@\w.-])(?:https?:\/\/[^\s<>"']+|www\.[a-z0-9-]+(?:\.[a-z0-9-]+)+[^\s<>"']*|[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|in|co|io|ai|app|shop|store|me|us|uk|info|biz|xyz|online|site|dev|link|ly|gg)\b(?:\/[^\s<>"']*)?)/gi;
+export function threadsLinkCount(text: string): number {
+  const links = new Set<string>();
+  for (const m of text.matchAll(URL_RE)) {
+    links.add(
+      m[0]
+        .replace(/[.,;:!?)\]}'"]+$/, "")
+        .replace(/^https?:\/\//i, "")
+        .replace(/^www\./i, "")
+        .replace(/\/+$/, "")
+        .toLowerCase(),
+    );
+  }
+  return links.size;
 }
 
 /** Hashtags as Instagram counts them: a `#` that starts a word, followed by a letter, digit or underscore. */
@@ -165,6 +199,10 @@ export function metaPostProblems(channel: MetaComposeChannel, draft: MetaDraft):
     const tags = countHashtags(draft.text);
     if (tags > rules.maxHashtags) out.push(`${rules.label} allows ${rules.maxHashtags} hashtags. This has ${tags}.`);
   }
+  if (rules.maxLinks !== undefined) {
+    const links = threadsLinkCount(draft.text);
+    if (links > rules.maxLinks) out.push(`${rules.label} allows ${rules.maxLinks} links in a post. This has ${links}.`);
+  }
   if (channel === "facebook" && draft.link.trim() !== "") {
     if (!isHttpUrl(draft.link.trim())) out.push("The link needs to start with http:// or https://.");
     else if (media.length > 0) out.push("A link can't go with pictures. Remove the pictures, or the link.");
@@ -177,12 +215,16 @@ export function metaPostProblems(channel: MetaComposeChannel, draft: MetaDraft):
 /** The scheduler's channel entry for this post: the same shape "Schedule" and "Publish now" both send. */
 export function buildMetaChannel(channel: MetaComposeChannel, draft: MetaDraft) {
   const link = channel === "facebook" ? draft.link.trim() : "";
+  // The publisher tells a video from a picture by the address's file ending. A Drive address may not end in one, so a single Instagram
+  // video is also SAID to be a Reel; without this it could go out as a picture and be refused.
+  const reel = channel === "instagram" && draft.media.length === 1 && isVideo(draft.media[0]!);
+  const channelOptions = { ...(link !== "" ? { link } : {}), ...(reel ? { mediaType: "REELS" } : {}) };
   return {
     channel,
     payload: {
       text: draft.text.trim(),
       ...(draft.media.length > 0 ? { mediaUrls: draft.media.map((m) => m.url) } : {}),
-      ...(link !== "" ? { channelOptions: { link } } : {}),
+      ...(Object.keys(channelOptions).length > 0 ? { channelOptions } : {}),
     },
   };
 }
