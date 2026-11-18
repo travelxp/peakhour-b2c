@@ -42,6 +42,7 @@ import {
   filterSchedules,
   invokeCommand,
   shownStatus,
+  statusNote,
   summarise,
   type ShownStatus,
 } from "./schedules-logic";
@@ -49,15 +50,18 @@ import {
 const BADGE_VARIANT = {
   healthy: "success",
   failing: "error",
+  missed: "error",
   did_not_finish: "warning",
   running: "info",
-  never_ran: "muted",
+  waiting: "muted",
   off_dev: "muted",
 } as const;
 
-function ResultBadge({ row }: { row: ScheduleRow }) {
+function ResultBadge({ row, recordingSince }: { row: ScheduleRow; recordingSince?: string | null }) {
   const s = shownStatus(row);
-  return <StatusBadge status={s} label={STATUS_LABEL[s]} variant={BADGE_VARIANT[s]} dot={s === "running"} />;
+  const note = statusNote(row, recordingSince, formatDateTime);
+  const badge = <StatusBadge status={s} label={STATUS_LABEL[s]} variant={BADGE_VARIANT[s]} dot={s === "running"} />;
+  return note ? <span title={note}>{badge}</span> : badge;
 }
 
 function When({ iso }: { iso: string | null | undefined }) {
@@ -83,7 +87,8 @@ export default function CmsSchedulesPage() {
   // Never loaded, and failed at least once: `error` alone resets on each retry.
   const failedWithoutData = !data && errorUpdatedAt > 0;
 
-  const chips: ShownStatus[] = ["healthy", "failing", "did_not_finish", "never_ran"];
+  const missedCount = counts.missed;
+  const chips: ShownStatus[] = ["healthy", "failing", "missed", "did_not_finish", "running", "waiting"];
   if (isDev) chips.push("off_dev");
 
   return (
@@ -103,6 +108,12 @@ export default function CmsSchedulesPage() {
           <Link href="/cms/jobs">Background jobs</Link>
         </Button>
       </div>
+
+      {data && missedCount > 0 && (
+        <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-on-tint">
+          {missedCount === 1 ? "1 schedule missed a run" : `${missedCount} schedules missed a run`}: Vercel did not fire {missedCount === 1 ? "it" : "them"} when due.
+        </div>
+      )}
 
       {(error || failedWithoutData) && (
         <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive-on-tint">
@@ -220,7 +231,7 @@ export default function CmsSchedulesPage() {
                     </TableCell>
                     <TableCell className="text-xs">{row.cadence}</TableCell>
                     <TableCell className="whitespace-nowrap text-xs"><When iso={row.lastStartedAt} /></TableCell>
-                    <TableCell><ResultBadge row={row} /></TableCell>
+                    <TableCell><ResultBadge row={row} recordingSince={data.recordingSince} /></TableCell>
                     <TableCell className="text-right text-xs tabular-nums">
                       {row.runs24h} runs
                       {row.failures24h > 0 && (
@@ -244,6 +255,7 @@ export default function CmsSchedulesPage() {
             <ScheduleDetail
               name={selected}
               row={selectedRow}
+              recordingSince={data?.recordingSince}
               environment={environment ?? "production"}
             />
           )}
@@ -286,10 +298,12 @@ function CopyCommand({ command }: { command: string }) {
 function ScheduleDetail({
   name,
   row,
+  recordingSince,
   environment,
 }: {
   name: string;
   row: ScheduleRow | null;
+  recordingSince?: string | null;
   environment: "production" | "dev";
 }) {
   const { data, isPending, error } = useCmsScheduleRuns(name, RUNS_LIMIT);
@@ -306,11 +320,14 @@ function ScheduleDetail({
         {row && (
           <>
             <div className="flex flex-wrap items-center gap-2">
-              <ResultBadge row={row} />
+              <ResultBadge row={row} recordingSince={recordingSince} />
               {row.consecutiveFailures > 0 && (
                 <span className="text-xs text-muted-foreground">{row.consecutiveFailures} failed in a row</span>
               )}
             </div>
+            {statusNote(row, recordingSince, formatDateTime) && (
+              <p className="text-xs text-muted-foreground">{statusNote(row, recordingSince, formatDateTime)}</p>
+            )}
             {row.description && <p>{row.description}</p>}
             <div className="grid grid-cols-2 gap-2 rounded-lg border p-3">
               <div className="flex justify-between gap-3">
