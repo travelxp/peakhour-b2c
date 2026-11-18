@@ -12,6 +12,7 @@ import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { OAuthConnectResult } from "@/components/integrations/oauth-connect-result";
 import { DM_STATUS_KEY } from "@/lib/meta-dm";
 import { XDmConnect } from "@/components/integrations/x-dm-connect";
+import { XPostingCard } from "@/components/integrations/x-posting-card";
 import { WordPressConnectModal } from "@/components/integrations/wordpress-connect-modal";
 import { MeasurementHealthPanel } from "@/components/growth/measurement-health-panel";
 import { affectsMeasurementHealth } from "@/lib/measurement-health";
@@ -707,6 +708,9 @@ export default function IntegrationsPage() {
           </div>
         ))
       )}
+
+      {/* Posting to X in Peaks, and the switch for posts with links (MR-X1). */}
+      <XPostingCard />
 
       {/* X messages (Inbox lane I3g): renders nothing until the api says they are released. */}
       <XDmConnect />

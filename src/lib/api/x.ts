@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import type { XPostQuote } from "@/lib/x-posting";
 
 export interface XTweet {
   id: string;
@@ -78,6 +79,9 @@ export interface ListMentionsResult {
 export type MentionsFilter = "unread" | "all";
 
 export const xApi = {
+  /** What posting these texts would cost and whether it may go (MR-X1). Reads only. */
+  quote: (texts: string[]) => api.post<XPostQuote>("/v1/x/content/posting/quote", { texts }),
+
   publish: (body: PublishTweetInput) =>
     api.post<{ id: string; text: string }>("/v1/x/content/publish", body),
 
