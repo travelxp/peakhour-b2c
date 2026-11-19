@@ -10,14 +10,8 @@
 import type { PostFormat, PostIdeaKind } from "@/lib/api/creative";
 
 export const STUDIO_COPY = {
+  /** The page title. The nav label, tab names and description live in nav-copy.ts, the one place the navigation is named. */
   title: "Studio",
-  pillarDescription: "Make posts and ads from your real products, and approve them in one tap.",
-  tabs: {
-    ideas: "Ideas",
-    shortlist: "Shortlist",
-    library: "Library",
-    learned: "What we've learned",
-  },
 
   /** S1, Studio home. */
   ideas: {
@@ -43,8 +37,6 @@ export const STUDIO_COPY = {
     },
     error: {
       what: "your ideas",
-      title: "We couldn't load your ideas.",
-      retry: "Try again",
     },
     dismissFailed: "We couldn't hide that idea. It's back in your list.",
     /** Cooling period over, the idea may come back. */
@@ -78,7 +70,6 @@ export const STUDIO_COPY = {
     },
     chip: "Coming soon",
     backToIdeas: "Back to ideas",
-    savePlan: "Save this plan",
   },
 
   /** Route shells: screens a later lane fills in. Each says what it will do and what works now. */
@@ -127,7 +118,7 @@ export const STUDIO_COPY = {
 
   proTools: {
     offTitle: "Pro tools are off",
-    offDescription: "Turn on Pro tools in Studio settings to use this screen.",
+    offDescription: "This screen is for making many posts at once. Pro tools aren't turned on for you yet.",
     backToIdeas: "Back to ideas",
   },
 } as const;

@@ -53,9 +53,6 @@ export function MobileTabBar({
   const { setOpenMobile } = useSidebar();
   const keyboardUp = useSyncExternalStore(subscribeKeyboard, keyboardSnapshot, () => false);
   const tabs = primaryTabs({ hasCommerce, hasStudio, homeHref: HOME_ROUTE });
-  // Six cells (Studio on) leave 60px each at 360px, and "Commerce" in 12px Geist is 61px of text: measured in Chrome at 360px, it was
-  // cut short. At 11px with 2px side padding it fits (see the CS-UI-1 PR); five cells keep the 12px they always had.
-  const dense = tabs.length > 4;
   if (keyboardUp) return null;
   return (
     <nav
@@ -75,13 +72,12 @@ export function MobileTabBar({
                 title={copy?.description}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex h-full flex-col items-center justify-center gap-0.5 font-medium",
-                  dense ? "text-[11px]" : "text-xs",
+                  "flex h-full flex-col items-center justify-center gap-0.5 text-xs font-medium",
                   active ? "text-primary" : "text-muted-foreground",
                 )}
               >
                 <Icon className="size-5" aria-hidden />
-                <span className={cn("max-w-full truncate", dense ? "px-0.5" : "px-1")}>{copy?.label ?? t.key}</span>
+                <span className="max-w-full truncate px-1">{copy?.label ?? t.key}</span>
               </Link>
             </li>
           );
@@ -90,10 +86,7 @@ export function MobileTabBar({
           <button
             type="button"
             onClick={() => setOpenMobile(true)}
-            className={cn(
-              "flex h-full w-full flex-col items-center justify-center gap-0.5 font-medium text-muted-foreground",
-              dense ? "text-[11px]" : "text-xs",
-            )}
+            className="flex h-full w-full flex-col items-center justify-center gap-0.5 text-xs font-medium text-muted-foreground"
           >
             <Menu className="size-5" aria-hidden />
             <span>More</span>

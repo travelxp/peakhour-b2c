@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { parseAvailability, STUDIO_CAPABILITIES, UNAVAILABLE, type PostIdea } from "@/lib/api/creative";
+import { api, ApiError } from "@/lib/api";
+import { creativeApi, parseAvailability, STUDIO_CAPABILITIES, UNAVAILABLE, type PostIdea } from "@/lib/api/creative";
 import { briefHref, capabilityState, goodUntil, hiddenUntilLine, ideasFeedStatus } from "@/lib/studio";
 import { createDismissalQueue } from "@/lib/studio-dismissals";
 
@@ -40,6 +41,30 @@ describe("parseAvailability (read defensively)", () => {
     for (const c of STUDIO_CAPABILITIES) expect(capabilityState(UNAVAILABLE, c)).toBe("coming_soon");
     expect(UNAVAILABLE.proTools).toBe(false);
     expect(UNAVAILABLE.known).toBe(false);
+  });
+});
+
+describe("creativeApi.availability", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("a 404 (endpoint not deployed yet) is the answer 'not available yet'", async () => {
+    vi.spyOn(api, "get").mockRejectedValue(new ApiError("NOT_FOUND", "no", 404));
+    expect(await creativeApi.availability()).toEqual(UNAVAILABLE);
+  });
+
+  it("any other failure throws, so it is never cached as the api saying 'coming soon, Pro tools off'", async () => {
+    for (const err of [new ApiError("X", "boom", 500), new ApiError("AUTH", "no", 401), new TypeError("network")]) {
+      vi.spyOn(api, "get").mockRejectedValue(err);
+      await expect(creativeApi.availability()).rejects.toBe(err);
+    }
+  });
+
+  it("a real answer is parsed, and read from the right path", async () => {
+    const get = vi.spyOn(api, "get").mockResolvedValue({ capabilities: { previews: "on" }, proTools: true });
+    const a = await creativeApi.availability();
+    expect(get).toHaveBeenCalledWith("/v1/creative/studio/availability");
+    expect(a.capabilities.previews).toBe("on");
+    expect(a.proTools).toBe(true);
   });
 });
 

@@ -14,6 +14,10 @@ export interface MobileTab {
  * to it, UX spec U3), Inbox, Content, then Commerce for an org entitled to it
  * or Growth for everyone else. Growth stays one tap away under More for
  * Commerce orgs. An org without Studio gets exactly the bar it had.
+ *
+ * ★SIX CELLS DO NOT ALWAYS FIT (CS-UI-1, measured in Chrome with Geist at 360px: 60px a cell). "Commerce" at the app's 12px type floor is
+ * 61px of text, so with Studio AND Commerce it is cut short. UX spec open item 6 gives the fallback and this takes it for that one
+ * combination only: Inbox moves into More, leaving five cells. Studio without Commerce keeps all six ("Content", the next widest, is 45px).
  */
 export function primaryTabs({
   hasCommerce,
@@ -39,10 +43,11 @@ export function primaryTabs({
     copyHref: "/dashboard/studio",
     prefixes: ["/dashboard/studio"],
   };
+  const inbox: MobileTab = { key: "inbox", href: "/dashboard/inbox", copyHref: "/dashboard/inbox", prefixes: ["/dashboard/inbox"] };
   return [
     home,
     ...(hasStudio ? [studio] : []),
-    { key: "inbox", href: "/dashboard/inbox", copyHref: "/dashboard/inbox", prefixes: ["/dashboard/inbox"] },
+    ...(hasStudio && hasCommerce ? [] : [inbox]),
     {
       key: "content",
       href: "/dashboard/content",

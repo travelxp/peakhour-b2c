@@ -218,7 +218,8 @@ describe("mobile bottom bar", () => {
     const keys = (hasCommerce: boolean, hasStudio?: boolean) =>
       primaryTabs({ hasCommerce, hasStudio, homeHref: "/dashboard/overview" }).map((t) => t.key);
     expect(keys(false, true)).toEqual(["home", "studio", "inbox", "content", "growth"]);
-    expect(keys(true, true)).toEqual(["home", "studio", "inbox", "content", "commerce"]);
+    // Six cells cut "Commerce" short at 360px (measured), so Studio + Commerce moves Inbox into More.
+    expect(keys(true, true)).toEqual(["home", "studio", "content", "commerce"]);
     expect(keys(false)).toEqual(["home", "inbox", "content", "growth"]);
     const studio = primaryTabs({ hasCommerce: false, hasStudio: true, homeHref: "/dashboard/overview" })[1];
     expect(isTabActive("/dashboard/studio/c/abc", studio)).toBe(true);

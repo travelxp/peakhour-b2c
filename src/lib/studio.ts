@@ -6,9 +6,6 @@ import { STUDIO_COPY } from "@/lib/studio-copy";
 export const STUDIO_ROUTES = {
   home: "/dashboard/studio",
   new: "/dashboard/studio/new",
-  shortlist: "/dashboard/studio/shortlist",
-  library: "/dashboard/studio/library",
-  learned: "/dashboard/studio/learned",
 } as const;
 
 /** The state of one capability; anything not known to be on is "coming soon". */

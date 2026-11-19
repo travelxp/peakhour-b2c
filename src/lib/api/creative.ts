@@ -1,4 +1,4 @@
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 
 /**
  * /v1/creative: Creative Studio's client.
@@ -97,13 +97,17 @@ export const creativeApi = {
 
   dismissPostIdea: (id: string) => api.post<DismissResponse>("/v1/creative/post-ideas/dismiss", { id }),
 
-  /** Never throws: see {@link parseAvailability}. */
+  /**
+   * Only a 404 (the endpoint is not deployed yet) is an answer: "not available yet". Any other failure (network, 401, 5xx) THROWS, so the
+   * query sits in an error state instead of caching "everything coming soon, Pro tools off" for a minute as if the api had said it.
+   * {@link useStudioAvailability} turns that error into the same safe default without caching it.
+   */
   async availability(): Promise<StudioAvailability> {
     try {
       return parseAvailability(await api.get<unknown>("/v1/creative/studio/availability"));
-    } catch {
-      // 404 = the endpoint is not deployed yet; anything else = we could not ask. Both read as "not available yet".
-      return UNAVAILABLE;
+    } catch (e) {
+      if (e instanceof ApiError && (e.status === 404 || e.status === 501)) return UNAVAILABLE;
+      throw e;
     }
   },
 };

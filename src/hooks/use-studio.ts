@@ -35,7 +35,7 @@ export function usePostIdeas() {
  * every AI capability "coming soon", Pro tools off. It never returns an error and never an `on` the api did not send.
  */
 export function useStudioAvailability(): StudioAvailability & { loading: boolean } {
-  const { isAuthenticated, org, business } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, org, business } = useAuth();
   const q = useQuery<StudioAvailability>({
     queryKey: [STUDIO_KEYS.availability, org?._id ?? null, business?._id ?? null],
     queryFn: () => creativeApi.availability(),
@@ -43,10 +43,10 @@ export function useStudioAvailability(): StudioAvailability & { loading: boolean
     staleTime: 60_000,
     retry: false,
   });
-  // Until there is data the safe answer is UNAVAILABLE. `loading` is true only while a request is really in flight (a disabled or paused
-  // query is pending for ever, so `isPending` alone would never let a screen leave its skeleton); the Pro tools gate waits on it
-  // rather than flash "off".
-  return { ...(q.data ?? UNAVAILABLE), loading: q.isPending && q.fetchStatus === "fetching" };
+  // Until there is data (and after a failed read, which is not cached as an answer) the safe answer is UNAVAILABLE. `loading` is true while
+  // a request is really in flight or the session is still resolving, so the Pro tools gate and the "opens soon" banner wait rather than
+  // flash a wrong claim. A disabled or paused query is pending for ever, so `isPending` alone would never let a screen leave its skeleton.
+  return { ...(q.data ?? UNAVAILABLE), loading: q.isPending && (q.fetchStatus === "fetching" || authLoading) };
 }
 
 /** The per-user "Pro tools" flag. Off by default and whenever the api cannot say. */

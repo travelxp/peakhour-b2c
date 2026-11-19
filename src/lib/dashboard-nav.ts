@@ -62,10 +62,10 @@ export interface NavGroup {
 }
 
 // Autopilot Home ships dark: surfaced only outside production.
+export const SHOW_AUTOPILOT = process.env.NEXT_PUBLIC_VERCEL_ENV !== "production";
+
 /** cfg_features.key that turns Studio on for an org. Orgs without it see no Studio in the sidebar or the phone bar. */
 export const STUDIO_FEATURE = "studio.nav";
-
-export const SHOW_AUTOPILOT = process.env.NEXT_PUBLIC_VERCEL_ENV !== "production";
 
 const sub = (href: string, legacy: string, extra?: Partial<NavSub>): NavSub => ({
   href,

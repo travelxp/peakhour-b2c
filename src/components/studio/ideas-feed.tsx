@@ -11,7 +11,9 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { QueryError } from "@/components/dashboard/query-error";
-import { useCommerceStores } from "@/hooks/use-commerce-stores";
+import { useQuery } from "@tanstack/react-query";
+import { commerceStoresQuery } from "@/hooks/use-commerce-stores";
+import { useAuth } from "@/providers/auth-provider";
 import { STUDIO_KEYS, useStudioAvailability, usePostIdeas } from "@/hooks/use-studio";
 import { createDismissalQueue } from "@/lib/studio-dismissals";
 import { capabilityState, hiddenUntilLine, ideasFeedStatus, STUDIO_ROUTES, type IdeasFeedStatus } from "@/lib/studio";
@@ -119,7 +121,8 @@ export function IdeasFeed() {
 
   // Connected stores are read only to tell "no ideas" from "no store", and only when the list is empty.
   const empty = status === "ready" && list?.length === 0;
-  const stores = useCommerceStores();
+  const { isAuthenticated, business } = useAuth();
+  const stores = useQuery(commerceStoresQuery(business?._id, isAuthenticated && empty));
   const storeConnected = empty && stores.data ? stores.data.length > 0 : undefined;
 
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
@@ -142,8 +145,14 @@ export function IdeasFeed() {
     [qc],
   );
 
+  // The toast offering Undo for each pending idea, so it can be closed the moment the dismissal is sent (a hovered toast outlives the window).
+  const [toastIds] = useState(() => new Map<string, string | number>());
+
   const send = useCallback(
     async (idea: PostIdea) => {
+      const tid = toastIds.get(idea.id);
+      toastIds.delete(idea.id);
+      if (tid !== undefined) toast.dismiss(tid);
       try {
         await creativeApi.dismissPostIdea(idea.id);
         removeFromCache(idea.id);
@@ -158,7 +167,7 @@ export function IdeasFeed() {
         toast.error(C.dismissFailed);
       }
     },
-    [qc, removeFromCache, unhide],
+    [qc, removeFromCache, unhide, toastIds],
   );
 
   // One queue for the life of the page. `send` is stable (its dependencies are the query client and two stable callbacks).
@@ -179,28 +188,45 @@ export function IdeasFeed() {
         });
       }
       queue.hide(idea);
-      toast(hiddenUntilLine(idea, ideas.data?.coolingDays ?? 14, new Date()), {
+      const tid = toast(hiddenUntilLine(idea, ideas.data?.coolingDays ?? 14, new Date()), {
         duration: UNDO_WINDOW_MS,
         action: {
           label: C.undo,
           onClick: () => {
-            if (queue.undo(idea.id)) unhide(idea.id);
+            if (queue.undo(idea.id)) {
+              toastIds.delete(idea.id);
+              unhide(idea.id);
+            }
           },
         },
       });
+      toastIds.set(idea.id, tid);
     },
-    [hidden, list, ideas.data?.coolingDays, queue, unhide],
+    [hidden, list, ideas.data?.coolingDays, queue, unhide, toastIds],
   );
 
-  // Leaving the page inside the undo window must not lose the dismissal: send every pending one now.
-  useEffect(() => () => queue.flush(), [queue]);
+  // Leaving the page inside the undo window must not lose the dismissal: send every pending one now. Covers a route change (unmount) and,
+  // best effort, a reload or close (`pagehide`) and a tab or app switch (`visibilitychange`, the last moment a phone browser reliably gives).
+  useEffect(() => {
+    const flushAll = () => queue.flush();
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") queue.flush();
+    };
+    window.addEventListener("pagehide", flushAll);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pagehide", flushAll);
+      document.removeEventListener("visibilitychange", onVisibility);
+      queue.flush();
+    };
+  }, [queue]);
 
   return (
     <div ref={rootRef}>
       <IdeasFeedView
         status={status}
         ideas={(list ?? []).filter((i) => !hidden.has(i.id))}
-        previewsComingSoon={capabilityState(availability, "previews") === "coming_soon"}
+        previewsComingSoon={!availability.loading && capabilityState(availability, "previews") === "coming_soon"}
         storeConnected={storeConnected}
         onRetry={() => void ideas.refetch()}
         onNotNow={onNotNow}
