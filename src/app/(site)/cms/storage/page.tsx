@@ -28,6 +28,7 @@ const SOURCE_LABELS: Record<string, string> = {
   unsplash: "Unsplash",
   imported_beehiiv: "Beehiiv",
   imported_data_url: "Imported (legacy)",
+  imported_store: "Product photos (store)",
 };
 const RECLAIM_LABELS: Record<string, string> = {
   unused_90d: "Unused 90d+",

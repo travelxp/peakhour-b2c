@@ -1,21 +1,14 @@
-import { Image as ImageIcon } from "lucide-react";
 import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
-import { EmptyState } from "@/components/molecules/empty-state";
-import { STUDIO_ROUTES } from "@/lib/studio";
+import { Library } from "@/components/studio/library";
 import { STUDIO_COPY } from "@/lib/studio-copy";
 
-/** Route shell (UX spec): the designed empty state. The list arrives with the lane that fills it. */
+/** Library (UX spec S14): what Studio made, the product photos it uses and the plans saved for later. Free reads only. */
 export default function StudioLibraryPage() {
   const copy = STUDIO_COPY.shells.library;
   return (
     <PageShell>
       <PageHeader title={copy.title} description={copy.description} />
-      <EmptyState
-        icon={ImageIcon}
-        title={copy.emptyTitle}
-        description={copy.emptyDescription}
-        action={{ label: copy.emptyAction, href: STUDIO_ROUTES.home }}
-      />
+      <Library />
     </PageShell>
   );
 }
