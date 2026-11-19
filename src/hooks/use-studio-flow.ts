@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ApiError } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { getBrandKit, BRAND_KIT_QUERY_KEY } from "@/lib/api/brand-kit";
 import {
   studioApi,
@@ -12,14 +12,20 @@ import {
   type PressKind,
   type PressQuote,
   type PressReceipts,
+  type SettingsPatch,
   type ShortlistResponse,
   type TweakOp,
 } from "@/lib/api/creative-studio";
+import { mergeSettings, type PostFormat, type StudioAvailability } from "@/lib/api/creative";
+import { STUDIO_KEYS } from "@/hooks/use-studio";
+import { jobsKeys } from "@/hooks/use-jobs";
 import { CREDITS_KEY } from "@/hooks/use-credits";
 import { usePeaksQuote } from "@/hooks/use-peaks-quote";
 import { STUDIO_ACTIONS } from "@/lib/api/peaks";
 import { driveAbilities } from "@/lib/drive/files-state";
 import { derivePressQuote, groupProducts, isWorking, paletteFromKit, pollInterval, type PressQuoteState } from "@/lib/studio-flow";
+import { studioConnectedChannels } from "@/lib/studio-publish";
+import { rememberWork } from "@/lib/studio-strip";
 import { useAuth } from "@/providers/auth-provider";
 
 /** Query keys for the creative flow, in one place so a mutation can name the ones it changes. */
@@ -28,6 +34,7 @@ export const FLOW_KEYS = {
   pressQuote: "studio-press-quote",
   shortlist: "studio-shortlist",
   productImages: "studio-product-images",
+  placements: "studio-placements",
 } as const;
 
 /** What the signed-in person may do in Studio: an editor and above spend Peaks and change things; a viewer reads (spec 3). */
@@ -181,6 +188,11 @@ export function usePress() {
     onSettled: (_data, error, v) => {
       void qc.invalidateQueries({ queryKey: [FLOW_KEYS.creative] });
       void qc.invalidateQueries({ queryKey: [CREDITS_KEY] });
+      if (!error) {
+        // The running-jobs strip should show this press at once, and know which creative it belongs to.
+        rememberWork(v.id);
+        void qc.invalidateQueries({ queryKey: jobsKeys.all });
+      }
       // A receipt that was used is spent, and one the api refused is never re-sent: the next press must carry a fresh one. After any other
       // failure (a lost connection, a refusal for want of Peaks) the price the merchant saw is still the price, and Try again sends it.
       if (!error || (error instanceof ApiError && error.code === "QUOTE_NOT_HONOURED")) {
@@ -279,10 +291,109 @@ export function useMakeFinals() {
     mutationFn: (v: { items: Array<{ creativeId: string; previewId: string }>; quoteToken: string | undefined }) =>
       studioApi.makeFinals(v.items, v.quoteToken),
     onSettled: () => {
+      void qc.invalidateQueries({ queryKey: jobsKeys.all });
       void qc.invalidateQueries({ queryKey: [FLOW_KEYS.creative] });
       void qc.invalidateQueries({ queryKey: [FLOW_KEYS.shortlist] });
       void qc.invalidateQueries({ queryKey: ["peaks-quote"] });
       void qc.invalidateQueries({ queryKey: [CREDITS_KEY] });
+    },
+  });
+}
+
+// ── Platform versions, posting and settings (S12, S13, S19) ─────────────────────────────────────────────────
+
+/** The count on the Shortlist tab: hearts only, one cheap read. The key sits under the shortlist's so every change that refreshes the list refreshes this too. */
+export function useShortlistCount(enabled = true) {
+  const s = useScope();
+  return useQuery({
+    queryKey: [FLOW_KEYS.shortlist, "count", s.org, s.business],
+    queryFn: () => studioApi.shortlistCount(),
+    select: (r) => r.count,
+    enabled: enabled && s.ready,
+    retry: false,
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  });
+}
+
+/** Which Studio channels are connected right now (the integrations list, as every other channel surface reads it). */
+export function useConnectedChannels(enabled = true) {
+  const s = useScope();
+  return useQuery({
+    queryKey: ["content-hub-integrations", s.org, s.business],
+    queryFn: () => api.get<{ integrations: Array<{ provider: string; connected?: boolean; account?: { extra?: Record<string, unknown> } }> }>("/v1/integrations"),
+    select: (r) => studioConnectedChannels(r.integrations),
+    enabled: enabled && s.ready,
+    retry: false,
+    staleTime: 30_000,
+  });
+}
+
+/** The sizes the chosen channels offer, for one final. */
+export function usePlacements(channels: string[], format: PostFormat, finalId: string, enabled: boolean) {
+  const s = useScope();
+  const key = [...channels].sort().join(",");
+  return useQuery({
+    queryKey: [FLOW_KEYS.placements, s.org, s.business, finalId, format, key],
+    queryFn: () => studioApi.placements(channels, format, finalId),
+    select: (r) => r.placements,
+    enabled: enabled && s.ready && channels.length > 0,
+    retry: false,
+    staleTime: 60_000,
+  });
+}
+
+/** Free: draw the chosen sizes from the final. */
+export function useRenderVersions(creativeId: string, finalId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (placementKeys: string[]) => studioApi.renderVersions(creativeId, finalId, placementKeys),
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: [FLOW_KEYS.creative] });
+      void qc.invalidateQueries({ queryKey: [FLOW_KEYS.placements] });
+    },
+  });
+}
+
+/** Quoted per size: the sizes that need more background. One click, one Idempotency-Key. */
+export function useExtendVersions(creativeId: string, finalId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { placementKeys: string[]; quoteToken: string | undefined }) =>
+      studioApi.extendVersions(creativeId, finalId, v.placementKeys, v.quoteToken),
+    onSuccess: () => {
+      rememberWork(creativeId);
+      void qc.invalidateQueries({ queryKey: jobsKeys.all });
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: [FLOW_KEYS.creative] });
+      void qc.invalidateQueries({ queryKey: [FLOW_KEYS.placements] });
+      void qc.invalidateQueries({ queryKey: ["peaks-quote"] });
+      void qc.invalidateQueries({ queryKey: [CREDITS_KEY] });
+    },
+  });
+}
+
+/** "Looks different? Tell us". */
+export function useReportMismatch() {
+  return useMutation({ mutationFn: (v: { finalId: string; text: string | undefined }) => studioApi.reportMismatch(v.finalId, v.text) });
+}
+
+/**
+ * Save one change to the Studio settings (or Pro tools) on the spot. The answer is written into the availability read so every screen sees it
+ * at once; a refusal puts the page back to what the api holds.
+ */
+export function useSaveStudioSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: SettingsPatch) => studioApi.saveSettings(patch),
+    onSuccess: (r) => {
+      qc.setQueriesData<StudioAvailability>({ queryKey: [STUDIO_KEYS.availability] }, (old) =>
+        old ? { ...old, proTools: r.proTools === true, settings: mergeSettings(old.settings, r.settings) } : old,
+      );
+    },
+    onError: () => {
+      void qc.invalidateQueries({ queryKey: [STUDIO_KEYS.availability] });
     },
   });
 }

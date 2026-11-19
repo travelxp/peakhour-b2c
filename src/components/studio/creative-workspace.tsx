@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Image as NoPostIcon } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
 import { QueryError } from "@/components/dashboard/query-error";
@@ -24,6 +23,8 @@ import {
   PreviewViewer,
 } from "@/components/studio/creative-sections";
 import { ComingSoon } from "@/components/studio/coming-soon";
+import { FinalReview } from "@/components/studio/final-review";
+import { PlatformSheet } from "@/components/studio/platform-sheet";
 import { OneMore } from "@/components/studio/one-more";
 import { usePeaksLeft } from "@/components/studio/studio-quote";
 import { TweakPanelView, TweakSheet } from "@/components/studio/tweak-panel";
@@ -39,7 +40,7 @@ import {
   useTweak,
 } from "@/hooks/use-studio-flow";
 import { useStudioAvailability, useStudioPrefs } from "@/hooks/use-studio";
-import { studioApi, type CreativeView, type PreviewView, type TweakOp } from "@/lib/api/creative-studio";
+import type { CreativeView, PreviewView, TweakOp } from "@/lib/api/creative-studio";
 import { ideasFeedStatus, STUDIO_ROUTES } from "@/lib/studio";
 import { STUDIO_COPY } from "@/lib/studio-copy";
 import {
@@ -59,59 +60,6 @@ const C = STUDIO_COPY.creative;
 const F = STUDIO_COPY.final;
 
 const planHref = (id: string) => `${STUDIO_ROUTES.new}?c=${encodeURIComponent(id)}`;
-
-/** The picture of a ready final, read when it is ready (a signed link, asked for again after four minutes). */
-function FinalPicture({ creativeId, finalId, alt }: { creativeId: string; finalId: string; alt: string }) {
-  const q = useQuery({
-    queryKey: ["studio-final", creativeId, finalId],
-    queryFn: () => studioApi.finalView(creativeId, finalId),
-    staleTime: 4 * 60 * 1000,
-    // The link is signed and lapses: ask for a fresh one while the page stays open.
-    refetchInterval: 4 * 60 * 1000,
-    retry: false,
-  });
-  // An image that will not load gets two fresh links, then the error below (never an endless loop of requests).
-  const [loadFails, setLoadFails] = useState(0);
-  if (q.isError || loadFails >= 3) {
-    return (
-      <div role="alert" className="space-y-2 text-sm">
-        <p>{F.loadFailed}</p>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="h-11"
-          onClick={() => {
-            setLoadFails(0);
-            void q.refetch();
-          }}
-        >
-          {STUDIO_COPY.quote.retry}
-        </Button>
-      </div>
-    );
-  }
-  if (!q.data?.imageUrl) return <Skeleton className="aspect-4/5 w-full rounded-md" />;
-  const w = q.data.width ?? 1024;
-  const h = q.data.height ?? 1280;
-  return (
-    // eslint-disable-next-line @next/next/no-img-element -- merchant media stays off the optimiser (see MediaImage)
-    <img
-      src={q.data.imageUrl}
-      alt={alt}
-      width={w}
-      height={h}
-      loading="lazy"
-      decoding="async"
-      onError={() => {
-        setLoadFails((n) => n + 1);
-        if (loadFails < 2) void q.refetch();
-      }}
-      className="w-full rounded-md border"
-      style={{ aspectRatio: `${w} / ${h}` }}
-    />
-  );
-}
 
 /** The tweak sheet's contents: the free changes, and the two quoted ones with their own price. */
 function TweakContainer({
@@ -262,6 +210,7 @@ export function CreativeWorkspace({ id }: { id: string }) {
   const [skipId, setSkipId] = useState<string | null>(null);
   const [retryRefusal, setRetryRefusal] = useState<StudioRefusal | undefined>();
   const [releasedOff, setReleasedOff] = useState(false);
+  const [postFinalId, setPostFinalId] = useState<string | null>(null);
   const view = q.data;
   const phase = view ? creativePhase(view) : undefined;
 
@@ -321,6 +270,11 @@ export function CreativeWorkspace({ id }: { id: string }) {
     const p = view.previews.find((x) => x.id === pid);
     return F.alt(p?.headline ?? "", p?.productTitle ?? "");
   };
+  const previewAlt = (pid: string) => {
+    const p = view.previews.find((x) => x.id === pid);
+    return STUDIO_COPY.finalReview.previewAlt(p?.headline ?? "", p?.productTitle ?? "");
+  };
+  const postFinal = postFinalId ? finals.find((f) => f.id === postFinalId) : undefined;
   const firstActionable = view.previews.find(isActionable);
 
   const retryPreviews = () => {
@@ -339,7 +293,17 @@ export function CreativeWorkspace({ id }: { id: string }) {
   };
 
   if (view.kind === "words") {
-    return <EmptyState icon={NoPostIcon} title={C.wordsOnly} description={C.notFound.description} action={{ label: C.backToStudio, href: STUDIO_ROUTES.home }} />;
+    return (
+      <ComingSoon
+        title={STUDIO_COPY.wordsOnly.title}
+        description={STUDIO_COPY.wordsOnly.description}
+        actions={
+          <Button asChild variant="outline" className="h-11">
+            <Link href={STUDIO_ROUTES.home}>{STUDIO_COPY.wordsOnly.back}</Link>
+          </Button>
+        }
+      />
+    );
   }
 
   return (
@@ -421,7 +385,18 @@ export function CreativeWorkspace({ id }: { id: string }) {
                   final={f}
                   alt={photoAlt(f.previewId)}
                   canMake={canMake}
-                  picture={f.state === "ready" ? <FinalPicture creativeId={id} finalId={f.id} alt={photoAlt(f.previewId)} /> : undefined}
+                  picture={
+                    f.state === "ready" ? (
+                      <FinalReview
+                        creativeId={id}
+                        finalId={f.id}
+                        finalAlt={photoAlt(f.previewId)}
+                        previewAlt={previewAlt(f.previewId)}
+                        canPost={canMake}
+                        onChoose={() => setPostFinalId(f.id)}
+                      />
+                    ) : undefined
+                  }
                   onTryAgain={() => {
                     const p = byId(f.previewId);
                     if (p) onHeart(p, true);
@@ -437,6 +412,15 @@ export function CreativeWorkspace({ id }: { id: string }) {
       )}
 
       {phase === "ready" && landed.some(isActionable) && <OneMore id={id} canMake={canMake} />}
+
+      <PlatformSheet
+        open={postFinal !== undefined}
+        onOpenChange={(o) => !o && setPostFinalId(null)}
+        view={view}
+        finalId={postFinalId ?? ""}
+        headline={view.previews.find((x) => x.id === postFinal?.previewId)?.headline ?? ""}
+        canPost={canMake}
+      />
 
       <PreviewViewer
         previews={landed}

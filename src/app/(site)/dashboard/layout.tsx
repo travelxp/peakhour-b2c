@@ -94,6 +94,15 @@ const AskLauncher = dynamic(
   () => import("@/components/ask/ask-launcher").then((m) => m.AskLauncher),
   { ssr: false },
 );
+// Studio's ready toast and shortlist badge: the Studio hooks and copy are only fetched after first paint.
+const StudioReadyToaster = dynamic(
+  () => import("@/components/studio/studio-strip").then((m) => m.StudioReadyToaster),
+  { ssr: false },
+);
+const StudioShortlistBadgeLazy = dynamic(
+  () => import("@/components/studio/studio-shortlist-badge").then((m) => m.StudioShortlistBadge),
+  { ssr: false },
+);
 
 // The navigation itself (pillars, sub-links, their words) lives in
 // @/lib/dashboard-nav and @/lib/nav-copy so the sidebar, the pillar tabs, the
@@ -156,6 +165,7 @@ function RunningJobsBadge() {
 }
 
 const NAV_BADGES: Record<NavBadgeKey, () => React.ReactNode> = {
+  "studio-shortlist": () => <StudioShortlistBadgeLazy Badge={NavCountBadge} />,
   "running-jobs": () => <RunningJobsBadge />,
   "open-tickets": () => <OpenTicketBadge />,
 };
@@ -651,6 +661,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           <div aria-hidden className="h-[calc(8rem+env(safe-area-inset-bottom))] shrink-0 md:hidden" />
         </div>
       </SidebarInset>
+
+      {entitlements?.features?.includes(STUDIO_FEATURE) && <StudioReadyToaster />}
 
       <MobileTabBar
         pathname={pathname ?? ""}

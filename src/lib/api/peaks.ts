@@ -188,6 +188,8 @@ export const PEAKS_ACTIONS = {
 export const STUDIO_ACTIONS = {
   /** One final per preview the merchant approved; `units` = how many, 1 to 24. */
   makeFinal: "creative.make_final",
+  /** One size that needs more background; `units` = how many sizes, 1 to 12. */
+  extendSize: "creative.extend_size",
 } as const;
 
 export type PeaksActionKey =
