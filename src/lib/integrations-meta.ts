@@ -384,3 +384,23 @@ export function savedMetaPageId(extra: Record<string, any> | undefined): string 
   if (typeof picked === "string" && pages.some((p) => p.pageId === picked)) return picked;
   return pages.find((p) => typeof p.pageId === "string" && p.pageId !== "")?.pageId;
 }
+
+/**
+ * The Meta ad account Peakhour spends from, as the api resolves it (api `helpers/meta-saved-ad-account.ts`): the
+ * merchant's pick while the connection still lists it, else the ONLY listed account, else none. Never the first of
+ * several: Meta lists every business the login reaches, so two or more accounts with no pick is "not chosen yet".
+ * `extra` is the merged `facebook` row's `account.extra`, which carries `adAccounts` and `capabilities`.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function savedMetaAdAccountId(extra: Record<string, any> | undefined): string | undefined {
+  const accounts: Array<{ id?: string }> = (Array.isArray(extra?.adAccounts) ? extra.adAccounts : []).filter(
+    (a: { id?: unknown }) => typeof a?.id === "string" && a.id !== "",
+  );
+  const bare = (id: string) => id.trim().replace(/^act_/, "");
+  const picked = extra?.capabilities?.adAccounts?.activeResourceId;
+  if (typeof picked === "string" && picked !== "") {
+    const hit = accounts.find((a) => bare(a.id!) === bare(picked));
+    if (hit) return hit.id;
+  }
+  return accounts.length === 1 ? accounts[0]!.id : undefined;
+}

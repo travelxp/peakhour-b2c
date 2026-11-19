@@ -1,16 +1,15 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ChevronDown, ChevronRight, Megaphone, RefreshCw, Target } from "lucide-react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/providers/auth-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -50,12 +49,13 @@ import {
   metaKpiText,
   metaFigureText,
   metaInsightsIds,
+  META_CHOOSE_AD_ACCOUNT,
   metaCoverageLine,
   sumReported,
   type MetaKpiState,
 } from "@/lib/meta-ads-view";
 import { EditCampaignButton, NewCampaignDialog } from "./meta-campaign-dialogs";
-import { ADS_CHANNEL_PARAM, getAdsChannel, panelConnection, type AdsChannelKey } from "../ads-channels";
+import { getAdsChannel, panelConnection } from "../ads-channels";
 
 /**
  * ★★M-16 — the Meta (Facebook + Instagram) panel, inside the shared Ads hub
@@ -91,7 +91,6 @@ import { ADS_CHANNEL_PARAM, getAdsChannel, panelConnection, type AdsChannelKey }
  * switch.
  */
 
-const ACCOUNT_PARAM = "adAccount";
 const INSIGHTS_DAYS = 30;
 
 /**
@@ -113,7 +112,7 @@ interface ApiIntegration {
   account?: { extra?: Record<string, unknown> };
 }
 
-export function MetaAdsPanel({ channelKey }: { channelKey: AdsChannelKey }) {
+export function MetaAdsPanel() {
   const integrations = useQuery({
     queryKey: ["content-hub-integrations"],
     queryFn: () => api.get<{ integrations: ApiIntegration[] }>("/v1/integrations"),
@@ -157,7 +156,7 @@ export function MetaAdsPanel({ channelKey }: { channelKey: AdsChannelKey }) {
   return (
     <div className="space-y-6">
       {needsReauth ? <ReconnectBanner /> : null}
-      <ConnectedView channelKey={channelKey} />
+      <ConnectedView />
     </div>
   );
 }
@@ -181,12 +180,17 @@ function ReconnectBanner() {
   );
 }
 
-function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const params = useSearchParams();
-  const queryAccountId = params.get(ACCOUNT_PARAM);
-
+/**
+ * ★ONE AD ACCOUNT PER WORKSPACE (MR-F2). The account is the one the merchant chose under Connected accounts, and
+ * the api reports it (`activeAdAccountId`); there is no dropdown here, no `?adAccount=` in the URL, and a Meta login
+ * that reaches other businesses' accounts cannot put a campaign in one of them from this screen. The api refuses
+ * every write for any other account as well, so this is not the only guard.
+ *
+ * With two or more ad accounts and none chosen there is no active account: the panel says so, points to Connected
+ * accounts, and renders no New campaign, Edit or status switch.
+ */
+function ConnectedView() {
+  const { business } = useAuth();
   const accounts = useQuery({
     queryKey: ["meta-ads-accounts"],
     queryFn: () => metaAdsApi.listAdAccounts(),
@@ -194,31 +198,9 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
     staleTime: LIST_STALE_MS,
   });
 
-  // The X panel's rule, for its reason: build the URL from useSearchParams
-  // (never window.location), and write nothing until the hub has pinned
-  // `?channel=`, or this would drop the channel the hub is about to add.
-  const isActiveChannel = params.get(ADS_CHANNEL_PARAM) === channelKey;
-  const setAccountParam = useCallback(
-    (next: string) => {
-      const search = new URLSearchParams(params.toString());
-      search.set(ACCOUNT_PARAM, next);
-      router.replace(`${pathname}?${search.toString()}`, { scroll: false });
-    },
-    [params, pathname, router],
-  );
-
   const list = accounts.data?.accounts;
-  const firstAccountId = list?.[0]?.id;
-  // ⚠️★A `?adAccount=` THAT IS NOT IN THE LIST IS IGNORED, not trusted. It is a
-  //  URL anyone can edit, and the api would refuse it `AD_ACCOUNT_NOT_ALLOWED`
-  //  on every call — a panel of errors for a merchant who pasted a stale link.
-  const known = list?.some((a) => a.id === queryAccountId) ? queryAccountId : null;
-  useEffect(() => {
-    if (isActiveChannel && !known && firstAccountId) setAccountParam(firstAccountId);
-  }, [isActiveChannel, known, firstAccountId, setAccountParam]);
-
-  const accountId = known ?? firstAccountId ?? null;
-  const account = list?.find((a) => a.id === accountId);
+  const activeId = accounts.data?.activeAdAccountId ?? null;
+  const account = activeId ? list?.find((a) => a.id === activeId) : undefined;
 
   if (accounts.isLoading) return <SkeletonStack />;
 
@@ -251,31 +233,50 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
     );
   }
 
+  // ★NO ACTIVE ACCOUNT, NO CONTROLS. Nothing here can start spend until the merchant has chosen where it goes.
+  if (!account) {
+    return (
+      <EmptyState
+        icon={Megaphone}
+        title="Choose your ad account"
+        description={`${META_CHOOSE_AD_ACCOUNT} Your Meta login reaches more than one.`}
+        action={{ label: "Choose ad account", href: "/dashboard/integrations" }}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <div className="space-y-1.5">
-        <Label className="text-xs uppercase tracking-wide text-muted-foreground">Ad account</Label>
-        <Select value={accountId ?? undefined} onValueChange={setAccountParam}>
-          <SelectTrigger aria-label="Ad account" className="w-80">
-            <SelectValue placeholder="Choose an ad account" />
-          </SelectTrigger>
-          <SelectContent>
-            {(list ?? []).map((a) => (
-              <SelectItem key={a.id} value={a.id}>
-                {a.name} ({a.currency})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {account ? (
-        <>
-          <CampaignsSection account={account} />
-          <DatasetCard account={account} />
-        </>
-      ) : null}
+      <ActiveAdAccountBar account={account} businessName={business?.name} />
+      <CampaignsSection account={account} />
+      <DatasetCard account={account} />
     </div>
+  );
+}
+
+/** Which ad account, and which workspace, every campaign here belongs to. */
+function ActiveAdAccountBar({ account, businessName }: { account: MetaAdAccount; businessName?: string }) {
+  return (
+    <Card aria-label="Active ad account">
+      <CardContent className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 p-4 text-sm">
+        <div className="space-y-0.5">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Active ad account</p>
+          <p className="font-medium">
+            {account.name} <span className="font-normal text-muted-foreground">({account.currency})</span>
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {account.id}
+            {businessName ? ` · Workspace: ${businessName}` : ""}
+          </p>
+        </div>
+        <Link
+          href="/dashboard/integrations"
+          className="text-sm font-medium underline underline-offset-4"
+        >
+          Change
+        </Link>
+      </CardContent>
+    </Card>
   );
 }
 

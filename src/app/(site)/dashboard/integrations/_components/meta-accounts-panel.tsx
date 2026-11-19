@@ -6,7 +6,8 @@ import { Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 import { api, ApiError } from "@/lib/api";
-import { savedMetaPageId } from "@/lib/integrations-meta";
+import { savedMetaAdAccountId, savedMetaPageId } from "@/lib/integrations-meta";
+import { META_CHOOSE_AD_ACCOUNT, metaAdAccountOptionLabel } from "@/lib/meta-ads-view";
 import { Button } from "@/components/ui/button";
 import { MetaMessagingSwitches } from "./meta-messaging-switches";
 import { DM_STATUS_KEY } from "@/lib/meta-dm";
@@ -37,10 +38,11 @@ export function instagramLine(page: MetaPageRow): string {
  * Meta accounts: the Facebook Pages Meta lists for this login, the Instagram account linked to each, the
  * ad accounts, and which Page Peakhour uses.
  *
- * ★ONE CHOICE, AND IT IS THE PAGE. Posts, the Facebook and Instagram pages, comments and the Page an ad is
+ * ★TWO CHOICES, ONE EACH. The Page: posts, the Facebook and Instagram pages, comments and the Page an ad is
  * published as all follow it (api `helpers/meta-saved-page.ts`); Instagram follows the Page's linked account.
- * Ad accounts are listed, not picked: a campaign names its ad account when it is made, so there is no single
- * stored one to change here.
+ * The ad account: every campaign Peakhour creates, starts or edits goes to it, and Growth shows it as the active
+ * one (api `helpers/meta-saved-ad-account.ts`). A Meta login lists the ad accounts of EVERY business it reaches,
+ * so with two or more the merchant must choose; one account needs no choice.
  *
  * Refresh re-reads the Pages from Meta, so a Page added or an Instagram account linked since connecting shows up
  * without reconnecting.
@@ -63,7 +65,6 @@ export function MetaAccountsPanel({
   const pages: MetaPageRow[] = (Array.isArray(extra?.pages) ? extra.pages : []).filter(
     (p: MetaPageRow) => typeof p?.pageId === "string" && p.pageId !== "",
   );
-  const adAccounts: MetaAdAccountRow[] = Array.isArray(extra?.adAccounts) ? extra.adAccounts : [];
   // The pick shows at once; the integrations list behind `extra` follows when `onChanged` has reloaded it.
   const [picked, setPicked] = useState<string | null>(null);
   const activeId = picked && pages.some((p) => p.pageId === picked) ? picked : savedMetaPageId(extra);
@@ -151,22 +152,96 @@ export function MetaAccountsPanel({
         </div>
       )}
 
-      <div className="space-y-0.5">
-        <p className="text-micro text-muted-foreground">Ad accounts</p>
-        {adAccounts.length === 0 ? (
-          <p className="text-micro text-muted-foreground">No ad accounts found.</p>
-        ) : (
-          <ul className="space-y-0.5 text-micro text-muted-foreground" aria-label="Ad accounts">
-            {adAccounts.map((a) => (
-              <li key={a.id} className="truncate">
-                {a.name || a.id}
-                {a.currency ? ` (${a.currency})` : ""}
-                {a.status !== undefined && a.status !== 1 ? ", not active" : ""}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      <MetaAdAccountPicker extra={extra} onChanged={onChanged} />
+    </div>
+  );
+}
+
+/**
+ * The "Ad account Peakhour uses" picker. On the Facebook Pages card (inside the Meta accounts panel) AND on the Meta
+ * Ads card: a login that connected only for ads has no Pages card to choose on.
+ */
+export function MetaAdAccountPicker({
+  extra,
+  onChanged,
+}: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  extra: Record<string, any>;
+  onChanged?: () => void | Promise<unknown>;
+}) {
+  const queryClient = useQueryClient();
+  const adAccounts: MetaAdAccountRow[] = (Array.isArray(extra?.adAccounts) ? extra.adAccounts : []).filter(
+    (a: MetaAdAccountRow) => typeof a?.id === "string" && a.id !== "",
+  );
+  // The ad account, the same way: the pick shows at once, the list behind `extra` follows when `onChanged` reloads it.
+  const [pickedAd, setPickedAd] = useState<string | null>(null);
+  const [savingAd, setSavingAd] = useState(false);
+  const activeAdId = pickedAd && adAccounts.some((a) => a.id === pickedAd) ? pickedAd : savedMetaAdAccountId(extra);
+
+  async function chooseAdAccount(adAccountId: string) {
+    if (adAccountId === activeAdId) return;
+    setSavingAd(true);
+    setPickedAd(adAccountId);
+    try {
+      await api.patch("/v1/integrations/facebook/ad-account", { adAccountId });
+      // Growth reads the active account and its campaigns from the api: refetch them now.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["meta-ads-accounts"] }),
+        queryClient.invalidateQueries({ queryKey: ["meta-ads-campaigns"] }),
+        queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] }),
+      ]);
+      toast.success("Peakhour will use that ad account.");
+      await onChanged?.();
+    } catch (err) {
+      setPickedAd(null);
+      toast.error(
+        err instanceof ApiError && err.code === "AD_ACCOUNT_NOT_FOUND"
+          ? "That ad account is no longer on your Meta login. Refresh and try again."
+          : err instanceof ApiError && err.code === "AD_ACCOUNT_NOT_ACTIVE"
+            ? "That ad account is not active on Meta. Pick another."
+            : "Couldn't change the ad account. Try again in a moment.",
+      );
+    } finally {
+      setSavingAd(false);
+    }
+  }
+
+  return (
+    <div className="space-y-1" aria-label="Ad account">
+      <p className="text-micro text-muted-foreground">Ad account Peakhour uses</p>
+      {adAccounts.length === 0 ? (
+        <p className="text-micro text-muted-foreground">No ad accounts found.</p>
+      ) : adAccounts.length === 1 ? (
+        <p className="text-xs font-medium">{metaAdAccountOptionLabel(adAccounts[0]!)}</p>
+      ) : (
+        <>
+          <div className="flex items-center gap-1.5">
+            <Select value={activeAdId} onValueChange={(v) => void chooseAdAccount(v)} disabled={savingAd}>
+              <SelectTrigger className="h-7 text-xs" aria-label="Ad account Peakhour uses">
+                <SelectValue placeholder="Choose an ad account" />
+              </SelectTrigger>
+              <SelectContent>
+                {adAccounts.map((a) => {
+                  // An account Meta marks not active cannot run ads, and the api refuses it: shown, not pickable.
+                  const inactive = a.status !== undefined && a.status !== 1;
+                  return (
+                    <SelectItem key={a.id} value={a.id} disabled={inactive}>
+                      {metaAdAccountOptionLabel(a)}
+                      {inactive ? ", not active" : ""}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+            {savingAd ? <Loader2 className="h-3 w-3 shrink-0 animate-spin" /> : null}
+          </div>
+          {!activeAdId ? (
+            <p role="status" className="text-micro text-warning-on-tint">
+              {META_CHOOSE_AD_ACCOUNT}
+            </p>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }

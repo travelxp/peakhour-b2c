@@ -39,6 +39,16 @@ export interface MetaAdAccount {
   businessName?: string;
 }
 
+/**
+ * `GET /ad-accounts`: every account the login reaches, and the ONE this workspace spends from (null while two or
+ * more are listed and none is chosen). Every write is refused for any other account.
+ */
+export interface MetaAdAccountsResponse {
+  accounts: MetaAdAccount[];
+  activeAdAccountId: string | null;
+  activeAdAccountName: string | null;
+}
+
 export interface MetaCampaign {
   id: string;
   name: string;
@@ -164,7 +174,7 @@ export class MetaLaunchError extends Error {
 
 export const metaAdsApi = {
   listAdAccounts: () =>
-    api.get<{ accounts: MetaAdAccount[] }>(metaAdsUrl("/v1/meta/ads/ad-accounts")),
+    api.get<MetaAdAccountsResponse>(metaAdsUrl("/v1/meta/ads/ad-accounts")),
 
   listCampaigns: (adAccountId: string) =>
     api.get<{ campaigns: MetaCampaign[]; truncated: boolean }>(metaAdsUrl("/v1/meta/ads/campaigns"), {

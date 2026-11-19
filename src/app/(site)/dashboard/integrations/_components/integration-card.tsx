@@ -11,7 +11,7 @@ import { resolveProvider, isMetaVirtual, metaDisconnectCopy } from "@/lib/integr
 import { isRecoverableStatus, showsComingSoon } from "@/lib/integration-card-state";
 import { Integration, PROVIDER_ICONS, PROVIDER_TILES } from "./shared";
 import { LinkedInAdsStatus, LinkedInContentPages } from "./linkedin-panels";
-import { MetaAccountsPanel } from "./meta-accounts-panel";
+import { MetaAccountsPanel, MetaAdAccountPicker } from "./meta-accounts-panel";
 
 export function IntegrationCard({
   integration,
@@ -223,6 +223,14 @@ export function IntegrationCard({
                 refreshing={refreshing}
                 onChanged={onChanged}
               />
+            )}
+
+            {/* Meta Ads — the ad account Peakhour uses. A login that connected only for ads has no Pages card, so the
+                choice is here too. */}
+            {integration.provider === "meta_ads" && integration.connected && integration.account?.extra && (
+              <div className="space-y-2 rounded-md border border-border/40 p-2">
+                <MetaAdAccountPicker extra={integration.account.extra} onChanged={onChanged} />
+              </div>
             )}
 
             {/* Beehiiv sync controls */}

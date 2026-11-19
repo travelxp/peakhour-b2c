@@ -210,7 +210,8 @@ export function SignalStep({
   const picked = pick.scope === scope ? pick.chosen : { meta: undefined, google_ads: undefined };
   const error = failure?.scope === scope ? failure.message : undefined;
   const accounts: Record<SignalPlatform, AdAccountChoice[]> = {
-    meta: (meta.data?.accounts ?? []).map((a) => ({ id: a.id, name: a.name, currency: a.currency })),
+    // ONLY the workspace's active ad account: the api refuses a dataset write for any other (MR-F2).
+    meta: (meta.data?.accounts ?? []).filter((a) => a.id === meta.data?.activeAdAccountId).map((a) => ({ id: a.id, name: a.name, currency: a.currency })),
     google_ads: (google.data?.adAccounts ?? []).map((a) => ({ id: a.id, name: a.name, currency: a.currencyCode })),
   };
   // THE ACCOUNT THAT IS SHOWN IS THE ACCOUNT THAT IS USED: a pick that is no longer in the list falls back to the first.

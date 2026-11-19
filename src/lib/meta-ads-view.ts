@@ -210,6 +210,9 @@ export const META_LAUNCH_NOTE =
  */
 export const META_MERCHANT_FACING_CODES: ReadonlySet<string> = new Set([
   "AD_ACCOUNT_NOT_ALLOWED",
+  // MR-F2: a write for an ad account that is not the workspace's saved one; the message names the active account.
+  "AD_ACCOUNT_NOT_CHOSEN",
+  "AD_ACCOUNT_NOT_ACTIVE",
   "NEEDS_REAUTH",
   "META_UNAVAILABLE",
   "META_NOT_CONNECTED",
@@ -391,3 +394,23 @@ export function metaInsightsIds(ids: readonly string[]): string[] {
  * would now call a complete 50-row account truncated. Deleted, not kept
  * beside the flag (pre-launch: the newest version, and nothing else).
  */
+
+// ── The active ad account (MR-F2) ────────────────────────────────────────
+
+/** `act_…1234`: an ad account's id, shortened to its last four digits. */
+export function metaAdAccountShortId(id: string): string {
+  return `act_…${id.trim().replace(/^act_/, "").slice(-4)}`;
+}
+
+/** `Name (CUR) · act_…1234`: how an ad account is shown in a picker. */
+export function metaAdAccountOptionLabel(a: { id: string; name?: string; currency?: string }): string {
+  return `${a.name || "Ad account"}${a.currency ? ` (${a.currency})` : ""} · ${metaAdAccountShortId(a.id)}`;
+}
+
+/** `Creates in Name (act_…1234)` (an edit says `Saves in`): the line a dialog names its ad account with. */
+export function metaCreatesInLine(a: { id: string; name?: string }, verb: "Creates" | "Saves" = "Creates"): string {
+  return `${verb} in ${a.name || "this ad account"} (${metaAdAccountShortId(a.id)})`;
+}
+
+/** The sentence shown while two or more ad accounts are listed and none is chosen. */
+export const META_CHOOSE_AD_ACCOUNT = "Choose the ad account for this workspace before creating campaigns.";

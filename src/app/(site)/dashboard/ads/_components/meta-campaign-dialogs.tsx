@@ -37,7 +37,7 @@ import {
   type MetaCampaign,
   type MetaCampaignEdit,
 } from "@/lib/api/meta-ads";
-import { metaAdsErrorMessage, metaAdsNeedsReconnect, metaBudgetLabel } from "@/lib/meta-ads-view";
+import { metaAdsErrorMessage, metaAdsNeedsReconnect, metaBudgetLabel, metaCreatesInLine } from "@/lib/meta-ads-view";
 import {
   EMPTY_NEW_CAMPAIGN,
   META_COUNTRY_CODES,
@@ -469,7 +469,11 @@ export function NewCampaignDialog({
           ) : null}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="sm:items-center">
+          {/* ★WHERE THE MONEY GOES, next to the button that spends it: the workspace's one saved ad account. */}
+          <p className="text-xs text-muted-foreground sm:mr-auto" data-testid="creates-in">
+            {metaCreatesInLine(account)}
+          </p>
           <Button
             variant="ghost"
             onClick={() => {
@@ -610,6 +614,9 @@ function EditCampaignSheet({
             <Button size="sm" onClick={submit} disabled={save.isPending} aria-busy={save.isPending}>
               {save.isPending ? "Saving…" : "Save campaign"}
             </Button>
+            <p className="text-xs text-muted-foreground" data-testid="saves-in">
+              {metaCreatesInLine(account, "Saves")}
+            </p>
           </section>
 
           <section className="space-y-4" aria-label="Ad sets">

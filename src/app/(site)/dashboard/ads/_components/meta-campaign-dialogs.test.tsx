@@ -157,6 +157,11 @@ describe("New campaign dialog", () => {
     expect(document.body.textContent).toContain("Shown as Corner Shop");
   });
 
+  it("names the ad account it creates in, beside the button that creates", async () => {
+    await open();
+    expect(q('[data-testid="creates-in"]')?.textContent).toBe("Creates in Corner Shop (act_…111)");
+  });
+
   it("refuses an empty form with a reason on each field, and makes no call", async () => {
     await open();
     click(byText("button", "Create paused campaign"));
@@ -335,6 +340,11 @@ describe("Edit sheet", () => {
     expect(q<HTMLInputElement>("#ec-name")?.value).toBe("Spring sale");
     expect(q<HTMLInputElement>("#ec-budget")?.value).toBe("25.5");
     expect(byText("label", /Daily budget/)?.textContent).toContain("USD");
+  });
+
+  it("names the ad account it saves in", async () => {
+    await open();
+    expect(q('[data-testid="saves-in"]')?.textContent).toBe("Saves in Corner Shop (act_…111)");
   });
 
   it("sends only the budget when only the budget changed", async () => {
