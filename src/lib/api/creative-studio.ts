@@ -330,6 +330,69 @@ export interface SettingsPatch {
   proTools?: boolean;
 }
 
+/** One tile of a batch (S16), as `GET /v1/creative/batches/:id` gives it: the small picture, the product and the headline come with it. */
+export interface BatchPreview {
+  id: string;
+  creativeId: string;
+  state: PreviewState;
+  liked: boolean;
+  index: number;
+  thumbUrl: string | null;
+  productTitle: string | null;
+  headline: string | null;
+  /** The heart was taken off by a change: tap it again to approve the new look. */
+  lapsed: boolean;
+}
+
+export interface BatchView {
+  id: string;
+  status: "draft" | "making" | "ready" | "partial" | "failed";
+  /** What the whole batch cost to quote, as the api kept it. Shown nowhere as a figure of ours. */
+  quote: { peaks: number; units: number } | null;
+  products: number;
+  done: number;
+  failedProducts: number;
+  creatives: string[];
+  previews: BatchPreview[];
+}
+
+export type BatchOp = "approve" | "reject" | "clear";
+
+export interface BatchActionResult {
+  updated: number;
+  skipped: number;
+  shortlistCount: number;
+}
+
+/** One line of a creative's look history (S17). Versions are per preview: `version` counts that preview's looks. */
+export interface HistoryItem {
+  previewId: string;
+  version: number;
+  summary: string;
+  at: string;
+  current: boolean;
+  restorable: boolean;
+}
+
+export type ApprovalLinkState = "waiting" | "approved" | "rejected" | "revoked" | "expired";
+
+export interface ApprovalLink {
+  id: string;
+  previewId: string;
+  state: ApprovalLinkState;
+  expiresAt: string;
+  answeredName: string | null;
+  answeredAt: string | null;
+}
+
+/** A link just made. The token is shown once: only its hash is kept. */
+export interface CreatedApprovalLink {
+  id: string;
+  token: string;
+  expiresAt: string;
+  note: string;
+}
+
 /** The headers of one click on a charged press: a fresh Idempotency-Key and the receipts of the price that was shown. */
 export function pressHeaders(receipts: PressReceipts): Record<string, string> {
   return {
@@ -418,6 +481,27 @@ export const studioApi = {
 
   /** Studio settings and the per-user Pro tools flag, saved on change. An editor's call. */
   saveSettings: (patch: SettingsPatch) => api.patch<{ settings: Omit<StudioSettings, "usedThisMonthPeaks">; proTools: boolean }>("/v1/creative/settings", patch),
+
+  /** S16: the grid's one read (Pro tools). */
+  batch: (id: string) => api.get<BatchView>(`/v1/creative/batches/${id}`),
+
+  /** S16: approve (the heart), reject ("Not for me") or clear, for many previews in ONE request. Free. */
+  batchAction: (id: string, op: BatchOp, previewIds: string[], reasons?: string[]) =>
+    api.post<BatchActionResult>(`/v1/creative/batches/${id}/actions`, { op, previewIds, ...(reasons?.length ? { reasons } : {}) }),
+
+  /** S17: every look of every preview of a creative (Pro tools). */
+  versions: (creativeId: string) => api.get<{ versions: HistoryItem[] }>(`/v1/creative/${creativeId}/versions`),
+
+  /** S17: make an earlier look the new head. Free; the heart lapses (U2). */
+  restore: (creativeId: string, version: number, previewId: string) =>
+    api.post<{ layoutVersion: number }>(`/v1/creative/${creativeId}/versions/${version}/restore`, { previewId }),
+
+  /** S18: make, list and stop approval links for one preview (Pro tools). */
+  createApprovalLink: (creativeId: string, previewId: string) =>
+    api.post<CreatedApprovalLink>(`/v1/creative/${creativeId}/approval-links`, { previewId }),
+  approvalLinks: (creativeId: string) => api.get<{ links: ApprovalLink[] }>(`/v1/creative/${creativeId}/approval-links`),
+  revokeApprovalLink: (creativeId: string, linkId: string) =>
+    api.delete<{ ok: true }>(`/v1/creative/${creativeId}/approval-links/${linkId}`),
 
   /** The business's product photos with the product each belongs to. Pages by `next`. */
   productImages: (q: { productId?: string; after?: string; limit?: number } = {}) => {
