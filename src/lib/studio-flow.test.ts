@@ -158,6 +158,11 @@ describe("affordableUnits: 'Make {k} instead' (U11)", () => {
   it("never offers as many as were asked for", () => {
     expect(affordableUnits(10_000, 170, 4)).toBe(3);
   });
+  it("counts what a press costs whatever the count (the cut-out), so the offer is one the balance really covers", () => {
+    // 4 at 100 + a 150 cut-out = 550; with 330 left 3 would cost 450, so only 1 would fit
+    expect(affordableUnits(330, 100, 4, 150)).toBe(1);
+    expect(affordableUnits(500, 100, 4, 150)).toBe(3);
+  });
 });
 
 describe("derivePressQuote: the price of a press", () => {
@@ -206,8 +211,8 @@ describe("polling (spec 4.4)", () => {
   it("polls every 1.5 s at first, then every 4 s, while something is being made", () => {
     const v = view({ status: "making_previews", jobs: [{ id: "j", setId: "s", kind: "previews", state: "running", done: 1, total: 4 }] });
     expect(pollInterval(v, 0)).toBe(1500);
-    expect(pollInterval(v, 19)).toBe(1500);
-    expect(pollInterval(v, 20)).toBe(4000);
+    expect(pollInterval(v, 29_999)).toBe(1500);
+    expect(pollInterval(v, 30_000)).toBe(4000);
   });
   it("stops when nothing is in flight", () => {
     expect(pollInterval(view(), 0)).toBe(false);
@@ -264,7 +269,10 @@ describe("the shortlist and finals", () => {
     // "b" was ticked, then left the shortlist: it is not counted
     expect(chosenForFinal([items[0]!, items[2]!], new Set(["a", "b"])).map((i) => i.previewId)).toEqual(["a"]);
     expect(chosenForFinal(items, new Set())).toEqual([]);
-    expect(chosenForFinal(Array.from({ length: 30 }, (_, i) => ({ previewId: String(i) })), null)).toHaveLength(24);
+    const thirty = Array.from({ length: 30 }, (_, i) => ({ previewId: String(i) }));
+    expect(chosenForFinal(thirty, null)).toHaveLength(24);
+    // what the merchant ticks is theirs: one beyond the first 24 is kept, and the sheet says when it is over the limit
+    expect(chosenForFinal(thirty, new Set(["3", "27"])).map((i) => i.previewId)).toEqual(["3", "27"]);
   });
   it("chips", () => {
     expect(shortlistChip(item())).toBe("waiting");
@@ -347,5 +355,8 @@ describe("the tweak controls", () => {
     expect(wordingOp("cta", "x".repeat(50))).toEqual({ op: "cta.set", text: "x".repeat(24) });
     expect(wordingOp("offer", "Save 20%")).toEqual({ op: "offer.set", text: "Save 20%" });
     expect(wordingOp("headline", "   ")).toBeNull();
+    // counted by characters: an emoji is one, and is never cut in two
+    const cut = wordingOp("cta", "\u{1F600}".repeat(30))!.text;
+    expect(Array.from(cut)).toHaveLength(24);
   });
 });

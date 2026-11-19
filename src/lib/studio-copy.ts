@@ -359,6 +359,7 @@ export const STUDIO_COPY = {
     confirm: (peaks: string) => `Make final · ${peaks} Peaks`,
     cancel: "Cancel",
     selectNone: "Choose at least one preview.",
+    tooMany: (max: number) => `You can make up to ${max} at a time. Untick some.`,
     reminder: "These have been waiting a while. Make them final or remove them.",
     remove: "Remove from shortlist",
     open: "Open",

@@ -134,9 +134,10 @@ export const isNotReleased = (e: unknown): boolean => e instanceof ApiError && e
  * After CREDITS_EXHAUSTED: how many units the balance still covers, fewer than wanted, so the sheet can offer "Make {k} instead" (U11).
  * Undefined when it covers none, or the sum cannot be worked out. `unitPeaks` is the per-unit price from the quote the merchant saw.
  */
-export function affordableUnits(left: number | undefined, unitPeaks: number | undefined, wanted: number): number | undefined {
+export function affordableUnits(left: number | undefined, unitPeaks: number | undefined, wanted: number, fixedPeaks = 0): number | undefined {
   if (left === undefined || unitPeaks === undefined || !(unitPeaks > 0)) return undefined;
-  const k = Math.min(wanted - 1, Math.floor(left / unitPeaks));
+  // `fixedPeaks` is what the press costs whatever the count (the product cut-out on a first press).
+  const k = Math.min(wanted - 1, Math.floor((left - fixedPeaks) / unitPeaks));
   return k >= 1 ? k : undefined;
 }
 
@@ -194,10 +195,10 @@ export function isWorking(v: CreativeView | undefined): boolean {
   return v.versions.some((x) => x.state === "extending");
 }
 
-/** Every 1.5 s for the first 30 s of watching, then every 4 s; false (stop) when nothing is being made. */
-export function pollInterval(v: CreativeView | undefined, updates: number): number | false {
+/** Every 1.5 s for the first 30 s of work, then every 4 s; false (stop) when nothing is being made. `elapsedMs` is since the work began. */
+export function pollInterval(v: CreativeView | undefined, elapsedMs: number): number | false {
   if (!isWorking(v)) return false;
-  return updates < 20 ? 1500 : 4000;
+  return elapsedMs < 30_000 ? 1500 : 4000;
 }
 
 export type CreativePhase = "making" | "failed" | "all_dropped" | "ready" | "brief";
@@ -235,7 +236,8 @@ export const isEligibleForFinal = (i: ShortlistItem): boolean => i.state === "sh
  * count and the price, so the figure shown and the price asked for are always the same number.
  */
 export function chosenForFinal<T extends { previewId: string }>(items: T[], picked: ReadonlySet<string> | null, max = MAX_FINALS_PER_PRESS): T[] {
-  return picked ? items.filter((i) => picked.has(i.previewId)).slice(0, max) : items.slice(0, max);
+  // The default is the first press's worth; what the merchant ticks is theirs to choose, and the sheet says when it is over the limit.
+  return picked ? items.filter((i) => picked.has(i.previewId)) : items.slice(0, max);
 }
 
 export type ShortlistChip = "waiting" | "making" | "ready" | "blocked" | "failed" | "changed";
@@ -389,5 +391,5 @@ export function wordingOp(
 ): { op: "headline.set" | "offer.set" | "cta.set"; text: string } | null {
   const t = text.trim();
   if (!t) return null;
-  return { op: field === "headline" ? "headline.set" : field === "offer" ? "offer.set" : "cta.set", text: t.slice(0, WORDING_MAX[field]) };
+  return { op: field === "headline" ? "headline.set" : field === "offer" ? "offer.set" : "cta.set", text: Array.from(t).slice(0, WORDING_MAX[field]).join("") };
 }

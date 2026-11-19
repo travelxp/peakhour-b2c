@@ -43,8 +43,8 @@ function useDebounced<T>(value: T, ms: number): T {
 
 export interface MakeFinalBarViewProps {
   count: number;
-  /** "coming_soon": the count still shows, the button reads "Final opens soon" (off) and there is no price. */
-  final: "on" | "coming_soon";
+  /** "coming_soon": the count still shows, the button reads "Final opens soon" (off) and there is no price. "unknown": still being read: no price, no claim. */
+  final: "on" | "coming_soon" | "unknown";
   quote: { state: QuoteBlockState; peaks?: number; free?: boolean };
   canMake: boolean;
   onMake: () => void;
@@ -81,7 +81,7 @@ export function MakeFinalBarView({ count, final, quote, canMake, onMake }: MakeF
           {final === "on" && quote.state === "unavailable" && <p className="text-sm text-muted-foreground">{STUDIO_COPY.quote.unavailable}</p>}
         </div>
         <Button type="button" className="h-12 min-w-36" disabled={final !== "on" || !canMake} onClick={onMake}>
-          {final === "on" ? S.makeFinal : S.finalSoon}
+          {final === "coming_soon" ? S.finalSoon : S.makeFinal}
         </Button>
       </div>
       {!canMake && final === "on" && <p className="mx-auto mt-1 max-w-3xl text-xs text-muted-foreground">{STUDIO_COPY.refusal.askAnEditorToMake}</p>}
@@ -143,7 +143,8 @@ export function MakeFinalSheetView(p: MakeFinalSheetViewProps) {
             ))}
           </ul>
           {n === 0 && <p className="text-sm text-muted-foreground">{S.selectNone}</p>}
-          {n > 0 && (
+          {n > MAX_FINALS_PER_PRESS && <p className="text-sm text-muted-foreground">{S.tooMany(MAX_FINALS_PER_PRESS)}</p>}
+          {n > 0 && n <= MAX_FINALS_PER_PRESS && (
             <QuoteBlock state={p.quote.state} peaks={p.quote.peaks} units={n} kind="finals" free={p.quote.free} left={p.left} help />
           )}
           {p.startedShort !== undefined && <p role="status" className="text-sm">{S.shortSome(p.startedShort)}</p>}
@@ -155,7 +156,7 @@ export function MakeFinalSheetView(p: MakeFinalSheetViewProps) {
               disabled={n === 0 || n > MAX_FINALS_PER_PRESS || p.pending || p.quote.state !== "quote"}
               onClick={p.onConfirm}
             >
-              {n > 0 && p.quote.state === "quote" && p.quote.peaks !== undefined ? S.confirm(formatPeaks(p.quote.peaks)) : S.chooseTitle}
+              {n > 0 && n <= MAX_FINALS_PER_PRESS && p.quote.state === "quote" && p.quote.peaks !== undefined ? S.confirm(formatPeaks(p.quote.peaks)) : S.chooseTitle}
             </Button>
             <Button type="button" variant="ghost" className="h-12" onClick={p.onCancel}>
               {S.cancel}
@@ -178,7 +179,7 @@ export function useMakeFinalFlow() {
   const eligible = (shortlist.data?.items ?? []).filter(isEligibleForFinal);
   const caps = availability.capabilities.final;
   const [offNow, setOffNow] = useState(false);
-  const final: "on" | "coming_soon" = caps === "on" && !offNow ? "on" : "coming_soon";
+  const final: "on" | "coming_soon" | "unknown" = availability.loading ? "unknown" : caps === "on" && !offNow ? "on" : "coming_soon";
   // The bar's price: asked once the count has settled, only while the bar is on screen.
   const settled = useDebounced(eligible.length, 300);
   const barQuote = useFinalQuote(Math.min(settled, MAX_FINALS_PER_PRESS), final === "on" && canMake && eligible.length > 0 && settled === eligible.length);

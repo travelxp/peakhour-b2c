@@ -1,6 +1,8 @@
 "use client";
 
+import { useRef } from "react";
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ApiError } from "@/lib/api";
 import { getBrandKit, BRAND_KIT_QUERY_KEY } from "@/lib/api/brand-kit";
 import {
   studioApi,
@@ -17,7 +19,7 @@ import { CREDITS_KEY } from "@/hooks/use-credits";
 import { usePeaksQuote } from "@/hooks/use-peaks-quote";
 import { STUDIO_ACTIONS } from "@/lib/api/peaks";
 import { driveAbilities } from "@/lib/drive/files-state";
-import { derivePressQuote, groupProducts, paletteFromKit, pollInterval, type PressQuoteState } from "@/lib/studio-flow";
+import { derivePressQuote, groupProducts, isWorking, paletteFromKit, pollInterval, type PressQuoteState } from "@/lib/studio-flow";
 import { useAuth } from "@/providers/auth-provider";
 
 /** Query keys for the creative flow, in one place so a mutation can name the ones it changes. */
@@ -46,6 +48,8 @@ function useScope() {
  */
 export function useCreative(id: string | undefined) {
   const s = useScope();
+  // When the current spell of work began: the 1.5 s pace is for the first 30 s of each press, not of the page's life.
+  const workSince = useRef<number | null>(null);
   return useQuery<CreativeView>({
     queryKey: [FLOW_KEYS.creative, s.org, s.business, id ?? null],
     queryFn: () => studioApi.creative(id!),
@@ -53,7 +57,14 @@ export function useCreative(id: string | undefined) {
     retry: false,
     staleTime: 0,
     refetchOnWindowFocus: true,
-    refetchInterval: (q) => pollInterval(q.state.data, q.state.dataUpdateCount),
+    refetchInterval: (q) => {
+      if (!isWorking(q.state.data)) {
+        workSince.current = null;
+        return false;
+      }
+      workSince.current ??= Date.now();
+      return pollInterval(q.state.data, Date.now() - workSince.current);
+    },
   });
 }
 
@@ -128,7 +139,9 @@ export function useProductImages(enabled = true) {
     staleTime: 60_000,
     placeholderData: keepPreviousData,
     // Photos arrive while a store import runs: look again until it is done.
-    refetchInterval: (query) => (query.state.data?.pages.some((p) => p.imports.some((i) => i.status === "running")) ? 5000 : false),
+    // Only a single page is cheap to look at again: with more pages loaded the merchant is browsing, and an import's progress can wait.
+    refetchInterval: (query) =>
+      query.state.data?.pages.length === 1 && query.state.data.pages[0]!.imports.some((i) => i.status === "running") ? 5000 : false,
   });
   const items = q.data?.pages.flatMap((p) => p.items) ?? [];
   return { ...q, products: groupProducts(items), imports: q.data?.pages[0]?.imports ?? [] };
@@ -165,11 +178,14 @@ export function usePress() {
       // "One more" (kind "more") sends no count: the api makes one.
       return studioApi.makePreviews(v.id, v.kind === "more" ? undefined : (v.count ?? 4), v.receipts);
     },
-    onSettled: (_data, _error, v) => {
+    onSettled: (_data, error, v) => {
       void qc.invalidateQueries({ queryKey: [FLOW_KEYS.creative] });
       void qc.invalidateQueries({ queryKey: [CREDITS_KEY] });
-      // The receipt that was used is spent, and a refused one is never re-sent: the next press must carry a fresh one.
-      void qc.resetQueries({ predicate: (q) => q.queryKey[0] === FLOW_KEYS.pressQuote && q.queryKey[3] === v.id });
+      // A receipt that was used is spent, and one the api refused is never re-sent: the next press must carry a fresh one. After any other
+      // failure (a lost connection, a refusal for want of Peaks) the price the merchant saw is still the price, and Try again sends it.
+      if (!error || (error instanceof ApiError && error.code === "QUOTE_NOT_HONOURED")) {
+        void qc.resetQueries({ predicate: (q) => q.queryKey[0] === FLOW_KEYS.pressQuote && q.queryKey[3] === v.id });
+      }
     },
   });
 }
@@ -179,6 +195,10 @@ export function useTweak(creativeId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (v: { previewId: string; baseVersion: number; op: TweakOp }) => studioApi.tweak(creativeId, v.previewId, v.baseVersion, v.op),
+    // A poll still on its way must not land after the change and put the old version back.
+    onMutate: async () => {
+      await qc.cancelQueries({ queryKey: [FLOW_KEYS.creative] });
+    },
     onSuccess: (r, v) => {
       qc.setQueriesData<CreativeView>({ queryKey: [FLOW_KEYS.creative] }, (old) =>
         old && old.id === creativeId

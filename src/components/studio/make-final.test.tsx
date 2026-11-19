@@ -67,6 +67,14 @@ describe("the Make final bar (S9)", () => {
     expect(html).not.toContain("Why these sizes?");
   });
 
+  it("while the capability is still being read: no price, no claim that final is unavailable, and the button waits", () => {
+    const html = bar({ final: "unknown" });
+    expect(html).toContain("3 shortlisted");
+    expect(html).not.toContain("Final opens soon");
+    expect(html).not.toContain("Peaks");
+    expect(html).toMatch(/disabled=""[^>]*>Make final/);
+  });
+
   it("a viewer cannot make final: off, with the line", () => {
     const html = bar({ canMake: false });
     expect(html).toMatch(/disabled=""[^>]*>Make final/);
@@ -120,6 +128,14 @@ describe("the choose sheet (S9, S10)", () => {
   it("nothing ticked: the confirm is off and says to choose one", () => {
     const html = sheet({ selected: new Set() });
     expect(html).toContain("Choose at least one preview.");
+    expect(html).toMatch(/disabled=""[^>]*>Make final</);
+  });
+
+  it("more than 24 ticked: says so, shows no price, and the confirm is off", () => {
+    const many = Array.from({ length: 25 }, (_, i) => item({ previewId: `p${i}` }));
+    const html = sheet({ items: many, selected: new Set(many.map((i) => i.previewId)) });
+    expect(html).toContain("You can make up to 24 at a time. Untick some.");
+    expect(html).not.toContain("Uses 800 Peaks");
     expect(html).toMatch(/disabled=""[^>]*>Make final</);
   });
 

@@ -278,7 +278,7 @@ export function BriefScreen() {
   };
 
   const unitPeaks = quote.quote?.main.perUnit?.peaksPerUnit;
-  const instead = refusal?.code === "CREDITS_EXHAUSTED" ? affordableUnits(refusal.left, unitPeaks, form.count) : undefined;
+  const instead = refusal?.code === "CREDITS_EXHAUSTED" ? affordableUnits(refusal.left, unitPeaks, form.count, quote.quote?.cutout?.peaks ?? 0) : undefined;
   const makeInstead =
     instead !== undefined && instead >= 3
       ? { label: STUDIO_COPY.refusal.makeInstead(instead, "previews"), onPress: () => { setForm((f) => ({ ...f, count: 3 })); setRefusal(undefined); } }

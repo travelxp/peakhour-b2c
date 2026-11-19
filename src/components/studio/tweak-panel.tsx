@@ -89,9 +89,8 @@ function WordingField({
         <Input
           id={id}
           value={text}
-          maxLength={max}
           aria-describedby={`${id}-count`}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => setText(Array.from(e.target.value).slice(0, max).join(""))}
           className="h-11"
           disabled={disabled}
         />

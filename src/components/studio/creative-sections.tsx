@@ -166,7 +166,8 @@ export function PreviewGrid({
   const tiles = previews.filter(isShownTile);
   const ratio = tiles.find((p) => p.width && p.height);
   const aspect = ratio ? `${ratio.width} / ${ratio.height}` : "4 / 5";
-  const landed = tiles.filter((p) => p.state !== "rendering");
+  // Numbered among the previews that came through, the same list the viewer and the tweak sheet number.
+  const landed = tiles.filter((p) => p.state !== "rendering" && p.state !== "failed");
   return (
     <ul aria-label={C.caption} className="grid grid-cols-2 gap-3 lg:grid-cols-4" data-slot="studio-preview-grid">
       {tiles.map((p, i) => (

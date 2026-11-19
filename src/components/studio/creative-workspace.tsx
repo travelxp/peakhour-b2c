@@ -70,11 +70,22 @@ function FinalPicture({ creativeId, finalId, alt }: { creativeId: string; finalI
     refetchInterval: 4 * 60 * 1000,
     retry: false,
   });
-  if (q.isError) {
+  // An image that will not load gets two fresh links, then the error below (never an endless loop of requests).
+  const [loadFails, setLoadFails] = useState(0);
+  if (q.isError || loadFails >= 3) {
     return (
       <div role="alert" className="space-y-2 text-sm">
         <p>{F.loadFailed}</p>
-        <Button type="button" size="sm" variant="outline" className="h-11" onClick={() => void q.refetch()}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-11"
+          onClick={() => {
+            setLoadFails(0);
+            void q.refetch();
+          }}
+        >
           {STUDIO_COPY.quote.retry}
         </Button>
       </div>
@@ -92,7 +103,10 @@ function FinalPicture({ creativeId, finalId, alt }: { creativeId: string; finalI
       height={h}
       loading="lazy"
       decoding="async"
-      onError={() => void q.refetch()}
+      onError={() => {
+        setLoadFails((n) => n + 1);
+        if (loadFails < 2) void q.refetch();
+      }}
       className="w-full rounded-md border"
       style={{ aspectRatio: `${w} / ${h}` }}
     />

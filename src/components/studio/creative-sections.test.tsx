@@ -130,6 +130,13 @@ describe("the grid (S6, S7)", () => {
     expect(html).toContain("Preview 1 of 2");
     expect(html).toContain("Preview 2 of 2");
   });
+
+  it("a failed tile is not counted, so the numbers match the viewer and the tweak sheet", () => {
+    const html = grid([preview({ id: "a" }), preview({ id: "b", state: "failed" }), preview({ id: "c" })]);
+    expect(html).toContain("Preview 1 of 2");
+    expect(html).toContain("Preview 2 of 2");
+    expect(html).not.toContain("of 3");
+  });
 });
 
 describe("making, failed, all dropped, dropped line", () => {
@@ -306,7 +313,6 @@ describe("tap-to-tweak (S8)", () => {
   it("the headline field has a visible label and a counter against the limit of 60", () => {
     const html = panel();
     expect(html).toContain("Type your own");
-    expect(html).toContain('maxLength="60"');
     expect(html).toContain("12 of 60");
   });
 
