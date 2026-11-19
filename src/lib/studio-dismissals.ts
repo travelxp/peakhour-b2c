@@ -1,48 +1,51 @@
 /**
- * "Not now" with undo, as plain logic (no React, no timers of its own beyond setTimeout), so the rules are tested in node.
+ * "Not now" with undo, as plain logic (no React, no timers), so the rules are tested in node.
  *
- * The api cannot take a dismissal back, so an idea is held in a pending list for `windowMs`. Undo inside the window cancels it and the
- * api never hears of it. When the window closes the dismissal is sent. `flush()` sends every pending one at once (the page was left).
+ * The dismissal is sent at once. Undo asks the api to take it back (`POST /v1/creative/post-ideas/undismiss`). Nothing is held back in the
+ * page, so leaving the page, closing the tab or a flaky connection can never lose a dismissal.
+ *
+ * One rule matters: an Undo pressed while the dismissal is still on its way WAITS for it, so the two requests reach the api in order and
+ * the idea cannot end up dismissed after the merchant undid it.
  */
-export interface DismissalQueue<T extends { id: string }> {
-  /** Start the undo window for an idea. Replacing a pending one for the same id restarts it. */
-  hide(item: T): void;
-  /** Cancel a pending dismissal. Returns false when there is none (the window already closed). */
-  undo(id: string): boolean;
-  /** Send every pending dismissal now and clear the list. */
-  flush(): void;
-  /** Ids waiting inside their undo window. */
-  pendingIds(): string[];
+export type HideOutcome = "hidden" | "gone" | "failed";
+export type UndoOutcome = "restored" | "failed" | "nothing";
+
+export interface Dismissals<T extends { id: string }> {
+  /** Send the dismissal now. "gone" = the api says the idea no longer exists (nothing was dismissed, nothing to undo). */
+  hide(item: T): Promise<HideOutcome>;
+  /**
+   * Take the dismissal back. "nothing" when this idea was never hidden here, did not end up dismissed, or was already taken back;
+   * "failed" when the api could not take it back (the idea stays dismissed).
+   */
+  undo(item: T): Promise<UndoOutcome>;
 }
 
-export function createDismissalQueue<T extends { id: string }>(opts: {
-  windowMs: number;
-  send: (item: T) => void | Promise<void>;
-}): DismissalQueue<T> {
-  const pending = new Map<string, { item: T; timer: ReturnType<typeof setTimeout> }>();
-  const fire = (id: string) => {
-    const p = pending.get(id);
-    if (!p) return;
-    clearTimeout(p.timer);
-    pending.delete(id);
-    void opts.send(p.item);
-  };
+export function createDismissals<T extends { id: string }>(opts: {
+  dismiss: (item: T) => Promise<unknown>;
+  undismiss: (item: T) => Promise<unknown>;
+  isGone?: (error: unknown) => boolean;
+}): Dismissals<T> {
+  const sent = new Map<string, Promise<HideOutcome>>();
   return {
     hide(item) {
-      const old = pending.get(item.id);
-      if (old) clearTimeout(old.timer);
-      pending.set(item.id, { item, timer: setTimeout(() => fire(item.id), opts.windowMs) });
+      const p = opts.dismiss(item).then(
+        (): HideOutcome => "hidden",
+        (e): HideOutcome => (opts.isGone?.(e) ? "gone" : "failed"),
+      );
+      sent.set(item.id, p);
+      return p;
     },
-    undo(id) {
-      const p = pending.get(id);
-      if (!p) return false;
-      clearTimeout(p.timer);
-      pending.delete(id);
-      return true;
+    async undo(item) {
+      const p = sent.get(item.id);
+      if (!p) return "nothing";
+      sent.delete(item.id);
+      if ((await p) !== "hidden") return "nothing";
+      try {
+        await opts.undismiss(item);
+        return "restored";
+      } catch {
+        return "failed";
+      }
     },
-    flush() {
-      for (const id of [...pending.keys()]) fire(id);
-    },
-    pendingIds: () => [...pending.keys()],
   };
 }

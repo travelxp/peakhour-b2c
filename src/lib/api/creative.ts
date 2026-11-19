@@ -57,6 +57,12 @@ export interface DismissResponse {
   backAfter: string;
 }
 
+export interface UndismissResponse {
+  id: string;
+  /** false when there was no dismissal left to take back. */
+  restored: boolean;
+}
+
 // ── Availability (NEW, read defensively) ─────────────────────
 
 export const STUDIO_CAPABILITIES = ["previews", "final", "extend", "wordOptions", "aiIdeas", "video", "textAds"] as const;
@@ -96,6 +102,9 @@ export const creativeApi = {
   postIdeas: () => api.get<PostIdeasResponse>("/v1/creative/post-ideas"),
 
   dismissPostIdea: (id: string) => api.post<DismissResponse>("/v1/creative/post-ideas/dismiss", { id }),
+
+  /** The Undo after a dismissal. Nothing to take back is still a success (`restored: false`). */
+  undismissPostIdea: (id: string) => api.post<UndismissResponse>("/v1/creative/post-ideas/undismiss", { id }),
 
   /**
    * Only a 404 (the endpoint is not deployed yet) is an answer: "not available yet". Any other failure (network, 401, 5xx) THROWS, so the
