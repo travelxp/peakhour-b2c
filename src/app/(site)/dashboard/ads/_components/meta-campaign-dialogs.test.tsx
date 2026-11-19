@@ -190,6 +190,18 @@ describe("New campaign dialog", () => {
       expect(q('[data-testid="creates-in"]')?.textContent).toBe("Creates in Corner Shop (act_…111)");
     });
 
+    it("★the Ad account choice is disabled while a create is running, so the account cannot change under it", async () => {
+      let release!: () => void;
+      mocks.launchCampaign.mockReturnValue(new Promise((r) => (release = () => r({ campaignId: "c1" }))));
+      await openMany();
+      await fillValidForm();
+      click(byText("button", "Create paused campaign"));
+      await flush();
+      expect((q("#mc-account") as HTMLButtonElement).disabled).toBe(true);
+      await act(async () => release());
+      await flush();
+    });
+
     it("lists only the enabled accounts and creates in the one picked", async () => {
       await openMany();
       click(q("#mc-account"));

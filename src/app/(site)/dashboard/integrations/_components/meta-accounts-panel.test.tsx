@@ -51,7 +51,7 @@ const TWO_ADS = [
   { id: "act_3333", name: "Old Ads", currency: "USD", status: 2 },
 ];
 
-const { MetaAccountsPanel, instagramLine } = await import("./meta-accounts-panel");
+const { MetaAccountsPanel, MetaAdAccountPicker, instagramLine } = await import("./meta-accounts-panel");
 const { ApiError } = await import("@/lib/api");
 
 const EXTRA = {
@@ -213,7 +213,7 @@ describe("MetaAccountsPanel", () => {
 });
 
 describe("MetaAccountsPanel ad accounts checklist", () => {
-  const box = (id: string) => container.querySelector(`#ad-${id}`) as HTMLInputElement;
+  const box = (id: string) => container.querySelector(`[id$="-ad-${id}"]`) as HTMLInputElement;
   const radio = (name: string) => container.querySelector(`input[aria-label="Default: ${name}"]`) as HTMLInputElement;
   const saveButton = () => [...container.querySelectorAll("button")].find((x) => x.textContent?.includes("Save ad accounts")) as HTMLButtonElement;
   const click = async (el: HTMLElement) => {
@@ -237,6 +237,67 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
     expect(saveButton().disabled).toBe(true);
   });
 
+  it("★a ticked account that is now disabled can be UNticked, not saved until it is, and saving drops it", async () => {
+    h.patch.mockResolvedValue({});
+    mount({
+      ...EXTRA,
+      adAccounts: [TWO_ADS[0], TWO_ADS[1], { id: "act_4444", name: "Gone", currency: "USD", status: 2 }],
+      metaAdAccounts: { enabledIds: ["act_1111", "act_4444"], defaultId: "act_1111" },
+    });
+    expect(box("act_4444").checked).toBe(true);
+    expect(box("act_4444").disabled).toBe(false);
+    expect(container.textContent).toContain("disabled on Meta, untick to save");
+    await click(box("act_2222"));
+    expect(saveButton().disabled).toBe(true);
+    await click(box("act_4444"));
+    expect(box("act_4444").disabled).toBe(true);
+    expect(saveButton().disabled).toBe(false);
+    await click(saveButton());
+    await flush();
+    expect(h.patch).toHaveBeenCalledWith("/v1/integrations/facebook/ad-account", { enabledIds: ["act_1111", "act_2222"], defaultId: "act_1111" });
+  });
+
+  it("★payment issue, under review and grace period stay tickable, with the word on the line", () => {
+    mount({
+      ...EXTRA,
+      adAccounts: [
+        { id: "act_5", name: "A", currency: "USD", status: 3 },
+        { id: "act_6", name: "B", currency: "USD", status: 7 },
+        { id: "act_7", name: "C", currency: "USD", status: 9 },
+      ],
+    });
+    expect(container.textContent).toContain("payment issue");
+    expect(container.textContent).toContain("under review");
+    expect(container.textContent).toContain("grace period");
+    for (const id of ["act_5", "act_6", "act_7"]) expect(box(id).disabled).toBe(false);
+  });
+
+  it("★two pickers on one page share no id and no radio group", () => {
+    act(() => {
+      root.render(
+        <QueryClientProvider client={client}>
+          <MetaAdAccountPicker extra={{ ...EXTRA, adAccounts: TWO_ADS }} />
+          <MetaAdAccountPicker extra={{ ...EXTRA, adAccounts: TWO_ADS }} />
+        </QueryClientProvider>,
+      );
+    });
+    const ids = [...container.querySelectorAll("input[id]")].map((i) => i.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    const names = new Set([...container.querySelectorAll('input[type="radio"]')].map((i) => (i as HTMLInputElement).name));
+    expect(names.size).toBe(2);
+  });
+
+  it("showAdAccounts={false} leaves the checklist to the Meta Ads card", () => {
+    act(() => {
+      root.render(
+        <QueryClientProvider client={client}>
+          <MetaAccountsPanel extra={{ ...EXTRA, adAccounts: TWO_ADS }} onRefresh={() => {}} refreshing={false} showAdAccounts={false} />
+        </QueryClientProvider>,
+      );
+    });
+    expect(container.textContent).not.toContain("Ad accounts Peakhour may use");
+  });
+
   it("a disabled or closed account is shown and cannot be ticked", () => {
     mount({ ...EXTRA, adAccounts: [...TWO_ADS, { id: "act_4444", name: "Gone", currency: "USD", status: 101 }] });
     expect(box("act_3333").disabled).toBe(true);
@@ -246,7 +307,7 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
   });
 
   it("saved accounts show ticked with their Default marked, and no warning", () => {
-    mount({ ...EXTRA, adAccounts: TWO_ADS, capabilities: { ...EXTRA.capabilities, adAccounts: { enabledIds: ["act_1111", "act_2222"], defaultId: "act_2222" } } });
+    mount({ ...EXTRA, adAccounts: TWO_ADS, metaAdAccounts: { enabledIds: ["act_1111", "act_2222"], defaultId: "act_2222" } });
     expect(box("act_1111").checked).toBe(true);
     expect(box("act_2222").checked).toBe(true);
     expect(box("act_3333").checked).toBe(false);

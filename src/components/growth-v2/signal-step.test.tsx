@@ -103,6 +103,15 @@ describe("the signal step", () => {
     expect(html(props(readiness("needed", "not_connected", false)))).not.toContain("Meta account");
   });
 
+  it("with NO enabled Meta ad account it says to choose them, with a link to Connected accounts, not a silently disabled button alone", () => {
+    const out = html(props(readiness("needed", "not_connected", false), { accounts: { meta: [], google_ads: [] } }));
+    expect(out).toContain("Choose the ad accounts this business may use in");
+    expect(out).toContain('href="/dashboard/integrations"');
+    // a failed read is not blamed on the merchant
+    const failed = html(props(readiness("needed", "not_connected", false), { accounts: { meta: [], google_ads: [] }, accountsFailed: { meta: true } }));
+    expect(failed).not.toContain("Choose the ad accounts this business may use in");
+  });
+
   it("the set-up button is off with no ad account to set up on", () => {
     const out = html(props(readiness("needed", "not_connected", false), { accounts: { meta: [], google_ads: [] } }));
     expect(out).toMatch(/<button[^>]* disabled=""[^>]*>Pick or create my dataset/);

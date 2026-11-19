@@ -387,8 +387,9 @@ export function savedMetaPageId(extra: Record<string, any> | undefined): string 
 
 /**
  * The Meta ad accounts this business may use, and its default, as the api resolves them (api
- * `helpers/meta-saved-ad-account.ts`): the stored ids the connection still lists; with nothing stored, the ONLY listed
- * account (one is not a choice); with nothing stored and two or more listed, NONE (never the first). The default is the
+ * `helpers/meta-saved-ad-account.ts`): the stored ids the connection still lists; with nothing EVER saved, the ONLY listed
+ * account (one is not a choice); with nothing saved and two or more listed, NONE (never the first); a saved choice whose
+ * accounts are all gone is NONE too. The default is the
  * stored one while it is still enabled, else the only enabled account. `extra` is the merged `facebook` row's
  * `account.extra`, which carries `adAccounts` and `capabilities`.
  */
@@ -398,15 +399,39 @@ export function savedMetaAdAccounts(extra: Record<string, any> | undefined): { e
     (a: { id?: unknown }) => typeof a?.id === "string" && a.id !== "",
   );
   const bare = (id: string) => id.trim().replace(/^act_/, "");
-  const stored = extra?.capabilities?.adAccounts;
+  // Its own key (`config.metaAdAccounts`), NOT under `capabilities`: LinkedIn keeps `capabilities.adAccounts.byPage` there.
+  const stored = extra?.metaAdAccounts;
+  const saved = !!stored && typeof stored === "object";
   const wanted = new Set<string>(
     (Array.isArray(stored?.enabledIds) ? stored.enabledIds : []).filter((x: unknown): x is string => typeof x === "string").map(bare),
   );
   let enabled = listed.filter((a) => wanted.has(bare(a.id)));
-  if (enabled.length === 0 && listed.length === 1) enabled = [listed[0]!];
+  // One listed account enables itself only while nothing was EVER saved; a saved choice is never widened.
+  if (!saved && listed.length === 1) enabled = [listed[0]!];
   if (enabled.length === 0) return { enabledIds: [] };
   const byDefault =
     typeof stored?.defaultId === "string" ? enabled.find((a) => bare(a.id) === bare(stored.defaultId)) : undefined;
   const def = byDefault ?? (enabled.length === 1 ? enabled[0] : undefined);
   return { enabledIds: enabled.map((a) => a.id), ...(def ? { defaultId: def.id } : {}) };
+}
+
+/**
+ * Whether the Meta Ads card is live for this merchant, judged from any Meta card's row (they share one merged `extra`): an
+ * ad account is listed, the Ads capability is not switched off, and a working row serves the Ads card. The ad accounts
+ * checklist is shown on ONE card only: the Meta Ads card when this is true, else the Facebook Pages card (a login that has
+ * no Ads row still needs somewhere to choose).
+ */
+export function metaAdsCardServed(item: {
+  metaLogin?: MetaLoginInfo["metaLogin"];
+  metaConnections?: MetaLoginInfo["metaConnections"];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  account?: { extra?: Record<string, any> };
+}): boolean {
+  const extra = item.account?.extra ?? {};
+  if (!(Array.isArray(extra.adAccounts) && extra.adAccounts.length > 0)) return false;
+  if (extra.capabilities?.ads?.enabled === false) return false;
+  const info: MetaLoginInfo = { metaLogin: item.metaLogin, metaConnections: item.metaConnections };
+  if (metaCardServedBy(info, "meta_ads") === "none") return false;
+  const status = metaCardStatus(info, "meta_ads");
+  return status === undefined || status === "active";
 }

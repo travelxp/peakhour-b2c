@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 import { api, ApiError } from "@/lib/api";
 import { savedMetaAdAccounts, savedMetaPageId } from "@/lib/integrations-meta";
-import { META_CHOOSE_AD_ACCOUNT, metaAdAccountBlockedWord, metaAdAccountOptionLabel } from "@/lib/meta-ads-view";
+import { META_CHOOSE_AD_ACCOUNT, metaAdAccountOptionLabel, metaAdAccountStatus } from "@/lib/meta-ads-view";
 import { Button } from "@/components/ui/button";
 import { MetaMessagingSwitches } from "./meta-messaging-switches";
 import { DM_STATUS_KEY } from "@/lib/meta-dm";
@@ -52,12 +52,15 @@ export function MetaAccountsPanel({
   onRefresh,
   refreshing,
   onChanged,
+  showAdAccounts = true,
 }: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   extra: Record<string, any>;
   onRefresh: () => void;
   refreshing: boolean;
   onChanged?: () => void | Promise<unknown>;
+  /** The ad accounts checklist lives on ONE card: here only when no Meta Ads card is live. */
+  showAdAccounts?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
@@ -152,7 +155,7 @@ export function MetaAccountsPanel({
         </div>
       )}
 
-      <MetaAdAccountPicker extra={extra} onChanged={onChanged} />
+      {showAdAccounts ? <MetaAdAccountPicker extra={extra} onChanged={onChanged} /> : null}
     </div>
   );
 }
@@ -173,6 +176,8 @@ export function MetaAdAccountPicker({
   onChanged?: () => void | Promise<unknown>;
 }) {
   const queryClient = useQueryClient();
+  // Unique per instance, so two pickers on one page never share an id or a radio group.
+  const uid = useId();
   const adAccounts: MetaAdAccountRow[] = (Array.isArray(extra?.adAccounts) ? extra.adAccounts : []).filter(
     (a: MetaAdAccountRow) => typeof a?.id === "string" && a.id !== "",
   );
@@ -183,7 +188,9 @@ export function MetaAdAccountPicker({
   const ids = draft?.ids ?? saved.enabledIds;
   const defaultId = draft ? draft.defaultId : saved.defaultId;
   const dirty = draft !== null;
-  const canSave = dirty && ids.length > 0 && !!defaultId && ids.includes(defaultId);
+  // An account Meta now says is disabled or closed that is still ticked: it can be unticked but not saved until it is.
+  const stillTickedBlocked = adAccounts.some((a) => ids.includes(a.id) && !!metaAdAccountStatus(a.status).blocked);
+  const canSave = dirty && ids.length > 0 && !!defaultId && ids.includes(defaultId) && !stillTickedBlocked;
 
   function toggle(id: string) {
     const next = ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
@@ -230,28 +237,30 @@ export function MetaAdAccountPicker({
         <>
           <ul className="space-y-1">
             {adAccounts.map((a) => {
-              const blocked = metaAdAccountBlockedWord(a.status);
+              const { blocked, warning } = metaAdAccountStatus(a.status);
               const ticked = ids.includes(a.id);
               return (
                 <li key={a.id} className="flex items-center gap-2 text-xs">
                   <input
                     type="checkbox"
-                    id={`ad-${a.id}`}
+                    id={`${uid}-ad-${a.id}`}
                     checked={ticked}
-                    disabled={saving || !!blocked}
+                    // A disabled or closed account cannot be ticked, but one that is already ticked can be UNticked.
+                    disabled={saving || (!!blocked && !ticked)}
                     onChange={() => toggle(a.id)}
                   />
-                  <label htmlFor={`ad-${a.id}`} className="min-w-0 flex-1 truncate">
+                  <label htmlFor={`${uid}-ad-${a.id}`} className="min-w-0 flex-1 truncate">
                     {metaAdAccountOptionLabel(a)}
-                    {blocked ? `, ${blocked}` : ""}
+                    {blocked ? (ticked ? `, ${blocked} on Meta, untick to save` : `, ${blocked}`) : ""}
+                    {warning ? `, ${warning}` : ""}
                   </label>
                   <label className="flex shrink-0 items-center gap-1 text-micro text-muted-foreground">
                     <input
                       type="radio"
-                      name="meta-default-ad-account"
+                      name={`${uid}-default-ad-account`}
                       aria-label={`Default: ${a.name || a.id}`}
                       checked={defaultId === a.id}
-                      disabled={saving || !ticked}
+                      disabled={saving || !ticked || !!blocked}
                       onChange={() => setDraft({ ids, defaultId: a.id })}
                     />
                     Default

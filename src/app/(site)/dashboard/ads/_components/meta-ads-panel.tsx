@@ -195,7 +195,8 @@ function ReconnectBanner() {
 function ConnectedView() {
   const { business } = useAuth();
   const accounts = useQuery({
-    queryKey: ["meta-ads-accounts"],
+    // Scoped by business, like the signal step's: another business's answer is never served for this one.
+    queryKey: ["meta-ads-accounts", business?._id ?? "none"],
     queryFn: () => metaAdsApi.listAdAccounts(),
     retry: false,
     staleTime: LIST_STALE_MS,
@@ -210,6 +211,8 @@ function ConnectedView() {
   // Live account objects (they carry the time zone), in the business's order, limited to the enabled ones still on the login.
   const enabled = enabledIds.flatMap((id) => list.filter((a) => a.id === id));
   const missingCount = (accounts.data?.enabledAccounts ?? []).filter((a) => a.missing).length;
+  // The business chose accounts and the login has lost every one of them: not the same as never having chosen.
+  const allChosenMissing = enabled.length === 0 && (accounts.data?.enabledAccounts?.length ?? 0) > 0 && missingCount === (accounts.data?.enabledAccounts?.length ?? 0);
 
   if (accounts.isLoading) return <SkeletonStack />;
 
@@ -242,6 +245,17 @@ function ConnectedView() {
     );
   }
 
+  if (allChosenMissing) {
+    return (
+      <EmptyState
+        icon={Megaphone}
+        title="Your ad account is not on your Meta login"
+        description="The ad account you chose is no longer on your Meta login. Reconnect Meta or choose another."
+        action={{ label: "Open Connected accounts", href: "/dashboard/integrations" }}
+      />
+    );
+  }
+
   // ★NO ENABLED ACCOUNT, NO CONTROLS. Nothing here can start spend until the business has said which accounts are its own.
   if (enabled.length === 0) {
     return (
@@ -254,11 +268,12 @@ function ConnectedView() {
     );
   }
 
-  // "All accounts" first; with one enabled account it is the selection. A stale choice falls back to the same rule.
-  const defaultFilter = enabled.length === 1 ? enabled[0]!.id : ALL_ACCOUNTS;
+  // The business's DEFAULT account is selected first ("All accounts" stays as an option, listed first); with one enabled account
+  // it is the selection. A stale choice falls back to the same rule.
+  const defaultId = accounts.data?.defaultId ?? null;
+  const defaultFilter = enabled.length === 1 ? enabled[0]!.id : defaultId && enabled.some((a) => a.id === defaultId) ? defaultId : ALL_ACCOUNTS;
   const filter = chosenFilter === ALL_ACCOUNTS || enabled.some((a) => a.id === chosenFilter) ? chosenFilter : defaultFilter;
   const shown = filter === ALL_ACCOUNTS ? enabled : enabled.filter((a) => a.id === filter);
-  const defaultId = accounts.data?.defaultId ?? null;
 
   return (
     <div className="space-y-6">
@@ -288,8 +303,10 @@ function ConnectedView() {
             )}
             {missingCount > 0 ? (
               <p role="status" className="text-xs text-warning-on-tint">
-                {missingCount === 1 ? "One of your ad accounts is" : `${missingCount} of your ad accounts are`} no longer on
-                your Meta login and is not shown. Reconnect Meta or change your ad accounts.
+                {missingCount === 1
+                  ? "One of your ad accounts is no longer on your Meta login and is not shown."
+                  : `${missingCount} of your ad accounts are no longer on your Meta login and are not shown.`}{" "}
+                Reconnect Meta or change your ad accounts.
               </p>
             ) : null}
           </div>
@@ -738,8 +755,6 @@ function MessageRow({ depth, text }: { depth: 1 | 2; text: string }) {
 function DatasetCard({ accounts, defaultAccountId }: { accounts: MetaAdAccount[]; defaultAccountId: string | null }) {
   const queryClient = useQueryClient();
   const [accountPick, setAccountPick] = useState<string>("");
-  const account =
-    accounts.find((a) => a.id === accountPick) ?? accounts.find((a) => a.id === defaultAccountId) ?? accounts[0]!;
   const [choice, setChoice] = useState<string>("");
   const [editing, setEditing] = useState(false);
 
@@ -748,6 +763,15 @@ function DatasetCard({ accounts, defaultAccountId }: { accounts: MetaAdAccount[]
     queryFn: () => metaAdsApi.getSelectedDataset(),
     retry: false,
   });
+  const current = selected.data?.selected ?? null;
+  // The account the dataset in use belongs to comes first (a change keeps it unless the merchant picks another), then the
+  // merchant's pick, then the business's default.
+  const bare = (id: string) => id.replace(/^act_/, "");
+  const account =
+    accounts.find((a) => a.id === accountPick) ??
+    (current ? accounts.find((a) => bare(a.id) === bare(current.adAccountId)) : undefined) ??
+    accounts.find((a) => a.id === defaultAccountId) ??
+    accounts[0]!;
   const datasets = useQuery({
     queryKey: ["meta-ads-dataset", "list", account.id],
     queryFn: () => metaAdsApi.listDatasets(account.id),
@@ -762,12 +786,12 @@ function DatasetCard({ accounts, defaultAccountId }: { accounts: MetaAdAccount[]
       queryClient.invalidateQueries({ queryKey: ["meta-ads-dataset"] });
       setEditing(false);
       setChoice("");
+      setAccountPick("");
       toast.success("Purchases from Meta ads will be sent to that dataset.");
     },
     onError: (err) => toast.error(metaAdsErrorMessage(err, "Couldn't save that choice. Try again.")),
   });
 
-  const current = selected.data?.selected ?? null;
   const options = datasets.data?.datasets ?? [];
   const chosen = options.find((d) => d.id === choice);
 
@@ -865,7 +889,16 @@ function DatasetCard({ accounts, defaultAccountId }: { accounts: MetaAdAccount[]
               >
                 {save.isPending ? "Saving…" : "Send conversions here"}
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  // Cancel forgets the pick, so the next edit starts from the dataset in use again.
+                  setEditing(false);
+                  setAccountPick("");
+                  setChoice("");
+                }}
+              >
                 Cancel
               </Button>
             </div>

@@ -420,7 +420,16 @@ export function metaInLine(a: { id: string; name?: string }): string {
 /** The sentence shown while two or more ad accounts are listed and none is chosen. */
 export const META_CHOOSE_AD_ACCOUNT = "Choose the ad accounts this business may use before creating campaigns.";
 
-/** Meta `account_status` values that cannot run ads at all, with the word to say. The api refuses them too. */
-export function metaAdAccountBlockedWord(status: number | undefined): "disabled" | "closed" | undefined {
-  return status === 2 ? "disabled" : status === 101 ? "closed" : undefined;
+/**
+ * ★ONE HELPER FOR META'S `account_status` WORDS. 2 disabled and 101 closed cannot run ads at all (not tickable; the api
+ * refuses them too). 3 (unsettled), 7 (under risk review) and 9 (grace period) still run or can be fixed: they stay tickable,
+ * with a warning on the line.
+ */
+export function metaAdAccountStatus(status: number | undefined): { blocked?: "disabled" | "closed"; warning?: string } {
+  if (status === 2) return { blocked: "disabled" };
+  if (status === 101) return { blocked: "closed" };
+  if (status === 3) return { warning: "payment issue" };
+  if (status === 7) return { warning: "under review" };
+  if (status === 9) return { warning: "grace period" };
+  return {};
 }

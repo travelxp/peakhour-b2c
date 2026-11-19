@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -127,6 +128,15 @@ function PlatformRow({ row, ...p }: { row: PlatformSignal } & SignalStepViewProp
               We couldn&apos;t load your {label} ad accounts. Reload the page to try again.
             </p>
           ) : null}
+          {row.platform === "meta" && accounts.length === 0 && !p.accountsFailed?.meta ? (
+            <p role="status" className="text-xs text-warning-on-tint">
+              Choose the ad accounts this business may use in{" "}
+              <Link href="/dashboard/integrations" className="font-medium underline underline-offset-4">
+                Connected accounts
+              </Link>{" "}
+              first.
+            </p>
+          ) : null}
           <div className="flex flex-wrap items-center gap-2">
             {accounts.length > 1 ? (
               <select
@@ -210,8 +220,12 @@ export function SignalStep({
   const picked = pick.scope === scope ? pick.chosen : { meta: undefined, google_ads: undefined };
   const error = failure?.scope === scope ? failure.message : undefined;
   const accounts: Record<SignalPlatform, AdAccountChoice[]> = {
-    // ONLY the business's enabled ad accounts: the api refuses a dataset write for any other (MR-F2).
-    meta: (meta.data?.accounts ?? []).filter((a) => meta.data?.enabledIds.includes(a.id)).map((a) => ({ id: a.id, name: a.name, currency: a.currency })),
+    // ONLY the business's enabled ad accounts (the api refuses a dataset write for any other, MR-F2), its DEFAULT first: the
+    // account that is used until the merchant picks another is the first one listed.
+    meta: (meta.data?.accounts ?? [])
+      .filter((a) => meta.data?.enabledIds.includes(a.id))
+      .sort((a, b) => Number(b.id === meta.data?.defaultId) - Number(a.id === meta.data?.defaultId))
+      .map((a) => ({ id: a.id, name: a.name, currency: a.currency })),
     google_ads: (google.data?.adAccounts ?? []).map((a) => ({ id: a.id, name: a.name, currency: a.currencyCode })),
   };
   // THE ACCOUNT THAT IS SHOWN IS THE ACCOUNT THAT IS USED: a pick that is no longer in the list falls back to the first.

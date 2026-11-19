@@ -12,6 +12,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const h = vi.hoisted(() => ({
   listAdAccounts: vi.fn(),
   listCampaigns: vi.fn(),
+  listDatasets: vi.fn(),
+  getSelectedDataset: vi.fn(),
   replace: vi.fn(),
 }));
 
@@ -46,8 +48,8 @@ vi.mock("@/lib/api/meta-ads", async (orig) => {
       listAdAccounts: h.listAdAccounts,
       listCampaigns: h.listCampaigns,
       insights: vi.fn(async () => []),
-      getSelectedDataset: vi.fn(async () => ({ selected: null })),
-      listDatasets: vi.fn(async () => ({ datasets: [] })),
+      getSelectedDataset: h.getSelectedDataset,
+      listDatasets: h.listDatasets,
     },
   };
 });
@@ -100,6 +102,8 @@ beforeEach(() => {
   h.listAdAccounts.mockReset();
   h.listCampaigns.mockReset().mockResolvedValue({ campaigns: [CAMPAIGN], truncated: false });
   h.replace.mockReset();
+  h.getSelectedDataset.mockReset().mockResolvedValue({ selected: null });
+  h.listDatasets.mockReset().mockResolvedValue({ datasets: [] });
 });
 afterEach(() => {
   act(() => root.unmount());
@@ -111,8 +115,11 @@ const settle = async () => {
   for (let i = 0; i < 6; i++) await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
 };
 
+let lastClient: QueryClient;
+
 async function mount() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  lastClient = client;
   await act(async () => {
     root.render(
       <QueryClientProvider client={client}>
@@ -124,8 +131,16 @@ async function mount() {
 }
 
 describe("Growth > Ads > Meta", () => {
-  it("several enabled: 'All accounts' is selected, each enabled account is its own section, every campaign names its account", async () => {
+  it("several enabled: the business's DEFAULT account is selected first, with 'All accounts' still an option", async () => {
     h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
+    await mount();
+    expect(container.querySelector('[aria-label="Ad account filter"]')!.textContent).toContain("CMPL (USD) · act_…2222");
+    expect([...container.querySelectorAll("h2")].map((x) => x.textContent)).toEqual(["CMPL (USD) · act_…2222"]);
+    expect(h.listCampaigns).not.toHaveBeenCalledWith("act_1111");
+  });
+
+  it("no default (several enabled, none marked): 'All accounts' is selected, each enabled account is its own section, every campaign names its account", async () => {
+    h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], null));
     await mount();
     const bar = container.querySelector('[aria-label="Ad accounts"]')!;
     expect(bar.textContent).toContain("Quests Travel Pvt");
@@ -153,7 +168,7 @@ describe("Growth > Ads > Meta", () => {
     await mount();
     const nc = container.querySelector('[data-testid="new-campaign"]')!;
     expect(nc.getAttribute("data-default")).toBe("act_2222");
-    expect(nc.getAttribute("data-initial")).toBe("");
+    expect(nc.getAttribute("data-initial")).toBe("act_2222");
     expect(container.textContent).toContain("Edit campaign");
   });
 
@@ -177,10 +192,43 @@ describe("Growth > Ads > Meta", () => {
     expect(container.querySelector('[data-testid="new-campaign"]')!.getAttribute("data-initial")).toBe("act_2222");
   });
 
+  it("★the accounts query is scoped by business, so another business's answer is never served for this one", async () => {
+    h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
+    await mount();
+    expect(lastClient.getQueryCache().find({ queryKey: ["meta-ads-accounts", "b1"] })).toBeTruthy();
+    expect(lastClient.getQueryCache().find({ queryKey: ["meta-ads-accounts"], exact: true })).toBeUndefined();
+  });
+
+  it("★the dataset card starts from the account the dataset in use belongs to, not the default", async () => {
+    h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
+    h.getSelectedDataset.mockResolvedValue({ selected: { id: "d1", adAccountId: "act_1111", name: "Quests pixel" } });
+    await mount();
+    const change = [...container.querySelectorAll("button")].find((b) => b.textContent === "Change dataset")!;
+    await act(async () => change.click());
+    await settle();
+    expect(h.listDatasets).toHaveBeenCalledWith("act_1111");
+    expect(h.listDatasets).not.toHaveBeenCalledWith("act_2222");
+    expect(container.querySelector('[aria-label="Dataset ad account"]')!.textContent).toContain("Quests Travel");
+  });
+
   it("has no ad account URL param: nothing writes the URL, and a stale ?adAccount= is ignored", async () => {
     h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
     await mount();
     expect(h.replace).not.toHaveBeenCalled();
+  });
+
+  it("★every enabled account missing from the login: its own empty state, no controls", async () => {
+    h.listAdAccounts.mockResolvedValue({ accounts: [QUESTS, CMPL, OTHER], enabledAccounts: [{ id: "act_9999", missing: true }], enabledIds: [], defaultId: null });
+    await mount();
+    expect(container.textContent).toContain("The ad account you chose is no longer on your Meta login. Reconnect Meta or choose another.");
+    expect(container.textContent).not.toContain("Choose the ad accounts this business may use");
+    expect(container.textContent).not.toContain("New campaign");
+  });
+
+  it("★the plural copy: '2 of your ad accounts are no longer on your Meta login and are not shown.'", async () => {
+    h.listAdAccounts.mockResolvedValue(answer([QUESTS], "act_1111", ["act_8", "act_9"]));
+    await mount();
+    expect(container.textContent).toContain("2 of your ad accounts are no longer on your Meta login and are not shown.");
   });
 
   it("one enabled account is the selection: no filter, its section, no account line", async () => {

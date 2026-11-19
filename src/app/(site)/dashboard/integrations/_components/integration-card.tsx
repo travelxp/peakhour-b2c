@@ -12,6 +12,7 @@ import { isRecoverableStatus, showsComingSoon } from "@/lib/integration-card-sta
 import { Integration, PROVIDER_ICONS, PROVIDER_TILES } from "./shared";
 import { LinkedInAdsStatus, LinkedInContentPages } from "./linkedin-panels";
 import { MetaAccountsPanel, MetaAdAccountPicker } from "./meta-accounts-panel";
+import { metaAdsCardServed } from "@/lib/integrations-meta";
 
 export function IntegrationCard({
   integration,
@@ -214,19 +215,20 @@ export function IntegrationCard({
               />
             )}
 
-            {/* Meta accounts — Pages with their Instagram account, the Page Peakhour uses, ad accounts, Refresh.
-                On the Facebook card only: it is the one card that is the Page. */}
+            {/* Meta accounts — Pages with their Instagram account, the Page Peakhour uses, Refresh. On the Facebook card only:
+                it is the one card that is the Page. The ad accounts checklist is on ONE card: this one only when no Meta Ads
+                card is live (`metaAdsCardServed`), else the Meta Ads card below. */}
             {integration.provider === "facebook_pages" && integration.connected && integration.account?.extra && (
               <MetaAccountsPanel
                 extra={integration.account.extra}
                 onRefresh={onRefresh}
                 refreshing={refreshing}
                 onChanged={onChanged}
+                showAdAccounts={!metaAdsCardServed(integration)}
               />
             )}
 
-            {/* Meta Ads — the ad account Peakhour uses. A login that connected only for ads has no Pages card, so the
-                choice is here too. */}
+            {/* Meta Ads — the ad accounts Peakhour may use, with the default. */}
             {integration.provider === "meta_ads" && integration.connected && integration.account?.extra && (
               <div className="space-y-2 rounded-md border border-border/40 p-2">
                 <MetaAdAccountPicker extra={integration.account.extra} onChanged={onChanged} />

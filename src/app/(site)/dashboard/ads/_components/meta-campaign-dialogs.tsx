@@ -179,7 +179,7 @@ export function NewCampaignDialog({
     accounts.find((a) => a.id === initialAccountId) ??
     accounts.find((a) => a.id === defaultAccountId) ??
     accounts[0]!;
-  const refresh = useRefreshAds(account.id);
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<NewCampaignForm>(EMPTY_NEW_CAMPAIGN);
   const [file, setFile] = useState<File | null>(null);
@@ -213,7 +213,9 @@ export function NewCampaignDialog({
   };
 
   const create = useMutation({
-    mutationFn: async () => {
+    // ★THE ACCOUNT IS A VARIABLE, not a closure: the Select is disabled while this runs, and whatever finishes invalidates the
+    // account it was STARTED for.
+    mutationFn: async (account: MetaAdAccount) => {
       if (!file || !pageRow) throw new Error("not ready");
       const key = `${account.id}|${file.name}|${file.size}|${file.lastModified}`;
       if (uploaded.current?.key !== key) {
@@ -237,14 +239,14 @@ export function NewCampaignDialog({
       });
       return metaAdsApi.launchCampaign(bodies);
     },
-    onSuccess: (made) => {
-      refresh();
+    onSuccess: (made, target) => {
+      for (const key of ADS_KEYS) void queryClient.invalidateQueries({ queryKey: [key, target.id] });
       setOpen(false);
       reset();
       toast.success("Campaign created and paused. Turn it on when you're ready.");
       onCreated(made.campaignId);
     },
-    onError: (err: unknown) => {
+    onError: (err: unknown, target) => {
       if (err instanceof MetaLaunchError) {
         const base = metaAdsErrorMessage(err.cause, "Meta didn't accept that campaign.");
         setFailure(
@@ -257,7 +259,7 @@ export function NewCampaignDialog({
       } else {
         setFailure(metaAdsErrorMessage(err, "Couldn't create the campaign. Nothing was created."));
       }
-      refresh();
+      for (const key of ADS_KEYS) void queryClient.invalidateQueries({ queryKey: [key, target.id] });
     },
   });
 
@@ -265,7 +267,7 @@ export function NewCampaignDialog({
     setShowErrors(true);
     setFailure(null);
     if (Object.keys(errors).length > 0 || !pageRow) return;
-    create.mutate();
+    create.mutate(account);
   };
 
   return (
@@ -296,7 +298,7 @@ export function NewCampaignDialog({
           {accounts.length > 1 ? (
             <div className="space-y-1.5">
               <Label htmlFor="mc-account">Ad account</Label>
-              <Select value={account.id} onValueChange={setPickedAccountId}>
+              <Select value={account.id} onValueChange={setPickedAccountId} disabled={create.isPending}>
                 <SelectTrigger id="mc-account" className="w-full" aria-label="Ad account">
                   <SelectValue />
                 </SelectTrigger>
@@ -508,7 +510,7 @@ export function NewCampaignDialog({
         </div>
 
         <DialogFooter className="sm:items-center">
-          {/* ★WHERE THE MONEY GOES, next to the button that spends it: the workspace's one saved ad account. */}
+          {/* ★WHERE THE MONEY GOES, next to the button that spends it: the ad account this campaign is created in. */}
           <p className="text-xs text-muted-foreground sm:mr-auto" data-testid="creates-in">
             {metaCreatesInLine(account)}
           </p>
