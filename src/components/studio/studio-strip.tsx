@@ -114,12 +114,12 @@ export function StudioReadyToaster() {
       .then((r) => {
         const done = new Set(r.rows.filter((x) => x.status === "done").map((x) => x._id));
         // One toast per place the finished work is seen (two previews presses on one creative are one toast).
-        const seen = new Map<string, StudioJob>();
-        for (const j of gone.filter((g) => done.has(g.id))) seen.set(`${j.kind}:${workHref(j.kind, j.creativeId, STUDIO_PATHS)}`, j);
-        for (const j of seen.values()) {
+        const seen = new Map<string, { kind: StudioJob["kind"]; to: string }>();
+        for (const j of gone.filter((g) => done.has(g.id))) {
           const to = workHref(j.kind, j.creativeId, STUDIO_PATHS);
-          toast.success(S.readyToast[j.kind], { action: { label: S.seeThem, onClick: () => router.push(to) } });
+          seen.set(`${j.kind}:${to}`, { kind: j.kind, to });
         }
+        for (const { kind, to } of seen.values()) toast.success(S.readyToast[kind], { action: { label: S.seeThem, onClick: () => router.push(to) } });
       })
       .catch(() => undefined);
   }, [jobs, ready, pathname, router, qc]);

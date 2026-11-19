@@ -77,8 +77,8 @@ function TweakContainer({
   const tweak = useTweak(creativeId);
   const press = usePress();
   // The api's own list is the palette (the keys the tweak resolves). The brand kit is asked for only by an api that predates the field.
-  const kitPalette = useStudioPalette(!view.palette).data;
-  const palette = view.palette ?? kitPalette ?? [];
+  const kitPalette = useStudioPalette(!view.palette?.length).data;
+  const palette = view.palette?.length ? view.palette : (kitPalette ?? []);
   const availability = useStudioAvailability();
   const { proTools } = useStudioPrefs();
   const left = usePeaksLeft();

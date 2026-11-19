@@ -291,7 +291,8 @@ export function PreviewViewer({
   const [close, setClose] = useState(false);
   const zoomRef = useRef<HTMLDivElement>(null);
   const p = previews[index];
-  const crop = p?.productCrop ?? null;
+  // Primitives, so a poll that hands back an equal crop object does not move the merchant's pan.
+  const cx = p?.productCrop?.x, cy = p?.productCrop?.y, cw = p?.productCrop?.w, ch = p?.productCrop?.h;
   const pid = p?.id;
   // "Look closely" opens on the product when the api kept where it sits, and where it always did (top left) when not.
   useEffect(() => {
@@ -304,10 +305,10 @@ export function PreviewViewer({
     }
     const inner = el.firstElementChild as HTMLElement | null;
     if (!inner) return;
-    const to = cropScroll(crop, { w: inner.offsetWidth, h: inner.offsetHeight }, { w: el.clientWidth, h: el.clientHeight });
+    const to = cropScroll(cx === undefined || cy === undefined || cw === undefined || ch === undefined ? null : { x: cx, y: cy, w: cw, h: ch }, { w: inner.offsetWidth, h: inner.offsetHeight }, { w: el.clientWidth, h: el.clientHeight });
     el.scrollLeft = to.left;
     el.scrollTop = to.top;
-  }, [close, crop, pid]);
+  }, [close, cx, cy, cw, ch, pid]);
   if (!p) return null;
   const alt = C.previewAlt(index + 1, previews.length, p.headline ?? "", p.productTitle ?? "");
   const go = (d: number) => onIndex((index + d + previews.length) % previews.length);
