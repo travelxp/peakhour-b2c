@@ -77,3 +77,35 @@ describe("the free calls", () => {
     expect(get).toHaveBeenNthCalledWith(2, "/v1/media/product-images?productId=p9&after=abc&limit=20");
   });
 });
+
+describe("platform versions, handoff and settings", () => {
+  it("placements are asked per channel and shape, and for the final's own picture", async () => {
+    await studioApi.placements(["instagram", "facebook"], "story", "f1");
+    expect(get).toHaveBeenCalledWith("/v1/creative/placements?channels=instagram%2Cfacebook&format=story&finalId=f1");
+  });
+
+  it("the free draw sends the keys and no receipt; the quoted extend sends one key and the receipt for exactly those sizes", async () => {
+    await studioApi.renderVersions("c1", "f1", ["a.b.1x2"]);
+    expect(post).toHaveBeenNthCalledWith(1, "/v1/creative/c1/finals/f1/versions/render", { placementKeys: ["a.b.1x2"] });
+    await studioApi.extendVersions("c1", "f1", ["a.b.1x2"], "tok-ext");
+    expect(post).toHaveBeenNthCalledWith(2, "/v1/creative/c1/finals/f1/versions/extend", { placementKeys: ["a.b.1x2"] }, { "Idempotency-Key": "click-1", "x-peaks-quote": "tok-ext" });
+  });
+
+  it("handoff names its target, and the scheduler's answer is recorded", async () => {
+    await studioApi.handoffOrganic("c1", ["v1"]);
+    await studioApi.handoffAd("c1", ["v1"]);
+    await studioApi.confirmHandoff("c1", ["v1"], "scheduled");
+    expect(post).toHaveBeenNthCalledWith(1, "/v1/creative/c1/handoff", { target: "organic", versionIds: ["v1"] });
+    expect(post).toHaveBeenNthCalledWith(2, "/v1/creative/c1/handoff", { target: "ad", versionIds: ["v1"] });
+    expect(post).toHaveBeenNthCalledWith(3, "/v1/creative/c1/handoff/confirm", { versionIds: ["v1"], state: "scheduled" });
+  });
+
+  it("report-mismatch, the badge count and settings", async () => {
+    await studioApi.reportMismatch("f1", "the colour");
+    expect(post).toHaveBeenCalledWith("/v1/creative/finals/f1/report-mismatch", { text: "the colour" });
+    await studioApi.shortlistCount();
+    expect(get).toHaveBeenCalledWith("/v1/creative/shortlist?count=1");
+    await studioApi.saveSettings({ monthlyCapPeaks: null, proTools: true });
+    expect(patch).toHaveBeenCalledWith("/v1/creative/settings", { monthlyCapPeaks: null, proTools: true });
+  });
+});

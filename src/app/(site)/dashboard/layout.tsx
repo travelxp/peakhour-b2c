@@ -68,6 +68,9 @@ import {
 import { useNavIntent } from "@/hooks/use-nav-intent";
 import { useMyTickets } from "@/hooks/use-feedback";
 import { useRunningJobCount } from "@/hooks/use-jobs";
+import { useShortlistCount } from "@/hooks/use-studio-flow";
+import { StudioReadyToaster } from "@/components/studio/studio-strip";
+import { STUDIO_COPY } from "@/lib/studio-copy";
 import { LockedNavItem } from "@/components/dashboard/locked-nav-item";
 
 // Client-only widgets that are not needed for first paint. Each is its own
@@ -155,7 +158,15 @@ function RunningJobsBadge() {
   );
 }
 
+/** How many previews are on the Studio shortlist: hearts waiting to be made final. Nothing when none. */
+function StudioShortlistBadge() {
+  const { data: count } = useShortlistCount();
+  if (!count) return null;
+  return <NavCountBadge count={count} description={STUDIO_COPY.nav.shortlistCount(count)} />;
+}
+
 const NAV_BADGES: Record<NavBadgeKey, () => React.ReactNode> = {
+  "studio-shortlist": () => <StudioShortlistBadge />,
   "running-jobs": () => <RunningJobsBadge />,
   "open-tickets": () => <OpenTicketBadge />,
 };
@@ -651,6 +662,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           <div aria-hidden className="h-[calc(8rem+env(safe-area-inset-bottom))] shrink-0 md:hidden" />
         </div>
       </SidebarInset>
+
+      {entitlements?.features?.includes(STUDIO_FEATURE) && <StudioReadyToaster />}
 
       <MobileTabBar
         pathname={pathname ?? ""}

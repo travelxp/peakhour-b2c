@@ -1,5 +1,5 @@
 import { api, newActionKey } from "@/lib/api";
-import type { PostFormat } from "@/lib/api/creative";
+import type { PostFormat, StudioSettings } from "@/lib/api/creative";
 
 /**
  * /v1/creative, the workflow half (peakhour-api `routes/creative/studio.ts`, row CS-3a): briefs, the quote of a press, quoted presses (202 and a
@@ -136,7 +136,7 @@ export interface CreativeView {
   previews: PreviewView[];
   earlier: PreviewView[];
   finals: FinalRow[];
-  versions: Array<{ id: string; finalId: string; key: string; channel: string; label: string; width: number; height: number; state: string }>;
+  versions: Array<VersionRow & { finalId: string; channel: string }>;
   approval: { lookApproved: boolean; lapsedBecause?: LapseReason };
   jobs: JobRow[];
   safetySummary: { dropped: number; notes: string[] };
@@ -252,6 +252,64 @@ export interface ProductImagesResponse {
   next?: string;
 }
 
+export type VersionState = "ready" | "needs_extend" | "extending" | "extend_failed" | "scheduled" | "published";
+
+/** One size of a final, as the api keeps it (`creative.versions[]`, and the answers of render and extend). */
+export interface VersionRow {
+  id: string;
+  key: string;
+  state: VersionState;
+  label: string;
+  width: number;
+  height: number;
+  needsExtend?: boolean;
+}
+
+export type PlacementKind = "ready" | "needs_extend" | "no_spec";
+
+/** One size a channel offers for the shape asked for, read from verified ad-spec rows only. A channel with none comes back as one `no_spec` row. */
+export interface PlacementRow {
+  key: string;
+  channel: string;
+  label: string;
+  placement: string;
+  format: PostFormat | null;
+  width: number | null;
+  height: number | null;
+  specRef: { sourceUrl: string; verifiedAt: string } | null;
+  kind: PlacementKind;
+}
+
+export interface PostCaption {
+  text: string;
+  headline: string;
+  offer?: string;
+  cta?: string;
+  hashtags: string[];
+}
+
+export interface OrganicHandoff {
+  media: Array<{ versionId: string; mediaId: string; url: string }>;
+  caption: PostCaption;
+  disclosure: string;
+}
+
+export interface AdHandoff {
+  adCreativeId: string;
+  /** One ad row per ad platform: an Instagram size and a LinkedIn size are two ads. */
+  adCreatives: Array<{ platform: string; adCreativeId: string }>;
+  note: string;
+}
+
+export interface SettingsPatch {
+  noAiPeople?: boolean;
+  /** null clears the limit. */
+  monthlyCapPeaks?: number | null;
+  remindShortlist?: boolean;
+  whatsappUpdates?: boolean;
+  proTools?: boolean;
+}
+
 /** The headers of one click on a charged press: a fresh Idempotency-Key and the receipts of the price that was shown. */
 export function pressHeaders(receipts: PressReceipts): Record<string, string> {
   return {
@@ -298,11 +356,48 @@ export const studioApi = {
 
   shortlist: () => api.get<ShortlistResponse>("/v1/creative/shortlist"),
 
+  /** Only the count (hearts), for the badge on the Shortlist tab. */
+  shortlistCount: () => api.get<{ count: number }>("/v1/creative/shortlist?count=1"),
+
   /** Make final for the approved previews. `quoteToken` is the receipt for exactly `items.length` finals. */
   makeFinals: (items: Array<{ creativeId: string; previewId: string }>, quoteToken: string | undefined) =>
     api.post<FinalsStarted>("/v1/creative/finals", { items }, pressHeaders(quoteToken ? { main: quoteToken } : {})),
 
   finalView: (creativeId: string, finalId: string) => api.get<FinalView>(`/v1/creative/${creativeId}/finals/${finalId}`),
+
+  /** The sizes the chosen channels offer for one shape. `finalId` says which need more background for THAT final's picture. */
+  placements: (channels: string[], format: PostFormat, finalId?: string) => {
+    const p = new URLSearchParams({ channels: channels.join(","), format });
+    if (finalId) p.set("finalId", finalId);
+    return api.get<{ placements: PlacementRow[] }>(`/v1/creative/placements?${p.toString()}`);
+  },
+
+  /** Free: draw each size from the one final. A size that needs more background comes back `needs_extend`. */
+  renderVersions: (creativeId: string, finalId: string, placementKeys: string[]) =>
+    api.post<{ versions: VersionRow[] }>(`/v1/creative/${creativeId}/finals/${finalId}/versions/render`, { placementKeys }),
+
+  /** Quoted per size: `quoteToken` is the receipt for exactly `placementKeys.length` sizes. 202, a job the merchant can leave. */
+  extendVersions: (creativeId: string, finalId: string, placementKeys: string[], quoteToken: string | undefined) =>
+    api.post<{ jobId: string; versions: VersionRow[] }>(
+      `/v1/creative/${creativeId}/finals/${finalId}/versions/extend`,
+      { placementKeys },
+      pressHeaders(quoteToken ? { main: quoteToken } : {}),
+    ),
+
+  /** Free and repeatable: saves each size as a published file and gives the caption (organic), or makes the Ad Engine rows (ad, one per platform). */
+  handoffOrganic: (creativeId: string, versionIds: string[]) =>
+    api.post<OrganicHandoff>(`/v1/creative/${creativeId}/handoff`, { target: "organic", versionIds }),
+  handoffAd: (creativeId: string, versionIds: string[]) => api.post<AdHandoff>(`/v1/creative/${creativeId}/handoff`, { target: "ad", versionIds }),
+
+  /** After the person pressed Post it or Schedule it on the scheduler: records the sizes as scheduled or published. */
+  confirmHandoff: (creativeId: string, versionIds: string[], state: "scheduled" | "published") =>
+    api.post<{ versions: Array<{ id: string; state: string }> }>(`/v1/creative/${creativeId}/handoff/confirm`, { versionIds, state }),
+
+  /** "Looks different? Tell us": free, counted for the team. */
+  reportMismatch: (finalId: string, text: string | undefined) => api.post<{ ok: true }>(`/v1/creative/finals/${finalId}/report-mismatch`, text ? { text } : {}),
+
+  /** Studio settings and the per-user Pro tools flag, saved on change. An editor's call. */
+  saveSettings: (patch: SettingsPatch) => api.patch<{ settings: Omit<StudioSettings, "usedThisMonthPeaks">; proTools: boolean }>("/v1/creative/settings", patch),
 
   /** The business's product photos with the product each belongs to. Pages by `next`. */
   productImages: (q: { productId?: string; after?: string; limit?: number } = {}) => {

@@ -69,10 +69,31 @@ export const STUDIO_CAPABILITIES = ["previews", "final", "extend", "wordOptions"
 export type StudioCapability = (typeof STUDIO_CAPABILITIES)[number];
 export type CapabilityState = "on" | "coming_soon";
 
+/** The business's Studio settings (S19, `GET /v1/creative/studio/availability` `settings`). */
+export interface StudioSettings {
+  noAiPeople: boolean;
+  /** null = no limit. */
+  monthlyCapPeaks: number | null;
+  remindShortlist: boolean;
+  whatsappUpdates: boolean;
+  /** Peaks Studio used this calendar month (UTC): what the monthly limit is measured against. */
+  usedThisMonthPeaks: number;
+}
+
+/** What every setting is until the api says otherwise: the api's own defaults. */
+export const DEFAULT_STUDIO_SETTINGS: StudioSettings = {
+  noAiPeople: false,
+  monthlyCapPeaks: null,
+  remindShortlist: true,
+  whatsappUpdates: false,
+  usedThisMonthPeaks: 0,
+};
+
 export interface StudioAvailability {
   capabilities: Record<StudioCapability, CapabilityState>;
   /** The per-user "Pro tools" flag. Off unless the api says exactly `true`. */
   proTools: boolean;
+  settings: StudioSettings;
   /** False when the api gave no usable answer (not built yet, failed, unreadable): everything AI is then "coming soon". */
   known: boolean;
 }
@@ -81,7 +102,7 @@ const allComingSoon = (): Record<StudioCapability, CapabilityState> =>
   Object.fromEntries(STUDIO_CAPABILITIES.map((c) => [c, "coming_soon" as const])) as Record<StudioCapability, CapabilityState>;
 
 /** What every screen assumes until the api has said otherwise. */
-export const UNAVAILABLE: StudioAvailability = { capabilities: allComingSoon(), proTools: false, known: false };
+export const UNAVAILABLE: StudioAvailability = { capabilities: allComingSoon(), proTools: false, settings: DEFAULT_STUDIO_SETTINGS, known: false };
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
@@ -95,7 +116,22 @@ export function parseAvailability(raw: unknown): StudioAvailability {
   const map = isRecord(raw.capabilities) ? raw.capabilities : raw;
   const capabilities = allComingSoon();
   for (const c of STUDIO_CAPABILITIES) if (map[c] === "on") capabilities[c] = "on";
-  return { capabilities, proTools: raw.proTools === true, known: true };
+  return { capabilities, proTools: raw.proTools === true, settings: parseSettings(raw.settings), known: true };
+}
+
+/** The settings as the api sent them; a missing or odd field is the default, never a guess. A limit is a whole number of 1 or more, else none. */
+export function parseSettings(raw: unknown): StudioSettings {
+  if (!isRecord(raw)) return DEFAULT_STUDIO_SETTINGS;
+  const d = DEFAULT_STUDIO_SETTINGS;
+  const cap = raw.monthlyCapPeaks;
+  const used = raw.usedThisMonthPeaks;
+  return {
+    noAiPeople: raw.noAiPeople === true,
+    monthlyCapPeaks: typeof cap === "number" && Number.isInteger(cap) && cap >= 1 ? cap : null,
+    remindShortlist: typeof raw.remindShortlist === "boolean" ? raw.remindShortlist : d.remindShortlist,
+    whatsappUpdates: raw.whatsappUpdates === true,
+    usedThisMonthPeaks: typeof used === "number" && Number.isFinite(used) && used > 0 ? used : 0,
+  };
 }
 
 
