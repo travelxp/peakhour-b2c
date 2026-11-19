@@ -92,6 +92,9 @@ describe("idea helpers", () => {
     expect(goodUntil(idea(), "en-GB")).toBeNull();
     expect(goodUntil(idea({ kind: "festival" }), "en-GB")).toMatch(/^Good until \d{1,2} \w+ 2026$/);
     expect(goodUntil(idea({ kind: "festival", expiresAt: "nonsense" }), "en-GB")).toBeNull();
+    // The festival's calendar date wins over the instant, and no time zone moves it.
+    const f = idea({ kind: "festival", facts: { date: "2026-11-12" }, expiresAt: "2026-11-12T23:59:59.000-08:00" });
+    expect(goodUntil(f, "en-GB")).toBe("Good until 12 Nov 2026");
   });
 
   it("an ordinary idea is hidden for the cooling days; a festival until after it", () => {

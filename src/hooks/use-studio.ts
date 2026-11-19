@@ -46,7 +46,7 @@ export function useStudioAvailability(): StudioAvailability & { loading: boolean
   // Until there is data (and after a failed read, which is not cached as an answer) the safe answer is UNAVAILABLE. `loading` is true while
   // a request is really in flight or the session is still resolving, so the Pro tools gate and the "opens soon" banner wait rather than
   // flash a wrong claim. A disabled or paused query is pending for ever, so `isPending` alone would never let a screen leave its skeleton.
-  return { ...(q.data ?? UNAVAILABLE), loading: q.isPending && (q.fetchStatus === "fetching" || authLoading) };
+  return { ...(q.data ?? UNAVAILABLE), loading: q.isPending && q.errorUpdatedAt === 0 && (q.fetchStatus === "fetching" || authLoading) };
 }
 
 /** The per-user "Pro tools" flag. Off by default and whenever the api cannot say. */

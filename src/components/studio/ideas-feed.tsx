@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useQueryClient } from "@tanstack/react-query";
 import { Lightbulb } from "lucide-react";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
@@ -11,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { QueryError } from "@/components/dashboard/query-error";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { commerceStoresQuery } from "@/hooks/use-commerce-stores";
 import { useAuth } from "@/providers/auth-provider";
 import { STUDIO_KEYS, useStudioAvailability, usePostIdeas } from "@/hooks/use-studio";
@@ -52,7 +51,7 @@ export function IdeasFeedView({
 }) {
   return (
     <section aria-labelledby="studio-ideas-title" className="space-y-4">
-      <h2 id="studio-ideas-title" className="text-lg font-semibold">
+      <h2 id="studio-ideas-title" tabIndex={-1} className="text-lg font-semibold outline-none">
         {C.sectionTitle}
       </h2>
       <p role="status" aria-live="polite" className="sr-only">
@@ -124,6 +123,8 @@ export function IdeasFeed() {
   const { isAuthenticated, business } = useAuth();
   const stores = useQuery(commerceStoresQuery(business?._id, isAuthenticated && empty));
   const storeConnected = empty && stores.data ? stores.data.length > 0 : undefined;
+  // An empty list is not "no ideas" until we know whether a store is connected: wait for that read instead of flashing the wrong words.
+  const waitingForStores = empty && stores.isPending && stores.fetchStatus === "fetching";
 
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const [announcement, setAnnouncement] = useState("");
@@ -181,12 +182,12 @@ export function IdeasFeed() {
       setHidden((h) => new Set(h).add(idea.id));
       setAnnouncement(C.ideaHidden);
       // Focus moves to the next card's primary button, so a keyboard user is not dropped at the top of the page.
-      if (next) {
-        requestAnimationFrame(() => {
-          const els = rootRef.current?.querySelectorAll<HTMLElement>("[data-idea-make]") ?? [];
-          Array.from(els).find((el) => el.dataset.ideaMake === next.id)?.focus();
-        });
-      }
+      requestAnimationFrame(() => {
+        const els = rootRef.current?.querySelectorAll<HTMLElement>("[data-idea-make]") ?? [];
+        const target = next ? Array.from(els).find((el) => el.dataset.ideaMake === next.id) : undefined;
+        // The last card has no neighbour: focus the section heading rather than let focus fall to the page.
+        (target ?? rootRef.current?.querySelector<HTMLElement>("#studio-ideas-title"))?.focus();
+      });
       queue.hide(idea);
       const tid = toast(hiddenUntilLine(idea, ideas.data?.coolingDays ?? 14, new Date()), {
         duration: UNDO_WINDOW_MS,
@@ -205,18 +206,14 @@ export function IdeasFeed() {
     [hidden, list, ideas.data?.coolingDays, queue, unhide, toastIds],
   );
 
-  // Leaving the page inside the undo window must not lose the dismissal: send every pending one now. Covers a route change (unmount) and,
-  // best effort, a reload or close (`pagehide`) and a tab or app switch (`visibilitychange`, the last moment a phone browser reliably gives).
+  // Leaving the page inside the undo window must not lose the dismissal: send every pending one now. A route change (unmount) is reliable.
+  // A reload or close (`pagehide`) is BEST EFFORT: the client has no keepalive path, so the browser may cancel the request on unload and
+  // the idea then returns on the next visit. A tab switch deliberately flushes nothing, so the Undo promised for 6 s still works.
   useEffect(() => {
     const flushAll = () => queue.flush();
-    const onVisibility = () => {
-      if (document.visibilityState === "hidden") queue.flush();
-    };
     window.addEventListener("pagehide", flushAll);
-    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       window.removeEventListener("pagehide", flushAll);
-      document.removeEventListener("visibilitychange", onVisibility);
       queue.flush();
     };
   }, [queue]);
@@ -224,7 +221,7 @@ export function IdeasFeed() {
   return (
     <div ref={rootRef}>
       <IdeasFeedView
-        status={status}
+        status={waitingForStores ? "loading" : status}
         ideas={(list ?? []).filter((i) => !hidden.has(i.id))}
         previewsComingSoon={!availability.loading && capabilityState(availability, "previews") === "coming_soon"}
         storeConnected={storeConnected}

@@ -21,9 +21,18 @@ export function briefHref(ideaId: string): string {
 const dateLabel = (iso: string, locale?: string) =>
   new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", year: "numeric" }).format(new Date(iso));
 
-/** "Good until 12 Nov 2026" for a festival idea, otherwise nothing. */
+/**
+ * "Good until 12 Nov 2026" for a festival idea, otherwise nothing. The festival's own calendar date (`facts.date`, YYYY-MM-DD on the
+ * business's calendar) is shown as it is, in UTC, so a viewer's time zone cannot move it a day; `expiresAt` is the fallback.
+ */
 export function goodUntil(idea: PostIdea, locale?: string): string | null {
   if (idea.kind !== "festival") return null;
+  const day = idea.facts.date;
+  if (typeof day === "string" && /^\d{4}-\d{2}-\d{2}$/.test(day)) {
+    return STUDIO_COPY.ideas.goodUntil(
+      new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${day}T00:00:00Z`)),
+    );
+  }
   const t = Date.parse(idea.expiresAt);
   return Number.isNaN(t) ? null : STUDIO_COPY.ideas.goodUntil(dateLabel(idea.expiresAt, locale));
 }

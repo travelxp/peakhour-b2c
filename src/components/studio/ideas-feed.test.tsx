@@ -104,6 +104,7 @@ describe("ideas feed states", () => {
   it("only a festival card says how long it is good for", () => {
     expect(render()).not.toContain("Good until");
     expect(render({ ideas: [idea({ kind: "festival", id: "f1" })] })).toContain("Good until 22 Nov 2026");
+    expect(render({ ideas: [idea({ kind: "festival", id: "f1", facts: { date: "2026-11-21" } })] })).toContain("Good until 21 Nov 2026");
   });
 
   it("shows three products and counts the rest", () => {
