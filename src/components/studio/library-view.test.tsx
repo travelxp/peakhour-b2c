@@ -146,7 +146,7 @@ describe("Product photos", () => {
     const html = photos({ items: [photo({ id: "a", position: 1 }), photo({ id: "b" })] });
     expect(html).toContain("Silk saree");
     expect(html).toContain("2 photos");
-    expect(html).toContain('alt="Main photo of Silk saree"');
+    expect(html).toContain('alt="Photo of Silk saree"');
     expect(html).toContain("Add photo");
   });
   it("a private photo falls back quietly, or to the container's own renderer", () => {
@@ -155,9 +155,14 @@ describe("Product photos", () => {
     expect(photos({ items: [priv], renderPrivate: (m) => <span>signed {m.id}</span> })).toContain("signed");
   });
   it("a next page offers Show more products; while it loads the button is off", () => {
-    expect(photos({ hasMore: true })).toContain("Show more products");
+    expect(photos({ hasMore: true })).toContain("Show more photos");
     expect(photos({ hasMore: true, loadingMore: true })).toMatch(/<button[^>]*disabled=""[^>]*>Loading more/);
-    expect(photos()).not.toContain("Show more products");
+    expect(photos()).not.toContain("Show more photos");
+  });
+  it("while more pages wait, a count is a floor, not a claim", () => {
+    const items = [photo({ id: "a" }), photo({ id: "b", position: 1 })];
+    expect(photos({ items, hasMore: true })).toContain("2+ photos");
+    expect(photos({ items, hasMore: false })).toContain("2 photos");
   });
 });
 

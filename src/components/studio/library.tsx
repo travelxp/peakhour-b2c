@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ImageOff } from "lucide-react";
 import { getMediaUrl, type ProductImageItem } from "@/lib/api/media";
@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useStudioPrefs } from "@/hooks/use-studio";
-import { useLibrary, useProductPhotos } from "@/hooks/use-studio-library";
+import { useImportStatus, useLibrary, useProductPhotos } from "@/hooks/use-studio-library";
 import { mergeProductPages } from "@/lib/studio-library";
 import { ideasFeedStatus } from "@/lib/studio";
 import { STUDIO_COPY } from "@/lib/studio-copy";
@@ -84,7 +84,7 @@ export function AddFromDialog({ open, onOpenChange }: { open: boolean; onOpenCha
 
 /** A private photo's short-lived link, asked for only when its tile is drawn. A failure shows the same quiet fallback as no link. */
 function PrivatePhoto({ media, alt }: { media: ProductImageItem["media"]; alt: string }) {
-  const q = useQuery({ queryKey: ["studio-photo-url", media.id], queryFn: () => getMediaUrl(media.id), staleTime: 10 * 60_000, retry: false });
+  const q = useQuery({ queryKey: ["studio-photo-url", media.id], queryFn: () => getMediaUrl(media.id), staleTime: 10 * 60_000, retry: 1 });
   if (!q.data?.url) {
     return (
       <div className="flex size-full flex-col items-center justify-center gap-1 text-muted-foreground">
@@ -111,10 +111,14 @@ export function Library() {
   const [plansPage, setPlansPage] = useState(1);
   const [addOpen, setAddOpen] = useState(false);
 
+  // The page goes back to 1 only when the search the list really uses has changed, never on mount or on an unrelated render.
   useEffect(() => {
     const t = setTimeout(() => {
-      setDebouncedQ(q.trim());
-      setPage(1);
+      const next = q.trim();
+      setDebouncedQ((prev) => {
+        if (prev !== next) setPage(1);
+        return next;
+      });
     }, 300);
     return () => clearTimeout(t);
   }, [q]);
@@ -125,9 +129,18 @@ export function Library() {
   const made = useLibrary({ view: "made", q: activeQ, status: activeStatus, page });
   const plans = useLibrary({ view: "plans", page: plansPage });
   const photos = useProductPhotos();
+  const refetchPhotos = photos.refetch;
+  const importStatus = useImportStatus();
+  const running = (importStatus.data?.imports ?? []).some((i) => i.status === "running");
+  // When a running import finishes, read the photos again so the new ones show.
+  const wasRunning = useRef(false);
+  useEffect(() => {
+    if (wasRunning.current && !running) void refetchPhotos();
+    wasRunning.current = running;
+  }, [running, refetchPhotos]);
 
   const photoItems = useMemo(() => mergeProductPages(photos.data?.pages ?? []), [photos.data]);
-  const imports = photos.data?.pages[0]?.imports ?? [];
+  const imports = importStatus.data?.imports ?? photos.data?.pages[0]?.imports ?? [];
 
   const filtered = activeQ !== "" || activeStatus !== "has_final";
   const clear = () => {

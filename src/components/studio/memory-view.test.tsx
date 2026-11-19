@@ -129,6 +129,10 @@ describe("rules that always win", () => {
     expect(rules).not.toContain(">Edit<");
     expect(rules.match(/Change in Brand Kit/g)).toHaveLength(1);
   });
+  it("two rules with the same words both draw", () => {
+    const rule = { text: "Same words.", changeIn: null } as const;
+    expect(render({ data: data({ rules: [rule, rule] }) }).match(/Same words\./g)).toHaveLength(2);
+  });
   it("a rule line that slips into the taste list is not shown as a learned line", () => {
     const html = render({ data: data({ lines: [line({ id: "r", kind: "rule", text: "Never show prices" })] }) });
     expect(html).not.toContain("Never show prices");
@@ -149,6 +153,9 @@ describe("trend and privacy", () => {
     expect(html).toContain('role="switch"');
     expect(html).toContain('aria-checked="false"');
     expect(html).toContain("Patterns only, never your pictures or text.");
+  });
+  it("the switch waits while a change is on its way", () => {
+    expect(render({ pooledBusy: true })).toMatch(/role="switch"[^>]*disabled=""/);
   });
   it("on shows checked", () => expect(render({ data: data({ pooledOptIn: true }) })).toContain('aria-checked="true"'));
   it("Export and Wipe are there; a viewer cannot wipe or change the switch", () => {

@@ -95,7 +95,11 @@ function LineRow({
           {canChange && (
             <div className="flex flex-wrap gap-2">
               {line.editable && (
-                <Button type="button" variant="outline" className="h-11" aria-label={C.editLabel(line.text)} onClick={() => setEditing(true)}>
+                <Button type="button" variant="outline" className="h-11" aria-label={C.editLabel(line.text)} onClick={() => {
+                    // Start from what the line says now, not from what it said when this row was first drawn.
+                    setText(line.text);
+                    setEditing(true);
+                  }}>
                   {C.edit}
                 </Button>
               )}
@@ -149,6 +153,7 @@ export function MemoryView({
   canChange,
   busyId,
   exporting,
+  pooledBusy,
   initialEditingId,
   onRetry,
   actions,
@@ -161,6 +166,8 @@ export function MemoryView({
   /** The line whose delete is in flight. */
   busyId?: string | null;
   exporting?: boolean;
+  /** The opt-in change is on its way: the switch waits for it. */
+  pooledBusy?: boolean;
   /** Opens that line's editor on first draw (tests; the page leaves it unset). */
   initialEditingId?: string;
   onRetry: () => void;
@@ -215,8 +222,8 @@ export function MemoryView({
           </h2>
           <p className="text-sm text-muted-foreground">{data.note || C.rulesNote}</p>
           <ul className="space-y-3">
-            {data.rules.map((r) => (
-              <li key={r.text} data-rule className="flex flex-col gap-2 rounded-lg border bg-muted/40 p-3 sm:flex-row sm:items-center sm:justify-between">
+            {data.rules.map((r, i) => (
+              <li key={`${i}:${r.text}`} data-rule className="flex flex-col gap-2 rounded-lg border bg-muted/40 p-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="flex items-start gap-2 text-sm">
                   <ShieldCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
                   {r.text}
@@ -255,7 +262,7 @@ export function MemoryView({
                 {C.pooledHelp}
               </p>
             </div>
-            <Switch id="studio-pooled" checked={data.pooledOptIn} disabled={!canChange} aria-describedby="studio-pooled-help" onCheckedChange={(v) => actions.onPooled(v)} />
+            <Switch id="studio-pooled" checked={data.pooledOptIn} disabled={!canChange || pooledBusy} aria-describedby="studio-pooled-help" onCheckedChange={(v) => actions.onPooled(v)} />
           </div>
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" className="h-11 gap-1.5" disabled={exporting} onClick={actions.onExport}>

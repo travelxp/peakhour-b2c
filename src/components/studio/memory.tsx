@@ -34,7 +34,8 @@ function saveFile(name: string, body: string) {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  // Some browsers start the download after this handler returns; revoking at once would cancel it.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
 /**
@@ -51,6 +52,7 @@ export function Memory() {
   const [exporting, setExporting] = useState(false);
   const [wipeOpen, setWipeOpen] = useState(false);
   const [wiping, setWiping] = useState(false);
+  const [pooledBusy, setPooledBusy] = useState(false);
 
   const refresh = () => qc.invalidateQueries({ queryKey: [MEMORY_KEY] });
   const patch = (fn: (m: MemoryRead) => MemoryRead) => qc.setQueriesData<MemoryRead>({ queryKey: [MEMORY_KEY] }, (old) => (old ? fn(old) : old));
@@ -59,7 +61,7 @@ export function Memory() {
     () => ({
       onStop: async (line: MemoryLine) => {
         setBusyId(line.id);
-        const out = await runChange(() => creativeApi.deleteMemoryLine(line.id));
+        const out = await runChange(() => creativeApi.deleteMemoryLine(line.id), { goneOn404: true });
         setBusyId(null);
         if (out === "failed") {
           toast.error(C.stopFailed);
@@ -70,7 +72,7 @@ export function Memory() {
         void refresh();
       },
       onSave: async (line, text) => {
-        const out = await runChange(() => creativeApi.editMemoryLine(line.id, text));
+        const out = await runChange(() => creativeApi.editMemoryLine(line.id, text), { goneOn404: true });
         if (out === "done") {
           patch((m) => ({ ...m, lines: m.lines.map((l) => (l.id === line.id ? { ...l, text } : l)) }));
           toast(C.saved);
@@ -96,15 +98,17 @@ export function Memory() {
         return false;
       },
       onPooled: async (optIn) => {
-        const before = memory.data?.pooledOptIn ?? false;
-        patch((m) => ({ ...m, pooledOptIn: optIn }));
+        // One change at a time, and the server has the last word: the switch is off while a change is on its way, and the page re-reads after.
+        setPooledBusy(true);
         const out = await runChange(() => creativeApi.setPooled(optIn));
-        if (out !== "done") {
-          patch((m) => ({ ...m, pooledOptIn: before }));
+        setPooledBusy(false);
+        if (out === "done") {
+          patch((m) => ({ ...m, pooledOptIn: optIn }));
+          toast(optIn ? C.pooledOn : C.pooledOff);
+        } else {
           toast.error(C.pooledFailed);
-          return;
         }
-        toast(optIn ? C.pooledOn : C.pooledOff);
+        void refresh();
       },
       onExport: async () => {
         setExporting(true);
@@ -120,7 +124,7 @@ export function Memory() {
       onWipe: () => setWipeOpen(true),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- patch/refresh only close over the stable query client
-    [qc, memory.data?.pooledOptIn],
+    [qc],
   );
 
   const wipe = async () => {
@@ -145,6 +149,7 @@ export function Memory() {
         canChange={canChange}
         busyId={busyId}
         exporting={exporting}
+        pooledBusy={pooledBusy}
         onRetry={() => void memory.refetch()}
         actions={actions}
       />

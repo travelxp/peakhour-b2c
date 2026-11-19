@@ -170,8 +170,8 @@ export function ImportStatusList({ imports, locale }: { imports: ProductImportSt
 
 type RenderPrivate = (media: ProductImageItem["media"], alt: string) => React.ReactNode;
 
-function PhotoTile({ item, count, title, renderPrivate }: { item: ProductImageItem; count: number; title: string; renderPrivate?: RenderPrivate }) {
-  const alt = C.mainPhotoAlt(title);
+function PhotoTile({ item, count, partial, title, renderPrivate }: { item: ProductImageItem; count: number; partial: boolean; title: string; renderPrivate?: RenderPrivate }) {
+  const alt = C.photoAlt(title);
   const url = item.media.publicUrl;
   return (
     <li className="min-w-0 overflow-hidden rounded-lg border bg-card">
@@ -190,14 +190,15 @@ function PhotoTile({ item, count, title, renderPrivate }: { item: ProductImageIt
       </div>
       <div className="space-y-0.5 p-3">
         <p className="truncate text-sm font-medium">{title}</p>
-        <p className="text-xs text-muted-foreground">{C.photoCount(count)}</p>
+        <p className="text-xs text-muted-foreground">{partial ? C.photoCountAtLeast(count) : C.photoCount(count)}</p>
       </div>
     </li>
   );
 }
 
 /**
- * "Product photos": where each store's import stands, then one tile per product with its photo count. A store's own photos arrive on their
+ * "Product photos": where each store's import stands, then one tile per product with its photo count. The api pages by photo, so while
+ * more pages wait the count is a floor ("3+ photos") and the tile shows the first photo loaded for the product, not a claimed main one. A store's own photos arrive on their
  * own; "Add photo" opens Drive, where the merchant's own are uploaded.
  */
 export function ProductPhotosView({
@@ -238,7 +239,7 @@ export function ProductPhotosView({
             <>
               <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 {groups.map((g) => (
-                  <PhotoTile key={g.key} item={g.main} count={g.count} title={g.title} renderPrivate={renderPrivate} />
+                  <PhotoTile key={g.key} item={g.main} count={g.count} partial={hasMore} title={g.title} renderPrivate={renderPrivate} />
                 ))}
               </ul>
               <div className="flex flex-wrap items-center gap-3">

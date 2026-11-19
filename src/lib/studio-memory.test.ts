@@ -20,7 +20,8 @@ const fails = (status: number, code = "X") => async () => {
 
 describe("runChange", () => {
   it("done when the call works", async () => expect(await runChange(async () => ({}))).toBe("done"));
-  it("a 404 is gone (already deleted elsewhere), not a failure", async () => expect(await runChange(fails(404, "NOT_FOUND"))).toBe("gone"));
+  it("a 404 on one line is gone (already deleted elsewhere), not a failure", async () => expect(await runChange(fails(404, "NOT_FOUND"), { goneOn404: true })).toBe("gone"));
+  it("a 404 anywhere else is a failure: a wipe that was not found must never read as done", async () => expect(await runChange(fails(404, "NOT_FOUND"))).toBe("failed"));
   it("any other error is a failure", async () => {
     expect(await runChange(fails(500))).toBe("failed");
     expect(await runChange(fails(403, "PRO_TOOLS_REQUIRED"))).toBe("failed");

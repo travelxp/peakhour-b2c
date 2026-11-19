@@ -9,13 +9,16 @@ const isNotFound = (e: unknown) => e instanceof ApiError && e.status === 404;
 /** What happened to a change: `done`, `gone` (the line was already deleted elsewhere: the page should just refresh), or `failed`. */
 export type MemoryOutcome = "done" | "gone" | "failed";
 
-/** Run one change. A 404 means the line is already gone, which is what a delete wanted; anything else is a failure with nothing changed. */
-export async function runChange(change: () => Promise<unknown>): Promise<MemoryOutcome> {
+/**
+ * Run one change. Only a change aimed at one line (`goneOn404`: stop using, edit) reads a 404 as "that line is already gone". For anything else
+ * (add, wipe, the opt-in) a 404 is a route or business that was not found, so it is a failure: a wipe must never say it worked when it did not.
+ */
+export async function runChange(change: () => Promise<unknown>, opts: { goneOn404?: boolean } = {}): Promise<MemoryOutcome> {
   try {
     await change();
     return "done";
   } catch (e) {
-    return isNotFound(e) ? "gone" : "failed";
+    return opts.goneOn404 && isNotFound(e) ? "gone" : "failed";
   }
 }
 

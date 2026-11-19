@@ -8,6 +8,7 @@ import { useAuth } from "@/providers/auth-provider";
 export const LIBRARY_KEYS = {
   creatives: "studio-library",
   photos: "studio-product-photos",
+  imports: "studio-product-imports",
 } as const;
 
 function useScope() {
@@ -15,7 +16,7 @@ function useScope() {
   return { enabled: isAuthenticated && !!org?._id && !!business?._id, org: org?._id ?? null, business: business?._id ?? null };
 }
 
-/** The Library list: finals ("made") or saved plans. Free. The page number is part of the key so Previous/Next keep the last page on screen. */
+/** The Library list: finals ("made") or saved plans. Free. No placeholder data: a failed page or filter must show its error, not the page before. */
 export function useLibrary(q: { view: LibraryView; q?: string; status?: string; page: number }) {
   const s = useScope();
   return useQuery<LibraryPage>({
@@ -24,7 +25,6 @@ export function useLibrary(q: { view: LibraryView; q?: string; status?: string; 
     enabled: s.enabled,
     staleTime: 30_000,
     retry: false,
-    placeholderData: (prev) => prev,
   });
 }
 
@@ -39,7 +39,21 @@ export function useProductPhotos() {
     enabled: s.enabled,
     staleTime: 30_000,
     retry: false,
-    // While an import runs the counts grow, so look again; stop when nothing is running.
-    refetchInterval: (query) => (query.state.data?.pages[0]?.imports.some((i) => i.status === "running") ? 15_000 : false),
+  });
+}
+
+/**
+ * Where each store's import stands, read on its own (one photo, not every page walked so far) so it can be polled. While an import runs it
+ * is looked at again every 15 seconds; once nothing is running it stops.
+ */
+export function useImportStatus() {
+  const s = useScope();
+  return useQuery<ProductImagesPage>({
+    queryKey: [LIBRARY_KEYS.imports, s.org, s.business],
+    queryFn: () => listProductImages({ limit: 1 }),
+    enabled: s.enabled,
+    staleTime: 10_000,
+    retry: false,
+    refetchInterval: (query) => (query.state.data?.imports.some((i) => i.status === "running") ? 15_000 : false),
   });
 }
