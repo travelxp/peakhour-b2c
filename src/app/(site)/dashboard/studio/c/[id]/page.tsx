@@ -1,25 +1,18 @@
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
-import { ComingSoon } from "@/components/studio/coming-soon";
-import { STUDIO_ROUTES } from "@/lib/studio";
+import { CreativeWorkspace } from "@/components/studio/creative-workspace";
 import { STUDIO_COPY } from "@/lib/studio-copy";
 
-/** Route shell for one creative (UX spec S6 to S13): previews, changes, the final and where it goes. Built by the later lanes. */
-export default function StudioCreativePage() {
+/**
+ * One creative (UX spec S6 to S8, S10): previews as they are made, the heart, tap-to-tweak, and finals as they come. One page, driven by the
+ * creative's status, polled while anything is being made.
+ */
+export default async function StudioCreativePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const copy = STUDIO_COPY.shells.creative;
   return (
-    <PageShell width="narrow">
+    <PageShell>
       <PageHeader title={copy.title} description={copy.description} />
-      <ComingSoon
-        title={STUDIO_COPY.shells.comingSoonTitle}
-        description={STUDIO_COPY.shells.comingSoonDescription}
-        actions={
-          <Button asChild variant="outline" className="h-11">
-            <Link href={STUDIO_ROUTES.home}>{STUDIO_COPY.comingSoon.backToIdeas}</Link>
-          </Button>
-        }
-      />
+      <CreativeWorkspace id={id} />
     </PageShell>
   );
 }
