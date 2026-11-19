@@ -237,6 +237,11 @@ describe("paging the taste lines", () => {
     expect(html).not.toContain("Show more");
     expect(html).not.toContain("Showing");
   });
+  it("a first page with no taste line on it but more behind it is not 'nothing learned yet'", () => {
+    const html = render({ data: data({ lines: [], totalLines: 4 }), hasMore: true });
+    expect(html).not.toContain("Nothing learned yet");
+    expect(html).toContain("Show more");
+  });
   it("a short page that has more behind it does not claim to be everything", () => {
     const html = render({ data: data({ lines: many(5), totalLines: 8 }), hasMore: false });
     expect(html).toContain("Showing 5 of 8");

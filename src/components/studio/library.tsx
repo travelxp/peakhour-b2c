@@ -129,18 +129,19 @@ function saveLink(url: string, filename: string) {
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
-  // A file with a public address cannot be forced to download from another site: it opens in its own tab, so the merchant never leaves the Library.
-  a.target = "_blank";
   a.rel = "noopener";
   document.body.appendChild(a);
   a.click();
   a.remove();
 }
 
-/** What an api refusal says, in its own plain words when it is one of the Studio's; else the fallback. */
-const plainError = (e: unknown, fallback: string): string => (e instanceof ApiError && e.status >= 400 && e.status < 500 && e.message ? e.message : fallback);
+/**
+ * What an api refusal says, in its own words, when it is one of the Studio's plain refusals (a state it will not change, or a file it will not use: 409 and
+ * 422); anything else (a sign-in, a role, a rate limit, a malformed request) is the fallback, never the api's text.
+ */
+const plainError = (e: unknown, fallback: string): string => (e instanceof ApiError && (e.status === 409 || e.status === 422) && e.message ? e.message : fallback);
 
-type Pending = { kind: "delete"; item: LibraryItem } | { kind: "bulk"; action: "delete" | "archive" } | null;
+type Pending = { kind: "delete"; item: LibraryItem } | { kind: "bulk"; action: "delete" | "archive"; count: number } | null;
 
 /**
  * The Library (UX spec S14): three tabs in the page, "Made in Studio" (default), "Product photos" and "Saved plans". Everything here is free: nothing asks
@@ -173,6 +174,12 @@ export function Library() {
   };
   const [downloadFor, setDownloadFor] = useState<LibraryItem | null>(null);
   const [photosFor, setPhotosFor] = useState<ProductPhotoTile | null>(null);
+  // The product whose photos the sheet last showed, kept while it slides closed so its title and list do not blank under the animation.
+  const [photosShown, setPhotosShown] = useState<ProductPhotoTile | null>(null);
+  const openPhotos = (t: ProductPhotoTile) => {
+    setPhotosShown(t);
+    setPhotosFor(t);
+  };
   const [mainBusy, setMainBusy] = useState<string | null>(null);
 
   // The page goes back to 1 only when the search the list really uses has changed, never on mount or on an unrelated render.
@@ -198,7 +205,7 @@ export function Library() {
   const photos = useProductPhotos(opened.has("photos"));
   const refetchPhotos = photos.refetch;
   const importStatus = useImportStatus(opened.has("photos"));
-  const photosOne = useProductPhotosOne(photosFor?.productId ?? null);
+  const photosOne = useProductPhotosOne(photosShown?.productId ?? null);
   const running = (importStatus.data?.imports ?? []).some((i) => i.status === "running");
   // When a running import finishes, read the photos again so the new ones show.
   const wasRunning = useRef(false);
@@ -257,6 +264,7 @@ export function Library() {
     busy(item.id, true);
     try {
       const r = await creativeApi.newVersion(item.id);
+      void refreshCreatives(); // the new plan is in "Saved plans" (when previews are not available yet) and the list is not stale on the way back
       router.push(creativeHref(r.creativeId));
     } catch (e) {
       toast.error(plainError(e, C.actions.newVersionFailed));
@@ -284,8 +292,8 @@ export function Library() {
     try {
       const r = await creativeApi.bulk(action, [...selected]);
       toast(bulkSummary(r));
-      // What was left as it was stays selected, so the merchant can see which and try again.
-      setSelected(new Set(r.skipped.map((s) => s.id)));
+      // The selection ends with the change: what was left as it was is still in the list (the toast says how many and why), ready to be chosen again.
+      setSelected(new Set());
       void refreshCreatives();
     } catch {
       toast.error(C.bulk.failed);
@@ -382,7 +390,7 @@ export function Library() {
           )}
           <CreativesView view="made" status={ideasFeedStatus(made)} data={made.data} filtered={filtered} onRetry={() => void made.refetch()} onClearFilters={clear} onPage={goPage} actions={tileActions} />
           {proTools && canChange && selecting && (
-            <BulkBar count={selected.size} busy={bulkBusy} onDelete={() => ask({ kind: "bulk", action: "delete" })} onArchive={() => ask({ kind: "bulk", action: "archive" })} onClear={() => setSelected(new Set())} />
+            <BulkBar count={selected.size} busy={bulkBusy} onDelete={() => ask({ kind: "bulk", action: "delete", count: selected.size })} onArchive={() => ask({ kind: "bulk", action: "archive", count: selected.size })} onClear={() => setSelected(new Set())} />
           )}
         </TabsContent>
         <TabsContent value="photos" className="space-y-4 pt-2">
@@ -403,7 +411,7 @@ export function Library() {
                 if (r.isError) toast.error(C.moreFailed);
               })
             }
-            onOpen={setPhotosFor}
+            onOpen={openPhotos}
             renderAdd={
               canChange
                 ? (t) => (
@@ -438,7 +446,7 @@ export function Library() {
       <Sheet open={photosFor !== null} onOpenChange={(o) => !o && setPhotosFor(null)}>
         <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-xl">
           <SheetHeader>
-            <SheetTitle>{photosFor ? C.photosOf(photosFor.title) : ""}</SheetTitle>
+            <SheetTitle>{photosShown ? C.photosOf(photosShown.title) : ""}</SheetTitle>
             <SheetDescription>{C.photosOfDescription}</SheetDescription>
           </SheetHeader>
           <div className="p-4">
@@ -448,7 +456,7 @@ export function Library() {
               canChange={canChange}
               busyId={mainBusy}
               onRetry={() => void photosOne.refetch()}
-              onSetMain={(mediaId) => photosFor && void setMain(photosFor.productId, mediaId)}
+              onSetMain={(mediaId) => photosShown && void setMain(photosShown.productId, mediaId)}
             />
           </div>
         </SheetContent>
@@ -480,7 +488,7 @@ export function Library() {
       <AlertDialog open={pending !== null} onOpenChange={(o) => !o && !confirmBusy && setPending(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{asked?.kind === "delete" ? C.actions.deleteTitle : asked?.action === "archive" ? C.bulk.archiveTitle(selected.size) : C.bulk.deleteTitle(selected.size)}</AlertDialogTitle>
+            <AlertDialogTitle>{asked?.kind === "delete" ? C.actions.deleteTitle : asked?.action === "archive" ? C.bulk.archiveTitle(asked.count) : C.bulk.deleteTitle(asked?.count ?? 0)}</AlertDialogTitle>
             <AlertDialogDescription>{asked?.kind === "delete" ? C.actions.deleteBody : asked?.action === "archive" ? C.bulk.archiveBody : C.bulk.deleteBody}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

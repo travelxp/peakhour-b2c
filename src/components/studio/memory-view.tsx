@@ -253,7 +253,7 @@ export function MemoryView({
             {C.tasteTitle}
           </h2>
           {!canChange && <p className="text-sm text-muted-foreground">{C.viewerNote}</p>}
-          {taste.length === 0 ? (
+          {taste.length === 0 && !hasMore ? (
             <EmptyState
               className="min-h-0"
               icon={Sparkles}

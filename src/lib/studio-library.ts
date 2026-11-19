@@ -44,8 +44,8 @@ export function sentTo(item: Pick<LibraryItem, "publish">): string {
 }
 
 /**
- * The filter values the api takes, from what the form holds: an empty one is left out, and a date is the start of that day IN THE MERCHANT'S OWN TIME ZONE
- * (as a full time the api reads exactly). "Until" a day includes that day: the api's end is exclusive, so it is the start of the next one.
+ * The filter values the api takes, from what the form holds: an empty one is left out, and a date is the start of that day in the time zone of the screen the
+ * merchant is looking at (sent as a full time the api reads exactly). "Until" a day includes that day: the api's end is exclusive, so it is the start of the next one.
  */
 export function filterQuery(f: { publish: string; channel: string; from: string; to: string }): LibraryFilter {
   const day = (v: string, add = 0): string | undefined => {
