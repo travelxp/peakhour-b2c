@@ -268,9 +268,9 @@ export function PostStep({
   const [adError, setAdError] = useState<string | undefined>();
   // One plan per press of Post it: a retry after a failed send re-sends the plan that exists instead of committing a second one.
   const planRef = useRef<{ planId: string; hash: string } | null>(null);
-  // Channels that already took the post: a retry after a partial failure sends only the ones that did not.
+  // Channels that already took the post: a retry after a partial failure sends only the ones that did not, and a plan committed
+  // again after an edit leaves them out (the scheduler sends a due item on its own, so a skipped item would still post twice).
   const postedRef = useRef<Set<string>>(new Set());
-  const postedKey = (channel: string, text: string) => `${channel}|${text}`;
 
   const captions = useMemo(() => {
     const base = handoff.data?.caption.text || headlineFallback;
@@ -295,6 +295,8 @@ export function PostStep({
 
   const postNow = useMutation({
     mutationFn: async () => {
+      const alreadyPosted = channels.filter((c) => postedRef.current.has(c)).map((c) => ({ channel: c, published: true }));
+      if (alreadyPosted.length === channels.length) return alreadyPosted;
       let planId = planRef.current && planRef.current.hash === source.sourceTextHash ? planRef.current.planId : undefined;
       if (!planId) {
         // The words changed since the last press: the plan that was committed for the old words must not go out later as a duplicate.
@@ -302,7 +304,7 @@ export function PostStep({
         const plan = await scheduler.commitPlan({
           title,
           source,
-          channels: entries,
+          channels: entries.filter((e) => !postedRef.current.has(e.channel)),
           staggerStrategy: "synchronized",
           canonicalScheduledAtUtc: new Date().toISOString(),
           timezone: detectTimezone(),
@@ -311,16 +313,17 @@ export function PostStep({
         planRef.current = { planId, hash: source.sourceTextHash };
       }
       const { items } = await scheduler.listItems({ planId, limit: 20 });
-      const results: Array<{ channel: string; published: boolean }> = [];
+      const results: Array<{ channel: string; published: boolean }> = alreadyPosted;
       for (const it of items) {
-        const text = entries.find((e) => e.channel === it.channel)?.payload.text ?? "";
-        if (postedRef.current.has(postedKey(it.channel, text)) || it.status === "published") {
+        if (postedRef.current.has(it.channel)) continue;
+        if (it.status === "published") {
+          postedRef.current.add(it.channel);
           results.push({ channel: it.channel, published: true });
           continue;
         }
         try {
           const r = await scheduler.publishItemNow(it._id);
-          if (r.published) postedRef.current.add(postedKey(it.channel, text));
+          if (r.published) postedRef.current.add(it.channel);
           results.push({ channel: it.channel, published: r.published });
         } catch {
           results.push({ channel: it.channel, published: false });
