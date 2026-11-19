@@ -73,6 +73,20 @@ export interface PreviewSafety {
   note?: string;
 }
 
+/** A colour the colour tweak accepts, by the key it takes. */
+export interface Swatch {
+  key: string;
+  name: string;
+  hex: string;
+}
+
+/** How easy the headline is to read on the picture behind it. `contrast` is a ratio (shown only with Pro tools); `hardToRead` is the api's own verdict. */
+export interface HeadlineBackdrop {
+  hex: string;
+  contrast: number;
+  hardToRead: boolean;
+}
+
 /** One preview as the polling read sends it. A `dropped` one never comes back as a tile. */
 export interface PreviewView {
   id: string;
@@ -94,7 +108,9 @@ export interface PreviewView {
   wordingOptions: string[];
   chosenOption: number;
   canUndo: boolean;
+  /** Where the product sits in the picture, as fractions (0..1) of its width and height; null for a picture drawn before the crop was kept. */
   productCrop: { x: number; y: number; w: number; h: number } | null;
+  headlineBackdrop: HeadlineBackdrop | null;
   note?: string;
 }
 
@@ -132,6 +148,10 @@ export interface CreativeView {
   kind: "image" | "words";
   status: CreativeStatus;
   brief: StudioBrief;
+  /** The language(s) the wording is written in. */
+  languages: string[];
+  /** The colours the colour tweak accepts, by key. Absent only from an api that predates it: the page then falls back to the brand kit's. */
+  palette?: Swatch[];
   warnings: BriefWarning[];
   previews: PreviewView[];
   earlier: PreviewView[];

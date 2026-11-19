@@ -49,6 +49,21 @@ export function HeartButton({
   );
 }
 
+/**
+ * "Hard to read": shown when the api measured the headline against the picture behind it and found it hard to read. It points at the two free fixes
+ * (wording, colour) in Change this preview. Nothing when the picture was not measured or reads fine. Only Pro tools show the ratio.
+ */
+export function ReadabilityHint({ preview, proTools = false, className }: { preview: PreviewView; proTools?: boolean; className?: string }) {
+  const b = preview.headlineBackdrop;
+  if (!b?.hardToRead) return null;
+  return (
+    <p data-slot="studio-hard-to-read" className={cn("text-xs text-warning-on-tint", className)}>
+      <span className="font-medium">{C.hardToRead}.</span> {C.hardToReadHelp}
+      {proTools && <span className="text-muted-foreground"> {C.hardToReadRatio(b.contrast)}</span>}
+    </p>
+  );
+}
+
 /** The image of a preview at its real shape. A failed load is a tile that says so, with a retry (never a broken image). */
 export function PreviewImage({ preview, alt, className }: { preview: PreviewView; alt: string; className?: string }) {
   const src = preview.imageUrl ?? preview.thumbUrl;
@@ -156,6 +171,7 @@ export function PreviewCard({
       </div>
       <div className="flex flex-col gap-1 p-2">
         {lapsed && <p className="text-xs font-medium text-warning-on-tint">{C.lapsedBadge}</p>}
+        <ReadabilityHint preview={preview} />
         {preview.safety?.status === "fixed" && <p className="text-xs text-muted-foreground">{C.adjusted}</p>}
         {chip && <p className="text-xs font-medium">{chip}</p>}
         <div className="flex flex-wrap gap-1">

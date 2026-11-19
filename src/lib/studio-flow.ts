@@ -9,6 +9,7 @@ import type {
   PressQuote,
   ProductImage,
   ShortlistItem,
+  Swatch,
 } from "@/lib/api/creative-studio";
 
 /**
@@ -24,6 +25,7 @@ export const MAX_FINALS_PER_PRESS = 24;
 export const WORDING_MAX = { headline: 60, offer: 40, cta: 24 } as const;
 
 export const STUDIO_PATHS = {
+  home: "/dashboard/studio",
   shortlist: "/dashboard/studio/shortlist",
   creative: (id: string) => `/dashboard/studio/c/${encodeURIComponent(id)}`,
   buyPeaks: "/dashboard/peaks",
@@ -349,13 +351,9 @@ export const STUDIO_LANGUAGES: Array<{ code: string; name: string }> = [
 
 // ── The tweak controls (S8) ─────────────────────────────────────────────────────────────────────────────────
 
-export interface Swatch {
-  key: string;
-  name: string;
-  hex: string;
-}
+export type { Swatch };
 
-/** The api's own plain pair, used when the brand kit has none (api `layout.ts` FALLBACK_SWATCHES). */
+/** The api's own plain set, added after the brand kit's colours (api `layout.ts` FALLBACK_SWATCHES). Only for the fallback palette below. */
 const FALLBACK_SWATCHES: Swatch[] = [
   { key: "white", name: "White", hex: "#ffffff" },
   { key: "gold", name: "Gold", hex: "#ffd24a" },
@@ -382,6 +380,20 @@ export function paletteFromKit(colors: KitColor[]): Swatch[] {
   }
   for (const f of FALLBACK_SWATCHES) if (!used.has(f.key) && !out.some((s) => s.hex === f.hex)) out.push(f);
   return out;
+}
+
+/**
+ * Where "Look closely" opens on a picture: the scroll position that puts the product (`crop`, fractions of the picture) in the middle of the window.
+ * `content` is the zoomed picture's size and `view` the window's, in pixels. A picture with no crop opens where it always did (the top left).
+ */
+export function cropScroll(
+  crop: { x: number; y: number; w: number; h: number } | null,
+  content: { w: number; h: number },
+  view: { w: number; h: number },
+): { left: number; top: number } {
+  if (!crop) return { left: 0, top: 0 };
+  const at = (frac: number, size: number, window: number) => Math.round(Math.min(Math.max(0, size - window), Math.max(0, frac * size - window / 2)));
+  return { left: at(crop.x + crop.w / 2, content.w, view.w), top: at(crop.y + crop.h / 2, content.h, view.h) };
 }
 
 /** The tweak for a typed wording: which field, and the op. Empty text is not sent. */

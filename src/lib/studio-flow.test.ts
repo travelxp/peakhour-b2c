@@ -14,6 +14,7 @@ import {
   isWorking,
   linePlaceholder,
   makingProgress,
+  cropScroll,
   paletteFromKit,
   photoMediaIdsFor,
   planBlock,
@@ -47,6 +48,7 @@ const preview = (over: Partial<PreviewView> = {}): PreviewView => ({
   chosenOption: 0,
   canUndo: false,
   productCrop: null,
+  headlineBackdrop: null,
   ...over,
 });
 
@@ -55,6 +57,7 @@ const view = (over: Partial<CreativeView> = {}): CreativeView => ({
   kind: "image",
   status: "previews_ready",
   brief: { productIds: ["prod1"], line: "", language: "en", format: "feed", noAiPeople: false, photoMediaIds: [], count: 4 },
+  languages: ["en"],
   warnings: [],
   previews: [preview()],
   earlier: [],
@@ -326,6 +329,21 @@ describe("the plan", () => {
     expect(linePlaceholder({ festival: "Diwali", productTitle: "silk sarees" })).toBe("Diwali offer on silk sarees");
     expect(linePlaceholder({ productTitle: "Silk saree" })).toBe("Something to say about Silk saree");
     expect(linePlaceholder({})).toContain("For example");
+  });
+});
+
+describe("Look closely opens on the product (CS-3d productCrop)", () => {
+  const content = { w: 800, h: 1000 };
+  const view = { w: 400, h: 500 };
+  it("centres the product's crop in the window", () => {
+    expect(cropScroll({ x: 0.5, y: 0.5, w: 0.25, h: 0.2 }, content, view)).toEqual({ left: 300, top: 350 });
+  });
+  it("never scrolls past an edge", () => {
+    expect(cropScroll({ x: 0, y: 0, w: 0.1, h: 0.1 }, content, view)).toEqual({ left: 0, top: 0 });
+    expect(cropScroll({ x: 0.9, y: 0.9, w: 0.1, h: 0.1 }, content, view)).toEqual({ left: 400, top: 500 });
+  });
+  it("opens at the top left, as before, when the api kept no crop", () => {
+    expect(cropScroll(null, content, view)).toEqual({ left: 0, top: 0 });
   });
 });
 

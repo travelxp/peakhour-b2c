@@ -283,6 +283,10 @@ export const STUDIO_COPY = {
     notForMe: "Not for me",
     makeOneMore: "Make one more preview",
     adjusted: "We adjusted the wording to follow the rules for your country.",
+    /** The headline is hard to read on its picture (api `headlineBackdrop.hardToRead`). A novice never sees a number; Pro tools add the ratio. */
+    hardToRead: "Hard to read",
+    hardToReadHelp: "Try other wording or a different colour.",
+    hardToReadRatio: (ratio: number) => `Contrast ${Number(ratio).toFixed(1)} to 1`,
     loadFailedTile: "Couldn't load this preview",
     earlier: "Earlier previews",
     viewer: {

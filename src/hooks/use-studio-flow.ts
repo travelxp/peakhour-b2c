@@ -25,7 +25,6 @@ import { STUDIO_ACTIONS } from "@/lib/api/peaks";
 import { driveAbilities } from "@/lib/drive/files-state";
 import { derivePressQuote, groupProducts, isWorking, paletteFromKit, pollInterval, type PressQuoteState } from "@/lib/studio-flow";
 import { studioConnectedChannels } from "@/lib/studio-publish";
-import { rememberWork } from "@/lib/studio-strip";
 import { useAuth } from "@/providers/auth-provider";
 
 /** Query keys for the creative flow, in one place so a mutation can name the ones it changes. */
@@ -121,13 +120,13 @@ export function useShortlist(enabled = true) {
 }
 
 /** The brand kit's colours as the picks of the colour control, with the keys the api answers to. */
-export function useStudioPalette() {
+export function useStudioPalette(enabled = true) {
   const s = useScope();
   return useQuery({
     queryKey: BRAND_KIT_QUERY_KEY,
     queryFn: getBrandKit,
     select: (kit) => paletteFromKit(kit.effective.colors),
-    enabled: s.ready,
+    enabled: enabled && s.ready,
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
@@ -189,8 +188,7 @@ export function usePress() {
       void qc.invalidateQueries({ queryKey: [FLOW_KEYS.creative] });
       void qc.invalidateQueries({ queryKey: [CREDITS_KEY] });
       if (!error) {
-        // The running-jobs strip should show this press at once, and know which creative it belongs to.
-        rememberWork(v.id);
+        // The running-jobs strip should show this press at once.
         void qc.invalidateQueries({ queryKey: jobsKeys.all });
       }
       // A receipt that was used is spent, and one the api refused is never re-sent: the next press must carry a fresh one. After any other
@@ -362,7 +360,6 @@ export function useExtendVersions(creativeId: string, finalId: string) {
     mutationFn: (v: { placementKeys: string[]; quoteToken: string | undefined }) =>
       studioApi.extendVersions(creativeId, finalId, v.placementKeys, v.quoteToken),
     onSuccess: () => {
-      rememberWork(creativeId);
       void qc.invalidateQueries({ queryKey: jobsKeys.all });
     },
     onSettled: () => {

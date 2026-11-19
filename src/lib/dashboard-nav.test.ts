@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { PILLAR_NAV, STUDIO_FEATURE, growthSubs, pillarForPath, navGroupsFor, type NavGroup } from "./dashboard-nav";
 import { PILLAR_COPY, SUB_COPY, MAX_DESCRIPTION } from "./nav-copy";
 import { activeTab, nextTabIndex } from "./pillar-tabs";
-import { primaryTabs, isTabActive } from "./mobile-tabs";
+import { primaryTabs, isTabActive, COMMERCE_SHORT_LABEL } from "./mobile-tabs";
 import { growthNav } from "./growth-v2-nav";
 
 /**
@@ -218,13 +218,22 @@ describe("mobile bottom bar", () => {
     const keys = (hasCommerce: boolean, hasStudio?: boolean) =>
       primaryTabs({ hasCommerce, hasStudio, homeHref: "/dashboard/overview" }).map((t) => t.key);
     expect(keys(false, true)).toEqual(["home", "studio", "inbox", "content", "growth"]);
-    // Six cells cut "Commerce" short at 360px (measured), so Studio + Commerce moves Inbox into More.
-    expect(keys(true, true)).toEqual(["home", "studio", "content", "commerce"]);
+    // Inbox stays when Studio is on, with Commerce too (UX spec U3: six cells with More).
+    expect(keys(true, true)).toEqual(["home", "studio", "inbox", "content", "commerce"]);
     expect(keys(false)).toEqual(["home", "inbox", "content", "growth"]);
     const studio = primaryTabs({ hasCommerce: false, hasStudio: true, homeHref: "/dashboard/overview" })[1];
     expect(isTabActive("/dashboard/studio/c/abc", studio)).toBe(true);
     expect(isTabActive("/dashboard/studios", studio)).toBe(false);
     expect(PILLAR_COPY[studio.copyHref]).toBeDefined();
+  });
+
+  it("Commerce takes the short label only when Studio shares the bar (60px cells at 360px)", () => {
+    const commerce = (hasStudio: boolean) => primaryTabs({ hasCommerce: true, hasStudio, homeHref: "/dashboard/overview" }).find((t) => t.key === "commerce")!;
+    expect(commerce(true).shortLabel).toBe(COMMERCE_SHORT_LABEL);
+    expect(commerce(false).shortLabel).toBeUndefined();
+    // every label on the crowded bar is a word that fits a 60px cell: none is longer than "Content" or "Studio" or "Growth"
+    const labels = primaryTabs({ hasCommerce: true, hasStudio: true, homeHref: "/dashboard/overview" }).map((t) => t.shortLabel ?? PILLAR_COPY[t.copyHref].label);
+    expect(Math.max(...labels.map((l) => l.length))).toBeLessThanOrEqual(7);
   });
 
   it("shows Growth for everyone and Commerce instead only when entitled", () => {
@@ -277,8 +286,10 @@ describe("no two destinations share a label where a merchant sees them together"
 
   it("the mobile bar", () => {
     for (const hasCommerce of [true, false]) {
-      const labels = [...primaryTabs({ hasCommerce, homeHref: "/dashboard/overview" }).map((t) => PILLAR_COPY[t.copyHref].label), "More"];
-      expect(new Set(labels).size).toBe(labels.length);
+      for (const hasStudio of [true, false]) {
+        const labels = [...primaryTabs({ hasCommerce, hasStudio, homeHref: "/dashboard/overview" }).map((t) => t.shortLabel ?? PILLAR_COPY[t.copyHref].label), "More"];
+        expect(new Set(labels).size).toBe(labels.length);
+      }
     }
   });
 });

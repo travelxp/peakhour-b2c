@@ -2,7 +2,8 @@ import { STUDIO_COPY } from "@/lib/studio-copy";
 
 /**
  * The running-jobs strip (UX spec 4.4): which of the running background jobs are Studio's, the line each one reads, and which have just finished.
- * A job row names no creative, so the page that starts work remembers where it is (`rememberWork`), and the strip links there.
+ * A Studio job row names its creative (`creativeId`, api CS-UI-5), and the strip links there; a row without one (queued before it was kept, or a
+ * batch that spans several creatives) links to the Studio home.
  */
 
 export type StudioJobKind = "previews" | "final" | "extend" | "other";
@@ -13,6 +14,8 @@ export interface StudioJob {
   name: string;
   done: number | null;
   total: number | null;
+  /** The creative the job works on; null for a job that names none. */
+  creativeId: string | null;
 }
 
 const JOB_KIND_OF: Record<string, StudioJobKind> = { creative_previews: "previews", creative_final: "final", creative_extend: "extend" };
@@ -21,6 +24,7 @@ interface JobRowLike {
   _id: string;
   kind: string;
   displayName?: string;
+  creativeId?: string;
   progress?: { totalUnits: number; processedUnits: number };
 }
 
@@ -37,6 +41,7 @@ export function studioJobs(rows: ReadonlyArray<JobRowLike>): StudioJob[] {
         name: j.displayName?.trim() || STUDIO_COPY.strip.names[kind],
         done: total === null || !j.progress ? null : Math.min(total, Math.max(0, j.progress.processedUnits)),
         total,
+        creativeId: j.creativeId ?? null,
       };
     });
 }
@@ -53,27 +58,8 @@ export function finishedJobs(before: ReadonlyArray<StudioJob>, now: ReadonlyArra
 
 // ── Where the work is ──────────────────────────────────────────────────────────────────────────────────────
 
-const WORK_KEY = "studio-work-creative";
-
-/** Remember the creative the merchant just started work on, so the strip and the "ready" toast can open it. Per tab; losing it only loses the link. */
-export function rememberWork(creativeId: string): void {
-  try {
-    window.sessionStorage.setItem(WORK_KEY, creativeId);
-  } catch {
-    // storage blocked: the strip simply has no link to offer
-  }
-}
-
-export function rememberedWork(): string | null {
-  try {
-    return window.sessionStorage.getItem(WORK_KEY);
-  } catch {
-    return null;
-  }
-}
-
-/** Where a kind of finished work is seen: finals on the Shortlist (they can come from several creatives), the rest on the creative started last. */
-export function workHref(kind: StudioJobKind, creativeId: string | null, paths: { shortlist: string; creative: (id: string) => string }): string | null {
+/** Where a kind of finished work is seen: finals on the Shortlist (one press can make several, from several creatives), the rest on their creative, or the Studio home when the job names none. */
+export function workHref(kind: StudioJobKind, creativeId: string | null, paths: { home: string; shortlist: string; creative: (id: string) => string }): string {
   if (kind === "final") return paths.shortlist;
-  return creativeId ? paths.creative(creativeId) : null;
+  return creativeId ? paths.creative(creativeId) : paths.home;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +14,7 @@ import { FailedTile, HeartButton, PreviewCard, PreviewImage, PreviewSkeletonTile
 import { QuoteBlock, type QuoteBlockState } from "@/components/studio/studio-quote";
 import { RefusalNote } from "@/components/studio/refusal-note";
 import type { FinalRow, PreviewView } from "@/lib/api/creative-studio";
-import { finalPhase, isActionable, isShownTile, type StudioRefusal } from "@/lib/studio-flow";
+import { cropScroll, finalPhase, isActionable, isShownTile, type StudioRefusal } from "@/lib/studio-flow";
 import { STUDIO_COPY } from "@/lib/studio-copy";
 import { cn } from "@/lib/utils";
 
@@ -289,7 +289,25 @@ export function PreviewViewer({
   onSkip: (p: PreviewView) => void;
 }) {
   const [close, setClose] = useState(false);
+  const zoomRef = useRef<HTMLDivElement>(null);
   const p = previews[index];
+  const crop = p?.productCrop ?? null;
+  const pid = p?.id;
+  // "Look closely" opens on the product when the api kept where it sits, and where it always did (top left) when not.
+  useEffect(() => {
+    const el = zoomRef.current;
+    if (!el) return;
+    if (!close) {
+      el.scrollLeft = 0;
+      el.scrollTop = 0;
+      return;
+    }
+    const inner = el.firstElementChild as HTMLElement | null;
+    if (!inner) return;
+    const to = cropScroll(crop, { w: inner.offsetWidth, h: inner.offsetHeight }, { w: el.clientWidth, h: el.clientHeight });
+    el.scrollLeft = to.left;
+    el.scrollTop = to.top;
+  }, [close, crop, pid]);
   if (!p) return null;
   const alt = C.previewAlt(index + 1, previews.length, p.headline ?? "", p.productTitle ?? "");
   const go = (d: number) => onIndex((index + d + previews.length) % previews.length);
@@ -314,7 +332,7 @@ export function PreviewViewer({
           <DialogTitle>{C.viewer.title(index + 1, previews.length)}</DialogTitle>
           <DialogDescription>{C.caption}</DialogDescription>
         </DialogHeader>
-        <div className={cn("relative mx-auto w-full overflow-auto rounded-md border", close ? "max-h-[70dvh]" : "")} tabIndex={close ? 0 : -1}>
+        <div ref={zoomRef} className={cn("relative mx-auto w-full overflow-auto rounded-md border", close ? "max-h-[70dvh]" : "")} tabIndex={close ? 0 : -1}>
           <div className={cn(close ? "w-[200%] max-w-none" : "w-full")}>
             <PreviewImage preview={p} alt={alt} />
           </div>

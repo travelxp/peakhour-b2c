@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { finishedJobs, jobLine, rememberedWork, rememberWork, studioJobs, workHref } from "./studio-strip";
+import { describe, expect, it } from "vitest";
+import { finishedJobs, jobLine, studioJobs, workHref } from "./studio-strip";
 
 const row = (over: Record<string, unknown> = {}) => ({
   _id: "j1",
@@ -40,30 +40,15 @@ describe("the running-jobs strip (4.4)", () => {
     expect(finishedJobs(before, before)).toEqual([]);
   });
 
-  it("finals show on the Shortlist; the rest on the creative that was started, and nowhere when none is known", () => {
-    const paths = { shortlist: "/s", creative: (id: string) => `/c/${id}` };
+  it("carries the creative a job names, and none for an older row", () => {
+    const jobs = studioJobs([row({ creativeId: "c1" }), row({ _id: "j2" })]);
+    expect(jobs.map((j) => j.creativeId)).toEqual(["c1", null]);
+  });
+
+  it("finals show on the Shortlist; the rest on the creative the job names, and on the Studio home when it names none", () => {
+    const paths = { home: "/h", shortlist: "/s", creative: (id: string) => `/c/${id}` };
     expect(workHref("final", "c1", paths)).toBe("/s");
     expect(workHref("previews", "c1", paths)).toBe("/c/c1");
-    expect(workHref("extend", null, paths)).toBeNull();
-  });
-});
-
-describe("remembering where the work is", () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it("keeps the creative for this tab", () => {
-    const store = new Map<string, string>();
-    vi.stubGlobal("window", { sessionStorage: { setItem: (k: string, v: string) => store.set(k, v), getItem: (k: string) => store.get(k) ?? null } });
-    rememberWork("c9");
-    expect(rememberedWork()).toBe("c9");
-  });
-
-  it("a blocked storage loses only the link, never throws", () => {
-    const boom = () => {
-      throw new Error("blocked");
-    };
-    vi.stubGlobal("window", { sessionStorage: { setItem: boom, getItem: boom } });
-    expect(() => rememberWork("c9")).not.toThrow();
-    expect(rememberedWork()).toBeNull();
+    expect(workHref("extend", null, paths)).toBe("/h");
   });
 });

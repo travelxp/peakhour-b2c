@@ -11,7 +11,7 @@ import { jobsListQuery, useCancelJob, useJobs } from "@/hooks/use-jobs";
 import { useStudioAbilities } from "@/hooks/use-studio-flow";
 import { STUDIO_COPY } from "@/lib/studio-copy";
 import { STUDIO_PATHS } from "@/lib/studio-flow";
-import { finishedJobs, jobLine, rememberedWork, studioJobs, workHref, type StudioJob } from "@/lib/studio-strip";
+import { finishedJobs, jobLine, studioJobs, workHref, type StudioJob } from "@/lib/studio-strip";
 
 const S = STUDIO_COPY.strip;
 
@@ -72,16 +72,13 @@ export function StudioStrip() {
   const { canMake } = useStudioAbilities();
   const cancel = useCancelJob();
   const pathname = usePathname();
-  // Where the work shows: read when rendered, so a press made a moment ago is the one it points at.
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- the stored id changes with a press, which also changes `jobs`
-  const target = useMemo(() => rememberedWork(), [jobs]);
   return (
     <StudioStripView
       jobs={jobs}
       href={(j) => {
-        const to = workHref(j.kind, target, STUDIO_PATHS);
+        const to = workHref(j.kind, j.creativeId, STUDIO_PATHS);
         // No link to the page the merchant is already on.
-        return to && to !== pathname ? to : null;
+        return to !== pathname ? to : null;
       }}
       canStop={canMake}
       stoppingId={cancel.isPending ? cancel.variables : undefined}
@@ -116,9 +113,12 @@ export function StudioReadyToaster() {
       .fetchQuery({ ...jobsListQuery("recent"), staleTime: 0 })
       .then((r) => {
         const done = new Set(r.rows.filter((x) => x.status === "done").map((x) => x._id));
-        for (const kind of new Set(gone.filter((j) => done.has(j.id)).map((j) => j.kind))) {
-          const to = workHref(kind, rememberedWork(), STUDIO_PATHS);
-          toast.success(S.readyToast[kind], to ? { action: { label: S.seeThem, onClick: () => router.push(to) } } : undefined);
+        // One toast per place the finished work is seen (two previews presses on one creative are one toast).
+        const seen = new Map<string, StudioJob>();
+        for (const j of gone.filter((g) => done.has(g.id))) seen.set(`${j.kind}:${workHref(j.kind, j.creativeId, STUDIO_PATHS)}`, j);
+        for (const j of seen.values()) {
+          const to = workHref(j.kind, j.creativeId, STUDIO_PATHS);
+          toast.success(S.readyToast[j.kind], { action: { label: S.seeThem, onClick: () => router.push(to) } });
         }
       })
       .catch(() => undefined);
