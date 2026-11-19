@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { creativeApi, type MemoryLine, type MemoryRead } from "@/lib/api/creative";
+import { creativeApi, type MemoryLine, type MemoryPage } from "@/lib/api/creative";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,7 +19,7 @@ import { useStudioPrefs } from "@/hooks/use-studio";
 import { MEMORY_KEY, useMemory } from "@/hooks/use-studio-memory";
 import { ideasFeedStatus } from "@/lib/studio";
 import { STUDIO_COPY } from "@/lib/studio-copy";
-import { exportBody, runChange } from "@/lib/studio-memory";
+import { assembleMemory, exportBody, patchPages, runChange } from "@/lib/studio-memory";
 import { useAuth } from "@/providers/auth-provider";
 import { MemoryView, type MemoryActions } from "./memory-view";
 
@@ -55,7 +55,9 @@ export function Memory() {
   const [pooledBusy, setPooledBusy] = useState(false);
 
   const refresh = () => qc.invalidateQueries({ queryKey: [MEMORY_KEY] });
-  const patch = (fn: (m: MemoryRead) => MemoryRead) => qc.setQueriesData<MemoryRead>({ queryKey: [MEMORY_KEY] }, (old) => (old ? fn(old) : old));
+  const data = useMemo(() => assembleMemory(memory.data?.pages), [memory.data]);
+  const patch = (fn: (lines: MemoryLine[]) => MemoryLine[], top?: (first: MemoryPage) => MemoryPage) =>
+    qc.setQueriesData<InfiniteData<MemoryPage, string | undefined>>({ queryKey: [MEMORY_KEY] }, (old) => (old ? { ...old, pages: patchPages(old.pages, fn, top) } : old));
 
   const actions: MemoryActions = useMemo(
     () => ({
@@ -71,14 +73,17 @@ export function Memory() {
           toast.error(C.stopFailed);
           return;
         }
-        patch((m) => ({ ...m, lines: m.lines.filter((l) => l.id !== line.id) }));
+        patch(
+          (lines) => lines.filter((l) => l.id !== line.id),
+          (first) => ({ ...first, totalLines: Math.max(0, (first.totalLines ?? 1) - 1) }),
+        );
         toast(out === "gone" ? C.lineGone : C.stopped);
         void refresh();
       },
       onSave: async (line, text) => {
         const out = await runChange(() => creativeApi.editMemoryLine(line.id, text), { goneOn404: true });
         if (out === "done") {
-          patch((m) => ({ ...m, lines: m.lines.map((l) => (l.id === line.id ? { ...l, text } : l)) }));
+          patch((lines) => lines.map((l) => (l.id === line.id ? { ...l, text } : l)));
           toast(C.saved);
           void refresh();
           return true;
@@ -107,7 +112,7 @@ export function Memory() {
         const out = await runChange(() => creativeApi.setPooled(optIn));
         setPooledBusy(false);
         if (out === "done") {
-          patch((m) => ({ ...m, pooledOptIn: optIn }));
+          patch((lines) => lines, (first) => ({ ...first, pooledOptIn: optIn }));
           toast(optIn ? C.pooledOn : C.pooledOff);
         } else {
           toast.error(C.pooledFailed);
@@ -148,7 +153,14 @@ export function Memory() {
     <>
       <MemoryView
         status={ideasFeedStatus(memory)}
-        data={memory.data}
+        data={data}
+        hasMore={!!memory.hasNextPage}
+        loadingMore={memory.isFetchingNextPage}
+        onMore={() =>
+          void memory.fetchNextPage().then((r) => {
+            if (r.isError) toast.error(C.moreLinesFailed);
+          })
+        }
         proTools={proTools}
         canChange={canChange}
         busyIds={busyIds}

@@ -1,62 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import type { ProductImageItem, ProductImportStatus } from "@/lib/api/media";
+import type { LibraryItem } from "@/lib/api/creative";
+import type { ProductImportStatus } from "@/lib/api/media";
 import { STUDIO_COPY } from "@/lib/studio-copy";
-import { chipFor, creativeHref, groupProductPhotos, importLines, itemTitle, mergeProductPages, pageCount } from "@/lib/studio-library";
-
-const photo = (over: Partial<ProductImageItem> = {}): ProductImageItem => ({
-  id: "i1",
-  source: "shopify",
-  productId: "p1",
-  productTitle: "Silk saree",
-  sourceProductId: "s1",
-  sourceImageId: "img1",
-  position: 0,
-  importedAt: "2026-11-18T10:00:00.000Z",
-  media: { id: "m1", name: "a.jpg", mimeType: "image/jpeg", visibility: "private" },
-  ...over,
-});
-
-describe("groupProductPhotos", () => {
-  it("one row per product, counting its photos, with the lowest position as the main photo", () => {
-    const g = groupProductPhotos([photo({ id: "a", position: 2 }), photo({ id: "b", position: 0 }), photo({ id: "c", productId: "p2", productTitle: "Kurta", sourceProductId: "s2" })]);
-    expect(g.map((x) => [x.title, x.count, x.main.id])).toEqual([
-      ["Silk saree", 2, "b"],
-      ["Kurta", 1, "c"],
-    ]);
-  });
-  it("a photo with no product link groups by the store's product id and is never dropped", () => {
-    const g = groupProductPhotos([
-      photo({ id: "a", productId: undefined, productTitle: undefined, sourceProductId: "x" }),
-      photo({ id: "b", productId: undefined, productTitle: undefined, sourceProductId: "x", position: 1 }),
-    ]);
-    expect(g).toHaveLength(1);
-    expect(g[0]!.count).toBe(2);
-    expect(g[0]!.title).toBe(STUDIO_COPY.library.photoFallbackTitle);
-  });
-  it("unlinked photos with the same store id from two stores stay separate", () => {
-    const g = groupProductPhotos([
-      photo({ productId: undefined, source: "shopify", sourceProductId: "1" }),
-      photo({ id: "z", productId: undefined, source: "woocommerce", sourceProductId: "1" }),
-    ]);
-    expect(g).toHaveLength(2);
-  });
-  it("a title that only a later photo carries is used, and a link that arrives on only some rows does not split the tile", () => {
-    const g = groupProductPhotos([photo({ id: "a", productId: undefined, productTitle: undefined, position: 2 }), photo({ id: "b", position: 0 })]);
-    expect(g).toHaveLength(1);
-    expect(g[0]).toMatchObject({ title: "Silk saree", count: 2 });
-    expect(g[0]!.main.id).toBe("b");
-  });
-  it("is empty for no photos", () => expect(groupProductPhotos([])).toEqual([]));
-});
-
-describe("mergeProductPages", () => {
-  it("joins pages in order and drops a photo that appears twice", () => {
-    const merged = mergeProductPages([{ items: [photo({ id: "a" }), photo({ id: "b" })] }, { items: [photo({ id: "b" }), photo({ id: "c" })] }]);
-    expect(merged.map((p) => p.id)).toEqual(["a", "b", "c"]);
-  });
-});
+import { bulkSummary, chipFor, creativeHref, downloadChoices, filterQuery, importLines, itemTitle, pageCount, sentTo } from "@/lib/studio-library";
 
 describe("importLines", () => {
   const imp = (over: Partial<ProductImportStatus>): ProductImportStatus => ({ source: "shopify", status: "done", ...over });
@@ -88,6 +36,19 @@ describe("small helpers", () => {
     expect(chipFor({ status: "archived" }, "made")).toBe("Archived");
     expect(chipFor({ status: "brief" }, "plans")).toBe("Saved plan");
   });
+  it("the chip follows where it was sent: scheduled while any size waits, else posted, else plain Final; archived and plans win", () => {
+    const sent = (state: "none" | "scheduled" | "posted") => ({ status: "has_final" as const, publish: { state, scheduled: 0, posted: 0, channels: [], inAd: false } });
+    expect(chipFor(sent("scheduled"), "made")).toBe("Scheduled");
+    expect(chipFor(sent("posted"), "made")).toBe("Posted");
+    expect(chipFor(sent("none"), "made")).toBe("Final");
+    expect(chipFor({ ...sent("posted"), status: "archived" }, "made")).toBe("Archived");
+    expect(chipFor(sent("posted"), "plans")).toBe("Saved plan");
+  });
+  it("names the channels it was sent to, in words, and says nothing when it was not sent", () => {
+    expect(sentTo({ publish: { state: "posted", scheduled: 0, posted: 2, channels: ["instagram", "linkedin"], inAd: false } })).toBe("Instagram, LinkedIn");
+    expect(sentTo({ publish: { state: "posted", scheduled: 0, posted: 1, channels: ["mastodon"], inAd: false } })).toBe("mastodon");
+    expect(sentTo({ publish: { state: "none", scheduled: 0, posted: 0, channels: [], inAd: false } })).toBe("");
+  });
   it("an item with no headline is titled plainly", () => {
     expect(itemTitle({ headline: null })).toBe("Untitled post");
     expect(itemTitle({ headline: "  " })).toBe("Untitled post");
@@ -107,5 +68,47 @@ describe("the CMS storage page", () => {
     expect(src).toMatch(/imported_store:\s*"Product photos \(store\)"/);
     const media = readFileSync(resolve(__dirname, "api/media.ts"), "utf8");
     expect(media).toMatch(/\|\s*"imported_store"/);
+  });
+});
+
+describe("filterQuery", () => {
+  it("leaves out what is empty and sends dates as UTC days; 'until' includes that day", () => {
+    expect(filterQuery({ publish: "", channel: "", from: "", to: "" })).toEqual({});
+    expect(filterQuery({ publish: "scheduled", channel: "instagram", from: "2026-11-05", to: "2026-11-10" })).toEqual({
+      publish: "scheduled",
+      channel: "instagram",
+      from: "2026-11-05T00:00:00.000Z",
+      to: "2026-11-11T00:00:00.000Z",
+    });
+  });
+  it("ignores a value it cannot read rather than sending it", () => {
+    expect(filterQuery({ publish: "everywhere", channel: "", from: "05/11/2026", to: "tomorrow" })).toEqual({});
+  });
+});
+
+describe("downloadChoices", () => {
+  const item = (over: Partial<Pick<LibraryItem, "master" | "versions">>) => ({ master: null, versions: [], ...over });
+  it("the full-size picture first, then each size, with its measurements in words", () => {
+    const c = downloadChoices(
+      item({
+        master: { finalId: "f1", width: 1080, height: 1350 },
+        versions: [{ id: "v1", label: "Feed post", channel: "instagram", width: 1080, height: 1350, state: "ready" }],
+      }),
+    );
+    expect(c.map((x) => x.label)).toEqual(["Full size (1080 x 1350)", "Feed post, Instagram (1080 x 1350)"]);
+    expect(c[0]!.query).toEqual({ finalId: "f1" });
+    expect(c[1]!.query).toEqual({ versionId: "v1" });
+  });
+  it("a master with no measurements is still just 'Full size', and no picture means no choices", () => {
+    expect(downloadChoices(item({ master: { finalId: "f1", width: null, height: null } }))[0]!.label).toBe("Full size");
+    expect(downloadChoices(item({}))).toEqual([]);
+  });
+});
+
+describe("bulkSummary", () => {
+  it("says what was done and, plainly, how many were left as they were", () => {
+    expect(bulkSummary({ done: ["a"], skipped: [] })).toBe("Done: 1 post.");
+    expect(bulkSummary({ done: ["a", "b"], skipped: [] })).toBe("Done: 2 posts.");
+    expect(bulkSummary({ done: ["a", "b"], skipped: [{ id: "c", code: "STILL_MAKING", message: "x" }] })).toBe("Done: 2. Left as they were: 1, because they're still being made or weren't found.");
   });
 });

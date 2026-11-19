@@ -113,6 +113,60 @@ export interface LibraryItem {
   productIds: string[];
   updatedAt: string;
   thumbUrl: string | null;
+  /** Where it has been sent, read from the handoff records: `scheduled` while any size is waiting for its time, else `posted`, else `none`. */
+  publish: { state: "none" | "scheduled" | "posted"; scheduled: number; posted: number; channels: string[]; inAd: boolean };
+  /** The finished full-size picture, or null while there is none. */
+  master: { finalId: string; width: number | null; height: number | null } | null;
+  /** The platform sizes that are made (a size that still needs more background is not here). */
+  versions: Array<{ id: string; label: string; channel: string; width: number; height: number; state: "ready" | "scheduled" | "published" }>;
+  actions: { download: boolean; newVersion: boolean; delete: boolean; deleteBlock: "making" | null };
+}
+
+/** The Pro tools filters of "Made in Studio". */
+export interface LibraryFilter {
+  publish?: "none" | "scheduled" | "posted";
+  channel?: string;
+  /** `YYYY-MM-DD`: last changed on or after / before. */
+  from?: string;
+  to?: string;
+}
+
+export interface DownloadLink {
+  url: string;
+  filename: string;
+  width?: number;
+  height?: number;
+  expiresInSeconds: number;
+}
+
+export interface BulkResult {
+  done: string[];
+  skipped: Array<{ id: string; code: string; message: string }>;
+}
+
+/** One product in the Library's "Product photos" tab. `main` is its main photo (null when it has none). */
+export interface ProductPhotoTile {
+  productId: string;
+  title: string;
+  count: number;
+  main: ProductPhotoView | null;
+}
+export interface ProductPhotoView {
+  mediaId: string;
+  /** `store`: brought in from the store. `library`: a Library file the merchant added. */
+  source: "store" | "library";
+  isMain: boolean;
+  thumbUrl: string | null;
+}
+export interface ProductPhotosPage {
+  items: ProductPhotoTile[];
+  next?: string;
+}
+export interface ProductPhotosOne {
+  productId: string;
+  title: string;
+  count: number;
+  photos: ProductPhotoView[];
 }
 
 export interface LibraryPage {
@@ -150,13 +204,47 @@ export interface MemoryRule {
   changeIn: "brand-kit" | null;
 }
 
+/** One of the three trend lines. `now` against `first` (the merchant's first month), with how many approved posts are behind each. */
+export interface TrendLine {
+  key: "liked_first_try" | "changes_per_post" | "peaks_per_post";
+  now: number;
+  first: number;
+  unit: "percent" | "count" | "peaks";
+  direction: "better" | "worse" | "same";
+  evidence: { now: number; first: number };
+}
+
+export interface MemoryTrends {
+  approvedPosts: number;
+  /** At least 10 approved posts in all. */
+  enough: boolean;
+  needs: number;
+  /** Each stretch (the first month, and now) has posts of its own, so the two can be compared. */
+  comparable: boolean;
+  firstMonth: { from: string; to: string; posts: number } | null;
+  now: { from: string; to: string; posts: number } | null;
+  lines: TrendLine[];
+}
+
 export interface MemoryRead {
   lines: MemoryLine[];
+  /** Pass as `after` to read the next page of lines. Absent on the last page. */
+  next?: string;
+  totalLines: number;
   rules: MemoryRule[];
   note: string;
-  trends: { approvedPosts: number; enough: boolean; needs: number };
+  trends: MemoryTrends;
   pooledOptIn: boolean;
 }
+
+/** A later page of "Your taste": lines only. */
+export interface MemoryLinesPage {
+  lines: MemoryLine[];
+  next?: string;
+}
+
+/** One page as the api sends it: the first has everything, a later one has lines only. */
+export type MemoryPage = MemoryLinesPage & Partial<Omit<MemoryRead, "lines" | "next">>;
 
 export interface MemoryExport {
   exportedAt: string;
@@ -188,15 +276,38 @@ export const creativeApi = {
     }
   },
 
-  library: (q: { view: LibraryView; q?: string; status?: string; page?: number }) =>
+  library: (q: { view: LibraryView; q?: string; status?: string; page?: number } & LibraryFilter) =>
     api.get<LibraryPage>("/v1/creative", {
       view: q.view,
       ...(q.q ? { q: q.q } : {}),
       ...(q.status ? { status: q.status } : {}),
       ...(q.page && q.page > 1 ? { page: String(q.page) } : {}),
+      ...(q.publish ? { publish: q.publish } : {}),
+      ...(q.channel ? { channel: q.channel } : {}),
+      ...(q.from ? { from: q.from } : {}),
+      ...(q.to ? { to: q.to } : {}),
     }),
 
-  memory: () => api.get<MemoryRead>("/v1/creative/memory"),
+  /** A short-lived link to save the master (no ids), one final, or one platform size. Free. */
+  download: (id: string, q: { finalId?: string; versionId?: string } = {}) =>
+    api.get<DownloadLink>(`/v1/creative/${encodeURIComponent(id)}/download`, { ...(q.finalId ? { finalId: q.finalId } : {}), ...(q.versionId ? { versionId: q.versionId } : {}) }),
+  /** "Make a new version": a new plan from a final. Free; its previews are quoted later. */
+  newVersion: (id: string) => api.post<{ creativeId: string }>(`/v1/creative/${encodeURIComponent(id)}/new-version`, {}),
+  /** Soft delete. The pictures go to the Drive's trash unless a post, an ad or another creative still uses them. */
+  deleteCreative: (id: string) => api.delete<{ ok: true; id: string; trashed: number; keptForPosts: number }>(`/v1/creative/${encodeURIComponent(id)}`),
+  /** Pro tools. Each id is judged on its own: `skipped` says which stayed and why. */
+  bulk: (action: "delete" | "archive", ids: string[]) => api.post<BulkResult>("/v1/creative/bulk", { action, ids }),
+
+  productPhotos: (q: { after?: string; limit?: number } = {}) =>
+    api.get<ProductPhotosPage>("/v1/creative/product-photos", { ...(q.after ? { after: q.after } : {}), ...(q.limit ? { limit: String(q.limit) } : {}) }),
+  productPhotosOne: (productId: string) => api.get<ProductPhotosOne>(`/v1/creative/product-photos/${encodeURIComponent(productId)}`),
+  /** "Add photo": a Library file that is already there becomes a photo of the product. Nothing is uploaded to the store. */
+  linkProductPhoto: (productId: string, mediaId: string) => api.post<{ productId: string; mediaId: string; linked: boolean }>("/v1/creative/product-photos", { productId, mediaId }),
+  setMainProductPhoto: (productId: string, mediaId: string) => api.put<{ productId: string; mediaId: string; isMain: true }>(`/v1/creative/product-photos/${encodeURIComponent(productId)}/main`, { mediaId }),
+
+  memory: (q: { after?: string; limit?: number } = {}) => api.get<MemoryRead>("/v1/creative/memory", { ...(q.after ? { after: q.after } : {}), ...(q.limit ? { limit: String(q.limit) } : {}) }),
+  /** The next page of "Your taste", by the `next` of the page before. */
+  memoryLines: (after: string, limit?: number) => api.get<MemoryLinesPage>("/v1/creative/memory/lines", { after, ...(limit ? { limit: String(limit) } : {}) }),
   /** Stop using a line. Free. */
   deleteMemoryLine: (id: string) => api.delete<{ ok: true }>(`/v1/creative/memory/lines/${encodeURIComponent(id)}`),
   /** Pro tools. Only a line the merchant wrote can be reworded. */

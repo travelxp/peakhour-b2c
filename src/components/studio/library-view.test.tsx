@@ -9,12 +9,13 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-const { CreativesView, ProductPhotosView, ImportStatusList } = await import("./library-view");
+const { BulkBar, CreativesView, ProductPhotoList, ProductPhotosView, ImportStatusList } = await import("./library-view");
 const { LibraryFilters, AddFromDialog } = await import("./library");
 const { STUDIO_COPY } = await import("@/lib/studio-copy");
 
 import type { LibraryItem, LibraryPage } from "@/lib/api/creative";
-import type { ProductImageItem, ProductImportStatus } from "@/lib/api/media";
+import type { ProductPhotoTile, ProductPhotosOne } from "@/lib/api/creative";
+import type { ProductImportStatus } from "@/lib/api/media";
 
 const item = (over: Partial<LibraryItem> = {}): LibraryItem => ({
   id: "c1",
@@ -25,6 +26,10 @@ const item = (over: Partial<LibraryItem> = {}): LibraryItem => ({
   productIds: ["p1"],
   updatedAt: "2026-11-18T10:00:00.000Z",
   thumbUrl: "https://cdn.example/t.jpg",
+  publish: { state: "none", scheduled: 0, posted: 0, channels: [], inAd: false },
+  master: { finalId: "f1", width: 1080, height: 1920 },
+  versions: [],
+  actions: { download: true, newVersion: true, delete: true, deleteBlock: null },
   ...over,
 });
 const page = (items: LibraryItem[], over: Partial<LibraryPage> = {}): LibraryPage => ({ items, total: items.length, page: 1, pageSize: 24, ...over });
@@ -100,6 +105,68 @@ describe("Made in Studio", () => {
   it("one page shows no pager", () => expect(creatives()).not.toContain("Page 1 of"));
 });
 
+describe("what a tile says and can do", () => {
+  const sent = (state: "scheduled" | "posted", channels: string[]) => ({ state, scheduled: state === "scheduled" ? 1 : 0, posted: state === "posted" ? 1 : 0, channels, inAd: false });
+  const acts = (over: Partial<NonNullable<Parameters<typeof CreativesView>[0]["actions"]>> = {}) => ({ canChange: true, ...over });
+  it("the chip says Scheduled or Posted from the handoff, in text, with the channels under the title", () => {
+    const html = creatives({ data: page([item({ id: "a", publish: sent("scheduled", ["instagram"]) }), item({ id: "b", publish: sent("posted", ["linkedin", "x"]) }), item({ id: "c" })]) });
+    expect(html).toContain("Scheduled");
+    expect(html).toContain("Posted");
+    expect(html).toContain("Story. Instagram");
+    expect(html).toContain("Story. LinkedIn, X");
+    expect(html).toContain('data-publish="scheduled"');
+    expect(html).toContain('data-publish="none"');
+  });
+  it("an editor gets Download, Make a new version and Delete, each named for the post", () => {
+    const html = creatives({ actions: acts() });
+    expect(html).toContain('aria-label="Download: Diwali sale"');
+    expect(html).toContain('aria-label="Make a new version of: Diwali sale"');
+    expect(html).toContain('aria-label="Delete: Diwali sale"');
+  });
+  it("a viewer can save a picture and nothing else", () => {
+    const html = creatives({ actions: acts({ canChange: false }) });
+    expect(html).toContain("Download");
+    expect(html).not.toContain("Make a new version");
+    expect(html).not.toContain('aria-label="Delete:');
+  });
+  it("what the api says cannot be done is not offered: no picture, not final, still being made", () => {
+    const html = creatives({ actions: acts(), data: page([item({ actions: { download: false, newVersion: false, delete: false, deleteBlock: "making" } })]) });
+    expect(html).not.toContain("Download");
+    expect(html).not.toContain("Make a new version");
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>[^]*Still being made/);
+  });
+  it("a post with a change in flight has its buttons off", () => {
+    const html = creatives({ actions: acts({ busyIds: new Set(["c1"]) }) });
+    expect(html.match(/<button[^>]*disabled=""/g)?.length).toBe(3);
+  });
+  it("Pro tools select mode swaps the buttons for a labelled checkbox", () => {
+    const html = creatives({ actions: acts({ selecting: true, selected: new Set(["c1"]) }) });
+    expect(html).toContain('aria-label="Select: Diwali sale"');
+    expect(html).toContain('aria-checked="true"');
+    expect(html).not.toContain("Make a new version");
+  });
+  it("with no actions given (the plain list) no button is drawn", () => expect(creatives()).not.toContain("Delete"));
+  it("saved plans can be deleted but not downloaded or made again", () => {
+    const html = creatives({ view: "plans", actions: acts(), data: page([item({ status: "brief", actions: { download: false, newVersion: false, delete: true, deleteBlock: null } })]) });
+    expect(html).toContain('aria-label="Delete: Diwali sale"');
+    expect(html).not.toContain("Download");
+  });
+});
+
+describe("the bulk bar", () => {
+  const bar = (count: number, busy = false) => renderToStaticMarkup(<BulkBar count={count} busy={busy} onDelete={() => {}} onArchive={() => {}} onClear={() => {}} />);
+  it("is not there until something is selected", () => expect(bar(0)).toBe(""));
+  it("says how many are selected and offers delete, put away and clear", () => {
+    const html = bar(2);
+    expect(html).toContain("2 selected");
+    expect(html).toContain("Delete selected");
+    expect(html).toContain("Put away selected");
+    expect(html).toContain("Clear selection");
+    expect(bar(1)).toContain("1 selected");
+  });
+  it("its buttons are off while a change is on its way", () => expect(bar(2, true).match(/<button[^>]*disabled=""/g)?.length).toBe(3));
+});
+
 describe("Saved plans", () => {
   it("empty has its own words", () => {
     const html = creatives({ view: "plans", data: page([]) });
@@ -110,66 +177,94 @@ describe("Saved plans", () => {
   it("an error names the plans", () => expect(creatives({ view: "plans", status: "error", data: undefined })).toContain("your saved plans"));
 });
 
-const photo = (over: Partial<ProductImageItem> = {}): ProductImageItem => ({
-  id: "i1",
-  source: "shopify",
+const tile = (over: Partial<ProductPhotoTile> = {}): ProductPhotoTile => ({
   productId: "p1",
-  productTitle: "Silk saree",
-  sourceProductId: "s1",
-  sourceImageId: "img1",
-  position: 0,
-  importedAt: "2026-11-18T10:00:00.000Z",
-  media: { id: "m1", name: "a.jpg", mimeType: "image/jpeg", visibility: "published", publicUrl: "https://cdn.example/p.jpg" },
+  title: "Silk saree",
+  count: 2,
+  main: { mediaId: "m1", source: "store", isMain: true, thumbUrl: "https://cdn.example/p.jpg" },
   ...over,
 });
 const photos = (over: Partial<Parameters<typeof ProductPhotosView>[0]> = {}) =>
-  renderToStaticMarkup(
-    <ProductPhotosView status="ready" items={[photo()]} imports={[]} hasMore={false} loadingMore={false} onRetry={() => {}} onMore={() => {}} locale="en-GB" {...over} />,
-  );
+  renderToStaticMarkup(<ProductPhotosView status="ready" tiles={[tile()]} imports={[]} hasMore={false} loadingMore={false} onRetry={() => {}} onMore={() => {}} locale="en-GB" {...over} />);
 
 describe("Product photos", () => {
   it("loading, error and offline are not an empty list", () => {
-    expect(photos({ status: "loading", items: [] })).toContain('aria-busy="true"');
-    const err = photos({ status: "error", items: [] });
+    expect(photos({ status: "loading", tiles: [] })).toContain('aria-busy="true"');
+    const err = photos({ status: "error", tiles: [] });
     expect(err).toContain("couldn&#x27;t load your product photos");
     expect(err).toContain("Retry");
     expect(err).not.toContain("No product photos yet");
-    expect(photos({ status: "offline", items: [] })).not.toContain("No product photos yet");
+    expect(photos({ status: "offline", tiles: [] })).not.toContain("No product photos yet");
   });
   it("empty: the spec's words and Upload a photo to Drive", () => {
-    const html = photos({ items: [] });
+    const html = photos({ tiles: [] });
     expect(html).toContain("No product photos yet");
     expect(html).toContain("Your store photos are added here automatically. You can also upload your own.");
     expect(html).toContain('href="/dashboard/drive"');
     expect(html).toContain("Upload a photo");
   });
   it("empty while an import runs shows progress, not the empty state", () => {
-    const html = photos({ items: [], imports: [{ source: "shopify", status: "running" }] });
+    const html = photos({ tiles: [], imports: [{ source: "shopify", status: "running" }] });
     expect(html).toContain("Getting photos from your Shopify store...");
     expect(html).toContain('role="progressbar"');
     expect(html).not.toContain("No product photos yet");
   });
-  it("a product tile: title, photo count, main photo alt", () => {
-    const html = photos({ items: [photo({ id: "a", position: 1 }), photo({ id: "b" })] });
+  it("a product tile: title, photo count, main photo alt, and See photos", () => {
+    const html = photos({ onOpen: () => {} });
     expect(html).toContain("Silk saree");
     expect(html).toContain("2 photos");
     expect(html).toContain('alt="Photo of Silk saree"');
-    expect(html).toContain("Add photo");
+    expect(html).toContain('aria-label="Photos of Silk saree"');
+    expect(html).toContain("See photos");
   });
-  it("a private photo falls back quietly, or to the container's own renderer", () => {
-    const priv = photo({ media: { id: "m9", name: "a.jpg", mimeType: "image/jpeg", visibility: "private" } });
-    expect(photos({ items: [priv] })).toContain("Photo not shown");
-    expect(photos({ items: [priv], renderPrivate: (m) => <span>signed {m.id}</span> })).toContain("signed");
+  it("a product with no photo says so, shows no photo, and offers no See photos (only the Add control the container passes)", () => {
+    const html = photos({ tiles: [tile({ count: 0, main: null })], onOpen: () => {}, renderAdd: (t) => <button type="button">Add photo: {t.title}</button> });
+    expect(html).toContain("No photos yet");
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("See photos");
+    expect(html).toContain("Add photo: Silk saree");
   });
-  it("a next page offers Show more products; while it loads the button is off", () => {
+  it("a viewer gets no Add control (the container passes none)", () => expect(photos()).not.toContain("Add photo"));
+  it("a photo whose link could not be signed falls back quietly", () => expect(photos({ tiles: [tile({ main: { mediaId: "m9", source: "library", isMain: true, thumbUrl: null } })] })).toContain("Photo not shown"));
+  it("a next page offers Show more photos; while it loads the button is off", () => {
     expect(photos({ hasMore: true })).toContain("Show more photos");
     expect(photos({ hasMore: true, loadingMore: true })).toMatch(/<button[^>]*disabled=""[^>]*>Loading more/);
     expect(photos()).not.toContain("Show more photos");
   });
   it("while more pages wait, a count is a floor, not a claim", () => {
-    const items = [photo({ id: "a" }), photo({ id: "b", position: 1 })];
-    expect(photos({ items, hasMore: true })).toContain("2+ photos");
-    expect(photos({ items, hasMore: false })).toContain("2 photos");
+    expect(photos({ hasMore: true })).toContain("2+ photos");
+    expect(photos({ hasMore: false })).toContain("2 photos");
+  });
+});
+
+describe("one product's photos", () => {
+  const one = (over: Partial<ProductPhotosOne> = {}): ProductPhotosOne => ({
+    productId: "p1",
+    title: "Silk saree",
+    count: 2,
+    photos: [
+      { mediaId: "m1", source: "store", isMain: true, thumbUrl: "https://cdn.example/a.jpg" },
+      { mediaId: "m2", source: "library", isMain: false, thumbUrl: null },
+    ],
+    ...over,
+  });
+  const list = (over: Partial<Parameters<typeof ProductPhotoList>[0]> = {}) =>
+    renderToStaticMarkup(<ProductPhotoList status="ready" data={one()} canChange onRetry={() => {}} onSetMain={() => {}} {...over} />);
+  it("the main photo is chipped, each says where it came from, and only the others can be made main", () => {
+    const html = list();
+    expect(html).toContain("Main photo");
+    expect(html).toContain("From your store");
+    expect(html).toContain("Added by you");
+    expect((html.match(/>Set as main photo</g) ?? []).length).toBe(1);
+    expect(html).toContain('aria-label="Set as main photo: Silk saree"');
+    expect(html).toContain("Photo not shown");
+  });
+  it("a viewer sees the photos and cannot change the main one", () => expect(list({ canChange: false })).not.toContain("Set as main photo"));
+  it("the photo being changed has its button off", () => expect(list({ busyId: "m2" })).toMatch(/<button[^>]*disabled=""[^>]*>Set as main photo/));
+  it("loading, error and offline are states, not an empty list", () => {
+    expect(list({ status: "loading", data: undefined })).toContain('aria-busy="true"');
+    expect(list({ status: "error", data: undefined })).toContain("Retry");
+    expect(list({ status: "offline", data: undefined })).toContain("offline");
   });
 });
 
@@ -199,12 +294,16 @@ describe("import status per store", () => {
 
 describe("filters and Add from", () => {
   it("filters are labelled controls", () => {
-    const html = renderToStaticMarkup(<LibraryFilters q="" status="has_final" onQ={() => {}} onStatus={() => {}} />);
-    expect(html).toContain('for="studio-library-search"');
-    expect(html).toContain('id="studio-library-search"');
-    expect(html).toContain('for="studio-library-status"');
+    const html = renderToStaticMarkup(<LibraryFilters q="" values={{ status: "has_final", publish: "", channel: "", from: "", to: "" }} onQ={() => {}} onChange={() => {}} />);
+    for (const id of ["search", "status", "sent", "channel", "from", "to"]) {
+      expect(html).toContain(`for="studio-library-${id}"`);
+      expect(html).toContain(`id="studio-library-${id}"`);
+    }
     expect(html).toContain("Finals");
     expect(html).toContain("Archived");
+    expect(html).toContain("Not sent yet");
+    expect(html).toContain("Instagram");
+    expect(html).toContain('type="date"');
   });
   it("the Add from sources are the spec's, and the closed dialog draws without a call", () => {
     expect(STUDIO_COPY.library.addFrom.sources).toEqual(["Google Drive", "Dropbox", "Canva", "Instagram posts", "Meta ads"]);

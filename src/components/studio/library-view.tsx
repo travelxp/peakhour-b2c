@@ -1,14 +1,15 @@
 import Link from "next/link";
-import { Image as ImageIcon, ImageOff, Info, RefreshCw } from "lucide-react";
-import type { LibraryItem, LibraryPage, LibraryView as LibraryViewKind } from "@/lib/api/creative";
-import type { ProductImageItem, ProductImportStatus } from "@/lib/api/media";
+import { Copy, Download, Image as ImageIcon, ImageOff, Info, RefreshCw, Star, Trash2 } from "lucide-react";
+import type { LibraryItem, LibraryPage, LibraryView as LibraryViewKind, ProductPhotoTile, ProductPhotosOne } from "@/lib/api/creative";
+import type { ProductImportStatus } from "@/lib/api/media";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { QueryError } from "@/components/dashboard/query-error";
-import { chipFor, creativeHref, groupProductPhotos, importLines, itemTitle, pageCount } from "@/lib/studio-library";
+import { chipFor, creativeHref, importLines, itemTitle, pageCount, sentTo } from "@/lib/studio-library";
 import { STUDIO_ROUTES, type IdeasFeedStatus } from "@/lib/studio";
 import { STUDIO_COPY } from "@/lib/studio-copy";
 
@@ -26,15 +27,33 @@ function Loading() {
   );
 }
 
-function CreativeTile({ item, view }: { item: LibraryItem; view: LibraryViewKind }) {
+/** What a tile can do, as callbacks: the view draws, the container decides. A viewer reads and saves a picture but changes nothing. */
+export interface TileActions {
+  canChange: boolean;
+  /** Pro tools select mode: a checkbox replaces the buttons. */
+  selecting?: boolean;
+  selected?: ReadonlySet<string>;
+  /** The creatives with a change in flight. */
+  busyIds?: ReadonlySet<string>;
+  onToggle?: (id: string) => void;
+  onDownload?: (item: LibraryItem) => void;
+  onNewVersion?: (item: LibraryItem) => void;
+  onDelete?: (item: LibraryItem) => void;
+}
+
+function CreativeTile({ item, view, actions }: { item: LibraryItem; view: LibraryViewKind; actions?: TileActions }) {
   const title = itemTitle(item);
   const format = FORMAT_LABEL[item.format] ?? item.format;
+  const A = C.actions;
+  const busy = actions?.busyIds?.has(item.id) ?? false;
+  const sent = view === "made" ? sentTo(item) : "";
+  const canChange = actions?.canChange ?? false;
   return (
-    <li className="min-w-0">
+    <li className="flex min-w-0 flex-col overflow-hidden rounded-lg border bg-card" data-publish={view === "made" ? item.publish.state : undefined}>
       <Link
         href={creativeHref(item.id)}
         aria-label={`${C.open}: ${C.itemLabel(title, format)}`}
-        className="group flex h-full flex-col overflow-hidden rounded-lg border bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="group flex flex-1 flex-col focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <div className="relative aspect-[4/5] bg-muted">
           {item.thumbUrl ? (
@@ -52,10 +71,71 @@ function CreativeTile({ item, view }: { item: LibraryItem; view: LibraryViewKind
         </div>
         <div className="space-y-0.5 p-3">
           <p className="truncate text-sm font-medium">{title}</p>
-          <p className="text-xs text-muted-foreground">{format}</p>
+          <p className="text-xs text-muted-foreground">{sent ? `${format}. ${sent}` : format}</p>
         </div>
       </Link>
+      {actions && (
+        <div className="flex flex-wrap items-center gap-2 border-t p-2">
+          {actions.selecting && canChange ? (
+            <label className="flex min-h-11 flex-1 items-center gap-2 text-sm">
+              <Checkbox checked={actions.selected?.has(item.id) ?? false} onCheckedChange={() => actions.onToggle?.(item.id)} aria-label={C.bulk.selectLabel(title)} />
+              {C.bulk.selectLabel(title)}
+            </label>
+          ) : (
+            <>
+              {item.actions.download && (
+                <Button type="button" variant="outline" className="h-11 gap-1.5" aria-label={A.downloadLabel(title)} disabled={busy} onClick={() => actions.onDownload?.(item)}>
+                  <Download aria-hidden="true" className="size-4" />
+                  {A.download}
+                </Button>
+              )}
+              {canChange && item.actions.newVersion && (
+                <Button type="button" variant="outline" className="h-11 gap-1.5" aria-label={A.newVersionLabel(title)} disabled={busy} onClick={() => actions.onNewVersion?.(item)}>
+                  <Copy aria-hidden="true" className="size-4" />
+                  {A.newVersion}
+                </Button>
+              )}
+              {canChange && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 gap-1.5 text-destructive"
+                  aria-label={A.deleteLabel(title)}
+                  disabled={busy || !item.actions.delete}
+                  onClick={() => actions.onDelete?.(item)}
+                >
+                  <Trash2 aria-hidden="true" className="size-4" />
+                  {item.actions.deleteBlock === "making" ? A.stillMaking : A.delete}
+                </Button>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </li>
+  );
+}
+
+/** Pro tools: what is selected, and what to do with it. Hidden until something is selected. */
+export function BulkBar({ count, busy, onDelete, onArchive, onClear }: { count: number; busy: boolean; onDelete: () => void; onArchive: () => void; onClear: () => void }) {
+  const B = C.bulk;
+  if (count === 0) return null;
+  return (
+    <div role="region" aria-label={B.selected(count)} className="sticky bottom-2 z-10 flex flex-wrap items-center gap-2 rounded-lg border bg-card p-3 shadow-md">
+      <p role="status" aria-live="polite" className="me-auto text-sm font-medium">
+        {B.selected(count)}
+      </p>
+      <Button type="button" variant="outline" className="h-11" disabled={busy} onClick={onArchive}>
+        {B.archiveSelected}
+      </Button>
+      <Button type="button" variant="outline" className="h-11 gap-1.5 text-destructive" disabled={busy} onClick={onDelete}>
+        <Trash2 aria-hidden="true" className="size-4" />
+        {B.deleteSelected}
+      </Button>
+      <Button type="button" variant="ghost" className="h-11" disabled={busy} onClick={onClear}>
+        {B.clear}
+      </Button>
+    </div>
   );
 }
 
@@ -72,6 +152,7 @@ export function CreativesView({
   onClearFilters,
   onPage,
   announcement = "",
+  actions,
 }: {
   view: LibraryViewKind;
   status: IdeasFeedStatus;
@@ -82,6 +163,7 @@ export function CreativesView({
   onClearFilters: () => void;
   onPage: (page: number) => void;
   announcement?: string;
+  actions?: TileActions;
 }) {
   const what = view === "plans" ? C.error.plans : C.error.made;
   const pages = data ? pageCount(data.total, data.pageSize) : 1;
@@ -116,7 +198,7 @@ export function CreativesView({
           {data.items.length > 0 && (
             <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               {data.items.map((it) => (
-                <CreativeTile key={it.id} item={it} view={view} />
+                <CreativeTile key={it.id} item={it} view={view} actions={actions} />
               ))}
             </ul>
           )}
@@ -172,61 +254,70 @@ export function ImportStatusList({ imports, locale }: { imports: ProductImportSt
   );
 }
 
-type RenderPrivate = (media: ProductImageItem["media"], alt: string) => React.ReactNode;
-
-function PhotoTile({ item, count, partial, title, renderPrivate }: { item: ProductImageItem; count: number; partial: boolean; title: string; renderPrivate?: RenderPrivate }) {
-  const alt = C.photoAlt(title);
-  const url = item.media.publicUrl;
+function ProductTile({ tile, partial, addSlot, onOpen }: { tile: ProductPhotoTile; partial: boolean; addSlot?: React.ReactNode; onOpen?: (t: ProductPhotoTile) => void }) {
+  const alt = C.photoAlt(tile.title);
+  const url = tile.main?.thumbUrl;
   return (
-    <li className="min-w-0 overflow-hidden rounded-lg border bg-card">
+    <li className="min-w-0 overflow-hidden rounded-lg border bg-card" data-product-photos={tile.count}>
       <div className="aspect-square bg-muted">
         {url ? (
-          // eslint-disable-next-line @next/next/no-img-element -- merchant media stays off the optimiser; see MediaImage
+          // eslint-disable-next-line @next/next/no-img-element -- a signed Drive link; see MediaImage for why this stays off the optimiser
           <img src={url} alt={alt} loading="lazy" decoding="async" className="size-full object-cover" />
         ) : (
-          (renderPrivate?.(item.media, alt) ?? (
-            <div className="flex size-full flex-col items-center justify-center gap-1 text-muted-foreground">
-              <ImageOff aria-hidden="true" className="size-6" />
-              <span className="text-xs">{C.noPhotoPreview}</span>
-            </div>
-          ))
+          <div className="flex size-full flex-col items-center justify-center gap-1 text-muted-foreground">
+            <ImageOff aria-hidden="true" className="size-6" />
+            <span className="text-xs">{tile.count === 0 ? C.noPhotosYet : C.noPhotoPreview}</span>
+          </div>
         )}
       </div>
-      <div className="space-y-0.5 p-3">
-        <p className="truncate text-sm font-medium">{title}</p>
-        <p className="text-xs text-muted-foreground">{partial ? C.photoCountAtLeast(count) : C.photoCount(count)}</p>
+      <div className="space-y-2 p-3">
+        <div className="space-y-0.5">
+          <p className="truncate text-sm font-medium">{tile.title}</p>
+          <p className="text-xs text-muted-foreground">{tile.count === 0 ? C.noPhotosYet : partial ? C.photoCountAtLeast(tile.count) : C.photoCount(tile.count)}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {tile.count > 0 && onOpen && (
+            <Button type="button" variant="outline" className="h-11" aria-label={C.photosOf(tile.title)} onClick={() => onOpen(tile)}>
+              {C.seePhotos}
+            </Button>
+          )}
+          {addSlot}
+        </div>
       </div>
     </li>
   );
 }
 
 /**
- * "Product photos": where each store's import stands, then one tile per product with its photo count. The api pages by photo, so while
- * more pages wait the count is a floor ("3+ photos") and the tile shows the first photo loaded for the product, not a claimed main one. A store's own photos arrive on their
- * own; "Add photo" opens Drive, where the merchant's own are uploaded.
+ * "Product photos": where each store's import stands, then one tile per product with its photo count and main photo. "Add photo" links a photo that is
+ * already in the Library (nothing is uploaded to the store); "See photos" opens the product's photos so one can be set as the main one. The api pages by
+ * product, so while more pages wait the list is not claimed as the whole catalogue.
  */
 export function ProductPhotosView({
   status,
-  items,
+  tiles,
   imports,
   hasMore,
   loadingMore,
   onRetry,
   onMore,
-  renderPrivate,
+  onOpen,
+  renderAdd,
   locale,
 }: {
   status: IdeasFeedStatus;
-  items: ProductImageItem[];
+  tiles: ProductPhotoTile[];
   imports: ProductImportStatus[];
   hasMore: boolean;
   loadingMore: boolean;
   onRetry: () => void;
   onMore: () => void;
-  renderPrivate?: RenderPrivate;
+  /** Open a product's photos (a sheet in the container). Left off, the button is not drawn. */
+  onOpen?: (t: ProductPhotoTile) => void;
+  /** The "Add photo" control of one product (an editor's; a viewer gets none). */
+  renderAdd?: (t: ProductPhotoTile) => React.ReactNode;
   locale?: string;
 }) {
-  const groups = groupProductPhotos(items);
   const running = imports.some((i) => i.status === "running");
   return (
     <div className="space-y-4">
@@ -236,30 +327,89 @@ export function ProductPhotosView({
       {status === "ready" && (
         <>
           <ImportStatusList imports={imports} locale={locale} />
-          {groups.length === 0 && !running && (
+          {tiles.length === 0 && !running && (
             <EmptyState icon={ImageIcon} title={C.photosEmpty.title} description={C.photosEmpty.description} action={{ label: C.photosEmpty.action, href: C.uploadHref }} />
           )}
-          {groups.length > 0 && (
+          {tiles.length > 0 && (
             <>
               <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                {groups.map((g) => (
-                  <PhotoTile key={g.key} item={g.main} count={g.count} partial={hasMore} title={g.title} renderPrivate={renderPrivate} />
+                {tiles.map((t) => (
+                  <ProductTile key={t.productId} tile={t} partial={hasMore} onOpen={onOpen} addSlot={renderAdd?.(t)} />
                 ))}
               </ul>
-              <div className="flex flex-wrap items-center gap-3">
-                {hasMore && (
+              {hasMore && (
+                <div className="flex flex-wrap items-center gap-3">
                   <Button type="button" variant="outline" className="h-11" disabled={loadingMore} onClick={onMore}>
                     {loadingMore ? C.loadingMore : C.morePhotos}
                   </Button>
-                )}
-                <Button asChild variant="outline" className="h-11">
-                  <Link href={C.uploadHref}>{C.addPhoto}</Link>
-                </Button>
-              </div>
+                </div>
+              )}
             </>
           )}
         </>
       )}
     </div>
+  );
+}
+
+/** One product's photos, main first: where each came from, and "Set as main photo" on the others (an editor's). */
+export function ProductPhotoList({
+  status,
+  data,
+  canChange,
+  busyId,
+  onRetry,
+  onSetMain,
+}: {
+  status: IdeasFeedStatus;
+  data?: ProductPhotosOne;
+  canChange: boolean;
+  /** The photo whose change is in flight. */
+  busyId?: string | null;
+  onRetry: () => void;
+  onSetMain: (mediaId: string) => void;
+}) {
+  if (status === "loading") {
+    return (
+      <div aria-busy="true" aria-label={C.photosLoading} className="grid grid-cols-2 gap-3">
+        {[0, 1].map((i) => (
+          <Skeleton key={i} className="aspect-square rounded-lg" />
+        ))}
+      </div>
+    );
+  }
+  if (status === "offline") return <QueryError what={C.photosError} kind="offline" />;
+  if (status === "error" || !data) return <QueryError what={C.photosError} onRetry={onRetry} />;
+  return (
+    <ul className="grid grid-cols-2 gap-3">
+      {data.photos.map((p) => (
+        <li key={p.mediaId} data-main={p.isMain} className="overflow-hidden rounded-lg border bg-card">
+          <div className="aspect-square bg-muted">
+            {p.thumbUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- a signed Drive link; see MediaImage for why this stays off the optimiser
+              <img src={p.thumbUrl} alt={C.photoAlt(data.title)} loading="lazy" decoding="async" className="size-full object-cover" />
+            ) : (
+              <div className="flex size-full items-center justify-center text-xs text-muted-foreground">{C.noPhotoPreview}</div>
+            )}
+          </div>
+          <div className="space-y-2 p-3">
+            <div className="flex flex-wrap gap-1.5">
+              {p.isMain && (
+                <Badge variant="secondary" className="gap-1">
+                  <Star aria-hidden="true" className="size-3" />
+                  {C.mainChip}
+                </Badge>
+              )}
+              <Badge variant="outline">{p.source === "store" ? C.sourceStore : C.sourceLibrary}</Badge>
+            </div>
+            {canChange && !p.isMain && (
+              <Button type="button" variant="outline" className="h-11 w-full" aria-label={C.setMainLabel(data.title)} disabled={busyId === p.mediaId} onClick={() => onSetMain(p.mediaId)}>
+                {C.setMain}
+              </Button>
+            )}
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
