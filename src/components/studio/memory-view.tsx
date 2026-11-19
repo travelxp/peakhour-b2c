@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Download, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
-import type { MemoryLine, MemoryRead } from "@/lib/api/creative";
+import type { MemoryLine, MemoryRead, MemoryTrends } from "@/lib/api/creative";
 import { MEMORY_LINE_MAX } from "@/lib/api/creative";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { EmptyState } from "@/components/molecules/empty-state";
+import { KpiCard } from "@/components/molecules/kpi-card";
+import { MeasurementBadge } from "@/components/growth-v2/measurement-badge";
 import { QueryError } from "@/components/dashboard/query-error";
 import { checkDraft, lineNote, tasteLines } from "@/lib/studio-memory";
 import { STUDIO_ROUTES, type IdeasFeedStatus } from "@/lib/studio";
@@ -144,6 +146,53 @@ function AddLine({ actions }: { actions: MemoryActions }) {
 }
 
 /**
+ * "Is it getting better?": below 10 approved posts the one plain line; past that, three cards (now against the first month, with the posts behind each
+ * number), or "still comparing" while the first month or the latest stretch has too few posts of its own. Never a before/after claim as proof: the
+ * words say "now" and "in your first month", and the badge says how many posts it is read from.
+ */
+export function TrendsSection({ trends }: { trends: MemoryTrends }) {
+  return (
+    <section aria-labelledby="studio-trends-title" className="space-y-2">
+      <h2 id="studio-trends-title" className="text-lg font-semibold">
+        {C.trendsTitle}
+      </h2>
+      {!trends.enough ? (
+        <>
+          <p className="text-sm text-muted-foreground">{C.trendsNeed(trends.needs)}</p>
+          <p className="text-xs text-muted-foreground">{C.trendsPosts(trends.approvedPosts)}</p>
+        </>
+      ) : trends.lines.length === 0 ? (
+        <>
+          <p className="text-sm text-muted-foreground">{C.trendsReady(trends.approvedPosts)}</p>
+          <p className="text-sm text-muted-foreground">{C.trendsBuilding}</p>
+        </>
+      ) : (
+        <>
+          <p className="text-sm text-muted-foreground">{C.trendsReady(trends.approvedPosts)}</p>
+          <ul className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+            {trends.lines.map((t) => {
+              const title = C.trendTitles[t.key];
+              const now = C.trendValue(t.unit, t.now);
+              const first = C.trendValue(t.unit, t.first);
+              return (
+                <li key={t.key} data-trend={t.key} data-direction={t.direction} className="space-y-1.5">
+                  <KpiCard title={title} value={now} description={C.trendDirection[t.direction]} />
+                  <MeasurementBadge state="measured" detail={C.trendEvidence(t.evidence.now, t.evidence.first)} />
+                  <p className="sr-only">{C.trendSummary(title, now, first)}</p>
+                  <p aria-hidden="true" className="text-xs text-muted-foreground">
+                    {C.trendFirst(first)}
+                  </p>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+    </section>
+  );
+}
+
+/**
  * "What we've learned about you" (UX spec S15), drawn from what it is told so every state can be rendered and tested on its own.
  * Sections in order: Your taste (each line with its evidence and "Stop using this"), Rules that always win (read only, never editable
  * here), Is it getting better, Privacy. Edit and Add are Pro tools. A viewer reads everything and changes nothing.
@@ -151,6 +200,9 @@ function AddLine({ actions }: { actions: MemoryActions }) {
 export function MemoryView({
   status,
   data,
+  hasMore = false,
+  loadingMore = false,
+  onMore = () => {},
   proTools,
   canChange,
   busyIds,
@@ -162,6 +214,10 @@ export function MemoryView({
 }: {
   status: IdeasFeedStatus;
   data?: MemoryRead;
+  /** More lines wait on the api (the cursor), and the next page is on its way. */
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  onMore?: () => void;
   proTools: boolean;
   /** Editor or above. The api refuses a viewer's change; the buttons say so up front. */
   canChange: boolean;
@@ -197,7 +253,7 @@ export function MemoryView({
             {C.tasteTitle}
           </h2>
           {!canChange && <p className="text-sm text-muted-foreground">{C.viewerNote}</p>}
-          {taste.length === 0 ? (
+          {taste.length === 0 && !hasMore ? (
             <EmptyState
               className="min-h-0"
               icon={Sparkles}
@@ -213,6 +269,12 @@ export function MemoryView({
                   <LineRow key={l.id} line={l} canChange={canChange} proTools={proTools} initialEditing={initialEditingId === l.id} busy={busyIds?.has(l.id) ?? false} actions={actions} />
                 ))}
               </ul>
+              {(hasMore || data.totalLines > taste.length) && <p className="text-xs text-muted-foreground">{C.shownOf(taste.length, data.totalLines)}</p>}
+              {hasMore && (
+                <Button type="button" variant="outline" className="h-11" disabled={loadingMore} onClick={onMore}>
+                  {loadingMore ? C.loadingMoreLines : C.moreLines}
+                </Button>
+              )}
             </>
           )}
           {showAdd && <AddLine actions={actions} />}
@@ -242,13 +304,7 @@ export function MemoryView({
       </div>
 
       <div className="space-y-6">
-        <section aria-labelledby="studio-trends-title" className="space-y-2">
-          <h2 id="studio-trends-title" className="text-lg font-semibold">
-            {C.trendsTitle}
-          </h2>
-          <p className="text-sm text-muted-foreground">{data.trends.enough ? C.trendsReady(data.trends.approvedPosts) : C.trendsNeed(data.trends.needs)}</p>
-          {!data.trends.enough && <p className="text-xs text-muted-foreground">{C.trendsPosts(data.trends.approvedPosts)}</p>}
-        </section>
+        <TrendsSection trends={data.trends} />
 
         <section aria-labelledby="studio-privacy-title" className="space-y-3">
           <h2 id="studio-privacy-title" className="text-lg font-semibold">

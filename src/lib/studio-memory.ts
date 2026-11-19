@@ -1,5 +1,5 @@
 import { ApiError } from "@/lib/api";
-import { MEMORY_LINE_MAX, type MemoryExport, type MemoryLine, type MemoryRead } from "@/lib/api/creative";
+import { MEMORY_LINE_MAX, type MemoryExport, type MemoryLine, type MemoryPage, type MemoryRead } from "@/lib/api/creative";
 import { STUDIO_COPY } from "@/lib/studio-copy";
 
 /** Pure helpers for "What we've learned about you" (UX spec S15). No React, no fetching: tested directly. */
@@ -43,3 +43,39 @@ export const tasteLines = (m: Pick<MemoryRead, "lines">): MemoryLine[] => m.line
 
 /** The JSON a merchant keeps. Pretty-printed so a person can read it. */
 export const exportBody = (data: MemoryExport): string => JSON.stringify(data, null, 2);
+
+/**
+ * The page the view draws, from the pages read so far: the first page's rules, trends and opt-in, every line read (a line that a later page repeats is
+ * drawn once), and the cursor of the last page (absent when everything has been read). Undefined until the first page is in.
+ */
+export function assembleMemory(pages: MemoryPage[] | undefined): MemoryRead | undefined {
+  const first = pages?.[0];
+  if (!pages || !first || !first.rules || !first.trends) return undefined;
+  const seen = new Set<string>();
+  const lines: MemoryLine[] = [];
+  for (const p of pages) {
+    for (const l of p.lines) {
+      if (seen.has(l.id)) continue;
+      seen.add(l.id);
+      lines.push(l);
+    }
+  }
+  const next = pages[pages.length - 1]!.next;
+  return {
+    lines,
+    ...(next ? { next } : {}),
+    totalLines: first.totalLines ?? lines.length,
+    rules: first.rules,
+    note: first.note ?? "",
+    trends: first.trends,
+    pooledOptIn: first.pooledOptIn ?? false,
+  };
+}
+
+/** Change what the pages hold without reading them again: every line through `fn`, and the first page's own fields through `top`. */
+export function patchPages(pages: MemoryPage[], fn: (lines: MemoryLine[]) => MemoryLine[], top?: (first: MemoryPage) => MemoryPage): MemoryPage[] {
+  return pages.map((p, i) => {
+    const next = { ...p, lines: fn(p.lines) };
+    return i === 0 && top ? top(next) : next;
+  });
+}

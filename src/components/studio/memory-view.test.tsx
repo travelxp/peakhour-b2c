@@ -12,7 +12,7 @@ vi.mock("next/link", () => ({
 const { MemoryView } = await import("./memory-view");
 const { STUDIO_COPY } = await import("@/lib/studio-copy");
 
-import type { MemoryLine, MemoryRead } from "@/lib/api/creative";
+import type { MemoryLine, MemoryRead, MemoryTrends } from "@/lib/api/creative";
 
 const line = (over: Partial<MemoryLine> = {}): MemoryLine => ({
   id: "l1",
@@ -32,8 +32,23 @@ const data = (over: Partial<MemoryRead> = {}): MemoryRead => ({
     { text: "Health claims follow IN rules.", changeIn: null },
   ],
   note: "Learning never overrides these.",
-  trends: { approvedPosts: 3, enough: false, needs: 10 },
+  totalLines: 1,
+  trends: { approvedPosts: 3, enough: false, needs: 10, comparable: false, firstMonth: null, now: null, lines: [] },
   pooledOptIn: false,
+  ...over,
+});
+const trends = (over: Partial<MemoryTrends> = {}): MemoryTrends => ({
+  approvedPosts: 14,
+  enough: true,
+  needs: 10,
+  comparable: true,
+  firstMonth: { from: "2026-11-01T00:00:00.000Z", to: "2026-12-01T00:00:00.000Z", posts: 4 },
+  now: { from: "2026-12-01T00:00:00.000Z", to: "2026-12-20T00:00:00.000Z", posts: 10 },
+  lines: [
+    { key: "liked_first_try", now: 38, first: 21, unit: "percent", direction: "better", evidence: { now: 10, first: 4 } },
+    { key: "changes_per_post", now: 1.2, first: 2.5, unit: "count", direction: "better", evidence: { now: 10, first: 4 } },
+    { key: "peaks_per_post", now: 640, first: 780, unit: "peaks", direction: "better", evidence: { now: 10, first: 4 } },
+  ],
   ...over,
 });
 const actions = { onStop: () => {}, onSave: async () => true, onAdd: async () => true, onPooled: () => {}, onExport: () => {}, onWipe: () => {} };
@@ -151,7 +166,37 @@ describe("trend and privacy", () => {
     expect(html).toContain("Needs about 10 posts to show a trend.");
     expect(html).toContain("3 approved posts so far.");
   });
-  it("with enough posts it says what it is based on", () => expect(render({ data: data({ trends: { approvedPosts: 14, enough: true, needs: 10 } }) })).toContain("Based on 14 approved posts."));
+  it("with enough posts it says what it is based on", () => expect(render({ data: data({ trends: trends() }) })).toContain("Based on 14 approved posts."));
+  it("shows the three lines, each now against the first month, with the posts behind it", () => {
+    const html = render({ data: data({ trends: trends() }) });
+    for (const t of ["Liked on the first try", "Changes per approved post", "Peaks per approved post"]) expect(html).toContain(t);
+    expect(html).toContain("38%");
+    expect(html).toContain("1.2");
+    expect(html).toContain("640 Peaks");
+    expect(html).toContain("Based on 10 recent posts and 4 from your first month.");
+    expect(html).toContain("Liked on the first try: 38% now, 21% in your first month");
+    expect(html).toContain("Peaks per approved post: 640 Peaks now, 780 Peaks in your first month");
+    expect(html).toContain("Better than your first month");
+    expect(html).toContain('data-direction="better"');
+    expect(html).not.toContain("Needs about 10 posts");
+  });
+  it("says worse and same as they are, never as proof", () => {
+    const html = render({ data: data({ trends: trends({ lines: [{ key: "liked_first_try", now: 10, first: 30, unit: "percent", direction: "worse", evidence: { now: 5, first: 5 } }, { key: "peaks_per_post", now: 5, first: 5, unit: "peaks", direction: "same", evidence: { now: 5, first: 5 } }] }) }) });
+    expect(html).toContain("Not better than your first month yet");
+    expect(html).toContain("The same as your first month");
+    expect(html).not.toMatch(/proved|because of/i);
+  });
+  it("past ten posts but with a stretch too thin to compare it says it is still comparing, and draws no card", () => {
+    const html = render({ data: data({ trends: trends({ comparable: false, lines: [] }) }) });
+    expect(html).toContain("Based on 14 approved posts.");
+    expect(html).toContain("Still comparing with your first month.");
+    expect(html).not.toContain("Liked on the first try");
+  });
+  it("under ten posts keeps the one plain line (no cards, no comparison)", () => {
+    const html = render({ data: data({ trends: trends({ approvedPosts: 9, enough: false, comparable: false, lines: [], firstMonth: null, now: null }) }) });
+    expect(html).toContain("Needs about 10 posts to show a trend.");
+    expect(html).not.toContain("Liked on the first try");
+  });
   it("the opt-in switch is a labelled switch, off by default, with its help", () => {
     const html = render();
     expect(html).toContain('for="studio-pooled"');
@@ -173,5 +218,32 @@ describe("trend and privacy", () => {
   });
   it("the wipe confirmation says it cannot be undone and the Library is untouched", () => {
     expect(STUDIO_COPY.learned.wipeBody).toBe("This can't be undone. Your Library isn't touched.");
+  });
+});
+
+describe("paging the taste lines", () => {
+  const many = (n: number) => Array.from({ length: n }, (_, i) => line({ id: `l${i}`, text: `Line ${i}` }));
+  it("with more waiting it says how many are shown and offers Show more", () => {
+    const html = render({ data: data({ lines: many(50), totalLines: 230 }), hasMore: true });
+    expect(html).toContain("Showing 50 of 230");
+    expect(html).toContain("Show more");
+  });
+  it("while the next page loads the button is off and says so", () => {
+    const html = render({ data: data({ lines: many(50), totalLines: 230 }), hasMore: true, loadingMore: true });
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Loading more/);
+  });
+  it("on the last page there is no button, and the count still says it is all of them", () => {
+    const html = render({ data: data({ lines: many(3), totalLines: 3 }), hasMore: false });
+    expect(html).not.toContain("Show more");
+    expect(html).not.toContain("Showing");
+  });
+  it("a first page with no taste line on it but more behind it is not 'nothing learned yet'", () => {
+    const html = render({ data: data({ lines: [], totalLines: 4 }), hasMore: true });
+    expect(html).not.toContain("Nothing learned yet");
+    expect(html).toContain("Show more");
+  });
+  it("a short page that has more behind it does not claim to be everything", () => {
+    const html = render({ data: data({ lines: many(5), totalLines: 8 }), hasMore: false });
+    expect(html).toContain("Showing 5 of 8");
   });
 });
