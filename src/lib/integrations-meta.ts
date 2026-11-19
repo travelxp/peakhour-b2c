@@ -386,21 +386,27 @@ export function savedMetaPageId(extra: Record<string, any> | undefined): string 
 }
 
 /**
- * The Meta ad account Peakhour spends from, as the api resolves it (api `helpers/meta-saved-ad-account.ts`): the
- * merchant's pick while the connection still lists it, else the ONLY listed account, else none. Never the first of
- * several: Meta lists every business the login reaches, so two or more accounts with no pick is "not chosen yet".
- * `extra` is the merged `facebook` row's `account.extra`, which carries `adAccounts` and `capabilities`.
+ * The Meta ad accounts this business may use, and its default, as the api resolves them (api
+ * `helpers/meta-saved-ad-account.ts`): the stored ids the connection still lists; with nothing stored, the ONLY listed
+ * account (one is not a choice); with nothing stored and two or more listed, NONE (never the first). The default is the
+ * stored one while it is still enabled, else the only enabled account. `extra` is the merged `facebook` row's
+ * `account.extra`, which carries `adAccounts` and `capabilities`.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function savedMetaAdAccountId(extra: Record<string, any> | undefined): string | undefined {
-  const accounts: Array<{ id?: string }> = (Array.isArray(extra?.adAccounts) ? extra.adAccounts : []).filter(
+export function savedMetaAdAccounts(extra: Record<string, any> | undefined): { enabledIds: string[]; defaultId?: string } {
+  const listed: Array<{ id: string }> = (Array.isArray(extra?.adAccounts) ? extra.adAccounts : []).filter(
     (a: { id?: unknown }) => typeof a?.id === "string" && a.id !== "",
   );
   const bare = (id: string) => id.trim().replace(/^act_/, "");
-  const picked = extra?.capabilities?.adAccounts?.activeResourceId;
-  if (typeof picked === "string" && picked !== "") {
-    const hit = accounts.find((a) => bare(a.id!) === bare(picked));
-    if (hit) return hit.id;
-  }
-  return accounts.length === 1 ? accounts[0]!.id : undefined;
+  const stored = extra?.capabilities?.adAccounts;
+  const wanted = new Set<string>(
+    (Array.isArray(stored?.enabledIds) ? stored.enabledIds : []).filter((x: unknown): x is string => typeof x === "string").map(bare),
+  );
+  let enabled = listed.filter((a) => wanted.has(bare(a.id)));
+  if (enabled.length === 0 && listed.length === 1) enabled = [listed[0]!];
+  if (enabled.length === 0) return { enabledIds: [] };
+  const byDefault =
+    typeof stored?.defaultId === "string" ? enabled.find((a) => bare(a.id) === bare(stored.defaultId)) : undefined;
+  const def = byDefault ?? (enabled.length === 1 ? enabled[0] : undefined);
+  return { enabledIds: enabled.map((a) => a.id), ...(def ? { defaultId: def.id } : {}) };
 }

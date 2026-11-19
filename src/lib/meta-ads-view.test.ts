@@ -407,6 +407,10 @@ describe("★★M-16 — the copies are peakhour-api's, checked against its sour
   const GUARDRAILS = fileURLToPath(
     new URL("../../../peakhour-api/src/v1/services/growth/guardrails.ts", import.meta.url),
   );
+  /** MR-F2: the write guard's codes (`AD_ACCOUNT_NOT_CHOSEN`, `AD_ACCOUNT_NOT_IN_BUSINESS`) are spelled here, which the routes call. */
+  const ACCOUNT_GUARD = fileURLToPath(
+    new URL("../../../peakhour-api/src/v1/services/ads/meta-account-guard.ts", import.meta.url),
+  );
   const present = existsSync(SIBLING);
   const read = (p: string) => {
     if (!existsSync(p)) throw new Error(`[m16] peakhour-api is checked out but ${p} is missing`);
@@ -453,7 +457,7 @@ describe("★★M-16 — the copies are peakhour-api's, checked against its sour
     // whose merchant-facing sentence is silently replaced by the fallback —
     // the allowlist would permit nothing it names.
     const routes = read(ROUTES);
-    const others = [read(CAPABILITY), read(CEILING), read(GUARDRAILS)];
+    const others = [read(CAPABILITY), read(CEILING), read(GUARDRAILS), read(ACCOUNT_GUARD)];
     const missing = [...META_MERCHANT_FACING_CODES].filter(
       (code) => !routes.includes(`"${code}"`) && !others.some((src) => src.includes(`"${code}"`)),
     );

@@ -6,8 +6,8 @@ import { Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 import { api, ApiError } from "@/lib/api";
-import { savedMetaAdAccountId, savedMetaPageId } from "@/lib/integrations-meta";
-import { META_CHOOSE_AD_ACCOUNT, metaAdAccountOptionLabel } from "@/lib/meta-ads-view";
+import { savedMetaAdAccounts, savedMetaPageId } from "@/lib/integrations-meta";
+import { META_CHOOSE_AD_ACCOUNT, metaAdAccountBlockedWord, metaAdAccountOptionLabel } from "@/lib/meta-ads-view";
 import { Button } from "@/components/ui/button";
 import { MetaMessagingSwitches } from "./meta-messaging-switches";
 import { DM_STATUS_KEY } from "@/lib/meta-dm";
@@ -40,9 +40,9 @@ export function instagramLine(page: MetaPageRow): string {
  *
  * ★TWO CHOICES, ONE EACH. The Page: posts, the Facebook and Instagram pages, comments and the Page an ad is
  * published as all follow it (api `helpers/meta-saved-page.ts`); Instagram follows the Page's linked account.
- * The ad account: every campaign Peakhour creates, starts or edits goes to it, and Growth shows it as the active
- * one (api `helpers/meta-saved-ad-account.ts`). A Meta login lists the ad accounts of EVERY business it reaches,
- * so with two or more the merchant must choose; one account needs no choice.
+ * The ad accounts: a business may use SEVERAL, with one default for new spend (api `helpers/meta-saved-ad-account.ts`).
+ * A Meta login lists the ad accounts of EVERY business it reaches, so with two or more the merchant ticks the ones that
+ * are this business's; one account needs no choice.
  *
  * Refresh re-reads the Pages from Meta, so a Page added or an Instagram account linked since connecting shows up
  * without reconnecting.
@@ -158,8 +158,11 @@ export function MetaAccountsPanel({
 }
 
 /**
- * The "Ad account Peakhour uses" picker. On the Facebook Pages card (inside the Meta accounts panel) AND on the Meta
- * Ads card: a login that connected only for ads has no Pages card to choose on.
+ * "Ad accounts Peakhour may use": a checklist of the login's ad accounts, one marked Default. On the Facebook Pages card
+ * (inside the Meta accounts panel) AND on the Meta Ads card: a login that connected only for ads has no Pages card.
+ *
+ * ★SAVED WITH A BUTTON, NOT ON EACH TICK: a business picks its set and its default together, and the api refuses a
+ * default that is not ticked. An account Meta marks disabled or closed is shown and cannot be ticked.
  */
 export function MetaAdAccountPicker({
   extra,
@@ -173,73 +176,109 @@ export function MetaAdAccountPicker({
   const adAccounts: MetaAdAccountRow[] = (Array.isArray(extra?.adAccounts) ? extra.adAccounts : []).filter(
     (a: MetaAdAccountRow) => typeof a?.id === "string" && a.id !== "",
   );
-  // The ad account, the same way: the pick shows at once, the list behind `extra` follows when `onChanged` reloads it.
-  const [pickedAd, setPickedAd] = useState<string | null>(null);
-  const [savingAd, setSavingAd] = useState(false);
-  const activeAdId = pickedAd && adAccounts.some((a) => a.id === pickedAd) ? pickedAd : savedMetaAdAccountId(extra);
+  const saved = savedMetaAdAccounts(extra);
+  // The edit in progress; null shows what is saved (and follows the list behind `extra` when it reloads).
+  const [draft, setDraft] = useState<{ ids: string[]; defaultId?: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const ids = draft?.ids ?? saved.enabledIds;
+  const defaultId = draft ? draft.defaultId : saved.defaultId;
+  const dirty = draft !== null;
+  const canSave = dirty && ids.length > 0 && !!defaultId && ids.includes(defaultId);
 
-  async function chooseAdAccount(adAccountId: string) {
-    if (adAccountId === activeAdId) return;
-    setSavingAd(true);
-    setPickedAd(adAccountId);
+  function toggle(id: string) {
+    const next = ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
+    // The first ticked account is the default; unticking the default hands it to the next one still ticked.
+    const nextDefault = defaultId && next.includes(defaultId) ? defaultId : next[0];
+    setDraft({ ids: next, defaultId: nextDefault });
+  }
+
+  async function save() {
+    if (!canSave || !defaultId) return;
+    setSaving(true);
     try {
-      await api.patch("/v1/integrations/facebook/ad-account", { adAccountId });
-      // Growth reads the active account and its campaigns from the api: refetch them now.
+      await api.patch("/v1/integrations/facebook/ad-account", { enabledIds: ids, defaultId });
+      // Growth reads the enabled accounts and their campaigns from the api: refetch them now.
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["meta-ads-accounts"] }),
         queryClient.invalidateQueries({ queryKey: ["meta-ads-campaigns"] }),
         queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] }),
       ]);
-      toast.success("Peakhour will use that ad account.");
+      toast.success("Peakhour will use those ad accounts.");
       await onChanged?.();
+      setDraft(null);
     } catch (err) {
-      setPickedAd(null);
       toast.error(
         err instanceof ApiError && err.code === "AD_ACCOUNT_NOT_FOUND"
-          ? "That ad account is no longer on your Meta login. Refresh and try again."
-          : err instanceof ApiError && err.code === "AD_ACCOUNT_NOT_ACTIVE"
-            ? "That ad account is not active on Meta. Pick another."
-            : "Couldn't change the ad account. Try again in a moment.",
+          ? "One of those ad accounts is no longer on your Meta login. Refresh and try again."
+          : err instanceof ApiError && err.code === "AD_ACCOUNT_DISABLED"
+            ? err.message
+            : "Couldn't save the ad accounts. Try again in a moment.",
       );
     } finally {
-      setSavingAd(false);
+      setSaving(false);
     }
   }
 
   return (
-    <div className="space-y-1" aria-label="Ad account">
-      <p className="text-micro text-muted-foreground">Ad account Peakhour uses</p>
+    <div className="space-y-1" aria-label="Ad accounts">
+      <p className="text-micro text-muted-foreground">Ad accounts Peakhour may use</p>
       {adAccounts.length === 0 ? (
         <p className="text-micro text-muted-foreground">No ad accounts found.</p>
       ) : adAccounts.length === 1 ? (
         <p className="text-xs font-medium">{metaAdAccountOptionLabel(adAccounts[0]!)}</p>
       ) : (
         <>
-          <div className="flex items-center gap-1.5">
-            <Select value={activeAdId} onValueChange={(v) => void chooseAdAccount(v)} disabled={savingAd}>
-              <SelectTrigger className="h-7 text-xs" aria-label="Ad account Peakhour uses">
-                <SelectValue placeholder="Choose an ad account" />
-              </SelectTrigger>
-              <SelectContent>
-                {adAccounts.map((a) => {
-                  // An account Meta marks not active cannot run ads, and the api refuses it: shown, not pickable.
-                  const inactive = a.status !== undefined && a.status !== 1;
-                  return (
-                    <SelectItem key={a.id} value={a.id} disabled={inactive}>
-                      {metaAdAccountOptionLabel(a)}
-                      {inactive ? ", not active" : ""}
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-            {savingAd ? <Loader2 className="h-3 w-3 shrink-0 animate-spin" /> : null}
-          </div>
-          {!activeAdId ? (
+          <ul className="space-y-1">
+            {adAccounts.map((a) => {
+              const blocked = metaAdAccountBlockedWord(a.status);
+              const ticked = ids.includes(a.id);
+              return (
+                <li key={a.id} className="flex items-center gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    id={`ad-${a.id}`}
+                    checked={ticked}
+                    disabled={saving || !!blocked}
+                    onChange={() => toggle(a.id)}
+                  />
+                  <label htmlFor={`ad-${a.id}`} className="min-w-0 flex-1 truncate">
+                    {metaAdAccountOptionLabel(a)}
+                    {blocked ? `, ${blocked}` : ""}
+                  </label>
+                  <label className="flex shrink-0 items-center gap-1 text-micro text-muted-foreground">
+                    <input
+                      type="radio"
+                      name="meta-default-ad-account"
+                      aria-label={`Default: ${a.name || a.id}`}
+                      checked={defaultId === a.id}
+                      disabled={saving || !ticked}
+                      onChange={() => setDraft({ ids, defaultId: a.id })}
+                    />
+                    Default
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+          {ids.length === 0 ? (
             <p role="status" className="text-micro text-warning-on-tint">
               {META_CHOOSE_AD_ACCOUNT}
             </p>
           ) : null}
+          <div className="flex items-center gap-1.5">
+            <Button size="sm" onClick={() => void save()} disabled={!canSave || saving} className="h-7 px-2 text-xs">
+              {saving ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+              Save ad accounts
+            </Button>
+            {dirty && !saving ? (
+              <Button size="sm" variant="ghost" onClick={() => setDraft(null)} className="h-7 px-2 text-xs">
+                Cancel
+              </Button>
+            ) : null}
+          </div>
+          <p className="text-micro text-muted-foreground">
+            The default is where new campaigns go unless you pick another account when you create one.
+          </p>
         </>
       )}
     </div>

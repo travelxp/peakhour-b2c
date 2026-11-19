@@ -1,40 +1,54 @@
 /**
- * MR-F2 - the one saved ad account, as the dashboard reads it. `savedMetaAdAccountId` mirrors the api's
- * `helpers/meta-saved-ad-account.ts`: the pick while listed, else the only account, else none - never the first of
- * several.
+ * MR-F2 - the business's ad accounts, as the dashboard reads them. `savedMetaAdAccounts` mirrors the api's
+ * `helpers/meta-saved-ad-account.ts`: the stored ids still listed; with nothing stored, the only listed account; never the
+ * first of several.
  */
 import { describe, it, expect } from "vitest";
-import { savedMetaAdAccountId } from "./integrations-meta";
+import { savedMetaAdAccounts } from "./integrations-meta";
 import {
   META_MERCHANT_FACING_CODES,
+  metaAdAccountBlockedWord,
   metaAdAccountOptionLabel,
   metaAdAccountShortId,
   metaCreatesInLine,
+  metaInLine,
 } from "./meta-ads-view";
 
 const A = { id: "act_1111", name: "Quests Travel" };
 const B = { id: "act_2222", name: "CMPL" };
+const C = { id: "act_3333", name: "Third" };
+const caps = (enabledIds: string[], defaultId?: string) => ({ adAccounts: { enabledIds, defaultId } });
 
-describe("savedMetaAdAccountId", () => {
-  it("two or more and none chosen: none, never the first", () => {
-    expect(savedMetaAdAccountId({ adAccounts: [A, B] })).toBeUndefined();
+describe("savedMetaAdAccounts", () => {
+  it("two or more listed and nothing stored: none, never the first", () => {
+    expect(savedMetaAdAccounts({ adAccounts: [A, B] })).toEqual({ enabledIds: [] });
   });
-  it("one account is the answer", () => {
-    expect(savedMetaAdAccountId({ adAccounts: [B] })).toBe("act_2222");
+  it("one listed and nothing stored: it is enabled and the default", () => {
+    expect(savedMetaAdAccounts({ adAccounts: [B] })).toEqual({ enabledIds: ["act_2222"], defaultId: "act_2222" });
   });
   it("no accounts, or no extra: none", () => {
-    expect(savedMetaAdAccountId({ adAccounts: [] })).toBeUndefined();
-    expect(savedMetaAdAccountId(undefined)).toBeUndefined();
+    expect(savedMetaAdAccounts({ adAccounts: [] })).toEqual({ enabledIds: [] });
+    expect(savedMetaAdAccounts(undefined)).toEqual({ enabledIds: [] });
   });
-  it("a pick that is still listed wins, in either spelling", () => {
-    const caps = { adAccounts: { activeResourceId: "act_2222" } };
-    expect(savedMetaAdAccountId({ adAccounts: [A, B], capabilities: caps })).toBe("act_2222");
-    expect(savedMetaAdAccountId({ adAccounts: [A, B], capabilities: { adAccounts: { activeResourceId: "2222" } } })).toBe("act_2222");
+  it("several enabled with a default, in the list's order, in either spelling", () => {
+    expect(savedMetaAdAccounts({ adAccounts: [A, B, C], capabilities: caps(["act_3333", "1111"], "3333") })).toEqual({
+      enabledIds: ["act_1111", "act_3333"],
+      defaultId: "act_3333",
+    });
   });
-  it("a stale pick is ignored", () => {
-    const caps = { adAccounts: { activeResourceId: "act_9" } };
-    expect(savedMetaAdAccountId({ adAccounts: [A, B], capabilities: caps })).toBeUndefined();
-    expect(savedMetaAdAccountId({ adAccounts: [B], capabilities: caps })).toBe("act_2222");
+  it("stored ids the list no longer has are dropped", () => {
+    expect(savedMetaAdAccounts({ adAccounts: [A, B], capabilities: caps(["act_1111", "act_9"], "act_1111") })).toEqual({
+      enabledIds: ["act_1111"],
+      defaultId: "act_1111",
+    });
+  });
+  it("a default that is no longer enabled is no default with 2+ enabled", () => {
+    expect(savedMetaAdAccounts({ adAccounts: [A, B, C], capabilities: caps(["act_1111", "act_2222"], "act_3333") })).toEqual({
+      enabledIds: ["act_1111", "act_2222"],
+    });
+  });
+  it("everything stored is gone and 2+ are listed: none", () => {
+    expect(savedMetaAdAccounts({ adAccounts: [A, B], capabilities: caps(["act_9"], "act_9") })).toEqual({ enabledIds: [] });
   });
 });
 
@@ -49,15 +63,22 @@ describe("labels", () => {
     );
     expect(metaAdAccountOptionLabel({ id: "act_1234567890" })).toBe("Ad account · act_…7890");
   });
-  it("a dialog names where it creates, or saves", () => {
+  it("the dialogs name the account: Creates in, and the read-only In", () => {
     expect(metaCreatesInLine({ id: "act_1234567890", name: "Quests Travel" })).toBe("Creates in Quests Travel (act_…7890)");
-    expect(metaCreatesInLine({ id: "act_1234567890", name: "Quests Travel" }, "Saves")).toBe("Saves in Quests Travel (act_…7890)");
+    expect(metaInLine({ id: "act_1234567890", name: "Quests Travel" })).toBe("In Quests Travel (act_…7890)");
+  });
+  it("only a disabled or closed account is blocked, as the api says", () => {
+    expect(metaAdAccountBlockedWord(2)).toBe("disabled");
+    expect(metaAdAccountBlockedWord(101)).toBe("closed");
+    expect(metaAdAccountBlockedWord(1)).toBeUndefined();
+    expect(metaAdAccountBlockedWord(9)).toBeUndefined();
+    expect(metaAdAccountBlockedWord(undefined)).toBeUndefined();
   });
 });
 
 describe("the api's refusals are shown as written", () => {
   it("both new codes carry merchant-facing messages", () => {
     expect(META_MERCHANT_FACING_CODES.has("AD_ACCOUNT_NOT_CHOSEN")).toBe(true);
-    expect(META_MERCHANT_FACING_CODES.has("AD_ACCOUNT_NOT_ACTIVE")).toBe(true);
+    expect(META_MERCHANT_FACING_CODES.has("AD_ACCOUNT_NOT_IN_BUSINESS")).toBe(true);
   });
 });

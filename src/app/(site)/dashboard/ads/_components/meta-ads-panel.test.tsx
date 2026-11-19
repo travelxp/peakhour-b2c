@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 /**
- * MR-F2 - Growth shows ONE active Meta ad account: no dropdown, no `?adAccount=`, the workspace named beside it, and
- * with two or more accounts and none chosen no way to start spend.
+ * MR-F2 - Growth shows the business's ENABLED Meta ad accounts: an account filter ("All accounts" first), every campaign
+ * under its account, no `?adAccount=`, and with nothing enabled no way to start spend. Another business's accounts on the
+ * same Meta login are never shown.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -51,18 +52,45 @@ vi.mock("@/lib/api/meta-ads", async (orig) => {
   };
 });
 vi.mock("./meta-campaign-dialogs", () => ({
-  NewCampaignDialog: () => <button>New campaign</button>,
+  NewCampaignDialog: (p: { accounts: Array<{ id: string }>; defaultAccountId: string | null; initialAccountId?: string | null }) => (
+    <button data-testid="new-campaign" data-accounts={p.accounts.map((x) => x.id).join(",")} data-default={p.defaultAccountId ?? ""} data-initial={p.initialAccountId ?? ""}>
+      New campaign
+    </button>
+  ),
   EditCampaignButton: () => <button>Edit campaign</button>,
 }));
 
 const { MetaAdsPanel } = await import("./meta-ads-panel");
 
-const QUESTS = { id: "act_1111", name: "Quests Travel", accountId: "1111", currency: "INR", timezone: "Asia/Kolkata", accountStatus: 1 };
-const CMPL = { id: "act_2222", name: "CMPL", accountId: "2222", currency: "USD", timezone: "UTC", accountStatus: 1 };
+const mk = (id: string, name: string, currency: string) => ({ id, name, accountId: id.replace("act_", ""), currency, timezone: "UTC", accountStatus: 1 });
+const QUESTS = mk("act_1111", "Quests Travel", "INR");
+const CMPL = mk("act_2222", "CMPL", "USD");
+/** On the same login, but another business's. */
+const OTHER = mk("act_3333", "Other Biz", "USD");
 const CAMPAIGN = { id: "9", name: "Diwali", status: "PAUSED", objective: "OUTCOME_TRAFFIC", createdTime: "", updatedTime: "" };
+
+/** What the api answers: the live list, and this business's own accounts. */
+const answer = (enabled: Array<ReturnType<typeof mk>>, defaultId: string | null, missing: string[] = []) => ({
+  accounts: [QUESTS, CMPL, OTHER],
+  enabledAccounts: [...enabled.map((a) => ({ id: a.id, name: a.name, currency: a.currency, status: 1, missing: false })), ...missing.map((id) => ({ id, missing: true }))],
+  enabledIds: enabled.map((a) => a.id),
+  defaultId,
+});
 
 let root: Root;
 let container: HTMLDivElement;
+
+beforeAll(() => {
+  // Radix Select in jsdom
+  (globalThis as Record<string, unknown>).ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+  Element.prototype.scrollIntoView = () => undefined;
+  Element.prototype.hasPointerCapture = () => false;
+  Element.prototype.releasePointerCapture = () => undefined;
+});
 
 beforeEach(() => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -78,6 +106,11 @@ afterEach(() => {
   container.remove();
 });
 
+const settle = async () => {
+  // the accounts read, then the campaigns reads behind it, then the render
+  for (let i = 0; i < 6; i++) await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+};
+
 async function mount() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   await act(async () => {
@@ -87,65 +120,94 @@ async function mount() {
       </QueryClientProvider>,
     );
   });
-  // the accounts read, then the campaigns read behind it, then the render
-  for (let i = 0; i < 6; i++) await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+  await settle();
 }
 
 describe("Growth > Ads > Meta", () => {
-  it("shows the active ad account: name, currency, id, the workspace, and a Change link", async () => {
-    h.listAdAccounts.mockResolvedValue({ accounts: [QUESTS, CMPL], activeAdAccountId: "act_2222", activeAdAccountName: "CMPL" });
+  it("several enabled: 'All accounts' is selected, each enabled account is its own section, every campaign names its account", async () => {
+    h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
     await mount();
-    const bar = container.querySelector('[aria-label="Active ad account"]')!;
-    expect(bar.textContent).toContain("Active ad account");
-    expect(bar.textContent).toContain("CMPL");
-    expect(bar.textContent).toContain("(USD)");
-    expect(bar.textContent).toContain("act_2222");
+    const bar = container.querySelector('[aria-label="Ad accounts"]')!;
     expect(bar.textContent).toContain("Quests Travel Pvt");
+    expect(container.querySelector('[aria-label="Ad account filter"]')!.textContent).toContain("All accounts");
+    expect(h.listCampaigns).toHaveBeenCalledWith("act_1111");
+    expect(h.listCampaigns).toHaveBeenCalledWith("act_2222");
+    const headings = [...container.querySelectorAll("h2")].map((x) => x.textContent);
+    expect(headings).toEqual(["Quests Travel (INR) · act_…1111", "CMPL (USD) · act_…2222"]);
+    expect(container.textContent).toContain("Quests Travel (act_…1111)");
+    expect(container.textContent).toContain("CMPL (act_…2222)");
     const change = [...bar.querySelectorAll("a")].find((a) => a.textContent === "Change")!;
     expect(change.getAttribute("href")).toBe("/dashboard/integrations");
   });
 
-  it("has no ad account dropdown, ignores a stale ?adAccount= and never writes the URL", async () => {
-    h.listAdAccounts.mockResolvedValue({ accounts: [QUESTS, CMPL], activeAdAccountId: "act_2222", activeAdAccountName: "CMPL" });
+  it("another business's account on the login is never read, listed or offered", async () => {
+    h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
     await mount();
-    expect(container.querySelector('[aria-label="Ad account"]')).toBeNull();
-    // the URL says act_1111; the campaigns read is for the ACTIVE account
-    expect(h.listCampaigns).toHaveBeenCalledWith("act_2222");
-    expect(h.listCampaigns).not.toHaveBeenCalledWith("act_1111");
-    expect(h.replace).not.toHaveBeenCalled();
+    expect(h.listCampaigns).not.toHaveBeenCalledWith("act_3333");
+    expect(container.textContent).not.toContain("Other Biz");
+    expect(container.querySelector('[data-testid="new-campaign"]')!.getAttribute("data-accounts")).toBe("act_1111,act_2222");
   });
 
-  it("an active account shows New campaign and Edit", async () => {
-    h.listAdAccounts.mockResolvedValue({ accounts: [QUESTS, CMPL], activeAdAccountId: "act_2222", activeAdAccountName: "CMPL" });
+  it("New campaign gets the enabled accounts and the default, and Edit shows", async () => {
+    h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
     await mount();
-    expect(container.textContent).toContain("New campaign");
+    const nc = container.querySelector('[data-testid="new-campaign"]')!;
+    expect(nc.getAttribute("data-default")).toBe("act_2222");
+    expect(nc.getAttribute("data-initial")).toBe("");
     expect(container.textContent).toContain("Edit campaign");
   });
 
-  it("two accounts and none chosen: an empty state with the link, and no New campaign, Edit or switches", async () => {
-    h.listAdAccounts.mockResolvedValue({ accounts: [QUESTS, CMPL], activeAdAccountId: null, activeAdAccountName: null });
+  it("choosing one account in the filter shows only that account, and hands it to New campaign", async () => {
+    h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
     await mount();
-    expect(container.textContent).toContain("Choose your ad account");
-    expect(container.textContent).toContain("Choose the ad account for this workspace before creating campaigns.");
+    await act(async () => {
+      (container.querySelector('[aria-label="Ad account filter"]') as HTMLElement).click();
+    });
+    const options = [...document.body.querySelectorAll('[role="option"]')];
+    expect(options.map((o) => o.textContent)).toEqual([
+      "All accounts",
+      "Quests Travel (INR) · act_…1111",
+      "CMPL (USD) · act_…2222 · default",
+    ]);
+    await act(async () => {
+      options[2]!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await settle();
+    expect([...container.querySelectorAll("h2")].map((x) => x.textContent)).toEqual(["CMPL (USD) · act_…2222"]);
+    expect(container.querySelector('[data-testid="new-campaign"]')!.getAttribute("data-initial")).toBe("act_2222");
+  });
+
+  it("has no ad account URL param: nothing writes the URL, and a stale ?adAccount= is ignored", async () => {
+    h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
+    await mount();
+    expect(h.replace).not.toHaveBeenCalled();
+  });
+
+  it("one enabled account is the selection: no filter, its section, no account line", async () => {
+    h.listAdAccounts.mockResolvedValue(answer([QUESTS], "act_1111"));
+    await mount();
+    expect(container.querySelector('[aria-label="Ad account filter"]')).toBeNull();
+    expect(container.querySelector('[aria-label="Ad accounts"]')!.textContent).toContain("Quests Travel (INR) · act_…1111");
+    expect(container.textContent).toContain("New campaign");
+    expect(container.textContent).not.toContain("Quests Travel (act_…1111)");
+  });
+
+  it("nothing enabled: an empty state with the link, and no New campaign, Edit or switches; nothing is read", async () => {
+    h.listAdAccounts.mockResolvedValue(answer([], null));
+    await mount();
+    expect(container.textContent).toContain("Choose your ad accounts");
+    expect(container.textContent).toContain("Choose the ad accounts this business may use before creating campaigns.");
     expect(container.querySelector('a[href="/dashboard/integrations"]')).not.toBeNull();
     expect(container.textContent).not.toContain("New campaign");
     expect(container.textContent).not.toContain("Edit campaign");
     expect(container.querySelector('[role="switch"]')).toBeNull();
-    // nothing about any account's campaigns was read
     expect(h.listCampaigns).not.toHaveBeenCalled();
   });
 
-  it("an active id the live list no longer has is treated as not chosen", async () => {
-    h.listAdAccounts.mockResolvedValue({ accounts: [QUESTS, CMPL], activeAdAccountId: "act_9999", activeAdAccountName: "Gone" });
+  it("an enabled account the login no longer has is flagged, not shown or used", async () => {
+    h.listAdAccounts.mockResolvedValue(answer([QUESTS], "act_1111", ["act_9999"]));
     await mount();
-    expect(container.textContent).toContain("Choose your ad account");
-    expect(container.textContent).not.toContain("New campaign");
-  });
-
-  it("one account is the active one with no choosing", async () => {
-    h.listAdAccounts.mockResolvedValue({ accounts: [QUESTS], activeAdAccountId: "act_1111", activeAdAccountName: "Quests Travel" });
-    await mount();
-    expect(container.querySelector('[aria-label="Active ad account"]')!.textContent).toContain("Quests Travel");
-    expect(container.textContent).toContain("New campaign");
+    expect(container.textContent).toContain("One of your ad accounts is no longer on your Meta login");
+    expect(h.listCampaigns).not.toHaveBeenCalledWith("act_9999");
   });
 });

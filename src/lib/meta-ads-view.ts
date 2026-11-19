@@ -210,9 +210,9 @@ export const META_LAUNCH_NOTE =
  */
 export const META_MERCHANT_FACING_CODES: ReadonlySet<string> = new Set([
   "AD_ACCOUNT_NOT_ALLOWED",
-  // MR-F2: a write for an ad account that is not the workspace's saved one; the message names the active account.
+  // MR-F2: a create or edit for an ad account the business has not enabled; the message names the business's own.
   "AD_ACCOUNT_NOT_CHOSEN",
-  "AD_ACCOUNT_NOT_ACTIVE",
+  "AD_ACCOUNT_NOT_IN_BUSINESS",
   "NEEDS_REAUTH",
   "META_UNAVAILABLE",
   "META_NOT_CONNECTED",
@@ -407,10 +407,20 @@ export function metaAdAccountOptionLabel(a: { id: string; name?: string; currenc
   return `${a.name || "Ad account"}${a.currency ? ` (${a.currency})` : ""} · ${metaAdAccountShortId(a.id)}`;
 }
 
-/** `Creates in Name (act_…1234)` (an edit says `Saves in`): the line a dialog names its ad account with. */
-export function metaCreatesInLine(a: { id: string; name?: string }, verb: "Creates" | "Saves" = "Creates"): string {
-  return `${verb} in ${a.name || "this ad account"} (${metaAdAccountShortId(a.id)})`;
+/** `Creates in Name (act_…1234)`: the line the New campaign dialog names its ad account with. */
+export function metaCreatesInLine(a: { id: string; name?: string }): string {
+  return `Creates in ${a.name || "this ad account"} (${metaAdAccountShortId(a.id)})`;
+}
+
+/** `In Name (act_…1234)`: the read-only line the Edit sheet names the campaign's ad account with. */
+export function metaInLine(a: { id: string; name?: string }): string {
+  return `In ${a.name || "this ad account"} (${metaAdAccountShortId(a.id)})`;
 }
 
 /** The sentence shown while two or more ad accounts are listed and none is chosen. */
-export const META_CHOOSE_AD_ACCOUNT = "Choose the ad account for this workspace before creating campaigns.";
+export const META_CHOOSE_AD_ACCOUNT = "Choose the ad accounts this business may use before creating campaigns.";
+
+/** Meta `account_status` values that cannot run ads at all, with the word to say. The api refuses them too. */
+export function metaAdAccountBlockedWord(status: number | undefined): "disabled" | "closed" | undefined {
+  return status === 2 ? "disabled" : status === 101 ? "closed" : undefined;
+}

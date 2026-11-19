@@ -39,14 +39,25 @@ export interface MetaAdAccount {
   businessName?: string;
 }
 
+/** An ad account the business has enabled, as the api stores it. `missing`: the live Meta list no longer returns it. */
+export interface MetaEnabledAdAccount {
+  id: string;
+  name?: string;
+  currency?: string;
+  status?: number;
+  missing: boolean;
+}
+
 /**
- * `GET /ad-accounts`: every account the login reaches, and the ONE this workspace spends from (null while two or
- * more are listed and none is chosen). Every write is refused for any other account.
+ * `GET /ad-accounts`: every account the login reaches (it lists other businesses' too), and THIS business's own: the
+ * enabled ones that are still on the login (`enabledIds`), the default among them, and every enabled one with a
+ * `missing` flag. Every create is refused for any account not in `enabledIds`.
  */
 export interface MetaAdAccountsResponse {
   accounts: MetaAdAccount[];
-  activeAdAccountId: string | null;
-  activeAdAccountName: string | null;
+  enabledAccounts: MetaEnabledAdAccount[];
+  enabledIds: string[];
+  defaultId: string | null;
 }
 
 export interface MetaCampaign {

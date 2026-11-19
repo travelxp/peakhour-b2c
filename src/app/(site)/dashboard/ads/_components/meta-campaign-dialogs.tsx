@@ -37,7 +37,7 @@ import {
   type MetaCampaign,
   type MetaCampaignEdit,
 } from "@/lib/api/meta-ads";
-import { metaAdsErrorMessage, metaAdsNeedsReconnect, metaBudgetLabel, metaCreatesInLine } from "@/lib/meta-ads-view";
+import { metaAdAccountOptionLabel, metaAdsErrorMessage, metaAdsNeedsReconnect, metaBudgetLabel, metaCreatesInLine, metaInLine } from "@/lib/meta-ads-view";
 import {
   EMPTY_NEW_CAMPAIGN,
   META_COUNTRY_CODES,
@@ -153,14 +153,32 @@ function CountryPicker({
 
 // ── New campaign ─────────────────────────────────────────────────────────
 
+/**
+ * ★THE ACCOUNT IS A CHOICE AMONG THE BUSINESS'S OWN. `accounts` is only the ad accounts the business has enabled (never the
+ * whole login's), the Select is prefilled with the one the list is filtered to, else the business's default, and it is always
+ * shown with two or more. The api refuses any other account as well.
+ */
 export function NewCampaignDialog({
-  account,
+  accounts,
+  defaultAccountId,
+  initialAccountId,
   onCreated,
 }: {
-  account: MetaAdAccount;
+  /** The business's enabled ad accounts: never empty (the caller renders no dialog without one). */
+  accounts: MetaAdAccount[];
+  /** The business's default, or null. */
+  defaultAccountId: string | null;
+  /** The account the campaigns list is filtered to, when it is filtered to one. */
+  initialAccountId?: string | null;
   /** The new campaign's id, so the list can open it. */
   onCreated: (campaignId: string) => void;
 }) {
+  const [pickedAccountId, setPickedAccountId] = useState<string | null>(null);
+  const account =
+    accounts.find((a) => a.id === pickedAccountId) ??
+    accounts.find((a) => a.id === initialAccountId) ??
+    accounts.find((a) => a.id === defaultAccountId) ??
+    accounts[0]!;
   const refresh = useRefreshAds(account.id);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<NewCampaignForm>(EMPTY_NEW_CAMPAIGN);
@@ -190,6 +208,7 @@ export function NewCampaignDialog({
     setFile(null);
     setShowErrors(false);
     setFailure(null);
+    setPickedAccountId(null);
     uploaded.current = null;
   };
 
@@ -274,6 +293,25 @@ export function NewCampaignDialog({
         </DialogHeader>
 
         <div className="space-y-5">
+          {accounts.length > 1 ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="mc-account">Ad account</Label>
+              <Select value={account.id} onValueChange={setPickedAccountId}>
+                <SelectTrigger id="mc-account" className="w-full" aria-label="Ad account">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {metaAdAccountOptionLabel(a)}
+                      {a.id === defaultAccountId ? " · default" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+
           <div className="space-y-1.5">
             <Label htmlFor="mc-name">Campaign name</Label>
             <Input
@@ -614,8 +652,8 @@ function EditCampaignSheet({
             <Button size="sm" onClick={submit} disabled={save.isPending} aria-busy={save.isPending}>
               {save.isPending ? "Saving…" : "Save campaign"}
             </Button>
-            <p className="text-xs text-muted-foreground" data-testid="saves-in">
-              {metaCreatesInLine(account, "Saves")}
+            <p className="text-xs text-muted-foreground" data-testid="in-account">
+              {metaInLine(account)}
             </p>
           </section>
 
