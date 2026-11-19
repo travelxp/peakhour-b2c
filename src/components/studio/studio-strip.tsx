@@ -28,7 +28,8 @@ export interface StudioStripViewProps {
   href: (job: StudioJob) => string | null;
   /** An editor may stop work; a viewer only watches. */
   canStop: boolean;
-  stopping: boolean;
+  /** The job whose Stop is being sent: only its button waits. */
+  stoppingId?: string | undefined;
   onStop: (job: StudioJob) => void;
 }
 
@@ -36,10 +37,10 @@ export interface StudioStripViewProps {
  * The running-jobs strip (UX spec 4.4): a one-line bar under the tabs while Studio is making something. "Making your previews · 2 of 4 ready"
  * (polite, so it is read without stealing focus), a link to where it shows, and Stop. Nothing when nothing is running.
  */
-export function StudioStripView({ jobs, href, canStop, stopping, onStop }: StudioStripViewProps) {
+export function StudioStripView({ jobs, href, canStop, stoppingId, onStop }: StudioStripViewProps) {
   if (jobs.length === 0) return null;
   return (
-    <section aria-label={S.region} data-slot="studio-strip" className="space-y-1">
+    <section aria-label={S.region} data-slot="studio-strip" className="mx-auto mb-2 w-full max-w-6xl space-y-1 2xl:max-w-7xl">
       {jobs.map((j) => {
         const to = href(j);
         return (
@@ -54,8 +55,8 @@ export function StudioStripView({ jobs, href, canStop, stopping, onStop }: Studi
               </Link>
             )}
             {canStop && (
-              <Button type="button" variant="ghost" size="sm" className="h-11 px-2" disabled={stopping} onClick={() => onStop(j)}>
-                {stopping ? S.stopping : S.stop}
+              <Button type="button" variant="ghost" size="sm" className="h-11 px-2" disabled={stoppingId === j.id} onClick={() => onStop(j)}>
+                {stoppingId === j.id ? S.stopping : S.stop}
               </Button>
             )}
           </div>
@@ -83,7 +84,7 @@ export function StudioStrip() {
         return to && to !== pathname ? to : null;
       }}
       canStop={canMake}
-      stopping={cancel.isPending}
+      stoppingId={cancel.isPending ? cancel.variables : undefined}
       onStop={(j) =>
         cancel.mutate(j.id, {
           onSuccess: () => toast(S.stopped(j.done ?? 0)),

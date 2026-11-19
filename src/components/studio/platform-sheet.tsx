@@ -115,7 +115,7 @@ function PlatformBody({
   const extend = useExtendVersions(view.id, finalId);
   const [refusal, setRefusal] = useState<StudioRefusal | undefined>();
   const [working, setWorking] = useState(false);
-  const [readyIds, setReadyIds] = useState<string[]>([]);
+  const [postVersions, setPostVersions] = useState<PostVersion[]>([]);
 
   // A closed and reopened sheet starts again from the free sizes.
   useEffect(() => {
@@ -149,14 +149,22 @@ function PlatformBody({
         ticked,
         render: async (keys) => (await render.mutateAsync(keys)).versions,
         extend: (keys) => extend.mutateAsync({ placementKeys: keys, quoteToken: totalQuote.quote?.token }),
+        quotedUnits: totalQuote.quote ? nExtend : 0,
       });
+      // The draw found a different number of sizes that need more background than the price covers: nothing was started. The sizes now show
+      // their own state, and the price is asked again for the new count.
+      if (r.requote) {
+        void qc.invalidateQueries({ queryKey: ["peaks-quote"] });
+        setRefusal({ code: "QUOTE_NOT_HONOURED", tone: "error", text: STUDIO_COPY.refusal.priceChangedNoFigure, action: "requote" });
+        return;
+      }
       // A refusal of the quoted step stops here and says why; the free sizes stay chosen.
       if (r.extendError !== undefined) {
         setRefusal(studioRefusal(r.extendError, "Making more background"));
         return;
       }
-      if (r.readyIds.length > 0) {
-        setReadyIds(r.readyIds);
+      if (r.ready.length > 0) {
+        setPostVersions(r.ready.map((v) => ({ id: v.id, channel: v.channel, label: v.label, width: v.width, height: v.height })));
         setStep("post");
       }
     } catch (e) {
@@ -165,17 +173,6 @@ function PlatformBody({
       setWorking(false);
     }
   };
-
-  const postVersions = useMemo<PostVersion[]>(
-    () =>
-      readyIds
-        .map((id) => {
-          const v = view.versions.find((x) => x.id === id);
-          return v ? { id: v.id, channel: v.channel, label: v.label, width: v.width, height: v.height } : undefined;
-        })
-        .filter((v): v is PostVersion => !!v),
-    [readyIds, view.versions],
-  );
 
   if (step === "post") {
     return (

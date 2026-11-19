@@ -179,6 +179,12 @@ describe("post or schedule (S13)", () => {
     expect(long).toMatch(/disabled=""[^>]*>Post it/);
   });
 
+  it("a channel with no picture holds the step: a picture post never goes out as words alone", () => {
+    const html = renderToStaticMarkup(<PostStepView {...base} media={[]} />);
+    expect(html).toContain("We couldn&#x27;t get the picture for Instagram.");
+    expect(html).toMatch(/disabled=""[^>]*>Post it/);
+  });
+
   it("Pick a time shows the scheduler's own composer, and only once every caption is fine", () => {
     expect(renderToStaticMarkup(<PostStepView {...base} when="later" />)).toContain('data-testid="scheduler"');
     const bad = renderToStaticMarkup(<PostStepView {...base} when="later" captions={{ instagram: "" }} />);
@@ -241,16 +247,26 @@ describe("the running-jobs strip (4.4)", () => {
   const jobs = studioJobs([{ _id: "j1", kind: "creative_previews", displayName: "Making your previews", progress: { totalUnits: 4, processedUnits: 2 } }]);
 
   it("one polite line with the count, a link and Stop", () => {
-    const html = renderToStaticMarkup(<StudioStripView jobs={jobs} href={() => "/dashboard/studio/c/c1"} canStop stopping={false} onStop={noop} />);
+    const html = renderToStaticMarkup(<StudioStripView jobs={jobs} href={() => "/dashboard/studio/c/c1"} canStop stoppingId={undefined} onStop={noop} />);
     expect(html).toContain("Making your previews · 2 of 4 ready");
     expect(html).toContain('aria-live="polite"');
     expect(html).toContain('href="/dashboard/studio/c/c1"');
     expect(html).toContain("Stop");
   });
 
+  it("Stop waits only on the job being stopped", () => {
+    const two = studioJobs([
+      { _id: "j1", kind: "creative_previews", progress: { totalUnits: 4, processedUnits: 1 } },
+      { _id: "j2", kind: "creative_final", progress: { totalUnits: 2, processedUnits: 0 } },
+    ]);
+    const html = renderToStaticMarkup(<StudioStripView jobs={two} href={() => null} canStop stoppingId="j1" onStop={noop} />);
+    expect(html.match(/Stopping…/g)?.length).toBe(1);
+    expect(html.match(/>Stop</g)?.length).toBe(1);
+  });
+
   it("nothing at all when nothing is running; a viewer has no Stop", () => {
-    expect(renderToStaticMarkup(<StudioStripView jobs={[]} href={() => null} canStop stopping={false} onStop={noop} />)).toBe("");
-    expect(renderToStaticMarkup(<StudioStripView jobs={jobs} href={() => null} canStop={false} stopping={false} onStop={noop} />)).not.toContain("Stop");
+    expect(renderToStaticMarkup(<StudioStripView jobs={[]} href={() => null} canStop stoppingId={undefined} onStop={noop} />)).toBe("");
+    expect(renderToStaticMarkup(<StudioStripView jobs={jobs} href={() => null} canStop={false} stoppingId={undefined} onStop={noop} />)).not.toContain("Stop");
   });
 });
 

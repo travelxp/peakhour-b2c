@@ -600,6 +600,7 @@ export const STUDIO_COPY = {
     back: "Back",
     noPhotos: "Choose at least one size first.",
     captionRequired: "Write a caption first.",
+    noPicture: (channel: string) => `We couldn't get the picture for ${channel}. Go back and try again.`,
   },
 
   /** The running-jobs strip (4.4). */

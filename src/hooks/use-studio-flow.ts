@@ -16,7 +16,7 @@ import {
   type ShortlistResponse,
   type TweakOp,
 } from "@/lib/api/creative-studio";
-import type { PostFormat, StudioAvailability } from "@/lib/api/creative";
+import { parseSettings, type PostFormat, type StudioAvailability } from "@/lib/api/creative";
 import { STUDIO_KEYS } from "@/hooks/use-studio";
 import { jobsKeys } from "@/hooks/use-jobs";
 import { CREDITS_KEY } from "@/hooks/use-credits";
@@ -24,7 +24,7 @@ import { usePeaksQuote } from "@/hooks/use-peaks-quote";
 import { STUDIO_ACTIONS } from "@/lib/api/peaks";
 import { driveAbilities } from "@/lib/drive/files-state";
 import { derivePressQuote, groupProducts, isWorking, paletteFromKit, pollInterval, type PressQuoteState } from "@/lib/studio-flow";
-import { connectedChannelKeys } from "@/lib/studio-publish";
+import { studioConnectedChannels } from "@/lib/studio-publish";
 import { rememberWork } from "@/lib/studio-strip";
 import { useAuth } from "@/providers/auth-provider";
 
@@ -321,8 +321,8 @@ export function useConnectedChannels(enabled = true) {
   const s = useScope();
   return useQuery({
     queryKey: ["content-hub-integrations", s.org, s.business],
-    queryFn: () => api.get<{ integrations: Array<{ provider: string; connected?: boolean }> }>("/v1/integrations"),
-    select: (r) => connectedChannelKeys(r.integrations),
+    queryFn: () => api.get<{ integrations: Array<{ provider: string; connected?: boolean; account?: { extra?: Record<string, unknown> } }> }>("/v1/integrations"),
+    select: (r) => studioConnectedChannels(r.integrations),
     enabled: enabled && s.ready,
     retry: false,
     staleTime: 30_000,
@@ -389,7 +389,7 @@ export function useSaveStudioSettings() {
     mutationFn: (patch: SettingsPatch) => studioApi.saveSettings(patch),
     onSuccess: (r) => {
       qc.setQueriesData<StudioAvailability>({ queryKey: [STUDIO_KEYS.availability] }, (old) =>
-        old ? { ...old, proTools: r.proTools, settings: { ...r.settings, usedThisMonthPeaks: old.settings.usedThisMonthPeaks } } : old,
+        old ? { ...old, proTools: r.proTools === true, settings: { ...parseSettings(r.settings), usedThisMonthPeaks: old.settings.usedThisMonthPeaks } } : old,
       );
     },
     onError: () => {

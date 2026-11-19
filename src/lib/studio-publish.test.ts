@@ -14,6 +14,7 @@ import {
   parseCap,
   readyVersionIds,
   sizeRows,
+  studioConnectedChannels,
 } from "./studio-publish";
 
 const placement = (key: string, kind: PlacementRow["kind"], over: Partial<PlacementRow> = {}): PlacementRow => ({
@@ -93,10 +94,10 @@ describe("Continue (makeSizes)", () => {
   it("draws, then asks the quoted step for the sizes that need more, and names what can be posted now", async () => {
     const render = vi.fn().mockResolvedValue([version("instagram.instagram_feed.1080x1350", "ready", "a"), version("instagram.instagram_stories.1080x1920", "needs_extend", "b")]);
     const extend = vi.fn().mockResolvedValue(undefined);
-    const r = await makeSizes({ rows, ticked: both, render, extend });
+    const r = await makeSizes({ rows, ticked: both, render, extend, quotedUnits: 1 });
     expect(render).toHaveBeenCalledWith(["instagram.instagram_feed.1080x1350", "instagram.instagram_stories.1080x1920"]);
     expect(extend).toHaveBeenCalledWith(["instagram.instagram_stories.1080x1920"]);
-    expect(r.readyIds).toEqual(["a"]);
+    expect(r.ready.map((v) => v.id)).toEqual(["a"]);
     expect(r.extendStarted).toBe(true);
   });
 
@@ -105,6 +106,7 @@ describe("Continue (makeSizes)", () => {
     const r = await makeSizes({
       rows,
       ticked: both,
+      quotedUnits: 1,
       render: async () => [version("instagram.instagram_feed.1080x1350", "ready", "a"), version("instagram.instagram_stories.1080x1920", "needs_extend", "b")],
       extend: async () => {
         throw refusal;
@@ -112,22 +114,55 @@ describe("Continue (makeSizes)", () => {
     });
     expect(r.extendError).toBe(refusal);
     expect(r.extendStarted).toBe(false);
-    expect(r.readyIds).toEqual(["a"]);
+    expect(r.ready.map((v) => v.id)).toEqual(["a"]);
   });
 
   it("when only free sizes are ticked the quoted step is never called", async () => {
     const extend = vi.fn();
-    const r = await makeSizes({ rows, ticked: new Set(["instagram.instagram_feed.1080x1350"]), render: async () => [version("instagram.instagram_feed.1080x1350", "ready", "a")], extend });
+    const r = await makeSizes({ rows, ticked: new Set(["instagram.instagram_feed.1080x1350"]), render: async () => [version("instagram.instagram_feed.1080x1350", "ready", "a")], extend, quotedUnits: 0 });
     expect(extend).not.toHaveBeenCalled();
-    expect(r.readyIds).toEqual(["a"]);
+    expect(r.ready.map((v) => v.id)).toEqual(["a"]);
+  });
+
+  it("the renderer found a different number of sizes that need more background than the price covers: nothing is started and the price is asked again", async () => {
+    const extend = vi.fn();
+    const r = await makeSizes({
+      rows,
+      ticked: both,
+      quotedUnits: 0,
+      render: async () => [version("instagram.instagram_feed.1080x1350", "needs_extend", "a"), version("instagram.instagram_stories.1080x1920", "needs_extend", "b")],
+      extend,
+    });
+    expect(extend).not.toHaveBeenCalled();
+    expect(r.requote).toBe(true);
+    expect(r.extendStarted).toBe(false);
+  });
+
+  it("the post step gets each ready size with its channel, name and pixels from the free draw's own answer", async () => {
+    const r = await makeSizes({
+      rows,
+      ticked: new Set(["instagram.instagram_feed.1080x1350"]),
+      quotedUnits: 0,
+      render: async () => [version("instagram.instagram_feed.1080x1350", "ready", "fresh")],
+      extend: vi.fn(),
+    });
+    expect(r.ready).toEqual([{ id: "fresh", key: "instagram.instagram_feed.1080x1350", channel: "instagram", label: "Feed post", width: 1080, height: 1350 }]);
   });
 
   it("a failure of the free draw is thrown: nothing was made", async () => {
-    await expect(makeSizes({ rows, ticked: both, render: async () => Promise.reject(new Error("boom")), extend: vi.fn() })).rejects.toThrow("boom");
+    await expect(makeSizes({ rows, ticked: both, render: async () => Promise.reject(new Error("boom")), extend: vi.fn(), quotedUnits: 1 })).rejects.toThrow("boom");
   });
 });
 
 describe("channels and captions (S13)", () => {
+  it("Meta is ONE facebook row that the app expands into Pages and Instagram, so both light up from it", () => {
+    const facebook = { provider: "facebook", connected: true, account: { extra: { pages: [{ pageName: "P", instagramAccountId: "ig1" }] } } };
+    expect(studioConnectedChannels([facebook])).toEqual(["facebook", "instagram"]);
+    const noInstagram = { provider: "facebook", connected: true, account: { extra: { pages: [{ pageName: "P" }] } } };
+    expect(studioConnectedChannels([noInstagram])).toEqual(["facebook"]);
+    expect(studioConnectedChannels([{ ...facebook, connected: false }])).toEqual([]);
+  });
+
   it("only live connections count, under the names the scheduler uses", () => {
     expect(
       connectedChannelKeys([

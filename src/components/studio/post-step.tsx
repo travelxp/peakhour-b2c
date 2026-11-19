@@ -105,7 +105,9 @@ export function PostStepView(p: PostStepViewProps) {
     );
   }
   const problems = p.channels.map((c) => captionProblem(p.captions[c] ?? "", c));
-  const anyProblem = problems.some(Boolean);
+  // A post that was approved as a picture post never goes out as words alone: a channel with no picture holds the whole step.
+  const noPicture = p.channels.filter((c) => mediaFor(c, p.versions, p.media).length === 0);
+  const anyProblem = problems.some(Boolean) || noPicture.length > 0;
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto" data-slot="studio-post-step">
       {p.channels.map((c, i) => {
@@ -147,6 +149,12 @@ export function PostStepView(p: PostStepViewProps) {
           </fieldset>
         );
       })}
+
+      {noPicture.length > 0 && (
+        <p role="alert" className="text-sm text-destructive">
+          {noPicture.map((c) => P.noPicture(channelLabel(c))).join(" ")}
+        </p>
+      )}
 
       <p className="text-xs text-muted-foreground">{p.disclosure}</p>
 
@@ -260,6 +268,8 @@ export function PostStep({
   const [adError, setAdError] = useState<string | undefined>();
   // One plan per press of Post it: a retry after a failed send re-sends the plan that exists instead of committing a second one.
   const planRef = useRef<{ planId: string; hash: string } | null>(null);
+  // Channels that already took the post: a retry after a partial failure sends only the ones that did not.
+  const postedRef = useRef<Set<string>>(new Set());
 
   const captions = useMemo(() => {
     const base = handoff.data?.caption.text ?? headlineFallback;
@@ -300,8 +310,13 @@ export function PostStep({
       const { items } = await scheduler.listItems({ planId, limit: 20 });
       const results: Array<{ channel: string; published: boolean }> = [];
       for (const it of items) {
+        if (postedRef.current.has(it.channel) || it.status === "published") {
+          results.push({ channel: it.channel, published: true });
+          continue;
+        }
         try {
           const r = await scheduler.publishItemNow(it._id);
+          if (r.published) postedRef.current.add(it.channel);
           results.push({ channel: it.channel, published: r.published });
         } catch {
           results.push({ channel: it.channel, published: false });
@@ -337,7 +352,7 @@ export function PostStep({
 
   const schedule = (
     <SchedulerComposer
-      key={source.sourceTextHash}
+      key={ids.join(",")}
       source={source}
       title={title}
       channels={entries}

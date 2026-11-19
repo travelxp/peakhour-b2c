@@ -1,5 +1,6 @@
 import type { PlacementRow, VersionRow } from "@/lib/api/creative-studio";
 import { PLATFORM_LIMITS } from "@/components/composer/types";
+import { flattenMetaIntegration } from "@/lib/integrations-meta";
 
 /**
  * Pure helpers for platform versions (UX spec S12) and the post step (S13). No React, no fetching: tested directly. Merchant words come from
@@ -34,6 +35,37 @@ export const channelLabel = (key: string): string => channelByKey(key)?.label ??
 export function connectedChannelKeys(integrations: ReadonlyArray<{ provider: string; connected?: boolean }>): string[] {
   const live = new Set(integrations.filter((i) => i.connected === true).map((i) => i.provider));
   return STUDIO_CHANNELS.filter((c) => live.has(c.provider)).map((c) => c.key);
+}
+
+type RawIntegration = { provider: string; connected?: boolean; account?: { extra?: Record<string, unknown> } };
+
+/**
+ * The connected channels from the raw integrations list. The api keeps ONE `facebook` row for Meta; Facebook Pages and Instagram are the
+ * virtual rows the app expands it into (as the Content hub and Integrations do), so the list is flattened before it is read.
+ */
+export const studioConnectedChannels = (raw: ReadonlyArray<RawIntegration>): string[] => connectedChannelKeys(flattenMetaIntegration([...raw]));
+
+export interface ReadyVersion {
+  id: string;
+  key: string;
+  channel: string;
+  label: string;
+  width: number;
+  height: number;
+}
+
+/** The ticked sizes that are made now, with what the post step shows of each (channel, name, pixels), from the free draw's answer and the rows. */
+export function readyVersions(rows: SizeRowModel[], ticked: ReadonlySet<string>, rendered: ReadonlyArray<VersionRow>): ReadyVersion[] {
+  const fresh = new Map(rendered.map((v) => [v.key, v]));
+  const out: ReadyVersion[] = [];
+  for (const r of rows) {
+    if (!ticked.has(r.placement.key)) continue;
+    const v = fresh.get(r.placement.key) ?? r.version;
+    if (v && (v.state === "ready" || v.state === "scheduled" || v.state === "published")) {
+      out.push({ id: v.id, key: v.key, channel: r.placement.channel, label: r.placement.label, width: v.width, height: v.height });
+    }
+  }
+  return out;
 }
 
 /** What each Ad Engine platform is called to a merchant (the handoff makes one ad per platform). */
@@ -144,7 +176,9 @@ export interface MakeSizesResult {
   /** The sizes the free draw made or marked (empty when none was needed). */
   rendered: VersionRow[];
   /** The ticked sizes that are made now and can go to a post. */
-  readyIds: string[];
+  ready: ReadyVersion[];
+  /** The free draw found a different number of sizes that need more background than the price shown covered: nothing was started, the price must be asked again. */
+  requote: boolean;
   /** Set when the quoted step was refused or failed: nothing was charged, and the free sizes are still made. */
   extendError?: unknown;
   /** True when the quoted step was started (those sizes arrive on their own). */
@@ -161,12 +195,17 @@ export async function makeSizes(a: {
   ticked: ReadonlySet<string>;
   render: (keys: string[]) => Promise<VersionRow[]>;
   extend: (keys: string[]) => Promise<unknown>;
+  /** How many sizes the price on screen covers. */
+  quotedUnits: number;
 }): Promise<MakeSizesResult> {
   const toRender = keysToRender(a.rows, a.ticked);
   const rendered = toRender.length > 0 ? await a.render(toRender) : [];
   const toExtend = keysToExtend(a.rows, a.ticked, rendered);
   let extendError: unknown;
   let extendStarted = false;
+  const ready = readyVersions(a.rows, a.ticked, rendered);
+  // The receipt is good for exactly the sizes it was asked for: a different count (the renderer found one more) is a new price, never a guess.
+  if (toExtend.length > 0 && toExtend.length !== a.quotedUnits) return { rendered, ready, extendStarted: false, requote: true };
   if (toExtend.length > 0) {
     try {
       await a.extend(toExtend);
@@ -175,5 +214,5 @@ export async function makeSizes(a: {
       extendError = e;
     }
   }
-  return { rendered, readyIds: readyVersionIds(a.rows, a.ticked, rendered), extendStarted, ...(extendError !== undefined ? { extendError } : {}) };
+  return { rendered, ready, extendStarted, requote: false, ...(extendError !== undefined ? { extendError } : {}) };
 }
