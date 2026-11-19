@@ -7,12 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { QuoteBlock, type QuoteBlockState } from "@/components/studio/studio-quote";
-import { PreviewImage } from "@/components/studio/preview-card";
+import { PreviewImage, ReadabilityHint } from "@/components/studio/preview-card";
 import { RefusalNote } from "@/components/studio/refusal-note";
 import { useIsMobile } from "@/hooks/use-mobile";
-import type { PreviewView, TweakOp } from "@/lib/api/creative-studio";
+import type { PreviewView, Swatch, TweakOp } from "@/lib/api/creative-studio";
 import { formatPeaks } from "@/lib/pricing";
-import { WORDING_MAX, wordingOp, type StudioRefusal, type Swatch } from "@/lib/studio-flow";
+import { WORDING_MAX, wordingOp, type StudioRefusal } from "@/lib/studio-flow";
 import { STUDIO_COPY } from "@/lib/studio-copy";
 import { cn } from "@/lib/utils";
 
@@ -168,6 +168,7 @@ export function TweakPanelView(p: TweakPanelViewProps) {
         {p.pending ? T.working : (p.announcement ?? "")}
       </p>
       {p.error && <RefusalNote refusal={p.error} />}
+      <ReadabilityHint preview={preview} proTools={p.proTools} />
 
       <Group label={T.wording}>
         {options.length > 0 && (

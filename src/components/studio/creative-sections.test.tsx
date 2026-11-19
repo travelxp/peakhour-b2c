@@ -37,12 +37,39 @@ const preview = (over: Partial<PreviewView> = {}): PreviewView => ({
   chosenOption: 0,
   canUndo: false,
   productCrop: null,
+  headlineBackdrop: null,
   ...over,
 });
 const card = (p: PreviewView, over: { canMake?: boolean; index?: number; total?: number } = {}) =>
   renderToStaticMarkup(
     <PreviewCard preview={p} index={over.index ?? 1} total={over.total ?? 4} canMake={over.canMake ?? true} onHeart={noop} onOpen={noop} onTweak={noop} onSkip={noop} />,
   );
+
+describe("the Hard to read hint (CS-3d headlineBackdrop)", () => {
+  const hard = { hex: "#cccccc", contrast: 1.8, hardToRead: true };
+  it("shows a plain hint, with no number, when the api says the headline is hard to read", () => {
+    const html = card(preview({ headlineBackdrop: hard }));
+    expect(html).toContain("Hard to read");
+    expect(html).toContain("Try other wording or a different colour.");
+    expect(html).not.toContain("1.8");
+  });
+  it("says nothing when it reads fine or was not measured", () => {
+    expect(card(preview({ headlineBackdrop: { hex: "#111111", contrast: 9, hardToRead: false } }))).not.toContain("Hard to read");
+    expect(card(preview())).not.toContain("Hard to read");
+  });
+  it("Pro tools add the ratio in the Change panel", () => {
+    const panel = (proTools: boolean) =>
+      renderToStaticMarkup(
+        <TweakPanelView preview={preview({ headlineBackdrop: hard })} alt="a" palette={[]} products={[]} canMake pending={false} proTools={proTools}
+          background={{ available: false, open: false, onOpen: noop, onCancel: noop, onConfirm: noop, onClearRefusal: noop, quote: { state: "loading", onRetry: noop }, left: null, pending: false }}
+          wording={{ available: false, open: false, onOpen: noop, onCancel: noop, onConfirm: noop, onClearRefusal: noop, quote: { state: "loading", onRetry: noop }, left: null, pending: false }}
+          onOp={noop} onColour={noop} />,
+      );
+    expect(panel(true)).toContain("Contrast 1.8 to 1");
+    expect(panel(false)).toContain("Hard to read");
+    expect(panel(false)).not.toContain("Contrast");
+  });
+});
 
 describe("a preview card (S7)", () => {
   it("the picture has real alt text from its data, and the card says Preview", () => {

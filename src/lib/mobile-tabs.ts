@@ -1,10 +1,15 @@
 import { GROWTH_HOME } from "@/lib/growth-v2-nav";
 
+/** What "Commerce" reads as when Studio shares the bar: six cells are 60px each at 360px and the full word does not fit. */
+export const COMMERCE_SHORT_LABEL = "Shop";
+
 export interface MobileTab {
   key: "home" | "studio" | "inbox" | "content" | "growth" | "commerce";
   href: string;
   /** Key into PILLAR_COPY for the label and tooltip. */
   copyHref: string;
+  /** A shorter label for a crowded bar, used instead of the nav copy's. */
+  shortLabel?: string;
   /** Pathname prefixes that light this tab. */
   prefixes: string[];
 }
@@ -15,9 +20,9 @@ export interface MobileTab {
  * or Growth for everyone else. Growth stays one tap away under More for
  * Commerce orgs. An org without Studio gets exactly the bar it had.
  *
- * ★SIX CELLS DO NOT ALWAYS FIT (CS-UI-1, measured in Chrome with Geist at 360px: 60px a cell). "Commerce" at the app's 12px type floor is
- * 61px of text, so with Studio AND Commerce it is cut short. UX spec open item 6 gives the fallback and this takes it for that one
- * combination only: Inbox moves into More, leaving five cells. Studio without Commerce keeps all six ("Content", the next widest, is 45px).
+ * ★SIX CELLS (UX spec U3; CS-UI-1 measured Chrome with Geist at 360px: 60px a cell, the app's 12px type floor). "Commerce" is 61px of text, so
+ * with Studio AND Commerce it takes the short label "Shop" (the other labels, "Content" at 45px the widest, fit). Inbox stays in the bar in
+ * every combination; an earlier cut moved it into More for that one, which hid the merchant's replies.
  */
 export function primaryTabs({
   hasCommerce,
@@ -35,7 +40,13 @@ export function primaryTabs({
     prefixes: [homeHref],
   };
   const fourth: MobileTab = hasCommerce
-    ? { key: "commerce", href: "/dashboard/commerce", copyHref: "/dashboard/commerce", prefixes: ["/dashboard/commerce"] }
+    ? {
+        key: "commerce",
+        href: "/dashboard/commerce",
+        copyHref: "/dashboard/commerce",
+        ...(hasStudio ? { shortLabel: COMMERCE_SHORT_LABEL } : {}),
+        prefixes: ["/dashboard/commerce"],
+      }
     : { key: "growth", href: GROWTH_HOME, copyHref: "/dashboard/growth", prefixes: [GROWTH_HOME, "/dashboard/ads"] };
   const studio: MobileTab = {
     key: "studio",
@@ -47,7 +58,7 @@ export function primaryTabs({
   return [
     home,
     ...(hasStudio ? [studio] : []),
-    ...(hasStudio && hasCommerce ? [] : [inbox]),
+    inbox,
     {
       key: "content",
       href: "/dashboard/content",

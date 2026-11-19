@@ -44,7 +44,7 @@ export function MobileTabBar({
   intentProps,
 }: {
   hasCommerce: boolean;
-  /** The org is entitled to Studio: a sixth cell, between Home and Inbox. */
+  /** The org is entitled to Studio: a sixth cell, between Home and Inbox (the bar reads Home, Studio, Inbox, Content, Growth or Shop, More). */
   hasStudio?: boolean;
   pathname: string;
   /** Hover/focus/touch handlers per href (hooks/use-nav-intent). The five tabs keep Next's viewport prefetch too. */
@@ -77,7 +77,7 @@ export function MobileTabBar({
                 )}
               >
                 <Icon className="size-5" aria-hidden />
-                <span className="max-w-full truncate px-1">{copy?.label ?? t.key}</span>
+                <span className="max-w-full truncate px-1">{t.shortLabel ?? copy?.label ?? t.key}</span>
               </Link>
             </li>
           );
