@@ -45,6 +45,10 @@ export const PILLAR_COPY: Record<string, NavCopy> = {
     label: "Content",
     description: "Posts, pages and the plan for what gets published.",
   },
+  "/dashboard/studio": {
+    label: "Studio",
+    description: "Make posts and ads from your real products, and approve them in one tap.",
+  },
   "/dashboard/growth": {
     label: "Growth",
     description: "Ads and growth actions, with your approval and your rules.",
@@ -134,6 +138,24 @@ export const SUB_COPY: Record<string, NavCopy> = {
     label: "Holidays & events",
     description: "Seasonal moments Peakhour should plan content around.",
     aliases: ["Seasonal Events"],
+  },
+
+  // Studio. "Ideas" shares the pillar's href, as Content's "All content" does.
+  "/dashboard/studio": {
+    label: "Ideas",
+    description: "Post ideas for you, each with the reason behind it.",
+  },
+  "/dashboard/studio/shortlist": {
+    label: "Shortlist",
+    description: "Previews you liked, waiting to be made final.",
+  },
+  "/dashboard/studio/library": {
+    label: "Library",
+    description: "What you've made, and the product photos Studio uses.",
+  },
+  "/dashboard/studio/learned": {
+    label: "What we've learned",
+    description: "What Studio has noticed about your taste. Change or delete any of it.",
   },
 
   // Growth

@@ -48,7 +48,7 @@ import { ASK_ENABLED } from "@/lib/flags";
 import { useState } from "react";
 import { HOME_ROUTE } from "@/lib/nav-home";
 import { activeSubHref, mandateStateOf } from "@/lib/growth-v2-nav";
-import { navGroupsFor, pillarForPath, type NavBadgeKey } from "@/lib/dashboard-nav";
+import { navGroupsFor, pillarForPath, STUDIO_FEATURE, type NavBadgeKey } from "@/lib/dashboard-nav";
 import { PillarTabs } from "@/components/dashboard/pillar-tabs";
 import { MobileTabBar } from "@/components/dashboard/mobile-tab-bar";
 import { useGrowthV2Rules } from "@/lib/api/growth-v2";
@@ -387,6 +387,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                       item.feature &&
                       !entitlements?.features?.includes(item.feature)
                     ) {
+                      if (item.hideWhenLocked) return null;
                       return (
                         <LockedNavItem
                           key={item.href}
@@ -654,6 +655,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       <MobileTabBar
         pathname={pathname ?? ""}
         hasCommerce={!!entitlements?.features?.includes("commerce.nav")}
+        hasStudio={!!entitlements?.features?.includes(STUDIO_FEATURE)}
         intentProps={intentProps}
       />
 

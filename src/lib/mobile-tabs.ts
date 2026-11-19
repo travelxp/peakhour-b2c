@@ -1,7 +1,7 @@
 import { GROWTH_HOME } from "@/lib/growth-v2-nav";
 
 export interface MobileTab {
-  key: "home" | "inbox" | "content" | "growth" | "commerce";
+  key: "home" | "studio" | "inbox" | "content" | "growth" | "commerce";
   href: string;
   /** Key into PILLAR_COPY for the label and tooltip. */
   copyHref: string;
@@ -10,11 +10,24 @@ export interface MobileTab {
 }
 
 /**
- * The bar's destinations before "More": Home, Inbox, Content, then Commerce for
- * an org entitled to it or Growth for everyone else. Growth stays one tap away
- * under More for Commerce orgs.
+ * The bar's destinations before "More": Home, Studio (only for an org entitled
+ * to it, UX spec U3), Inbox, Content, then Commerce for an org entitled to it
+ * or Growth for everyone else. Growth stays one tap away under More for
+ * Commerce orgs. An org without Studio gets exactly the bar it had.
+ *
+ * ★SIX CELLS DO NOT ALWAYS FIT (CS-UI-1, measured in Chrome with Geist at 360px: 60px a cell). "Commerce" at the app's 12px type floor is
+ * 61px of text, so with Studio AND Commerce it is cut short. UX spec open item 6 gives the fallback and this takes it for that one
+ * combination only: Inbox moves into More, leaving five cells. Studio without Commerce keeps all six ("Content", the next widest, is 45px).
  */
-export function primaryTabs({ hasCommerce, homeHref }: { hasCommerce: boolean; homeHref: string }): MobileTab[] {
+export function primaryTabs({
+  hasCommerce,
+  hasStudio = false,
+  homeHref,
+}: {
+  hasCommerce: boolean;
+  hasStudio?: boolean;
+  homeHref: string;
+}): MobileTab[] {
   const home: MobileTab = {
     key: "home",
     href: homeHref,
@@ -24,9 +37,17 @@ export function primaryTabs({ hasCommerce, homeHref }: { hasCommerce: boolean; h
   const fourth: MobileTab = hasCommerce
     ? { key: "commerce", href: "/dashboard/commerce", copyHref: "/dashboard/commerce", prefixes: ["/dashboard/commerce"] }
     : { key: "growth", href: GROWTH_HOME, copyHref: "/dashboard/growth", prefixes: [GROWTH_HOME, "/dashboard/ads"] };
+  const studio: MobileTab = {
+    key: "studio",
+    href: "/dashboard/studio",
+    copyHref: "/dashboard/studio",
+    prefixes: ["/dashboard/studio"],
+  };
+  const inbox: MobileTab = { key: "inbox", href: "/dashboard/inbox", copyHref: "/dashboard/inbox", prefixes: ["/dashboard/inbox"] };
   return [
     home,
-    { key: "inbox", href: "/dashboard/inbox", copyHref: "/dashboard/inbox", prefixes: ["/dashboard/inbox"] },
+    ...(hasStudio ? [studio] : []),
+    ...(hasStudio && hasCommerce ? [] : [inbox]),
     {
       key: "content",
       href: "/dashboard/content",

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { PILLAR_NAV, growthSubs, pillarForPath, navGroupsFor, type NavGroup } from "./dashboard-nav";
+import { PILLAR_NAV, STUDIO_FEATURE, growthSubs, pillarForPath, navGroupsFor, type NavGroup } from "./dashboard-nav";
 import { PILLAR_COPY, SUB_COPY, MAX_DESCRIPTION } from "./nav-copy";
 import { activeTab, nextTabIndex } from "./pillar-tabs";
 import { primaryTabs, isTabActive } from "./mobile-tabs";
@@ -15,6 +15,7 @@ const BEFORE_TOP = [
   "/dashboard/integrations",
   "/dashboard/inbox",
   "/dashboard/content",
+  "/dashboard/studio",
   "/dashboard/growth",
   "/dashboard/commerce",
   "/dashboard/presence",
@@ -35,6 +36,11 @@ const BEFORE_SUBS = [
   "/dashboard/calendar",
   "/dashboard/content/ledger",
   "/dashboard/content/seasonal-events",
+  // Creative Studio (CS-UI-1): a new pillar between Content and Growth.
+  "/dashboard/studio",
+  "/dashboard/studio/shortlist",
+  "/dashboard/studio/library",
+  "/dashboard/studio/learned",
   "/dashboard/growth",
   "/dashboard/growth/decisions",
   "/dashboard/growth/channels",
@@ -182,7 +188,45 @@ describe("pillar tabs", () => {
   });
 });
 
+describe("Studio in the navigation", () => {
+  it("sits between Content and Growth, gated and hidden (not locked) for an org without it", () => {
+    const tops = items(PILLAR_NAV).map((i) => i.href);
+    expect(tops.indexOf("/dashboard/studio")).toBe(tops.indexOf("/dashboard/content") + 1);
+    expect(tops.indexOf("/dashboard/growth")).toBe(tops.indexOf("/dashboard/studio") + 1);
+    const studio = items(PILLAR_NAV).find((i) => i.href === "/dashboard/studio")!;
+    expect(studio.feature).toBe(STUDIO_FEATURE);
+    expect(studio.hideWhenLocked).toBe(true);
+    expect(studio.subItems!.map((s) => s.label)).toEqual(["Ideas", "Shortlist", "Library", "What we've learned"]);
+  });
+
+  it("the pillar is named Studio even though its first tab (same href) is Ideas", () => {
+    expect(PILLAR_COPY["/dashboard/studio"].label).toBe("Studio");
+    expect(SUB_COPY["/dashboard/studio"].label).toBe("Ideas");
+  });
+
+  it("a Studio page lights the Studio pillar tabs, and the new-brief page lights Ideas", () => {
+    const g = navGroupsFor("present");
+    expect(pillarForPath("/dashboard/studio/shortlist", g)?.href).toBe("/dashboard/studio");
+    const studio = pillarForPath("/dashboard/studio/new", g)!;
+    expect(activeTab("/dashboard/studio/new", studio.subItems!)?.href).toBe("/dashboard/studio");
+    expect(activeTab("/dashboard/studio/library", studio.subItems!)?.href).toBe("/dashboard/studio/library");
+  });
+});
+
 describe("mobile bottom bar", () => {
+  it("Studio gets its own cell between Home and Inbox only for an org entitled to it", () => {
+    const keys = (hasCommerce: boolean, hasStudio?: boolean) =>
+      primaryTabs({ hasCommerce, hasStudio, homeHref: "/dashboard/overview" }).map((t) => t.key);
+    expect(keys(false, true)).toEqual(["home", "studio", "inbox", "content", "growth"]);
+    // Six cells cut "Commerce" short at 360px (measured), so Studio + Commerce moves Inbox into More.
+    expect(keys(true, true)).toEqual(["home", "studio", "content", "commerce"]);
+    expect(keys(false)).toEqual(["home", "inbox", "content", "growth"]);
+    const studio = primaryTabs({ hasCommerce: false, hasStudio: true, homeHref: "/dashboard/overview" })[1];
+    expect(isTabActive("/dashboard/studio/c/abc", studio)).toBe(true);
+    expect(isTabActive("/dashboard/studios", studio)).toBe(false);
+    expect(PILLAR_COPY[studio.copyHref]).toBeDefined();
+  });
+
   it("shows Growth for everyone and Commerce instead only when entitled", () => {
     expect(primaryTabs({ hasCommerce: false, homeHref: "/dashboard/overview" }).map((t) => t.key)).toEqual([
       "home", "inbox", "content", "growth",
