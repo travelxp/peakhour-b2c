@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Lightbulb } from "lucide-react";
 import { toast } from "sonner";
@@ -14,14 +14,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { commerceStoresQuery } from "@/hooks/use-commerce-stores";
 import { useAuth } from "@/providers/auth-provider";
 import { STUDIO_KEYS, useStudioAvailability, usePostIdeas } from "@/hooks/use-studio";
-import { createDismissalQueue } from "@/lib/studio-dismissals";
+import { createDismissals } from "@/lib/studio-dismissals";
 import { capabilityState, hiddenUntilLine, ideasFeedStatus, STUDIO_ROUTES, type IdeasFeedStatus } from "@/lib/studio";
 import { STUDIO_COPY } from "@/lib/studio-copy";
 import { IdeaCard } from "./idea-card";
 
 const C = STUDIO_COPY.ideas;
 
-/** How long "Undo" is offered. The api has no un-dismiss, so the dismissal is sent when this window closes. */
+/** How long the "Undo" toast stays up. The dismissal is already sent; Undo asks the api to take it back. */
 export const UNDO_WINDOW_MS = 6_000;
 
 /**
@@ -107,9 +107,9 @@ const isNotFound = (e: unknown) => e instanceof ApiError && e.status === 404;
 /**
  * Studio home's feed: the ideas query plus "Not now" with undo.
  *
- * Dismiss: the card leaves at once and a toast offers Undo for {@link UNDO_WINDOW_MS}. The api cannot take a dismissal back, so the POST is
- * sent when the window closes (or when the page is left, which flushes every pending one). Undo inside the window just cancels it. A 404
- * means the idea is already gone: drop it silently and refetch. Any other failure puts the card back and says so.
+ * Dismiss: the card leaves at once, the dismissal is sent at once, and a toast offers Undo for {@link UNDO_WINDOW_MS}. Undo calls the api's
+ * un-dismiss (it waits for the dismissal if that is still on its way) and puts the card back. A 404 means the idea is already gone: drop it
+ * silently and refetch. Any other failure puts the card back and says so. Nothing is held in the page, so leaving it loses nothing.
  */
 export function IdeasFeed() {
   const qc = useQueryClient();
@@ -146,39 +146,50 @@ export function IdeasFeed() {
     [qc],
   );
 
-  // The toast offering Undo for each pending idea, so it can be closed the moment the dismissal is sent (a hovered toast outlives the window).
-  const [toastIds] = useState(() => new Map<string, string | number>());
-
-  const send = useCallback(
-    async (idea: PostIdea) => {
-      const tid = toastIds.get(idea.id);
-      toastIds.delete(idea.id);
-      if (tid !== undefined) toast.dismiss(tid);
-      try {
-        await creativeApi.dismissPostIdea(idea.id);
-        removeFromCache(idea.id);
-        unhide(idea.id);
-      } catch (e) {
-        unhide(idea.id);
-        if (isNotFound(e)) {
-          removeFromCache(idea.id);
-          void qc.invalidateQueries({ queryKey: [STUDIO_KEYS.ideas] });
-          return;
-        }
-        toast.error(C.dismissFailed);
-      }
+  // After an Undo the card goes back where it was; the refetch that follows has the api's last word.
+  const restoreToCache = useCallback(
+    (idea: PostIdea, at: number) => {
+      qc.setQueriesData<PostIdeasResponse>({ queryKey: [STUDIO_KEYS.ideas] }, (old) => {
+        if (!old || old.ideas.some((i) => i.id === idea.id)) return old;
+        const next = [...old.ideas];
+        next.splice(Math.min(at, next.length), 0, idea);
+        return { ...old, ideas: next };
+      });
+      void qc.invalidateQueries({ queryKey: [STUDIO_KEYS.ideas] });
     },
-    [qc, removeFromCache, unhide, toastIds],
+    [qc],
   );
 
-  // One queue for the life of the page. `send` is stable (its dependencies are the query client and two stable callbacks).
-  const queue = useMemo(() => createDismissalQueue<PostIdea>({ windowMs: UNDO_WINDOW_MS, send }), [send]);
+  // The toast offering Undo for each idea, so it can be closed the moment the dismissal fails (a hovered toast outlives its window), and
+  // the place each card held, so Undo puts it back there.
+  const [toastIds] = useState(() => new Map<string, string | number>());
+  const [places] = useState(() => new Map<string, number>());
+
+  const dismissals = useMemo(
+    () =>
+      createDismissals<PostIdea>({
+        dismiss: (idea) => creativeApi.dismissPostIdea(idea.id),
+        undismiss: (idea) => creativeApi.undismissPostIdea(idea.id),
+        isGone: isNotFound,
+      }),
+    [],
+  );
+
+  const closeToast = useCallback(
+    (id: string) => {
+      const tid = toastIds.get(id);
+      toastIds.delete(id);
+      if (tid !== undefined) toast.dismiss(tid);
+    },
+    [toastIds],
+  );
 
   const onNotNow = useCallback(
     (idea: PostIdea) => {
       const visible = (list ?? []).filter((i) => !hidden.has(i.id));
       const at = visible.findIndex((i) => i.id === idea.id);
       const next = visible[at + 1] ?? visible[at - 1];
+      places.set(idea.id, (list ?? []).findIndex((i) => i.id === idea.id));
       setHidden((h) => new Set(h).add(idea.id));
       setAnnouncement(C.ideaHidden);
       // Focus moves to the next card's primary button, so a keyboard user is not dropped at the top of the page.
@@ -188,35 +199,43 @@ export function IdeasFeed() {
         // The last card has no neighbour: focus the section heading rather than let focus fall to the page.
         (target ?? rootRef.current?.querySelector<HTMLElement>("#studio-ideas-title"))?.focus();
       });
-      queue.hide(idea);
+      void dismissals.hide(idea).then((outcome) => {
+        if (outcome === "hidden") {
+          removeFromCache(idea.id);
+          return;
+        }
+        // Not dismissed: the card is back, and so is the answer for the merchant.
+        closeToast(idea.id);
+        unhide(idea.id);
+        if (outcome === "gone") {
+          removeFromCache(idea.id);
+          void qc.invalidateQueries({ queryKey: [STUDIO_KEYS.ideas] });
+        } else {
+          toast.error(C.dismissFailed);
+        }
+      });
       const tid = toast(hiddenUntilLine(idea, ideas.data?.coolingDays ?? 14, new Date()), {
         duration: UNDO_WINDOW_MS,
         action: {
           label: C.undo,
           onClick: () => {
-            if (queue.undo(idea.id)) {
-              toastIds.delete(idea.id);
-              unhide(idea.id);
-            }
+            toastIds.delete(idea.id);
+            void dismissals.undo(idea).then((outcome) => {
+              if (outcome === "restored") {
+                restoreToCache(idea, places.get(idea.id) ?? 0);
+                unhide(idea.id);
+                setAnnouncement(C.ideaBack);
+              } else if (outcome === "failed") {
+                toast.error(C.undoFailed);
+              }
+            });
           },
         },
       });
       toastIds.set(idea.id, tid);
     },
-    [hidden, list, ideas.data?.coolingDays, queue, unhide, toastIds],
+    [hidden, list, ideas.data?.coolingDays, dismissals, qc, removeFromCache, restoreToCache, unhide, closeToast, toastIds, places],
   );
-
-  // Leaving the page inside the undo window must not lose the dismissal: send every pending one now. A route change (unmount) is reliable.
-  // A reload or close (`pagehide`) is BEST EFFORT: the client has no keepalive path, so the browser may cancel the request on unload and
-  // the idea then returns on the next visit. A tab switch deliberately flushes nothing, so the Undo promised for 6 s still works.
-  useEffect(() => {
-    const flushAll = () => queue.flush();
-    window.addEventListener("pagehide", flushAll);
-    return () => {
-      window.removeEventListener("pagehide", flushAll);
-      queue.flush();
-    };
-  }, [queue]);
 
   return (
     <div ref={rootRef}>

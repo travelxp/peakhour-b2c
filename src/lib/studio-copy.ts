@@ -39,6 +39,8 @@ export const STUDIO_COPY = {
       what: "your ideas",
     },
     dismissFailed: "We couldn't hide that idea. It's back in your list.",
+    ideaBack: "Idea is back.",
+    undoFailed: "We couldn't bring that idea back. It stays hidden for now.",
     /** Cooling period over, the idea may come back. */
     backAfter: (date: string) => `Okay, we won't suggest this again until ${date}.`,
     /** A festival idea stays away until the festival has passed. */

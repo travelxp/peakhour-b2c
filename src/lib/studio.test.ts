@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { api, ApiError } from "@/lib/api";
 import { creativeApi, parseAvailability, STUDIO_CAPABILITIES, UNAVAILABLE, type PostIdea } from "@/lib/api/creative";
 import { briefHref, capabilityState, goodUntil, hiddenUntilLine, ideasFeedStatus } from "@/lib/studio";
-import { createDismissalQueue } from "@/lib/studio-dismissals";
+import { createDismissals } from "@/lib/studio-dismissals";
+import { readFileSync } from "node:fs";
 
 const idea = (over: Partial<PostIdea> = {}): PostIdea => ({
   id: "low_stock:1",
@@ -108,58 +109,92 @@ describe("idea helpers", () => {
   });
 });
 
-describe("the undo window", () => {
-  afterEach(() => vi.useRealTimers());
-  const mk = () => {
-    vi.useFakeTimers();
-    const send = vi.fn<(i: { id: string }) => Promise<void>>(async () => undefined);
-    return { send, q: createDismissalQueue<{ id: string }>({ windowMs: 6000, send }) };
+describe("Not now and Undo", () => {
+  const mk = (over: { dismiss?: () => Promise<unknown>; undismiss?: () => Promise<unknown> } = {}) => {
+    const dismiss = vi.fn<(i: { id: string }) => Promise<unknown>>(over.dismiss ?? (async () => undefined));
+    const undismiss = vi.fn<(i: { id: string }) => Promise<unknown>>(over.undismiss ?? (async () => undefined));
+    const isGone = (e: unknown) => e instanceof ApiError && e.status === 404;
+    return { dismiss, undismiss, d: createDismissals<{ id: string }>({ dismiss, undismiss, isGone }) };
   };
 
-  it("sends nothing inside the window and sends once when it closes", () => {
-    const { q, send } = mk();
-    q.hide({ id: "a" });
-    vi.advanceTimersByTime(5999);
-    expect(send).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(1);
-    expect(send).toHaveBeenCalledTimes(1);
-    expect(send).toHaveBeenCalledWith({ id: "a" });
-    expect(q.pendingIds()).toEqual([]);
+  it("sends the dismissal at once, with no waiting window", async () => {
+    const { d, dismiss, undismiss } = mk();
+    expect(await d.hide({ id: "a" })).toBe("hidden");
+    expect(dismiss).toHaveBeenCalledTimes(1);
+    expect(dismiss).toHaveBeenCalledWith({ id: "a" });
+    expect(undismiss).not.toHaveBeenCalled();
   });
 
-  it("undo inside the window means the api never hears of it", () => {
-    const { q, send } = mk();
-    q.hide({ id: "a" });
-    expect(q.undo("a")).toBe(true);
-    vi.advanceTimersByTime(60_000);
-    expect(send).not.toHaveBeenCalled();
+  it("Undo calls the api's undismiss for that idea, once", async () => {
+    const { d, undismiss } = mk();
+    await d.hide({ id: "a" });
+    expect(await d.undo({ id: "a" })).toBe("restored");
+    expect(undismiss).toHaveBeenCalledTimes(1);
+    expect(undismiss).toHaveBeenCalledWith({ id: "a" });
+    // a second press has nothing left to take back
+    expect(await d.undo({ id: "a" })).toBe("nothing");
+    expect(undismiss).toHaveBeenCalledTimes(1);
   });
 
-  it("undo after the window closed is a no-op that says so", () => {
-    const { q } = mk();
-    q.hide({ id: "a" });
-    vi.advanceTimersByTime(6000);
-    expect(q.undo("a")).toBe(false);
+  it("Undo pressed while the dismissal is still on its way waits, so undismiss reaches the api after dismiss", async () => {
+    const order: string[] = [];
+    let release!: () => void;
+    const { d } = mk({
+      dismiss: () => new Promise<void>((r) => (release = () => (order.push("dismiss"), r()))),
+      undismiss: async () => void order.push("undismiss"),
+    });
+    const hidden = d.hide({ id: "a" });
+    const undone = d.undo({ id: "a" });
+    await Promise.resolve();
+    expect(order).toEqual([]);
+    release();
+    expect(await hidden).toBe("hidden");
+    expect(await undone).toBe("restored");
+    expect(order).toEqual(["dismiss", "undismiss"]);
   });
 
-  it("flush (the page was left) sends every pending one now, once each", () => {
-    const { q, send } = mk();
-    q.hide({ id: "a" });
-    q.hide({ id: "b" });
-    q.flush();
-    expect(send.mock.calls.map((c) => c[0].id).sort()).toEqual(["a", "b"]);
-    vi.advanceTimersByTime(60_000);
-    expect(send).toHaveBeenCalledTimes(2);
+  it("a dismissal that failed or found the idea gone leaves nothing to undo", async () => {
+    const failing = mk({ dismiss: async () => { throw new ApiError("X", "boom", 500); } });
+    expect(await failing.d.hide({ id: "a" })).toBe("failed");
+    expect(await failing.d.undo({ id: "a" })).toBe("nothing");
+    expect(failing.undismiss).not.toHaveBeenCalled();
+    const gone = mk({ dismiss: async () => { throw new ApiError("NOT_FOUND", "gone", 404); } });
+    expect(await gone.d.hide({ id: "a" })).toBe("gone");
+    expect(await gone.d.undo({ id: "a" })).toBe("nothing");
+    expect(gone.undismiss).not.toHaveBeenCalled();
   });
 
-  it("hiding the same idea twice restarts its window and still sends once", () => {
-    const { q, send } = mk();
-    q.hide({ id: "a" });
-    vi.advanceTimersByTime(4000);
-    q.hide({ id: "a" });
-    vi.advanceTimersByTime(4000);
-    expect(send).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(2000);
-    expect(send).toHaveBeenCalledTimes(1);
+  it("an undismiss that fails says so and the idea stays dismissed", async () => {
+    const { d } = mk({ undismiss: async () => { throw new ApiError("X", "boom", 500); } });
+    await d.hide({ id: "a" });
+    expect(await d.undo({ id: "a" })).toBe("failed");
+  });
+
+  it("an Undo for an idea this page never hid does nothing", async () => {
+    const { d, undismiss } = mk();
+    expect(await d.undo({ id: "zzz" })).toBe("nothing");
+    expect(undismiss).not.toHaveBeenCalled();
+  });
+
+  it("ideas are independent: undoing one never touches another", async () => {
+    const { d, undismiss } = mk();
+    await d.hide({ id: "a" });
+    await d.hide({ id: "b" });
+    await d.undo({ id: "b" });
+    expect(undismiss.mock.calls.map((c) => c[0].id)).toEqual(["b"]);
+  });
+
+  it("the api client posts the id to /undismiss", async () => {
+    const post = vi.spyOn(api, "post").mockResolvedValue({ id: "a", restored: true });
+    await creativeApi.undismissPostIdea("a");
+    expect(post).toHaveBeenCalledWith("/v1/creative/post-ideas/undismiss", { id: "a" });
+    post.mockRestore();
+  });
+
+  it("the feed wires both calls and holds nothing back in the page (no delayed send, no pagehide flush)", () => {
+    const src = readFileSync(new URL("../components/studio/ideas-feed.tsx", import.meta.url), "utf8");
+    expect(src).toContain("creativeApi.dismissPostIdea(");
+    expect(src).toContain("creativeApi.undismissPostIdea(");
+    expect(src).not.toMatch(/pagehide|setTimeout|flush[(]/);
   });
 });
