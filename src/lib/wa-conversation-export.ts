@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "@/lib/api";
+import { downloadBlob } from "@/lib/download";
 
 /**
  * Conversation export and the expiry banner for the Inbox (privacy programme H2).
@@ -103,16 +104,8 @@ export async function downloadConversationExport(path: string, fallbackFilename?
       return { ok: false, message: failureLine(res.status, code) };
     }
     const filename = filenameFrom(res.headers.get("content-disposition"), fallbackFilename ?? (/format=jsonl/.test(path) ? "peakhour-conversations.jsonl" : "peakhour-conversations.txt"));
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    // after the click has started the download (Safari reads the URL late)
-    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    // (the object URL is revoked after the click has started the download: Safari reads it late)
+    downloadBlob(await res.blob(), filename);
     return { ok: true, filename };
   } catch {
     return { ok: false, message: failureLine(500) };

@@ -15,6 +15,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DrivePicker } from "@/components/drive/drive-picker";
 import { driveAbilities } from "@/lib/drive/files-state";
+import { downloadLink } from "@/lib/download";
 import { useStudioPrefs } from "@/hooks/use-studio";
 import { LIBRARY_KEYS, useImportStatus, useLibrary, useProductPhotos, useProductPhotosOne } from "@/hooks/use-studio-library";
 import { bulkSummary, creativeHref, downloadChoices, filterQuery, itemTitle } from "@/lib/studio-library";
@@ -122,17 +123,6 @@ export function AddFromDialog({ open, onOpenChange }: { open: boolean; onOpenCha
       </DialogContent>
     </Dialog>
   );
-}
-
-/** Hand a signed link to the browser as a download. Nothing is fetched here: the link is the api's, and it expires in minutes. */
-function saveLink(url: string, filename: string) {
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.rel = "noopener";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
 }
 
 /**
@@ -251,7 +241,11 @@ export function Library() {
     busy(item.id, true);
     try {
       const link = await creativeApi.download(item.id, q);
-      saveLink(link.url, link.filename);
+      // the api's own signed link, checked as an http(s) address before it becomes an href (nothing is fetched here; it expires in minutes)
+      if (!downloadLink(link.url, link.filename)) {
+        toast.error(C.actions.downloadFailed);
+        return;
+      }
       setDownloadFor(null);
     } catch (e) {
       toast.error(plainError(e, C.actions.downloadFailed));

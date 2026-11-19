@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api, API_BASE_URL, ApiError } from "@/lib/api";
+import { downloadBlob } from "@/lib/download";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -155,15 +156,7 @@ export function TaxAndInvoices() {
         );
         return;
       }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${inv.invoiceNumber.replace(/[^A-Za-z0-9._-]/g, "_")}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      downloadBlob(await res.blob(), `${inv.invoiceNumber.replace(/[^A-Za-z0-9._-]/g, "_")}.pdf`);
     } catch {
       toast.error("Couldn't download the invoice. Please try again.");
     } finally {
