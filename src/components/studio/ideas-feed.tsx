@@ -201,7 +201,9 @@ export function IdeasFeed() {
       });
       void dismissals.hide(idea).then((outcome) => {
         if (outcome === "hidden") {
+          // The cache no longer holds it, so the page need not hide it either (it may return after its cooling period).
           removeFromCache(idea.id);
+          unhide(idea.id);
           return;
         }
         // Not dismissed: the card is back, and so is the answer for the merchant.
