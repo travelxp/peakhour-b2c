@@ -98,6 +98,74 @@ export function parseAvailability(raw: unknown): StudioAvailability {
   return { capabilities, proTools: raw.proTools === true, known: true };
 }
 
+
+// ── Library (CS-3a `GET /v1/creative?view=`) ─────────────────
+
+export type LibraryView = "made" | "plans";
+
+/** One creative in the Library. `thumbUrl` is the cover preview's thumbnail, or null when it could not be signed. */
+export interface LibraryItem {
+  id: string;
+  kind: "image" | "words";
+  status: "brief" | "making_previews" | "previews_ready" | "previews_failed" | "has_final" | "archived";
+  headline: string | null;
+  format: PostFormat;
+  productIds: string[];
+  updatedAt: string;
+  thumbUrl: string | null;
+}
+
+export interface LibraryPage {
+  items: LibraryItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+// ── Memory (CS-3a `/v1/creative/memory`) ─────────────────────
+
+export interface MemoryEvidence {
+  count: number;
+  since: string;
+  basis: "test" | "pattern";
+  /** The api's plain sentence: "Based on 12 posts, since 3 Nov." or "Early guess. Based on 2 posts." */
+  label: string;
+}
+
+export interface MemoryLine {
+  id: string;
+  text: string;
+  kind: "taste" | "rule";
+  /** "learned" by Studio, or "you" (a line the merchant wrote with Pro tools). */
+  source: "learned" | "you";
+  /** "You wrote this", "From a test of two versions" or "A pattern we noticed". Never proof. */
+  origin: string;
+  evidence: MemoryEvidence | null;
+  editable: boolean;
+}
+
+/** A rule that always wins. `changeIn: "brand-kit"` links to the Brand Kit; null has nothing to change here. */
+export interface MemoryRule {
+  text: string;
+  changeIn: "brand-kit" | null;
+}
+
+export interface MemoryRead {
+  lines: MemoryLine[];
+  rules: MemoryRule[];
+  note: string;
+  trends: { approvedPosts: number; enough: boolean; needs: number };
+  pooledOptIn: boolean;
+}
+
+export interface MemoryExport {
+  exportedAt: string;
+  lines: Array<{ text: string; kind: string; source: string; evidence?: { count: number; since: string; basis: string }; createdAt: string }>;
+  pooledOptIn: boolean;
+}
+
+export const MEMORY_LINE_MAX = 140;
+
 export const creativeApi = {
   postIdeas: () => api.get<PostIdeasResponse>("/v1/creative/post-ideas"),
 
@@ -119,4 +187,24 @@ export const creativeApi = {
       throw e;
     }
   },
+
+  library: (q: { view: LibraryView; q?: string; status?: string; page?: number }) =>
+    api.get<LibraryPage>("/v1/creative", {
+      view: q.view,
+      ...(q.q ? { q: q.q } : {}),
+      ...(q.status ? { status: q.status } : {}),
+      ...(q.page && q.page > 1 ? { page: String(q.page) } : {}),
+    }),
+
+  memory: () => api.get<MemoryRead>("/v1/creative/memory"),
+  /** Stop using a line. Free. */
+  deleteMemoryLine: (id: string) => api.delete<{ ok: true }>(`/v1/creative/memory/lines/${encodeURIComponent(id)}`),
+  /** Pro tools. Only a line the merchant wrote can be reworded. */
+  editMemoryLine: (id: string, text: string) => api.patch<{ id: string }>(`/v1/creative/memory/lines/${encodeURIComponent(id)}`, { text }),
+  /** Pro tools. */
+  addMemoryLine: (text: string) => api.post<{ id: string }>("/v1/creative/memory/lines", { text }),
+  setPooled: (optIn: boolean) => api.patch<{ pooledOptIn: boolean }>("/v1/creative/memory/pooled", { optIn }),
+  exportMemory: () => api.post<MemoryExport>("/v1/creative/memory/export", {}),
+  /** Wipes what Studio learned. The Library is not touched. */
+  wipeMemory: () => api.delete<{ deleted: number }>("/v1/creative/memory"),
 };
