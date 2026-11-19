@@ -17,6 +17,7 @@ import {
 import { driveAbilities } from "@/lib/drive/files-state";
 import { useStudioPrefs } from "@/hooks/use-studio";
 import { MEMORY_KEY, useMemory } from "@/hooks/use-studio-memory";
+import { downloadText } from "@/lib/download";
 import { ideasFeedStatus } from "@/lib/studio";
 import { STUDIO_COPY } from "@/lib/studio-copy";
 import { assembleMemory, exportBody, patchPages, runChange } from "@/lib/studio-memory";
@@ -24,19 +25,6 @@ import { useAuth } from "@/providers/auth-provider";
 import { MemoryView, type MemoryActions } from "./memory-view";
 
 const C = STUDIO_COPY.learned;
-
-/** Hand the export to the browser as a file. Nothing is uploaded; the JSON is the api's answer, as it is. */
-function saveFile(name: string, body: string) {
-  const url = URL.createObjectURL(new Blob([body], { type: "application/json" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  // Some browsers start the download after this handler returns; revoking at once would cancel it.
-  setTimeout(() => URL.revokeObjectURL(url), 10_000);
-}
 
 /**
  * The page's wiring (UX spec S15): read, stop using a line, edit and add (Pro tools), the opt-in switch, export and wipe. Every change is
@@ -122,7 +110,8 @@ export function Memory() {
       onExport: async () => {
         setExporting(true);
         try {
-          saveFile(C.exportFile, exportBody(await creativeApi.exportMemory()));
+          // the export is the api's answer as it is: handed to the browser as a file, nothing uploaded
+          downloadText(exportBody(await creativeApi.exportMemory()), C.exportFile, "application/json");
           toast(C.exportDone);
         } catch {
           toast.error(C.exportFailed);

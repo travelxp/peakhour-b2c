@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { API_BASE_URL } from "@/lib/api";
+import { downloadBlob } from "@/lib/download";
 import { useCreditCharges, useCreditsRateCard } from "@/hooks/use-credits";
 import { CHARGES_CSV_PATH, chargeAmount, chargeCount, chargeStatusText, chargeWhen, shopperChargesCopy, shopperReplyPeaks } from "@/lib/charge-record";
 
@@ -40,14 +41,7 @@ export function ChargeRecordCard() {
         toast.error(res.status === 401 ? "Your session expired. Refresh the page and try again." : "We could not make that file. Try again in a moment.");
         return;
       }
-      const url = URL.createObjectURL(await res.blob());
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "peakhour-charges.csv";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      downloadBlob(await res.blob(), "peakhour-charges.csv");
     } catch {
       toast.error("We could not make that file. Try again in a moment.");
     } finally {
