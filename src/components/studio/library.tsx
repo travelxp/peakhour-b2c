@@ -129,6 +129,8 @@ function saveLink(url: string, filename: string) {
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
+  // A file with a public address cannot be forced to download from another site: it opens in its own tab, so the merchant never leaves the Library.
+  a.target = "_blank";
   a.rel = "noopener";
   document.body.appendChild(a);
   a.click();
