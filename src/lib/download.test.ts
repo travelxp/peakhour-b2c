@@ -80,8 +80,10 @@ describe("downloadBlob and downloadText", () => {
   });
 
   it("the object URL is still revoked when the click throws", () => {
-    vi.stubGlobal("document", { createElement: () => ({ href: "", download: "", rel: "", click: () => { throw new Error("blocked"); }, remove: vi.fn() }), body: { appendChild: vi.fn() } });
+    const remove = vi.fn();
+    vi.stubGlobal("document", { createElement: () => ({ href: "", download: "", rel: "", click: () => { throw new Error("blocked"); }, remove }), body: { appendChild: vi.fn() } });
     expect(() => downloadBlob(new Blob(["x"]), "x.bin")).toThrow("blocked");
+    expect(remove).toHaveBeenCalledTimes(1); // and the anchor does not stay in the page
     vi.advanceTimersByTime(10_000);
     expect(revoke).toHaveBeenCalledWith("blob:made-here");
   });

@@ -15,8 +15,12 @@ function click(href: string, filename: string): void {
   a.download = filename;
   a.rel = "noopener";
   document.body.appendChild(a);
-  a.click();
-  a.remove();
+  try {
+    a.click();
+  } finally {
+    // also when the click throws: the anchor must not stay in the page
+    a.remove();
+  }
 }
 
 /** Download a link (the api's, and short-lived). False, with nothing done, when it is not an http or https address. */
