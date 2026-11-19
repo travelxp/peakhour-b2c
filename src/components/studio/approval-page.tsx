@@ -79,27 +79,37 @@ export function ApprovalPageView({ view, name, comment, busy, problem, onName, o
       </FlowCard>
     );
   }
+  return <ReadyCard view={view} name={name} comment={comment} busy={busy} problem={problem} onName={onName} onComment={onComment} onAnswer={onAnswer} onRetry={onRetry} />;
+}
+
+/**
+ * The picture and its two answers. The answers are offered only while the picture can be seen: an address that is not http or https, or a picture that does not load,
+ * shows the error and no buttons, so nobody approves what they were not shown.
+ */
+function ReadyCard({ view, name, comment, busy, problem, onName, onComment, onAnswer }: ApprovalPageViewProps & { view: Extract<ApprovalView, { step: "ready" }> }) {
+  const [imgFailed, setImgFailed] = useState(false);
   const { picture } = view;
   const src = safeHref(picture.imageUrl);
   const w = picture.width ?? 768;
   const h = picture.height ?? 960;
   const needName = name.trim().length === 0;
+  const seen = !!src && !imgFailed;
   return (
     <FlowCard>
       <FlowHead title={P.title}>{P.from(picture.business)}</FlowHead>
       <div className="mt-5 space-y-4">
-        {src ? (
+        {seen ? (
           <div style={{ aspectRatio: `${w} / ${h}` }} className="w-full overflow-hidden rounded-2xl bg-muted">
             {/* A plain img: the link is a short-lived signed address, and its load error is not ours to optimise. */}
             {/* eslint-disable-next-line @next/next/no-img-element -- merchant media stays off the optimiser (see MediaImage) */}
-            <img src={src} alt={P.imageAlt(picture.business)} width={w} height={h} decoding="async" className="size-full object-contain" />
+            <img onError={() => setImgFailed(true)} src={src} alt={P.imageAlt(picture.business)} width={w} height={h} decoding="async" className="size-full object-contain" />
           </div>
         ) : (
           <FlowNotice tone="warn" role="alert">
             {P.error}
           </FlowNotice>
         )}
-        {picture.answered ? (
+        {!seen ? null : picture.answered ? (
           <FlowNotice tone="info" role="status">
             {P.answeredEarlier}
           </FlowNotice>

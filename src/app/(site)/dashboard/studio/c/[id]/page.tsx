@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
+import { Skeleton } from "@/components/ui/skeleton";
 import { CreativeWorkspace } from "@/components/studio/creative-workspace";
 import { STUDIO_COPY } from "@/lib/studio-copy";
 
@@ -12,7 +14,10 @@ export default async function StudioCreativePage({ params }: { params: Promise<{
   return (
     <PageShell>
       <PageHeader title={copy.title} description={copy.description} />
-      <CreativeWorkspace id={id} />
+      {/* The page reads ?panel= (the history sheet), so it sits in a Suspense boundary, as the plan screen does. */}
+      <Suspense fallback={<Skeleton aria-busy="true" className="h-80 rounded-lg" />}>
+        <CreativeWorkspace id={id} />
+      </Suspense>
     </PageShell>
   );
 }

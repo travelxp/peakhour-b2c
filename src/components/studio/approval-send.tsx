@@ -33,7 +33,8 @@ export interface ApprovalSendViewProps {
   previews: SendablePreview[];
   links: ApprovalLink[];
   /** The link just made: its address is shown once, here, and never again. */
-  fresh: { previewId: string; url: string } | null;
+  /** Addresses just made, by preview. Each is shown once, so making a second link must not take the first one away. */
+  fresh: Readonly<Record<string, string>>;
   canMake: boolean;
   pendingPreview: string | null;
   revokingId: string | null;
@@ -63,7 +64,7 @@ export function ApprovalSendView({ previews, links, fresh, canMake, pendingPrevi
         <ul className="space-y-2">
           {previews.map((p) => {
             const live = liveLinkFor(links, p.id);
-            const isFresh = fresh?.previewId === p.id;
+            const freshUrl = fresh[p.id];
             const name = A.previewName(p.number, p.headline ?? "");
             return (
               <li key={p.id} className="space-y-2 rounded-lg border p-2">
@@ -73,15 +74,15 @@ export function ApprovalSendView({ previews, links, fresh, canMake, pendingPrevi
                     {A.create}
                   </Button>
                 </div>
-                {live && !isFresh && <p className="text-xs text-muted-foreground">{A.expires(dayLabel(live.expiresAt))}</p>}
-                {isFresh && fresh && (
+                {live && !freshUrl && <p className="text-xs text-muted-foreground">{A.expires(dayLabel(live.expiresAt))}</p>}
+                {freshUrl && (
                   <div className="space-y-2">
                     <p role="status" className="text-xs text-muted-foreground">
                       {A.shownOnce}
                     </p>
                     <div className="flex gap-2">
-                      <Input readOnly value={fresh.url} aria-label={A.copy} className="h-11" onFocus={(e) => e.currentTarget.select()} />
-                      <Button type="button" className="h-11" onClick={() => onCopy(fresh.url)}>
+                      <Input readOnly value={freshUrl} aria-label={A.copy} className="h-11" onFocus={(e) => e.currentTarget.select()} />
+                      <Button type="button" className="h-11" onClick={() => onCopy(freshUrl)}>
                         {A.copy}
                       </Button>
                     </div>
@@ -159,13 +160,13 @@ export function ApprovalSendSheet({
   const links = useApprovalLinks(creativeId, open);
   const create = useCreateApprovalLink(creativeId);
   const revoke = useRevokeApprovalLink(creativeId);
-  const [fresh, setFresh] = useState<{ previewId: string; url: string } | null>(null);
+  const [fresh, setFresh] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | undefined>();
 
   const onCreate = (previewId: string) => {
     setError(undefined);
     create.mutate(previewId, {
-      onSuccess: (r: CreatedApprovalLink) => setFresh({ previewId, url: approvalLinkUrl(window.location.origin, r.token) }),
+      onSuccess: (r: CreatedApprovalLink) => setFresh((f) => ({ ...f, [previewId]: approvalLinkUrl(window.location.origin, r.token) })),
       onError: (e) => setError(studioRefusal(e).text),
     });
   };
@@ -176,7 +177,7 @@ export function ApprovalSendSheet({
       onOpenChange={(o) => {
         // The address was shown once: closing the sheet forgets it.
         if (!o) {
-          setFresh(null);
+          setFresh({});
           setError(undefined);
         }
         onOpenChange(o);

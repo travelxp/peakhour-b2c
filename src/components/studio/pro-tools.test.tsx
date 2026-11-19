@@ -105,6 +105,12 @@ describe("the batch grid (S16)", () => {
     expect(grid(batch([tile("a")], { failedProducts: 3 }))).toContain("3 products didn&#x27;t work. Not charged.");
   });
 
+  it("when every product failed it says so and that nothing was charged, not to wait", () => {
+    const html = grid(batch([], { status: "failed", failedProducts: 2, products: 2, done: 2 }));
+    expect(html).toContain("2 products didn&#x27;t work. Not charged.");
+    expect(html).not.toContain("No previews yet");
+  });
+
   it("24 to a page, then Show more", () => {
     const many = Array.from({ length: 30 }, (_, i) => tile(`t${i}`, { index: i }));
     const html = grid(batch(many));
@@ -148,6 +154,12 @@ describe("the public approval page (S18)", () => {
     const html = view({ view: { step: "ready", picture: { business: "Sari House", imageUrl: "javascript:alert(1)", width: null, height: null, answered: null, expiresAt: "" } } });
     expect(html).not.toContain("javascript:");
     expect(html).not.toContain("<img");
+  });
+
+  it("with no picture to see there are no answers to give", () => {
+    const html = view({ view: { step: "ready", picture: { business: "Sari House", imageUrl: "javascript:alert(1)", width: null, height: null, answered: null, expiresAt: "" } } });
+    expect(html).not.toContain("Not yet");
+    expect(html).not.toContain("Your name, so");
   });
 
   it("an already answered link offers no buttons", () => {
@@ -209,7 +221,7 @@ describe("send for approval (S18, sender)", () => {
 
   it("a new link's address is shown once with the copy button and the warning", () => {
     const html = renderToStaticMarkup(
-      <ApprovalSendView previews={previews} links={[link]} fresh={{ previewId: "p1", url: "https://peakhour.ai/share/studio/abc" }} canMake pendingPreview={null} revokingId={null} onCreate={noop} onCopy={noop} onRevoke={noop} />,
+      <ApprovalSendView previews={previews} links={[link]} fresh={{ p1: "https://peakhour.ai/share/studio/abc" }} canMake pendingPreview={null} revokingId={null} onCreate={noop} onCopy={noop} onRevoke={noop} />,
     );
     expect(html).toContain("https://peakhour.ai/share/studio/abc");
     expect(html).toContain("Copy link");
@@ -217,12 +229,21 @@ describe("send for approval (S18, sender)", () => {
     expect(html).toContain("Stop this link");
   });
 
+  it("two links made in a row both keep their address until the sheet closes", () => {
+    const two = [...previews, { id: "p2", number: 2, headline: null }];
+    const html = renderToStaticMarkup(
+      <ApprovalSendView previews={two} links={[]} fresh={{ p1: "https://peakhour.ai/share/studio/one", p2: "https://peakhour.ai/share/studio/two" }} canMake pendingPreview={null} revokingId={null} onCreate={noop} onCopy={noop} onRevoke={noop} />,
+    );
+    expect(html).toContain("/share/studio/one");
+    expect(html).toContain("/share/studio/two");
+  });
+
   it("an older link is listed with its state and who answered, with no address", () => {
     const html = renderToStaticMarkup(
       <ApprovalSendView
         previews={previews}
         links={[{ ...link, state: "approved", answeredName: "Asha" }]}
-        fresh={null}
+        fresh={{}}
         canMake
         pendingPreview={null}
         revokingId={null}
@@ -237,9 +258,9 @@ describe("send for approval (S18, sender)", () => {
   });
 
   it("a viewer cannot make a link, and with no previews it says to make some first", () => {
-    const viewer = renderToStaticMarkup(<ApprovalSendView previews={previews} links={[]} fresh={null} canMake={false} pendingPreview={null} revokingId={null} onCreate={noop} onCopy={noop} onRevoke={noop} />);
+    const viewer = renderToStaticMarkup(<ApprovalSendView previews={previews} links={[]} fresh={{}} canMake={false} pendingPreview={null} revokingId={null} onCreate={noop} onCopy={noop} onRevoke={noop} />);
     expect(viewer).toContain("Ask an editor to send this for approval.");
-    const none = renderToStaticMarkup(<ApprovalSendView previews={[]} links={[]} fresh={null} canMake pendingPreview={null} revokingId={null} onCreate={noop} onCopy={noop} onRevoke={noop} />);
+    const none = renderToStaticMarkup(<ApprovalSendView previews={[]} links={[]} fresh={{}} canMake pendingPreview={null} revokingId={null} onCreate={noop} onCopy={noop} onRevoke={noop} />);
     expect(none).toContain("Make previews first");
   });
 });

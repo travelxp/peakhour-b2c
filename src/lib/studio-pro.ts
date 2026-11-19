@@ -23,10 +23,11 @@ export function groupHistory(items: HistoryItem[], previews: Array<{ id: string;
   const byPreview = new Map<string, HistoryItem[]>();
   for (const it of items) byPreview.set(it.previewId, [...(byPreview.get(it.previewId) ?? []), it]);
   return [...byPreview.entries()]
-    .filter(([, list]) => list.some((i) => i.restorable))
+    // A preview that is not on the page (skipped, removed, still being made) has no place to go back to: it is left out, not numbered as Preview 1.
+    .filter(([previewId, list]) => order.has(previewId) && list.some((i) => i.restorable))
     .map(([previewId, list]) => ({
       previewId,
-      number: (order.get(previewId) ?? 0) + 1,
+      number: order.get(previewId)! + 1,
       headline: previews.find((p) => p.id === previewId)?.headline ?? "",
       items: [...list].sort((a, b) => Number(b.current) - Number(a.current) || b.version - a.version),
     }))
@@ -39,9 +40,9 @@ export function restoreMessage(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.code === "VERSION_GONE") return H.gone;
     if (error.code === "VERSION_CONFLICT") return H.conflict;
-    if (error.code === "STATE_CONFLICT") return studioRefusal(error).text;
   }
-  return studioRefusal(error).text === STUDIO_COPY.refusal.wentWrong ? H.failed : studioRefusal(error).text;
+  const r = studioRefusal(error).text;
+  return r === STUDIO_COPY.refusal.wentWrong ? H.failed : r;
 }
 
 /** A link still works: waiting for an answer. Answered, stopped and ran-out links stay in the list as the record. */

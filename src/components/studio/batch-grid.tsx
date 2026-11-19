@@ -58,13 +58,15 @@ export interface BatchTileProps {
   onSelect: () => void;
   onHeart: () => void;
   onSkip: () => void;
+  /** A bulk change is on its way: one at a time, so every answer is heard. */
+  pending: boolean;
 }
 
 /**
  * One product's best preview: the small picture, the product and headline, a select box, the heart and "Not for me". The tile itself takes focus (one tab stop for the whole
  * grid, arrow keys move between tiles), so a person can work the grid from the keyboard.
  */
-export function BatchTile({ preview: p, selected, focusable, canMake, onSelect, onHeart, onSkip }: BatchTileProps) {
+export function BatchTile({ preview: p, selected, focusable, canMake, onSelect, onHeart, onSkip, pending }: BatchTileProps) {
   const name = tileName(p);
   const actionable = isGridActionable(p);
   return (
@@ -101,8 +103,8 @@ export function BatchTile({ preview: p, selected, focusable, canMake, onSelect, 
           <p className="truncate text-sm font-medium">{p.headline ?? ""}</p>
         </div>
         <div className="mt-auto flex items-center justify-between gap-2">
-          <HeartButton pressed={p.liked} label={B.heart(name)} onToggle={onHeart} disabled={!canMake || !actionable} className="shrink-0" />
-          <Button type="button" variant="ghost" className="h-12" disabled={!canMake || !actionable} aria-label={B.skip(name)} onClick={onSkip}>
+          <HeartButton pressed={p.liked} label={B.heart(name)} onToggle={onHeart} disabled={!canMake || !actionable || pending} className="shrink-0" />
+          <Button type="button" variant="ghost" className="h-12" disabled={!canMake || !actionable || pending} aria-label={B.skip(name)} onClick={onSkip}>
             {STUDIO_COPY.creative.notForMe}
           </Button>
         </div>
@@ -139,7 +141,6 @@ export function BatchGridView(p: BatchGridViewProps) {
   const [selectedRaw, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [active, setActive] = useState(0);
   const [help, setHelp] = useState(false);
-  const [announcement, setAnnouncement] = useState("");
   const gridRef = useRef<HTMLUListElement>(null);
 
   const all = gridTiles(batch);
@@ -167,7 +168,6 @@ export function BatchGridView(p: BatchGridViewProps) {
       return;
     }
     p.onAction(op, ids);
-    setAnnouncement(op === "approve" ? B.approvedDone(ids.length) : B.clearedDone(ids.length));
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLUListElement>) => {
@@ -188,7 +188,9 @@ export function BatchGridView(p: BatchGridViewProps) {
     // With a selection the keys act on it; with none they act on the tile in focus.
     const ids = picked.length > 0 ? picked : isGridActionable(here) ? [here.id] : [];
     if (p.pending && action !== "select" && action !== "help") return;
-    if (action === "select") setSelected(toggleSelected(selected, here.id));
+    if (action === "select") {
+      if (isGridActionable(here)) setSelected(toggleSelected(selected, here.id));
+    }
     else if (action === "approve" && p.canMake) act("approve", ids);
     else if (action === "reject" && p.canMake) act("reject", ids);
     else if (action === "undo" && p.canMake && p.lastBulk) p.onUndo();
@@ -196,15 +198,13 @@ export function BatchGridView(p: BatchGridViewProps) {
   };
 
   if (all.length === 0 && !makingMore) {
+    // Every product failed: say so and that nothing was charged, rather than asking the person to wait for previews that will not come.
+    if (batch.failedProducts > 0) return <p role="status" className="rounded-lg border bg-muted/40 p-3 text-sm">{B.failedBanner(batch.failedProducts)}</p>;
     return <EmptyState icon={LayoutGrid} title={B.empty.title} description={B.empty.description} />;
   }
 
   return (
     <div className="space-y-4 pb-44 md:pb-32" data-slot="studio-batch">
-      <p role="status" aria-live="polite" className="sr-only">
-        {announcement}
-      </p>
-
       {makingMore && (
         <section className="space-y-2 rounded-lg border bg-card p-4" aria-label={B.making(batch.done, batch.products)}>
           <p className="text-sm font-medium">{B.making(batch.done, batch.products)}</p>
@@ -260,6 +260,7 @@ export function BatchGridView(p: BatchGridViewProps) {
               onSelect={() => setSelected(toggleSelected(selected, t.id))}
               onHeart={() => act(t.liked ? "clear" : "approve", [t.id])}
               onSkip={() => act("reject", [t.id])}
+              pending={p.pending}
             />
           </li>
         ))}
@@ -374,7 +375,8 @@ export function BatchScreen({ id }: { id: string }) {
             return t ? (op === "approve" ? !t.liked : t.liked) : false;
           });
           setLastBulk(undoOf(op) && changed.length > 0 ? { op, ids: changed } : null);
-          if (op === "reject") toast(B.rejectedDone(ids.length));
+          // A toast is a live region: the answer is heard once it is true, not before.
+          toast(op === "reject" ? B.rejectedDone(r.updated) : op === "approve" ? B.approvedDone(r.updated) : B.clearedDone(r.updated));
         },
         onError: (e) => toast.error(studioRefusal(e).text),
       },

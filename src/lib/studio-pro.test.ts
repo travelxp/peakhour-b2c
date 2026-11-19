@@ -50,6 +50,10 @@ describe("version history grouping (S17)", () => {
     expect(g[0]!.headline).toBe("Flat 20% off");
   });
 
+  it("a preview that is not on the page is left out, never numbered as Preview 1", () => {
+    expect(groupHistory([h("gone", 0)], previews)).toEqual([]);
+  });
+
   it("a preview with nothing to go back to is left out", () => {
     expect(groupHistory([h("p1", 0, { current: true, restorable: false })], previews)).toEqual([]);
   });
