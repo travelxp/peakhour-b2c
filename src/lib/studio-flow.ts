@@ -9,7 +9,6 @@ import type {
   PressQuote,
   ProductImage,
   ShortlistItem,
-  StudioBrief,
 } from "@/lib/api/creative-studio";
 
 /**
@@ -25,7 +24,6 @@ export const MAX_FINALS_PER_PRESS = 24;
 export const WORDING_MAX = { headline: 60, offer: 40, cta: 24 } as const;
 
 export const STUDIO_PATHS = {
-  home: "/dashboard/studio",
   shortlist: "/dashboard/studio/shortlist",
   creative: (id: string) => `/dashboard/studio/c/${encodeURIComponent(id)}`,
   buyPeaks: "/dashboard/peaks",
@@ -108,8 +106,22 @@ export function studioRefusal(error: unknown, what = "That"): StudioRefusal {
       return { code: error.code, tone: "error", text: C.textDoesNotFit };
     case "FONT_MISSING_GLYPH":
       return { code: error.code, tone: "error", text: C.fontMissingGlyph };
+    // The api's own words for a change it cannot make: each is a plain sentence written for the merchant ("There's no shorter wording. Type your own.").
+    case "TEXT_EMPTY":
+    case "LAYER_MISSING":
+    case "LAYER_LOCKED":
+    case "OPTION_MISSING":
+    case "NO_OTHER_OPTION":
+    case "NOTHING_SHORTER":
+    case "NOTHING_LONGER":
+    case "COLOUR_UNKNOWN":
+    case "PRODUCT_NOT_IN_BRIEF":
     case "NOTHING_TO_UNDO":
-      return { code: error.code, tone: "error", text: C.nothingToUndo };
+    case "CUTOUT_MISSING":
+    case "NEEDS_EXTEND":
+    case "RENDER_FAILED":
+    case "VALIDATION_ERROR":
+      return { code: error.code, tone: "error", text: error.message };
     default:
       return { code: error.code, tone: "error", text: C.wentWrong, action: "retry" };
   }
@@ -170,14 +182,6 @@ export function receiptsOf(quote: PressQuote | undefined): { main?: string; cuto
   return { main: quote.main.token, ...(quote.cutout ? { cutout: quote.cutout.token } : {}) };
 }
 
-/** The headline of a quote block: "Uses 340 Peaks", "Up to 340 Peaks for 4 previews...", or "Free". */
-export function quoteHeadline(opts: { peaks: number; units?: number; perUnit: boolean; free?: boolean }): string {
-  const C = STUDIO_COPY.quote;
-  if (opts.free) return C.free;
-  const figure = formatPeaks(opts.peaks);
-  return opts.perUnit && opts.units ? C.upTo(figure, opts.units) : C.uses(figure);
-}
-
 // ── Polling (spec 4.4) ───────────────────────────────────────────────────────────────────────────────────────
 
 /** True while anything on the creative is still being made. */
@@ -224,6 +228,15 @@ export const isShownTile = (p: PreviewView): boolean => p.state !== "skipped" &&
 
 /** A shortlist row the Make final bar can make final: hearted, and not already on its way or made. */
 export const isEligibleForFinal = (i: ShortlistItem): boolean => i.state === "shortlisted" && !i.lapsed;
+
+/**
+ * The previews the choose sheet will make final: all of them by default (up to one press), or the ones the merchant left ticked. Only what is
+ * still waiting counts: a preview that left the shortlist since it was ticked (a teammate removed it, a press started it) drops out of the
+ * count and the price, so the figure shown and the price asked for are always the same number.
+ */
+export function chosenForFinal<T extends { previewId: string }>(items: T[], picked: ReadonlySet<string> | null, max = MAX_FINALS_PER_PRESS): T[] {
+  return picked ? items.filter((i) => picked.has(i.previewId)).slice(0, max) : items.slice(0, max);
+}
 
 export type ShortlistChip = "waiting" | "making" | "ready" | "blocked" | "failed" | "changed";
 
@@ -331,12 +344,6 @@ export const STUDIO_LANGUAGES: Array<{ code: string; name: string }> = [
   { code: "fr", name: "Français" },
   { code: "es", name: "Español" },
 ];
-
-/** Products and photos can change only while the creative is still a plan (api BRIEF_LOCKED otherwise). */
-export const briefIsLocked = (status: CreativeView["status"]): boolean => status !== "brief" && status !== "previews_failed";
-
-/** What the plan form holds, as the api's brief. */
-export const sameBrief = (a: StudioBrief, b: StudioBrief): boolean => JSON.stringify(a) === JSON.stringify(b);
 
 // ── The tweak controls (S8) ─────────────────────────────────────────────────────────────────────────────────
 

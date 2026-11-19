@@ -3,6 +3,7 @@ import { ApiError } from "@/lib/api";
 import type { CreativeView, FinalRow, PreviewView, PressQuote, ProductImage, ShortlistItem } from "@/lib/api/creative-studio";
 import {
   affordableUnits,
+  chosenForFinal,
   creativePhase,
   derivePressQuote,
   finalPhase,
@@ -17,7 +18,6 @@ import {
   photoMediaIdsFor,
   planBlock,
   pollInterval,
-  quoteHeadline,
   receiptsOf,
   shortlistChip,
   studioRefusal,
@@ -119,6 +119,14 @@ describe("studioRefusal (spec 4.2)", () => {
     expect(studioRefusal(err("NOT_APPROVED", 409)).text).toContain("Tap the heart");
   });
 
+  it("the api's own plain sentences for a change it cannot make are shown as they are, with no Try again", () => {
+    const r = studioRefusal(err("NOTHING_SHORTER", 422, "There's no shorter wording. Type your own."));
+    expect(r.text).toBe("There's no shorter wording. Type your own.");
+    expect(r.action).toBeUndefined();
+    expect(studioRefusal(err("LAYER_MISSING", 422, "This picture has no button to colour.")).text).toBe("This picture has no button to colour.");
+    expect(studioRefusal(err("COLOUR_UNKNOWN", 422, "That colour isn't in your brand colours.")).action).toBeUndefined();
+  });
+
   it("anything else says it went wrong, that nothing was charged, and offers Try again", () => {
     for (const e of [err("INTERNAL", 500), new Error("network"), "boom"]) {
       const r = studioRefusal(e);
@@ -184,18 +192,13 @@ describe("derivePressQuote: the price of a press", () => {
   });
 });
 
-describe("receipts and the quote line", () => {
+describe("receipts", () => {
   it("both receipts go back on a press that has a cut-out", () => {
     const q = quote({ cutout: { action: "creative.cut_out_product", peaks: 60, token: "tok-cut", expiresAt: 9_999_999 }, totalPeaks: 740 });
     expect(receiptsOf(q)).toEqual({ main: "tok-main", cutout: "tok-cut" });
   });
   it("only the main receipt when no photo needs cutting out", () => {
     expect(receiptsOf(quote())).toEqual({ main: "tok-main" });
-  });
-  it("Free is the word, never '0 Peaks'", () => {
-    expect(quoteHeadline({ peaks: 0, perUnit: false, free: true })).toBe("Free");
-    expect(quoteHeadline({ peaks: 340, perUnit: false })).toBe("Uses 340 Peaks");
-    expect(quoteHeadline({ peaks: 680, units: 4, perUnit: true })).toBe("Up to 680 Peaks for 4 previews. You're charged only for the ones that come through.");
   });
 });
 
@@ -254,6 +257,14 @@ describe("the shortlist and finals", () => {
     expect(isEligibleForFinal(item({ state: "finalizing" }))).toBe(false);
     expect(isEligibleForFinal(item({ state: "final_ready" }))).toBe(false);
     expect(isEligibleForFinal(item({ state: "ready", lapsed: true }))).toBe(false);
+  });
+  it("the choose sheet counts only what is still waiting, so the count and the price agree", () => {
+    const items = [{ previewId: "a" }, { previewId: "b" }, { previewId: "c" }];
+    expect(chosenForFinal(items, null).map((i) => i.previewId)).toEqual(["a", "b", "c"]);
+    // "b" was ticked, then left the shortlist: it is not counted
+    expect(chosenForFinal([items[0]!, items[2]!], new Set(["a", "b"])).map((i) => i.previewId)).toEqual(["a"]);
+    expect(chosenForFinal(items, new Set())).toEqual([]);
+    expect(chosenForFinal(Array.from({ length: 30 }, (_, i) => ({ previewId: String(i) })), null)).toHaveLength(24);
   });
   it("chips", () => {
     expect(shortlistChip(item())).toBe("waiting");

@@ -51,8 +51,11 @@ export function HeartButton({
 
 /** The image of a preview at its real shape. A failed load is a tile that says so, with a retry (never a broken image). */
 export function PreviewImage({ preview, alt, className }: { preview: PreviewView; alt: string; className?: string }) {
-  const [failed, setFailed] = useState(0);
   const src = preview.imageUrl ?? preview.thumbUrl;
+  // Load failures are counted per address: a fresh signed link (the next poll) starts again at none.
+  const [fails, setFails] = useState<{ src: string | null; n: number }>({ src: null, n: 0 });
+  const failed = fails.src === src ? fails.n : 0;
+  const setFailed = (f: number | ((n: number) => number)) => setFails({ src, n: typeof f === "function" ? f(failed) : f });
   const w = preview.width ?? 768;
   const h = preview.height ?? 960;
   if (!src || failed >= 2) {

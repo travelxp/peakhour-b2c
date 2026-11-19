@@ -165,13 +165,16 @@ export const STUDIO_COPY = {
     conflict: "This was just changed by someone else. Showing the latest.",
     textDoesNotFit: "That wording doesn't fit this layout. Try something shorter.",
     fontMissingGlyph: "This font can't show one of those letters. Try another word.",
-    nothingToUndo: "There's nothing to undo.",
   },
 
   /** S3 and S4: the plan, and the product picker. */
   brief: {
     title: "Your plan",
     back: "Back to ideas",
+    planGone: {
+      title: "We can't find that plan",
+      description: "It may have been put away. Start from scratch, or pick an idea.",
+    },
     ideaGone: {
       title: "That idea has passed",
       description: "Ideas change with your stock and the calendar. Start from scratch, or pick another idea.",

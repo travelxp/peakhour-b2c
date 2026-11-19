@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QueryError } from "@/components/dashboard/query-error";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { MediaImage } from "@/components/shared/media-image";
@@ -31,6 +32,8 @@ export interface BriefViewProps {
   status: "loading" | "ready";
   /** The idea in the link has passed (it is not in today's list). */
   ideaGone?: boolean;
+  /** The saved plan or the ideas could not be read: "gone" (the plan is not there) or "error" (try again). Never an endless skeleton. */
+  loadError?: "gone" | "error";
   products: BriefProduct[];
   line: string;
   linePlaceholder: string;
@@ -67,6 +70,8 @@ export interface BriefViewProps {
   onSave: () => void;
   onRetry: () => void;
   onRequote: () => void;
+  onRetryLoad: () => void;
+  onRetrySave: () => void;
 }
 
 const FORMATS: PostFormat[] = ["feed", "story", "reel"];
@@ -133,6 +138,25 @@ export function BriefView(p: BriefViewProps) {
           <Skeleton key={i} className="h-20 rounded-lg" />
         ))}
       </div>
+    );
+  }
+  if (p.loadError === "error") return <QueryError what={B.error.what} onRetry={p.onRetryLoad} />;
+  if (p.loadError === "gone") {
+    return (
+      <ComingSoonFreeCard
+        title={B.planGone.title}
+        description={B.planGone.description}
+        actions={
+          <>
+            <Button asChild className="h-11">
+              <Link href={STUDIO_ROUTES.new}>{STUDIO_COPY.ideas.startFromScratch}</Link>
+            </Button>
+            <Button asChild variant="outline" className="h-11">
+              <Link href={STUDIO_ROUTES.home}>{B.back}</Link>
+            </Button>
+          </>
+        }
+      />
     );
   }
   if (p.ideaGone) {
@@ -344,7 +368,14 @@ export function BriefView(p: BriefViewProps) {
                 />
               )}
               {!p.canMake && <p className="text-sm text-muted-foreground">{STUDIO_COPY.refusal.askAnEditorToMake}</p>}
-              {p.saveFailed && !p.refusal && <p className="text-sm text-muted-foreground">{B.saveFailed}</p>}
+              {p.saveFailed && !p.refusal && (
+                <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                  <p>{B.saveFailed}</p>
+                  <Button type="button" variant="outline" size="sm" className="h-11 sm:h-8" onClick={p.onRetrySave}>
+                    {STUDIO_COPY.refusal.tryAgain}
+                  </Button>
+                </div>
+              )}
               {!p.block && p.previews === "on" && <p className="text-xs text-muted-foreground">{B.quoteNote}</p>}
             </div>
             <Button type="button" className="h-12 w-full sm:w-auto sm:min-w-44" disabled={!canPress} onClick={p.onMake}>

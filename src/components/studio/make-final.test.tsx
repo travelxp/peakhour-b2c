@@ -91,6 +91,7 @@ describe("the choose sheet (S9, S10)", () => {
         pending={false}
         onConfirm={noop}
         onCancel={noop}
+        onClearRefusal={noop}
         {...over}
       />,
     );

@@ -182,7 +182,12 @@ export function useTweak(creativeId: string) {
     onSuccess: (r, v) => {
       qc.setQueriesData<CreativeView>({ queryKey: [FLOW_KEYS.creative] }, (old) =>
         old && old.id === creativeId
-          ? { ...old, approval: r.approval, previews: old.previews.map((p) => (p.id === v.previewId ? r.preview : p)) }
+          ? {
+              ...old,
+              approval: r.approval,
+              // The tweak answer has no product names (the api builds it without them): keep the one the page already holds.
+              previews: old.previews.map((p) => (p.id === v.previewId ? { ...r.preview, productTitle: r.preview.productTitle ?? p.productTitle } : p)),
+            }
           : old,
       );
       void qc.invalidateQueries({ queryKey: [FLOW_KEYS.shortlist] });

@@ -276,7 +276,7 @@ describe("not for me", () => {
 });
 
 describe("tap-to-tweak (S8)", () => {
-  const quoted = { available: true, open: false, onOpen: noop, onCancel: noop, onConfirm: noop, quote: { state: "loading" as const, onRetry: noop }, left: null, pending: false };
+  const quoted = { available: true, open: false, onOpen: noop, onCancel: noop, onConfirm: noop, onClearRefusal: noop, quote: { state: "loading" as const, onRetry: noop }, left: null, pending: false };
   const panel = (over: Partial<Parameters<typeof TweakPanelView>[0]> = {}) =>
     renderToStaticMarkup(
       <TweakPanelView

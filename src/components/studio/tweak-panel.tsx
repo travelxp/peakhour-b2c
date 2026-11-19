@@ -26,6 +26,8 @@ export interface QuotedTweak {
   onOpen: () => void;
   onCancel: () => void;
   onConfirm: () => void;
+  /** After "the price changed": drop the sentence; the price is asked again. */
+  onClearRefusal: () => void;
   quote: { state: QuoteBlockState; peaks?: number; onRetry: () => void };
   left: number | null;
   pending: boolean;
@@ -136,7 +138,7 @@ export function QuotedStep({ title, hint, q }: { title: string; hint: string; q:
         left={q.left}
         onRetry={q.quote.onRetry}
       />
-      {q.refusal && <RefusalNote refusal={q.refusal} onRetry={q.onConfirm} />}
+      {q.refusal && <RefusalNote refusal={q.refusal} onRetry={q.onConfirm} onRequote={q.onClearRefusal} />}
       <div className="flex gap-2">
         <Button type="button" className="h-11 flex-1" disabled={q.quote.state !== "quote" || q.pending} onClick={q.onConfirm}>
           {q.quote.peaks !== undefined ? T.confirm(formatPeaks(q.quote.peaks)) : title}

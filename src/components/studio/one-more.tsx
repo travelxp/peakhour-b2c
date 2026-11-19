@@ -30,6 +30,7 @@ export function OneMore({ id, canMake }: { id: string; canMake: boolean }) {
       setOpen(false);
       setRefusal(undefined);
     },
+    onClearRefusal: () => setRefusal(undefined),
     onConfirm: () => {
       setRefusal(undefined);
       press.mutate(

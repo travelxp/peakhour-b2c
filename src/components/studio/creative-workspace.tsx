@@ -66,6 +66,8 @@ function FinalPicture({ creativeId, finalId, alt }: { creativeId: string; finalI
     queryKey: ["studio-final", creativeId, finalId],
     queryFn: () => studioApi.finalView(creativeId, finalId),
     staleTime: 4 * 60 * 1000,
+    // The link is signed and lapses: ask for a fresh one while the page stays open.
+    refetchInterval: 4 * 60 * 1000,
     retry: false,
   });
   if (q.isError) {
@@ -83,7 +85,17 @@ function FinalPicture({ creativeId, finalId, alt }: { creativeId: string; finalI
   const h = q.data.height ?? 1280;
   return (
     // eslint-disable-next-line @next/next/no-img-element -- merchant media stays off the optimiser (see MediaImage)
-    <img src={q.data.imageUrl} alt={alt} width={w} height={h} loading="lazy" decoding="async" className="w-full rounded-md border" style={{ aspectRatio: `${w} / ${h}` }} />
+    <img
+      src={q.data.imageUrl}
+      alt={alt}
+      width={w}
+      height={h}
+      loading="lazy"
+      decoding="async"
+      onError={() => void q.refetch()}
+      className="w-full rounded-md border"
+      style={{ aspectRatio: `${w} / ${h}` }}
+    />
   );
 }
 
@@ -132,12 +144,21 @@ function TweakContainer({
   // A colour is applied to the headline and to the button plate: two changes, the second on the version the first made.
   const onColour = async (s: Swatch) => {
     setError(undefined);
+    let version = preview.layoutVersion;
     try {
-      const first = await tweak.mutateAsync({ previewId: preview.id, baseVersion: preview.layoutVersion, op: { op: "colour.set", role: "headline", paletteKey: s.key } });
-      await tweak.mutateAsync({ previewId: preview.id, baseVersion: first.layoutVersion, op: { op: "colour.set", role: "plate", paletteKey: s.key } });
+      const first = await tweak.mutateAsync({ previewId: preview.id, baseVersion: version, op: { op: "colour.set", role: "headline", paletteKey: s.key } });
+      // The headline is changed: that is the colour the merchant sees chosen, whatever the button does.
       setColour(s.key);
+      version = first.layoutVersion;
     } catch (e) {
       setError(studioRefusal(e));
+      return;
+    }
+    try {
+      await tweak.mutateAsync({ previewId: preview.id, baseVersion: version, op: { op: "colour.set", role: "plate", paletteKey: s.key } });
+    } catch (e) {
+      // A picture with no button plate has nothing more to colour: not an error. Anything else is said, and the headline stays changed.
+      if (!(e instanceof ApiError && e.code === "LAYER_MISSING")) setError(studioRefusal(e));
     }
   };
 
@@ -157,6 +178,7 @@ function TweakContainer({
         setOpen(false);
         setRefusal(undefined);
       },
+      onClearRefusal: () => setRefusal(undefined),
       onConfirm: () => {
         setRefusal(undefined);
         press.mutate(

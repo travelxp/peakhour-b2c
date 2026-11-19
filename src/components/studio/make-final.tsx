@@ -20,6 +20,7 @@ import { formatPeaks } from "@/lib/pricing";
 import { STUDIO_COPY } from "@/lib/studio-copy";
 import {
   affordableUnits,
+  chosenForFinal,
   isEligibleForFinal,
   MAX_FINALS_PER_PRESS,
   STUDIO_PATHS,
@@ -103,6 +104,8 @@ export interface MakeFinalSheetViewProps {
   startedShort?: number;
   onConfirm: () => void;
   onCancel: () => void;
+  /** After "the price changed": drop the sentence; the price is already being asked again. */
+  onClearRefusal: () => void;
 }
 
 /**
@@ -144,7 +147,7 @@ export function MakeFinalSheetView(p: MakeFinalSheetViewProps) {
             <QuoteBlock state={p.quote.state} peaks={p.quote.peaks} units={n} kind="finals" free={p.quote.free} left={p.left} help />
           )}
           {p.startedShort !== undefined && <p role="status" className="text-sm">{S.shortSome(p.startedShort)}</p>}
-          {p.refusal && <RefusalNote refusal={p.refusal} onRequote={undefined} makeInstead={p.makeInstead} />}
+          {p.refusal && <RefusalNote refusal={p.refusal} onRetry={p.onConfirm} onRequote={p.onClearRefusal} makeInstead={p.makeInstead} />}
           <div className="flex gap-2">
             <Button
               type="button"
@@ -201,8 +204,9 @@ export function MakeFinalSheet({
   const [short, setShort] = useState<number | undefined>();
   const [off, setOff] = useState(false);
   // All ticked by default; unticking is remembered until the sheet closes. The first MAX_FINALS_PER_PRESS fit one press.
-  const selected = picked ?? new Set(items.slice(0, MAX_FINALS_PER_PRESS).map((i) => i.previewId));
-  const chosen = items.filter((i) => selected.has(i.previewId));
+  // Only what is still waiting counts: a preview that left the shortlist since it was ticked (a teammate, a press that started) drops out of the count and the price.
+  const chosen = chosenForFinal(items, picked);
+  const selected = new Set(chosen.map((i) => i.previewId));
   const quote = useFinalQuote(chosen.length, open && chosen.length > 0 && !off);
   const unitPeaks = quote.quote && chosen.length > 0 ? quote.quote.peaks / chosen.length : undefined;
   const instead = refusal?.code === "CREDITS_EXHAUSTED" ? affordableUnits(refusal.left, unitPeaks, chosen.length) : undefined;
@@ -285,6 +289,7 @@ export function MakeFinalSheet({
           startedShort={short}
           onConfirm={confirm}
           onCancel={() => onOpenChange(false)}
+          onClearRefusal={() => setRefusal(undefined)}
         />
         <SheetFooter className="p-0 pb-[env(safe-area-inset-bottom)]" />
       </SheetContent>

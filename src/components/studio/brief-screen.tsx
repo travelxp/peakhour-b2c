@@ -89,6 +89,8 @@ export function BriefScreen() {
   /** A saved plan was just read into the form: what the api holds is that form, so it is adopted as saved before anything is sent. */
   const [hydrated, setHydrated] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
+  /** The plan a save failed for: not sent again on a loop, and the price and the button wait until a save works. */
+  const [failedSnapshot, setFailedSnapshot] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [planSaved, setPlanSaved] = useState(false);
   const [warnings, setWarnings] = useState<BriefWarning[]>([]);
@@ -178,8 +180,9 @@ export function BriefScreen() {
   const snapshot = JSON.stringify(body);
 
   const previewsOn = availability.loading ? "unknown" : availability.capabilities.previews === "on" && !releasedOff ? "on" : "coming_soon";
-  const canSync = initialised && !hydrated && !ideaGone && previewsOn === "on" && canMake && form.productIds.length > 0 && (photoLookupDone || !!creativeId);
-  const dirty = canSync && synced !== snapshot;
+  const syncable = initialised && !hydrated && !ideaGone && previewsOn === "on" && canMake && form.productIds.length > 0 && (photoLookupDone || !!creativeId);
+  /** The form holds something the api has not seen (being saved, waiting for the timer, or a save that failed). */
+  const dirty = syncable && synced !== snapshot;
 
   useEffect(() => {
     if (!hydrated) return;
@@ -189,7 +192,8 @@ export function BriefScreen() {
 
   // Save the plan 800 ms after the last change: the first save makes it, later ones change it.
   useEffect(() => {
-    if (!canSync || synced === snapshot) return;
+    // One save at a time: a later change waits for the one in flight, then the newest plan is sent.
+    if (!syncable || saving || synced === snapshot || failedSnapshot === snapshot) return;
     const t = setTimeout(() => {
       void (async () => {
         setSaving(true);
@@ -211,15 +215,16 @@ export function BriefScreen() {
           }
           setSynced(snapshot);
           setSaveFailed(false);
+          setFailedSnapshot(null);
         } catch (e) {
           if (e instanceof ApiError && (e.code === "BRIEF_LOCKED" || e.code === "STATE_CONFLICT") && creativeId) {
             router.replace(STUDIO_PATHS.creative(creativeId));
           } else if (isNotReleased(e)) {
             setReleasedOff(true);
           } else {
+            // The plan the api holds is still the old one: the price and the button stay off until a save works.
             setSaveFailed(true);
-            // Do not retry the same body on a loop: the next edit tries again.
-            setSynced(snapshot);
+            setFailedSnapshot(snapshot);
           }
         } finally {
           setSaving(false);
@@ -229,9 +234,9 @@ export function BriefScreen() {
     return () => clearTimeout(t);
     // The body is derived from the form; its snapshot is the dependency.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canSync, snapshot, synced, creativeId]);
+  }, [syncable, saving, snapshot, synced, failedSnapshot, creativeId]);
 
-  const quoteOn = canSync && !!creativeId && !dirty && !saving && !block;
+  const quoteOn = syncable && !!creativeId && !dirty && !saving && !block;
   const quote = usePressQuote(creativeId ?? undefined, "previews", form.count, quoteOn);
   const comingSoon = previewsOn === "coming_soon" || quote.notReleased;
 
@@ -294,7 +299,17 @@ export function BriefScreen() {
   const picked = (ids: string[], list: { id: string; title: string }[]) =>
     setForm((f) => ({ ...f, productIds: ids, titles: { ...f.titles, ...Object.fromEntries(list.map((p) => [p.id, p.title])) } }));
 
-  const status = !initialised ? "loading" : "ready";
+  const notFound = saved.error instanceof ApiError && saved.error.status === 404;
+  const loadError: "gone" | "error" | undefined = savedId
+    ? saved.data || saved.errorUpdatedAt === 0
+      ? undefined
+      : notFound
+        ? "gone"
+        : "error"
+    : ideaId && !ideas.data && ideas.errorUpdatedAt > 0
+      ? "error"
+      : undefined;
+  const status = !initialised && !loadError ? "loading" : "ready";
   const quoteState = quote.quote ? "quote" : quote.loading ? "loading" : quote.unavailable ? "unavailable" : "loading";
 
   return (
@@ -302,6 +317,12 @@ export function BriefScreen() {
       <BriefView
         status={status}
         ideaGone={ideaGone}
+        loadError={loadError}
+        onRetryLoad={() => void (savedId ? saved.refetch() : ideas.refetch())}
+        onRetrySave={() => {
+          setSaveFailed(false);
+          setFailedSnapshot(null);
+        }}
         products={products}
         line={form.line}
         linePlaceholder={linePlaceholder({ festival, productTitle: firstTitle })}

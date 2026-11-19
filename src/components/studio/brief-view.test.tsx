@@ -48,6 +48,8 @@ const base = (over: Partial<BriefViewProps> = {}): BriefViewProps => ({
   onSave: noop,
   onRetry: noop,
   onRequote: noop,
+  onRetryLoad: noop,
+  onRetrySave: noop,
   ...over,
 });
 const render = (over: Partial<BriefViewProps> = {}) => renderToStaticMarkup(<BriefView {...base(over)} />);
@@ -192,8 +194,25 @@ describe("the plan: states", () => {
     expect(html).toContain("Make 3 previews instead");
   });
 
-  it("a failed save says so without blocking", () => {
-    expect(render({ saveFailed: true })).toContain("We couldn&#x27;t save your plan.");
+  it("a failed save says so, offers Try again, and the button stays off until a save works (the price is for the old plan)", () => {
+    const html = render({ saveFailed: true, saving: true });
+    expect(html).toContain("We couldn&#x27;t save your plan.");
+    expect(html).toContain("Try again");
+    expect(makeButton(html, "Make 4 previews")).toContain('disabled=""');
+  });
+
+  it("a saved plan that is not there says so and offers Start from scratch, never an endless skeleton", () => {
+    const html = render({ loadError: "gone" });
+    expect(html).toContain("We can&#x27;t find that plan");
+    expect(html).toContain("Start from scratch");
+    expect(html).not.toContain('aria-busy="true"');
+  });
+
+  it("a plan or ideas that could not be read is an error with Retry", () => {
+    const html = render({ loadError: "error" });
+    expect(html).toContain("We couldn&#x27;t load your plan");
+    expect(html).toContain("Retry");
+    expect(html).not.toContain("Make 4 previews");
   });
 
   it("a plan with the price not yet known (availability loading) shows no price and no coming-soon card", () => {

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { STUDIO_ROUTES } from "@/lib/studio";
 import { STUDIO_COPY } from "@/lib/studio-copy";
 import { STUDIO_PATHS, type StudioRefusal } from "@/lib/studio-flow";
 import { cn } from "@/lib/utils";
@@ -14,8 +15,6 @@ export function RefusalNote({
   refusal,
   onRetry,
   onRequote,
-  onNewPlan,
-  onSeeProgress,
   makeInstead,
   className,
 }: {
@@ -23,8 +22,6 @@ export function RefusalNote({
   onRetry?: () => void;
   /** After a price that changed: ask for the new price. */
   onRequote?: () => void;
-  onNewPlan?: () => void;
-  onSeeProgress?: () => void;
   /** After a short balance that still covers some: "Make {k} instead". */
   makeInstead?: { label: string; onPress: () => void };
   className?: string;
@@ -53,14 +50,15 @@ export function RefusalNote({
             {STUDIO_COPY.quote.retry}
           </Button>
         )}
-        {refusal.action === "new_plan" && onNewPlan && (
-          <Button type="button" size="sm" variant="outline" className="h-11 sm:h-8" onClick={onNewPlan}>
-            {R.startNewPlan}
+        {refusal.action === "new_plan" && (
+          <Button asChild size="sm" variant="outline" className="h-11 sm:h-8">
+            <Link href={STUDIO_ROUTES.new}>{R.startNewPlan}</Link>
           </Button>
         )}
-        {refusal.action === "see_progress" && onSeeProgress && (
-          <Button type="button" size="sm" variant="outline" className="h-11 sm:h-8" onClick={onSeeProgress}>
-            {R.seeProgress}
+        {refusal.action === "see_progress" && (
+          <Button asChild size="sm" variant="outline" className="h-11 sm:h-8">
+            {/* The progress card is on the creative page (Making your previews); on any other screen the link goes nowhere harmful. */}
+            <a href="#studio-making-title">{R.seeProgress}</a>
           </Button>
         )}
       </div>
