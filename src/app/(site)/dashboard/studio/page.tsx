@@ -1,4 +1,5 @@
 import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
+import { BatchStartEntry } from "@/components/studio/batch-start";
 import { IdeasFeed } from "@/components/studio/ideas-feed";
 import { STUDIO_COPY } from "@/lib/studio-copy";
 
@@ -9,7 +10,7 @@ import { STUDIO_COPY } from "@/lib/studio-copy";
 export default function StudioPage() {
   return (
     <PageShell>
-      <PageHeader title={STUDIO_COPY.title} description={STUDIO_COPY.ideas.intro} />
+      <PageHeader title={STUDIO_COPY.title} description={STUDIO_COPY.ideas.intro} actions={<BatchStartEntry />} />
       <IdeasFeed />
     </PageShell>
   );

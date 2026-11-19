@@ -183,6 +183,27 @@ export interface PressQuote {
   missingPhoto?: Array<{ productId: string; title: string }>;
 }
 
+/** The price of a whole batch (S16): one total, the previews' price and the cut-outs', and the two receipts the create takes back. */
+export interface BatchQuote extends PressQuote {
+  products: number;
+  previewsEach: number;
+}
+
+/** What the batch is made from: the products and how many previews each. The api makes one plan per product from its title. */
+export interface BatchBody {
+  productIds: string[];
+  language: string;
+  count: 3 | 4;
+  format?: "feed" | "story" | "reel";
+}
+
+export interface BatchStarted {
+  batchId: string;
+  creativeIds: string[];
+  jobId: string;
+  quote: { peaks: number; units: number };
+}
+
 export interface PressReceipts {
   main?: string;
   cutout?: string;
@@ -481,6 +502,12 @@ export const studioApi = {
 
   /** Studio settings and the per-user Pro tools flag, saved on change. An editor's call. */
   saveSettings: (patch: SettingsPatch) => api.patch<{ settings: Omit<StudioSettings, "usedThisMonthPeaks">; proTools: boolean }>("/v1/creative/settings", patch),
+
+  /** S16: the one price of a whole batch and its receipts. Free. 409 CREATIVE_NOT_RELEASED while previews are off, 403 PRO_TOOLS_REQUIRED, 422 PHOTO_MISSING. */
+  batchQuote: (body: BatchBody) => api.post<BatchQuote>("/v1/creative/batches/quote", body),
+
+  /** S16: start the batch. Charged once for the previews that come through; `receipts` are the ones the quote gave (a changed count is 409 QUOTE_NOT_HONOURED). 202. */
+  createBatch: (body: BatchBody, receipts: PressReceipts) => api.post<BatchStarted>("/v1/creative/batches", body, pressHeaders(receipts)),
 
   /** S16: the grid's one read (Pro tools). */
   batch: (id: string) => api.get<BatchView>(`/v1/creative/batches/${id}`),

@@ -242,6 +242,35 @@ export const STUDIO_COPY = {
     list: "Products",
   },
 
+  /** S4 batch mode and S16: "Make previews for several" (Pro tools). */
+  batchStart: {
+    open: "Make previews for several",
+    pickerTitle: "Choose products",
+    pickerDescription: "Pick the products to make previews for. Their photos come from your Library.",
+    counter: (n: number) => `${n} chosen`,
+    over: (max: number) => `You can pick up to ${max} at once.`,
+    next: (n: number) => (n === 1 ? "Continue with 1 product" : `Continue with ${n} products`),
+    needOne: "Choose at least one product.",
+    catalogSelect: "Choose products",
+    catalogDone: "Done choosing",
+    catalogSelected: (n: number) => `${n} chosen`,
+    rowLabel: (title: string) => `Choose ${title}`,
+    confirmTitle: "Make previews for several",
+    confirmDescription: (n: number, k: number) => `${n} ${n === 1 ? "product" : "products"}, ${k} previews each. You'll approve them together on one grid.`,
+    each: "Previews for each product",
+    eachOption: (k: number) => `${k} each`,
+    whyLabel: "Why this price",
+    whyPreviews: (units: number, n: number, k: number) => `${units} previews: ${n} ${n === 1 ? "product" : "products"} with ${k} each, at the same price as one post on its own.`,
+    whyPhotos: (c: number) => `${c} product ${c === 1 ? "photo" : "photos"} prepared first. It's done once per photo and reused.`,
+    whyCharged: "You're charged only for the previews that come through. A preview that fails or doesn't pass our Safety check costs nothing.",
+    make: (n: number) => (n === 1 ? "Make previews for 1 product" : `Make previews for ${n} products`),
+    starting: "Starting…",
+    started: "Making your previews. You can leave this page.",
+    cancel: "Cancel",
+    back: "Back",
+    askEditor: "Ask an editor to make these.",
+  },
+
   /** S6 to S8: the creative page. */
   creative: {
     loading: "Loading your post",

@@ -11,11 +11,12 @@ import { QueryError } from "@/components/dashboard/query-error";
 import { MediaImage } from "@/components/shared/media-image";
 import { useProductImages } from "@/hooks/use-studio-flow";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { MAX_BRIEF_PRODUCTS, type PickerProduct } from "@/lib/studio-flow";
+import { MAX_BATCH_PRODUCTS, MAX_BRIEF_PRODUCTS, type PickerProduct } from "@/lib/studio-flow";
 import { STUDIO_COPY } from "@/lib/studio-copy";
 import { cn } from "@/lib/utils";
 
 const P = STUDIO_COPY.picker;
+const B = STUDIO_COPY.batchStart;
 
 export type PickerStatus = "loading" | "offline" | "error" | "ready";
 
@@ -38,6 +39,7 @@ export function ProductPickerView({
   overLimit,
   hasMore,
   onLoadMore,
+  batch,
 }: {
   status: PickerStatus;
   products: PickerProduct[];
@@ -53,6 +55,8 @@ export function ProductPickerView({
   overLimit?: boolean;
   hasMore?: boolean;
   onLoadMore?: () => void;
+  /** Batch mode (Pro tools): "{n} chosen", up to the batch cap, no "of 3". */
+  batch?: boolean;
 }) {
   const q = query.trim().toLowerCase();
   const shown = q ? products.filter((p) => p.title.toLowerCase().includes(q)) : products;
@@ -70,8 +74,8 @@ export function ProductPickerView({
         />
       </div>
       <p role="status" aria-live="polite" className="text-sm text-muted-foreground">
-        {P.counter(selected.length, max)}
-        {overLimit && <span className="block text-foreground">{P.over(max)}</span>}
+        {batch ? B.counter(selected.length) : P.counter(selected.length, max)}
+        {overLimit && <span className="block text-foreground">{batch ? B.over(max) : P.over(max)}</span>}
       </p>
       {importing && <p className="text-sm text-muted-foreground">{P.importing}</p>}
       {importStopped && <p className="text-sm text-muted-foreground">{importStopped}</p>}
@@ -144,14 +148,23 @@ export function ProductPicker({
   onOpenChange,
   selected,
   onChange,
-  max = MAX_BRIEF_PRODUCTS,
+  max,
+  batch = false,
+  doneLabel,
+  onDone,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selected: string[];
   onChange: (ids: string[], products: PickerProduct[]) => void;
   max?: number;
+  /** Batch mode (Pro tools, UX spec S4): up to the batch cap, and the footer button carries on to the price. */
+  batch?: boolean;
+  doneLabel?: string;
+  /** Pressed instead of closing, when the footer button carries on (batch mode). */
+  onDone?: () => void;
 }) {
+  const limit = max ?? (batch ? MAX_BATCH_PRODUCTS : MAX_BRIEF_PRODUCTS);
   const mobile = useIsMobile();
   const images = useProductImages(open);
   const [query, setQuery] = useState("");
@@ -167,7 +180,7 @@ export function ProductPicker({
         selected.filter((x) => x !== id),
         products,
       );
-    } else if (selected.length >= max) {
+    } else if (selected.length >= limit) {
       setOver(true);
     } else {
       setOver(false);
@@ -184,15 +197,16 @@ export function ProductPicker({
     >
       <SheetContent side={mobile ? "bottom" : "right"} className={cn("gap-3 p-4", mobile ? "h-[92dvh]" : "sm:max-w-lg")}>
         <SheetHeader className="p-0">
-          <SheetTitle>{P.title}</SheetTitle>
-          <SheetDescription>{P.description}</SheetDescription>
+          <SheetTitle>{batch ? B.pickerTitle : P.title}</SheetTitle>
+          <SheetDescription>{batch ? B.pickerDescription : P.description}</SheetDescription>
         </SheetHeader>
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           <ProductPickerView
             status={status}
             products={products}
             selected={selected}
-            max={max}
+            max={limit}
+            batch={batch}
             query={query}
             onQuery={setQuery}
             onToggle={toggle}
@@ -205,8 +219,8 @@ export function ProductPicker({
           />
         </div>
         <SheetFooter className="p-0 pb-[env(safe-area-inset-bottom)]">
-          <Button type="button" className="h-11 w-full" onClick={() => onOpenChange(false)}>
-            {P.done}
+          <Button type="button" className="h-11 w-full" disabled={!!onDone && selected.length === 0} onClick={() => (onDone ? onDone() : onOpenChange(false))}>
+            {doneLabel ?? P.done}
           </Button>
         </SheetFooter>
       </SheetContent>
