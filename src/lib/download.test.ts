@@ -79,6 +79,13 @@ describe("downloadBlob and downloadText", () => {
     expect(anchors[0]!.download).toBe("memory.json");
   });
 
+  it("the object URL is still revoked when the click throws", () => {
+    vi.stubGlobal("document", { createElement: () => ({ href: "", download: "", rel: "", click: () => { throw new Error("blocked"); }, remove: vi.fn() }), body: { appendChild: vi.fn() } });
+    expect(() => downloadBlob(new Blob(["x"]), "x.bin")).toThrow("blocked");
+    vi.advanceTimersByTime(10_000);
+    expect(revoke).toHaveBeenCalledWith("blob:made-here");
+  });
+
   it("a blob's href is the object URL made here, never a caller's string", () => {
     downloadBlob(new Blob(["x"]), "x.bin");
     expect(anchors[0]!.href).toBe("blob:made-here");

@@ -33,8 +33,12 @@ const REVOKE_AFTER_MS = 10_000;
 /** Download bytes already in hand (a fetched file, or text the page made). */
 export function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
-  click(url, filename);
-  setTimeout(() => URL.revokeObjectURL(url), REVOKE_AFTER_MS);
+  try {
+    click(url, filename);
+  } finally {
+    // also when the click throws (a CSP, an extension): a large export must not stay held until the page unloads
+    setTimeout(() => URL.revokeObjectURL(url), REVOKE_AFTER_MS);
+  }
 }
 
 /** Download text the page made (an export) as a file of this type. */
