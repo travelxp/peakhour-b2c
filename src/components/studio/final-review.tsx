@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useReportMismatch } from "@/hooks/use-studio-flow";
 import { studioApi } from "@/lib/api/creative-studio";
+import { safeHref } from "@/lib/demand-insights";
 import { STUDIO_COPY } from "@/lib/studio-copy";
 import { cn } from "@/lib/utils";
 
@@ -47,6 +48,8 @@ export function FinalReviewView(p: FinalReviewViewProps) {
   const [report, setReport] = useState(false);
   const shown: CompareSide = held && p.previewUrl ? "preview" : side;
   const url = shown === "preview" && p.previewUrl ? p.previewUrl : p.finalUrl;
+  // Only an http(s) address becomes a download link (a stored URL is never trusted to be one).
+  const downloadHref = safeHref(p.finalUrl);
   const alt = shown === "preview" ? p.previewAlt : p.finalAlt;
   return (
     <div className="space-y-3" data-slot="studio-final-review" data-side={shown}>
@@ -113,12 +116,14 @@ export function FinalReviewView(p: FinalReviewViewProps) {
         <Button type="button" className="h-12 sm:min-w-52" disabled={!p.canPost} onClick={p.onChoose}>
           {R.choose}
         </Button>
-        <Button asChild variant="outline" className="h-12 gap-1.5">
-          <a href={p.finalUrl} download target="_blank" rel="noopener noreferrer">
-            <Download aria-hidden="true" className="size-4" />
-            {R.download}
-          </a>
-        </Button>
+        {downloadHref && (
+          <Button asChild variant="outline" className="h-12 gap-1.5">
+            <a href={downloadHref} download target="_blank" rel="noopener noreferrer">
+              <Download aria-hidden="true" className="size-4" />
+              {R.download}
+            </a>
+          </Button>
+        )}
       </div>
       {!p.canPost && <p className="text-sm text-muted-foreground">{R.viewer}</p>}
       <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
