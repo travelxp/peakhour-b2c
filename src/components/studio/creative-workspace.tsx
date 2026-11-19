@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Image as NoPostIcon } from "lucide-react";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
@@ -28,6 +28,8 @@ import { PlatformSheet } from "@/components/studio/platform-sheet";
 import { OneMore } from "@/components/studio/one-more";
 import { usePeaksLeft } from "@/components/studio/studio-quote";
 import { TweakPanelView, TweakSheet } from "@/components/studio/tweak-panel";
+import { ProExtras } from "@/components/studio/pro-extras";
+import { VersionHistorySheet } from "@/components/studio/version-history";
 import { useCancelJob } from "@/hooks/use-jobs";
 import {
   useCreative,
@@ -66,11 +68,13 @@ function TweakContainer({
   preview,
   alt,
   canMake,
+  onHistory,
 }: {
   view: CreativeView;
   preview: PreviewView;
   alt: string;
   canMake: boolean;
+  onHistory: () => void;
 }) {
   const creativeId = view.id;
   const tweak = useTweak(creativeId);
@@ -181,6 +185,7 @@ function TweakContainer({
       error={error}
       chosenColour={colour}
       proTools={proTools}
+      onHistory={onHistory}
       background={quoted("new_background")}
       wording={quoted("wording")}
       onOp={run}
@@ -198,6 +203,9 @@ function TweakContainer({
  */
 export function CreativeWorkspace({ id }: { id: string }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const search = useSearchParams();
+  const { proTools } = useStudioPrefs();
   const q = useCreative(id);
   const { canMake } = useStudioAbilities();
   const left = usePeaksLeft();
@@ -214,6 +222,15 @@ export function CreativeWorkspace({ id }: { id: string }) {
   const [postFinalId, setPostFinalId] = useState<string | null>(null);
   const view = q.data;
   const phase = view ? creativePhase(view) : undefined;
+  // S17: the history is a panel of this page, kept in the address (?panel=versions) so it can be linked and the back button closes it. Pro tools only.
+  const historyOpen = proTools && search.get("panel") === "versions";
+  const setHistoryOpen = (open: boolean) => {
+    const next = new URLSearchParams(search.toString());
+    if (open) next.set("panel", "versions");
+    else next.delete("panel");
+    const qs = next.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
 
   // Announce each preview as it lands: "Preview 2 ready."
   const landedBefore = useRef<Set<string> | null>(null);
@@ -447,10 +464,19 @@ export function CreativeWorkspace({ id }: { id: string }) {
             view={view}
             preview={tweakPreview}
             canMake={canMake}
+            onHistory={() => {
+              setTweakId(null);
+              setHistoryOpen(true);
+            }}
             alt={C.previewAlt(landed.indexOf(tweakPreview) + 1, landed.length, tweakPreview.headline ?? "", tweakPreview.productTitle ?? "")}
           />
         )}
       </TweakSheet>
+
+      {proTools && (phase === "making" || phase === "ready") && (
+        <ProExtras creativeId={id} previews={landed} canMake={canMake} onHistory={() => setHistoryOpen(true)} />
+      )}
+      {proTools && <VersionHistorySheet creativeId={id} open={historyOpen} onOpenChange={setHistoryOpen} previews={landed} canMake={canMake} />}
 
       <NotForMeDialog
         open={skipId !== null}

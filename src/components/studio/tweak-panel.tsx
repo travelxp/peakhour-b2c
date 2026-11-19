@@ -48,6 +48,8 @@ export interface TweakPanelViewProps {
   /** The colour last chosen (the api does not say which one a layout holds). */
   chosenColour?: string;
   proTools: boolean;
+  /** Pro tools: opens the full history (S17), which stands in for the one-step Undo. */
+  onHistory?: () => void;
   background: QuotedTweak;
   wording: QuotedTweak;
   onOp: (op: TweakOp) => void;
@@ -302,9 +304,15 @@ export function TweakPanelView(p: TweakPanelViewProps) {
       </Group>
 
       <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="ghost" className="h-11" disabled={off || !preview.canUndo} onClick={() => p.onOp({ op: "undo" })}>
-          {T.undo}
-        </Button>
+        {p.proTools && p.onHistory ? (
+          <Button type="button" variant="ghost" className="h-11" onClick={p.onHistory}>
+            {T.seeHistory}
+          </Button>
+        ) : (
+          <Button type="button" variant="ghost" className="h-11" disabled={off || !preview.canUndo} onClick={() => p.onOp({ op: "undo" })}>
+            {T.undo}
+          </Button>
+        )}
         <Button type="button" variant="ghost" className="h-11" disabled={off} onClick={() => p.onOp({ op: "reset" })}>
           {T.reset}
         </Button>

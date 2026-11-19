@@ -306,7 +306,8 @@ export function MakeFinalBar() {
   const pathname = usePathname();
   const flow = useMakeFinalFlow();
   const [open, setOpen] = useState(false);
-  const onPlan = pathname.startsWith("/dashboard/studio/new");
+  // The plan screen has its own price and button, and the batch grid has its own bar for its approved ones.
+  const onPlan = pathname.startsWith("/dashboard/studio/new") || pathname.startsWith("/dashboard/studio/batches");
   if (onPlan || flow.eligible.length === 0) return null;
   const quote = flow.barQuote;
   return (

@@ -70,3 +70,8 @@ export function ideasFeedStatus(q: {
   if (q.fetchStatus === "paused") return "offline";
   return "loading";
 }
+
+/** The address an approval link opens: the public page, with the token in the path. The token is the credential, so it is shown once and never kept. */
+export function approvalLinkUrl(origin: string, token: string): string {
+  return `${origin.replace(/\/$/, "")}/share/studio/${encodeURIComponent(token)}`;
+}
