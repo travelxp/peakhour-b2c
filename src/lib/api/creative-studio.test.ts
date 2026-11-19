@@ -109,3 +109,14 @@ describe("platform versions, handoff and settings", () => {
     expect(patch).toHaveBeenCalledWith("/v1/creative/settings", { monthlyCapPeaks: null, proTools: true });
   });
 });
+
+describe("starting a batch (S16)", () => {
+  it("the quote is a free POST of the same body the create takes", async () => {
+    await studioApi.batchQuote({ productIds: ["a", "b"], language: "en", count: 4 });
+    expect(post).toHaveBeenCalledWith("/v1/creative/batches/quote", { productIds: ["a", "b"], language: "en", count: 4 });
+  });
+  it("the create is one click: a fresh key and BOTH receipts of the price that was shown", async () => {
+    await studioApi.createBatch({ productIds: ["a"], language: "en", count: 3 }, { main: "tok-main", cutout: "tok-cut" });
+    expect(post).toHaveBeenCalledWith("/v1/creative/batches", { productIds: ["a"], language: "en", count: 3 }, { "Idempotency-Key": "click-1", "x-peaks-quote": "tok-main", "x-peaks-quote-cutout": "tok-cut" });
+  });
+});

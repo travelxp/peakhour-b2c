@@ -1,12 +1,14 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PackageSearch, Store } from "lucide-react";
 import { DataTable } from "@/components/molecules/data-table";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Sheet,
@@ -18,6 +20,8 @@ import {
 import { FeatureGate } from "@/components/upgrade/feature-gate";
 import { useLocale } from "@/hooks/use-locale";
 import { minorToMajor } from "@/lib/money";
+import { STUDIO_COPY } from "@/lib/studio-copy";
+import { MAX_BATCH_PRODUCTS } from "@/lib/studio-flow";
 import { PageShell } from "@/components/dashboard/page-shell";
 import { SearchVisibilityPanel } from "@/components/commerce/search-visibility";
 import {
@@ -25,6 +29,10 @@ import {
   LISTING_ISSUE_LABEL,
   type CatalogItem,
 } from "@/hooks/use-commerce-catalog";
+
+// Studio's batch start (Pro tools) is its own chunk: the catalog loads without it, and a person without Pro tools never downloads it.
+const BatchStartFlow = dynamic(() => import("@/components/studio/batch-start").then((m) => m.BatchStartFlow), { ssr: false });
+const MakeForSeveralButton = dynamic(() => import("@/components/studio/batch-start").then((m) => m.MakeForSeveralButton), { ssr: false });
 
 /**
  * Commerce → Catalog & Listings (Phase 0/1). The canonical catalog with a
@@ -54,6 +62,25 @@ function CatalogBody() {
   const { formatNumber } = useLocale();
   const [band, setBand] = useState<BandFilter>("all");
   const [selected, setSelected] = useState<CatalogItem | null>(null);
+  // "Make previews for several" (Studio, Pro tools): a choosing mode with a tick per row, then the one price in a sheet.
+  const [choosing, setChoosing] = useState(false);
+  const [chosen, setChosen] = useState<string[]>([]);
+  const [overCap, setOverCap] = useState(false);
+  const [pricing, setPricing] = useState(false);
+  const toggleChosen = useCallback((id: string) => {
+    setChosen((cur) => {
+      if (cur.includes(id)) {
+        setOverCap(false);
+        return cur.filter((x) => x !== id);
+      }
+      if (cur.length >= MAX_BATCH_PRODUCTS) {
+        setOverCap(true);
+        return cur;
+      }
+      setOverCap(false);
+      return [...cur, id];
+    });
+  }, []);
 
   const money = useCallback(
     (minor: number | null, currency: string | null) => {
@@ -70,6 +97,22 @@ function CatalogBody() {
 
   const columns = useMemo<ColumnDef<CatalogItem>[]>(
     () => [
+      ...(choosing
+        ? [
+            {
+              id: "choose",
+              header: () => <span className="sr-only">{STUDIO_COPY.batchStart.catalogSelect}</span>,
+              cell: ({ row }: { row: { original: CatalogItem } }) => (
+                <Checkbox
+                  checked={chosen.includes(row.original.productId)}
+                  onCheckedChange={() => toggleChosen(row.original.productId)}
+                  onClick={(e) => e.stopPropagation()}
+                  aria-label={STUDIO_COPY.batchStart.rowLabel(row.original.title || "Untitled product")}
+                />
+              ),
+            } satisfies ColumnDef<CatalogItem>,
+          ]
+        : []),
       {
         accessorKey: "title",
         header: "Product",
@@ -125,7 +168,7 @@ function CatalogBody() {
         ),
       },
     ],
-    [money],
+    [money, choosing, chosen, toggleChosen],
   );
 
   const filtered = useMemo(() => {
@@ -185,12 +228,49 @@ function CatalogBody() {
         </p>
       )}
 
+      {!choosing && (
+        <div className="mb-3">
+          <MakeForSeveralButton
+            onPress={() => {
+              setChosen([]);
+              setOverCap(false);
+              setChoosing(true);
+            }}
+          />
+        </div>
+      )}
+      {choosing && (
+        <div role="group" aria-label={STUDIO_COPY.batchStart.catalogSelect} className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border p-2">
+          <p role="status" aria-live="polite" className="me-auto text-sm">
+            {STUDIO_COPY.batchStart.catalogSelected(chosen.length)}
+            {overCap && <span className="block text-muted-foreground">{STUDIO_COPY.batchStart.over(MAX_BATCH_PRODUCTS)}</span>}
+          </p>
+          <Button type="button" variant="ghost" className="h-11" onClick={() => setChoosing(false)}>
+            {STUDIO_COPY.batchStart.catalogDone}
+          </Button>
+          <Button type="button" className="h-11" disabled={chosen.length === 0} onClick={() => setPricing(true)}>
+            {STUDIO_COPY.batchStart.next(chosen.length)}
+          </Button>
+        </div>
+      )}
+
       <DataTable
         columns={columns}
         data={filtered}
-        onRowClick={(row) => setSelected(row)}
+        onRowClick={(row) => (choosing ? toggleChosen(row.productId) : setSelected(row))}
         emptyMessage="No products in this view."
       />
+
+      {pricing && (
+        <BatchStartFlow
+          open
+          initialIds={chosen}
+          onClose={() => {
+            setPricing(false);
+            setChoosing(false);
+          }}
+        />
+      )}
 
       <ListingDrawer item={selected} money={money} onClose={() => setSelected(null)} />
 

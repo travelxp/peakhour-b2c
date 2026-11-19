@@ -18,6 +18,8 @@ import type {
  */
 
 export const MAX_BRIEF_PRODUCTS = 3;
+/** The most products one batch takes (api `MAX_BATCH_PRODUCTS`). */
+export const MAX_BATCH_PRODUCTS = 60;
 export const LINE_MAX = 140;
 /** The most finals one press makes (api `MAX_FINALS_PER_PRESS`). */
 export const MAX_FINALS_PER_PRESS = 24;
