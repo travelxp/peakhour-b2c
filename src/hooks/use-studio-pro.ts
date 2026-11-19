@@ -44,7 +44,7 @@ export function useBatchQuote(body: BatchBody | null, enabled: boolean): PressQu
   const s = useScope();
   const on = enabled && s.ready && !!body && body.productIds.length > 0;
   const q = useQuery<BatchQuote>({
-    queryKey: [PRO_KEYS.batchQuote, s.org, s.business, body?.productIds.join(",") ?? "", body?.count ?? null, body?.language ?? null],
+    queryKey: [PRO_KEYS.batchQuote, s.org, s.business, body?.productIds.join(",") ?? "", body?.count ?? null, body?.language ?? null, body?.format ?? null],
     queryFn: () => studioApi.batchQuote(body!),
     enabled: on,
     retry: false,

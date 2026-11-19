@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PackageSearch, Store } from "lucide-react";
@@ -31,7 +31,7 @@ import {
   type CatalogItem,
 } from "@/hooks/use-commerce-catalog";
 
-// Studio's batch start (Pro tools) is its own chunk: the catalog loads without it, and a person without Pro tools never downloads it.
+// Studio's batch start (Pro tools) is its own chunk, kept out of the catalog's own bundle; only the button shows for a person with Pro tools.
 const BatchStartFlow = dynamic(() => import("@/components/studio/batch-start").then((m) => m.BatchStartFlow), { ssr: false });
 const MakeForSeveralButton = dynamic(() => import("@/components/studio/batch-start").then((m) => m.MakeForSeveralButton), { ssr: false });
 
@@ -68,19 +68,26 @@ function CatalogBody() {
   const [chosen, setChosen] = useState<string[]>([]);
   const [overCap, setOverCap] = useState(false);
   const [pricing, setPricing] = useState(false);
+  // The latest list lives in a ref as well, so two ticks before a re-render both count and the cap is judged on the true length.
+  const chosenRef = useRef<string[]>([]);
+  const setPicks = useCallback((next: string[]) => {
+    chosenRef.current = next;
+    setChosen(next);
+  }, []);
   const toggleChosen = useCallback(
     (id: string) => {
-      if (chosen.includes(id)) {
+      const cur = chosenRef.current;
+      if (cur.includes(id)) {
         setOverCap(false);
-        setChosen(chosen.filter((x) => x !== id));
-      } else if (atBatchCap(chosen.length)) {
+        setPicks(cur.filter((x) => x !== id));
+      } else if (atBatchCap(cur.length)) {
         setOverCap(true);
       } else {
         setOverCap(false);
-        setChosen([...chosen, id]);
+        setPicks([...cur, id]);
       }
     },
-    [chosen],
+    [setPicks],
   );
 
   const money = useCallback(
@@ -230,15 +237,14 @@ function CatalogBody() {
       )}
 
       {!choosing && (
-        <div className="mb-3">
-          <MakeForSeveralButton
-            onPress={() => {
-              setChosen([]);
-              setOverCap(false);
-              setChoosing(true);
-            }}
-          />
-        </div>
+        <MakeForSeveralButton
+          className="mb-3 h-11"
+          onPress={() => {
+            setPicks([]);
+            setOverCap(false);
+            setChoosing(true);
+          }}
+        />
       )}
       {choosing && (
         <div role="group" aria-label={STUDIO_COPY.batchStart.catalogSelect} className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border p-2">
