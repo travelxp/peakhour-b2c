@@ -222,7 +222,7 @@ export function CreativeWorkspace({ id }: { id: string }) {
   const [postFinalId, setPostFinalId] = useState<string | null>(null);
   const view = q.data;
   const phase = view ? creativePhase(view) : undefined;
-  // S17: the history is a panel of this page, kept in the address (?panel=versions) so it can be linked and the back button closes it. Pro tools only.
+  // S17: the history is a panel of this page, kept in the address (?panel=versions) so it can be linked. Pro tools only.
   const historyOpen = proTools && search.get("panel") === "versions";
   const setHistoryOpen = (open: boolean) => {
     const next = new URLSearchParams(search.toString());

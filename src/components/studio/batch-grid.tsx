@@ -147,7 +147,8 @@ export function BatchGridView(p: BatchGridViewProps) {
   const matching = filterTiles(all, filter);
   const visible = matching.slice(0, pages * BATCH_PAGE_SIZE);
   const selected = liveSelection(all, selectedRaw);
-  const picked = actionableSelection(all, selected);
+  // Only what is on screen: a tile hidden by the filter or the page is never changed by a press the person cannot see the effect of.
+  const picked = actionableSelection(visible, selected);
   const approved = approvedForFinal(all);
   const columns = mobile ? 2 : 4;
   const makingMore = batch.status === "making";
@@ -161,9 +162,12 @@ export function BatchGridView(p: BatchGridViewProps) {
 
   const act = (op: BatchOp, ids: string[]) => {
     if (ids.length === 0) return;
-    if (op === "reject") p.onSkip(ids);
-    else p.onAction(op, ids);
-    setAnnouncement(op === "approve" ? B.approvedDone(ids.length) : op === "clear" ? B.clearedDone(ids.length) : B.rejectedDone(ids.length));
+    if (op === "reject") {
+      p.onSkip(ids);
+      return;
+    }
+    p.onAction(op, ids);
+    setAnnouncement(op === "approve" ? B.approvedDone(ids.length) : B.clearedDone(ids.length));
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLUListElement>) => {
@@ -183,6 +187,7 @@ export function BatchGridView(p: BatchGridViewProps) {
     const here = visible[i]!;
     // With a selection the keys act on it; with none they act on the tile in focus.
     const ids = picked.length > 0 ? picked : isGridActionable(here) ? [here.id] : [];
+    if (p.pending && action !== "select" && action !== "help") return;
     if (action === "select") setSelected(toggleSelected(selected, here.id));
     else if (action === "approve" && p.canMake) act("approve", ids);
     else if (action === "reject" && p.canMake) act("reject", ids);
@@ -351,14 +356,25 @@ export function BatchScreen({ id }: { id: string }) {
     return <QueryError what={B.error} onRetry={() => void q.refetch()} />;
   }
 
-  const run = (op: BatchOp, ids: string[], reasons?: string[]) => {
+  const run = (op: BatchOp, ids: string[], reasons?: string[], isUndo = false) => {
     bulk.mutate(
       { op, previewIds: ids, ...(reasons ? { reasons } : {}) },
       {
         onSuccess: (r) => {
           if (r.skipped > 0) toast(B.partial(r.skipped));
-          // Only a heart can be taken back from here: a skip is final.
-          setLastBulk(undoOf(op) ? { op, ids } : null);
+          if (isUndo) {
+            setLastBulk(null);
+            toast(B.undone);
+            return;
+          }
+          // Only a heart can be taken back from here (a skip is final), and only for the previews this press actually changed: one that was already
+          // hearted before an approve keeps its heart when the press is undone.
+          const changed = ids.filter((id) => {
+            const t = batch.previews.find((x) => x.id === id);
+            return t ? (op === "approve" ? !t.liked : t.liked) : false;
+          });
+          setLastBulk(undoOf(op) && changed.length > 0 ? { op, ids: changed } : null);
+          if (op === "reject") toast(B.rejectedDone(ids.length));
         },
         onError: (e) => toast.error(studioRefusal(e).text),
       },
@@ -391,10 +407,7 @@ export function BatchScreen({ id }: { id: string }) {
         onSkip={(ids) => setSkipIds(ids)}
         onUndo={() => {
           const back = lastBulk ? undoOf(lastBulk.op) : null;
-          if (lastBulk && back) {
-            run(back, lastBulk.ids);
-            toast(B.undone);
-          }
+          if (lastBulk && back) run(back, lastBulk.ids, undefined, true);
         }}
         onMakeFinal={() => setSheetOpen(true)}
         onRetryQuote={() => void qc.invalidateQueries({ queryKey: ["peaks-quote"] })}

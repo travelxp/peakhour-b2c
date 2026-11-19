@@ -34,6 +34,8 @@ export const FLOW_KEYS = {
   shortlist: "studio-shortlist",
   productImages: "studio-product-images",
   placements: "studio-placements",
+  /** The batch grid's read (S16): a heart, a skip or a final anywhere changes what it shows. */
+  batch: "studio-batch",
 } as const;
 
 /** What the signed-in person may do in Studio: an editor and above spend Peaks and change things; a viewer reads (spec 3). */
@@ -221,6 +223,7 @@ export function useTweak(creativeId: string) {
           : old,
       );
       void qc.invalidateQueries({ queryKey: [FLOW_KEYS.shortlist] });
+      void qc.invalidateQueries({ queryKey: [FLOW_KEYS.batch] });
     },
     onError: () => {
       // A conflict or a refusal: show whatever is really there now.
@@ -255,6 +258,7 @@ export function useHeart(creativeId: string) {
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: [FLOW_KEYS.creative] });
       void qc.invalidateQueries({ queryKey: [FLOW_KEYS.shortlist] });
+      void qc.invalidateQueries({ queryKey: [FLOW_KEYS.batch] });
     },
   });
 }
@@ -278,6 +282,7 @@ export function useSkip(creativeId: string) {
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: [FLOW_KEYS.creative] });
       void qc.invalidateQueries({ queryKey: [FLOW_KEYS.shortlist] });
+      void qc.invalidateQueries({ queryKey: [FLOW_KEYS.batch] });
     },
   });
 }
@@ -292,6 +297,7 @@ export function useMakeFinals() {
       void qc.invalidateQueries({ queryKey: jobsKeys.all });
       void qc.invalidateQueries({ queryKey: [FLOW_KEYS.creative] });
       void qc.invalidateQueries({ queryKey: [FLOW_KEYS.shortlist] });
+      void qc.invalidateQueries({ queryKey: [FLOW_KEYS.batch] });
       void qc.invalidateQueries({ queryKey: ["peaks-quote"] });
       void qc.invalidateQueries({ queryKey: [CREDITS_KEY] });
     },

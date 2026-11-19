@@ -32,7 +32,8 @@ function SoonTile({ title, description }: { title: string; description: string }
  */
 export function ProExtras({ creativeId, previews, canMake, onHistory }: { creativeId: string; previews: PreviewView[]; canMake: boolean; onHistory: () => void }) {
   const [sendOpen, setSendOpen] = useState(false);
-  const sendable: SendablePreview[] = previews.filter((p) => p.state === "ready" || p.state === "shortlisted").map((p, i) => ({ id: p.id, number: i + 1, headline: p.headline }));
+  // Numbered among all the previews shown, the same list the history and the picture descriptions number, so "Preview 2" is the same picture everywhere.
+  const sendable: SendablePreview[] = previews.flatMap((p, i) => (p.state === "ready" || p.state === "shortlisted" ? [{ id: p.id, number: i + 1, headline: p.headline }] : []));
   return (
     <section aria-labelledby="studio-pro-extras" className="space-y-3 rounded-lg border bg-card p-4" data-slot="studio-pro-extras">
       <h2 id="studio-pro-extras" className="text-base font-semibold">

@@ -7,7 +7,7 @@ import { useAuth } from "@/providers/auth-provider";
 
 /** Query keys for the Pro tools screens (S16 to S18), in one place so a mutation can name the ones it changes. */
 export const PRO_KEYS = {
-  batch: "studio-batch",
+  batch: FLOW_KEYS.batch,
   versions: "studio-versions",
   links: "studio-approval-links",
 } as const;
@@ -65,6 +65,7 @@ export function useRestore(creativeId: string) {
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: [PRO_KEYS.versions] });
       void qc.invalidateQueries({ queryKey: [FLOW_KEYS.creative] });
+      void qc.invalidateQueries({ queryKey: [PRO_KEYS.batch] });
       void qc.invalidateQueries({ queryKey: [FLOW_KEYS.shortlist] });
     },
   });

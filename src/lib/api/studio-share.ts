@@ -80,7 +80,7 @@ export async function answerApproval(
     });
     const env = (await res.json().catch(() => null)) as Envelope | null;
     if (res.ok && env?.success === true) return { kind: "thanks", message: text(env.data?.message) ?? "" };
-    if (res.status === 410) return { kind: "stopped", business: businessFrom(env?.error?.message) };
+    if (res.status === 404 || res.status === 410) return { kind: "stopped", business: businessFrom(env?.error?.message) };
     if (res.status === 409 && env?.error?.code === "ALREADY_ANSWERED") return { kind: "already" };
     if (res.status === 409 && env?.error?.code === "LINK_BUSY") return { kind: "busy", message: text(env.error.message) ?? "" };
     return { kind: "error" };
