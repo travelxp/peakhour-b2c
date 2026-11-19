@@ -54,11 +54,13 @@ export interface PeaksQuoteState {
   reason: "unknown_action" | "not_priced" | "unreachable" | "expired" | undefined;
 }
 
-export function usePeaksQuote(action: PeaksActionKey, enabled: boolean): PeaksQuoteState {
+export function usePeaksQuote(action: PeaksActionKey, enabled: boolean, opts: { units?: number } = {}): PeaksQuoteState {
+  const { units } = opts;
   const query = useQuery({
-    queryKey: ["peaks-quote", action],
+    // A per-unit receipt is good for the number of units it was asked for, so the count is part of the key.
+    queryKey: units === undefined ? ["peaks-quote", action] : ["peaks-quote", action, units],
     // `request` already unwraps the envelope, so this IS the quote.
-    queryFn: () => peaksApi.quote(action),
+    queryFn: () => (units === undefined ? peaksApi.quote(action) : peaksApi.quote(action, { units })),
     enabled,
     /**
      * ★NOT RETRIED ON A 404 OR A 502, and retried on nothing else either.

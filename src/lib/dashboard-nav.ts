@@ -31,7 +31,7 @@ import { PILLAR_COPY, SUB_COPY, pillarLabel, subLabel } from "@/lib/nav-copy";
  * switch and the funnel partition are exactly what they were.
  */
 
-export type NavBadgeKey = "running-jobs" | "open-tickets";
+export type NavBadgeKey = "running-jobs" | "open-tickets" | "studio-shortlist";
 
 export interface NavSub {
   href: string;
@@ -123,7 +123,7 @@ export const PILLAR_NAV: NavGroup[] = [
         hideWhenLocked: true,
         subItems: [
           sub("/dashboard/studio", "Ideas"),
-          sub("/dashboard/studio/shortlist", "Shortlist"),
+          sub("/dashboard/studio/shortlist", "Shortlist", { badge: "studio-shortlist" }),
           sub("/dashboard/studio/library", "Library"),
           sub("/dashboard/studio/learned", "What we've learned"),
         ],
