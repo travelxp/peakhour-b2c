@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import Link from "next/link";
-import { FileText, LayoutDashboard, MessagesSquare, Menu, ShoppingBag, TrendingUp, type LucideIcon } from "lucide-react";
+import { FileText, LayoutDashboard, MessagesSquare, Menu, Palette, ShoppingBag, TrendingUp, type LucideIcon } from "lucide-react";
 import { useSidebar } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import { HOME_ROUTE } from "@/lib/nav-home";
@@ -11,6 +11,7 @@ import { primaryTabs, isTabActive } from "@/lib/mobile-tabs";
 
 const ICONS: Record<string, LucideIcon> = {
   home: LayoutDashboard,
+  studio: Palette,
   inbox: MessagesSquare,
   content: FileText,
   growth: TrendingUp,
@@ -38,17 +39,23 @@ function keyboardSnapshot() {
  */
 export function MobileTabBar({
   hasCommerce,
+  hasStudio = false,
   pathname,
   intentProps,
 }: {
   hasCommerce: boolean;
+  /** The org is entitled to Studio: a sixth cell, between Home and Inbox. */
+  hasStudio?: boolean;
   pathname: string;
   /** Hover/focus/touch handlers per href (hooks/use-nav-intent). The five tabs keep Next's viewport prefetch too. */
   intentProps?: (href: string) => React.HTMLAttributes<HTMLAnchorElement>;
 }) {
   const { setOpenMobile } = useSidebar();
   const keyboardUp = useSyncExternalStore(subscribeKeyboard, keyboardSnapshot, () => false);
-  const tabs = primaryTabs({ hasCommerce, homeHref: HOME_ROUTE });
+  const tabs = primaryTabs({ hasCommerce, hasStudio, homeHref: HOME_ROUTE });
+  // Six cells (Studio on) leave 60px each at 360px, and "Commerce" in 12px Geist is 61px of text: measured in Chrome at 360px, it was
+  // cut short. At 11px with 2px side padding it fits (see the CS-UI-1 PR); five cells keep the 12px they always had.
+  const dense = tabs.length > 4;
   if (keyboardUp) return null;
   return (
     <nav
@@ -68,12 +75,13 @@ export function MobileTabBar({
                 title={copy?.description}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex h-full flex-col items-center justify-center gap-0.5 text-xs font-medium",
+                  "flex h-full flex-col items-center justify-center gap-0.5 font-medium",
+                  dense ? "text-[11px]" : "text-xs",
                   active ? "text-primary" : "text-muted-foreground",
                 )}
               >
                 <Icon className="size-5" aria-hidden />
-                <span className="max-w-full truncate px-1">{copy?.label ?? t.key}</span>
+                <span className={cn("max-w-full truncate", dense ? "px-0.5" : "px-1")}>{copy?.label ?? t.key}</span>
               </Link>
             </li>
           );
@@ -82,7 +90,10 @@ export function MobileTabBar({
           <button
             type="button"
             onClick={() => setOpenMobile(true)}
-            className="flex h-full w-full flex-col items-center justify-center gap-0.5 text-xs font-medium text-muted-foreground"
+            className={cn(
+              "flex h-full w-full flex-col items-center justify-center gap-0.5 font-medium text-muted-foreground",
+              dense ? "text-[11px]" : "text-xs",
+            )}
           >
             <Menu className="size-5" aria-hidden />
             <span>More</span>

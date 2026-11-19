@@ -13,6 +13,7 @@ import {
   MapPin,
   LineChart,
   HardDrive,
+  Palette,
   type LucideIcon,
 } from "lucide-react";
 import { ASK_ENABLED } from "@/lib/flags";
@@ -48,6 +49,8 @@ export interface NavItem {
   badge?: NavBadgeKey;
   /** cfg_features.key; unentitled orgs see the item locked. */
   feature?: string;
+  /** Gated pillar the org is not entitled to: leave it out of the sidebar altogether instead of showing it locked (Studio, UX spec U3). */
+  hideWhenLocked?: boolean;
   /** Shown in the upgrade drawer when the gated pillar is rendered locked. */
   upsellTagline?: string;
   subItems?: NavSub[];
@@ -59,6 +62,9 @@ export interface NavGroup {
 }
 
 // Autopilot Home ships dark: surfaced only outside production.
+/** cfg_features.key that turns Studio on for an org. Orgs without it see no Studio in the sidebar or the phone bar. */
+export const STUDIO_FEATURE = "studio.nav";
+
 export const SHOW_AUTOPILOT = process.env.NEXT_PUBLIC_VERCEL_ENV !== "production";
 
 const sub = (href: string, legacy: string, extra?: Partial<NavSub>): NavSub => ({
@@ -88,7 +94,7 @@ export function growthSubs(state: MandateState): NavSub[] {
 
 /**
  * ★THE ORDER IS THE WEEK, NOT THE ORG CHART: Home → Connected accounts → Inbox →
- * Content → Growth → Commerce → Local presence → Reports, then the assistant,
+ * Content → Studio → Growth → Commerce → Local presence → Reports, then the assistant,
  * the activity log, files, Peaks and Settings. (The long argument for this
  * order lived in the layout; it is unchanged.)
  */
@@ -110,6 +116,16 @@ export const PILLAR_NAV: NavGroup[] = [
           sub("/dashboard/calendar", "Calendar"),
           sub("/dashboard/content/ledger", "Ledger"),
           sub("/dashboard/content/seasonal-events", "Seasonal Events"),
+        ],
+      }),
+      pillar("/dashboard/studio", "Studio", Palette, {
+        feature: STUDIO_FEATURE,
+        hideWhenLocked: true,
+        subItems: [
+          sub("/dashboard/studio", "Ideas"),
+          sub("/dashboard/studio/shortlist", "Shortlist"),
+          sub("/dashboard/studio/library", "Library"),
+          sub("/dashboard/studio/learned", "What we've learned"),
         ],
       }),
       pillar(GROWTH_HOME, "Growth", TrendingUp, { subItems: growthSubs("unknown") }),
