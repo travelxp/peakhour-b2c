@@ -68,9 +68,6 @@ import {
 import { useNavIntent } from "@/hooks/use-nav-intent";
 import { useMyTickets } from "@/hooks/use-feedback";
 import { useRunningJobCount } from "@/hooks/use-jobs";
-import { useShortlistCount } from "@/hooks/use-studio-flow";
-import { StudioReadyToaster } from "@/components/studio/studio-strip";
-import { STUDIO_COPY } from "@/lib/studio-copy";
 import { LockedNavItem } from "@/components/dashboard/locked-nav-item";
 
 // Client-only widgets that are not needed for first paint. Each is its own
@@ -95,6 +92,15 @@ const ChatPanel = dynamic(
 );
 const AskLauncher = dynamic(
   () => import("@/components/ask/ask-launcher").then((m) => m.AskLauncher),
+  { ssr: false },
+);
+// Studio's ready toast and shortlist badge: the Studio hooks and copy are only fetched after first paint.
+const StudioReadyToaster = dynamic(
+  () => import("@/components/studio/studio-strip").then((m) => m.StudioReadyToaster),
+  { ssr: false },
+);
+const StudioShortlistBadgeLazy = dynamic(
+  () => import("@/components/studio/studio-shortlist-badge").then((m) => m.StudioShortlistBadge),
   { ssr: false },
 );
 
@@ -158,15 +164,8 @@ function RunningJobsBadge() {
   );
 }
 
-/** How many previews are on the Studio shortlist: hearts waiting to be made final. Nothing when none. */
-function StudioShortlistBadge() {
-  const { data: count } = useShortlistCount();
-  if (!count) return null;
-  return <NavCountBadge count={count} description={STUDIO_COPY.nav.shortlistCount(count)} />;
-}
-
 const NAV_BADGES: Record<NavBadgeKey, () => React.ReactNode> = {
-  "studio-shortlist": () => <StudioShortlistBadge />,
+  "studio-shortlist": () => <StudioShortlistBadgeLazy Badge={NavCountBadge} />,
   "running-jobs": () => <RunningJobsBadge />,
   "open-tickets": () => <OpenTicketBadge />,
 };
