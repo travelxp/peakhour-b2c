@@ -1,21 +1,14 @@
-import { Sparkles } from "lucide-react";
 import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
-import { EmptyState } from "@/components/molecules/empty-state";
-import { STUDIO_ROUTES } from "@/lib/studio";
+import { Memory } from "@/components/studio/memory";
 import { STUDIO_COPY } from "@/lib/studio-copy";
 
-/** Route shell (UX spec): the designed empty state. The list arrives with the lane that fills it. */
+/** What we've learned about you (UX spec S15): every learned line with its evidence, the rules that always win, and the privacy controls. */
 export default function StudioLearnedPage() {
   const copy = STUDIO_COPY.shells.learned;
   return (
     <PageShell>
       <PageHeader title={copy.title} description={copy.description} />
-      <EmptyState
-        icon={Sparkles}
-        title={copy.emptyTitle}
-        description={copy.emptyDescription}
-        action={{ label: copy.emptyAction, href: STUDIO_ROUTES.home }}
-      />
+      <Memory />
     </PageShell>
   );
 }

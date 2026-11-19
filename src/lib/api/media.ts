@@ -10,7 +10,9 @@ export type MediaSource =
   | "uploaded"
   | "unsplash"
   | "imported_beehiiv"
-  | "imported_data_url";
+  | "imported_data_url"
+  /** A product photo Studio copied from the merchant's connected store (CS-7a). */
+  | "imported_store";
 
 export type SuggestedActionKind =
   | "unused_90d"
@@ -173,6 +175,46 @@ export async function listMedia(
       hasMore: m.hasMore ?? false,
     },
   };
+}
+
+// ── Product photos (CS-7a `GET /v1/media/product-images`) ────
+
+export type ProductImageSource = "shopify" | "woocommerce";
+
+/** One product photo with its product link. The file is a Library file; `media.publicUrl` is absent while it is private. */
+export interface ProductImageItem {
+  id: string;
+  source: ProductImageSource;
+  productId?: string;
+  productTitle?: string;
+  sourceProductId: string;
+  sourceImageId: string;
+  /** 0 is the store's main photo. */
+  position: number;
+  altText?: string;
+  importedAt: string;
+  media: { id: string; name: string; mimeType: string; visibility: string; publicUrl?: string; width?: number; height?: number };
+}
+
+/** Where one connected store's photo import stands. `stoppedReason` is plain words and comes only while stopped. */
+export interface ProductImportStatus {
+  source: ProductImageSource;
+  status: "running" | "done" | "stopped";
+  stoppedReason?: string;
+  lastRunAt?: string;
+}
+
+export interface ProductImagesPage {
+  items: ProductImageItem[];
+  imports: ProductImportStatus[];
+  /** Pass as `after` for the next page. */
+  next?: string;
+}
+
+export function listProductImages(params: { after?: string; limit?: number; productId?: string } = {}): Promise<ProductImagesPage> {
+  const qs: Record<string, string> = {};
+  for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== "") qs[k] = String(v);
+  return api.get<ProductImagesPage>("/v1/media/product-images", qs);
 }
 
 export function getMedia(id: string): Promise<MediaItem> {
