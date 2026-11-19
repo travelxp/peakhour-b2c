@@ -50,6 +50,7 @@ import {
   metaFigureText,
   metaInsightsIds,
   META_CHOOSE_AD_ACCOUNT,
+  metaAdAccountBareId,
   metaAdAccountOptionLabel,
   metaAdAccountShortId,
   metaCoverageLine,
@@ -315,7 +316,11 @@ function ConnectedView() {
               accounts={enabled}
               defaultAccountId={defaultId}
               initialAccountId={filter === ALL_ACCOUNTS ? null : filter}
-              onCreated={(campaignId) => setJustCreated((prev) => new Set(prev).add(campaignId))}
+              onCreated={(campaignId, accountId) => {
+                setJustCreated((prev) => new Set(prev).add(campaignId));
+                // Created in another account than the one filtered to: show that account, or the new campaign is nowhere to be seen.
+                if (filter !== ALL_ACCOUNTS && filter !== accountId) setChosenFilter(accountId);
+              }}
             />
             <Link href="/dashboard/integrations" className="text-sm font-medium underline underline-offset-4">
               Change
@@ -764,12 +769,11 @@ function DatasetCard({ accounts, defaultAccountId }: { accounts: MetaAdAccount[]
     retry: false,
   });
   const current = selected.data?.selected ?? null;
-  // The account the dataset in use belongs to comes first (a change keeps it unless the merchant picks another), then the
-  // merchant's pick, then the business's default.
-  const bare = (id: string) => id.replace(/^act_/, "");
+  // The merchant's pick comes first, then the account the dataset in use belongs to (a change keeps it unless another is
+  // picked), then the business's default.
   const account =
     accounts.find((a) => a.id === accountPick) ??
-    (current ? accounts.find((a) => bare(a.id) === bare(current.adAccountId)) : undefined) ??
+    (current ? accounts.find((a) => metaAdAccountBareId(a.id) === metaAdAccountBareId(current.adAccountId)) : undefined) ??
     accounts.find((a) => a.id === defaultAccountId) ??
     accounts[0]!;
   const datasets = useQuery({

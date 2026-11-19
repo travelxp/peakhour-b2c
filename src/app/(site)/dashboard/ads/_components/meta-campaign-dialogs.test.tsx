@@ -263,7 +263,7 @@ describe("New campaign dialog", () => {
     expect(bodies.ad("s1").creative.objectStorySpec.linkData.imageHash).toBe("hash1");
     expect(bodies.ad("s1").creative.objectStorySpec.pageId).toBe("9001");
 
-    expect(onCreated).toHaveBeenCalledWith("c1");
+    expect(onCreated).toHaveBeenCalledWith("c1", "act_111");
     expect(mocks.toastSuccess).toHaveBeenCalledWith(expect.stringContaining("paused"));
   });
 

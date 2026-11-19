@@ -397,9 +397,14 @@ export function metaInsightsIds(ids: readonly string[]): string[] {
 
 // ── The active ad account (MR-F2) ────────────────────────────────────────
 
+/** ★THE ONE ID NORMALISER: an ad account id without whitespace or the `act_` prefix, so `act_123` and `123` compare equal. */
+export function metaAdAccountBareId(id: string): string {
+  return id.trim().replace(/^act_/, "");
+}
+
 /** `act_…1234`: an ad account's id, shortened to its last four digits. */
 export function metaAdAccountShortId(id: string): string {
-  return `act_…${id.trim().replace(/^act_/, "").slice(-4)}`;
+  return `act_…${metaAdAccountBareId(id).slice(-4)}`;
 }
 
 /** `Name (CUR) · act_…1234`: how an ad account is shown in a picker. */

@@ -54,8 +54,8 @@ vi.mock("@/lib/api/meta-ads", async (orig) => {
   };
 });
 vi.mock("./meta-campaign-dialogs", () => ({
-  NewCampaignDialog: (p: { accounts: Array<{ id: string }>; defaultAccountId: string | null; initialAccountId?: string | null }) => (
-    <button data-testid="new-campaign" data-accounts={p.accounts.map((x) => x.id).join(",")} data-default={p.defaultAccountId ?? ""} data-initial={p.initialAccountId ?? ""}>
+  NewCampaignDialog: (p: { accounts: Array<{ id: string }>; defaultAccountId: string | null; initialAccountId?: string | null; onCreated: (campaignId: string, accountId: string) => void }) => (
+    <button data-testid="new-campaign" onClick={() => p.onCreated("new-1", "act_1111")} data-accounts={p.accounts.map((x) => x.id).join(",")} data-default={p.defaultAccountId ?? ""} data-initial={p.initialAccountId ?? ""}>
       New campaign
     </button>
   ),
@@ -209,6 +209,16 @@ describe("Growth > Ads > Meta", () => {
     expect(h.listDatasets).toHaveBeenCalledWith("act_1111");
     expect(h.listDatasets).not.toHaveBeenCalledWith("act_2222");
     expect(container.querySelector('[aria-label="Dataset ad account"]')!.textContent).toContain("Quests Travel");
+  });
+
+  it("★C5: a campaign created in ANOTHER account than the one filtered to switches the filter to that account", async () => {
+    h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
+    await mount();
+    // filtered to the default (CMPL); the dialog reports a create in QUESTS
+    expect([...container.querySelectorAll("h2")].map((x) => x.textContent)).toEqual(["CMPL (USD) · act_…2222"]);
+    await act(async () => (container.querySelector('[data-testid="new-campaign"]') as HTMLElement).click());
+    await settle();
+    expect([...container.querySelectorAll("h2")].map((x) => x.textContent)).toEqual(["Quests Travel (INR) · act_…1111"]);
   });
 
   it("has no ad account URL param: nothing writes the URL, and a stale ?adAccount= is ignored", async () => {

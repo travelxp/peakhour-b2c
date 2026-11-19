@@ -170,8 +170,8 @@ export function NewCampaignDialog({
   defaultAccountId: string | null;
   /** The account the campaigns list is filtered to, when it is filtered to one. */
   initialAccountId?: string | null;
-  /** The new campaign's id, so the list can open it. */
-  onCreated: (campaignId: string) => void;
+  /** The new campaign's id and the account it was created in, so the list can open it. */
+  onCreated: (campaignId: string, accountId: string) => void;
 }) {
   const [pickedAccountId, setPickedAccountId] = useState<string | null>(null);
   const account =
@@ -244,7 +244,7 @@ export function NewCampaignDialog({
       setOpen(false);
       reset();
       toast.success("Campaign created and paused. Turn it on when you're ready.");
-      onCreated(made.campaignId);
+      onCreated(made.campaignId, target.id);
     },
     onError: (err: unknown, target) => {
       if (err instanceof MetaLaunchError) {

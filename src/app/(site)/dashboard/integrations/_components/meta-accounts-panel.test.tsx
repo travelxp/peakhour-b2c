@@ -346,6 +346,7 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
     });
     expect(spy.mock.calls.map((c) => (c[0] as { queryKey: string[] }).queryKey[0]).sort()).toEqual([
       "content-hub-integrations",
+      "growth-v2",
       "meta-ads-accounts",
       "meta-ads-campaigns",
     ]);
@@ -372,6 +373,27 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
     await click(saveButton());
     await flush();
     expect(h.error.mock.calls[0]![0]).toContain("Couldn't save the ad accounts");
+  });
+
+  it("★C1: one listed account that is NOT enabled (a saved choice no longer matches) shows the checklist with Save, so it can be enabled", async () => {
+    h.patch.mockResolvedValue({});
+    mount({ ...EXTRA, adAccounts: [{ id: "act_3333", name: "New one", currency: "USD", status: 1 }], metaAdAccounts: { enabledIds: ["act_1111"], defaultId: "act_1111" } });
+    expect(box("act_3333")).toBeTruthy();
+    expect(box("act_3333").checked).toBe(false);
+    await click(box("act_3333"));
+    await click(saveButton());
+    await flush();
+    expect(h.patch).toHaveBeenCalledWith("/v1/integrations/facebook/ad-account", { enabledIds: ["act_3333"], defaultId: "act_3333" });
+  });
+
+  it("★C6: saving also refetches the Growth signal step's Meta accounts", async () => {
+    h.patch.mockResolvedValue({});
+    const spy = vi.spyOn(client, "invalidateQueries");
+    mount({ ...EXTRA, adAccounts: TWO_ADS });
+    await click(box("act_1111"));
+    await click(saveButton());
+    await flush();
+    expect(spy.mock.calls.map((c) => JSON.stringify((c[0] as { queryKey: string[] }).queryKey))).toContain(JSON.stringify(["growth-v2", "signal"]));
   });
 
   it("no ad accounts: says so; one account is a plain line with no checklist", () => {

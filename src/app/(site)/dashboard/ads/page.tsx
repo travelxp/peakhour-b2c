@@ -42,6 +42,8 @@ import {
 // Only the selected channel's panel is mounted, so each one loads on demand.
 const LinkedInAdsPanel = dynamic<{ channelKey: AdsChannelKey }>(() => import("./_components/linkedin-ads-panel").then((mod) => mod.LinkedInAdsPanel));
 const XAdsPanel = dynamic<{ channelKey: AdsChannelKey }>(() => import("./_components/x-ads-panel").then((mod) => mod.XAdsPanel));
+// The Meta panel takes no props (it reads the business's accounts itself) and ignores the hub's `channelKey`; it is typed
+// as the hub's panel contract only so PANELS stays one total Record.
 const MetaAdsPanel = dynamic<{ channelKey: AdsChannelKey }>(() => import("./_components/meta-ads-panel").then((mod) => mod.MetaAdsPanel));
 const GoogleAdsPanel = dynamic<{ channelKey: AdsChannelKey }>(() => import("./_components/google-ads-panel").then((mod) => mod.GoogleAdsPanel));
 
@@ -56,7 +58,7 @@ interface ApiIntegration {
 /**
  * Panel per channel. Typed as a total Record so adding a key to
  * ADS_CHANNELS without a panel is a compile error, not a blank tab. Each
- * panel receives its own key rather than hardcoding it, so renaming a
+ * panel that needs it receives its own key (the Meta panel needs none) rather than hardcoding it, so renaming a
  * channel can't silently break a panel's "am I the visible one?" check.
  */
 const PANELS: Record<

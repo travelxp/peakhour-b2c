@@ -1,3 +1,4 @@
+import { metaAdAccountBareId } from "./meta-ads-view";
 /**
  * Meta capability flattening — turns the single `facebook` connection
  * (which carries Pages, Instagram, Ads, and WhatsApp via capability
@@ -398,7 +399,7 @@ export function savedMetaAdAccounts(extra: Record<string, any> | undefined): { e
   const listed: Array<{ id: string }> = (Array.isArray(extra?.adAccounts) ? extra.adAccounts : []).filter(
     (a: { id?: unknown }) => typeof a?.id === "string" && a.id !== "",
   );
-  const bare = (id: string) => id.trim().replace(/^act_/, "");
+  const bare = metaAdAccountBareId;
   // Its own key (`config.metaAdAccounts`), NOT under `capabilities`: LinkedIn keeps `capabilities.adAccounts.byPage` there.
   const stored = extra?.metaAdAccounts;
   const saved = !!stored && typeof stored === "object";
@@ -416,22 +417,14 @@ export function savedMetaAdAccounts(extra: Record<string, any> | undefined): { e
 }
 
 /**
- * Whether the Meta Ads card is live for this merchant, judged from any Meta card's row (they share one merged `extra`): an
- * ad account is listed, the Ads capability is not switched off, and a working row serves the Ads card. The ad accounts
+ * Whether the Meta Ads card is live for this merchant, judged from any Meta card's row (they share one merged `extra`). The ad accounts
  * checklist is shown on ONE card only: the Meta Ads card when this is true, else the Facebook Pages card (a login that has
  * no Ads row still needs somewhere to choose).
  */
-export function metaAdsCardServed(item: {
-  metaLogin?: MetaLoginInfo["metaLogin"];
-  metaConnections?: MetaLoginInfo["metaConnections"];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  account?: { extra?: Record<string, any> };
-}): boolean {
-  const extra = item.account?.extra ?? {};
-  if (!(Array.isArray(extra.adAccounts) && extra.adAccounts.length > 0)) return false;
-  if (extra.capabilities?.ads?.enabled === false) return false;
-  const info: MetaLoginInfo = { metaLogin: item.metaLogin, metaConnections: item.metaConnections };
-  if (metaCardServedBy(info, "meta_ads") === "none") return false;
-  const status = metaCardStatus(info, "meta_ads");
-  return status === undefined || status === "active";
+export function metaAdsCardServed(item: BaseIntegration): boolean {
+  // ★NOT A SECOND COPY OF THE RULE: the flattened `meta_ads` row's own `connected`, which `flattenMetaIntegration` decides
+  // (an ad account listed, the Ads switch on, a working row serving the card). A caller that has a Meta card to render has a
+  // live facebook row, hence `connected: true` for the flatten.
+  const row = flattenMetaIntegration([{ ...item, provider: "facebook", connected: true }]).find((r) => r.provider === "meta_ads");
+  return row?.connected === true;
 }

@@ -209,6 +209,8 @@ export function MetaAdAccountPicker({
         queryClient.invalidateQueries({ queryKey: ["meta-ads-accounts"] }),
         queryClient.invalidateQueries({ queryKey: ["meta-ads-campaigns"] }),
         queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] }),
+        // The Growth signal step offers the enabled accounts too: it must never offer one just unticked.
+        queryClient.invalidateQueries({ queryKey: ["growth-v2", "signal"] }),
       ]);
       toast.success("Peakhour will use those ad accounts.");
       await onChanged?.();
@@ -231,7 +233,9 @@ export function MetaAdAccountPicker({
       <p className="text-micro text-muted-foreground">Ad accounts Peakhour may use</p>
       {adAccounts.length === 0 ? (
         <p className="text-micro text-muted-foreground">No ad accounts found.</p>
-      ) : adAccounts.length === 1 ? (
+      ) : adAccounts.length === 1 && saved.enabledIds.includes(adAccounts[0]!.id) ? (
+        // One listed account that is already the business's: a line. A saved choice that no longer matches it falls to the
+        // checklist below, so it can be enabled.
         <p className="text-xs font-medium">{metaAdAccountOptionLabel(adAccounts[0]!)}</p>
       ) : (
         <>

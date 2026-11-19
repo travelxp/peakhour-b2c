@@ -91,16 +91,16 @@ describe("the api's refusals are shown as written", () => {
 describe("metaAdsCardServed: the checklist is shown on ONE card", () => {
   const withAds = { account: { extra: { adAccounts: [A] } } };
   it("an ad account, no Ads switch off, no row info: the Ads card is live", () => {
-    expect(metaAdsCardServed(withAds)).toBe(true);
+    expect(metaAdsCardServed({ provider: "facebook", ...withAds })).toBe(true);
   });
   it("no ad accounts, or Ads switched off: not live (the Pages card then carries the checklist)", () => {
-    expect(metaAdsCardServed({ account: { extra: { adAccounts: [] } } })).toBe(false);
-    expect(metaAdsCardServed({ account: { extra: { adAccounts: [A], capabilities: { ads: { enabled: false } } } } })).toBe(false);
+    expect(metaAdsCardServed({ provider: "facebook", account: { extra: { adAccounts: [] } } })).toBe(false);
+    expect(metaAdsCardServed({ provider: "facebook", account: { extra: { adAccounts: [A], capabilities: { ads: { enabled: false } } } } })).toBe(false);
   });
   it("no row serves Ads, or its row is broken: not live", () => {
-    expect(metaAdsCardServed({ ...withAds, metaConnections: [{ purpose: "content", status: "active" }] })).toBe(false);
-    expect(metaAdsCardServed({ ...withAds, metaConnections: [{ purpose: "ads", status: "needs_reauth" }] })).toBe(false);
-    expect(metaAdsCardServed({ ...withAds, metaConnections: [{ purpose: "ads", status: "active" }] })).toBe(true);
-    expect(metaAdsCardServed({ ...withAds, metaConnections: [{ purpose: null, status: "active" }] })).toBe(true);
+    expect(metaAdsCardServed({ provider: "facebook", ...withAds, metaConnections: [{ purpose: "content", status: "active" }] })).toBe(false);
+    expect(metaAdsCardServed({ provider: "facebook", ...withAds, metaConnections: [{ purpose: "ads", status: "needs_reauth" }] })).toBe(false);
+    expect(metaAdsCardServed({ provider: "facebook", ...withAds, metaConnections: [{ purpose: "ads", status: "active" }] })).toBe(true);
+    expect(metaAdsCardServed({ provider: "facebook", ...withAds, metaConnections: [{ purpose: null, status: "active" }] })).toBe(true);
   });
 });
