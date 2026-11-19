@@ -351,7 +351,6 @@ export const STUDIO_LANGUAGES: Array<{ code: string; name: string }> = [
 
 // ── The tweak controls (S8) ─────────────────────────────────────────────────────────────────────────────────
 
-export type { Swatch };
 
 /** The api's own plain set, added after the brand kit's colours (api `layout.ts` FALLBACK_SWATCHES). Only for the fallback palette below. */
 const FALLBACK_SWATCHES: Swatch[] = [

@@ -40,7 +40,7 @@ import {
   useTweak,
 } from "@/hooks/use-studio-flow";
 import { useStudioAvailability, useStudioPrefs } from "@/hooks/use-studio";
-import type { CreativeView, PreviewView, TweakOp } from "@/lib/api/creative-studio";
+import type { CreativeView, PreviewView, Swatch, TweakOp } from "@/lib/api/creative-studio";
 import { ideasFeedStatus, STUDIO_ROUTES } from "@/lib/studio";
 import { STUDIO_COPY } from "@/lib/studio-copy";
 import {
@@ -53,7 +53,6 @@ import {
   STUDIO_PATHS,
   studioRefusal,
   type StudioRefusal,
-  type Swatch,
 } from "@/lib/studio-flow";
 
 const C = STUDIO_COPY.creative;

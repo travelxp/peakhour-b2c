@@ -171,7 +171,7 @@ export function PreviewCard({
       </div>
       <div className="flex flex-col gap-1 p-2">
         {lapsed && <p className="text-xs font-medium text-warning-on-tint">{C.lapsedBadge}</p>}
-        <ReadabilityHint preview={preview} />
+        {actionable && !lapsed && <ReadabilityHint preview={preview} />}
         {preview.safety?.status === "fixed" && <p className="text-xs text-muted-foreground">{C.adjusted}</p>}
         {chip && <p className="text-xs font-medium">{chip}</p>}
         <div className="flex flex-wrap gap-1">
