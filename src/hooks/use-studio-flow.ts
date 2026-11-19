@@ -16,7 +16,7 @@ import {
   type ShortlistResponse,
   type TweakOp,
 } from "@/lib/api/creative-studio";
-import { parseSettings, type PostFormat, type StudioAvailability } from "@/lib/api/creative";
+import { mergeSettings, type PostFormat, type StudioAvailability } from "@/lib/api/creative";
 import { STUDIO_KEYS } from "@/hooks/use-studio";
 import { jobsKeys } from "@/hooks/use-jobs";
 import { CREDITS_KEY } from "@/hooks/use-credits";
@@ -389,7 +389,7 @@ export function useSaveStudioSettings() {
     mutationFn: (patch: SettingsPatch) => studioApi.saveSettings(patch),
     onSuccess: (r) => {
       qc.setQueriesData<StudioAvailability>({ queryKey: [STUDIO_KEYS.availability] }, (old) =>
-        old ? { ...old, proTools: r.proTools === true, settings: { ...parseSettings(r.settings), usedThisMonthPeaks: old.settings.usedThisMonthPeaks } } : old,
+        old ? { ...old, proTools: r.proTools === true, settings: mergeSettings(old.settings, r.settings) } : old,
       );
     },
     onError: () => {

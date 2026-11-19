@@ -566,6 +566,7 @@ export const STUDIO_COPY = {
     stillMaking: (n: number) => `${n} ${n === 1 ? "size is" : "sizes are"} still being made. You'll find ${n === 1 ? "it" : "them"} here when ready.`,
     back: "Back to sizes",
     close: "Close",
+    nothingReady: "None of those sizes is ready yet. Try again in a moment.",
   },
 
   /** S13: post or schedule. */

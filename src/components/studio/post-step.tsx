@@ -270,9 +270,10 @@ export function PostStep({
   const planRef = useRef<{ planId: string; hash: string } | null>(null);
   // Channels that already took the post: a retry after a partial failure sends only the ones that did not.
   const postedRef = useRef<Set<string>>(new Set());
+  const postedKey = (channel: string, text: string) => `${channel}|${text}`;
 
   const captions = useMemo(() => {
-    const base = handoff.data?.caption.text ?? headlineFallback;
+    const base = handoff.data?.caption.text || headlineFallback;
     return Object.fromEntries(channels.map((c) => [c, edited[c] ?? base]));
   }, [channels, edited, handoff.data, headlineFallback]);
   const media = useMemo(() => handoff.data?.media ?? [], [handoff.data]);
@@ -296,6 +297,8 @@ export function PostStep({
     mutationFn: async () => {
       let planId = planRef.current && planRef.current.hash === source.sourceTextHash ? planRef.current.planId : undefined;
       if (!planId) {
+        // The words changed since the last press: the plan that was committed for the old words must not go out later as a duplicate.
+        if (planRef.current) await scheduler.cancelPlan(planRef.current.planId).catch(() => undefined);
         const plan = await scheduler.commitPlan({
           title,
           source,
@@ -310,13 +313,14 @@ export function PostStep({
       const { items } = await scheduler.listItems({ planId, limit: 20 });
       const results: Array<{ channel: string; published: boolean }> = [];
       for (const it of items) {
-        if (postedRef.current.has(it.channel) || it.status === "published") {
+        const text = entries.find((e) => e.channel === it.channel)?.payload.text ?? "";
+        if (postedRef.current.has(postedKey(it.channel, text)) || it.status === "published") {
           results.push({ channel: it.channel, published: true });
           continue;
         }
         try {
           const r = await scheduler.publishItemNow(it._id);
-          if (r.published) postedRef.current.add(it.channel);
+          if (r.published) postedRef.current.add(postedKey(it.channel, text));
           results.push({ channel: it.channel, published: r.published });
         } catch {
           results.push({ channel: it.channel, published: false });

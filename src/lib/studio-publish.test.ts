@@ -12,7 +12,7 @@ import {
   makeSizes,
   mediaFor,
   parseCap,
-  readyVersionIds,
+  readyVersions,
   sizeRows,
   studioConnectedChannels,
 } from "./studio-publish";
@@ -80,7 +80,7 @@ describe("size rows (S12, U8, U9)", () => {
     const rows = sizeRows(placements, [version("instagram.instagram_stories.1080x1920", "extending")]);
     const ticked = new Set(["instagram.instagram_feed.1080x1350", "instagram.instagram_stories.1080x1920"]);
     const rendered = [version("instagram.instagram_feed.1080x1350", "ready", "fresh")];
-    expect(readyVersionIds(rows, ticked, rendered)).toEqual(["fresh"]);
+    expect(readyVersions(rows, ticked, rendered).map((v) => v.id)).toEqual(["fresh"]);
   });
 });
 

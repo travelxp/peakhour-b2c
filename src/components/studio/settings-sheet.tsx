@@ -77,7 +77,7 @@ export function SettingsView({ settings, proTools, whatsappConnected, canChange,
       return;
     }
     setProblem(null);
-    setSetting(false);
+    // The input stays until the api has taken the limit: the sheet starts again from the saved limit (its key follows it), so a failed save keeps what was typed.
     onPatch({ monthlyCapPeaks: r.value });
   };
   return (
@@ -176,11 +176,35 @@ export function SettingsView({ settings, proTools, whatsappConnected, canChange,
  * The gear in the Studio header and its sheet. Editors and above only (a viewer cannot change settings, so the gear is not offered). Each change
  * saves at once and the answer is written back into the availability read, so every Studio screen follows.
  */
-export function StudioSettingsButton({ className }: { className?: string }) {
+function SettingsBody() {
   const { canMake } = useStudioAbilities();
   const availability = useStudioAvailability();
+  // Asked only while the sheet is open: this component mounts with it.
   const wa = useWaConnection(canMake);
   const save = useSaveStudioSettings();
+  if (availability.loading) {
+    return (
+      <p role="status" className="text-sm text-muted-foreground">
+        {T.loading}
+      </p>
+    );
+  }
+  return (
+    <SettingsView
+      // A key that follows the saved limit so the typed number and the switch start again from what the api holds.
+      key={availability.settings.monthlyCapPeaks ?? "none"}
+      settings={availability.settings}
+      proTools={availability.proTools}
+      whatsappConnected={wa.isSuccess ? wa.data.connected : wa.isError ? false : undefined}
+      canChange={canMake}
+      saving={save.isPending}
+      onPatch={(patch) => save.mutate(patch, { onError: () => toast.error(T.saveFailed) })}
+    />
+  );
+}
+
+export function StudioSettingsButton({ className }: { className?: string }) {
+  const { canMake } = useStudioAbilities();
   const mobile = useIsMobile();
   const [open, setOpen] = useState(false);
   if (!canMake) return null;
@@ -197,22 +221,7 @@ export function StudioSettingsButton({ className }: { className?: string }) {
           <SheetTitle>{T.title}</SheetTitle>
           <SheetDescription>{T.description}</SheetDescription>
         </SheetHeader>
-        {availability.loading ? (
-          <p role="status" className="text-sm text-muted-foreground">
-            {T.loading}
-          </p>
-        ) : (
-          <SettingsView
-            // A key that follows the saved limit so the typed number and the switch start again from what the api holds.
-            key={availability.settings.monthlyCapPeaks ?? "none"}
-            settings={availability.settings}
-            proTools={availability.proTools}
-            whatsappConnected={wa.isSuccess ? wa.data.connected : wa.isError ? false : undefined}
-            canChange={canMake}
-            saving={save.isPending}
-            onPatch={(patch) => save.mutate(patch, { onError: () => toast.error(T.saveFailed) })}
-          />
-        )}
+        <SettingsBody />
         <div className="pb-[env(safe-area-inset-bottom)]">
           <Button type="button" variant="outline" className="h-11 w-full" onClick={() => setOpen(false)}>
             {T.close}

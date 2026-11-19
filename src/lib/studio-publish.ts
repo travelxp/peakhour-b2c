@@ -122,18 +122,6 @@ export function keysToExtend(rows: SizeRowModel[], ticked: ReadonlySet<string>, 
     .map((r) => r.placement.key);
 }
 
-/** The ticked sizes that are made now and can go to a post. */
-export function readyVersionIds(rows: SizeRowModel[], ticked: ReadonlySet<string>, rendered: ReadonlyArray<VersionRow>): string[] {
-  const fresh = new Map(rendered.map((v) => [v.key, v]));
-  const ids: string[] = [];
-  for (const r of rows) {
-    if (!ticked.has(r.placement.key)) continue;
-    const v = fresh.get(r.placement.key) ?? r.version;
-    if (v && (v.state === "ready" || v.state === "scheduled" || v.state === "published")) ids.push(v.id);
-  }
-  return ids;
-}
-
 /** How many ticked sizes need more background: the count the extend quote is asked for. */
 export const extendCount = (rows: SizeRowModel[], ticked: ReadonlySet<string>): number =>
   rows.filter((r) => ticked.has(r.placement.key) && (r.state === "needs_extend" || r.state === "extend_failed")).length;

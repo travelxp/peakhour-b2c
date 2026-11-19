@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { PostStep, type PostVersion } from "@/components/studio/post-step";
 import { SizesStepView } from "@/components/studio/sizes-step";
@@ -166,6 +167,9 @@ function PlatformBody({
       if (r.ready.length > 0) {
         setPostVersions(r.ready.map((v) => ({ id: v.id, channel: v.channel, label: v.label, width: v.width, height: v.height })));
         setStep("post");
+      } else if (!r.extendStarted) {
+        // Nothing can go on and nothing was started (a size is being made by someone else, or came back in a state that cannot be posted): say so.
+        setRefusal({ code: "NOT_READY", tone: "error", text: Z.nothingReady, action: "retry" });
       }
     } catch (e) {
       setRefusal(studioRefusal(e));
@@ -173,6 +177,17 @@ function PlatformBody({
       setWorking(false);
     }
   };
+
+  if (connected.isError) {
+    return (
+      <div role="alert" className="space-y-2 rounded-lg border p-3 text-sm">
+        <p>{Z.loadFailed}</p>
+        <Button type="button" size="sm" variant="outline" className="h-11" onClick={() => void connected.refetch()}>
+          {STUDIO_COPY.quote.retry}
+        </Button>
+      </div>
+    );
+  }
 
   if (step === "post") {
     return (

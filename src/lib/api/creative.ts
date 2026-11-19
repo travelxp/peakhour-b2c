@@ -119,6 +119,11 @@ export function parseAvailability(raw: unknown): StudioAvailability {
   return { capabilities, proTools: raw.proTools === true, settings: parseSettings(raw.settings), known: true };
 }
 
+/** The settings after one change: what the api's answer names replaces what was held, and what it does not name stays. */
+export function mergeSettings(held: StudioSettings, answer: unknown): StudioSettings {
+  return parseSettings({ ...held, ...(isRecord(answer) ? answer : {}), usedThisMonthPeaks: held.usedThisMonthPeaks });
+}
+
 /** The settings as the api sent them; a missing or odd field is the default, never a guess. A limit is a whole number of 1 or more, else none. */
 export function parseSettings(raw: unknown): StudioSettings {
   if (!isRecord(raw)) return DEFAULT_STUDIO_SETTINGS;
