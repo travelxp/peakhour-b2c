@@ -136,7 +136,6 @@ export interface DownloadLink {
   filename: string;
   width?: number;
   height?: number;
-  expiresInSeconds: number;
 }
 
 export interface BulkResult {
