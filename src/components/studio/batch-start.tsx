@@ -136,9 +136,11 @@ export function BatchStartFlow({ open, onClose, initialIds }: { open: boolean; o
 
   const ids = batchIds(picked ?? initialIds ?? []);
   const where = step ?? (initialIds && initialIds.length > 0 ? "confirm" : "pick");
-  const comingSoon = off || availability.capabilities.previews !== "on";
+  const previewsOn = availability.capabilities.previews === "on";
   const body = ids.length > 0 ? batchBody(ids, count) : null;
-  const quote = useBatchQuote(body, open && where === "confirm" && !comingSoon);
+  const quote = useBatchQuote(body, open && where === "confirm" && previewsOn && !off);
+  // Off by the capability read, by a refused press, or by the quote itself answering 409 not-released: the same designed card, never a spinner.
+  const comingSoon = off || !previewsOn || quote.notReleased;
   const apiError = quote.error instanceof ApiError ? quote.error : undefined;
   const blocked = apiError?.code === "PHOTO_MISSING" ? studioRefusal(apiError).text : undefined;
   const instead = refusal?.code === "CREDITS_EXHAUSTED" ? affordableProducts(refusal.left, quote.quote, ids.length) : undefined;
@@ -224,7 +226,7 @@ export function BatchStartFlow({ open, onClose, initialIds }: { open: boolean; o
               : undefined
           }
           onMake={make}
-          onBack={() => (initialIds && picked === null ? reset() : setStep("pick"))}
+          onBack={() => (initialIds ? reset() : setStep("pick"))}
           onClose={reset}
           onRetryQuote={() => void quote.refetch()}
           onRequote={() => {

@@ -260,7 +260,6 @@ export const STUDIO_COPY = {
     each: "Previews for each product",
     eachOption: (k: number) => `${k} each`,
     whyLabel: "Why this price",
-    whyTitle: "Why this price",
     whyPreviews: (units: number, n: number, k: number) => `${units} previews: ${n} ${n === 1 ? "product" : "products"} with ${k} each, at the same price as one post on its own.`,
     whyPhotos: (c: number) => `${c} product ${c === 1 ? "photo" : "photos"} prepared first. It's done once per photo and reused.`,
     whyCharged: "You're charged only for the previews that come through. A preview that fails or doesn't pass our Safety check costs nothing.",

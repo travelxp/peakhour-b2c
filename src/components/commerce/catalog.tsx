@@ -22,6 +22,7 @@ import { useLocale } from "@/hooks/use-locale";
 import { minorToMajor } from "@/lib/money";
 import { STUDIO_COPY } from "@/lib/studio-copy";
 import { MAX_BATCH_PRODUCTS } from "@/lib/studio-flow";
+import { atBatchCap } from "@/lib/studio-batch-start";
 import { PageShell } from "@/components/dashboard/page-shell";
 import { SearchVisibilityPanel } from "@/components/commerce/search-visibility";
 import {
@@ -67,20 +68,20 @@ function CatalogBody() {
   const [chosen, setChosen] = useState<string[]>([]);
   const [overCap, setOverCap] = useState(false);
   const [pricing, setPricing] = useState(false);
-  const toggleChosen = useCallback((id: string) => {
-    setChosen((cur) => {
-      if (cur.includes(id)) {
+  const toggleChosen = useCallback(
+    (id: string) => {
+      if (chosen.includes(id)) {
         setOverCap(false);
-        return cur.filter((x) => x !== id);
-      }
-      if (cur.length >= MAX_BATCH_PRODUCTS) {
+        setChosen(chosen.filter((x) => x !== id));
+      } else if (atBatchCap(chosen.length)) {
         setOverCap(true);
-        return cur;
+      } else {
+        setOverCap(false);
+        setChosen([...chosen, id]);
       }
-      setOverCap(false);
-      return [...cur, id];
-    });
-  }, []);
+    },
+    [chosen],
+  );
 
   const money = useCallback(
     (minor: number | null, currency: string | null) => {
@@ -265,10 +266,7 @@ function CatalogBody() {
         <BatchStartFlow
           open
           initialIds={chosen}
-          onClose={() => {
-            setPricing(false);
-            setChoosing(false);
-          }}
+          onClose={() => setPricing(false)}
         />
       )}
 
