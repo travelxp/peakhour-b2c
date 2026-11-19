@@ -254,7 +254,7 @@ export function ImportStatusList({ imports, locale }: { imports: ProductImportSt
   );
 }
 
-function ProductTile({ tile, partial, addSlot, onOpen }: { tile: ProductPhotoTile; partial: boolean; addSlot?: React.ReactNode; onOpen?: (t: ProductPhotoTile) => void }) {
+function ProductTile({ tile, addSlot, onOpen }: { tile: ProductPhotoTile; addSlot?: React.ReactNode; onOpen?: (t: ProductPhotoTile) => void }) {
   const alt = C.photoAlt(tile.title);
   const url = tile.main?.thumbUrl;
   return (
@@ -273,7 +273,7 @@ function ProductTile({ tile, partial, addSlot, onOpen }: { tile: ProductPhotoTil
       <div className="space-y-2 p-3">
         <div className="space-y-0.5">
           <p className="truncate text-sm font-medium">{tile.title}</p>
-          <p className="text-xs text-muted-foreground">{tile.count === 0 ? C.noPhotosYet : partial ? C.photoCountAtLeast(tile.count) : C.photoCount(tile.count)}</p>
+          <p className="text-xs text-muted-foreground">{tile.count === 0 ? C.noPhotosYet : C.photoCount(tile.count)}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {tile.count > 0 && onOpen && (
@@ -291,7 +291,7 @@ function ProductTile({ tile, partial, addSlot, onOpen }: { tile: ProductPhotoTil
 /**
  * "Product photos": where each store's import stands, then one tile per product with its photo count and main photo. "Add photo" links a photo that is
  * already in the Library (nothing is uploaded to the store); "See photos" opens the product's photos so one can be set as the main one. The api pages by
- * product, so while more pages wait the list is not claimed as the whole catalogue.
+ * product, and each tile's count is that product's own exact total.
  */
 export function ProductPhotosView({
   status,
@@ -334,7 +334,7 @@ export function ProductPhotosView({
             <>
               <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 {tiles.map((t) => (
-                  <ProductTile key={t.productId} tile={t} partial={hasMore} onOpen={onOpen} addSlot={renderAdd?.(t)} />
+                  <ProductTile key={t.productId} tile={t} onOpen={onOpen} addSlot={renderAdd?.(t)} />
                 ))}
               </ul>
               {hasMore && (
@@ -382,12 +382,12 @@ export function ProductPhotoList({
   if (status === "error" || !data) return <QueryError what={C.photosError} onRetry={onRetry} />;
   return (
     <ul className="grid grid-cols-2 gap-3">
-      {data.photos.map((p) => (
+      {data.photos.map((p, i) => (
         <li key={p.mediaId} data-main={p.isMain} className="overflow-hidden rounded-lg border bg-card">
           <div className="aspect-square bg-muted">
             {p.thumbUrl ? (
               // eslint-disable-next-line @next/next/no-img-element -- a signed Drive link; see MediaImage for why this stays off the optimiser
-              <img src={p.thumbUrl} alt={C.photoAlt(data.title)} loading="lazy" decoding="async" className="size-full object-cover" />
+              <img src={p.thumbUrl} alt={C.photoNAlt(data.title, i + 1, data.photos.length)} loading="lazy" decoding="async" className="size-full object-cover" />
             ) : (
               <div className="flex size-full items-center justify-center text-xs text-muted-foreground">{C.noPhotoPreview}</div>
             )}
@@ -403,7 +403,7 @@ export function ProductPhotoList({
               <Badge variant="outline">{p.source === "store" ? C.sourceStore : C.sourceLibrary}</Badge>
             </div>
             {canChange && !p.isMain && (
-              <Button type="button" variant="outline" className="h-11 w-full" aria-label={C.setMainLabel(data.title)} disabled={busyId === p.mediaId} onClick={() => onSetMain(p.mediaId)}>
+              <Button type="button" variant="outline" className="h-11 w-full" aria-label={C.setMainLabel(data.title, i + 1, data.photos.length)} disabled={busyId === p.mediaId} onClick={() => onSetMain(p.mediaId)}>
                 {C.setMain}
               </Button>
             )}

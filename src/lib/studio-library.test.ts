@@ -72,15 +72,16 @@ describe("the CMS storage page", () => {
 });
 
 describe("filterQuery", () => {
-  it("leaves out what is empty and sends dates as UTC days; 'until' includes that day", () => {
+  it("leaves out what is empty and sends dates as the start of that day in the merchant's own time zone; 'until' includes that day", () => {
     expect(filterQuery({ publish: "", channel: "", from: "", to: "" })).toEqual({});
     expect(filterQuery({ publish: "scheduled", channel: "instagram", from: "2026-11-05", to: "2026-11-10" })).toEqual({
       publish: "scheduled",
       channel: "instagram",
-      from: "2026-11-05T00:00:00.000Z",
-      to: "2026-11-11T00:00:00.000Z",
+      from: new Date(2026, 10, 5).toISOString(),
+      to: new Date(2026, 10, 11).toISOString(),
     });
   });
+  it("'until' the last day of a month is the first of the next", () => expect(filterQuery({ publish: "", channel: "", from: "", to: "2026-11-30" }).to).toBe(new Date(2026, 11, 1).toISOString()));
   it("ignores a value it cannot read rather than sending it", () => {
     expect(filterQuery({ publish: "everywhere", channel: "", from: "05/11/2026", to: "tomorrow" })).toEqual({});
   });
@@ -109,6 +110,11 @@ describe("bulkSummary", () => {
   it("says what was done and, plainly, how many were left as they were", () => {
     expect(bulkSummary({ done: ["a"], skipped: [] })).toBe("Done: 1 post.");
     expect(bulkSummary({ done: ["a", "b"], skipped: [] })).toBe("Done: 2 posts.");
-    expect(bulkSummary({ done: ["a", "b"], skipped: [{ id: "c", code: "STILL_MAKING", message: "x" }] })).toBe("Done: 2. Left as they were: 1, because they're still being made or weren't found.");
+    expect(bulkSummary({ done: ["a", "b"], skipped: [{ id: "c", code: "STILL_MAKING", message: "This one is still being made." }] })).toBe("Done: 2. Left as they were: 1. This one is still being made.");
+  });
+  it("gives each distinct reason once, at most two, in the api's own words", () => {
+    const skipped = ["a", "b", "c", "d"].map((id, i) => ({ id, code: "X", message: i < 2 ? "Still being made." : i === 2 ? "Not found." : "Third reason." }));
+    expect(bulkSummary({ done: [], skipped })).toBe("Done: 0. Left as they were: 4. Still being made. Not found.");
+    expect(bulkSummary({ done: ["a"], skipped: [{ id: "x", code: "X", message: "  " }] })).toBe("Done: 1. Left as they were: 1.");
   });
 });

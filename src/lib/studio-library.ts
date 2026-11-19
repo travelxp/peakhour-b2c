@@ -43,18 +43,21 @@ export function sentTo(item: Pick<LibraryItem, "publish">): string {
   return item.publish.channels.map((c) => names[c] ?? c).join(", ");
 }
 
-/** The filter values the api takes, from what the form holds: an empty one is left out, and a date is sent as the start of that day (UTC). */
+/**
+ * The filter values the api takes, from what the form holds: an empty one is left out, and a date is the start of that day IN THE MERCHANT'S OWN TIME ZONE
+ * (as a full time the api reads exactly). "Until" a day includes that day: the api's end is exclusive, so it is the start of the next one.
+ */
 export function filterQuery(f: { publish: string; channel: string; from: string; to: string }): LibraryFilter {
-  const day = (v: string) => (/^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(`${v}T00:00:00.000Z`).toISOString() : undefined);
-  const publish = f.publish === "none" || f.publish === "scheduled" || f.publish === "posted" ? f.publish : undefined;
-  const to = f.to ? day(f.to) : undefined;
-  return {
-    ...(publish ? { publish } : {}),
-    ...(f.channel ? { channel: f.channel } : {}),
-    ...(f.from && day(f.from) ? { from: day(f.from)! } : {}),
-    // "until" a day includes that day: the api's end is exclusive, so it is the start of the next one.
-    ...(to ? { to: new Date(Date.parse(to) + 86_400_000).toISOString() } : {}),
+  const day = (v: string, add = 0): string | undefined => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+    if (!m) return undefined;
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + add);
+    return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
   };
+  const publish = f.publish === "none" || f.publish === "scheduled" || f.publish === "posted" ? f.publish : undefined;
+  const from = day(f.from);
+  const to = day(f.to, 1);
+  return { ...(publish ? { publish } : {}), ...(f.channel ? { channel: f.channel } : {}), ...(from ? { from } : {}), ...(to ? { to } : {}) };
 }
 
 const size = (w: number | null | undefined, h: number | null | undefined) => (w && h ? `${w} x ${h}` : null);
@@ -75,8 +78,15 @@ export function downloadChoices(item: Pick<LibraryItem, "master" | "versions">):
   return out;
 }
 
-/** What to tell the merchant after a bulk change: what was done and, plainly, how many were left as they were. */
-export const bulkSummary = (r: Pick<BulkResult, "done" | "skipped">): string => STUDIO_COPY.library.bulk.result(r.done.length, r.skipped.length);
+/**
+ * What to tell the merchant after a bulk change: what was done, how many were left as they were, and why, in the api's own plain words (each distinct
+ * reason once, at most two, so the toast stays short).
+ */
+export function bulkSummary(r: Pick<BulkResult, "done" | "skipped">): string {
+  const base = STUDIO_COPY.library.bulk.result(r.done.length, r.skipped.length);
+  const reasons = [...new Set(r.skipped.map((s) => s.message.trim()).filter(Boolean))].slice(0, 2);
+  return reasons.length ? `${base} ${reasons.join(" ")}` : base;
+}
 
 export const itemTitle = (item: Pick<LibraryItem, "headline">): string => item.headline?.trim() || STUDIO_COPY.library.untitled;
 

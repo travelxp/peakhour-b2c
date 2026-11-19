@@ -163,6 +163,12 @@ export function Library() {
   const [busyIds, setBusyIds] = useState<ReadonlySet<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [pending, setPending] = useState<Pending>(null);
+  // What the confirm dialog was last asked, kept while it closes so its words do not change under the closing animation.
+  const [asked, setAsked] = useState<Pending>(null);
+  const ask = (p: Pending) => {
+    setAsked(p);
+    setPending(p);
+  };
   const [downloadFor, setDownloadFor] = useState<LibraryItem | null>(null);
   const [photosFor, setPhotosFor] = useState<ProductPhotoTile | null>(null);
   const [mainBusy, setMainBusy] = useState<string | null>(null);
@@ -174,6 +180,7 @@ export function Library() {
       if (next === debouncedQ) return;
       setDebouncedQ(next);
       setPage(1);
+      setSelected(new Set());
     }, 300);
     return () => clearTimeout(t);
   }, [q, debouncedQ]);
@@ -210,10 +217,17 @@ export function Library() {
     setDebouncedQ("");
     setFilters(NO_FILTERS);
     setPage(1);
+    setSelected(new Set());
   };
   const change = (next: Partial<FilterValues>) => {
     setFilters((f) => ({ ...f, ...next }));
     setPage(1);
+    setSelected(new Set());
+  };
+  // What is selected is what is on this page: a different page, search or filter starts a new selection (so "Delete selected" never acts on posts that are not on screen).
+  const goPage = (p: number) => {
+    setPage(p);
+    setSelected(new Set());
   };
   const refreshCreatives = () => qc.invalidateQueries({ queryKey: [LIBRARY_KEYS.creatives] });
   const busy = (id: string, on: boolean) =>
@@ -249,6 +263,7 @@ export function Library() {
   };
 
   const doDelete = async (item: LibraryItem) => {
+    if (busyIds.has(item.id)) return; // one tap, one delete
     busy(item.id, true);
     try {
       await creativeApi.deleteCreative(item.id);
@@ -318,9 +333,11 @@ export function Library() {
     // A creative with sizes asks which; one with only its master saves that at once.
     onDownload: (item: LibraryItem) => (item.versions.length > 0 ? setDownloadFor(item) : void download(item, item.master ? { finalId: item.master.finalId } : {})),
     onNewVersion: (item: LibraryItem) => void newVersion(item),
-    onDelete: (item: LibraryItem) => setPending({ kind: "delete", item }),
+    onDelete: (item: LibraryItem) => ask({ kind: "delete", item }),
   };
   const choices = downloadFor ? downloadChoices(downloadFor) : [];
+  // The confirm is off while what it asked for is on its way (a bulk change, or this one post's delete).
+  const confirmBusy = bulkBusy || (pending?.kind === "delete" && busyIds.has(pending.item.id));
   const plansActions = { canChange, busyIds, onDelete: tileActions.onDelete, onDownload: tileActions.onDownload };
 
   return (
@@ -361,9 +378,9 @@ export function Library() {
               </Button>
             </div>
           )}
-          <CreativesView view="made" status={ideasFeedStatus(made)} data={made.data} filtered={filtered} onRetry={() => void made.refetch()} onClearFilters={clear} onPage={setPage} actions={tileActions} />
+          <CreativesView view="made" status={ideasFeedStatus(made)} data={made.data} filtered={filtered} onRetry={() => void made.refetch()} onClearFilters={clear} onPage={goPage} actions={tileActions} />
           {proTools && canChange && selecting && (
-            <BulkBar count={selected.size} busy={bulkBusy} onDelete={() => setPending({ kind: "bulk", action: "delete" })} onArchive={() => setPending({ kind: "bulk", action: "archive" })} onClear={() => setSelected(new Set())} />
+            <BulkBar count={selected.size} busy={bulkBusy} onDelete={() => ask({ kind: "bulk", action: "delete" })} onArchive={() => ask({ kind: "bulk", action: "archive" })} onClear={() => setSelected(new Set())} />
           )}
         </TabsContent>
         <TabsContent value="photos" className="space-y-4 pt-2">
@@ -458,23 +475,23 @@ export function Library() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={pending !== null} onOpenChange={(o) => !o && !bulkBusy && setPending(null)}>
+      <AlertDialog open={pending !== null} onOpenChange={(o) => !o && !confirmBusy && setPending(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{pending?.kind === "delete" ? C.actions.deleteTitle : pending?.action === "archive" ? C.bulk.archiveTitle(selected.size) : C.bulk.deleteTitle(selected.size)}</AlertDialogTitle>
-            <AlertDialogDescription>{pending?.kind === "delete" ? C.actions.deleteBody : pending?.action === "archive" ? C.bulk.archiveBody : C.bulk.deleteBody}</AlertDialogDescription>
+            <AlertDialogTitle>{asked?.kind === "delete" ? C.actions.deleteTitle : asked?.action === "archive" ? C.bulk.archiveTitle(selected.size) : C.bulk.deleteTitle(selected.size)}</AlertDialogTitle>
+            <AlertDialogDescription>{asked?.kind === "delete" ? C.actions.deleteBody : asked?.action === "archive" ? C.bulk.archiveBody : C.bulk.deleteBody}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={bulkBusy}>{C.actions.deleteCancel}</AlertDialogCancel>
+            <AlertDialogCancel disabled={confirmBusy}>{C.actions.deleteCancel}</AlertDialogCancel>
             <AlertDialogAction
-              disabled={bulkBusy}
+              disabled={confirmBusy}
               onClick={(e) => {
                 e.preventDefault();
                 if (pending?.kind === "delete") void doDelete(pending.item);
                 else if (pending?.kind === "bulk") void doBulk(pending.action);
               }}
             >
-              {pending?.kind === "bulk" && pending.action === "archive" ? C.bulk.archiveConfirm : C.actions.deleteConfirm}
+              {asked?.kind === "bulk" && asked.action === "archive" ? C.bulk.archiveConfirm : C.actions.deleteConfirm}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

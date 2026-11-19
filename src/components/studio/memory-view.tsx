@@ -180,7 +180,7 @@ export function TrendsSection({ trends }: { trends: MemoryTrends }) {
                   <MeasurementBadge state="measured" detail={C.trendEvidence(t.evidence.now, t.evidence.first)} />
                   <p className="sr-only">{C.trendSummary(title, now, first)}</p>
                   <p aria-hidden="true" className="text-xs text-muted-foreground">
-                    {first} in your first month
+                    {C.trendFirst(first)}
                   </p>
                 </li>
               );

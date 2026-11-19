@@ -231,9 +231,9 @@ describe("Product photos", () => {
     expect(photos({ hasMore: true, loadingMore: true })).toMatch(/<button[^>]*disabled=""[^>]*>Loading more/);
     expect(photos()).not.toContain("Show more photos");
   });
-  it("while more pages wait, a count is a floor, not a claim", () => {
-    expect(photos({ hasMore: true })).toContain("2+ photos");
-    expect(photos({ hasMore: false })).toContain("2 photos");
+  it("a count is the product's own exact total, even while more products wait", () => {
+    expect(photos({ hasMore: true })).toContain("2 photos");
+    expect(photos({ hasMore: true })).not.toContain("2+ photos");
   });
 });
 
@@ -256,7 +256,8 @@ describe("one product's photos", () => {
     expect(html).toContain("From your store");
     expect(html).toContain("Added by you");
     expect((html.match(/>Set as main photo</g) ?? []).length).toBe(1);
-    expect(html).toContain('aria-label="Set as main photo: Silk saree"');
+    expect(html).toContain('aria-label="Set as main photo: Silk saree, photo 2 of 2"');
+    expect(html).toContain('alt="Photo 1 of 2 of Silk saree"');
     expect(html).toContain("Photo not shown");
   });
   it("a viewer sees the photos and cannot change the main one", () => expect(list({ canChange: false })).not.toContain("Set as main photo"));

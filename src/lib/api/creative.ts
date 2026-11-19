@@ -126,7 +126,7 @@ export interface LibraryItem {
 export interface LibraryFilter {
   publish?: "none" | "scheduled" | "posted";
   channel?: string;
-  /** `YYYY-MM-DD`: last changed on or after / before. */
+  /** ISO times: last changed at or after `from` and before `to`. */
   from?: string;
   to?: string;
 }
