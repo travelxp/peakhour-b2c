@@ -151,8 +151,10 @@ export const peaksApi = {
    * deactivated, and the merchant is right to be asking. Showing "something
    * went wrong" for both is how a seeding gap gets debugged as a client bug.
    */
-  quote: (action: string) =>
-    api.get<BindingPeaksQuote>(`/v1/peaks/quote?action=${encodeURIComponent(action)}`),
+  quote: (action: string, opts: { units?: number } = {}) =>
+    api.get<BindingPeaksQuote>(
+      `/v1/peaks/quote?action=${encodeURIComponent(action)}${opts.units !== undefined ? `&units=${opts.units}` : ""}`,
+    ),
 };
 
 /**
@@ -178,4 +180,16 @@ export const PEAKS_ACTIONS = {
   linkedinCarousel: "linkedin.newsletter_carousel",
 } as const;
 
-export type PeaksActionKey = (typeof PEAKS_ACTIONS)[keyof typeof PEAKS_ACTIONS];
+/**
+ * The Creative Studio actions priced per unit (UX spec section 7, api `services/creative/studio/constants.ts`). A per-unit quote is asked with
+ * `units` and the receipt is only good for that many. Previews, another background and new wording are quoted by the creative's own
+ * `GET /v1/creative/:id/quote` (one total, two receipts), so only the finals live here.
+ */
+export const STUDIO_ACTIONS = {
+  /** One final per preview the merchant approved; `units` = how many, 1 to 24. */
+  makeFinal: "creative.make_final",
+} as const;
+
+export type PeaksActionKey =
+  | (typeof PEAKS_ACTIONS)[keyof typeof PEAKS_ACTIONS]
+  | (typeof STUDIO_ACTIONS)[keyof typeof STUDIO_ACTIONS];
