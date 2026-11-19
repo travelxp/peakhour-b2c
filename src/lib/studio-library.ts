@@ -20,13 +20,16 @@ export interface ProductGroup {
 export function groupProductPhotos(items: ProductImageItem[]): ProductGroup[] {
   const groups = new Map<string, ProductGroup>();
   for (const it of items) {
-    const key = it.productId ?? `${it.source}:${it.sourceProductId}`;
+    // The store's own product id, always: a photo whose product link arrives later still belongs to the same tile.
+    const key = `${it.source}:${it.sourceProductId}`;
     const g = groups.get(key);
     if (!g) {
       groups.set(key, { key, title: it.productTitle?.trim() || STUDIO_COPY.library.photoFallbackTitle, main: it, count: 1 });
       continue;
     }
     g.count += 1;
+    // A later photo may carry the title the first one lacked.
+    if (g.title === STUDIO_COPY.library.photoFallbackTitle && it.productTitle?.trim()) g.title = it.productTitle.trim();
     if (it.position < g.main.position) g.main = it;
   }
   return [...groups.values()];

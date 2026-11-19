@@ -48,7 +48,7 @@ export function Memory() {
   const { proTools } = useStudioPrefs();
   const { org, orgs } = useAuth();
   const canChange = driveAbilities(orgs?.find((o) => o._id === org?._id)?.role).canEdit;
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [busyIds, setBusyIds] = useState<ReadonlySet<string>>(new Set());
   const [exporting, setExporting] = useState(false);
   const [wipeOpen, setWipeOpen] = useState(false);
   const [wiping, setWiping] = useState(false);
@@ -60,9 +60,13 @@ export function Memory() {
   const actions: MemoryActions = useMemo(
     () => ({
       onStop: async (line: MemoryLine) => {
-        setBusyId(line.id);
+        setBusyIds((s) => new Set(s).add(line.id));
         const out = await runChange(() => creativeApi.deleteMemoryLine(line.id), { goneOn404: true });
-        setBusyId(null);
+        setBusyIds((s) => {
+          const n = new Set(s);
+          n.delete(line.id);
+          return n;
+        });
         if (out === "failed") {
           toast.error(C.stopFailed);
           return;
@@ -147,7 +151,7 @@ export function Memory() {
         data={memory.data}
         proTools={proTools}
         canChange={canChange}
-        busyId={busyId}
+        busyIds={busyIds}
         exporting={exporting}
         pooledBusy={pooledBusy}
         onRetry={() => void memory.refetch()}

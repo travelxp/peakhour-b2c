@@ -39,17 +39,19 @@ function CharCount({ id, n }: { id: string; n: number }) {
 function LineRow({
   line,
   canChange,
+  proTools,
   initialEditing,
   busy,
   actions,
 }: {
   line: MemoryLine;
   canChange: boolean;
+  proTools: boolean;
   initialEditing: boolean;
   busy: boolean;
   actions: MemoryActions;
 }) {
-  const [editing, setEditing] = useState(initialEditing && line.editable);
+  const [editing, setEditing] = useState(initialEditing && line.editable && proTools);
   const [text, setText] = useState(line.text);
   const [saving, setSaving] = useState(false);
   const draft = checkDraft(text);
@@ -94,7 +96,7 @@ function LineRow({
           <p className="text-xs text-muted-foreground">{lineNote(line)}</p>
           {canChange && (
             <div className="flex flex-wrap gap-2">
-              {line.editable && (
+              {proTools && line.editable && (
                 <Button type="button" variant="outline" className="h-11" aria-label={C.editLabel(line.text)} onClick={() => {
                     // Start from what the line says now, not from what it said when this row was first drawn.
                     setText(line.text);
@@ -151,7 +153,7 @@ export function MemoryView({
   data,
   proTools,
   canChange,
-  busyId,
+  busyIds,
   exporting,
   pooledBusy,
   initialEditingId,
@@ -163,8 +165,8 @@ export function MemoryView({
   proTools: boolean;
   /** Editor or above. The api refuses a viewer's change; the buttons say so up front. */
   canChange: boolean;
-  /** The line whose delete is in flight. */
-  busyId?: string | null;
+  /** The lines whose delete is in flight. */
+  busyIds?: ReadonlySet<string>;
   exporting?: boolean;
   /** The opt-in change is on its way: the switch waits for it. */
   pooledBusy?: boolean;
@@ -208,7 +210,7 @@ export function MemoryView({
               <p className="text-sm text-muted-foreground">{C.tasteIntro}</p>
               <ul className="space-y-3">
                 {taste.map((l) => (
-                  <LineRow key={l.id} line={l} canChange={canChange} initialEditing={initialEditingId === l.id} busy={busyId === l.id} actions={actions} />
+                  <LineRow key={l.id} line={l} canChange={canChange} proTools={proTools} initialEditing={initialEditingId === l.id} busy={busyIds?.has(l.id) ?? false} actions={actions} />
                 ))}
               </ul>
             </>

@@ -20,7 +20,7 @@ const photo = (over: Partial<ProductImageItem> = {}): ProductImageItem => ({
 
 describe("groupProductPhotos", () => {
   it("one row per product, counting its photos, with the lowest position as the main photo", () => {
-    const g = groupProductPhotos([photo({ id: "a", position: 2 }), photo({ id: "b", position: 0 }), photo({ id: "c", productId: "p2", productTitle: "Kurta" })]);
+    const g = groupProductPhotos([photo({ id: "a", position: 2 }), photo({ id: "b", position: 0 }), photo({ id: "c", productId: "p2", productTitle: "Kurta", sourceProductId: "s2" })]);
     expect(g.map((x) => [x.title, x.count, x.main.id])).toEqual([
       ["Silk saree", 2, "b"],
       ["Kurta", 1, "c"],
@@ -41,6 +41,12 @@ describe("groupProductPhotos", () => {
       photo({ id: "z", productId: undefined, source: "woocommerce", sourceProductId: "1" }),
     ]);
     expect(g).toHaveLength(2);
+  });
+  it("a title that only a later photo carries is used, and a link that arrives on only some rows does not split the tile", () => {
+    const g = groupProductPhotos([photo({ id: "a", productId: undefined, productTitle: undefined, position: 2 }), photo({ id: "b", position: 0 })]);
+    expect(g).toHaveLength(1);
+    expect(g[0]).toMatchObject({ title: "Silk saree", count: 2 });
+    expect(g[0]!.main.id).toBe("b");
   });
   it("is empty for no photos", () => expect(groupProductPhotos([])).toEqual([]));
 });

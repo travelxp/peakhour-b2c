@@ -133,6 +133,7 @@ export const STUDIO_COPY = {
     thumbAlt: (headline: string) => `Preview of ${headline}`,
     noThumb: "No picture yet",
     itemLabel: (headline: string, format: string) => `${headline}, ${format}`,
+    pastEnd: "There is nothing on this page. Go back to see your posts.",
     total: (n: number) => (n === 1 ? "1 post" : `${n.toLocaleString()} posts`),
     pageOf: (page: number, pages: number) => `Page ${page} of ${pages}`,
     previous: "Previous page",
@@ -157,6 +158,7 @@ export const STUDIO_COPY = {
     noPhotoPreview: "Photo not shown",
     morePhotos: "Show more photos",
     loadingMore: "Loading more",
+    moreFailed: "We couldn't load more photos. Try again.",
     addPhoto: "Add photo",
     uploadHref: "/dashboard/drive",
     addFrom: {

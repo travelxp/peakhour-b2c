@@ -85,7 +85,9 @@ export function CreativesView({
 }) {
   const what = view === "plans" ? C.error.plans : C.error.made;
   const pages = data ? pageCount(data.total, data.pageSize) : 1;
-  const empty = status === "ready" && data !== undefined && data.items.length === 0;
+  // Nothing at all. A page past the end (the list shrank under the reader) has a total but no items: it keeps its pager, so the way back is there.
+  const empty = status === "ready" && data !== undefined && data.items.length === 0 && data.total === 0;
+  const pastEnd = status === "ready" && data !== undefined && data.items.length === 0 && data.total > 0;
   return (
     <div className="space-y-4">
       <p role="status" aria-live="polite" className="sr-only">
@@ -108,15 +110,17 @@ export function CreativesView({
       {empty && !filtered && view === "plans" && (
         <EmptyState icon={ImageIcon} title={C.plansEmpty.title} description={C.plansEmpty.description} action={{ label: C.plansEmpty.action, href: STUDIO_ROUTES.home }} />
       )}
-      {status === "ready" && data && data.items.length > 0 && (
+      {status === "ready" && data && (data.items.length > 0 || pastEnd) && (
         <>
-          <p className="text-sm text-muted-foreground">{C.total(data.total)}</p>
-          <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {data.items.map((it) => (
-              <CreativeTile key={it.id} item={it} view={view} />
-            ))}
-          </ul>
-          {pages > 1 && (
+          <p className="text-sm text-muted-foreground">{pastEnd ? C.pastEnd : C.total(data.total)}</p>
+          {data.items.length > 0 && (
+            <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              {data.items.map((it) => (
+                <CreativeTile key={it.id} item={it} view={view} />
+              ))}
+            </ul>
+          )}
+          {(pages > 1 || data.page > 1) && (
             <nav aria-label={C.pagesLabel} className="flex items-center justify-between gap-3">
               <Button type="button" variant="outline" className="h-11" disabled={data.page <= 1} onClick={() => onPage(data.page - 1)}>
                 {C.previous}

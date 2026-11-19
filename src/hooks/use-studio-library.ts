@@ -17,26 +17,26 @@ function useScope() {
 }
 
 /** The Library list: finals ("made") or saved plans. Free. No placeholder data: a failed page or filter must show its error, not the page before. */
-export function useLibrary(q: { view: LibraryView; q?: string; status?: string; page: number }) {
+export function useLibrary(q: { view: LibraryView; q?: string; status?: string; page: number; enabled?: boolean }) {
   const s = useScope();
   return useQuery<LibraryPage>({
     queryKey: [LIBRARY_KEYS.creatives, s.org, s.business, q.view, q.q ?? "", q.status ?? "", q.page],
     queryFn: () => creativeApi.library(q),
-    enabled: s.enabled,
+    enabled: s.enabled && (q.enabled ?? true),
     staleTime: 30_000,
     retry: false,
   });
 }
 
 /** Product photos, page by page by the api's `next`. */
-export function useProductPhotos() {
+export function useProductPhotos(enabled = true) {
   const s = useScope();
   return useInfiniteQuery<ProductImagesPage, Error, { pages: ProductImagesPage[] }, unknown[], string | undefined>({
     queryKey: [LIBRARY_KEYS.photos, s.org, s.business],
     queryFn: ({ pageParam }) => listProductImages({ ...(pageParam ? { after: pageParam } : {}), limit: 48 }),
     initialPageParam: undefined,
-    getNextPageParam: (last) => last.next,
-    enabled: s.enabled,
+    getNextPageParam: (last) => last.next || undefined,
+    enabled: s.enabled && enabled,
     staleTime: 30_000,
     retry: false,
   });
@@ -46,12 +46,12 @@ export function useProductPhotos() {
  * Where each store's import stands, read on its own (one photo, not every page walked so far) so it can be polled. While an import runs it
  * is looked at again every 15 seconds; once nothing is running it stops.
  */
-export function useImportStatus() {
+export function useImportStatus(enabled = true) {
   const s = useScope();
   return useQuery<ProductImagesPage>({
     queryKey: [LIBRARY_KEYS.imports, s.org, s.business],
     queryFn: () => listProductImages({ limit: 1 }),
-    enabled: s.enabled,
+    enabled: s.enabled && enabled,
     staleTime: 10_000,
     retry: false,
     refetchInterval: (query) => (query.state.data?.imports.some((i) => i.status === "running") ? 15_000 : false),

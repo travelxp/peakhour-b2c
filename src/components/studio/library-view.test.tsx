@@ -90,6 +90,13 @@ describe("Made in Studio", () => {
     const last = creatives({ data: page([item()], { total: 30, page: 2 }) });
     expect(last).toMatch(/<button[^>]*disabled=""[^>]*>Next page/);
   });
+  it("a page past the end keeps its pager so the way back is there, and is not the empty state", () => {
+    const html = creatives({ data: page([], { total: 30, page: 3 }) });
+    expect(html).toContain("There is nothing on this page.");
+    expect(html).toContain("Previous page");
+    expect(html).not.toContain("Nothing made yet");
+    expect(html).not.toContain("<img");
+  });
   it("one page shows no pager", () => expect(creatives()).not.toContain("Page 1 of"));
 });
 

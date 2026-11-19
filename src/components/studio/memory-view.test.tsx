@@ -104,9 +104,14 @@ describe("learned lines", () => {
     expect(html).toContain("Cancel");
   });
   it("the delete button is off while that line's delete is in flight", () => {
-    const html = render({ busyId: "l1" });
+    const html = render({ busyIds: new Set(["l1"]) });
     const button = html.slice(html.lastIndexOf("<button", html.indexOf("Stop using this")), html.indexOf("Stop using this"));
     expect(button).toContain('disabled=""');
+  });
+  it("with Pro tools off, a line the merchant wrote can be stopped but not edited", () => {
+    const html = render({ proTools: false, data: data({ lines: [mine()] }) });
+    expect(html).not.toContain(">Edit<");
+    expect(html).toContain("Stop using this");
   });
   it("a viewer reads everything and changes nothing, and is told why", () => {
     const html = render({ canChange: false, proTools: true });

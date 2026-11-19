@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ImageOff } from "lucide-react";
+import { toast } from "sonner";
 import { getMediaUrl, type ProductImageItem } from "@/lib/api/media";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -115,22 +116,24 @@ export function Library() {
   useEffect(() => {
     const t = setTimeout(() => {
       const next = q.trim();
-      setDebouncedQ((prev) => {
-        if (prev !== next) setPage(1);
-        return next;
-      });
+      if (next === debouncedQ) return;
+      setDebouncedQ(next);
+      setPage(1);
     }, 300);
     return () => clearTimeout(t);
-  }, [q]);
+  }, [q, debouncedQ]);
+
 
   // Filters belong to Pro tools; with it off the list is the plain one whatever was typed before the flag changed.
   const activeQ = proTools ? debouncedQ : "";
   const activeStatus = proTools ? status : "has_final";
+  // Each tab reads only once it is open (a tab that was opened keeps its answer).
+  const [opened, setOpened] = useState<ReadonlySet<string>>(new Set(["made"]));
   const made = useLibrary({ view: "made", q: activeQ, status: activeStatus, page });
-  const plans = useLibrary({ view: "plans", page: plansPage });
-  const photos = useProductPhotos();
+  const plans = useLibrary({ view: "plans", page: plansPage, enabled: opened.has("plans") });
+  const photos = useProductPhotos(opened.has("photos"));
   const refetchPhotos = photos.refetch;
-  const importStatus = useImportStatus();
+  const importStatus = useImportStatus(opened.has("photos"));
   const running = (importStatus.data?.imports ?? []).some((i) => i.status === "running");
   // When a running import finishes, read the photos again so the new ones show.
   const wasRunning = useRef(false);
@@ -152,7 +155,13 @@ export function Library() {
 
   return (
     <>
-      <Tabs value={tab} onValueChange={setTab}>
+      <Tabs
+        value={tab}
+        onValueChange={(t) => {
+          setTab(t);
+          setOpened((s) => new Set(s).add(t));
+        }}
+      >
         <TabsList aria-label={C.tabsLabel} className="h-11 w-full justify-start overflow-x-auto sm:w-fit">
           <TabsTrigger value="made" className="h-9">
             {C.tabs.made}
@@ -189,7 +198,11 @@ export function Library() {
             hasMore={!!photos.hasNextPage}
             loadingMore={photos.isFetchingNextPage}
             onRetry={() => void photos.refetch()}
-            onMore={() => void photos.fetchNextPage()}
+            onMore={() =>
+              void photos.fetchNextPage().then((r) => {
+                if (r.isError) toast.error(C.moreFailed);
+              })
+            }
             renderPrivate={(media, alt) => <PrivatePhoto media={media} alt={alt} />}
           />
         </TabsContent>
