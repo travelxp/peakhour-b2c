@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
 import { invalidateLinkedInContentQueries } from "@/lib/linkedin-cache";
@@ -23,6 +23,9 @@ import { AlertCircle, Search } from "lucide-react";
 import { flattenMetaIntegration as flattenMetaIntegrationBase, resolveProvider, isMetaVirtual, metaActionPurpose, metaCardsDisconnectedBy, metaGrantNote, metaLoginPurposeFor, withMetaLoginPurpose, type MetaLoginInfo } from "@/lib/integrations-meta";
 import { Integration } from "./_components/shared";
 import { AppStoreConnectConnectModal, AppsFlyerConnectModal, BeehiivConnectModal, PlayConsoleConnectModal, WhatsAppConnectModal } from "./_components/connect-modals";
+import { stripReturnParams } from "@/lib/strip-return-params";
+import { OverseasAckDialog } from "@/components/integrations/overseas-ack-dialog";
+import { ACK_UNAVAILABLE_MESSAGE, ACK_REDIRECT_PARAMS, ackPromptFor, ackPromptForRedirect, isAckRequiredRedirect, withOverseasAck } from "@/lib/overseas-ack";
 import { IntegrationCard } from "./_components/integration-card";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -174,6 +177,17 @@ export default function IntegrationsPage() {
   const [backfilling, setBackfilling] = useState(false);
   const [backfillResult, setBackfillResult] = useState<{ message: string; hasErrors: boolean } | null>(null);
   const [connectModal, setConnectModal] = useState<string | null>(null);
+  // A connect waiting on the overseas acknowledgement (TikTok for an Indian
+  // business). `ackOpen` closes the dialog while `ackPending` keeps its
+  // version, so Radix runs its close and returns focus to the Connect button.
+  const [ackPending, setAckPending] = useState<{ provider: string; version: string } | null>(null);
+  const [ackOpen, setAckOpen] = useState(false);
+  const ackRedirect = isAckRequiredRedirect(searchParams);
+  const ackAsked = useRef(false);
+  // The mount effect's fetch, shared with the ack redirect handler.
+  const initialRows = useRef<Promise<Integration[] | null> | null>(null);
+  const router = useRouter();
+  const pathname = usePathname();
 
   // Filter state
   const [search, setSearch] = useState("");
@@ -194,8 +208,32 @@ export default function IntegrationsPage() {
   useEffect(() => {
     if (!org) return;
     // The first read paints from the cache a nav-link prefetch warmed (lib/nav-prefetch.ts), then revalidates.
-    loadIntegrations({ allowCached: true });
+    initialRows.current = loadIntegrations({ allowCached: true });
   }, [org?._id, business?._id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The api sent the merchant back without the acknowledgement: ask again,
+  // rather than showing a generic error. The provider comes from the
+  // redirect and the version from the FRESH rows the mount effect above is
+  // already fetching (one fetch, so the invalidations fire once). A row with
+  // no requiresAck clears quietly; a flagged row with no wording says so;
+  // a failed load keeps its own error.
+  useEffect(() => {
+    if (!ackRedirect || !org || ackAsked.current || !initialRows.current) return;
+    ackAsked.current = true;
+    void (async () => {
+      const rows = await initialRows.current;
+      const prompt = ackPromptForRedirect(searchParams, rows);
+      if (prompt.kind === "ask") {
+        setAckPending({ provider: prompt.provider!, version: prompt.version });
+        setAckOpen(true);
+      } else if (prompt.kind === "unavailable") {
+        setError(ACK_UNAVAILABLE_MESSAGE);
+      }
+      // Handled: drop the redirect's own params, keep returnTo/returnFor.
+      const qs = stripReturnParams(searchParams, ACK_REDIRECT_PARAMS);
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    })();
+  }, [ackRedirect, org?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
    * Reload the cards AND drop the LinkedIn content caches.
@@ -211,7 +249,7 @@ export default function IntegrationsPage() {
    * reconnect, refresh and disconnect all change what the hub should show, and
    * an invalidate on a fresh cache costs nothing.
    */
-  async function loadIntegrations(opts?: { allowCached?: boolean }) {
+  async function loadIntegrations(opts?: { allowCached?: boolean }): Promise<Integration[] | null> {
     invalidateLinkedInContentQueries(queryClient);
     // Messenger and Instagram messages follow the Meta connection and its Pages: re-read them with the list (connect, reconnect,
     // refresh and disconnect all land here).
@@ -229,10 +267,13 @@ export default function IntegrationsPage() {
         }
       }
       const data = await queryClient.fetchQuery({ ...listQuery, staleTime: 0 });
-      setIntegrations(flattenMetaIntegration(data.integrations));
+      const fresh = flattenMetaIntegration(data.integrations);
+      setIntegrations(fresh);
+      return fresh;
     } catch (err) {
       if (err instanceof ApiError) setError(err.message);
       else setError("Failed to load integrations");
+      return null;
     } finally {
       setLoading(false);
     }
@@ -244,7 +285,20 @@ export default function IntegrationsPage() {
     return { metaLogin: row?.metaLogin, metaConnections: row?.metaConnections };
   }
 
-  async function handleConnect(provider: string, authType: string) {
+  async function handleConnect(provider: string, authType: string, ackVersion?: string) {
+    // The api flags a provider that needs an acknowledgement first. Ask,
+    // and come back here with the accepted version.
+    const ackPrompt = ackPromptFor(integrations, provider);
+    if (ackPrompt.kind === "unavailable") {
+      // Flagged, but this build has no wording for it: say so, do not navigate.
+      setError(ACK_UNAVAILABLE_MESSAGE);
+      return;
+    }
+    if (ackPrompt.kind === "ask" && !ackVersion) {
+      setAckPending({ provider, version: ackPrompt.version });
+      setAckOpen(true);
+      return;
+    }
     const realProvider = resolveProvider(provider);
     // WhatsApp can ONLY be connected via Meta's Embedded Signup (the v4 flow
     // with a config_id + WhatsApp scopes + the WA_EMBEDDED_SIGNUP postMessage
@@ -285,11 +339,12 @@ export default function IntegrationsPage() {
       // opens that product's own Login for Business configuration — except a
       // reconnect of a broken shared row, which must replace that row's
       // token (metaActionPurpose).
-      window.location.href = withMetaLoginPurpose(
+      const authorizeUrl = withMetaLoginPurpose(
         `${API_BASE_URL}/v1/integrations/${realProvider}/authorize` +
           `?returnTo=${encodeURIComponent(landing)}`,
         metaActionPurpose(metaInfoFor(provider), provider),
       );
+      window.location.href = ackVersion ? withOverseasAck(authorizeUrl, ackVersion) : authorizeUrl;
     } else if (authType === "api_key") {
       setConnectModal(realProvider);
     }
@@ -752,6 +807,20 @@ export default function IntegrationsPage() {
         open={connectModal === "whatsapp"}
         onClose={() => setConnectModal(null)}
         onConnected={loadIntegrations}
+      />
+
+      {/* Overseas acknowledgement — TikTok for a business in India */}
+      <OverseasAckDialog
+        version={ackPending?.version ?? ""}
+        open={ackOpen}
+        onCancel={() => setAckOpen(false)}
+        onConfirm={(version) => {
+          const pending = ackPending;
+          setAckOpen(false);
+          // The row's own authType: confirm continues down its normal path.
+          const row = pending && integrations.find((i) => i.provider === pending.provider);
+          if (pending && row) void handleConnect(pending.provider, row.authType, version);
+        }}
       />
 
       {/* WordPress / WooCommerce — generate a connection key for the plugin */}
