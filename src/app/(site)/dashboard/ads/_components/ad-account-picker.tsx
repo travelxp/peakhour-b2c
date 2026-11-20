@@ -1,7 +1,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CreditCard, ExternalLink, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { CreditCard, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { ApiError } from "@/lib/api";
@@ -16,9 +17,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-/** Where a business goes to make an ad account when they have none. */
-const CAMPAIGN_MANAGER_URL = "https://www.linkedin.com/campaignmanager/accounts";
 
 /**
  * The explicit Page → ad-account mapping, and the empty state for having none.
@@ -62,7 +60,7 @@ export function AdAccountPicker() {
       for (const queryKey of LINKEDIN_PAGE_SCOPED_QUERY_KEYS) {
         queryClient.removeQueries({ queryKey });
       }
-      toast.success("Ad account saved for this Page.");
+      toast.success("Default ad account saved for this Page.");
     },
     onError: (err) => {
       // ★A 4xx HERE ALWAYS NAMES SOMETHING THE USER CAN DO, so collapsing them
@@ -71,8 +69,10 @@ export function AdAccountPicker() {
       // is a minute stale, and a Page toggled off under /dashboard/integrations
       // in that window lands here. The sibling panels already surface `message`
       // for 4xx; only a 5xx or a dead network is worth a retry.
-      if (err instanceof ApiError && err.code === "AD_ACCOUNT_NOT_FOUND") {
-        toast.error("That ad account is no longer available on this LinkedIn connection.");
+      if (err instanceof ApiError && (err.code === "AD_ACCOUNT_NOT_FOUND" || err.code === "AD_ACCOUNT_NOT_IN_BUSINESS")) {
+        // The picker lists only the business's enabled accounts, so this is an account unticked since the card loaded.
+        void queryClient.invalidateQueries({ queryKey: ["linkedin-page-ad-account"] });
+        toast.error("That ad account is no longer one of this business's. Check Connected accounts.");
         return;
       }
       if (err instanceof ApiError && err.status >= 400 && err.status < 500) {
@@ -116,6 +116,7 @@ export function AdAccountPicker() {
   if (!activePageId) return null;
 
   const hasAccounts = accounts.length > 0;
+  const current = accounts.find((a) => a.id === adAccountId);
 
   return (
     <Card className={adAccountId ? undefined : "border-warning/40 bg-warning/5"}>
@@ -123,28 +124,39 @@ export function AdAccountPicker() {
         <div className="min-w-0 space-y-0.5">
           <p className="flex items-center gap-1.5 text-sm font-medium">
             <CreditCard className="size-4 shrink-0" />
-            {adAccountId ? "Ad account for this Page" : "Connect or create an ad account"}
+            {adAccountId ? "Ad account for this Page" : "Choose an ad account"}
           </p>
           <p className="text-xs text-muted-foreground">
             {adAccountId
-              ? "Campaigns, Lead Gen Forms and audiences below all belong to this account."
+              ? accounts.length > 1
+                ? "Campaigns, Lead Gen Forms and audiences below all belong to this account. Change which one this Page uses by default."
+                : "Campaigns, Lead Gen Forms and audiences below all belong to this account."
               : hasAccounts
-                ? "Pick which account this Page spends from. Until you do, we won't show another Page's campaigns here."
-                : "This LinkedIn connection administers no ad accounts. Create one in Campaign Manager, then reconnect to pick it."}
+                ? "Pick the default ad account for this Page. Until you do, we won't show another Page's campaigns here."
+                : "Choose which LinkedIn ad accounts Peakhour may use in Connected accounts. Until you do, there is nothing to show here."}
           </p>
         </div>
 
-        {hasAccounts ? (
+        {hasAccounts && accounts.length === 1 && current ? (
+          // One enabled account is not a choice: a plain line.
+          <p className="text-sm">
+            {current.name ?? "Ad account"}
+            <span className="ml-1.5 text-xs text-muted-foreground">
+              Account ID {current.id}
+              {current.currency ? ` · ${current.currency}` : ""}
+            </span>
+          </p>
+        ) : hasAccounts ? (
           <div className="flex items-center gap-2">
             {save.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
+            <span className="text-xs text-muted-foreground">Default for this Page</span>
             {/* ★FULLY CONTROLLED, INCLUDING WHILE UNMAPPED. `value={undefined}`
                 hands the Select back to Radix's internal state, so a REJECTED
-                write — a stale Page, an account revoked since the card
+                write — a stale Page, an account unticked since the card
                 loaded — left the trigger displaying an account that was never
-                saved, directly beside a card still saying "pick which account
-                this Page spends from". Showing the in-flight choice while
-                pending and the server's answer otherwise means a refusal
-                reverts the control by itself. */}
+                saved, directly beside a card still saying "pick the default".
+                Showing the in-flight choice while pending and the server's
+                answer otherwise means a refusal reverts the control by itself. */}
             <Select
               value={
                 save.isPending && save.variables
@@ -154,7 +166,7 @@ export function AdAccountPicker() {
               disabled={save.isPending}
               onValueChange={(next) => save.mutate({ pageId: activePageId, adAccountId: next })}
             >
-              <SelectTrigger aria-label="Ad account" className="w-60">
+              <SelectTrigger aria-label="Default ad account for this Page" className="w-60">
                 <SelectValue placeholder="Choose an ad account" />
               </SelectTrigger>
               <SelectContent>
@@ -166,7 +178,7 @@ export function AdAccountPicker() {
                         them in Campaign Manager. */}
                     {a.name ?? `Account ${a.id}`}
                     <span className="ml-1.5 text-xs text-muted-foreground">
-                      {a.id}
+                      Account ID {a.id}
                       {a.currency ? ` · ${a.currency}` : ""}
                     </span>
                   </SelectItem>
@@ -176,10 +188,7 @@ export function AdAccountPicker() {
           </div>
         ) : (
           <Button asChild variant="outline" size="sm" className="gap-1.5">
-            <a href={CAMPAIGN_MANAGER_URL} target="_blank" rel="noopener noreferrer">
-              Open Campaign Manager
-              <ExternalLink className="size-3.5" />
-            </a>
+            <Link href="/dashboard/integrations">Open Connected accounts</Link>
           </Button>
         )}
         {/* The Select is disabled mid-write, so a screen-reader user gets no
@@ -207,7 +216,7 @@ export function NoAdAccountState({ what }: { what: string }) {
     <div className="rounded-lg border border-dashed p-6 text-center">
       <p className="text-sm font-medium">No ad account for this Page yet</p>
       <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
-        Choose the ad account this Page spends from and your {what} will appear here.
+        Choose the ad accounts Peakhour may use in Connected accounts, then a default for this Page, and your {what} will appear here.
         We won&apos;t show another Page&apos;s in the meantime.
       </p>
     </div>

@@ -63,7 +63,7 @@ const saveButton = () => [...container.querySelectorAll("button")].find((b) => b
 
 describe("AdAccountChoice", () => {
   it("a provider with no format row renders nothing, even when the login lists accounts", () => {
-    mount("linkedin_ads", { adAccounts: TWO });
+    mount("tiktok_ads", { adAccounts: TWO });
     expect(container.innerHTML).toBe("");
   });
 
@@ -79,6 +79,28 @@ describe("AdAccountChoice", () => {
     // exactly the channel's own readers and the integrations list: no blanket refetch
     const keys = spy.mock.calls.map((c) => JSON.stringify((c[0] as { queryKey?: unknown }).queryKey ?? "predicate")).sort();
     expect(keys).toEqual(['"predicate"', '["content-hub-integrations"]', '["meta-ads-accounts"]', '["meta-ads-campaigns"]']);
+  });
+
+  it("LinkedIn: ids as the bare number, a CANCELED account cannot be ticked, and the save goes to its own route", async () => {
+    h.patch.mockResolvedValue({});
+    const LI = [
+      { id: "111", name: "Quests", currency: "INR", status: "ACTIVE" },
+      { id: "222", name: "CMPL", currency: "USD", status: "CANCELED" },
+      { id: "333", name: "Third", currency: "USD", status: "DRAFT" },
+    ];
+    mount("linkedin_ads", { adAccounts: LI, adAccountChoice: { enabledIds: ["111"], defaultId: "111" } });
+    expect(container.textContent).toContain("Account ID 111 · INR");
+    expect(container.textContent).toContain("Cancelled on LinkedIn");
+    expect(container.textContent).toContain("Draft");
+    const boxes = [...container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')];
+    // the cancelled account's box is disabled, the draft one can be ticked
+    expect(boxes.filter((b) => b.disabled)).toHaveLength(1);
+    const draft = boxes.find((b) => !b.checked && !b.disabled)!;
+    await act(async () => draft.click());
+    await act(async () => saveButton().click());
+    await flush();
+    expect(h.patch.mock.calls[0]![0]).toBe("/v1/integrations/linkedin_ads/ad-accounts");
+    expect(h.patch.mock.calls[0]![1]).toMatchObject({ enabledIds: ["111", "333"], defaultId: "111" });
   });
 
   it("an unknown failure keeps the generic words with the request reference; NOT_CONNECTED is not passed through", async () => {

@@ -11,6 +11,8 @@
  */
 import type { QueryClient } from "@tanstack/react-query";
 import { metaAdAccountBareId, metaAdAccountIdLine, metaAdAccountStatus } from "./meta-ads-view";
+import { linkedinAdAccountBareId, linkedinAdAccountIdLine, linkedinAdAccountStatus } from "./linkedin-ad-accounts";
+import { LINKEDIN_PAGE_SCOPED_QUERY_KEYS } from "./linkedin-cache";
 
 /** One ad account as the connection lists it (`account.extra.adAccounts[]`); the rest of the provider's fields ride along untouched. */
 export interface AdAccountRow {
@@ -53,6 +55,18 @@ export const AD_ACCOUNT_FORMATS: Record<string, AdAccountFormat> = {
         // Only the Growth signal step's META accounts (["growth-v2", "signal", scope, "meta-accounts"]), not Google's or the rest.
         client.invalidateQueries({ predicate: (q) => q.queryKey[0] === "growth-v2" && q.queryKey[1] === "signal" && q.queryKey[3] === "meta-accounts" }),
       ]),
+  },
+  linkedin_ads: {
+    platformName: "LinkedIn",
+    bareId: linkedinAdAccountBareId,
+    idLine: linkedinAdAccountIdLine,
+    health: (a) => linkedinAdAccountStatus(a.status),
+    list: (extra) => listedAdAccounts(extra),
+    // LinkedIn's own readers, which are scoped to an account: removed (not refetched in place) as the Page picker does on a save,
+    // because a changed default changes which campaigns and forms exist as far as the product is concerned.
+    refresh: async (client) => {
+      for (const queryKey of LINKEDIN_PAGE_SCOPED_QUERY_KEYS) client.removeQueries({ queryKey });
+    },
   },
 };
 
