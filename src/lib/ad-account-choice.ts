@@ -86,8 +86,9 @@ export function bareIdFor(provider: string): (id: string) => string {
 /** The ad accounts a connection lists, rows without a usable id dropped. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function listedAdAccounts(extra: Record<string, any> | undefined): AdAccountRow[] {
-  return (Array.isArray(extra?.adAccounts) ? extra.adAccounts : []).filter(
-    (a: { id?: unknown }) => typeof a?.id === "string" && a.id !== "",
+  // A numeric id is read as its text (the api's registry rows do the same), so a list a provider stored with numbers still lists.
+  return (Array.isArray(extra?.adAccounts) ? extra.adAccounts : []).flatMap((a: { id?: unknown }) =>
+    (typeof a?.id === "string" && a.id !== "") || typeof a?.id === "number" ? [{ ...a, id: String(a.id) }] : [],
   );
 }
 
@@ -108,6 +109,9 @@ export function savedAdAccounts(provider: string, extra: Record<string, any> | u
   let enabled = listed.filter((a) => wanted.has(bare(a.id)));
   // One listed account enables itself only while nothing was EVER saved; a saved choice is never widened.
   if (!saved && listed.length === 1) enabled = [listed[0]!];
+  // A BLOCKED account is never auto-enabled: one listed is not a choice, and an account that cannot run ads is not one the
+  // business can be taken to have chosen (the api's `businessAdAccounts` says the same).
+  if (!saved) enabled = enabled.filter((a) => !adAccountFormat(provider)?.health(a).blocked);
   if (enabled.length === 0) return { enabledIds: [] };
   const byDefault =
     typeof stored?.defaultId === "string" ? enabled.find((a) => bare(a.id) === bare(stored.defaultId)) : undefined;

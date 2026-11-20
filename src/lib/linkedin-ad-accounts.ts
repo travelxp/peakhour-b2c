@@ -25,3 +25,17 @@ export function linkedinAdAccountStatus(status: unknown): { blocked?: "cancelled
   if (s === "PENDING_DELETION") return { warning: "being deleted" };
   return {};
 }
+
+/**
+ * A campaign's own ad account against the business's enabled ones (MR-G1). The campaign list spans accounts, so a campaign in an
+ * account the business does not use stays visible (it can be paused) but is `notUsed`: no Resume, no targeting edit.
+ * `accounts` absent (an older api) labels nothing, so nothing is ever wrongly locked.
+ */
+export function campaignAccountState(
+  campaign: { adAccountId?: string },
+  accounts: ReadonlyArray<{ id: string; name: string | null; currency: string | null }> | undefined,
+): { ownAccount?: string; account?: { id: string; name: string | null; currency: string | null }; notUsed: boolean } {
+  const ownAccount = campaign.adAccountId ? linkedinAdAccountBareId(campaign.adAccountId) : undefined;
+  const account = ownAccount ? accounts?.find((a) => linkedinAdAccountBareId(a.id) === ownAccount) : undefined;
+  return { ownAccount, account, notUsed: Boolean(ownAccount && accounts && !account) };
+}

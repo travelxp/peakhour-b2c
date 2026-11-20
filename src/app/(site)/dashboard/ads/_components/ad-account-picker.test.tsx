@@ -69,22 +69,41 @@ describe("AdAccountPicker", () => {
     expect(container.textContent).toContain("Default for this Page");
     expect(container.querySelector('[role="combobox"]')).not.toBeNull();
     expect(container.querySelector('[role="combobox"]')!.getAttribute("aria-label")).toBe("Default ad account for this Page");
-    // the chosen one is shown
+    // the Page's own default is shown, and it does not say it inherits
     expect(container.textContent).toContain("CMPL");
+    expect(container.textContent).not.toContain("Uses the business default");
   });
 
-  it("with one enabled account: a plain line, no select", async () => {
+  it("★a Page with no default of its own says it uses the business default, by name", async () => {
+    await mount({ activePageId: "p1", adAccountId: "111", byPage: {}, businessDefaultId: "111", accounts: [Q, C] });
+    expect(container.textContent).toContain("Uses the business default: Quests Travel");
+    expect(container.querySelector('[role="combobox"]')!.textContent).toContain("Use the business default");
+  });
+
+  it("a stored Page default for an account that is no longer enabled reads as inheriting", async () => {
+    await mount({ activePageId: "p1", adAccountId: "111", byPage: { p1: "999" }, businessDefaultId: "111", accounts: [Q, C] });
+    expect(container.textContent).toContain("Uses the business default: Quests Travel");
+  });
+
+  it("with one enabled account: a plain line with the full account id, no select", async () => {
     await mount({ activePageId: "p1", adAccountId: "111", byPage: {}, businessDefaultId: "111", accounts: [Q] });
     expect(container.querySelector('[role="combobox"]')).toBeNull();
     expect(container.textContent).toContain("Quests Travel");
     expect(container.textContent).toContain("Account ID 111 · INR");
   });
 
-  it("with none enabled: says to choose accounts in Connected accounts, and offers that link", async () => {
-    await mount({ activePageId: "p1", adAccountId: null, byPage: {}, businessDefaultId: null, accounts: [] });
+  it("★the business ticked none: says to choose in Connected accounts and links there", async () => {
+    await mount({ activePageId: "p1", adAccountId: null, byPage: {}, businessDefaultId: null, listedCount: 3, accounts: [] });
     expect(container.querySelector('[role="combobox"]')).toBeNull();
     expect(container.textContent).toContain("Connected accounts");
+    expect(container.textContent).not.toContain("nothing to show");
     expect(container.querySelector("a")?.getAttribute("href")).toBe("/dashboard/integrations");
+  });
+
+  it("★the login lists no ad accounts: keeps the Campaign Manager link to create one", async () => {
+    await mount({ activePageId: "p1", adAccountId: null, byPage: {}, businessDefaultId: null, listedCount: 0, accounts: [] });
+    expect(container.textContent).toContain("lists no ad accounts");
+    expect(container.querySelector("a")?.getAttribute("href")).toContain("linkedin.com/campaignmanager");
   });
 
   it("a pageless connection shows nothing", async () => {

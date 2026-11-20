@@ -63,6 +63,20 @@ describe("a provider's formatter", () => {
 });
 
 describe("LinkedIn (MR-G1)", () => {
+  it("★a single listed account that is BLOCKED is never auto-enabled (one is not a choice); a healthy one still is", () => {
+    expect(savedAdAccounts("linkedin_ads", { adAccounts: [{ id: "9", name: "Gone", status: "CANCELED" }] })).toEqual({ enabledIds: [] });
+    expect(savedAdAccounts("linkedin_ads", { adAccounts: [{ id: "9", name: "Gone", status: "REMOVED" }] })).toEqual({ enabledIds: [] });
+    expect(savedAdAccounts("linkedin_ads", { adAccounts: [{ id: "9", name: "Draft", status: "DRAFT" }] })).toEqual({ enabledIds: ["9"], defaultId: "9" });
+    expect(savedAdAccounts("facebook", { adAccounts: [{ id: "act_9", status: 2 }] })).toEqual({ enabledIds: [] });
+  });
+
+  it("a numeric id is listed and compared as its text, as the api does", () => {
+    expect(savedAdAccounts("linkedin_ads", { adAccounts: [{ id: 111, name: "N", status: "ACTIVE" }, { id: 222 }], adAccountChoice: caps(["111"], "111") })).toEqual({
+      enabledIds: ["111"],
+      defaultId: "111",
+    });
+  });
+
   const L1 = { id: "111", name: "Quests", currency: "INR", status: "ACTIVE" };
   const L2 = { id: "222", name: "CMPL", currency: "USD", status: "ACTIVE" };
   const L3 = { id: "333", name: "Third", currency: "USD", status: "DRAFT" };

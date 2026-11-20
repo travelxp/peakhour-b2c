@@ -85,6 +85,19 @@ const USER_FIXABLE = new Set([
   "NOT_FOUND",
 ]);
 
+/**
+ * ★THE AD-ACCOUNT REFUSALS ARE THE API'S OWN SENTENCES (MR-G1): "That ad account is not one of this business's ... Change it in
+ * Connected accounts." They are written for the merchant, point to where it is fixed, and never name an account of another
+ * business, so they are shown as they are rather than collapsed into "contact support" (a 403/409 would otherwise fall to
+ * `permanent`). `AD_ACCOUNT_NOT_PROVEN` and `AD_ACCOUNT_LOOKUP_FAILED` are the same family: nothing was changed.
+ */
+export const AD_ACCOUNT_REFUSAL_CODES: ReadonlySet<string> = new Set([
+  "AD_ACCOUNT_NOT_IN_BUSINESS",
+  "AD_ACCOUNT_NOT_CHOSEN",
+  "AD_ACCOUNT_NOT_PROVEN",
+  "AD_ACCOUNT_LOOKUP_FAILED",
+]);
+
 const USER_FIXABLE_COPY: Record<string, string> = {
   NOT_CONNECTED: "Connect the ad account first, from Connected accounts.",
   NO_AD_ACCOUNT: "That connection has no ad account — reconnect it, or create one on the platform.",
@@ -104,7 +117,7 @@ const USER_FIXABLE_COPY: Record<string, string> = {
 export const CREDITS_EXHAUSTED_COPY = "You've used all your Peaks for this billing period, so this didn't run and nothing was charged. Buy Peaks to continue now, or they renew on your billing date.";
 
 function dispositionOf(code: string, status: number): Disposition {
-  if (USER_FIXABLE.has(code)) return "user_fixable";
+  if (USER_FIXABLE.has(code) || AD_ACCOUNT_REFUSAL_CODES.has(code)) return "user_fixable";
 
   // "2xx with no id header" — the artefact almost certainly EXISTS
   // platform-side and we never learned its id, so it can be neither
@@ -207,7 +220,7 @@ export function toastUnhandledApiError(
 
   if (disposition === "user_fixable") {
     toast.error(`Couldn't ${whatFailed}.`, {
-      description: USER_FIXABLE_COPY[apiError.code],
+      description: AD_ACCOUNT_REFUSAL_CODES.has(apiError.code) ? apiError.message : USER_FIXABLE_COPY[apiError.code],
     });
     return;
   }

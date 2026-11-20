@@ -259,6 +259,8 @@ export interface PageAdAccountState {
   byPage: Record<string, string>;
   /** The business's default ad account (MR-G1), where a Page with no default of its own spends. Null when none is chosen. */
   businessDefaultId?: string | null;
+  /** How many ad accounts the login lists: 0 means "create one in Campaign Manager", more means "choose which this business uses". */
+  listedCount?: number;
   /** Only the ad accounts this BUSINESS enabled in Connected accounts (MR-G1) — the same set the PUT
    *  validates against, so the picker cannot offer a choice the write refuses. */
   accounts: Array<{ id: string; name: string | null; currency: string | null }>;
@@ -276,6 +278,8 @@ export interface PageScopeMeta {
   adAccountId: string | null;
   pageId: string | null;
   connected: boolean;
+  /** The business's ENABLED ad accounts (MR-G1). The list spans accounts; a campaign in any other one is labelled. Absent from an older api. */
+  accounts?: Array<{ id: string; name: string | null; currency: string | null }>;
 }
 
 export const linkedInAdsApi = {
