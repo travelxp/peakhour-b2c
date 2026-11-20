@@ -1,10 +1,10 @@
-import { metaAdAccountBareId } from "./meta-ads-view";
+import { adAccountFormat, listedAdAccounts } from "./ad-account-choice";
 
 /**
- * MR-F3 - routing tags on a business's Meta ad accounts, as the dashboard reads and writes them.
+ * MR-F3 - routing tags on a business's ad accounts, as the dashboard reads and writes them (provider-neutral since MR-G0).
  *
- * Mirrors the api's `helpers/meta-saved-ad-account.ts` (`config.metaAdAccounts.tags[actId]`, which reaches the dashboard in
- * `account.extra.metaAdAccounts`). The api is the authority and re-cleans every value; this only builds the request and the
+ * Mirrors the api's `helpers/business-ad-accounts.ts` (`config.adAccountChoice.tags[id]`, which reaches the dashboard in
+ * `account.extra.adAccountChoice`). The api is the authority and re-cleans every value; this only builds the request and the
  * words. PURPOSES ARE THE GROWTH GOAL PHASES (api `GOAL_PHASES`), the one campaign-intent list: awareness, conversion,
  * retention. MARKETS are ISO 3166-1 alpha-2, upper case. COLLECTIONS are Shopify collection ids.
  */
@@ -60,23 +60,18 @@ function clean(raw: unknown): AdAccountTags | undefined {
 
 /** The saved tags, keyed by the account's id as the connection lists it. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function savedMetaAdAccountTags(extra: Record<string, any> | undefined): AdAccountTagMap {
-  const stored = extra?.metaAdAccounts?.tags;
+export function savedAdAccountTags(provider: string, extra: Record<string, any> | undefined): AdAccountTagMap {
+  const bare = adAccountFormat(provider)?.bareId ?? ((id: string) => id.trim());
+  const stored = extra?.adAccountChoice?.tags;
   if (!stored || typeof stored !== "object") return {};
-  const listed: Array<{ id: string }> = Array.isArray(extra?.adAccounts)
-    ? extra.adAccounts
-    : [];
+  const listed = listedAdAccounts(extra);
   const out: AdAccountTagMap = {};
   for (const [key, value] of Object.entries(
     stored as Record<string, unknown>,
   )) {
     const tags = clean(value);
     if (!tags) continue;
-    const match = listed.find(
-      (a) =>
-        typeof a?.id === "string" &&
-        metaAdAccountBareId(a.id) === metaAdAccountBareId(key),
-    );
+    const match = listed.find((a) => bare(a.id) === bare(key));
     out[match?.id ?? key] = tags;
   }
   return out;

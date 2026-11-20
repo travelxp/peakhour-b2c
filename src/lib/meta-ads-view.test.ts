@@ -409,7 +409,7 @@ describe("★★M-16 — the copies are peakhour-api's, checked against its sour
   );
   /** MR-F2: the write guard's codes (`AD_ACCOUNT_NOT_CHOSEN`, `AD_ACCOUNT_NOT_IN_BUSINESS`) are spelled here, which the routes call. */
   const ACCOUNT_GUARD = fileURLToPath(
-    new URL("../../../peakhour-api/src/v1/services/ads/meta-account-guard.ts", import.meta.url),
+    new URL("../../../peakhour-api/src/v1/services/ads/ad-account-guard.ts", import.meta.url),
   );
   const present = existsSync(SIBLING);
   const read = (p: string) => {

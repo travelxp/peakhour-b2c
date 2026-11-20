@@ -2,20 +2,20 @@
  * MR-F3 - the dashboard's reading and writing of routing tags (mirrors the api's helper; the api re-cleans every value).
  */
 import { describe, expect, it } from "vitest";
-import { AD_ACCOUNT_PURPOSES, sameTags, savedMetaAdAccountTags, tagsForSave, withTag } from "./meta-ad-account-tags";
+import { AD_ACCOUNT_PURPOSES, sameTags, savedAdAccountTags, tagsForSave, withTag } from "./ad-account-tags";
 
-describe("savedMetaAdAccountTags", () => {
-  it("reads the tags saved under account.extra.metaAdAccounts, keyed by the id the connection lists, cleaned", () => {
+describe("savedAdAccountTags", () => {
+  it("reads the tags saved under account.extra.adAccountChoice, keyed by the id the connection lists, cleaned", () => {
     const extra = {
       adAccounts: [{ id: "act_1" }, { id: "act_2" }],
-      metaAdAccounts: { enabledIds: ["act_1"], tags: { "1": { markets: ["in", "IN", "India"], purposes: ["conversion", "prospecting"] }, act_2: {} } },
+      adAccountChoice: { enabledIds: ["act_1"], tags: { "1": { markets: ["in", "IN", "India"], purposes: ["conversion", "prospecting"] }, act_2: {} } },
     };
-    expect(savedMetaAdAccountTags(extra)).toEqual({ act_1: { markets: ["IN"], purposes: ["conversion"] } });
+    expect(savedAdAccountTags("facebook", extra)).toEqual({ act_1: { markets: ["IN"], purposes: ["conversion"] } });
   });
 
   it("nothing saved is no tags", () => {
-    expect(savedMetaAdAccountTags(undefined)).toEqual({});
-    expect(savedMetaAdAccountTags({ metaAdAccounts: { enabledIds: ["a"] } })).toEqual({});
+    expect(savedAdAccountTags("facebook", undefined)).toEqual({});
+    expect(savedAdAccountTags("facebook", { adAccountChoice: { enabledIds: ["a"] } })).toEqual({});
   });
 });
 

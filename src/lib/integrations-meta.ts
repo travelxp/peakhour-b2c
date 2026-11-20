@@ -1,4 +1,3 @@
-import { metaAdAccountBareId } from "./meta-ads-view";
 /**
  * Meta capability flattening — turns the single `facebook` connection
  * (which carries Pages, Instagram, Ads, and WhatsApp via capability
@@ -384,36 +383,6 @@ export function savedMetaPageId(extra: Record<string, any> | undefined): string 
   const picked = extra?.capabilities?.pages?.activeResourceId;
   if (typeof picked === "string" && pages.some((p) => p.pageId === picked)) return picked;
   return pages.find((p) => typeof p.pageId === "string" && p.pageId !== "")?.pageId;
-}
-
-/**
- * The Meta ad accounts this business may use, and its default, as the api resolves them (api
- * `helpers/meta-saved-ad-account.ts`): the stored ids the connection still lists; with nothing EVER saved, the ONLY listed
- * account (one is not a choice); with nothing saved and two or more listed, NONE (never the first); a saved choice whose
- * accounts are all gone is NONE too. The default is the
- * stored one while it is still enabled, else the only enabled account. `extra` is the merged `facebook` row's
- * `account.extra`, which carries `adAccounts` and `capabilities`.
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function savedMetaAdAccounts(extra: Record<string, any> | undefined): { enabledIds: string[]; defaultId?: string } {
-  const listed: Array<{ id: string }> = (Array.isArray(extra?.adAccounts) ? extra.adAccounts : []).filter(
-    (a: { id?: unknown }) => typeof a?.id === "string" && a.id !== "",
-  );
-  const bare = metaAdAccountBareId;
-  // Its own key (`config.metaAdAccounts`), NOT under `capabilities`: LinkedIn keeps `capabilities.adAccounts.byPage` there.
-  const stored = extra?.metaAdAccounts;
-  const saved = !!stored && typeof stored === "object";
-  const wanted = new Set<string>(
-    (Array.isArray(stored?.enabledIds) ? stored.enabledIds : []).filter((x: unknown): x is string => typeof x === "string").map(bare),
-  );
-  let enabled = listed.filter((a) => wanted.has(bare(a.id)));
-  // One listed account enables itself only while nothing was EVER saved; a saved choice is never widened.
-  if (!saved && listed.length === 1) enabled = [listed[0]!];
-  if (enabled.length === 0) return { enabledIds: [] };
-  const byDefault =
-    typeof stored?.defaultId === "string" ? enabled.find((a) => bare(a.id) === bare(stored.defaultId)) : undefined;
-  const def = byDefault ?? (enabled.length === 1 ? enabled[0] : undefined);
-  return { enabledIds: enabled.map((a) => a.id), ...(def ? { defaultId: def.id } : {}) };
 }
 
 /**
