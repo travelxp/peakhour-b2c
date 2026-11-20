@@ -245,7 +245,8 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
   }, [isActiveChannel, urlMatches, accountId, setAccountParam]);
   const account = [...list, ...others].find((a) => a.id === accountId);
 
-  if (accounts.isLoading) return <SkeletonStack />;
+  // S3: a query still waiting for the business has no data and no error: that is loading, not "no accounts".
+  if (!accounts.data && !accounts.isError) return <SkeletonStack />;
   // A failed read is NOT "no ad accounts".
   if (accounts.isError) {
     return (
@@ -266,20 +267,27 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
       />
     );
   }
-  // ★NO ENABLED ACCOUNT, NO CONTROLS: nothing here can start spend until the business says which accounts are its own.
-  if (list.length === 0) {
-    return (
-      <EmptyState
-        icon={Megaphone}
-        title="Choose your ad accounts"
-        description={allListed.length > 1 ? `${CHOOSE_AD_ACCOUNTS} Your Google login reaches more than one.` : "Choose the ad account this business may use in Connected accounts."}
-        action={{ label: "Choose ad accounts", href: "/dashboard/integrations" }}
-      />
-    );
-  }
+  // ★NO ENABLED ACCOUNT, NO NEW-SPEND CONTROLS: nothing here can start spend until the business says which accounts are its own. The notice
+  // sits above the account Select and the pause-only view, so a running campaign can always be paused.
+  const noneEnabled = list.length === 0;
 
   return (
     <div className="space-y-6">
+      {noneEnabled ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Choose your ad accounts</CardTitle>
+            <CardDescription>
+              {allListed.length > 1 ? `${CHOOSE_AD_ACCOUNTS} Your Google login reaches more than one.` : "Choose the ad account this business may use in Connected accounts."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild>
+              <Link href="/dashboard/integrations">Choose ad accounts</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
       <div className="space-y-1.5">
         <Label className="text-xs uppercase tracking-wide text-muted-foreground">Google Ads account</Label>
         <Select value={accountId ?? undefined} onValueChange={setAccountParam}>
@@ -313,6 +321,8 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
         <>
           <p className="text-sm text-muted-foreground">Peakhour does not run new spend in this account. You can pause or lower what is running.</p>
           <CampaignsSection key={`campaigns-${account.id}`} account={account} pauseOnly />
+          {/* Rows that never recorded an account: shown here so they can still be paused. */}
+          <CampaignsSection key="campaigns-no-account" account={account} pauseOnly orphans />
         </>
       ) : account ? (
         <>
@@ -496,7 +506,7 @@ function ConversionTrackingSection({ account }: { account: GoogleAdAccount }) {
 
 // ── Campaigns ────────────────────────────────────────────────────────────
 
-function CampaignsSection({ account, pauseOnly = false }: { account: GoogleAdAccount; pauseOnly?: boolean }) {
+function CampaignsSection({ account, pauseOnly = false, orphans = false }: { account: GoogleAdAccount; pauseOnly?: boolean; /** Pause-only view: the campaigns with no ad account on file (S5). */ orphans?: boolean }) {
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState<GoogleCampaign | null>(null);
   // G-14a: the campaign whose targeting step is open.
@@ -505,6 +515,8 @@ function CampaignsSection({ account, pauseOnly = false }: { account: GoogleAdAcc
   const [bidding, setBidding] = useState<GoogleCampaign | null>(null);
   // G14c: the campaign whose management dialog is open.
   const [managing, setManaging] = useState<GoogleCampaign | null>(null);
+  // S4: the reduce-only keyword list (pause and remove) in an account the business did not enable.
+  const [reducing, setReducing] = useState<GoogleCampaign | null>(null);
 
   const campaigns = useQuery({
     queryKey: ["google-ads-campaigns"],
@@ -515,8 +527,9 @@ function CampaignsSection({ account, pauseOnly = false }: { account: GoogleAdAcc
   const rows = useMemo(
     // ★THIS ACCOUNT'S ROWS ONLY (round 3): a row with no account would show
     //  under every account, in whichever currency was selected.
-    () => (campaigns.data?.campaigns ?? []).filter((c) => c.adAccountId === account.id),
-    [campaigns.data, account.id],
+    // S5: matched by the ONE id comparison (either spelling); a row with no account is the orphans' list, never every account's.
+    () => (campaigns.data?.campaigns ?? []).filter((c) => (orphans ? !c.adAccountId && !!c.platformCampaignId : !!c.adAccountId && googleBareId(c.adAccountId) === googleBareId(account.id))),
+    [campaigns.data, account.id, orphans],
   );
 
   // ★PER ROW (round 1): one campaign's request in flight must not hold
@@ -537,11 +550,13 @@ function CampaignsSection({ account, pauseOnly = false }: { account: GoogleAdAcc
     onError: (err) => toast.error(googleAdsErrorMessage(err, "Google Ads didn't take that change. Try again in a moment.")),
   });
 
+  if (orphans && !campaigns.isLoading && rows.length === 0) return null;
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Google campaigns</CardTitle>
-        <CardDescription>{GOOGLE_LAUNCH_NOTE}</CardDescription>
+        <CardTitle>{orphans ? "Campaigns with no ad account on file" : "Google campaigns"}</CardTitle>
+        {pauseOnly ? null : <CardDescription>{GOOGLE_LAUNCH_NOTE}</CardDescription>}
       </CardHeader>
       <CardContent>
         {campaigns.isLoading ? (
@@ -597,6 +612,11 @@ function CampaignsSection({ account, pauseOnly = false }: { account: GoogleAdAcc
                             Bidding
                           </Button>
                         </>
+                      ) : null}
+                      {pauseOnly && googleCampaignSettable(c) && (c.channelType ?? "SEARCH") === "SEARCH" ? (
+                        <Button size="sm" variant="ghost" onClick={() => setReducing(c)}>
+                          Keywords
+                        </Button>
                       ) : null}
                       {c.platformCampaignId ? (
                         <Button size="sm" variant="ghost" onClick={() => setManaging(c)}>
@@ -668,6 +688,7 @@ function CampaignsSection({ account, pauseOnly = false }: { account: GoogleAdAcc
         <GoogleTargetingDialog key={targeting.id} campaign={targeting} account={account} open onOpenChange={(o) => (o ? null : setTargeting(null))} />
       ) : null}
       {/* G-14b: keyed by campaign, as the targeting step is. */}
+      {reducing ? <GoogleTargetingDialog key={`reduce-${reducing.id}`} campaign={reducing} account={account} reduceOnly open onOpenChange={(o) => (o ? null : setReducing(null))} /> : null}
       {bidding ? <GoogleBiddingDialog key={bidding.id} campaign={bidding} account={account} open onOpenChange={(o) => (o ? null : setBidding(null))} /> : null}
       {/* G14c: keyed by campaign, as the others are. */}
       {managing ? (

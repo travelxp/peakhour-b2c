@@ -36,6 +36,8 @@ export interface AdAccountFormat {
   /** How many accounts the business chose that the connection can no longer use (optional: only a channel that lists them apart). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   unavailable?(extra: Record<string, any> | undefined): number;
+  /** Whether a listed account may enable ITSELF under "one listed account, nothing ever saved" (absent: yes). The api's `autoEnable`, mirrored. */
+  autoEnable?(a: AdAccountRow): boolean;
   /** Refetch the channel's OWN readers of the enabled accounts after a save (Growth must never offer one just unticked). */
   refresh(client: QueryClient): Promise<unknown>;
 }
@@ -66,6 +68,8 @@ export const AD_ACCOUNT_FORMATS: Record<string, AdAccountFormat> = {
     health: (a) => (a.testAccount === true ? { warning: "test account" } : {}),
     list: (extra) => googleListedAccounts(extra),
     unavailable: (extra) => googleUnavailableCount(extra),
+    // A test account runs no real ads: it is never the business's by default, only when ticked (as the api).
+    autoEnable: (a) => a.testAccount !== true,
     refresh: (client) =>
       Promise.all([
         client.invalidateQueries({ queryKey: ["google-ads-accounts"] }),
@@ -82,13 +86,15 @@ function googleListedAccounts(extra: Record<string, any> | undefined): AdAccount
   return listedAdAccounts(extra).map((a) => ({ ...a, ...(typeof a.currencyCode === "string" && a.currencyCode !== "" ? { currency: a.currencyCode } : {}) }));
 }
 
-/** Accounts the business chose (stored) that the connection has since blocked: counted, never ticked and never the default. */
+/**
+ * Accounts the business chose (stored) that the login no longer lists: blocked since (`blockedAdAccounts`) or gone from the login. Counted
+ * and never ticked, never the default. (Mirrors the api: an id the row does not list is dropped from the choice.)
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function googleUnavailableCount(extra: Record<string, any> | undefined): number {
   const stored = new Set<string>((Array.isArray(extra?.adAccountChoice?.enabledIds) ? extra.adAccountChoice.enabledIds : []).filter((x: unknown): x is string => typeof x === "string").map(googleBareId));
   const listed = new Set(googleListedAccounts(extra).map((a) => googleBareId(a.id)));
-  const blocked = new Set<string>((Array.isArray(extra?.blockedAdAccounts) ? extra.blockedAdAccounts : []).flatMap((b: { id?: unknown }) => (typeof b?.id === "string" ? [googleBareId(b.id)] : [])));
-  return [...stored].filter((id) => blocked.has(id) && !listed.has(id)).length;
+  return [...stored].filter((id) => !listed.has(id)).length;
 }
 
 /**
@@ -145,7 +151,7 @@ export function savedAdAccounts(provider: string, extra: Record<string, any> | u
   );
   let enabled = listed.filter((a) => wanted.has(bare(a.id)));
   // One listed account enables itself only while nothing was EVER saved; a saved choice is never widened.
-  if (!saved && listed.length === 1) enabled = [listed[0]!];
+  if (!saved && listed.length === 1 && adAccountFormat(provider)?.autoEnable?.(listed[0]!) !== false) enabled = [listed[0]!];
   if (enabled.length === 0) return { enabledIds: [] };
   const byDefault =
     typeof stored?.defaultId === "string" ? enabled.find((a) => bare(a.id) === bare(stored.defaultId)) : undefined;

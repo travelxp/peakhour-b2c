@@ -40,7 +40,7 @@ export function otherGoogleAccounts<T extends ListedGoogleAccount>(
 /**
  * The account the Ads panel shows: `?customer=` when it is an enabled account OR one of the login's other accounts (the
  * pause-only view, so a running campaign in an unticked account can still be stopped), else the business default (`enabled` is
- * default-first). One comparison rule, either spelling.
+ * default-first), else (nothing enabled) the first other account. One comparison rule, either spelling.
  */
 export function googleSelectedAccountId(
   enabled: readonly ListedGoogleAccount[],
@@ -49,5 +49,6 @@ export function googleSelectedAccountId(
 ): string | null {
   const wanted = requested ? googleBareId(requested) : undefined;
   const asked = wanted === undefined ? undefined : [...enabled, ...others].find((a) => googleBareId(a.id) === wanted);
-  return (asked ?? enabled[0])?.id ?? null;
+  // With nothing enabled there is no default: the login's first other account opens the pause-only view (it can only reduce spend).
+  return (asked ?? enabled[0] ?? others[0])?.id ?? null;
 }

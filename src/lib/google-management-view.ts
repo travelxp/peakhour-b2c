@@ -81,6 +81,17 @@ export function googleSettingsChangeOf(s: GoogleCampaignSettings, d: GoogleSetti
 }
 
 /**
+ * The reduce-only view's one rule, in the merchant's words: the daily budget may go DOWN only. Null when the budget is untouched, lowered, or
+ * not a number the form would send anyway (the shared form check owns that).
+ */
+export function googleSettingsBudgetProblem(s: GoogleCampaignSettings, d: GoogleSettingsDraft): string | null {
+  const amount = Number(d.budget);
+  if (!Number.isFinite(amount)) return "Enter a daily budget.";
+  if (!(amount > 0)) return "A daily budget must be more than 0. Pause the campaign to stop it.";
+  return amount > s.budget.amount ? "Peakhour can only lower the budget in this account." : null;
+}
+
+/**
  * The pause-only view's save (an account the business did not enable): only a LOWER daily budget, nothing else. Null when the
  * draft changes anything more or the budget does not go down.
  */

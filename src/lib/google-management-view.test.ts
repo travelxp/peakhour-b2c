@@ -12,6 +12,7 @@ import {
   googleRemoveConfirmed,
   googleSettingsChangeOf,
   googleSettingsLowerBudgetOnly,
+  googleSettingsBudgetProblem,
   googleSettingsDraftOf,
   googleSettingsProblem,
   googleSettingsSentence,
@@ -168,5 +169,18 @@ describe("an account the business did not enable: spend-reducing only", () => {
     expect(googleAdActions("PAUSED", true, true).map((a) => a.status)).toEqual(["REMOVED"]);
     expect(googleAdActions("ENABLED", true, true).map((a) => a.status)).toEqual(["PAUSED", "REMOVED"]);
     expect(googleAdActions("PAUSED", true).map((a) => a.status)).toEqual(["ENABLED", "REMOVED"]);
+  });
+});
+
+describe("S7: the reduce-only budget rule is said, not a silently disabled Save", () => {
+  it("a raised budget says so; a lowered, untouched or unreadable one is judged plainly", () => {
+    const d = googleSettingsDraftOf(S);
+    expect(googleSettingsBudgetProblem(S, { ...d, budget: "3000" })).toBe("Peakhour can only lower the budget in this account.");
+    expect(googleSettingsBudgetProblem(S, { ...d, budget: "1000" })).toBeNull();
+    expect(googleSettingsBudgetProblem(S, d)).toBeNull();
+    expect(googleSettingsBudgetProblem(S, { ...d, budget: "abc" })).toBe("Enter a daily budget.");
+    expect(googleSettingsBudgetProblem(S, { ...d, budget: "0" })).toContain("more than 0");
+    // the name and end date are not judged here (they are not on screen): an end date in the past does not stop a budget cut
+    expect(googleSettingsBudgetProblem(S, { ...d, budget: "1000", endDate: "2020-01-01" })).toBeNull();
   });
 });

@@ -32,12 +32,24 @@ describe("the google_ads format row", () => {
     expect(f.health(listed[1]!)).toEqual({ warning: "test account" });
   });
 
+  it("S2: a test account is never auto-enabled (the api\'s autoEnable, mirrored): one listed test account enables nothing until ticked", () => {
+    const T = { id: "4444444444", name: "Sandbox", currencyCode: "USD", testAccount: true };
+    expect(savedAdAccounts("google_ads", { adAccounts: [T] })).toEqual({ enabledIds: [] });
+    expect(savedAdAccounts("google_ads", { adAccounts: [A] })).toEqual({ enabledIds: ["1111111111"], defaultId: "1111111111" });
+    expect(savedAdAccounts("google_ads", { adAccounts: [T], adAccountChoice: { enabledIds: ["4444444444"], defaultId: "4444444444" } })).toEqual({ enabledIds: ["4444444444"], defaultId: "4444444444" });
+  });
+
+  it("S6: a chosen account that vanished from the login (not listed, not blocked) is counted too", () => {
+    const extra = { adAccounts: [A], adAccountChoice: { enabledIds: ["1111111111", "6666666666"], defaultId: "1111111111" } };
+    expect(f.unavailable!(extra)).toBe(1);
+  });
+
   it("mirrors the api: a blocked account is NOT listed, and a chosen one that is now blocked is counted, never ticked or default", () => {
     const extra = { adAccounts: [A], blockedAdAccounts: [{ id: "2222222222", code: "customer_status_CANCELED" }, { id: "5555555555", code: "x" }], adAccountChoice: { enabledIds: ["1111111111", "2222222222"], defaultId: "1111111111" } };
     expect(f.list(extra).map((a) => a.id)).toEqual(["1111111111"]);
     expect(savedAdAccounts("google_ads", extra)).toEqual({ enabledIds: ["1111111111"], defaultId: "1111111111" });
     expect(f.unavailable!(extra)).toBe(1);
-    // a blocked account that was never chosen is not counted
+    // an account that was never chosen is not counted, however it is listed
     expect(f.unavailable!({ ...extra, adAccountChoice: { enabledIds: ["1111111111"] } })).toBe(0);
     expect(f.unavailable!({ adAccounts: [A] })).toBe(0);
   });
@@ -98,8 +110,9 @@ describe("the Ads panel and the signal step list only the enabled accounts, the 
       expect(googleSelectedAccountId(enabled, others, "9999999999")).toBe("2222222222");
       expect(googleSelectedAccountId(enabled, others, null)).toBe("2222222222");
     });
-    it("nothing enabled: no account", () => {
+    it("nothing enabled: the asked other account, else the first other (pause-only); with no account at all, none", () => {
       expect(googleSelectedAccountId([], others, "3333333333")).toBe("3333333333");
+      expect(googleSelectedAccountId([], others, null)).toBe(others[0]!.id);
       expect(googleSelectedAccountId([], [], "1111111111")).toBeNull();
     });
   });

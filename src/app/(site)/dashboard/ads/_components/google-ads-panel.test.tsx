@@ -49,7 +49,7 @@ vi.mock("@/lib/api/google-ads", async (orig) => {
 vi.mock("./google-website-conversion-section", () => ({ GoogleWebsiteConversionSection: () => <div data-testid="web-conv" /> }));
 vi.mock("./google-callouts-section", () => ({ GoogleCalloutsSection: () => <div data-testid="callouts" /> }));
 vi.mock("./google-reports-section", () => ({ GoogleReportsSection: () => <div data-testid="reports" /> }));
-vi.mock("./google-targeting-dialog", () => ({ GoogleTargetingDialog: () => null }));
+vi.mock("./google-targeting-dialog", () => ({ GoogleTargetingDialog: (p: { reduceOnly?: boolean }) => <div data-testid="targeting" data-reduce-only={String(!!p.reduceOnly)} /> }));
 vi.mock("./google-bidding-dialog", () => ({ GoogleBiddingDialog: () => null }));
 vi.mock("./google-campaign-manage-dialog", () => ({
   GoogleCampaignManageDialog: (p: { spendReducingOnly?: boolean }) => <div data-testid="manage" data-pause-only={String(!!p.spendReducingOnly)} />,
@@ -116,8 +116,29 @@ describe("Ads > Google: no enabled account", () => {
     await mount();
     expect(container.textContent).toContain("Choose the ad accounts this business may use before creating campaigns. Your Google login reaches more than one.");
     expect(container.querySelector('a[href="/dashboard/integrations"]')).not.toBeNull();
+    // S1: the account Select (with the login's other accounts) and the pause-only view are still there, so a running campaign can be paused
+    expect(container.querySelector('[aria-label="Google Ads account"]')).not.toBeNull();
+    expect(container.textContent).toContain("Peakhour does not run new spend in this account.");
+    expect(container.textContent).not.toContain("New campaign");
+    expect(container.textContent).not.toContain("Conversion tracking");
+  });
+
+  it("S1: nothing enabled but a campaign running: it is listed and can be paused, never started", async () => {
+    h.listAdAccounts.mockResolvedValue(answer([], null));
+    h.listCampaigns.mockResolvedValue({ campaigns: [camp("c1", "Running", "1111111111", "active")] });
+    await mount();
+    const buttons = [...container.querySelectorAll("button")].map((b) => b.textContent);
+    expect(buttons).toContain("Pause");
+    expect(container.textContent).toContain("Running");
+    for (const word of ["Start", "Resume", "Targeting", "Bidding"]) expect(buttons).not.toContain(word);
+  });
+
+  it("S3: while the accounts have not been read (no data, no error) it is a skeleton, not \"no accounts\"", async () => {
+    h.listAdAccounts.mockReturnValue(new Promise(() => undefined));
+    await mount();
+    expect(container.textContent).not.toContain("Choose your ad accounts");
+    expect(container.textContent).not.toContain("No Google Ads accounts found");
     expect(container.querySelector('[aria-label="Google Ads account"]')).toBeNull();
-    expect(container.textContent).not.toContain("Create campaign");
   });
 
   it("the login reaches one: no 'more than one'", async () => {
@@ -208,5 +229,39 @@ describe("Ads > Google: an account the business did not enable is pause-only", (
     expect(buttons.map((b) => b.textContent)).not.toContain("Resume");
     await act(async () => buttons.find((b) => b.textContent === "Manage")!.click());
     expect(container.querySelector('[data-testid="manage"]')!.getAttribute("data-pause-only")).toBe("true");
+  });
+
+  it("S10: the pause-only view does not show the launch note", async () => {
+    await open("active");
+    expect(container.textContent).not.toContain("Starting, pausing and resuming a campaign costs nothing");
+    expect(container.textContent).toContain("Google campaigns");
+  });
+
+  it("S5: campaigns match the account by id in either spelling, and rows with no ad account are listed apart, pause only", async () => {
+    h.search.value = "channel=google&customer=3333333333";
+    h.listAdAccounts.mockResolvedValue(answer(["1111111111"], "1111111111"));
+    h.listCampaigns.mockResolvedValue({
+      campaigns: [camp("c9", "Dashed row", "333-333-3333", "active"), { ...camp("c8", "No account row", "x", "active"), adAccountId: undefined }, camp("c1", "Mine", "1111111111", "active")],
+    });
+    await mount();
+    expect(container.textContent).toContain("Dashed row");
+    expect(container.textContent).toContain("Campaigns with no ad account on file");
+    expect(container.textContent).toContain("No account row");
+    expect(container.textContent).not.toContain("Mine");
+    expect(container.textContent).not.toContain("Resume");
+  });
+
+  it("S5: with no row lacking an account, the no-account list is not shown", async () => {
+    await open("active");
+    expect(container.textContent).not.toContain("Campaigns with no ad account on file");
+  });
+
+  it("S4: a Search campaign offers Keywords, which opens the reduce-only targeting dialog; Bidding and Targeting stay hidden", async () => {
+    await open("active");
+    const keywords = [...container.querySelectorAll("button")].find((b) => b.textContent === "Keywords")!;
+    expect(keywords).toBeDefined();
+    expect([...container.querySelectorAll("button")].map((b) => b.textContent)).not.toContain("Targeting");
+    await act(async () => keywords.click());
+    expect(container.querySelector('[data-testid="targeting"]')!.getAttribute("data-reduce-only")).toBe("true");
   });
 });

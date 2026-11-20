@@ -178,11 +178,6 @@ function AdAccountChoiceFor({ provider, extra, onChanged, format }: AdAccountCho
               );
             })}
           </ul>
-          {unavailable > 0 ? (
-            <p className="text-micro text-muted-foreground">
-              {unavailable} ad account{unavailable === 1 ? "" : "s"} you chose {unavailable === 1 ? "is" : "are"} no longer available on {format.platformName.replace(/ Ads$/, "")}.
-            </p>
-          ) : null}
           {ids.length === 0 ? (
             <p role="status" className="text-micro text-warning-on-tint">
               {CHOOSE_AD_ACCOUNTS}
@@ -213,6 +208,11 @@ function AdAccountChoiceFor({ provider, extra, onChanged, format }: AdAccountCho
           <p className="text-micro text-muted-foreground">{AD_ACCOUNT_TAGS_HELP}</p>
         </>
       )}
+      {unavailable > 0 ? (
+        <p className="text-micro text-muted-foreground">
+          {unavailable} ad account{unavailable === 1 ? "" : "s"} you chose {unavailable === 1 ? "is" : "are"} no longer available on {format.platformName.replace(/ Ads$/, "")}.
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -19,6 +19,7 @@ import {
   googleNetworkSentence,
   googleRemoveConfirmed,
   googleSettingsChangeOf,
+  googleSettingsBudgetProblem,
   googleSettingsLowerBudgetOnly,
   googleSettingsDraftOf,
   googleSettingsProblem,
@@ -75,7 +76,8 @@ export function GoogleCampaignManageDialog({
   const set = <K extends keyof GoogleSettingsDraft>(k: K, v: GoogleSettingsDraft[K]) => setEdits((e) => ({ ...(e ?? {}), [k]: v }));
   // The account's day: Google reads the end date in the account's zone (review round 1).
   const today = googleAccountToday(settings?.timeZone);
-  const problem = settings && draft ? googleSettingsProblem(settings, draft, today) : null;
+  // ★REDUCE-ONLY: only the budget is judged (the name, end date and networks are not on screen), and a raised budget is SAID, not a silently disabled Save.
+  const problem = settings && draft ? (spendReducingOnly ? googleSettingsBudgetProblem(settings, draft) : googleSettingsProblem(settings, draft, today)) : null;
   // ★THE NAME AS GOOGLE HOLDS IT NOW (review round 1), or the one this dialog just saved while the re-read is in
   //  flight (round 2): the api confirms a remove by the row's name or Google's, and both are that one.
   const [savedName, setSavedName] = useState<string | null>(null);
