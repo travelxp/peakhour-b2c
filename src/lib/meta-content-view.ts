@@ -1,3 +1,4 @@
+import { periodDelta, SMALL_BASE, type PeriodDelta } from "@/lib/period-delta";
 import type {
   InsightWindow,
   MetaInstagramAccountInsights,
@@ -25,9 +26,13 @@ export function parseGraphTime(s: string | undefined): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-/** The last `days` days ending today (UTC), both ends inclusive, as the api expects. */
+/**
+ * The last `days` complete days ending yesterday (UTC), both ends inclusive, as the api expects.
+ * Today is left out: it is partial and Meta reports it late, so it would read as a false fall
+ * against the previous, complete, period.
+ */
 export function windowFor(days: InsightDays, now: Date = new Date()): InsightWindow {
-  const until = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const until = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) - 86_400_000);
   const since = new Date(until.getTime() - (days - 1) * 86_400_000);
   const iso = (d: Date) => d.toISOString().slice(0, 10);
   return { since: iso(since), until: iso(until) };
@@ -188,4 +193,139 @@ export function hubState(s: HubStateInput): HubState {
     return "error";
   }
   return s.count === 0 ? "empty" : "ready";
+}
+
+/* ------------------------------------------------------------------------------------------------
+ * Trends: what changed against the previous period, and what to do about it.
+ * Free and deterministic (no model call), in the style of analytics-actions.ts.
+ * ---------------------------------------------------------------------------------------------- */
+
+const DAY_MS = 86_400_000;
+const isoDay = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+const dayMs = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
+
+/** The window of the same length that ends the day before `w` starts (both ends inclusive, UTC). */
+export function previousWindow(w: InsightWindow): InsightWindow {
+  const days = Math.round((dayMs(w.until) - dayMs(w.since)) / DAY_MS) + 1;
+  const until = dayMs(w.since) - DAY_MS;
+  return { since: isoDay(until - (days - 1) * DAY_MS), until: isoDay(until) };
+}
+
+/**
+ * Tiles that are a snapshot or a net change, not a total for the window. Followers is "today" in
+ * both windows, and the Instagram follower change can be negative, so a percentage of either would
+ * be false precision. They get no chip.
+ */
+export const NON_COMPARABLE_TILES: readonly string[] = ["followers", "followerSeries"];
+
+/**
+ * How one tile changed, by the shared `periodDelta` rules (a previous 0 or a small base is a count,
+ * "+12", never an infinite %), so this screen agrees with Home and Search Console. null (no chip)
+ * when either figure is missing, when both are 0, or for a tile that is not a window total.
+ */
+export function tileChange(key: string, current: number | null, previous: number | null): PeriodDelta | null {
+  if (NON_COMPARABLE_TILES.includes(key)) return null;
+  if (current === null || previous === null) return null;
+  if (current === 0 && previous === 0) return null;
+  return periodDelta(current, previous);
+}
+
+/** "the previous 28 days" for a note or a spoken sentence. */
+export const previousPeriodPhrase = (days: InsightDays) => `the previous ${days} days`;
+
+/** Key to value, for a missing tile null. */
+function byKey(tiles: Tile[] | undefined): Record<string, number | null> {
+  const out: Record<string, number | null> = {};
+  for (const t of tiles ?? []) out[t.key] = t.value;
+  return out;
+}
+
+/** Previous values under this are too small for a percentage to mean anything, so no line is written. */
+export const INSIGHT_MIN_PREVIOUS = SMALL_BASE;
+/** A rise of at least this many percent in views or reach is worth saying out loud. */
+export const INSIGHT_RISE_PCT = 25;
+/** A fall of at least this many percent in views or reach needs attention. */
+export const INSIGHT_FALL_PCT = 25;
+/** A fall of at least this many percent in engagement needs attention. */
+export const INSIGHT_ENGAGEMENT_FALL_PCT = 25;
+/** No post in this many days is named, because Meta shows fewer people an account that has gone quiet. */
+export const INSIGHT_QUIET_DAYS = 7;
+/** Posts in the last INSIGHT_QUIET_DAYS from which an account counts as posting regularly. */
+export const INSIGHT_REGULAR_POSTS = 2;
+
+export interface MetaInsightLine {
+  id: string;
+  group: "improving" | "declining" | "attention";
+  text: string;
+}
+
+/** Posts in the last INSIGHT_QUIET_DAYS, or null when dates cannot be read (never a guessed 0). */
+export function countRecentPosts(dates: string[], now: Date = new Date()): number | null {
+  const times = dates.map((d) => parseGraphTime(d)?.getTime());
+  // One unreadable date makes the count unknown: dropping it could turn "posted yesterday" into 0.
+  if (times.some((t) => t === undefined)) return null;
+  const cutoff = now.getTime() - INSIGHT_QUIET_DAYS * DAY_MS;
+  return times.filter((t) => t !== undefined && t >= cutoff).length;
+}
+
+const HEADLINE: Record<"facebook" | "instagram", { key: string; noun: string }> = {
+  facebook: { key: "mediaViews", noun: "Views" },
+  instagram: { key: "reach", noun: "Accounts reached" },
+};
+const ENGAGEMENT: Record<"facebook" | "instagram", { key: string; noun: string }> = {
+  facebook: { key: "postEngagements", noun: "Post engagements" },
+  instagram: { key: "totalInteractions", noun: "Interactions" },
+};
+
+/**
+ * Up to four plain-language lines about what is improving, declining or needs attention.
+ * `recentPosts` is null while the posts list is not loaded, which silences the quiet-account line.
+ */
+export function metaInsightActions(input: {
+  channel: "facebook" | "instagram";
+  days: InsightDays;
+  current: Tile[];
+  previous: Tile[] | undefined;
+  recentPosts: number | null;
+}): MetaInsightLine[] {
+  const { channel, days } = input;
+  const cur = byKey(input.current);
+  const prev = byKey(input.previous);
+  const vs = previousPeriodPhrase(days);
+  const lines: MetaInsightLine[] = [];
+
+  /** Signed, rounded percent change from the same `periodDelta` the tile chip shows, so a line and
+   *  its chip never disagree; null when either figure is missing or the base is too small to trust. */
+  const pct = (key: string): number | null => {
+    const d = periodDelta(cur[key], prev[key], { smallBase: INSIGHT_MIN_PREVIOUS });
+    if (!d || d.basis !== "percent") return null;
+    return d.direction === "down" ? -d.amount : d.amount;
+  };
+
+  const head = HEADLINE[channel];
+  const headPct = pct(head.key);
+  if (headPct !== null && headPct >= INSIGHT_RISE_PCT) {
+    lines.push({ id: "reach_up", group: "improving", text: `${head.noun} are up ${headPct}% on ${vs}. Keep posting what worked.` });
+  }
+  if (headPct !== null && -headPct >= INSIGHT_FALL_PCT) {
+    // "Post more often" is advice only for an account that posts rarely; one that already posts
+    // regularly is told to change what it posts. An unknown count gets the neutral advice.
+    const advice =
+      input.recentPosts !== null && input.recentPosts < INSIGHT_REGULAR_POSTS
+        ? "post more often this week"
+        : "try a different kind of post this week, like the ones that did best";
+    lines.push({ id: "reach_down", group: "declining", text: `${head.noun} fell ${-headPct}% on ${vs}: ${advice}.` });
+  }
+  const eng = ENGAGEMENT[channel];
+  const engPct = pct(eng.key);
+  if (engPct !== null && -engPct >= INSIGHT_ENGAGEMENT_FALL_PCT) {
+    lines.push({ id: "engagement_down", group: "declining", text: `${eng.noun} fell ${-engPct}% on ${vs}: ask a question or share something people can react to.` });
+  }
+  // A fall already told to "post more often" carries the quiet account's point; say it once.
+  if (input.recentPosts === 0 && !lines.some((l) => l.id === "reach_down")) {
+    lines.push({ id: "quiet", group: "attention", text: `No posts in the last ${INSIGHT_QUIET_DAYS} days.` });
+  }
+
+  const order = { improving: 0, declining: 1, attention: 2 } as const;
+  return lines.sort((a, b) => order[a.group] - order[b.group]);
 }

@@ -13,16 +13,21 @@ import {
   postInsightTiles,
   reasonText,
   windowFor,
+  previousWindow,
+  tileChange,
+  metaInsightActions,
+  countRecentPosts,
+  type Tile,
 } from "./meta-content-view";
 
 describe("windowFor", () => {
-  it("is the last N days ending today, both ends inclusive", () => {
+  it("is the last N complete days ending yesterday, both ends inclusive", () => {
     const now = new Date("2026-11-17T23:30:00Z");
-    expect(windowFor(7, now)).toEqual({ since: "2026-11-11", until: "2026-11-17" });
-    expect(windowFor(28, now)).toEqual({ since: "2026-10-21", until: "2026-11-17" });
+    expect(windowFor(7, now)).toEqual({ since: "2026-11-10", until: "2026-11-16" });
+    expect(windowFor(28, now)).toEqual({ since: "2026-10-20", until: "2026-11-16" });
   });
   it("crosses a month and a year boundary", () => {
-    expect(windowFor(7, new Date("2027-01-03T00:00:00Z"))).toEqual({ since: "2026-12-28", until: "2027-01-03" });
+    expect(windowFor(7, new Date("2027-01-03T00:00:00Z"))).toEqual({ since: "2026-12-27", until: "2027-01-02" });
   });
 });
 
@@ -195,5 +200,125 @@ describe("activeFirst", () => {
   it("does not mutate its input", () => {
     activeFirst(rows, "c");
     expect(rows.map((r) => r.id)).toEqual(["a", "b", "c"]);
+  });
+});
+
+describe("previousWindow", () => {
+  it("is the same length, ending the day before since (7 days)", () => {
+    expect(previousWindow({ since: "2026-11-11", until: "2026-11-17" })).toEqual({ since: "2026-11-04", until: "2026-11-10" });
+  });
+  it("28 days, across a month boundary", () => {
+    expect(previousWindow({ since: "2026-10-21", until: "2026-11-17" })).toEqual({ since: "2026-09-23", until: "2026-10-20" });
+  });
+  it("crosses a year boundary and a leap day", () => {
+    expect(previousWindow({ since: "2027-01-03", until: "2027-01-09" })).toEqual({ since: "2026-12-27", until: "2027-01-02" });
+    expect(previousWindow({ since: "2028-03-01", until: "2028-03-07" })).toEqual({ since: "2028-02-23", until: "2028-02-29" });
+  });
+  it("composes with windowFor", () => {
+    const w = windowFor(7, new Date("2026-11-17T10:00:00Z"));
+    expect(previousWindow(w).until).toBe("2026-11-09");
+  });
+});
+
+describe("tileChange", () => {
+  it("is a percent delta for ordinary totals", () => {
+    const c = tileChange("reach", 150, 100);
+    expect(c).toMatchObject({ direction: "up", tone: "good", basis: "percent", amount: 50 });
+    expect(tileChange("reach", 50, 100)).toMatchObject({ direction: "down", tone: "bad" });
+  });
+  it("previous 0 and current above 0 is a count, as on Home, never an infinite percent", () => {
+    expect(tileChange("reach", 12, 0)).toMatchObject({ direction: "up", basis: "absolute", amount: 12 });
+  });
+  it("both 0 has no chip", () => {
+    expect(tileChange("reach", 0, 0)).toBeNull();
+  });
+  it("a missing figure in either window has no chip, never 0%", () => {
+    expect(tileChange("reach", null, 10)).toBeNull();
+    expect(tileChange("reach", 10, null)).toBeNull();
+  });
+  it("snapshot and net-change tiles never get a chip", () => {
+    expect(tileChange("followers", 120, 100)).toBeNull();
+    expect(tileChange("followerSeries", 5, -3)).toBeNull();
+  });
+});
+
+const t = (key: string, value: number | null): Tile => ({ key, label: key, help: "", value });
+
+describe("metaInsightActions", () => {
+  const run = (cur: Record<string, number | null>, prev: Record<string, number | null> | undefined, recentPosts: number | null = 3, channel: "facebook" | "instagram" = "facebook", days: 7 | 28 = 28) =>
+    metaInsightActions({
+      channel,
+      days,
+      current: Object.entries(cur).map(([k, v]) => t(k, v)),
+      previous: prev && Object.entries(prev).map(([k, v]) => t(k, v)),
+      recentPosts,
+    });
+
+  it("names a rise at the threshold and not below it", () => {
+    const at = run({ mediaViews: 125 }, { mediaViews: 100 });
+    expect(at.map((l) => l.id)).toEqual(["reach_up"]);
+    expect(at[0]!.text).toBe("Views are up 25% on the previous 28 days. Keep posting what worked.");
+    expect(run({ mediaViews: 124 }, { mediaViews: 100 })).toEqual([]);
+  });
+  it("names a fall at the threshold and not above it", () => {
+    const at = run({ mediaViews: 75 }, { mediaViews: 100 });
+    expect(at.map((l) => l.id)).toEqual(["reach_down"]);
+    expect(run({ mediaViews: 76 }, { mediaViews: 100 })).toEqual([]);
+  });
+  it("tells only a rarely-posting account to post more often", () => {
+    const text = (posts: number | null) => run({ mediaViews: 50 }, { mediaViews: 100 }, posts)[0]!.text;
+    expect(text(1)).toBe("Views fell 50% on the previous 28 days: post more often this week.");
+    expect(text(2)).toBe("Views fell 50% on the previous 28 days: try a different kind of post this week, like the ones that did best.");
+    expect(text(null)).toContain("try a different kind of post");
+  });
+  it("names an engagement fall at the threshold, with the channel's own word", () => {
+    const at = run({ totalInteractions: 75 }, { totalInteractions: 100 }, 3, "instagram", 7);
+    expect(at).toHaveLength(1);
+    expect(at[0]!.text).toContain("Interactions fell 25% on the previous 7 days");
+    expect(run({ totalInteractions: 76 }, { totalInteractions: 100 }, 3, "instagram")).toEqual([]);
+  });
+  it("says nothing when the previous base is under the minimum", () => {
+    expect(run({ mediaViews: 5 }, { mediaViews: 19 })).toEqual([]);
+    expect(run({ mediaViews: 5 }, { mediaViews: 20 })).toHaveLength(1);
+  });
+  it("says nothing about a metric that is missing, or when there is no previous period", () => {
+    expect(run({ mediaViews: null }, { mediaViews: 100 })).toEqual([]);
+    expect(run({ mediaViews: 10 }, undefined)).toEqual([]);
+  });
+  it("a previous 0 makes no percentage line", () => {
+    expect(run({ mediaViews: 50 }, { mediaViews: 0 })).toEqual([]);
+  });
+  it("flags a quiet account only for a real 0, not an unknown count", () => {
+    expect(run({}, {}, 0).map((l) => l.id)).toEqual(["quiet"]);
+    expect(run({}, {}, 0)[0]!.text).toBe("No posts in the last 7 days.");
+    expect(run({}, {}, 1)).toEqual([]);
+    expect(run({}, {}, null)).toEqual([]);
+  });
+  it("orders improving, declining, attention", () => {
+    const lines = run({ mediaViews: 10_000, postEngagements: 10 }, { mediaViews: 100, postEngagements: 100 }, 0);
+    expect(lines.map((l) => l.group)).toEqual(["improving", "declining", "attention"]);
+  });
+  it("a fall that already says post more often is not repeated by the quiet line", () => {
+    expect(run({ mediaViews: 50 }, { mediaViews: 100 }, 0).map((l) => l.id)).toEqual(["reach_down"]);
+  });
+  it("a line and its chip agree on a fraction that rounds to the threshold", () => {
+    expect(run({ mediaViews: 124.6 }, { mediaViews: 100 }).map((l) => l.id)).toEqual(["reach_up"]);
+    expect(run({ mediaViews: 75.4 }, { mediaViews: 100 }).map((l) => l.id)).toEqual(["reach_down"]);
+  });
+});
+
+describe("countRecentPosts", () => {
+  const now = new Date("2026-11-17T12:00:00Z");
+  it("counts posts inside the quiet window", () => {
+    expect(countRecentPosts(["2026-11-16T08:00:00+0000", "2026-11-01T08:00:00+0000"], now)).toBe(1);
+    expect(countRecentPosts([], now)).toBe(0);
+  });
+  it("is null when dates exist but none can be read", () => {
+    expect(countRecentPosts(["nonsense"], now)).toBeNull();
+    expect(countRecentPosts(["nonsense", "2026-11-01T08:00:00+0000"], now)).toBeNull();
+  });
+  it("the cutoff is exactly INSIGHT_QUIET_DAYS back", () => {
+    expect(countRecentPosts(["2026-11-10T12:00:00Z"], now)).toBe(1);
+    expect(countRecentPosts(["2026-11-10T11:59:00Z"], now)).toBe(0);
   });
 });

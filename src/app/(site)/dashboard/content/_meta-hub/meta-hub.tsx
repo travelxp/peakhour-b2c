@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DeltaChip } from "@/components/viz/delta-chip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApiError } from "@/lib/api";
 import { reconnectHref } from "@/lib/integrations-connect";
@@ -23,18 +24,24 @@ import {
 } from "@/lib/api/meta-content";
 import {
   activeFirst,
+  countRecentPosts,
   formatFigure,
   hubState,
   instagramOverviewTiles,
   mediaInsightTiles,
   mediaThumbnail,
   mediaTypeLabel,
+  metaInsightActions,
   parseGraphTime,
   pageOverviewTiles,
   postExcerpt,
   postInsightTiles,
+  previousPeriodPhrase,
+  previousWindow,
+  tileChange,
   windowFor,
   type InsightDays,
+  type MetaInsightLine,
   type Tile,
 } from "@/lib/meta-content-view";
 
@@ -215,23 +222,61 @@ export function MetaHub({ channel }: { channel: MetaHubChannel }) {
   );
 }
 
-function TileGrid({ tiles }: { tiles: Tile[] }) {
+function TileGrid({ tiles, previous, days = 28 }: { tiles: Tile[]; previous?: Tile[]; days?: InsightDays }) {
+  const prevByKey = new Map((previous ?? []).map((t) => [t.key, t.value]));
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {tiles.map((t) => (
-        <Card key={t.key}>
-          <CardContent className="p-4">
-            <div className="text-sm text-muted-foreground">{t.label}</div>
-            {t.value === null ? (
-              <div className="mt-1 text-sm font-medium text-muted-foreground">Not available</div>
-            ) : (
-              <div className="mt-1 text-2xl font-semibold tabular-nums">{formatFigure(t.value)}</div>
-            )}
-            <p className="mt-1 text-xs text-muted-foreground">{t.value === null ? t.reason : t.help}</p>
-          </CardContent>
-        </Card>
-      ))}
+      {tiles.map((t) => {
+        const change = previous ? tileChange(t.key, t.value, prevByKey.get(t.key) ?? null) : null;
+        return (
+          <Card key={t.key}>
+            <CardContent className="p-4">
+              <div className="text-sm text-muted-foreground">{t.label}</div>
+              {t.value === null ? (
+                <div className="mt-1 text-sm font-medium text-muted-foreground">Not available</div>
+              ) : (
+                <div className="mt-1 text-2xl font-semibold tabular-nums">{formatFigure(t.value)}</div>
+              )}
+              {change ? (
+                <DeltaChip
+                  className="mt-1"
+                  delta={change}
+                  label={t.label}
+                  vs={`vs previous ${days} days`}
+                  comparedWith={previousPeriodPhrase(days)}
+                />
+              ) : null}
+              <p className="mt-1 text-xs text-muted-foreground">{t.value === null ? t.reason : t.help}</p>
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
+  );
+}
+
+const GROUP_TITLE: Record<MetaInsightLine["group"], string> = {
+  improving: "Improving",
+  declining: "Declining",
+  attention: "Needs attention",
+};
+
+function WhatChanged({ lines }: { lines: MetaInsightLine[] }) {
+  if (lines.length === 0) return null;
+  return (
+    <Card>
+      <CardContent className="space-y-2 p-4">
+        <h3 className="text-sm font-semibold">What changed</h3>
+        <ul className="space-y-1.5">
+          {lines.map((l) => (
+            <li key={l.id} className="text-sm">
+              <span className="font-medium">{GROUP_TITLE[l.group]}: </span>
+              {l.text}
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -256,6 +301,12 @@ function ErrorLine({ error, what, reconnect }: { error: unknown; what: string; r
   return <p className="text-sm text-muted-foreground">{msg}</p>;
 }
 
+function fetchTiles(channel: MetaHubChannel, subjectId: string, w: { since: string; until: string }): Promise<Tile[]> {
+  return channel === "facebook"
+    ? metaContentApi.pageInsights(subjectId, w).then((r) => pageOverviewTiles(r.insights))
+    : metaContentApi.igInsights(subjectId, w).then((r) => instagramOverviewTiles(r.insights));
+}
+
 function Overview({
   channel,
   subjectId,
@@ -268,15 +319,32 @@ function Overview({
   onDays: (d: InsightDays) => void;
 }) {
   const w = windowFor(days);
+  const pw = previousWindow(w);
   const q = useQuery({
     queryKey: ["meta-content", channel, "insights", subjectId, w.since, w.until],
-    queryFn: () =>
-      channel === "facebook"
-        ? metaContentApi.pageInsights(subjectId, w).then((r) => pageOverviewTiles(r.insights))
-        : metaContentApi.igInsights(subjectId, w).then((r) => instagramOverviewTiles(r.insights)),
+    queryFn: () => fetchTiles(channel, subjectId, w),
     staleTime: 5 * 60_000,
     retry: false,
   });
+  // A failed comparison leaves the tiles as they were, with no chips.
+  const prevQ = useQuery({
+    queryKey: ["meta-content", channel, "insights", subjectId, pw.since, pw.until],
+    queryFn: () => fetchTiles(channel, subjectId, pw),
+    enabled: q.isSuccess,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const postsQ = usePosts(channel, subjectId);
+  const lines =
+    q.data
+      ? metaInsightActions({
+          channel,
+          days,
+          current: q.data,
+          previous: prevQ.data,
+          recentPosts: postsQ.data ? countRecentPosts(postsQ.data.map((r) => r.date)) : null,
+        })
+      : [];
 
   return (
     <div className="space-y-3">
@@ -287,7 +355,7 @@ function Overview({
           </Button>
         ))}
       </div>
-      {q.isLoading ? <Skeleton className="h-40 w-full" /> : q.isError ? <ErrorLine error={q.error} what="these figures" reconnect={reconnectHref(COPY[channel].path, COPY[channel].provider)} /> : <TileGrid tiles={q.data!} />}
+      {q.isLoading ? <Skeleton className="h-40 w-full" /> : q.isError ? <ErrorLine error={q.error} what="these figures" reconnect={reconnectHref(COPY[channel].path, COPY[channel].provider)} /> : <><WhatChanged lines={lines} /><TileGrid tiles={q.data!} previous={prevQ.data} days={days} /></>}
     </div>
   );
 }
@@ -311,9 +379,9 @@ const igRow = (m: MetaInstagramMedia): Row => ({
   badge: mediaTypeLabel(m.mediaType),
 });
 
-function Posts({ channel, subjectId }: { channel: MetaHubChannel; subjectId: string }) {
-  const { formatDate } = useLocale();
-  const q = useQuery({
+/** Shared by the Posts tab and the overview's "what changed" lines, so one request serves both. */
+function usePosts(channel: MetaHubChannel, subjectId: string) {
+  return useQuery({
     queryKey: ["meta-content", channel, "posts", subjectId],
     queryFn: () =>
       channel === "facebook"
@@ -322,6 +390,11 @@ function Posts({ channel, subjectId }: { channel: MetaHubChannel; subjectId: str
     staleTime: 60_000,
     retry: false,
   });
+}
+
+function Posts({ channel, subjectId }: { channel: MetaHubChannel; subjectId: string }) {
+  const { formatDate } = useLocale();
+  const q = usePosts(channel, subjectId);
   const [open, setOpen] = useState<string | null>(null);
 
   if (q.isLoading) return <Skeleton className="h-64 w-full" />;
