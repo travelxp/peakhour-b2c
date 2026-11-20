@@ -11,6 +11,7 @@ import {
   googleNetworkSentence,
   googleRemoveConfirmed,
   googleSettingsChangeOf,
+  googleSettingsLowerBudgetOnly,
   googleSettingsDraftOf,
   googleSettingsProblem,
   googleSettingsSentence,
@@ -151,5 +152,21 @@ describe("ads (RMF M.130)", () => {
     expect(googleAdStatusLabel("REMOVED")).toBe("Removed");
     expect(googleAdSummary({ headlines: ["A", "B", "C", "D"], type: "RESPONSIVE_SEARCH_AD" })).toBe("A | B | C");
     expect(googleAdSummary({ headlines: [], type: "DEMAND_GEN_VIDEO_RESPONSIVE_AD" })).toBe("Video ad");
+  });
+});
+
+describe("an account the business did not enable: spend-reducing only", () => {
+  it("only a LOWER daily budget saves, and nothing else with it", () => {
+    const d = googleSettingsDraftOf(S);
+    expect(googleSettingsLowerBudgetOnly(S, { ...d, budget: "1000" })).toEqual({ dailyBudget: { amount: 1000 } });
+    expect(googleSettingsLowerBudgetOnly(S, { ...d, budget: "3000" })).toBeNull();
+    expect(googleSettingsLowerBudgetOnly(S, d)).toBeNull();
+    expect(googleSettingsLowerBudgetOnly(S, { ...d, budget: "1000", name: "Other" })).toBeNull();
+    expect(googleSettingsLowerBudgetOnly(S, { ...d, endDate: "" })).toBeNull();
+  });
+  it("an ad can be paused or removed, never enabled", () => {
+    expect(googleAdActions("PAUSED", true, true).map((a) => a.status)).toEqual(["REMOVED"]);
+    expect(googleAdActions("ENABLED", true, true).map((a) => a.status)).toEqual(["PAUSED", "REMOVED"]);
+    expect(googleAdActions("PAUSED", true).map((a) => a.status)).toEqual(["ENABLED", "REMOVED"]);
   });
 });

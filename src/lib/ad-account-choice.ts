@@ -33,6 +33,9 @@ export interface AdAccountFormat {
   /** The accounts the connection lists, read from where THIS channel stores them (the api's registry row owns `list` too). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   list(extra: Record<string, any> | undefined): AdAccountRow[];
+  /** How many accounts the business chose that the connection can no longer use (optional: only a channel that lists them apart). */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  unavailable?(extra: Record<string, any> | undefined): number;
   /** Refetch the channel's OWN readers of the enabled accounts after a save (Growth must never offer one just unticked). */
   refresh(client: QueryClient): Promise<unknown>;
 }
@@ -60,8 +63,9 @@ export const AD_ACCOUNT_FORMATS: Record<string, AdAccountFormat> = {
     bareId: googleBareId,
     idLine: googleIdLine,
     // A listed account is usable (the connection lists only accounts it can use); a test account runs no real ads.
-    health: (a) => (a.testAccount === true ? { warning: "test account" } : a.notAvailable === true ? { blocked: "not available" } : {}),
+    health: (a) => (a.testAccount === true ? { warning: "test account" } : {}),
     list: (extra) => googleListedAccounts(extra),
+    unavailable: (extra) => googleUnavailableCount(extra),
     refresh: (client) =>
       Promise.all([
         client.invalidateQueries({ queryKey: ["google-ads-accounts"] }),
@@ -72,19 +76,36 @@ export const AD_ACCOUNT_FORMATS: Record<string, AdAccountFormat> = {
   },
 };
 
-/**
- * The Google Ads accounts a connection lists (`currencyCode` read as `currency`), plus any account the business had enabled that
- * the connection now cannot use (`extra.blockedAdAccounts`), shown as "not available" so it can be unticked.
- */
+/** The Google Ads accounts a connection lists (`currencyCode` read as `currency`). Mirrors the api: `blockedAdAccounts` are NOT listed. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function googleListedAccounts(extra: Record<string, any> | undefined): AdAccountRow[] {
-  const listed: AdAccountRow[] = listedAdAccounts(extra).map((a) => ({ ...a, ...(typeof a.currencyCode === "string" && a.currencyCode !== "" ? { currency: a.currencyCode } : {}) }));
+  return listedAdAccounts(extra).map((a) => ({ ...a, ...(typeof a.currencyCode === "string" && a.currencyCode !== "" ? { currency: a.currencyCode } : {}) }));
+}
+
+/** Accounts the business chose (stored) that the connection has since blocked: counted, never ticked and never the default. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function googleUnavailableCount(extra: Record<string, any> | undefined): number {
   const stored = new Set<string>((Array.isArray(extra?.adAccountChoice?.enabledIds) ? extra.adAccountChoice.enabledIds : []).filter((x: unknown): x is string => typeof x === "string").map(googleBareId));
-  const have = new Set(listed.map((a) => googleBareId(a.id)));
-  const blocked: AdAccountRow[] = (Array.isArray(extra?.blockedAdAccounts) ? extra.blockedAdAccounts : []).flatMap((b: { id?: unknown }) =>
-    typeof b?.id === "string" && stored.has(googleBareId(b.id)) && !have.has(googleBareId(b.id)) ? [{ id: googleBareId(b.id), notAvailable: true }] : [],
-  );
-  return [...listed, ...blocked];
+  const listed = new Set(googleListedAccounts(extra).map((a) => googleBareId(a.id)));
+  const blocked = new Set<string>((Array.isArray(extra?.blockedAdAccounts) ? extra.blockedAdAccounts : []).flatMap((b: { id?: unknown }) => (typeof b?.id === "string" ? [googleBareId(b.id)] : [])));
+  return [...stored].filter((id) => blocked.has(id) && !listed.has(id)).length;
+}
+
+/**
+ * The accounts a business enabled, from a list answer `{ accounts, enabledIds, defaultId }`, its DEFAULT first (the others keep the
+ * listed order). Provider-neutral: `bare` is the provider's id comparison (`bareIdFor(provider)`). Nothing enabled, or an answer
+ * with no `enabledIds`, is none.
+ */
+export function enabledAccounts<T extends { id: string }>(
+  data: { accounts: T[]; enabledIds?: string[]; defaultId?: string | null } | undefined,
+  bare: (id: string) => string,
+): T[] {
+  if (!data) return [];
+  const enabled = new Set((data.enabledIds ?? []).map(bare));
+  const def = data.defaultId ? bare(data.defaultId) : undefined;
+  return data.accounts
+    .filter((a) => a.id.length > 0 && enabled.has(bare(a.id)))
+    .sort((a, b) => Number(bare(b.id) === def) - Number(bare(a.id) === def));
 }
 
 /** The formatter for an api provider name, or undefined for a provider that has no ad-account choice yet (own keys only). */

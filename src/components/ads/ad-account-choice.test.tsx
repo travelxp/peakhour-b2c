@@ -102,4 +102,21 @@ describe("AdAccountChoice", () => {
     await flush();
     expect(h.error).toHaveBeenCalledWith("No Meta Ads connection of this business lists ad accounts. Refresh your accounts and try again.");
   });
+
+  it("B4: a Google account the business chose that is now blocked is one muted line: no tick, no default, nothing else says it", () => {
+    const G = [{ id: "1111111111", name: "India Store", currencyCode: "INR", testAccount: false }, { id: "2222222222", name: "UK Store", currencyCode: "GBP", testAccount: false }];
+    mount("google_ads", {
+      adAccounts: G,
+      blockedAdAccounts: [{ id: "3333333333", code: "customer_status_CANCELED" }],
+      adAccountChoice: { enabledIds: ["1111111111", "3333333333"], defaultId: "1111111111" },
+    });
+    expect(container.textContent).toContain("1 ad account you chose is no longer available on Google.");
+    expect(container.textContent).not.toContain("3333");
+    expect(container.querySelectorAll("input[type=checkbox]:checked").length).toBe(1);
+    // nothing blocked: no line
+    act(() => root.unmount());
+    root = createRoot(container);
+    mount("google_ads", { adAccounts: G, adAccountChoice: { enabledIds: ["1111111111"], defaultId: "1111111111" } });
+    expect(container.textContent).not.toContain("no longer available");
+  });
 });

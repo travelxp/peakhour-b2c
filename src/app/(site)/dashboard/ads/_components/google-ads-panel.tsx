@@ -9,7 +9,8 @@ import { Megaphone, Plus, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
 import { CHOOSE_AD_ACCOUNTS } from "@/lib/ad-account-copy";
-import { enabledGoogleAccounts, googleSelectedAccountId } from "@/lib/google-ads-accounts";
+import { enabledAccounts } from "@/lib/ad-account-choice";
+import { googleBareId, googleSelectedAccountId, otherGoogleAccounts } from "@/lib/google-ads-accounts";
 import { AddDriveUrls } from "@/components/drive/add-drive-urls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   AlertDialog,
@@ -211,6 +212,7 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
     // Scoped by business, like Meta's: another business's answer is never served for this one.
     queryKey: ["google-ads-accounts", business?._id ?? "none"],
     queryFn: () => googleAdsApi.listAdAccounts(),
+    enabled: !!business,
     retry: false,
     staleTime: LIST_STALE_MS,
   });
@@ -227,17 +229,21 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
     [params, pathname, router],
   );
 
-  // ★ONLY THE ACCOUNTS THE BUSINESS ENABLED, its default first (MR-G2): the api refuses a write in any other. The login's other
-  // accounts are not offered.
+  // ★THE ACCOUNTS THE BUSINESS ENABLED, its default first (MR-G2): the api refuses new spend in any other. The login's other accounts
+  // are listed apart and open a PAUSE-ONLY view (stopping or lowering spend is never refused, so a running campaign in an account
+  // the business unticked can still be stopped).
   const allListed = accounts.data?.adAccounts.filter((a) => a.id.length > 0) ?? [];
-  const list = enabledGoogleAccounts(accounts.data);
-  // A `?customer=` that is not an ENABLED account is ignored, not trusted: the default is shown instead.
-  const accountId = googleSelectedAccountId(list, queryAccountId);
-  const known = list.some((a) => a.id === queryAccountId) ? queryAccountId : null;
+  const list = enabledAccounts(accounts.data ? { accounts: accounts.data.adAccounts, enabledIds: accounts.data.enabledIds, defaultId: accounts.data.defaultId } : undefined, googleBareId);
+  const others = otherGoogleAccounts(accounts.data);
+  // ONE comparison rule for `?customer=`: an enabled or other account is kept (either spelling), anything else is the default.
+  const accountId = googleSelectedAccountId(list, others, queryAccountId);
+  const pauseOnly = accountId !== null && !list.some((a) => a.id === accountId);
+  // The URL is rewritten only when the resolved account differs from what it says.
+  const urlMatches = queryAccountId !== null && accountId !== null && googleBareId(queryAccountId) === googleBareId(accountId);
   useEffect(() => {
-    if (isActiveChannel && !known && accountId) setAccountParam(accountId);
-  }, [isActiveChannel, known, accountId, setAccountParam]);
-  const account = list.find((a) => a.id === accountId);
+    if (isActiveChannel && !urlMatches && accountId) setAccountParam(accountId);
+  }, [isActiveChannel, urlMatches, accountId, setAccountParam]);
+  const account = [...list, ...others].find((a) => a.id === accountId);
 
   if (accounts.isLoading) return <SkeletonStack />;
   // A failed read is NOT "no ad accounts".
@@ -266,7 +272,7 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
       <EmptyState
         icon={Megaphone}
         title="Choose your ad accounts"
-        description={`${CHOOSE_AD_ACCOUNTS} Your Google login reaches more than one.`}
+        description={allListed.length > 1 ? `${CHOOSE_AD_ACCOUNTS} Your Google login reaches more than one.` : "Choose the ad account this business may use in Connected accounts."}
         action={{ label: "Choose ad accounts", href: "/dashboard/integrations" }}
       />
     );
@@ -288,10 +294,27 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
                 {a.testAccount ? " — test account" : ""}
               </SelectItem>
             ))}
+            {others.length > 0 ? (
+              <SelectGroup>
+                <SelectLabel>Other accounts on your Google login</SelectLabel>
+                {others.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.name}
+                    {a.currencyCode ? ` (${a.currencyCode})` : ""}
+                    {a.testAccount ? " — test account" : ""}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            ) : null}
           </SelectContent>
         </Select>
       </div>
-      {account ? (
+      {account && pauseOnly ? (
+        <>
+          <p className="text-sm text-muted-foreground">Peakhour does not run new spend in this account. You can pause or lower what is running.</p>
+          <CampaignsSection key={`campaigns-${account.id}`} account={account} pauseOnly />
+        </>
+      ) : account ? (
         <>
           {/* Keyed by account: a pick made for one account never carries to another. */}
           <ConversionTrackingSection key={`conv-${account.id}`} account={account} />
@@ -302,10 +325,10 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
           <CreateCampaignCard key={account.id} account={account} />
           {/* G-14e: account-level callouts (RMF C.75), in their own file. */}
           <GoogleCalloutsSection key={`callouts-${account.id}`} account={account} />
-          {/* G-14d: Google's own reports (RMF R.10–R.130), in their own file. */}
-          <GoogleReportsSection key={`reports-${account.id}`} account={account} />
         </>
       ) : null}
+      {/* G-14d: Google's own reports (RMF R.10–R.130), in their own file. Read-only, so every account the panel shows has them. */}
+      {account ? <GoogleReportsSection key={`reports-${account.id}`} account={account} /> : null}
     </div>
   );
 }
@@ -473,7 +496,7 @@ function ConversionTrackingSection({ account }: { account: GoogleAdAccount }) {
 
 // ── Campaigns ────────────────────────────────────────────────────────────
 
-function CampaignsSection({ account }: { account: GoogleAdAccount }) {
+function CampaignsSection({ account, pauseOnly = false }: { account: GoogleAdAccount; pauseOnly?: boolean }) {
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState<GoogleCampaign | null>(null);
   // G-14a: the campaign whose targeting step is open.
@@ -528,7 +551,7 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
             {googleAdsErrorMessage(campaigns.error, "We couldn't load your Google campaigns. Try again in a moment.")}
           </p>
         ) : rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No Google campaigns yet. Create one below — it starts paused.</p>
+          <p className="text-sm text-muted-foreground">{pauseOnly ? "No Google campaigns in this account." : "No Google campaigns yet. Create one below — it starts paused."}</p>
         ) : (
           <Table>
             <TableHeader>
@@ -565,7 +588,7 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
                     </TableCell>
                     <TableCell>{formatGoogleMoney(c.budget?.daily, c.currency ?? account.currencyCode)}</TableCell>
                     <TableCell className="space-x-2 text-right">
-                      {googleCampaignSettable(c) ? (
+                      {googleCampaignSettable(c) && !pauseOnly ? (
                         <>
                           <Button size="sm" variant="ghost" onClick={() => setTargeting(c)}>
                             Targeting
@@ -580,7 +603,7 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
                           Manage
                         </Button>
                       ) : null}
-                      {action.status ? (
+                      {action.status && !(pauseOnly && action.status === "ACTIVE") ? (
                         <Button
                           size="sm"
                           variant={action.status === "ACTIVE" ? "default" : "outline"}
@@ -591,8 +614,8 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
                         >
                           {action.label}
                         </Button>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">{action.reason}</span>
+                      ) : pauseOnly ? null : (
+                        <span className="text-xs text-muted-foreground">{"reason" in action ? action.reason : null}</span>
                       )}
                     </TableCell>
                   </TableRow>
@@ -648,7 +671,7 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
       {bidding ? <GoogleBiddingDialog key={bidding.id} campaign={bidding} account={account} open onOpenChange={(o) => (o ? null : setBidding(null))} /> : null}
       {/* G14c: keyed by campaign, as the others are. */}
       {managing ? (
-        <GoogleCampaignManageDialog key={managing.id} campaign={managing} account={account} open onOpenChange={(o) => (o ? null : setManaging(null))} />
+        <GoogleCampaignManageDialog key={managing.id} campaign={managing} account={account} spendReducingOnly={pauseOnly} open onOpenChange={(o) => (o ? null : setManaging(null))} />
       ) : null}
     </Card>
   );

@@ -9,7 +9,7 @@ import { ApiError } from "@/lib/api";
 import { adsErrorMessage } from "@/lib/ads-error-message";
 import { googleConversionErrorMessage } from "@/lib/google-conversion-view";
 import { googleAdsApi } from "@/lib/api/google-ads";
-import { enabledGoogleAccounts } from "@/lib/google-ads-accounts";
+import { bareIdFor, enabledAccounts } from "@/lib/ad-account-choice";
 import { metaAdsApi } from "@/lib/api/meta-ads";
 import { META_MERCHANT_FACING_CODES } from "@/lib/meta-ads-view";
 import { useSignalActions, useSignalReadiness } from "@/lib/api/growth-v2-signal";
@@ -132,7 +132,7 @@ function PlatformRow({ row, ...p }: { row: PlatformSignal } & SignalStepViewProp
               We couldn&apos;t load your {label} ad accounts. Reload the page to try again.
             </p>
           ) : null}
-          {row.platform === "meta" && p.accountsLoaded?.meta === true && accounts.length === 0 && !p.accountsFailed?.meta ? (
+          {p.accountsLoaded?.[row.platform] === true && accounts.length === 0 && !p.accountsFailed?.[row.platform] ? (
             <p role="status" className="text-xs text-warning-on-tint">
               Choose the ad accounts this business may use in{" "}
               <Link href="/dashboard/integrations" className="font-medium underline underline-offset-4">
@@ -217,12 +217,9 @@ export function SignalStep({
   const accounts: Record<SignalPlatform, AdAccountChoice[]> = {
     // ONLY the business's enabled ad accounts (the api refuses a dataset write for any other, MR-F2), its DEFAULT first: the
     // account that is used until the merchant picks another is the first one listed.
-    meta: (meta.data?.accounts ?? [])
-      .filter((a) => (meta.data?.enabledIds ?? []).includes(a.id))
-      .sort((a, b) => Number(b.id === meta.data?.defaultId) - Number(a.id === meta.data?.defaultId))
-      .map((a) => ({ id: a.id, name: a.name, currency: a.currency })),
+    meta: enabledAccounts(meta.data, bareIdFor("facebook")).map((a) => ({ id: a.id, name: a.name, currency: a.currency })),
     // Likewise ONLY the enabled ones, the default first (the api refuses a conversion-action write for any other).
-    google_ads: enabledGoogleAccounts(google.data).map((a) => ({ id: a.id, name: a.name, currency: a.currencyCode })),
+    google_ads: enabledAccounts(google.data ? { ...google.data, accounts: google.data.adAccounts } : undefined, bareIdFor("google_ads")).map((a) => ({ id: a.id, name: a.name, currency: a.currencyCode })),
   };
   // THE ACCOUNT THAT IS SHOWN IS THE ACCOUNT THAT IS USED: a pick that is no longer in the list falls back to the first.
   const chosen: Record<SignalPlatform, string | undefined> = {
