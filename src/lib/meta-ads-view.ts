@@ -428,7 +428,8 @@ export function metaInLine(a: { id: string; name?: string }): string {
 }
 
 /** The sentence shown while two or more ad accounts are listed and none is chosen. */
-export const META_CHOOSE_AD_ACCOUNT = "Choose the ad accounts this business may use before creating campaigns.";
+// The words are shared by every channel (lib/ad-account-copy.ts); Meta keeps its name for them.
+export { CHOOSE_AD_ACCOUNTS as META_CHOOSE_AD_ACCOUNT } from "./ad-account-copy";
 
 /**
  * ★ONE HELPER FOR META'S `account_status` WORDS. 2 disabled and 101 closed cannot run ads at all (not tickable; the api

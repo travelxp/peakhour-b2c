@@ -28,6 +28,8 @@ export interface AdAccountFormat {
   idLine(a: AdAccountRow): string;
   /** Whether the account cannot run ads (`blocked`: the word to say) or still runs but needs attention (`warning`). */
   health(a: AdAccountRow): { blocked?: string; warning?: string };
+  /** The channel's own queries that read the enabled accounts, refetched after a save (Growth must never offer one just unticked). */
+  invalidateKeys: ReadonlyArray<readonly unknown[]>;
 }
 
 export const AD_ACCOUNT_FORMATS: Record<string, AdAccountFormat> = {
@@ -36,12 +38,21 @@ export const AD_ACCOUNT_FORMATS: Record<string, AdAccountFormat> = {
     bareId: metaAdAccountBareId,
     idLine: metaAdAccountIdLine,
     health: (a) => metaAdAccountStatus(typeof a.status === "number" ? a.status : undefined),
+    invalidateKeys: [["meta-ads-accounts"], ["meta-ads-campaigns"], ["growth-v2", "signal"]],
   },
 };
 
-/** The formatter for an api provider name, or undefined for a provider that has no ad-account choice yet. */
+/** The formatter for an api provider name, or undefined for a provider that has no ad-account choice yet (own keys only). */
 export function adAccountFormat(provider: string): AdAccountFormat | undefined {
-  return AD_ACCOUNT_FORMATS[provider];
+  return Object.hasOwn(AD_ACCOUNT_FORMATS, provider) ? AD_ACCOUNT_FORMATS[provider] : undefined;
+}
+
+/**
+ * The ONE id comparison for a provider: its format's `bareId`, else the id as it is. The api's fallback is the same
+ * (`adAccountListingForProvider(provider)?.normaliseId(id) ?? id`), so the two never disagree on whether an id matches.
+ */
+export function bareIdFor(provider: string): (id: string) => string {
+  return adAccountFormat(provider)?.bareId ?? ((id: string) => id);
 }
 
 /** The ad accounts a connection lists, rows without a usable id dropped. */
@@ -58,7 +69,7 @@ export function listedAdAccounts(extra: Record<string, any> | undefined): AdAcco
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function savedAdAccounts(provider: string, extra: Record<string, any> | undefined): { enabledIds: string[]; defaultId?: string } {
-  const bare = adAccountFormat(provider)?.bareId ?? ((id: string) => id.trim());
+  const bare = bareIdFor(provider);
   const listed = listedAdAccounts(extra);
   // Its own key (`config.adAccountChoice`), NOT under `capabilities`: LinkedIn keeps `capabilities.adAccounts.byPage` there.
   const stored = extra?.adAccountChoice;

@@ -7,7 +7,7 @@ import { toast } from "sonner";
 
 import { api, ApiError } from "@/lib/api";
 import { adAccountFormat, listedAdAccounts, savedAdAccounts, type AdAccountFormat, type AdAccountRow } from "@/lib/ad-account-choice";
-import { META_CHOOSE_AD_ACCOUNT as CHOOSE_AD_ACCOUNT } from "@/lib/meta-ads-view";
+import { CHOOSE_AD_ACCOUNTS as CHOOSE_AD_ACCOUNT } from "@/lib/ad-account-copy";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CountryPicker } from "@/components/ads/country-picker";
@@ -46,9 +46,9 @@ export function AdAccountChoice({
   // Unique per instance, so two pickers on one page never share an id or a radio group.
   const uid = useId();
   const format = adAccountFormat(provider);
-  // A provider with no formatter has no choice to make (the api has no listing row for it either).
-  const adAccounts: AdAccountRow[] = format ? listedAdAccounts(extra) : [];
-  const saved = savedAdAccounts(provider, extra);
+  // Read once per change of the inputs, not on every keystroke in a tag picker.
+  const adAccounts: AdAccountRow[] = useMemo(() => (format ? listedAdAccounts(extra) : []), [format, extra]);
+  const saved = useMemo(() => savedAdAccounts(provider, extra), [provider, extra]);
   // The edit in progress; null shows what is saved (and follows the list behind `extra` when it reloads).
   const [draft, setDraft] = useState<{ ids: string[]; defaultId?: string } | null>(null);
   // The routing tags in progress (MR-F3); null shows what is saved. Sent only once touched, so an untouched save leaves them alone.
@@ -81,13 +81,10 @@ export function AdAccountChoice({
         defaultId,
         ...(tagsChanged && tagDraft ? { tags: tagsForSave(tagDraft, ids) } : {}),
       });
-      // Growth reads the enabled accounts and their campaigns from the api: refetch them now.
+      // The channel's own readers of the enabled accounts (its format row), and the integrations list: refetch them now.
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["meta-ads-accounts"] }),
-        queryClient.invalidateQueries({ queryKey: ["meta-ads-campaigns"] }),
+        ...(format?.invalidateKeys ?? []).map((queryKey) => queryClient.invalidateQueries({ queryKey: [...queryKey] })),
         queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] }),
-        // The Growth signal step offers the enabled accounts too: it must never offer one just unticked.
-        queryClient.invalidateQueries({ queryKey: ["growth-v2", "signal"] }),
       ]);
       toast.success("Peakhour will use those ad accounts.");
       await onChanged?.();
@@ -97,14 +94,19 @@ export function AdAccountChoice({
       toast.error(
         err instanceof ApiError && err.code === "AD_ACCOUNT_NOT_FOUND"
           ? `One of those ad accounts is no longer on your ${format?.platformName ?? "ad"} login. Refresh and try again.`
-          : err instanceof ApiError && err.code === "AD_ACCOUNT_DISABLED"
-            ? err.message
+          : err instanceof ApiError && (err.code === "AD_ACCOUNT_DISABLED" || err.code === "AD_ACCOUNTS_NOT_SAVED" || err.code === "NOT_CONNECTED")
+            ? // The api's own sentence: what fixes these is a refresh, a reconnect or an untick, not trying again.
+              err.message
             : "Couldn't save the ad accounts. Try again in a moment.",
       );
     } finally {
       setSaving(false);
     }
   }
+
+  // A provider with no format row has no choice to make yet (the api has no listing row either): show nothing rather than
+  // claim the login has no ad accounts.
+  if (!format) return null;
 
   return (
     <div className="space-y-1" aria-label="Ad accounts">
