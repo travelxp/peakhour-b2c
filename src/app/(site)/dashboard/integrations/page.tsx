@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
 import { invalidateLinkedInContentQueries } from "@/lib/linkedin-cache";
@@ -24,7 +24,7 @@ import { flattenMetaIntegration as flattenMetaIntegrationBase, resolveProvider, 
 import { Integration } from "./_components/shared";
 import { AppStoreConnectConnectModal, AppsFlyerConnectModal, BeehiivConnectModal, PlayConsoleConnectModal, WhatsAppConnectModal } from "./_components/connect-modals";
 import { OverseasAckDialog } from "@/components/integrations/overseas-ack-dialog";
-import { ackVersionToAsk, ACK_REQUIRED_ERROR_PROVIDER, ACK_REQUIRED_ERROR_VERSION, isAckRequiredRedirect, withOverseasAck } from "@/lib/overseas-ack";
+import { ACK_UNAVAILABLE_MESSAGE, ackPromptFor, ackPromptForRedirect, isAckRequiredRedirect, withOverseasAck, withoutAckRedirectParams } from "@/lib/overseas-ack";
 import { IntegrationCard } from "./_components/integration-card";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -176,21 +176,38 @@ export default function IntegrationsPage() {
   const [backfilling, setBackfilling] = useState(false);
   const [backfillResult, setBackfillResult] = useState<{ message: string; hasErrors: boolean } | null>(null);
   const [connectModal, setConnectModal] = useState<string | null>(null);
-  // A connect waiting on the overseas acknowledgement (TikTok for an Indian business).
-  const [ackPending, setAckPending] = useState<{ provider: string; version: string } | null>(null);
+  // A connect waiting on the overseas acknowledgement (TikTok for an Indian
+  // business). `ackOpen` closes the dialog while `ackPending` keeps its
+  // version, so Radix runs its close and returns focus to the Connect button.
+  const [ackPending, setAckPending] = useState<{ provider: string; version: string; authType: string } | null>(null);
+  const [ackOpen, setAckOpen] = useState(false);
   const ackRedirect = isAckRequiredRedirect(searchParams);
   const ackAsked = useRef(false);
+  const router = useRouter();
+  const pathname = usePathname();
 
   // The api sent the merchant back without the acknowledgement: ask again,
-  // rather than showing a generic error.
+  // rather than showing a generic error. The provider comes from the
+  // redirect and the version from a FRESH read of that provider's row; if
+  // either is missing we say so and never guess.
   useEffect(() => {
-    if (!ackRedirect || loading || ackAsked.current) return;
+    if (!ackRedirect || !org || ackAsked.current) return;
     ackAsked.current = true;
-    setAckPending({
-      provider: ACK_REQUIRED_ERROR_PROVIDER,
-      version: ackVersionToAsk(integrations, ACK_REQUIRED_ERROR_PROVIDER) ?? ACK_REQUIRED_ERROR_VERSION,
-    });
-  }, [ackRedirect, loading]); // eslint-disable-line react-hooks/exhaustive-deps
+    void (async () => {
+      const rows = await loadIntegrations();
+      const prompt = ackPromptForRedirect(searchParams, rows ?? []);
+      if (prompt.kind === "ask" && prompt.provider) {
+        const authType = rows?.find((r) => r.provider === prompt.provider)?.authType ?? "oauth2";
+        setAckPending({ provider: prompt.provider, version: prompt.version, authType });
+        setAckOpen(true);
+      } else {
+        setError(ACK_UNAVAILABLE_MESSAGE);
+      }
+      // Handled: drop the redirect's own params, keep returnTo/returnFor.
+      const qs = withoutAckRedirectParams(searchParams ?? new URLSearchParams());
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    })();
+  }, [ackRedirect, org?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Filter state
   const [search, setSearch] = useState("");
@@ -228,7 +245,7 @@ export default function IntegrationsPage() {
    * reconnect, refresh and disconnect all change what the hub should show, and
    * an invalidate on a fresh cache costs nothing.
    */
-  async function loadIntegrations(opts?: { allowCached?: boolean }) {
+  async function loadIntegrations(opts?: { allowCached?: boolean }): Promise<Integration[] | null> {
     invalidateLinkedInContentQueries(queryClient);
     // Messenger and Instagram messages follow the Meta connection and its Pages: re-read them with the list (connect, reconnect,
     // refresh and disconnect all land here).
@@ -246,10 +263,13 @@ export default function IntegrationsPage() {
         }
       }
       const data = await queryClient.fetchQuery({ ...listQuery, staleTime: 0 });
-      setIntegrations(flattenMetaIntegration(data.integrations));
+      const fresh = flattenMetaIntegration(data.integrations);
+      setIntegrations(fresh);
+      return fresh;
     } catch (err) {
       if (err instanceof ApiError) setError(err.message);
       else setError("Failed to load integrations");
+      return null;
     } finally {
       setLoading(false);
     }
@@ -264,9 +284,15 @@ export default function IntegrationsPage() {
   async function handleConnect(provider: string, authType: string, ackVersion?: string) {
     // The api flags a provider that needs an acknowledgement first. Ask,
     // and come back here with the accepted version.
-    const ackToAsk = ackVersionToAsk(integrations, provider);
-    if (ackToAsk && !ackVersion && authType === "oauth2") {
-      setAckPending({ provider, version: ackToAsk });
+    const ackPrompt = ackPromptFor(integrations, provider);
+    if (ackPrompt.kind === "unavailable") {
+      // Flagged, but this build has no wording for it: say so, do not navigate.
+      setError(ACK_UNAVAILABLE_MESSAGE);
+      return;
+    }
+    if (ackPrompt.kind === "ask" && !ackVersion && authType === "oauth2") {
+      setAckPending({ provider, version: ackPrompt.version, authType });
+      setAckOpen(true);
       return;
     }
     const realProvider = resolveProvider(provider);
@@ -782,12 +808,12 @@ export default function IntegrationsPage() {
       {/* Overseas acknowledgement — TikTok for a business in India */}
       <OverseasAckDialog
         version={ackPending?.version ?? ""}
-        open={ackPending !== null}
-        onCancel={() => setAckPending(null)}
+        open={ackOpen}
+        onCancel={() => setAckOpen(false)}
         onConfirm={(version) => {
           const pending = ackPending;
-          setAckPending(null);
-          if (pending) void handleConnect(pending.provider, "oauth2", version);
+          setAckOpen(false);
+          if (pending) void handleConnect(pending.provider, pending.authType, version);
         }}
       />
 

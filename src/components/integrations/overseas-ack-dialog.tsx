@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -31,17 +30,19 @@ export function OverseasAckDialog({
   onConfirm: (version: string) => void;
 }) {
   const copy = overseasAckCopy(version);
+  const bodyId = useId();
 
   // No wording for this version: render nothing rather than a blank warning.
   if (!copy) return null;
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md" aria-describedby={bodyId}>
         {/* DialogContent unmounts on close, so the tick state below resets:
             each connect attempt is its own acceptance. */}
         <AckBody
           copy={copy}
+          bodyId={bodyId}
           version={version}
           onCancel={onCancel}
           onConfirm={onConfirm}
@@ -53,11 +54,13 @@ export function OverseasAckDialog({
 
 function AckBody({
   copy,
+  bodyId,
   version,
   onCancel,
   onConfirm,
 }: {
   copy: OverseasAckCopy;
+  bodyId: string;
   version: string;
   onCancel: () => void;
   onConfirm: (version: string) => void;
@@ -68,11 +71,8 @@ function AckBody({
     <>
       <DialogHeader>
         <DialogTitle>{copy.title}</DialogTitle>
-        <DialogDescription className="sr-only">
-          {copy.body[0]}
-        </DialogDescription>
       </DialogHeader>
-      <div className="space-y-3 text-sm text-muted-foreground">
+      <div id={bodyId} className="space-y-3 text-sm text-muted-foreground">
         {copy.body.map((p) => (
           <p key={p}>{p}</p>
         ))}

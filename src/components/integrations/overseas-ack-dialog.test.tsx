@@ -46,6 +46,13 @@ describe("OverseasAckDialog", () => {
     expect(onConfirm).toHaveBeenCalledWith("tiktok_india_v1");
   });
 
+  it("describes the dialog by its visible body", () => {
+    mount(true);
+    const dlg = document.querySelector('[role="dialog"]')!;
+    const body = document.getElementById(dlg.getAttribute("aria-describedby")!);
+    expect(body?.textContent).toContain("blocked in India since 2020");
+  });
+
   it("Cancel only cancels", () => {
     const { onCancel, onConfirm } = mount(true);
     const cancel = [...document.querySelectorAll("button")].find((b) => b.textContent === "Cancel")!;
