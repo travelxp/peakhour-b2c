@@ -9,6 +9,7 @@ import { ApiError } from "@/lib/api";
 import { adsErrorMessage } from "@/lib/ads-error-message";
 import { googleConversionErrorMessage } from "@/lib/google-conversion-view";
 import { googleAdsApi } from "@/lib/api/google-ads";
+import { enabledGoogleAccounts } from "@/lib/google-ads-accounts";
 import { metaAdsApi } from "@/lib/api/meta-ads";
 import { META_MERCHANT_FACING_CODES } from "@/lib/meta-ads-view";
 import { useSignalActions, useSignalReadiness } from "@/lib/api/growth-v2-signal";
@@ -220,7 +221,8 @@ export function SignalStep({
       .filter((a) => (meta.data?.enabledIds ?? []).includes(a.id))
       .sort((a, b) => Number(b.id === meta.data?.defaultId) - Number(a.id === meta.data?.defaultId))
       .map((a) => ({ id: a.id, name: a.name, currency: a.currency })),
-    google_ads: (google.data?.adAccounts ?? []).map((a) => ({ id: a.id, name: a.name, currency: a.currencyCode })),
+    // Likewise ONLY the enabled ones, the default first (the api refuses a conversion-action write for any other).
+    google_ads: enabledGoogleAccounts(google.data).map((a) => ({ id: a.id, name: a.name, currency: a.currencyCode })),
   };
   // THE ACCOUNT THAT IS SHOWN IS THE ACCOUNT THAT IS USED: a pick that is no longer in the list falls back to the first.
   const chosen: Record<SignalPlatform, string | undefined> = {

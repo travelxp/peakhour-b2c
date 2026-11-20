@@ -8,6 +8,8 @@ import { toast } from "sonner";
 import { Megaphone, Plus, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
+import { CHOOSE_AD_ACCOUNTS } from "@/lib/ad-account-copy";
+import { enabledGoogleAccounts, googleSelectedAccountId } from "@/lib/google-ads-accounts";
 import { AddDriveUrls } from "@/components/drive/add-drive-urls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -203,9 +205,11 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
   const pathname = usePathname();
   const params = useSearchParams();
   const queryAccountId = params.get(ACCOUNT_PARAM);
+  const { business } = useAuth();
 
   const accounts = useQuery({
-    queryKey: ["google-ads-accounts"],
+    // Scoped by business, like Meta's: another business's answer is never served for this one.
+    queryKey: ["google-ads-accounts", business?._id ?? "none"],
     queryFn: () => googleAdsApi.listAdAccounts(),
     retry: false,
     staleTime: LIST_STALE_MS,
@@ -223,16 +227,17 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
     [params, pathname, router],
   );
 
-  // An account with no id cannot be chosen (a Select item may not be empty).
-  const list = accounts.data?.adAccounts.filter((a) => a.id.length > 0);
-  const firstAccountId = list?.[0]?.id;
-  // A `?customer=` that is not in the list is ignored, not trusted.
-  const known = list?.some((a) => a.id === queryAccountId) ? queryAccountId : null;
+  // ★ONLY THE ACCOUNTS THE BUSINESS ENABLED, its default first (MR-G2): the api refuses a write in any other. The login's other
+  // accounts are not offered.
+  const allListed = accounts.data?.adAccounts.filter((a) => a.id.length > 0) ?? [];
+  const list = enabledGoogleAccounts(accounts.data);
+  // A `?customer=` that is not an ENABLED account is ignored, not trusted: the default is shown instead.
+  const accountId = googleSelectedAccountId(list, queryAccountId);
+  const known = list.some((a) => a.id === queryAccountId) ? queryAccountId : null;
   useEffect(() => {
-    if (isActiveChannel && !known && firstAccountId) setAccountParam(firstAccountId);
-  }, [isActiveChannel, known, firstAccountId, setAccountParam]);
-  const accountId = known ?? firstAccountId ?? null;
-  const account = list?.find((a) => a.id === accountId);
+    if (isActiveChannel && !known && accountId) setAccountParam(accountId);
+  }, [isActiveChannel, known, accountId, setAccountParam]);
+  const account = list.find((a) => a.id === accountId);
 
   if (accounts.isLoading) return <SkeletonStack />;
   // A failed read is NOT "no ad accounts".
@@ -246,12 +251,23 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
       />
     );
   }
-  if ((list ?? []).length === 0) {
+  if (allListed.length === 0) {
     return (
       <EmptyState
         icon={Megaphone}
         title="No Google Ads accounts found"
         description="The Google account you connected manages no Google Ads accounts. Create one in Google Ads, then reconnect."
+      />
+    );
+  }
+  // ★NO ENABLED ACCOUNT, NO CONTROLS: nothing here can start spend until the business says which accounts are its own.
+  if (list.length === 0) {
+    return (
+      <EmptyState
+        icon={Megaphone}
+        title="Choose your ad accounts"
+        description={`${CHOOSE_AD_ACCOUNTS} Your Google login reaches more than one.`}
+        action={{ label: "Choose ad accounts", href: "/dashboard/integrations" }}
       />
     );
   }
@@ -265,7 +281,7 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
             <SelectValue placeholder="Choose an account" />
           </SelectTrigger>
           <SelectContent>
-            {(list ?? []).map((a) => (
+            {list.map((a) => (
               <SelectItem key={a.id} value={a.id}>
                 {a.name}
                 {a.currencyCode ? ` (${a.currencyCode})` : ""}

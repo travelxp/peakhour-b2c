@@ -10,6 +10,7 @@
  * account (one is not a choice); never the first of several; a saved choice is never widened.
  */
 import type { QueryClient } from "@tanstack/react-query";
+import { googleBareId, googleIdLine } from "./google-ads-accounts";
 import { metaAdAccountBareId, metaAdAccountIdLine, metaAdAccountStatus } from "./meta-ads-view";
 
 /** One ad account as the connection lists it (`account.extra.adAccounts[]`); the rest of the provider's fields ride along untouched. */
@@ -54,7 +55,37 @@ export const AD_ACCOUNT_FORMATS: Record<string, AdAccountFormat> = {
         client.invalidateQueries({ predicate: (q) => q.queryKey[0] === "growth-v2" && q.queryKey[1] === "signal" && q.queryKey[3] === "meta-accounts" }),
       ]),
   },
+  google_ads: {
+    platformName: "Google Ads",
+    bareId: googleBareId,
+    idLine: googleIdLine,
+    // A listed account is usable (the connection lists only accounts it can use); a test account runs no real ads.
+    health: (a) => (a.testAccount === true ? { warning: "test account" } : a.notAvailable === true ? { blocked: "not available" } : {}),
+    list: (extra) => googleListedAccounts(extra),
+    refresh: (client) =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: ["google-ads-accounts"] }),
+        client.invalidateQueries({ queryKey: ["google-ads-campaigns"] }),
+        // Only the Growth signal step's GOOGLE accounts (["growth-v2", "signal", scope, "google-accounts"]).
+        client.invalidateQueries({ predicate: (q) => q.queryKey[0] === "growth-v2" && q.queryKey[1] === "signal" && q.queryKey[3] === "google-accounts" }),
+      ]),
+  },
 };
+
+/**
+ * The Google Ads accounts a connection lists (`currencyCode` read as `currency`), plus any account the business had enabled that
+ * the connection now cannot use (`extra.blockedAdAccounts`), shown as "not available" so it can be unticked.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function googleListedAccounts(extra: Record<string, any> | undefined): AdAccountRow[] {
+  const listed: AdAccountRow[] = listedAdAccounts(extra).map((a) => ({ ...a, ...(typeof a.currencyCode === "string" && a.currencyCode !== "" ? { currency: a.currencyCode } : {}) }));
+  const stored = new Set<string>((Array.isArray(extra?.adAccountChoice?.enabledIds) ? extra.adAccountChoice.enabledIds : []).filter((x: unknown): x is string => typeof x === "string").map(googleBareId));
+  const have = new Set(listed.map((a) => googleBareId(a.id)));
+  const blocked: AdAccountRow[] = (Array.isArray(extra?.blockedAdAccounts) ? extra.blockedAdAccounts : []).flatMap((b: { id?: unknown }) =>
+    typeof b?.id === "string" && stored.has(googleBareId(b.id)) && !have.has(googleBareId(b.id)) ? [{ id: googleBareId(b.id), notAvailable: true }] : [],
+  );
+  return [...listed, ...blocked];
+}
 
 /** The formatter for an api provider name, or undefined for a provider that has no ad-account choice yet (own keys only). */
 export function adAccountFormat(provider: string): AdAccountFormat | undefined {
