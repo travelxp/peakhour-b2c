@@ -30,7 +30,6 @@ const ALLOWED = new Map<string, string>([
   ["src/components/drive/replace-file.tsx", "Drive's own page: replacing a file in place keeps its address, so it is not 'add a file to a place'"],
   ["src/app/(site)/dashboard/content/sources/components/add-source-drawer.tsx", "an OPML or XML import of feed sources: a list of feeds, not media"],
   ["src/app/(site)/dashboard/integrations/_components/connect-modals.tsx", "the Apple .p8 key: a credential, which must never enter Drive"],
-  ["src/app/(site)/dashboard/ads/_components/meta-campaign-dialogs.tsx", "TEMPORARY: PK-2 moves the Meta ad image onto the picker and removes this entry"],
 ]);
 
 const IMAGE_LINK_ASK = /(?:paste|enter|add|type)\s+(?:an?\s+)?(?:image|photo|picture)\s+(?:url|link|address)|image\s+(?:url|link|address)|https?:\/\/\S*\.(?:jpe?g|png|gif|webp)\b/i;

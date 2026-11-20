@@ -246,6 +246,30 @@ export function metaAdsErrorMessage(err: unknown, fallback: string): string {
   return adsErrorMessage(err, fallback, META_MERCHANT_FACING_CODES);
 }
 
+/**
+ * What to tell the merchant when the ad image upload (`POST /v1/meta-ads/images`) fails, and whether the chosen image must be cleared.
+ * The server reads the file from Drive, so most failures are about the file, the member's role or storage, not about the picture:
+ * "choose another" is said only where another picture would help. `clearImage` is true when the chosen file can never work (gone from
+ * Drive, or not an image Meta takes), so the next press does not resend it.
+ */
+export function adImageUploadFailure(err: unknown): { message: string; clearImage: boolean } {
+  if (err instanceof ApiError) {
+    switch (err.code) {
+      case "IMAGE_TOO_LARGE":
+      case "IMAGE_INVALID":
+        return { message: err.message, clearImage: true };
+      case "NOT_FOUND":
+        return { message: "That image is no longer in your Drive. Choose another one.", clearImage: true };
+      case "FORBIDDEN":
+        return { message: "Using Drive files in ads needs editor access to this business. Ask an owner or admin to change your role.", clearImage: false };
+      case "READ_FAILED":
+      case "PRIVATE_STORAGE_UNAVAILABLE":
+        return { message: "We couldn't read that image from your Drive just now. Try again in a moment.", clearImage: false };
+    }
+  }
+  return { message: metaAdsErrorMessage(err, "Couldn't upload that image. Try again."), clearImage: false };
+}
+
 /** Whether the failure means the connection itself needs attention. */
 export function metaAdsNeedsReconnect(err: unknown): boolean {
   return (
