@@ -80,7 +80,7 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
   const [media, setMedia] = useState<(MetaMedia & { name?: string })[]>([]);
   const [link, setLink] = useState("");
   const [mode, setMode] = useState<"compose" | "schedule">("compose");
-  const [failure, setFailure] = useState<{ message: string; calendar: boolean } | null>(null);
+  const [failure, setFailure] = useState<{ message: string; calendar: boolean; reconnect?: boolean } | null>(null);
   const [done, setDone] = useState<Published | null>(null);
   // The item Publish now has already created. Once it exists the post is on the calendar, so pressing again must NOT make a second one:
   // the screen locks to that post and "Try again" re-sends the same item (see `publishNow`).
@@ -206,6 +206,9 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
     },
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["scheduler:items"] });
+      // The Facebook and Instagram hubs list the account's latest posts under ["meta-content", channel, "posts", id]: refresh them so the
+      // post just made is there when the merchant opens the link below, with no hard reload. (Not on a failed attempt: nothing was posted.)
+      if (!("failed" in res) && channel !== "threads") queryClient.invalidateQueries({ queryKey: ["meta-content", channel, "posts"] });
       if ("failed" in res) {
         setResend(false);
         setFailure({ message: res.failed, calendar: true });
@@ -224,7 +227,9 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
       const created = sentRef.current !== null;
       // 409 is the api saying the item cannot be sent again (queued to retry, already finished, waiting for approval): not something to press again.
       setResend(created && !(err instanceof ApiError && err.status === 409));
-      setFailure({ message, calendar: created });
+      // The api's 409 PUBLISH_PERMISSION_MISSING says Peakhour may not post yet: the fix is on Connected accounts, so point there.
+      const reconnect = err instanceof ApiError && err.code === "PUBLISH_PERMISSION_MISSING";
+      setFailure({ message, calendar: created, ...(reconnect ? { reconnect } : {}) });
     },
   });
 
@@ -298,6 +303,11 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
           {failure ? (
             <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
               {failure.message}{" "}
+              {failure.reconnect ? (
+                <Link href="/dashboard/integrations" className="font-medium underline underline-offset-2 hover:no-underline">
+                  Open {CONNECTED_ACCOUNTS_LABEL}
+                </Link>
+              ) : null}
               {failure.calendar ? (
                 <Link href="/dashboard/calendar" className="font-medium underline underline-offset-2 hover:no-underline">
                   Open the calendar

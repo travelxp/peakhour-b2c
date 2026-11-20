@@ -1,3 +1,4 @@
+import { setQueryParam } from "@/lib/url-query";
 /**
  * Meta capability flattening — turns the single `facebook` connection
  * (which carries Pages, Instagram, Ads, and WhatsApp via capability
@@ -196,14 +197,7 @@ export function metaActionPurpose(info: MetaLoginInfo, provider: string): MetaLo
  *  fragment. Unchanged when `purpose` is undefined. */
 export function withMetaLoginPurpose(path: string, purpose: MetaLoginPurpose | undefined): string {
   if (!purpose) return path;
-  const hashAt = path.indexOf("#");
-  const hash = hashAt >= 0 ? path.slice(hashAt) : "";
-  const beforeHash = hashAt >= 0 ? path.slice(0, hashAt) : path;
-  const queryAt = beforeHash.indexOf("?");
-  const base = queryAt >= 0 ? beforeHash.slice(0, queryAt) : beforeHash;
-  const params = new URLSearchParams(queryAt >= 0 ? beforeHash.slice(queryAt + 1) : "");
-  params.set("purpose", purpose);
-  return `${base}?${params.toString()}${hash}`;
+  return setQueryParam(path, "purpose", purpose);
 }
 
 /**
