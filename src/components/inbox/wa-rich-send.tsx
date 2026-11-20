@@ -13,7 +13,6 @@ import {
   CHECKOUT_NOTE,
   PRODUCT_SEARCH_EMPTY,
   addCheckoutLine,
-  attachmentProblem,
   captionProblem,
   checkoutItems,
   checkoutLineLabel,
@@ -100,14 +99,12 @@ function AttachButton({ disabled, unknownSig, onSend }: { disabled: boolean; unk
   return (
     <>
       <DrivePicker
-        kinds={["image", "document"]}
+        destination={{ kind: "message", channel: "whatsapp" }}
         requirePublicUrl={false}
         needUrl={false}
         // a shopper's photo must not get a public address
         uploadAs="private"
-        maxSelection={1}
         addLabel="Attach"
-        unusable={(f) => attachmentProblem({ type: f.mimeType, size: f.sizeBytes })}
         onSelect={(assets) => {
           const a = assets[0];
           // a refused pick leaves the file already staged (and its caption) as it was

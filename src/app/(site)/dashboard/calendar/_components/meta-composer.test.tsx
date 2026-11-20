@@ -50,6 +50,8 @@ vi.mock("@/components/composer", () => ({
     h.pick.current = onSelect;
     return <button type="button">Drive</button>;
   },
+  // drop and paste are the picker module's own (its test); here the composer only has to be given somewhere to attach them
+  useDropPaste: () => ({ ref: () => undefined, busy: false, dragging: false }),
 }));
 vi.mock("@/lib/api/content", () => ({ rewriteContent: vi.fn() }));
 
