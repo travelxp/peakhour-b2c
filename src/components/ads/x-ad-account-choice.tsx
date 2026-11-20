@@ -40,10 +40,12 @@ export function XAdAccountChoice({ extra, onChanged }: { extra: Record<string, a
   }, [found, onChanged]);
 
   if (hasList) return <AdAccountChoice provider="x_ads" extra={extra} onChanged={onChanged} />;
-  if (live.isPending || live.isFetching) {
+  // ★`isPending` ONLY: a refresh after a save is a refetch, and must not unmount the checklist mid-save.
+  if (live.isPending) {
     return <p className="text-micro text-muted-foreground">Loading your X ad accounts…</p>;
   }
-  if (live.isError) {
+  // ★AND AN ERROR ONLY WHEN THERE IS NOTHING TO SHOW: a failed background refetch keeps the accounts it already has.
+  if (live.isError && !live.data) {
     return (
       <div className="space-y-1" aria-label="Ad accounts">
         <p className="text-micro text-muted-foreground">Couldn&apos;t read your X ad accounts.</p>

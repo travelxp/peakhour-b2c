@@ -16,7 +16,10 @@ import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -201,6 +204,14 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
   }, [isActiveChannel, queryAccountId, preselectId, setAccountParam]);
 
   const accountId = choice.selectedId;
+  // ★A `?account=` THE LOGIN DOES NOT LIST IS REWRITTEN TO THE ACCOUNT SHOWN, so the address bar never names one thing while the
+  // page shows another. Only once the list has loaded (an empty list is not "unlisted"), and only on this channel's own URL.
+  const listedIds = (accounts.data?.accounts ?? []).map((a) => a.id).join(",");
+  useEffect(() => {
+    if (isActiveChannel && accounts.data && queryAccountId && accountId && queryAccountId !== accountId && !listedIds.split(",").includes(queryAccountId)) {
+      setAccountParam(accountId);
+    }
+  }, [isActiveChannel, accounts.data, queryAccountId, accountId, listedIds, setAccountParam]);
   // The selected account is not one this business runs new spend in: pause switches and analytics only.
   const pauseOnly = !choice.selectedEnabled;
 
@@ -335,7 +346,8 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
   // NOT_CONNECTED — as does any upstream X error — both of which used to render
   // as "your X account doesn't have any ad accounts", sending the user to
   // ads.x.com for nothing.
-  if (accounts.isError) {
+  // ★ONLY WHEN THERE IS NOTHING TO SHOW: a failed BACKGROUND refetch keeps the accounts it already has, and the pause switches with them.
+  if (accounts.isError && !accounts.data) {
     return (
       <EmptyState
         icon={RefreshCw}
@@ -381,29 +393,37 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
           <Label className="text-xs uppercase tracking-wide text-muted-foreground">
             Ad account
           </Label>
+          <div className="flex items-center gap-2">
           <Select value={accountId ?? undefined} onValueChange={setAccountParam}>
             <SelectTrigger aria-label="Ad account" className="w-72">
               <SelectValue placeholder="Choose an ad account" />
             </SelectTrigger>
             <SelectContent>
+              {/* The item text is the NAME only, so the closed trigger shows just the name; "Default" is a pill beside it. */}
               {choice.enabled.map((a) => (
                 <SelectItem key={a.id} value={a.id}>
                   {a.name}
-                  {a.id === accounts.data?.defaultId && choice.enabled.length > 1 ? " · default" : ""}
                 </SelectItem>
               ))}
               {choice.others.length > 0 ? (
                 <>
-                  <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Other accounts on your X login</div>
-                  {choice.others.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.name}
-                    </SelectItem>
-                  ))}
+                  {choice.enabled.length > 0 ? <SelectSeparator /> : null}
+                  <SelectGroup>
+                    <SelectLabel>Other accounts on your X login</SelectLabel>
+                    {choice.others.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </>
               ) : null}
             </SelectContent>
           </Select>
+          {accountId !== null && accountId === accounts.data?.defaultId && choice.enabled.length > 1 ? (
+            <Badge variant="secondary">Default</Badge>
+          ) : null}
+          </div>
         </div>
         {accountId && !pauseOnly && (
           // Keyed by account: switching accounts remounts the dialog, so no
@@ -493,7 +513,7 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
               <EmptyState
                 icon={Megaphone}
                 title="No campaigns yet"
-                description="Create your first campaign to start promoting tweets."
+                description={pauseOnly ? "Nothing is running in this account." : "Create your first campaign to start promoting tweets."}
               />
             </div>
           ) : (
@@ -530,10 +550,12 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
         </CardContent>
       </Card>
 
-      <p className="text-xs text-muted-foreground">
-        Drilldowns into line items, promoted tweets, and per-campaign analytics
-        are coming. Pause/resume and campaign creation are live.
-      </p>
+      {pauseOnly ? null : (
+        <p className="text-xs text-muted-foreground">
+          Drilldowns into line items, promoted tweets, and per-campaign analytics
+          are coming. Pause/resume and campaign creation are live.
+        </p>
+      )}
     </div>
   );
 }
@@ -774,7 +796,7 @@ function CreateCampaignDialog({
             {/* The whole line follows the settled amount, so the number and its "(about ...)" always agree and nothing flickers. */}
             {fundingCurrency && settledDollars !== null && settledDollars > 0 ? (
               <p className="text-xs text-muted-foreground" role="status">
-                {dailyBudgetLine(settledDollars, fundingCurrency, planBudget.data, formatMoneyOrNumber)}
+                {dailyBudgetLine(settledDollars, fundingCurrency, planBudget.isPlaceholderData ? undefined : planBudget.data, formatMoneyOrNumber)}
               </p>
             ) : null}
           </div>
