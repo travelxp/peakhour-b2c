@@ -32,6 +32,7 @@ import { takesLine, useMediaRule, type MediaDestination } from "@/lib/media-rule
 
 /** Where the ad image goes: one place, so the picker, the hint and the server's rule are the same row. */
 const AD_IMAGE: MediaDestination = { kind: "ad", placement: "meta_ad_image" };
+import { PAUSE_ONLY_NOTICE } from "@/lib/ad-account-copy";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   MetaLaunchError,
@@ -507,12 +508,9 @@ export function NewCampaignDialog({
 export function EditCampaignButton({
   account,
   campaign,
-  lowerOnly = false,
 }: {
   account: MetaAdAccount;
   campaign: MetaCampaign;
-  /** An ad account the business has not enabled (MR-G4): the budget can only be lowered, nothing else is editable. */
-  lowerOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -521,38 +519,66 @@ export function EditCampaignButton({
         variant="ghost"
         size="icon"
         className="size-7"
-        aria-label={`${lowerOnly ? "Lower budget of campaign" : "Edit campaign"} ${campaign.name}`}
+        aria-label={`Edit campaign ${campaign.name}`}
         onClick={() => setOpen(true)}
       >
         <Pencil className="size-3.5" />
       </Button>
-      {open ? (
-        lowerOnly ? (
-          <LowerBudgetSheet account={account} campaign={campaign} onClose={() => setOpen(false)} />
-        ) : (
-          <EditCampaignSheet account={account} campaign={campaign} onClose={() => setOpen(false)} />
-        )
-      ) : null}
+      {open ? <EditCampaignSheet account={account} campaign={campaign} onClose={() => setOpen(false)} /> : null}
     </>
   );
 }
 
-/** ★PAUSE-ONLY ACCOUNTS (MR-G4): the budget, lowered. No name, no ad sets, no raise: the api refuses all of them there too. */
+/**
+ * ★PAUSE-ONLY ACCOUNTS (MR-G4): ONE sheet, for a campaign or an ad set that has a budget of its own: that budget, lowered. No name, no
+ * audience, no raise: the api refuses all of them there too (it compares the SAME budget type against Meta's live figure).
+ */
+export function LowerBudgetButton({
+  account,
+  level,
+  node,
+}: {
+  account: MetaAdAccount;
+  level: "campaign" | "ad set";
+  node: { id: string; name: string; dailyBudget?: string; lifetimeBudget?: string };
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-7"
+        aria-label={`Lower budget of ${level} ${node.name}`}
+        onClick={() => setOpen(true)}
+      >
+        <Pencil className="size-3.5" />
+      </Button>
+      {open ? <LowerBudgetSheet account={account} level={level} node={node} onClose={() => setOpen(false)} /> : null}
+    </>
+  );
+}
+
 function LowerBudgetSheet({
   account,
-  campaign,
+  level,
+  node,
   onClose,
 }: {
   account: MetaAdAccount;
-  campaign: MetaCampaign;
+  level: "campaign" | "ad set";
+  node: { id: string; name: string; dailyBudget?: string; lifetimeBudget?: string };
   onClose: () => void;
 }) {
   const refresh = useRefreshAds(account.id);
-  const key = budgetKey(campaign);
-  const [budget, setBudget] = useState(metaMinorToInput(key ? campaign[key] : undefined, account.currency));
+  const key = budgetKey(node);
+  const [budget, setBudget] = useState(metaMinorToInput(key ? node[key] : undefined, account.currency));
   const [error, setError] = useState<string | null>(null);
   const save = useMutation({
-    mutationFn: (body: MetaCampaignEdit) => metaAdsApi.editCampaign(campaign.id, body),
+    mutationFn: async (body: MetaCampaignEdit) => {
+      if (level === "campaign") await metaAdsApi.editCampaign(node.id, body);
+      else await metaAdsApi.editAdSet(node.id, body);
+    },
     onSuccess: () => {
       refresh();
       toast.success("Budget lowered.");
@@ -562,7 +588,7 @@ function LowerBudgetSheet({
   });
   const submit = () => {
     setError(null);
-    const body = buildBudgetCut(campaign, budget, account.currency);
+    const body = buildBudgetCut(node, budget, account.currency);
     if (body === null) {
       onClose();
       return;
@@ -578,10 +604,10 @@ function LowerBudgetSheet({
       <SheetContent className="w-full overflow-y-auto sm:max-w-md">
         <SheetHeader>
           <SheetTitle>Lower budget</SheetTitle>
-          <SheetDescription>Peakhour does not run new spend in this account. You can pause or lower what is running.</SheetDescription>
+          <SheetDescription>{PAUSE_ONLY_NOTICE}</SheetDescription>
         </SheetHeader>
         <div className="space-y-3 px-4">
-          <p className="text-sm font-medium">{campaign.name}</p>
+          <p className="text-sm font-medium">{node.name}</p>
           <div className="space-y-1.5">
             <Label htmlFor="lb-budget">
               {key === "dailyBudget" ? "Daily budget" : "Total budget"} ({account.currency})

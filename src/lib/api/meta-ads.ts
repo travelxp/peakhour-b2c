@@ -58,6 +58,8 @@ export interface MetaAdAccountsResponse {
   enabledAccounts: MetaEnabledAdAccount[];
   enabledIds: string[];
   defaultId: string | null;
+  /** The listed accounts this connection knows (the api's allowlist). Absent from an older api: every listed account is then taken as known. */
+  knownIds?: string[];
 }
 
 export interface MetaCampaign {

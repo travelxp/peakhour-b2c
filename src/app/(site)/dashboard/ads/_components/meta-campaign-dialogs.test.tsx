@@ -60,7 +60,7 @@ vi.mock("@/components/drive/drive-picker", () => ({
 
 import { ApiError } from "@/lib/api";
 import { MetaLaunchError, type MetaAdAccount, type MetaCampaign } from "@/lib/api/meta-ads";
-import { EditCampaignButton, NewCampaignDialog } from "./meta-campaign-dialogs";
+import { EditCampaignButton, LowerBudgetButton, NewCampaignDialog } from "./meta-campaign-dialogs";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -549,7 +549,7 @@ describe("Lower budget sheet (an ad account the business has not enabled, MR-G4)
   };
   const open = async () => {
     mocks.editCampaign.mockResolvedValue({ campaign: null });
-    mount(<EditCampaignButton account={ACCOUNT} campaign={CAMPAIGN} lowerOnly />);
+    mount(<LowerBudgetButton account={ACCOUNT} level="campaign" node={CAMPAIGN} />);
     click(q('button[aria-label="Lower budget of campaign Running sale"]'));
     await flush();
   };
@@ -573,5 +573,29 @@ describe("Lower budget sheet (an ad account the business has not enabled, MR-G4)
     click(byText("button", "Lower budget"));
     await flush();
     expect(mocks.editCampaign).toHaveBeenCalledWith("c1", { dailyBudget: "1000" });
+  });
+
+  it("a lifetime-budget campaign sends the lifetime field only, and the label says Total budget", async () => {
+    mocks.editCampaign.mockResolvedValue({ campaign: null });
+    mount(<LowerBudgetButton account={ACCOUNT} level="campaign" node={{ ...CAMPAIGN, dailyBudget: undefined, lifetimeBudget: "100000" }} />);
+    click(q('button[aria-label="Lower budget of campaign Running sale"]'));
+    await flush();
+    expect(byText("label", /Total budget/)).toBeTruthy();
+    setValue(q<HTMLInputElement>("#lb-budget")!, "400");
+    click(byText("button", "Lower budget"));
+    await flush();
+    expect(mocks.editCampaign).toHaveBeenCalledWith("c1", { lifetimeBudget: "40000" });
+  });
+
+  it("an AD SET's own budget is lowered through the ad-set route", async () => {
+    mocks.editAdSet.mockResolvedValue({ adSet: null });
+    mount(<LowerBudgetButton account={ACCOUNT} level="ad set" node={{ id: "s1", name: "Set one", dailyBudget: "5000" }} />);
+    click(q('button[aria-label="Lower budget of ad set Set one"]'));
+    await flush();
+    setValue(q<HTMLInputElement>("#lb-budget")!, "20");
+    click(byText("button", "Lower budget"));
+    await flush();
+    expect(mocks.editAdSet).toHaveBeenCalledWith("s1", { dailyBudget: "2000" });
+    expect(mocks.editCampaign).not.toHaveBeenCalled();
   });
 });

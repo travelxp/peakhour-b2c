@@ -1,6 +1,6 @@
 "use client";
 
-import { CHOOSE_AD_ACCOUNTS } from "@/lib/ad-account-copy";
+import { CHOOSE_AD_ACCOUNTS, PAUSE_ONLY_NOTICE } from "@/lib/ad-account-copy";
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -59,7 +59,8 @@ import {
   sumReported,
   type MetaKpiState,
 } from "@/lib/meta-ads-view";
-import { EditCampaignButton, NewCampaignDialog } from "./meta-campaign-dialogs";
+import { EditCampaignButton, LowerBudgetButton, NewCampaignDialog } from "./meta-campaign-dialogs";
+import { budgetKey } from "@/lib/meta-ads-form";
 import { getAdsChannel, panelConnection } from "../ads-channels";
 
 /**
@@ -188,12 +189,17 @@ function ReconnectBanner() {
 /**
  * ★A BUSINESS MAY USE SEVERAL AD ACCOUNTS (MR-F2). They are the ones the merchant ticked under Connected accounts, and the
  * api reports them (`enabledIds`, `defaultId`): a Meta login lists other businesses' accounts too, and none of those is
- * ever shown or offered here. There is no `?adAccount=` in the URL. The filter narrows the LIST; it is not what a campaign
+ * ever offered here to start spend in. There is no `?adAccount=` in the URL. The filter narrows the LIST; it is not what a campaign
  * is created in (the New campaign dialog has its own Ad account choice) and the api refuses a create or edit in any
  * account the business has not enabled.
  *
- * With nothing enabled (two or more listed and none ticked) there is no account to act on: the panel says so, points to
- * Connected accounts, and renders no New campaign, Edit or status switch.
+ * ★THE LOGIN'S OTHER ACCOUNTS (MR-G4) are listed apart in the filter ("Other accounts on your Meta login") and open PAUSE-ONLY: a
+ * running campaign there can be paused or have its budget lowered, nothing else. Only accounts the CONNECTION knows (`knownIds`) are
+ * offered; one Meta lists that the connection has not discovered yet is named under "New on your Meta login" with no controls.
+ *
+ * With nothing enabled (two or more listed and none ticked) the panel says so and points to Connected accounts, renders no New
+ * campaign, and loads NOTHING until the merchant picks one of the login's accounts from the filter (then it is pause-only).
+ * A failed REFETCH never hides what is already on screen: an error replaces a section only when it has no data of its own.
  */
 function ConnectedView() {
   const { business } = useAuth();
@@ -214,8 +220,12 @@ function ConnectedView() {
   // Live account objects (they carry the time zone), in the business's order, limited to the enabled ones still on the login.
   const enabled = enabledIds.flatMap((id) => list.filter((a) => a.id === id));
   // The login's accounts the business has NOT ticked (and has not lost): listed apart, pause-only.
-  const chosenIds = new Set([...enabledIds, ...(accounts.data?.enabledAccounts ?? []).map((a) => a.id)]);
-  const others = list.filter((a) => !chosenIds.has(a.id));
+  const chosenBare = new Set((accounts.data?.enabledAccounts ?? []).map((a) => metaAdAccountBareId(a.id)));
+  const knownBare = accounts.data?.knownIds ? new Set(accounts.data.knownIds.map(metaAdAccountBareId)) : null;
+  const notChosen = list.filter((a) => !chosenBare.has(metaAdAccountBareId(a.id)));
+  const others = notChosen.filter((a) => !knownBare || knownBare.has(metaAdAccountBareId(a.id)));
+  // Meta lists them, this connection has not discovered them yet: nothing can be done to them until the connection is refreshed.
+  const newOnLogin = notChosen.filter((a) => knownBare && !knownBare.has(metaAdAccountBareId(a.id)));
   const missingCount = (accounts.data?.enabledAccounts ?? []).filter((a) => a.missing).length;
   // The business chose accounts and the login has lost every one of them: not the same as never having chosen.
   const allChosenMissing = enabled.length === 0 && (accounts.data?.enabledAccounts?.length ?? 0) > 0 && missingCount === (accounts.data?.enabledAccounts?.length ?? 0);
@@ -223,7 +233,7 @@ function ConnectedView() {
   if (accounts.isLoading) return <SkeletonStack />;
 
   // A failed read is NOT "no ad accounts" — the trap X's panel records.
-  if (accounts.isError) {
+  if (accounts.isError && !accounts.data) {
     return (
       <EmptyState
         icon={RefreshCw}
@@ -271,29 +281,34 @@ function ConnectedView() {
       />
     )
   ) : null;
-  if (noneEnabled && others.length === 0) return notice;
+  if (noneEnabled && others.length === 0 && newOnLogin.length === 0) return notice;
 
   // The business's DEFAULT account is selected first ("All accounts" stays as an option, listed first); with one enabled account
-  // it is the selection. A stale choice falls back to the same rule. With nothing enabled the first other account is shown.
+  // it is the selection. A stale choice falls back to the same rule. With nothing enabled none is selected: nothing loads until one is picked.
   const defaultId = accounts.data?.defaultId ?? null;
   const defaultFilter = noneEnabled
-    ? others[0]!.id
+    ? ""
     : enabled.length === 1
       ? enabled[0]!.id
       : defaultId && enabled.some((a) => a.id === defaultId)
         ? defaultId
         : ALL_ACCOUNTS;
   const filter =
-    (chosenFilter === ALL_ACCOUNTS && enabled.length > 1) || enabled.some((a) => a.id === chosenFilter) || others.some((a) => a.id === chosenFilter)
+    (chosenFilter === ALL_ACCOUNTS && enabled.length > 1) || enabled.some((a) => a.id === chosenFilter) || others.some((a) => metaAdAccountBareId(a.id) === metaAdAccountBareId(chosenFilter))
       ? chosenFilter
       : defaultFilter;
   // An account the business has not enabled: its campaigns open PAUSE-ONLY (pause, or lower the budget).
-  const pauseOnlyAccount = others.find((a) => a.id === filter);
+  const pauseOnlyAccount = others.find((a) => metaAdAccountBareId(a.id) === metaAdAccountBareId(filter));
   const shown = pauseOnlyAccount ? [] : filter === ALL_ACCOUNTS ? enabled : enabled.filter((a) => a.id === filter);
 
   return (
     <div className="space-y-6">
       {notice}
+      {accounts.isError ? (
+        <p role="status" className="text-xs text-warning-on-tint">
+          Couldn&apos;t refresh your ad accounts just now. Showing what was loaded before.
+        </p>
+      ) : null}
       <Card aria-label="Ad accounts">
         <CardContent className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 p-4 text-sm">
           <div className="space-y-1">
@@ -301,9 +316,9 @@ function ConnectedView() {
               Ad accounts{business?.name ? ` for ${business.name}` : ""}
             </p>
             {enabled.length > 1 || others.length > 0 ? (
-              <Select value={filter} onValueChange={setChosenFilter}>
+              <Select value={filter || undefined} onValueChange={setChosenFilter}>
                 <SelectTrigger aria-label="Ad account filter" className="w-80">
-                  <SelectValue />
+                  <SelectValue placeholder="Choose an account to pause or lower" />
                 </SelectTrigger>
                 <SelectContent>
                   {enabled.length > 1 ? <SelectItem value={ALL_ACCOUNTS}>All accounts</SelectItem> : null}
@@ -325,9 +340,9 @@ function ConnectedView() {
                   ) : null}
                 </SelectContent>
               </Select>
-            ) : (
-              <p className="font-medium">{metaAdAccountOptionLabel(enabled[0]!)}</p>
-            )}
+            ) : enabled[0] ? (
+              <p className="font-medium">{metaAdAccountOptionLabel(enabled[0])}</p>
+            ) : null}
             {missingCount > 0 ? (
               <p role="status" className="text-xs text-warning-on-tint">
                 {missingCount === 1
@@ -338,11 +353,11 @@ function ConnectedView() {
             ) : null}
           </div>
           <div className="flex items-center gap-4">
-            {noneEnabled || pauseOnlyAccount ? null : (
+            {noneEnabled ? null : (
               <NewCampaignDialog
                 accounts={enabled}
                 defaultAccountId={defaultId}
-                initialAccountId={filter === ALL_ACCOUNTS ? null : filter}
+                initialAccountId={filter === ALL_ACCOUNTS || pauseOnlyAccount ? null : filter}
                 onCreated={(campaignId, accountId) => {
                   setJustCreated((prev) => new Set(prev).add(campaignId));
                   // Created in another account than the one filtered to: show that account, or the new campaign is nowhere to be seen.
@@ -357,10 +372,18 @@ function ConnectedView() {
         </CardContent>
       </Card>
 
+      {newOnLogin.length > 0 ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          New on your Meta login: {newOnLogin.map((a) => metaAdAccountOptionLabel(a)).join(", ")}. Refresh your connection to manage {newOnLogin.length === 1 ? "it" : "them"}.{" "}
+          <Link href="/dashboard/integrations" className="font-medium underline underline-offset-4">
+            Open Connected accounts
+          </Link>
+        </p>
+      ) : null}
       {pauseOnlyAccount ? (
         <>
-          <p className="text-sm text-muted-foreground">Peakhour does not run new spend in this account. You can pause or lower what is running.</p>
-          <CampaignsSection key={`pause-${pauseOnlyAccount.id}`} account={pauseOnlyAccount} autoOpen={justCreated} showAccountLine={false} pauseOnly />
+          <p className="text-sm text-muted-foreground">{PAUSE_ONLY_NOTICE}</p>
+          <CampaignsSection key={`pause-${pauseOnlyAccount.id}`} account={pauseOnlyAccount} showAccountLine={false} pauseOnly />
         </>
       ) : null}
       {shown.map((account) => (
@@ -376,6 +399,9 @@ function ConnectedView() {
   );
 }
 
+/** No campaign opens by itself (a pause-only section has no create). */
+const NO_AUTO_OPEN: ReadonlySet<string> = new Set();
+
 /** The filter's value for "every enabled account". */
 const ALL_ACCOUNTS = "all";
 
@@ -383,13 +409,13 @@ const ALL_ACCOUNTS = "all";
 
 function CampaignsSection({
   account,
-  autoOpen,
+  autoOpen = NO_AUTO_OPEN,
   showAccountLine,
   pauseOnly = false,
 }: {
   account: MetaAdAccount;
   /** Campaigns just created in this session: opened. */
-  autoOpen: ReadonlySet<string>;
+  autoOpen?: ReadonlySet<string>;
   /** More than one account is enabled, so each campaign says which account it is in. */
   showAccountLine: boolean;
   /** An ad account the business has not enabled: only pause and a lower budget (MR-G4). */
@@ -462,7 +488,7 @@ function CampaignsSection({
   //  `metaKpiState` for why `insights.isLoading` alone claimed Meta had reported nothing.
   const kpiState = metaKpiState({
     campaignsPending: campaigns.isPending,
-    campaignsError: campaigns.isError,
+    campaignsError: campaigns.isError && !campaigns.data,
     campaignCount: campaignIds.length,
     insightsPending: insights.isPending,
     insightsError: insights.isError,
@@ -494,7 +520,7 @@ function CampaignsSection({
             <div className="p-5">
               <Skeleton className="h-48 w-full" />
             </div>
-          ) : campaigns.isError ? (
+          ) : campaigns.isError && !campaigns.data ? (
             <div className="p-8">
               <EmptyState
                 icon={RefreshCw}
@@ -546,8 +572,10 @@ function CampaignsSection({
                         note={null}
                         accountLine={showAccountLine ? `${account.name} (${metaAdAccountShortId(account.id)})` : undefined}
                         editor={
-                          metaStatusToggle(c.status) && (!pauseOnly || c.dailyBudget || c.lifetimeBudget) ? (
-                            <EditCampaignButton account={account} campaign={c} lowerOnly={pauseOnly} />
+                          pauseOnly ? (
+                            metaStatusToggle(c.status) && budgetKey(c) !== null ? <LowerBudgetButton account={account} level="campaign" node={c} /> : undefined
+                          ) : metaStatusToggle(c.status) ? (
+                            <EditCampaignButton account={account} campaign={c} />
                           ) : undefined
                         }
                         pauseOnly={pauseOnly}
@@ -574,6 +602,13 @@ function CampaignsSection({
           )}
         </CardContent>
       </Card>
+
+      {campaigns.isError && campaigns.data ? (
+        // A failed REFETCH keeps the list (and its pause switches) on screen: what was loaded is still what Meta last said.
+        <p className="text-xs text-warning-on-tint" role="status">
+          Couldn&apos;t refresh this account&apos;s campaigns just now. Showing what was loaded before.
+        </p>
+      ) : null}
 
       {campaigns.data?.truncated === true ? (
         // ⚠️#571 R2.1: this notice speaks for the LIST only. It said the totals
@@ -615,7 +650,7 @@ function AdSetRows({
   });
 
   if (adSets.isLoading) return <MessageRow depth={1} text="Loading ad sets…" />;
-  if (adSets.isError) {
+  if (adSets.isError && !adSets.data) {
     return <MessageRow depth={1} text={metaAdsErrorMessage(adSets.error, "Couldn't load this campaign's ad sets.")} />;
   }
   const list = adSets.data?.adSets ?? [];
@@ -623,6 +658,7 @@ function AdSetRows({
 
   return (
     <>
+      {adSets.isError ? <MessageRow depth={1} text="Couldn't refresh these ad sets just now. Showing what was loaded before." /> : null}
       {adSets.data?.truncated === true ? (
         <MessageRow depth={1} text={`Showing the first ${list.length} ad sets — this campaign has more.`} />
       ) : null}
@@ -646,6 +682,7 @@ function AdSetRows({
                   return next;
                 })
               }
+              editor={pauseOnly && metaStatusToggle(s.status) && budgetKey(s) !== null ? <LowerBudgetButton account={account} level="ad set" node={s} /> : undefined}
               pending={pendingId === s.id}
               pauseOnly={pauseOnly}
               onToggle={(st) => onToggle("adSet", s.id, st)}
@@ -681,12 +718,13 @@ function AdRows({
   });
 
   if (ads.isLoading) return <MessageRow depth={2} text="Loading ads…" />;
-  if (ads.isError) return <MessageRow depth={2} text={metaAdsErrorMessage(ads.error, "Couldn't load this ad set's ads.")} />;
+  if (ads.isError && !ads.data) return <MessageRow depth={2} text={metaAdsErrorMessage(ads.error, "Couldn't load this ad set's ads.")} />;
   const list = ads.data?.ads ?? [];
   if (list.length === 0) return <MessageRow depth={2} text="No ads in this ad set yet — it cannot serve." />;
 
   return (
     <>
+      {ads.isError ? <MessageRow depth={2} text="Couldn't refresh these ads just now. Showing what was loaded before." /> : null}
       {ads.data?.truncated === true ? (
         <MessageRow depth={2} text={`Showing the first ${list.length} ads — this ad set has more.`} />
       ) : null}
