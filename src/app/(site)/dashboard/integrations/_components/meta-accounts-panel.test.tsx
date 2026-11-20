@@ -111,7 +111,7 @@ describe("MetaAccountsPanel", () => {
     expect(pages).toContain("Other: No Instagram linked");
     // one ad account: a line, no picker
     // the name on its own line, then the full account number and currency
-    expect(container.querySelector('[aria-label="Ad accounts"]')!.textContent).toContain("Acme AdsAccount ID 9 · INR");
+    expect(container.querySelector('[aria-label="Ad accounts"]')!.textContent).toContain("Acme Ads, Account ID 9 · INR");
     expect(container.querySelectorAll("select")).toHaveLength(1);
   });
 
@@ -215,7 +215,9 @@ describe("MetaAccountsPanel", () => {
 
 describe("MetaAccountsPanel ad accounts checklist", () => {
   const box = (id: string) => container.querySelector(`[id$="-ad-${id}"]`) as HTMLInputElement;
-  const radio = (name: string) => container.querySelector(`input[aria-label="Default: ${name}"]`) as HTMLInputElement;
+  // The default control is named by its visible words plus the account ("Make default for CMPL").
+  const radio = (name: string) =>
+    [...container.querySelectorAll('input[type="radio"]')].find((r) => r.closest("label")?.textContent?.endsWith(` for ${name}`)) as HTMLInputElement;
   const saveButton = () => [...container.querySelectorAll("button")].find((x) => x.textContent?.includes("Save ad accounts")) as HTMLButtonElement;
   const click = async (el: HTMLElement) => {
     await act(async () => {
@@ -230,9 +232,9 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
     expect(container.textContent).toContain("Choose the ad accounts this business may use before creating campaigns.");
     const labels = [...container.querySelectorAll('[aria-label="Ad accounts"] li label:first-of-type')].map((l) => l.textContent);
     expect(labels).toEqual([
-      "Quests TravelAccount ID 1111 · INR",
-      "CMPLAccount ID 2222 · USD",
-      "Old AdsAccount ID 3333 · USDDisabled on Meta",
+      "Quests Travel, Account ID 1111 · INR",
+      "CMPL, Account ID 2222 · USD",
+      "Old Ads, Account ID 3333 · USD, Disabled on Meta",
     ]);
     expect(TWO_ADS.map((a) => box(a.id).checked)).toEqual([false, false, false]);
     expect(saveButton().disabled).toBe(true);
@@ -299,11 +301,22 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
     expect(container.textContent).not.toContain("Ad accounts Peakhour may use");
   });
 
+  it("one saved account that Meta now flags still shows its status", () => {
+    mount({ ...EXTRA, adAccounts: [{ id: "act_9", name: "Acme Ads", currency: "INR", status: 3 }], metaAdAccounts: { enabledIds: ["act_9"], defaultId: "act_9" } });
+    expect(container.querySelector('[aria-label="Ad accounts"]')!.textContent).toContain("Acme Ads, Account ID 9 · INR, Payment issue");
+  });
+
+  it("the default pill reads what it does, and an unticked account is never shown or announced as the default", () => {
+    mount({ ...EXTRA, adAccounts: TWO_ADS, metaAdAccounts: { enabledIds: ["act_1111"], defaultId: "act_2222" } });
+    expect(radio("CMPL").checked).toBe(false);
+    expect(radio("CMPL").closest("label")!.textContent).toBe("Make default for CMPL");
+  });
+
   it("a disabled or closed account is shown and cannot be ticked", () => {
     mount({ ...EXTRA, adAccounts: [...TWO_ADS, { id: "act_4444", name: "Gone", currency: "USD", status: 101 }] });
     expect(box("act_3333").disabled).toBe(true);
     expect(box("act_4444").disabled).toBe(true);
-    expect(container.textContent).toContain("GoneAccount ID 4444 · USDClosed on Meta");
+    expect(container.textContent).toContain("Gone, Account ID 4444 · USD, Closed on Meta");
     expect(box("act_1111").disabled).toBe(false);
   });
 

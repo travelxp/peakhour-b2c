@@ -7,7 +7,7 @@ import { toast } from "sonner";
 
 import { api, ApiError } from "@/lib/api";
 import { savedMetaAdAccounts, savedMetaPageId } from "@/lib/integrations-meta";
-import { META_CHOOSE_AD_ACCOUNT, metaAdAccountBareId, metaAdAccountStatus } from "@/lib/meta-ads-view";
+import { META_CHOOSE_AD_ACCOUNT, metaAdAccountIdLine, metaAdAccountStatus } from "@/lib/meta-ads-view";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CountryPicker } from "@/components/ads/country-picker";
@@ -262,13 +262,15 @@ export function MetaAdAccountPicker({
         // checklist below, so it can be enabled.
         <div className="rounded-lg border border-border px-3 py-2.5">
           <AdAccountIdentity account={adAccounts[0]!} />
+          <AdAccountStatusBadge status={adAccounts[0]!.status} ticked />
         </div>
       ) : (
         <>
           <ul className="space-y-2">
             {adAccounts.map((a) => {
-              const { blocked, warning } = metaAdAccountStatus(a.status);
+              const { blocked } = metaAdAccountStatus(a.status);
               const ticked = ids.includes(a.id);
+              // ONE expression drives the radio and the pill, so what is announced is what is shown.
               const isDefault = ticked && defaultId === a.id;
               return (
                 <li
@@ -291,34 +293,27 @@ export function MetaAdAccountPicker({
                     />
                     <label htmlFor={`${uid}-ad-${a.id}`} className="min-w-0 flex-1 cursor-pointer">
                       <AdAccountIdentity account={a} />
-                      {blocked ? (
-                        <span className="mt-1 inline-block rounded-md border border-destructive/30 bg-destructive/10 px-1.5 py-0.5 text-micro text-destructive-on-tint">
-                          {blocked === "disabled" ? "Disabled on Meta" : "Closed on Meta"}
-                          {ticked ? ", untick to save" : ""}
-                        </span>
-                      ) : warning ? (
-                        <span className="mt-1 inline-block rounded-md border border-warning/30 bg-warning/10 px-1.5 py-0.5 text-micro text-warning-on-tint">
-                          {warning.charAt(0).toUpperCase() + warning.slice(1)}
-                        </span>
-                      ) : null}
+                      <AdAccountStatusBadge status={a.status} ticked={ticked} />
                     </label>
                     <label
                       className={cn(
-                        "flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs",
+                        // `relative` keeps the visually hidden radio inside the pill; focus and disabled are read off the input itself.
+                        "relative flex min-h-10 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-xs",
+                        "has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/50",
+                        "has-[:disabled]:cursor-not-allowed has-[:disabled:not(:checked)]:opacity-50",
                         isDefault ? "border-primary bg-primary text-primary-foreground" : "border-input text-muted-foreground",
-                        (!ticked || !!blocked) && "cursor-not-allowed opacity-50",
                       )}
                     >
                       <input
                         type="radio"
                         className="sr-only"
                         name={`${uid}-default-ad-account`}
-                        aria-label={`Default: ${a.name || a.id}`}
-                        checked={defaultId === a.id}
+                        checked={isDefault}
                         disabled={saving || !ticked || !!blocked}
                         onChange={() => setDraft({ ids, defaultId: a.id })}
                       />
                       {isDefault ? "Default" : "Make default"}
+                      <span className="sr-only"> for {a.name || "this ad account"}</span>
                     </label>
                   </div>
                   {ticked ? (
@@ -375,10 +370,26 @@ function AdAccountIdentity({ account }: { account: MetaAdAccountRow }) {
   return (
     <span className="block min-w-0">
       <span className="block break-words text-sm font-medium leading-snug text-foreground">{account.name || "Ad account"}</span>
-      <span className="mt-0.5 block text-xs text-muted-foreground">
-        Account ID <span className="font-mono tabular-nums text-foreground/80">{metaAdAccountBareId(account.id)}</span>
-        {account.currency ? <> · {account.currency}</> : null}
-      </span>
+      {/* A separator for anything that reads the label as one string (a screen reader's accessible name). */}
+      <span className="sr-only">, </span>
+      <span className="mt-0.5 block break-words font-mono text-xs tabular-nums text-muted-foreground">{metaAdAccountIdLine(account)}</span>
+    </span>
+  );
+}
+
+/** Meta's word for an account that is not simply active, as a badge under its identity; nothing when it is active. */
+function AdAccountStatusBadge({ status, ticked }: { status: number | undefined; ticked: boolean }) {
+  const { blocked, warning } = metaAdAccountStatus(status);
+  if (!blocked && !warning) return null;
+  return (
+    <span
+      className={cn(
+        "mt-1 inline-block rounded-md border px-1.5 py-0.5 text-micro",
+        blocked ? "border-destructive/30 bg-destructive/10 text-destructive-on-tint" : "border-warning/30 bg-warning/10 text-warning-on-tint",
+      )}
+    >
+      <span className="sr-only">, </span>
+      {blocked ? `${blocked === "disabled" ? "Disabled" : "Closed"} on Meta${ticked ? ", untick to save" : ""}` : warning!.charAt(0).toUpperCase() + warning!.slice(1)}
     </span>
   );
 }
