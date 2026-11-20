@@ -5,8 +5,9 @@
  * namespace they share one cookie slot and a browser signed in to both bounces between them.
  *
  * The rule, the same in peakhour-api, peakhour-cms and peakhour-b2c (they must agree, or one app writes a
- * cookie the others never read): every dev deployment, master and PR previews alike, runs with
- * VERCEL_ENV="preview" and gets a `dev_` prefix; production and local runs keep the bare names.
+ * cookie the others never read): every preview deployment (dev master, and the staging and feature-N branch
+ * stacks) runs with VERCEL_ENV="preview" and gets a `dev_` prefix; production and local runs keep the bare
+ * names. The preview stacks share the `dev_` slot with each other, as they shared the bare one before.
  * VERCEL_ENV is set by Vercel on every deployment, so there is no setting to forget.
  *
  * Pure (process.env + string ops), so it is safe to import into the Edge middleware; Vercel exposes
