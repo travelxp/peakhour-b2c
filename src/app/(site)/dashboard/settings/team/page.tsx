@@ -80,10 +80,14 @@ export default function TeamPage() {
   const { formatDate } = useLocale();
   const currentRole = orgs.find((o) => o._id === org?._id)?.role || "viewer";
   // Owner and Admin manage the team: invite, revoke, change roles, remove.
-  // The api refuses the owner's row and your own, so the menu is not shown there.
+  // The api refuses the org owner's row and your own for everyone, and a
+  // co-owner row (role "owner") for an admin, so the menu is not shown there.
   const isAdmin = currentRole === "admin" || currentRole === "owner";
   const canManage = (m: TeamMember) =>
-    isAdmin && !m.isOwner && m.role !== "owner" && m.userId !== user?._id;
+    isAdmin &&
+    !m.isOwner &&
+    (m.role !== "owner" || currentRole === "owner") &&
+    m.userId !== user?._id;
 
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invites, setInvites] = useState<PendingInvite[]>([]);
