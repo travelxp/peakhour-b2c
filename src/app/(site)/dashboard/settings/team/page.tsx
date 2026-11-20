@@ -87,7 +87,8 @@ export default function TeamPage() {
     isAdmin &&
     !m.isOwner &&
     (m.role !== "owner" || currentRole === "owner") &&
-    m.userId !== user?._id;
+    !!user &&
+    m.userId !== user._id;
 
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invites, setInvites] = useState<PendingInvite[]>([]);
