@@ -53,6 +53,9 @@ export interface CreateCampaignInput {
 export const xAdsApi = {
   listAccounts: () => api.get<XAdAccount[]>("/v1/x/ads/ad-accounts"),
 
+  budgetInPlanCurrency: (amount: number, currency: string) =>
+    api.get<XBudgetInPlanCurrency>("/v1/x/ads/budget-in-plan-currency", { amount: String(amount), currency }),
+
   listFundingInstruments: (accountId: string) =>
     api.get<XFundingInstrument[]>("/v1/x/ads/funding-instruments", { accountId }),
 
@@ -65,7 +68,7 @@ export const xAdsApi = {
   // accountId IS sent: an X user can have several ad accounts, and the api
   // used to fall back to whichever one was stored at connect time — so pausing
   // or activating a campaign could hit an account the operator wasn't looking
-  // at. The api validates it and still falls back when it's absent.
+  // at. The api validates it; absent, it uses the campaign's own account, else the business's default (MR-G3).
   setCampaignStatus: (
     accountId: string,
     campaignId: string,
@@ -98,4 +101,10 @@ export function dollarsToMicros(dollars: number): number {
 
 export function microsToDollars(micros: number): number {
   return micros / MICROS;
+}
+
+/** A budget in X's currency, in the plan's (the api's `convertMoney` over its exchange rates). `planAmount` is null when there is nothing to show. */
+export interface XBudgetInPlanCurrency {
+  planCurrency: string | null;
+  planAmount: number | null;
 }

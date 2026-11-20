@@ -11,6 +11,7 @@
  */
 import type { QueryClient } from "@tanstack/react-query";
 import { metaAdAccountBareId, metaAdAccountIdLine, metaAdAccountStatus } from "./meta-ads-view";
+import { xAdAccountHealth, xAdAccountIdLine } from "./x-ads-account";
 
 /** One ad account as the connection lists it (`account.extra.adAccounts[]`); the rest of the provider's fields ride along untouched. */
 export interface AdAccountRow {
@@ -52,6 +53,19 @@ export const AD_ACCOUNT_FORMATS: Record<string, AdAccountFormat> = {
         client.invalidateQueries({ queryKey: ["meta-ads-campaigns"] }),
         // Only the Growth signal step's META accounts (["growth-v2", "signal", scope, "meta-accounts"]), not Google's or the rest.
         client.invalidateQueries({ predicate: (q) => q.queryKey[0] === "growth-v2" && q.queryKey[1] === "signal" && q.queryKey[3] === "meta-accounts" }),
+      ]),
+  },
+  x_ads: {
+    platformName: "X",
+    bareId: (id) => id,
+    idLine: xAdAccountIdLine,
+    health: xAdAccountHealth,
+    list: (extra) => listedAdAccounts(extra),
+    refresh: (client) =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: ["x-ads-accounts"] }),
+        client.invalidateQueries({ queryKey: ["x-ads-campaigns"] }),
+        client.invalidateQueries({ queryKey: ["x-ads-funding"] }),
       ]),
   },
 };

@@ -54,12 +54,15 @@ import {
   type AdsIntegrationRow,
 } from "../ads-channels";
 import { formatMoneyOrNumber } from "@/lib/outcome-value";
+import { xAdsAccountChoice } from "@/lib/x-ads-accounts-view";
+import { CHOOSE_AD_ACCOUNTS } from "@/lib/ad-account-copy";
 import {
   campaignCurrency,
   currencyForCampaign,
   deriveAccountCurrency,
   fundingNotice,
   fundingOptions,
+  dailyBudgetLine,
   fundingSelection,
   normalizeCurrency,
   totalsCurrency,
@@ -148,12 +151,15 @@ export function XAdsPanel({ channelKey }: { channelKey: AdsChannelKey }) {
           </CardContent>
         </Card>
       ) : null}
-      <ConnectedView channelKey={channelKey} />
+      <ConnectedView
+        channelKey={channelKey}
+        integrationExtra={(integrations.data?.integrations ?? []).find((i) => i.provider === "x_ads")?.account?.extra}
+      />
     </PanelShell>
   );
 }
 
-function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
+function ConnectedView({ channelKey, integrationExtra }: { channelKey: AdsChannelKey; integrationExtra: Record<string, unknown> | undefined }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -185,17 +191,19 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
     [params, pathname, router],
   );
 
-  // Auto-select first account if none chosen and there's at least one.
-  // Depend on the id (a primitive) rather than accounts.data (a fresh array
-  // reference on every refetch) so the effect doesn't refire on every refetch.
-  const firstAccountId = accounts.data?.[0]?.id;
+  // ★ONLY THE ACCOUNTS THIS BUSINESS ENABLED, WITH ITS DEFAULT PRESELECTED (MR-G3). A login lists every business it
+  // reaches, and the first listed one is a guess; `?account=` is honoured only for an enabled id (`xAdsAccountChoice`).
+  // Depend on the ids (primitives) rather than accounts.data (a fresh array reference on every refetch) so the effect
+  // doesn't refire on every refetch.
+  const choice = xAdsAccountChoice(accounts.data ?? [], integrationExtra, queryAccountId);
+  const defaultAccountId = choice.defaultId;
   useEffect(() => {
-    if (isActiveChannel && !queryAccountId && firstAccountId) {
-      setAccountParam(firstAccountId);
+    if (isActiveChannel && !queryAccountId && defaultAccountId) {
+      setAccountParam(defaultAccountId);
     }
-  }, [isActiveChannel, queryAccountId, firstAccountId, setAccountParam]);
+  }, [isActiveChannel, queryAccountId, defaultAccountId, setAccountParam]);
 
-  const accountId = queryAccountId ?? firstAccountId ?? null;
+  const accountId = choice.selectedId;
 
   const campaigns = useQuery({
     queryKey: ["x-ads-campaigns", accountId],
@@ -349,6 +357,18 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
     );
   }
 
+  // ★NO ENABLED ACCOUNT, NO CONTROLS. Nothing here can start spend until the business has said which accounts are its own.
+  if (choice.enabled.length === 0 || !accountId) {
+    return (
+      <EmptyState
+        icon={Megaphone}
+        title="Choose your X ad accounts"
+        description={CHOOSE_AD_ACCOUNTS}
+        action={{ label: "Open Connected accounts", href: "/dashboard/integrations" }}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Account selector + KPIs */}
@@ -362,9 +382,10 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
               <SelectValue placeholder="Choose an ad account" />
             </SelectTrigger>
             <SelectContent>
-              {(accounts.data ?? []).map((a) => (
+              {choice.enabled.map((a) => (
                 <SelectItem key={a.id} value={a.id}>
                   {a.name}
+                  {a.id === choice.defaultId && choice.enabled.length > 1 ? " · default" : ""}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -618,6 +639,15 @@ function CreateCampaignDialog({
     Number.isFinite(dailyDollars) &&
     dailyDollars > 0;
 
+  // Both amounts when the funding source bills in another currency than the plan; it never blocks Create.
+  const planBudget = useQuery({
+    queryKey: ["x-ads-budget-plan", fundingCurrency, Number.isFinite(dailyDollars) ? dailyDollars : null],
+    queryFn: () => xAdsApi.budgetInPlanCurrency(dailyDollars, fundingCurrency!),
+    enabled: open && !!fundingCurrency && Number.isFinite(dailyDollars) && dailyDollars > 0,
+    retry: false,
+    staleTime: 5 * 60_000,
+  });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
@@ -713,6 +743,11 @@ function CreateCampaignDialog({
                 : "In the funding instrument's currency."}{" "}
               Stored as micros server-side.
             </p>
+            {fundingCurrency && Number.isFinite(dailyDollars) && dailyDollars > 0 ? (
+              <p className="text-xs text-muted-foreground" role="status">
+                {dailyBudgetLine(dailyDollars, fundingCurrency, planBudget.data, formatMoneyOrNumber)}
+              </p>
+            ) : null}
           </div>
 
           {error && (
