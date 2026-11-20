@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
@@ -151,15 +151,12 @@ export function XAdsPanel({ channelKey }: { channelKey: AdsChannelKey }) {
           </CardContent>
         </Card>
       ) : null}
-      <ConnectedView
-        channelKey={channelKey}
-        integrationExtra={(integrations.data?.integrations ?? []).find((i) => i.provider === "x_ads")?.account?.extra}
-      />
+      <ConnectedView channelKey={channelKey} />
     </PanelShell>
   );
 }
 
-function ConnectedView({ channelKey, integrationExtra }: { channelKey: AdsChannelKey; integrationExtra: Record<string, unknown> | undefined }) {
+function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -191,19 +188,21 @@ function ConnectedView({ channelKey, integrationExtra }: { channelKey: AdsChanne
     [params, pathname, router],
   );
 
-  // ★ONLY THE ACCOUNTS THIS BUSINESS ENABLED, WITH ITS DEFAULT PRESELECTED (MR-G3). A login lists every business it
-  // reaches, and the first listed one is a guess; `?account=` is honoured only for an enabled id (`xAdsAccountChoice`).
-  // Depend on the ids (primitives) rather than accounts.data (a fresh array reference on every refetch) so the effect
-  // doesn't refire on every refetch.
-  const choice = xAdsAccountChoice(accounts.data ?? [], integrationExtra, queryAccountId);
-  const defaultAccountId = choice.defaultId;
+  // ★THE BUSINESS'S OWN CHOICE COMES FROM THE API WITH THE LIST (`enabledIds`, `defaultId`), and the page opens on its default,
+  // never the first listed (MR-G3). Enabled accounts get full controls; every OTHER account on the login stays reachable in a
+  // pause-only view, because stopping spend is never cut off. Depend on the id (a primitive), not on accounts.data (a fresh
+  // array on every refetch), so the effect doesn't refire on every refetch.
+  const choice = xAdsAccountChoice(accounts.data?.accounts ?? [], accounts.data?.enabledIds ?? [], accounts.data?.defaultId, queryAccountId);
+  const preselectId = choice.preselectId;
   useEffect(() => {
-    if (isActiveChannel && !queryAccountId && defaultAccountId) {
-      setAccountParam(defaultAccountId);
+    if (isActiveChannel && !queryAccountId && preselectId) {
+      setAccountParam(preselectId);
     }
-  }, [isActiveChannel, queryAccountId, defaultAccountId, setAccountParam]);
+  }, [isActiveChannel, queryAccountId, preselectId, setAccountParam]);
 
   const accountId = choice.selectedId;
+  // The selected account is not one this business runs new spend in: pause switches and analytics only.
+  const pauseOnly = !choice.selectedEnabled;
 
   const campaigns = useQuery({
     queryKey: ["x-ads-campaigns", accountId],
@@ -347,7 +346,7 @@ function ConnectedView({ channelKey, integrationExtra }: { channelKey: AdsChanne
     );
   }
 
-  if ((accounts.data ?? []).length === 0) {
+  if ((accounts.data?.accounts ?? []).length === 0) {
     return (
       <EmptyState
         icon={Megaphone}
@@ -357,20 +356,25 @@ function ConnectedView({ channelKey, integrationExtra }: { channelKey: AdsChanne
     );
   }
 
-  // ★NO ENABLED ACCOUNT, NO CONTROLS. Nothing here can start spend until the business has said which accounts are its own.
-  if (choice.enabled.length === 0 || !accountId) {
-    return (
-      <EmptyState
-        icon={Megaphone}
-        title="Choose your X ad accounts"
-        description={CHOOSE_AD_ACCOUNTS}
-        action={{ label: "Open Connected accounts", href: "/dashboard/integrations" }}
-      />
-    );
-  }
-
   return (
     <div className="space-y-6">
+      {/* ★NOTHING ENABLED: say so, and still show the accounts and what is running (pause-only below). */}
+      {choice.enabled.length === 0 ? (
+        <Card className="border-warning/30 bg-warning/5">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
+            <span>
+              <span className="font-medium">Choose your X ad accounts.</span> {CHOOSE_AD_ACCOUNTS}
+            </span>
+            <Link href="/dashboard/integrations" className="font-medium text-warning-on-tint underline underline-offset-4">
+              Open Connected accounts
+            </Link>
+          </CardContent>
+        </Card>
+      ) : choice.needsDefault ? (
+        <p className="text-xs text-muted-foreground" role="status">
+          Pick a default in Connected accounts.
+        </p>
+      ) : null}
       {/* Account selector + KPIs */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-1.5">
@@ -385,13 +389,23 @@ function ConnectedView({ channelKey, integrationExtra }: { channelKey: AdsChanne
               {choice.enabled.map((a) => (
                 <SelectItem key={a.id} value={a.id}>
                   {a.name}
-                  {a.id === choice.defaultId && choice.enabled.length > 1 ? " · default" : ""}
+                  {a.id === accounts.data?.defaultId && choice.enabled.length > 1 ? " · default" : ""}
                 </SelectItem>
               ))}
+              {choice.others.length > 0 ? (
+                <>
+                  <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">Other accounts on your X login</div>
+                  {choice.others.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.name}
+                    </SelectItem>
+                  ))}
+                </>
+              ) : null}
             </SelectContent>
           </Select>
         </div>
-        {accountId && (
+        {accountId && !pauseOnly && (
           // Keyed by account: switching accounts remounts the dialog, so no
           // funding id (or half-typed form) from the previous account survives.
           <CreateCampaignDialog
@@ -449,6 +463,12 @@ function ConnectedView({ channelKey, integrationExtra }: { channelKey: AdsChanne
         </p>
       ) : null}
 
+      {pauseOnly ? (
+        <p className="text-sm text-muted-foreground" role="status">
+          Peakhour does not run new spend in this account. You can pause what is running.
+        </p>
+      ) : null}
+
       {/* Campaigns table */}
       <Card>
         <CardContent className="p-0">
@@ -495,6 +515,7 @@ function ConnectedView({ channelKey, integrationExtra }: { channelKey: AdsChanne
                     spend={analytics.data?.find((a) => a.id === c.id)?.spend}
                     currency={currencyForCampaign(currencyByCampaign, c.id, accountCurrency)}
                     moneyLoading={moneyLoading}
+                    pauseOnly={pauseOnly}
                     onToggle={(next) =>
                       setStatus.mutate({ accountId: accountId!, campaignId: c.id, status: next })
                     }
@@ -522,6 +543,7 @@ function CampaignRow({
   spend,
   currency,
   moneyLoading,
+  pauseOnly,
   onToggle,
   pending,
 }: {
@@ -529,6 +551,8 @@ function CampaignRow({
   spend: number | undefined;
   currency: string | null;
   moneyLoading: boolean;
+  /** Not an account this business runs new spend in: the switch can pause a running campaign and nothing else. */
+  pauseOnly: boolean;
   onToggle: (next: "ACTIVE" | "PAUSED") => void;
   pending: boolean;
 }) {
@@ -557,7 +581,7 @@ function CampaignRow({
         <Switch
           checked={isActive}
           onCheckedChange={(next) => onToggle(next ? "ACTIVE" : "PAUSED")}
-          disabled={pending}
+          disabled={pending || (pauseOnly && !isActive)}
           aria-label={`${isActive ? "Pause" : "Activate"} campaign ${campaign.name}`}
         />
       </TableCell>
@@ -640,10 +664,14 @@ function CreateCampaignDialog({
     dailyDollars > 0;
 
   // Both amounts when the funding source bills in another currency than the plan; it never blocks Create.
+  // ★NO REQUEST PER KEYSTROKE, NO FLICKER (MR-G3 Q7): the typed amount is debounced 400 ms, and the previous answer stays on
+  // screen while the next one loads.
+  const settledDollars = useDebouncedValue(Number.isFinite(dailyDollars) ? dailyDollars : null, 400);
   const planBudget = useQuery({
-    queryKey: ["x-ads-budget-plan", fundingCurrency, Number.isFinite(dailyDollars) ? dailyDollars : null],
-    queryFn: () => xAdsApi.budgetInPlanCurrency(dailyDollars, fundingCurrency!),
-    enabled: open && !!fundingCurrency && Number.isFinite(dailyDollars) && dailyDollars > 0,
+    queryKey: ["x-ads-budget-plan", fundingCurrency, settledDollars],
+    queryFn: () => xAdsApi.budgetInPlanCurrency(settledDollars!, fundingCurrency!),
+    enabled: open && !!fundingCurrency && settledDollars !== null && settledDollars > 0,
+    placeholderData: keepPreviousData,
     retry: false,
     staleTime: 5 * 60_000,
   });
@@ -743,9 +771,10 @@ function CreateCampaignDialog({
                 : "In the funding instrument's currency."}{" "}
               Stored as micros server-side.
             </p>
-            {fundingCurrency && Number.isFinite(dailyDollars) && dailyDollars > 0 ? (
+            {/* The whole line follows the settled amount, so the number and its "(about ...)" always agree and nothing flickers. */}
+            {fundingCurrency && settledDollars !== null && settledDollars > 0 ? (
               <p className="text-xs text-muted-foreground" role="status">
-                {dailyBudgetLine(dailyDollars, fundingCurrency, planBudget.data, formatMoneyOrNumber)}
+                {dailyBudgetLine(settledDollars, fundingCurrency, planBudget.data, formatMoneyOrNumber)}
               </p>
             ) : null}
           </div>
@@ -770,6 +799,16 @@ function CreateCampaignDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+/** `value`, once it has stopped changing for `ms`. */
+function useDebouncedValue<T>(value: T, ms: number): T {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setSettled(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return settled;
 }
 
 /** A funding-setup note ending in the X Ads Manager link; `lead` is the sentence before it. */

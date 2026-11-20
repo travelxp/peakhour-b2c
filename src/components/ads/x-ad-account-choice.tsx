@@ -1,15 +1,21 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { AdAccountChoice } from "@/components/ads/ad-account-choice";
+import { Button } from "@/components/ui/button";
 import { xAdsApi } from "@/lib/api/x-ads";
 
 /**
  * The X Ads card's "Ad accounts Peakhour may use" (MR-G3): the neutral checklist, plus one read of X's own list when the
  * connection has none stored (the connect-time read failed, so there is nothing to tick yet). That read is
- * `GET /v1/x/ads/ad-accounts`, which stores the list it hears, so the card then reloads and shows it.
+ * `GET /v1/x/ads/ad-accounts`, which stores the list it hears.
+ *
+ * ★THE CHECKLIST GETS THE LIVE LIST DIRECTLY (`{ ...extra, adAccounts }`), so it never depends on the store write or on the card
+ * reloading. While the read runs the card says so; if it fails the card says that, with Retry, and NEVER "No ad accounts
+ * found" (that is a claim about the login, not about a failed read). The read runs at most once per page visit: no refetch on
+ * focus or mount, and `onChanged` fires once.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function XAdAccountChoice({ extra, onChanged }: { extra: Record<string, any>; onChanged?: () => void | Promise<unknown> }) {
@@ -19,13 +25,33 @@ export function XAdAccountChoice({ extra, onChanged }: { extra: Record<string, a
     queryFn: () => xAdsApi.listAccounts(),
     enabled: !hasList,
     retry: false,
-    staleTime: 60_000,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
   });
-  const found = !hasList && live.isSuccess && live.data.length > 0;
+  const found = !hasList && live.isSuccess && live.data.accounts.length > 0;
+  const told = useRef(false);
   useEffect(() => {
-    if (found) void onChanged?.();
-    // Once per arrival of the list; `onChanged` is the card's own reload and changes identity on every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [found]);
-  return <AdAccountChoice provider="x_ads" extra={extra} onChanged={onChanged} />;
+    if (found && !told.current) {
+      told.current = true;
+      void onChanged?.();
+    }
+  }, [found, onChanged]);
+
+  if (hasList) return <AdAccountChoice provider="x_ads" extra={extra} onChanged={onChanged} />;
+  if (live.isPending || live.isFetching) {
+    return <p className="text-micro text-muted-foreground">Loading your X ad accounts…</p>;
+  }
+  if (live.isError) {
+    return (
+      <div className="space-y-1" aria-label="Ad accounts">
+        <p className="text-micro text-muted-foreground">Couldn&apos;t read your X ad accounts.</p>
+        <Button type="button" variant="outline" size="sm" onClick={() => void live.refetch()}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
+  return <AdAccountChoice provider="x_ads" extra={{ ...extra, adAccounts: live.data?.accounts ?? [] }} onChanged={onChanged} />;
 }

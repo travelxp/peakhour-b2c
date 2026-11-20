@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { AD_ACCOUNT_FORMATS, adAccountFormat, savedAdAccounts } from "./ad-account-choice";
+import { AD_ACCOUNT_FORMATS, adAccountFormat } from "./ad-account-choice";
 import { xAdAccountHealth, xAdAccountIdLine } from "./x-ads-account";
 import { xAdsAccountChoice } from "./x-ads-accounts-view";
 import type { XAdAccount } from "./api/x-ads";
@@ -40,46 +40,54 @@ describe("the x_ads format row", () => {
   });
 });
 
-describe("xAdsAccountChoice: the Ads page shows only the accounts this business enabled", () => {
-  const live = [acct("a1", "One"), acct("a2", "Two"), acct("a3", "Other business")];
+describe("xAdsAccountChoice: enabled accounts first, every other listed account pause-only, the default from the api", () => {
+  const live = [acct("a1", "One"), acct("a2", "Two"), acct("a3", "Other")];
 
-  it("limits the live list to the enabled ids and preselects the DEFAULT, not the first listed", () => {
-    const extra = { adAccountChoice: { enabledIds: ["a2", "a1"], defaultId: "a2" } };
-    const c = xAdsAccountChoice(live, extra, null);
+  it("splits the login's accounts into enabled and others, and preselects the DEFAULT, not the first listed", () => {
+    const c = xAdsAccountChoice(live, ["a2", "a1"], "a2", null);
     expect(c.enabled.map((a) => a.id)).toEqual(["a1", "a2"]);
-    expect(c.defaultId).toBe("a2");
+    expect(c.others.map((a) => a.id)).toEqual(["a3"]);
+    expect(c.preselectId).toBe("a2");
     expect(c.selectedId).toBe("a2");
+    expect(c.selectedEnabled).toBe(true);
+    expect(c.needsDefault).toBe(false);
   });
 
-  it("honours ?account= only for an ENABLED id: a pasted link to another business's account falls back to the default", () => {
-    const extra = { adAccountChoice: { enabledIds: ["a1", "a2"], defaultId: "a1" } };
-    expect(xAdsAccountChoice(live, extra, "a2").selectedId).toBe("a2");
-    expect(xAdsAccountChoice(live, extra, "a3").selectedId).toBe("a1");
-    expect(xAdsAccountChoice(live, extra, "nope").selectedId).toBe("a1");
+  it("Q1: ?account= opens ANY listed account; a not-enabled one is the pause-only view", () => {
+    expect(xAdsAccountChoice(live, ["a1", "a2"], "a1", "a2")).toMatchObject({ selectedId: "a2", selectedEnabled: true });
+    expect(xAdsAccountChoice(live, ["a1", "a2"], "a1", "a3")).toMatchObject({ selectedId: "a3", selectedEnabled: false });
+    // an id the login does not list falls back to the default
+    expect(xAdsAccountChoice(live, ["a1", "a2"], "a1", "nope").selectedId).toBe("a1");
   });
 
-  it("nothing saved and several listed enables nothing: the merchant must choose", () => {
-    const c = xAdsAccountChoice(live, {}, "a1");
+  it("Q2: with NOTHING enabled the accounts are still shown, pause-only, not hidden", () => {
+    const c = xAdsAccountChoice(live, [], undefined, null);
     expect(c.enabled).toEqual([]);
-    expect(c.selectedId).toBeNull();
-  });
-
-  it("nothing ever saved and ONE listed account is that account (one is not a choice)", () => {
-    const c = xAdsAccountChoice([acct("only")], {}, null);
-    expect(c.enabled.map((a) => a.id)).toEqual(["only"]);
-    expect(c.selectedId).toBe("only");
-  });
-
-  it("a saved choice is never widened: an account the login lost leaves the rest, and a stale default is no default", () => {
-    const extra = { adAccountChoice: { enabledIds: ["a1", "gone"], defaultId: "gone" } };
-    const c = xAdsAccountChoice(live, extra, null);
-    expect(c.enabled.map((a) => a.id)).toEqual(["a1"]);
-    // One enabled account is the default even when the stored default went stale (the api's rule).
+    expect(c.others.map((a) => a.id)).toEqual(["a1", "a2", "a3"]);
     expect(c.selectedId).toBe("a1");
+    expect(c.selectedEnabled).toBe(false);
+    expect(c.preselectId).toBeNull();
   });
 
-  it("reads the same saved ids as the checklist does (savedAdAccounts), fed the live list", () => {
-    const extra = { adAccountChoice: { enabledIds: ["a1", "a2"], defaultId: "a2" } };
-    expect(savedAdAccounts("x_ads", { ...extra, adAccounts: live })).toEqual({ enabledIds: ["a1", "a2"], defaultId: "a2" });
+  it("Q3: two or more enabled and no default preselects the first ENABLED account (never saved) and asks for a default", () => {
+    const c = xAdsAccountChoice(live, ["a2", "a3"], undefined, null);
+    expect(c.preselectId).toBe("a2");
+    expect(c.selectedId).toBe("a2");
+    expect(c.selectedEnabled).toBe(true);
+    expect(c.needsDefault).toBe(true);
+    // a default that is not enabled is no default
+    expect(xAdsAccountChoice(live, ["a2", "a3"], "a1", null).needsDefault).toBe(true);
+  });
+
+  it("one enabled account needs no default", () => {
+    const c = xAdsAccountChoice(live, ["a3"], undefined, null);
+    expect(c.selectedId).toBe("a3");
+    expect(c.needsDefault).toBe(false);
+  });
+
+  it("an enabled id the login no longer lists is simply not shown", () => {
+    const c = xAdsAccountChoice(live, ["a1", "gone"], "gone", null);
+    expect(c.enabled.map((a) => a.id)).toEqual(["a1"]);
+    expect(c.selectedId).toBe("a1");
   });
 });

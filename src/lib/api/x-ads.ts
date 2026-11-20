@@ -51,7 +51,7 @@ export interface CreateCampaignInput {
 }
 
 export const xAdsApi = {
-  listAccounts: () => api.get<XAdAccount[]>("/v1/x/ads/ad-accounts"),
+  listAccounts: () => api.get<XAdAccountsResponse>("/v1/x/ads/ad-accounts"),
 
   budgetInPlanCurrency: (amount: number, currency: string) =>
     api.get<XBudgetInPlanCurrency>("/v1/x/ads/budget-in-plan-currency", { amount: String(amount), currency }),
@@ -107,4 +107,13 @@ export function microsToDollars(micros: number): number {
 export interface XBudgetInPlanCurrency {
   planCurrency: string | null;
   planAmount: number | null;
+}
+
+/** `GET /v1/x/ads/ad-accounts`: the login's ad accounts with the business's own choice, resolved by the api (`businessAdAccounts`). */
+export interface XAdAccountsResponse {
+  accounts: XAdAccount[];
+  /** The accounts this business may run new spend in. */
+  enabledIds: string[];
+  /** The default among them; absent when several are enabled and none is the default. */
+  defaultId?: string;
 }

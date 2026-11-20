@@ -1,27 +1,48 @@
 /**
- * Which X ad accounts the Ads page shows (MR-G3). Separate from `x-ads-account.ts` (the choice's wording), which
- * `ad-account-choice.ts` imports: this one imports `ad-account-choice.ts`, so keeping them apart avoids a cycle.
+ * Which X ad accounts the Ads page shows, and which one it opens on (MR-G3). The business's choice comes from the api with the
+ * list (`GET /v1/x/ads/ad-accounts` answers `enabledIds` and `defaultId` from `businessAdAccounts`, as Meta's and Google's
+ * do), so nothing here re-derives it in the browser.
  */
-import { savedAdAccounts } from "./ad-account-choice";
 import type { XAdAccount } from "./api/x-ads";
 
+export interface XAdsAccountChoice {
+  /** The accounts this business enabled, in the login's order: the ones Peakhour may run new spend in. */
+  enabled: XAdAccount[];
+  /** "Other accounts on your X login": listed, not enabled. Pause-only. */
+  others: XAdAccount[];
+  /** The account the page is on. */
+  selectedId: string | null;
+  /** The selected account is enabled (full controls); false is the pause-only view. */
+  selectedEnabled: boolean;
+  /** The account to preselect when `?account=` is absent: the default, else the first enabled one. UI selection only, never saved. */
+  preselectId: string | null;
+  /** Two or more enabled and no default (the stored default left the login): say "Pick a default in Connected accounts." */
+  needsDefault: boolean;
+}
+
 /**
- * The X ad accounts the Ads page shows: the live list limited to the ones this business enabled (a login lists every
- * business it reaches), in the live order, with the account to open on.
- *
- * ★THE DEFAULT IS PRESELECTED, NEVER THE FIRST LISTED. `requested` (`?account=`) is honoured only for an ENABLED id: a
- * pasted link to another business's account falls back to the default instead of opening it.
- * Fed the LIVE list rather than the stored one, as the api sees it once the list is refreshed.
+ * ★STOPPING SPEND IS NEVER CUT OFF. Every listed account stays reachable: the enabled ones first, then the others in a
+ * pause-only view, and with NOTHING enabled the page still shows the login's accounts (pause-only) rather than hiding the
+ * campaigns that may be running. `requested` (`?account=`) opens any LISTED account; whether it gets controls is `selectedEnabled`.
  */
 export function xAdsAccountChoice(
-  live: readonly XAdAccount[],
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  extra: Record<string, any> | undefined,
+  accounts: readonly XAdAccount[],
+  enabledIds: readonly string[],
+  defaultId: string | null | undefined,
   requested: string | null,
-): { enabled: XAdAccount[]; selectedId: string | null; defaultId: string | null } {
-  const saved = savedAdAccounts("x_ads", { ...(extra ?? {}), adAccounts: live });
-  const enabled = live.filter((a) => saved.enabledIds.includes(a.id));
-  const defaultId = saved.defaultId && enabled.some((a) => a.id === saved.defaultId) ? saved.defaultId : null;
-  const selectedId = requested && enabled.some((a) => a.id === requested) ? requested : defaultId;
-  return { enabled, selectedId, defaultId };
+): XAdsAccountChoice {
+  const idSet = new Set(enabledIds);
+  const enabled = accounts.filter((a) => idSet.has(a.id));
+  const others = accounts.filter((a) => !idSet.has(a.id));
+  const def = defaultId && enabled.some((a) => a.id === defaultId) ? defaultId : null;
+  const preselectId = def ?? enabled[0]?.id ?? null;
+  const selectedId = requested && accounts.some((a) => a.id === requested) ? requested : (preselectId ?? accounts[0]?.id ?? null);
+  return {
+    enabled,
+    others,
+    selectedId,
+    selectedEnabled: selectedId !== null && idSet.has(selectedId),
+    preselectId,
+    needsDefault: enabled.length > 1 && def === null,
+  };
 }
