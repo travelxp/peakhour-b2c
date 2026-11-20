@@ -60,7 +60,7 @@ vi.mock("@/components/drive/drive-picker", () => ({
 
 import { ApiError } from "@/lib/api";
 import { MetaLaunchError, type MetaAdAccount, type MetaCampaign } from "@/lib/api/meta-ads";
-import { EditCampaignButton, NewCampaignDialog } from "./meta-campaign-dialogs";
+import { EditCampaignButton, LowerBudgetButton, NewCampaignDialog } from "./meta-campaign-dialogs";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -534,5 +534,77 @@ describe("Edit sheet", () => {
     // 2026-10-01T00:00Z is 05:30 on the 1st in Kolkata.
     expect(q<HTMLInputElement>("#as-s1-start")?.value).toBe("2026-10-01");
     expect(document.body.textContent).toContain("Asia/Kolkata");
+  });
+});
+
+describe("Lower budget sheet (an ad account the business has not enabled, MR-G4)", () => {
+  const CAMPAIGN: MetaCampaign = {
+    id: "c1",
+    name: "Running sale",
+    status: "ACTIVE",
+    objective: "OUTCOME_TRAFFIC",
+    dailyBudget: "2550",
+    createdTime: "2026-10-01T00:00:00+0000",
+    updatedTime: "2026-10-01T00:00:00+0000",
+  };
+  const open = async () => {
+    mocks.editCampaign.mockResolvedValue({ campaign: null });
+    mount(<LowerBudgetButton account={ACCOUNT} level="campaign" node={CAMPAIGN} />);
+    click(q('button[aria-label="Lower budget of campaign Running sale"]'));
+    await flush();
+  };
+
+  it("offers the budget only: no name, no ad sets", async () => {
+    await open();
+    expect(q<HTMLInputElement>("#lb-budget")?.value).toBe("25.5");
+    expect(q("#ec-name")).toBeNull();
+    expect(document.body.textContent).not.toContain("Audience and schedule");
+    expect(mocks.listAdSets).not.toHaveBeenCalled();
+  });
+
+  it("sends a lower budget, and refuses a raise without calling the api", async () => {
+    await open();
+    setValue(q<HTMLInputElement>("#lb-budget")!, "60");
+    click(byText("button", "Lower budget"));
+    await flush();
+    expect(byText('[role="alert"]', /only lower the campaign's budget/)).toBeTruthy();
+    expect(mocks.editCampaign).not.toHaveBeenCalled();
+    setValue(q<HTMLInputElement>("#lb-budget")!, "10");
+    click(byText("button", "Lower budget"));
+    await flush();
+    expect(mocks.editCampaign).toHaveBeenCalledWith("c1", { dailyBudget: "1000" });
+  });
+
+  it("D1: a stale figure (409 BUDGET_NOT_LOWER) shows what Meta now shows, and the lists are refetched", async () => {
+    await open();
+    mocks.editCampaign.mockRejectedValue(new ApiError("BUDGET_NOT_LOWER", "x", 409, undefined, { liveBudget: "1500", budgetType: "daily" }));
+    setValue(q<HTMLInputElement>("#lb-budget")!, "20");
+    click(byText("button", "Lower budget"));
+    await flush();
+    expect(byText('[role="alert"]', /Meta now shows 15 a day; enter less than that\./)).toBeTruthy();
+  });
+
+  it("a lifetime-budget campaign sends the lifetime field only, and the label says Total budget", async () => {
+    mocks.editCampaign.mockResolvedValue({ campaign: null });
+    mount(<LowerBudgetButton account={ACCOUNT} level="campaign" node={{ ...CAMPAIGN, dailyBudget: undefined, lifetimeBudget: "100000" }} />);
+    click(q('button[aria-label="Lower budget of campaign Running sale"]'));
+    await flush();
+    expect(byText("label", /Total budget/)).toBeTruthy();
+    setValue(q<HTMLInputElement>("#lb-budget")!, "400");
+    click(byText("button", "Lower budget"));
+    await flush();
+    expect(mocks.editCampaign).toHaveBeenCalledWith("c1", { lifetimeBudget: "40000" });
+  });
+
+  it("an AD SET's own budget is lowered through the ad-set route", async () => {
+    mocks.editAdSet.mockResolvedValue({ adSet: null });
+    mount(<LowerBudgetButton account={ACCOUNT} level="ad set" node={{ id: "s1", name: "Set one", dailyBudget: "5000" }} />);
+    click(q('button[aria-label="Lower budget of ad set Set one"]'));
+    await flush();
+    setValue(q<HTMLInputElement>("#lb-budget")!, "20");
+    click(byText("button", "Lower budget"));
+    await flush();
+    expect(mocks.editAdSet).toHaveBeenCalledWith("s1", { dailyBudget: "2000" });
+    expect(mocks.editCampaign).not.toHaveBeenCalled();
   });
 });

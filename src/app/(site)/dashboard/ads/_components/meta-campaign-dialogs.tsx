@@ -32,6 +32,7 @@ import { takesLine, useMediaRule, type MediaDestination } from "@/lib/media-rule
 
 /** Where the ad image goes: one place, so the picker, the hint and the server's rule are the same row. */
 const AD_IMAGE: MediaDestination = { kind: "ad", placement: "meta_ad_image" };
+import { PAUSE_ONLY_NOTICE } from "@/lib/ad-account-copy";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   MetaLaunchError,
@@ -48,6 +49,8 @@ import {
   META_CREATE_OBJECTIVES,
   META_CTAS,
   buildAdSetEdit,
+  budgetNotLowerMessage,
+  buildBudgetCut,
   buildCampaignEdit,
   budgetKey,
   buildCreateBodies,
@@ -524,6 +527,118 @@ export function EditCampaignButton({
       </Button>
       {open ? <EditCampaignSheet account={account} campaign={campaign} onClose={() => setOpen(false)} /> : null}
     </>
+  );
+}
+
+/**
+ * ★PAUSE-ONLY ACCOUNTS (MR-G4): ONE sheet, for a campaign or an ad set that has a budget of its own: that budget, lowered. No name, no
+ * audience, no raise: the api refuses all of them there too (it compares the SAME budget type against Meta's live figure).
+ */
+export function LowerBudgetButton({
+  account,
+  level,
+  node,
+}: {
+  account: MetaAdAccount;
+  level: "campaign" | "ad set";
+  node: { id: string; name: string; dailyBudget?: string; lifetimeBudget?: string };
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-7"
+        aria-label={`Lower budget of ${level} ${node.name}`}
+        onClick={() => setOpen(true)}
+      >
+        <Pencil className="size-3.5" />
+      </Button>
+      {open ? <LowerBudgetSheet account={account} level={level} node={node} onClose={() => setOpen(false)} /> : null}
+    </>
+  );
+}
+
+function LowerBudgetSheet({
+  account,
+  level,
+  node,
+  onClose,
+}: {
+  account: MetaAdAccount;
+  level: "campaign" | "ad set";
+  node: { id: string; name: string; dailyBudget?: string; lifetimeBudget?: string };
+  onClose: () => void;
+}) {
+  const refresh = useRefreshAds(account.id);
+  const key = budgetKey(node);
+  const [budget, setBudget] = useState(metaMinorToInput(key ? node[key] : undefined, account.currency));
+  const [error, setError] = useState<string | null>(null);
+  const save = useMutation({
+    mutationFn: async (body: MetaCampaignEdit) => {
+      if (level === "campaign") await metaAdsApi.editCampaign(node.id, body);
+      else await metaAdsApi.editAdSet(node.id, body);
+    },
+    onSuccess: () => {
+      refresh();
+      toast.success("Budget lowered.");
+      onClose();
+    },
+    onError: (err: unknown) => {
+      // The figure on screen was stale: say what Meta shows now, and refresh the lists so the next try starts from it.
+      const stale = budgetNotLowerMessage(err, account.currency);
+      if (stale) refresh();
+      setError(stale ?? metaAdsErrorMessage(err, "Couldn't save that. Nothing was changed."));
+    },
+  });
+  const submit = () => {
+    setError(null);
+    const body = buildBudgetCut(node, budget, account.currency, level);
+    if (body === null) {
+      onClose();
+      return;
+    }
+    if ("error" in body) {
+      setError(body.error);
+      return;
+    }
+    save.mutate(body);
+  };
+  return (
+    <Sheet open onOpenChange={(next) => (!next && !save.isPending ? onClose() : undefined)}>
+      <SheetContent className="w-full overflow-y-auto sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle>Lower budget</SheetTitle>
+          <SheetDescription>{PAUSE_ONLY_NOTICE}</SheetDescription>
+        </SheetHeader>
+        <div className="space-y-3 px-4">
+          <p className="text-sm font-medium">{node.name}</p>
+          <div className="space-y-1.5">
+            <Label htmlFor="lb-budget">
+              {key === "dailyBudget" ? "Daily budget" : "Total budget"} ({account.currency})
+            </Label>
+            <Input id="lb-budget" inputMode="decimal" value={budget} className="w-40" onChange={(e) => setBudget(e.target.value)} />
+          </div>
+          {error ? (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          ) : null}
+          <Button size="sm" onClick={submit} disabled={save.isPending} aria-busy={save.isPending}>
+            {save.isPending ? "Saving…" : "Lower budget"}
+          </Button>
+          <p className="text-xs text-muted-foreground" data-testid="in-account">
+            {metaInLine(account)}
+          </p>
+        </div>
+        <SheetFooter>
+          <Button variant="outline" onClick={onClose} disabled={save.isPending}>
+            Close
+          </Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }
 

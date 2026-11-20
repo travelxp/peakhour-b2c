@@ -2,7 +2,10 @@
 /**
  * MR-F2 - Growth shows the business's ENABLED Meta ad accounts: an account filter ("All accounts" first), every campaign
  * under its account, no `?adAccount=`, and with nothing enabled no way to start spend. Another business's accounts on the
- * same Meta login are never shown.
+ * same Meta login are never offered to start spend in.
+ *
+ * MR-G4 - those other accounts are listed apart ("Other accounts on your Meta login") and open PAUSE-ONLY: a running campaign
+ * there can be paused or have its budget lowered, and nothing else.
  */
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
@@ -12,6 +15,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const h = vi.hoisted(() => ({
   listAdAccounts: vi.fn(),
   listCampaigns: vi.fn(),
+  listAdSets: vi.fn(),
+  setStatus: vi.fn(),
+  insights: vi.fn(),
   listDatasets: vi.fn(),
   getSelectedDataset: vi.fn(),
   replace: vi.fn(),
@@ -47,7 +53,9 @@ vi.mock("@/lib/api/meta-ads", async (orig) => {
       ...actual.metaAdsApi,
       listAdAccounts: h.listAdAccounts,
       listCampaigns: h.listCampaigns,
-      insights: vi.fn(async () => []),
+      listAdSets: h.listAdSets,
+      insights: h.insights,
+      setStatus: h.setStatus,
       getSelectedDataset: h.getSelectedDataset,
       listDatasets: h.listDatasets,
     },
@@ -59,7 +67,8 @@ vi.mock("./meta-campaign-dialogs", () => ({
       New campaign
     </button>
   ),
-  EditCampaignButton: () => <button>Edit campaign</button>,
+  EditCampaignButton: () => <button data-lower-only="no">Edit campaign</button>,
+  LowerBudgetButton: (p: { level: string; node: { name: string } }) => <button data-lower-only="yes">Lower budget of {p.level} {p.node.name}</button>,
 }));
 
 const { MetaAdsPanel } = await import("./meta-ads-panel");
@@ -102,6 +111,9 @@ beforeEach(() => {
   h.listAdAccounts.mockReset();
   h.listCampaigns.mockReset().mockResolvedValue({ campaigns: [CAMPAIGN], truncated: false });
   h.replace.mockReset();
+  h.insights.mockReset().mockResolvedValue([]);
+  h.setStatus.mockReset().mockResolvedValue({});
+  h.listAdSets.mockReset().mockResolvedValue({ adSets: [], truncated: false });
   h.getSelectedDataset.mockReset().mockResolvedValue({ selected: null });
   h.listDatasets.mockReset().mockResolvedValue({ datasets: [] });
 });
@@ -155,7 +167,7 @@ describe("Growth > Ads > Meta", () => {
     expect(change.getAttribute("href")).toBe("/dashboard/integrations");
   });
 
-  it("another business's account on the login is never read, listed or offered", async () => {
+  it("an account on the login that is not the business's is not read or shown until chosen, and never offered to New campaign", async () => {
     h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
     await mount();
     expect(h.listCampaigns).not.toHaveBeenCalledWith("act_3333");
@@ -183,7 +195,9 @@ describe("Growth > Ads > Meta", () => {
       "All accounts",
       "Quests Travel (INR) · act_…1111",
       "CMPL (USD) · act_…2222 · default",
+      "Other Biz (USD) · act_…3333",
     ]);
+    expect(document.body.textContent).toContain("Other accounts on your Meta login");
     await act(async () => {
       options[2]!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
@@ -241,16 +255,16 @@ describe("Growth > Ads > Meta", () => {
     expect(container.textContent).toContain("2 of your ad accounts are no longer on your Meta login and are not shown.");
   });
 
-  it("one enabled account is the selection: no filter, its section, no account line", async () => {
+  it("one enabled account is the selection: no 'All accounts', its section, no account line", async () => {
     h.listAdAccounts.mockResolvedValue(answer([QUESTS], "act_1111"));
     await mount();
-    expect(container.querySelector('[aria-label="Ad account filter"]')).toBeNull();
-    expect(container.querySelector('[aria-label="Ad accounts"]')!.textContent).toContain("Quests Travel (INR) · act_…1111");
+    expect(container.querySelector('[aria-label="Ad account filter"]')!.textContent).toContain("Quests Travel (INR) · act_…1111");
+    expect([...container.querySelectorAll("h2")].map((x) => x.textContent)).toEqual(["Quests Travel (INR) · act_…1111"]);
     expect(container.textContent).toContain("New campaign");
     expect(container.textContent).not.toContain("Quests Travel (act_…1111)");
   });
 
-  it("nothing enabled: an empty state with the link, and no New campaign, Edit or switches; nothing is read", async () => {
+  it("nothing enabled: the Choose notice with the link, no New campaign or Edit, and the login's accounts still open pause-only", async () => {
     h.listAdAccounts.mockResolvedValue(answer([], null));
     await mount();
     expect(container.textContent).toContain("Choose your ad accounts");
@@ -258,8 +272,166 @@ describe("Growth > Ads > Meta", () => {
     expect(container.querySelector('a[href="/dashboard/integrations"]')).not.toBeNull();
     expect(container.textContent).not.toContain("New campaign");
     expect(container.textContent).not.toContain("Edit campaign");
-    expect(container.querySelector('[role="switch"]')).toBeNull();
+    // Y7: nothing is read until the merchant picks one of the login's accounts
     expect(h.listCampaigns).not.toHaveBeenCalled();
+    expect(container.querySelector('[aria-label="Ad account filter"]')!.textContent).toContain("Choose an account to pause or lower");
+  });
+
+  describe("MR-G4: an account the business has not enabled is pause-only", () => {
+    const ACTIVE = { ...CAMPAIGN, status: "ACTIVE", dailyBudget: "5000" };
+    const PAUSED = { ...CAMPAIGN, id: "10", name: "Holi", status: "PAUSED", dailyBudget: "5000" };
+    const pick = async (label: string) => {
+      await act(async () => {
+        (container.querySelector('[aria-label="Ad account filter"]') as HTMLElement).click();
+      });
+      const option = [...document.body.querySelectorAll('[role="option"]')].find((o) => o.textContent!.includes(label))!;
+      await act(async () => {
+        option.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      });
+      await settle();
+    };
+
+    it("lists the unticked accounts in an 'Other accounts on your Meta login' group, after the business's own", async () => {
+      h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
+      await mount();
+      await act(async () => {
+        (container.querySelector('[aria-label="Ad account filter"]') as HTMLElement).click();
+      });
+      const labels = [...document.body.querySelectorAll('[role="group"] [role="option"], [role="group"] [id]')];
+      expect(document.body.textContent).toContain("Other accounts on your Meta login");
+      expect(labels.some((l) => l.textContent?.includes("Other Biz"))).toBe(true);
+      expect(labels.some((l) => l.textContent?.includes("CMPL"))).toBe(false);
+    });
+
+    it("choosing one shows its campaigns with the pause switch and Lower budget only: no New campaign, no Change dataset, the pause-only line", async () => {
+      h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
+      h.listCampaigns.mockImplementation(async (id: string) => ({ campaigns: id === "act_3333" ? [ACTIVE] : [CAMPAIGN], truncated: false }));
+      await mount();
+      await pick("Other Biz");
+      expect(h.listCampaigns).toHaveBeenCalledWith("act_3333");
+      expect([...container.querySelectorAll("h2")].map((x) => x.textContent)).toEqual(["Other Biz (USD) · act_…3333"]);
+      expect(container.textContent).toContain("Peakhour does not run new spend in this account. You can pause or lower what is running.");
+      // Y8: New campaign stays available (its dialog picks the account), never preselecting the pause-only one
+      expect(container.querySelector('[data-testid="new-campaign"]')!.getAttribute("data-initial")).toBe("");
+      expect(container.textContent).not.toContain("Edit campaign");
+      expect(container.querySelector('[data-lower-only="yes"]')!.textContent).toBe("Lower budget of campaign Diwali");
+      const sw = container.querySelector('[role="switch"]')!;
+      expect(sw.getAttribute("aria-label")).toBe("Pause campaign Diwali");
+      expect(container.textContent).not.toContain("Change dataset");
+    });
+
+    it("a PAUSED campaign there has no switch to turn it on, and no Lower budget without a budget of its own", async () => {
+      h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
+      h.listCampaigns.mockImplementation(async (id: string) => ({ campaigns: id === "act_3333" ? [PAUSED, { ...CAMPAIGN, id: "11", name: "No budget", status: "ACTIVE" }] : [CAMPAIGN], truncated: false }));
+      await mount();
+      await pick("Other Biz");
+      const labels = [...container.querySelectorAll('[role="switch"]')].map((x) => x.getAttribute("aria-label"));
+      expect(labels).toEqual(["Pause campaign No budget"]);
+      expect(container.querySelectorAll('[data-lower-only="yes"]')).toHaveLength(1);
+    });
+
+    it("an enabled account still has the full controls (Edit, switch to activate, New campaign)", async () => {
+      h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
+      await mount();
+      expect(container.querySelector('[role="switch"]')!.getAttribute("aria-label")).toBe("Activate campaign Diwali");
+      expect(container.querySelector('[data-lower-only="no"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="new-campaign"]')).not.toBeNull();
+    });
+
+    it("nothing enabled: the notice stays, and once an account is picked its running campaign can still be paused", async () => {
+      h.listAdAccounts.mockResolvedValue(answer([], null));
+      h.listCampaigns.mockResolvedValue({ campaigns: [ACTIVE], truncated: false });
+      await mount();
+      await pick("Quests Travel");
+      expect(h.listCampaigns).toHaveBeenCalledTimes(1);
+      expect(container.textContent).toContain("Choose your ad accounts");
+      expect(container.querySelector('[role="switch"]')!.getAttribute("aria-label")).toBe("Pause campaign Diwali");
+      expect(container.querySelector('[data-testid="new-campaign"]')).toBeNull();
+    });
+
+    it("Y8: New campaign stays offered while a pause-only account is shown, with no account preselected", async () => {
+      h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
+      await mount();
+      await pick("Other Biz");
+      const nc = container.querySelector('[data-testid="new-campaign"]')!;
+      expect(nc.getAttribute("data-initial")).toBe("");
+      expect(nc.getAttribute("data-accounts")).toBe("act_1111,act_2222");
+    });
+
+    it("Y3: a campaign whose budget field is \"0\" gets no Lower budget", async () => {
+      h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
+      h.listCampaigns.mockImplementation(async (id: string) => ({ campaigns: id === "act_3333" ? [{ ...ACTIVE, dailyBudget: "0" }] : [CAMPAIGN], truncated: false }));
+      await mount();
+      await pick("Other Biz");
+      expect(container.querySelector('[data-lower-only="yes"]')).toBeNull();
+      expect(container.querySelector('[role="switch"]')).not.toBeNull();
+    });
+
+    it("Y6: an ad set with its own budget gets Lower budget; one without gets none", async () => {
+      h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
+      h.listCampaigns.mockImplementation(async (id: string) => ({ campaigns: id === "act_3333" ? [{ ...ACTIVE, dailyBudget: undefined }] : [CAMPAIGN], truncated: false }));
+      h.listAdSets.mockResolvedValue({
+        adSets: [
+          { id: "s1", name: "Budgeted", campaignId: "9", status: "ACTIVE", dailyBudget: "5000", billingEvent: "IMPRESSIONS", optimizationGoal: "REACH" },
+          { id: "s2", name: "Plain", campaignId: "9", status: "ACTIVE", billingEvent: "IMPRESSIONS", optimizationGoal: "REACH" },
+        ],
+        truncated: false,
+      });
+      await mount();
+      await pick("Other Biz");
+      await act(async () => (container.querySelector('button[aria-label="Expand campaign Diwali"]') as HTMLElement).click());
+      await settle();
+      const lower = [...container.querySelectorAll('[data-lower-only="yes"]')].map((b) => b.textContent);
+      expect(lower).toEqual(["Lower budget of ad set Budgeted"]);
+    });
+
+    it("Y1/Y2: a failed refetch keeps the campaigns and their pause switch, with a banner", async () => {
+      h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
+      h.listCampaigns.mockImplementation(async (id: string) => ({ campaigns: id === "act_3333" ? [ACTIVE] : [CAMPAIGN], truncated: false }));
+      await mount();
+      await pick("Other Biz");
+      expect(container.querySelector('[role="switch"]')).not.toBeNull();
+      h.listCampaigns.mockRejectedValue(new Error("rate limit"));
+      await act(async () => {
+        await lastClient.refetchQueries({ queryKey: ["meta-ads-campaigns", "act_3333"] });
+      });
+      await settle();
+      expect(container.querySelector('[role="switch"]')!.getAttribute("aria-label")).toBe("Pause campaign Diwali");
+      expect(container.textContent).toContain("Couldn't refresh this account's campaigns just now.");
+      expect(container.textContent).not.toContain("Couldn't load campaigns");
+    });
+
+    it("Y1: a failed refetch of the accounts keeps the page, with a banner", async () => {
+      h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
+      await mount();
+      h.listAdAccounts.mockRejectedValue(new Error("down"));
+      await act(async () => {
+        await lastClient.refetchQueries({ queryKey: ["meta-ads-accounts", "b1"] });
+      });
+      await settle();
+      expect(container.querySelector('[role="switch"]')).not.toBeNull();
+      expect(container.textContent).toContain("Couldn't refresh your ad accounts just now.");
+      expect(container.textContent).not.toContain("Couldn't load your ad accounts");
+    });
+
+    it("Y5: an account Meta lists that the connection does not know is named, with no controls, and is not in the filter", async () => {
+      h.listAdAccounts.mockResolvedValue({ ...answer([QUESTS, CMPL], "act_2222"), knownIds: ["act_1111", "act_2222"] });
+      await mount();
+      expect(container.textContent).toContain("New on your Meta login: Other Biz (USD) · act_…3333. Refresh your connection to manage it.");
+      await act(async () => {
+        (container.querySelector('[aria-label="Ad account filter"]') as HTMLElement).click();
+      });
+      expect([...document.body.querySelectorAll('[role="option"]')].some((o) => o.textContent!.includes("Other Biz"))).toBe(false);
+      expect(h.listCampaigns).not.toHaveBeenCalledWith("act_3333");
+    });
+
+    it("Y5: a known unticked account is in the Other accounts group", async () => {
+      h.listAdAccounts.mockResolvedValue({ ...answer([QUESTS, CMPL], "act_2222"), knownIds: ["act_1111", "act_2222", "act_3333"] });
+      await mount();
+      expect(container.textContent).not.toContain("New on your Meta login");
+      await pick("Other Biz");
+      expect(h.listCampaigns).toHaveBeenCalledWith("act_3333");
+    });
   });
 
   it("an enabled account the login no longer has is flagged, not shown or used", async () => {
@@ -267,5 +439,67 @@ describe("Growth > Ads > Meta", () => {
     await mount();
     expect(container.textContent).toContain("One of your ad accounts is no longer on your Meta login");
     expect(h.listCampaigns).not.toHaveBeenCalledWith("act_9999");
+  });
+
+  describe("MR-G4 round 2", () => {
+    const RUNNING = { ...CAMPAIGN, status: "ACTIVE", dailyBudget: "5000" };
+
+    it("D4: a pause moves the switch at once, even when the refetch after it fails", async () => {
+      h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
+      h.listCampaigns.mockResolvedValue({ campaigns: [RUNNING], truncated: false });
+      await mount();
+      const sw = container.querySelector('[role="switch"]') as HTMLElement;
+      expect(sw.getAttribute("aria-label")).toBe("Pause campaign Diwali");
+      h.listCampaigns.mockRejectedValue(new Error("rate limit"));
+      await act(async () => sw.click());
+      await settle();
+      expect(h.setStatus).toHaveBeenCalledWith("campaign", "9", "PAUSED");
+      expect(container.querySelector('[role="switch"]')!.getAttribute("aria-label")).toBe("Activate campaign Diwali");
+    });
+
+    it("D3: cached KPI figures stay when a refetch of the figures fails", async () => {
+      h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
+      h.listCampaigns.mockResolvedValue({ campaigns: [RUNNING], truncated: false });
+      h.insights.mockResolvedValue([{ campaignId: "9", impressions: 123456, clicks: 7, spend: 12, dateStart: "", dateStop: "" }]);
+      await mount();
+      expect(container.textContent).toContain("123,456");
+      h.insights.mockRejectedValue(new Error("rate limit"));
+      await act(async () => {
+        await lastClient.refetchQueries({ queryKey: ["meta-ads-insights"] });
+      });
+      await settle();
+      expect(container.textContent).toContain("123,456");
+    });
+
+    it("D5: with nothing picked the account Select is controlled and shows its placeholder", async () => {
+      h.listAdAccounts.mockResolvedValue(answer([], null));
+      await mount();
+      expect(container.querySelector('[aria-label="Ad account filter"]')!.textContent).toContain("Choose an account to pause or lower");
+    });
+
+    it("D6: a failed refetch of an empty ad-set list says it could not refresh, not 'No ad sets'", async () => {
+      h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
+      h.listCampaigns.mockResolvedValue({ campaigns: [RUNNING], truncated: false });
+      await mount();
+      await act(async () => (container.querySelector('button[aria-label="Expand campaign Diwali"]') as HTMLElement).click());
+      await settle();
+      expect(container.textContent).toContain("No ad sets in this campaign yet");
+      h.listAdSets.mockRejectedValue(new Error("down"));
+      await act(async () => {
+        await lastClient.refetchQueries({ queryKey: ["meta-ads-adsets"] });
+      });
+      await settle();
+      expect(container.textContent).toContain("Couldn't refresh these ad sets just now.");
+      expect(container.textContent).not.toContain("No ad sets in this campaign yet");
+    });
+
+    it("D7: nothing enabled and only accounts new on the login: the notice and the New-on-login line, no empty card", async () => {
+      h.listAdAccounts.mockResolvedValue({ ...answer([], null), knownIds: [] });
+      await mount();
+      expect(container.textContent).toContain("Choose your ad accounts");
+      expect(container.textContent).toContain("New on your Meta login:");
+      expect(container.querySelector('[aria-label="Ad accounts"]')).toBeNull();
+      expect(container.querySelector('[aria-label="Ad account filter"]')).toBeNull();
+    });
   });
 });
