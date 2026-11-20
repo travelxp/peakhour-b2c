@@ -256,8 +256,8 @@ export const metaAdsApi = {
 
   getPage: () => api.get<{ page: MetaAdPage | null }>(metaAdsUrl("/v1/meta/ads/page")),
 
-  /** `data` is the file as base64, no `data:` prefix. Answers the hash an ad's creative takes. */
-  uploadImage: (v: { adAccountId: string; name: string; contentType: "image/jpeg" | "image/png"; data: string }) =>
+  /** `mediaId` is a Drive file (chosen in the picker); the server reads its bytes, so nothing is sent from the browser. Answers the hash an ad's creative takes. */
+  uploadImage: (v: { adAccountId: string; mediaId: string }) =>
     api.post<{ imageHash: string; url?: string }>(metaAdsUrl("/v1/meta/ads/images"), v),
 
   editCampaign: (campaignId: string, edit: MetaCampaignEdit) =>

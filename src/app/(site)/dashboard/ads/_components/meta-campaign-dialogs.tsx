@@ -27,6 +27,11 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { CountryPicker } from "@/components/ads/country-picker";
+import { DrivePicker } from "@/components/drive/drive-picker";
+import { takesLine, useMediaRule, type MediaDestination } from "@/lib/media-rules";
+
+/** Where the ad image goes: one place, so the picker, the hint and the server's rule are the same row. */
+const AD_IMAGE: MediaDestination = { kind: "ad", placement: "meta_ad_image" };
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   MetaLaunchError,
@@ -37,17 +42,15 @@ import {
   type MetaCampaign,
   type MetaCampaignEdit,
 } from "@/lib/api/meta-ads";
-import { metaAdAccountOptionLabel, metaAdsErrorMessage, metaAdsNeedsReconnect, metaBudgetLabel, metaCreatesInLine, metaInLine } from "@/lib/meta-ads-view";
+import { adImageUploadFailure, metaAdAccountOptionLabel, metaAdsErrorMessage, metaAdsNeedsReconnect, metaBudgetLabel, metaCreatesInLine, metaInLine } from "@/lib/meta-ads-view";
 import {
   EMPTY_NEW_CAMPAIGN,
   META_CREATE_OBJECTIVES,
   META_CTAS,
-  META_IMAGE_TYPES,
   buildAdSetEdit,
   buildCampaignEdit,
   budgetKey,
   buildCreateBodies,
-  fileToBase64,
   isoToDayInZone,
   metaMinorToInput,
   readTargeting,
@@ -71,7 +74,11 @@ import {
  */
 
 /** The image upload failed; its message is already merchant-facing. Any other Error is ours and is not shown raw. */
-class UploadFailed extends Error {}
+class UploadFailed extends Error {
+  constructor(message: string, readonly clearImage: boolean) {
+    super(message);
+  }
+}
 
 const ADS_KEYS = ["meta-ads-campaigns", "meta-ads-adsets", "meta-ads-ads", "meta-ads-insights"] as const;
 
@@ -121,7 +128,6 @@ export function NewCampaignDialog({
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<NewCampaignForm>(EMPTY_NEW_CAMPAIGN);
-  const [file, setFile] = useState<File | null>(null);
   const [showErrors, setShowErrors] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   // ★ONE UPLOAD PER FILE: Meta's library is content-addressed, so a retry after a failed launch reuses the hash
@@ -141,10 +147,12 @@ export function NewCampaignDialog({
   const set = <K extends keyof NewCampaignForm>(key: K, value: NewCampaignForm[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
   const shown = showErrors ? errors : {};
+  // What Meta takes, in words, from the same rule the picker applies: never typed on this screen.
+  const imageRule = useMediaRule(AD_IMAGE);
+  const imageHint = imageRule.state === "ready" ? takesLine(imageRule.rule) : "";
 
   const reset = () => {
     setForm(EMPTY_NEW_CAMPAIGN);
-    setFile(null);
     setShowErrors(false);
     setFailure(null);
     setPickedAccountId(null);
@@ -155,18 +163,14 @@ export function NewCampaignDialog({
     // ★THE ACCOUNT IS A VARIABLE, not a closure: the Select is disabled while this runs, and whatever finishes invalidates the
     // account it was STARTED for.
     mutationFn: async (account: MetaAdAccount) => {
-      if (!file || !pageRow) throw new Error("not ready");
-      const key = `${account.id}|${file.name}|${file.size}|${file.lastModified}`;
+      if (!form.image || !pageRow) throw new Error("not ready");
+      const key = `${account.id}|${form.image.mediaId}`;
       if (uploaded.current?.key !== key) {
         const upload = await metaAdsApi
-          .uploadImage({
-            adAccountId: account.id,
-            name: file.name.slice(0, 100),
-            contentType: file.type as "image/jpeg" | "image/png",
-            data: await fileToBase64(file),
-          })
+          .uploadImage({ adAccountId: account.id, mediaId: form.image.mediaId })
           .catch((err: unknown) => {
-            throw new UploadFailed(metaAdsErrorMessage(err, "Couldn't upload that image. Try a different one."));
+            const why = adImageUploadFailure(err);
+            throw new UploadFailed(why.message, why.clearImage);
           });
         uploaded.current = { key, hash: upload.imageHash };
       }
@@ -195,6 +199,8 @@ export function NewCampaignDialog({
         );
       } else if (err instanceof UploadFailed) {
         setFailure(err.message);
+        // A file that can never work (gone from Drive, not a JPEG or PNG, too big) is let go, so the next press does not resend it.
+        if (err.clearImage) set("image", null);
       } else {
         setFailure(metaAdsErrorMessage(err, "Couldn't create the campaign. Nothing was created."));
       }
@@ -366,20 +372,43 @@ export function NewCampaignDialog({
 
             <div className="space-y-1.5">
               <Label htmlFor="mc-image">Image</Label>
-              <Input
-                id="mc-image"
-                type="file"
-                accept={META_IMAGE_TYPES.join(",")}
-                aria-invalid={Boolean(shown.image)}
-                aria-describedby="mc-image-err"
-                onChange={(e) => {
-                  const picked = e.target.files?.[0] ?? null;
-                  setFile(picked);
-                  set("image", picked ? { type: picked.type, size: picked.size } : null);
-                }}
-              />
+              <div className="flex items-center gap-3">
+                {/* The one picker: it applies the Meta ad image rules itself, and the server reads the bytes from Drive, so a Private file works and no link is needed. */}
+                <DrivePicker
+                  destination={AD_IMAGE}
+                  requirePublicUrl={false}
+                  needUrl={false}
+                  addLabel="Use this image"
+                  onSelect={(assets) => {
+                    const a = assets[0];
+                    if (!a) return;
+                    // ★EVERY PICK UPLOADS AFRESH. Drive's Replace keeps a file's id while its bytes change, so a hash cached by id would put
+                    // the OLD picture in the ad. The cache only spares a re-upload when the same pick is retried.
+                    uploaded.current = null;
+                    set("image", { mediaId: a.id, name: a.name || "Your Drive image" });
+                  }}
+                  trigger={
+                    <Button
+                      id="mc-image"
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={create.isPending}
+                      aria-invalid={Boolean(shown.image)}
+                      aria-describedby="mc-image-err"
+                    >
+                      {form.image ? "Change image" : "Choose an image"}
+                    </Button>
+                  }
+                />
+                {form.image && (
+                  <span data-testid="mc-image-name" className="truncate text-sm text-muted-foreground">
+                    {form.image.name}
+                  </span>
+                )}
+              </div>
+              {imageHint && <p className="text-xs text-muted-foreground">{imageHint}</p>}
               <FieldError id="mc-image-err" text={shown.image} />
-              <p className="text-xs text-muted-foreground">JPEG or PNG, up to 3 MB.</p>
             </div>
 
             <div className="space-y-1.5">

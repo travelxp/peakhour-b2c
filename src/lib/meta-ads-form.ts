@@ -58,8 +58,6 @@ export function countryName(code: string): string {
 
 export const META_MIN_AGE = 18;
 export const META_MAX_AGE = 65;
-export const META_IMAGE_MAX_BYTES = 3 * 1024 * 1024;
-export const META_IMAGE_TYPES = ["image/jpeg", "image/png"] as const;
 
 // ── Money ────────────────────────────────────────────────────────────────
 
@@ -172,8 +170,8 @@ export interface NewCampaignForm {
   text: string;
   link: string;
   cta: MetaCta;
-  /** The picked file's type and size; the bytes are read at submit. */
-  image: { type: string; size: number } | null;
+  /** The Drive file the picker chose. Its type and size were judged by the picker (the Meta ad image rules); the server reads the bytes. */
+  image: { mediaId: string; name: string } | null;
 }
 
 export const EMPTY_NEW_CAMPAIGN: NewCampaignForm = {
@@ -230,8 +228,6 @@ export function validateNewCampaign(form: NewCampaignForm, currency: string | un
   else if (form.text.trim().length > 500) errors.text = "Keep the text under 500 characters.";
   if (parseLink(form.link) === null) errors.link = "Enter the full web address, starting with https://";
   if (!form.image) errors.image = "Choose an image.";
-  else if (!(META_IMAGE_TYPES as readonly string[]).includes(form.image.type)) errors.image = "Use a JPEG or PNG image.";
-  else if (form.image.size > META_IMAGE_MAX_BYTES) errors.image = "That image is over 3 MB. Use a smaller one.";
   return errors;
 }
 
@@ -439,17 +435,4 @@ export function buildAdSetEdit(
   if (form.start && form.end && form.end < form.start) return { error: "The end date can't be before the start date." };
 
   return Object.keys(body).length ? body : null;
-}
-
-/** A file as base64 with no `data:` prefix, the form the api takes. */
-export function fileToBase64(file: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("read failed"));
-    reader.onload = () => {
-      const text = String(reader.result);
-      resolve(text.slice(text.indexOf(",") + 1));
-    };
-    reader.readAsDataURL(file);
-  });
 }
