@@ -14,6 +14,7 @@ import {
   ComposerShell,
   DrivePicker,
   EmojiPickerTrigger,
+  useDropPaste,
   HashtagSuggest,
   PlatformCharCounter,
   type AiActionContext,
@@ -113,7 +114,39 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
     setFailure(null);
   }, []);
 
+  const [dropRefusals, setDropRefusals] = useState<{ name: string; reason: string }[]>([]);
+  /**
+   * Files added from the picker, a drop or a paste. The picker has already judged each against the channel's rules (the api's table:
+   * kinds, count, size, shape), so this composer holds no media rule of its own. A file already on the post is not added twice.
+   */
+  const addAssets = useCallback(
+    (assets: { url: string; mime: string; name?: string | undefined }[]) => {
+      // functional, so two arrivals in one tick (a drop and a paste, two drops) add to each other instead of one replacing the other
+      setMedia((prev) => {
+        const have = new Set(prev.map((m) => m.url));
+        const next = [...prev];
+        for (const a of assets) {
+          if (have.has(a.url)) continue;
+          next.push({ url: a.url, mime: a.mime, name: a.name });
+          have.add(a.url);
+        }
+        return next;
+      });
+      edited();
+    },
+    [edited],
+  );
+  // Drop or paste pictures straight onto the composer: the same rules and the same upload engine as the picker.
+  const { ref: dropRef, dragging: dropping, busy: adding } = useDropPaste<HTMLDivElement>({
+    destination: { kind: "post", channel },
+    attached: media.length,
+    disabled: locked,
+    onAdd: addAssets,
+    onRefuse: setDropRefusals,
+  });
+  const dragOverClass = (over: boolean) => (over ? "rounded-md ring-2 ring-primary" : undefined);
   const reset = useCallback(() => {
+    setDropRefusals([]);
     setText("");
     setMedia([]);
     setLink("");
@@ -263,6 +296,7 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
 
   // ── Compose view ────────────────────────────────────────────────
   return (
+    <div ref={dropRef} className={dragOverClass(dropping)} data-testid="meta-drop-target">
     <ComposerShell
       mode="compose"
       headerSlot={
@@ -282,10 +316,10 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
       actionsBordered
       actionsSlot={
         <>
-          <Button type="button" variant="outline" size="sm" onClick={() => setMode("schedule")} disabled={blocked || locked} className="gap-1.5">
+          <Button type="button" variant="outline" size="sm" onClick={() => setMode("schedule")} disabled={blocked || locked || adding} className="gap-1.5">
             <CalendarClock className="size-4" /> Schedule
           </Button>
-          <Button onClick={() => publishNow.mutate()} disabled={blocked || publishNow.isPending || (locked && !resend)} aria-busy={publishNow.isPending} className="gap-1.5">
+          <Button onClick={() => publishNow.mutate()} disabled={blocked || adding || publishNow.isPending || (locked && !resend)} aria-busy={publishNow.isPending} className="gap-1.5">
             {publishNow.isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
             {publishNow.isPending ? "Publishing…" : locked && resend ? "Try again" : "Publish now"}
           </Button>
@@ -381,6 +415,22 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
       />
       )}
 
+      {adding ? (
+        <p role="status" className="flex items-center gap-1.5 text-sm text-muted-foreground" data-testid="meta-adding">
+          <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" aria-hidden /> Adding your pictures…
+        </p>
+      ) : null}
+
+      {dropRefusals.length > 0 ? (
+        <ul className="mt-2 space-y-1 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive" role="alert" data-testid="meta-drop-refusals">
+          {dropRefusals.map((r, i) => (
+            <li key={`${i}-${r.name}`}>
+              {r.name}: {r.reason}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
       {media.length > 0 ? (
         <ul className="flex flex-wrap gap-2" aria-label="Attached media">
           {media.map((m, i) => (
@@ -410,20 +460,14 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
 
       <div className="flex flex-wrap items-center gap-2">
         {locked ? null : <EmojiPickerTrigger onInsert={insertSnippet} />}
-        {locked || media.length >= rules.maxMedia ? null : (
+        {locked ? null : (
           <DrivePicker
-            kinds={[...rules.mediaKinds]}
-            maxSelection={Math.max(1, rules.maxMedia - media.length)}
-            target={{ channel, label: rules.driveLabel }}
+            destination={{ kind: "post", channel }}
+            attached={media.length}
             addLabel="Add to post"
             onSelect={(assets) => {
-              // A file already on the post is not added twice; picks beyond the room left are dropped, and the merchant is told.
-              const have = new Set(media.map((m) => m.url));
-              const fresh = assets.filter((a) => !have.has(a.url));
-              const room = Math.max(0, rules.maxMedia - media.length);
-              if (fresh.length > room) toast.info(`${rules.label} takes up to ${rules.maxMedia} pictures. Only the first ${room} were added.`);
-              setMedia((prev) => [...prev, ...fresh.slice(0, room).map((a) => ({ url: a.url, mime: a.mime, name: a.name }))]);
-              edited();
+              setDropRefusals([]);
+              addAssets(assets);
             }}
           />
         )}
@@ -451,5 +495,6 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
         </div>
       ) : null}
     </ComposerShell>
+    </div>
   );
 }

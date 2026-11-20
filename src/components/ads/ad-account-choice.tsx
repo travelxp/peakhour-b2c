@@ -67,6 +67,7 @@ function AdAccountChoiceFor({ provider, extra, onChanged, format }: AdAccountCho
   const tagsChanged = tagDraft !== null && !sameTags(tagDraft, savedTags);
   const dirty = draft !== null || tagsChanged;
   // An account the platform now says is disabled or closed that is still ticked: it can be unticked but not saved until it is.
+  const unavailable = format.unavailable?.(extra) ?? 0;
   const stillTickedBlocked = adAccounts.some((a) => ids.includes(a.id) && !!format.health(a).blocked);
   const canSave = dirty && ids.length > 0 && !!defaultId && ids.includes(defaultId) && !stillTickedBlocked;
 
@@ -207,6 +208,11 @@ function AdAccountChoiceFor({ provider, extra, onChanged, format }: AdAccountCho
           <p className="text-micro text-muted-foreground">{AD_ACCOUNT_TAGS_HELP}</p>
         </>
       )}
+      {unavailable > 0 ? (
+        <p className="text-micro text-muted-foreground">
+          {unavailable} ad account{unavailable === 1 ? "" : "s"} you chose {unavailable === 1 ? "is" : "are"} no longer available on {format.platformName.replace(/ Ads$/, "")}.
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const mocks = vi.hoisted(() => ({
   getPage: vi.fn(),
   uploadImage: vi.fn(),
+  pickerProps: vi.fn(),
   launchCampaign: vi.fn(),
   editCampaign: vi.fn(),
   editAdSet: vi.fn(),
@@ -37,6 +38,25 @@ vi.mock("@/lib/api/meta-ads", async (orig) => {
     },
   };
 });
+
+// The picker is its own tested module; here it is a button that picks a Drive file, so the screen's use of the pick is what is tested.
+vi.mock("@/components/drive/drive-picker", () => ({
+  DrivePicker: (props: {
+    destination: unknown;
+    requirePublicUrl?: boolean;
+    needUrl?: boolean;
+    trigger: React.ReactNode;
+    onSelect: (a: Array<{ id: string; name: string; url: string; mime: string }>) => void;
+  }) => {
+    mocks.pickerProps(props.destination, props.requirePublicUrl, props.needUrl);
+    return (
+      <span>
+        {props.trigger}
+        <button type="button" data-testid="pick" onClick={() => props.onSelect([{ id: "665f1c2a9b1e4d0012ab34cd", name: "shirt.png", url: "", mime: "image/png" }])} />
+      </span>
+    );
+  },
+}));
 
 import { ApiError } from "@/lib/api";
 import { MetaLaunchError, type MetaAdAccount, type MetaCampaign } from "@/lib/api/meta-ads";
@@ -99,13 +119,6 @@ function setValue(el: HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
   });
 }
 
-function attach(input: HTMLInputElement, file: File) {
-  act(() => {
-    Object.defineProperty(input, "files", { value: [file], configurable: true });
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-  });
-}
-
 const click = (el: Element | undefined | null) => {
   expect(el).toBeTruthy();
   act(() => {
@@ -113,7 +126,6 @@ const click = (el: Element | undefined | null) => {
   });
 };
 
-const PNG = () => new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3])], "shirt.png", { type: "image/png" });
 
 async function fillValidForm() {
   setValue(q<HTMLInputElement>("#mc-name")!, "Spring sale");
@@ -122,7 +134,7 @@ async function fillValidForm() {
   setValue(q<HTMLInputElement>("#mc-headline")!, "Spring is here");
   setValue(q<HTMLTextAreaElement>("#mc-text")!, "Fresh arrivals this week.");
   setValue(q<HTMLInputElement>("#mc-link")!, "https://shop.example.com/spring");
-  attach(q<HTMLInputElement>("#mc-image")!, PNG());
+  click(q("[data-testid=pick]"));
   await flush();
 }
 
@@ -214,7 +226,7 @@ describe("New campaign dialog", () => {
       await fillValidForm();
       click(byText("button", "Create paused campaign"));
       await flush();
-      expect(mocks.uploadImage.mock.calls[0]![0]).toMatchObject({ adAccountId: "act_111" });
+      expect(mocks.uploadImage.mock.calls[0]![0]).toMatchObject({ adAccountId: "act_111", mediaId: "665f1c2a9b1e4d0012ab34cd" });
     });
   });
 
@@ -246,6 +258,18 @@ describe("New campaign dialog", () => {
     expect(mocks.launchCampaign).not.toHaveBeenCalled();
   });
 
+  it("takes its image from the one picker, for the Meta ad image place, and shows the chosen file", async () => {
+    await open();
+    expect(mocks.pickerProps).toHaveBeenCalledWith({ kind: "ad", placement: "meta_ad_image" }, false, false);
+    expect(q("#mc-image")?.getAttribute("type")).not.toBe("file");
+    expect(document.body.querySelector('input[type="file"]')).toBeNull();
+    expect(byText("button", "Choose an image")).toBeTruthy();
+    click(q("[data-testid=pick]"));
+    await flush();
+    expect(q("[data-testid=mc-image-name]")?.textContent).toBe("shirt.png");
+    expect(byText("button", "Change image")).toBeTruthy();
+  });
+
   it("uploads the image, then launches three PAUSED levels with the budget in minor units", async () => {
     const onCreated = await open();
     await fillValidForm();
@@ -254,8 +278,8 @@ describe("New campaign dialog", () => {
 
     expect(mocks.uploadImage).toHaveBeenCalledTimes(1);
     const upload = mocks.uploadImage.mock.calls[0]![0];
-    expect(upload).toMatchObject({ adAccountId: "act_111", contentType: "image/png", name: "shirt.png" });
-    expect(atob(upload.data).charCodeAt(0)).toBe(0x89);
+    // Only the Drive file's id goes: the server reads the bytes, so no base64 and no type or name from the browser.
+    expect(upload).toEqual({ adAccountId: "act_111", mediaId: "665f1c2a9b1e4d0012ab34cd" });
 
     const bodies = mocks.launchCampaign.mock.calls[0]![0];
     expect(bodies.campaign).toMatchObject({ name: "Spring sale", status: "PAUSED", dailyBudget: "2550" });
@@ -324,6 +348,45 @@ describe("New campaign dialog", () => {
     await flush();
     expect(mocks.uploadImage).toHaveBeenCalledTimes(1);
     expect(mocks.launchCampaign).toHaveBeenCalledTimes(2);
+  });
+
+  it("★a new pick uploads again: Drive's Replace keeps the id while the picture changes", async () => {
+    mocks.launchCampaign.mockRejectedValueOnce(
+      new MetaLaunchError(new ApiError("META_UNAVAILABLE", "Couldn't reach Meta just now.", 502), null, false),
+    );
+    await open();
+    await fillValidForm();
+    click(byText("button", "Create paused campaign"));
+    await flush();
+    click(q("[data-testid=pick]")); // the same Drive file, picked again after it was replaced
+    await flush();
+    click(byText("button", "Create paused campaign"));
+    await flush();
+    expect(mocks.uploadImage).toHaveBeenCalledTimes(2);
+  });
+
+  it("lets go of a file that is no longer in Drive, so the next press does not resend it", async () => {
+    mocks.uploadImage.mockRejectedValue(new ApiError("NOT_FOUND", "That file is no longer in Drive.", 404));
+    await open();
+    await fillValidForm();
+    click(byText("button", "Create paused campaign"));
+    await flush();
+    expect(byText('[role="alert"]', /no longer in your Drive/)).toBeTruthy();
+    expect(q("[data-testid=mc-image-name]")).toBeNull();
+    expect(byText("button", "Choose an image")).toBeTruthy();
+    click(byText("button", "Create paused campaign"));
+    await flush();
+    expect(mocks.uploadImage).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the image and asks for the right role when the member is not an editor", async () => {
+    mocks.uploadImage.mockRejectedValue(new ApiError("FORBIDDEN", "This action requires editor role", 403));
+    await open();
+    await fillValidForm();
+    click(byText("button", "Create paused campaign"));
+    await flush();
+    expect(byText('[role="alert"]', /editor access/)).toBeTruthy();
+    expect(q("[data-testid=mc-image-name]")?.textContent).toBe("shirt.png");
   });
 
   it("starts clean when reopened after a cancel: no old form, no old warning", async () => {

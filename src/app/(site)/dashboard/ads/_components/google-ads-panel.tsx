@@ -8,6 +8,9 @@ import { toast } from "sonner";
 import { Megaphone, Plus, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
+import { CHOOSE_AD_ACCOUNTS } from "@/lib/ad-account-copy";
+import { enabledAccounts } from "@/lib/ad-account-choice";
+import { googleBareId, googleSelectedAccountId, otherGoogleAccounts } from "@/lib/google-ads-accounts";
 import { AddDriveUrls } from "@/components/drive/add-drive-urls";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   AlertDialog,
@@ -203,10 +206,13 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
   const pathname = usePathname();
   const params = useSearchParams();
   const queryAccountId = params.get(ACCOUNT_PARAM);
+  const { business } = useAuth();
 
   const accounts = useQuery({
-    queryKey: ["google-ads-accounts"],
+    // Scoped by business, like Meta's: another business's answer is never served for this one.
+    queryKey: ["google-ads-accounts", business?._id ?? "none"],
     queryFn: () => googleAdsApi.listAdAccounts(),
+    enabled: !!business,
     retry: false,
     staleTime: LIST_STALE_MS,
   });
@@ -223,18 +229,24 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
     [params, pathname, router],
   );
 
-  // An account with no id cannot be chosen (a Select item may not be empty).
-  const list = accounts.data?.adAccounts.filter((a) => a.id.length > 0);
-  const firstAccountId = list?.[0]?.id;
-  // A `?customer=` that is not in the list is ignored, not trusted.
-  const known = list?.some((a) => a.id === queryAccountId) ? queryAccountId : null;
+  // ★THE ACCOUNTS THE BUSINESS ENABLED, its default first (MR-G2): the api refuses new spend in any other. The login's other accounts
+  // are listed apart and open a PAUSE-ONLY view (stopping or lowering spend is never refused, so a running campaign in an account
+  // the business unticked can still be stopped).
+  const allListed = accounts.data?.adAccounts.filter((a) => a.id.length > 0) ?? [];
+  const list = enabledAccounts(accounts.data ? { accounts: accounts.data.adAccounts, enabledIds: accounts.data.enabledIds, defaultId: accounts.data.defaultId } : undefined, googleBareId);
+  const others = otherGoogleAccounts(accounts.data);
+  // ONE comparison rule for `?customer=`: an enabled or other account is kept (either spelling), anything else is the default.
+  const accountId = googleSelectedAccountId(list, others, queryAccountId);
+  const pauseOnly = accountId !== null && !list.some((a) => a.id === accountId);
+  // The URL is rewritten only when the resolved account differs from what it says.
+  const urlMatches = queryAccountId !== null && accountId !== null && googleBareId(queryAccountId) === googleBareId(accountId);
   useEffect(() => {
-    if (isActiveChannel && !known && firstAccountId) setAccountParam(firstAccountId);
-  }, [isActiveChannel, known, firstAccountId, setAccountParam]);
-  const accountId = known ?? firstAccountId ?? null;
-  const account = list?.find((a) => a.id === accountId);
+    if (isActiveChannel && !urlMatches && accountId) setAccountParam(accountId);
+  }, [isActiveChannel, urlMatches, accountId, setAccountParam]);
+  const account = [...list, ...others].find((a) => a.id === accountId);
 
-  if (accounts.isLoading) return <SkeletonStack />;
+  // S3: a query still waiting for the business has no data and no error: that is loading, not "no accounts".
+  if (!accounts.data && !accounts.isError) return <SkeletonStack />;
   // A failed read is NOT "no ad accounts".
   if (accounts.isError) {
     return (
@@ -246,7 +258,7 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
       />
     );
   }
-  if ((list ?? []).length === 0) {
+  if (allListed.length === 0) {
     return (
       <EmptyState
         icon={Megaphone}
@@ -255,9 +267,27 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
       />
     );
   }
+  // ★NO ENABLED ACCOUNT, NO NEW-SPEND CONTROLS: nothing here can start spend until the business says which accounts are its own. The notice
+  // sits above the account Select and the pause-only view, so a running campaign can always be paused.
+  const noneEnabled = list.length === 0;
 
   return (
     <div className="space-y-6">
+      {noneEnabled ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Choose your ad accounts</CardTitle>
+            <CardDescription>
+              {allListed.length > 1 ? `${CHOOSE_AD_ACCOUNTS} Your Google login reaches more than one.` : "Choose the ad account this business may use in Connected accounts."}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button asChild>
+              <Link href="/dashboard/integrations">Choose ad accounts</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
       <div className="space-y-1.5">
         <Label className="text-xs uppercase tracking-wide text-muted-foreground">Google Ads account</Label>
         <Select value={accountId ?? undefined} onValueChange={setAccountParam}>
@@ -265,17 +295,36 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
             <SelectValue placeholder="Choose an account" />
           </SelectTrigger>
           <SelectContent>
-            {(list ?? []).map((a) => (
+            {list.map((a) => (
               <SelectItem key={a.id} value={a.id}>
                 {a.name}
                 {a.currencyCode ? ` (${a.currencyCode})` : ""}
                 {a.testAccount ? " — test account" : ""}
               </SelectItem>
             ))}
+            {others.length > 0 ? (
+              <SelectGroup>
+                <SelectLabel>Other accounts on your Google login</SelectLabel>
+                {others.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.name}
+                    {a.currencyCode ? ` (${a.currencyCode})` : ""}
+                    {a.testAccount ? " — test account" : ""}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            ) : null}
           </SelectContent>
         </Select>
       </div>
-      {account ? (
+      {account && pauseOnly ? (
+        <>
+          <p className="text-sm text-muted-foreground">Peakhour does not run new spend in this account. You can pause or lower what is running.</p>
+          <CampaignsSection key={`campaigns-${account.id}`} account={account} pauseOnly />
+          {/* Rows that never recorded an account: shown here so they can still be paused. */}
+          <CampaignsSection key="campaigns-no-account" account={account} pauseOnly orphans />
+        </>
+      ) : account ? (
         <>
           {/* Keyed by account: a pick made for one account never carries to another. */}
           <ConversionTrackingSection key={`conv-${account.id}`} account={account} />
@@ -286,10 +335,10 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
           <CreateCampaignCard key={account.id} account={account} />
           {/* G-14e: account-level callouts (RMF C.75), in their own file. */}
           <GoogleCalloutsSection key={`callouts-${account.id}`} account={account} />
-          {/* G-14d: Google's own reports (RMF R.10–R.130), in their own file. */}
-          <GoogleReportsSection key={`reports-${account.id}`} account={account} />
         </>
       ) : null}
+      {/* G-14d: Google's own reports (RMF R.10–R.130), in their own file. Read-only, so every account the panel shows has them. */}
+      {account ? <GoogleReportsSection key={`reports-${account.id}`} account={account} /> : null}
     </div>
   );
 }
@@ -457,7 +506,7 @@ function ConversionTrackingSection({ account }: { account: GoogleAdAccount }) {
 
 // ── Campaigns ────────────────────────────────────────────────────────────
 
-function CampaignsSection({ account }: { account: GoogleAdAccount }) {
+function CampaignsSection({ account, pauseOnly = false, orphans = false }: { account: GoogleAdAccount; pauseOnly?: boolean; /** Pause-only view: the campaigns with no ad account on file (S5). */ orphans?: boolean }) {
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState<GoogleCampaign | null>(null);
   // G-14a: the campaign whose targeting step is open.
@@ -466,6 +515,8 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
   const [bidding, setBidding] = useState<GoogleCampaign | null>(null);
   // G14c: the campaign whose management dialog is open.
   const [managing, setManaging] = useState<GoogleCampaign | null>(null);
+  // S4: the reduce-only keyword list (pause and remove) in an account the business did not enable.
+  const [reducing, setReducing] = useState<GoogleCampaign | null>(null);
 
   const campaigns = useQuery({
     queryKey: ["google-ads-campaigns"],
@@ -476,8 +527,9 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
   const rows = useMemo(
     // ★THIS ACCOUNT'S ROWS ONLY (round 3): a row with no account would show
     //  under every account, in whichever currency was selected.
-    () => (campaigns.data?.campaigns ?? []).filter((c) => c.adAccountId === account.id),
-    [campaigns.data, account.id],
+    // S5: matched by the ONE id comparison (either spelling); a row with no account is the orphans' list, never every account's.
+    () => (campaigns.data?.campaigns ?? []).filter((c) => (orphans ? !c.adAccountId && !!c.platformCampaignId : !!c.adAccountId && googleBareId(c.adAccountId) === googleBareId(account.id))),
+    [campaigns.data, account.id, orphans],
   );
 
   // ★PER ROW (round 1): one campaign's request in flight must not hold
@@ -498,11 +550,13 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
     onError: (err) => toast.error(googleAdsErrorMessage(err, "Google Ads didn't take that change. Try again in a moment.")),
   });
 
+  if (orphans && !campaigns.isLoading && rows.length === 0) return null;
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Google campaigns</CardTitle>
-        <CardDescription>{GOOGLE_LAUNCH_NOTE}</CardDescription>
+        <CardTitle>{orphans ? "Campaigns with no ad account on file" : "Google campaigns"}</CardTitle>
+        {pauseOnly ? null : <CardDescription>{GOOGLE_LAUNCH_NOTE}</CardDescription>}
       </CardHeader>
       <CardContent>
         {campaigns.isLoading ? (
@@ -512,7 +566,7 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
             {googleAdsErrorMessage(campaigns.error, "We couldn't load your Google campaigns. Try again in a moment.")}
           </p>
         ) : rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No Google campaigns yet. Create one below — it starts paused.</p>
+          <p className="text-sm text-muted-foreground">{pauseOnly ? "No Google campaigns in this account." : "No Google campaigns yet. Create one below — it starts paused."}</p>
         ) : (
           <Table>
             <TableHeader>
@@ -549,7 +603,7 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
                     </TableCell>
                     <TableCell>{formatGoogleMoney(c.budget?.daily, c.currency ?? account.currencyCode)}</TableCell>
                     <TableCell className="space-x-2 text-right">
-                      {googleCampaignSettable(c) ? (
+                      {googleCampaignSettable(c) && !pauseOnly ? (
                         <>
                           <Button size="sm" variant="ghost" onClick={() => setTargeting(c)}>
                             Targeting
@@ -559,12 +613,17 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
                           </Button>
                         </>
                       ) : null}
+                      {pauseOnly && googleCampaignSettable(c) && (c.channelType ?? "SEARCH") === "SEARCH" ? (
+                        <Button size="sm" variant="ghost" onClick={() => setReducing(c)}>
+                          Keywords
+                        </Button>
+                      ) : null}
                       {c.platformCampaignId ? (
                         <Button size="sm" variant="ghost" onClick={() => setManaging(c)}>
                           Manage
                         </Button>
                       ) : null}
-                      {action.status ? (
+                      {action.status && !(pauseOnly && action.status === "ACTIVE") ? (
                         <Button
                           size="sm"
                           variant={action.status === "ACTIVE" ? "default" : "outline"}
@@ -575,8 +634,8 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
                         >
                           {action.label}
                         </Button>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">{action.reason}</span>
+                      ) : pauseOnly ? null : (
+                        <span className="text-xs text-muted-foreground">{"reason" in action ? action.reason : null}</span>
                       )}
                     </TableCell>
                   </TableRow>
@@ -629,10 +688,11 @@ function CampaignsSection({ account }: { account: GoogleAdAccount }) {
         <GoogleTargetingDialog key={targeting.id} campaign={targeting} account={account} open onOpenChange={(o) => (o ? null : setTargeting(null))} />
       ) : null}
       {/* G-14b: keyed by campaign, as the targeting step is. */}
+      {reducing ? <GoogleTargetingDialog key={`reduce-${reducing.id}`} campaign={reducing} account={account} reduceOnly open onOpenChange={(o) => (o ? null : setReducing(null))} /> : null}
       {bidding ? <GoogleBiddingDialog key={bidding.id} campaign={bidding} account={account} open onOpenChange={(o) => (o ? null : setBidding(null))} /> : null}
       {/* G14c: keyed by campaign, as the others are. */}
       {managing ? (
-        <GoogleCampaignManageDialog key={managing.id} campaign={managing} account={account} open onOpenChange={(o) => (o ? null : setManaging(null))} />
+        <GoogleCampaignManageDialog key={managing.id} campaign={managing} account={account} spendReducingOnly={pauseOnly} open onOpenChange={(o) => (o ? null : setManaging(null))} />
       ) : null}
     </Card>
   );
@@ -831,24 +891,21 @@ function CreateCampaignCard({ account }: { account: GoogleAdAccount }) {
             <Field
               label={
                 demandGen
-                  ? "Square logos (1:1, at least 128x128, at most 150 KB each; checked when you create) — one https:// address per line, 1 to 5"
-                  : "Logos (1:1) — one https:// address per line, 1 to 5"
+                  ? "Square logos (1:1, at least 128x128, at most 150 KB each) — choose 1 to 5"
+                  : "Logos (1:1) — choose 1 to 5"
               }
             >
-              <Textarea rows={2} value={form.logos} onChange={(e) => set("logos", e.target.value)} />
-              <AddDriveUrls label="logos" value={form.logos} onChange={(v) => set("logos", v)} max={5} />
+              <AddDriveUrls label="logos" value={form.logos} onChange={(v) => set("logos", v)} placement={demandGen ? "google_demand_gen_logo" : "google_ad_logo"} />
             </Field>
           </>
         ) : null}
         {pmax ? (
           <>
-            <Field label="Landscape images (1.91:1) — one https:// address per line, 1 to 20">
-              <Textarea rows={2} value={form.marketingImages} onChange={(e) => set("marketingImages", e.target.value)} />
-              <AddDriveUrls label="landscape images" value={form.marketingImages} onChange={(v) => set("marketingImages", v)} max={20} />
+            <Field label="Landscape images (1.91:1) — choose 1 to 20">
+              <AddDriveUrls label="landscape images" value={form.marketingImages} onChange={(v) => set("marketingImages", v)} placement="google_ad_landscape" />
             </Field>
-            <Field label="Square images (1:1) — one https:// address per line, 1 to 20">
-              <Textarea rows={2} value={form.squareImages} onChange={(e) => set("squareImages", e.target.value)} />
-              <AddDriveUrls label="square images" value={form.squareImages} onChange={(v) => set("squareImages", v)} max={20} />
+            <Field label="Square images (1:1) — choose 1 to 20">
+              <AddDriveUrls label="square images" value={form.squareImages} onChange={(v) => set("squareImages", v)} placement="google_ad_square" />
             </Field>
           </>
         ) : null}

@@ -1,13 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { ApiError } from "@/lib/api";
 import {
-  ATTACH_MAX_BYTES,
-  ATTACH_TYPES_COPY,
   CAPTION_MAX,
   CHECKOUT_MAX_LINES,
   CHECKOUT_MAX_QTY,
   addCheckoutLine,
-  attachmentProblem,
   captionProblem,
   checkoutItems,
   checkoutLineLabel,
@@ -69,26 +66,7 @@ describe("what the bubble offers for an attachment", () => {
   });
 });
 
-describe("what can be attached", () => {
-  const f = (type: string, size: number) => ({ type, size });
-  it("JPEG, PNG and PDF up to 4 MB pass; 4 MB + 1 byte does not", () => {
-    for (const t of ["image/jpeg", "image/png", "application/pdf"]) expect(attachmentProblem(f(t, 1000)), t).toBeNull();
-    expect(attachmentProblem(f("image/jpeg", ATTACH_MAX_BYTES))).toBeNull();
-    expect(attachmentProblem(f("image/jpeg", ATTACH_MAX_BYTES + 1))).toContain("choose a smaller one or reduce the photo's size");
-    expect(attachmentProblem(f("application/pdf", ATTACH_MAX_BYTES + 1))).toContain("choose a smaller one.");
-    expect(attachmentProblem(f("application/pdf", ATTACH_MAX_BYTES + 1))).not.toContain("photo");
-  });
-
-  it("every other type says what is allowed", () => {
-    for (const t of ["image/gif", "image/svg+xml", "application/msword", "text/html", "", "video/mp4"]) expect(attachmentProblem(f(t, 10)), t).toBe(ATTACH_TYPES_COPY);
-    expect(ATTACH_TYPES_COPY).toBe("Only JPEG or PNG images and PDF files can be sent.");
-  });
-
-  it("a type with parameters or capitals is the same type; an empty file is refused", () => {
-    expect(attachmentProblem(f("Image/JPEG; q=1", 10))).toBeNull();
-    expect(attachmentProblem(f("image/png", 0))).toBe("That file is empty.");
-  });
-
+describe("captions", () => {
   it("a caption is limited to WhatsApp's 1024 characters, counted trimmed", () => {
     expect(captionProblem("x".repeat(CAPTION_MAX))).toBeNull();
     expect(captionProblem(`  ${"x".repeat(CAPTION_MAX)}  `)).toBeNull();

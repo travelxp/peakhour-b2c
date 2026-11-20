@@ -411,8 +411,7 @@ export function Library() {
                 ? (t) => (
                     <DrivePicker
                       tabs={["drive", "upload"]}
-                      kinds={["image"]}
-                      maxSelection={1}
+                      destination={{ kind: "page", use: "photo" }}
                       requirePublicUrl={false}
                       needUrl={false}
                       addLabel={C.addPhotoUse}

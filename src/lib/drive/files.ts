@@ -30,6 +30,8 @@ export interface DriveFile {
   altText?: string;
   width?: number;
   height?: number;
+  /** A video's length. */
+  durationSeconds?: number;
   sizeBytes: number;
   source: string;
   createdAt: string;

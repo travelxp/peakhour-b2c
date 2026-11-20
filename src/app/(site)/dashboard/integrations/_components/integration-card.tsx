@@ -244,6 +244,13 @@ export function IntegrationCard({
               </div>
             )}
 
+            {/* Google Ads — the ad accounts Peakhour may use, with the default. */}
+            {integration.provider === "google_ads" && integration.connected && integration.account?.extra && (
+              <div className="space-y-2 rounded-md border border-border/40 p-2">
+                <AdAccountChoice provider="google_ads" extra={integration.account.extra} onChanged={onChanged} />
+              </div>
+            )}
+
             {/* Beehiiv sync controls */}
             {integration.provider === "beehiiv" && (
               <BeehiivSyncControls

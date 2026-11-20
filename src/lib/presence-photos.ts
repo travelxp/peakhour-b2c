@@ -10,7 +10,6 @@
  */
 
 import type { PresenceCapabilities } from "@/lib/presence-panels";
-import type { DriveFile } from "@/lib/drive/files";
 import type { ChangeCardData, CapabilitiesResponse } from "@/lib/presence-edit";
 
 // ── Shapes the api returns ───────────────────────────────────────────────────
@@ -82,17 +81,6 @@ export function limitsSentence(l: PhotoLimits, label: string): string {
   if (l.minPixels !== undefined) parts.push(`at least ${l.minPixels} x ${l.minPixels} pixels${l.recommendedPixels ? ` (${l.recommendedPixels} x ${l.recommendedPixels} is better)` : ""}`);
   if (l.maxItems !== undefined) parts.push(`up to ${l.maxItems} photos`);
   return `${label} takes photos that are ${parts.join(", ")}.`;
-}
-
-/** Plain words for why a file cannot be picked, mirroring the api's check so nobody picks what will be refused. The api checks again. Null: usable. */
-export function unusableReason(file: Pick<DriveFile, "mimeType" | "sizeBytes" | "width" | "height">, l: PhotoLimits): string | null {
-  if (!l.formats.includes(file.mimeType)) return `Not a ${l.formatsLabel} file`;
-  if (l.minBytes !== undefined && file.sizeBytes < l.minBytes) return `Under ${kb(l.minBytes)}`;
-  if (l.maxBytes !== undefined && file.sizeBytes > l.maxBytes) return `Over ${kb(l.maxBytes)}`;
-  if (l.minPixels !== undefined && file.width !== undefined && file.height !== undefined && (file.width < l.minPixels || file.height < l.minPixels)) {
-    return `Under ${l.minPixels} x ${l.minPixels} pixels`;
-  }
-  return null;
 }
 
 // ── What the panel shows ─────────────────────────────────────────────────────

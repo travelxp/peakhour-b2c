@@ -37,25 +37,19 @@ export interface MetaChannelRules {
   maxHashtags?: number;
   /** Links the channel allows in the text, when it counts them (Threads: 5). */
   maxLinks?: number;
-  /** How many pictures or videos one post can carry. */
-  maxMedia: number;
   /** True when a post with no picture or video is refused (Instagram). */
   mediaRequired: boolean;
-  /** What the Drive picker may offer. */
-  mediaKinds: readonly ("image" | "video")[];
   /** Whether the post can carry a link of its own. */
   link: boolean;
-  /** What Drive calls the destination: "a Facebook post". */
-  driveLabel: string;
 }
 
 /**
  * What `POST /v1/scheduler/plans` takes in one channel payload (`zPayload` in peakhour-api `routes/scheduler/index.ts`): text up to
- * 20,000 characters and 12 media. Both are tighter than Facebook (63,206) and Threads (20 pictures) themselves, and a post over them
- * is refused with a bare "Invalid request body", so the rules below stop at the smaller number.
+ * 20,000 characters, tighter than Facebook (63,206) itself, and a post over it is refused with a bare "Invalid request body", so the
+ * rule below stops at the smaller number. ★MEDIA RULES ARE NOT HERE: which files, how many and how big are the picker's, from the api's
+ * rules table (`lib/media-rules.ts`), so this composer carries no second media rule.
  */
 const SCHEDULER_MAX_TEXT_CHARS = 20_000;
-const SCHEDULER_MAX_MEDIA = 12;
 
 /** The channel's own limit (the one the character ring reads), held to what the scheduler takes. */
 const limitFor = (channel: MetaComposeChannel) => Math.min(PLATFORM_LIMITS[channel].maxChars, SCHEDULER_MAX_TEXT_CHARS);
@@ -65,33 +59,24 @@ export const META_COMPOSE_RULES: Record<MetaComposeChannel, MetaChannelRules> = 
     label: PLATFORM_LIMITS.facebook.label,
     blurb: "A post on your Facebook Page",
     maxChars: limitFor("facebook"),
-    maxMedia: 10,
     mediaRequired: false,
-    mediaKinds: ["image"],
     link: true,
-    driveLabel: "a Facebook post",
   },
   instagram: {
     label: PLATFORM_LIMITS.instagram.label,
     blurb: "A picture or video post on your Instagram account",
     maxChars: limitFor("instagram"),
     maxHashtags: 30,
-    maxMedia: 10,
     mediaRequired: true,
-    mediaKinds: ["image", "video"],
     link: false,
-    driveLabel: "an Instagram post",
   },
   threads: {
     label: PLATFORM_LIMITS.threads.label,
     blurb: "A short post on your Threads profile",
     maxChars: limitFor("threads"),
     maxLinks: 5,
-    maxMedia: SCHEDULER_MAX_MEDIA,
     mediaRequired: false,
-    mediaKinds: ["image"],
     link: false,
-    driveLabel: "a Threads post",
   },
 };
 
@@ -184,12 +169,7 @@ export function metaPostProblems(channel: MetaComposeChannel, draft: MetaDraft):
 
   if (text === "") out.push(channel === "instagram" ? "Write a caption for your post." : "Write something to post.");
   if (rules.mediaRequired && media.length === 0) {
-    out.push(`${rules.label} posts need ${rules.mediaKinds.includes("video") ? "a picture or a video" : "a picture"}. Add one from Drive.`);
-  }
-  if (media.length > rules.maxMedia) out.push(`${rules.label} takes up to ${rules.maxMedia} pictures in one post. Remove ${media.length - rules.maxMedia}.`);
-  if (media.some(isVideo)) {
-    if (!rules.mediaKinds.includes("video")) out.push(`${rules.label} posts from here take pictures only. Remove the video.`);
-    else if (media.length > 1) out.push("A video goes on its own. Remove the other items, or use pictures only.");
+    out.push(`${rules.label} posts need a picture or a video. Add one from Drive.`);
   }
   const length = metaTextLength(channel, text);
   if (length > rules.maxChars) {

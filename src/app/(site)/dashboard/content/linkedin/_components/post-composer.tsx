@@ -23,6 +23,7 @@ import {
   composerGates,
   effectiveVisibilityFor,
   isOrgAuthorKey,
+  postAttachments,
   scheduleTitleFor,
 } from "@/lib/linkedin-composer";
 import { AiComposeToolbar, ComposerShell, DraftSaver, EmojiPickerTrigger, HashtagSuggest, MentionTypeahead, PlatformCharCounter, useDraftSaver, type AiActionContext, type ComposerCommand, type HashtagCandidate, type MentionCandidate } from "@/components/composer";
@@ -31,6 +32,7 @@ import { sourceTextHash } from "@/lib/scheduler/source-hash";
 import { aiOpNoChangeMessage, aiOpToast, isProbablyUrl, mapVoiceCardSummary } from "./composer-helpers";
 import { usePolicyCheck } from "./composer-policy-check";
 import { HOOK_SCORE_MIN_CHARS, HookScoreCard, useHookScore } from "./composer-hook-score";
+import { PostMedia, dropOutline, usePostMedia } from "@/components/composer/post-media";
 import { LinkAttachCard, MentionsStrip } from "./composer-attachments";
 import { ComposerActions } from "./composer-actions";
 import { buildComposerCommands } from "./composer-commands";
@@ -121,6 +123,10 @@ export function PostComposer({ identity, seedText }: Props) {
   // turning it on clears the link, and carousel/schedule are disabled while it
   // is active (the carousel + scheduler paths don't carry a poll).
   const [poll, setPoll] = useState<PollState | null>(null);
+  // Pictures: the picker applies LinkedIn's own rules. A post takes pictures OR a link card OR a poll, so a drop or paste is refused (with a
+  // sentence) while either is on the post, and each switches the others off below.
+  const postMedia = usePostMedia("linkedin", { disabled: showLink || poll !== null });
+  const clearPostMedia = postMedia.clear;
   // Org @mentions (CMA D4) the user inserted via the typeahead, deduped by URN.
   // The inserted `@<name>` text alone can't carry the URN, so we record it here
   // and serialize text → commentarySegments on publish.
@@ -300,6 +306,7 @@ export function PostComposer({ identity, seedText }: Props) {
     setLinkTitle("");
     setShowLink(false);
     setPoll(null);
+    clearPostMedia();
     setMentions([]);
     setVariants(null);
     setDraftId(null);
@@ -315,10 +322,13 @@ export function PostComposer({ identity, seedText }: Props) {
     setShowLink(false);
     setLinkUrl("");
     setLinkTitle("");
-  }, []);
+    // a poll is exclusive: pictures go when it is switched ON, not when it is taken off
+    if (poll === null) clearPostMedia();
+  }, [clearPostMedia, poll]);
 
   const anyPending = publish.isPending || carousel.isPending;
   const pollActive = poll !== null;
+  const attachments = postAttachments({ showLink, pollActive, pictureCount: postMedia.media.length });
   const {
     empty,
     linkInvalid,
@@ -351,6 +361,7 @@ export function PostComposer({ identity, seedText }: Props) {
       showLink,
       linkUrl,
       linkTitle,
+      mediaIds: postMedia.ids,
     });
 
     publish.mutate(body);
@@ -528,8 +539,9 @@ export function PostComposer({ identity, seedText }: Props) {
         linkUrl,
         linkTitle,
         text,
+        mediaUrls: postMedia.urls,
       }),
-    [authorKey, identity.person.urn, visibility, showLink, linkUrl, linkTitle, text],
+    [authorKey, identity.person.urn, visibility, showLink, linkUrl, linkTitle, text, postMedia.urls],
   );
 
   function handleScheduled() {
@@ -549,12 +561,13 @@ export function PostComposer({ identity, seedText }: Props) {
         scheduleDisabled,
         showLink,
         pollActive,
+        hasPictures: postMedia.media.length > 0,
         runAi: handleAiAction,
         onSchedule: () => setMode("schedule"),
         onAttachLink: () => setShowLink(true),
         onTogglePoll: togglePoll,
       }),
-    [handleAiAction, text, empty, scheduleDisabled, showLink, pollActive, togglePoll],
+    [handleAiAction, text, empty, scheduleDisabled, showLink, pollActive, postMedia.media.length, togglePoll],
   );
 
   // ── Schedule view ───────────────────────────────────────────────
@@ -585,6 +598,7 @@ export function PostComposer({ identity, seedText }: Props) {
   }
 
   return (
+    <div ref={postMedia.dropRef} className={dropOutline(postMedia.dropping)} data-testid="linkedin-drop-target">
     <ComposerShell
       mode="compose"
       voiceCard={voiceSummary}
@@ -709,7 +723,7 @@ export function PostComposer({ identity, seedText }: Props) {
 
       <div className="flex items-center gap-2">
         <EmojiPickerTrigger onInsert={insertSnippet} />
-        {!showLink && !pollActive && (
+        {attachments.canAddLink && (
           <Button type="button" variant="ghost" size="sm" onClick={() => setShowLink(true)} className="h-7 gap-1.5 px-2 text-xs">
             <Link2 className="size-3.5" /> Add link
           </Button>
@@ -733,6 +747,8 @@ export function PostComposer({ identity, seedText }: Props) {
           onDismiss={() => setVariants(null)}
         />
       )}
+
+      <PostMedia state={postMedia} locked={publish.isPending || !attachments.canAddPictures} />
 
       {poll && (
         <PollEditor value={poll} onChange={setPoll} onRemove={() => setPoll(null)} />
@@ -782,5 +798,6 @@ export function PostComposer({ identity, seedText }: Props) {
         />
       )}
     </ComposerShell>
+    </div>
   );
 }
