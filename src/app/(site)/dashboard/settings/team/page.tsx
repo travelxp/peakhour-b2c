@@ -76,11 +76,14 @@ const ROLE_ICONS: Record<string, typeof Crown> = {
 };
 
 export default function TeamPage() {
-  const { orgs, org } = useAuth();
+  const { orgs, org, user } = useAuth();
   const { formatDate } = useLocale();
   const currentRole = orgs.find((o) => o._id === org?._id)?.role || "viewer";
-  const isOwner = currentRole === "owner";
-  const isAdmin = currentRole === "admin" || isOwner;
+  // Owner and Admin manage the team: invite, revoke, change roles, remove.
+  // The api refuses the owner's row and your own, so the menu is not shown there.
+  const isAdmin = currentRole === "admin" || currentRole === "owner";
+  const canManage = (m: TeamMember) =>
+    isAdmin && !m.isOwner && m.role !== "owner" && m.userId !== user?._id;
 
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invites, setInvites] = useState<PendingInvite[]>([]);
@@ -326,8 +329,8 @@ export default function TeamPage() {
                     {ROLE_LABELS[m.role] || m.role}
                   </span>
 
-                  {/* Actions (owner only, cannot modify self/other owners) */}
-                  {isOwner && !m.isOwner && (
+                  {/* Actions (owner and admin; never the owner's row or your own) */}
+                  {canManage(m) && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" aria-label="Member actions" className="h-8 w-8">
@@ -449,7 +452,7 @@ export default function TeamPage() {
               <div className="font-medium text-foreground mb-1 flex items-center gap-1">
                 <ShieldCheck className="h-3 w-3 text-state-info" /> Admin
               </div>
-              Settings, integrations, all content operations
+              Team management, settings, integrations, all content operations
             </div>
             <div>
               <div className="font-medium text-foreground mb-1 flex items-center gap-1">
