@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
@@ -23,6 +23,8 @@ import { AlertCircle, Search } from "lucide-react";
 import { flattenMetaIntegration as flattenMetaIntegrationBase, resolveProvider, isMetaVirtual, metaActionPurpose, metaCardsDisconnectedBy, metaGrantNote, metaLoginPurposeFor, withMetaLoginPurpose, type MetaLoginInfo } from "@/lib/integrations-meta";
 import { Integration } from "./_components/shared";
 import { AppStoreConnectConnectModal, AppsFlyerConnectModal, BeehiivConnectModal, PlayConsoleConnectModal, WhatsAppConnectModal } from "./_components/connect-modals";
+import { OverseasAckDialog } from "@/components/integrations/overseas-ack-dialog";
+import { ackVersionToAsk, ACK_REQUIRED_ERROR_PROVIDER, ACK_REQUIRED_ERROR_VERSION, isAckRequiredRedirect, withOverseasAck } from "@/lib/overseas-ack";
 import { IntegrationCard } from "./_components/integration-card";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -174,6 +176,21 @@ export default function IntegrationsPage() {
   const [backfilling, setBackfilling] = useState(false);
   const [backfillResult, setBackfillResult] = useState<{ message: string; hasErrors: boolean } | null>(null);
   const [connectModal, setConnectModal] = useState<string | null>(null);
+  // A connect waiting on the overseas acknowledgement (TikTok for an Indian business).
+  const [ackPending, setAckPending] = useState<{ provider: string; version: string } | null>(null);
+  const ackRedirect = isAckRequiredRedirect(searchParams);
+  const ackAsked = useRef(false);
+
+  // The api sent the merchant back without the acknowledgement: ask again,
+  // rather than showing a generic error.
+  useEffect(() => {
+    if (!ackRedirect || loading || ackAsked.current) return;
+    ackAsked.current = true;
+    setAckPending({
+      provider: ACK_REQUIRED_ERROR_PROVIDER,
+      version: ackVersionToAsk(integrations, ACK_REQUIRED_ERROR_PROVIDER) ?? ACK_REQUIRED_ERROR_VERSION,
+    });
+  }, [ackRedirect, loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Filter state
   const [search, setSearch] = useState("");
@@ -244,7 +261,14 @@ export default function IntegrationsPage() {
     return { metaLogin: row?.metaLogin, metaConnections: row?.metaConnections };
   }
 
-  async function handleConnect(provider: string, authType: string) {
+  async function handleConnect(provider: string, authType: string, ackVersion?: string) {
+    // The api flags a provider that needs an acknowledgement first. Ask,
+    // and come back here with the accepted version.
+    const ackToAsk = ackVersionToAsk(integrations, provider);
+    if (ackToAsk && !ackVersion && authType === "oauth2") {
+      setAckPending({ provider, version: ackToAsk });
+      return;
+    }
     const realProvider = resolveProvider(provider);
     // WhatsApp can ONLY be connected via Meta's Embedded Signup (the v4 flow
     // with a config_id + WhatsApp scopes + the WA_EMBEDDED_SIGNUP postMessage
@@ -285,11 +309,12 @@ export default function IntegrationsPage() {
       // opens that product's own Login for Business configuration — except a
       // reconnect of a broken shared row, which must replace that row's
       // token (metaActionPurpose).
-      window.location.href = withMetaLoginPurpose(
+      const authorizeUrl = withMetaLoginPurpose(
         `${API_BASE_URL}/v1/integrations/${realProvider}/authorize` +
           `?returnTo=${encodeURIComponent(landing)}`,
         metaActionPurpose(metaInfoFor(provider), provider),
       );
+      window.location.href = ackVersion ? withOverseasAck(authorizeUrl, ackVersion) : authorizeUrl;
     } else if (authType === "api_key") {
       setConnectModal(realProvider);
     }
@@ -752,6 +777,18 @@ export default function IntegrationsPage() {
         open={connectModal === "whatsapp"}
         onClose={() => setConnectModal(null)}
         onConnected={loadIntegrations}
+      />
+
+      {/* Overseas acknowledgement — TikTok for a business in India */}
+      <OverseasAckDialog
+        version={ackPending?.version ?? ""}
+        open={ackPending !== null}
+        onCancel={() => setAckPending(null)}
+        onConfirm={(version) => {
+          const pending = ackPending;
+          setAckPending(null);
+          if (pending) void handleConnect(pending.provider, "oauth2", version);
+        }}
       />
 
       {/* WordPress / WooCommerce — generate a connection key for the plugin */}

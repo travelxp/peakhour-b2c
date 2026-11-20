@@ -3,6 +3,7 @@
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { ACK_REQUIRED_ERROR } from "@/lib/overseas-ack";
 import { useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
@@ -245,6 +246,12 @@ function SettingsContent() {
       const provider = searchParams.get("provider");
       const msg = searchParams.get("msg");
       const anchor = searchParams.get("anchor");
+      // Missing overseas acknowledgement: the dialog lives on the Integrations
+      // page, so send the merchant there instead of showing a generic error.
+      if (msg === ACK_REQUIRED_ERROR) {
+        window.location.replace(`/dashboard/integrations?error=${ACK_REQUIRED_ERROR}`);
+        return;
+      }
       setConnectError(oauthErrorMessage(provider, msg, anchor));
       // Only a brand-mismatch block is disputable via "request a review".
       if (msg === "brand_mismatch" && provider) {

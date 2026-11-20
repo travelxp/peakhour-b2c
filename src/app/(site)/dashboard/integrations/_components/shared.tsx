@@ -5,6 +5,7 @@ import { Mail, Megaphone } from "lucide-react";
 import { brandTileStyle } from "@/components/brand/brand-colors";
 import { LinkedinIcon, FacebookIcon, InstagramIcon, GoogleIcon, YoutubeIcon, BeehiivIcon, SubstackIcon, MailchimpIcon, ShopifyIcon, WordPressIcon, WooCommerceIcon, GhostIcon, TwitterIcon, WhatsAppIcon, SlackIcon, DiscordIcon, TelegramIcon, TeamsIcon } from "@/components/brand/brand-icons";
 import { type MetaLoginInfo } from "@/lib/integrations-meta";
+import type { RequiresAck } from "@/lib/overseas-ack";
 
 export interface Integration {
   provider: string;
@@ -23,6 +24,9 @@ export interface Integration {
   metaConnections?: MetaLoginInfo["metaConnections"];
   /** Meta cards only: which Meta cards are connected right now. */
   metaConnectedCards?: string[];
+  /** api: present when a connect needs an acknowledgement first (TikTok for a
+   *  business in India). b2c reads it and never derives it. */
+  requiresAck?: RequiresAck;
   group?: string | null;
   groupDisplayName?: string | null;
   subLabel?: string | null;
