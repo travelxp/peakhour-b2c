@@ -189,7 +189,30 @@ export function LinkedInAdsStatus({
 
   // Nothing enabled (or nothing listed) is the "Ad accounts Peakhour may use" checklist's to say, with its own empty and
   // choose-some lines, so there is no second empty state here.
-  if (adAccounts.length === 0) return null;
+  if (adAccounts.length === 0) {
+    // Still a way to refresh (a reconnect or a new account changes what is listed), and, when the login lists nothing at all, the
+    // link to make one. The choice is the checklist's; this is only the status line's own controls.
+    const loginListsNone = listedAdAccounts(extra).length === 0;
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="outline" size="sm" className="h-7 gap-1.5 px-2 text-xs" onClick={() => onRefresh()} disabled={refreshing}>
+          <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
+          {refreshing ? "Refreshing..." : "Refresh status"}
+        </Button>
+        {loginListsNone ? (
+          <a
+            href="https://www.linkedin.com/campaignmanager/new-advertiser"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-micro font-medium text-primary underline underline-offset-2 hover:no-underline"
+          >
+            Create Ad Account on LinkedIn
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        ) : null}
+      </div>
+    );
+  }
 
   for (const acc of adAccounts) {
     const serving = acc.servingStatuses || [];

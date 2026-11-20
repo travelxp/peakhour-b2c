@@ -180,7 +180,7 @@ export function LeadFormsPanel() {
           // mapped account has forms we deliberately do not show rather than
           // guess whose they are. Offering "Design a form" here would invite
           // someone to build a second copy of a form they already have.
-          <NoAdAccountState what="lead forms" />
+          <NoAdAccountState kind="lead forms" />
         ) : (asks.data?.asks?.length ?? 0) === 0 ? (
           <EmptyState
             icon={ClipboardList}

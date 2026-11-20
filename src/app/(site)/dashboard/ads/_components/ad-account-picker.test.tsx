@@ -30,7 +30,7 @@ vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a>,
 }));
 
-const { AdAccountPicker } = await import("./ad-account-picker");
+const { AdAccountPicker, NoAdAccountState } = await import("./ad-account-picker");
 
 const Q = { id: "111", name: "Quests Travel", currency: "INR" };
 const C = { id: "222", name: "CMPL", currency: "USD" };
@@ -106,8 +106,40 @@ describe("AdAccountPicker", () => {
     expect(container.querySelector("a")?.getAttribute("href")).toContain("linkedin.com/campaignmanager");
   });
 
+  it("★V5: with no business default the trigger shows the placeholder, not 'Use the business default'", async () => {
+    await mount({ activePageId: "p1", adAccountId: null, byPage: {}, businessDefaultId: null, listedCount: 2, accounts: [Q, C] });
+    const trigger = container.querySelector('[role="combobox"]')!;
+    expect(trigger.textContent).toContain("Choose an ad account");
+    expect(trigger.textContent).not.toContain("Use the business default");
+  });
+
+  it("★V6: every listed account is cancelled: says so and links to Campaign Manager, not round to Connected accounts", async () => {
+    await mount({ activePageId: "p1", adAccountId: null, byPage: {}, businessDefaultId: null, listedCount: 1, blocked: [{ id: "444", name: "Gone Co", word: "cancelled" }], accounts: [] });
+    expect(container.textContent).toContain("Gone Co is cancelled on LinkedIn");
+    expect(container.querySelector("a")?.getAttribute("href")).toContain("linkedin.com/campaignmanager");
+    expect(container.textContent).not.toContain("Open Connected accounts");
+  });
+
+  it("★V7: an api that does not say how many accounts the login lists reads as none: the Campaign Manager link", async () => {
+    await mount({ activePageId: "p1", adAccountId: null, byPage: {}, businessDefaultId: null, accounts: [] });
+    expect(container.querySelector("a")?.getAttribute("href")).toContain("linkedin.com/campaignmanager");
+  });
+
   it("a pageless connection shows nothing", async () => {
     await mount({ activePageId: null, adAccountId: "111", byPage: {}, accounts: [Q, C] });
     expect(container.innerHTML).toBe("");
+  });
+});
+
+describe("NoAdAccountState (V8)", () => {
+  it("each surface gets its own sentence: the campaigns line only for campaigns, lead forms their own", () => {
+    const render = (kind: "campaigns" | "lead forms") => {
+      act(() => root.render(<NoAdAccountState kind={kind} />));
+      return container.textContent ?? "";
+    };
+    expect(render("campaigns")).toContain("Campaigns that are already running stay listed");
+    const forms = render("lead forms");
+    expect(forms).toContain("lead forms will appear here");
+    expect(forms).not.toContain("Campaigns");
   });
 });

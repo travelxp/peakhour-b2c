@@ -34,6 +34,8 @@ export interface AdAccountFormat {
   /** The accounts the connection lists, read from where THIS channel stores them (the api's registry row owns `list` too). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   list(extra: Record<string, any> | undefined): AdAccountRow[];
+  /** Where a merchant makes an ad account on the platform, when every account the login lists cannot run ads. */
+  createAccountUrl?: string;
   /** Refetch the channel's OWN readers of the enabled accounts after a save (Growth must never offer one just unticked). */
   refresh(client: QueryClient): Promise<unknown>;
 }
@@ -58,6 +60,7 @@ export const AD_ACCOUNT_FORMATS: Record<string, AdAccountFormat> = {
   },
   linkedin_ads: {
     platformName: "LinkedIn",
+    createAccountUrl: "https://www.linkedin.com/campaignmanager/accounts",
     bareId: linkedinAdAccountBareId,
     idLine: linkedinAdAccountIdLine,
     health: (a) => linkedinAdAccountStatus(a.status),

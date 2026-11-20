@@ -26,16 +26,49 @@ export function linkedinAdAccountStatus(status: unknown): { blocked?: "cancelled
   return {};
 }
 
+/** `Name`, else `Account 123`: how an ad account is named where there is room for one word. */
+export function linkedinAdAccountLabel(a: { id: string; name?: string | null }): string {
+  return a.name ? a.name : `Account ${linkedinAdAccountBareId(a.id)}`;
+}
+
+export interface CampaignAccountState {
+  /** The campaign's own ad account, bare. Undefined for a row that predates the field. */
+  ownAccount?: string;
+  /** The enabled account it is in, when it is one. */
+  account?: { id: string; name: string | null; currency: string | null };
+  /** The business has chosen its accounts and this campaign is in one it does not use: pause only. */
+  notUsed: boolean;
+  /** The business has chosen its accounts and this campaign names none, so which account it is in cannot be confirmed: no start, no retarget. */
+  unconfirmed: boolean;
+  /** The account line, once: "Name · Account ID 123 · INR" (name and currency only where known). Undefined without an account. */
+  line?: string;
+}
+
 /**
  * A campaign's own ad account against the business's enabled ones (MR-G1). The campaign list spans accounts, so a campaign in an
  * account the business does not use stays visible (it can be paused) but is `notUsed`: no Resume, no targeting edit.
- * `accounts` absent (an older api) labels nothing, so nothing is ever wrongly locked.
+ *
+ * ★AN EMPTY OR ABSENT `accounts` IS UNKNOWN, NOT "NOT USED": an older api, a connection that did not resolve, or a business that has
+ * not chosen yet says nothing about which accounts it uses, so no row is wrongly locked and each keeps its normal controls.
+ * A row with no account of its own is `unconfirmed` (only against a known list): the api stores the placed account on the row, so
+ * one that still has none is one Peakhour cannot place.
  */
 export function campaignAccountState(
-  campaign: { adAccountId?: string },
+  campaign: { adAccountId?: string; platformCampaignId?: string; currency?: string },
   accounts: ReadonlyArray<{ id: string; name: string | null; currency: string | null }> | undefined,
-): { ownAccount?: string; account?: { id: string; name: string | null; currency: string | null }; notUsed: boolean } {
+): CampaignAccountState {
+  const known = Array.isArray(accounts) && accounts.length > 0;
   const ownAccount = campaign.adAccountId ? linkedinAdAccountBareId(campaign.adAccountId) : undefined;
-  const account = ownAccount ? accounts?.find((a) => linkedinAdAccountBareId(a.id) === ownAccount) : undefined;
-  return { ownAccount, account, notUsed: Boolean(ownAccount && accounts && !account) };
+  const account = ownAccount && known ? accounts!.find((a) => linkedinAdAccountBareId(a.id) === ownAccount) : undefined;
+  const currency = account?.currency ?? campaign.currency;
+  const line = ownAccount
+    ? `${account?.name ? `${account.name} · ` : ""}${linkedinAdAccountIdLine({ id: ownAccount, ...(currency ? { currency } : {}) })}`
+    : undefined;
+  return {
+    ownAccount,
+    account,
+    notUsed: Boolean(ownAccount && known && !account),
+    unconfirmed: Boolean(!ownAccount && known && campaign.platformCampaignId),
+    line,
+  };
 }

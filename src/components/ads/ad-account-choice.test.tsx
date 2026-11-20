@@ -103,6 +103,17 @@ describe("AdAccountChoice", () => {
     expect(h.patch.mock.calls[0]![1]).toMatchObject({ enabledIds: ["111", "333"], defaultId: "111" });
   });
 
+  it("★V6: every listed account cancelled: the card says the account cannot run ads and links to create one on the platform", async () => {
+    mount("linkedin_ads", { adAccounts: [{ id: "222", name: "CMPL", currency: "USD", status: "CANCELED" }] });
+    expect(container.textContent).toContain("This ad account is Cancelled on LinkedIn".replace("Cancelled", "cancelled"));
+    expect(container.querySelector('a[href*="linkedin.com/campaignmanager"]')).not.toBeNull();
+    // and a healthy list does not say it
+    act(() => root.unmount());
+    root = createRoot(container);
+    mount("linkedin_ads", { adAccounts: [{ id: "111", status: "ACTIVE" }, { id: "222", status: "CANCELED" }] });
+    expect(container.textContent).not.toContain("can't run ads");
+  });
+
   it("an unknown failure keeps the generic words with the request reference; NOT_CONNECTED is not passed through", async () => {
     const err = new ApiError("NOT_CONNECTED", "Meta Ads is not connected", 404) as InstanceType<typeof ApiError> & { requestId?: string };
     err.requestId = "req-42";

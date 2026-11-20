@@ -49,7 +49,7 @@ import { formatDeclaredAt } from "@/lib/ads-copy";
 import { flightEndBanner, flightEndDetail } from "@/lib/flight-end-copy";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { AdAccountPicker, NoAdAccountState } from "./ad-account-picker";
-import { campaignAccountState, linkedinAdAccountIdLine } from "@/lib/linkedin-ad-accounts";
+import { campaignAccountState } from "@/lib/linkedin-ad-accounts";
 import {
   AlertTriangle,
   Archive,
@@ -391,7 +391,7 @@ function CampaignsPanel() {
     // The list spans every campaign of the business whatever account it is in (MR-G1), so empty really is empty. A Page with an
     // ad account and no campaigns: offer the Boost tab. A Page with NO ad account chosen: say where to choose one.
     if (campaigns.data?.pageId && !campaigns.data.adAccountId) {
-      return <NoAdAccountState what="campaigns" />;
+      return <NoAdAccountState kind="campaigns" />;
     }
     return (
       <EmptyState
@@ -432,6 +432,17 @@ function CampaignsPanel() {
         </div>
       </CardHeader>
       <CardContent className="pt-0">
+        {Array.isArray(campaigns.data?.accounts) && campaigns.data.accounts.length === 0 ? (
+          // The business has chosen no ad accounts yet (or the connection did not resolve): which campaigns are in one of its accounts
+          // is unknown, so no row is locked. Said once, here, not on every row.
+          <p className="mb-3 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-xs">
+            Choose your ad accounts in{" "}
+            <Link href="/dashboard/integrations" className="font-medium underline underline-offset-2">
+              Connected accounts
+            </Link>{" "}
+            so Peakhour knows which of these campaigns it may start or change.
+          </p>
+        ) : null}
         {totalQualified > 0 && (
           <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border bg-muted/20 px-3 py-2 text-xs">
             <span className="font-medium">Lead ROI</span>
@@ -591,12 +602,18 @@ function CampaignRow({
   const perf = campaign.performance;
   // ★THE CAMPAIGN'S OWN ACCOUNT, and whether this business uses it (MR-G1). The list spans accounts so a campaign in an account
   // the business has since unticked stays visible and can be stopped; it cannot be started, retargeted or raised from here.
-  const { ownAccount, account: accountRow, notUsed } = campaignAccountState(campaign, accounts);
+  const { notUsed, unconfirmed, line: accountLine } = campaignAccountState(campaign, accounts);
+  // A campaign that cannot be placed in one of the business's accounts is not started or retargeted either (it might be anywhere).
+  const locked = notUsed || unconfirmed;
   const canActivate =
-    !notUsed &&
+    !locked &&
     ["draft", "review", "paused"].includes(campaign.status) &&
     Boolean(campaign.platformCampaignId && campaign.platformCampaignGroupId);
-  const canPause = campaign.status === "active";
+  // A pause is offered for an active campaign; and, for a campaign in an account the business does not use, also a draft or review
+  // one that has a platform campaign (the api accepts a pause of those), because it is the one thing left to do with it.
+  const canPause =
+    campaign.status === "active" ||
+    (notUsed && ["draft", "review"].includes(campaign.status) && Boolean(campaign.platformCampaignId));
   // Rows without a platform campaign (WhatsApp-approval "review"
   // markers) are workflow-owned: the server 409s NO_PLATFORM_ID on any
   // status change, so offering actions would only produce dead-end
@@ -605,7 +622,7 @@ function CampaignRow({
     !["archived"].includes(campaign.status) && Boolean(campaign.platformCampaignId);
   const canSync = Boolean(campaign.platformCampaignId);
   const canTarget =
-    !notUsed &&
+    !locked &&
     Boolean(campaign.platformCampaignId) &&
     !["archived", "completed"].includes(campaign.status);
   // Editor-shaped targeting (workflow rows carry a legacy free-form
@@ -631,14 +648,20 @@ function CampaignRow({
             {campaign.schedule.durationDays}-day flight
           </p>
         ) : null}
-        {ownAccount ? (
-          <p className="truncate text-micro text-muted-foreground" title={linkedinAdAccountIdLine({ id: ownAccount, currency: campaign.currency })}>
-            {accountRow?.name ? `${accountRow.name} · ` : ""}
-            {linkedinAdAccountIdLine({ id: ownAccount, currency: accountRow?.currency ?? campaign.currency })}
+        {accountLine ? (
+          <p className="truncate text-micro text-muted-foreground" title={accountLine}>
+            {accountLine}
           </p>
         ) : null}
         {notUsed ? (
-          <p className="text-micro font-medium text-warning-on-tint">Not used by this business: pause only</p>
+          <p className="text-micro font-medium text-warning-on-tint">
+            Not used by this business{canPause ? ": pause only" : ""}
+          </p>
+        ) : null}
+        {unconfirmed ? (
+          <p className="text-micro font-medium text-warning-on-tint">
+            Peakhour can&apos;t confirm which ad account this campaign is in{canPause ? ": pause only" : ""}
+          </p>
         ) : null}
       </TableCell>
       <TableCell>
@@ -858,7 +881,7 @@ function CampaignRow({
           {/* Spans the whole row: the audience describes the campaign, not any
               one of its numbers. */}
           <TableCell colSpan={9} className="pt-0">
-            <AudienceCard campaign={campaign} />
+            <AudienceCard campaign={campaign} canEdit={canTarget} />
           </TableCell>
         </TableRow>
       ) : null}

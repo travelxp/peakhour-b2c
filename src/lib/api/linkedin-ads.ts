@@ -261,6 +261,8 @@ export interface PageAdAccountState {
   businessDefaultId?: string | null;
   /** How many ad accounts the login lists: 0 means "create one in Campaign Manager", more means "choose which this business uses". */
   listedCount?: number;
+  /** The listed accounts that cannot run ads, with LinkedIn's word ("cancelled", "removed"). */
+  blocked?: Array<{ id: string; name: string | null; word: string }>;
   /** Only the ad accounts this BUSINESS enabled in Connected accounts (MR-G1) — the same set the PUT
    *  validates against, so the picker cannot offer a choice the write refuses. */
   accounts: Array<{ id: string; name: string | null; currency: string | null }>;

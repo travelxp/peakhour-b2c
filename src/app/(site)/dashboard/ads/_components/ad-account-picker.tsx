@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
 import { linkedInAdsApi } from "@/lib/api/linkedin-ads";
 import { LINKEDIN_PAGE_SCOPED_QUERY_KEYS } from "@/lib/linkedin-cache";
-import { linkedinAdAccountBareId, linkedinAdAccountIdLine } from "@/lib/linkedin-ad-accounts";
+import { linkedinAdAccountBareId, linkedinAdAccountIdLine, linkedinAdAccountLabel } from "@/lib/linkedin-ad-accounts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -117,7 +117,9 @@ export function AdAccountPicker() {
   // change — the failure mode the whole report is made of.
   if (state.isLoading || !state.data || state.data.activePageId === undefined) return null;
 
-  const { activePageId, adAccountId, accounts, byPage, businessDefaultId, listedCount } = state.data;
+  const { activePageId, adAccountId, accounts, byPage, businessDefaultId, blocked } = state.data;
+  // An api that does not say how many accounts the login lists is read as none (the Campaign Manager link), never as "choose some".
+  const listedCount = state.data.listedCount ?? 0;
 
   // A pageless (personal-feed) connection has no Page to map an account to,
   // and its Growth surfaces keep the connection-level account they always had.
@@ -130,7 +132,10 @@ export function AdAccountPicker() {
   const ownId = byPage?.[activePageId];
   const own = ownId ? accounts.find((a) => sameAccount(a.id, ownId)) : undefined;
   const businessDefault = businessDefaultId ? accounts.find((a) => sameAccount(a.id, businessDefaultId)) : undefined;
-  const label = (a: { id: string; name: string | null }) => a.name ?? `Account ${linkedinAdAccountBareId(a.id)}`;
+  const label = linkedinAdAccountLabel;
+  // Every account the login lists cannot run ads (cancelled, removed): nothing to choose, a new account is the way forward.
+  const allBlocked = !hasAccounts && listedCount > 0 && (blocked?.length ?? 0) >= listedCount;
+  const blockedLine = blocked?.length ? `${label(blocked[0]!)} is ${blocked[0]!.word} on LinkedIn, so it can't run ads.` : "";
 
   return (
     <Card className={adAccountId ? undefined : "border-warning/40 bg-warning/5"}>
@@ -149,9 +154,11 @@ export function AdAccountPicker() {
                 : "New campaigns and Lead Gen Forms for this Page use this account."
               : hasAccounts
                 ? "Pick the default ad account for this Page."
-                : listedCount === 0
-                  ? "This LinkedIn login lists no ad accounts. Create one in Campaign Manager, then refresh your connection."
-                  : "Choose which LinkedIn ad accounts Peakhour may use in Connected accounts."}
+                : allBlocked
+                  ? `${blockedLine} Create an ad account in Campaign Manager, then refresh your connection.`
+                  : listedCount === 0
+                    ? "This LinkedIn login lists no ad accounts. Create one in Campaign Manager, then refresh your connection."
+                    : "Choose which LinkedIn ad accounts Peakhour may use in Connected accounts."}
           </p>
         </div>
 
@@ -181,7 +188,7 @@ export function AdAccountPicker() {
               value={
                 save.isPending && save.variables
                   ? (save.variables.adAccountId ?? BUSINESS_DEFAULT)
-                  : (own?.id ?? BUSINESS_DEFAULT)
+                  : (own?.id ?? (businessDefault ? BUSINESS_DEFAULT : undefined))
               }
               disabled={save.isPending}
               onValueChange={(next) => save.mutate({ pageId: activePageId, adAccountId: next === BUSINESS_DEFAULT ? null : next })}
@@ -190,17 +197,19 @@ export function AdAccountPicker() {
                 <SelectValue placeholder="Choose an ad account" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={BUSINESS_DEFAULT}>
-                  Use the business default
-                  {businessDefault ? <span className="ml-1.5 text-xs text-muted-foreground">{label(businessDefault)}</span> : null}
-                </SelectItem>
+                {businessDefault ? (
+                  <SelectItem value={BUSINESS_DEFAULT}>
+                    Use the business default
+                    <span className="ml-1.5 text-xs text-muted-foreground">{label(businessDefault)}</span>
+                  </SelectItem>
+                ) : null}
                 {accounts.map((a) => (
                   <SelectItem key={a.id} value={a.id}>
                     {/* The id is shown alongside the name deliberately: two ad
                         accounts with similar names is the ordinary case for an
                         agency, and the id is the only thing that distinguishes
                         them in Campaign Manager. */}
-                    {a.name ?? `Account ${linkedinAdAccountBareId(a.id)}`}
+                    {label(a)}
                     <span className="ml-1.5 text-xs text-muted-foreground">
                       {linkedinAdAccountIdLine({ id: a.id, currency: a.currency ?? undefined })}
                     </span>
@@ -209,7 +218,7 @@ export function AdAccountPicker() {
               </SelectContent>
             </Select>
           </div>
-        ) : listedCount === 0 ? (
+        ) : listedCount === 0 || allBlocked ? (
           <Button asChild variant="outline" size="sm" className="gap-1.5">
             <a href={CAMPAIGN_MANAGER_URL} target="_blank" rel="noopener noreferrer">
               Open Campaign Manager
@@ -241,13 +250,14 @@ export function AdAccountPicker() {
  * is the difference between a state the user can resolve and one they will
  * report as a bug.
  */
-export function NoAdAccountState({ what }: { what: string }) {
+export function NoAdAccountState({ kind }: { kind: "campaigns" | "lead forms" }) {
   return (
     <div className="rounded-lg border border-dashed p-6 text-center">
       <p className="text-sm font-medium">No ad account chosen for this Page yet</p>
       <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
-        Choose the ad accounts Peakhour may use in Connected accounts, then a default for this Page, and new {what} will be created
-        there. Campaigns that are already running stay listed so you can pause them.
+        {kind === "campaigns"
+          ? "Choose the ad accounts Peakhour may use in Connected accounts, then a default for this Page, and new campaigns will be created there. Campaigns that are already running stay listed so you can pause them."
+          : "Choose the ad accounts Peakhour may use in Connected accounts, then a default for this Page, and its lead forms will appear here."}
       </p>
     </div>
   );
