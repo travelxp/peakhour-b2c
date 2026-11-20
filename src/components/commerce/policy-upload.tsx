@@ -65,9 +65,8 @@ export default function UploadPanel() {
         )}
         <div className="flex flex-wrap items-center gap-2">
           <DrivePicker
-            kinds={["document"]}
+            destination={{ kind: "page", use: "document" }}
             tabs={["drive", "upload"]}
-            maxSelection={1}
             requirePublicUrl={false}
             needUrl={false}
             uploadAs="private"

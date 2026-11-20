@@ -50,6 +50,29 @@ export async function probeDimensions(file: File): Promise<{ width?: number; hei
   return ABSENT;
 }
 
+/** How long a video is, in seconds. Nothing for a file the browser cannot open (a codec it does not play), so the length is then simply not checked. */
+export async function probeDuration(file: File): Promise<number | undefined> {
+  if (typeof window === "undefined" || !file.type.startsWith("video/")) return undefined;
+  const v = await loadVideo(file).catch(() => null);
+  if (!v) return undefined;
+  const d = v.video.duration;
+  v.dispose();
+  return Number.isFinite(d) && d > 0 ? d : undefined;
+}
+
+/** A video's shape and length from ONE decode of its metadata (a large video is not opened twice). Nothing for a file the browser cannot open. */
+export async function probeVideo(file: File): Promise<{ width?: number; height?: number; durationSeconds?: number }> {
+  if (typeof window === "undefined" || !file.type.startsWith("video/")) return {};
+  const v = await loadVideo(file).catch(() => null);
+  if (!v) return {};
+  const { videoWidth, videoHeight, duration } = v.video;
+  v.dispose();
+  return {
+    ...(videoWidth > 0 && videoHeight > 0 ? { width: videoWidth, height: videoHeight } : {}),
+    ...(Number.isFinite(duration) && duration > 0 ? { durationSeconds: duration } : {}),
+  };
+}
+
 interface LoadedVideo {
   video: HTMLVideoElement;
   dispose: () => void;
