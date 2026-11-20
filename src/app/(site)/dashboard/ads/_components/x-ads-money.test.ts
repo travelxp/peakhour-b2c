@@ -3,6 +3,7 @@ import { formatMoneyOrNumber } from "@/lib/outcome-value";
 import {
   campaignCurrency,
   currencyForCampaign,
+  dailyBudgetLine,
   deriveAccountCurrency,
   fundingNotice,
   fundingOptions,
@@ -242,5 +243,21 @@ describe("fundingOptions", () => {
 
   it("no instruments → no options", () => {
     expect(fundingOptions(undefined)).toEqual([]);
+  });
+});
+
+describe("dailyBudgetLine: both amounts when the funding source bills in another currency than the plan (MR-G3)", () => {
+  const fmt = (amount: number, currency: string | null) => formatMoneyOrNumber(amount, currency);
+
+  it("shows the plan's amount beside the campaign's own", () => {
+    const line = dailyBudgetLine(30, "USD", { planCurrency: "INR", planAmount: 2505 }, fmt);
+    expect(line).toBe(`${fmt(30, "USD")} a day (about ${fmt(2505, "INR")})`);
+    expect(line).toContain("a day (about ");
+  });
+
+  it("never blocks and never invents: no plan amount shows only the campaign's own", () => {
+    expect(dailyBudgetLine(30, "USD", undefined, fmt)).toBe(`${fmt(30, "USD")} a day`);
+    expect(dailyBudgetLine(30, "USD", { planCurrency: "INR", planAmount: null }, fmt)).toBe(`${fmt(30, "USD")} a day`);
+    expect(dailyBudgetLine(30, "USD", { planCurrency: null, planAmount: null }, fmt)).toBe(`${fmt(30, "USD")} a day`);
   });
 });

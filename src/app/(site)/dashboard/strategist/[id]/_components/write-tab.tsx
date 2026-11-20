@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { ComposerShell, AiComposeToolbar, EmojiPickerTrigger, DraftSaver, useDraftSaver, type AiActionContext } from "@/components/composer";
 import { getVoiceCards, rewriteContent, scoreIdea } from "@/lib/api/content";
 import { insertAtCaret } from "@/lib/composer/caret";
-import { Loader2, Sparkles, Pen, Eye, Gauge, Image as ImageIcon, X, Lock, Link2, Check } from "lucide-react";
+import { Loader2, Sparkles, Pen, Eye, Gauge, Image as ImageIcon, X, Lock } from "lucide-react";
 import { ArticlePreview, IdeaDetail, ImagePlaceholder, StreamProgress, aiOpToast, consumeSSE, mapNewsletterVoiceCard } from "./shared";
 import { DataCitationsPanel } from "./review-tab";
 
@@ -36,7 +36,6 @@ function ImagePlaceholderRail({
   placeholders,
   onDelete,
   onGenerate,
-  onSupplyUrl,
   onPickFromLibrary,
   busy,
   finalized,
@@ -47,9 +46,7 @@ function ImagePlaceholderRail({
   onDelete: (index: number) => void;
   /** `quoteToken` is the receipt for the price the merchant was shown beside the buttons (absent while none is held). */
   onGenerate: (index: number, quoteToken?: string) => void;
-  /** Resolve a placeholder from an external URL (status "supplied"). */
-  onSupplyUrl: (index: number, url: string) => void;
-  /** Resolve from the media library / an upload (status "uploaded"). */
+  /** Resolve from the media library, an upload or a link (status "uploaded"). */
   onPickFromLibrary: (index: number, url: string, mediaId: string) => void;
   busy: boolean;
   finalized: boolean;
@@ -65,7 +62,7 @@ function ImagePlaceholderRail({
         <CardTitle className="text-sm flex items-center gap-2"><ImageIcon className="h-4 w-4" /> Image placeholders <span className="text-muted-foreground font-normal">({placeholders.length})</span></CardTitle>
         <CardDescription className="text-xs">
           {finalized
-            ? "Text finalized — per placeholder: Generate with AI, paste an image URL, or choose from Drive (you can upload or generate there too). Delete what you don't want first."
+            ? "Text finalized — per placeholder: Generate with AI, or choose from Drive (you can upload, paste a link or generate there too). Delete what you don't want first."
             : "Delete what you don't want; Finalize text to unlock image generation."}
         </CardDescription>
         {finalized ? (
@@ -84,7 +81,6 @@ function ImagePlaceholderRail({
               index={i}
               onDelete={onDelete}
               onGenerate={(idx) => onGenerate(idx, quoteTokenFor(price).quoteToken)}
-              onSupplyUrl={onSupplyUrl}
               onPickFromLibrary={onPickFromLibrary}
               busy={busy}
               finalized={finalized}
@@ -99,12 +95,11 @@ function ImagePlaceholderRail({
 }
 
 /**
- * One placeholder card. Owns its local paste-URL input toggle so the
- * parent rail stays stateless. Resolution paths:
+ * One placeholder card; the parent rail stays stateless. Resolution paths:
  *   - Generate  → AI image pipeline (status "generated"), gated on finalize
- *   - Paste URL → external URL        (status "supplied"),  gated on finalize
- *   - Drive     → pick from Drive, upload or generate (status "uploaded" +
- *                 mediaId), gated on finalize — via <DrivePicker>.
+ *   - Drive     → pick from Drive, upload, paste a link or generate (status
+ *                 "uploaded" + mediaId), gated on finalize — via <DrivePicker>,
+ *                 the one media picker. There is no separate "paste a URL" box.
  */
 /** What Save to Drive is given for a placeholder's image: the AI image as data or as a link, or the address that was pasted. Anything else (a blob, a data URL that is not an AI image) is not offered. */
 function saveSource(p: ImagePlaceholder): SaveToDriveSource | null {
@@ -119,7 +114,6 @@ function PlaceholderCard({
   index,
   onDelete,
   onGenerate,
-  onSupplyUrl,
   onPickFromLibrary,
   busy,
   finalized,
@@ -130,32 +124,20 @@ function PlaceholderCard({
   index: number;
   onDelete: (index: number) => void;
   onGenerate: (index: number) => void;
-  onSupplyUrl: (index: number, url: string) => void;
   onPickFromLibrary: (index: number, url: string, mediaId: string) => void;
   busy: boolean;
   finalized: boolean;
   isGenerating: boolean;
   isResolving: boolean;
 }) {
-  const [urlOpen, setUrlOpen] = useState(false);
-  const [urlValue, setUrlValue] = useState("");
   const resolved = !!p.resolvedImageUrl &&
-    (p.status === "generated" || p.status === "supplied" || p.status === "uploaded");
+    (p.status === "generated" || p.status === "uploaded");
   const rowBusy = busy || isGenerating || isResolving;
   const saveSrc = saveSource(p);
 
   const statusLabel = p.status === "generated" ? "Generated"
-    : p.status === "supplied" ? "From URL"
     : p.status === "uploaded" ? "From Drive"
     : null;
-
-  function submitUrl() {
-    const trimmed = urlValue.trim();
-    if (!trimmed) return;
-    onSupplyUrl(index, trimmed);
-    setUrlOpen(false);
-    setUrlValue("");
-  }
 
   return (
     <li className={`rounded-md border p-3 text-sm flex items-start justify-between gap-2 ${resolved ? "bg-success/10 border-success/30" : "bg-muted/20"}`}>
@@ -194,19 +176,9 @@ function PlaceholderCard({
                 ? <><Sparkles className="h-3 w-3" /> Regenerate</>
                 : <><Sparkles className="h-3 w-3" /> Generate</>}
           </button>
-          <button
-            type="button"
-            onClick={() => setUrlOpen((v) => !v)}
-            disabled={rowBusy || !finalized}
-            className="text-xs font-medium px-2.5 py-1 rounded border bg-background hover:bg-accent disabled:opacity-40 flex items-center gap-1"
-            title={finalized ? "Paste an image URL" : "Finalize text first to unlock"}
-          >
-            {isResolving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Link2 className="h-3 w-3" />} Paste URL
-          </button>
           <DrivePicker
-            maxSelection={1}
-            kinds={["image"]}
-            target={{ channel: "newsletter", label: "a newsletter" }}
+            destination={{ kind: "post", channel: "newsletter" }}
+            single
             addLabel="Use this image"
             // Generate makes THIS spot's image from its description (the same call as the Generate button); the card shows the result.
             generatePrompt={p.description}
@@ -224,34 +196,13 @@ function PlaceholderCard({
                 type="button"
                 disabled={rowBusy || !finalized}
                 className="text-xs font-medium px-2.5 py-1 rounded border bg-background hover:bg-accent disabled:opacity-40 flex items-center gap-1"
-                title={finalized ? "Choose from Drive, upload, or generate" : "Finalize text first to unlock"}
+                title={finalized ? "Choose from Drive, upload, paste a link, or generate" : "Finalize text first to unlock"}
               >
                 <ImageIcon className="h-3 w-3" /> Drive
               </button>
             }
           />
         </div>
-        {urlOpen && (
-          <div className="mt-2 flex items-center gap-1.5">
-            <Input
-              value={urlValue}
-              onChange={(e) => setUrlValue(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submitUrl(); } }}
-              placeholder="https://…/image.jpg"
-              className="h-7 text-xs"
-              autoFocus
-            />
-            <button
-              type="button"
-              onClick={submitUrl}
-              disabled={rowBusy || !urlValue.trim()}
-              className="shrink-0 text-xs font-medium px-2 py-1 rounded border bg-background hover:bg-accent disabled:opacity-40 flex items-center gap-1"
-              aria-label="Set image URL"
-            >
-              <Check className="h-3 w-3" /> Set
-            </button>
-          </div>
-        )}
       </div>
       <button
         type="button"
@@ -571,15 +522,15 @@ export function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId
     setGeneratingPlaceholderIdx(null);
   }
 
-  // Resolve a placeholder by SUPPLYING an external URL (status
-  // "supplied") or PICKING from the media library (status "uploaded").
-  // Both write the chosen URL onto the placeholder via the same /content
-  // PUT the rest of the rail uses. Gated on finalize like Generate, so
-  // images are only resolved once the text is locked.
+  // Resolve a placeholder by PICKING a file with the one media picker
+  // (Drive, upload, link; status "uploaded"). It writes the chosen URL onto
+  // the placeholder via the same /content PUT the rest of the rail uses.
+  // Gated on finalize like Generate, so images are only resolved once the
+  // text is locked.
   async function handleResolvePlaceholder(
     index: number,
     resolvedImageUrl: string,
-    status: "supplied" | "uploaded",
+    status: "uploaded",
     mediaId?: string,
   ) {
     setResolvingPlaceholderIdx(index);
@@ -741,7 +692,6 @@ export function WriteTab({ idea, ideaId, onRefresh }: { idea: IdeaDetail; ideaId
           placeholders={placeholders}
           onDelete={handleDeletePlaceholder}
           onGenerate={handleGeneratePlaceholder}
-          onSupplyUrl={(i, url) => handleResolvePlaceholder(i, url, "supplied")}
           onPickFromLibrary={(i, url, mediaId) => handleResolvePlaceholder(i, url, "uploaded", mediaId)}
           /* Disable ALL per-row actions while any row is resolving/generating:
              each handler maps over the prop-derived placeholders array, so a

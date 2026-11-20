@@ -358,9 +358,8 @@ export function BriefScreen() {
         onRemoveProduct={(id) => setForm((f) => ({ ...f, productIds: f.productIds.filter((x) => x !== id) }))}
         addPhoto={(productId, title) => (
           <DrivePicker
-            kinds={["image"]}
+            destination={{ kind: "page", use: "photo" }}
             tabs={["drive", "upload"]}
-            maxSelection={1}
             requirePublicUrl={false}
             addLabel={B.products.addPhoto}
             trigger={

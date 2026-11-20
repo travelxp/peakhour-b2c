@@ -8,6 +8,7 @@ export function buildComposerCommands({
   scheduleDisabled,
   showLink,
   pollActive,
+  hasPictures,
   runAi,
   onSchedule,
   onAttachLink,
@@ -18,6 +19,8 @@ export function buildComposerCommands({
   scheduleDisabled: boolean;
   showLink: boolean;
   pollActive: boolean;
+  /** A post takes pictures or a link, not both: with pictures on it the link is not offered. */
+  hasPictures: boolean;
   runAi: (ctx: AiActionContext) => Promise<string>;
   onSchedule: () => void;
   onAttachLink: () => void;
@@ -57,7 +60,7 @@ export function buildComposerCommands({
       label: showLink ? "Link attached" : "Attach a link",
       group: "Compose",
       icon: Link2,
-      disabled: showLink || pollActive,
+      disabled: showLink || pollActive || hasPictures,
       run: onAttachLink,
     },
     {

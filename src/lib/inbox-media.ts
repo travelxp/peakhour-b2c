@@ -61,20 +61,8 @@ export function mediaOpenError(err: unknown): string {
 
 // ── What can be attached ─────────────────────────────────────────────────────────────────────────────────────────
 
-/** The api's limit (`OUTBOUND_MAX_BYTES`): under WhatsApp's 5 MB image limit and the hosting platform's request size. */
-export const ATTACH_MAX_BYTES = 4 * 1024 * 1024;
 /** WhatsApp's caption limit. */
 export const CAPTION_MAX = 1024;
-const ATTACH_TYPES = new Set(["image/jpeg", "image/png", "application/pdf"]);
-export const ATTACH_TYPES_COPY = "Only JPEG or PNG images and PDF files can be sent.";
-
-/** Why a chosen file cannot be sent, or null. The api judges the bytes again; this is the instant answer. */
-export function attachmentProblem(f: { type: string; size: number }): string | null {
-  if (!ATTACH_TYPES.has((f.type || "").split(";")[0]!.trim().toLowerCase())) return ATTACH_TYPES_COPY;
-  if (f.size === 0) return "That file is empty.";
-  if (f.size > ATTACH_MAX_BYTES) return `That file is ${humanBytes(f.size)}. The most that can be sent is 4 MB, so choose a smaller one${f.type.startsWith("image/") ? " or reduce the photo's size" : ""}.`;
-  return null;
-}
 
 export function captionProblem(caption: string): string | null {
   return caption.trim().length > CAPTION_MAX ? `A caption can have at most ${CAPTION_MAX} characters (this has ${caption.trim().length}).` : null;

@@ -25,9 +25,7 @@ import {
   photoAccess,
   photoControls,
   photosView,
-  pickLimit,
   previewOf,
-  unusableReason,
   withChangesKnown,
   type Batch,
 } from "@/lib/presence-photos";
@@ -191,14 +189,13 @@ export function PhotosCard({ location, network: chosenNetwork }: { location?: st
                         {busy ? "Preparing..." : "Choose from Drive"}
                       </Button>
                     }
-                    kinds={["image"]}
-                    maxSelection={pickLimit(data, waitingAdds)}
+                    destination={{ kind: "presence", channel: network }}
+                    attached={Math.max(data.held, data.items.length) + waitingAdds}
                     tabs={["drive", "upload"]}
                     requirePublicUrl={false}
                     needUrl={false}
                     uploadAs="private"
                     addLabel="Use these photos"
-                    unusable={(f) => unusableReason(f, data.declaration.limits)}
                     onSelect={(assets) => void addMany(assets)}
                   />
                 </div>

@@ -39,7 +39,7 @@ export type { EmojiPickerTriggerProps } from "./emoji-picker-trigger";
 export { HashtagSuggest } from "./hashtag-suggest";
 export type { HashtagSuggestProps } from "./hashtag-suggest";
 
-export { DrivePicker } from "@/components/drive/drive-picker";
+export { DrivePicker, useDropPaste } from "@/components/drive/drive-picker";
 export type { DrivePickerProps } from "@/components/drive/drive-picker";
 
 export { MentionTypeahead } from "./mention-typeahead";

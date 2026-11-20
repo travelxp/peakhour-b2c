@@ -13,6 +13,7 @@ import { Integration, PROVIDER_ICONS, PROVIDER_TILES } from "./shared";
 import { LinkedInAdsStatus, LinkedInContentPages } from "./linkedin-panels";
 import { MetaAccountsPanel } from "./meta-accounts-panel";
 import { AdAccountChoice } from "@/components/ads/ad-account-choice";
+import { XAdAccountChoice } from "@/components/ads/x-ad-account-choice";
 import { metaAdsCardServed } from "@/lib/integrations-meta";
 
 export function IntegrationCard({
@@ -243,6 +244,20 @@ export function IntegrationCard({
             {integration.provider === "meta_ads" && integration.connected && integration.account?.extra && (
               <div className="space-y-2 rounded-md border border-border/40 p-2">
                 <AdAccountChoice provider="facebook" extra={integration.account.extra} onChanged={onChanged} />
+              </div>
+            )}
+
+            {/* X Ads — the ad accounts Peakhour may use, with the default. */}
+            {integration.provider === "x_ads" && integration.connected && integration.account?.extra && (
+              <div className="space-y-2 rounded-md border border-border/40 p-2">
+                <XAdAccountChoice extra={integration.account.extra} onChanged={onChanged} />
+              </div>
+            )}
+
+            {/* Google Ads — the ad accounts Peakhour may use, with the default. */}
+            {integration.provider === "google_ads" && integration.connected && integration.account?.extra && (
+              <div className="space-y-2 rounded-md border border-border/40 p-2">
+                <AdAccountChoice provider="google_ads" extra={integration.account.extra} onChanged={onChanged} />
               </div>
             )}
 

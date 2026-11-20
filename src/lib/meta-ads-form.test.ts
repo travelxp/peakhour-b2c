@@ -25,7 +25,7 @@ const GOOD: NewCampaignForm = {
   headline: "Spring is here",
   text: "Fresh arrivals this week.",
   link: "https://shop.example.com/spring",
-  image: { type: "image/png", size: 1024 },
+  image: { mediaId: "665f1c2a9b1e4d0012ab34cd", name: "shirt.png" },
 };
 
 describe("metaMajorToMinor", () => {
@@ -170,9 +170,9 @@ describe("validateNewCampaign", () => {
     expect(validateNewCampaign({ ...GOOD, ageMin: "12" }, "USD").ageMin).toBeDefined();
   });
 
-  it("refuses an image that is the wrong type or too big", () => {
-    expect(validateNewCampaign({ ...GOOD, image: { type: "image/gif", size: 10 } }, "USD").image).toContain("JPEG or PNG");
-    expect(validateNewCampaign({ ...GOOD, image: { type: "image/png", size: 4 * 1024 * 1024 } }, "USD").image).toContain("3 MB");
+  it("asks for an image, and leaves its type and size to the picker", () => {
+    expect(validateNewCampaign({ ...GOOD, image: null }, "USD").image).toBe("Choose an image.");
+    expect(validateNewCampaign(GOOD, "USD").image).toBeUndefined();
   });
 
   it("refuses a budget with more decimals than the currency has", () => {

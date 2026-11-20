@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  META_COMPOSE_RULES,
   buildMetaChannel,
   countHashtags,
   metaComposeTargets,
@@ -32,13 +33,6 @@ describe("metaPostProblems: Instagram", () => {
     expect(metaPostProblems("instagram", draft(tags(31), photo()))).toEqual(["Instagram allows 30 hashtags. This has 31."]);
   });
 
-  it("takes up to 10 pictures, and a video only on its own", () => {
-    expect(metaPostProblems("instagram", draft("Hi", photo(10)))).toEqual([]);
-    expect(metaPostProblems("instagram", draft("Hi", photo(11)))).toEqual(["Instagram takes up to 10 pictures in one post. Remove 1."]);
-    expect(metaPostProblems("instagram", draft("Hi", [clip]))).toEqual([]);
-    expect(metaPostProblems("instagram", draft("Hi", [...photo(), clip]))).toEqual(["A video goes on its own. Remove the other items, or use pictures only."]);
-  });
-
   it("needs a caption", () => {
     expect(metaPostProblems("instagram", draft("   ", photo()))).toEqual(["Write a caption for your post."]);
   });
@@ -52,16 +46,6 @@ describe("metaPostProblems: Threads", () => {
     // 496 letters + one emoji (4 bytes) is exactly 500; the emoji counts for more than one
     expect(threadsTextLength("a".repeat(496) + "😀")).toBe(500);
     expect(metaPostProblems("threads", draft("a".repeat(497) + "😀"))).toEqual(["Threads allows 500 characters. This is 501."]);
-  });
-
-  it("takes pictures only", () => {
-    expect(metaPostProblems("threads", draft("Look", photo(3)))).toEqual([]);
-    expect(metaPostProblems("threads", draft("Look", [clip]))).toEqual(["Threads posts from here take pictures only. Remove the video."]);
-  });
-
-  it("takes up to 12 pictures, the most the scheduler accepts in one post", () => {
-    expect(metaPostProblems("threads", draft("Look", photo(12)))).toEqual([]);
-    expect(metaPostProblems("threads", draft("Look", photo(13)))).toEqual(["Threads takes up to 12 pictures in one post. Remove 1."]);
   });
 
   it("allows 5 links, counting each once and a bare domain as a link, like the api", () => {
@@ -97,12 +81,6 @@ describe("metaPostProblems: Facebook", () => {
   it("holds text to what the scheduler takes, 20,000 characters", () => {
     expect(metaPostProblems("facebook", draft("x".repeat(20_000)))).toEqual([]);
     expect(metaPostProblems("facebook", draft("x".repeat(20_001)))).toEqual(["Facebook allows 20,000 characters. This is 20,001."]);
-  });
-
-  it("takes up to 10 pictures and no video", () => {
-    expect(metaPostProblems("facebook", draft("Album", photo(10)))).toEqual([]);
-    expect(metaPostProblems("facebook", draft("Album", photo(11)))).toEqual(["Facebook takes up to 10 pictures in one post. Remove 1."]);
-    expect(metaPostProblems("facebook", draft("Clip", [clip]))).toEqual(["Facebook posts from here take pictures only. Remove the video."]);
   });
 
   it("an empty post says what to do", () => {
@@ -208,5 +186,19 @@ describe("metaPostTitle", () => {
     expect(metaPostTitle("\n\n  Fresh bread\nmore")).toBe("Fresh bread");
     expect(metaPostTitle("x".repeat(200))).toHaveLength(120);
     expect(metaPostTitle("   ")).toBeUndefined();
+  });
+});
+
+describe("this composer carries no media rule of its own", () => {
+  it("the rules hold text rules only: which files, how many and how big are the picker's (the api's table)", () => {
+    for (const c of ["facebook", "instagram", "threads"] as const) {
+      expect("maxMedia" in META_COMPOSE_RULES[c]).toBe(false);
+      expect("mediaKinds" in META_COMPOSE_RULES[c]).toBe(false);
+    }
+  });
+
+  it("any number or kind of attachment passes the text rules: the picker is where a file is refused", () => {
+    expect(metaPostProblems("instagram", draft("Hi", photo(30)))).toEqual([]);
+    expect(metaPostProblems("facebook", draft("Clip", [clip]))).toEqual([]);
   });
 });

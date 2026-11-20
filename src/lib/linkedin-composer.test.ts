@@ -11,6 +11,7 @@ import {
   composerGates,
   effectiveVisibilityFor,
   isOrgAuthorKey,
+  postAttachments,
   scheduleTitleFor,
 } from "./linkedin-composer";
 
@@ -243,5 +244,49 @@ describe("buildScheduleChannels", () => {
       linkTitle: " T ",
     });
     expect(b.payload.channelOptions.link).toEqual({ url: "https://a.b", title: "T" });
+  });
+});
+
+describe("pictures on a LinkedIn post", () => {
+  const base = { authorKey: "person", visibility: "PUBLIC" as const, text: "Hi", segments: null, poll: null, showLink: false, linkUrl: "", linkTitle: "" };
+  const sched = { authorKey: "person", personUrn: "urn:li:person:1", visibility: "PUBLIC" as const, showLink: false, linkUrl: "", linkTitle: "", text: "Hi" };
+  const poll = { question: "Q?", options: [{ text: "a" }, { text: "b" }], duration: "THREE_DAYS" as never };
+  it("publish sends the Drive file ids as mediaIds", () => {
+    expect(buildPublishBody({ ...base, mediaIds: ["a1", "b2"] }).mediaIds).toEqual(["a1", "b2"]);
+  });
+  it("publish sends no mediaIds when there are no pictures", () => {
+    expect(buildPublishBody({ ...base, mediaIds: [] })).not.toHaveProperty("mediaIds");
+    expect(buildPublishBody(base)).not.toHaveProperty("mediaIds");
+  });
+  it("a poll never carries pictures", () => {
+    expect(buildPublishBody({ ...base, poll, mediaIds: ["a1"] })).not.toHaveProperty("mediaIds");
+  });
+  it("a picture beside a link is sent as it is, for the api to refuse in words", () => {
+    const b = buildPublishBody({ ...base, showLink: true, linkUrl: "https://a.b", mediaIds: ["a1"] });
+    expect(b.link?.url).toBe("https://a.b");
+    expect(b.mediaIds).toEqual(["a1"]);
+  });
+  it("schedule carries the public links as mediaUrls", () => {
+    const [c] = buildScheduleChannels({ ...sched, mediaUrls: ["https://m.example/a.png"] });
+    expect(c.payload).toMatchObject({ text: "Hi", mediaUrls: ["https://m.example/a.png"] });
+  });
+  it("schedule has no mediaUrls key without pictures", () => {
+    expect(buildScheduleChannels({ ...sched, mediaUrls: [] })[0]!.payload).not.toHaveProperty("mediaUrls");
+  });
+});
+
+describe("postAttachments: pictures, a link or a poll, never two", () => {
+  const none = { showLink: false, pollActive: false, pictureCount: 0 };
+  it("an empty post may take either", () => {
+    expect(postAttachments(none)).toEqual({ canAddPictures: true, canAddLink: true });
+  });
+  it("with pictures on it, no link", () => {
+    expect(postAttachments({ ...none, pictureCount: 2 })).toEqual({ canAddPictures: true, canAddLink: false });
+  });
+  it("with a link on it, no pictures", () => {
+    expect(postAttachments({ ...none, showLink: true })).toEqual({ canAddPictures: false, canAddLink: false });
+  });
+  it("with a poll, neither", () => {
+    expect(postAttachments({ ...none, pollActive: true })).toEqual({ canAddPictures: false, canAddLink: false });
   });
 });

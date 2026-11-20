@@ -28,7 +28,7 @@ import { googleAdActions, googleAdSavedSentence, googleAdStatusLabel, googleAdSu
  * Google never brings a removed ad back. Removed ads stay listed, said so.
  * Not for Performance Max, which has no ad group (the dialog does not mount it).
  */
-export function GoogleAdsListSection({ campaign, campaignOpen }: { campaign: GoogleCampaign; campaignOpen: boolean }) {
+export function GoogleAdsListSection({ campaign, campaignOpen, spendReducingOnly = false }: { campaign: GoogleCampaign; campaignOpen: boolean; spendReducingOnly?: boolean }) {
   const queryClient = useQueryClient();
   const { business } = useAuth();
   const queryKey = ["google-ads-ad-groups", business?._id ?? "none", campaign.id];
@@ -88,7 +88,7 @@ export function GoogleAdsListSection({ campaign, campaignOpen }: { campaign: Goo
             {own.length === 0 ? <p className="text-xs text-muted-foreground">No ads in this ad group.</p> : null}
             <ul className="space-y-2">
               {own.map((ad) => {
-                const actions = googleAdActions(ad.status, campaignOpen);
+                const actions = googleAdActions(ad.status, campaignOpen, spendReducingOnly);
                 const busy = pendingId === ad.id;
                 return (
                   <li key={ad.id} className="flex items-start justify-between gap-3 rounded-md border p-2">

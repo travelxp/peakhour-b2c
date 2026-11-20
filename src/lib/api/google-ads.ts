@@ -28,6 +28,13 @@ export interface GoogleAdAccount {
   testAccount: boolean;
 }
 
+/** Every account the login reaches, and the business's own: the enabled ids and its default (`null` until it has one). */
+export interface GoogleAdAccountsResponse {
+  adAccounts: GoogleAdAccount[];
+  enabledIds?: string[];
+  defaultId?: string | null;
+}
+
 /** `ad_campaigns.platformCreate.state` — whether Google has confirmed the create. */
 export type GoogleCreateState = "sending" | "outcome_unknown" | "created" | "adopted" | "not_created";
 
@@ -540,7 +547,7 @@ export interface GoogleKeywordIdeasResult {
 }
 
 export const googleAdsApi = {
-  listAdAccounts: () => api.get<{ adAccounts: GoogleAdAccount[] }>(googleAdsUrl("/v1/google/ads/ad-accounts")),
+  listAdAccounts: () => api.get<GoogleAdAccountsResponse>(googleAdsUrl("/v1/google/ads/ad-accounts")),
   listCampaigns: () => api.get<{ campaigns: GoogleCampaign[] }>(googleAdsUrl("/v1/google/ads/campaigns")),
   createCampaign: (input: GoogleCreateCampaignInput) =>
     api.post<GoogleCreateCampaignResult>(googleAdsUrl("/v1/google/ads/campaigns"), input),

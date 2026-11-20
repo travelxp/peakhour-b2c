@@ -102,9 +102,10 @@ describe("the composer's rich buttons", () => {
     expect(markup).not.toContain("Search your products");
   });
 
-  it("the Drive picker greys out what WhatsApp will not take (JPEG, PNG and PDF only, up to 4 MB), and a Private file is allowed", () => {
+  it("the Drive picker is told the file is going to a WhatsApp reply (the api's rules: JPEG, PNG and PDF only, up to 4 MB), and a Private file is allowed", () => {
     const src = here("wa-rich-send.tsx");
-    expect(src).toMatch(/unusable=\{\(f\) => attachmentProblem\(\{ type: f\.mimeType, size: f\.sizeBytes \}\)\}/);
+    expect(src).toContain('destination={{ kind: "message", channel: "whatsapp" }}');
+    expect(src).not.toMatch(/unusable=|maxSelection=|kinds=/);
     expect(src).toContain("requirePublicUrl={false}");
     // the file goes by id and the api reads its bytes: no signed link is fetched for it
     expect(src).toContain("needUrl={false}");
