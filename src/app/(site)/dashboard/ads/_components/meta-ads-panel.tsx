@@ -53,6 +53,8 @@ import {
   metaFigureText,
   metaInsightsIds,
   metaAdAccountBareId,
+  classifyMetaAccounts,
+  META_ALL_ACCOUNTS,
   metaAdAccountOptionLabel,
   metaAdAccountShortId,
   metaCoverageLine,
@@ -215,20 +217,8 @@ function ConnectedView() {
   // A campaign just created, so its section opens it.
   const [justCreated, setJustCreated] = useState<ReadonlySet<string>>(new Set());
 
-  const list = accounts.data?.accounts ?? [];
-  const enabledIds = accounts.data?.enabledIds ?? [];
-  // Live account objects (they carry the time zone), in the business's order, limited to the enabled ones still on the login.
-  const enabled = enabledIds.flatMap((id) => list.filter((a) => a.id === id));
-  // The login's accounts the business has NOT ticked (and has not lost): listed apart, pause-only.
-  const chosenBare = new Set((accounts.data?.enabledAccounts ?? []).map((a) => metaAdAccountBareId(a.id)));
-  const knownBare = accounts.data?.knownIds ? new Set(accounts.data.knownIds.map(metaAdAccountBareId)) : null;
-  const notChosen = list.filter((a) => !chosenBare.has(metaAdAccountBareId(a.id)));
-  const others = notChosen.filter((a) => !knownBare || knownBare.has(metaAdAccountBareId(a.id)));
-  // Meta lists them, this connection has not discovered them yet: nothing can be done to them until the connection is refreshed.
-  const newOnLogin = notChosen.filter((a) => knownBare && !knownBare.has(metaAdAccountBareId(a.id)));
-  const missingCount = (accounts.data?.enabledAccounts ?? []).filter((a) => a.missing).length;
-  // The business chose accounts and the login has lost every one of them: not the same as never having chosen.
-  const allChosenMissing = enabled.length === 0 && (accounts.data?.enabledAccounts?.length ?? 0) > 0 && missingCount === (accounts.data?.enabledAccounts?.length ?? 0);
+  // Every id compare is bare-id (`123` is `act_123`): see `classifyMetaAccounts`.
+  const { list, enabled, others, newOnLogin, defaultId, missingCount, allChosenMissing, resolveFilter } = classifyMetaAccounts(accounts.data);
 
   if (accounts.isLoading) return <SkeletonStack />;
 
@@ -281,25 +271,22 @@ function ConnectedView() {
       />
     )
   ) : null;
-  if (noneEnabled && others.length === 0 && newOnLogin.length === 0) return notice;
+  // Nothing the merchant can open: the notice, and (D7) the accounts that are new on the login, never an empty card.
+  if (noneEnabled && others.length === 0) {
+    return (
+      <div className="space-y-6">
+        {notice}
+        <NewOnLoginLine accounts={newOnLogin} />
+      </div>
+    );
+  }
 
   // The business's DEFAULT account is selected first ("All accounts" stays as an option, listed first); with one enabled account
   // it is the selection. A stale choice falls back to the same rule. With nothing enabled none is selected: nothing loads until one is picked.
-  const defaultId = accounts.data?.defaultId ?? null;
-  const defaultFilter = noneEnabled
-    ? ""
-    : enabled.length === 1
-      ? enabled[0]!.id
-      : defaultId && enabled.some((a) => a.id === defaultId)
-        ? defaultId
-        : ALL_ACCOUNTS;
-  const filter =
-    (chosenFilter === ALL_ACCOUNTS && enabled.length > 1) || enabled.some((a) => a.id === chosenFilter) || others.some((a) => metaAdAccountBareId(a.id) === metaAdAccountBareId(chosenFilter))
-      ? chosenFilter
-      : defaultFilter;
+  const filter = resolveFilter(chosenFilter);
   // An account the business has not enabled: its campaigns open PAUSE-ONLY (pause, or lower the budget).
-  const pauseOnlyAccount = others.find((a) => metaAdAccountBareId(a.id) === metaAdAccountBareId(filter));
-  const shown = pauseOnlyAccount ? [] : filter === ALL_ACCOUNTS ? enabled : enabled.filter((a) => a.id === filter);
+  const pauseOnlyAccount = others.find((a) => a.id === filter);
+  const shown = pauseOnlyAccount ? [] : filter === META_ALL_ACCOUNTS ? enabled : enabled.filter((a) => a.id === filter);
 
   return (
     <div className="space-y-6">
@@ -316,12 +303,12 @@ function ConnectedView() {
               Ad accounts{business?.name ? ` for ${business.name}` : ""}
             </p>
             {enabled.length > 1 || others.length > 0 ? (
-              <Select value={filter || undefined} onValueChange={setChosenFilter}>
+              <Select value={filter} onValueChange={setChosenFilter}>
                 <SelectTrigger aria-label="Ad account filter" className="w-80">
                   <SelectValue placeholder="Choose an account to pause or lower" />
                 </SelectTrigger>
                 <SelectContent>
-                  {enabled.length > 1 ? <SelectItem value={ALL_ACCOUNTS}>All accounts</SelectItem> : null}
+                  {enabled.length > 1 ? <SelectItem value={META_ALL_ACCOUNTS}>All accounts</SelectItem> : null}
                   {enabled.map((a) => (
                     <SelectItem key={a.id} value={a.id}>
                       {metaAdAccountOptionLabel(a)}
@@ -357,11 +344,11 @@ function ConnectedView() {
               <NewCampaignDialog
                 accounts={enabled}
                 defaultAccountId={defaultId}
-                initialAccountId={filter === ALL_ACCOUNTS || pauseOnlyAccount ? null : filter}
+                initialAccountId={filter === META_ALL_ACCOUNTS || pauseOnlyAccount ? null : filter}
                 onCreated={(campaignId, accountId) => {
                   setJustCreated((prev) => new Set(prev).add(campaignId));
                   // Created in another account than the one filtered to: show that account, or the new campaign is nowhere to be seen.
-                  if (filter !== ALL_ACCOUNTS && filter !== accountId) setChosenFilter(accountId);
+                  if (filter !== META_ALL_ACCOUNTS && filter !== accountId) setChosenFilter(accountId);
                 }}
               />
             )}
@@ -372,14 +359,7 @@ function ConnectedView() {
         </CardContent>
       </Card>
 
-      {newOnLogin.length > 0 ? (
-        <p role="status" className="text-sm text-muted-foreground">
-          New on your Meta login: {newOnLogin.map((a) => metaAdAccountOptionLabel(a)).join(", ")}. Refresh your connection to manage {newOnLogin.length === 1 ? "it" : "them"}.{" "}
-          <Link href="/dashboard/integrations" className="font-medium underline underline-offset-4">
-            Open Connected accounts
-          </Link>
-        </p>
-      ) : null}
+      <NewOnLoginLine accounts={newOnLogin} />
       {pauseOnlyAccount ? (
         <>
           <p className="text-sm text-muted-foreground">{PAUSE_ONLY_NOTICE}</p>
@@ -399,11 +379,22 @@ function ConnectedView() {
   );
 }
 
+/** Accounts Meta lists that this connection has not discovered yet: named, with no controls. */
+function NewOnLoginLine({ accounts }: { accounts: MetaAdAccount[] }) {
+  if (accounts.length === 0) return null;
+  return (
+    <p role="status" className="text-sm text-muted-foreground">
+      New on your Meta login: {accounts.map((a) => metaAdAccountOptionLabel(a)).join(", ")}. Refresh your connection to manage {accounts.length === 1 ? "it" : "them"}.{" "}
+      <Link href="/dashboard/integrations" className="font-medium underline underline-offset-4">
+        Open Connected accounts
+      </Link>
+    </p>
+  );
+}
+
 /** No campaign opens by itself (a pause-only section has no create). */
 const NO_AUTO_OPEN: ReadonlySet<string> = new Set();
 
-/** The filter's value for "every enabled account". */
-const ALL_ACCOUNTS = "all";
 
 // ── Campaigns ────────────────────────────────────────────────────────────
 
@@ -472,6 +463,16 @@ function CampaignsSection({
     mutationFn: (v: { accountId: string; level: MetaAdsLevel; id: string; status: MetaSettableStatus }) =>
       metaAdsApi.setStatus(v.level, v.id, v.status),
     onSuccess: (_d, v) => {
+      // ★THE SWITCH MOVES AT ONCE: the cached node takes the new status before the refetch, so a slow or failed refetch can never
+      // leave a paused campaign showing as running (or the reverse).
+      const withStatus = <T extends { id: string; status: string }>(items: T[]): T[] => items.map((i) => (i.id === v.id ? { ...i, status: v.status } : i));
+      if (v.level === "campaign") {
+        queryClient.setQueryData<{ campaigns: MetaCampaign[]; truncated: boolean }>(["meta-ads-campaigns", v.accountId], (old) => (old ? { ...old, campaigns: withStatus(old.campaigns) } : old));
+      } else if (v.level === "adSet") {
+        queryClient.setQueriesData<{ adSets: MetaAdSet[]; truncated: boolean }>({ queryKey: ["meta-ads-adsets", v.accountId] }, (old) => (old ? { ...old, adSets: withStatus(old.adSets) } : old));
+      } else {
+        queryClient.setQueriesData<{ ads: Array<{ id: string; status: string }>; truncated: boolean }>({ queryKey: ["meta-ads-ads", v.accountId] }, (old) => (old ? { ...old, ads: withStatus(old.ads) } : old));
+      }
       queryClient.invalidateQueries({ queryKey: ["meta-ads-campaigns", v.accountId] });
       queryClient.invalidateQueries({ queryKey: ["meta-ads-adsets", v.accountId] });
       queryClient.invalidateQueries({ queryKey: ["meta-ads-ads", v.accountId] });
@@ -491,7 +492,7 @@ function CampaignsSection({
     campaignsError: campaigns.isError && !campaigns.data,
     campaignCount: campaignIds.length,
     insightsPending: insights.isPending,
-    insightsError: insights.isError,
+    insightsError: insights.isError && !insights.data,
   });
 
   return (
@@ -654,7 +655,10 @@ function AdSetRows({
     return <MessageRow depth={1} text={metaAdsErrorMessage(adSets.error, "Couldn't load this campaign's ad sets.")} />;
   }
   const list = adSets.data?.adSets ?? [];
-  if (list.length === 0) return <MessageRow depth={1} text="No ad sets in this campaign yet — nothing under it can serve." />;
+  if (list.length === 0) {
+    // A failed refetch of an empty list must not say "none": it says it could not look.
+    return <MessageRow depth={1} text={adSets.isError ? "Couldn't refresh these ad sets just now." : "No ad sets in this campaign yet — nothing under it can serve."} />;
+  }
 
   return (
     <>
@@ -720,7 +724,7 @@ function AdRows({
   if (ads.isLoading) return <MessageRow depth={2} text="Loading ads…" />;
   if (ads.isError && !ads.data) return <MessageRow depth={2} text={metaAdsErrorMessage(ads.error, "Couldn't load this ad set's ads.")} />;
   const list = ads.data?.ads ?? [];
-  if (list.length === 0) return <MessageRow depth={2} text="No ads in this ad set yet — it cannot serve." />;
+  if (list.length === 0) return <MessageRow depth={2} text={ads.isError ? "Couldn't refresh these ads just now." : "No ads in this ad set yet — it cannot serve."} />;
 
   return (
     <>
@@ -773,7 +777,7 @@ function NodeRow({
   note: string | null;
   /** The ad account a campaign is in, shown under its name when the business uses more than one. */
   accountLine?: string;
-  /** An edit control beside the name; only campaigns have one. */
+  /** A control beside the name: a campaign's Edit, or (pause-only) Lower budget on a campaign or ad set that has a budget of its own. */
   editor?: ReactNode;
   /** `null` for a leaf (an ad), which has nothing to expand. */
   open: boolean | null;

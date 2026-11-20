@@ -1,3 +1,4 @@
+import { ApiError } from "@/lib/api";
 import { metaCurrencyOffsetDecimals } from "@/lib/meta-ads-view";
 
 /**
@@ -362,14 +363,27 @@ export function buildBudgetCut(
   original: { dailyBudget?: string; lifetimeBudget?: string },
   budgetText: string,
   currency: string | undefined,
+  kind: "campaign" | "ad set" = "campaign",
 ): { dailyBudget?: string; lifetimeBudget?: string } | { error: string } | null {
   const key = budgetKey(original);
-  if (!key) return { error: "This campaign has no budget of its own to lower here." };
+  if (!key) return { error: `This ${kind} has no budget of its own to lower here.` };
   const patch = budgetPatch(original, budgetText, currency);
   if (!patch) return null;
   if ("error" in patch) return { error: patch.error };
-  if (!(Number(patch.minor) < Number(original[key]))) return { error: "In this account you can only lower the budget." };
+  if (!(Number(patch.minor) < Number(original[key]))) return { error: `In this account you can only lower the ${kind}'s budget.` };
   return { [patch.key]: patch.minor };
+}
+
+/**
+ * The api's `409 BUDGET_NOT_LOWER` (the budget on screen was stale: Meta now holds a figure this one is not below) as a sentence with
+ * the figure it now shows, or null for any other error. `details` carries the live minor-unit figure and its type.
+ */
+export function budgetNotLowerMessage(err: unknown, currency: string | undefined): string | null {
+  if (!(err instanceof ApiError) || err.code !== "BUDGET_NOT_LOWER") return null;
+  const d = err.details as { liveBudget?: unknown; budgetType?: unknown } | undefined;
+  if (typeof d?.liveBudget !== "string") return "That budget is not lower than what Meta shows now. Enter less than the current budget.";
+  const figure = metaMinorToInput(d.liveBudget, currency);
+  return `Meta now shows ${figure} ${d.budgetType === "lifetime" ? "in total" : "a day"}; enter less than that.`;
 }
 
 export interface AdSetEditForm {

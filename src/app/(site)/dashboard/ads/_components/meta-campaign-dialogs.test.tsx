@@ -567,12 +567,21 @@ describe("Lower budget sheet (an ad account the business has not enabled, MR-G4)
     setValue(q<HTMLInputElement>("#lb-budget")!, "60");
     click(byText("button", "Lower budget"));
     await flush();
-    expect(byText('[role="alert"]', /only lower the budget/)).toBeTruthy();
+    expect(byText('[role="alert"]', /only lower the campaign's budget/)).toBeTruthy();
     expect(mocks.editCampaign).not.toHaveBeenCalled();
     setValue(q<HTMLInputElement>("#lb-budget")!, "10");
     click(byText("button", "Lower budget"));
     await flush();
     expect(mocks.editCampaign).toHaveBeenCalledWith("c1", { dailyBudget: "1000" });
+  });
+
+  it("D1: a stale figure (409 BUDGET_NOT_LOWER) shows what Meta now shows, and the lists are refetched", async () => {
+    await open();
+    mocks.editCampaign.mockRejectedValue(new ApiError("BUDGET_NOT_LOWER", "x", 409, undefined, { liveBudget: "1500", budgetType: "daily" }));
+    setValue(q<HTMLInputElement>("#lb-budget")!, "20");
+    click(byText("button", "Lower budget"));
+    await flush();
+    expect(byText('[role="alert"]', /Meta now shows 15 a day; enter less than that\./)).toBeTruthy();
   });
 
   it("a lifetime-budget campaign sends the lifetime field only, and the label says Total budget", async () => {

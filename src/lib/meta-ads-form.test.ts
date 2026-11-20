@@ -1,7 +1,9 @@
+import { ApiError } from "@/lib/api";
 import { describe, it, expect } from "vitest";
 import {
   EMPTY_NEW_CAMPAIGN,
   buildAdSetEdit,
+  budgetNotLowerMessage,
   buildBudgetCut,
   buildCampaignEdit,
   buildCreateBodies,
@@ -341,11 +343,24 @@ describe("buildBudgetCut (a campaign in an ad account the business has not enabl
     expect(buildBudgetCut(was, "20", "USD")).toEqual({ dailyBudget: "2000" });
   });
   it("a raise or the same figure is never sent", () => {
-    expect(buildBudgetCut(was, "80", "USD")).toEqual({ error: "In this account you can only lower the budget." });
+    expect(buildBudgetCut(was, "80", "USD")).toEqual({ error: "In this account you can only lower the campaign's budget." });
+    expect(buildBudgetCut(was, "80", "USD", "ad set")).toEqual({ error: "In this account you can only lower the ad set's budget." });
     expect(buildBudgetCut(was, "50", "USD")).toBeNull();
   });
   it("nonsense is an error, and a campaign with no budget of its own has nothing to lower", () => {
     expect(buildBudgetCut(was, "abc", "USD")).toHaveProperty("error");
-    expect(buildBudgetCut({}, "10", "USD")).toHaveProperty("error");
+    expect(buildBudgetCut({}, "10", "USD")).toEqual({ error: "This campaign has no budget of its own to lower here." });
+    expect(buildBudgetCut({}, "10", "USD", "ad set")).toEqual({ error: "This ad set has no budget of its own to lower here." });
+  });
+});
+
+describe("budgetNotLowerMessage (the api's 409 BUDGET_NOT_LOWER)", () => {
+  it("says what Meta shows now, by budget type", () => {
+    expect(budgetNotLowerMessage(new ApiError("BUDGET_NOT_LOWER", "x", 409, undefined, { liveBudget: "3000", budgetType: "daily" }), "USD")).toBe("Meta now shows 30 a day; enter less than that.");
+    expect(budgetNotLowerMessage(new ApiError("BUDGET_NOT_LOWER", "x", 409, undefined, { liveBudget: "100000", budgetType: "lifetime" }), "USD")).toBe("Meta now shows 1000 in total; enter less than that.");
+  });
+  it("is null for any other error", () => {
+    expect(budgetNotLowerMessage(new ApiError("ADS_HALTED", "x", 409), "USD")).toBeNull();
+    expect(budgetNotLowerMessage(new Error("x"), "USD")).toBeNull();
   });
 });

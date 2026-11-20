@@ -16,6 +16,8 @@ const h = vi.hoisted(() => ({
   listAdAccounts: vi.fn(),
   listCampaigns: vi.fn(),
   listAdSets: vi.fn(),
+  setStatus: vi.fn(),
+  insights: vi.fn(),
   listDatasets: vi.fn(),
   getSelectedDataset: vi.fn(),
   replace: vi.fn(),
@@ -52,7 +54,8 @@ vi.mock("@/lib/api/meta-ads", async (orig) => {
       listAdAccounts: h.listAdAccounts,
       listCampaigns: h.listCampaigns,
       listAdSets: h.listAdSets,
-      insights: vi.fn(async () => []),
+      insights: h.insights,
+      setStatus: h.setStatus,
       getSelectedDataset: h.getSelectedDataset,
       listDatasets: h.listDatasets,
     },
@@ -108,6 +111,8 @@ beforeEach(() => {
   h.listAdAccounts.mockReset();
   h.listCampaigns.mockReset().mockResolvedValue({ campaigns: [CAMPAIGN], truncated: false });
   h.replace.mockReset();
+  h.insights.mockReset().mockResolvedValue([]);
+  h.setStatus.mockReset().mockResolvedValue({});
   h.listAdSets.mockReset().mockResolvedValue({ adSets: [], truncated: false });
   h.getSelectedDataset.mockReset().mockResolvedValue({ selected: null });
   h.listDatasets.mockReset().mockResolvedValue({ datasets: [] });
@@ -434,5 +439,67 @@ describe("Growth > Ads > Meta", () => {
     await mount();
     expect(container.textContent).toContain("One of your ad accounts is no longer on your Meta login");
     expect(h.listCampaigns).not.toHaveBeenCalledWith("act_9999");
+  });
+
+  describe("MR-G4 round 2", () => {
+    const RUNNING = { ...CAMPAIGN, status: "ACTIVE", dailyBudget: "5000" };
+
+    it("D4: a pause moves the switch at once, even when the refetch after it fails", async () => {
+      h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
+      h.listCampaigns.mockResolvedValue({ campaigns: [RUNNING], truncated: false });
+      await mount();
+      const sw = container.querySelector('[role="switch"]') as HTMLElement;
+      expect(sw.getAttribute("aria-label")).toBe("Pause campaign Diwali");
+      h.listCampaigns.mockRejectedValue(new Error("rate limit"));
+      await act(async () => sw.click());
+      await settle();
+      expect(h.setStatus).toHaveBeenCalledWith("campaign", "9", "PAUSED");
+      expect(container.querySelector('[role="switch"]')!.getAttribute("aria-label")).toBe("Activate campaign Diwali");
+    });
+
+    it("D3: cached KPI figures stay when a refetch of the figures fails", async () => {
+      h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
+      h.listCampaigns.mockResolvedValue({ campaigns: [RUNNING], truncated: false });
+      h.insights.mockResolvedValue([{ campaignId: "9", impressions: 123456, clicks: 7, spend: 12, dateStart: "", dateStop: "" }]);
+      await mount();
+      expect(container.textContent).toContain("123,456");
+      h.insights.mockRejectedValue(new Error("rate limit"));
+      await act(async () => {
+        await lastClient.refetchQueries({ queryKey: ["meta-ads-insights"] });
+      });
+      await settle();
+      expect(container.textContent).toContain("123,456");
+    });
+
+    it("D5: with nothing picked the account Select is controlled and shows its placeholder", async () => {
+      h.listAdAccounts.mockResolvedValue(answer([], null));
+      await mount();
+      expect(container.querySelector('[aria-label="Ad account filter"]')!.textContent).toContain("Choose an account to pause or lower");
+    });
+
+    it("D6: a failed refetch of an empty ad-set list says it could not refresh, not 'No ad sets'", async () => {
+      h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
+      h.listCampaigns.mockResolvedValue({ campaigns: [RUNNING], truncated: false });
+      await mount();
+      await act(async () => (container.querySelector('button[aria-label="Expand campaign Diwali"]') as HTMLElement).click());
+      await settle();
+      expect(container.textContent).toContain("No ad sets in this campaign yet");
+      h.listAdSets.mockRejectedValue(new Error("down"));
+      await act(async () => {
+        await lastClient.refetchQueries({ queryKey: ["meta-ads-adsets"] });
+      });
+      await settle();
+      expect(container.textContent).toContain("Couldn't refresh these ad sets just now.");
+      expect(container.textContent).not.toContain("No ad sets in this campaign yet");
+    });
+
+    it("D7: nothing enabled and only accounts new on the login: the notice and the New-on-login line, no empty card", async () => {
+      h.listAdAccounts.mockResolvedValue({ ...answer([], null), knownIds: [] });
+      await mount();
+      expect(container.textContent).toContain("Choose your ad accounts");
+      expect(container.textContent).toContain("New on your Meta login:");
+      expect(container.querySelector('[aria-label="Ad accounts"]')).toBeNull();
+      expect(container.querySelector('[aria-label="Ad account filter"]')).toBeNull();
+    });
   });
 });

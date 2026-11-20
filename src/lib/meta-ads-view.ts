@@ -1,4 +1,5 @@
 import { ApiError } from "@/lib/api";
+import type { MetaAdAccountsResponse } from "@/lib/api/meta-ads";
 import { adsErrorMessage } from "@/lib/ads-error-message";
 
 /**
@@ -435,6 +436,50 @@ export function metaAdAccountShortId(id: string): string {
 /** `Account ID 123456789012 · INR`: the full number as Meta Ads Manager shows it, then the billing currency. */
 export function metaAdAccountIdLine(a: { id: string; currency?: string }): string {
   return `Account ID ${metaAdAccountBareId(a.id)}${a.currency ? ` · ${a.currency}` : ""}`;
+}
+
+/** The account filter's value for "every enabled account". */
+export const META_ALL_ACCOUNTS = "all";
+
+/**
+ * ★ONE PLACE THAT SORTS A META LOGIN'S ACCOUNTS (MR-G4), comparing ids by their BARE form (`123` and `act_123` are one account)
+ * everywhere: the enabled set, the default and the filter the merchant chose.
+ *  - `enabled`: the business's ticked accounts still on the login, in the business's order (the live objects: they carry the zone);
+ *  - `others`: listed, not ticked, and KNOWN to the connection (`knownIds`; an older api that sends none means all are known):
+ *    these open pause-only;
+ *  - `newOnLogin`: listed, not ticked, and not yet known to the connection: nothing can be done to them until it is refreshed;
+ *  - `defaultId`: the business's default, as the enabled account's own id (null when it is not an enabled, live account);
+ *  - `resolveFilter(id)`: the filter value to use for what the merchant chose: the matching account's own id, `META_ALL_ACCOUNTS`
+ *    when that is chosen with several enabled, else the default rule (one enabled: it; several: the default, else all; none: "").
+ */
+export function classifyMetaAccounts(data: MetaAdAccountsResponse | undefined) {
+  const list = data?.accounts ?? [];
+  const bare = metaAdAccountBareId;
+  const findBare = (id: string | null | undefined) => (id ? list.find((a) => bare(a.id) === bare(id)) : undefined);
+  const enabled = (data?.enabledIds ?? []).flatMap((id) => {
+    const a = findBare(id);
+    return a ? [a] : [];
+  });
+  const chosen = new Set((data?.enabledAccounts ?? []).map((a) => bare(a.id)));
+  for (const a of enabled) chosen.add(bare(a.id));
+  const known = data?.knownIds ? new Set(data.knownIds.map(bare)) : null;
+  const notChosen = list.filter((a) => !chosen.has(bare(a.id)));
+  const others = notChosen.filter((a) => !known || known.has(bare(a.id)));
+  const newOnLogin = notChosen.filter((a) => known !== null && !known.has(bare(a.id)));
+  const defaultId = enabled.find((a) => data?.defaultId && bare(a.id) === bare(data.defaultId))?.id ?? null;
+  const missingCount = (data?.enabledAccounts ?? []).filter((a) => a.missing).length;
+  const chosenCount = data?.enabledAccounts?.length ?? 0;
+  // The business chose accounts and the login has lost every one of them: not the same as never having chosen.
+  const allChosenMissing = enabled.length === 0 && chosenCount > 0 && missingCount === chosenCount;
+  const resolveFilter = (id: string): string => {
+    if (id === META_ALL_ACCOUNTS && enabled.length > 1) return META_ALL_ACCOUNTS;
+    const mine = id ? [...enabled, ...others].find((a) => bare(a.id) === bare(id)) : undefined;
+    if (mine) return mine.id;
+    if (enabled.length === 0) return "";
+    if (enabled.length === 1) return enabled[0]!.id;
+    return defaultId ?? META_ALL_ACCOUNTS;
+  };
+  return { list, enabled, others, newOnLogin, defaultId, missingCount, allChosenMissing, resolveFilter };
 }
 
 export function metaAdAccountOptionLabel(a: { id: string; name?: string; currency?: string }): string {

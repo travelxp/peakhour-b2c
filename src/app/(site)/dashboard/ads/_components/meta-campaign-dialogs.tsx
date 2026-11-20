@@ -49,6 +49,7 @@ import {
   META_CREATE_OBJECTIVES,
   META_CTAS,
   buildAdSetEdit,
+  budgetNotLowerMessage,
   buildBudgetCut,
   buildCampaignEdit,
   budgetKey,
@@ -584,11 +585,16 @@ function LowerBudgetSheet({
       toast.success("Budget lowered.");
       onClose();
     },
-    onError: (err: unknown) => setError(metaAdsErrorMessage(err, "Couldn't save that. Nothing was changed.")),
+    onError: (err: unknown) => {
+      // The figure on screen was stale: say what Meta shows now, and refresh the lists so the next try starts from it.
+      const stale = budgetNotLowerMessage(err, account.currency);
+      if (stale) refresh();
+      setError(stale ?? metaAdsErrorMessage(err, "Couldn't save that. Nothing was changed."));
+    },
   });
   const submit = () => {
     setError(null);
-    const body = buildBudgetCut(node, budget, account.currency);
+    const body = buildBudgetCut(node, budget, account.currency, level);
     if (body === null) {
       onClose();
       return;
