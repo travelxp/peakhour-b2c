@@ -3,7 +3,7 @@
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ACK_REQUIRED_ERROR, integrationsAckHref } from "@/lib/overseas-ack";
+import { integrationsAckHref, isAckRequiredCode } from "@/lib/overseas-ack";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
@@ -249,7 +249,7 @@ function SettingsContent() {
       const anchor = searchParams.get("anchor");
       // Missing overseas acknowledgement: the dialog lives on the Integrations
       // page, so send the merchant there instead of showing a generic error.
-      if (msg === ACK_REQUIRED_ERROR) {
+      if (isAckRequiredCode(msg)) {
         router.replace(integrationsAckHref(searchParams));
         return;
       }

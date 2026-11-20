@@ -23,8 +23,9 @@ import { AlertCircle, Search } from "lucide-react";
 import { flattenMetaIntegration as flattenMetaIntegrationBase, resolveProvider, isMetaVirtual, metaActionPurpose, metaCardsDisconnectedBy, metaGrantNote, metaLoginPurposeFor, withMetaLoginPurpose, type MetaLoginInfo } from "@/lib/integrations-meta";
 import { Integration } from "./_components/shared";
 import { AppStoreConnectConnectModal, AppsFlyerConnectModal, BeehiivConnectModal, PlayConsoleConnectModal, WhatsAppConnectModal } from "./_components/connect-modals";
+import { stripReturnParams } from "@/lib/strip-return-params";
 import { OverseasAckDialog } from "@/components/integrations/overseas-ack-dialog";
-import { ACK_UNAVAILABLE_MESSAGE, ackPromptFor, ackPromptForRedirect, isAckRequiredRedirect, withOverseasAck, withoutAckRedirectParams } from "@/lib/overseas-ack";
+import { ACK_UNAVAILABLE_MESSAGE, ACK_REDIRECT_PARAMS, ackPromptFor, ackPromptForRedirect, isAckRequiredRedirect, withOverseasAck } from "@/lib/overseas-ack";
 import { IntegrationCard } from "./_components/integration-card";
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -179,35 +180,14 @@ export default function IntegrationsPage() {
   // A connect waiting on the overseas acknowledgement (TikTok for an Indian
   // business). `ackOpen` closes the dialog while `ackPending` keeps its
   // version, so Radix runs its close and returns focus to the Connect button.
-  const [ackPending, setAckPending] = useState<{ provider: string; version: string; authType: string } | null>(null);
+  const [ackPending, setAckPending] = useState<{ provider: string; version: string } | null>(null);
   const [ackOpen, setAckOpen] = useState(false);
   const ackRedirect = isAckRequiredRedirect(searchParams);
   const ackAsked = useRef(false);
+  // The mount effect's fetch, shared with the ack redirect handler.
+  const initialRows = useRef<Promise<Integration[] | null> | null>(null);
   const router = useRouter();
   const pathname = usePathname();
-
-  // The api sent the merchant back without the acknowledgement: ask again,
-  // rather than showing a generic error. The provider comes from the
-  // redirect and the version from a FRESH read of that provider's row; if
-  // either is missing we say so and never guess.
-  useEffect(() => {
-    if (!ackRedirect || !org || ackAsked.current) return;
-    ackAsked.current = true;
-    void (async () => {
-      const rows = await loadIntegrations();
-      const prompt = ackPromptForRedirect(searchParams, rows ?? []);
-      if (prompt.kind === "ask" && prompt.provider) {
-        const authType = rows?.find((r) => r.provider === prompt.provider)?.authType ?? "oauth2";
-        setAckPending({ provider: prompt.provider, version: prompt.version, authType });
-        setAckOpen(true);
-      } else {
-        setError(ACK_UNAVAILABLE_MESSAGE);
-      }
-      // Handled: drop the redirect's own params, keep returnTo/returnFor.
-      const qs = withoutAckRedirectParams(searchParams ?? new URLSearchParams());
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-    })();
-  }, [ackRedirect, org?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Filter state
   const [search, setSearch] = useState("");
@@ -228,8 +208,32 @@ export default function IntegrationsPage() {
   useEffect(() => {
     if (!org) return;
     // The first read paints from the cache a nav-link prefetch warmed (lib/nav-prefetch.ts), then revalidates.
-    loadIntegrations({ allowCached: true });
+    initialRows.current = loadIntegrations({ allowCached: true });
   }, [org?._id, business?._id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The api sent the merchant back without the acknowledgement: ask again,
+  // rather than showing a generic error. The provider comes from the
+  // redirect and the version from the FRESH rows the mount effect above is
+  // already fetching (one fetch, so the invalidations fire once). A row with
+  // no requiresAck clears quietly; a flagged row with no wording says so;
+  // a failed load keeps its own error.
+  useEffect(() => {
+    if (!ackRedirect || !org || ackAsked.current || !initialRows.current) return;
+    ackAsked.current = true;
+    void (async () => {
+      const rows = await initialRows.current;
+      const prompt = ackPromptForRedirect(searchParams, rows);
+      if (prompt.kind === "ask") {
+        setAckPending({ provider: prompt.provider!, version: prompt.version });
+        setAckOpen(true);
+      } else if (prompt.kind === "unavailable") {
+        setError(ACK_UNAVAILABLE_MESSAGE);
+      }
+      // Handled: drop the redirect's own params, keep returnTo/returnFor.
+      const qs = stripReturnParams(searchParams, ACK_REDIRECT_PARAMS);
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    })();
+  }, [ackRedirect, org?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
    * Reload the cards AND drop the LinkedIn content caches.
@@ -290,8 +294,8 @@ export default function IntegrationsPage() {
       setError(ACK_UNAVAILABLE_MESSAGE);
       return;
     }
-    if (ackPrompt.kind === "ask" && !ackVersion && authType === "oauth2") {
-      setAckPending({ provider, version: ackPrompt.version, authType });
+    if (ackPrompt.kind === "ask" && !ackVersion) {
+      setAckPending({ provider, version: ackPrompt.version });
       setAckOpen(true);
       return;
     }
@@ -813,7 +817,9 @@ export default function IntegrationsPage() {
         onConfirm={(version) => {
           const pending = ackPending;
           setAckOpen(false);
-          if (pending) void handleConnect(pending.provider, pending.authType, version);
+          // The row's own authType: confirm continues down its normal path.
+          const row = pending && integrations.find((i) => i.provider === pending.provider);
+          if (pending && row) void handleConnect(pending.provider, row.authType, version);
         }}
       />
 

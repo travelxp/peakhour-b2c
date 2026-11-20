@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { formatProviderName } from "@/lib/provider-names";
+import { stripReturnParams } from "@/lib/strip-return-params";
 import { metaConnectNoticeMessage } from "@/lib/meta-connect-notice";
 
 /**
@@ -65,11 +66,7 @@ export function OAuthConnectResult() {
     // Drop only OUR params — a returnTo carrying its own query (e.g.
     // /dashboard/ads?channel=linkedin) must keep it, or the page reloads
     // onto a different channel than the user left.
-    const next = new URLSearchParams(searchParams.toString());
-    next.delete("integration");
-    next.delete("provider");
-    next.delete("meta_notice");
-    const qs = next.toString();
+    const qs = stripReturnParams(searchParams, ["integration", "provider", "meta_notice"]);
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }, [searchParams, pathname, router, queryClient]);
 

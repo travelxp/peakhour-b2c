@@ -14,6 +14,7 @@
  * forces a fresh acceptance).
  */
 
+import { reconnectHref } from "@/lib/integrations-connect";
 import { setQueryParam } from "@/lib/url-query";
 
 export interface OverseasAckCopy {
@@ -44,8 +45,29 @@ export interface RequiresAck {
   version: string;
 }
 
-/** The api's redirect when a connect arrived without the acknowledgement. */
-export const ACK_REQUIRED_ERROR = "tiktok_india_ack_required";
+/**
+ * The api's redirect when a connect arrived without the acknowledgement: one
+ * generic code for every ack rule, plus `provider=`. The older TikTok-only
+ * code is still accepted so the api and b2c halves can merge in either order.
+ */
+export const ACK_REQUIRED_ERROR = "overseas_ack_required";
+const ACK_REQUIRED_CODES: readonly string[] = [
+  ACK_REQUIRED_ERROR,
+  "tiktok_india_ack_required",
+];
+
+export function isAckRequiredCode(code: string | null | undefined): boolean {
+  return !!code && ACK_REQUIRED_CODES.includes(code);
+}
+
+/** Params the redirect adds, removed once it is handled (returnTo/returnFor stay). */
+export const ACK_REDIRECT_PARAMS = [
+  "error",
+  "msg",
+  "integration",
+  "provider",
+  "anchor",
+] as const;
 
 /** Shown when a flagged connect cannot show its warning; the connect never starts. */
 export const ACK_UNAVAILABLE_MESSAGE =
@@ -66,8 +88,8 @@ export function withOverseasAck(url: string, version: string): string {
 /** True when the api sent the user back because the acknowledgement was missing. */
 export function isAckRequiredRedirect(params: Params): boolean {
   return (
-    params?.get("error") === ACK_REQUIRED_ERROR ||
-    params?.get("msg") === ACK_REQUIRED_ERROR
+    isAckRequiredCode(params?.get("error")) ||
+    isAckRequiredCode(params?.get("msg"))
   );
 }
 
@@ -93,46 +115,36 @@ export function ackPromptFor(rows: Row[], provider: string): AckPrompt {
 /**
  * The prompt for the api's ack-required redirect. The provider comes from the
  * redirect's `provider=` param and the version from that provider's fresh
- * listing row; nothing is guessed. A missing provider, row or version is
- * "unavailable".
+ * listing row; nothing is guessed. A row that no longer carries `requiresAck`
+ * is "none" (clear quietly). A missing provider param or row, or a version
+ * with no wording, is "unavailable".
  */
 export function ackPromptForRedirect(
   params: Params,
-  rows: Row[],
+  rows: Row[] | null,
 ): AckPrompt & { provider?: string } {
+  // A failed load reports its own error; do not add a second, wrong one.
+  if (!rows) return { kind: "none" };
   const provider = params?.get("provider");
-  if (!provider) return { kind: "unavailable" };
+  if (!provider || !rows.some((r) => r.provider === provider))
+    return { kind: "unavailable" };
   const prompt = ackPromptFor(rows, provider);
-  return prompt.kind === "ask"
-    ? { ...prompt, provider }
-    : { kind: "unavailable" };
-}
-
-/** The query string with the redirect's own params removed; returnTo/returnFor stay. */
-export function withoutAckRedirectParams(params: {
-  toString(): string;
-}): string {
-  const next = new URLSearchParams(params.toString());
-  if (next.get("error") === ACK_REQUIRED_ERROR) next.delete("error");
-  if (next.get("msg") === ACK_REQUIRED_ERROR) {
-    next.delete("msg");
-    next.delete("integration");
-  }
-  next.delete("provider");
-  next.delete("anchor");
-  return next.toString();
+  return prompt.kind === "ask" ? { ...prompt, provider } : prompt;
 }
 
 /**
  * Settings receives `?integration=error&msg=<code>&provider=..` when the
  * api's redirect lands there; the dialog lives on Integrations, so build the
- * hop, keeping provider, returnTo and returnFor.
+ * hop with the same reconnect link the CTAs use, keeping provider, returnTo
+ * and returnFor.
  */
 export function integrationsAckHref(params: Params): string {
-  const out = new URLSearchParams({ error: ACK_REQUIRED_ERROR });
-  for (const k of ["provider", "returnTo", "returnFor"]) {
-    const v = params?.get(k);
-    if (v) out.set(k, v);
-  }
-  return `/dashboard/integrations?${out.toString()}`;
+  const returnTo = params?.get("returnTo");
+  const base = returnTo
+    ? reconnectHref(returnTo, params?.get("returnFor") ?? undefined)
+    : "/dashboard/integrations";
+  let href = setQueryParam(base, "error", ACK_REQUIRED_ERROR);
+  const provider = params?.get("provider");
+  if (provider) href = setQueryParam(href, "provider", provider);
+  return href;
 }
