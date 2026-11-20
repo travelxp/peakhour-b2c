@@ -36,6 +36,8 @@ export interface PublishLinkedInPostInput {
   visibility?: LinkedInVisibility;
   link?: { url: string; title?: string; description?: string };
   imageUrns?: string[];
+  /** Drive file ids of the pictures to attach (the api uploads them to LinkedIn). Not with a link or a poll. */
+  mediaIds?: string[];
   /** Native poll content (CMA D5). Mutually exclusive with `link`/images;
    *  `commentary` still shows as the text above the poll. */
   poll?: LinkedInPollInput;

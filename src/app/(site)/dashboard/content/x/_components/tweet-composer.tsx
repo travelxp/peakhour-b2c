@@ -52,6 +52,7 @@ import {
   type HashtagCandidate,
   type VoiceCardSummary,
 } from "@/components/composer";
+import { PostMedia, dropOutline, usePostMedia } from "@/components/composer/post-media";
 import { SchedulerComposer } from "@/components/scheduler/scheduler-composer";
 import type { ScheduleSourceType } from "@/lib/scheduler/types";
 import { sourceTextHash } from "@/lib/scheduler/source-hash";
@@ -181,6 +182,9 @@ export function TweetComposer() {
   const [refError, setRefError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
 
+  // Pictures: the picker applies X's own rules. They go on the first post (the api attaches them there).
+  const postMedia = usePostMedia("x");
+  const clearPostMedia = postMedia.clear;
   const isThread = segments.length > 1;
   const activeText = segments.find((s) => s.id === activeId)?.text ?? "";
 
@@ -387,8 +391,9 @@ export function TweetComposer() {
     setRefInput("");
     setShowRefs(false);
     setDraftId(null);
+    clearPostMedia();
     setMode("compose");
-  }, []);
+  }, [clearPostMedia]);
 
   // ── Instant publish (single tweet OR reply-chained thread) ──────
   const publish = useMutation({
@@ -405,6 +410,7 @@ export function TweetComposer() {
           if (refMode.kind === "quote") body.quoteTweetId = refMode.id;
           // The label sits on the first post only, as the scheduler does.
           if (paidPartnership) body.paidPartnership = true;
+          if (postMedia.urls.length > 0) body.mediaUrls = postMedia.urls;
         } else {
           body.replyToTweetId = prevId;
         }
@@ -487,11 +493,12 @@ export function TweetComposer() {
           // threadParts drives the scheduler's X publisher (posts each
           // part sequentially). Only set it for an actual thread.
           ...(trimmed.length > 1 ? { threadParts: trimmed } : {}),
+          ...(postMedia.urls.length > 0 ? { mediaUrls: postMedia.urls } : {}),
           ...(Object.keys(channelOptions).length > 0 ? { channelOptions } : {}),
         },
       },
     ];
-  }, [segments, refMode, paidPartnership]);
+  }, [segments, refMode, paidPartnership, postMedia.urls]);
 
   function handleScheduled() {
     queryClient.invalidateQueries({ queryKey: ["scheduler:items"] });
@@ -569,6 +576,7 @@ export function TweetComposer() {
 
   // ── Compose view ────────────────────────────────────────────────
   return (
+    <div ref={postMedia.dropRef} className={dropOutline(postMedia.dropping)} data-testid="x-drop-target">
     <ComposerShell
       mode="compose"
       voiceCard={voiceSummary}
@@ -815,6 +823,8 @@ export function TweetComposer() {
           className="ml-auto"
         />
       </div>
+      <PostMedia state={postMedia} locked={publish.isPending} hint={isThread ? "Pictures go on the first tweet." : undefined} />
     </ComposerShell>
+    </div>
   );
 }
