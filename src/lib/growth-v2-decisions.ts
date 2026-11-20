@@ -237,7 +237,8 @@ export function decisionNotice(err: unknown, action: DecisionAction): DecisionNo
     case "ALREADY_DECIDED":
       return { tone: "warn", text: "This was already answered. The list has been refreshed." };
     case "AD_ACCOUNT_REQUIRED":
-      return { tone: "warn", text: "Choose which ad account this campaign runs in, then approve." };
+      // The card's account choice can be missing if the ad connection could not be read just now, so say how to get it back.
+      return { tone: "warn", text: "Choose which ad account this campaign runs in, then approve. If no choice shows, reload the page." };
     case "APPLY_INCOMPLETE":
       return { tone: "warn", text: "Part of the change was applied. Approve again to finish it." };
     case "NOT_UNDOABLE":
@@ -272,7 +273,8 @@ export interface WhatsAppPreview {
 export function whatsappPreview(d: DecisionView, businessName: string): WhatsAppPreview {
   return {
     header: `Decision for ${businessName}`,
-    body: `${d.title}.\n${d.summary}`,
+    // Same words as the api's WhatsApp message: a launch whose ad account must be picked says where to pick it.
+    body: `${d.title}.\n${d.summary}${d.adAccount?.required ? " Choose its ad account in Peakhour to approve it." : ""}`,
     buttons: d.kind === "creative_approval" ? ["Review", "Hold"] : ["Approve", "Hold", "Details"],
     confirmNote: isSpendDecision(d.kind) ? "To confirm, reply CONFIRM." : undefined,
   };

@@ -85,6 +85,9 @@ export function DecisionCard({ decision: d, currency, unit, now, onAction, actio
   const [confirming, setConfirming] = useState(false);
   // MR-F3: the ad account picked for a launch that fit several, kept with the decision it was picked for.
   const [picked, setPicked] = useState<{ id: string; account: string } | null>(null);
+  // A refusal the person has since acted on (picked an account after "choose an account") is not shown again.
+  const [actedOn, setActedOn] = useState<DecisionNotice | undefined>(undefined);
+  const shownNotice = notice && notice !== actedOn ? notice : undefined;
   // A pick counts only while it is still one of the CURRENT options (a refetch can drop it).
   const pickedAccount = picked?.id === d.id && d.adAccount?.options?.some((o) => o.id === picked.account) ? picked.account : undefined;
   const confirmAccount = d.adAccount?.required ? d.adAccount.options?.find((o) => o.id === pickedAccount)?.label : d.adAccount?.label;
@@ -144,7 +147,10 @@ export function DecisionCard({ decision: d, currency, unit, now, onAction, actio
           {d.adAccount.required ? (
             <>
               <p className="text-sm">{d.adAccount.reason ?? "More than one of your ad accounts fits this campaign."} Choose the one it runs in.</p>
-              <Select value={pickedAccount ?? ""} onValueChange={(account) => setPicked({ id: d.id, account })} disabled={off || !answerable}>
+              <Select value={pickedAccount ?? ""} onValueChange={(account) => {
+                  setPicked({ id: d.id, account });
+                  setActedOn(notice);
+                }} disabled={off || !answerable}>
                 <SelectTrigger className="w-full max-w-sm" aria-label="Ad account for this campaign">
                   <SelectValue placeholder="Choose an ad account" />
                 </SelectTrigger>
@@ -244,14 +250,14 @@ export function DecisionCard({ decision: d, currency, unit, now, onAction, actio
         </div>
       ) : null}
 
-      {notice ? (
-        <p role="alert" className={cn("rounded-lg border px-3 py-2 text-sm", TONE_CLASS[notice.tone])}>
-          {notice.text}
-          {notice.link ? (
+      {shownNotice ? (
+        <p role="alert" className={cn("rounded-lg border px-3 py-2 text-sm", TONE_CLASS[shownNotice.tone])}>
+          {shownNotice.text}
+          {shownNotice.link ? (
             <>
               {" "}
-              <Link href={notice.link.href} className="font-medium underline underline-offset-2">
-                {notice.link.label}
+              <Link href={shownNotice.link.href} className="font-medium underline underline-offset-2">
+                {shownNotice.link.label}
               </Link>
             </>
           ) : null}
@@ -275,7 +281,9 @@ export function DecisionCard({ decision: d, currency, unit, now, onAction, actio
           </ul>
           <AlertDialogFooter>
             <AlertDialogCancel>Not yet</AlertDialogCancel>
-            <AlertDialogAction onClick={() => onAction?.("approve", pickedAccount)}>Confirm and approve</AlertDialogAction>
+            <AlertDialogAction disabled={needsPick} onClick={() => onAction?.("approve", pickedAccount)}>
+              Confirm and approve
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
@@ -199,11 +199,12 @@ export function MetaAdAccountPicker({
   // The routing tags in progress (MR-F3); null shows what is saved. Sent only once touched, so an untouched save leaves them alone.
   const [tagDraft, setTagDraft] = useState<AdAccountTagMap | null>(null);
   const [saving, setSaving] = useState(false);
-  const tags = tagDraft ?? savedMetaAdAccountTags(extra);
+  const savedTags = useMemo(() => savedMetaAdAccountTags(extra), [extra]);
+  const tags = tagDraft ?? savedTags;
   const ids = draft?.ids ?? saved.enabledIds;
   const defaultId = draft ? draft.defaultId : saved.defaultId;
   // Tags count as changed only when they differ from what is saved (ticking a purpose on and off is not a change).
-  const tagsChanged = tagDraft !== null && !sameTags(tagDraft, savedMetaAdAccountTags(extra));
+  const tagsChanged = tagDraft !== null && !sameTags(tagDraft, savedTags);
   const dirty = draft !== null || tagsChanged;
   // An account Meta now says is disabled or closed that is still ticked: it can be unticked but not saved until it is.
   const stillTickedBlocked = adAccounts.some((a) => ids.includes(a.id) && !!metaAdAccountStatus(a.status).blocked);
@@ -364,7 +365,7 @@ function UsedFor({
       <p className="text-micro font-medium">Used for</p>
       <div className="space-y-0.5">
         <p className="text-micro text-muted-foreground">Markets</p>
-        <CountryPicker value={markets} onChange={(next) => onChange(withTag(tags, "markets", next))} />
+        <CountryPicker value={markets} labelFor={name} onChange={(next) => onChange(withTag(tags, "markets", next))} />
       </div>
       <div className="space-y-0.5">
         <p className="text-micro text-muted-foreground">Purpose</p>

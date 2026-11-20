@@ -2,7 +2,7 @@
  * MR-F3 - the dashboard's reading and writing of routing tags (mirrors the api's helper; the api re-cleans every value).
  */
 import { describe, expect, it } from "vitest";
-import { AD_ACCOUNT_PURPOSES, purposeLabel, sameTags, savedMetaAdAccountTags, tagsForSave, withTag } from "./meta-ad-account-tags";
+import { AD_ACCOUNT_PURPOSES, sameTags, savedMetaAdAccountTags, tagsForSave, withTag } from "./meta-ad-account-tags";
 
 describe("savedMetaAdAccountTags", () => {
   it("reads the tags saved under account.extra.metaAdAccounts, keyed by the id the connection lists, cleaned", () => {
@@ -34,9 +34,16 @@ describe("withTag and sameTags", () => {
   });
 });
 
+describe("sameTags", () => {
+  it("compares each dimension as a set: the same purposes or markets in another order are not a change", () => {
+    expect(sameTags({ act_1: { purposes: ["awareness", "conversion"], markets: ["IN", "GB"] } }, { act_1: { purposes: ["conversion", "awareness"], markets: ["GB", "IN"] } })).toBe(true);
+    expect(sameTags({ act_1: { purposes: ["awareness"] } }, { act_1: { purposes: ["conversion"] } })).toBe(false);
+  });
+});
+
 describe("purposes", () => {
   it("are the growth phases, in words a merchant reads", () => {
     expect(AD_ACCOUNT_PURPOSES.map((p) => p.id)).toEqual(["awareness", "conversion", "retention"]);
-    expect(purposeLabel("conversion")).toBe("Sales");
+    expect(AD_ACCOUNT_PURPOSES.find((p) => p.id === "conversion")?.label).toBe("Sales");
   });
 });

@@ -84,8 +84,8 @@ describe("the ad account on a launch card", () => {
   });
 
   it("shows the currency warning as a line and does not block Approve", async () => {
-    render(launch({ required: false, accountId: "act_222", label: "UK Store (act_…222)", currencyWarning: "This ad account bills in USD; your store sells in INR" }));
-    expect(section()).toContain("This ad account bills in USD; your store sells in INR");
+    render(launch({ required: false, accountId: "act_222", label: "UK Store (act_…222)", currencyWarning: "This ad account bills in USD; your plan's budget is in INR" }));
+    expect(section()).toContain("This ad account bills in USD; your plan's budget is in INR");
     expect(button("Approve")!.disabled).toBe(false);
   });
 

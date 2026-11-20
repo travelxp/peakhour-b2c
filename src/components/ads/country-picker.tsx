@@ -14,12 +14,16 @@ export function CountryPicker({
   onChange,
   invalid,
   describedBy,
+  labelFor,
 }: {
   value: string[];
   onChange: (next: string[]) => void;
   invalid?: boolean;
   describedBy?: string;
+  /** Whose countries these are, when several pickers share a page ("Add a country for CMPL"). */
+  labelFor?: string;
 }) {
+  const suffix = labelFor ? ` for ${labelFor}` : "";
   const options = useMemo(
     () =>
       [...new Set([...META_COUNTRY_CODES, ...value])].map((code) => ({
@@ -32,7 +36,7 @@ export function CountryPicker({
   return (
     <div className="space-y-2">
       {value.length > 0 ? (
-        <ul className="flex flex-wrap gap-1.5" aria-label="Chosen countries">
+        <ul className="flex flex-wrap gap-1.5" aria-label={`Chosen countries${suffix}`}>
           {value.map((code) => (
             <li key={code}>
               <Badge variant="secondary" className="gap-1 pr-1">
@@ -52,7 +56,7 @@ export function CountryPicker({
       ) : null}
       {/* A plain select: one list, no search needed, and it works the same on a phone. */}
       <select
-        aria-label="Add a country"
+        aria-label={`Add a country${suffix}`}
         aria-invalid={invalid}
         aria-describedby={describedBy}
         value=""

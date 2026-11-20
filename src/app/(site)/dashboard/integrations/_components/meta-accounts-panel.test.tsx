@@ -339,7 +339,7 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
     mount({ ...EXTRA, adAccounts: TWO_ADS, metaAdAccounts: SAVED_TWO });
     const purpose = [...usedFor("CMPL")!.querySelectorAll("button")].find((b) => b.textContent === "Brand awareness") as HTMLButtonElement;
     await click(purpose);
-    const select = usedFor("CMPL")!.querySelector('select[aria-label="Add a country"]') as HTMLSelectElement;
+    const select = usedFor("CMPL")!.querySelector('select[aria-label="Add a country for CMPL"]') as HTMLSelectElement;
     await act(async () => {
       select.value = "GB";
       select.dispatchEvent(new Event("change", { bubbles: true }));

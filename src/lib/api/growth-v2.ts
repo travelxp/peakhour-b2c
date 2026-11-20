@@ -288,7 +288,7 @@ export interface DecisionView {
     label?: string;
     /** "Matches market India", "Your default ad account". */
     reason?: string;
-    /** "This ad account bills in USD; your store sells in INR". A warning, never a block. */
+    /** "This ad account bills in USD; your plan's budget is in INR". A warning, never a block. */
     currencyWarning?: string;
     options?: Array<{ id: string; label: string; currency?: string }>;
   };

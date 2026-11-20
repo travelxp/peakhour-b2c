@@ -95,15 +95,18 @@ export function tagsForSave(
   return out;
 }
 
-/** Whether two tag maps say the same thing (an account with no tags and a missing one are the same). */
+/** One account's tags as a comparable string: each dimension is a SET, so order does not count. */
+function canonical(raw: unknown): string {
+  const t = clean(raw);
+  if (!t) return "null";
+  const sorted = (v?: readonly string[]) => (v ? [...v].sort() : undefined);
+  return JSON.stringify({ markets: sorted(t.markets), collections: sorted(t.collections), purposes: sorted(t.purposes) });
+}
+
+/** Whether two tag maps say the same thing (an account with no tags and a missing one are the same; order within a dimension does not count). */
 export function sameTags(a: AdAccountTagMap, b: AdAccountTagMap): boolean {
   const ids = new Set([...Object.keys(a), ...Object.keys(b)]);
-  for (const id of ids)
-    if (
-      JSON.stringify(clean(a[id]) ?? null) !==
-      JSON.stringify(clean(b[id]) ?? null)
-    )
-      return false;
+  for (const id of ids) if (canonical(a[id]) !== canonical(b[id])) return false;
   return true;
 }
 
@@ -117,6 +120,3 @@ export function withTag<K extends keyof AdAccountTags>(
   if (value.length === 0) delete next[key];
   return next;
 }
-
-export const purposeLabel = (id: string): string =>
-  AD_ACCOUNT_PURPOSES.find((p) => p.id === id)?.label ?? id;
