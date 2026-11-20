@@ -7,7 +7,8 @@ import { toast } from "sonner";
 
 import { api, ApiError } from "@/lib/api";
 import { savedMetaAdAccounts, savedMetaPageId } from "@/lib/integrations-meta";
-import { META_CHOOSE_AD_ACCOUNT, metaAdAccountOptionLabel, metaAdAccountStatus } from "@/lib/meta-ads-view";
+import { META_CHOOSE_AD_ACCOUNT, metaAdAccountIdLine, metaAdAccountStatus } from "@/lib/meta-ads-view";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CountryPicker } from "@/components/ads/country-picker";
 import {
@@ -259,40 +260,61 @@ export function MetaAdAccountPicker({
       ) : adAccounts.length === 1 && saved.enabledIds.includes(adAccounts[0]!.id) ? (
         // One listed account that is already the business's: a line. A saved choice that no longer matches it falls to the
         // checklist below, so it can be enabled.
-        <p className="text-xs font-medium">{metaAdAccountOptionLabel(adAccounts[0]!)}</p>
+        <div className="rounded-lg border border-border px-3 py-2.5">
+          <AdAccountIdentity account={adAccounts[0]!} />
+          <AdAccountStatusBadge status={adAccounts[0]!.status} ticked />
+        </div>
       ) : (
         <>
-          <ul className="space-y-1">
+          <ul className="space-y-2">
             {adAccounts.map((a) => {
-              const { blocked, warning } = metaAdAccountStatus(a.status);
+              const { blocked } = metaAdAccountStatus(a.status);
               const ticked = ids.includes(a.id);
+              // ONE expression drives the radio and the pill, so what is announced is what is shown.
+              const isDefault = ticked && defaultId === a.id;
               return (
-                <li key={a.id} className="space-y-1 text-xs">
-                  <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id={`${uid}-ad-${a.id}`}
-                    checked={ticked}
-                    // A disabled or closed account cannot be ticked, but one that is already ticked can be UNticked.
-                    disabled={saving || (!!blocked && !ticked)}
-                    onChange={() => toggle(a.id)}
-                  />
-                  <label htmlFor={`${uid}-ad-${a.id}`} className="min-w-0 flex-1 truncate">
-                    {metaAdAccountOptionLabel(a)}
-                    {blocked ? (ticked ? `, ${blocked} on Meta, untick to save` : `, ${blocked}`) : ""}
-                    {warning ? `, ${warning}` : ""}
-                  </label>
-                  <label className="flex shrink-0 items-center gap-1 text-micro text-muted-foreground">
+                <li
+                  key={a.id}
+                  className={cn(
+                    "space-y-2 rounded-lg border px-3 py-2.5 transition-colors",
+                    ticked ? "border-primary/40 bg-primary/5" : "border-border",
+                    blocked && !ticked && "opacity-70",
+                  )}
+                >
+                  <div className="flex items-start gap-3">
                     <input
-                      type="radio"
-                      name={`${uid}-default-ad-account`}
-                      aria-label={`Default: ${a.name || a.id}`}
-                      checked={defaultId === a.id}
-                      disabled={saving || !ticked || !!blocked}
-                      onChange={() => setDraft({ ids, defaultId: a.id })}
+                      type="checkbox"
+                      id={`${uid}-ad-${a.id}`}
+                      className="mt-0.5 size-4 shrink-0"
+                      checked={ticked}
+                      // A disabled or closed account cannot be ticked, but one that is already ticked can be UNticked.
+                      disabled={saving || (!!blocked && !ticked)}
+                      onChange={() => toggle(a.id)}
                     />
-                    Default
-                  </label>
+                    <label htmlFor={`${uid}-ad-${a.id}`} className="min-w-0 flex-1 cursor-pointer">
+                      <AdAccountIdentity account={a} />
+                      <AdAccountStatusBadge status={a.status} ticked={ticked} />
+                    </label>
+                    <label
+                      className={cn(
+                        // `relative` keeps the visually hidden radio inside the pill; focus and disabled are read off the input itself.
+                        "relative flex min-h-10 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-xs",
+                        "has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/50",
+                        "has-[:disabled]:cursor-not-allowed has-[:disabled:not(:checked)]:opacity-50",
+                        isDefault ? "border-primary bg-primary text-primary-foreground" : "border-input text-muted-foreground",
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        className="sr-only"
+                        name={`${uid}-default-ad-account`}
+                        checked={isDefault}
+                        disabled={saving || !ticked || !!blocked}
+                        onChange={() => setDraft({ ids, defaultId: a.id })}
+                      />
+                      {isDefault ? "Default" : "Make default"}
+                      <span className="sr-only"> for {a.name || "this ad account"}</span>
+                    </label>
                   </div>
                   {ticked ? (
                     <UsedFor
@@ -341,6 +363,38 @@ export function MetaAdAccountPicker({
 }
 
 /**
+ * One ad account as a merchant reads it: the name in full on its own line (wrapping, never cut off), then the full account
+ * number as Meta Ads Manager shows it, and the billing currency.
+ */
+function AdAccountIdentity({ account }: { account: MetaAdAccountRow }) {
+  return (
+    <span className="block min-w-0">
+      <span className="block break-words text-sm font-medium leading-snug text-foreground">{account.name || "Ad account"}</span>
+      {/* A separator for anything that reads the label as one string (a screen reader's accessible name). */}
+      <span className="sr-only">, </span>
+      <span className="mt-0.5 block break-words font-mono text-xs tabular-nums text-muted-foreground">{metaAdAccountIdLine(account)}</span>
+    </span>
+  );
+}
+
+/** Meta's word for an account that is not simply active, as a badge under its identity; nothing when it is active. */
+function AdAccountStatusBadge({ status, ticked }: { status: number | undefined; ticked: boolean }) {
+  const { blocked, warning } = metaAdAccountStatus(status);
+  if (!blocked && !warning) return null;
+  return (
+    <span
+      className={cn(
+        "mt-1 inline-block rounded-md border px-1.5 py-0.5 text-micro",
+        blocked ? "border-destructive/30 bg-destructive/10 text-destructive-on-tint" : "border-warning/30 bg-warning/10 text-warning-on-tint",
+      )}
+    >
+      <span className="sr-only">, </span>
+      {blocked ? `${blocked === "disabled" ? "Disabled" : "Closed"} on Meta${ticked ? ", untick to save" : ""}` : warning!.charAt(0).toUpperCase() + warning!.slice(1)}
+    </span>
+  );
+}
+
+/**
  * "Used for" under one enabled ad account (MR-F3): the markets and purposes Peakhour may route an automated
  * campaign to it for. (No Collections picker: no launch input carries collection ids yet, so such a tag could never match.
  * The api keeps the support, and stored collection tags pass through a save untouched.) Empty means untagged: the default account takes what no tag claims. Saved with the panel's one Save.
@@ -361,7 +415,7 @@ function UsedFor({
   const togglePurpose = (id: AdAccountPurpose) =>
     onChange(withTag(tags, "purposes", purposes.includes(id) ? purposes.filter((p) => p !== id) : [...purposes, id]));
   return (
-    <fieldset className="ml-5 space-y-1.5 border-l border-border/40 pl-2" aria-label={`Used for: ${name}`} disabled={disabled}>
+    <fieldset className="ml-7 space-y-2 border-t border-border/60 pt-2" aria-label={`Used for: ${name}`} disabled={disabled}>
       <p className="text-micro font-medium">Used for</p>
       <div className="space-y-0.5">
         <p className="text-micro text-muted-foreground">Markets</p>

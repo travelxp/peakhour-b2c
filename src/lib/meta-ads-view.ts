@@ -408,6 +408,11 @@ export function metaAdAccountShortId(id: string): string {
 }
 
 /** `Name (CUR) · act_…1234`: how an ad account is shown in a picker. */
+/** `Account ID 123456789012 · INR`: the full number as Meta Ads Manager shows it, then the billing currency. */
+export function metaAdAccountIdLine(a: { id: string; currency?: string }): string {
+  return `Account ID ${metaAdAccountBareId(a.id)}${a.currency ? ` · ${a.currency}` : ""}`;
+}
+
 export function metaAdAccountOptionLabel(a: { id: string; name?: string; currency?: string }): string {
   return `${a.name || "Ad account"}${a.currency ? ` (${a.currency})` : ""} · ${metaAdAccountShortId(a.id)}`;
 }
