@@ -110,7 +110,8 @@ describe("MetaAccountsPanel", () => {
     expect(pages).toContain("Acme: Instagram @acme");
     expect(pages).toContain("Other: No Instagram linked");
     // one ad account: a line, no picker
-    expect(container.querySelector('[aria-label="Ad accounts"]')!.textContent).toContain("Acme Ads (INR) · act_…");
+    // the name on its own line, then the full account number and currency
+    expect(container.querySelector('[aria-label="Ad accounts"]')!.textContent).toContain("Acme AdsAccount ID 9 · INR");
     expect(container.querySelectorAll("select")).toHaveLength(1);
   });
 
@@ -229,9 +230,9 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
     expect(container.textContent).toContain("Choose the ad accounts this business may use before creating campaigns.");
     const labels = [...container.querySelectorAll('[aria-label="Ad accounts"] li label:first-of-type')].map((l) => l.textContent);
     expect(labels).toEqual([
-      "Quests Travel (INR) · act_…1111",
-      "CMPL (USD) · act_…2222",
-      "Old Ads (USD) · act_…3333, disabled",
+      "Quests TravelAccount ID 1111 · INR",
+      "CMPLAccount ID 2222 · USD",
+      "Old AdsAccount ID 3333 · USDDisabled on Meta",
     ]);
     expect(TWO_ADS.map((a) => box(a.id).checked)).toEqual([false, false, false]);
     expect(saveButton().disabled).toBe(true);
@@ -246,7 +247,7 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
     });
     expect(box("act_4444").checked).toBe(true);
     expect(box("act_4444").disabled).toBe(false);
-    expect(container.textContent).toContain("disabled on Meta, untick to save");
+    expect(container.textContent).toContain("Disabled on Meta, untick to save");
     await click(box("act_2222"));
     expect(saveButton().disabled).toBe(true);
     await click(box("act_4444"));
@@ -266,9 +267,9 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
         { id: "act_7", name: "C", currency: "USD", status: 9 },
       ],
     });
-    expect(container.textContent).toContain("payment issue");
-    expect(container.textContent).toContain("under review");
-    expect(container.textContent).toContain("grace period");
+    expect(container.textContent).toContain("Payment issue");
+    expect(container.textContent).toContain("Under review");
+    expect(container.textContent).toContain("Grace period");
     for (const id of ["act_5", "act_6", "act_7"]) expect(box(id).disabled).toBe(false);
   });
 
@@ -302,7 +303,7 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
     mount({ ...EXTRA, adAccounts: [...TWO_ADS, { id: "act_4444", name: "Gone", currency: "USD", status: 101 }] });
     expect(box("act_3333").disabled).toBe(true);
     expect(box("act_4444").disabled).toBe(true);
-    expect(container.textContent).toContain("Gone (USD) · act_…4444, closed");
+    expect(container.textContent).toContain("GoneAccount ID 4444 · USDClosed on Meta");
     expect(box("act_1111").disabled).toBe(false);
   });
 
