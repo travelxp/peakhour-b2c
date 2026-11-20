@@ -11,6 +11,8 @@ import {
   googleNetworkSentence,
   googleRemoveConfirmed,
   googleSettingsChangeOf,
+  googleSettingsLowerBudgetOnly,
+  googleSettingsBudgetProblem,
   googleSettingsDraftOf,
   googleSettingsProblem,
   googleSettingsSentence,
@@ -151,5 +153,34 @@ describe("ads (RMF M.130)", () => {
     expect(googleAdStatusLabel("REMOVED")).toBe("Removed");
     expect(googleAdSummary({ headlines: ["A", "B", "C", "D"], type: "RESPONSIVE_SEARCH_AD" })).toBe("A | B | C");
     expect(googleAdSummary({ headlines: [], type: "DEMAND_GEN_VIDEO_RESPONSIVE_AD" })).toBe("Video ad");
+  });
+});
+
+describe("an account the business did not enable: spend-reducing only", () => {
+  it("only a LOWER daily budget saves, and nothing else with it", () => {
+    const d = googleSettingsDraftOf(S);
+    expect(googleSettingsLowerBudgetOnly(S, { ...d, budget: "1000" })).toEqual({ dailyBudget: { amount: 1000 } });
+    expect(googleSettingsLowerBudgetOnly(S, { ...d, budget: "3000" })).toBeNull();
+    expect(googleSettingsLowerBudgetOnly(S, d)).toBeNull();
+    expect(googleSettingsLowerBudgetOnly(S, { ...d, budget: "1000", name: "Other" })).toBeNull();
+    expect(googleSettingsLowerBudgetOnly(S, { ...d, endDate: "" })).toBeNull();
+  });
+  it("an ad can be paused or removed, never enabled", () => {
+    expect(googleAdActions("PAUSED", true, true).map((a) => a.status)).toEqual(["REMOVED"]);
+    expect(googleAdActions("ENABLED", true, true).map((a) => a.status)).toEqual(["PAUSED", "REMOVED"]);
+    expect(googleAdActions("PAUSED", true).map((a) => a.status)).toEqual(["ENABLED", "REMOVED"]);
+  });
+});
+
+describe("S7: the reduce-only budget rule is said, not a silently disabled Save", () => {
+  it("a raised budget says so; a lowered, untouched or unreadable one is judged plainly", () => {
+    const d = googleSettingsDraftOf(S);
+    expect(googleSettingsBudgetProblem(S, { ...d, budget: "3000" })).toBe("Peakhour can only lower the budget in this account.");
+    expect(googleSettingsBudgetProblem(S, { ...d, budget: "1000" })).toBeNull();
+    expect(googleSettingsBudgetProblem(S, d)).toBeNull();
+    expect(googleSettingsBudgetProblem(S, { ...d, budget: "abc" })).toBe("Enter a daily budget.");
+    expect(googleSettingsBudgetProblem(S, { ...d, budget: "0" })).toContain("more than 0");
+    // the name and end date are not judged here (they are not on screen): an end date in the past does not stop a budget cut
+    expect(googleSettingsBudgetProblem(S, { ...d, budget: "1000", endDate: "2020-01-01" })).toBeNull();
   });
 });

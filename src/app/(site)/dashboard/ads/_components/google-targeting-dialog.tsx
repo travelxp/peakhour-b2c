@@ -83,11 +83,14 @@ export function GoogleTargetingDialog({
   account,
   open,
   onOpenChange,
+  reduceOnly = false,
 }: {
   campaign: GoogleCampaign;
   account: GoogleAdAccount;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** An account the business did not enable: ONLY pausing or removing a keyword it already holds. No add, no enable, no widening, no save. */
+  reduceOnly?: boolean;
 }) {
   const queryClient = useQueryClient();
   const { business } = useAuth();
@@ -170,9 +173,9 @@ export function GoogleTargetingDialog({
     <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(true) : requestClose())}>
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Targeting — {campaign.name}</DialogTitle>
+          <DialogTitle>{reduceOnly ? "Keywords" : "Targeting"} — {campaign.name}</DialogTitle>
           <DialogDescription>
-            {googleChannelTypeLabel(channelType)}. {googleTargetingDescription(channelType)}
+            {reduceOnly ? "Peakhour does not run new spend in this account. You can pause or remove a keyword." : `${googleChannelTypeLabel(channelType)}. ${googleTargetingDescription(channelType)}`}
           </DialogDescription>
         </DialogHeader>
 
@@ -196,6 +199,52 @@ export function GoogleTargetingDialog({
           <div className="space-y-3">
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-24 w-full" />
+          </div>
+        ) : reduceOnly ? (
+          <div className="space-y-4">
+            {search ? (
+              <>
+                <KeywordsSection
+                  title="Keywords"
+                  help="Pausing or removing a keyword only reduces what this campaign can spend."
+                  list={draft.keywords}
+                  onChange={() => undefined}
+                  disabled={busy}
+                  controlsOn={keywordControls}
+                  reduceOnly
+                  onStatus={(k, status) => {
+                    const criterionId = k.resourceName ? keywordCriterionId(k.resourceName) : null;
+                    if (!criterionId) return;
+                    if (status === "REMOVED") setRemoving({ criterionId, text: k.text });
+                    else keywordStatus.mutate({ criterionId, status });
+                  }}
+                />
+                {paused && paused.keywords.length > 0 ? (
+                  <div className="space-y-2">
+                    <Label className="text-xs uppercase tracking-wide text-muted-foreground">Paused keywords</Label>
+                    <ul className="space-y-1">
+                      {paused.keywords.map((k) => {
+                        const criterionId = keywordCriterionId(k.resourceName);
+                        return (
+                          <li key={k.resourceName} className="flex items-center justify-between gap-2 text-sm">
+                            <span>
+                              {k.text} <Badge variant="outline">{googleMatchTypeLabel(k.matchType)}</Badge>
+                            </span>
+                            {criterionId ? (
+                              <Button size="sm" variant="ghost" disabled={!keywordControls} onClick={() => setRemoving({ criterionId, text: k.text })}>
+                                Remove
+                              </Button>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">This campaign type has no keywords. Pause the campaign to stop it.</p>
+            )}
           </div>
         ) : (
           <div className="space-y-6">
@@ -291,9 +340,11 @@ export function GoogleTargetingDialog({
           <Button variant="ghost" onClick={requestClose} disabled={save.isPending}>
             Close
           </Button>
-          <Button disabled={!draft || !!problem || !dirty || busy} onClick={() => draft && save.mutate(draft)}>
-            Save targeting
-          </Button>
+          {reduceOnly ? null : (
+            <Button disabled={!draft || !!problem || !dirty || busy} onClick={() => draft && save.mutate(draft)}>
+              Save targeting
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
 
@@ -528,6 +579,7 @@ function KeywordsSection({
   disabled,
   controlsOn,
   onStatus,
+  reduceOnly = false,
   pausedKeys,
   pausedMessage = "That one is paused in Google Ads. Enable it rather than adding it again.",
 }: {
@@ -543,6 +595,8 @@ function KeywordsSection({
   /** Keywords only: whether one keyword's own pause/remove is offered now. */
   controlsOn?: boolean;
   onStatus?: (k: DraftKeyword, status: GoogleKeywordStatus) => void;
+  /** Pause and remove of a keyword Google holds, and nothing else: no add form, no take-out. */
+  reduceOnly?: boolean;
 }) {
   const [text, setText] = useState("");
   const [matchType, setMatchType] = useState<GoogleMatchType>(GOOGLE_DEFAULT_MATCH_TYPE);
@@ -580,7 +634,7 @@ function KeywordsSection({
                     Remove
                   </Button>
                 </>
-              ) : (
+              ) : reduceOnly ? null : (
                 // A negative, or a keyword not yet saved: taken out of the list, and the save replaces.
                 <Button size="sm" variant="ghost" disabled={disabled} onClick={() => onChange((l) => l.filter((x) => keywordKey(x) !== keywordKey(k)))}>
                   Take out
@@ -590,6 +644,7 @@ function KeywordsSection({
           </li>
         ))}
       </ul>
+      {reduceOnly ? null : (
       <form
         className="flex flex-wrap gap-2"
         onSubmit={(e) => {
@@ -614,8 +669,9 @@ function KeywordsSection({
           Add
         </Button>
       </form>
-      <p className="text-xs text-muted-foreground">{GOOGLE_MATCH_TYPES.find((m) => m.value === matchType)?.hint}</p>
-      {problem ? <p className="text-xs text-muted-foreground">{problem}</p> : null}
+      )}
+      {reduceOnly ? null : <p className="text-xs text-muted-foreground">{GOOGLE_MATCH_TYPES.find((m) => m.value === matchType)?.hint}</p>}
+      {problem && !reduceOnly ? <p className="text-xs text-muted-foreground">{problem}</p> : null}
     </div>
   );
 }

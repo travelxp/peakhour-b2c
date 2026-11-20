@@ -114,6 +114,14 @@ describe("the signal step", () => {
     expect(failed).not.toContain("Choose the ad accounts this business may use in");
   });
 
+  it("with NO enabled Google ad account it says the same, and never while loading or after a failed read", () => {
+    const out = html(props(readiness("not_connected", "needed", false), { accounts: { meta: [], google_ads: [] }, accountsLoaded: { google_ads: true } }));
+    expect(out).toContain("Choose the ad accounts this business may use in");
+    expect(out).toContain('href="/dashboard/integrations"');
+    expect(html(props(readiness("not_connected", "needed", false), { accounts: { meta: [], google_ads: [] } }))).not.toContain("Choose the ad accounts this business may use in");
+    expect(html(props(readiness("not_connected", "needed", false), { accounts: { meta: [], google_ads: [] }, accountsLoaded: { google_ads: true }, accountsFailed: { google_ads: true } }))).not.toContain("Choose the ad accounts this business may use in");
+  });
+
   it("★C2: the api's own sentence for AD_ACCOUNT_NOT_CHOSEN and AD_ACCOUNT_NOT_IN_BUSINESS is shown on the Meta row", () => {
     for (const code of ["AD_ACCOUNT_NOT_CHOSEN", "AD_ACCOUNT_NOT_IN_BUSINESS"]) {
       expect(signalErrorMessage("meta", new ApiError(code, "Use the other account.", 403), "fallback")).toContain("Use the other account.");

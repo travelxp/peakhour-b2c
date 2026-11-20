@@ -80,6 +80,27 @@ export function googleSettingsChangeOf(s: GoogleCampaignSettings, d: GoogleSetti
   return Object.keys(out).length > 0 ? out : null;
 }
 
+/**
+ * The reduce-only view's one rule, in the merchant's words: the daily budget may go DOWN only. Null when the budget is untouched, lowered, or
+ * not a number the form would send anyway (the shared form check owns that).
+ */
+export function googleSettingsBudgetProblem(s: GoogleCampaignSettings, d: GoogleSettingsDraft): string | null {
+  const amount = Number(d.budget);
+  if (!Number.isFinite(amount)) return "Enter a daily budget.";
+  if (!(amount > 0)) return "A daily budget must be more than 0. Pause the campaign to stop it.";
+  return amount > s.budget.amount ? "Peakhour can only lower the budget in this account." : null;
+}
+
+/**
+ * The pause-only view's save (an account the business did not enable): only a LOWER daily budget, nothing else. Null when the
+ * draft changes anything more or the budget does not go down.
+ */
+export function googleSettingsLowerBudgetOnly(s: GoogleCampaignSettings, d: GoogleSettingsDraft): GoogleSettingsInput | null {
+  const change = googleSettingsChangeOf(s, d);
+  if (!change || change.dailyBudget === undefined || Object.keys(change).length !== 1) return null;
+  return change.dailyBudget.amount < s.budget.amount ? change : null;
+}
+
 /** Where a Search campaign shows, in words. */
 export function googleNetworkSentence(n: GoogleCampaignSettings["network"]): string | null {
   if (!n) return null;
@@ -148,11 +169,12 @@ export function googleAdStatusLabel(status: string): string {
 }
 
 /** The actions an ad offers: none for a removed one (Google refuses any change to it), or when the campaign is finished. */
-export function googleAdActions(status: string, campaignOpen: boolean): Array<{ status: GoogleAdStatus; label: string }> {
+export function googleAdActions(status: string, campaignOpen: boolean, spendReducingOnly = false): Array<{ status: GoogleAdStatus; label: string }> {
   if (!campaignOpen || status === "REMOVED") return [];
   const out: Array<{ status: GoogleAdStatus; label: string }> = [];
   if (status === "ENABLED") out.push({ status: "PAUSED", label: "Pause" });
-  if (status === "PAUSED") out.push({ status: "ENABLED", label: "Enable" });
+  // An account the business did not enable: stopping spend is never refused, starting it is not offered.
+  if (status === "PAUSED" && !spendReducingOnly) out.push({ status: "ENABLED", label: "Enable" });
   if (status === "ENABLED" || status === "PAUSED") out.push({ status: "REMOVED", label: "Remove" });
   return out;
 }

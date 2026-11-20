@@ -19,6 +19,8 @@ import {
   googleNetworkSentence,
   googleRemoveConfirmed,
   googleSettingsChangeOf,
+  googleSettingsBudgetProblem,
+  googleSettingsLowerBudgetOnly,
   googleSettingsDraftOf,
   googleSettingsProblem,
   googleSettingsSavedSentence,
@@ -43,11 +45,14 @@ export function GoogleCampaignManageDialog({
   account,
   open,
   onOpenChange,
+  spendReducingOnly = false,
 }: {
   campaign: GoogleCampaign;
   account: GoogleAdAccount;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** An account the business did not enable: only a lower budget, pausing and removing are offered. */
+  spendReducingOnly?: boolean;
 }) {
   const queryClient = useQueryClient();
   const { business } = useAuth();
@@ -71,12 +76,13 @@ export function GoogleCampaignManageDialog({
   const set = <K extends keyof GoogleSettingsDraft>(k: K, v: GoogleSettingsDraft[K]) => setEdits((e) => ({ ...(e ?? {}), [k]: v }));
   // The account's day: Google reads the end date in the account's zone (review round 1).
   const today = googleAccountToday(settings?.timeZone);
-  const problem = settings && draft ? googleSettingsProblem(settings, draft, today) : null;
+  // ★REDUCE-ONLY: only the budget is judged (the name, end date and networks are not on screen), and a raised budget is SAID, not a silently disabled Save.
+  const problem = settings && draft ? (spendReducingOnly ? googleSettingsBudgetProblem(settings, draft) : googleSettingsProblem(settings, draft, today)) : null;
   // ★THE NAME AS GOOGLE HOLDS IT NOW (review round 1), or the one this dialog just saved while the re-read is in
   //  flight (round 2): the api confirms a remove by the row's name or Google's, and both are that one.
   const [savedName, setSavedName] = useState<string | null>(null);
   const liveName = savedName ?? settings?.name ?? campaign.name;
-  const change = settings && draft && !problem ? googleSettingsChangeOf(settings, draft) : null;
+  const change = settings && draft && !problem ? (spendReducingOnly ? googleSettingsLowerBudgetOnly(settings, draft) : googleSettingsChangeOf(settings, draft)) : null;
 
   const refreshList = () => void queryClient.invalidateQueries({ queryKey: ["google-ads-campaigns"] });
   const save = useMutation({
@@ -159,7 +165,8 @@ export function GoogleCampaignManageDialog({
               {settings.network ? <p className="text-xs text-muted-foreground">{googleNetworkSentence(settings.network)}</p> : null}
               {editable ? (
                 <div className="space-y-3">
-                  <div className="space-y-1.5">
+                  {spendReducingOnly ? <p className="text-xs text-muted-foreground">You can lower the daily budget here.</p> : null}
+                  <div className={spendReducingOnly ? "hidden" : "space-y-1.5"}>
                     <Label className="text-xs text-muted-foreground">Campaign name</Label>
                     <Input value={draft.name} onChange={(e) => set("name", e.target.value)} maxLength={200} disabled={busy} />
                   </div>
@@ -176,7 +183,7 @@ export function GoogleCampaignManageDialog({
                         disabled={busy || settings.budget.shared}
                       />
                     </div>
-                    <div className="space-y-1.5">
+                    <div className={spendReducingOnly ? "hidden" : "space-y-1.5"}>
                       <Label className="text-xs text-muted-foreground">End date (optional)</Label>
                       <div className="flex items-center gap-2">
                         <Input type="date" min={today} value={draft.endDate} onChange={(e) => set("endDate", e.target.value)} className="w-44" disabled={busy} />
@@ -188,7 +195,7 @@ export function GoogleCampaignManageDialog({
                       </div>
                     </div>
                   </div>
-                  {settings.network ? (
+                  {settings.network && !spendReducingOnly ? (
                     <div className="space-y-2">
                       <Label className="text-xs text-muted-foreground">Where it shows besides Google Search</Label>
                       <label className="flex items-center gap-2 text-sm">
@@ -218,7 +225,7 @@ export function GoogleCampaignManageDialog({
             <Separator />
             <section className="space-y-3">
               <h3 className="text-sm font-medium">Ad group and ads</h3>
-              <GoogleAdsListSection campaign={campaign} campaignOpen={editable} />
+              <GoogleAdsListSection campaign={campaign} campaignOpen={editable} spendReducingOnly={spendReducingOnly} />
             </section>
           </>
         ) : null}
