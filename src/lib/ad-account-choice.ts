@@ -12,6 +12,8 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { googleBareId, googleIdLine } from "./google-ads-accounts";
 import { metaAdAccountBareId, metaAdAccountIdLine, metaAdAccountStatus } from "./meta-ads-view";
+import { linkedinAdAccountBareId, linkedinAdAccountIdLine, linkedinAdAccountStatus } from "./linkedin-ad-accounts";
+import { LINKEDIN_PAGE_SCOPED_QUERY_KEYS } from "./linkedin-cache";
 import { xAdAccountHealth, xAdAccountIdLine } from "./x-ads-account";
 
 /** One ad account as the connection lists it (`account.extra.adAccounts[]`); the rest of the provider's fields ride along untouched. */
@@ -34,6 +36,8 @@ export interface AdAccountFormat {
   /** The accounts the connection lists, read from where THIS channel stores them (the api's registry row owns `list` too). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   list(extra: Record<string, any> | undefined): AdAccountRow[];
+  /** Where a merchant makes an ad account on the platform, when every account the login lists cannot run ads. */
+  createAccountUrl?: string;
   /** How many accounts the business chose that the connection can no longer use (optional: only a channel that lists them apart). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   unavailable?(extra: Record<string, any> | undefined): number;
@@ -60,6 +64,19 @@ export const AD_ACCOUNT_FORMATS: Record<string, AdAccountFormat> = {
         // Only the Growth signal step's META accounts (["growth-v2", "signal", scope, "meta-accounts"]), not Google's or the rest.
         client.invalidateQueries({ predicate: (q) => q.queryKey[0] === "growth-v2" && q.queryKey[1] === "signal" && q.queryKey[3] === "meta-accounts" }),
       ]),
+  },
+  linkedin_ads: {
+    platformName: "LinkedIn",
+    createAccountUrl: "https://www.linkedin.com/campaignmanager/accounts",
+    bareId: linkedinAdAccountBareId,
+    idLine: linkedinAdAccountIdLine,
+    health: (a) => linkedinAdAccountStatus(a.status),
+    list: (extra) => listedAdAccounts(extra),
+    // LinkedIn's own readers, which are scoped to an account: removed (not refetched in place) as the Page picker does on a save,
+    // because a changed default changes which campaigns and forms exist as far as the product is concerned.
+    refresh: async (client) => {
+      for (const queryKey of LINKEDIN_PAGE_SCOPED_QUERY_KEYS) client.removeQueries({ queryKey });
+    },
   },
   x_ads: {
     platformName: "X",
@@ -144,8 +161,9 @@ export function bareIdFor(provider: string): (id: string) => string {
 /** The ad accounts a connection lists, rows without a usable id dropped. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function listedAdAccounts(extra: Record<string, any> | undefined): AdAccountRow[] {
-  return (Array.isArray(extra?.adAccounts) ? extra.adAccounts : []).filter(
-    (a: { id?: unknown }) => typeof a?.id === "string" && a.id !== "",
+  // A numeric id is read as its text (the api's registry rows do the same), so a list a provider stored with numbers still lists.
+  return (Array.isArray(extra?.adAccounts) ? extra.adAccounts : []).flatMap((a: { id?: unknown }) =>
+    (typeof a?.id === "string" && a.id !== "") || typeof a?.id === "number" ? [{ ...a, id: String(a.id) }] : [],
   );
 }
 
@@ -166,6 +184,9 @@ export function savedAdAccounts(provider: string, extra: Record<string, any> | u
   let enabled = listed.filter((a) => wanted.has(bare(a.id)));
   // One listed account enables itself only while nothing was EVER saved; a saved choice is never widened.
   if (!saved && listed.length === 1 && adAccountFormat(provider)?.autoEnable?.(listed[0]!) !== false) enabled = [listed[0]!];
+  // A BLOCKED account is never auto-enabled (a separate condition from the hook above): one listed is not a choice, and an account
+  // that cannot run ads is not one the business can be taken to have chosen (the api's `businessAdAccounts` says the same).
+  if (!saved) enabled = enabled.filter((a) => !adAccountFormat(provider)?.health(a).blocked);
   if (enabled.length === 0) return { enabledIds: [] };
   const byDefault =
     typeof stored?.defaultId === "string" ? enabled.find((a) => bare(a.id) === bare(stored.defaultId)) : undefined;

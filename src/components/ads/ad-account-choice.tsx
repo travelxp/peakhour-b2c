@@ -102,9 +102,24 @@ function AdAccountChoiceFor({ provider, extra, onChanged, format }: AdAccountCho
     }
   }
 
+  // Every account the login lists cannot run ads: ticking is no way forward, so say so and point at the platform (no loop through here).
+  const allBlocked = adAccounts.length > 0 && adAccounts.every((a) => !!format.health(a).blocked);
+  const blockedWords = [...new Set(adAccounts.map((a) => format.health(a).blocked).filter(Boolean))].join(" / ");
+
   return (
     <div className="space-y-1" aria-label="Ad accounts">
       <p className="text-micro text-muted-foreground">Ad accounts Peakhour may use</p>
+      {allBlocked ? (
+        <p role="status" className="text-micro text-warning-on-tint">
+          {adAccounts.length === 1 ? "This ad account is" : "These ad accounts are"} {blockedWords} on {format.platformName}, so{" "}
+          {adAccounts.length === 1 ? "it" : "they"} can&apos;t run ads.{" "}
+          {format.createAccountUrl ? (
+            <a href={format.createAccountUrl} target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-2">
+              Create an ad account on {format.platformName}
+            </a>
+          ) : null}
+        </p>
+      ) : null}
       {adAccounts.length === 0 ? (
         <p className="text-micro text-muted-foreground">No ad accounts found.</p>
       ) : adAccounts.length === 1 && saved.enabledIds.includes(adAccounts[0]!.id) ? (

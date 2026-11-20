@@ -205,6 +205,16 @@ export function IntegrationCard({
               />
             )}
 
+            {/* LinkedIn Ads — the ad accounts Peakhour may use, with the default. A Page's own default is picked on the Ads page. */}
+            {integration.provider === "linkedin_ads" && integration.connected && integration.account?.extra && (
+              <div className="space-y-2 rounded-md border border-border/40 p-2">
+                <AdAccountChoice provider="linkedin_ads" extra={integration.account.extra} onChanged={onChanged} />
+                {integration.account.extra.adAccountsTruncated ? (
+                  <p className="text-micro text-muted-foreground">Showing the first 1,000 ad accounts this login can reach.</p>
+                ) : null}
+              </div>
+            )}
+
             {/* LinkedIn Content — page list + refresh + Manage Pages dialog.
                 The dialog sidesteps the disconnect-and-reconnect dance for
                 choosing which admin Pages Peakhour can actually post to. */}
