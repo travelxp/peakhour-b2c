@@ -144,7 +144,7 @@ afterEach(() => {
 
 describe("New campaign dialog", () => {
   const open = async (onCreated = vi.fn()) => {
-    mount(<NewCampaignDialog account={ACCOUNT} onCreated={onCreated} />);
+    mount(<NewCampaignDialog accounts={[ACCOUNT]} defaultAccountId={ACCOUNT.id} onCreated={onCreated} />);
     click(byText("button", /New campaign/));
     await flush();
     return onCreated;
@@ -155,6 +155,72 @@ describe("New campaign dialog", () => {
     expect(document.body.textContent).toContain("starts paused");
     expect(byText("label", /Daily budget/)?.textContent).toContain("USD");
     expect(document.body.textContent).toContain("Shown as Corner Shop");
+  });
+
+  it("names the ad account it creates in, beside the button that creates", async () => {
+    await open();
+    expect(q('[data-testid="creates-in"]')?.textContent).toBe("Creates in Corner Shop (act_…111)");
+  });
+
+  describe("with several enabled ad accounts", () => {
+    const SECOND: MetaAdAccount = { ...ACCOUNT, id: "act_222", name: "Second Shop", accountId: "222", currency: "INR" };
+    const openMany = async (initialAccountId?: string) => {
+      mount(
+        <NewCampaignDialog
+          accounts={[ACCOUNT, SECOND]}
+          defaultAccountId={SECOND.id}
+          initialAccountId={initialAccountId}
+          onCreated={vi.fn()}
+        />,
+      );
+      click(byText("button", /New campaign/));
+      await flush();
+    };
+
+    it("shows an Ad account choice, prefilled with the business's default, and names it where it creates", async () => {
+      await openMany();
+      expect(q("#mc-account")?.textContent).toContain("Second Shop (INR) · act_…222");
+      expect(q('[data-testid="creates-in"]')?.textContent).toBe("Creates in Second Shop (act_…222)");
+      expect(byText("label", /Daily budget/)?.textContent).toContain("INR");
+    });
+
+    it("prefills the account the list is filtered to, over the default", async () => {
+      await openMany(ACCOUNT.id);
+      expect(q("#mc-account")?.textContent).toContain("Corner Shop (USD) · act_…111");
+      expect(q('[data-testid="creates-in"]')?.textContent).toBe("Creates in Corner Shop (act_…111)");
+    });
+
+    it("★the Ad account choice is disabled while a create is running, so the account cannot change under it", async () => {
+      let release!: () => void;
+      mocks.launchCampaign.mockReturnValue(new Promise((r) => (release = () => r({ campaignId: "c1" }))));
+      await openMany();
+      await fillValidForm();
+      click(byText("button", "Create paused campaign"));
+      await flush();
+      expect((q("#mc-account") as HTMLButtonElement).disabled).toBe(true);
+      await act(async () => release());
+      await flush();
+    });
+
+    it("lists only the enabled accounts and creates in the one picked", async () => {
+      await openMany();
+      click(q("#mc-account"));
+      await flush();
+      const options = [...document.body.querySelectorAll('[role="option"]')].map((o) => o.textContent);
+      expect(options).toEqual(["Corner Shop (USD) · act_…111", "Second Shop (INR) · act_…222 · default"]);
+      click([...document.body.querySelectorAll('[role="option"]')][0]);
+      await flush();
+      expect(q('[data-testid="creates-in"]')?.textContent).toBe("Creates in Corner Shop (act_…111)");
+      await fillValidForm();
+      click(byText("button", "Create paused campaign"));
+      await flush();
+      expect(mocks.uploadImage.mock.calls[0]![0]).toMatchObject({ adAccountId: "act_111" });
+    });
+  });
+
+  it("with ONE enabled account there is no Ad account choice, only the line naming it", async () => {
+    await open();
+    expect(q("#mc-account")).toBeNull();
   });
 
   it("refuses an empty form with a reason on each field, and makes no call", async () => {
@@ -197,7 +263,7 @@ describe("New campaign dialog", () => {
     expect(bodies.ad("s1").creative.objectStorySpec.linkData.imageHash).toBe("hash1");
     expect(bodies.ad("s1").creative.objectStorySpec.pageId).toBe("9001");
 
-    expect(onCreated).toHaveBeenCalledWith("c1");
+    expect(onCreated).toHaveBeenCalledWith("c1", "act_111");
     expect(mocks.toastSuccess).toHaveBeenCalledWith(expect.stringContaining("paused"));
   });
 
@@ -335,6 +401,11 @@ describe("Edit sheet", () => {
     expect(q<HTMLInputElement>("#ec-name")?.value).toBe("Spring sale");
     expect(q<HTMLInputElement>("#ec-budget")?.value).toBe("25.5");
     expect(byText("label", /Daily budget/)?.textContent).toContain("USD");
+  });
+
+  it("names the ad account it edits, read-only", async () => {
+    await open();
+    expect(q('[data-testid="in-account"]')?.textContent).toBe("In Corner Shop (act_…111)");
   });
 
   it("sends only the budget when only the budget changed", async () => {

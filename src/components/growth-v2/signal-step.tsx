@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +10,7 @@ import { adsErrorMessage } from "@/lib/ads-error-message";
 import { googleConversionErrorMessage } from "@/lib/google-conversion-view";
 import { googleAdsApi } from "@/lib/api/google-ads";
 import { metaAdsApi } from "@/lib/api/meta-ads";
+import { META_MERCHANT_FACING_CODES } from "@/lib/meta-ads-view";
 import { useSignalActions, useSignalReadiness } from "@/lib/api/growth-v2-signal";
 import {
   SIGNAL_FOCUS_NOTE,
@@ -56,6 +58,8 @@ export interface SignalStepViewProps {
   chosenAccount: Record<SignalPlatform, string | undefined>;
   /** A platform whose ad-account list could not be read: said on its row, not blamed on the merchant. */
   accountsFailed?: Partial<Record<SignalPlatform, boolean>>;
+  /** A platform whose ad-account list has been READ (not loading, not disabled): the "choose your accounts" warning waits for it. */
+  accountsLoaded?: Partial<Record<SignalPlatform, boolean>>;
   onChooseAccount: (platform: SignalPlatform, id: string) => void;
   onSetUp: (platform: SignalPlatform) => void;
   onAcceptUntracked: (platform: SignalPlatform) => void;
@@ -127,6 +131,15 @@ function PlatformRow({ row, ...p }: { row: PlatformSignal } & SignalStepViewProp
               We couldn&apos;t load your {label} ad accounts. Reload the page to try again.
             </p>
           ) : null}
+          {row.platform === "meta" && p.accountsLoaded?.meta === true && accounts.length === 0 && !p.accountsFailed?.meta ? (
+            <p role="status" className="text-xs text-warning-on-tint">
+              Choose the ad accounts this business may use in{" "}
+              <Link href="/dashboard/integrations" className="font-medium underline underline-offset-4">
+                Connected accounts
+              </Link>{" "}
+              first.
+            </p>
+          ) : null}
           <div className="flex flex-wrap items-center gap-2">
             {accounts.length > 1 ? (
               <select
@@ -163,15 +176,6 @@ export function effectiveAccount(list: readonly AdAccountChoice[], picked: strin
   return list.some((a) => a.id === picked) ? picked : list[0]?.id;
 }
 
-/** Codes the Meta dataset routes write for the merchant (`routes/meta-ads`). */
-const META_MERCHANT_FACING: ReadonlySet<string> = new Set([
-  "DATASET_NOT_FOUND",
-  "DATASET_UNAVAILABLE",
-  "DATASET_ID_UNSUPPORTED",
-  "AD_ACCOUNT_NOT_ALLOWED",
-  "CONNECTION_GONE",
-  "NO_BUSINESS",
-]);
 const UNTRACKED_MERCHANT_FACING: ReadonlySet<string> = new Set(["NOT_CONNECTED", "NO_BUSINESS"]);
 
 /**
@@ -182,7 +186,7 @@ const UNTRACKED_MERCHANT_FACING: ReadonlySet<string> = new Set(["NOT_CONNECTED",
 export function signalErrorMessage(platform: SignalPlatform | "untracked", err: unknown, fallback: string): string {
   if (err instanceof ApiError) {
     if (platform === "google_ads") return googleConversionErrorMessage(err, fallback);
-    return adsErrorMessage(err, fallback, platform === "meta" ? META_MERCHANT_FACING : UNTRACKED_MERCHANT_FACING);
+    return adsErrorMessage(err, fallback, platform === "meta" ? META_MERCHANT_FACING_CODES : UNTRACKED_MERCHANT_FACING);
   }
   return err instanceof Error && err.message ? err.message : fallback;
 }
@@ -210,7 +214,12 @@ export function SignalStep({
   const picked = pick.scope === scope ? pick.chosen : { meta: undefined, google_ads: undefined };
   const error = failure?.scope === scope ? failure.message : undefined;
   const accounts: Record<SignalPlatform, AdAccountChoice[]> = {
-    meta: (meta.data?.accounts ?? []).map((a) => ({ id: a.id, name: a.name, currency: a.currency })),
+    // ONLY the business's enabled ad accounts (the api refuses a dataset write for any other, MR-F2), its DEFAULT first: the
+    // account that is used until the merchant picks another is the first one listed.
+    meta: (meta.data?.accounts ?? [])
+      .filter((a) => (meta.data?.enabledIds ?? []).includes(a.id))
+      .sort((a, b) => Number(b.id === meta.data?.defaultId) - Number(a.id === meta.data?.defaultId))
+      .map((a) => ({ id: a.id, name: a.name, currency: a.currency })),
     google_ads: (google.data?.adAccounts ?? []).map((a) => ({ id: a.id, name: a.name, currency: a.currencyCode })),
   };
   // THE ACCOUNT THAT IS SHOWN IS THE ACCOUNT THAT IS USED: a pick that is no longer in the list falls back to the first.
@@ -233,6 +242,7 @@ export function SignalStep({
       accounts={accounts}
       chosenAccount={chosen}
       accountsFailed={{ meta: meta.isError, google_ads: google.isError }}
+      accountsLoaded={{ meta: meta.isSuccess, google_ads: google.isSuccess }}
       onChooseAccount={(platform, id) => setPick({ scope, chosen: { ...picked, [platform]: id } })}
       busy={busy}
       error={error ?? (readiness.isError ? "We couldn't read your connections. Try again in a moment." : undefined)}

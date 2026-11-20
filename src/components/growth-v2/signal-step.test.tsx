@@ -103,6 +103,25 @@ describe("the signal step", () => {
     expect(html(props(readiness("needed", "not_connected", false)))).not.toContain("Meta account");
   });
 
+  it("with NO enabled Meta ad account it says to choose them, with a link to Connected accounts, not a silently disabled button alone", () => {
+    const out = html(props(readiness("needed", "not_connected", false), { accounts: { meta: [], google_ads: [] }, accountsLoaded: { meta: true } }));
+    expect(out).toContain("Choose the ad accounts this business may use in");
+    expect(out).toContain('href="/dashboard/integrations"');
+    // ★C3: not while the list is still loading (or disabled): nothing has been read yet
+    expect(html(props(readiness("needed", "not_connected", false), { accounts: { meta: [], google_ads: [] } }))).not.toContain("Choose the ad accounts this business may use in");
+    // a failed read is not blamed on the merchant
+    const failed = html(props(readiness("needed", "not_connected", false), { accounts: { meta: [], google_ads: [] }, accountsFailed: { meta: true } }));
+    expect(failed).not.toContain("Choose the ad accounts this business may use in");
+  });
+
+  it("★C2: the api's own sentence for AD_ACCOUNT_NOT_CHOSEN and AD_ACCOUNT_NOT_IN_BUSINESS is shown on the Meta row", () => {
+    for (const code of ["AD_ACCOUNT_NOT_CHOSEN", "AD_ACCOUNT_NOT_IN_BUSINESS"]) {
+      expect(signalErrorMessage("meta", new ApiError(code, "Use the other account.", 403), "fallback")).toContain("Use the other account.");
+    }
+    // an unlisted code still falls back
+    expect(signalErrorMessage("meta", new ApiError("SOMETHING_ELSE", "raw text", 400), "fallback")).not.toContain("raw text");
+  });
+
   it("the set-up button is off with no ad account to set up on", () => {
     const out = html(props(readiness("needed", "not_connected", false), { accounts: { meta: [], google_ads: [] } }));
     expect(out).toMatch(/<button[^>]* disabled=""[^>]*>Pick or create my dataset/);

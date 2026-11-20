@@ -210,6 +210,9 @@ export const META_LAUNCH_NOTE =
  */
 export const META_MERCHANT_FACING_CODES: ReadonlySet<string> = new Set([
   "AD_ACCOUNT_NOT_ALLOWED",
+  // MR-F2: a create or edit for an ad account the business has not enabled; the message names the business's own.
+  "AD_ACCOUNT_NOT_CHOSEN",
+  "AD_ACCOUNT_NOT_IN_BUSINESS",
   "NEEDS_REAUTH",
   "META_UNAVAILABLE",
   "META_NOT_CONNECTED",
@@ -391,3 +394,47 @@ export function metaInsightsIds(ids: readonly string[]): string[] {
  * would now call a complete 50-row account truncated. Deleted, not kept
  * beside the flag (pre-launch: the newest version, and nothing else).
  */
+
+// ── The active ad account (MR-F2) ────────────────────────────────────────
+
+/** ★THE ONE ID NORMALISER: an ad account id without whitespace or the `act_` prefix, so `act_123` and `123` compare equal. */
+export function metaAdAccountBareId(id: string): string {
+  return id.trim().replace(/^act_/, "");
+}
+
+/** `act_…1234`: an ad account's id, shortened to its last four digits. */
+export function metaAdAccountShortId(id: string): string {
+  return `act_…${metaAdAccountBareId(id).slice(-4)}`;
+}
+
+/** `Name (CUR) · act_…1234`: how an ad account is shown in a picker. */
+export function metaAdAccountOptionLabel(a: { id: string; name?: string; currency?: string }): string {
+  return `${a.name || "Ad account"}${a.currency ? ` (${a.currency})` : ""} · ${metaAdAccountShortId(a.id)}`;
+}
+
+/** `Creates in Name (act_…1234)`: the line the New campaign dialog names its ad account with. */
+export function metaCreatesInLine(a: { id: string; name?: string }): string {
+  return `Creates in ${a.name || "this ad account"} (${metaAdAccountShortId(a.id)})`;
+}
+
+/** `In Name (act_…1234)`: the read-only line the Edit sheet names the campaign's ad account with. */
+export function metaInLine(a: { id: string; name?: string }): string {
+  return `In ${a.name || "this ad account"} (${metaAdAccountShortId(a.id)})`;
+}
+
+/** The sentence shown while two or more ad accounts are listed and none is chosen. */
+export const META_CHOOSE_AD_ACCOUNT = "Choose the ad accounts this business may use before creating campaigns.";
+
+/**
+ * ★ONE HELPER FOR META'S `account_status` WORDS. 2 disabled and 101 closed cannot run ads at all (not tickable; the api
+ * refuses them too). 3 (unsettled), 7 (under risk review) and 9 (grace period) still run or can be fixed: they stay tickable,
+ * with a warning on the line.
+ */
+export function metaAdAccountStatus(status: number | undefined): { blocked?: "disabled" | "closed"; warning?: string } {
+  if (status === 2) return { blocked: "disabled" };
+  if (status === 101) return { blocked: "closed" };
+  if (status === 3) return { warning: "payment issue" };
+  if (status === 7) return { warning: "under review" };
+  if (status === 9) return { warning: "grace period" };
+  return {};
+}

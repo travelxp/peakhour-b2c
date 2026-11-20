@@ -1,16 +1,15 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ChevronDown, ChevronRight, Megaphone, RefreshCw, Target } from "lucide-react";
 import { api } from "@/lib/api";
+import { useAuth } from "@/providers/auth-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -50,12 +49,16 @@ import {
   metaKpiText,
   metaFigureText,
   metaInsightsIds,
+  META_CHOOSE_AD_ACCOUNT,
+  metaAdAccountBareId,
+  metaAdAccountOptionLabel,
+  metaAdAccountShortId,
   metaCoverageLine,
   sumReported,
   type MetaKpiState,
 } from "@/lib/meta-ads-view";
 import { EditCampaignButton, NewCampaignDialog } from "./meta-campaign-dialogs";
-import { ADS_CHANNEL_PARAM, getAdsChannel, panelConnection, type AdsChannelKey } from "../ads-channels";
+import { getAdsChannel, panelConnection } from "../ads-channels";
 
 /**
  * ★★M-16 — the Meta (Facebook + Instagram) panel, inside the shared Ads hub
@@ -91,7 +94,6 @@ import { ADS_CHANNEL_PARAM, getAdsChannel, panelConnection, type AdsChannelKey }
  * switch.
  */
 
-const ACCOUNT_PARAM = "adAccount";
 const INSIGHTS_DAYS = 30;
 
 /**
@@ -113,7 +115,7 @@ interface ApiIntegration {
   account?: { extra?: Record<string, unknown> };
 }
 
-export function MetaAdsPanel({ channelKey }: { channelKey: AdsChannelKey }) {
+export function MetaAdsPanel() {
   const integrations = useQuery({
     queryKey: ["content-hub-integrations"],
     queryFn: () => api.get<{ integrations: ApiIntegration[] }>("/v1/integrations"),
@@ -157,7 +159,7 @@ export function MetaAdsPanel({ channelKey }: { channelKey: AdsChannelKey }) {
   return (
     <div className="space-y-6">
       {needsReauth ? <ReconnectBanner /> : null}
-      <ConnectedView channelKey={channelKey} />
+      <ConnectedView />
     </div>
   );
 }
@@ -181,44 +183,37 @@ function ReconnectBanner() {
   );
 }
 
-function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const params = useSearchParams();
-  const queryAccountId = params.get(ACCOUNT_PARAM);
-
+/**
+ * ★A BUSINESS MAY USE SEVERAL AD ACCOUNTS (MR-F2). They are the ones the merchant ticked under Connected accounts, and the
+ * api reports them (`enabledIds`, `defaultId`): a Meta login lists other businesses' accounts too, and none of those is
+ * ever shown or offered here. There is no `?adAccount=` in the URL. The filter narrows the LIST; it is not what a campaign
+ * is created in (the New campaign dialog has its own Ad account choice) and the api refuses a create or edit in any
+ * account the business has not enabled.
+ *
+ * With nothing enabled (two or more listed and none ticked) there is no account to act on: the panel says so, points to
+ * Connected accounts, and renders no New campaign, Edit or status switch.
+ */
+function ConnectedView() {
+  const { business } = useAuth();
   const accounts = useQuery({
-    queryKey: ["meta-ads-accounts"],
+    // Scoped by business, like the signal step's: another business's answer is never served for this one.
+    queryKey: ["meta-ads-accounts", business?._id ?? "none"],
     queryFn: () => metaAdsApi.listAdAccounts(),
     retry: false,
     staleTime: LIST_STALE_MS,
   });
+  // The filter the merchant chose ("all" or one account); "" until they choose, so the default rule below applies.
+  const [chosenFilter, setChosenFilter] = useState<string>("");
+  // A campaign just created, so its section opens it.
+  const [justCreated, setJustCreated] = useState<ReadonlySet<string>>(new Set());
 
-  // The X panel's rule, for its reason: build the URL from useSearchParams
-  // (never window.location), and write nothing until the hub has pinned
-  // `?channel=`, or this would drop the channel the hub is about to add.
-  const isActiveChannel = params.get(ADS_CHANNEL_PARAM) === channelKey;
-  const setAccountParam = useCallback(
-    (next: string) => {
-      const search = new URLSearchParams(params.toString());
-      search.set(ACCOUNT_PARAM, next);
-      router.replace(`${pathname}?${search.toString()}`, { scroll: false });
-    },
-    [params, pathname, router],
-  );
-
-  const list = accounts.data?.accounts;
-  const firstAccountId = list?.[0]?.id;
-  // ⚠️★A `?adAccount=` THAT IS NOT IN THE LIST IS IGNORED, not trusted. It is a
-  //  URL anyone can edit, and the api would refuse it `AD_ACCOUNT_NOT_ALLOWED`
-  //  on every call — a panel of errors for a merchant who pasted a stale link.
-  const known = list?.some((a) => a.id === queryAccountId) ? queryAccountId : null;
-  useEffect(() => {
-    if (isActiveChannel && !known && firstAccountId) setAccountParam(firstAccountId);
-  }, [isActiveChannel, known, firstAccountId, setAccountParam]);
-
-  const accountId = known ?? firstAccountId ?? null;
-  const account = list?.find((a) => a.id === accountId);
+  const list = accounts.data?.accounts ?? [];
+  const enabledIds = accounts.data?.enabledIds ?? [];
+  // Live account objects (they carry the time zone), in the business's order, limited to the enabled ones still on the login.
+  const enabled = enabledIds.flatMap((id) => list.filter((a) => a.id === id));
+  const missingCount = (accounts.data?.enabledAccounts ?? []).filter((a) => a.missing).length;
+  // The business chose accounts and the login has lost every one of them: not the same as never having chosen.
+  const allChosenMissing = enabled.length === 0 && (accounts.data?.enabledAccounts?.length ?? 0) > 0 && missingCount === (accounts.data?.enabledAccounts?.length ?? 0);
 
   if (accounts.isLoading) return <SkeletonStack />;
 
@@ -241,7 +236,7 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
     );
   }
 
-  if ((list ?? []).length === 0) {
+  if (list.length === 0) {
     return (
       <EmptyState
         icon={Megaphone}
@@ -251,38 +246,120 @@ function ConnectedView({ channelKey }: { channelKey: AdsChannelKey }) {
     );
   }
 
+  if (allChosenMissing) {
+    return (
+      <EmptyState
+        icon={Megaphone}
+        title="Your ad account is not on your Meta login"
+        description="The ad account you chose is no longer on your Meta login. Reconnect Meta or choose another."
+        action={{ label: "Open Connected accounts", href: "/dashboard/integrations" }}
+      />
+    );
+  }
+
+  // ★NO ENABLED ACCOUNT, NO CONTROLS. Nothing here can start spend until the business has said which accounts are its own.
+  if (enabled.length === 0) {
+    return (
+      <EmptyState
+        icon={Megaphone}
+        title="Choose your ad accounts"
+        description={`${META_CHOOSE_AD_ACCOUNT} Your Meta login reaches more than one.`}
+        action={{ label: "Choose ad accounts", href: "/dashboard/integrations" }}
+      />
+    );
+  }
+
+  // The business's DEFAULT account is selected first ("All accounts" stays as an option, listed first); with one enabled account
+  // it is the selection. A stale choice falls back to the same rule.
+  const defaultId = accounts.data?.defaultId ?? null;
+  const defaultFilter = enabled.length === 1 ? enabled[0]!.id : defaultId && enabled.some((a) => a.id === defaultId) ? defaultId : ALL_ACCOUNTS;
+  const filter = chosenFilter === ALL_ACCOUNTS || enabled.some((a) => a.id === chosenFilter) ? chosenFilter : defaultFilter;
+  const shown = filter === ALL_ACCOUNTS ? enabled : enabled.filter((a) => a.id === filter);
+
   return (
     <div className="space-y-6">
-      <div className="space-y-1.5">
-        <Label className="text-xs uppercase tracking-wide text-muted-foreground">Ad account</Label>
-        <Select value={accountId ?? undefined} onValueChange={setAccountParam}>
-          <SelectTrigger aria-label="Ad account" className="w-80">
-            <SelectValue placeholder="Choose an ad account" />
-          </SelectTrigger>
-          <SelectContent>
-            {(list ?? []).map((a) => (
-              <SelectItem key={a.id} value={a.id}>
-                {a.name} ({a.currency})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <Card aria-label="Ad accounts">
+        <CardContent className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 p-4 text-sm">
+          <div className="space-y-1">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+              Ad accounts{business?.name ? ` for ${business.name}` : ""}
+            </p>
+            {enabled.length > 1 ? (
+              <Select value={filter} onValueChange={setChosenFilter}>
+                <SelectTrigger aria-label="Ad account filter" className="w-80">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_ACCOUNTS}>All accounts</SelectItem>
+                  {enabled.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {metaAdAccountOptionLabel(a)}
+                      {a.id === defaultId ? " · default" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <p className="font-medium">{metaAdAccountOptionLabel(enabled[0]!)}</p>
+            )}
+            {missingCount > 0 ? (
+              <p role="status" className="text-xs text-warning-on-tint">
+                {missingCount === 1
+                  ? "One of your ad accounts is no longer on your Meta login and is not shown."
+                  : `${missingCount} of your ad accounts are no longer on your Meta login and are not shown.`}{" "}
+                Reconnect Meta or change your ad accounts.
+              </p>
+            ) : null}
+          </div>
+          <div className="flex items-center gap-4">
+            <NewCampaignDialog
+              accounts={enabled}
+              defaultAccountId={defaultId}
+              initialAccountId={filter === ALL_ACCOUNTS ? null : filter}
+              onCreated={(campaignId, accountId) => {
+                setJustCreated((prev) => new Set(prev).add(campaignId));
+                // Created in another account than the one filtered to: show that account, or the new campaign is nowhere to be seen.
+                if (filter !== ALL_ACCOUNTS && filter !== accountId) setChosenFilter(accountId);
+              }}
+            />
+            <Link href="/dashboard/integrations" className="text-sm font-medium underline underline-offset-4">
+              Change
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
 
-      {account ? (
-        <>
-          <CampaignsSection account={account} />
-          <DatasetCard account={account} />
-        </>
-      ) : null}
+      {shown.map((account) => (
+        <CampaignsSection
+          key={account.id}
+          account={account}
+          autoOpen={justCreated}
+          showAccountLine={enabled.length > 1}
+        />
+      ))}
+      <DatasetCard accounts={enabled} defaultAccountId={defaultId} />
     </div>
   );
 }
 
+/** The filter's value for "every enabled account". */
+const ALL_ACCOUNTS = "all";
+
 // ── Campaigns ────────────────────────────────────────────────────────────
 
-function CampaignsSection({ account }: { account: MetaAdAccount }) {
+function CampaignsSection({
+  account,
+  autoOpen,
+  showAccountLine,
+}: {
+  account: MetaAdAccount;
+  /** Campaigns just created in this session: opened. */
+  autoOpen: ReadonlySet<string>;
+  /** More than one account is enabled, so each campaign says which account it is in. */
+  showAccountLine: boolean;
+}) {
   const queryClient = useQueryClient();
+  // A campaign just created starts OPEN: `expanded` holds the ones the merchant has toggled since, so toggling flips it.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
 
   const campaigns = useQuery({
@@ -356,12 +433,8 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <NewCampaignDialog
-          account={account}
-          onCreated={(campaignId) => setExpanded((prev) => new Set(prev).add(campaignId))}
-        />
-      </div>
+      {/* ★EVERY CAMPAIGN SAYS WHICH ACCOUNT IT IS IN: the heading, and (below) the line under each campaign's name. */}
+      <h2 className="text-sm font-medium">{metaAdAccountOptionLabel(account)}</h2>
       <div className="grid gap-4 sm:grid-cols-3">
         <Kpi title={`Spend (${INSIGHTS_DAYS}d)`} total={spend} state={kpiState} render={(n) => formatMetaMoney(n, account.currency)} />
         <Kpi title="Impressions" total={impressions} state={kpiState} render={(n) => n.toLocaleString("en-US")} />
@@ -416,7 +489,7 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
               </TableHeader>
               <TableBody>
                 {(campaignList ?? []).map((c) => {
-                  const open = expanded.has(c.id);
+                  const open = expanded.has(c.id) !== autoOpen.has(c.id);
                   const cSpend = byCampaign.get(c.id)?.spend;
                   return (
                     <Fragment key={c.id}>
@@ -434,6 +507,7 @@ function CampaignsSection({ account }: { account: MetaAdAccount }) {
                           insightSet.has(c.id),
                         )}
                         note={null}
+                        accountLine={showAccountLine ? `${account.name} (${metaAdAccountShortId(account.id)})` : undefined}
                         editor={metaStatusToggle(c.status) ? <EditCampaignButton account={account} campaign={c} /> : undefined}
                         open={open}
                         onExpand={() =>
@@ -597,6 +671,7 @@ function NodeRow({
   budget,
   spend,
   note,
+  accountLine,
   editor,
   open,
   onExpand,
@@ -609,6 +684,8 @@ function NodeRow({
   budget: string;
   spend: string;
   note: string | null;
+  /** The ad account a campaign is in, shown under its name when the business uses more than one. */
+  accountLine?: string;
   /** An edit control beside the name; only campaigns have one. */
   editor?: ReactNode;
   /** `null` for a leaf (an ad), which has nothing to expand. */
@@ -639,6 +716,7 @@ function NodeRow({
           )}
           <div>
             <span className={depth === 0 ? "font-medium" : undefined}>{name}</span>
+            {accountLine ? <span className="block text-xs text-muted-foreground">{accountLine}</span> : null}
             {note ? <span className="block text-xs text-warning-on-tint">{note}</span> : null}
           </div>
           {editor}
@@ -675,8 +753,13 @@ function MessageRow({ depth, text }: { depth: 1 | 2; text: string }) {
 
 // ── The conversions dataset (M-19's routes, M-09's destination) ──────────
 
-function DatasetCard({ account }: { account: MetaAdAccount }) {
+/**
+ * The dataset conversions are sent to belongs to ONE ad account, so with several enabled the merchant says which (the
+ * business's default first). Only enabled accounts are offered: the api refuses a dataset for any other.
+ */
+function DatasetCard({ accounts, defaultAccountId }: { accounts: MetaAdAccount[]; defaultAccountId: string | null }) {
   const queryClient = useQueryClient();
+  const [accountPick, setAccountPick] = useState<string>("");
   const [choice, setChoice] = useState<string>("");
   const [editing, setEditing] = useState(false);
 
@@ -685,6 +768,14 @@ function DatasetCard({ account }: { account: MetaAdAccount }) {
     queryFn: () => metaAdsApi.getSelectedDataset(),
     retry: false,
   });
+  const current = selected.data?.selected ?? null;
+  // The merchant's pick comes first, then the account the dataset in use belongs to (a change keeps it unless another is
+  // picked), then the business's default.
+  const account =
+    accounts.find((a) => a.id === accountPick) ??
+    (current ? accounts.find((a) => metaAdAccountBareId(a.id) === metaAdAccountBareId(current.adAccountId)) : undefined) ??
+    accounts.find((a) => a.id === defaultAccountId) ??
+    accounts[0]!;
   const datasets = useQuery({
     queryKey: ["meta-ads-dataset", "list", account.id],
     queryFn: () => metaAdsApi.listDatasets(account.id),
@@ -699,12 +790,12 @@ function DatasetCard({ account }: { account: MetaAdAccount }) {
       queryClient.invalidateQueries({ queryKey: ["meta-ads-dataset"] });
       setEditing(false);
       setChoice("");
+      setAccountPick("");
       toast.success("Purchases from Meta ads will be sent to that dataset.");
     },
     onError: (err) => toast.error(metaAdsErrorMessage(err, "Couldn't save that choice. Try again.")),
   });
 
-  const current = selected.data?.selected ?? null;
   const options = datasets.data?.datasets ?? [];
   const chosen = options.find((d) => d.id === choice);
 
@@ -743,6 +834,26 @@ function DatasetCard({ account }: { account: MetaAdAccount }) {
 
         {editing ? (
           <div className="space-y-2">
+            {accounts.length > 1 ? (
+              <Select
+                value={account.id}
+                onValueChange={(v) => {
+                  setAccountPick(v);
+                  setChoice("");
+                }}
+              >
+                <SelectTrigger aria-label="Dataset ad account" className="w-80">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {metaAdAccountOptionLabel(a)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
             {datasets.isLoading ? (
               <Skeleton className="h-9 w-80" />
             ) : datasets.isError ? (
@@ -782,7 +893,16 @@ function DatasetCard({ account }: { account: MetaAdAccount }) {
               >
                 {save.isPending ? "Saving…" : "Send conversions here"}
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  // Cancel forgets the pick, so the next edit starts from the dataset in use again.
+                  setEditing(false);
+                  setAccountPick("");
+                  setChoice("");
+                }}
+              >
                 Cancel
               </Button>
             </div>

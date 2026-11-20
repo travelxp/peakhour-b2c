@@ -37,7 +37,7 @@ import {
   type MetaCampaign,
   type MetaCampaignEdit,
 } from "@/lib/api/meta-ads";
-import { metaAdsErrorMessage, metaAdsNeedsReconnect, metaBudgetLabel } from "@/lib/meta-ads-view";
+import { metaAdAccountOptionLabel, metaAdsErrorMessage, metaAdsNeedsReconnect, metaBudgetLabel, metaCreatesInLine, metaInLine } from "@/lib/meta-ads-view";
 import {
   EMPTY_NEW_CAMPAIGN,
   META_COUNTRY_CODES,
@@ -153,15 +153,33 @@ function CountryPicker({
 
 // ── New campaign ─────────────────────────────────────────────────────────
 
+/**
+ * ★THE ACCOUNT IS A CHOICE AMONG THE BUSINESS'S OWN. `accounts` is only the ad accounts the business has enabled (never the
+ * whole login's), the Select is prefilled with the one the list is filtered to, else the business's default, and it is always
+ * shown with two or more. The api refuses any other account as well.
+ */
 export function NewCampaignDialog({
-  account,
+  accounts,
+  defaultAccountId,
+  initialAccountId,
   onCreated,
 }: {
-  account: MetaAdAccount;
-  /** The new campaign's id, so the list can open it. */
-  onCreated: (campaignId: string) => void;
+  /** The business's enabled ad accounts: never empty (the caller renders no dialog without one). */
+  accounts: MetaAdAccount[];
+  /** The business's default, or null. */
+  defaultAccountId: string | null;
+  /** The account the campaigns list is filtered to, when it is filtered to one. */
+  initialAccountId?: string | null;
+  /** The new campaign's id and the account it was created in, so the list can open it. */
+  onCreated: (campaignId: string, accountId: string) => void;
 }) {
-  const refresh = useRefreshAds(account.id);
+  const [pickedAccountId, setPickedAccountId] = useState<string | null>(null);
+  const account =
+    accounts.find((a) => a.id === pickedAccountId) ??
+    accounts.find((a) => a.id === initialAccountId) ??
+    accounts.find((a) => a.id === defaultAccountId) ??
+    accounts[0]!;
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<NewCampaignForm>(EMPTY_NEW_CAMPAIGN);
   const [file, setFile] = useState<File | null>(null);
@@ -190,11 +208,14 @@ export function NewCampaignDialog({
     setFile(null);
     setShowErrors(false);
     setFailure(null);
+    setPickedAccountId(null);
     uploaded.current = null;
   };
 
   const create = useMutation({
-    mutationFn: async () => {
+    // ★THE ACCOUNT IS A VARIABLE, not a closure: the Select is disabled while this runs, and whatever finishes invalidates the
+    // account it was STARTED for.
+    mutationFn: async (account: MetaAdAccount) => {
       if (!file || !pageRow) throw new Error("not ready");
       const key = `${account.id}|${file.name}|${file.size}|${file.lastModified}`;
       if (uploaded.current?.key !== key) {
@@ -218,14 +239,14 @@ export function NewCampaignDialog({
       });
       return metaAdsApi.launchCampaign(bodies);
     },
-    onSuccess: (made) => {
-      refresh();
+    onSuccess: (made, target) => {
+      for (const key of ADS_KEYS) void queryClient.invalidateQueries({ queryKey: [key, target.id] });
       setOpen(false);
       reset();
       toast.success("Campaign created and paused. Turn it on when you're ready.");
-      onCreated(made.campaignId);
+      onCreated(made.campaignId, target.id);
     },
-    onError: (err: unknown) => {
+    onError: (err: unknown, target) => {
       if (err instanceof MetaLaunchError) {
         const base = metaAdsErrorMessage(err.cause, "Meta didn't accept that campaign.");
         setFailure(
@@ -238,7 +259,7 @@ export function NewCampaignDialog({
       } else {
         setFailure(metaAdsErrorMessage(err, "Couldn't create the campaign. Nothing was created."));
       }
-      refresh();
+      for (const key of ADS_KEYS) void queryClient.invalidateQueries({ queryKey: [key, target.id] });
     },
   });
 
@@ -246,7 +267,7 @@ export function NewCampaignDialog({
     setShowErrors(true);
     setFailure(null);
     if (Object.keys(errors).length > 0 || !pageRow) return;
-    create.mutate();
+    create.mutate(account);
   };
 
   return (
@@ -274,6 +295,25 @@ export function NewCampaignDialog({
         </DialogHeader>
 
         <div className="space-y-5">
+          {accounts.length > 1 ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="mc-account">Ad account</Label>
+              <Select value={account.id} onValueChange={setPickedAccountId} disabled={create.isPending}>
+                <SelectTrigger id="mc-account" className="w-full" aria-label="Ad account">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {metaAdAccountOptionLabel(a)}
+                      {a.id === defaultAccountId ? " · default" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+
           <div className="space-y-1.5">
             <Label htmlFor="mc-name">Campaign name</Label>
             <Input
@@ -469,7 +509,11 @@ export function NewCampaignDialog({
           ) : null}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="sm:items-center">
+          {/* ★WHERE THE MONEY GOES, next to the button that spends it: the ad account this campaign is created in. */}
+          <p className="text-xs text-muted-foreground sm:mr-auto" data-testid="creates-in">
+            {metaCreatesInLine(account)}
+          </p>
           <Button
             variant="ghost"
             onClick={() => {
@@ -610,6 +654,9 @@ function EditCampaignSheet({
             <Button size="sm" onClick={submit} disabled={save.isPending} aria-busy={save.isPending}>
               {save.isPending ? "Saving…" : "Save campaign"}
             </Button>
+            <p className="text-xs text-muted-foreground" data-testid="in-account">
+              {metaInLine(account)}
+            </p>
           </section>
 
           <section className="space-y-4" aria-label="Ad sets">
