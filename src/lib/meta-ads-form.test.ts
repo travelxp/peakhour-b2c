@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   EMPTY_NEW_CAMPAIGN,
   buildAdSetEdit,
+  buildBudgetCut,
   buildCampaignEdit,
   buildCreateBodies,
   dayInZoneToIso,
@@ -331,5 +332,20 @@ describe("budgets Meta reports as zero, and boxes left as pre-filled", () => {
     const was = { dailyBudget: "1000", targeting: { geo_locations: { countries: ["IN"] }, age_min: 13, age_max: 44 } };
     const form = { countries: ["IN"], ageMin: "13", ageMax: "44", budget: "10", start: "", end: "" };
     expect(buildAdSetEdit(was, { ...form, budget: "12" }, "USD", "UTC")).toEqual({ dailyBudget: "1200" });
+  });
+});
+
+describe("buildBudgetCut (a campaign in an ad account the business has not enabled)", () => {
+  const was = { dailyBudget: "5000" };
+  it("a lower budget is sent, as the one budget field", () => {
+    expect(buildBudgetCut(was, "20", "USD")).toEqual({ dailyBudget: "2000" });
+  });
+  it("a raise or the same figure is never sent", () => {
+    expect(buildBudgetCut(was, "80", "USD")).toEqual({ error: "In this account you can only lower the budget." });
+    expect(buildBudgetCut(was, "50", "USD")).toBeNull();
+  });
+  it("nonsense is an error, and a campaign with no budget of its own has nothing to lower", () => {
+    expect(buildBudgetCut(was, "abc", "USD")).toHaveProperty("error");
+    expect(buildBudgetCut({}, "10", "USD")).toHaveProperty("error");
   });
 });

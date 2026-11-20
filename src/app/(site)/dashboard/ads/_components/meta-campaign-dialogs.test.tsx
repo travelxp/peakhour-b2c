@@ -536,3 +536,42 @@ describe("Edit sheet", () => {
     expect(document.body.textContent).toContain("Asia/Kolkata");
   });
 });
+
+describe("Lower budget sheet (an ad account the business has not enabled, MR-G4)", () => {
+  const CAMPAIGN: MetaCampaign = {
+    id: "c1",
+    name: "Running sale",
+    status: "ACTIVE",
+    objective: "OUTCOME_TRAFFIC",
+    dailyBudget: "2550",
+    createdTime: "2026-10-01T00:00:00+0000",
+    updatedTime: "2026-10-01T00:00:00+0000",
+  };
+  const open = async () => {
+    mocks.editCampaign.mockResolvedValue({ campaign: null });
+    mount(<EditCampaignButton account={ACCOUNT} campaign={CAMPAIGN} lowerOnly />);
+    click(q('button[aria-label="Lower budget of campaign Running sale"]'));
+    await flush();
+  };
+
+  it("offers the budget only: no name, no ad sets", async () => {
+    await open();
+    expect(q<HTMLInputElement>("#lb-budget")?.value).toBe("25.5");
+    expect(q("#ec-name")).toBeNull();
+    expect(document.body.textContent).not.toContain("Audience and schedule");
+    expect(mocks.listAdSets).not.toHaveBeenCalled();
+  });
+
+  it("sends a lower budget, and refuses a raise without calling the api", async () => {
+    await open();
+    setValue(q<HTMLInputElement>("#lb-budget")!, "60");
+    click(byText("button", "Lower budget"));
+    await flush();
+    expect(byText('[role="alert"]', /only lower the budget/)).toBeTruthy();
+    expect(mocks.editCampaign).not.toHaveBeenCalled();
+    setValue(q<HTMLInputElement>("#lb-budget")!, "10");
+    click(byText("button", "Lower budget"));
+    await flush();
+    expect(mocks.editCampaign).toHaveBeenCalledWith("c1", { dailyBudget: "1000" });
+  });
+});

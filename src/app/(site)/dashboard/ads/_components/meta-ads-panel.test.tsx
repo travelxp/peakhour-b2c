@@ -2,7 +2,10 @@
 /**
  * MR-F2 - Growth shows the business's ENABLED Meta ad accounts: an account filter ("All accounts" first), every campaign
  * under its account, no `?adAccount=`, and with nothing enabled no way to start spend. Another business's accounts on the
- * same Meta login are never shown.
+ * same Meta login are never offered to start spend in.
+ *
+ * MR-G4 - those other accounts are listed apart ("Other accounts on your Meta login") and open PAUSE-ONLY: a running campaign
+ * there can be paused or have its budget lowered, and nothing else.
  */
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
@@ -59,7 +62,7 @@ vi.mock("./meta-campaign-dialogs", () => ({
       New campaign
     </button>
   ),
-  EditCampaignButton: () => <button>Edit campaign</button>,
+  EditCampaignButton: (p: { lowerOnly?: boolean }) => <button data-lower-only={p.lowerOnly ? "yes" : "no"}>{p.lowerOnly ? "Lower budget" : "Edit campaign"}</button>,
 }));
 
 const { MetaAdsPanel } = await import("./meta-ads-panel");
@@ -155,7 +158,7 @@ describe("Growth > Ads > Meta", () => {
     expect(change.getAttribute("href")).toBe("/dashboard/integrations");
   });
 
-  it("another business's account on the login is never read, listed or offered", async () => {
+  it("an account on the login that is not the business's is not read or shown until chosen, and never offered to New campaign", async () => {
     h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
     await mount();
     expect(h.listCampaigns).not.toHaveBeenCalledWith("act_3333");
@@ -183,7 +186,9 @@ describe("Growth > Ads > Meta", () => {
       "All accounts",
       "Quests Travel (INR) · act_…1111",
       "CMPL (USD) · act_…2222 · default",
+      "Other Biz (USD) · act_…3333",
     ]);
+    expect(document.body.textContent).toContain("Other accounts on your Meta login");
     await act(async () => {
       options[2]!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
@@ -241,16 +246,16 @@ describe("Growth > Ads > Meta", () => {
     expect(container.textContent).toContain("2 of your ad accounts are no longer on your Meta login and are not shown.");
   });
 
-  it("one enabled account is the selection: no filter, its section, no account line", async () => {
+  it("one enabled account is the selection: no 'All accounts', its section, no account line", async () => {
     h.listAdAccounts.mockResolvedValue(answer([QUESTS], "act_1111"));
     await mount();
-    expect(container.querySelector('[aria-label="Ad account filter"]')).toBeNull();
-    expect(container.querySelector('[aria-label="Ad accounts"]')!.textContent).toContain("Quests Travel (INR) · act_…1111");
+    expect(container.querySelector('[aria-label="Ad account filter"]')!.textContent).toContain("Quests Travel (INR) · act_…1111");
+    expect([...container.querySelectorAll("h2")].map((x) => x.textContent)).toEqual(["Quests Travel (INR) · act_…1111"]);
     expect(container.textContent).toContain("New campaign");
     expect(container.textContent).not.toContain("Quests Travel (act_…1111)");
   });
 
-  it("nothing enabled: an empty state with the link, and no New campaign, Edit or switches; nothing is read", async () => {
+  it("nothing enabled: the Choose notice with the link, no New campaign or Edit, and the login's accounts still open pause-only", async () => {
     h.listAdAccounts.mockResolvedValue(answer([], null));
     await mount();
     expect(container.textContent).toContain("Choose your ad accounts");
@@ -258,8 +263,81 @@ describe("Growth > Ads > Meta", () => {
     expect(container.querySelector('a[href="/dashboard/integrations"]')).not.toBeNull();
     expect(container.textContent).not.toContain("New campaign");
     expect(container.textContent).not.toContain("Edit campaign");
-    expect(container.querySelector('[role="switch"]')).toBeNull();
-    expect(h.listCampaigns).not.toHaveBeenCalled();
+    // the first account on the login is shown, pause-only, with its running campaign
+    expect(h.listCampaigns).toHaveBeenCalledTimes(1);
+    expect(h.listCampaigns).toHaveBeenCalledWith("act_1111");
+    expect(container.textContent).toContain("Peakhour does not run new spend in this account. You can pause or lower what is running.");
+    expect(container.textContent).toContain("Diwali");
+  });
+
+  describe("MR-G4: an account the business has not enabled is pause-only", () => {
+    const ACTIVE = { ...CAMPAIGN, status: "ACTIVE", dailyBudget: "5000" };
+    const PAUSED = { ...CAMPAIGN, id: "10", name: "Holi", status: "PAUSED", dailyBudget: "5000" };
+    const pick = async (label: string) => {
+      await act(async () => {
+        (container.querySelector('[aria-label="Ad account filter"]') as HTMLElement).click();
+      });
+      const option = [...document.body.querySelectorAll('[role="option"]')].find((o) => o.textContent!.includes(label))!;
+      await act(async () => {
+        option.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      });
+      await settle();
+    };
+
+    it("lists the unticked accounts in an 'Other accounts on your Meta login' group, after the business's own", async () => {
+      h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
+      await mount();
+      await act(async () => {
+        (container.querySelector('[aria-label="Ad account filter"]') as HTMLElement).click();
+      });
+      const labels = [...document.body.querySelectorAll('[role="group"] [role="option"], [role="group"] [id]')];
+      expect(document.body.textContent).toContain("Other accounts on your Meta login");
+      expect(labels.some((l) => l.textContent?.includes("Other Biz"))).toBe(true);
+      expect(labels.some((l) => l.textContent?.includes("CMPL"))).toBe(false);
+    });
+
+    it("choosing one shows its campaigns with the pause switch and Lower budget only: no New campaign, no Change dataset, the pause-only line", async () => {
+      h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
+      h.listCampaigns.mockImplementation(async (id: string) => ({ campaigns: id === "act_3333" ? [ACTIVE] : [CAMPAIGN], truncated: false }));
+      await mount();
+      await pick("Other Biz");
+      expect(h.listCampaigns).toHaveBeenCalledWith("act_3333");
+      expect([...container.querySelectorAll("h2")].map((x) => x.textContent)).toEqual(["Other Biz (USD) · act_…3333"]);
+      expect(container.textContent).toContain("Peakhour does not run new spend in this account. You can pause or lower what is running.");
+      expect(container.querySelector('[data-testid="new-campaign"]')).toBeNull();
+      expect(container.textContent).not.toContain("Edit campaign");
+      expect(container.querySelector('[data-lower-only="yes"]')!.textContent).toBe("Lower budget");
+      const sw = container.querySelector('[role="switch"]')!;
+      expect(sw.getAttribute("aria-label")).toBe("Pause campaign Diwali");
+      expect(container.textContent).not.toContain("Change dataset");
+    });
+
+    it("a PAUSED campaign there has no switch to turn it on, and no Lower budget without a budget of its own", async () => {
+      h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
+      h.listCampaigns.mockImplementation(async (id: string) => ({ campaigns: id === "act_3333" ? [PAUSED, { ...CAMPAIGN, id: "11", name: "No budget", status: "ACTIVE" }] : [CAMPAIGN], truncated: false }));
+      await mount();
+      await pick("Other Biz");
+      const labels = [...container.querySelectorAll('[role="switch"]')].map((x) => x.getAttribute("aria-label"));
+      expect(labels).toEqual(["Pause campaign No budget"]);
+      expect(container.querySelectorAll('[data-lower-only="yes"]')).toHaveLength(1);
+    });
+
+    it("an enabled account still has the full controls (Edit, switch to activate, New campaign)", async () => {
+      h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
+      await mount();
+      expect(container.querySelector('[role="switch"]')!.getAttribute("aria-label")).toBe("Activate campaign Diwali");
+      expect(container.querySelector('[data-lower-only="no"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="new-campaign"]')).not.toBeNull();
+    });
+
+    it("nothing enabled: the notice stays, and a running campaign in the login's account can still be paused", async () => {
+      h.listAdAccounts.mockResolvedValue(answer([], null));
+      h.listCampaigns.mockResolvedValue({ campaigns: [ACTIVE], truncated: false });
+      await mount();
+      expect(container.textContent).toContain("Choose your ad accounts");
+      expect(container.querySelector('[role="switch"]')!.getAttribute("aria-label")).toBe("Pause campaign Diwali");
+      expect(container.querySelector('[data-testid="new-campaign"]')).toBeNull();
+    });
   });
 
   it("an enabled account the login no longer has is flagged, not shown or used", async () => {

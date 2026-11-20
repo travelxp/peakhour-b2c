@@ -16,7 +16,9 @@ import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -211,6 +213,9 @@ function ConnectedView() {
   const enabledIds = accounts.data?.enabledIds ?? [];
   // Live account objects (they carry the time zone), in the business's order, limited to the enabled ones still on the login.
   const enabled = enabledIds.flatMap((id) => list.filter((a) => a.id === id));
+  // The login's accounts the business has NOT ticked (and has not lost): listed apart, pause-only.
+  const chosenIds = new Set([...enabledIds, ...(accounts.data?.enabledAccounts ?? []).map((a) => a.id)]);
+  const others = list.filter((a) => !chosenIds.has(a.id));
   const missingCount = (accounts.data?.enabledAccounts ?? []).filter((a) => a.missing).length;
   // The business chose accounts and the login has lost every one of them: not the same as never having chosen.
   const allChosenMissing = enabled.length === 0 && (accounts.data?.enabledAccounts?.length ?? 0) > 0 && missingCount === (accounts.data?.enabledAccounts?.length ?? 0);
@@ -246,57 +251,78 @@ function ConnectedView() {
     );
   }
 
-  if (allChosenMissing) {
-    return (
+  // ★NO ENABLED ACCOUNT, NO NEW-SPEND CONTROLS. Nothing here can start spend until the business has said which accounts are its own.
+  // The notice says so, and the login's other accounts below still open pause-only so a running campaign can always be stopped (MR-G4).
+  const noneEnabled = enabled.length === 0;
+  const notice = noneEnabled ? (
+    allChosenMissing ? (
       <EmptyState
         icon={Megaphone}
         title="Your ad account is not on your Meta login"
         description="The ad account you chose is no longer on your Meta login. Reconnect Meta or choose another."
         action={{ label: "Open Connected accounts", href: "/dashboard/integrations" }}
       />
-    );
-  }
-
-  // ★NO ENABLED ACCOUNT, NO CONTROLS. Nothing here can start spend until the business has said which accounts are its own.
-  if (enabled.length === 0) {
-    return (
+    ) : (
       <EmptyState
         icon={Megaphone}
         title="Choose your ad accounts"
         description={`${CHOOSE_AD_ACCOUNTS} Your Meta login reaches more than one.`}
         action={{ label: "Choose ad accounts", href: "/dashboard/integrations" }}
       />
-    );
-  }
+    )
+  ) : null;
+  if (noneEnabled && others.length === 0) return notice;
 
   // The business's DEFAULT account is selected first ("All accounts" stays as an option, listed first); with one enabled account
-  // it is the selection. A stale choice falls back to the same rule.
+  // it is the selection. A stale choice falls back to the same rule. With nothing enabled the first other account is shown.
   const defaultId = accounts.data?.defaultId ?? null;
-  const defaultFilter = enabled.length === 1 ? enabled[0]!.id : defaultId && enabled.some((a) => a.id === defaultId) ? defaultId : ALL_ACCOUNTS;
-  const filter = chosenFilter === ALL_ACCOUNTS || enabled.some((a) => a.id === chosenFilter) ? chosenFilter : defaultFilter;
-  const shown = filter === ALL_ACCOUNTS ? enabled : enabled.filter((a) => a.id === filter);
+  const defaultFilter = noneEnabled
+    ? others[0]!.id
+    : enabled.length === 1
+      ? enabled[0]!.id
+      : defaultId && enabled.some((a) => a.id === defaultId)
+        ? defaultId
+        : ALL_ACCOUNTS;
+  const filter =
+    (chosenFilter === ALL_ACCOUNTS && enabled.length > 1) || enabled.some((a) => a.id === chosenFilter) || others.some((a) => a.id === chosenFilter)
+      ? chosenFilter
+      : defaultFilter;
+  // An account the business has not enabled: its campaigns open PAUSE-ONLY (pause, or lower the budget).
+  const pauseOnlyAccount = others.find((a) => a.id === filter);
+  const shown = pauseOnlyAccount ? [] : filter === ALL_ACCOUNTS ? enabled : enabled.filter((a) => a.id === filter);
 
   return (
     <div className="space-y-6">
+      {notice}
       <Card aria-label="Ad accounts">
         <CardContent className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 p-4 text-sm">
           <div className="space-y-1">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">
               Ad accounts{business?.name ? ` for ${business.name}` : ""}
             </p>
-            {enabled.length > 1 ? (
+            {enabled.length > 1 || others.length > 0 ? (
               <Select value={filter} onValueChange={setChosenFilter}>
                 <SelectTrigger aria-label="Ad account filter" className="w-80">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={ALL_ACCOUNTS}>All accounts</SelectItem>
+                  {enabled.length > 1 ? <SelectItem value={ALL_ACCOUNTS}>All accounts</SelectItem> : null}
                   {enabled.map((a) => (
                     <SelectItem key={a.id} value={a.id}>
                       {metaAdAccountOptionLabel(a)}
                       {a.id === defaultId ? " · default" : ""}
                     </SelectItem>
                   ))}
+                  {others.length > 0 ? (
+                    <SelectGroup>
+                      <SelectLabel>Other accounts on your Meta login</SelectLabel>
+                      {others.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {metaAdAccountOptionLabel(a)}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  ) : null}
                 </SelectContent>
               </Select>
             ) : (
@@ -312,16 +338,18 @@ function ConnectedView() {
             ) : null}
           </div>
           <div className="flex items-center gap-4">
-            <NewCampaignDialog
-              accounts={enabled}
-              defaultAccountId={defaultId}
-              initialAccountId={filter === ALL_ACCOUNTS ? null : filter}
-              onCreated={(campaignId, accountId) => {
-                setJustCreated((prev) => new Set(prev).add(campaignId));
-                // Created in another account than the one filtered to: show that account, or the new campaign is nowhere to be seen.
-                if (filter !== ALL_ACCOUNTS && filter !== accountId) setChosenFilter(accountId);
-              }}
-            />
+            {noneEnabled || pauseOnlyAccount ? null : (
+              <NewCampaignDialog
+                accounts={enabled}
+                defaultAccountId={defaultId}
+                initialAccountId={filter === ALL_ACCOUNTS ? null : filter}
+                onCreated={(campaignId, accountId) => {
+                  setJustCreated((prev) => new Set(prev).add(campaignId));
+                  // Created in another account than the one filtered to: show that account, or the new campaign is nowhere to be seen.
+                  if (filter !== ALL_ACCOUNTS && filter !== accountId) setChosenFilter(accountId);
+                }}
+              />
+            )}
             <Link href="/dashboard/integrations" className="text-sm font-medium underline underline-offset-4">
               Change
             </Link>
@@ -329,6 +357,12 @@ function ConnectedView() {
         </CardContent>
       </Card>
 
+      {pauseOnlyAccount ? (
+        <>
+          <p className="text-sm text-muted-foreground">Peakhour does not run new spend in this account. You can pause or lower what is running.</p>
+          <CampaignsSection key={`pause-${pauseOnlyAccount.id}`} account={pauseOnlyAccount} autoOpen={justCreated} showAccountLine={false} pauseOnly />
+        </>
+      ) : null}
       {shown.map((account) => (
         <CampaignsSection
           key={account.id}
@@ -337,7 +371,7 @@ function ConnectedView() {
           showAccountLine={enabled.length > 1}
         />
       ))}
-      <DatasetCard accounts={enabled} defaultAccountId={defaultId} />
+      {noneEnabled ? null : <DatasetCard accounts={enabled} defaultAccountId={defaultId} />}
     </div>
   );
 }
@@ -351,12 +385,15 @@ function CampaignsSection({
   account,
   autoOpen,
   showAccountLine,
+  pauseOnly = false,
 }: {
   account: MetaAdAccount;
   /** Campaigns just created in this session: opened. */
   autoOpen: ReadonlySet<string>;
   /** More than one account is enabled, so each campaign says which account it is in. */
   showAccountLine: boolean;
+  /** An ad account the business has not enabled: only pause and a lower budget (MR-G4). */
+  pauseOnly?: boolean;
 }) {
   const queryClient = useQueryClient();
   // A campaign just created starts OPEN: `expanded` holds the ones the merchant has toggled since, so toggling flips it.
@@ -508,7 +545,12 @@ function CampaignsSection({
                         )}
                         note={null}
                         accountLine={showAccountLine ? `${account.name} (${metaAdAccountShortId(account.id)})` : undefined}
-                        editor={metaStatusToggle(c.status) ? <EditCampaignButton account={account} campaign={c} /> : undefined}
+                        editor={
+                          metaStatusToggle(c.status) && (!pauseOnly || c.dailyBudget || c.lifetimeBudget) ? (
+                            <EditCampaignButton account={account} campaign={c} lowerOnly={pauseOnly} />
+                          ) : undefined
+                        }
+                        pauseOnly={pauseOnly}
                         open={open}
                         onExpand={() =>
                           setExpanded((prev) => {
@@ -522,7 +564,7 @@ function CampaignsSection({
                         onToggle={(s) => toggle("campaign", c.id, s)}
                       />
                       {open ? (
-                        <AdSetRows account={account} campaign={c} pendingId={pendingId} onToggle={toggle} />
+                        <AdSetRows account={account} campaign={c} pendingId={pendingId} onToggle={toggle} pauseOnly={pauseOnly} />
                       ) : null}
                     </Fragment>
                   );
@@ -546,7 +588,7 @@ function CampaignsSection({
 
       {/* ★WHAT ACTIVATING COSTS is on screen BEFORE any switch is pressed. The answer is "nothing": Peaks are charged for
           the tasks the merchant asks for, never for launching or for a result, so there is no price to read here. */}
-      <p className="text-xs text-muted-foreground">{META_LAUNCH_NOTE}</p>
+      {pauseOnly ? null : <p className="text-xs text-muted-foreground">{META_LAUNCH_NOTE}</p>}
     </div>
   );
 }
@@ -556,11 +598,13 @@ function AdSetRows({
   campaign,
   pendingId,
   onToggle,
+  pauseOnly,
 }: {
   account: MetaAdAccount;
   campaign: MetaCampaign;
   pendingId: string | undefined;
   onToggle: (level: MetaAdsLevel, id: string, status: MetaSettableStatus) => void;
+  pauseOnly?: boolean;
 }) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const adSets = useQuery({
@@ -603,9 +647,10 @@ function AdSetRows({
                 })
               }
               pending={pendingId === s.id}
+              pauseOnly={pauseOnly}
               onToggle={(st) => onToggle("adSet", s.id, st)}
             />
-            {open ? <AdRows account={account} campaign={campaign} adSet={s} pendingId={pendingId} onToggle={onToggle} /> : null}
+            {open ? <AdRows account={account} campaign={campaign} adSet={s} pendingId={pendingId} onToggle={onToggle} pauseOnly={pauseOnly} /> : null}
           </Fragment>
         );
       })}
@@ -619,12 +664,14 @@ function AdRows({
   adSet,
   pendingId,
   onToggle,
+  pauseOnly,
 }: {
   account: MetaAdAccount;
   campaign: MetaCampaign;
   adSet: MetaAdSet;
   pendingId: string | undefined;
   onToggle: (level: MetaAdsLevel, id: string, status: MetaSettableStatus) => void;
+  pauseOnly?: boolean;
 }) {
   const ads = useQuery({
     queryKey: ["meta-ads-ads", account.id, adSet.id],
@@ -655,6 +702,7 @@ function AdRows({
           open={null}
           onExpand={undefined}
           pending={pendingId === a.id}
+          pauseOnly={pauseOnly}
           onToggle={(st) => onToggle("ad", a.id, st)}
         />
       ))}
@@ -677,6 +725,7 @@ function NodeRow({
   onExpand,
   pending,
   onToggle,
+  pauseOnly = false,
 }: {
   depth: 0 | 1 | 2;
   name: string;
@@ -693,6 +742,8 @@ function NodeRow({
   onExpand: (() => void) | undefined;
   pending: boolean;
   onToggle: (next: MetaSettableStatus) => void;
+  /** Pause-only account: the switch only ever pauses; it is never offered to turn a node ON. */
+  pauseOnly?: boolean;
 }) {
   const toggle = metaStatusToggle(status);
   const level = depth === 0 ? "campaign" : depth === 1 ? "ad set" : "ad";
@@ -728,7 +779,7 @@ function NodeRow({
       <TableCell className="hidden text-right tabular-nums text-muted-foreground md:table-cell">{budget}</TableCell>
       <TableCell className="text-right tabular-nums">{spend}</TableCell>
       <TableCell className="text-right">
-        {toggle ? (
+        {toggle && !(pauseOnly && toggle.next === "ACTIVE") ? (
           <Switch
             checked={status === "ACTIVE"}
             onCheckedChange={() => onToggle(toggle.next)}

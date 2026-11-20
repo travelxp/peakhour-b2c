@@ -354,6 +354,24 @@ export function buildCampaignEdit(
   return Object.keys(body).length ? body : null;
 }
 
+/**
+ * The edit for a campaign in an ad account the business has not enabled (MR-G4): the budget only, and only LOWER than it is
+ * now. Never a name, never a raise. `null` when nothing changed.
+ */
+export function buildBudgetCut(
+  original: { dailyBudget?: string; lifetimeBudget?: string },
+  budgetText: string,
+  currency: string | undefined,
+): { dailyBudget?: string; lifetimeBudget?: string } | { error: string } | null {
+  const key = budgetKey(original);
+  if (!key) return { error: "This campaign has no budget of its own to lower here." };
+  const patch = budgetPatch(original, budgetText, currency);
+  if (!patch) return null;
+  if ("error" in patch) return { error: patch.error };
+  if (!(Number(patch.minor) < Number(original[key]))) return { error: "In this account you can only lower the budget." };
+  return { [patch.key]: patch.minor };
+}
+
 export interface AdSetEditForm {
   countries: string[];
   ageMin: string;

@@ -48,6 +48,7 @@ import {
   META_CREATE_OBJECTIVES,
   META_CTAS,
   buildAdSetEdit,
+  buildBudgetCut,
   buildCampaignEdit,
   budgetKey,
   buildCreateBodies,
@@ -506,9 +507,12 @@ export function NewCampaignDialog({
 export function EditCampaignButton({
   account,
   campaign,
+  lowerOnly = false,
 }: {
   account: MetaAdAccount;
   campaign: MetaCampaign;
+  /** An ad account the business has not enabled (MR-G4): the budget can only be lowered, nothing else is editable. */
+  lowerOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -517,13 +521,92 @@ export function EditCampaignButton({
         variant="ghost"
         size="icon"
         className="size-7"
-        aria-label={`Edit campaign ${campaign.name}`}
+        aria-label={`${lowerOnly ? "Lower budget of campaign" : "Edit campaign"} ${campaign.name}`}
         onClick={() => setOpen(true)}
       >
         <Pencil className="size-3.5" />
       </Button>
-      {open ? <EditCampaignSheet account={account} campaign={campaign} onClose={() => setOpen(false)} /> : null}
+      {open ? (
+        lowerOnly ? (
+          <LowerBudgetSheet account={account} campaign={campaign} onClose={() => setOpen(false)} />
+        ) : (
+          <EditCampaignSheet account={account} campaign={campaign} onClose={() => setOpen(false)} />
+        )
+      ) : null}
     </>
+  );
+}
+
+/** ★PAUSE-ONLY ACCOUNTS (MR-G4): the budget, lowered. No name, no ad sets, no raise: the api refuses all of them there too. */
+function LowerBudgetSheet({
+  account,
+  campaign,
+  onClose,
+}: {
+  account: MetaAdAccount;
+  campaign: MetaCampaign;
+  onClose: () => void;
+}) {
+  const refresh = useRefreshAds(account.id);
+  const key = budgetKey(campaign);
+  const [budget, setBudget] = useState(metaMinorToInput(key ? campaign[key] : undefined, account.currency));
+  const [error, setError] = useState<string | null>(null);
+  const save = useMutation({
+    mutationFn: (body: MetaCampaignEdit) => metaAdsApi.editCampaign(campaign.id, body),
+    onSuccess: () => {
+      refresh();
+      toast.success("Budget lowered.");
+      onClose();
+    },
+    onError: (err: unknown) => setError(metaAdsErrorMessage(err, "Couldn't save that. Nothing was changed.")),
+  });
+  const submit = () => {
+    setError(null);
+    const body = buildBudgetCut(campaign, budget, account.currency);
+    if (body === null) {
+      onClose();
+      return;
+    }
+    if ("error" in body) {
+      setError(body.error);
+      return;
+    }
+    save.mutate(body);
+  };
+  return (
+    <Sheet open onOpenChange={(next) => (!next && !save.isPending ? onClose() : undefined)}>
+      <SheetContent className="w-full overflow-y-auto sm:max-w-md">
+        <SheetHeader>
+          <SheetTitle>Lower budget</SheetTitle>
+          <SheetDescription>Peakhour does not run new spend in this account. You can pause or lower what is running.</SheetDescription>
+        </SheetHeader>
+        <div className="space-y-3 px-4">
+          <p className="text-sm font-medium">{campaign.name}</p>
+          <div className="space-y-1.5">
+            <Label htmlFor="lb-budget">
+              {key === "dailyBudget" ? "Daily budget" : "Total budget"} ({account.currency})
+            </Label>
+            <Input id="lb-budget" inputMode="decimal" value={budget} className="w-40" onChange={(e) => setBudget(e.target.value)} />
+          </div>
+          {error ? (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          ) : null}
+          <Button size="sm" onClick={submit} disabled={save.isPending} aria-busy={save.isPending}>
+            {save.isPending ? "Saving…" : "Lower budget"}
+          </Button>
+          <p className="text-xs text-muted-foreground" data-testid="in-account">
+            {metaInLine(account)}
+          </p>
+        </div>
+        <SheetFooter>
+          <Button variant="outline" onClick={onClose} disabled={save.isPending}>
+            Close
+          </Button>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }
 
