@@ -169,6 +169,13 @@ describe("the decisions client", () => {
     expect(post.mock.calls).toEqual([["/v1/growth/v2/decisions/d%201/undo"], ["/v1/growth/v2/decisions/d1/ask", { question: "Why?" }]]);
   });
 
+  it("MR-F3: an approve of a launch that fit several ad accounts carries the picked account, and no other answer has a body", async () => {
+    const post = vi.spyOn(api, "post").mockResolvedValue({});
+    await growthV2Api.decide("d1", "approve", "act_222");
+    await growthV2Api.decide("d1", "approve");
+    expect(post.mock.calls).toEqual([["/v1/growth/v2/decisions/d1/approve", { adAccountId: "act_222" }], ["/v1/growth/v2/decisions/d1/approve"]]);
+  });
+
   it("★a preview only on 501 NOT_BUILT: the sample for that queue, and a 500 reaches the caller", async () => {
     const preview = await loadOrPreview(async () => Promise.reject(notBuilt("H2")), () => previewDecisions("done"));
     expect(preview.preview).toBe(true);
