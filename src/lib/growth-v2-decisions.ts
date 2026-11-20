@@ -238,8 +238,6 @@ export function decisionNotice(err: unknown, action: DecisionAction): DecisionNo
       return { tone: "warn", text: "This was already answered. The list has been refreshed." };
     case "AD_ACCOUNT_REQUIRED":
       return { tone: "warn", text: "Choose which ad account this campaign runs in, then approve." };
-    case "AD_ACCOUNT_NOT_CHOSEN":
-      return { tone: "warn", text: "Several of your ad accounts fit this campaign and none was picked, so nothing was created." };
     case "APPLY_INCOMPLETE":
       return { tone: "warn", text: "Part of the change was applied. Approve again to finish it." };
     case "NOT_UNDOABLE":

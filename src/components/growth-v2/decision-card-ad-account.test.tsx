@@ -118,6 +118,43 @@ describe("the ad account on a launch card", () => {
     expect(onAction).toHaveBeenCalledWith("approve", "act_222");
   });
 
+  it("★a pick that is no longer among the current options counts as no pick (Approve off again)", async () => {
+    const opts = (ids: string[]) => ids.map((id) => ({ id, label: id }));
+    render(launch({ required: true, options: opts(["act_111", "act_222"]) }));
+    const select = document.body.querySelector("select") as HTMLSelectElement;
+    await act(async () => {
+      select.value = "act_222";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    expect(button("Approve")!.disabled).toBe(false);
+    act(() => {
+      root.render(<DecisionCard decision={launch({ required: true, options: opts(["act_111", "act_333"]) })} currency="INR" unit={{ one: "booking", many: "bookings" }} now={NOW} onAction={onAction} />);
+    });
+    expect(button("Approve")!.disabled).toBe(true);
+  });
+
+  it("★the required pick block shows only on a decision that can still be answered", () => {
+    render({ ...launch({ required: true, options: [{ id: "act_111", label: "India Store" }] }), status: "expired" });
+    expect(document.body.querySelector('[aria-label="Ad account"]')).toBeNull();
+    expect(document.body.querySelector("select")).toBeNull();
+  });
+
+  it("★the confirm dialog names the account the campaign runs in, picked or already chosen", async () => {
+    render(launch({ required: false, accountId: "act_111", label: "India Store (act_…111)" }));
+    await click("Approve");
+    expect(document.body.textContent).toContain("Runs in India Store (act_…111)");
+    act(() => root.unmount());
+    host.remove();
+    render(launch({ required: true, options: [{ id: "act_222", label: "UK Store (act_…222)" }] }));
+    const select = document.body.querySelector("select") as HTMLSelectElement;
+    await act(async () => {
+      select.value = "act_222";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await click("Approve");
+    expect(document.body.textContent).toContain("Runs in UK Store (act_…222)");
+  });
+
   it("a launch with an account already chosen approves with no pick", async () => {
     render(launch({ required: false, accountId: "act_111", label: "India Store (act_…111)" }));
     await click("Approve");

@@ -753,10 +753,10 @@ export const growthV2Api = {
     if (opts.limit) q.set("limit", String(opts.limit));
     return api.get<DecisionsResponse>(`${BASE}/decisions?${q.toString()}`);
   },
-  decide: (id: string, action: DecisionAction, adAccountId?: string) =>
-    adAccountId
-      ? api.post<DecideResponse>(`${BASE}/decisions/${encodeURIComponent(id)}/${action}`, { adAccountId })
-      : api.post<DecideResponse>(`${BASE}/decisions/${encodeURIComponent(id)}/${action}`),
+  decide: (id: string, action: DecisionAction, adAccountId?: string) => {
+    const url = `${BASE}/decisions/${encodeURIComponent(id)}/${action}`;
+    return adAccountId ? api.post<DecideResponse>(url, { adAccountId }) : api.post<DecideResponse>(url);
+  },
   /** "Check it again now": one more review of a waiting change. */
   recheckReview: (runId: string, proposalId: string) =>
     api.post<RecheckReviewResponse>(`${BASE}/decisions/waiting/${encodeURIComponent(runId)}/${encodeURIComponent(proposalId)}/recheck`),

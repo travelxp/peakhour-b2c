@@ -85,7 +85,9 @@ export function DecisionCard({ decision: d, currency, unit, now, onAction, actio
   const [confirming, setConfirming] = useState(false);
   // MR-F3: the ad account picked for a launch that fit several, kept with the decision it was picked for.
   const [picked, setPicked] = useState<{ id: string; account: string } | null>(null);
-  const pickedAccount = picked?.id === d.id ? picked.account : undefined;
+  // A pick counts only while it is still one of the CURRENT options (a refetch can drop it).
+  const pickedAccount = picked?.id === d.id && d.adAccount?.options?.some((o) => o.id === picked.account) ? picked.account : undefined;
+  const confirmAccount = d.adAccount?.required ? d.adAccount.options?.find((o) => o.id === pickedAccount)?.label : d.adAccount?.label;
   const needsPick = d.adAccount?.required === true && pickedAccount === undefined;
   const impact = d.impact ? describeImpact(d.impact, currency, unit) : undefined;
   const answerable = isAnswerable(d);
@@ -136,7 +138,7 @@ export function DecisionCard({ decision: d, currency, unit, now, onAction, actio
         </div>
       ) : null}
 
-      {d.adAccount ? (
+      {d.adAccount && (!d.adAccount.required || answerable) ? (
         <section aria-label="Ad account" className="grid gap-1.5">
           <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Ad account</h3>
           {d.adAccount.required ? (
@@ -265,6 +267,7 @@ export function DecisionCard({ decision: d, currency, unit, now, onAction, actio
               24 hours afterwards.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {confirmAccount ? <p className="text-sm font-medium">Runs in {confirmAccount}</p> : null}
           <ul className="space-y-1 text-sm">
             {d.ops.map((op, i) => (
               <li key={`${op.platform}-${op.campaignRef}-${op.op}-${i}`}>{opLine(op)}</li>

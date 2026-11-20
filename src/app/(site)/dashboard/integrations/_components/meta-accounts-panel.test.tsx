@@ -310,14 +310,14 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
   const usedFor = (name: string) => container.querySelector(`fieldset[aria-label="Used for: ${name}"]`) as HTMLFieldSetElement | null;
   const SAVED_TWO = { enabledIds: ["act_1111", "act_2222"], defaultId: "act_1111" };
 
-  it("★only an ENABLED account has a Used for line, with Markets, Collections and Purpose, and the one helper line", () => {
+  it("★only an ENABLED account has a Used for line, with Markets and Purpose, and the one helper line", () => {
     mount({ ...EXTRA, adAccounts: TWO_ADS, metaAdAccounts: SAVED_TWO });
     expect(usedFor("Quests Travel")).not.toBeNull();
     expect(usedFor("CMPL")).not.toBeNull();
     expect(usedFor("Old Ads")).toBeNull();
     const line = usedFor("CMPL")!.textContent ?? "";
     expect(line).toContain("Markets");
-    expect(line).toContain("Collections");
+    expect(line).not.toContain("Collections");
     expect(line).toContain("Purpose");
     expect(container.textContent).toContain("Peakhour uses these to choose the ad account for automated campaigns. Untagged: your default.");
   });
@@ -353,33 +353,22 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
     });
   });
 
-  it("collections come from the store and are added by name, sent as ids", async () => {
-    h.patch.mockResolvedValue({});
-    // The DM status read shares this client: only the collections path answers.
-    h.getStatus.mockImplementation((path?: string) =>
-      path?.endsWith("/ad-account/collections")
-        ? Promise.resolve({ collections: [{ id: "11", title: "Summer" }, { id: "12", title: "Winter" }] })
-        : Promise.reject(new Error("404")),
-    );
+  it("★no Collections picker yet (no launch input carries collections), and the store's collections are not read", async () => {
     mount({ ...EXTRA, adAccounts: TWO_ADS, metaAdAccounts: SAVED_TWO });
     await act(async () => {
       await new Promise((r) => setTimeout(r, 20));
     });
-    expect(h.getStatus).toHaveBeenCalledWith("/v1/integrations/facebook/ad-account/collections");
-    const select = usedFor("Quests Travel")!.querySelector('select[aria-label="Add a collection to Quests Travel"]') as HTMLSelectElement;
-    expect([...select.options].map((o) => o.textContent)).toEqual(["Choose a collection", "Summer", "Winter"]);
-    await act(async () => {
-      select.value = "12";
-      select.dispatchEvent(new Event("change", { bubbles: true }));
-    });
-    expect(usedFor("Quests Travel")!.textContent).toContain("Winter");
-    await click(saveButton());
-    await flush();
-    expect(h.patch).toHaveBeenCalledWith("/v1/integrations/facebook/ad-account", {
-      enabledIds: ["act_1111", "act_2222"],
-      defaultId: "act_1111",
-      tags: { act_1111: { collections: ["12"] } },
-    });
+    expect(usedFor("Quests Travel")!.textContent).not.toContain("Collections");
+    expect((h.getStatus.mock.calls as unknown[][]).some((c) => String(c[0]).includes("ad-account/collections"))).toBe(false);
+  });
+
+  it("★a purpose ticked on and off again is not a change: Save stays off and no tags are sent", async () => {
+    mount({ ...EXTRA, adAccounts: TWO_ADS, metaAdAccounts: SAVED_TWO });
+    const sales = () => [...usedFor("CMPL")!.querySelectorAll("button")].find((b) => b.textContent === "Sales") as HTMLButtonElement;
+    await click(sales());
+    expect(saveButton().disabled).toBe(false);
+    await click(sales());
+    expect(saveButton().disabled).toBe(true);
   });
 
   it("unticking an account drops its tags from the save", async () => {

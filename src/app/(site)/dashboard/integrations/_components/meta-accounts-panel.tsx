@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
@@ -13,6 +13,7 @@ import { CountryPicker } from "@/components/ads/country-picker";
 import {
   AD_ACCOUNT_PURPOSES,
   AD_ACCOUNT_TAGS_HELP,
+  sameTags,
   savedMetaAdAccountTags,
   tagsForSave,
   withTag,
@@ -201,19 +202,12 @@ export function MetaAdAccountPicker({
   const tags = tagDraft ?? savedMetaAdAccountTags(extra);
   const ids = draft?.ids ?? saved.enabledIds;
   const defaultId = draft ? draft.defaultId : saved.defaultId;
-  const dirty = draft !== null || tagDraft !== null;
+  // Tags count as changed only when they differ from what is saved (ticking a purpose on and off is not a change).
+  const tagsChanged = tagDraft !== null && !sameTags(tagDraft, savedMetaAdAccountTags(extra));
+  const dirty = draft !== null || tagsChanged;
   // An account Meta now says is disabled or closed that is still ticked: it can be unticked but not saved until it is.
   const stillTickedBlocked = adAccounts.some((a) => ids.includes(a.id) && !!metaAdAccountStatus(a.status).blocked);
   const canSave = dirty && ids.length > 0 && !!defaultId && ids.includes(defaultId) && !stillTickedBlocked;
-  // The store's collections, for the "Used for" pickers: read once there is a checklist with something ticked.
-  const collections = useQuery({
-    queryKey: ["meta-ad-account-collections"],
-    queryFn: () => api.get<{ collections: Array<{ id: string; title: string }> }>("/v1/integrations/facebook/ad-account/collections"),
-    enabled: adAccounts.length > 1 && ids.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-  const collectionOptions = collections.data?.collections ?? [];
 
   function toggle(id: string) {
     const next = ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
@@ -229,7 +223,7 @@ export function MetaAdAccountPicker({
       await api.patch("/v1/integrations/facebook/ad-account", {
         enabledIds: ids,
         defaultId,
-        ...(tagDraft ? { tags: tagsForSave(tagDraft, ids) } : {}),
+        ...(tagsChanged && tagDraft ? { tags: tagsForSave(tagDraft, ids) } : {}),
       });
       // Growth reads the enabled accounts and their campaigns from the api: refetch them now.
       await Promise.all([
@@ -303,7 +297,6 @@ export function MetaAdAccountPicker({
                     <UsedFor
                       name={a.name || a.id}
                       tags={tags[a.id]}
-                      collections={collectionOptions}
                       disabled={saving}
                       onChange={(next) => setTagDraft({ ...tags, [a.id]: next })}
                     />
@@ -347,27 +340,23 @@ export function MetaAdAccountPicker({
 }
 
 /**
- * "Used for" under one enabled ad account (MR-F3): the markets, collections and purposes Peakhour may route an automated
- * campaign to it for. Empty means untagged: the default account takes what no tag claims. Saved with the panel's one Save.
+ * "Used for" under one enabled ad account (MR-F3): the markets and purposes Peakhour may route an automated
+ * campaign to it for. (No Collections picker: no launch input carries collection ids yet, so such a tag could never match.
+ * The api keeps the support, and stored collection tags pass through a save untouched.) Empty means untagged: the default account takes what no tag claims. Saved with the panel's one Save.
  */
 function UsedFor({
   name,
   tags,
-  collections,
   disabled,
   onChange,
 }: {
   name: string;
   tags: AdAccountTags | undefined;
-  collections: Array<{ id: string; title: string }>;
   disabled: boolean;
   onChange: (next: AdAccountTags) => void;
 }) {
   const markets = tags?.markets ?? [];
-  const chosen = tags?.collections ?? [];
   const purposes = tags?.purposes ?? [];
-  const title = (id: string) => collections.find((c) => c.id === id)?.title ?? `Collection ${id}`;
-  const addable = collections.filter((c) => !chosen.includes(c.id));
   const togglePurpose = (id: AdAccountPurpose) =>
     onChange(withTag(tags, "purposes", purposes.includes(id) ? purposes.filter((p) => p !== id) : [...purposes, id]));
   return (
@@ -376,51 +365,6 @@ function UsedFor({
       <div className="space-y-0.5">
         <p className="text-micro text-muted-foreground">Markets</p>
         <CountryPicker value={markets} onChange={(next) => onChange(withTag(tags, "markets", next))} />
-      </div>
-      <div className="space-y-0.5">
-        <p className="text-micro text-muted-foreground">Collections</p>
-        {chosen.length > 0 ? (
-          <ul className="flex flex-wrap gap-1" aria-label="Chosen collections">
-            {chosen.map((id) => (
-              <li key={id} className="inline-flex items-center gap-1 rounded-md bg-secondary px-1.5 py-0.5 text-micro">
-                {title(id)}
-                <button
-                  type="button"
-                  aria-label={`Remove ${title(id)}`}
-                  className="rounded-sm px-0.5 hover:bg-background/60"
-                  onClick={() =>
-                    onChange(
-                      withTag(
-                        tags,
-                        "collections",
-                        chosen.filter((c) => c !== id),
-                      ),
-                    )
-                  }
-                >
-                  x
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        {addable.length > 0 ? (
-          <select
-            aria-label={`Add a collection to ${name}`}
-            value=""
-            onChange={(e) => e.target.value && onChange(withTag(tags, "collections", [...chosen, e.target.value]))}
-            className="h-8 w-64 rounded-md border border-input bg-transparent px-2 text-xs"
-          >
-            <option value="">{chosen.length ? "Add another collection" : "Choose a collection"}</option>
-            {addable.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.title}
-              </option>
-            ))}
-          </select>
-        ) : chosen.length === 0 ? (
-          <p className="text-micro text-muted-foreground">No collections found.</p>
-        ) : null}
       </div>
       <div className="space-y-0.5">
         <p className="text-micro text-muted-foreground">Purpose</p>
