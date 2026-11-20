@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
@@ -9,6 +9,18 @@ import { api, ApiError } from "@/lib/api";
 import { savedMetaAdAccounts, savedMetaPageId } from "@/lib/integrations-meta";
 import { META_CHOOSE_AD_ACCOUNT, metaAdAccountOptionLabel, metaAdAccountStatus } from "@/lib/meta-ads-view";
 import { Button } from "@/components/ui/button";
+import { CountryPicker } from "@/components/ads/country-picker";
+import {
+  AD_ACCOUNT_PURPOSES,
+  AD_ACCOUNT_TAGS_HELP,
+  sameTags,
+  savedMetaAdAccountTags,
+  tagsForSave,
+  withTag,
+  type AdAccountPurpose,
+  type AdAccountTagMap,
+  type AdAccountTags,
+} from "@/lib/meta-ad-account-tags";
 import { MetaMessagingSwitches } from "./meta-messaging-switches";
 import { DM_STATUS_KEY } from "@/lib/meta-dm";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -184,10 +196,16 @@ export function MetaAdAccountPicker({
   const saved = savedMetaAdAccounts(extra);
   // The edit in progress; null shows what is saved (and follows the list behind `extra` when it reloads).
   const [draft, setDraft] = useState<{ ids: string[]; defaultId?: string } | null>(null);
+  // The routing tags in progress (MR-F3); null shows what is saved. Sent only once touched, so an untouched save leaves them alone.
+  const [tagDraft, setTagDraft] = useState<AdAccountTagMap | null>(null);
   const [saving, setSaving] = useState(false);
+  const savedTags = useMemo(() => savedMetaAdAccountTags(extra), [extra]);
+  const tags = tagDraft ?? savedTags;
   const ids = draft?.ids ?? saved.enabledIds;
   const defaultId = draft ? draft.defaultId : saved.defaultId;
-  const dirty = draft !== null;
+  // Tags count as changed only when they differ from what is saved (ticking a purpose on and off is not a change).
+  const tagsChanged = tagDraft !== null && !sameTags(tagDraft, savedTags);
+  const dirty = draft !== null || tagsChanged;
   // An account Meta now says is disabled or closed that is still ticked: it can be unticked but not saved until it is.
   const stillTickedBlocked = adAccounts.some((a) => ids.includes(a.id) && !!metaAdAccountStatus(a.status).blocked);
   const canSave = dirty && ids.length > 0 && !!defaultId && ids.includes(defaultId) && !stillTickedBlocked;
@@ -203,7 +221,11 @@ export function MetaAdAccountPicker({
     if (!canSave || !defaultId) return;
     setSaving(true);
     try {
-      await api.patch("/v1/integrations/facebook/ad-account", { enabledIds: ids, defaultId });
+      await api.patch("/v1/integrations/facebook/ad-account", {
+        enabledIds: ids,
+        defaultId,
+        ...(tagsChanged && tagDraft ? { tags: tagsForSave(tagDraft, ids) } : {}),
+      });
       // Growth reads the enabled accounts and their campaigns from the api: refetch them now.
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["meta-ads-accounts"] }),
@@ -215,6 +237,7 @@ export function MetaAdAccountPicker({
       toast.success("Peakhour will use those ad accounts.");
       await onChanged?.();
       setDraft(null);
+      setTagDraft(null);
     } catch (err) {
       toast.error(
         err instanceof ApiError && err.code === "AD_ACCOUNT_NOT_FOUND"
@@ -244,7 +267,8 @@ export function MetaAdAccountPicker({
               const { blocked, warning } = metaAdAccountStatus(a.status);
               const ticked = ids.includes(a.id);
               return (
-                <li key={a.id} className="flex items-center gap-2 text-xs">
+                <li key={a.id} className="space-y-1 text-xs">
+                  <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
                     id={`${uid}-ad-${a.id}`}
@@ -269,6 +293,15 @@ export function MetaAdAccountPicker({
                     />
                     Default
                   </label>
+                  </div>
+                  {ticked ? (
+                    <UsedFor
+                      name={a.name || a.id}
+                      tags={tags[a.id]}
+                      disabled={saving}
+                      onChange={(next) => setTagDraft({ ...tags, [a.id]: next })}
+                    />
+                  ) : null}
                 </li>
               );
             })}
@@ -284,7 +317,15 @@ export function MetaAdAccountPicker({
               Save ad accounts
             </Button>
             {dirty && !saving ? (
-              <Button size="sm" variant="ghost" onClick={() => setDraft(null)} className="h-7 px-2 text-xs">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setDraft(null);
+                  setTagDraft(null);
+                }}
+                className="h-7 px-2 text-xs"
+              >
                 Cancel
               </Button>
             ) : null}
@@ -292,8 +333,56 @@ export function MetaAdAccountPicker({
           <p className="text-micro text-muted-foreground">
             The default is where new campaigns go unless you pick another account when you create one.
           </p>
+          <p className="text-micro text-muted-foreground">{AD_ACCOUNT_TAGS_HELP}</p>
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * "Used for" under one enabled ad account (MR-F3): the markets and purposes Peakhour may route an automated
+ * campaign to it for. (No Collections picker: no launch input carries collection ids yet, so such a tag could never match.
+ * The api keeps the support, and stored collection tags pass through a save untouched.) Empty means untagged: the default account takes what no tag claims. Saved with the panel's one Save.
+ */
+function UsedFor({
+  name,
+  tags,
+  disabled,
+  onChange,
+}: {
+  name: string;
+  tags: AdAccountTags | undefined;
+  disabled: boolean;
+  onChange: (next: AdAccountTags) => void;
+}) {
+  const markets = tags?.markets ?? [];
+  const purposes = tags?.purposes ?? [];
+  const togglePurpose = (id: AdAccountPurpose) =>
+    onChange(withTag(tags, "purposes", purposes.includes(id) ? purposes.filter((p) => p !== id) : [...purposes, id]));
+  return (
+    <fieldset className="ml-5 space-y-1.5 border-l border-border/40 pl-2" aria-label={`Used for: ${name}`} disabled={disabled}>
+      <p className="text-micro font-medium">Used for</p>
+      <div className="space-y-0.5">
+        <p className="text-micro text-muted-foreground">Markets</p>
+        <CountryPicker value={markets} labelFor={name} onChange={(next) => onChange(withTag(tags, "markets", next))} />
+      </div>
+      <div className="space-y-0.5">
+        <p className="text-micro text-muted-foreground">Purpose</p>
+        <div className="flex flex-wrap gap-1" role="group" aria-label={`Purpose: ${name}`}>
+          {AD_ACCOUNT_PURPOSES.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              aria-pressed={purposes.includes(p.id)}
+              onClick={() => togglePurpose(p.id)}
+              className="rounded-full border border-input px-2 py-0.5 text-micro aria-pressed:border-transparent aria-pressed:bg-primary aria-pressed:text-primary-foreground"
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </fieldset>
   );
 }

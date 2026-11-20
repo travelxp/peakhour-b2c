@@ -277,6 +277,21 @@ export interface DecisionView {
   title: string;
   summary: string;
   ops: DescribedOpView[];
+  /**
+   * MR-F3: for a campaign launch, which ad account it runs in and why, or (`required`) the accounts to pick from: approving
+   * without a pick is refused by the api.
+   */
+  adAccount?: {
+    required: boolean;
+    accountId?: string;
+    /** "Name (act_…1234)". */
+    label?: string;
+    /** "Matches market India", "Your default ad account". */
+    reason?: string;
+    /** "This ad account bills in USD; your plan's budget is in INR". A warning, never a block. */
+    currencyWarning?: string;
+    options?: Array<{ id: string; label: string; currency?: string }>;
+  };
   impact?: { metric: DecisionMetric; low: number; high: number; confidence: number; horizonDays: number };
   council?: {
     strategist: { model: string; text: string };
@@ -738,8 +753,10 @@ export const growthV2Api = {
     if (opts.limit) q.set("limit", String(opts.limit));
     return api.get<DecisionsResponse>(`${BASE}/decisions?${q.toString()}`);
   },
-  decide: (id: string, action: DecisionAction) =>
-    api.post<DecideResponse>(`${BASE}/decisions/${encodeURIComponent(id)}/${action}`),
+  decide: (id: string, action: DecisionAction, adAccountId?: string) => {
+    const url = `${BASE}/decisions/${encodeURIComponent(id)}/${action}`;
+    return adAccountId ? api.post<DecideResponse>(url, { adAccountId }) : api.post<DecideResponse>(url);
+  },
   /** "Check it again now": one more review of a waiting change. */
   recheckReview: (runId: string, proposalId: string) =>
     api.post<RecheckReviewResponse>(`${BASE}/decisions/waiting/${encodeURIComponent(runId)}/${encodeURIComponent(proposalId)}/recheck`),
@@ -1064,7 +1081,7 @@ export function usePatchRules() {
 export function useDecideV2() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (v: { id: string; action: DecisionAction }) => growthV2Api.decide(v.id, v.action),
+    mutationFn: (v: { id: string; action: DecisionAction; adAccountId?: string }) => growthV2Api.decide(v.id, v.action, v.adAccountId),
     // Every Growth v2 screen reads the decision queue's effects, so refetch them all.
     onSettled: () => qc.invalidateQueries({ queryKey: ["growth-v2"] }),
   });

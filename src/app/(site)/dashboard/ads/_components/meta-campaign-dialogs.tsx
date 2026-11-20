@@ -1,15 +1,14 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Pencil, Plus, X } from "lucide-react";
+import { Pencil, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +26,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { CountryPicker } from "@/components/ads/country-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   MetaLaunchError,
@@ -40,7 +40,6 @@ import {
 import { metaAdAccountOptionLabel, metaAdsErrorMessage, metaAdsNeedsReconnect, metaBudgetLabel, metaCreatesInLine, metaInLine } from "@/lib/meta-ads-view";
 import {
   EMPTY_NEW_CAMPAIGN,
-  META_COUNTRY_CODES,
   META_CREATE_OBJECTIVES,
   META_CTAS,
   META_IMAGE_TYPES,
@@ -48,7 +47,6 @@ import {
   buildCampaignEdit,
   budgetKey,
   buildCreateBodies,
-  countryName,
   fileToBase64,
   isoToDayInZone,
   metaMinorToInput,
@@ -90,65 +88,6 @@ function FieldError({ id, text }: { id: string; text?: string }) {
       {text}
     </p>
   ) : null;
-}
-
-// ── Countries ────────────────────────────────────────────────────────────
-
-function CountryPicker({
-  value,
-  onChange,
-  invalid,
-  describedBy,
-}: {
-  value: string[];
-  onChange: (next: string[]) => void;
-  invalid?: boolean;
-  describedBy?: string;
-}) {
-  const options = useMemo(
-    () => [...new Set([...META_COUNTRY_CODES, ...value])].map((code) => ({ code, name: countryName(code) })),
-    [value],
-  );
-  const addable = options.filter((o) => !value.includes(o.code));
-  return (
-    <div className="space-y-2">
-      {value.length > 0 ? (
-        <ul className="flex flex-wrap gap-1.5" aria-label="Chosen countries">
-          {value.map((code) => (
-            <li key={code}>
-              <Badge variant="secondary" className="gap-1 pr-1">
-                {countryName(code)}
-                <button
-                  type="button"
-                  className="rounded-sm p-0.5 hover:bg-background/60"
-                  aria-label={`Remove ${countryName(code)}`}
-                  onClick={() => onChange(value.filter((c) => c !== code))}
-                >
-                  <X className="size-3" />
-                </button>
-              </Badge>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {/* A plain select: one list, no search needed, and it works the same on a phone. */}
-      <select
-        aria-label="Add a country"
-        aria-invalid={invalid}
-        aria-describedby={describedBy}
-        value=""
-        onChange={(e) => e.target.value && onChange([...value, e.target.value])}
-        className="h-9 w-64 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <option value="">{value.length ? "Add another country" : "Choose a country"}</option>
-        {addable.map((o) => (
-          <option key={o.code} value={o.code}>
-            {o.name}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
 }
 
 // ── New campaign ─────────────────────────────────────────────────────────

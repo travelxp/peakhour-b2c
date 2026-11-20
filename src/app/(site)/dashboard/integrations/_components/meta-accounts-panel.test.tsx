@@ -306,6 +306,91 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
     expect(box("act_1111").disabled).toBe(false);
   });
 
+  // ── MR-F3: "Used for" tags ────────────────────────────────────────────────────────────────────────────────────────────
+  const usedFor = (name: string) => container.querySelector(`fieldset[aria-label="Used for: ${name}"]`) as HTMLFieldSetElement | null;
+  const SAVED_TWO = { enabledIds: ["act_1111", "act_2222"], defaultId: "act_1111" };
+
+  it("★only an ENABLED account has a Used for line, with Markets and Purpose, and the one helper line", () => {
+    mount({ ...EXTRA, adAccounts: TWO_ADS, metaAdAccounts: SAVED_TWO });
+    expect(usedFor("Quests Travel")).not.toBeNull();
+    expect(usedFor("CMPL")).not.toBeNull();
+    expect(usedFor("Old Ads")).toBeNull();
+    const line = usedFor("CMPL")!.textContent ?? "";
+    expect(line).toContain("Markets");
+    expect(line).not.toContain("Collections");
+    expect(line).toContain("Purpose");
+    expect(container.textContent).toContain("Peakhour uses these to choose the ad account for automated campaigns. Untagged: your default.");
+  });
+
+  it("saved tags show as chips and pressed purposes", () => {
+    mount({
+      ...EXTRA,
+      adAccounts: TWO_ADS,
+      metaAdAccounts: { ...SAVED_TWO, tags: { act_2222: { markets: ["GB"], purposes: ["conversion"] } } },
+    });
+    const line = usedFor("CMPL")!;
+    expect(line.textContent).toContain("United Kingdom");
+    expect((line.querySelector("button[aria-pressed='true']") as HTMLButtonElement).textContent).toBe("Sales");
+    expect(usedFor("Quests Travel")!.querySelectorAll("button[aria-pressed='true']")).toHaveLength(0);
+  });
+
+  it("★one Save sends the tags with the accounts; an untouched save sends none (the api keeps the stored tags)", async () => {
+    h.patch.mockResolvedValue({});
+    mount({ ...EXTRA, adAccounts: TWO_ADS, metaAdAccounts: SAVED_TWO });
+    const purpose = [...usedFor("CMPL")!.querySelectorAll("button")].find((b) => b.textContent === "Brand awareness") as HTMLButtonElement;
+    await click(purpose);
+    const select = usedFor("CMPL")!.querySelector('select[aria-label="Add a country for CMPL"]') as HTMLSelectElement;
+    await act(async () => {
+      select.value = "GB";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await click(saveButton());
+    await flush();
+    expect(h.patch).toHaveBeenCalledWith("/v1/integrations/facebook/ad-account", {
+      enabledIds: ["act_1111", "act_2222"],
+      defaultId: "act_1111",
+      tags: { act_2222: { markets: ["GB"], purposes: ["awareness"] } },
+    });
+  });
+
+  it("★no Collections picker yet (no launch input carries collections), and the store's collections are not read", async () => {
+    mount({ ...EXTRA, adAccounts: TWO_ADS, metaAdAccounts: SAVED_TWO });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20));
+    });
+    expect(usedFor("Quests Travel")!.textContent).not.toContain("Collections");
+    expect((h.getStatus.mock.calls as unknown[][]).some((c) => String(c[0]).includes("ad-account/collections"))).toBe(false);
+  });
+
+  it("★a purpose ticked on and off again is not a change: Save stays off and no tags are sent", async () => {
+    mount({ ...EXTRA, adAccounts: TWO_ADS, metaAdAccounts: SAVED_TWO });
+    const sales = () => [...usedFor("CMPL")!.querySelectorAll("button")].find((b) => b.textContent === "Sales") as HTMLButtonElement;
+    await click(sales());
+    expect(saveButton().disabled).toBe(false);
+    await click(sales());
+    expect(saveButton().disabled).toBe(true);
+  });
+
+  it("unticking an account drops its tags from the save", async () => {
+    h.patch.mockResolvedValue({});
+    mount({
+      ...EXTRA,
+      adAccounts: TWO_ADS,
+      metaAdAccounts: { ...SAVED_TWO, tags: { act_1111: { markets: ["IN"] }, act_2222: { markets: ["GB"] } } },
+    });
+    const purpose = [...usedFor("Quests Travel")!.querySelectorAll("button")].find((b) => b.textContent === "Sales") as HTMLButtonElement;
+    await click(purpose);
+    await click(box("act_2222"));
+    expect(usedFor("CMPL")).toBeNull();
+    await click(saveButton());
+    await flush();
+    expect(h.patch).toHaveBeenCalledWith("/v1/integrations/facebook/ad-account", {
+      enabledIds: ["act_1111"],
+      defaultId: "act_1111",
+      tags: { act_1111: { markets: ["IN"], purposes: ["conversion"] } },
+    });
+  });
+
   it("saved accounts show ticked with their Default marked, and no warning", () => {
     mount({ ...EXTRA, adAccounts: TWO_ADS, metaAdAccounts: { enabledIds: ["act_1111", "act_2222"], defaultId: "act_2222" } });
     expect(box("act_1111").checked).toBe(true);
