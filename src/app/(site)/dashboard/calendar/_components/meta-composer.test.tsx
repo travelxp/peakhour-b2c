@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ApiError } from "@/lib/api";
 
 const h = vi.hoisted(() => ({
   commitPlan: vi.fn(),
@@ -58,8 +59,9 @@ const { MetaComposer } = await import("./meta-composer");
 let root: Root;
 let host: HTMLDivElement;
 
+let lastClient: QueryClient;
 function mount(channel: "facebook" | "instagram" | "threads", postingTo: string | null = "Posting to Acme Bakery") {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const qc = (lastClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } }));
   act(() => {
     root.render(
       <QueryClientProvider client={qc}>
@@ -191,6 +193,46 @@ describe("MetaComposer", () => {
     expect(alert.textContent).toContain("Instagram posts require at least one image");
     expect(alert.querySelector("a")).toBeNull();
     expect(h.publishItemNow).not.toHaveBeenCalled();
+  });
+
+  it("a refusal for a missing publish permission shows the api's words and links to Connected accounts", async () => {
+    const message = "Peakhour isn't allowed to post to your Facebook Page yet. Reconnect Facebook and allow posting.";
+    h.commitPlan.mockRejectedValue(new ApiError("PUBLISH_PERMISSION_MISSING", message, 409));
+    mount("facebook");
+    type("Spring sale");
+    await click(button(/Publish now/));
+    const alert = host.querySelector('[role="alert"]')!;
+    expect(alert.textContent).toContain(message);
+    expect(alert.querySelector("a")?.getAttribute("href")).toBe("/dashboard/integrations");
+    // nothing was created, so no calendar link beside it
+    expect(alert.textContent).not.toContain("Open the calendar");
+    expect(h.publishItemNow).not.toHaveBeenCalled();
+  });
+
+  it("another refusal does not send the merchant to Connected accounts", async () => {
+    h.commitPlan.mockRejectedValue(new ApiError("PAYLOAD_REFUSED", "facebook: too long", 400));
+    mount("facebook");
+    type("Spring sale");
+    await click(button(/Publish now/));
+    expect(host.querySelector('[role="alert"] a')).toBeNull();
+  });
+
+  it("a published Facebook post refreshes the hub's post list, so it shows with no hard reload", async () => {
+    h.listItems.mockResolvedValue({ items: [{ _id: "item1", externalUrl: "https://facebook.com/1", attempts: [] }] });
+    mount("facebook");
+    const spy = vi.spyOn(lastClient, "invalidateQueries");
+    type("Spring sale");
+    await click(button(/Publish now/));
+    expect(spy.mock.calls.map((c) => (c[0] as { queryKey: unknown[] }).queryKey)).toContainEqual(["meta-content", "facebook", "posts"]);
+  });
+
+  it("a failed attempt does not refresh the hub (nothing was posted)", async () => {
+    h.publishItemNow.mockResolvedValue({ itemId: "item1", outcome: "permanent_error", published: false });
+    mount("facebook");
+    const spy = vi.spyOn(lastClient, "invalidateQueries");
+    type("Spring sale");
+    await click(button(/Publish now/));
+    expect(spy.mock.calls.map((c) => (c[0] as { queryKey: unknown[] }).queryKey)).not.toContainEqual(["meta-content", "facebook", "posts"]);
   });
 
   it("never posts twice: after a failed attempt the screen locks to that item and offers no second send", async () => {
