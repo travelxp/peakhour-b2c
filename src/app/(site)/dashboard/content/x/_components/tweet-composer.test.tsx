@@ -11,13 +11,13 @@ import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { XPostQuote, XPostingStatus } from "@/lib/x-posting";
 
-const h = vi.hoisted(() => ({ get: vi.fn(), put: vi.fn(), post: vi.fn(), quote: vi.fn() }));
+const h = vi.hoisted(() => ({ get: vi.fn(), put: vi.fn(), post: vi.fn(), quote: vi.fn(), publish: vi.fn(), channels: vi.fn(), pick: { current: null as null | ((a: { id: string; url: string; mime: string; name?: string }[]) => void) } }));
 vi.mock("@/lib/api", () => ({
   api: { get: h.get, put: h.put, post: h.post },
   ApiError: class ApiError extends Error {},
   API_BASE_URL: "https://api.example",
 }));
-vi.mock("@/lib/api/x", () => ({ xApi: { quote: h.quote, publish: vi.fn() }, extractTweetId: () => undefined }));
+vi.mock("@/lib/api/x", () => ({ xApi: { quote: h.quote, publish: h.publish }, extractTweetId: () => undefined }));
 vi.mock("@/lib/api/content", () => ({
   rewriteContent: vi.fn(),
   createDraft: vi.fn(),
@@ -25,7 +25,20 @@ vi.mock("@/lib/api/content", () => ({
   getVoiceCards: vi.fn(async () => []),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock("@/components/scheduler/scheduler-composer", () => ({ SchedulerComposer: () => null }));
+vi.mock("@/components/scheduler/scheduler-composer", () => ({
+  SchedulerComposer: (p: { channels: unknown }) => {
+    h.channels(p.channels);
+    return null;
+  },
+}));
+// the picker and its drop/paste are the picker module's own (its tests); here the composer only has to be given a way to attach pictures
+vi.mock("@/components/drive/drive-picker", () => ({
+  DrivePicker: ({ onSelect }: { onSelect: (a: { id: string; url: string; mime: string; name?: string }[]) => void }) => {
+    h.pick.current = onSelect;
+    return <button type="button">Drive</button>;
+  },
+  useDropPaste: () => ({ ref: () => undefined, busy: false, dragging: false }),
+}));
 vi.mock("@/components/composer", () => ({
   AiComposeToolbar: () => null,
   ComposerCommandPalette: () => null,
@@ -35,8 +48,9 @@ vi.mock("@/components/composer", () => ({
   PlatformCharCounter: () => null,
   useDraftSaver: () => ({ status: "idle", lastSavedAt: null, lastError: null, saveNow: vi.fn() }),
   // the real shell lays these slots out; here they are simply rendered, so the composer's own buttons and notices are what is tested
-  ComposerShell: (p: { toolbarSlot?: ReactNode; actionsSlot?: ReactNode; footerSlot?: ReactNode; children?: ReactNode }) => (
+  ComposerShell: (p: { toolbarSlot?: ReactNode; actionsSlot?: ReactNode; footerSlot?: ReactNode; children?: ReactNode; scheduleView?: { scheduler: ReactNode } }) => (
     <div>
+      {p.scheduleView?.scheduler}
       {p.children}
       {p.toolbarSlot}
       {p.actionsSlot}
@@ -65,7 +79,7 @@ afterEach(() => {
   host.remove();
   document.body.innerHTML = "";
   vi.useRealTimers();
-  Object.values(h).forEach((m) => m.mockReset());
+  Object.values(h).forEach((m) => typeof m === "function" && m.mockReset());
 });
 
 async function mount() {
@@ -191,5 +205,80 @@ describe("the X composer's send gate", () => {
     });
     await flush();
     expect(h.put).toHaveBeenCalledWith("/v1/x/content/posting/links", { enabled: true });
+  });
+});
+
+describe("pictures on an X post", () => {
+  const pic = (n: number) => ({ id: `m${n}`, url: `https://media.example/${n}.png`, mime: "image/png", name: `${n}.png` });
+  const attach = async (...n: number[]) => {
+    await act(async () => h.pick.current!(n.map(pic)));
+  };
+  it("Publish sends the picture links on the first post only", async () => {
+    h.quote.mockResolvedValue(allowed(20));
+    h.publish.mockResolvedValue({ id: "t1", text: "x" });
+    await mount();
+    await type("hello");
+    await attach(1, 2);
+    expect(host.querySelectorAll('[aria-label="Attached media"] li')).toHaveLength(2);
+    await act(async () => publish().click());
+    await flush();
+    expect(h.publish).toHaveBeenCalledTimes(1);
+    expect(h.publish.mock.calls[0]![0]).toEqual({ text: "hello", mediaUrls: ["https://media.example/1.png", "https://media.example/2.png"] });
+  });
+  it("the same picture added twice is on the post once, and removing it takes it off", async () => {
+    h.quote.mockResolvedValue(allowed(20));
+    h.publish.mockResolvedValue({ id: "t1", text: "x" });
+    await mount();
+    await type("hello");
+    await attach(1);
+    await attach(1);
+    expect(host.querySelectorAll('[aria-label="Attached media"] li')).toHaveLength(1);
+    await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Remove 1.png"]')!.click());
+    expect(host.querySelector('[aria-label="Attached media"]')).toBeNull();
+    await act(async () => publish().click());
+    await flush();
+    expect(h.publish.mock.calls[0]![0]).toEqual({ text: "hello" });
+  });
+  it("Schedule carries the picture links in the payload", async () => {
+    h.quote.mockResolvedValue(allowed(20));
+    await mount();
+    await type("hello");
+    await attach(1);
+    await act(async () => schedule().click());
+    expect(h.channels).toHaveBeenCalledWith([{ channel: "x", payload: { text: "hello", mediaUrls: ["https://media.example/1.png"] } }]);
+  });
+  it("a thread: the pictures ride on the first tweet only, and the later tweets are plain", async () => {
+    h.quote.mockResolvedValue(allowed(40));
+    h.publish.mockResolvedValue({ id: "t1", text: "x" });
+    await mount();
+    await type("first");
+    await attach(1);
+    await act(async () => btn(/Add tweet/)!.click());
+    const tas = host.querySelectorAll("textarea");
+    await act(async () => {
+      const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!;
+      set.call(tas[tas.length - 1], "second");
+      tas[tas.length - 1]!.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await flush(500);
+    await flush();
+    await flush();
+    await act(async () => publish().click());
+    await flush();
+    await flush();
+    expect(h.publish).toHaveBeenCalledTimes(2);
+    expect(h.publish.mock.calls[0]![0]).toMatchObject({ text: "first", mediaUrls: ["https://media.example/1.png"] });
+    expect(h.publish.mock.calls[1]![0]).not.toHaveProperty("mediaUrls");
+  });
+  it("after Publish the pictures are cleared", async () => {
+    h.quote.mockResolvedValue(allowed(20));
+    h.publish.mockResolvedValue({ id: "t1", text: "x" });
+    await mount();
+    await type("hello");
+    await attach(1);
+    await act(async () => publish().click());
+    await flush();
+    await flush();
+    expect(host.querySelector('[aria-label="Attached media"]')).toBeNull();
   });
 });

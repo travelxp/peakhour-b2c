@@ -18,7 +18,8 @@ export interface PublishTweetInput {
   text: string;
   replyToTweetId?: string;
   quoteTweetId?: string;
-  mediaIds?: string[];
+  /** Public links of the pictures (Drive). The api uploads them to X and attaches them to this post. */
+  mediaUrls?: string[];
   /** Label the post as a paid promotion on X. */
   paidPartnership?: boolean;
 }

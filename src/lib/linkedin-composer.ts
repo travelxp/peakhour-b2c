@@ -153,6 +153,17 @@ export interface PollInputDraft {
   duration: LinkedInPollInput["duration"];
 }
 
+/**
+ * A LinkedIn post carries pictures OR a link card OR a poll, never two. What the composer offers, given what is on the post: pictures
+ * only while there is no link and no poll; a link only while there are no pictures and no poll. (The file rules are the picker's.)
+ */
+export function postAttachments(i: { showLink: boolean; pollActive: boolean; pictureCount: number }): { canAddPictures: boolean; canAddLink: boolean } {
+  return {
+    canAddPictures: !i.showLink && !i.pollActive,
+    canAddLink: !i.showLink && !i.pollActive && i.pictureCount === 0,
+  };
+}
+
 export interface PublishBodyInput {
   authorKey: string;
   visibility: LinkedInVisibility;
@@ -164,6 +175,8 @@ export interface PublishBodyInput {
   showLink: boolean;
   linkUrl: string;
   linkTitle: string;
+  /** Drive file ids of the pictures on the post. Ignored for a poll (a poll is exclusive). */
+  mediaIds?: string[];
 }
 
 /** The body the publish route receives. */
@@ -192,11 +205,15 @@ export function buildPublishBody(i: PublishBodyInput): PublishLinkedInPostInput 
       options: i.poll.options.map((o) => o.text.trim()).filter((o) => o.length > 0),
       duration: i.poll.duration,
     };
-  } else if (i.showLink && i.linkUrl.trim()) {
-    body.link = {
-      url: i.linkUrl.trim(),
-      title: i.linkTitle.trim() || undefined,
-    };
+  } else {
+    if (i.showLink && i.linkUrl.trim()) {
+      body.link = {
+        url: i.linkUrl.trim(),
+        title: i.linkTitle.trim() || undefined,
+      };
+    }
+    // Sent beside a link too, never dropped: the api says in words that a post takes one or the other (the composer keeps them apart).
+    if (i.mediaIds && i.mediaIds.length > 0) body.mediaIds = i.mediaIds;
   }
   return body;
 }
@@ -210,6 +227,8 @@ export interface ScheduleChannelInput {
   linkUrl: string;
   linkTitle: string;
   text: string;
+  /** Public links of the pictures on the post. */
+  mediaUrls?: string[];
 }
 
 /**
@@ -238,7 +257,7 @@ export function buildScheduleChannels(i: ScheduleChannelInput) {
   return [
     {
       channel: "linkedin",
-      payload: { text: i.text.trim(), channelOptions },
+      payload: { text: i.text.trim(), ...(i.mediaUrls && i.mediaUrls.length > 0 ? { mediaUrls: i.mediaUrls } : {}), channelOptions },
     },
   ];
 }
