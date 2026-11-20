@@ -5,9 +5,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { api, ApiError } from "@/lib/api";
-import { adAccountFormat, listedAdAccounts, savedAdAccounts, type AdAccountFormat, type AdAccountRow } from "@/lib/ad-account-choice";
-import { CHOOSE_AD_ACCOUNTS as CHOOSE_AD_ACCOUNT } from "@/lib/ad-account-copy";
+import { api } from "@/lib/api";
+import { AD_ACCOUNT_SAVE_CODES, adAccountFormat, savedAdAccounts, type AdAccountFormat, type AdAccountRow } from "@/lib/ad-account-choice";
+import { adsErrorMessage } from "@/lib/ads-error-message";
+import { CHOOSE_AD_ACCOUNTS } from "@/lib/ad-account-copy";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { CountryPicker } from "@/components/ads/country-picker";
@@ -31,23 +32,27 @@ import {
  * ★SAVED WITH A BUTTON, NOT ON EACH TICK: a business picks its set and its default together, and the api refuses a
  * default that is not ticked. An account the platform marks disabled or closed is shown and cannot be ticked.
  */
-export function AdAccountChoice({
-  provider,
-  extra,
-  onChanged,
-}: {
+interface AdAccountChoiceProps {
   /** The api provider name the choice is saved under (`PATCH /v1/integrations/:provider/ad-accounts`). */
   provider: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   extra: Record<string, any>;
   onChanged?: () => void | Promise<unknown>;
-}) {
+}
+
+export function AdAccountChoice(props: AdAccountChoiceProps) {
+  const format = adAccountFormat(props.provider);
+  // A provider with no format row has no choice to make yet (the api has no listing row either): show nothing rather than
+  // claim the login has no ad accounts.
+  return format ? <AdAccountChoiceFor {...props} format={format} /> : null;
+}
+
+function AdAccountChoiceFor({ provider, extra, onChanged, format }: AdAccountChoiceProps & { format: AdAccountFormat }) {
   const queryClient = useQueryClient();
   // Unique per instance, so two pickers on one page never share an id or a radio group.
   const uid = useId();
-  const format = adAccountFormat(provider);
   // Read once per change of the inputs, not on every keystroke in a tag picker.
-  const adAccounts: AdAccountRow[] = useMemo(() => (format ? listedAdAccounts(extra) : []), [format, extra]);
+  const adAccounts: AdAccountRow[] = useMemo(() => format.list(extra), [format, extra]);
   const saved = useMemo(() => savedAdAccounts(provider, extra), [provider, extra]);
   // The edit in progress; null shows what is saved (and follows the list behind `extra` when it reloads).
   const [draft, setDraft] = useState<{ ids: string[]; defaultId?: string } | null>(null);
@@ -62,7 +67,7 @@ export function AdAccountChoice({
   const tagsChanged = tagDraft !== null && !sameTags(tagDraft, savedTags);
   const dirty = draft !== null || tagsChanged;
   // An account the platform now says is disabled or closed that is still ticked: it can be unticked but not saved until it is.
-  const stillTickedBlocked = adAccounts.some((a) => ids.includes(a.id) && !!format?.health(a).blocked);
+  const stillTickedBlocked = adAccounts.some((a) => ids.includes(a.id) && !!format.health(a).blocked);
   const canSave = dirty && ids.length > 0 && !!defaultId && ids.includes(defaultId) && !stillTickedBlocked;
 
   function toggle(id: string) {
@@ -82,31 +87,19 @@ export function AdAccountChoice({
         ...(tagsChanged && tagDraft ? { tags: tagsForSave(tagDraft, ids) } : {}),
       });
       // The channel's own readers of the enabled accounts (its format row), and the integrations list: refetch them now.
-      await Promise.all([
-        ...(format?.invalidateKeys ?? []).map((queryKey) => queryClient.invalidateQueries({ queryKey: [...queryKey] })),
-        queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] }),
-      ]);
+      await Promise.all([format.refresh(queryClient), queryClient.invalidateQueries({ queryKey: ["content-hub-integrations"] })]);
       toast.success("Peakhour will use those ad accounts.");
       await onChanged?.();
       setDraft(null);
       setTagDraft(null);
     } catch (err) {
-      toast.error(
-        err instanceof ApiError && err.code === "AD_ACCOUNT_NOT_FOUND"
-          ? `One of those ad accounts is no longer on your ${format?.platformName ?? "ad"} login. Refresh and try again.`
-          : err instanceof ApiError && (err.code === "AD_ACCOUNT_DISABLED" || err.code === "AD_ACCOUNTS_NOT_SAVED" || err.code === "NOT_CONNECTED")
-            ? // The api's own sentence: what fixes these is a refresh, a reconnect or an untick, not trying again.
-              err.message
-            : "Couldn't save the ad accounts. Try again in a moment.",
-      );
+      // The api's own sentence for a refusal the merchant can act on (a refresh or an untick); anything else is the fallback,
+      // with the request reference when there is one (the one rule every ads panel uses).
+      toast.error(adsErrorMessage(err, "Couldn't save the ad accounts. Try again in a moment.", AD_ACCOUNT_SAVE_CODES));
     } finally {
       setSaving(false);
     }
   }
-
-  // A provider with no format row has no choice to make yet (the api has no listing row either): show nothing rather than
-  // claim the login has no ad accounts.
-  if (!format) return null;
 
   return (
     <div className="space-y-1" aria-label="Ad accounts">
@@ -124,7 +117,7 @@ export function AdAccountChoice({
         <>
           <ul className="space-y-2">
             {adAccounts.map((a) => {
-              const { blocked } = format?.health(a) ?? {};
+              const { blocked } = format.health(a);
               const ticked = ids.includes(a.id);
               // ONE expression drives the radio and the pill, so what is announced is what is shown.
               const isDefault = ticked && defaultId === a.id;
@@ -186,7 +179,7 @@ export function AdAccountChoice({
           </ul>
           {ids.length === 0 ? (
             <p role="status" className="text-micro text-warning-on-tint">
-              {CHOOSE_AD_ACCOUNT}
+              {CHOOSE_AD_ACCOUNTS}
             </p>
           ) : null}
           <div className="flex items-center gap-1.5">
@@ -222,20 +215,20 @@ export function AdAccountChoice({
  * One ad account as a merchant reads it: the name in full on its own line (wrapping, never cut off), then the full account
  * number as the platform shows it, and the billing currency.
  */
-function AdAccountIdentity({ account, format }: { account: AdAccountRow; format: AdAccountFormat | undefined }) {
+function AdAccountIdentity({ account, format }: { account: AdAccountRow; format: AdAccountFormat }) {
   return (
     <span className="block min-w-0">
       <span className="block break-words text-sm font-medium leading-snug text-foreground">{account.name || "Ad account"}</span>
       {/* A separator for anything that reads the label as one string (a screen reader's accessible name). */}
       <span className="sr-only">, </span>
-      <span className="mt-0.5 block break-words font-mono text-xs tabular-nums text-muted-foreground">{format?.idLine(account) ?? account.id}</span>
+      <span className="mt-0.5 block break-words font-mono text-xs tabular-nums text-muted-foreground">{format.idLine(account)}</span>
     </span>
   );
 }
 
 /** The platform's word for an account that is not simply active, as a badge under its identity; nothing when it is active. */
-function AdAccountStatusBadge({ account, format, ticked }: { account: AdAccountRow; format: AdAccountFormat | undefined; ticked: boolean }) {
-  const { blocked, warning } = format?.health(account) ?? {};
+function AdAccountStatusBadge({ account, format, ticked }: { account: AdAccountRow; format: AdAccountFormat; ticked: boolean }) {
+  const { blocked, warning } = format.health(account);
   if (!blocked && !warning) return null;
   return (
     <span
@@ -245,7 +238,7 @@ function AdAccountStatusBadge({ account, format, ticked }: { account: AdAccountR
       )}
     >
       <span className="sr-only">, </span>
-      {blocked ? `${blocked.charAt(0).toUpperCase() + blocked.slice(1)} on ${format?.platformName ?? "the platform"}${ticked ? ", untick to save" : ""}` : warning!.charAt(0).toUpperCase() + warning!.slice(1)}
+      {blocked ? `${blocked.charAt(0).toUpperCase() + blocked.slice(1)} on ${format.platformName}${ticked ? ", untick to save" : ""}` : warning!.charAt(0).toUpperCase() + warning!.slice(1)}
     </span>
   );
 }

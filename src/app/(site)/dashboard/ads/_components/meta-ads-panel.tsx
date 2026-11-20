@@ -1,5 +1,6 @@
 "use client";
 
+import { CHOOSE_AD_ACCOUNTS } from "@/lib/ad-account-copy";
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -49,7 +50,6 @@ import {
   metaKpiText,
   metaFigureText,
   metaInsightsIds,
-  META_CHOOSE_AD_ACCOUNT,
   metaAdAccountBareId,
   metaAdAccountOptionLabel,
   metaAdAccountShortId,
@@ -263,7 +263,7 @@ function ConnectedView() {
       <EmptyState
         icon={Megaphone}
         title="Choose your ad accounts"
-        description={`${META_CHOOSE_AD_ACCOUNT} Your Meta login reaches more than one.`}
+        description={`${CHOOSE_AD_ACCOUNTS} Your Meta login reaches more than one.`}
         action={{ label: "Choose ad accounts", href: "/dashboard/integrations" }}
       />
     );

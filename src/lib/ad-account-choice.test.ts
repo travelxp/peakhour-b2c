@@ -57,7 +57,7 @@ describe("a provider's formatter", () => {
     expect(f.health({ id: "act_1", status: 9 })).toEqual({ warning: "grace period" });
     expect(adAccountFormat("linkedin_ads")).toBeUndefined();
   });
-  it("a provider with no formatter compares ids as written", () => {
-    expect(savedAdAccounts("linkedin_ads", { adAccounts: [A, B], adAccountChoice: caps(["act_2222"], "act_2222") })).toEqual({ enabledIds: ["act_2222"], defaultId: "act_2222" });
+  it("a provider with no formatter has no choice (its format row owns where its accounts are listed)", () => {
+    expect(savedAdAccounts("linkedin_ads", { adAccounts: [A, B], adAccountChoice: caps(["act_2222"], "act_2222") })).toEqual({ enabledIds: [] });
   });
 });

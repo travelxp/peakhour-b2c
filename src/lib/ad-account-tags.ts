@@ -1,4 +1,4 @@
-import { bareIdFor, listedAdAccounts } from "./ad-account-choice";
+import { adAccountFormat, bareIdFor } from "./ad-account-choice";
 
 /**
  * MR-F3 - routing tags on a business's ad accounts, as the dashboard reads and writes them (provider-neutral since MR-G0).
@@ -64,7 +64,7 @@ export function savedAdAccountTags(provider: string, extra: Record<string, any> 
   const bare = bareIdFor(provider);
   const stored = extra?.adAccountChoice?.tags;
   if (!stored || typeof stored !== "object") return {};
-  const listed = listedAdAccounts(extra);
+  const listed = (adAccountFormat(provider)?.list(extra) ?? []);
   const out: AdAccountTagMap = {};
   for (const [key, value] of Object.entries(
     stored as Record<string, unknown>,

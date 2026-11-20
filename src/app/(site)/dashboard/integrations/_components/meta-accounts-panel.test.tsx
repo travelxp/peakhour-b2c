@@ -444,24 +444,26 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
       enabledIds: ["act_1111", "act_2222"],
       defaultId: "act_2222",
     });
-    expect(spy.mock.calls.map((c) => (c[0] as { queryKey: string[] }).queryKey[0]).sort()).toEqual([
+    // the Growth signal step's Meta accounts are refetched by a predicate (see C6), the rest by key
+    expect(spy.mock.calls.map((c) => (c[0] as { queryKey?: string[] }).queryKey?.[0] ?? "predicate").sort()).toEqual([
       "content-hub-integrations",
-      "growth-v2",
       "meta-ads-accounts",
       "meta-ads-campaigns",
+      "predicate",
     ]);
     expect(onChanged).toHaveBeenCalled();
     expect(h.success).toHaveBeenCalled();
   });
 
   it("a refusal says so in plain words, refetches nothing, and keeps the edit for another try", async () => {
-    h.patch.mockRejectedValue(new ApiError("AD_ACCOUNT_NOT_FOUND", "x", 400));
+    h.patch.mockRejectedValue(new ApiError("AD_ACCOUNT_NOT_FOUND", "One of those ad accounts is not one Meta listed for this connection. Refresh your accounts and try again.", 400));
     const spy = vi.spyOn(client, "invalidateQueries");
     mount({ ...EXTRA, adAccounts: TWO_ADS });
     await click(box("act_1111"));
     await click(saveButton());
     await flush();
-    expect(h.error.mock.calls[0]![0]).toContain("no longer on your Meta login");
+    // the api's own sentence: its next step is a refresh
+    expect(h.error.mock.calls[0]![0]).toBe("One of those ad accounts is not one Meta listed for this connection. Refresh your accounts and try again.");
     expect(spy).not.toHaveBeenCalled();
     expect(box("act_1111").checked).toBe(true);
   });
@@ -493,7 +495,10 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
     await click(box("act_1111"));
     await click(saveButton());
     await flush();
-    expect(spy.mock.calls.map((c) => JSON.stringify((c[0] as { queryKey: string[] }).queryKey))).toContain(JSON.stringify(["growth-v2", "signal"]));
+    // only the signal step's META accounts, never every signal query (Google's included)
+    const predicate = spy.mock.calls.map((c) => (c[0] as { predicate?: (q: { queryKey: unknown[] }) => boolean }).predicate).find(Boolean)!;
+    expect(predicate({ queryKey: ["growth-v2", "signal", "org:biz", "meta-accounts"] })).toBe(true);
+    expect(predicate({ queryKey: ["growth-v2", "signal", "org:biz", "google-accounts"] })).toBe(false);
   });
 
   it("no ad accounts: says so; one account is a plain line with no checklist", () => {

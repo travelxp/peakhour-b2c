@@ -64,8 +64,7 @@ const saveButton = () => [...container.querySelectorAll("button")].find((b) => b
 describe("AdAccountChoice", () => {
   it("a provider with no format row renders nothing, even when the login lists accounts", () => {
     mount("linkedin_ads", { adAccounts: TWO });
-    expect(container.textContent).toBe("");
-    expect(container.textContent).not.toContain("No ad accounts found.");
+    expect(container.innerHTML).toBe("");
   });
 
   it("saves to the provider's own route and refetches that provider's queries", async () => {
@@ -77,8 +76,21 @@ describe("AdAccountChoice", () => {
     await act(async () => saveButton().click());
     await flush();
     expect(h.patch.mock.calls[0]![0]).toBe("/v1/integrations/facebook/ad-accounts");
-    const keys = spy.mock.calls.map((c) => JSON.stringify((c[0] as { queryKey: unknown }).queryKey));
-    expect(keys).toEqual(expect.arrayContaining(['["meta-ads-accounts"]', '["meta-ads-campaigns"]', '["growth-v2","signal"]', '["content-hub-integrations"]']));
+    // exactly the channel's own readers and the integrations list: no blanket refetch
+    const keys = spy.mock.calls.map((c) => JSON.stringify((c[0] as { queryKey?: unknown }).queryKey ?? "predicate")).sort();
+    expect(keys).toEqual(['"predicate"', '["content-hub-integrations"]', '["meta-ads-accounts"]', '["meta-ads-campaigns"]']);
+  });
+
+  it("an unknown failure keeps the generic words with the request reference; NOT_CONNECTED is not passed through", async () => {
+    const err = new ApiError("NOT_CONNECTED", "Meta Ads is not connected", 404) as InstanceType<typeof ApiError> & { requestId?: string };
+    err.requestId = "req-42";
+    h.patch.mockRejectedValue(err);
+    mount("facebook", { adAccounts: TWO, adAccountChoice: { enabledIds: ["act_1111"], defaultId: "act_1111" } });
+    const box = container.querySelector<HTMLInputElement>('input[type="checkbox"]:not(:checked)')!;
+    await act(async () => box.click());
+    await act(async () => saveButton().click());
+    await flush();
+    expect(h.error).toHaveBeenCalledWith("Couldn't save the ad accounts. Try again in a moment. (reference req-42)");
   });
 
   it("a save the api could not write says the api's sentence (a refresh fixes it, not a retry)", async () => {
