@@ -1,19 +1,19 @@
 /**
- * Auth-cookie name namespacing — mirrors peakhour-api's `jwt.ts` cookieNs().
+ * Auth-cookie name namespacing; mirrors peakhour-api `jwt.ts` cookieNs().
  *
- * dev and prod both store the b2c session cookies on the shared
- * `.peakhour.ai` parent domain, so without a namespace they share one
- * cookie slot and collide in a browser that has visited both. The API
- * stamps an optional `AUTH_COOKIE_NS` prefix onto the names; the
- * coming-soon middleware's soft-session check must derive the SAME name.
- * The value MUST match peakhour-api (and peakhour-cms) for the
- * environment — unset/empty everywhere → bare names (production).
+ * dev and prod both store b2c session cookies on the shared `.peakhour.ai` parent domain, so without a
+ * namespace they share one cookie slot and a browser signed in to both bounces between them.
  *
- * Pure (process.env + string ops), so it is safe to import into the Edge
- * middleware, which already reads other process.env values at runtime.
+ * The rule, the same in peakhour-api, peakhour-cms and peakhour-b2c (they must agree, or one app writes a
+ * cookie the others never read): every dev deployment, master and PR previews alike, runs with
+ * VERCEL_ENV="preview" and gets a `dev_` prefix; production and local runs keep the bare names.
+ * VERCEL_ENV is set by Vercel on every deployment, so there is no setting to forget.
+ *
+ * Pure (process.env + string ops), so it is safe to import into the Edge middleware; Vercel exposes
+ * VERCEL_ENV there too.
  */
 function cookieNs(): string {
-  return (process.env.AUTH_COOKIE_NS || "").trim();
+  return process.env.VERCEL_ENV === "preview" ? "dev" : "";
 }
 
 function nsCookie(base: string): string {
