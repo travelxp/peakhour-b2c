@@ -51,7 +51,8 @@ const TWO_ADS = [
   { id: "act_3333", name: "Old Ads", currency: "USD", status: 2 },
 ];
 
-const { MetaAccountsPanel, MetaAdAccountPicker, instagramLine } = await import("./meta-accounts-panel");
+const { MetaAccountsPanel, instagramLine } = await import("./meta-accounts-panel");
+const { AdAccountChoice } = await import("@/components/ads/ad-account-choice");
 const { ApiError } = await import("@/lib/api");
 
 const EXTRA = {
@@ -245,7 +246,7 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
     mount({
       ...EXTRA,
       adAccounts: [TWO_ADS[0], TWO_ADS[1], { id: "act_4444", name: "Gone", currency: "USD", status: 2 }],
-      metaAdAccounts: { enabledIds: ["act_1111", "act_4444"], defaultId: "act_1111" },
+      adAccountChoice: { enabledIds: ["act_1111", "act_4444"], defaultId: "act_1111" },
     });
     expect(box("act_4444").checked).toBe(true);
     expect(box("act_4444").disabled).toBe(false);
@@ -257,7 +258,7 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
     expect(saveButton().disabled).toBe(false);
     await click(saveButton());
     await flush();
-    expect(h.patch).toHaveBeenCalledWith("/v1/integrations/facebook/ad-account", { enabledIds: ["act_1111", "act_2222"], defaultId: "act_1111" });
+    expect(h.patch).toHaveBeenCalledWith("/v1/integrations/facebook/ad-accounts", { enabledIds: ["act_1111", "act_2222"], defaultId: "act_1111" });
   });
 
   it("★payment issue, under review and grace period stay tickable, with the word on the line", () => {
@@ -279,8 +280,8 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
     act(() => {
       root.render(
         <QueryClientProvider client={client}>
-          <MetaAdAccountPicker extra={{ ...EXTRA, adAccounts: TWO_ADS }} />
-          <MetaAdAccountPicker extra={{ ...EXTRA, adAccounts: TWO_ADS }} />
+          <AdAccountChoice provider="facebook" extra={{ ...EXTRA, adAccounts: TWO_ADS }} />
+          <AdAccountChoice provider="facebook" extra={{ ...EXTRA, adAccounts: TWO_ADS }} />
         </QueryClientProvider>,
       );
     });
@@ -302,12 +303,12 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
   });
 
   it("one saved account that Meta now flags still shows its status", () => {
-    mount({ ...EXTRA, adAccounts: [{ id: "act_9", name: "Acme Ads", currency: "INR", status: 3 }], metaAdAccounts: { enabledIds: ["act_9"], defaultId: "act_9" } });
+    mount({ ...EXTRA, adAccounts: [{ id: "act_9", name: "Acme Ads", currency: "INR", status: 3 }], adAccountChoice: { enabledIds: ["act_9"], defaultId: "act_9" } });
     expect(container.querySelector('[aria-label="Ad accounts"]')!.textContent).toContain("Acme Ads, Account ID 9 · INR, Payment issue");
   });
 
   it("the default pill reads what it does, and an unticked account is never shown or announced as the default", () => {
-    mount({ ...EXTRA, adAccounts: TWO_ADS, metaAdAccounts: { enabledIds: ["act_1111"], defaultId: "act_2222" } });
+    mount({ ...EXTRA, adAccounts: TWO_ADS, adAccountChoice: { enabledIds: ["act_1111"], defaultId: "act_2222" } });
     expect(radio("CMPL").checked).toBe(false);
     expect(radio("CMPL").closest("label")!.textContent).toBe("Make default for CMPL");
   });
@@ -325,7 +326,7 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
   const SAVED_TWO = { enabledIds: ["act_1111", "act_2222"], defaultId: "act_1111" };
 
   it("★only an ENABLED account has a Used for line, with Markets and Purpose, and the one helper line", () => {
-    mount({ ...EXTRA, adAccounts: TWO_ADS, metaAdAccounts: SAVED_TWO });
+    mount({ ...EXTRA, adAccounts: TWO_ADS, adAccountChoice: SAVED_TWO });
     expect(usedFor("Quests Travel")).not.toBeNull();
     expect(usedFor("CMPL")).not.toBeNull();
     expect(usedFor("Old Ads")).toBeNull();
@@ -340,7 +341,7 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
     mount({
       ...EXTRA,
       adAccounts: TWO_ADS,
-      metaAdAccounts: { ...SAVED_TWO, tags: { act_2222: { markets: ["GB"], purposes: ["conversion"] } } },
+      adAccountChoice: { ...SAVED_TWO, tags: { act_2222: { markets: ["GB"], purposes: ["conversion"] } } },
     });
     const line = usedFor("CMPL")!;
     expect(line.textContent).toContain("United Kingdom");
@@ -350,7 +351,7 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
 
   it("★one Save sends the tags with the accounts; an untouched save sends none (the api keeps the stored tags)", async () => {
     h.patch.mockResolvedValue({});
-    mount({ ...EXTRA, adAccounts: TWO_ADS, metaAdAccounts: SAVED_TWO });
+    mount({ ...EXTRA, adAccounts: TWO_ADS, adAccountChoice: SAVED_TWO });
     const purpose = [...usedFor("CMPL")!.querySelectorAll("button")].find((b) => b.textContent === "Brand awareness") as HTMLButtonElement;
     await click(purpose);
     const select = usedFor("CMPL")!.querySelector('select[aria-label="Add a country for CMPL"]') as HTMLSelectElement;
@@ -360,7 +361,7 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
     });
     await click(saveButton());
     await flush();
-    expect(h.patch).toHaveBeenCalledWith("/v1/integrations/facebook/ad-account", {
+    expect(h.patch).toHaveBeenCalledWith("/v1/integrations/facebook/ad-accounts", {
       enabledIds: ["act_1111", "act_2222"],
       defaultId: "act_1111",
       tags: { act_2222: { markets: ["GB"], purposes: ["awareness"] } },
@@ -368,7 +369,7 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
   });
 
   it("★no Collections picker yet (no launch input carries collections), and the store's collections are not read", async () => {
-    mount({ ...EXTRA, adAccounts: TWO_ADS, metaAdAccounts: SAVED_TWO });
+    mount({ ...EXTRA, adAccounts: TWO_ADS, adAccountChoice: SAVED_TWO });
     await act(async () => {
       await new Promise((r) => setTimeout(r, 20));
     });
@@ -377,7 +378,7 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
   });
 
   it("★a purpose ticked on and off again is not a change: Save stays off and no tags are sent", async () => {
-    mount({ ...EXTRA, adAccounts: TWO_ADS, metaAdAccounts: SAVED_TWO });
+    mount({ ...EXTRA, adAccounts: TWO_ADS, adAccountChoice: SAVED_TWO });
     const sales = () => [...usedFor("CMPL")!.querySelectorAll("button")].find((b) => b.textContent === "Sales") as HTMLButtonElement;
     await click(sales());
     expect(saveButton().disabled).toBe(false);
@@ -390,7 +391,7 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
     mount({
       ...EXTRA,
       adAccounts: TWO_ADS,
-      metaAdAccounts: { ...SAVED_TWO, tags: { act_1111: { markets: ["IN"] }, act_2222: { markets: ["GB"] } } },
+      adAccountChoice: { ...SAVED_TWO, tags: { act_1111: { markets: ["IN"] }, act_2222: { markets: ["GB"] } } },
     });
     const purpose = [...usedFor("Quests Travel")!.querySelectorAll("button")].find((b) => b.textContent === "Sales") as HTMLButtonElement;
     await click(purpose);
@@ -398,7 +399,7 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
     expect(usedFor("CMPL")).toBeNull();
     await click(saveButton());
     await flush();
-    expect(h.patch).toHaveBeenCalledWith("/v1/integrations/facebook/ad-account", {
+    expect(h.patch).toHaveBeenCalledWith("/v1/integrations/facebook/ad-accounts", {
       enabledIds: ["act_1111"],
       defaultId: "act_1111",
       tags: { act_1111: { markets: ["IN"], purposes: ["conversion"] } },
@@ -406,7 +407,7 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
   });
 
   it("saved accounts show ticked with their Default marked, and no warning", () => {
-    mount({ ...EXTRA, adAccounts: TWO_ADS, metaAdAccounts: { enabledIds: ["act_1111", "act_2222"], defaultId: "act_2222" } });
+    mount({ ...EXTRA, adAccounts: TWO_ADS, adAccountChoice: { enabledIds: ["act_1111", "act_2222"], defaultId: "act_2222" } });
     expect(box("act_1111").checked).toBe(true);
     expect(box("act_2222").checked).toBe(true);
     expect(box("act_3333").checked).toBe(false);
@@ -439,28 +440,30 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
     await click(radio("CMPL"));
     await click(saveButton());
     await flush();
-    expect(h.patch).toHaveBeenCalledWith("/v1/integrations/facebook/ad-account", {
+    expect(h.patch).toHaveBeenCalledWith("/v1/integrations/facebook/ad-accounts", {
       enabledIds: ["act_1111", "act_2222"],
       defaultId: "act_2222",
     });
-    expect(spy.mock.calls.map((c) => (c[0] as { queryKey: string[] }).queryKey[0]).sort()).toEqual([
+    // the Growth signal step's Meta accounts are refetched by a predicate (see C6), the rest by key
+    expect(spy.mock.calls.map((c) => (c[0] as { queryKey?: string[] }).queryKey?.[0] ?? "predicate").sort()).toEqual([
       "content-hub-integrations",
-      "growth-v2",
       "meta-ads-accounts",
       "meta-ads-campaigns",
+      "predicate",
     ]);
     expect(onChanged).toHaveBeenCalled();
     expect(h.success).toHaveBeenCalled();
   });
 
   it("a refusal says so in plain words, refetches nothing, and keeps the edit for another try", async () => {
-    h.patch.mockRejectedValue(new ApiError("AD_ACCOUNT_NOT_FOUND", "x", 400));
+    h.patch.mockRejectedValue(new ApiError("AD_ACCOUNT_NOT_FOUND", "One of those ad accounts is not one Meta listed for this connection. Refresh your accounts and try again.", 400));
     const spy = vi.spyOn(client, "invalidateQueries");
     mount({ ...EXTRA, adAccounts: TWO_ADS });
     await click(box("act_1111"));
     await click(saveButton());
     await flush();
-    expect(h.error.mock.calls[0]![0]).toContain("no longer on your Meta login");
+    // the api's own sentence: its next step is a refresh
+    expect(h.error.mock.calls[0]![0]).toBe("One of those ad accounts is not one Meta listed for this connection. Refresh your accounts and try again.");
     expect(spy).not.toHaveBeenCalled();
     expect(box("act_1111").checked).toBe(true);
   });
@@ -476,13 +479,13 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
 
   it("★C1: one listed account that is NOT enabled (a saved choice no longer matches) shows the checklist with Save, so it can be enabled", async () => {
     h.patch.mockResolvedValue({});
-    mount({ ...EXTRA, adAccounts: [{ id: "act_3333", name: "New one", currency: "USD", status: 1 }], metaAdAccounts: { enabledIds: ["act_1111"], defaultId: "act_1111" } });
+    mount({ ...EXTRA, adAccounts: [{ id: "act_3333", name: "New one", currency: "USD", status: 1 }], adAccountChoice: { enabledIds: ["act_1111"], defaultId: "act_1111" } });
     expect(box("act_3333")).toBeTruthy();
     expect(box("act_3333").checked).toBe(false);
     await click(box("act_3333"));
     await click(saveButton());
     await flush();
-    expect(h.patch).toHaveBeenCalledWith("/v1/integrations/facebook/ad-account", { enabledIds: ["act_3333"], defaultId: "act_3333" });
+    expect(h.patch).toHaveBeenCalledWith("/v1/integrations/facebook/ad-accounts", { enabledIds: ["act_3333"], defaultId: "act_3333" });
   });
 
   it("★C6: saving also refetches the Growth signal step's Meta accounts", async () => {
@@ -492,7 +495,10 @@ describe("MetaAccountsPanel ad accounts checklist", () => {
     await click(box("act_1111"));
     await click(saveButton());
     await flush();
-    expect(spy.mock.calls.map((c) => JSON.stringify((c[0] as { queryKey: string[] }).queryKey))).toContain(JSON.stringify(["growth-v2", "signal"]));
+    // only the signal step's META accounts, never every signal query (Google's included)
+    const predicate = spy.mock.calls.map((c) => (c[0] as { predicate?: (q: { queryKey: unknown[] }) => boolean }).predicate).find(Boolean)!;
+    expect(predicate({ queryKey: ["growth-v2", "signal", "org:biz", "meta-accounts"] })).toBe(true);
+    expect(predicate({ queryKey: ["growth-v2", "signal", "org:biz", "google-accounts"] })).toBe(false);
   });
 
   it("no ad accounts: says so; one account is a plain line with no checklist", () => {

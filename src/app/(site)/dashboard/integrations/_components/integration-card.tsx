@@ -11,7 +11,8 @@ import { resolveProvider, isMetaVirtual, metaDisconnectCopy } from "@/lib/integr
 import { isRecoverableStatus, showsComingSoon } from "@/lib/integration-card-state";
 import { Integration, PROVIDER_ICONS, PROVIDER_TILES } from "./shared";
 import { LinkedInAdsStatus, LinkedInContentPages } from "./linkedin-panels";
-import { MetaAccountsPanel, MetaAdAccountPicker } from "./meta-accounts-panel";
+import { MetaAccountsPanel } from "./meta-accounts-panel";
+import { AdAccountChoice } from "@/components/ads/ad-account-choice";
 import { metaAdsCardServed } from "@/lib/integrations-meta";
 
 export function IntegrationCard({
@@ -231,7 +232,7 @@ export function IntegrationCard({
             {/* Meta Ads — the ad accounts Peakhour may use, with the default. */}
             {integration.provider === "meta_ads" && integration.connected && integration.account?.extra && (
               <div className="space-y-2 rounded-md border border-border/40 p-2">
-                <MetaAdAccountPicker extra={integration.account.extra} onChanged={onChanged} />
+                <AdAccountChoice provider="facebook" extra={integration.account.extra} onChanged={onChanged} />
               </div>
             )}
 
