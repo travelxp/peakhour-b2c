@@ -7,6 +7,7 @@ import { useLocale } from "@/hooks/use-locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/molecules";
+import { ideaStatusLabel } from "@/lib/idea-status";
 
 interface CalendarIdea {
   _id: string;
@@ -34,15 +35,6 @@ const STATUS_COLORS: Record<string, string> = {
   in_progress: "bg-warning/10 border-warning/30",
   published: "bg-success/10 border-success/30",
   archived: "bg-muted border-border",
-};
-
-/** What the merchant reads for each idea status; the stored values are internal. */
-const STATUS_LABELS: Record<string, string> = {
-  brainstorm: "Idea",
-  planned: "Planned",
-  in_progress: "Being written",
-  published: "Published",
-  archived: "Archived",
 };
 
 /** The calendar's "Planned ideas" tab: ideas from the content plan, laid out by their target date. */
@@ -240,7 +232,7 @@ function CalendarCard({ idea, compact }: { idea: CalendarIdea; compact?: boolean
         <div className="flex flex-wrap gap-1 mt-1.5">
           {idea.sector && <Badge variant="secondary" className="text-micro h-5">{idea.sector}</Badge>}
           {idea.contentType && <Badge variant="outline" className="text-micro h-5">{idea.contentType}</Badge>}
-          <StatusBadge status={idea.status} label={STATUS_LABELS[idea.status]} className="text-micro h-5" />
+          <StatusBadge status={idea.status} label={ideaStatusLabel(idea.status)} className="text-micro h-5" />
         </div>
       )}
     </div>
