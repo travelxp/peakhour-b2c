@@ -11,6 +11,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 const h = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), put: vi.fn(), del: vi.fn() }));
 vi.mock("@/lib/api", () => ({ api: { get: h.get, post: h.post, put: h.put, delete: h.del }, API_BASE_URL: "https://api.example" }));
 
+vi.mock("@/providers/auth-provider", () => ({ useAuth: () => ({ org: { _id: "o1" }, isAuthenticated: true, user: { preferences: null } }) }));
+
+const { formatDate } = await import("@/lib/locale");
 const { TikTokTrackingCard } = await import("./tiktok-tracking-card");
 const { tiktokAdvertisers } = await import("@/lib/tiktok-tracking");
 
@@ -31,6 +34,7 @@ interface World {
 
 let root: Root;
 let host: HTMLElement;
+let client: QueryClient;
 let reconnect: ReturnType<typeof vi.fn<() => void>>;
 
 afterEach(() => {
@@ -51,7 +55,7 @@ async function settle(times = 5) {
   for (let i = 0; i < times; i++) await flush();
 }
 
-async function mount(world: World, advertisers = ADV) {
+async function mount(world: World, advertisers = ADV, extraProps: { advertisersTruncated?: boolean } = {}) {
   h.get.mockImplementation(async (path: string) => {
     if (path.startsWith("/v1/tiktok/ads/pixels/selected")) {
       if (world.selectedError) throw world.selectedError;
@@ -69,14 +73,14 @@ async function mount(world: World, advertisers = ADV) {
     throw new Error(`unexpected GET ${path}`);
   });
   reconnect = vi.fn<() => void>();
-  const client = new QueryClient({ defaultOptions: { queries: { retryDelay: 0 } } });
+  client = new QueryClient({ defaultOptions: { queries: { retryDelay: 0 } } });
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
   await act(async () => {
     root.render(
       <QueryClientProvider client={client}>
-        <TikTokTrackingCard advertisers={advertisers} onReconnect={reconnect} />
+        <TikTokTrackingCard advertisers={advertisers} onReconnect={reconnect} {...extraProps} />
       </QueryClientProvider>,
     );
   });
@@ -130,7 +134,7 @@ describe("pixel status", () => {
     });
     const line = host.querySelector('[data-testid="tiktok-sending"]')?.textContent;
     expect(line).toContain("Main pixel");
-    expect(line).toContain("chosen by Asha Rao on 2026-11-20");
+    expect(line).toContain(`chosen by Asha Rao on ${formatDate("2026-11-20T10:00:00.000Z", null)}`);
     expect(button("Change pixel")).toBeTruthy();
   });
 
@@ -146,6 +150,13 @@ describe("pixel status", () => {
     await mount({ selectedError: apiError(409, "TIKTOK_PERMISSION", "raw api words"), feedError: apiError(404, "NOT_FOUND") });
     expect(text()).toContain("Your TikTok connection is missing a permission. Reconnect TikTok, or contact support if this keeps happening.");
     expect(text()).not.toContain("raw api words");
+    await click(button("Reconnect TikTok"));
+    expect(reconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["NEEDS_REAUTH", "NOT_CONNECTED"])("%s on read: Reconnect as well", async (code) => {
+    await mount({ selectedError: apiError(409, code, "raw api words"), feedError: apiError(404, "NOT_FOUND") });
+    expect(host.querySelector('[data-testid="tiktok-permission"]')).not.toBeNull();
     await click(button("Reconnect TikTok"));
     expect(reconnect).toHaveBeenCalledTimes(1);
   });
@@ -197,6 +208,9 @@ describe("pixel picker", () => {
     expect(saved).toBe(true);
     expect(host.querySelector('[data-testid="tiktok-sending"]')?.textContent).toContain("PX2");
     expect(host.querySelector('[data-testid="tiktok-pixel-picker"]')).toBeNull();
+    expect(host.querySelector('[data-testid="tiktok-saved"]')?.textContent).toBe("Orders will now be sent to that TikTok pixel.");
+    // only the status is re-read, not the pixel list
+    expect(h.get.mock.calls.filter(([p]) => String(p).startsWith("/v1/tiktok/ads/pixels?")).length).toBe(1);
   });
 
   it("several advertisers: offers a picker for them", async () => {
@@ -219,6 +233,32 @@ describe("pixel picker", () => {
     await click(button("Save choice"));
     expect(host.querySelector('[data-testid="tiktok-save-error"]')?.textContent).toBe("That pixel does not belong to this advertiser.");
     expect(host.querySelector('[data-testid="tiktok-pixel-picker"]')).not.toBeNull();
+  });
+
+  it("an unknown save failure shows our sentence, not the api's", async () => {
+    await mount({ selected: nothing, pixels: { pixels: [{ code: "PX1" }], truncated: false }, feedError: apiError(404, "NOT_FOUND") });
+    h.put.mockRejectedValue(apiError(502, "PIXEL_SELECT_FAILED", "relay hop 7"));
+    await click(button("Choose a pixel"));
+    await pick(host.querySelector('select[aria-label="TikTok pixel"]') as HTMLSelectElement, "PX1");
+    await click(button("Save choice"));
+    expect(host.querySelector('[data-testid="tiktok-save-error"]')?.textContent).toBe("We could not save that choice. Try again.");
+  });
+
+  it("NEEDS_REAUTH while saving: Reconnect", async () => {
+    await mount({ selected: nothing, pixels: { pixels: [{ code: "PX1" }], truncated: false }, feedError: apiError(404, "NOT_FOUND") });
+    h.put.mockRejectedValue(apiError(409, "NEEDS_REAUTH"));
+    await click(button("Choose a pixel"));
+    await pick(host.querySelector('select[aria-label="TikTok pixel"]') as HTMLSelectElement, "PX1");
+    await click(button("Save choice"));
+    expect(host.querySelector('[data-testid="tiktok-save-error"]')).toBeNull();
+    expect(button("Reconnect TikTok")).toBeTruthy();
+  });
+
+  it("some advertisers may be missing: says so", async () => {
+    await mount({ selected: nothing, feedError: apiError(404, "NOT_FOUND") }, ADV, { advertisersTruncated: true });
+    expect(host.querySelector('[data-testid="tiktok-truncated"]')?.textContent).toBe(
+      "Some of your TikTok ad accounts may not be listed. Reconnect TikTok to refresh the list, or contact support.",
+    );
   });
 
   it("permission error while listing: the fixed sentence and Reconnect", async () => {
@@ -263,6 +303,39 @@ describe("catalog feed", () => {
     await click(button("Create feed URL"));
     await click(button("Copy"));
     expect(feedSection()?.textContent).toContain("Copy failed. Select the link and copy it yourself.");
+  });
+
+  it("a create that returns no url says so instead of claiming it was shown", async () => {
+    await mount({ selected: nothing, feed: feedOff });
+    h.post.mockResolvedValue({ enabled: true });
+    await click(button("Create feed URL"));
+    expect(host.querySelector('[data-testid="tiktok-feed-url"]')).toBeNull();
+    expect(feedSection()?.textContent).toContain("The new link could not be shown; rotate again to get it.");
+  });
+
+  it("skipped is an object of reason: count, shown as a total", async () => {
+    await mount({ selected: nothing, feed: { enabled: true, url: null, itemCount: 9, skipped: { no_image: 2, no_price: 1 } } });
+    expect(feedSection()?.textContent).toContain("9 products in the feed · 3 skipped");
+  });
+
+  it("a failed background refetch keeps the section and the once-only URL", async () => {
+    const world: World = { selected: nothing, feed: feedOff };
+    await mount(world);
+    h.post.mockImplementation(async () => {
+      world.feed = { enabled: true, url: null };
+      return { enabled: true, url: "https://feeds.example/t/keep" };
+    });
+    await click(button("Create feed URL"));
+    expect((host.querySelector('[data-testid="tiktok-feed-url"]') as HTMLInputElement).value).toBe("https://feeds.example/t/keep");
+    // the next read of the feed fails (not a 404)
+    world.feedError = apiError(500, "X");
+    await click(button("Copy"));
+    await act(async () => {
+      await client.refetchQueries({ queryKey: ["tiktok-catalog-feed"] });
+    });
+    await settle();
+    expect(feedSection()).not.toBeNull();
+    expect((host.querySelector('[data-testid="tiktok-feed-url"]') as HTMLInputElement).value).toBe("https://feeds.example/t/keep");
   });
 
   it("the URL is shown once: a re-read never brings it back", async () => {

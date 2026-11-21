@@ -5,13 +5,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getTeamMembers } from "@/lib/auth";
+import { useAuth } from "@/providers/auth-provider";
+import { useOrgMembers } from "@/hooks/use-control-plane";
+import { formatDate } from "@/lib/locale";
 import { memberNameLookup } from "@/lib/wa-inbox-reply";
 import {
   TIKTOK_TRACKING_COPY as COPY,
-  pixelChosenBy,
-  tiktokErrorCode,
+  needsReconnect,
+  saveErrorMessage,
   tiktokTrackingApi,
+  type TikTokPixelStatus,
   type TikTokAdvertiser,
 } from "@/lib/tiktok-tracking";
 import { TikTokCatalogFeed } from "./tiktok-catalog-feed";
@@ -20,11 +23,9 @@ export const TIKTOK_PIXEL_KEY = ["tiktok-pixel"] as const;
 
 const SELECT_CLASS = "h-9 w-80 max-w-full rounded-md border bg-background px-3 text-sm";
 
-function isPermission(err: unknown): boolean {
-  return tiktokErrorCode(err) === "TIKTOK_PERMISSION";
-}
+const SELECTED_KEY = [...TIKTOK_PIXEL_KEY, "selected"] as const;
 
-/** Permission refusal: the one error with its own action. Anything else gets a plain retry sentence. */
+/** A missing permission, an expired grant or no connection: all fixed by reconnecting. Anything else gets a plain retry sentence. */
 function PermissionNotice({ onReconnect }: { onReconnect: () => void }) {
   return (
     <div className="space-y-2" data-testid="tiktok-permission">
@@ -41,11 +42,13 @@ function PermissionNotice({ onReconnect }: { onReconnect: () => void }) {
 function PixelPicker({
   advertisers,
   initialAdvertiserId,
+  onSaved,
   onCancel,
   onReconnect,
 }: {
   advertisers: TikTokAdvertiser[];
   initialAdvertiserId?: string;
+  onSaved: () => void;
   onCancel: () => void;
   onReconnect: () => void;
 }) {
@@ -63,9 +66,11 @@ function PixelPicker({
   });
   const save = useMutation({
     mutationFn: () => tiktokTrackingApi.select(advertiserId, code),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: TIKTOK_PIXEL_KEY });
-      onCancel();
+    onSuccess: async (result) => {
+      // The PUT answers with the new status: show it now, then re-read that one key. The pixel list is not stale.
+      queryClient.setQueryData(SELECTED_KEY, result);
+      await queryClient.invalidateQueries({ queryKey: SELECTED_KEY });
+      onSaved();
     },
   });
 
@@ -97,7 +102,7 @@ function PixelPicker({
       ) : null}
       {pixels.isLoading ? (
         <Skeleton className="h-9 w-80" />
-      ) : isPermission(error) ? (
+      ) : needsReconnect(error) ? (
         <PermissionNotice onReconnect={onReconnect} />
       ) : pixels.isError ? (
         <p role="alert" className="text-sm text-destructive">
@@ -118,10 +123,9 @@ function PixelPicker({
           {pixels.data?.truncated ? <p className="text-xs text-muted-foreground">{COPY.moreThanListed}</p> : null}
         </>
       )}
-      {save.isError && !isPermission(save.error) ? (
+      {save.isError && !needsReconnect(save.error) ? (
         <p role="alert" className="text-sm text-destructive" data-testid="tiktok-save-error">
-          {/* The api's own sentence for a refused save (PIXEL_NOT_FOUND, PIXEL_VERIFY_INCOMPLETE) is plain; fall back to ours. */}
-          {(save.error as Error).message || COPY.saveFailed}
+          {saveErrorMessage(save.error)}
         </p>
       ) : null}
       <div className="flex gap-2">
@@ -140,19 +144,30 @@ function PixelPicker({
  * The TikTok tracking card (TT-PX): which pixel receives the business's orders, and the catalog feed URL. Self-contained so the
  * TikTok ads panel (T-11) can host it too: the caller passes the advertisers on the grant and the reconnect action.
  */
-export function TikTokTrackingCard({ advertisers, onReconnect }: { advertisers: TikTokAdvertiser[]; onReconnect: () => void }) {
+export function TikTokTrackingCard({
+  advertisers,
+  advertisersTruncated = false,
+  onReconnect,
+}: {
+  advertisers: TikTokAdvertiser[];
+  /** `account.extra.adAccountsTruncated`: the grant had more accounts than were stored. */
+  advertisersTruncated?: boolean;
+  onReconnect: () => void;
+}) {
+  const { user } = useAuth();
   const [editing, setEditing] = useState(false);
-  const status = useQuery({
-    queryKey: [...TIKTOK_PIXEL_KEY, "selected"],
+  const [justSaved, setJustSaved] = useState(false);
+  const status = useQuery<TikTokPixelStatus>({
+    queryKey: SELECTED_KEY,
     queryFn: () => tiktokTrackingApi.getSelected(),
     retry: false,
   });
-  const members = useQuery({ queryKey: ["team-members"], queryFn: getTeamMembers, retry: false, staleTime: 5 * 60_000 });
+  const members = useOrgMembers();
 
   const data = status.data;
-  const chosen = data ? pixelChosenBy(data) : {};
-  const who = chosen.userId ? (memberNameLookup(members.data?.members)(chosen.userId) ?? "a team member") : null;
-  const when = chosen.at ? chosen.at.slice(0, 10) : null;
+  const chosenBy = data?.pixel?.selectedBy;
+  const who = chosenBy ? (memberNameLookup(members.data)(chosenBy) ?? "a team member") : null;
+  const when = data?.pixel?.selectedAt ? formatDate(data.pixel.selectedAt, user?.preferences ?? null) : null;
   const canChooseAgain = data?.reason === "pixel_advertiser_gone" || data?.reason === "pixel_refused";
 
   return (
@@ -164,7 +179,7 @@ export function TikTokTrackingCard({ advertisers, onReconnect }: { advertisers: 
       <CardContent className="space-y-4">
         {status.isLoading ? (
           <Skeleton className="h-5 w-64" />
-        ) : isPermission(status.error) ? (
+        ) : needsReconnect(status.error) ? (
           <PermissionNotice onReconnect={onReconnect} />
         ) : status.isError || !data ? (
           <p role="alert" className="text-sm text-destructive">
@@ -187,8 +202,26 @@ export function TikTokTrackingCard({ advertisers, onReconnect }: { advertisers: 
           </p>
         )}
 
+        {justSaved && !editing ? (
+          <p role="status" className="text-sm" data-testid="tiktok-saved">
+            {COPY.saved}
+          </p>
+        ) : null}
+        {advertisersTruncated ? (
+          <p className="text-xs text-muted-foreground" data-testid="tiktok-truncated">
+            {COPY.truncatedAccounts}
+          </p>
+        ) : null}
+
         {data && !editing ? (
-          <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setJustSaved(false);
+              setEditing(true);
+            }}
+          >
             {canChooseAgain ? COPY.chooseAgain : data.sending ? COPY.change : COPY.choose}
           </Button>
         ) : null}
@@ -196,6 +229,10 @@ export function TikTokTrackingCard({ advertisers, onReconnect }: { advertisers: 
           <PixelPicker
             advertisers={advertisers}
             initialAdvertiserId={data?.pixel?.advertiserId}
+            onSaved={() => {
+              setEditing(false);
+              setJustSaved(true);
+            }}
             onCancel={() => setEditing(false)}
             onReconnect={onReconnect}
           />

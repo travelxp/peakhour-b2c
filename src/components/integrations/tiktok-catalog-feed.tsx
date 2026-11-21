@@ -4,13 +4,11 @@ import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TIKTOK_FEED_COPY as COPY, tiktokErrorStatus, tiktokTrackingApi } from "@/lib/tiktok-tracking";
+import { useAuth } from "@/providers/auth-provider";
+import { formatDate } from "@/lib/locale";
+import { TIKTOK_FEED_COPY as COPY, skippedLine, tiktokErrorStatus, tiktokTrackingApi } from "@/lib/tiktok-tracking";
 
 export const TIKTOK_FEED_KEY = ["tiktok-catalog-feed"] as const;
-
-function day(iso: string | null | undefined): string | null {
-  return iso ? iso.slice(0, 10) : null;
-}
 
 /**
  * "Product feed for TikTok catalog ads" (CAT-G3's routes). The api returns the URL once, on create or rotate, so it is held in
@@ -23,15 +21,17 @@ export function TikTokCatalogFeed() {
     queryFn: () => tiktokTrackingApi.getFeed(),
     retry: (count, err) => tiktokErrorStatus(err) !== 404 && count < 1,
   });
+  const { user } = useAuth();
   const [shownUrl, setShownUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const input = useRef<HTMLInputElement>(null);
 
-  // Quietly absent: not deployed (404) or not readable yet. Nothing here is worth an alarm on the integrations page.
-  if (feed.isError) return null;
-  if (feed.isLoading || !feed.data) return <Skeleton className="h-16 w-full" />;
+  // Quietly absent only when the route is not there (404) or nothing was ever read. A failed background refetch keeps the data
+  // (and the once-only URL below) on screen.
+  if (tiktokErrorStatus(feed.error) === 404 || (feed.isError && !feed.data)) return null;
+  if (!feed.data) return <Skeleton className="h-16 w-full" />;
 
   const data = feed.data;
 
@@ -43,6 +43,7 @@ export function TikTokCatalogFeed() {
     try {
       const res = (await action()) as { url?: string | null } | undefined;
       setShownUrl(keepUrl && res?.url ? res.url : null);
+      if (keepUrl && !res?.url) setError(COPY.noUrl);
       await queryClient.invalidateQueries({ queryKey: TIKTOK_FEED_KEY });
     } catch {
       setError(COPY.failed);
@@ -65,8 +66,8 @@ export function TikTokCatalogFeed() {
 
   const stats = [
     typeof data.itemCount === "number" ? `${data.itemCount} products in the feed` : null,
-    typeof data.skipped === "number" && data.skipped > 0 ? `${data.skipped} skipped` : null,
-    day(data.lastFetchedAt) ? `TikTok last read it on ${day(data.lastFetchedAt)}` : null,
+    skippedLine(data.skipped),
+    data.lastFetchedAt ? `TikTok last read it on ${formatDate(data.lastFetchedAt, user?.preferences ?? null)}` : null,
   ].filter(Boolean);
 
   return (

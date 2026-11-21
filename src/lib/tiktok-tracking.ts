@@ -34,9 +34,6 @@ export interface TikTokPixelStatus {
   /** The api's sentence for a not-sending state, shown as written. */
   message?: string;
   pixel?: TikTokPixelChoice;
-  /** The api keeps these on the pixel; read either place. */
-  selectedBy?: string;
-  selectedAt?: string;
 }
 
 export interface TikTokCatalogFeed {
@@ -46,7 +43,8 @@ export interface TikTokCatalogFeed {
   rotatedAt?: string | null;
   lastFetchedAt?: string | null;
   itemCount?: number;
-  skipped?: number;
+  /** Products left out of the feed, by reason: `{ reason: count }`. */
+  skipped?: Record<string, number>;
 }
 
 export const TIKTOK_TRACKING_COPY = {
@@ -65,6 +63,7 @@ export const TIKTOK_TRACKING_COPY = {
   loadFailed: "We could not read your TikTok pixel choice. Try again in a moment.",
   listFailed: "We could not load this advertiser's pixels. Try again in a moment.",
   saveFailed: "We could not save that choice. Try again.",
+  truncatedAccounts: "Some of your TikTok ad accounts may not be listed. Reconnect TikTok to refresh the list, or contact support.",
   saved: "Orders will now be sent to that TikTok pixel.",
 } as const;
 
@@ -82,6 +81,7 @@ export const TIKTOK_FEED_COPY = {
   hiddenNow: "The feed is on. The link was shown when it was created. Rotate the URL to get a new one.",
   off: "The feed is off.",
   failed: "We could not change the feed. Try again.",
+  noUrl: "The new link could not be shown; rotate again to get it.",
 } as const;
 
 export function tiktokErrorCode(err: unknown): string | undefined {
@@ -93,6 +93,10 @@ export function tiktokErrorStatus(err: unknown): number | undefined {
 }
 
 /** The advertisers on the tiktok_ads grant, from the integration row (`account.extra.adAccounts`): there is no separate route. */
+export function tiktokAdvertisersTruncated(extra: Record<string, unknown> | undefined): boolean {
+  return extra?.adAccountsTruncated === true;
+}
+
 export function tiktokAdvertisers(extra: Record<string, unknown> | undefined): TikTokAdvertiser[] {
   const raw = extra?.adAccounts;
   if (!Array.isArray(raw)) return [];
@@ -105,9 +109,25 @@ export function tiktokAdvertisers(extra: Record<string, unknown> | undefined): T
   return out;
 }
 
-/** Who chose the pixel and when, wherever the api put it. */
-export function pixelChosenBy(status: TikTokPixelStatus): { userId?: string; at?: string } {
-  return { userId: status.pixel?.selectedBy ?? status.selectedBy, at: status.pixel?.selectedAt ?? status.selectedAt };
+/** The refusals worth quoting: the api's sentence for these is plain. Anything else gets our own words. */
+const QUOTABLE_SAVE_CODES = new Set(["PIXEL_NOT_FOUND", "PIXEL_VERIFY_INCOMPLETE"]);
+
+export function saveErrorMessage(err: unknown): string {
+  const code = tiktokErrorCode(err);
+  const message = (err as { message?: string } | null)?.message;
+  return code && QUOTABLE_SAVE_CODES.has(code) && message ? message : TIKTOK_TRACKING_COPY.saveFailed;
+}
+
+/** Errors the merchant fixes by reconnecting: a missing permission, an expired grant, or no connection. */
+export function needsReconnect(err: unknown): boolean {
+  const code = tiktokErrorCode(err);
+  return code === "TIKTOK_PERMISSION" || code === "NEEDS_REAUTH" || code === "NOT_CONNECTED";
+}
+
+/** Skipped products as a sentence, or null when none. */
+export function skippedLine(skipped: TikTokCatalogFeed["skipped"]): string | null {
+  const total = Object.values(skipped ?? {}).reduce((n, c) => n + (typeof c === "number" ? c : 0), 0);
+  return total > 0 ? `${total} skipped` : null;
 }
 
 export const tiktokTrackingApi = {
