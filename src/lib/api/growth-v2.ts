@@ -406,6 +406,8 @@ export interface ChannelsResponse {
     platform: AdPlatform;
     state: ChannelHealthState;
     reason?: string;
+    /** The currency the channel bills in, only when it differs from the plan's: a label, its spend is shown converted. */
+    billedIn?: string;
     spend: Money;
     outcomes: Figure;
     efficiency: Figure;
@@ -429,6 +431,8 @@ export interface ChannelsResponse {
     platform: AdPlatform;
     name: string;
     status: string;
+    /** The currency the campaign bills in, only when it differs from the plan's; its spend is shown converted. */
+    billedIn?: string;
     dailyBudget: Money;
     /** The engine's latest accepted change of the daily budget in the last 30 days, in the campaign's own `currency`. */
     engineChange?: { at: string; from: number; to: number; currency: string };
@@ -514,7 +518,7 @@ export interface RulesResponse {
     platform: AdPlatform;
     connected: boolean;
     currency?: string;
-    /** True when the account bills in another currency than the mandate and is not managed. */
+    /** True when the account bills in another currency than the mandate (a label: spend is converted; no budget moves across currencies). */
     currencyMismatch: boolean;
     /** C3's readiness of the conversion signal; absent for a platform the signal step does not cover. */
     signal?: SignalStateView;

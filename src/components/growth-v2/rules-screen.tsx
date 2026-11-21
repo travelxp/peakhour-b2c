@@ -14,6 +14,7 @@ import { PLATFORM_COLOR, PLATFORM_LABEL, formatDate, formatMoney } from "@/lib/g
 import { activeGoals, pctOf } from "@/lib/growth-v2-goals";
 import { DEFAULT_QUIET_HOURS, ceilingPatchFor, channelAllowed, guardrailPatchFor, patchErrorMessage, type GuardrailChange } from "@/lib/growth-v2-rules";
 import { AutonomyLadder } from "./autonomy-ladder";
+import { BilledInLabel } from "./billed-in-label";
 import { PendingChangeNote, PlanChangeDialog } from "./plan-change";
 import { PageHead } from "./page-head";
 import { PageShell } from "@/components/dashboard/page-shell";
@@ -93,7 +94,7 @@ export function RulesBody({ rules, preview }: { rules: RulesResponse; preview: b
       <Card>
         <CardHeader>
           <CardTitle>Connections</CardTitle>
-          <CardDescription>Peakhour only manages accounts that bill in your plan&apos;s currency ({m.currency}).</CardDescription>
+          <CardDescription>Your plan is in {m.currency}. An account billed in another currency is shown converted; Peakhour does not move budget between currencies.</CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <table className="w-full min-w-[520px] text-sm">
@@ -136,11 +137,7 @@ export function RulesBody({ rules, preview }: { rules: RulesResponse; preview: b
                     {c.currency ? (
                       <span className="inline-flex items-center gap-2">
                         {c.currency}
-                        {c.currencyMismatch ? (
-                          <ToneBadge tone="warn" dot>
-                            Not managed: different currency
-                          </ToneBadge>
-                        ) : null}
+                        {c.currencyMismatch ? <BilledInLabel billedIn={c.currency} planCurrency={m.currency} /> : null}
                       </span>
                     ) : (
                       <span className="text-muted-foreground">&ndash;</span>

@@ -8,6 +8,7 @@ import { useGrowthV2Channels, type ChannelsRefusal, type ChannelsResponse, type 
 import type { PacingSeries } from "@/lib/growth-v2-series";
 import { PLATFORM_COLOR, PLATFORM_LABEL, WINDOWS, currencyOf, figureText, figureValue, formatMoney, formatPercent, unitFor } from "@/lib/growth-v2-figure";
 import { cn } from "@/lib/utils";
+import { BilledInLabel } from "./billed-in-label";
 import { ChannelBubbles } from "./channel-bubbles";
 import { FigureValue, MoneyValue } from "./figure-value";
 import { Choice } from "./home-screen";
@@ -95,7 +96,8 @@ export function ChannelsBody({ channels, pacingSeries, unitPlural, unitOne }: { 
                 <div>
                   <ToneBadge tone={s.tone} dot>
                     {s.label}
-                  </ToneBadge>
+                  </ToneBadge>{" "}
+                  <BilledInLabel billedIn={h.billedIn} planCurrency={currency} noRate={"absent" in h.spend && h.spend.absent === "no_exchange_rate"} />
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -207,6 +209,11 @@ export function ChannelsBody({ channels, pacingSeries, unitPlural, unitOne }: { 
                             <span className="sr-only">{PLATFORM_LABEL[c.platform]}: </span>
                             {c.name}
                           </span>
+                          {c.billedIn ? (
+                            <span className="mt-1 block">
+                              <BilledInLabel billedIn={c.billedIn} planCurrency={currency} noRate={"absent" in c.spend && c.spend.absent === "no_exchange_rate"} />
+                            </span>
+                          ) : null}
                         </td>
                         <td className="px-2 py-2.5">
                           <ToneBadge tone={STATUS_TONE(c.status)} dot>

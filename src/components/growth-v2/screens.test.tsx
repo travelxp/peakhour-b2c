@@ -190,7 +190,7 @@ describe("the screens render their preview sample", () => {
       ...FIXTURE_CHANNELS,
       health: [
         { platform: "meta", state: "healthy", reason: "Cost per outcome INR 250 against your target of INR 600.", spend: { value: 1000, currency: "INR" }, outcomes: { value: 4 }, efficiency: { value: 250 } },
-        { platform: "google_ads", state: "problem", reason: "Google Ads bills in USD, but your plan is in INR. Peakhour does not manage it, and its spend is left out of your totals.", spend: { absent: "currency_mismatch" }, outcomes: { absent: "currency_mismatch" }, efficiency: { absent: "currency_mismatch" } },
+        { platform: "google_ads", state: "healthy", reason: "Cost per outcome INR 400 against your target of INR 600.", billedIn: "USD", spend: { value: 8350, currency: "INR" }, outcomes: { value: 20 }, efficiency: { value: 400 } },
         { platform: "x", state: "problem", reason: "INR 200 spent with no bookings credited to X Ads.", spend: { value: 200, currency: "INR" }, outcomes: { value: 0 }, efficiency: { absent: "no_outcomes_this_week" } },
         { platform: "linkedin", state: "not_connected", reason: "LinkedIn Ads isn't connected.", spend: { absent: "not_connected" }, outcomes: { absent: "not_connected" }, efficiency: { absent: "not_connected" } },
       ],
@@ -204,7 +204,7 @@ describe("the screens render their preview sample", () => {
         },
         {
           id: "c2", platform: "google_ads", name: "Search", status: "paused",
-          dailyBudget: { absent: "no_daily_budget" }, spend: { absent: "currency_mismatch" }, outcomes: { absent: "credit_is_per_channel" }, efficiency: { absent: "credit_is_per_channel" },
+          billedIn: "USD", dailyBudget: { absent: "no_daily_budget" }, spend: { absent: "no_exchange_rate" }, outcomes: { absent: "credit_is_per_channel" }, efficiency: { absent: "credit_is_per_channel" },
         },
       ],
     };
@@ -214,13 +214,22 @@ describe("the screens render their preview sample", () => {
     it("shows each channel's state with the fact that put it there, and an absent figure as an absence", () => {
       const out = body(live);
       expect(out).toContain("Cost per outcome INR 250 against your target of INR 600.");
-      expect(out).toContain("Google Ads bills in USD");
       expect(out).toContain("INR 200 spent with no bookings credited to X Ads.");
       expect(out).toContain("LinkedIn Ads isn&#x27;t connected.");
       expect(out).toContain('data-state="problem"');
+      expect(out).not.toContain("Currency mismatch");
+      expect(out).not.toContain("left out of your totals");
       expect(out.match(/data-absent=""/g)!.length).toBeGreaterThan(3);
       expect(out).toContain("Not available");
-      expect(out).toContain(": Currency mismatch");
+    });
+
+    it("a channel or campaign billed in another currency gets a small neutral label, not a problem", () => {
+      const out = body(live);
+      expect(out).toContain("Billed in USD");
+      expect(out).toContain("Shown in INR at today&#x27;s rate");
+      expect(out).toContain("does not move budget between currencies");
+      expect(out).toContain("Can&#x27;t convert USD yet");
+      expect(out).toContain("₹8,350");
     });
 
     it("says outcomes are credited to a channel, not caused by the ads", () => {
