@@ -8,10 +8,10 @@ import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-const h = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), put: vi.fn(), del: vi.fn() }));
+const h = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), put: vi.fn(), del: vi.fn(), role: "editor" }));
 vi.mock("@/lib/api", () => ({ api: { get: h.get, post: h.post, put: h.put, delete: h.del }, API_BASE_URL: "https://api.example" }));
 
-vi.mock("@/providers/auth-provider", () => ({ useAuth: () => ({ org: { _id: "o1" }, isAuthenticated: true, user: { preferences: null } }) }));
+vi.mock("@/providers/auth-provider", () => ({ useAuth: () => ({ org: { _id: "o1" }, orgs: [{ _id: "o1", role: h.role }], isAuthenticated: true, user: { preferences: null } }) }));
 
 const { formatDate } = await import("@/lib/locale");
 const { TikTokTrackingCard } = await import("./tiktok-tracking-card");
@@ -30,6 +30,7 @@ interface World {
   feed?: unknown;
   feedError?: unknown;
   members?: unknown;
+  membersError?: unknown;
 }
 
 let root: Root;
@@ -45,6 +46,7 @@ afterEach(() => {
   h.post.mockReset();
   h.put.mockReset();
   h.del.mockReset();
+  h.role = "editor";
 });
 
 const flush = () =>
@@ -55,7 +57,7 @@ async function settle(times = 5) {
   for (let i = 0; i < times; i++) await flush();
 }
 
-async function mount(world: World, advertisers = ADV, extraProps: { advertisersTruncated?: boolean } = {}) {
+async function mount(world: World, advertisers = ADV, extraProps: { advertisersTruncated?: boolean; connectionStatus?: string } = {}) {
   h.get.mockImplementation(async (path: string) => {
     if (path.startsWith("/v1/tiktok/ads/pixels/selected")) {
       if (world.selectedError) throw world.selectedError;
@@ -69,7 +71,10 @@ async function mount(world: World, advertisers = ADV, extraProps: { advertisersT
       if (world.feedError) throw world.feedError;
       return world.feed;
     }
-    if (path.startsWith("/v1/auth/team/members")) return world.members ?? { members: [] };
+    if (path.startsWith("/v1/auth/team/members")) {
+      if (world.membersError) throw world.membersError;
+      return world.members ?? { members: [] };
+    }
     throw new Error(`unexpected GET ${path}`);
   });
   reconnect = vi.fn<() => void>();
@@ -134,16 +139,16 @@ describe("pixel status", () => {
     });
     const line = host.querySelector('[data-testid="tiktok-sending"]')?.textContent;
     expect(line).toContain("Main pixel");
-    expect(line).toContain(`chosen by Asha Rao on ${formatDate("2026-11-20T10:00:00.000Z", null)}`);
+    expect(line).toContain(`chosen on ${formatDate("2026-11-20T10:00:00.000Z", null)} by Asha Rao`);
     expect(button("Change pixel")).toBeTruthy();
   });
 
-  it("a chooser who is not in the member list reads as a team member", async () => {
+  it("a chooser who is not in the member list reads as someone on your team", async () => {
     await mount({
       selected: { sending: true, pixel: { code: "PX1", advertiserId: ADV[0]!.id, selectedBy: "gone", selectedAt: "2026-11-20T10:00:00.000Z" } },
       feedError: apiError(404, "NOT_FOUND"),
     });
-    expect(text()).toContain("chosen by a team member");
+    expect(text()).toContain("by someone on your team");
   });
 
   it("permission error: the fixed sentence and a Reconnect action that calls the page's reconnect", async () => {
@@ -347,8 +352,15 @@ describe("catalog feed", () => {
   it("rotate: shows the new URL and says the old one stops working", async () => {
     await mount({ selected: nothing, feed: { enabled: true, url: null } });
     h.post.mockResolvedValue({ enabled: true, url: "https://feeds.example/t/new" });
-    expect(feedSection()?.textContent).toContain("The old one stops working");
     await click(button("Rotate URL"));
+    expect(feedSection()?.textContent).toContain(
+      "Rotating stops the current link. TikTok will fail to read your feed until you paste the new link into TikTok Catalog Manager.",
+    );
+    expect(h.post).not.toHaveBeenCalled();
+    await click(button("Cancel"));
+    expect(h.post).not.toHaveBeenCalled();
+    await click(button("Rotate URL"));
+    await click(button("Confirm"));
     expect((host.querySelector('[data-testid="tiktok-feed-url"]') as HTMLInputElement).value).toBe("https://feeds.example/t/new");
     expect(h.post).toHaveBeenCalledWith("/v1/tiktok/ads/catalog-feed", {});
   });
@@ -358,11 +370,13 @@ describe("catalog feed", () => {
     await mount(world);
     h.post.mockResolvedValue({ enabled: true, url: "https://feeds.example/t/new" });
     await click(button("Rotate URL"));
+    await click(button("Confirm"));
     h.del.mockImplementation(async () => {
       world.feed = feedOff;
       return {};
     });
     await click(button("Turn off"));
+    await click(button("Confirm"));
     expect(h.del).toHaveBeenCalledWith("/v1/tiktok/ads/catalog-feed");
     expect(host.querySelector('[data-testid="tiktok-feed-url"]')).toBeNull();
     expect(button("Create feed URL")).toBeTruthy();
@@ -384,6 +398,150 @@ describe("catalog feed", () => {
     // a 404 is not retried
     expect(h.get.mock.calls.filter(([p]) => String(p).includes("catalog-feed")).length).toBe(1);
   });
+});
+
+describe("round 2", () => {
+  const nothing = { sending: false, reason: "no_pixel_selected", message: "none" };
+  const feedSection = () => host.querySelector('[data-testid="tiktok-feed"]');
+
+  it("a connection that needs reconnecting: banner with Reconnect, no pixel picker, no pixel read, feed still usable", async () => {
+    await mount({ selected: nothing, feed: { enabled: true, url: null, connectionStatus: "needs_reauth" } }, ADV, { connectionStatus: "needs_reauth" });
+    expect(host.querySelector('[data-testid="tiktok-paused"]')?.textContent).toContain(
+      "Your TikTok connection needs reconnecting. Your product feed still works, but pixel tracking is paused.",
+    );
+    expect(button("Choose a pixel")).toBeUndefined();
+    expect(h.get.mock.calls.some(([p]) => String(p).includes("pixels/selected"))).toBe(false);
+    expect(button("Rotate URL")).toBeTruthy();
+    await click(button("Reconnect TikTok"));
+    expect(reconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it("the api's connectionStatus on the feed pauses it too", async () => {
+    await mount({ selected: nothing, feed: { enabled: false, url: null, connectionStatus: "expired" } });
+    expect(host.querySelector('[data-testid="tiktok-paused"]')).not.toBeNull();
+  });
+
+  it("a feed read that fails (not 404) with no data says so and Retry reads again", async () => {
+    const world: World = { selected: nothing, feedError: apiError(500, "X") };
+    await mount(world);
+    expect(feedSection()).toBeNull();
+    expect(host.querySelector('[data-testid="tiktok-feed-load-error"]')?.textContent).toContain("We could not load your product feed settings.");
+    world.feedError = undefined;
+    world.feed = feedOff;
+    await click(button("Retry"));
+    expect(feedSection()).not.toBeNull();
+  });
+
+  it("turn off asks first, and Cancel changes nothing", async () => {
+    await mount({ selected: nothing, feed: { enabled: true, url: null } });
+    await click(button("Turn off"));
+    expect(feedSection()?.textContent).toContain("Turning off stops TikTok reading your feed.");
+    await click(button("Cancel"));
+    expect(h.del).not.toHaveBeenCalled();
+    expect(button("Turn off")).toBeTruthy();
+  });
+
+  it("a viewer sees no feed buttons, only the ask-an-editor sentence", async () => {
+    h.role = "viewer";
+    await mount({ selected: nothing, feed: { enabled: true, url: null } });
+    expect(button("Rotate URL")).toBeUndefined();
+    expect(button("Turn off")).toBeUndefined();
+    expect(feedSection()?.textContent).toContain("Ask an editor to change the product feed.");
+    h.role = "viewer";
+  });
+
+  it("a 403 from the api reads as ask an editor, never try again", async () => {
+    await mount({ selected: nothing, feed: feedOff });
+    h.post.mockRejectedValue(apiError(403, "FORBIDDEN", "no"));
+    await click(button("Create feed URL"));
+    expect(feedSection()?.textContent).toContain("Ask an editor to change the product feed.");
+    expect(feedSection()?.textContent).not.toContain("Try again");
+  });
+
+  it("a rotate that throws clears the old URL and says the link may have changed", async () => {
+    const world: World = { selected: nothing, feed: feedOff };
+    await mount(world);
+    h.post.mockResolvedValueOnce({ enabled: true, url: "https://feeds.example/t/old" });
+    world.feed = { enabled: true, url: null };
+    await click(button("Create feed URL"));
+    expect((host.querySelector('[data-testid="tiktok-feed-url"]') as HTMLInputElement).value).toBe("https://feeds.example/t/old");
+    h.post.mockRejectedValue(apiError(500, "X"));
+    await click(button("Rotate URL"));
+    await click(button("Confirm"));
+    expect(host.querySelector('[data-testid="tiktok-feed-url"]')).toBeNull();
+    expect(feedSection()?.textContent).toContain("The link may have changed. Rotate again to get a working link.");
+  });
+
+  it.each(["list", "save"])("ADVERTISER_NOT_ON_CONNECTION on %s: Reconnect", async (where) => {
+    const world: World = { selected: nothing, pixels: { pixels: [{ code: "PX1" }], truncated: false }, feedError: apiError(404, "NOT_FOUND") };
+    if (where === "list") world.pixelsError = apiError(403, "ADVERTISER_NOT_ON_CONNECTION");
+    await mount(world);
+    h.put.mockRejectedValue(apiError(403, "ADVERTISER_NOT_ON_CONNECTION"));
+    await click(button("Choose a pixel"));
+    if (where === "save") {
+      await pick(host.querySelector('select[aria-label="TikTok pixel"]') as HTMLSelectElement, "PX1");
+      await click(button("Save choice"));
+    }
+    expect(host.querySelector('[data-testid="tiktok-save-error"]')).toBeNull();
+    expect(button("Reconnect TikTok")).toBeTruthy();
+  });
+
+  it("changing the pixel after a failed save clears the error", async () => {
+    await mount({ selected: nothing, pixels: { pixels: [{ code: "PX1" }, { code: "PX2" }], truncated: false }, feedError: apiError(404, "NOT_FOUND") });
+    h.put.mockRejectedValue(apiError(400, "PIXEL_NOT_FOUND", "That pixel does not belong to this advertiser."));
+    await click(button("Choose a pixel"));
+    const sel = host.querySelector('select[aria-label="TikTok pixel"]') as HTMLSelectElement;
+    await pick(sel, "PX1");
+    await click(button("Save choice"));
+    expect(host.querySelector('[data-testid="tiktok-save-error"]')).not.toBeNull();
+    await pick(sel, "PX2");
+    expect(host.querySelector('[data-testid="tiktok-save-error"]')).toBeNull();
+  });
+
+  it("while members load the line shows the date only, never a placeholder that later becomes a name", async () => {
+    const world: World = {
+      selected: { sending: true, pixel: { code: "PX1", advertiserId: ADV[0]!.id, selectedBy: "u1", selectedAt: "2026-11-20T10:00:00.000Z" } },
+      feedError: apiError(404, "NOT_FOUND"),
+    };
+    let release: (v: unknown) => void = () => {};
+    await mount(world);
+    // remount with a members call that hangs
+    act(() => root.unmount());
+    host.remove();
+    h.get.mockImplementation(async (path: string) => {
+      if (path.startsWith("/v1/auth/team/members")) return new Promise((r) => (release = r));
+      if (path.startsWith("/v1/tiktok/ads/pixels/selected")) return world.selected;
+      throw apiError(404, "NOT_FOUND");
+    });
+    client = new QueryClient();
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={client}>
+          <TikTokTrackingCard advertisers={ADV} onReconnect={() => {}} />
+        </QueryClientProvider>,
+      );
+    });
+    await settle();
+    const line = host.querySelector('[data-testid="tiktok-sending"]')?.textContent ?? "";
+    expect(line).toContain(`chosen on ${formatDate("2026-11-20T10:00:00.000Z", null)}`);
+    expect(line).not.toContain(" by ");
+    await act(async () => release({ members: [{ userId: "u1", name: "Asha Rao", email: "a@x.com", role: "admin", lastLoginAt: null, isOwner: false }] }));
+    await settle();
+    expect(host.querySelector('[data-testid="tiktok-sending"]')?.textContent).toContain("by Asha Rao");
+  });
+
+  it("members that fail to load read as someone on your team", async () => {
+    await mount({
+      selected: { sending: true, pixel: { code: "PX1", advertiserId: ADV[0]!.id, selectedBy: "u1", selectedAt: "2026-11-20T10:00:00.000Z" } },
+      membersError: apiError(500, "X"),
+      feedError: apiError(404, "NOT_FOUND"),
+    });
+    expect(host.querySelector('[data-testid="tiktok-sending"]')?.textContent).toContain("by someone on your team");
+  });
+
 });
 
 describe("tiktokAdvertisers", () => {

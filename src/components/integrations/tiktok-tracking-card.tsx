@@ -10,6 +10,7 @@ import { useOrgMembers } from "@/hooks/use-control-plane";
 import { formatDate } from "@/lib/locale";
 import { memberNameLookup } from "@/lib/wa-inbox-reply";
 import {
+  TIKTOK_PAUSED_COPY,
   TIKTOK_TRACKING_COPY as COPY,
   needsReconnect,
   saveErrorMessage,
@@ -17,7 +18,7 @@ import {
   type TikTokPixelStatus,
   type TikTokAdvertiser,
 } from "@/lib/tiktok-tracking";
-import { TikTokCatalogFeed } from "./tiktok-catalog-feed";
+import { TikTokCatalogFeed, useTikTokFeed } from "./tiktok-catalog-feed";
 
 export const TIKTOK_PIXEL_KEY = ["tiktok-pixel"] as const;
 
@@ -66,10 +67,9 @@ function PixelPicker({
   });
   const save = useMutation({
     mutationFn: () => tiktokTrackingApi.select(advertiserId, code),
-    onSuccess: async (result) => {
-      // The PUT answers with the new status: show it now, then re-read that one key. The pixel list is not stale.
+    onSuccess: (result) => {
+      // The PUT answers with the new status: put it in the cache and carry on. Nothing is re-read.
       queryClient.setQueryData(SELECTED_KEY, result);
-      await queryClient.invalidateQueries({ queryKey: SELECTED_KEY });
       onSaved();
     },
   });
@@ -112,7 +112,15 @@ function PixelPicker({
         <p className="text-sm text-muted-foreground">{COPY.noPixels}</p>
       ) : (
         <>
-          <select aria-label="TikTok pixel" className={SELECT_CLASS} value={code} onChange={(e) => setCode(e.target.value)}>
+          <select
+            aria-label="TikTok pixel"
+            className={SELECT_CLASS}
+            value={code}
+            onChange={(e) => {
+              setCode(e.target.value);
+              save.reset();
+            }}
+          >
             <option value="">Choose a pixel</option>
             {options.map((p) => (
               <option key={p.code} value={p.code}>
@@ -147,26 +155,34 @@ function PixelPicker({
 export function TikTokTrackingCard({
   advertisers,
   advertisersTruncated = false,
+  connectionStatus = "active",
   onReconnect,
 }: {
   advertisers: TikTokAdvertiser[];
   /** `account.extra.adAccountsTruncated`: the grant had more accounts than were stored. */
   advertisersTruncated?: boolean;
+  /** The tiktok_ads row's status. Anything but "active" pauses pixel tracking; the feed stays usable. */
+  connectionStatus?: string;
   onReconnect: () => void;
 }) {
   const { user } = useAuth();
   const [editing, setEditing] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
+  const feed = useTikTokFeed();
+  const feedStatus = feed.data?.connectionStatus;
+  const paused = connectionStatus !== "active" || (feedStatus !== undefined && feedStatus !== "active");
   const status = useQuery<TikTokPixelStatus>({
     queryKey: SELECTED_KEY,
     queryFn: () => tiktokTrackingApi.getSelected(),
     retry: false,
+    enabled: !paused,
   });
   const members = useOrgMembers();
 
   const data = status.data;
   const chosenBy = data?.pixel?.selectedBy;
-  const who = chosenBy ? (memberNameLookup(members.data)(chosenBy) ?? "a team member") : null;
+  // Never flip from a placeholder to a name: while members load say nothing about who; if they failed, or the person has left, say so.
+  const who = chosenBy && !members.isLoading ? (members.isError ? null : memberNameLookup(members.data)(chosenBy)) ?? "someone on your team" : null;
   const when = data?.pixel?.selectedAt ? formatDate(data.pixel.selectedAt, user?.preferences ?? null) : null;
   const canChooseAgain = data?.reason === "pixel_advertiser_gone" || data?.reason === "pixel_refused";
 
@@ -177,7 +193,16 @@ export function TikTokTrackingCard({
         <CardDescription>{COPY.intro}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {status.isLoading ? (
+        {paused ? (
+          <div className="space-y-2" data-testid="tiktok-paused">
+            <p role="alert" className="text-sm">
+              {TIKTOK_PAUSED_COPY.banner}
+            </p>
+            <Button size="sm" variant="outline" onClick={onReconnect}>
+              {COPY.reconnect}
+            </Button>
+          </div>
+        ) : status.isLoading ? (
           <Skeleton className="h-5 w-64" />
         ) : needsReconnect(status.error) ? (
           <PermissionNotice onReconnect={onReconnect} />
@@ -191,8 +216,8 @@ export function TikTokTrackingCard({
             {who || when ? (
               <span className="text-muted-foreground">
                 {" "}
-                · chosen{who ? ` by ${who}` : ""}
-                {when ? ` on ${when}` : ""}
+                · chosen{when ? ` on ${when}` : ""}
+                {who ? ` by ${who}` : ""}
               </span>
             ) : null}
           </p>
@@ -213,7 +238,7 @@ export function TikTokTrackingCard({
           </p>
         ) : null}
 
-        {data && !editing ? (
+        {!paused && data && !editing ? (
           <Button
             size="sm"
             variant="outline"
@@ -225,7 +250,7 @@ export function TikTokTrackingCard({
             {canChooseAgain ? COPY.chooseAgain : data.sending ? COPY.change : COPY.choose}
           </Button>
         ) : null}
-        {editing ? (
+        {!paused && editing ? (
           <PixelPicker
             advertisers={advertisers}
             initialAdvertiserId={data?.pixel?.advertiserId}

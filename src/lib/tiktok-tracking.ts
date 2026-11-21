@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { listedAdAccounts } from "@/lib/ad-account-choice";
 
 /**
  * The TikTok tracking card's api layer (TT-PX): the pixel that receives a business's orders (peakhour-api EV-1,
@@ -45,6 +46,8 @@ export interface TikTokCatalogFeed {
   itemCount?: number;
   /** Products left out of the feed, by reason: `{ reason: count }`. */
   skipped?: Record<string, number>;
+  /** The tiktok_ads connection's state; anything but "active" means pixel tracking is paused. */
+  connectionStatus?: string;
 }
 
 export const TIKTOK_TRACKING_COPY = {
@@ -82,6 +85,18 @@ export const TIKTOK_FEED_COPY = {
   off: "The feed is off.",
   failed: "We could not change the feed. Try again.",
   noUrl: "The new link could not be shown; rotate again to get it.",
+  rotateFailed: "The link may have changed. Rotate again to get a working link.",
+  loadFailed: "We could not load your product feed settings.",
+  retry: "Retry",
+  confirm: "Confirm",
+  cancel: "Cancel",
+  rotateConfirm: "Rotating stops the current link. TikTok will fail to read your feed until you paste the new link into TikTok Catalog Manager.",
+  turnOffConfirm: "Turning off stops TikTok reading your feed.",
+  askEditor: "Ask an editor to change the product feed.",
+} as const;
+
+export const TIKTOK_PAUSED_COPY = {
+  banner: "Your TikTok connection needs reconnecting. Your product feed still works, but pixel tracking is paused.",
 } as const;
 
 export function tiktokErrorCode(err: unknown): string | undefined {
@@ -98,15 +113,15 @@ export function tiktokAdvertisersTruncated(extra: Record<string, unknown> | unde
 }
 
 export function tiktokAdvertisers(extra: Record<string, unknown> | undefined): TikTokAdvertiser[] {
-  const raw = extra?.adAccounts;
-  if (!Array.isArray(raw)) return [];
-  const out: TikTokAdvertiser[] = [];
-  for (const a of raw as Array<{ id?: unknown; name?: unknown }>) {
-    if (a?.id == null || String(a.id).length === 0) continue;
-    const id = String(a.id);
-    out.push({ id, name: typeof a.name === "string" && a.name ? a.name : id });
-  }
-  return out;
+  return listedAdAccounts(extra).map((a) => ({ id: a.id, name: typeof a.name === "string" && a.name ? a.name : a.id }));
+}
+
+/**
+ * Show the card for any connection that still exists: active, needs_reauth, expired or error. Only "no row" and "disconnected"
+ * hide it. The api keeps the feed serving in the states that are not active.
+ */
+export function tiktokConnectionPresent(status: string | undefined): boolean {
+  return status !== undefined && status !== "" && status !== "disconnected";
 }
 
 /** The refusals worth quoting: the api's sentence for these is plain. Anything else gets our own words. */
@@ -121,7 +136,12 @@ export function saveErrorMessage(err: unknown): string {
 /** Errors the merchant fixes by reconnecting: a missing permission, an expired grant, or no connection. */
 export function needsReconnect(err: unknown): boolean {
   const code = tiktokErrorCode(err);
-  return code === "TIKTOK_PERMISSION" || code === "NEEDS_REAUTH" || code === "NOT_CONNECTED";
+  return code === "TIKTOK_PERMISSION" || code === "NEEDS_REAUTH" || code === "NOT_CONNECTED" || code === "ADVERTISER_NOT_ON_CONNECTION";
+}
+
+/** The api refused the person's role (403 FORBIDDEN): never "try again". */
+export function isForbidden(err: unknown): boolean {
+  return tiktokErrorCode(err) === "FORBIDDEN" || tiktokErrorStatus(err) === 403;
 }
 
 /** Skipped products as a sentence, or null when none. */

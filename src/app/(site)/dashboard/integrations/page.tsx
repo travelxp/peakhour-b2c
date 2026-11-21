@@ -14,7 +14,7 @@ import { DM_STATUS_KEY } from "@/lib/meta-dm";
 import { XDmConnect } from "@/components/integrations/x-dm-connect";
 import { XPostingCard } from "@/components/integrations/x-posting-card";
 import dynamic from "next/dynamic";
-import { tiktokAdvertisers, tiktokAdvertisersTruncated } from "@/lib/tiktok-tracking";
+import { tiktokAdvertisers, tiktokAdvertisersTruncated, tiktokConnectionPresent } from "@/lib/tiktok-tracking";
 import { WordPressImagesCard } from "@/components/integrations/wordpress-images-card";
 import { WordPressConnectModal } from "@/components/integrations/wordpress-connect-modal";
 import { MeasurementHealthPanel } from "@/components/growth/measurement-health-panel";
@@ -778,11 +778,12 @@ export default function IntegrationsPage() {
 
       {/* Which TikTok pixel receives orders, and the catalog feed URL (TT-PX). Connected TikTok Ads only; the ads panel (T-11) can host the same card later. */}
       {(() => {
-        const tiktok = integrations.find((i) => i.provider === "tiktok_ads" && i.connected);
+        const tiktok = integrations.find((i) => i.provider === "tiktok_ads" && tiktokConnectionPresent(i.status));
         return tiktok ? (
           <TikTokTrackingCard
             advertisers={tiktokAdvertisers(tiktok.account?.extra)}
             advertisersTruncated={tiktokAdvertisersTruncated(tiktok.account?.extra)}
+            connectionStatus={tiktok.status}
             onReconnect={() => void handleConnect("tiktok_ads", tiktok.authType)}
           />
         ) : null;
