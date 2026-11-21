@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,22 +9,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ChannelIconCompact } from "@/components/brand/channel-icon";
 import {
   AlertTriangle,
-  ArrowLeft,
   CalendarClock,
   Pause,
   Play,
-  Plus,
-  Repeat,
 } from "lucide-react";
 import { scheduler } from "@/lib/scheduler/client";
 import type { RecurringRuleDto, RecurringRuleStatus } from "@/lib/scheduler/types";
 import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { PageShell } from "@/components/dashboard/page-shell";
 import { EmptyState } from "@/components/molecules/empty-state";
 
 /**
- * /dashboard/calendar/recurring — manage recurring schedule rules
+ * The calendar's "Recurring" tab — manage recurring schedule rules
  * (scd_recurring_rules). Lists each rule with its cadence, next run,
  * last spawn, channels, run counters, and any spawn error, plus
  * Pause/Resume controls. Rules are CREATED from the composer's schedule
@@ -73,7 +68,7 @@ function formatWhen(iso?: string): string {
   });
 }
 
-export default function RecurringRulesPage() {
+export function RecurringPanel() {
   const queryClient = useQueryClient();
 
   const rulesQuery = useQuery({
@@ -113,31 +108,10 @@ export default function RecurringRulesPage() {
       : null;
 
   return (
-    <PageShell width="standard">
-
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <Link
-            href="/dashboard/calendar"
-            className="mb-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="size-3.5" /> Calendar
-          </Link>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-            <Repeat className="size-5 text-primary" /> Recurring schedules
-          </h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Rules that auto-spawn scheduled posts on a cadence. Create one from
-            a composer&apos;s schedule step.
-          </p>
-        </div>
-        <Button asChild size="sm" className="gap-1.5">
-          <Link href="/dashboard/calendar">
-            <Plus className="size-3.5" /> New from composer
-          </Link>
-        </Button>
-      </div>
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Schedules that post for you on a repeating cadence. Set one up from a post&apos;s schedule step.
+      </p>
 
       {rulesQuery.isLoading ? (
         <RulesSkeleton />
@@ -151,8 +125,7 @@ export default function RecurringRulesPage() {
         <EmptyState
           icon={CalendarClock}
           title="No recurring schedules yet"
-          description="A recurring schedule posts for you on a repeating cadence, such as every Monday. Set one up from the calendar: open a composer, choose Schedule, and pick a repeat."
-          action={{ label: "Open the calendar", href: "/dashboard/calendar" }}
+          description="A recurring schedule posts for you on a repeating cadence, such as every Monday. Press New post, choose Schedule, and pick a repeat."
           className="min-h-0 py-12"
         />
       ) : (
@@ -168,7 +141,7 @@ export default function RecurringRulesPage() {
           ))}
         </ul>
       )}
-    </PageShell>
+    </div>
   );
 }
 

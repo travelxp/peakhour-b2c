@@ -8,6 +8,8 @@ interface EmptyStateProps {
   description: string;
   action?: { label: string; onClick: () => void } | { label: string; href: string };
   className?: string;
+  /** Extra controls under the action, such as a button that opens a sheet. */
+  children?: React.ReactNode;
 }
 
 export function EmptyState({
@@ -16,6 +18,7 @@ export function EmptyState({
   description,
   action,
   className,
+  children,
 }: EmptyStateProps) {
   return (
     <div
@@ -43,6 +46,7 @@ export function EmptyState({
           <a href={action.href}>{action.label}</a>
         </Button>
       )}
+      {children}
     </div>
   );
 }

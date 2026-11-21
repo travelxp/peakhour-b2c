@@ -27,6 +27,8 @@ const ALLOWLIST: Record<string, string> = {
   // Triggers come from DRIVE_TABS (files, brand, cleanup, trash, storage) and
   // the page renders a literal TabsContent for each of those five ids.
   "app/(site)/dashboard/drive/page.tsx": "every DRIVE_TABS id has a literal TabsContent",
+  // Triggers come from CALENDAR_TABS (calendar, ideas, recurring) and the page renders a literal TabsContent for each of the three.
+  "app/(site)/dashboard/calendar/page.tsx": "every CALENDAR_TABS id has a literal TabsContent",
 };
 
 function triggerValues(src: string): string[] {

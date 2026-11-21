@@ -16,6 +16,16 @@ class FakeApiError extends Error {
 const threadsApi = vi.hoisted(() => ({ profile: vi.fn(), posts: vi.fn() }));
 vi.mock("@/lib/api", () => ({ api: {}, ApiError: FakeApiError, API_BASE_URL: "https://api.example" }));
 vi.mock("@/lib/api/threads", () => ({ threadsApi, THREADS_PAGE_SIZE: 10 }));
+vi.mock("@/components/compose/compose-sheet-provider", () => ({
+  ComposeSheetProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+vi.mock("@/components/compose/new-post-button", () => ({
+  NewPostButton: ({ channel, label }: { channel?: string; label?: string }) => (
+    <button type="button" data-new-post={channel ?? ""}>
+      {label ?? "New post"}
+    </button>
+  ),
+}));
 vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
     <a href={href} {...rest}>
@@ -109,12 +119,22 @@ describe("ThreadsHub", () => {
     expect(text()).not.toContain("Show more");
   });
 
-  it("an empty profile points to Compose new", async () => {
+  it("an empty profile offers Create a post, opening the sheet on Threads, and goes nowhere else", async () => {
     threadsApi.profile.mockResolvedValue({ profile: PROFILE });
     threadsApi.posts.mockResolvedValue({ posts: [], nextCursor: null });
     await mount();
     expect(text()).toContain("No posts yet");
-    expect(hrefs()).toContain("/dashboard/calendar?compose=1");
+    const create = [...host.querySelectorAll("button")].find((b) => b.textContent === "Create a post")!;
+    expect(create.getAttribute("data-new-post")).toBe("threads");
+    expect(hrefs().some((h) => h?.includes("compose"))).toBe(false);
+  });
+
+  it("a profile with posts still has New post on the profile card, for Threads", async () => {
+    threadsApi.profile.mockResolvedValue({ profile: PROFILE });
+    threadsApi.posts.mockResolvedValue({ posts: [POST], nextCursor: null });
+    await mount();
+    const btn = [...host.querySelectorAll("button")].find((b) => b.textContent === "New post")!;
+    expect(btn.getAttribute("data-new-post")).toBe("threads");
   });
 
   it("not connected offers Connect Threads, returning here", async () => {
