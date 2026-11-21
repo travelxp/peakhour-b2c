@@ -290,7 +290,7 @@ export interface DecisionView {
     /** "Matches market India", "Your default ad account". */
     reason?: string;
     /** "Billed in USD; your plan's budget is in INR". Information, shown neutral: never a warning or a block. */
-    currencyWarning?: string;
+    currencyNote?: string;
     options?: Array<{ id: string; label: string; currency?: string }>;
   };
   impact?: { metric: DecisionMetric; low: number; high: number; confidence: number; horizonDays: number };
@@ -407,6 +407,10 @@ export interface ChannelsResponse {
     platform: AdPlatform;
     state: ChannelHealthState;
     reason?: string;
+    /** The state is only a missing exchange rate for this channel currency (not a warning): the label shows, no badge. */
+    stateByCurrency?: true;
+    /** The campaigns currencies could not be read just now. */
+    billedInUnreadable?: true;
     /** The currency the channel bills in, only when it differs from the plan's: a label, its spend is shown converted. */
     billedIn?: string;
     /** The api's tooltip for the label, including that no budget moves between currencies. */
@@ -529,6 +533,8 @@ export interface RulesResponse {
     currencyMismatch: boolean;
     /** The currencies other than the plan's that the account or its campaigns bill in. */
     billedIn?: string;
+    currencyNotRecorded?: true;
+    billedInUnreadable?: true;
     /** C3's readiness of the conversion signal; absent for a platform the signal step does not cover. */
     signal?: SignalStateView;
   }>;

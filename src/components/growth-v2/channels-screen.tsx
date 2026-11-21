@@ -8,7 +8,7 @@ import { useGrowthV2Channels, type ChannelsRefusal, type ChannelsResponse, type 
 import type { PacingSeries } from "@/lib/growth-v2-series";
 import { PLATFORM_COLOR, PLATFORM_LABEL, WINDOWS, currencyOf, figureText, figureValue, formatMoney, formatPercent, unitFor } from "@/lib/growth-v2-figure";
 import { cn } from "@/lib/utils";
-import { BilledInLabel } from "./billed-in-label";
+import { BilledInLabel, billedInLabelOf } from "./billed-in-label";
 import { ChannelBubbles } from "./channel-bubbles";
 import { FigureValue, MoneyValue } from "./figure-value";
 import { Choice } from "./home-screen";
@@ -79,6 +79,9 @@ export function ChannelsBody({ channels, pacingSeries, unitPlural, unitOne }: { 
   // Credit belongs to a channel, not a campaign: when no campaign has its own result, the columns would only repeat an absence.
   const campaignResults = channels.campaigns.some((c) => figureValue(c.outcomes) !== undefined);
   const target = channels.allocatorTarget;
+  const labelArgs = (h: ChannelsResponse["health"][number]) => ({ billedIn: h.billedIn, planCurrency: currency, money: h.spend, note: h.billedNote, currencyNotRecorded: h.currencyNotRecorded, unreadable: h.billedInUnreadable });
+  const labelOf = (h: ChannelsResponse["health"][number]) => billedInLabelOf(labelArgs(h));
+  const campaignLabelArgs = (c: ChannelsResponse["campaigns"][number]) => ({ billedIn: c.billedIn, planCurrency: currency, money: c.spend, surface: "campaign" as const, currencyNotRecorded: c.currencyNotRecorded });
   return (
     <div className="grid gap-4">
       <p className="text-sm text-muted-foreground">{channels.basis}</p>
@@ -95,12 +98,13 @@ export function ChannelsBody({ channels, pacingSeries, unitPlural, unitOne }: { 
                 </CardTitle>
                 <div>
                   {/* A currency with no rate is a fact, not a warning: the neutral label says it, with the reason line below. */}
-                  {"absent" in h.spend && h.spend.absent === "no_exchange_rate" ? null : (
+                  {/* Only when the state IS just the missing rate AND its label is on screen; any other reason keeps its badge. */}
+                  {h.stateByCurrency && labelOf(h) ? null : (
                     <ToneBadge tone={s.tone} dot>
                       {s.label}
                     </ToneBadge>
                   )}{" "}
-                  <BilledInLabel billedIn={h.billedIn} planCurrency={currency} money={h.spend} note={h.billedNote} currencyNotRecorded={h.currencyNotRecorded} />
+                  <BilledInLabel {...labelArgs(h)} />
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -212,9 +216,9 @@ export function ChannelsBody({ channels, pacingSeries, unitPlural, unitOne }: { 
                             <span className="sr-only">{PLATFORM_LABEL[c.platform]}: </span>
                             {c.name}
                           </span>
-                          {c.billedIn || c.currencyNotRecorded ? (
+                          {billedInLabelOf(campaignLabelArgs(c)) ? (
                             <span className="mt-1 block">
-                              <BilledInLabel billedIn={c.billedIn} planCurrency={currency} money={c.spend} surface="campaign" currencyNotRecorded={c.currencyNotRecorded} />
+                              <BilledInLabel {...campaignLabelArgs(c)} />
                             </span>
                           ) : null}
                         </td>

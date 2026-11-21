@@ -235,7 +235,7 @@ describe("the screens render their preview sample", () => {
       const noRate: ChannelsResponse = {
         ...live,
         health: [
-          { platform: "google_ads", state: "watch", reason: "Google Ads's spend is in USD, which Peakhour can't convert yet, so it is not shown.", billedIn: "USD", spend: { absent: "no_exchange_rate" }, outcomes: { absent: "no_exchange_rate" }, efficiency: { absent: "no_exchange_rate" } },
+          { platform: "google_ads", state: "watch", stateByCurrency: true, reason: "Google Ads's spend is in USD, which Peakhour can't convert yet, so it is not shown.", billedIn: "USD", spend: { absent: "no_exchange_rate" }, outcomes: { absent: "no_exchange_rate" }, efficiency: { absent: "no_exchange_rate" } },
         ],
       };
       const out = body(noRate);
@@ -243,6 +243,23 @@ describe("the screens render their preview sample", () => {
       expect(out).toContain("which Peakhour can&#x27;t convert yet");
       expect(out).not.toContain("Watch");
       expect(out).not.toContain("Problem");
+    });
+
+    it("a no-rate channel whose state has another reason (the signal) keeps its badge", () => {
+      const signal: ChannelsResponse = {
+        ...live,
+        health: [{ platform: "google_ads", state: "watch", reason: "Google Ads is not sending your bookings back to the platform yet, so its results may be undercounted.", billedIn: "USD", spend: { absent: "no_exchange_rate" }, outcomes: { absent: "no_exchange_rate" }, efficiency: { absent: "no_exchange_rate" } }],
+      };
+      const out = body(signal);
+      expect(out).toContain("Watch");
+      expect(out).toContain("Can&#x27;t convert USD yet");
+    });
+
+    it("no plan currency: no label and no empty wrapper on a campaign row", () => {
+      const noPlan: ChannelsResponse = { ...live, pacing: { ...live.pacing, monthlyCeiling: { absent: "x" }, spentThisMonth: { absent: "x" } } };
+      const out = body(noPlan);
+      expect(out).not.toContain("Billed in USD");
+      expect(out).not.toContain('class="mt-1 block"');
     });
 
     it("a partial channel keeps its real Watch state; a channel whose campaigns are USD under an INR account is labelled", () => {
@@ -313,13 +330,21 @@ describe("the screens render their preview sample", () => {
     expect(out).toContain("5 experiments");
   });
 
-  it("Rules shows a billed-in label once, with no raw code beside it and no claim of a conversion", () => {
-    const rules = { ...FIXTURE_RULES, connections: [{ platform: "google_ads" as const, connected: true, currency: "usd", currencyMismatch: true, billedIn: "USD", signal: "ready" as const }, { platform: "meta" as const, connected: true, currency: "inr", currencyMismatch: false }] };
+  it("Rules always shows the account's own currency, and the label only when what is billed differs from it", () => {
+    const rules = {
+      ...FIXTURE_RULES,
+      connections: [
+        { platform: "google_ads" as const, connected: true, currency: "usd", currencyMismatch: true, billedIn: "USD", signal: "ready" as const },
+        { platform: "meta" as const, connected: true, currency: "inr", currencyMismatch: true, billedIn: "USD" },
+        { platform: "x" as const, connected: true, currency: "inr", currencyMismatch: false },
+      ],
+    };
     const out = html(withClient(<RulesBody rules={rules} preview />));
-    expect(out).toContain("Billed in USD");
+    // the USD account: its code, no label beside it; the INR account with USD campaigns: its code AND the label, once
+    expect(out).toContain(">USD</span>");
     expect(out.match(/Billed in USD/g)!.length).toBe(1);
     expect(out).not.toContain(">usd<");
-    expect(out).toContain(">INR<");
+    expect(out.match(/>INR</g)!.length).toBeGreaterThanOrEqual(2);
     expect(out).not.toContain("Not managed");
     expect(out).toContain("converted on the Channels page where Peakhour has an exchange rate");
   });

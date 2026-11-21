@@ -134,9 +134,13 @@ export function RulesBody({ rules, preview }: { rules: RulesResponse; preview: b
                     )}
                   </td>
                   <td className="px-2 py-2.5">
-                    {c.currency ? (
+                    {/* The account's own currency always shows; the label beside it only when what is billed differs from it. */}
+                    {c.currency || c.billedIn ? (
                       <span className="inline-flex items-center gap-2">
-                        {c.billedIn || c.currencyMismatch ? <BilledInLabel billedIn={c.billedIn ?? c.currency} planCurrency={m.currency} surface="rules" /> : c.currency.trim().toUpperCase()}
+                        {c.currency ? c.currency.trim().toUpperCase() : null}
+                        {c.billedIn?.trim().toUpperCase() !== c.currency?.trim().toUpperCase() || c.currencyNotRecorded || c.billedInUnreadable ? (
+                          <BilledInLabel billedIn={c.billedIn} planCurrency={m.currency} surface="rules" currencyNotRecorded={c.currencyNotRecorded} unreadable={c.billedInUnreadable} />
+                        ) : null}
                       </span>
                     ) : (
                       <span className="text-muted-foreground">&ndash;</span>
