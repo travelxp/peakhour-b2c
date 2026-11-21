@@ -30,7 +30,8 @@ import { seriesFromHome, type HomeSeries, type PacingSeries } from "@/lib/growth
 export type Figure = { value: number } | { absent: string };
 
 /** A figure in a currency. */
-export type Money = { value: number; currency: string } | { absent: string };
+/** `leftOut` on a value: PART of the figure is missing (spend in those currencies has no exchange rate yet). */
+export type Money = { value: number; currency: string; leftOut?: string[] } | { absent: string };
 
 export type AdPlatform = "linkedin" | "google_ads" | "meta" | "x";
 export type AutonomyLevel = 0 | 1 | 2 | 3;
@@ -288,7 +289,7 @@ export interface DecisionView {
     label?: string;
     /** "Matches market India", "Your default ad account". */
     reason?: string;
-    /** "This ad account bills in USD; your plan's budget is in INR". A warning, never a block. */
+    /** "Billed in USD; your plan's budget is in INR". Information, shown neutral: never a warning or a block. */
     currencyWarning?: string;
     options?: Array<{ id: string; label: string; currency?: string }>;
   };
@@ -408,6 +409,10 @@ export interface ChannelsResponse {
     reason?: string;
     /** The currency the channel bills in, only when it differs from the plan's: a label, its spend is shown converted. */
     billedIn?: string;
+    /** The api's tooltip for the label, including that no budget moves between currencies. */
+    billedNote?: string;
+    /** Some campaigns record no currency and are counted at face value. */
+    currencyNotRecorded?: true;
     spend: Money;
     outcomes: Figure;
     efficiency: Figure;
@@ -415,7 +420,7 @@ export interface ChannelsResponse {
   /** Spend against outcomes per channel, for the bubble chart. */
   bubbles: Array<{ platform: AdPlatform; spend: Money; outcomes: Figure; efficiency: Figure }>;
   /** Eight buckets of 7 days ending where the window ends (Home's spark buckets), oldest first; `weekStart` is the local day a bucket opens, not a Monday. */
-  shareByWeek: Array<{ weekStart: string; shares: Array<{ platform: AdPlatform; share: Figure }> }>;
+  shareByWeek: Array<{ weekStart: string; /** Currencies with no exchange rate, whose spend is in no share. */ leftOut?: string[]; shares: Array<{ platform: AdPlatform; share: Figure }> }>;
   /** Where the allocator's latest decision would leave each platform's share of daily budget; absent when it has made none. */
   allocatorTarget?: { decisionId: string; status: string; at: string; shares: Array<{ platform: AdPlatform; share: Figure }> };
   pacing: {
@@ -433,6 +438,8 @@ export interface ChannelsResponse {
     status: string;
     /** The currency the campaign bills in, only when it differs from the plan's; its spend is shown converted. */
     billedIn?: string;
+    billedNote?: string;
+    currencyNotRecorded?: true;
     dailyBudget: Money;
     /** The engine's latest accepted change of the daily budget in the last 30 days, in the campaign's own `currency`. */
     engineChange?: { at: string; from: number; to: number; currency: string };
@@ -520,6 +527,8 @@ export interface RulesResponse {
     currency?: string;
     /** True when the account bills in another currency than the mandate (a label: spend is converted; no budget moves across currencies). */
     currencyMismatch: boolean;
+    /** The currencies other than the plan's that the account or its campaigns bill in. */
+    billedIn?: string;
     /** C3's readiness of the conversion signal; absent for a platform the signal step does not cover. */
     signal?: SignalStateView;
   }>;

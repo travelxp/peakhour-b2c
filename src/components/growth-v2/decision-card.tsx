@@ -171,7 +171,7 @@ export function DecisionCard({ decision: d, currency, unit, now, onAction, actio
             </p>
           )}
           {d.adAccount.currencyWarning ? (
-            <p role="note" className="text-xs text-warning-on-tint">
+            <p role="note" className="text-xs text-muted-foreground">
               {d.adAccount.currencyWarning}
             </p>
           ) : null}

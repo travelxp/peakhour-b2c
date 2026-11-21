@@ -226,10 +226,40 @@ describe("the screens render their preview sample", () => {
     it("a channel or campaign billed in another currency gets a small neutral label, not a problem", () => {
       const out = body(live);
       expect(out).toContain("Billed in USD");
-      expect(out).toContain("Shown in INR at today&#x27;s rate");
-      expect(out).toContain("does not move budget between currencies");
+      // the tooltip text itself is covered in billed-in-label.test.tsx (it renders on focus, not in the markup)
       expect(out).toContain("Can&#x27;t convert USD yet");
       expect(out).toContain("₹8,350");
+    });
+
+    it("a channel with no exchange rate shows the neutral 'Can't convert' label and no warning badge for the currency", () => {
+      const noRate: ChannelsResponse = {
+        ...live,
+        health: [
+          { platform: "google_ads", state: "watch", reason: "Google Ads's spend is in USD, which Peakhour can't convert yet, so it is not shown.", billedIn: "USD", spend: { absent: "no_exchange_rate" }, outcomes: { absent: "no_exchange_rate" }, efficiency: { absent: "no_exchange_rate" } },
+        ],
+      };
+      const out = body(noRate);
+      expect(out).toContain("Can&#x27;t convert USD yet");
+      expect(out).toContain("which Peakhour can&#x27;t convert yet");
+      expect(out).not.toContain("Watch");
+      expect(out).not.toContain("Problem");
+    });
+
+    it("a partial channel keeps its real Watch state; a channel whose campaigns are USD under an INR account is labelled", () => {
+      const partial: ChannelsResponse = {
+        ...live,
+        health: [
+          { platform: "x", state: "watch", reason: "Part of X Ads's spend is in USD, which Peakhour can't convert yet, so the figures here are understated.", billedIn: "USD", spend: { value: 200, currency: "INR", leftOut: ["USD"] }, outcomes: { value: 1 }, efficiency: { absent: "no_exchange_rate" } },
+        ],
+      };
+      const out = body(partial);
+      expect(out).toContain("Watch");
+      expect(out).toContain("Billed in USD");
+    });
+
+    it("a campaign with no recorded currency says so", () => {
+      const out = body({ ...live, campaigns: [{ ...live.campaigns[0]!, currencyNotRecorded: true }] });
+      expect(out).toContain("Currency not recorded");
     });
 
     it("says outcomes are credited to a channel, not caused by the ads", () => {
@@ -281,6 +311,17 @@ describe("the screens render their preview sample", () => {
     expect(out).toContain("Cost per outcome");
     expect(out).toContain("peak");
     expect(out).toContain("5 experiments");
+  });
+
+  it("Rules shows a billed-in label once, with no raw code beside it and no claim of a conversion", () => {
+    const rules = { ...FIXTURE_RULES, connections: [{ platform: "google_ads" as const, connected: true, currency: "usd", currencyMismatch: true, billedIn: "USD", signal: "ready" as const }, { platform: "meta" as const, connected: true, currency: "inr", currencyMismatch: false }] };
+    const out = html(withClient(<RulesBody rules={rules} preview />));
+    expect(out).toContain("Billed in USD");
+    expect(out.match(/Billed in USD/g)!.length).toBe(1);
+    expect(out).not.toContain(">usd<");
+    expect(out).toContain(">INR<");
+    expect(out).not.toContain("Not managed");
+    expect(out).toContain("converted on the Channels page where Peakhour has an exchange rate");
   });
 
   it("Guardrails shows the ladder, the plan summary with a link to Goals, the guardrail switches and the lines it never crosses", () => {

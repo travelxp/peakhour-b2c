@@ -94,10 +94,13 @@ export function ChannelsBody({ channels, pacingSeries, unitPlural, unitOne }: { 
                   {PLATFORM_LABEL[h.platform]}
                 </CardTitle>
                 <div>
-                  <ToneBadge tone={s.tone} dot>
-                    {s.label}
-                  </ToneBadge>{" "}
-                  <BilledInLabel billedIn={h.billedIn} planCurrency={currency} noRate={"absent" in h.spend && h.spend.absent === "no_exchange_rate"} />
+                  {/* A currency with no rate is a fact, not a warning: the neutral label says it, with the reason line below. */}
+                  {"absent" in h.spend && h.spend.absent === "no_exchange_rate" ? null : (
+                    <ToneBadge tone={s.tone} dot>
+                      {s.label}
+                    </ToneBadge>
+                  )}{" "}
+                  <BilledInLabel billedIn={h.billedIn} planCurrency={currency} money={h.spend} note={h.billedNote} currencyNotRecorded={h.currencyNotRecorded} />
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -209,9 +212,9 @@ export function ChannelsBody({ channels, pacingSeries, unitPlural, unitOne }: { 
                             <span className="sr-only">{PLATFORM_LABEL[c.platform]}: </span>
                             {c.name}
                           </span>
-                          {c.billedIn ? (
+                          {c.billedIn || c.currencyNotRecorded ? (
                             <span className="mt-1 block">
-                              <BilledInLabel billedIn={c.billedIn} planCurrency={currency} noRate={"absent" in c.spend && c.spend.absent === "no_exchange_rate"} />
+                              <BilledInLabel billedIn={c.billedIn} planCurrency={currency} money={c.spend} surface="campaign" currencyNotRecorded={c.currencyNotRecorded} />
                             </span>
                           ) : null}
                         </td>

@@ -94,7 +94,7 @@ export function RulesBody({ rules, preview }: { rules: RulesResponse; preview: b
       <Card>
         <CardHeader>
           <CardTitle>Connections</CardTitle>
-          <CardDescription>Your plan is in {m.currency}. An account billed in another currency is shown converted; Peakhour does not move budget between currencies.</CardDescription>
+          <CardDescription>Your plan is in {m.currency}. Spend billed in another currency is converted on the Channels page where Peakhour has an exchange rate. Peakhour does not move budget between currencies.</CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <table className="w-full min-w-[520px] text-sm">
@@ -136,8 +136,7 @@ export function RulesBody({ rules, preview }: { rules: RulesResponse; preview: b
                   <td className="px-2 py-2.5">
                     {c.currency ? (
                       <span className="inline-flex items-center gap-2">
-                        {c.currency}
-                        {c.currencyMismatch ? <BilledInLabel billedIn={c.currency} planCurrency={m.currency} /> : null}
+                        {c.billedIn || c.currencyMismatch ? <BilledInLabel billedIn={c.billedIn ?? c.currency} planCurrency={m.currency} surface="rules" /> : c.currency.trim().toUpperCase()}
                       </span>
                     ) : (
                       <span className="text-muted-foreground">&ndash;</span>
