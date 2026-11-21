@@ -10,6 +10,7 @@ import { useHomeWork, type WorkMetric } from "@/hooks/use-home-work";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useAuth } from "@/providers/auth-provider";
+import { CONTENT_CREATE } from "@/lib/content-nav";
 import { connectedAccounts } from "@/lib/home-overview";
 import type { Integration } from "@/app/(site)/dashboard/integrations/_components/shared";
 
@@ -186,7 +187,7 @@ export function WorkCompletedCard({
                   of the time it saved you.
                 </p>
                 <Link
-                  href="/dashboard/content"
+                  href={CONTENT_CREATE}
                   className="inline-flex items-center gap-1 text-xs font-semibold text-brand-label"
                 >
                   Plan your next post

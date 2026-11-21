@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
 /**
- * Data hook for the Autopilot Home (Content > Autopilot).
+ * Data hook for GET /v1/home/summary: the Overview, the Content home and Create.
  *
  * Backed by GET /v1/home/summary — one round trip returns the KPIs, the
  * autopilot status, the priority-ordered Needs-you rail, and per-channel
@@ -105,9 +105,7 @@ export function useHomeSummary(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: homeSummaryKey,
     queryFn: () => api.get<HomeSummary>("/v1/home/summary"),
-    // Caller can disable the fetch entirely — the page passes `!isProd`
-    // so the dark-in-prod build issues zero network chatter before its
-    // redirect fires.
+    // A caller can switch the fetch off until it has what it needs.
     enabled: options?.enabled ?? true,
     // The rail/widgets reflect cron-moved state; 60s keeps it fresh
     // without hammering. Stop on error so a stale auth cookie doesn't

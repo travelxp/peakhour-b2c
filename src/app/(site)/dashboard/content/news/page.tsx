@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Newspaper, AlertCircle, CalendarPlus } from "lucide-react";
 import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
+import { PlanTabs } from "@/components/dashboard/plan-tabs";
 import { api, ApiError } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,7 @@ export default function NewsDeskPage() {
 
   return (
     <PageShell>
+      <PlanTabs />
       <PageHeader
         icon={<Newspaper className="size-6" aria-hidden />}
         title="Industry news"

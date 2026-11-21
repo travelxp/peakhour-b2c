@@ -48,6 +48,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
+import { PlanTabs } from "@/components/dashboard/plan-tabs";
 import { withHolidayFields, type SeasonalEventType } from "./seasonal-event-wire";
 import { PageIntro } from "@/components/dashboard/page-intro";
 
@@ -457,6 +458,7 @@ export default function SeasonalEventsPage() {
 
   return (
     <PageShell>
+      <PlanTabs />
       <PageHeader
         icon={<CalendarDays className="h-6 w-6 text-muted-foreground" />}
         title="Holidays & events"
