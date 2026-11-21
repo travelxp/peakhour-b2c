@@ -462,6 +462,8 @@ export class UploadFailed extends Error {
   constructor(
     message: string,
     readonly final: boolean,
+    /** The Drive is full: the files behind this one would fail the same way. */
+    readonly quotaFull = false,
   ) {
     super(message);
     this.name = "UploadFailed";
@@ -528,7 +530,7 @@ export async function uploadToDrive(file: File, opts: UploadOptions = {}): Promi
         mimeType: file.type,
       };
     }
-    throw new UploadFailed(settled.error ?? "This file could not be uploaded.", settled.final === true);
+    throw new UploadFailed(settled.error ?? "This file could not be uploaded.", settled.final === true, settled.quotaFull === true);
   } finally {
     unsub();
     opts.signal?.removeEventListener("abort", onAbort);

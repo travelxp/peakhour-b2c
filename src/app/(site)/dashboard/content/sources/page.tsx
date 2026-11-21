@@ -1,7 +1,8 @@
 "use client";
 
 import { TabPanelStubs } from "@/components/dashboard/tab-panel-stubs";
-import { useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, AlertCircle, BookMarked, FileSearch, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -89,7 +90,10 @@ export default function TrustedSourcesPage() {
       mode="hide"
       fallback={<TrustedSourcesLockedFallback />}
     >
-      <TrustedSourcesSurface />
+      {/* useSearchParams (the ?source= deep link) needs a Suspense boundary. */}
+      <Suspense fallback={null}>
+        <TrustedSourcesSurface />
+      </Suspense>
     </FeatureGate>
   );
 }
@@ -120,10 +124,34 @@ function TrustedSourcesSurface() {
   const [tab, setTab] = useState<Tab>("active");
   const [search, setSearch] = useState("");
 
+
   // Memoize the row list against `data` directly so the deps array
   // for `byStatus` doesn't change on every render (a fresh `?? []`
   // expression yields a new array reference each call).
   const rows = useMemo<TrustedSource[]>(() => data?.rows ?? [], [data]);
+
+  // ?source=<id> (the emails link here): open the tab the source lives
+  // in, scroll to it and highlight it. Done once per id.
+  const focusId = useSearchParams().get("source");
+  const [focusDone, setFocusDone] = useState<string | null>(null);
+  const scrolledFor = useRef<string | null>(null);
+  const focusRow = focusId ? rows.find((r) => r._id === focusId) : undefined;
+  if (focusRow && focusDone !== focusRow._id) {
+    // Adjusting state while rendering (React's documented pattern), not in an effect.
+    setFocusDone(focusRow._id);
+    setTab(focusRow.status);
+    setSearch("");
+  }
+  const focusId2 = focusRow?._id;
+  const focusStatus = focusRow?.status;
+  useEffect(() => {
+    // Once per link: a later refetch or tab switch must not drag the page back.
+    if (!focusId2 || scrolledFor.current === focusId2 || tab !== focusStatus) return;
+    const el = document.getElementById(`source-${focusId2}`);
+    if (!el) return;
+    scrolledFor.current = focusId2;
+    el.scrollIntoView?.({ block: "center", behavior: "smooth" });
+  }, [focusId2, focusStatus, tab]);
 
   const byStatus = useMemo(() => {
     const groups: Record<StatusTab, TrustedSource[]> = {
@@ -215,7 +243,7 @@ function TrustedSourcesSurface() {
           ) : (
             <div className="space-y-2">
               {visibleRows.map((r) => (
-                <SourceRow key={r._id} source={r} />
+                <SourceRow key={r._id} source={r} highlighted={r._id === focusId} />
               ))}
             </div>
           )}

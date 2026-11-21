@@ -54,7 +54,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { DrivePicker } from "@/components/drive/drive-picker";
 import { SaveToDriveButton } from "@/components/drive/save-to-drive";
 import { isSavableAddress } from "@/lib/drive/copy";
-import { targetLabel } from "@/lib/drive/fit";
 import { ScheduleTimePicker } from "@/components/scheduler/schedule-time-picker";
 import { PlatformCharCounter } from "@/components/composer/platform-char-counter";
 import { scheduler } from "@/lib/scheduler/client";
@@ -83,9 +82,6 @@ const COUNTER_PLATFORMS = new Set<string>([
   "bluesky",
 ]);
 
-/** `scd_scheduled_items.payload.mediaUrls` maxItems. The per-channel limit is
- *  stricter and lives server-side; this is only the hard ceiling. */
-const PAYLOAD_MEDIA_CAP = 12;
 
 /**
  * Statuses whose payload and time can still be changed. Mirrors the server's
@@ -508,14 +504,10 @@ export function ScheduledPostEditor({
         )}
         {supportsMedia ? (
           <DrivePicker
-            // Files that fit this channel come first (the api's `channelFit`).
-            target={{ channel: item.channel, label: targetLabel(channelDisplayName(item.channel)) }}
+            // The channel's own rules (types, size, count, shape) come from the api's table, and files that fit come first.
+            destination={{ kind: "post", channel: item.channel }}
+            attached={mediaUrls.length}
             addLabel="Add to post"
-            // Remaining slots against the payload schema's cap, not a guessed
-            // per-platform number: the channel's real `maxMediaCount` lives in
-            // the server's constraints adapter and is enforced there
-            // (TOO_MANY_MEDIA), so inventing a limit here could only be wrong.
-            maxSelection={Math.max(0, PAYLOAD_MEDIA_CAP - mediaUrls.length)}
             onSelect={(assets) =>
               setMediaUrls((prev) => {
                 // Dedupe by URL — picking the same asset twice would publish it

@@ -155,12 +155,12 @@ export function Inbox({
   const selected = items.find((x) => x.id === pickedId) ?? items[0];
   const selectedDecision = !isBlocked ? (selected as DecisionView | undefined) : undefined;
 
-  const act = (action: DecisionAction) => {
+  const act = (action: DecisionAction, adAccountId?: string) => {
     if (!selectedDecision) return;
     const id = selectedDecision.id;
     setNotice(null);
     decide.mutate(
-      { id, action },
+      { id, action, adAccountId },
       {
         onSuccess: (r) => toast.success(doneToast(action, r)),
         // The refusal stays on the card as something to do; the queues refetch (the decision may have moved to held).

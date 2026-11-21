@@ -156,3 +156,19 @@ export function fundingNotice(query: {
   if (query.isSuccess) return "empty";
   return null;
 }
+
+/**
+ * ★BOTH AMOUNTS WHEN THE FUNDING SOURCE BILLS IN ANOTHER CURRENCY THAN THE PLAN (MR-G3, owner 2026-11-20): "$30 a day
+ * (about ₹2,500)". The plan's caps count the converted amount, so the merchant sees the number the cap sees. Never a
+ * reason to block: with no plan amount (same currency, no mandate, no rate yet) only the campaign's own amount shows.
+ */
+export function dailyBudgetLine(
+  amount: number,
+  currency: string | null,
+  plan: { planCurrency: string | null; planAmount: number | null } | undefined,
+  format: (amount: number, currency: string | null) => string,
+): string {
+  const own = `${format(amount, currency)} a day`;
+  if (!plan || plan.planAmount === null || !plan.planCurrency) return own;
+  return `${own} (about ${format(plan.planAmount, plan.planCurrency)})`;
+}

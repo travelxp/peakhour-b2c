@@ -99,3 +99,11 @@ export async function recommendSourcesFromCompetitor(
     { competitorUrl },
   );
 }
+
+/**
+ * Apply the fix we suggested for a source we could not reach. Answers
+ * 409 when the suggestion is gone (already applied or replaced).
+ */
+export async function applySourceFix(id: string): Promise<unknown> {
+  return api.post<unknown>(`/v1/sources/trusted/${id}/apply-fix`, {});
+}

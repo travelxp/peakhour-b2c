@@ -33,7 +33,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ApiError } from "@/lib/api";
-import { deleteSource, patchSource } from "../api";
+import { cn } from "@/lib/utils";
+import { applySourceFix, deleteSource, patchSource } from "../api";
+import { isPausedForFetch, problemLine } from "../lib/fetch-issue";
 import {
   SOURCE_TYPE_LABEL,
   type SourceStatus,
@@ -85,9 +87,11 @@ const STATUS_VARIANT: Record<SourceStatus, "default" | "secondary" | "outline" |
 
 interface SourceRowProps {
   source: TrustedSource;
+  /** Set when the page was opened from a link (?source=<id>) to this row. */
+  highlighted?: boolean;
 }
 
-export function SourceRow({ source }: SourceRowProps) {
+export function SourceRow({ source, highlighted = false }: SourceRowProps) {
   const queryClient = useQueryClient();
 
   function invalidate() {
@@ -145,6 +149,22 @@ export function SourceRow({ source }: SourceRowProps) {
     onError: (e) => handleApiError(e, "Could not reject source"),
   });
 
+  const applyFixMutation = useMutation({
+    mutationFn: () => applySourceFix(source._id),
+    onSuccess: () => {
+      toast.success(`Fixed ${source.displayName}. We'll fetch it shortly.`);
+      invalidate();
+    },
+    onError: (e) => {
+      if (e instanceof ApiError && e.status === 409) {
+        toast.error("That fix is no longer available");
+        invalidate();
+      } else {
+        handleApiError(e, "Could not apply the fix");
+      }
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: () => deleteSource(source._id),
     onSuccess: () => {
@@ -160,10 +180,23 @@ export function SourceRow({ source }: SourceRowProps) {
     resumeMutation.isPending ||
     acceptMutation.isPending ||
     rejectMutation.isPending ||
+    applyFixMutation.isPending ||
     deleteMutation.isPending;
+  const issue = source.fetchIssue ?? null;
+  const paused = isPausedForFetch(source);
+  const fix = issue?.suggestedFix ?? null;
+  // A healthy-looking suggested/rejected row never shows a problem.
+  const showProblem = paused || (Boolean(issue) && source.status === "active");
 
   return (
-    <div className="flex items-center gap-4 rounded-lg border bg-card p-4">
+    <div
+      id={`source-${source._id}`}
+      data-highlighted={highlighted ? "true" : undefined}
+      className={cn(
+        "flex items-center gap-4 rounded-lg border bg-card p-4",
+        highlighted && "ring-2 ring-primary",
+      )}
+    >
       <div
         aria-hidden="true"
         className="flex size-10 shrink-0 items-center justify-center rounded-md border text-muted-foreground"
@@ -208,6 +241,41 @@ export function SourceRow({ source }: SourceRowProps) {
           )}
           <LastFetched source={source} />
         </div>
+        {showProblem ? (
+          <div className="mt-2 space-y-1 text-xs" role="status">
+            {paused ? (
+              <p className="font-medium text-foreground">
+                Paused: we couldn&apos;t reach it
+              </p>
+            ) : null}
+            {issue ? <p className="text-destructive">{problemLine(issue)}</p> : null}
+            {fix ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-muted-foreground">
+                  Suggested fix: {fix.reason}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={isPending}
+                  onClick={() => applyFixMutation.mutate()}
+                >
+                  Apply fix
+                </Button>
+              </div>
+            ) : null}
+            {paused && !fix ? (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={isPending}
+                onClick={() => resumeMutation.mutate()}
+              >
+                Turn back on
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <Badge variant={STATUS_VARIANT[source.status]} className="shrink-0 capitalize">

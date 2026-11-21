@@ -200,7 +200,7 @@ export async function crawlChecks(o: CrawlOptions): Promise<void> {
     }
     const r = await get(base, p.path);
     if (indexable) {
-      check(`draft ${p.path} is 404 on Production`, r.status === 404, String(r.status));
+      check(`draft or placeholder-approved ${p.path} is 404 on Production`, r.status === 404, String(r.status));
       continue;
     }
     check(`draft ${p.path} renders on dev`, r.status === 200, String(r.status));

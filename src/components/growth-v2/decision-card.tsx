@@ -14,6 +14,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { DecisionAction, DecisionStepView, DecisionView } from "@/lib/api/growth-v2";
 import {
   canApprove,
@@ -56,7 +57,8 @@ interface DecisionCardProps {
   unit: { one: string; many: string };
   /** The clock for "expires in". Passed in so a preview can freeze it. */
   now: number;
-  onAction?: (action: DecisionAction) => void;
+  /** `adAccountId` rides an approve of a launch that fit several ad accounts (the one the person picked). */
+  onAction?: (action: DecisionAction, adAccountId?: string) => void;
   /** Why the buttons are off, shown beside them. */
   actionsDisabled?: string;
   pending?: boolean;
@@ -81,6 +83,15 @@ const hoursText = (h: number) => (h < 1 ? "less than an hour" : h === 1 ? "1 hou
 
 export function DecisionCard({ decision: d, currency, unit, now, onAction, actionsDisabled, pending, notice, className }: DecisionCardProps) {
   const [confirming, setConfirming] = useState(false);
+  // MR-F3: the ad account picked for a launch that fit several, kept with the decision it was picked for.
+  const [picked, setPicked] = useState<{ id: string; account: string } | null>(null);
+  // A refusal the person has since acted on (picked an account after "choose an account") is not shown again.
+  const [actedOn, setActedOn] = useState<DecisionNotice | undefined>(undefined);
+  const shownNotice = notice && notice !== actedOn ? notice : undefined;
+  // A pick counts only while it is still one of the CURRENT options (a refetch can drop it).
+  const pickedAccount = picked?.id === d.id && d.adAccount?.options?.some((o) => o.id === picked.account) ? picked.account : undefined;
+  const confirmAccount = d.adAccount?.required ? d.adAccount.options?.find((o) => o.id === pickedAccount)?.label : d.adAccount?.label;
+  const needsPick = d.adAccount?.required === true && pickedAccount === undefined;
   const impact = d.impact ? describeImpact(d.impact, currency, unit) : undefined;
   const answerable = isAnswerable(d);
   const left = d.expiresAt ? hoursUntil(d.expiresAt, now) : undefined;
@@ -91,7 +102,7 @@ export function DecisionCard({ decision: d, currency, unit, now, onAction, actio
   const approve = () => {
     // Anything that touches a platform asks first; a spend kind with no ops has nothing to list, so it does not.
     if (d.ops.length > 0) setConfirming(true);
-    else onAction?.("approve");
+    else onAction?.("approve", pickedAccount);
   };
 
   return (
@@ -128,6 +139,43 @@ export function DecisionCard({ decision: d, currency, unit, now, onAction, actio
             </div>
           ) : null}
         </div>
+      ) : null}
+
+      {d.adAccount && (!d.adAccount.required || answerable) ? (
+        <section aria-label="Ad account" className="grid gap-1.5">
+          <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Ad account</h3>
+          {d.adAccount.required ? (
+            <>
+              <p className="text-sm">{d.adAccount.reason ?? "More than one of your ad accounts fits this campaign."} Choose the one it runs in.</p>
+              <Select value={pickedAccount ?? ""} onValueChange={(account) => {
+                  setPicked({ id: d.id, account });
+                  setActedOn(notice);
+                }} disabled={off || !answerable}>
+                <SelectTrigger className="w-full max-w-sm" aria-label="Ad account for this campaign">
+                  <SelectValue placeholder="Choose an ad account" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(d.adAccount.options ?? []).map((o) => (
+                    <SelectItem key={o.id} value={o.id}>
+                      {o.label}
+                      {o.currency ? ` · ${o.currency}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          ) : (
+            <p className="text-sm">
+              Runs in {d.adAccount.label ?? "your ad account"}
+              {d.adAccount.reason ? ` · ${d.adAccount.reason}` : ""}
+            </p>
+          )}
+          {d.adAccount.currencyWarning ? (
+            <p role="note" className="text-xs text-warning-on-tint">
+              {d.adAccount.currencyWarning}
+            </p>
+          ) : null}
+        </section>
       ) : null}
 
       {d.ops.length > 0 ? (
@@ -169,7 +217,7 @@ export function DecisionCard({ decision: d, currency, unit, now, onAction, actio
 
       {answerable ? (
         <div className="flex flex-wrap items-center gap-2">
-          <Button disabled={off || !canApprove(d, now)} onClick={approve}>
+          <Button disabled={off || !canApprove(d, now) || needsPick} onClick={approve}>
             Approve
           </Button>
           {d.status === "proposed" ? (
@@ -202,14 +250,14 @@ export function DecisionCard({ decision: d, currency, unit, now, onAction, actio
         </div>
       ) : null}
 
-      {notice ? (
-        <p role="alert" className={cn("rounded-lg border px-3 py-2 text-sm", TONE_CLASS[notice.tone])}>
-          {notice.text}
-          {notice.link ? (
+      {shownNotice ? (
+        <p role="alert" className={cn("rounded-lg border px-3 py-2 text-sm", TONE_CLASS[shownNotice.tone])}>
+          {shownNotice.text}
+          {shownNotice.link ? (
             <>
               {" "}
-              <Link href={notice.link.href} className="font-medium underline underline-offset-2">
-                {notice.link.label}
+              <Link href={shownNotice.link.href} className="font-medium underline underline-offset-2">
+                {shownNotice.link.label}
               </Link>
             </>
           ) : null}
@@ -225,6 +273,7 @@ export function DecisionCard({ decision: d, currency, unit, now, onAction, actio
               24 hours afterwards.
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {confirmAccount ? <p className="text-sm font-medium">Runs in {confirmAccount}</p> : null}
           <ul className="space-y-1 text-sm">
             {d.ops.map((op, i) => (
               <li key={`${op.platform}-${op.campaignRef}-${op.op}-${i}`}>{opLine(op)}</li>
@@ -232,7 +281,9 @@ export function DecisionCard({ decision: d, currency, unit, now, onAction, actio
           </ul>
           <AlertDialogFooter>
             <AlertDialogCancel>Not yet</AlertDialogCancel>
-            <AlertDialogAction onClick={() => onAction?.("approve")}>Confirm and approve</AlertDialogAction>
+            <AlertDialogAction disabled={needsPick} onClick={() => onAction?.("approve", pickedAccount)}>
+              Confirm and approve
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -1,0 +1,127 @@
+"use client";
+
+import { useEffect, useMemo, useRef } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { useQueryClient } from "@tanstack/react-query";
+import { jobsListQuery, useCancelJob, useJobs } from "@/hooks/use-jobs";
+import { useStudioAbilities } from "@/hooks/use-studio-flow";
+import { STUDIO_COPY } from "@/lib/studio-copy";
+import { STUDIO_PATHS } from "@/lib/studio-flow";
+import { finishedJobs, jobLine, studioJobs, workHref, type StudioJob } from "@/lib/studio-strip";
+
+const S = STUDIO_COPY.strip;
+
+/** What the Studio jobs among the running ones are, from the jobs list the sidebar badge already reads. */
+function useStudioJobs(): { jobs: StudioJob[]; ready: boolean } {
+  const q = useJobs("active");
+  const rows = q.data?.rows;
+  const jobs = useMemo(() => studioJobs(rows ?? []), [rows]);
+  return { jobs, ready: q.isSuccess };
+}
+
+export interface StudioStripViewProps {
+  jobs: StudioJob[];
+  href: (job: StudioJob) => string | null;
+  /** An editor may stop work; a viewer only watches. */
+  canStop: boolean;
+  /** The job whose Stop is being sent: only its button waits. */
+  stoppingId?: string | undefined;
+  onStop: (job: StudioJob) => void;
+}
+
+/**
+ * The running-jobs strip (UX spec 4.4): a one-line bar under the tabs while Studio is making something. "Making your previews · 2 of 4 ready"
+ * (polite, so it is read without stealing focus), a link to where it shows, and Stop. Nothing when nothing is running.
+ */
+export function StudioStripView({ jobs, href, canStop, stoppingId, onStop }: StudioStripViewProps) {
+  if (jobs.length === 0) return null;
+  return (
+    <section aria-label={S.region} data-slot="studio-strip" className="mx-auto mb-2 w-full max-w-6xl space-y-1 2xl:max-w-7xl">
+      {jobs.map((j) => {
+        const to = href(j);
+        return (
+          <div key={j.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border bg-muted/40 px-3 py-2 text-sm">
+            <Loader2 aria-hidden="true" className="size-4 shrink-0 animate-spin motion-reduce:animate-none" />
+            <p className="min-w-0 flex-1" role="status" aria-live="polite">
+              {jobLine(j)}
+            </p>
+            {to && (
+              <Link href={to} className="text-sm font-medium underline underline-offset-2">
+                {S.see}
+              </Link>
+            )}
+            {canStop && (
+              <Button type="button" variant="ghost" size="sm" className="h-11 px-2" disabled={stoppingId === j.id} onClick={() => onStop(j)}>
+                {stoppingId === j.id ? S.stopping : S.stop}
+              </Button>
+            )}
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+/** The strip, mounted once by the Studio layout. */
+export function StudioStrip() {
+  const { jobs } = useStudioJobs();
+  const { canMake } = useStudioAbilities();
+  const cancel = useCancelJob();
+  const pathname = usePathname();
+  return (
+    <StudioStripView
+      jobs={jobs}
+      href={(j) => {
+        const to = workHref(j.kind, j.creativeId, STUDIO_PATHS);
+        // No link to the page the merchant is already on.
+        return to !== pathname ? to : null;
+      }}
+      canStop={canMake}
+      stoppingId={cancel.isPending ? cancel.variables : undefined}
+      onStop={(j) =>
+        cancel.mutate(j.id, {
+          onSuccess: () => toast(S.stopped(j.done ?? 0)),
+        })
+      }
+    />
+  );
+}
+
+/**
+ * "Your previews are ready", from anywhere in the dashboard (mounted by the dashboard shell for organisations with Studio). A job that was
+ * running and is gone fires one toast with "See them", unless the merchant is already in Studio, where the page and the strip show it.
+ */
+export function StudioReadyToaster() {
+  const { jobs, ready } = useStudioJobs();
+  const router = useRouter();
+  const qc = useQueryClient();
+  const pathname = usePathname();
+  const before = useRef<StudioJob[] | null>(null);
+  useEffect(() => {
+    if (!ready) return;
+    const was = before.current;
+    before.current = jobs;
+    if (!was || pathname?.startsWith("/dashboard/studio")) return;
+    const gone = finishedJobs(was, jobs);
+    if (gone.length === 0) return;
+    // A job that left the running list may have finished, failed or been stopped: only one the api says is done is announced as ready.
+    void qc
+      .fetchQuery({ ...jobsListQuery("recent"), staleTime: 0 })
+      .then((r) => {
+        const done = new Set(r.rows.filter((x) => x.status === "done").map((x) => x._id));
+        // One toast per place the finished work is seen (two previews presses on one creative are one toast).
+        const seen = new Map<string, { kind: StudioJob["kind"]; to: string }>();
+        for (const j of gone.filter((g) => done.has(g.id))) {
+          const to = workHref(j.kind, j.creativeId, STUDIO_PATHS);
+          seen.set(`${j.kind}:${to}`, { kind: j.kind, to });
+        }
+        for (const { kind, to } of seen.values()) toast.success(S.readyToast[kind], { action: { label: S.seeThem, onClick: () => router.push(to) } });
+      })
+      .catch(() => undefined);
+  }, [jobs, ready, pathname, router, qc]);
+  return null;
+}

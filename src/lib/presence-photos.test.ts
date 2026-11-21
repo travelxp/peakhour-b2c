@@ -22,7 +22,6 @@ import {
   pickLimit,
   previewOf,
   settledSince,
-  unusableReason,
   withChangesKnown,
   type Batch,
   type PhotoLimits,
@@ -36,7 +35,6 @@ import {
 
 const NET = "net_a";
 const LIMITS: PhotoLimits = { formats: ["image/jpeg", "image/png"], formatsLabel: "JPG or PNG", minBytes: 10 * 1024, maxBytes: 5 * 1024 * 1024, minPixels: 250, recommendedPixels: 720, maxItems: 100, source: "x" };
-const file = (over: Record<string, unknown> = {}) => ({ mimeType: "image/jpeg", sizeBytes: 800_000, width: 1000, height: 1000, ...over }) as Parameters<typeof unusableReason>[0];
 const data = (over: Partial<PhotosResponse> = {}): PhotosResponse => ({
   network: NET,
   label: "Testnet",
@@ -70,26 +68,6 @@ describe("words from the declaration", () => {
   it("the limits sentence says what the network states and nothing it does not", () => {
     expect(limitsSentence(LIMITS, "Testnet")).toBe("Testnet takes photos that are JPG or PNG, 10 KB to 5 MB, at least 250 x 250 pixels (720 x 720 is better), up to 100 photos.");
     expect(limitsSentence({ formats: ["image/png"], formatsLabel: "PNG", source: "x" }, "Testnet")).toBe("Testnet takes photos that are PNG.");
-  });
-});
-
-describe("a file that will be refused is greyed out, with the reason", () => {
-  it("passes a photo inside every limit, on the edges too", () => {
-    expect(unusableReason(file(), LIMITS)).toBeNull();
-    expect(unusableReason(file({ mimeType: "image/png" }), LIMITS)).toBeNull();
-    expect(unusableReason(file({ sizeBytes: 10 * 1024 }), LIMITS)).toBeNull();
-    expect(unusableReason(file({ sizeBytes: 5 * 1024 * 1024 }), LIMITS)).toBeNull();
-    expect(unusableReason(file({ width: 250, height: 250 }), LIMITS)).toBeNull();
-  });
-  it("names the limit that is broken", () => {
-    expect(unusableReason(file({ mimeType: "image/webp" }), LIMITS)).toBe("Not a JPG or PNG file");
-    expect(unusableReason(file({ sizeBytes: 10 * 1024 - 1 }), LIMITS)).toBe("Under 10 KB");
-    expect(unusableReason(file({ sizeBytes: 5 * 1024 * 1024 + 1 }), LIMITS)).toBe("Over 5 MB");
-    expect(unusableReason(file({ width: 249 }), LIMITS)).toBe("Under 250 x 250 pixels");
-    expect(unusableReason(file({ height: 249 }), LIMITS)).toBe("Under 250 x 250 pixels");
-  });
-  it("does not refuse a file whose pixel size is unknown", () => {
-    expect(unusableReason(file({ width: undefined, height: undefined }), LIMITS)).toBeNull();
   });
 });
 
@@ -320,11 +298,12 @@ describe("how the panel is wired (pinned as text: b2c vitest renders no DOM)", (
   it("the picker is offered no Generate tab: a business's photos are not made by AI and nothing is charged", () => {
     expect(card()).toContain('tabs={["drive", "upload"]}');
   });
-  it("a private file can be picked, several at once, and a file that will be refused is greyed out", () => {
+  it("a private file can be picked, several at once, and the picker applies the listing's own rules (the api's table) to each", () => {
     expect(card()).toContain("requirePublicUrl={false}");
     expect(card()).toContain("needUrl={false}");
-    expect(card()).toContain("unusable={(f) => unusableReason(f, data.declaration.limits)}");
-    expect(card()).toContain("maxSelection={pickLimit(data, waitingAdds)}");
+    expect(card()).toContain('destination={{ kind: "presence", channel: network }}');
+    expect(card()).toContain("attached={Math.max(data.held, data.items.length) + waitingAdds}");
+    expect(card()).not.toMatch(/unusable=|maxSelection=|kinds=/);
     expect(card()).toContain("onSelect={(assets) => void addMany(assets)}");
   });
   it("a customer photo is drawn with no Remove button and a report link; every non-removable item says why", () => {

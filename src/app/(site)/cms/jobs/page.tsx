@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -123,12 +124,17 @@ export default function CmsJobsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">Background Jobs</h2>
-        <p className="mt-1 text-muted-foreground">
-          Cross-org technical view of <code className="font-mono text-xs">bg_jobs</code> — claim
-          state, attempts, lastError, params, results. Click a row for full drilldown.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Background Jobs</h2>
+          <p className="mt-1 text-muted-foreground">
+            Cross-org technical view of <code className="font-mono text-xs">bg_jobs</code> — claim
+            state, attempts, lastError, params, results. Click a row for full drilldown.
+          </p>
+        </div>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/cms/schedules">Schedules</Link>
+        </Button>
       </div>
 
       {(error || listFailed) && (

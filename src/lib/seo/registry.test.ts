@@ -90,7 +90,7 @@ describe("T02: a non-published or non-indexable page is never publishable and ne
     expect(isPreviewable(draft, {})).toBe(true);
     expect(isPreviewable(asPage({ editorialStatus: "review" }), { VERCEL_ENV: "preview" })).toBe(true);
     expect(isPreviewable(draft, { VERCEL_ENV: "production" })).toBe(false);
-    expect(isPreviewable(draft, { VERCEL_ENV: "production", SITE_INDEXABLE: "false" })).toBe(true);
+    expect(isPreviewable(draft, { VERCEL_ENV: "production", SITE_INDEXABLE: "false" })).toBe(false);
     expect(isPreviewable(asPage({ editorialStatus: "published" }), {})).toBe(false);
     expect(isPreviewable(asPage({ editorialStatus: "idea" }), {})).toBe(false);
   });

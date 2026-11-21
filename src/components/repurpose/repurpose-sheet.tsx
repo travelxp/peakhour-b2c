@@ -107,9 +107,10 @@ function toScheduleSourceRef(s: RepurposeSource): string | undefined {
  *  packs metadata.tweets into payload.threadParts; foundation-PR
  *  scheduler launch ships post-only.
  *
- *  Stub channels (Facebook / Instagram / Threads) never make it into
- *  response.adaptations — the repurposer filters them before persist
- *  — so the scheduler list naturally excludes them. */
+ *  Stub channels (today only Threads; Facebook and Instagram have real
+ *  writers) never make it into response.adaptations — the repurposer
+ *  filters them before persist — so the scheduler list naturally excludes
+ *  them. */
 function adaptationsToChannels(
   response: RepurposeResponse,
 ): CommitPlanRequest["channels"] {
@@ -167,11 +168,12 @@ function sourceTextHashFor(response: RepurposeResponse): string {
  *   3. User clicks Generate → fires POST /v1/content/repurpose with
  *      platforms[] + platformFitId. Renders per-channel progress.
  *   4. Variants land → renders preview cards with VariantPreview
- *      (expand/collapse). Stub channels (Facebook / Instagram /
- *      Threads) are scored by the recommender but the engine
- *      filters them out before the soc_social_posts persist — so
- *      they don't appear in the Done view; users see them only in
- *      the recommend list with greyed-out / hard-block reasoning.
+ *      (expand/collapse). Stub channels (today only Threads) are
+ *      scored by the recommender but the engine filters them out
+ *      before the soc_social_posts persist — so they don't appear in
+ *      the Done view; users see them only in the recommend list with
+ *      greyed-out / hard-block reasoning. Instagram is offered when
+ *      the Facebook connection has a linked Instagram account.
  *
  * Lifecycle note: the parent mounts <RepurposeSheet/> unconditionally
  * (open is just a prop), so the component itself persists across

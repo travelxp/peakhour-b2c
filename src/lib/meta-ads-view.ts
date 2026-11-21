@@ -1,4 +1,5 @@
 import { ApiError } from "@/lib/api";
+import type { MetaAdAccountsResponse } from "@/lib/api/meta-ads";
 import { adsErrorMessage } from "@/lib/ads-error-message";
 
 /**
@@ -210,6 +211,9 @@ export const META_LAUNCH_NOTE =
  */
 export const META_MERCHANT_FACING_CODES: ReadonlySet<string> = new Set([
   "AD_ACCOUNT_NOT_ALLOWED",
+  // MR-F2: a create or edit for an ad account the business has not enabled; the message names the business's own.
+  "AD_ACCOUNT_NOT_CHOSEN",
+  "AD_ACCOUNT_NOT_IN_BUSINESS",
   "NEEDS_REAUTH",
   "META_UNAVAILABLE",
   "META_NOT_CONNECTED",
@@ -222,11 +226,49 @@ export const META_MERCHANT_FACING_CODES: ReadonlySet<string> = new Set([
   "DATASET_UNAVAILABLE",
   "DATASET_ID_UNSUPPORTED",
   "CONNECTION_GONE",
+  // MR-F1: the create and edit routes' own refusals, each written for the merchant.
+  "BUDGET_ENVELOPE_EXCEEDED",
+  "AD_ACCOUNT_CURRENCY_UNKNOWN",
+  "CURRENCY_MISMATCH",
+  "DECLARATION_MISSING",
+  "DECLARATION_SUPERSEDED",
+  "DECLARATION_COUNTRY_MISSING",
+  "CHANNEL_DENIED",
+  "BLACKOUT",
+  "QUIET_HOURS",
+  "BLOCKED_TERM",
+  "RATE_LIMITED",
+  "IMAGE_TOO_LARGE",
+  "IMAGE_INVALID",
 ]);
 
 /** What to show for a failed Meta ads call. */
 export function metaAdsErrorMessage(err: unknown, fallback: string): string {
   return adsErrorMessage(err, fallback, META_MERCHANT_FACING_CODES);
+}
+
+/**
+ * What to tell the merchant when the ad image upload (`POST /v1/meta-ads/images`) fails, and whether the chosen image must be cleared.
+ * The server reads the file from Drive, so most failures are about the file, the member's role or storage, not about the picture:
+ * "choose another" is said only where another picture would help. `clearImage` is true when the chosen file can never work (gone from
+ * Drive, or not an image Meta takes), so the next press does not resend it.
+ */
+export function adImageUploadFailure(err: unknown): { message: string; clearImage: boolean } {
+  if (err instanceof ApiError) {
+    switch (err.code) {
+      case "IMAGE_TOO_LARGE":
+      case "IMAGE_INVALID":
+        return { message: err.message, clearImage: true };
+      case "NOT_FOUND":
+        return { message: "That image is no longer in your Drive. Choose another one.", clearImage: true };
+      case "FORBIDDEN":
+        return { message: "Using Drive files in ads needs editor access to this business. Ask an owner or admin to change your role.", clearImage: false };
+      case "READ_FAILED":
+      case "PRIVATE_STORAGE_UNAVAILABLE":
+        return { message: "We couldn't read that image from your Drive just now. Try again in a moment.", clearImage: false };
+    }
+  }
+  return { message: metaAdsErrorMessage(err, "Couldn't upload that image. Try again."), clearImage: false };
 }
 
 /** Whether the failure means the connection itself needs attention. */
@@ -377,3 +419,96 @@ export function metaInsightsIds(ids: readonly string[]): string[] {
  * would now call a complete 50-row account truncated. Deleted, not kept
  * beside the flag (pre-launch: the newest version, and nothing else).
  */
+
+// ── The active ad account (MR-F2) ────────────────────────────────────────
+
+/** ★THE ONE ID NORMALISER: an ad account id without whitespace or the `act_` prefix, so `act_123` and `123` compare equal. */
+export function metaAdAccountBareId(id: string): string {
+  return id.trim().replace(/^act_/, "");
+}
+
+/** `act_…1234`: an ad account's id, shortened to its last four digits. */
+export function metaAdAccountShortId(id: string): string {
+  return `act_…${metaAdAccountBareId(id).slice(-4)}`;
+}
+
+/** `Name (CUR) · act_…1234`: how an ad account is shown in a picker. */
+/** `Account ID 123456789012 · INR`: the full number as Meta Ads Manager shows it, then the billing currency. */
+export function metaAdAccountIdLine(a: { id: string; currency?: string }): string {
+  return `Account ID ${metaAdAccountBareId(a.id)}${a.currency ? ` · ${a.currency}` : ""}`;
+}
+
+/** The account filter's value for "every enabled account". */
+export const META_ALL_ACCOUNTS = "all";
+
+/**
+ * ★ONE PLACE THAT SORTS A META LOGIN'S ACCOUNTS (MR-G4), comparing ids by their BARE form (`123` and `act_123` are one account)
+ * everywhere: the enabled set, the default and the filter the merchant chose.
+ *  - `enabled`: the business's ticked accounts still on the login, in the business's order (the live objects: they carry the zone);
+ *  - `others`: listed, not ticked, and KNOWN to the connection (`knownIds`; an older api that sends none means all are known):
+ *    these open pause-only;
+ *  - `newOnLogin`: listed, not ticked, and not yet known to the connection: nothing can be done to them until it is refreshed;
+ *  - `defaultId`: the business's default, as the enabled account's own id (null when it is not an enabled, live account);
+ *  - `resolveFilter(id)`: the filter value to use for what the merchant chose: the matching account's own id, `META_ALL_ACCOUNTS`
+ *    when that is chosen with several enabled, else the default rule (one enabled: it; several: the default, else all; none: "").
+ */
+export function classifyMetaAccounts(data: MetaAdAccountsResponse | undefined) {
+  const list = data?.accounts ?? [];
+  const bare = metaAdAccountBareId;
+  const findBare = (id: string | null | undefined) => (id ? list.find((a) => bare(a.id) === bare(id)) : undefined);
+  const enabled = (data?.enabledIds ?? []).flatMap((id) => {
+    const a = findBare(id);
+    return a ? [a] : [];
+  });
+  const chosen = new Set((data?.enabledAccounts ?? []).map((a) => bare(a.id)));
+  for (const a of enabled) chosen.add(bare(a.id));
+  const known = data?.knownIds ? new Set(data.knownIds.map(bare)) : null;
+  const notChosen = list.filter((a) => !chosen.has(bare(a.id)));
+  const others = notChosen.filter((a) => !known || known.has(bare(a.id)));
+  const newOnLogin = notChosen.filter((a) => known !== null && !known.has(bare(a.id)));
+  const defaultId = enabled.find((a) => data?.defaultId && bare(a.id) === bare(data.defaultId))?.id ?? null;
+  const missingCount = (data?.enabledAccounts ?? []).filter((a) => a.missing).length;
+  const chosenCount = data?.enabledAccounts?.length ?? 0;
+  // The business chose accounts and the login has lost every one of them: not the same as never having chosen.
+  const allChosenMissing = enabled.length === 0 && chosenCount > 0 && missingCount === chosenCount;
+  const resolveFilter = (id: string): string => {
+    if (id === META_ALL_ACCOUNTS && enabled.length > 1) return META_ALL_ACCOUNTS;
+    const mine = id ? [...enabled, ...others].find((a) => bare(a.id) === bare(id)) : undefined;
+    if (mine) return mine.id;
+    if (enabled.length === 0) return "";
+    if (enabled.length === 1) return enabled[0]!.id;
+    return defaultId ?? META_ALL_ACCOUNTS;
+  };
+  return { list, enabled, others, newOnLogin, defaultId, missingCount, allChosenMissing, resolveFilter };
+}
+
+export function metaAdAccountOptionLabel(a: { id: string; name?: string; currency?: string }): string {
+  return `${a.name || "Ad account"}${a.currency ? ` (${a.currency})` : ""} · ${metaAdAccountShortId(a.id)}`;
+}
+
+/** `Creates in Name (act_…1234)`: the line the New campaign dialog names its ad account with. */
+export function metaCreatesInLine(a: { id: string; name?: string }): string {
+  return `Creates in ${a.name || "this ad account"} (${metaAdAccountShortId(a.id)})`;
+}
+
+/** `In Name (act_…1234)`: the read-only line the Edit sheet names the campaign's ad account with. */
+export function metaInLine(a: { id: string; name?: string }): string {
+  return `In ${a.name || "this ad account"} (${metaAdAccountShortId(a.id)})`;
+}
+
+/** The sentence shown while two or more ad accounts are listed and none is chosen. */
+
+
+/**
+ * ★ONE HELPER FOR META'S `account_status` WORDS. 2 disabled and 101 closed cannot run ads at all (not tickable; the api
+ * refuses them too). 3 (unsettled), 7 (under risk review) and 9 (grace period) still run or can be fixed: they stay tickable,
+ * with a warning on the line.
+ */
+export function metaAdAccountStatus(status: number | undefined): { blocked?: "disabled" | "closed"; warning?: string } {
+  if (status === 2) return { blocked: "disabled" };
+  if (status === 101) return { blocked: "closed" };
+  if (status === 3) return { warning: "payment issue" };
+  if (status === 7) return { warning: "under review" };
+  if (status === 9) return { warning: "grace period" };
+  return {};
+}

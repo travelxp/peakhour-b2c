@@ -133,6 +133,68 @@ export function memberNameLookup(
   };
 }
 
+// ── Messenger and Instagram threads ──────────────────────────────────
+
+/** A Messenger or Instagram direct-message thread: `messenger:<pageId>:<key>` or `instagram:<igAccountId>:<key>`. */
+export type DmThreadChannel = "messenger" | "instagram";
+
+export function dmChannelOfThread(threadId: string | null | undefined): DmThreadChannel | null {
+  // the api's own shape (`parseDmThread`): a malformed id is not a DM thread
+  const m = /^(messenger|instagram):[0-9]{1,32}:[0-9a-f]{32}$/.exec(threadId ?? "");
+  return m ? (m[1] as DmThreadChannel) : null;
+}
+
+/** The api's bound on a Messenger or Instagram reply (`TEXT_MAX` in `dm-conversations.ts`); WhatsApp's is `REPLY_TEXT_MAX`. */
+export const DM_REPLY_TEXT_MAX = 2000;
+
+/** The longest free-text reply this thread's channel takes. */
+export function replyTextMax(threadId: string | null | undefined): number {
+  return dmChannelOfThread(threadId) ? DM_REPLY_TEXT_MAX : REPLY_TEXT_MAX;
+}
+
+/**
+ * What the api says when a DM reply is refused for the 24-hour rule: the same words as `OUTSIDE_WINDOW_DM_MESSAGE` in
+ * peakhour-api `services/support/dm-conversations.ts`. ★Messenger and Instagram have no template to fall back on (WhatsApp's
+ * template picker is WhatsApp's alone), so a closed window is a sentence and a disabled box, never a picker. The two files are
+ * not one module, so a test pins this text; change both together.
+ */
+export function dmOutsideWindowMessage(channel: DmThreadChannel): string {
+  return `It has been more than 24 hours since this customer last messaged, and ${channel === "messenger" ? "Messenger" : "Instagram"} only allows replies within 24 hours. You can reply once they message you again.`;
+}
+
+/** The slice of `GET /v1/meta/dm/status`'s `pages` the line above the composer needs. */
+export interface DmPageLike {
+  pageId: string;
+  pageName: string | null;
+  instagramUsername: string | null;
+  /** `instagram.enabled` of the status row: an account that is switched off is not the one replying. */
+  instagram?: { enabled: boolean };
+}
+
+/**
+ * ★NAMED ONLY WHEN THE NAME IS CERTAIN. A Messenger thread's key holds the Page's id, so its Page is looked up. An Instagram
+ * thread's key holds the Instagram account's id, which the status does not list: its username is used only when exactly one
+ * connected Page has a switched-on Instagram account, and the plain line is shown otherwise rather than a guess.
+ */
+function dmReplyingAsLine(threadId: string, channel: DmThreadChannel, pages: ReadonlyArray<DmPageLike> | null | undefined): string {
+  if (channel === "messenger") {
+    const id = threadId.split(":")[1];
+    const name = pages?.find((p) => p.pageId === id)?.pageName?.trim();
+    return name ? `Replying as ${name} on Messenger` : "Replying on Messenger";
+  }
+  const linked = (pages ?? [])
+    .filter((p) => p.instagram?.enabled !== false)
+    .map((p) => p.instagramUsername?.trim().replace(/^@/, ""))
+    .filter((u): u is string => Boolean(u));
+  return linked.length === 1 ? `Replying as @${linked[0]} on Instagram` : "Replying on Instagram";
+}
+
+/** The channel a saved reply is scoped to for this thread: the picker shows the replies for it and the ones with no scope. */
+export function savedReplyChannelFor(threadId: string): "whatsapp" | "facebook" | "instagram" {
+  const dm = dmChannelOfThread(threadId);
+  return dm === "messenger" ? "facebook" : dm === "instagram" ? "instagram" : "whatsapp";
+}
+
 // ── "Replying as" ────────────────────────────────────────────────────
 
 /** The phone-number id a thread belongs to: `whatsapp:<phoneNumberId>:<waId>`. */
@@ -159,7 +221,13 @@ export interface ConnectionLike {
  * display, and is absent when the row does not list it, which falls through
  * to the generic line below.
  */
-export function replyingAsLine(threadId: string, conn: ConnectionLike | null | undefined): string {
+export function replyingAsLine(
+  threadId: string,
+  conn: ConnectionLike | null | undefined,
+  dmPages?: ReadonlyArray<DmPageLike> | null,
+): string {
+  const dm = dmChannelOfThread(threadId);
+  if (dm) return dmReplyingAsLine(threadId, dm, dmPages);
   const pnid = threadPhoneNumberId(threadId);
   if (pnid && conn?.phoneNumberId === pnid && conn.phoneNumber?.trim()) {
     return `Replying as ${conn.phoneNumber.trim()}`;
@@ -205,7 +273,7 @@ export function windowFor(threadId: string, win: ReplyWindow): ReplyWindow {
  * offered on an assistant-held thread too, with a note (`TAKES_OVER_NOTE`) that sending pauses the assistant. A viewer gets the
  * reason and no box.
  */
-export function composerMode(args: { status: string; role: string | null | undefined; window: ReplyWindow }): ComposerMode {
+export function composerMode(args: { status: string; role: string | null | undefined; window: ReplyWindow; threadId?: string }): ComposerMode {
   if (!canReply(args.role)) {
     return {
       kind: "readonly",
@@ -214,6 +282,9 @@ export function composerMode(args: { status: string; role: string | null | undef
   }
   const takesOver = args.status !== "escalated";
   if (args.window.open) return { kind: "text", takesOver };
+  // ★NO TEMPLATE MODE FOR A MESSENGER OR INSTAGRAM THREAD: a closed window disables the box and says why, in the api's own sentence.
+  const dm = dmChannelOfThread(args.threadId);
+  if (dm) return { kind: "readonly", reason: dmOutsideWindowMessage(dm) };
   return {
     kind: "template",
     takesOver,
@@ -227,12 +298,12 @@ export function composerMode(args: { status: string; role: string | null | undef
  * result would pass the WhatsApp text limit: a reply cut short mid-sentence is worse than one the person shortens. `ok: false` tells the
  * picker the reply did not go in, so it is not counted as used.
  */
-export function insertSavedReply(current: string, body: string): { ok: true; text: string } | { ok: false } {
+export function insertSavedReply(current: string, body: string, max: number = REPLY_TEXT_MAX): { ok: true; text: string } | { ok: false } {
   const add = body.trim();
   if (!add) return { ok: false };
   const base = current.trimEnd();
   const text = base ? `${base}\n\n${add}` : add;
-  return text.trim().length > REPLY_TEXT_MAX ? { ok: false } : { ok: true, text };
+  return text.trim().length > max ? { ok: false } : { ok: true, text };
 }
 
 // ── One idempotency key per compose attempt ──────────────────────────
@@ -453,7 +524,19 @@ export function sendFailedOutcome(details: unknown): "not_sent" | "unknown" {
  *    check before a confirmed resend.
  *  - A lost connection or a 5xx is the same unknown, with the same safe advice.
  */
-export function replyErrorCopy(err: unknown, kind: ReplyPayload["kind"] = "text"): ReplyErrorCopy {
+export function replyErrorCopy(err: unknown, kind: ReplyPayload["kind"] = "text", threadId?: string): ReplyErrorCopy {
+  const copy = replyErrorCopyOf(err, kind, threadId);
+  const dm = dmChannelOfThread(threadId);
+  if (!dm) return copy;
+  // ★ON A MESSENGER OR INSTAGRAM THREAD THE CARRIER IS NOT WHATSAPP: the api's own sentences already name the right one, and the ones
+  //  written here say whose it is.
+  const carrier = dm === "messenger" ? "Messenger" : "Instagram";
+  // a Page has no phone number: this one is not a rewrite of WhatsApp's sentence
+  if (err instanceof ApiError && err.code === "NOT_FOUND") return { ...copy, detail: `It may have been deleted. ${NOTHING_SENT}` };
+  return { ...copy, title: copy.title.replaceAll("WhatsApp", carrier), detail: copy.detail.replaceAll("WhatsApp", carrier) };
+}
+
+function replyErrorCopyOf(err: unknown, kind: ReplyPayload["kind"], threadId: string | undefined): ReplyErrorCopy {
   const base = { attempt: "keep" as const, refetchTemplates: false, closesWindow: false };
   // ★A 5XX THAT CARRIES THE API'S OWN ANSWER IS THAT ANSWER (SA-12). "Outcome unknown" and "still being handled" are the api telling us what it knows;
   //  read as a bare 5xx they became "pressing Send again is safe", the one sentence an unknown outcome must never say.
@@ -515,18 +598,44 @@ export function replyErrorCopy(err: unknown, kind: ReplyPayload["kind"] = "text"
             : `${said} Check this conversation before sending it again.`,
         };
       }
-    case "OUTSIDE_24H":
+    case "OUTSIDE_24H": {
+      // ★A MESSENGER OR INSTAGRAM THREAD GETS THE API'S SENTENCE, NOT WHATSAPP'S TEMPLATE ADVICE: there is no template to pick.
+      const dm = dmChannelOfThread(threadId);
+      if (dm) {
+        return {
+          ...base,
+          title: "The 24-hour window has closed",
+          detail: `${serverMessage(err, dmOutsideWindowMessage(dm))} ${NOTHING_SENT}`,
+          closesWindow: true,
+        };
+      }
       return {
         ...base,
         title: "The 24-hour window has closed",
         detail: `WhatsApp only allows an approved template for this shopper now. ${NOTHING_SENT}`,
         closesWindow: true,
       };
+    }
     case "STATUS_CHANGED":
       return {
         ...base,
         title: "This conversation changed hands",
         detail: `${serverMessage(err, "Refresh it and try again.")} ${NOTHING_SENT}`,
+      };
+    // Messenger and Instagram only: the Page's connection is gone, or the reply is over the channel's length. Nothing went out in either.
+    case "CHANNEL_UNAVAILABLE": {
+      const dm = dmChannelOfThread(threadId);
+      return {
+        ...base,
+        title: `${dm === "instagram" ? "Instagram" : dm === "messenger" ? "Messenger" : "This channel"} isn't available right now`,
+        detail: `${serverMessage(err, "Check your Meta connection in Connected accounts.")} ${NOTHING_SENT}`,
+      };
+    }
+    case "TEXT_TOO_LONG":
+      return {
+        ...base,
+        title: "This reply is too long",
+        detail: `${serverMessage(err, `It must be at most ${DM_REPLY_TEXT_MAX.toLocaleString("en-US")} characters.`)} ${NOTHING_SENT}`,
       };
     case "WHATSAPP_UNAVAILABLE":
       return {
@@ -586,7 +695,7 @@ export function replyErrorCopy(err: unknown, kind: ReplyPayload["kind"] = "text"
             ? `Each template value must be filled in, at most ${TEMPLATE_VALUE_MAX.toLocaleString("en-US")} characters, with no line break or tab. ${NOTHING_SENT}`
             : kind === "product" || kind === "checkout" || kind === "media"
               ? `${serverMessage(err, "Check what you chose and try again.")} ${NOTHING_SENT}`
-              : `It must not be empty, and must be at most ${REPLY_TEXT_MAX.toLocaleString("en-US")} characters. ${NOTHING_SENT}`,
+              : `It must not be empty, and must be at most ${replyTextMax(threadId).toLocaleString("en-US")} characters. ${NOTHING_SENT}`,
       };
     // Inbox rich messages. Each one is refused BEFORE anything is claimed or sent, so each says so.
     case "MEDIA_REFUSED":
@@ -807,10 +916,10 @@ export function templateValueProblem(v: string): string | null {
 }
 
 /** Why the text cannot be sent yet, or null when it can. */
-export function textProblem(text: string): string | null {
+export function textProblem(text: string, max: number = REPLY_TEXT_MAX): string | null {
   const t = text.trim();
   if (!t) return "Write a reply first.";
-  if (t.length > REPLY_TEXT_MAX) return `At most ${REPLY_TEXT_MAX.toLocaleString("en-US")} characters (this is ${t.length.toLocaleString("en-US")}).`;
+  if (t.length > max) return `At most ${max.toLocaleString("en-US")} characters (this is ${t.length.toLocaleString("en-US")}).`;
   return null;
 }
 

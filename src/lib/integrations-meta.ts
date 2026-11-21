@@ -1,3 +1,4 @@
+import { setQueryParam } from "@/lib/url-query";
 /**
  * Meta capability flattening — turns the single `facebook` connection
  * (which carries Pages, Instagram, Ads, and WhatsApp via capability
@@ -196,14 +197,7 @@ export function metaActionPurpose(info: MetaLoginInfo, provider: string): MetaLo
  *  fragment. Unchanged when `purpose` is undefined. */
 export function withMetaLoginPurpose(path: string, purpose: MetaLoginPurpose | undefined): string {
   if (!purpose) return path;
-  const hashAt = path.indexOf("#");
-  const hash = hashAt >= 0 ? path.slice(hashAt) : "";
-  const beforeHash = hashAt >= 0 ? path.slice(0, hashAt) : path;
-  const queryAt = beforeHash.indexOf("?");
-  const base = queryAt >= 0 ? beforeHash.slice(0, queryAt) : beforeHash;
-  const params = new URLSearchParams(queryAt >= 0 ? beforeHash.slice(queryAt + 1) : "");
-  params.set("purpose", purpose);
-  return `${base}?${params.toString()}${hash}`;
+  return setQueryParam(path, "purpose", purpose);
 }
 
 /**
@@ -369,4 +363,31 @@ export function flattenMetaIntegration<T extends BaseIntegration>(
   }
 
   return result;
+}
+
+/**
+ * The Facebook Page Peakhour uses, as the api resolves it (api
+ * `helpers/meta-saved-page.ts`): the merchant's pick while the connection still
+ * lists that Page, else the first listed Page. `extra` is the merged `facebook`
+ * row's `account.extra`, which carries `pages` and `capabilities`.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function savedMetaPageId(extra: Record<string, any> | undefined): string | undefined {
+  const pages: Array<{ pageId?: string }> = Array.isArray(extra?.pages) ? extra.pages : [];
+  const picked = extra?.capabilities?.pages?.activeResourceId;
+  if (typeof picked === "string" && pages.some((p) => p.pageId === picked)) return picked;
+  return pages.find((p) => typeof p.pageId === "string" && p.pageId !== "")?.pageId;
+}
+
+/**
+ * Whether the Meta Ads card is live for this merchant, judged from any Meta card's row (they share one merged `extra`). The ad accounts
+ * checklist is shown on ONE card only: the Meta Ads card when this is true, else the Facebook Pages card (a login that has
+ * no Ads row still needs somewhere to choose).
+ */
+export function metaAdsCardServed(item: BaseIntegration): boolean {
+  // ★NOT A SECOND COPY OF THE RULE: the flattened `meta_ads` row's own `connected`, which `flattenMetaIntegration` decides
+  // (an ad account listed, the Ads switch on, a working row serving the card). A caller that has a Meta card to render has a
+  // live facebook row, hence `connected: true` for the flatten.
+  const row = flattenMetaIntegration([{ ...item, provider: "facebook", connected: true }]).find((r) => r.provider === "meta_ads");
+  return row?.connected === true;
 }

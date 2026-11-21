@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import Link from "next/link";
-import { FileText, LayoutDashboard, MessagesSquare, Menu, ShoppingBag, TrendingUp, type LucideIcon } from "lucide-react";
+import { FileText, LayoutDashboard, MessagesSquare, Menu, Palette, ShoppingBag, TrendingUp, type LucideIcon } from "lucide-react";
 import { useSidebar } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import { HOME_ROUTE } from "@/lib/nav-home";
@@ -11,6 +11,7 @@ import { primaryTabs, isTabActive } from "@/lib/mobile-tabs";
 
 const ICONS: Record<string, LucideIcon> = {
   home: LayoutDashboard,
+  studio: Palette,
   inbox: MessagesSquare,
   content: FileText,
   growth: TrendingUp,
@@ -38,17 +39,20 @@ function keyboardSnapshot() {
  */
 export function MobileTabBar({
   hasCommerce,
+  hasStudio = false,
   pathname,
   intentProps,
 }: {
   hasCommerce: boolean;
+  /** The org is entitled to Studio: a sixth cell, between Home and Inbox (the bar reads Home, Studio, Inbox, Content, Growth or Shop, More). */
+  hasStudio?: boolean;
   pathname: string;
   /** Hover/focus/touch handlers per href (hooks/use-nav-intent). The five tabs keep Next's viewport prefetch too. */
   intentProps?: (href: string) => React.HTMLAttributes<HTMLAnchorElement>;
 }) {
   const { setOpenMobile } = useSidebar();
   const keyboardUp = useSyncExternalStore(subscribeKeyboard, keyboardSnapshot, () => false);
-  const tabs = primaryTabs({ hasCommerce, homeHref: HOME_ROUTE });
+  const tabs = primaryTabs({ hasCommerce, hasStudio, homeHref: HOME_ROUTE });
   if (keyboardUp) return null;
   return (
     <nav
@@ -73,7 +77,7 @@ export function MobileTabBar({
                 )}
               >
                 <Icon className="size-5" aria-hidden />
-                <span className="max-w-full truncate px-1">{copy?.label ?? t.key}</span>
+                <span className="max-w-full truncate px-1">{t.shortLabel ?? copy?.label ?? t.key}</span>
               </Link>
             </li>
           );

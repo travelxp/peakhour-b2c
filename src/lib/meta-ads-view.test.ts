@@ -24,6 +24,8 @@ import {
   metaNotServingBecause,
   metaStatusToggle,
   sumReported,
+  classifyMetaAccounts,
+  META_ALL_ACCOUNTS,
 } from "./meta-ads-view";
 
 /**
@@ -400,6 +402,17 @@ describe("★★M-16 — the copies are peakhour-api's, checked against its sour
   const CAPABILITY = fileURLToPath(
     new URL("../../../peakhour-api/src/v1/helpers/meta-capability.ts", import.meta.url),
   );
+  /** MR-F1: the ceiling's and the guardrails' refusal codes are sent by the routes but spelled in these. */
+  const CEILING = fileURLToPath(
+    new URL("../../../peakhour-api/src/v1/services/growth/ceiling.ts", import.meta.url),
+  );
+  const GUARDRAILS = fileURLToPath(
+    new URL("../../../peakhour-api/src/v1/services/growth/guardrails.ts", import.meta.url),
+  );
+  /** MR-F2: the write guard's codes (`AD_ACCOUNT_NOT_CHOSEN`, `AD_ACCOUNT_NOT_IN_BUSINESS`) are spelled here, which the routes call. */
+  const ACCOUNT_GUARD = fileURLToPath(
+    new URL("../../../peakhour-api/src/v1/services/ads/ad-account-guard.ts", import.meta.url),
+  );
   const present = existsSync(SIBLING);
   const read = (p: string) => {
     if (!existsSync(p)) throw new Error(`[m16] peakhour-api is checked out but ${p} is missing`);
@@ -446,10 +459,71 @@ describe("★★M-16 — the copies are peakhour-api's, checked against its sour
     // whose merchant-facing sentence is silently replaced by the fallback —
     // the allowlist would permit nothing it names.
     const routes = read(ROUTES);
-    const capability = read(CAPABILITY);
+    const others = [read(CAPABILITY), read(CEILING), read(GUARDRAILS), read(ACCOUNT_GUARD)];
     const missing = [...META_MERCHANT_FACING_CODES].filter(
-      (code) => !routes.includes(`"${code}"`) && !capability.includes(`"${code}"`),
+      (code) => !routes.includes(`"${code}"`) && !others.some((src) => src.includes(`"${code}"`)),
     );
     expect(missing).toEqual([]);
+  });
+});
+
+describe("classifyMetaAccounts (MR-G4): one place that sorts a login's accounts, every compare bare-id", () => {
+  const mk = (id: string, name = id) => ({ id, name, accountId: id.replace("act_", ""), currency: "USD", timezone: "UTC", accountStatus: 1 });
+  const A = mk("act_111");
+  const B = mk("act_222");
+  const C = mk("act_333");
+  const D = mk("act_444");
+  const data = (over: Record<string, unknown> = {}) => ({
+    accounts: [A, B, C, D],
+    enabledAccounts: [A, B].map((a) => ({ id: a.id, missing: false })),
+    enabledIds: [A.id, B.id],
+    defaultId: B.id,
+    ...over,
+  });
+
+  it("splits enabled, other (known) and new-on-login, and names the default as the enabled account's own id", () => {
+    const k = classifyMetaAccounts(data({ knownIds: [A.id, B.id, C.id] }));
+    expect(k.enabled.map((a) => a.id)).toEqual(["act_111", "act_222"]);
+    expect(k.others.map((a) => a.id)).toEqual(["act_333"]);
+    expect(k.newOnLogin.map((a) => a.id)).toEqual(["act_444"]);
+    expect(k.defaultId).toBe("act_222");
+  });
+
+  it("an older api that sends no knownIds treats every unticked account as known", () => {
+    const k = classifyMetaAccounts(data());
+    expect(k.others.map((a) => a.id)).toEqual(["act_333", "act_444"]);
+    expect(k.newOnLogin).toEqual([]);
+  });
+
+  it("'123' and 'act_123' are one account everywhere: enabled ids, the default, known ids and the filter", () => {
+    const k = classifyMetaAccounts(data({ enabledIds: ["111", "222"], defaultId: "222", knownIds: ["333"], enabledAccounts: [{ id: "111", missing: false }, { id: "act_222", missing: false }] }));
+    expect(k.enabled.map((a) => a.id)).toEqual(["act_111", "act_222"]);
+    expect(k.defaultId).toBe("act_222");
+    expect(k.others.map((a) => a.id)).toEqual(["act_333"]);
+    expect(k.newOnLogin.map((a) => a.id)).toEqual(["act_444"]);
+    expect(k.resolveFilter("111")).toBe("act_111");
+    expect(k.resolveFilter("333")).toBe("act_333");
+  });
+
+  it("resolveFilter: a known id keeps itself, 'all' needs several enabled, anything stale falls to the default rule", () => {
+    const k = classifyMetaAccounts(data({ knownIds: [A.id, B.id, C.id] }));
+    expect(k.resolveFilter("act_111")).toBe("act_111");
+    expect(k.resolveFilter(META_ALL_ACCOUNTS)).toBe(META_ALL_ACCOUNTS);
+    expect(k.resolveFilter("act_999")).toBe("act_222");
+    expect(k.resolveFilter("act_444")).toBe("act_222"); // new on the login: not selectable
+    expect(classifyMetaAccounts(data({ enabledIds: [A.id], defaultId: null })).resolveFilter(META_ALL_ACCOUNTS)).toBe("act_111");
+    expect(classifyMetaAccounts(data({ defaultId: null })).resolveFilter("")).toBe(META_ALL_ACCOUNTS);
+  });
+
+  it("nothing enabled: no default, nothing selected, but the login's accounts are others; a lost choice is flagged", () => {
+    const k = classifyMetaAccounts(data({ enabledAccounts: [], enabledIds: [], defaultId: null }));
+    expect(k.enabled).toEqual([]);
+    expect(k.others).toHaveLength(4);
+    expect(k.resolveFilter("act_111")).toBe("act_111");
+    expect(k.resolveFilter("")).toBe("");
+    const lost = classifyMetaAccounts(data({ enabledAccounts: [{ id: "act_9", missing: true }], enabledIds: [], defaultId: null }));
+    expect(lost.allChosenMissing).toBe(true);
+    expect(lost.missingCount).toBe(1);
+    expect(classifyMetaAccounts(undefined).list).toEqual([]);
   });
 });

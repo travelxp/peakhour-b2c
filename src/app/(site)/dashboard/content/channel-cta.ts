@@ -45,10 +45,8 @@ import { hasConnection } from "@/lib/integration-card-state";
  *    missing the path still routes to the real in-app dashboard instead of
  *    stranding the user on the OAuth grid.
  *  - `manageViaIntegrations`: connected, but the channel has NO in-app surface
- *    of its own. That is normal, not broken, for the Meta capability rows
- *    (facebook_pages / instagram, expanded by
- *    flattenMetaIntegration) and for wordpress: /dashboard/integrations IS
- *    their management screen — capability toggles, resources, Disconnect. The
+ *    of its own. That is normal, not broken, for wordpress (and shopify):
+ *    /dashboard/integrations IS their management screen — capability toggles, resources, Disconnect. The
  *    row must still be clickable; only the LABEL changes, so landing on the
  *    integrations grid reads as intended rather than as the bounce that made
  *    linkedin_ads look broken.
@@ -67,9 +65,8 @@ import { hasConnection } from "@/lib/integration-card-state";
 /**
  * Providers whose management surface legitimately IS /dashboard/integrations —
  * they have no screen of their own, by design:
- *  - the Meta capability rows expanded by flattenMetaIntegration (pages and
- *    instagram — ⏸NOT meta_ads since M-16, which is managed in the Ads hub), whose
- *    toggles / resources / Disconnect all live on the integrations card, and
+ *  - (the Meta rows are not here any more: pages and instagram have hubs of their own
+ *    since MR-E1, and meta_ads is managed in the Ads hub since M-16), and
  *  - wordpress, managed from the plugin side plus that same card.
  *  - shopify, whose install and reconnect both run through Shopify's own
  *    surfaces (App Store listing / admin) and whose Peakhour-side state —
@@ -81,8 +78,7 @@ import { hasConnection } from "@/lib/integration-card-state";
  * (see `configGap`), not a designed state.
  */
 export const INTEGRATIONS_MANAGED_PROVIDERS: ReadonlySet<string> = new Set([
-  "facebook_pages",
-  "instagram",
+  // facebook_pages and instagram left in MR-E1: each has its own hub now.
   // ⏸"meta_ads" left in M-16 — the Ads hub is its management screen now.
   "wordpress",
   "shopify",

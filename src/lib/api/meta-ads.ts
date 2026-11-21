@@ -13,11 +13,11 @@ import { metaAdsUrl } from "@/lib/meta-ads-surface";
  * union, so a route off that list does not type-check, and it throws at runtime
  * for one smuggled past the type.
  *
- * ⏸CAMPAIGN CREATION IS DELIBERATELY NOT HERE. `POST /campaigns` is managed and
- * exists, but a Meta campaign is three levels (campaign → ad set → ad) plus a
- * special-ad-category declaration and a creative, and no row has designed that
- * flow. A create button that makes an empty campaign shell is worse than none.
- * This panel reads, pauses, activates and chooses the conversions dataset.
+ * ★CAMPAIGN CREATION IS HERE (MR-F1) AS THE WHOLE THREE-LEVEL FLOW, not as a
+ * campaign shell: `createCampaign` → `createAdSet` → `createAd`, always PAUSED,
+ * with `launchCampaign` below owning the order and the clean-up. A create that
+ * stops after level one would leave exactly the empty shell this note used to
+ * refuse to build.
  *
  * ★Each list read returns `truncated` (api#1409): the route follows Meta's cursor
  * and says whether it stopped before the end. The panel reads that flag — never
@@ -37,6 +37,29 @@ export interface MetaAdAccount {
   timezone: string;
   accountStatus: number;
   businessName?: string;
+}
+
+/** An ad account the business has enabled, as the api stores it. `missing`: the live Meta list no longer returns it. */
+export interface MetaEnabledAdAccount {
+  id: string;
+  name?: string;
+  currency?: string;
+  status?: number;
+  missing: boolean;
+}
+
+/**
+ * `GET /ad-accounts`: every account the login reaches (it lists other businesses' too), and THIS business's own: the
+ * enabled ones that are still on the login (`enabledIds`), the default among them, and every enabled one with a
+ * `missing` flag. Every create is refused for any account not in `enabledIds`.
+ */
+export interface MetaAdAccountsResponse {
+  accounts: MetaAdAccount[];
+  enabledAccounts: MetaEnabledAdAccount[];
+  enabledIds: string[];
+  defaultId: string | null;
+  /** The listed accounts this connection knows (the api's allowlist). Absent from an older api: every listed account is then taken as known. */
+  knownIds?: string[];
 }
 
 export interface MetaCampaign {
@@ -62,6 +85,8 @@ export interface MetaAdSet {
   lifetimeBudget?: string;
   billingEvent: string;
   optimizationGoal: string;
+  /** Meta's own targeting spec, as stored: `geo_locations.countries`, `age_min`, `age_max`, … */
+  targeting?: Record<string, unknown>;
   startTime?: string;
   endTime?: string;
 }
@@ -119,9 +144,50 @@ export type MetaAdsLevel = "campaign" | "adSet" | "ad";
  */
 export const META_ANALYTICS_BATCH = 25;
 
+/** The Facebook Page an ad is published as. `null` when none is stored. */
+export interface MetaAdPage {
+  id: string;
+  name?: string;
+}
+
+export interface MetaCampaignEdit {
+  name?: string;
+  dailyBudget?: string;
+  lifetimeBudget?: string;
+}
+
+export interface MetaAdSetEdit {
+  name?: string;
+  dailyBudget?: string;
+  lifetimeBudget?: string;
+  startTime?: string;
+  endTime?: string;
+  targeting?: { countries?: string[]; ageMin?: number; ageMax?: number };
+}
+
+/** The bodies of the three create routes — built by `buildCreateBodies` in `meta-ads-form.ts`. */
+export interface MetaLaunchBodies {
+  campaign: Record<string, unknown>;
+  adSet: (campaignId: string) => Record<string, unknown>;
+  ad: (adSetId: string) => Record<string, unknown>;
+}
+
+/** Where a launch stopped, so the screen can say what exists in the merchant's Meta account. */
+export class MetaLaunchError extends Error {
+  constructor(
+    public readonly cause: unknown,
+    /** The campaign that was created before the failure, if any. */
+    public readonly campaignId: string | null,
+    /** True when that campaign could not be removed, so it is still in their account (paused). */
+    public readonly leftBehind: boolean,
+  ) {
+    super("launch failed");
+  }
+}
+
 export const metaAdsApi = {
   listAdAccounts: () =>
-    api.get<{ accounts: MetaAdAccount[] }>(metaAdsUrl("/v1/meta/ads/ad-accounts")),
+    api.get<MetaAdAccountsResponse>(metaAdsUrl("/v1/meta/ads/ad-accounts")),
 
   listCampaigns: (adAccountId: string) =>
     api.get<{ campaigns: MetaCampaign[]; truncated: boolean }>(metaAdsUrl("/v1/meta/ads/campaigns"), {
@@ -189,4 +255,52 @@ export const metaAdsApi = {
       metaAdsUrl("/v1/meta/ads/datasets/selected"),
       { adAccountId, datasetId },
     ),
+
+  getPage: () => api.get<{ page: MetaAdPage | null }>(metaAdsUrl("/v1/meta/ads/page")),
+
+  /** `mediaId` is a Drive file (chosen in the picker); the server reads its bytes, so nothing is sent from the browser. Answers the hash an ad's creative takes. */
+  uploadImage: (v: { adAccountId: string; mediaId: string }) =>
+    api.post<{ imageHash: string; url?: string }>(metaAdsUrl("/v1/meta/ads/images"), v),
+
+  editCampaign: (campaignId: string, edit: MetaCampaignEdit) =>
+    api.patch<{ campaign: MetaCampaign | null }>(metaAdsUrl("/v1/meta/ads/campaigns/:campaignId", { campaignId }), edit),
+
+  editAdSet: (adSetId: string, edit: MetaAdSetEdit) =>
+    api.patch<{ adSet: MetaAdSet | null }>(metaAdsUrl("/v1/meta/ads/ad-sets/:adSetId", { adSetId }), edit),
+
+  /**
+   * Campaign → ad set → ad, all PAUSED, in that order (each needs the one above's id).
+   *
+   * ⚠️A FAILURE AT LEVEL TWO OR THREE REMOVES THE CAMPAIGN, because a retry would otherwise mint a second
+   * one and leave the first as an empty shell in the merchant's account. Removal is the status route's
+   * `DELETED` (the same one Ads Manager's delete uses). If even that fails the error says the campaign is
+   * left behind, paused, so the screen can tell the merchant instead of pretending it is gone.
+   */
+  launchCampaign: async (bodies: MetaLaunchBodies): Promise<{ campaignId: string; adSetId: string; adId: string }> => {
+    // Level one is wrapped too: a refusal here (the weekly limit, a missing declaration) must reach the screen
+    // the same way, through the merchant-facing filter, and say that nothing was created.
+    const campaign = await api
+      .post<{ campaignId: string }>(metaAdsUrl("/v1/meta/ads/campaigns"), bodies.campaign)
+      .catch((cause: unknown) => {
+        throw new MetaLaunchError(cause, null, false);
+      });
+    try {
+      const adSet = await api.post<{ adSetId: string }>(
+        metaAdsUrl("/v1/meta/ads/ad-sets"),
+        bodies.adSet(campaign.campaignId),
+      );
+      const ad = await api.post<{ adId: string }>(metaAdsUrl("/v1/meta/ads/ads"), bodies.ad(adSet.adSetId));
+      return { campaignId: campaign.campaignId, adSetId: adSet.adSetId, adId: ad.adId };
+    } catch (cause) {
+      let leftBehind = false;
+      try {
+        await api.patch(metaAdsUrl("/v1/meta/ads/campaigns/:campaignId/status", { campaignId: campaign.campaignId }), {
+          status: "DELETED",
+        });
+      } catch {
+        leftBehind = true;
+      }
+      throw new MetaLaunchError(cause, campaign.campaignId, leftBehind);
+    }
+  },
 };

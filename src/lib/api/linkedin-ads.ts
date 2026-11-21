@@ -255,9 +255,15 @@ export interface PageAdAccountState {
   /** The account resolved for that Page. Null means unmapped — the surfaces
    *  offer "connect or create an ad account" rather than showing anything. */
   adAccountId: string | null;
-  /** Every stored mapping, so the picker can show what other Pages point at. */
+  /** Every stored Page default that is still one of the enabled accounts. */
   byPage: Record<string, string>;
-  /** Only accounts this connection actually administers — the same set the PUT
+  /** The business's default ad account (MR-G1), where a Page with no default of its own spends. Null when none is chosen. */
+  businessDefaultId?: string | null;
+  /** How many ad accounts the login lists: 0 means "create one in Campaign Manager", more means "choose which this business uses". */
+  listedCount?: number;
+  /** The listed accounts that cannot run ads, with LinkedIn's word ("cancelled", "removed"). */
+  blocked?: Array<{ id: string; name: string | null; word: string }>;
+  /** Only the ad accounts this BUSINESS enabled in Connected accounts (MR-G1) — the same set the PUT
    *  validates against, so the picker cannot offer a choice the write refuses. */
   accounts: Array<{ id: string; name: string | null; currency: string | null }>;
 }
@@ -274,6 +280,8 @@ export interface PageScopeMeta {
   adAccountId: string | null;
   pageId: string | null;
   connected: boolean;
+  /** The business's ENABLED ad accounts (MR-G1). The list spans accounts; a campaign in any other one is labelled. Absent from an older api. */
+  accounts?: Array<{ id: string; name: string | null; currency: string | null }>;
 }
 
 export const linkedInAdsApi = {

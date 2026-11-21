@@ -47,8 +47,9 @@ const sf = (over: Partial<Parameters<typeof rowOfStorefront>[0]> = {}) =>
   rowOfStorefront({ threadId: "storefront:m:t", contactName: "Storefront visitor", status: "active", updatedAt: "2026-11-03T11:00:00Z", preview: "Assistant: Yes", ...over });
 
 describe("the subtitle", () => {
-  it("names storefront conversations, because they are listed here now", () => {
-    expect(INBOX_SUBTITLE).toBe("Your WhatsApp and storefront conversations, leads and reviews in one place.");
+  it("names no channel, since each channel is switched on by its own release", () => {
+    expect(INBOX_SUBTITLE).toBe("Messages from every channel you have connected, plus leads and reviews, in one place.");
+    expect(INBOX_SUBTITLE).not.toMatch(/WhatsApp|Messenger|Instagram|storefront/i);
   });
 });
 

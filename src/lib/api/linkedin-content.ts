@@ -36,6 +36,8 @@ export interface PublishLinkedInPostInput {
   visibility?: LinkedInVisibility;
   link?: { url: string; title?: string; description?: string };
   imageUrns?: string[];
+  /** Drive file ids of the pictures to attach (the api uploads them to LinkedIn). Not with a link or a poll. */
+  mediaIds?: string[];
   /** Native poll content (CMA D5). Mutually exclusive with `link`/images;
    *  `commentary` still shows as the text above the poll. */
   poll?: LinkedInPollInput;
@@ -626,13 +628,15 @@ export const linkedInContentApi = {
    * STEP 1 of the carousel flow: generate the carousel PDF and stash it as a
    * temp object — does NOT publish, and makes no LinkedIn call (so a revoked
    * token doesn't block previewing). LONG-RUNNING (~30–60s — a slide image per
-   * section). Returns a `previewUrl` to render + the `previewKey` to pass to
+   * section). PRICED: five slide images in Peaks, shown to the merchant first (`quoteToken`). Returns a `previewUrl` to render + the `previewKey` to pass to
    * `publishCarousel`.
    */
-  previewCarousel: (body: CarouselPreviewInput) =>
+  previewCarousel: (body: CarouselPreviewInput, quoteToken?: string) =>
     api.post<CarouselPreviewResult>(
       "/v1/linkedin/content/repurpose-newsletter-carousel/preview",
       body,
+      // A priced task (CS-5b): the signed quote the merchant was shown travels as `x-peaks-quote`, and one key per click makes a retry one charge.
+      { ...newActionKey(), ...(quoteToken ? { "x-peaks-quote": quoteToken } : {}) },
     ),
 
   /**
@@ -654,7 +658,6 @@ export interface CarouselPreviewInput {
   newsletterDraftId?: string;
   newsletterTitle?: string;
   commentary?: string;
-  count?: number;
 }
 
 export interface CarouselPreviewResult {

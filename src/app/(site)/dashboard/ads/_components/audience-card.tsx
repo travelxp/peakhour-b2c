@@ -42,7 +42,7 @@ import { SaveAudienceDialog } from "@/components/audience/save-audience-dialog";
  * the client cannot make.
  */
 
-export function AudienceCard({ campaign }: { campaign: ManagedCampaign }) {
+export function AudienceCard({ campaign, canEdit = true }: { campaign: ManagedCampaign; canEdit?: boolean }) {
   const queryClient = useQueryClient();
   const [saveOpen, setSaveOpen] = useState(false);
   const prov = campaign.targetingProvenance;
@@ -129,8 +129,7 @@ export function AudienceCard({ campaign }: { campaign: ManagedCampaign }) {
       {unverified && (
         <p className="mt-2 text-xs text-muted-foreground">
           This is what we last recorded. We can&apos;t confirm it still describes the campaign&apos;s
-          current audience, so we&apos;re not saying who chose it — open the audience editor to see
-          what it is now.
+          current audience, so we&apos;re not saying who chose it{canEdit ? " — open the audience editor to see what it is now" : ""}.
         </p>
       )}
 

@@ -11,6 +11,7 @@ import { linkedInContentApi, type HookVariant, type LinkedInAuthor, type LinkedI
 import { emptyPoll, isPollValid, type PollState } from "./poll-editor";
 import { buildCommentarySegments, type ResolvedMention } from "./commentary-segments";
 import { ApiError } from "@/lib/api";
+import { chargedTaskRefusal } from "@/hooks/use-audience-plan";
 import { rewriteContent, createDraft, updateDraft, type ComposerDraftRef } from "@/lib/api/content";
 import { insertAtCaret } from "@/lib/composer/caret";
 import {
@@ -22,6 +23,7 @@ import {
   composerGates,
   effectiveVisibilityFor,
   isOrgAuthorKey,
+  postAttachments,
   scheduleTitleFor,
 } from "@/lib/linkedin-composer";
 import { AiComposeToolbar, ComposerShell, DraftSaver, EmojiPickerTrigger, HashtagSuggest, MentionTypeahead, PlatformCharCounter, useDraftSaver, type AiActionContext, type ComposerCommand, type HashtagCandidate, type MentionCandidate } from "@/components/composer";
@@ -30,11 +32,13 @@ import { sourceTextHash } from "@/lib/scheduler/source-hash";
 import { aiOpNoChangeMessage, aiOpToast, isProbablyUrl, mapVoiceCardSummary } from "./composer-helpers";
 import { usePolicyCheck } from "./composer-policy-check";
 import { HOOK_SCORE_MIN_CHARS, HookScoreCard, useHookScore } from "./composer-hook-score";
+import { PostMedia, dropOutline, usePostMedia } from "@/components/composer/post-media";
 import { LinkAttachCard, MentionsStrip } from "./composer-attachments";
 import { ComposerActions } from "./composer-actions";
 import { buildComposerCommands } from "./composer-commands";
 import { ComposerHeader } from "./composer-header";
 import { OffBrandVoiceNotice, VoiceCardPanel } from "./composer-voice-card";
+import { CarouselPriceDialog } from "./carousel-price-dialog";
 
 // Interaction-gated pieces: each mounts only after the user opens it.
 const CarouselPreviewDialog = dynamic(() => import("./carousel-preview-dialog").then((m) => m.CarouselPreviewDialog), { ssr: false });
@@ -119,6 +123,10 @@ export function PostComposer({ identity, seedText }: Props) {
   // turning it on clears the link, and carousel/schedule are disabled while it
   // is active (the carousel + scheduler paths don't carry a poll).
   const [poll, setPoll] = useState<PollState | null>(null);
+  // Pictures: the picker applies LinkedIn's own rules. A post takes pictures OR a link card OR a poll, so a drop or paste is refused (with a
+  // sentence) while either is on the post, and each switches the others off below.
+  const postMedia = usePostMedia("linkedin", { disabled: showLink || poll !== null });
+  const clearPostMedia = postMedia.clear;
   // Org @mentions (CMA D4) the user inserted via the typeahead, deduped by URN.
   // The inserted `@<name>` text alone can't carry the URN, so we record it here
   // and serialize text → commentarySegments on publish.
@@ -267,11 +275,22 @@ export function PostComposer({ identity, seedText }: Props) {
     visibility: LinkedInVisibility;
     label: string;
   } | null>(null);
+  // The preview makes one AI image per slide, so it is a PRICED task (CS-5b): the merchant sees the price in a dialog first, and the signed receipt for
+  // that price travels with the click (`x-peaks-quote`). `carouselConfirmOpen` is that dialog.
+  const [carouselConfirmOpen, setCarouselConfirmOpen] = useState(false);
   const carousel = useMutation({
-    mutationFn: (input: CarouselPreviewInput) => linkedInContentApi.previewCarousel(input),
-    onSuccess: (res) => setCarouselPreview(res),
+    mutationFn: (v: { input: CarouselPreviewInput; quoteToken?: string }) => linkedInContentApi.previewCarousel(v.input, v.quoteToken),
+    onSuccess: (res) => {
+      setCarouselPreview(res);
+      // The receipt that was shown has been used: the next press reads a fresh one.
+      void queryClient.invalidateQueries({ queryKey: ["peaks-quote"] });
+    },
     onError: (err: unknown) => {
-      const message = err instanceof ApiError ? err.message : "Couldn't build the carousel preview.";
+      // A refused receipt is thrown away, not re-sent: the next press must carry a fresh one.
+      if (err instanceof ApiError && err.code === "QUOTE_NOT_HONOURED") void queryClient.resetQueries({ queryKey: ["peaks-quote"] });
+      setCarouselTarget(null);
+      const refusal = err instanceof ApiError ? chargedTaskRefusal(err.code, err.message) : undefined;
+      const message = refusal ? `${refusal.title} ${refusal.description}` : err instanceof ApiError ? err.message : "Couldn't build the carousel preview.";
       setFeedback({ kind: "error", message });
     },
   });
@@ -287,6 +306,7 @@ export function PostComposer({ identity, seedText }: Props) {
     setLinkTitle("");
     setShowLink(false);
     setPoll(null);
+    clearPostMedia();
     setMentions([]);
     setVariants(null);
     setDraftId(null);
@@ -302,10 +322,13 @@ export function PostComposer({ identity, seedText }: Props) {
     setShowLink(false);
     setLinkUrl("");
     setLinkTitle("");
-  }, []);
+    // a poll is exclusive: pictures go when it is switched ON, not when it is taken off
+    if (poll === null) clearPostMedia();
+  }, [clearPostMedia, poll]);
 
   const anyPending = publish.isPending || carousel.isPending;
   const pollActive = poll !== null;
+  const attachments = postAttachments({ showLink, pollActive, pictureCount: postMedia.media.length });
   const {
     empty,
     linkInvalid,
@@ -338,12 +361,20 @@ export function PostComposer({ identity, seedText }: Props) {
       showLink,
       linkUrl,
       linkTitle,
+      mediaIds: postMedia.ids,
     });
 
     publish.mutate(body);
   }
 
+  /** The Carousel button: ask first. Nothing is made until the merchant has seen the price and said yes. */
   function onCarousel() {
+    if (carouselDisabled) return;
+    setCarouselConfirmOpen(true);
+  }
+
+  /** Yes, with the receipt for the price that was on screen. */
+  function startCarousel(quoteToken: string | undefined) {
     if (carouselDisabled) return;
     setFeedback(null);
     // The composer text IS the source the server splits into slides. Snapshot
@@ -352,7 +383,7 @@ export function PostComposer({ identity, seedText }: Props) {
     const author: LinkedInAuthor = authorFromKey(authorKey);
     const label = authorOptions.find((o) => o.value === authorKey)?.label ?? "your feed";
     setCarouselTarget({ author, visibility: effectiveVisibility, label });
-    carousel.mutate({ newsletterText: text.trim() });
+    carousel.mutate({ input: { newsletterText: text.trim() }, quoteToken });
   }
 
   // ── Caret-aware snippet insertion ───────────────────────────────
@@ -508,8 +539,9 @@ export function PostComposer({ identity, seedText }: Props) {
         linkUrl,
         linkTitle,
         text,
+        mediaUrls: postMedia.urls,
       }),
-    [authorKey, identity.person.urn, visibility, showLink, linkUrl, linkTitle, text],
+    [authorKey, identity.person.urn, visibility, showLink, linkUrl, linkTitle, text, postMedia.urls],
   );
 
   function handleScheduled() {
@@ -529,12 +561,13 @@ export function PostComposer({ identity, seedText }: Props) {
         scheduleDisabled,
         showLink,
         pollActive,
+        hasPictures: postMedia.media.length > 0,
         runAi: handleAiAction,
         onSchedule: () => setMode("schedule"),
         onAttachLink: () => setShowLink(true),
         onTogglePoll: togglePoll,
       }),
-    [handleAiAction, text, empty, scheduleDisabled, showLink, pollActive, togglePoll],
+    [handleAiAction, text, empty, scheduleDisabled, showLink, pollActive, postMedia.media.length, togglePoll],
   );
 
   // ── Schedule view ───────────────────────────────────────────────
@@ -565,6 +598,7 @@ export function PostComposer({ identity, seedText }: Props) {
   }
 
   return (
+    <div ref={postMedia.dropRef} className={dropOutline(postMedia.dropping)} data-testid="linkedin-drop-target">
     <ComposerShell
       mode="compose"
       voiceCard={voiceSummary}
@@ -689,7 +723,7 @@ export function PostComposer({ identity, seedText }: Props) {
 
       <div className="flex items-center gap-2">
         <EmojiPickerTrigger onInsert={insertSnippet} />
-        {!showLink && !pollActive && (
+        {attachments.canAddLink && (
           <Button type="button" variant="ghost" size="sm" onClick={() => setShowLink(true)} className="h-7 gap-1.5 px-2 text-xs">
             <Link2 className="size-3.5" /> Add link
           </Button>
@@ -714,6 +748,8 @@ export function PostComposer({ identity, seedText }: Props) {
         />
       )}
 
+      <PostMedia state={postMedia} locked={publish.isPending || !attachments.canAddPictures} />
+
       {poll && (
         <PollEditor value={poll} onChange={setPoll} onRemove={() => setPoll(null)} />
       )}
@@ -732,6 +768,15 @@ export function PostComposer({ identity, seedText }: Props) {
           }}
         />
       )}
+
+      <CarouselPriceDialog
+        open={carouselConfirmOpen}
+        onConfirm={(quoteToken) => {
+          setCarouselConfirmOpen(false);
+          startCarousel(quoteToken);
+        }}
+        onCancel={() => setCarouselConfirmOpen(false)}
+      />
 
       {carouselPreview && carouselTarget && (
         <CarouselPreviewDialog
@@ -753,5 +798,6 @@ export function PostComposer({ identity, seedText }: Props) {
         />
       )}
     </ComposerShell>
+    </div>
   );
 }

@@ -127,7 +127,7 @@ export interface BlogDraftResult {
 export interface RepurposeResponse {
   /** soc_social_posts._id (string) when at least one variant was
    *  persisted; null when every requested platform failed or was a
-   *  coming-soon stub (Facebook / Instagram / Threads). */
+   *  coming-soon stub (Threads). */
   socialPostId: string | null;
   sourceTitle: string;
   adaptations: RepurposedAdaptation[];

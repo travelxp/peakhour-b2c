@@ -106,6 +106,18 @@ describe("user-fixable codes keep their own advice", () => {
   }
 });
 
+describe("the ad-account refusals show the api's own sentence (MR-G1)", () => {
+  for (const code of ["AD_ACCOUNT_NOT_IN_BUSINESS", "AD_ACCOUNT_NOT_CHOSEN", "AD_ACCOUNT_NOT_PROVEN", "AD_ACCOUNT_LOOKUP_FAILED"]) {
+    it(`${code}: the api's sentence, never a support pointer`, () => {
+      toastUnhandledApiError(apiError(code, 403, "That ad account is not one of this business's. Change it in Connected accounts."), "start the campaign");
+      const { description, duration } = shown();
+      expect(description).toBe("That ad account is not one of this business's. Change it in Connected accounts.");
+      expect(description).not.toMatch(/contact support/i);
+      expect(duration).toBeUndefined();
+    });
+  }
+});
+
 describe("permanent failures point at support, and survive being read", () => {
   it("quotes the request id and does not auto-dismiss", () => {
     toastUnhandledApiError(apiError("PROVIDER_4XX_CREATE_CAMPAIGN", 502), "create the campaign", "LinkedIn");

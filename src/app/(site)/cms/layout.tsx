@@ -51,6 +51,7 @@ import {
   Plug,
   Workflow,
   CalendarClock,
+  Timer,
   HardDrive,
   Package,
   type LucideIcon,
@@ -85,6 +86,7 @@ const CMS_NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/cms/feedback", label: "Feedback Tickets", icon: TicketCheck },
       { href: "/cms/jobs", label: "Background Jobs", icon: Workflow },
+      { href: "/cms/schedules", label: "Schedules", icon: Timer },
       { href: "/cms/skills", label: "Skills", icon: Zap },
       { href: "/cms/storage", label: "Storage P&L", icon: HardDrive },
       { href: "/cms/team", label: "CMS Team", icon: Users },

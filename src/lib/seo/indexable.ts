@@ -1,3 +1,8 @@
+/** Whether this is the Vercel Production deployment (`VERCEL_ENV === "production"`). Decides what is published; SITE_INDEXABLE never does. */
+export function isProductionDeployment(env: Record<string, string | undefined> = process.env): boolean {
+  return env.VERCEL_ENV === "production";
+}
+
 /**
  * Whether THIS deployment may be indexed by a search engine.
  *
@@ -17,7 +22,7 @@
  */
 export function isIndexableDeployment(env: Record<string, string | undefined> = process.env): boolean {
   if (env.SITE_INDEXABLE === "false") return false;
-  return env.VERCEL_ENV === "production";
+  return isProductionDeployment(env);
 }
 
 /** The X-Robots-Tag value for a deployment that must stay out of every index. */

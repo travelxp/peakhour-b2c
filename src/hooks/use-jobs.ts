@@ -18,6 +18,8 @@ export interface Job {
   status: "pending" | "running" | "done" | "failed" | "cancelled";
   displayName?: string;
   displayHint?: string;
+  /** The creative a Creative Studio job works on (api `GET /v1/jobs`); absent on other jobs and on older Studio rows. */
+  creativeId?: string;
   progress?: {
     totalUnits: number;
     processedUnits: number;

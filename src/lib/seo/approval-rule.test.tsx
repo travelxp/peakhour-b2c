@@ -6,7 +6,7 @@ import { PAGES, getPage } from "./pages";
 import { buildComparisonContent } from "@/content/seo/competitors/build";
 import { getBrief } from "@/content/seo/competitors";
 import { overlayApprovals, type ReviewManifest } from "./review-manifest-data";
-import { approvalState, cmsReviewer, canOpen, capabilitiesSatisfied, currentContentHash, isPreviewable, isPublishable } from "./publish";
+import { approvalFor, approvalState, cmsReviewer, canOpen, needsApproval, capabilitiesSatisfied, currentContentHash, isPreviewable, isPublishable } from "./publish";
 
 const DEV = { VERCEL_ENV: "preview" };
 const PROD = { VERCEL_ENV: "production" };
@@ -93,7 +93,9 @@ describe("the ribbon", () => {
 
   it("says nothing on a published page with a current approval", () => {
     expect(ribbonKind(seo, [approve(seo.pageId)])).toBeNull();
-    expect(isDraftPage(seo)).toBe(false);
+    // ...but the committed approval for this page is a placeholder (AR-5), so the page itself still carries the dev-only ribbon.
+    expect(isDraftPage(seo)).toBe(true);
+    expect(isDraftPage(getPage("home"))).toBe(false);
   });
 
   it("says Draft, not published when there is no approval", () => {
@@ -149,5 +151,86 @@ describe("the reviewer a CMS approval names", () => {
     expect(overlayApprovals(base, [approve(wati.pageId)]).pages[0].reviewedBy).toBe("Asha Rao");
     expect(overlayApprovals(base, [approve(wati.pageId, { source: "placeholder" })]).pages[0].reviewedBy).toBeNull();
     expect(overlayApprovals(base, [approve(wati.pageId, { contentHash: STALE })]).pages[0].reviewedBy).toBeNull();
+  });
+});
+
+describe("AR-5: on production only a CMS approval publishes a page that makes claims", () => {
+  const seo = getPage("shopify.features.ai.seo");
+  const placeholder = (id: string) => approve(id, { source: "placeholder" });
+
+  it("a placeholder claim page is unpublishable on production and a cms-approved one is publishable", () => {
+    expect(isPublishable(seo, "en", [placeholder(seo.pageId)], PROD)).toBe(false);
+    expect(isPublishable(seo, "en", [approve(seo.pageId)], PROD)).toBe(true);
+    // a stale cms row still does not publish
+    expect(isPublishable(seo, "en", [approve(seo.pageId, { contentHash: STALE })], PROD)).toBe(false);
+  });
+
+  it("dev and previews are unchanged: a placeholder still counts", () => {
+    expect(isPublishable(seo, "en", [placeholder(seo.pageId)], DEV)).toBe(true);
+    expect(isPublishable(seo, "en", [placeholder(seo.pageId)], {})).toBe(true);
+    expect(isPublishable(seo, "en", [approve(seo.pageId)], DEV)).toBe(true);
+  });
+
+  it("SITE_INDEXABLE=false only controls noindex: production still hides a placeholder claim page", () => {
+    expect(isPublishable(seo, "en", [placeholder(seo.pageId)], { VERCEL_ENV: "production", SITE_INDEXABLE: "false" })).toBe(false);
+    expect(isPublishable(seo, "en", [approve(seo.pageId)], { VERCEL_ENV: "production", SITE_INDEXABLE: "false" })).toBe(true);
+  });
+
+  it("production with SITE_INDEXABLE=false never renders a draft: 404 and no ribbon", () => {
+    const noindexProd = { VERCEL_ENV: "production", SITE_INDEXABLE: "false" };
+    const draft = getPage("shopify.compare.wati");
+    expect(isPreviewable(draft, DEV)).toBe(true);
+    expect(isPreviewable(draft, noindexProd)).toBe(false);
+    expect(canOpen(draft, noindexProd)).toBe(false);
+    // a claim page held back by the approval rule is no preview either
+    const held = { ...seo, editorialStatus: "published" as const };
+    expect(isPreviewable(held, noindexProd)).toBe(false);
+  });
+
+  it("a page with no claim is unaffected", () => {
+    for (const id of ["home", "pricing", "legal.terms", "contact"]) {
+      const page = getPage(id);
+      expect(page.capabilityIds, id).toHaveLength(0);
+      expect(isPublishable(page, "en", [], PROD), id).toBe(true);
+    }
+  });
+
+  it("canOpen follows the injected environment: a placeholder claim page does not open on production", () => {
+    // canOpen reads the committed approvals: pick a page that is on a placeholder there.
+    const onPlaceholder = PAGES.find((p) => p.capabilityIds.length > 0 && isPublishable(p, "en", undefined, {}) && approvalFor(p.pageId)?.source !== "cms");
+    expect(onPlaceholder).toBeDefined();
+    expect(canOpen(onPlaceholder!, DEV)).toBe(true);
+    expect(canOpen(onPlaceholder!, PROD)).toBe(false);
+  });
+
+  it("the ribbon says the page is live on dev only when it rests on a placeholder, and nothing once a CMS row exists", () => {
+    expect(ribbonKind(seo, [placeholder(seo.pageId)])).toBe("devOnly");
+    expect(ribbonKind(seo, [approve(seo.pageId)])).toBeNull();
+    expect(renderToStaticMarkup(<DraftRibbon page={seo} />)).toContain("Live on dev only: needs a CMS approval before it shows on production.");
+    expect(renderToStaticMarkup(<DraftRibbon page={getPage("home")} />)).toBe("");
+  });
+
+  it("pins today's numbers: 53 published on dev, 16 on production", () => {
+    expect(PAGES.filter((p) => isPublishable(p, "en", undefined, {}))).toHaveLength(53);
+    const onProd = PAGES.filter((p) => isPublishable(p, "en", undefined, PROD));
+    expect(onProd).toHaveLength(16);
+    // every production page either needs no approval or carries a cms one
+    for (const p of onProd) expect(!needsApproval(p) || approvalFor(p.pageId)?.source === "cms", p.pageId).toBe(true);
+  });
+
+  it("the sitemap, the footer and the directory agree with isPublishable on production", async () => {
+    const { vi } = await import("vitest");
+    vi.resetModules();
+    vi.doMock("@/lib/marketing-pages", () => ({ getMarketingSitemapEntries: async () => [] }));
+    try {
+      const { sitemapEntries, SITEMAP_NAMES } = await import("./sitemap");
+      const listed = new Set<string>();
+      for (const n of SITEMAP_NAMES.filter((x) => x !== "cms")) for (const e of await sitemapEntries(n, PROD)) listed.add(new URL(e.url).pathname);
+      const expected = PAGES.filter((p) => isPublishable(p, "en", undefined, PROD)).map((p) => p.path);
+      expect([...listed].sort()).toEqual([...expected].sort());
+    } finally {
+      vi.doUnmock("@/lib/marketing-pages");
+      vi.resetModules();
+    }
   });
 });

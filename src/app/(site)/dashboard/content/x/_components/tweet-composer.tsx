@@ -27,7 +27,9 @@ import {
   X as XIcon,
 } from "lucide-react";
 import { xApi, extractTweetId, type PublishTweetInput } from "@/lib/api/x";
-import { ApiError } from "@/lib/api";
+import { X_POSTING_KEY, XLinksConfirmDialog, useXPosting } from "@/components/integrations/x-posting-card";
+import { postCostLine, xPostingErrorMessage } from "@/lib/x-posting";
+import { api, ApiError } from "@/lib/api";
 import {
   rewriteContent,
   createDraft,
@@ -50,6 +52,7 @@ import {
   type HashtagCandidate,
   type VoiceCardSummary,
 } from "@/components/composer";
+import { PostMedia, dropOutline, usePostMedia } from "@/components/composer/post-media";
 import { SchedulerComposer } from "@/components/scheduler/scheduler-composer";
 import type { ScheduleSourceType } from "@/lib/scheduler/types";
 import { sourceTextHash } from "@/lib/scheduler/source-hash";
@@ -179,6 +182,9 @@ export function TweetComposer() {
   const [refError, setRefError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ kind: "success" | "error"; message: string } | null>(null);
 
+  // Pictures: the picker applies X's own rules. They go on the first post (the api attaches them there).
+  const postMedia = usePostMedia("x");
+  const clearPostMedia = postMedia.clear;
   const isThread = segments.length > 1;
   const activeText = segments.find((s) => s.id === activeId)?.text ?? "";
 
@@ -188,6 +194,43 @@ export function TweetComposer() {
   );
   const empty = combinedText.length === 0;
   const anyTooLong = segments.some((s) => s.text.length > MAX_LEN);
+
+  // ── What this post costs, and whether a link may go (MR-X1) ─────
+  // The api prices the draft from the rate card and says whether it may go; the composer only shows it. A link while "posts with
+  // links" is off is refused here with the price, and the switch can be turned on from this spot (after the Yes / No question).
+  const postTexts = useMemo(() => segments.map((s) => s.text.trim()).filter(Boolean), [segments]);
+  const [quoteTexts, setQuoteTexts] = useState<string[]>([]);
+  useEffect(() => {
+    const t = setTimeout(() => setQuoteTexts(postTexts), 400);
+    return () => clearTimeout(t);
+  }, [postTexts]);
+  const quoteKey = JSON.stringify(quoteTexts);
+  const quoteQuery = useQuery({
+    queryKey: ["x-post-quote", quoteKey],
+    queryFn: () => xApi.quote(quoteTexts),
+    enabled: quoteTexts.length > 0,
+    staleTime: 10_000,
+    placeholderData: (prev) => prev,
+  });
+  // ★A quote counts only for the text it was made for. While the draft is ahead of the quote (the debounce, or the previous text's
+  // quote held as placeholder) there is NO quote for the current text, and nothing is sent. A refetch in the background with a quote in
+  // hand blocks nothing. A quote that failed is said, with a retry, and blocks too: the api checks again at the send either way.
+  const sameText = JSON.stringify(quoteTexts) === JSON.stringify(postTexts);
+  const quote = postTexts.length > 0 && sameText && !quoteQuery.isPlaceholderData ? quoteQuery.data : undefined;
+  const quoteFailed = postTexts.length > 0 && sameText && quoteQuery.isError && !quote;
+  const costLine = postCostLine(quote);
+  const linkRefused = quote?.allowed === false && quote.reason === "x_link_held";
+  const sendBlocked = (quote?.allowed === false && quote.reason !== "not_connected") || (postTexts.length > 0 && !quote);
+  const posting = useXPosting();
+  const [confirmLinks, setConfirmLinks] = useState(false);
+  const turnOnLinks = useMutation({
+    mutationFn: () => api.put("/v1/x/content/posting/links", { enabled: true }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: X_POSTING_KEY });
+      void queryClient.invalidateQueries({ queryKey: ["x-post-quote"] });
+    },
+    onError: (err: unknown) => setFeedback({ kind: "error", message: xPostingErrorMessage(err) }),
+  });
 
   // ── Voice card chip (informational) ─────────────────────────────
   const voiceCardQuery = useQuery({
@@ -348,8 +391,9 @@ export function TweetComposer() {
     setRefInput("");
     setShowRefs(false);
     setDraftId(null);
+    clearPostMedia();
     setMode("compose");
-  }, []);
+  }, [clearPostMedia]);
 
   // ── Instant publish (single tweet OR reply-chained thread) ──────
   const publish = useMutation({
@@ -366,6 +410,7 @@ export function TweetComposer() {
           if (refMode.kind === "quote") body.quoteTweetId = refMode.id;
           // The label sits on the first post only, as the scheduler does.
           if (paidPartnership) body.paidPartnership = true;
+          if (postMedia.urls.length > 0) body.mediaUrls = postMedia.urls;
         } else {
           body.replyToTweetId = prevId;
         }
@@ -389,6 +434,8 @@ export function TweetComposer() {
         message: posted > 1 ? `Thread published (${posted} tweets).` : "Tweet published.",
       });
       queryClient.invalidateQueries({ queryKey: ["x-tweets"] });
+      // the Peaks just spent change what the next draft may do
+      queryClient.invalidateQueries({ queryKey: ["x-post-quote"] });
     },
     onError: (err: unknown) => {
       const message = err instanceof Error ? err.message : "Failed to publish tweet.";
@@ -396,8 +443,8 @@ export function TweetComposer() {
     },
   });
 
-  const publishDisabled = empty || anyTooLong || publish.isPending;
-  const scheduleDisabled = empty || anyTooLong;
+  const publishDisabled = empty || anyTooLong || publish.isPending || sendBlocked;
+  const scheduleDisabled = empty || anyTooLong || sendBlocked;
 
   // ── Reply / quote reference ─────────────────────────────────────
   function attachReference(kind: "reply" | "quote") {
@@ -446,11 +493,12 @@ export function TweetComposer() {
           // threadParts drives the scheduler's X publisher (posts each
           // part sequentially). Only set it for an actual thread.
           ...(trimmed.length > 1 ? { threadParts: trimmed } : {}),
+          ...(postMedia.urls.length > 0 ? { mediaUrls: postMedia.urls } : {}),
           ...(Object.keys(channelOptions).length > 0 ? { channelOptions } : {}),
         },
       },
     ];
-  }, [segments, refMode, paidPartnership]);
+  }, [segments, refMode, paidPartnership, postMedia.urls]);
 
   function handleScheduled() {
     queryClient.invalidateQueries({ queryKey: ["scheduler:items"] });
@@ -528,6 +576,7 @@ export function TweetComposer() {
 
   // ── Compose view ────────────────────────────────────────────────
   return (
+    <div ref={postMedia.dropRef} className={dropOutline(postMedia.dropping)} data-testid="x-drop-target">
     <ComposerShell
       mode="compose"
       voiceCard={voiceSummary}
@@ -556,6 +605,31 @@ export function TweetComposer() {
       toolbarSlot={
         <div className="space-y-3">
           <AiComposeToolbar text={activeText} platform="x" onAiAction={handleAiAction} />
+          {costLine ? (
+            <p className="text-sm text-muted-foreground" data-testid="x-post-cost">
+              {costLine}
+            </p>
+          ) : null}
+          {quoteFailed ? (
+            <div className="flex flex-wrap items-center gap-2 text-sm text-destructive" role="alert" data-testid="x-quote-failed">
+              <span>Couldn&apos;t check this post&apos;s price. Try again.</span>
+              <Button type="button" size="sm" variant="outline" onClick={() => void quoteQuery.refetch()}>
+                Try again
+              </Button>
+            </div>
+          ) : null}
+          {linkRefused ? (
+            <div className="space-y-2 rounded-md border border-warning/30 bg-warning/10 p-3 text-sm text-warning-on-tint" role="alert" data-testid="x-link-refused">
+              <p>{quote?.message}</p>
+              <Button type="button" size="sm" variant="outline" disabled={turnOnLinks.isPending || !posting.data?.connected} onClick={() => setConfirmLinks(true)}>
+                Turn on posts with links
+              </Button>
+            </div>
+          ) : quote && !quote.allowed && quote.reason !== "not_connected" ? (
+            <p className="text-sm text-destructive" role="alert" data-testid="x-quote-blocked">
+              {quote.message}
+            </p>
+          ) : null}
           <div className="flex items-start gap-2">
             <Switch
               id="x-paid-partnership"
@@ -596,7 +670,17 @@ export function TweetComposer() {
         </>
       }
       footerSlot={
-        feedback ? (
+        <>
+          <XLinksConfirmDialog
+            open={confirmLinks}
+            prices={posting.data?.prices ?? { plain: null, link: null }}
+            onYes={() => {
+              setConfirmLinks(false);
+              turnOnLinks.mutate();
+            }}
+            onNo={() => setConfirmLinks(false)}
+          />
+          {feedback ? (
           <p
             role="status"
             className={
@@ -607,7 +691,8 @@ export function TweetComposer() {
           >
             {feedback.message}
           </p>
-        ) : undefined
+        ) : null}
+        </>
       }
       paletteSlot={
         <ComposerCommandPalette
@@ -738,6 +823,8 @@ export function TweetComposer() {
           className="ml-auto"
         />
       </div>
+      <PostMedia state={postMedia} locked={publish.isPending} hint={isThread ? "Pictures go on the first tweet." : undefined} />
     </ComposerShell>
+    </div>
   );
 }

@@ -3,7 +3,8 @@
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { integrationsAckHref, isAckRequiredCode } from "@/lib/overseas-ack";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
 import { api, ApiError } from "@/lib/api";
@@ -113,6 +114,7 @@ function SettingsContent() {
   const active = activeBusiness(entitlements, business);
   const { formatCurrency } = useLocale();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [orgDetails, setOrgDetails] = useState<OrgDetails | null>(null);
   // FR: the category in words, with a way to change it for an owner or admin (it lives on "Your business").
@@ -245,6 +247,12 @@ function SettingsContent() {
       const provider = searchParams.get("provider");
       const msg = searchParams.get("msg");
       const anchor = searchParams.get("anchor");
+      // Missing overseas acknowledgement: the dialog lives on the Integrations
+      // page, so send the merchant there instead of showing a generic error.
+      if (isAckRequiredCode(msg)) {
+        router.replace(integrationsAckHref(searchParams));
+        return;
+      }
       setConnectError(oauthErrorMessage(provider, msg, anchor));
       // Only a brand-mismatch block is disputable via "request a review".
       if (msg === "brand_mismatch" && provider) {
@@ -253,7 +261,7 @@ function SettingsContent() {
         setMismatchContext(null);
       }
     }
-  }, [searchParams, queryClient]);
+  }, [searchParams, queryClient, router]);
 
   useEffect(() => {
     if (!org?._id) return;

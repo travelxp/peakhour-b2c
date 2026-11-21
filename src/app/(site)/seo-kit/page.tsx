@@ -14,7 +14,7 @@ import {
   ShopifyFeaturePage,
   SolutionPage,
 } from "@/components/marketing/seo/templates";
-import { isIndexableDeployment } from "@/lib/seo/indexable";
+import { isProductionDeployment } from "@/lib/seo/indexable";
 import { COMMERCE } from "@/content/pages/commerce";
 import { getPage } from "@/lib/seo/pages";
 import * as fx from "./fixtures";
@@ -29,7 +29,7 @@ export const metadata: Metadata = { title: "Template kit", robots: { index: fals
  * the Production deployment.
  */
 export default async function SeoKitPage({ searchParams }: { searchParams: Promise<{ template?: string | string[] }> }) {
-  if (isIndexableDeployment()) notFound();
+  if (isProductionDeployment()) notFound();
   const t = (await searchParams).template;
   const key = Array.isArray(t) ? t[0] : t;
 

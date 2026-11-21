@@ -1,14 +1,18 @@
 "use client";
 
 /**
- * <DrivePicker/> - the one place a file is chosen from Drive (row D7). Composer, Strategist, Ads, Inbox replies and every other screen
- * that needs an image, a video or a document opens this same sheet: Drive (search what you have), Upload (add something new) and
- * Generate (make something, where the screen can).
+ * <DrivePicker/> - the ONE place a file is chosen for anything: a post, an ad, a page, a message, a listing. Every screen that needs an
+ * image, a video or a document opens this same sheet: Drive (what you have), Upload (add something new), Link (a file at an https address)
+ * and Generate (make something, where the screen can). Nothing else in the app opens a file chooser (src/lib/media-picker-guard.test.ts).
  *
- * WHAT IT SAYS, AND WHERE IT COMES FROM
- *  - When the screen names where the file is going (`target`), files that fit come first. The verdicts are the api's `channelFit`, built
- *    from the channel's own limits (size, shape, length, format) and a reading of the content; the picker never second-guesses them. A file
- *    nobody has judged yet is "Not checked yet", and the line above the grid says so rather than claiming an order it does not have.
+ * THE SCREEN NAMES WHERE THE FILE IS GOING, AND THE PICKER KNOWS THE RULES
+ *  - `destination` is a post on a channel, an ad placement, a message, a listing or a page. The picker reads that destination's rules from the
+ *    api (`lib/media-rules.ts`, one table built from the constraints adapters the publishers enforce): which types, how big, how many, what
+ *    shape, how long. No screen passes a type, a size or a count, so no two screens can disagree about a place.
+ *  - A file the place would refuse is greyed out on its tile, with why. One that could be made to fit (a shape to crop, a size to reduce) says
+ *    what to do. An upload is judged BEFORE it is sent; a refused file never leaves the browser.
+ *  - Where the destination has a channel, files that fit come first. The content verdicts are the api's `channelFit` (a reading of what is in
+ *    the file); the hard limits above are the same adapter's, so the two never disagree. A file nobody has judged yet is "Not checked yet".
  *  - A Private file has no public link. Where the screen needs one (`requirePublicUrl`, the default: posts, ads, pages) the tile is greyed
  *    out and says why. Where it does not (an Inbox reply sends the bytes), the file can be added and the picker fetches a short-lived signed
  *    link for it at the moment of adding.
@@ -17,9 +21,9 @@
  */
 
 import { MediaImage } from "@/components/shared/media-image";
-import { useEffect, useId, useMemo, useRef, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { FileText, Image as ImageIcon, Loader2, Lock, Search, Sparkles, Upload, Video, Check, X } from "lucide-react";
+import { FileText, Image as ImageIcon, Loader2, Lock, Search, Sparkles, Video, Check, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
 import { PEAKS_ACTIONS } from "@/lib/api/peaks";
@@ -30,44 +34,40 @@ import { generateImageToDrive, GeneratedPrivateError } from "@/lib/drive/generat
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { MediaAsset } from "@/components/composer/types";
-import { getFileLink, listDriveFiles, type DriveFile, type DriveKind } from "@/lib/drive/files";
+import { listDriveFiles, type DriveFile, type DriveKind } from "@/lib/drive/files";
 import { anyVerdict, fitNote, orderByFit, PRIVATE_NEEDS_PUBLIC } from "@/lib/drive/fit";
-import { uploadErrorMessage, uploadToDrive, UploadAborted, type UploadedFile, type UploadOptions } from "@/lib/drive/upload-engine";
+import { assetOf } from "@/lib/drive/asset-of";
+import { aloneProblem, judgeFile, fitChannelOf, kindOfMime, kindsOfRule, roomLeft, useMediaRule, verdictText, type MediaDestination, type Verdict } from "@/lib/media-rules";
+import { LinkTab, UploadTab, driveFileOf, fullSentence, type UploadSeam } from "@/components/drive/drive-picker-upload";
 
-export type PickerTab = "drive" | "upload" | "generate";
+export { assetOf, kindOfMime };
+export { useDropPaste, type DropPasteOptions } from "@/components/drive/drive-picker-upload";
+export type { MediaDestination } from "@/lib/media-rules";
 
-export interface DriveTarget {
-  /** The channel the file is going to (a scheduler or composer key: "instagram", "linkedin", "beehiiv"...). Drives the fit order. */
-  channel?: string;
-  /** In plain words, for the line above the grid: "an Instagram post". */
-  label?: string;
-}
+export type PickerTab = "drive" | "upload" | "link" | "generate";
 
 export interface DrivePickerProps {
   trigger?: React.ReactNode;
-  target?: DriveTarget;
-  /** What the screen can use. Default: images. */
-  kinds?: DriveKind[];
-  maxSelection?: number;
+  /** Where the file is going. The picker applies that place's rules: types, size, count, shape, length. */
+  destination: MediaDestination;
+  /** How many files the place already holds, so the picker knows how much room is left. Default 0. */
+  attached?: number;
   /** True (default): the file must have a public link, so a Private file cannot be added. False: a Private file is added with a short-lived signed link. */
   requirePublicUrl?: boolean;
   /** What a file uploaded here becomes. Default: Published where a public link is needed, else the file type's own default. An Inbox reply passes "private": a shopper's photo must not get a public address. */
   uploadAs?: "published" | "private";
   /** False when the screen takes only the file's id and reads the bytes itself (an Inbox reply): no link is fetched, so a Private file's `url` is "". Default true. */
   needUrl?: boolean;
-  /** A reason this file cannot be used HERE (wrong type, too big), or null. Shown on the tile, which is greyed out. */
-  unusable?: (file: DriveFile) => string | null;
   /** The button: "Add to post". Default "Add". */
   addLabel?: string;
   /**
    * Make something new. Returns the file to add, or nothing when the screen shows the result itself (the picker then closes).
-   * Leave it off and, where the screen takes images, the Generate tab makes an image from the sentence and saves it to Drive
+   * Leave it off and, where the place takes images, the Generate tab makes an image from the sentence and saves it to Drive
    * (`POST /v1/media/generate`, charged like the Strategist's image, the price shown first). `quoteToken` is the receipt for the price shown.
    */
   onGenerate?: (prompt: string, kind: "image" | "video", opts?: { quoteToken?: string }) => Promise<MediaAsset | void>;
@@ -76,7 +76,9 @@ export interface DrivePickerProps {
    * built-in generator always is. Leave it off for a generator charged as anything else: the tab then shows no price rather than the wrong one.
    */
   generatePriced?: boolean;
-  /** Which tabs to offer. Default: all three. A screen that must not make a file (a business's own photos) leaves Generate out. */
+  /** This slot takes one file (a placeholder's picture), whatever the place takes in all. The picker takes the smaller. */
+  single?: boolean;
+  /** Which tabs to offer. Default: all four. A screen that must not make a file (a business's own photos) leaves Generate out. */
   tabs?: readonly PickerTab[];
   /** What the Generate box starts with (a brief the screen already holds). */
   generatePrompt?: string;
@@ -85,8 +87,8 @@ export interface DrivePickerProps {
   onSelect: (assets: MediaAsset[]) => void;
 }
 
-const DEFAULT_KINDS: DriveKind[] = ["image"];
-const ALL_TABS: readonly PickerTab[] = ["drive", "upload", "generate"];
+const ALL_TABS: readonly PickerTab[] = ["drive", "upload", "link", "generate"];
+const TAB_NAME: Record<PickerTab, string> = { drive: "Drive", upload: "Upload", link: "Link", generate: "Generate" };
 
 export function DrivePicker({ trigger, ...panel }: DrivePickerProps) {
   const [open, setOpen] = useState(false);
@@ -103,7 +105,7 @@ export function DrivePicker({ trigger, ...panel }: DrivePickerProps) {
       <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-xl">
         <SheetHeader className="sr-only">
           <SheetTitle>Add from Drive</SheetTitle>
-          <SheetDescription>Choose a file from Drive, upload a new one, or generate one.</SheetDescription>
+          <SheetDescription>Choose a file from Drive, upload a new one, add one from a link, or generate one.</SheetDescription>
         </SheetHeader>
         {open && (
           <DrivePickerPanel
@@ -122,14 +124,22 @@ export function DrivePicker({ trigger, ...panel }: DrivePickerProps) {
 
 // ── The panel ────────────────────────────────────────────
 
+/** What is known of a Drive file, for judging it. */
+const factsOf = (f: DriveFile) => ({
+  mimeType: f.mimeType,
+  sizeBytes: f.sizeBytes,
+  ...(f.width ? { width: f.width } : {}),
+  ...(f.height ? { height: f.height } : {}),
+  ...(f.durationSeconds !== undefined ? { durationSeconds: f.durationSeconds } : {}),
+});
+
 export function DrivePickerPanel({
-  target,
-  kinds = DEFAULT_KINDS,
-  maxSelection,
+  destination,
+  attached = 0,
+  single: oneSlot = false,
   requirePublicUrl = true,
   needUrl = true,
   uploadAs,
-  unusable,
   addLabel = "Add",
   onGenerate,
   tabs = ALL_TABS,
@@ -139,7 +149,9 @@ export function DrivePickerPanel({
   onSelect,
   onClose,
   uploadOptions,
-}: Omit<DrivePickerProps, "trigger"> & { onClose?: () => void; /** Test seam: the upload client's dependencies. */ uploadOptions?: Pick<UploadOptions, "deps"> }) {
+}: Omit<DrivePickerProps, "trigger"> & { onClose?: () => void; /** Test seam: the upload client's dependencies and how a file is measured. */ uploadOptions?: UploadSeam }) {
+  const ruleState = useMediaRule(destination);
+  const rule = ruleState.state === "ready" ? ruleState.rule : undefined;
   const [tab, setTab] = useState<PickerTab>("drive");
   const [text, setText] = useState("");
   const q = useDebounced(text.trim(), 250);
@@ -147,19 +159,23 @@ export function DrivePickerPanel({
   /** Files uploaded in this panel, shown first so they are there before the list refetches. */
   const [added, setAdded] = useState<DriveFile[]>([]);
   const [adding, setAdding] = useState(false);
+  /** A line the panel says in place, where a toast would float over the sheet. */
+  const [notice, setNotice] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
+  const kinds = useMemo<DriveKind[]>(() => (rule ? kindsOfRule(rule) : []), [rule]);
   const single = kinds.length === 1 ? kinds[0] : undefined;
   const query = useInfiniteQuery({
     queryKey: ["drive-picker", { q, kind: single ?? null }],
     queryFn: ({ pageParam }) => listDriveFiles({ q, kind: single, page: pageParam }),
     initialPageParam: 1,
     getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
-    enabled: tab === "drive",
+    enabled: tab === "drive" && rule !== undefined,
     staleTime: 15_000,
   });
 
-  // keyed on the list's CONTENT: callers pass an inline array, which is a new reference every render
+  const channel = fitChannelOf(destination);
+  // keyed on the list's CONTENT: the rule's kinds are a new array when the rule is
   const kindsKey = kinds.join(",");
   const files = useMemo(() => {
     const seen = new Set<string>();
@@ -169,22 +185,27 @@ export function DrivePickerPanel({
       seen.add(f.id);
       all.push(f);
     }
-    return orderByFit(all, target?.channel);
+    return orderByFit(all, channel);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `kinds` is read through kindsKey
-  }, [query.data, added, q, kindsKey, target?.channel]);
+  }, [query.data, added, q, kindsKey, channel]);
 
-  // With several kinds the api is asked for every kind and this list is filtered here, so a page can hold nothing this screen can use: keep
+  // With several kinds the api is asked for every kind and this list is filtered here, so a page can hold nothing this place can use: keep
   // reading pages until something shows or Drive runs out, rather than call a Drive full of videos empty.
   const fetchNext = query.fetchNextPage;
-  const readingOn = single === undefined && files.length === 0 && Boolean(query.hasNextPage);
+  const readingOn = single === undefined && rule !== undefined && files.length === 0 && Boolean(query.hasNextPage);
   const pagesRead = query.data?.pages.length ?? 0;
   useEffect(() => {
     if (readingOn && !query.isFetchingNextPage) void fetchNext();
     // `pagesRead` re-runs this when a page lands, so a page that arrives with nothing showable asks for the next
   }, [readingOn, query.isFetchingNextPage, pagesRead, fetchNext]);
 
+  /** How many more files this place takes: what it holds in all, less what is already on it and what is chosen here. */
+  const room = rule ? Math.max(0, Math.min(roomLeft(rule, attached), oneSlot ? 1 : Infinity) - selected.size) : 0;
+  const verdictOf = (f: DriveFile): Verdict => (rule ? judgeFile(rule, factsOf(f)) : { state: "unchecked", reason: "" });
+
   function toggle(file: DriveFile) {
     if (selected.has(file.id)) {
+      setNotice(null);
       setSelected((prev) => {
         const next = new Map(prev);
         next.delete(file.id);
@@ -192,10 +213,16 @@ export function DrivePickerPanel({
       });
       return;
     }
-    if (maxSelection !== undefined && selected.size >= maxSelection) {
-      toast.info(`You can add up to ${maxSelection} ${maxSelection === 1 ? "file" : "files"} here.`);
+    if (rule && room <= 0) {
+      setNotice(`${oneSlot || rule.maxCount === 1 ? "One file is" : `Up to ${rule.maxCount} files are`} all ${oneSlot ? "this takes" : `${rule.label} takes`}${attached > 0 && !oneSlot ? ` (${attached} already on it)` : ""}.`);
       return;
     }
+    const together = aloneProblem(rule!, [...[...selected.values()].map(factsOf), factsOf(file)], attached);
+    if (together) {
+      setNotice(together);
+      return;
+    }
+    setNotice(null);
     setSelected((prev) => new Map(prev).set(file.id, file));
   }
 
@@ -206,7 +233,7 @@ export function DrivePickerPanel({
       for (const f of selected.values()) {
         const asset = await assetOf(f, requirePublicUrl, needUrl);
         if (!asset) {
-          toast.error(`We couldn't get a link for "${f.name}".`, { description: f.visibility === "private" ? PRIVATE_NEEDS_PUBLIC : "Try again in a moment." });
+          setNotice(`We couldn't get a link for "${f.name}". ${f.visibility === "private" ? PRIVATE_NEEDS_PUBLIC : "Try again in a moment."}`);
           return;
         }
         assets.push(asset);
@@ -217,7 +244,6 @@ export function DrivePickerPanel({
     }
   }
 
-  const channel = target?.channel;
   const verdicts = anyVerdict(files, channel);
   const anyPrivateBlocked = requirePublicUrl && files.some((f) => f.visibility === "private");
 
@@ -238,101 +264,140 @@ export function DrivePickerPanel({
                 tab === t ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
               )}
             >
-              {t === "drive" ? "Drive" : t === "upload" ? "Upload" : "Generate"}
+              {TAB_NAME[t]}
             </button>
           ))}
         </div>
       </div>
 
-      {tab === "drive" && (
+      {!rule ? (
+        <RuleNotice state={ruleState} />
+      ) : (
         <>
-          <div className="space-y-2 border-b px-4 py-3">
-            <div className="relative">
-              <Label htmlFor="drive-picker-search" className="sr-only">
-                Search
-              </Label>
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="drive-picker-search"
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder="Search by name, tag or what's in it"
-                className="h-10 pl-9"
-              />
-            </div>
-            {channel && target?.label && files.length > 0 && (
-              <p className="text-sm text-muted-foreground" data-testid="fit-line">
-                {verdicts
-                  ? `Showing what fits ${target.label} first.`
-                  : `Fit checks for ${target.label} are still being worked out, so files are shown newest first.`}
-              </p>
-            )}
-            {anyPrivateBlocked && (
-              <p className="flex items-start gap-1.5 text-sm text-warning-on-tint" data-testid="private-line">
-                <Lock className="mt-0.5 size-3.5 shrink-0" />
-                <span>Private files are greyed out. They have no public link, and this needs one. Publish a file in Drive to use it here.</span>
-              </p>
-            )}
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto p-4">
-            <FileGrid
-              state={gridState(query, files.length, readingOn)}
-              files={files}
-              channel={channel}
-              selected={selected}
+          {tab === "drive" && rule && (
+            <>
+              <div className="space-y-2 border-b px-4 py-3">
+                <div className="relative">
+                  <Label htmlFor="drive-picker-search" className="sr-only">
+                    Search
+                  </Label>
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="drive-picker-search"
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    placeholder="Search by name, tag or what's in it"
+                    className="h-10 pl-9"
+                  />
+                </div>
+                {channel && files.length > 0 && (
+                  <p className="text-sm text-muted-foreground" data-testid="fit-line">
+                    {verdicts ? `Showing what fits ${rule.label} first.` : `Fit checks for ${rule.label} are still being worked out, so files are shown newest first.`}
+                  </p>
+                )}
+                {anyPrivateBlocked && (
+                  <p className="flex items-start gap-1.5 text-sm text-warning-on-tint" data-testid="private-line">
+                    <Lock className="mt-0.5 size-3.5 shrink-0" />
+                    <span>Private files are greyed out. They have no public link, and this needs one. Publish a file in Drive to use it here.</span>
+                  </p>
+                )}
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                <FileGrid
+                  state={gridState(query, files.length, readingOn)}
+                  files={files}
+                  channel={channel}
+                  selected={selected}
+                  requirePublicUrl={requirePublicUrl}
+                  verdictOf={verdictOf}
+                  searching={q.length > 0}
+                  queryText={q}
+                  onToggle={toggle}
+                  onRetry={() => void query.refetch()}
+                  hasMore={Boolean(query.hasNextPage)}
+                  loadingMore={query.isFetchingNextPage}
+                  onMore={() => void query.fetchNextPage()}
+                  onUpload={() => setTab("upload")}
+                />
+              </div>
+            </>
+          )}
+
+          {tab === "upload" && rule && (
+            <UploadTab
+              rule={rule}
+              room={room}
+              single={oneSlot}
+              alongside={[...selected.values()].map(factsOf)}
+              attached={attached}
               requirePublicUrl={requirePublicUrl}
-              unusable={unusable}
-              searching={q.length > 0}
-              queryText={q}
-              onToggle={toggle}
-              onRetry={() => void query.refetch()}
-              hasMore={Boolean(query.hasNextPage)}
-              loadingMore={query.isFetchingNextPage}
-              onMore={() => void query.fetchNextPage()}
-              onUpload={() => setTab("upload")}
+              visibility={uploadAs ?? (requirePublicUrl ? "published" : undefined)}
+              seam={uploadOptions}
+              onDone={(done) => {
+                const fresh = done.map(driveFileOf);
+                setAdded((prev) => [...fresh, ...prev]);
+                setSelected((prev) => {
+                  const next = new Map(prev);
+                  for (const f of fresh) if (next.size < Math.min(roomLeft(rule, attached), oneSlot ? 1 : Infinity) && !(requirePublicUrl && f.visibility === "private")) next.set(f.id, f);
+                  return next;
+                });
+                // marked stale, so the Drive tab (disabled while Upload is open) fetches afresh when it comes back
+                void queryClient.invalidateQueries({ queryKey: ["drive-picker"] });
+                setTab("drive");
+              }}
             />
-          </div>
+          )}
+
+          {tab === "link" && rule && (
+            <LinkTab
+              rule={rule}
+              room={room}
+              single={oneSlot}
+              alongside={[...selected.values()].map(factsOf)}
+              attached={attached}
+              requirePublicUrl={requirePublicUrl}
+              onDone={(file) => {
+                setAdded((prev) => [file, ...prev]);
+                setSelected((prev) => new Map(prev).set(file.id, file));
+                void queryClient.invalidateQueries({ queryKey: ["drive-picker"] });
+                setTab("drive");
+              }}
+            />
+          )}
+
+          {tab === "generate" && (
+            <GenerateTab
+              kinds={kinds}
+              full={room <= 0}
+              onGenerate={onGenerate}
+              prompt={generatePrompt}
+              priced={generatePriced}
+              editable={promptEditable}
+              onMade={(asset) => {
+                if (!asset) return onClose?.();
+                if (room <= 0) {
+                  setNotice(`It is saved in Drive, but it was not added. ${fullSentence(rule!, oneSlot)}`);
+                  return;
+                }
+                // What was made is judged like any other file: a picture the place would refuse is in Drive, and says why it was not added.
+                const v = rule ? judgeFile(rule, { mimeType: asset.mime, sizeBytes: asset.bytes ?? 1, ...(asset.width ? { width: asset.width } : {}), ...(asset.height ? { height: asset.height } : {}) }) : undefined;
+                if (v && (v.state === "refused" || v.state === "fixable")) {
+                  setNotice(`It is saved in Drive, but it was not added. ${verdictText(v)}`);
+                  return;
+                }
+                onSelect([asset]);
+              }}
+            />
+          )}
         </>
       )}
 
-      {tab === "upload" && (
-        <UploadTab
-          kinds={kinds}
-          requirePublicUrl={requirePublicUrl}
-          visibility={uploadAs ?? (requirePublicUrl ? "published" : undefined)}
-          uploadOptions={uploadOptions}
-          onDone={(done) => {
-            const files = done.map(fileOf);
-            setAdded((prev) => [...files, ...prev]);
-            setSelected((prev) => {
-              const next = new Map(prev);
-              for (const f of files) {
-                if (maxSelection !== undefined && next.size >= maxSelection) break;
-                if (kinds.includes(f.kind) && !unusable?.(f) && !(requirePublicUrl && f.visibility === "private")) next.set(f.id, f);
-              }
-              return next;
-            });
-            // marked stale, so the Drive tab (disabled while Upload is open) fetches afresh when it comes back
-            void queryClient.invalidateQueries({ queryKey: ["drive-picker"] });
-            setTab("drive");
-          }}
-        />
+      {notice && (
+        <p role="alert" className="flex items-start gap-1.5 border-t bg-destructive/5 px-4 py-2 text-sm text-destructive-on-tint" data-testid="picker-notice">
+          <AlertCircle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          <span>{notice}</span>
+        </p>
       )}
-
-      {tab === "generate" && (
-        <GenerateTab
-          kinds={kinds}
-          onGenerate={onGenerate}
-          prompt={generatePrompt}
-          priced={generatePriced}
-          editable={promptEditable}
-          onMade={(asset) => {
-            if (!asset) return onClose?.();
-            onSelect([asset]);
-          }}
-        />
-      )}
-
       <div className="flex items-center justify-between gap-3 border-t bg-muted/30 px-4 py-3">
         <div className="text-sm text-muted-foreground" aria-live="polite">
           {selected.size === 0 ? "Nothing selected" : `${selected.size} selected`}
@@ -351,6 +416,33 @@ export function DrivePickerPanel({
       </div>
     </div>
   );
+}
+
+/** What the sheet says while the place's rules are not there: loading, failed (with a retry) or a place the api has no rules for. */
+function RuleNotice({ state }: { state: ReturnType<typeof useMediaRule> }) {
+  if (state.state === "loading") {
+    return (
+      <div className="grid grid-cols-3 gap-2.5 p-4" aria-busy="true" aria-label="Checking what this place takes">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="h-36 w-full rounded-lg" />
+        ))}
+      </div>
+    );
+  }
+  if (state.state === "failed") {
+    return (
+      <Notice
+        title="We couldn't check what this place takes"
+        body="Check your connection and try again. Nothing can be added until we know."
+        action={
+          <Button type="button" variant="outline" size="sm" onClick={state.retry}>
+            Try again
+          </Button>
+        }
+      />
+    );
+  }
+  return <Notice title="This place can't take files yet" body="We don't have the rules for it, so nothing can be added here." />;
 }
 
 // ── Grid ─────────────────────────────────────────────────
@@ -382,7 +474,7 @@ function FileGrid({
   channel,
   selected,
   requirePublicUrl,
-  unusable,
+  verdictOf,
   searching,
   queryText,
   onToggle,
@@ -397,7 +489,7 @@ function FileGrid({
   channel: string | undefined;
   selected: Map<string, DriveFile>;
   requirePublicUrl: boolean;
-  unusable?: (file: DriveFile) => string | null;
+  verdictOf: (file: DriveFile) => Verdict;
   searching: boolean;
   queryText: string;
   onToggle: (f: DriveFile) => void;
@@ -456,7 +548,8 @@ function FileGrid({
               file={f}
               channel={channel}
               selected={selected.has(f.id)}
-              blockedReason={blockedReason(f, requirePublicUrl, unusable)}
+              verdict={verdictOf(f)}
+              blockedReason={blockedReason(f, requirePublicUrl, verdictOf(f))}
               onToggle={() => onToggle(f)}
             />
           </li>
@@ -474,37 +567,52 @@ function FileGrid({
   );
 }
 
-/** Why a file cannot be added here, or null. A Private file where a public link is needed is the first reason. */
-export function blockedReason(f: DriveFile, requirePublicUrl: boolean, unusable?: (file: DriveFile) => string | null): string | null {
+/** Why a file cannot be added here, or null. A Private file where a public link is needed is the first reason; then the place's own rules. */
+export function blockedReason(f: DriveFile, requirePublicUrl: boolean, verdict: Verdict): string | null {
   if (requirePublicUrl && f.visibility === "private") return "Private. No public link.";
-  return unusable?.(f) ?? null;
+  return verdictText(verdict);
 }
 
 function Tile({
   file,
   channel,
   selected,
+  verdict,
   blockedReason: blocked,
   onToggle,
 }: {
   file: DriveFile;
   channel: string | undefined;
   selected: boolean;
+  verdict: Verdict;
   blockedReason: string | null;
   onToggle: () => void;
 }) {
   const fit = fitNote(file, channel);
-  const note = blocked ?? fit.label;
-  const tone = blocked ? "warn" : fit.tone;
-  const detail = blocked ? (file.visibility === "private" ? PRIVATE_NEEDS_PUBLIC : blocked) : fit.reason;
+  const private_ = blocked !== null && verdict.state !== "refused" && verdict.state !== "fixable";
+  // What the tile says under the name: why it cannot be used, else how it fits.
+  const apiSaid = fit.verdict === "good" || fit.verdict === "possible" || fit.verdict === "poor";
+  const label = private_
+    ? blocked
+    : verdict.state === "refused"
+      ? "Doesn't fit"
+      : verdict.state === "fixable"
+        ? "Needs a change"
+        : apiSaid
+          ? fit.label
+          : verdict.state === "fits"
+            ? "Fits"
+            : fit.label || "Not fully checked";
+  const tone = blocked ? "warn" : apiSaid ? fit.tone : verdict.state === "fits" ? "good" : "muted";
+  const why = private_ ? PRIVATE_NEEDS_PUBLIC : (blocked ?? fit.reason);
   return (
     <button
       type="button"
       onClick={onToggle}
       disabled={blocked !== null}
       aria-pressed={selected}
-      aria-label={`${selected ? "Deselect" : "Select"} ${file.name}${note ? `. ${note}` : ""}${detail && !blocked ? `. ${detail}` : ""}`}
-      title={detail}
+      aria-label={`${selected ? "Deselect" : "Select"} ${file.name}${label ? `. ${label}` : ""}${why ? `. ${why}` : ""}`}
+      title={why}
       className={cn(
         "group relative block w-full overflow-hidden rounded-lg border bg-card text-left transition-colors motion-reduce:transition-none",
         selected ? "border-primary ring-2 ring-primary" : "border-border",
@@ -526,11 +634,10 @@ function Tile({
       </div>
       <div className="px-2 py-1.5 text-xs">
         <div className="truncate font-medium">{file.name}</div>
-        {note && (
-          <div className={cn("mt-0.5 truncate", tone === "good" && "text-success-on-tint", tone === "warn" && "text-warning-on-tint", tone === "muted" && "text-muted-foreground")}>
-            {note}
-          </div>
+        {label && (
+          <div className={cn("mt-0.5 truncate", tone === "good" && "text-success-on-tint", tone === "warn" && "text-warning-on-tint", tone === "muted" && "text-muted-foreground")}>{label}</div>
         )}
+        {blocked && !private_ && <div className="mt-0.5 line-clamp-3 text-micro text-muted-foreground">{blocked}</div>}
       </div>
     </button>
   );
@@ -555,176 +662,11 @@ function Notice({ title, body, action }: { title: string; body: string; action?:
   );
 }
 
-// ── Upload ───────────────────────────────────────────────
-
-interface UploadRow {
-  key: number;
-  file: File;
-  sent: number;
-  status: "uploading" | "done" | "error";
-  error?: string;
-  result?: UploadedFile;
-}
-
-const ACCEPT: Record<DriveKind, string> = {
-  image: "image/png,image/jpeg,image/webp,image/gif",
-  video: "video/mp4,video/quicktime",
-  document: "application/pdf,text/plain,.doc,.docx,.xls,.xlsx,.ppt,.pptx",
-  font: ".woff,.woff2,.ttf,.otf",
-};
-
-function UploadTab({
-  kinds,
-  requirePublicUrl,
-  visibility,
-  onDone,
-  uploadOptions,
-}: {
-  kinds: DriveKind[];
-  requirePublicUrl: boolean;
-  visibility: "published" | "private" | undefined;
-  onDone: (done: UploadedFile[]) => void;
-  uploadOptions?: Pick<UploadOptions, "deps">;
-}) {
-  const inputId = useId();
-  const [rows, setRows] = useState<UploadRow[]>([]);
-  const [dragging, setDragging] = useState(false);
-  const controllers = useRef(new Map<number, AbortController>());
-  const next = useRef(0);
-  const onDoneRef = useRef(onDone);
-  useEffect(() => {
-    onDoneRef.current = onDone;
-  }, [onDone]);
-
-  // Closing the picker (or leaving this tab) ends the upload in flight AND stops the queue behind it: its progress has nowhere to show.
-  const stopped = useRef(false);
-  useEffect(() => {
-    stopped.current = false;
-    const live = controllers.current;
-    return () => {
-      stopped.current = true;
-      live.forEach((c) => c.abort());
-    };
-  }, []);
-
-  const patch = (key: number, p: Partial<UploadRow>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...p } : r)));
-
-  async function start(list: File[]) {
-    if (list.length === 0) return;
-    // A dropped file can be of any type (the input's `accept` does not apply to a drop): turn away what this screen cannot use, and say so.
-    const usable = list.filter((f) => kinds.includes(kindOfMime(f.type)));
-    const turnedAway: UploadRow[] = list
-      .filter((f) => !usable.includes(f))
-      .map((file) => ({ key: next.current++, file, sent: 0, status: "error" as const, error: "This screen can't use this kind of file." }));
-    const fresh: UploadRow[] = usable.map((file) => ({ key: next.current++, file, sent: 0, status: "uploading" }));
-    setRows((rs) => [...turnedAway, ...fresh, ...rs]);
-    const done: UploadedFile[] = [];
-    // One at a time: a quota refusal on the first file stops the rest cleanly, and the person sees which file it was.
-    for (const row of fresh) {
-      if (stopped.current) break;
-      const ctl = new AbortController();
-      controllers.current.set(row.key, ctl);
-      try {
-        const res = await uploadToDrive(row.file, {
-          // A screen that needs a public link gets a Published file, whatever the type's own default is (a PDF defaults to Private).
-          ...(visibility ? { visibility } : {}),
-          signal: ctl.signal,
-          onProgress: ({ sent }) => patch(row.key, { sent }),
-          ...uploadOptions,
-        });
-        if (requirePublicUrl && res.visibility === "private") {
-          // Drive already held this exact file as a Private one, so nothing new was made Published. Say so rather than add a tile that is greyed out.
-          patch(row.key, { status: "error", error: "This file is already in Drive as a Private file, and this needs a public link. Publish it in Drive, then choose it here." });
-          continue;
-        }
-        patch(row.key, { status: "done", sent: row.file.size, result: res });
-        done.push({ ...res, mimeType: row.file.type });
-      } catch (err) {
-        patch(row.key, { status: "error", error: uploadErrorMessage(err) });
-        if (err instanceof UploadAborted) continue;
-      } finally {
-        controllers.current.delete(row.key);
-      }
-    }
-    if (done.length > 0 && !stopped.current) {
-      toast.success(`Added ${done.length} ${done.length === 1 ? "file" : "files"} to Drive.`);
-      onDoneRef.current(done);
-    }
-  }
-
-  const accept = kinds.map((k) => ACCEPT[k]).join(",");
-  return (
-    <div className="min-h-0 flex-1 overflow-y-auto p-4">
-      <div
-        className={cn("flex flex-col items-center justify-center rounded-lg border-2 border-dashed bg-muted/30 px-6 py-12 text-center transition-colors motion-reduce:transition-none", dragging && "border-primary bg-primary/5")}
-        onDragOver={(e: DragEvent<HTMLDivElement>) => {
-          e.preventDefault();
-          setDragging(true);
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e: DragEvent<HTMLDivElement>) => {
-          e.preventDefault();
-          setDragging(false);
-          void start(Array.from(e.dataTransfer.files));
-        }}
-      >
-        <Upload className="size-6 text-muted-foreground" aria-hidden />
-        <p className="mt-3 text-sm font-medium">Drop files here, or choose them.</p>
-        <p className="mt-1 text-xs text-muted-foreground">Large files are sent in pieces, and carry on if your connection drops.</p>
-        <Label htmlFor={inputId} className="mt-4 inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md border bg-background px-3 text-sm font-medium hover:bg-accent">
-          <Upload className="size-3.5" aria-hidden /> Choose files
-        </Label>
-        <input
-          id={inputId}
-          type="file"
-          multiple
-          accept={accept}
-          className="sr-only"
-          onChange={(e) => {
-            void start(Array.from(e.target.files ?? []));
-            e.target.value = "";
-          }}
-        />
-      </div>
-      {rows.length > 0 && (
-        <ul className="mt-4 space-y-2" aria-label="Uploads">
-          {rows.map((r) => (
-            <li key={r.key} className="rounded-md border p-2.5 text-sm">
-              <div className="flex items-center justify-between gap-2">
-                <span className="truncate font-medium">{r.file.name}</span>
-                {r.status === "uploading" ? (
-                  <Button type="button" variant="ghost" size="icon" className="size-6" aria-label={`Cancel ${r.file.name}`} onClick={() => controllers.current.get(r.key)?.abort()}>
-                    <X className="size-3.5" />
-                  </Button>
-                ) : (
-                  <span className={cn("text-xs", r.status === "done" ? "text-success-on-tint" : "text-destructive-on-tint")}>{r.status === "done" ? "Added" : "Not added"}</span>
-                )}
-              </div>
-              {r.status === "uploading" && (
-                <>
-                  <Progress value={r.file.size ? Math.round((r.sent / r.file.size) * 100) : 0} className="mt-2 h-1.5" aria-label={`Uploading ${r.file.name}`} />
-                  <p className="mt-1 text-xs text-muted-foreground">{progressWords(r.sent, r.file.size)}</p>
-                </>
-              )}
-              {r.status === "error" && <p className="mt-1 text-xs text-destructive-on-tint">{r.error}</p>}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-/** "Sending 12 of 48 MB". Whole numbers; the percentage is the bar's job. */
-export function progressWords(sent: number, total: number): string {
-  const mb = (n: number) => Math.max(0, Math.round(n / 1048576));
-  return total < 1048576 ? "Sending…" : `Sending ${mb(sent)} of ${mb(total)} MB`;
-}
-
 // ── Generate ─────────────────────────────────────────────
 
 function GenerateTab({
   kinds,
+  full,
   onGenerate,
   prompt: initial,
   priced,
@@ -732,6 +674,8 @@ function GenerateTab({
   onMade,
 }: {
   kinds: DriveKind[];
+  /** The place has no room left: nothing is made, so nothing is charged for a picture that could not be added. */
+  full: boolean;
   onGenerate: DrivePickerProps["onGenerate"];
   prompt?: string;
   priced: boolean;
@@ -752,6 +696,13 @@ function GenerateTab({
   const showPrice = !onGenerate || priced;
   const price = usePeaksQuote(PEAKS_ACTIONS.generateImage, Boolean(generate) && showPrice && kind === "image");
 
+  if (full) {
+    return (
+      <div className="flex-1 p-4">
+        <Notice title="Nothing more can be added here" body="Remove a file, or deselect one, to make room before making another." />
+      </div>
+    );
+  }
   if (!generate || (!offered.includes("image") && !offered.includes("video"))) {
     return (
       <div className="flex-1 p-4">
@@ -825,66 +776,4 @@ function useDebounced<T>(value: T, ms: number): T {
     return () => clearTimeout(id);
   }, [value, ms]);
   return v;
-}
-
-/** An uploaded file, in the shape the grid shows. */
-function fileOf(u: UploadedFile): DriveFile {
-  const mimeType = u.mimeType ?? "";
-  return {
-    id: u.mediaId,
-    name: u.name,
-    kind: kindOfMime(mimeType),
-    mimeType,
-    visibility: u.visibility,
-    publicUrl: u.publicUrl,
-    sizeBytes: u.sizeBytes,
-    source: "uploaded",
-    createdAt: new Date().toISOString(),
-  };
-}
-
-export function kindOfMime(mime: string): DriveKind {
-  if (mime.startsWith("image/")) return "image";
-  if (mime.startsWith("video/")) return "video";
-  if (mime.startsWith("font/")) return "font";
-  return "document";
-}
-
-/**
- * What the screen receives for a chosen file. A Published file's `url` is its public one. A Private file's is a SIGNED link that expires
- * (`linkExpiresInSeconds` says when), fetched now; null when the link could not be made, so the caller never gets a file with no way to read it.
- */
-export async function assetOf(f: DriveFile, requirePublicUrl: boolean, needUrl = true): Promise<MediaAsset | null> {
-  let url = f.publicUrl;
-  let expires: number | undefined;
-  if (f.visibility === "private") {
-    if (requirePublicUrl) return null;
-    if (!needUrl) {
-      // The screen sends the file by id: no link is fetched, so a slow or failing link route cannot block it.
-      url = "";
-    } else {
-      try {
-        const link = await getFileLink(f.id);
-        url = link.url;
-        expires = link.expiresInSeconds ?? undefined;
-      } catch {
-        return null;
-      }
-    }
-  }
-  if (url === undefined || (url === "" && needUrl)) return null;
-  return {
-    id: f.id,
-    url,
-    mime: f.mimeType,
-    width: f.width,
-    height: f.height,
-    bytes: f.sizeBytes,
-    alt: f.altText,
-    name: f.name,
-    visibility: f.visibility,
-    ...(expires !== undefined ? { linkExpiresInSeconds: expires } : {}),
-    source: f.source === "ai_generated" ? (f.kind === "video" ? "ai_video" : "ai_image") : "upload",
-    createdAt: f.createdAt,
-  };
 }

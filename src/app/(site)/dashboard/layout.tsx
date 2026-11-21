@@ -48,7 +48,7 @@ import { ASK_ENABLED } from "@/lib/flags";
 import { useState } from "react";
 import { HOME_ROUTE } from "@/lib/nav-home";
 import { activeSubHref, mandateStateOf } from "@/lib/growth-v2-nav";
-import { navGroupsFor, pillarForPath, type NavBadgeKey } from "@/lib/dashboard-nav";
+import { navGroupsFor, pillarForPath, STUDIO_FEATURE, type NavBadgeKey } from "@/lib/dashboard-nav";
 import { PillarTabs } from "@/components/dashboard/pillar-tabs";
 import { MobileTabBar } from "@/components/dashboard/mobile-tab-bar";
 import { useGrowthV2Rules } from "@/lib/api/growth-v2";
@@ -92,6 +92,15 @@ const ChatPanel = dynamic(
 );
 const AskLauncher = dynamic(
   () => import("@/components/ask/ask-launcher").then((m) => m.AskLauncher),
+  { ssr: false },
+);
+// Studio's ready toast and shortlist badge: the Studio hooks and copy are only fetched after first paint.
+const StudioReadyToaster = dynamic(
+  () => import("@/components/studio/studio-strip").then((m) => m.StudioReadyToaster),
+  { ssr: false },
+);
+const StudioShortlistBadgeLazy = dynamic(
+  () => import("@/components/studio/studio-shortlist-badge").then((m) => m.StudioShortlistBadge),
   { ssr: false },
 );
 
@@ -156,6 +165,7 @@ function RunningJobsBadge() {
 }
 
 const NAV_BADGES: Record<NavBadgeKey, () => React.ReactNode> = {
+  "studio-shortlist": () => <StudioShortlistBadgeLazy Badge={NavCountBadge} />,
   "running-jobs": () => <RunningJobsBadge />,
   "open-tickets": () => <OpenTicketBadge />,
 };
@@ -387,6 +397,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                       item.feature &&
                       !entitlements?.features?.includes(item.feature)
                     ) {
+                      if (item.hideWhenLocked) return null;
                       return (
                         <LockedNavItem
                           key={item.href}
@@ -651,9 +662,12 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         </div>
       </SidebarInset>
 
+      {entitlements?.features?.includes(STUDIO_FEATURE) && <StudioReadyToaster />}
+
       <MobileTabBar
         pathname={pathname ?? ""}
         hasCommerce={!!entitlements?.features?.includes("commerce.nav")}
+        hasStudio={!!entitlements?.features?.includes(STUDIO_FEATURE)}
         intentProps={intentProps}
       />
 

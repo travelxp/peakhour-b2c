@@ -10,6 +10,7 @@ export type { ListView };
 import { useAuth } from "@/providers/auth-provider";
 import type { CustomerPanelData, InboxPrices } from "@/lib/inbox-customer";
 import type { InboxState } from "@/lib/inbox-view";
+import { dmStatusQuery, type DmStatus } from "@/lib/meta-dm";
 import type { Priority, ResponseTimer, ThreadAssignee, ThreadCsat, Viewer } from "@/lib/inbox-desk";
 import type { MessageMedia, ProductHit } from "@/lib/inbox-media";
 import { isStorefrontThread, storefrontMount, storefrontReplyRequest, storefrontResumeBody, type StorefrontDelivery, type StorefrontHandover } from "@/lib/storefront-handover";
@@ -262,6 +263,19 @@ export function useWaConnection(enabled: boolean) {
     queryFn: () => api.get<WaConnectionStatus>("/v1/meta/whatsapp/connection"),
     enabled: enabled && Boolean(business?._id),
     staleTime: 5 * 60_000,
+  });
+}
+
+/**
+ * The connected Pages (`GET /v1/meta/dm/status`), for the Messenger / Instagram "Replying as" line. ★THE INTEGRATIONS PANEL'S KEY AND
+ * RESPONSE, so one fetch serves both. A 404 (no channel released) or any failure leaves the data empty, and the line says the plain
+ * "Replying on Messenger".
+ */
+export function useDmStatus(enabled: boolean) {
+  const { business } = useAuth();
+  return useQuery({
+    ...dmStatusQuery,
+    enabled: enabled && Boolean(business?._id),
   });
 }
 

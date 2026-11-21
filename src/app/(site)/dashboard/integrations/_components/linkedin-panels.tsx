@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { CheckCircle, AlertCircle, ExternalLink, RefreshCw, Loader2, Settings2 } from "lucide-react";
 import { LinkedinIcon } from "@/components/brand/brand-icons";
 import { ManagePagesDialog } from "./manage-pages-dialog";
+import { listedAdAccounts, savedAdAccounts } from "@/lib/ad-account-choice";
+import { linkedinAdAccountBareId } from "@/lib/linkedin-ad-accounts";
 import { BRAND_COLORS } from "@/components/brand/brand-colors";
 
 // Auto-poll cadence for the names-pending state: 10 sec between
@@ -173,8 +175,11 @@ export function LinkedInAdsStatus({
   refreshing: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  // ★ONLY THE BUSINESS'S OWN ACCOUNTS (MR-G1): a login lists every account it reaches, and the ones this business did not enable
+  // are neither ready nor an issue for it. Which are enabled is the checklist's rule (`savedAdAccounts`), not a second copy here.
+  const enabledIds = savedAdAccounts("linkedin_ads", extra).enabledIds.map(linkedinAdAccountBareId);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const adAccounts: any[] = extra.adAccounts || []; // TODO: type LinkedIn ad accounts
+  const adAccounts: any[] = listedAdAccounts(extra).filter((a: any) => enabledIds.includes(linkedinAdAccountBareId(a.id))); // TODO: type LinkedIn ad accounts
 
   // Compute issues
   const issues: Array<{
@@ -182,25 +187,39 @@ export function LinkedInAdsStatus({
     alert: { title: string; message: string; actionUrl?: string; actionLabel?: string };
   }> = [];
 
+  // Nothing enabled (or nothing listed) is the "Ad accounts Peakhour may use" checklist's to say, with its own empty and
+  // choose-some lines, so there is no second empty state here.
   if (adAccounts.length === 0) {
-    issues.push({
-      accountName: "LinkedIn Ads",
-      alert: {
-        title: "No Ad Account found",
-        message:
-          "You need a LinkedIn Ad Account to run campaigns. Create one, then come back and refresh.",
-        actionUrl: "https://www.linkedin.com/campaignmanager/new-advertiser",
-        actionLabel: "Create Ad Account on LinkedIn",
-      },
-    });
-  } else {
-    for (const acc of adAccounts) {
-      const serving = acc.servingStatuses || [];
-      if (!serving.includes("RUNNABLE")) {
-        const alert = getServingAlert(serving);
-        if (alert) {
-          issues.push({ accountName: acc.name || acc.id, alert });
-        }
+    // Still a way to refresh (a reconnect or a new account changes what is listed), and, when the login lists nothing at all, the
+    // link to make one. The choice is the checklist's; this is only the status line's own controls.
+    const loginListsNone = listedAdAccounts(extra).length === 0;
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="outline" size="sm" className="h-7 gap-1.5 px-2 text-xs" onClick={() => onRefresh()} disabled={refreshing}>
+          <RefreshCw className={`h-3 w-3 ${refreshing ? "animate-spin" : ""}`} />
+          {refreshing ? "Refreshing..." : "Refresh status"}
+        </Button>
+        {loginListsNone ? (
+          <a
+            href="https://www.linkedin.com/campaignmanager/new-advertiser"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-micro font-medium text-primary underline underline-offset-2 hover:no-underline"
+          >
+            Create Ad Account on LinkedIn
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        ) : null}
+      </div>
+    );
+  }
+
+  for (const acc of adAccounts) {
+    const serving = acc.servingStatuses || [];
+    if (!serving.includes("RUNNABLE")) {
+      const alert = getServingAlert(serving);
+      if (alert) {
+        issues.push({ accountName: acc.name || acc.id, alert });
       }
     }
   }

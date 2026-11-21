@@ -1,8 +1,10 @@
 /**
- * Messenger and Instagram messages (Inbox lane I3e): the connect screen's data and wording.
- * The api is `GET /v1/meta/dm/status` (a 404 while no channel is released: the screen then renders NOTHING),
+ * Messenger and Instagram messages: the status the Facebook Pages card switches and the Inbox read, and their wording.
+ * The api is `GET /v1/meta/dm/status` (a 404 while no channel is released: the switches then render NOTHING),
  * `POST /v1/meta/dm/connect` and `POST /v1/meta/dm/disconnect`.
  */
+
+import { api, API_BASE_URL } from "@/lib/api";
 
 export type DmChannel = "messenger" | "instagram";
 
@@ -11,52 +13,72 @@ export interface DmStatusPage {
   pageName: string | null;
   instagramUsername: string | null;
   connectionId: string;
-  messenger: { available: boolean; enabled: boolean };
-  instagram: { available: boolean; enabled: boolean };
+  messenger: DmStatusChannel;
+  instagram: DmStatusChannel;
+}
+
+export interface DmStatusChannel {
+  available: boolean;
+  enabled: boolean;
+  /** Another Peakhour account already uses this Page (or Instagram account) for messages. */
+  otherBusiness?: boolean;
 }
 
 export interface DmStatus {
   channels: Record<DmChannel, boolean>;
   connected: boolean;
   needsReauth: boolean;
+  /** The Page Peakhour uses for this business: the one whose messages are switched on by default. */
+  savedPageId?: string | null;
   missingPermissions: Partial<Record<DmChannel, string[]>>;
   pages: DmStatusPage[];
 }
 
-export const DM_CHANNEL_LABEL: Record<DmChannel, string> = { messenger: "Messenger", instagram: "Instagram messages" };
-
-export const DM_COPY = {
-  title: "Messenger and Instagram messages",
-  intro:
-    "Peakhour answers shoppers who message your Facebook Page or Instagram account, and hands the chat to your team when it should. Every conversation shows in your Inbox.",
-  window: "You can reply to a customer for 24 hours after their last message. Meta sets that rule for these channels.",
-  connectMeta: "Connect Meta",
-  reconnectMeta: "Reconnect Meta",
-  grant: "Grant messaging access",
-  grantWhy: "Peakhour needs messaging access to your Page before it can answer messages. Meta will ask you to approve it.",
-  connectWhy: "Connect Meta to choose a Page.",
-  reconnectWhy: "Your Meta connection needs to be reconnected first.",
-  noPages: "We could not find a Facebook Page on your Meta connection. Reconnect Meta and choose the Page you want to use.",
-  needsAccess: "Grant messaging access first, then turn this on.",
-  noInstagram: "Link an Instagram professional account to this Page in Instagram settings to use Instagram messages.",
-  on: "On",
-  off: "Off",
-  turnOn: "Turn on",
-  turnOff: "Turn off",
+/** THE ONE READ OF THE STATUS: the switches on the Facebook Pages card and the Inbox share this key, fetch and cache time. */
+export const DM_STATUS_KEY = ["meta-dm-status"] as const;
+export const dmStatusQuery = {
+  queryKey: DM_STATUS_KEY,
+  queryFn: () => api.get<DmStatus>("/v1/meta/dm/status"),
+  retry: false,
+  staleTime: 30_000,
 } as const;
 
-/** Whether the screen offers the Meta permission step: not connected, or a released channel's permissions are not all granted. */
-export function needsMetaStep(status: DmStatus): "connect" | "reconnect" | "grant" | null {
-  if (status.needsReauth) return "reconnect";
-  if (!status.connected) return "connect";
-  // an older api may omit the field: nothing is then known to be missing
-  const missingBy = status.missingPermissions ?? {};
-  const missing = (Object.keys(missingBy) as DmChannel[]).some((c) => status.channels[c] && (missingBy[c]?.length ?? 0) > 0);
-  return missing ? "grant" : null;
+export const DM_COPY = {
+  messenger: "Messenger messages",
+  instagram: (username: string | null) => (username ? `Instagram messages (@${username})` : "Instagram messages"),
+  noInstagram: "No Instagram account is linked to this Page.",
+  otherBusiness: "Another Peakhour business already uses this Page for messages, so it cannot be turned on here.",
+  noAccess: "Meta did not give Peakhour messaging access.",
+  reconnect: "Reconnect Meta",
+  window: "You can reply to a customer for 24 hours after their last message. Meta sets that rule for these channels.",
+  note: "Turning this off stops new messages reaching your Inbox. Past conversations stay.",
+  failed: "Couldn't change messages. Try again in a moment.",
+} as const;
+
+const RETURN_TO = "/dashboard/integrations";
+
+/** The Meta login with the messaging permissions asked in addition (the api adds only the released channels' permissions). */
+export const metaMessagingAuthorizeUrl = (): string =>
+  `${API_BASE_URL}/v1/integrations/facebook/authorize?messaging=1&returnTo=${encodeURIComponent(RETURN_TO)}`;
+
+/**
+ * Why a channel that is off cannot be switched on, or null when it can. Most specific first.
+ * Instagram "not linked" is the api saying the channel is unavailable with NO permission gap: the api counts a permission gap only
+ * on a Page that has the account, so a linked account whose profile name could not be read never lands here.
+ */
+export function dmWhyNot(status: DmStatus, page: DmStatusPage, channel: DmChannel): { text: string; reconnect: boolean } | null {
+  const state = page[channel];
+  if (state.enabled) return null;
+  if (state.otherBusiness) return { text: DM_COPY.otherBusiness, reconnect: false };
+  const gap = (status.missingPermissions?.[channel]?.length ?? 0) > 0;
+  if (status.needsReauth || gap) return { text: DM_COPY.noAccess, reconnect: true };
+  if (state.available) return null;
+  // an Instagram account with a name that is unavailable for another reason is not "unlinked": send the merchant to reconnect
+  return channel === "instagram" && !page.instagramUsername ? { text: DM_COPY.noInstagram, reconnect: false } : { text: DM_COPY.noAccess, reconnect: true };
 }
 
 /** The api's own sentence when it sent one, else a next step: never a bare code. */
 export function dmErrorMessage(err: unknown): string {
   const m = (err as { message?: unknown } | null)?.message;
-  return typeof m === "string" && m.trim() ? m : "That did not work. Check your connection and try again.";
+  return typeof m === "string" && m.trim() ? m : DM_COPY.failed;
 }

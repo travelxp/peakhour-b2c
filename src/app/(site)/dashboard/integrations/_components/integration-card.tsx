@@ -11,6 +11,10 @@ import { resolveProvider, isMetaVirtual, metaDisconnectCopy } from "@/lib/integr
 import { isRecoverableStatus, showsComingSoon } from "@/lib/integration-card-state";
 import { Integration, PROVIDER_ICONS, PROVIDER_TILES } from "./shared";
 import { LinkedInAdsStatus, LinkedInContentPages } from "./linkedin-panels";
+import { MetaAccountsPanel } from "./meta-accounts-panel";
+import { AdAccountChoice } from "@/components/ads/ad-account-choice";
+import { XAdAccountChoice } from "@/components/ads/x-ad-account-choice";
+import { metaAdsCardServed } from "@/lib/integrations-meta";
 
 export function IntegrationCard({
   integration,
@@ -201,6 +205,16 @@ export function IntegrationCard({
               />
             )}
 
+            {/* LinkedIn Ads — the ad accounts Peakhour may use, with the default. A Page's own default is picked on the Ads page. */}
+            {integration.provider === "linkedin_ads" && integration.connected && integration.account?.extra && (
+              <div className="space-y-2 rounded-md border border-border/40 p-2">
+                <AdAccountChoice provider="linkedin_ads" extra={integration.account.extra} onChanged={onChanged} />
+                {integration.account.extra.adAccountsTruncated ? (
+                  <p className="text-micro text-muted-foreground">Showing the first 1,000 ad accounts this login can reach.</p>
+                ) : null}
+              </div>
+            )}
+
             {/* LinkedIn Content — page list + refresh + Manage Pages dialog.
                 The dialog sidesteps the disconnect-and-reconnect dance for
                 choosing which admin Pages Peakhour can actually post to. */}
@@ -211,6 +225,40 @@ export function IntegrationCard({
                 refreshing={refreshing}
                 onChanged={onChanged}
               />
+            )}
+
+            {/* Meta accounts — Pages with their Instagram account, the Page Peakhour uses, Refresh. On the Facebook card only:
+                it is the one card that is the Page. The ad accounts checklist is on ONE card: this one only when no Meta Ads
+                card is live (`metaAdsCardServed`), else the Meta Ads card below. */}
+            {integration.provider === "facebook_pages" && integration.connected && integration.account?.extra && (
+              <MetaAccountsPanel
+                extra={integration.account.extra}
+                onRefresh={onRefresh}
+                refreshing={refreshing}
+                onChanged={onChanged}
+                showAdAccounts={!metaAdsCardServed(integration)}
+              />
+            )}
+
+            {/* Meta Ads — the ad accounts Peakhour may use, with the default. */}
+            {integration.provider === "meta_ads" && integration.connected && integration.account?.extra && (
+              <div className="space-y-2 rounded-md border border-border/40 p-2">
+                <AdAccountChoice provider="facebook" extra={integration.account.extra} onChanged={onChanged} />
+              </div>
+            )}
+
+            {/* X Ads — the ad accounts Peakhour may use, with the default. */}
+            {integration.provider === "x_ads" && integration.connected && integration.account?.extra && (
+              <div className="space-y-2 rounded-md border border-border/40 p-2">
+                <XAdAccountChoice extra={integration.account.extra} onChanged={onChanged} />
+              </div>
+            )}
+
+            {/* Google Ads — the ad accounts Peakhour may use, with the default. */}
+            {integration.provider === "google_ads" && integration.connected && integration.account?.extra && (
+              <div className="space-y-2 rounded-md border border-border/40 p-2">
+                <AdAccountChoice provider="google_ads" extra={integration.account.extra} onChanged={onChanged} />
+              </div>
             )}
 
             {/* Beehiiv sync controls */}

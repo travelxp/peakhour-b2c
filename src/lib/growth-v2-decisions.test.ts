@@ -103,6 +103,9 @@ describe("what a person may do", () => {
 describe("decisionNotice: a refusal as something to do", () => {
   const err = (code: string, message = "the api's sentence") => new ApiError(code, message, 409);
   const notice = (code: string, action: DecisionAction = "approve") => decisionNotice(err(code), action);
+  it("MR-F3: the approve route's 400 AD_ACCOUNT_REQUIRED says to choose the ad account", () => {
+    expect(decisionNotice(new ApiError("AD_ACCOUNT_REQUIRED", "x", 400), "approve").text).toBe("Choose which ad account this campaign runs in, then approve. If no choice shows, reload the page.");
+  });
 
   it("★NEEDS_REAUTH offers Reconnect", () => {
     expect(notice("NEEDS_REAUTH")).toMatchObject({ tone: "warn", link: { label: "Reconnect", href: "/dashboard/integrations" } });

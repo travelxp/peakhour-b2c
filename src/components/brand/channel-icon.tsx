@@ -7,6 +7,7 @@ import {
   InstagramIcon,
   YoutubeIcon,
   FacebookIcon,
+  ThreadsIcon,
 } from "./brand-icons";
 import { BRAND_COLORS } from "./brand-colors";
 
@@ -26,6 +27,7 @@ const CHANNELS = new Map<string, { icon: IconComponent; color: string; label: st
   blog: { icon: PenLine, color: "var(--chart-1)", label: "Blog" },
   youtube: { icon: YoutubeIcon, color: BRAND_COLORS.youtube, label: "YouTube" },
   facebook: { icon: FacebookIcon, color: BRAND_COLORS.facebook, label: "Facebook" },
+  threads: { icon: ThreadsIcon, color: BRAND_COLORS.threads, label: "Threads" },
   tiktok: { icon: Music2, color: BRAND_COLORS.tiktok, label: "TikTok" },
   // ★A MAP PIN, NOT A GOOGLE GLYPH. The destination is the merchant's listing
   // on Maps and Search, and the brand-icons module carries no Google mark.
