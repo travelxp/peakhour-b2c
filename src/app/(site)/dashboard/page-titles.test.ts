@@ -43,12 +43,9 @@ describe("dashboard page titles match the nav", () => {
     });
   }
 
-  it("the ideas sub-page of the calendar takes its title from the calendar's nav label", () => {
-    // /dashboard/calendar/ideas has no nav entry of its own; it is the same
-    // Publishing calendar, so it must not invent a second name for it.
-    const src = readFileSync(path.join(DASHBOARD, "calendar/ideas/page.tsx"), "utf8");
-    expect(src).toContain('title={navLabel("/dashboard/calendar")}');
-    expect(src).not.toContain('title="Content Calendar"');
+  it("the calendar's ideas and recurring pages are tabs, not routes nobody can find", () => {
+    expect(existsSync(path.join(DASHBOARD, "calendar/ideas/page.tsx"))).toBe(false);
+    expect(existsSync(path.join(DASHBOARD, "calendar/recurring/page.tsx"))).toBe(false);
   });
 
   it("checks at least some routes", () => {

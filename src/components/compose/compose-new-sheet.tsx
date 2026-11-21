@@ -25,9 +25,9 @@ import {
   META_COMPOSE_RULES,
   metaComposeTargets,
   isMetaComposeChannel,
-  type MetaComposeChannel,
 } from "@/lib/meta-compose";
-import { MetaComposer } from "./meta-composer";
+import { MetaComposer } from "@/app/(site)/dashboard/calendar/_components/meta-composer";
+import type { ComposeChannel } from "@/lib/compose-channel";
 
 /**
  * <ComposeNewSheet/> — the "create from scratch" entry point that
@@ -52,7 +52,7 @@ import { MetaComposer } from "./meta-composer";
  * it needs the composers to expose a completion callback).
  */
 
-type Platform = "linkedin" | "x" | MetaComposeChannel;
+type Platform = ComposeChannel;
 
 interface PlatformOption {
   value: Platform;
@@ -70,9 +70,14 @@ const BASE_PLATFORMS: PlatformOption[] = [
 export interface ComposeNewSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Open on this channel instead of the picker. The merchant can still press "Change channel". Left out, the sheet asks.
+   * The calendar's `?compose=<channel>` link feeds this (see parseComposeParam).
+   */
+  channel?: ComposeChannel | null;
 }
 
-export function ComposeNewSheet({ open, onOpenChange }: ComposeNewSheetProps) {
+export function ComposeNewSheet({ open, onOpenChange, channel }: ComposeNewSheetProps) {
   // The option as it was when picked. Held whole, not looked up again: the connection list refetches on window focus, and a channel
   // that drops out of it mid-compose must not change the header or the "Posting to" line under the merchant's hands.
   const [chosen, setChosen] = useState<PlatformOption | null>(null);
@@ -94,10 +99,31 @@ export function ComposeNewSheet({ open, onOpenChange }: ComposeNewSheetProps) {
     [integrations.data],
   );
 
+  // The preselected channel is applied ONCE per opening, and only while the sheet first settles: Facebook, Instagram and Threads
+  // only become known once the connection list has loaded. After "Change channel", or once the picker has been shown with the list
+  // settled (loaded, failed or offline), the merchant's own pick wins: a later refetch that adds the channel must not open a
+  // composer under their hands.
+  const [presetApplied, setPresetApplied] = useState(false);
+  const preset = channel ? platforms.find((p) => p.value === channel) : undefined;
+  // Adjusting state during render (React's pattern for state that follows props), not in an effect: the picker never paints first.
+  if (open && preset && !presetApplied) {
+    setChosen(preset);
+    setPresetApplied(true);
+  }
+  // The picker is now showing with the list settled: the preselection is spent.
+  if (open && channel && !presetApplied && !preset && !integrations.isLoading) {
+    setPresetApplied(true);
+  }
+  // Held back while the list loads, so a Facebook link does not flash the picker first.
+  const waitingForPreset = Boolean(channel) && !presetApplied && integrations.isLoading;
+
   function handleOpenChange(next: boolean) {
     // Reset the platform choice whenever the sheet closes so the next
-    // open starts at the picker.
-    if (!next) setChosen(null);
+    // open starts at the picker (or at the preselected channel).
+    if (!next) {
+      setChosen(null);
+      setPresetApplied(false);
+    }
     onOpenChange(next);
   }
 
@@ -108,17 +134,19 @@ export function ComposeNewSheet({ open, onOpenChange }: ComposeNewSheetProps) {
       <SheetContent className="flex w-full flex-col gap-0 overflow-y-auto p-0 sm:max-w-2xl">
         <SheetHeader className="border-b px-6 py-4">
           <SheetTitle className="text-base">
-            {platform ? `Compose for ${activeLabel}` : "Compose new"}
+            {platform ? `New post on ${activeLabel}` : "New post"}
           </SheetTitle>
           <SheetDescription className="text-xs">
             {platform
               ? "Write your post, then publish now or schedule it for later."
-              : "Pick a channel to start a brand-new post."}
+              : "Pick a channel to start a new post."}
           </SheetDescription>
         </SheetHeader>
 
         <div className="flex-1 px-6 py-4">
-          {!platform ? (
+          {waitingForPreset ? (
+            <PostComposerSkeleton />
+          ) : !platform ? (
             <ul className="space-y-2">
               {platforms.map((p) => (
                 <li key={p.value}>

@@ -31,7 +31,8 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronLeft,
@@ -39,8 +40,6 @@ import {
   CalendarDays,
   CalendarRange,
   RefreshCw,
-  Plus,
-  Repeat,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -60,10 +59,17 @@ import type {
   ScheduledItemStatus,
 } from "@/lib/scheduler/types";
 import { PageShell } from "@/components/dashboard/page-shell";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { parseComposeParam } from "@/lib/compose-channel";
+import { ComposeSheetProvider, useComposeSheet } from "@/components/compose/compose-sheet-provider";
+import { NewPostButton } from "@/components/compose/new-post-button";
+import { CALENDAR_TAB_LABELS, CALENDAR_TABS, parseCalendarTab } from "@/lib/calendar-tabs";
 
 // Opened on demand (item click / compose button), so neither ships in the first load.
 const CalendarItemDrawer = dynamic(() => import("./_components/calendar-item-drawer").then((mod) => mod.CalendarItemDrawer));
-const ComposeNewSheet = dynamic(() => import("./_components/compose-new-sheet").then((mod) => mod.ComposeNewSheet));
+// The two tabs that are not shown first load on demand too.
+const IdeasPanel = dynamic(() => import("./_components/ideas-panel").then((mod) => mod.IdeasPanel));
+const RecurringPanel = dynamic(() => import("./_components/recurring-panel").then((mod) => mod.RecurringPanel));
 
 type Mode = "week" | "month";
 
@@ -145,7 +151,35 @@ function startOfMonth(date: Date, tz: string): Date {
   return localMidnightUtc(p.y, p.mo, 1, tz);
 }
 
+/**
+ * useSearchParams() needs a Suspense boundary, and the one sheet every New post button on the page opens lives in the provider.
+ */
 export default function CalendarPage() {
+  return (
+    <Suspense fallback={null}>
+      <ComposeSheetProvider>
+        <CalendarPageBody />
+      </ComposeSheetProvider>
+    </Suspense>
+  );
+}
+
+function CalendarPageBody() {
+  const composeSheet = useComposeSheet();
+  // The tab lives in the URL (?tab=): read synchronously, so a deep link never flashes the calendar first, and a link to this same
+  // route with another ?tab= changes the tab. Pressing a tab writes it back with router.replace, so it costs no history entry.
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const tab = parseCalendarTab(searchParams.get("tab"));
+  const setTab = (next: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    const value = parseCalendarTab(next);
+    if (value === "calendar") params.delete("tab");
+    else params.set("tab", value);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
   const queryClient = useQueryClient();
   // SSR-safe init: both `tz` and `anchor` are hydrated on mount.
   // Initialising `new Date()` directly in useState runs on the
@@ -155,12 +189,11 @@ export default function CalendarPage() {
   // two queries.
   const [tz, setTz] = useState("UTC");
   const [anchor, setAnchor] = useState<Date | null>(null);
-  const [composeOpen, setComposeOpen] = useState(false);
   useEffect(() => {
     setTz(detectTimezone());
     setAnchor(new Date());
     /**
-     * ?compose=1 opens the composer on arrival.
+     * ?compose=1 opens the composer on arrival; ?compose=<channel> opens it on that channel (parseComposeParam).
      *
      * ★THE COMPOSER HAD NO ADDRESS, WHICH IS WHY THIS EXISTS. It was local
      * state only, so "Create a post" from anywhere else in the product could do
@@ -180,12 +213,16 @@ export default function CalendarPage() {
      */
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
-      if (url.searchParams.get("compose") === "1") {
-        setComposeOpen(true);
+      const request = parseComposeParam(url.searchParams.get("compose"));
+      if (request.open) {
+        composeSheet.open(request.channel);
+      }
+      if (url.searchParams.has("compose")) {
         url.searchParams.delete("compose");
         window.history.replaceState(null, "", url.pathname + url.search + url.hash);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on arrival; the provider's open() is stable
   }, []);
 
   const [mode, setMode] = useState<Mode>("week");
@@ -264,7 +301,8 @@ export default function CalendarPage() {
 
   const { data, isLoading, refetch, isFetching } = useQuery<ListItemsResponse>({
     queryKey,
-    enabled: anchor !== null,
+    // The other tabs have no use for the week: nothing is fetched while they are shown.
+    enabled: anchor !== null && tab === "calendar",
     queryFn: () =>
       scheduler.listItems({
         from: rangeStart,
@@ -319,9 +357,10 @@ export default function CalendarPage() {
     return [...set];
   }, [data]);
 
-  // Keyboard shortcuts.
+  // Keyboard shortcuts (the calendar tab only: the other tabs have no week to move).
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      if (tab !== "calendar") return;
       const target = e.target as HTMLElement | null;
       if (
         target &&
@@ -351,7 +390,7 @@ export default function CalendarPage() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
+  }, [mode, tab]);
 
   const shiftAnchor = (dir: -1 | 1) => {
     setAnchor((prev) => {
@@ -491,6 +530,7 @@ export default function CalendarPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {tab === "calendar" ? (<>
           <div className="inline-flex items-center rounded-full border bg-background p-0.5">
             <Button
               size="sm"
@@ -522,22 +562,27 @@ export default function CalendarPage() {
               className={cn("h-3.5 w-3.5", isFetching && "animate-spin")}
             />
           </Button>
-          <Button asChild size="sm" variant="outline" className="h-8 gap-1.5">
-            <Link href="/dashboard/calendar/recurring">
-              <Repeat className="h-3.5 w-3.5" /> Recurring
-            </Link>
-          </Button>
-          <Button
-            size="sm"
-            className="h-8 gap-1.5"
-            onClick={() => setComposeOpen(true)}
-          >
-            <Plus className="h-3.5 w-3.5" /> Compose
-          </Button>
+          </>) : null}
+          <NewPostButton className="h-8 gap-1.5" />
         </div>
       </div>
 
-      <ComposeNewSheet open={composeOpen} onOpenChange={setComposeOpen} />
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList>
+          {CALENDAR_TABS.map((t) => (
+            <TabsTrigger key={t} value={t}>
+              {CALENDAR_TAB_LABELS[t]}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        <TabsContent value="ideas" className="mt-4">
+          <IdeasPanel />
+        </TabsContent>
+        <TabsContent value="recurring" className="mt-4">
+          <RecurringPanel />
+        </TabsContent>
+
+        <TabsContent value="calendar" className="mt-4 space-y-4">
 
       {/* Date navigation */}
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -674,22 +719,14 @@ export default function CalendarPage() {
           <div>
             <div className="text-sm font-medium">Nothing scheduled yet</div>
             <p className="mt-1 max-w-md text-xs text-muted-foreground">
-              Schedule your first post from the{" "}
-              <Link
-                href="/dashboard/content"
-                className="text-primary underline-offset-2 hover:underline"
-              >
-                Content composer
-              </Link>{" "}
-              or the{" "}
-              <Link
-                href="/dashboard/integrations"
-                className="text-primary underline-offset-2 hover:underline"
-              >
-                Beehiiv newsletter editor
-              </Link>
-              . It will appear here on the day it publishes.
+              Write a post and schedule it. It will appear here on the day it publishes.
             </p>
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+              <NewPostButton />
+              <Button asChild size="sm" variant="outline">
+                <Link href="/dashboard/integrations">Connect a channel</Link>
+              </Button>
+            </div>
           </div>
         </div>
       ) : (
@@ -715,6 +752,9 @@ export default function CalendarPage() {
         <kbd className="rounded border bg-muted px-1">W</kbd> /{" "}
         <kbd className="rounded border bg-muted px-1">M</kbd> week/month
       </div>
+
+        </TabsContent>
+      </Tabs>
 
       {/* Per-item drawer */}
       <Sheet

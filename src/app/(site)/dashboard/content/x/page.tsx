@@ -12,6 +12,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/molecules/empty-state";
+import { NewPostButton } from "@/components/compose/new-post-button";
+import { ComposeSheetProvider } from "@/components/compose/compose-sheet-provider";
 import { MessageCircle, Send, Inbox, MessageSquare, RefreshCw } from "lucide-react";
 import { xApi, type XTweet } from "@/lib/api/x";
 import { createDraft } from "@/lib/api/content";
@@ -274,13 +276,17 @@ function XContentDashboardInner() {
 function XPageShell({ children, loading }: { children?: React.ReactNode; loading?: boolean }) {
   return (
     <PageShell width="standard">
-      <div>
-        {/* h1: this was the page's only heading and it was an h2, so the
-            route had no page title in the document outline at all. */}
-        <h1 className="text-2xl font-semibold tracking-tight">X (Twitter)</h1>
-        <p className="text-muted-foreground">
-          Publish tweets, track engagement, and manage your mentions inbox.
-        </p>
+      <ComposeSheetProvider>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          {/* h1: this was the page's only heading and it was an h2, so the
+              route had no page title in the document outline at all. */}
+          <h1 className="text-2xl font-semibold tracking-tight">X (Twitter)</h1>
+          <p className="text-muted-foreground">
+            Publish tweets, track engagement, and manage your mentions inbox.
+          </p>
+        </div>
+        <NewPostButton channel="x" />
       </div>
       {loading ? (
         <div className="space-y-4">
@@ -290,6 +296,7 @@ function XPageShell({ children, loading }: { children?: React.ReactNode; loading
       ) : (
         children
       )}
+      </ComposeSheetProvider>
     </PageShell>
   );
 }

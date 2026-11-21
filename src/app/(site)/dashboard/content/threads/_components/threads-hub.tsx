@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { ExternalLink, FileText, RefreshCw, Unplug } from "lucide-react";
 import { EmptyState } from "@/components/molecules/empty-state";
@@ -10,17 +9,25 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api";
 import { reconnectHref } from "@/lib/integrations-connect";
 import { useLocale } from "@/hooks/use-locale";
+import { NewPostButton } from "@/components/compose/new-post-button";
+import { ComposeSheetProvider } from "@/components/compose/compose-sheet-provider";
 import { threadsApi, type ThreadsPost, type ThreadsProfile } from "@/lib/api/threads";
 import { postExcerpt, parseGraphTime } from "@/lib/meta-content-view";
 import { threadsHubState, threadsThumbnail, threadsTypeLabel, threadsViewHref } from "@/lib/threads-view";
 
 const PATH = "/dashboard/content/threads";
 const PROVIDER = "threads";
-/** The calendar's "Compose new" sheet; Threads is one of the channels it offers. */
-const COMPOSE_HREF = "/dashboard/calendar?compose=1";
 
 /** The body of the Threads hub. The route's page owns the shell and the h1. */
 export function ThreadsHub() {
+  return (
+    <ComposeSheetProvider>
+      <ThreadsHubBody />
+    </ComposeSheetProvider>
+  );
+}
+
+function ThreadsHubBody() {
   const reconnect = reconnectHref(PATH, PROVIDER);
   const profileQ = useQuery({
     queryKey: ["threads", "profile"],
@@ -95,7 +102,7 @@ function ProfileCard({ profile }: { profile: ThreadsProfile }) {
   const handle = profile.username ? `@${profile.username}` : null;
   return (
     <Card>
-      <CardContent className="flex items-center gap-4 p-4">
+      <CardContent className="flex flex-wrap items-center gap-4 p-4">
         {profile.pictureUrl ? (
           // eslint-disable-next-line @next/next/no-img-element -- Threads CDN picture, signed URL
           <img src={profile.pictureUrl} alt="" className="size-14 shrink-0 rounded-full object-cover" />
@@ -108,6 +115,7 @@ function ProfileCard({ profile }: { profile: ThreadsProfile }) {
           <p className="truncate text-base font-semibold">{profile.name ?? handle ?? "Your Threads profile"}</p>
           {handle && profile.name ? <p className="truncate text-sm text-muted-foreground">{handle}</p> : null}
         </div>
+        <NewPostButton channel="threads" />
         {profile.profileUrl ? (
           <Button asChild size="sm" variant="outline">
             <a href={profile.profileUrl} target="_blank" rel="noopener noreferrer">
@@ -164,8 +172,11 @@ function Posts({ reconnect }: { reconnect: string }) {
         icon={FileText}
         title="No posts yet"
         description="Posts made on Threads, including ones from Peakhour, show up here."
-        action={{ label: "Compose a post", href: COMPOSE_HREF }}
-      />
+      >
+        <div className="mt-6">
+          <NewPostButton channel="threads" label="Create a post" />
+        </div>
+      </EmptyState>
     );
   }
 
@@ -215,12 +226,6 @@ function Posts({ reconnect }: { reconnect: string }) {
           {q.isFetchNextPageError ? <span className="text-xs text-muted-foreground">We could not load more posts. Try again.</span> : null}
         </div>
       ) : null}
-      <p className="text-xs text-muted-foreground">
-        Want to post something new?{" "}
-        <Link href={COMPOSE_HREF} className="font-medium underline underline-offset-4">
-          Compose a post
-        </Link>
-      </p>
     </section>
   );
 }

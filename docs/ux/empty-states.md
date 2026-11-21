@@ -25,12 +25,11 @@ Legend for **Gap**: `none` = adequate, `fixed` = changed in this PR,
 |---|---|---|---|
 | strategist | Bare text "No ideas yet. Click Get Ideas" (when the query had no data, which included a failed request) | Rendered the same bare text | **fixed**: `EmptyState` with one action (Get ideas), `QueryError` + Retry for error/offline |
 | calendar (week/month) | Empty grid cells, by design | Inline error (read in part) | none |
-| calendar/ideas | Empty day cells and an unscheduled list | Nothing: no `isError` handling, an error drew an empty calendar | **fixed**: `QueryError` strip with Retry above the calendar |
-| calendar/recurring | Card: "No recurring schedules yet" with how-to prose, no action | Card with "Try refreshing" (no button) | **fixed**: `EmptyState` with action "Open the calendar". Error card left as is |
+| calendar (Recurring tab) | Card: "No recurring schedules yet" with how-to prose, no action | Card with "Try refreshing" (no button) | **fixed**: `EmptyState` with no action (the New post button is in the header). Error card left as is |
 | content (home) | Per-block text: "You're all caught up", "Nothing is scheduled for the next 7 days" | Per-block notice with Try again | the channel list moved to Connected accounts |
 | content/create | "No channel is connected yet" with a Connect link | Same line, worded as a load failure | none |
 | content/news | Purpose-built `EmptyNewsDesk` | `ErrorBlock` | none |
-| content/ledger | `EmptyState` | `EmptyState`-style error with retry | none |
+| content/ledger | `EmptyState`; a first-time merchant gets a "Go and create something" link to Create | `EmptyState`-style error with retry | none |
 | content/sources | `EmptyState` | handled | none |
 | content/seasonal-events | Text with "Click Add event" beside the Add event button | `error` banner | none (the action is on the page, adjacent) |
 | content/beehiiv | `EmptyState` "No content synced yet" | handled | none |
@@ -69,12 +68,12 @@ Legend for **Gap**: `none` = adequate, `fixed` = changed in this PR,
 Found by listing every dashboard file that reads `isLoading`/`isPending` but
 never `isError`, `error`, `QueryBoundary`, `fetchStatus` or a state helper.
 
-Fixed: strategist, calendar/ideas, content/beehiiv/[id], settings/tickets,
+Fixed: strategist, content/beehiiv/[id], settings/tickets,
 settings/feedback-admin.
 
 Left alone on purpose (they appear in that list but are not list pages or
 degrade quietly by design): `ads/_components/audience-card`,
-`calendar/_components/compose-new-sheet`, `content/x/_components/tweet-composer`,
+`components/compose/compose-new-sheet`, `content/x/_components/tweet-composer`,
 `audience/discover-audiences-dialog`, `cms/model-select`,
 `commerce/assistant-preview`, `dashboard/attention-bell`,
 `dashboard/credits-cap-banner`, `dashboard/peaks-trend-card`,

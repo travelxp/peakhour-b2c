@@ -3,12 +3,10 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
 import { useLocale } from "@/hooks/use-locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/molecules";
-import { navLabel } from "@/lib/nav-copy";
 
 interface CalendarIdea {
   _id: string;
@@ -38,7 +36,17 @@ const STATUS_COLORS: Record<string, string> = {
   archived: "bg-muted border-border",
 };
 
-export default function IdeasCalendarPage() {
+/** What the merchant reads for each idea status; the stored values are internal. */
+const STATUS_LABELS: Record<string, string> = {
+  brainstorm: "Idea",
+  planned: "Planned",
+  in_progress: "Being written",
+  published: "Published",
+  archived: "Archived",
+};
+
+/** The calendar's "Planned ideas" tab: ideas from the content plan, laid out by their target date. */
+export function IdeasPanel() {
   const { formatDate } = useLocale();
   const [view, setView] = useState<"week" | "month">("week");
   const [weekOffset, setWeekOffset] = useState(0);
@@ -84,21 +92,18 @@ export default function IdeasCalendarPage() {
   const archived = (ideas || []).filter((i) => i.status === "archived");
 
   return (
-    <PageShell width="full">
-      <PageHeader
-        title={navLabel("/dashboard/calendar")}
-        description="Your scheduled and planned content"
-        actions={
-          <>
-            <Button variant={view === "week" ? "default" : "outline"} size="sm" onClick={() => setView("week")}>
-              Week
-            </Button>
-            <Button variant={view === "month" ? "default" : "outline"} size="sm" onClick={() => setView("month")}>
-              Month
-            </Button>
-          </>
-        }
-      />
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">Ideas from your content plan, by the day you aimed to publish them.</p>
+        <div className="flex gap-2">
+          <Button variant={view === "week" ? "default" : "outline"} size="sm" onClick={() => setView("week")}>
+            Week
+          </Button>
+          <Button variant={view === "month" ? "default" : "outline"} size="sm" onClick={() => setView("month")}>
+            Month
+          </Button>
+        </div>
+      </div>
 
       {(ideasView === "error" || ideasView === "offline") && (
         <QueryError
@@ -201,7 +206,7 @@ export default function IdeasCalendarPage() {
           </div>
         </details>
       )}
-    </PageShell>
+    </div>
   );
 }
 
@@ -235,7 +240,7 @@ function CalendarCard({ idea, compact }: { idea: CalendarIdea; compact?: boolean
         <div className="flex flex-wrap gap-1 mt-1.5">
           {idea.sector && <Badge variant="secondary" className="text-micro h-5">{idea.sector}</Badge>}
           {idea.contentType && <Badge variant="outline" className="text-micro h-5">{idea.contentType}</Badge>}
-          <StatusBadge status={idea.status} className="text-micro h-5" />
+          <StatusBadge status={idea.status} label={STATUS_LABELS[idea.status]} className="text-micro h-5" />
         </div>
       )}
     </div>

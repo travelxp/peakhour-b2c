@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { FileClock, Search, Users } from "lucide-react";
@@ -47,6 +48,9 @@ import { navLabel } from "@/lib/nav-copy";
  *  sentences under the picker name the period the merchant clicked, and they
  *  can only do that if the button and the phrase read the same row. */
 const WINDOWS = LEDGER_WINDOWS;
+
+/** Where a merchant goes to make something: the Create page (W1-B). */
+const CREATE_HREF = "/dashboard/content/create";
 
 export default function ContentLedgerPage() {
   const { business } = useAuth();
@@ -144,9 +148,15 @@ function LedgerBody({ data }: { data: ContentLedgerResponse }) {
             : // ★★AND THE REASON THE RECORD MAY BE SHORT IS OURS, NOT THEIRS.
               // Nothing recorded which page came from which publish until the
               // ledger shipped, and that link cannot be reconstructed.
-              "Pages you publish from Peakhour appear here with what they earned. Articles published before this was switched on can't be matched back to their publish, so Results starts from your next one."
+              "Publish a page to your website from Peakhour and it appears here with what it earned. Articles published before this was switched on can't be matched back to their publish, so Results starts from your next one."
         }
-      />
+      >
+        {everPublished ? null : (
+          <Button asChild className="mt-6">
+            <Link href={CREATE_HREF}>Go and create something</Link>
+          </Button>
+        )}
+      </EmptyState>
     );
   }
 

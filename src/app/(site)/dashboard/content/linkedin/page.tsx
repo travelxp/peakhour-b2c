@@ -10,6 +10,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/molecules/empty-state";
+import { NewPostButton } from "@/components/compose/new-post-button";
+import { ComposeSheetProvider } from "@/components/compose/compose-sheet-provider";
 import {
   CalendarClock,
   MessageSquare,
@@ -329,6 +331,7 @@ function LinkedInPageShell({
 }) {
   return (
     <PageShell width="wide">
+      <ComposeSheetProvider>
       {/* Confirms a reconnect that started here (the Boost dialog's CTAs pass
           ?returnTo=/dashboard/content/linkedin) — in the shell so every branch
           of this page, including the empty states, announces it. */}
@@ -358,7 +361,10 @@ function LinkedInPageShell({
             LinkedIn Page, which is a different object one level down: it is
             labelled as such, and the two can never be mistaken for each other
             because only one of them is a control. */}
-        <WorkspaceScopeBadge identity={identity} />
+        <div className="flex flex-wrap items-center gap-3">
+          <WorkspaceScopeBadge identity={identity} />
+          <NewPostButton channel="linkedin" />
+        </div>
       </div>
       {loading ? (
         <div className="space-y-4">
@@ -367,6 +373,7 @@ function LinkedInPageShell({
       ) : (
         children
       )}
+      </ComposeSheetProvider>
     </PageShell>
   );
 }

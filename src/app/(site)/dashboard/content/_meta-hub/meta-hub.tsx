@@ -3,9 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink, MessageSquare, RefreshCw, Unplug } from "lucide-react";
+import { ExternalLink, FileText, MessageSquare, RefreshCw, Unplug } from "lucide-react";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { Button } from "@/components/ui/button";
+import { NewPostButton } from "@/components/compose/new-post-button";
+import { ComposeSheetProvider } from "@/components/compose/compose-sheet-provider";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -51,6 +53,20 @@ const CONNECTED_ACCOUNTS = navLabel("/dashboard/integrations");
 interface Subject {
   id: string;
   label: string;
+  /** The Page (or Instagram account) the publisher posts to: the saved one, else the first. */
+  saved: boolean;
+}
+
+/** Marks the one the publisher posts to: the saved Page (or account) while it is still listed, else the first. */
+function markSaved(list: { id: string; label: string }[], activeId: string | null | undefined): Subject[] {
+  const savedId = list.find((x) => x.id === activeId)?.id ?? list[0]?.id;
+  return list.map((x) => ({ ...x, saved: x.id === savedId }));
+}
+
+/** When the Page on screen is not the one posts go to, the New post buttons say so instead of pretending. */
+interface PostTarget {
+  saved: Subject;
+  selected: Subject;
 }
 
 export type MetaHubChannel = "facebook" | "instagram";
@@ -76,6 +92,14 @@ const COPY = {
 
 /** The body of the Facebook and Instagram hubs. The route's page owns the shell and the h1. */
 export function MetaHub({ channel }: { channel: MetaHubChannel }) {
+  return (
+    <ComposeSheetProvider>
+      <MetaHubBody channel={channel} />
+    </ComposeSheetProvider>
+  );
+}
+
+function MetaHubBody({ channel }: { channel: MetaHubChannel }) {
   const copy = COPY[channel];
   const reconnect = reconnectHref(copy.path, copy.provider);
 
@@ -89,11 +113,14 @@ export function MetaHub({ channel }: { channel: MetaHubChannel }) {
     queryFn: async (): Promise<Subject[]> => {
       if (channel === "facebook") {
         const r = await metaContentApi.pages();
-        return activeFirst(r.pages.map((p: MetaPage) => ({ id: p.id, label: p.name })), r.activePageId);
+        return markSaved(activeFirst(r.pages.map((p: MetaPage) => ({ id: p.id, label: p.name })), r.activePageId), r.activePageId);
       }
       const r = await metaContentApi.instagramAccounts();
-      return activeFirst(
-        r.accounts.map((a: MetaInstagramListed) => ({ id: a.id, label: a.username ? `@${a.username}` : (a.name ?? a.id) })),
+      return markSaved(
+        activeFirst(
+          r.accounts.map((a: MetaInstagramListed) => ({ id: a.id, label: a.username ? `@${a.username}` : (a.name ?? a.id) })),
+          r.activeAccountId,
+        ),
         r.activeAccountId,
       );
     },
@@ -178,6 +205,8 @@ export function MetaHub({ channel }: { channel: MetaHubChannel }) {
 
   // Ready. One selectable subject: a Page, or an Instagram account.
   const subject = subjects.find((x) => x.id === chosen) ?? subjects[0]!;
+  const savedSubject = subjects.find((x) => x.saved) ?? subjects[0]!;
+  const postTarget: PostTarget | null = savedSubject.id === subject.id ? null : { saved: savedSubject, selected: subject };
 
   return (
     <div className="space-y-4">
@@ -198,12 +227,17 @@ export function MetaHub({ channel }: { channel: MetaHubChannel }) {
         ) : (
           <span className="text-sm font-medium">{subject.label}</span>
         )}
-        <Button asChild variant="outline" size="sm">
-          <Link href={`${copy.path}/comments`}>
-            <MessageSquare className="size-4" /> Comments
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <NewPostButton channel={channel} disabled={postTarget !== null} />
+          <Button asChild variant="outline" size="sm">
+            <Link href={`${copy.path}/comments`}>
+              <MessageSquare className="size-4" /> Comments
+            </Link>
+          </Button>
+        </div>
       </div>
+
+      {postTarget ? <PostTargetNote channel={channel} target={postTarget} /> : null}
 
       <Tabs defaultValue="overview">
         <TabsList>
@@ -215,7 +249,7 @@ export function MetaHub({ channel }: { channel: MetaHubChannel }) {
         </TabsContent>
         <TabsContent value="posts" className="mt-4">
           <p className="mb-3 text-xs text-muted-foreground">{copy.postsHelp}</p>
-          <Posts channel={channel} subjectId={subject.id} />
+          <Posts channel={channel} subjectId={subject.id} postTarget={postTarget} />
         </TabsContent>
       </Tabs>
     </div>
@@ -392,7 +426,20 @@ function usePosts(channel: MetaHubChannel, subjectId: string) {
   });
 }
 
-function Posts({ channel, subjectId }: { channel: MetaHubChannel; subjectId: string }) {
+function PostTargetNote({ channel, target }: { channel: MetaHubChannel; target: PostTarget }) {
+  const noun = channel === "facebook" ? "Page" : "account";
+  return (
+    <p className="text-xs text-muted-foreground">
+      New posts go to {target.saved.label}. To post as {target.selected.label}, make it your {noun} under{" "}
+      <Link href="/dashboard/integrations" className="font-medium underline underline-offset-4">
+        {CONNECTED_ACCOUNTS}
+      </Link>
+      .
+    </p>
+  );
+}
+
+function Posts({ channel, subjectId, postTarget }: { channel: MetaHubChannel; subjectId: string; postTarget: PostTarget | null }) {
   const { formatDate } = useLocale();
   const q = usePosts(channel, subjectId);
   const [open, setOpen] = useState<string | null>(null);
@@ -401,7 +448,18 @@ function Posts({ channel, subjectId }: { channel: MetaHubChannel; subjectId: str
   if (q.isError) return <ErrorLine error={q.error} what="your posts" reconnect={reconnectHref(COPY[channel].path, COPY[channel].provider)} />;
   const rows = q.data ?? [];
   if (rows.length === 0) {
-    return <p className="text-sm text-muted-foreground">No posts yet.</p>;
+    return (
+      <EmptyState
+        icon={FileText}
+        title="No posts yet"
+        description={`Posts made on ${COPY[channel].name}, including ones from Peakhour, show up here.`}
+        className="min-h-0 py-12"
+      >
+        <div className="mt-6">
+          <NewPostButton channel={channel} label="Create a post" disabled={postTarget !== null} />
+        </div>
+      </EmptyState>
+    );
   }
 
   return (
