@@ -13,6 +13,8 @@ import { OAuthConnectResult } from "@/components/integrations/oauth-connect-resu
 import { DM_STATUS_KEY } from "@/lib/meta-dm";
 import { XDmConnect } from "@/components/integrations/x-dm-connect";
 import { XPostingCard } from "@/components/integrations/x-posting-card";
+import dynamic from "next/dynamic";
+import { tiktokAdvertisers, tiktokAdvertisersTruncated, tiktokConnectionPresent } from "@/lib/tiktok-tracking";
 import { WordPressImagesCard } from "@/components/integrations/wordpress-images-card";
 import { WordPressConnectModal } from "@/components/integrations/wordpress-connect-modal";
 import { MeasurementHealthPanel } from "@/components/growth/measurement-health-panel";
@@ -27,6 +29,9 @@ import { stripReturnParams } from "@/lib/strip-return-params";
 import { OverseasAckDialog } from "@/components/integrations/overseas-ack-dialog";
 import { ACK_UNAVAILABLE_MESSAGE, ACK_REDIRECT_PARAMS, ackPromptFor, ackPromptForRedirect, isAckRequiredRedirect, withOverseasAck } from "@/lib/overseas-ack";
 import { IntegrationCard } from "./_components/integration-card";
+
+// Lazy: the integrations page is near its bundle budget, and the card only draws for a connected TikTok Ads row.
+const TikTokTrackingCard = dynamic(() => import("@/components/integrations/tiktok-tracking-card").then((m) => m.TikTokTrackingCard), { ssr: false });
 
 const CATEGORY_LABELS: Record<string, string> = {
   social: "Social Media",
@@ -770,6 +775,19 @@ export default function IntegrationsPage() {
 
       {/* AI featured images for WordPress: off until turned on here, with a monthly limit in Peaks (CS-5b). Shown once a site is connected. */}
       {integrations.some((i) => i.provider === "wordpress" && i.connected) ? <WordPressImagesCard /> : null}
+
+      {/* Which TikTok pixel receives orders, and the catalog feed URL (TT-PX). Connected TikTok Ads only; the ads panel (T-11) can host the same card later. */}
+      {(() => {
+        const tiktok = integrations.find((i) => i.provider === "tiktok_ads" && tiktokConnectionPresent(i.status));
+        return tiktok ? (
+          <TikTokTrackingCard
+            advertisers={tiktokAdvertisers(tiktok.account?.extra)}
+            advertisersTruncated={tiktokAdvertisersTruncated(tiktok.account?.extra)}
+            connectionStatus={tiktok.status}
+            onReconnect={() => void handleConnect("tiktok_ads", tiktok.authType)}
+          />
+        ) : null;
+      })()}
 
       {/* X messages (Inbox lane I3g): renders nothing until the api says they are released. */}
       <XDmConnect />
