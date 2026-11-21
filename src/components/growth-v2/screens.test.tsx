@@ -190,7 +190,7 @@ describe("the screens render their preview sample", () => {
       ...FIXTURE_CHANNELS,
       health: [
         { platform: "meta", state: "healthy", reason: "Cost per outcome INR 250 against your target of INR 600.", spend: { value: 1000, currency: "INR" }, outcomes: { value: 4 }, efficiency: { value: 250 } },
-        { platform: "google_ads", state: "problem", reason: "Google Ads bills in USD, but your plan is in INR. Peakhour does not manage it, and its spend is left out of your totals.", spend: { absent: "currency_mismatch" }, outcomes: { absent: "currency_mismatch" }, efficiency: { absent: "currency_mismatch" } },
+        { platform: "google_ads", state: "healthy", reason: "Cost per outcome INR 400 against your target of INR 600.", billedIn: "USD", spend: { value: 8350, currency: "INR" }, outcomes: { value: 20 }, efficiency: { value: 400 } },
         { platform: "x", state: "problem", reason: "INR 200 spent with no bookings credited to X Ads.", spend: { value: 200, currency: "INR" }, outcomes: { value: 0 }, efficiency: { absent: "no_outcomes_this_week" } },
         { platform: "linkedin", state: "not_connected", reason: "LinkedIn Ads isn't connected.", spend: { absent: "not_connected" }, outcomes: { absent: "not_connected" }, efficiency: { absent: "not_connected" } },
       ],
@@ -204,7 +204,7 @@ describe("the screens render their preview sample", () => {
         },
         {
           id: "c2", platform: "google_ads", name: "Search", status: "paused",
-          dailyBudget: { absent: "no_daily_budget" }, spend: { absent: "currency_mismatch" }, outcomes: { absent: "credit_is_per_channel" }, efficiency: { absent: "credit_is_per_channel" },
+          billedIn: "USD", dailyBudget: { absent: "no_daily_budget" }, spend: { absent: "no_exchange_rate" }, outcomes: { absent: "credit_is_per_channel" }, efficiency: { absent: "credit_is_per_channel" },
         },
       ],
     };
@@ -214,13 +214,69 @@ describe("the screens render their preview sample", () => {
     it("shows each channel's state with the fact that put it there, and an absent figure as an absence", () => {
       const out = body(live);
       expect(out).toContain("Cost per outcome INR 250 against your target of INR 600.");
-      expect(out).toContain("Google Ads bills in USD");
       expect(out).toContain("INR 200 spent with no bookings credited to X Ads.");
       expect(out).toContain("LinkedIn Ads isn&#x27;t connected.");
       expect(out).toContain('data-state="problem"');
+      expect(out).not.toContain("Currency mismatch");
+      expect(out).not.toContain("left out of your totals");
       expect(out.match(/data-absent=""/g)!.length).toBeGreaterThan(3);
       expect(out).toContain("Not available");
-      expect(out).toContain(": Currency mismatch");
+    });
+
+    it("a channel or campaign billed in another currency gets a small neutral label, not a problem", () => {
+      const out = body(live);
+      expect(out).toContain("Billed in USD");
+      // the tooltip text itself is covered in billed-in-label.test.tsx (it renders on focus, not in the markup)
+      expect(out).toContain("Can&#x27;t convert USD yet");
+      expect(out).toContain("₹8,350");
+    });
+
+    it("a channel with no exchange rate shows the neutral 'Can't convert' label and no warning badge for the currency", () => {
+      const noRate: ChannelsResponse = {
+        ...live,
+        health: [
+          { platform: "google_ads", state: "watch", stateByCurrency: true, reason: "Google Ads's spend is in USD, which Peakhour can't convert yet, so it is not shown.", billedIn: "USD", spend: { absent: "no_exchange_rate" }, outcomes: { absent: "no_exchange_rate" }, efficiency: { absent: "no_exchange_rate" } },
+        ],
+      };
+      const out = body(noRate);
+      expect(out).toContain("Can&#x27;t convert USD yet");
+      expect(out).toContain("which Peakhour can&#x27;t convert yet");
+      expect(out).not.toContain("Watch");
+      expect(out).not.toContain("Problem");
+    });
+
+    it("a no-rate channel whose state has another reason (the signal) keeps its badge", () => {
+      const signal: ChannelsResponse = {
+        ...live,
+        health: [{ platform: "google_ads", state: "watch", reason: "Google Ads is not sending your bookings back to the platform yet, so its results may be undercounted.", billedIn: "USD", spend: { absent: "no_exchange_rate" }, outcomes: { absent: "no_exchange_rate" }, efficiency: { absent: "no_exchange_rate" } }],
+      };
+      const out = body(signal);
+      expect(out).toContain("Watch");
+      expect(out).toContain("Can&#x27;t convert USD yet");
+    });
+
+    it("no plan currency: no label and no empty wrapper on a campaign row", () => {
+      const noPlan: ChannelsResponse = { ...live, pacing: { ...live.pacing, monthlyCeiling: { absent: "x" }, spentThisMonth: { absent: "x" } } };
+      const out = body(noPlan);
+      expect(out).not.toContain("Billed in USD");
+      expect(out).not.toContain('class="mt-1 block"');
+    });
+
+    it("a partial channel keeps its real Watch state; a channel whose campaigns are USD under an INR account is labelled", () => {
+      const partial: ChannelsResponse = {
+        ...live,
+        health: [
+          { platform: "x", state: "watch", reason: "Part of X Ads's spend is in USD, which Peakhour can't convert yet, so the figures here are understated.", billedIn: "USD", spend: { value: 200, currency: "INR", leftOut: ["USD"] }, outcomes: { value: 1 }, efficiency: { absent: "no_exchange_rate" } },
+        ],
+      };
+      const out = body(partial);
+      expect(out).toContain("Watch");
+      expect(out).toContain("Billed in USD");
+    });
+
+    it("a campaign with no recorded currency says so", () => {
+      const out = body({ ...live, campaigns: [{ ...live.campaigns[0]!, currencyNotRecorded: true }] });
+      expect(out).toContain("Currency not recorded");
     });
 
     it("says outcomes are credited to a channel, not caused by the ads", () => {
@@ -272,6 +328,25 @@ describe("the screens render their preview sample", () => {
     expect(out).toContain("Cost per outcome");
     expect(out).toContain("peak");
     expect(out).toContain("5 experiments");
+  });
+
+  it("Rules always shows the account's own currency, and the label only when what is billed differs from it", () => {
+    const rules = {
+      ...FIXTURE_RULES,
+      connections: [
+        { platform: "google_ads" as const, connected: true, currency: "usd", currencyMismatch: true, billedIn: "USD", signal: "ready" as const },
+        { platform: "meta" as const, connected: true, currency: "inr", currencyMismatch: true, billedIn: "USD" },
+        { platform: "x" as const, connected: true, currency: "inr", currencyMismatch: false },
+      ],
+    };
+    const out = html(withClient(<RulesBody rules={rules} preview />));
+    // the USD account: its code, no label beside it; the INR account with USD campaigns: its code AND the label, once
+    expect(out).toContain(">USD</span>");
+    expect(out.match(/Billed in USD/g)!.length).toBe(1);
+    expect(out).not.toContain(">usd<");
+    expect(out.match(/>INR</g)!.length).toBeGreaterThanOrEqual(2);
+    expect(out).not.toContain("Not managed");
+    expect(out).toContain("converted on the Channels page where Peakhour has an exchange rate");
   });
 
   it("Guardrails shows the ladder, the plan summary with a link to Goals, the guardrail switches and the lines it never crosses", () => {

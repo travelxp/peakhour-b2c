@@ -14,6 +14,7 @@ import { PLATFORM_COLOR, PLATFORM_LABEL, formatDate, formatMoney } from "@/lib/g
 import { activeGoals, pctOf } from "@/lib/growth-v2-goals";
 import { DEFAULT_QUIET_HOURS, ceilingPatchFor, channelAllowed, guardrailPatchFor, patchErrorMessage, type GuardrailChange } from "@/lib/growth-v2-rules";
 import { AutonomyLadder } from "./autonomy-ladder";
+import { BilledInLabel } from "./billed-in-label";
 import { PendingChangeNote, PlanChangeDialog } from "./plan-change";
 import { PageHead } from "./page-head";
 import { PageShell } from "@/components/dashboard/page-shell";
@@ -93,7 +94,7 @@ export function RulesBody({ rules, preview }: { rules: RulesResponse; preview: b
       <Card>
         <CardHeader>
           <CardTitle>Connections</CardTitle>
-          <CardDescription>Peakhour only manages accounts that bill in your plan&apos;s currency ({m.currency}).</CardDescription>
+          <CardDescription>Your plan is in {m.currency}. Spend billed in another currency is converted on the Channels page where Peakhour has an exchange rate. Peakhour does not move budget between currencies.</CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <table className="w-full min-w-[520px] text-sm">
@@ -133,13 +134,12 @@ export function RulesBody({ rules, preview }: { rules: RulesResponse; preview: b
                     )}
                   </td>
                   <td className="px-2 py-2.5">
-                    {c.currency ? (
+                    {/* The account's own currency always shows; the label beside it only when what is billed differs from it. */}
+                    {c.currency || c.billedIn ? (
                       <span className="inline-flex items-center gap-2">
-                        {c.currency}
-                        {c.currencyMismatch ? (
-                          <ToneBadge tone="warn" dot>
-                            Not managed: different currency
-                          </ToneBadge>
+                        {c.currency ? c.currency.trim().toUpperCase() : null}
+                        {c.billedIn?.trim().toUpperCase() !== c.currency?.trim().toUpperCase() || c.currencyNotRecorded || c.billedInUnreadable ? (
+                          <BilledInLabel billedIn={c.billedIn} planCurrency={m.currency} surface="rules" currencyNotRecorded={c.currencyNotRecorded} unreadable={c.billedInUnreadable} />
                         ) : null}
                       </span>
                     ) : (

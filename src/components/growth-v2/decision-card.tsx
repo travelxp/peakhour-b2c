@@ -170,9 +170,9 @@ export function DecisionCard({ decision: d, currency, unit, now, onAction, actio
               {d.adAccount.reason ? ` · ${d.adAccount.reason}` : ""}
             </p>
           )}
-          {d.adAccount.currencyWarning ? (
-            <p role="note" className="text-xs text-warning-on-tint">
-              {d.adAccount.currencyWarning}
+          {d.adAccount.currencyNote ? (
+            <p role="note" className="text-xs text-muted-foreground">
+              {d.adAccount.currencyNote}
             </p>
           ) : null}
         </section>
