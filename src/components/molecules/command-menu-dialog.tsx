@@ -35,7 +35,7 @@ import { PILLAR_COPY, SUB_COPY, type NavCopy } from "@/lib/nav-copy";
 
 const PAGES = [
   { label: "Overview", href: "/dashboard/overview", icon: LayoutDashboard, group: "Navigation" },
-  { label: "Content Library", href: "/dashboard/content", icon: FileText, group: "Navigation" },
+  { label: "Content", href: "/dashboard/content", icon: FileText, group: "Navigation" },
   { label: "Drive", href: "/dashboard/drive", icon: HardDrive, group: "Navigation" },
   { label: "Strategist", href: "/dashboard/strategist", icon: Brain, group: "Navigation" },
   { label: "Calendar", href: "/dashboard/calendar", icon: Calendar, group: "Navigation" },

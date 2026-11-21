@@ -6,6 +6,7 @@
  */
 import { isRecoverableStatus } from "@/lib/integration-card-state";
 import { flattenMetaIntegration, META_VIRTUAL_CARDS, isMetaVirtual, type MetaLoginInfo } from "@/lib/integrations-meta";
+import { CONTENT_CREATE } from "@/lib/content-nav";
 
 // ── Connected accounts ─────────────────────────────────────
 
@@ -162,7 +163,7 @@ export function glanceFigures(
         ? `${stats.content.tagged} reviewed by AI and ready to reuse`
         : "Peakhour is reading these now. Results appear here automatically.",
       action: "Open library",
-      href: "/dashboard/content",
+      href: "/dashboard/content/beehiiv",
     });
     if (stats.content.highPotential > 0) {
       cards.push({
@@ -171,7 +172,7 @@ export function glanceFigures(
         value: stats.content.highPotential,
         meaning: "Your best-scoring pieces, the ones most worth putting budget behind",
         action: "Turn one into an ad",
-        href: "/dashboard/content",
+        href: "/dashboard/content/beehiiv",
       });
     }
   }
@@ -235,7 +236,7 @@ export function setupSteps(input: {
       label: "Bring in your content",
       detail: "Import or write your first piece so there is something to work with.",
       done: input.hasContent,
-      href: "/dashboard/content",
+      href: CONTENT_CREATE,
     },
   ];
 }

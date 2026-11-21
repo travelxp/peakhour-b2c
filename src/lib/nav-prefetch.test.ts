@@ -145,7 +145,7 @@ describe("prefetchDestinationData", () => {
     expect(Object.keys(INTENT_QUERIES).sort()).toMatchInlineSnapshot(`
       [
         "/dashboard/commerce",
-        "/dashboard/content",
+        "/dashboard/content/create",
         "/dashboard/growth",
         "/dashboard/inbox",
         "/dashboard/integrations",

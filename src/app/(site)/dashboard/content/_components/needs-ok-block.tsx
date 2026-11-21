@@ -9,20 +9,19 @@ import {
   CheckCircle2,
   type LucideIcon,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChannelIconCompact } from "@/components/brand/channel-icon";
 import { cn } from "@/lib/utils";
 import type { RailItem, RailItemType } from "@/hooks/use-home-summary";
+import { CONTENT_NEEDS_OK } from "@/lib/content-nav";
+import { navLabel } from "@/lib/nav-copy";
 
 /**
- * The "Needs you" rail — the hero of the Autopilot Home and the single
- * biggest driver of a return visit. It surfaces exactly what's waiting on
- * the human, in priority order (reconnect → failed → approve), each row a
- * one-click jump to the place the action gets done.
- *
- * This is intentionally an approval/attention surface, not a compose
- * console — it reflects the autopilot positioning: the engine did the
- * work, you just unblock it.
+ * The Content home's "Needs your OK" block: how many content items are waiting
+ * and the first few, each one click from the place it is dealt with. It is the
+ * old Auto-publish page's "Needs you" rail, moved here (the rest of that page
+ * is gone), and it links to the full list.
  */
 
 const TYPE_META: Record<
@@ -49,31 +48,47 @@ const TYPE_META: Record<
   },
 };
 
-export function NeedsYouRail({
+export function NeedsOkBlock({
   items,
-  totalCount,
+  count,
+  mayBeMore,
 }: {
   items: RailItem[];
-  totalCount: number;
+  count: number;
+  /** The count is a floor: the summary the items came from is capped. */
+  mayBeMore: boolean;
 }) {
   return (
     <Card className="gap-0 overflow-hidden py-0">
       <CardHeader className="flex flex-row items-center justify-between gap-2 border-b bg-muted/30 px-4 py-3 [.border-b]:pb-3">
-        <CardTitle className="text-base">Needs you</CardTitle>
-        {totalCount > 0 && (
-          <span className="rounded-full bg-warning/15 px-2 py-0.5 text-xs font-semibold tabular-nums text-warning-on-tint">
-            {totalCount}
-          </span>
-        )}
+        <CardTitle className="flex items-center gap-2 text-base">
+          {navLabel(CONTENT_NEEDS_OK)}
+          {count > 0 && (
+            <span className="rounded-full bg-warning/15 px-2 py-0.5 text-xs font-semibold tabular-nums text-warning-on-tint">
+              {mayBeMore ? `${count}+` : count}
+            </span>
+          )}
+        </CardTitle>
+        <Button asChild variant="ghost" size="sm">
+          <Link href={CONTENT_NEEDS_OK}>See all</Link>
+        </Button>
       </CardHeader>
       <CardContent className="p-0">
-        {items.length === 0 ? (
+        {items.length === 0 && mayBeMore ? (
+          // The list this reads is capped and spans every area, so "none in the first few" is
+          // not "none": it must not say all clear.
+          <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+            Other items are waiting for you.{" "}
+            <Link href={CONTENT_NEEDS_OK} className="font-medium text-foreground underline underline-offset-4">
+              See everything
+            </Link>
+          </p>
+        ) : items.length === 0 ? (
           <div className="flex flex-col items-center gap-1.5 px-4 py-10 text-center">
-            <CheckCircle2 className="size-7 text-success" />
+            <CheckCircle2 className="size-7 text-success" aria-hidden />
             <p className="text-sm font-medium">You&apos;re all caught up</p>
             <p className="text-xs text-muted-foreground">
-              Nothing needs your attention. The autopilot will surface work here
-              as it comes up.
+              Nothing is waiting for your OK. New drafts and anything that needs fixing will show up here.
             </p>
           </div>
         ) : (
@@ -90,22 +105,23 @@ export function NeedsYouRail({
                       meta.tone,
                     )}
                   >
-                    <Icon className={cn("size-4 shrink-0", meta.iconColor)} />
+                    <Icon className={cn("size-4 shrink-0", meta.iconColor)} aria-hidden />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{item.title}</p>
                       <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <span className="font-medium text-muted-foreground">
-                          {meta.verb}
-                        </span>
+                        <span className="font-medium">{meta.verb}</span>
                         {item.channel && (
                           <>
-                            <span aria-hidden>·</span>
+                            <span aria-hidden>&middot;</span>
                             <ChannelIconCompact channel={item.channel} size={12} />
                           </>
                         )}
                       </div>
                     </div>
-                    <ChevronRight className="size-4 shrink-0 text-muted-foreground/40 transition-transform group-hover:translate-x-0.5 group-hover:text-muted-foreground" />
+                    <ChevronRight
+                      className="size-4 shrink-0 text-muted-foreground/40 transition-transform group-hover:translate-x-0.5 group-hover:text-muted-foreground"
+                      aria-hidden
+                    />
                   </Link>
                 </li>
               );

@@ -253,8 +253,8 @@ export default function ContentPage() {
       <PageShell width="wide">
         {/* Header */}
         <PageHeader
-          title="Content Intelligence"
-          description="Your newsletters, AI-tagged and scored for ad potential"
+          title="Your newsletters"
+          description="Your past newsletters, sorted by topic and rated for how well they would work as ads"
           actions={
             <>
             <Button
@@ -358,22 +358,22 @@ export default function ContentPage() {
             loading={statsLoading}
           />
           <KpiCard
-            title="AI Tagged"
+            title="Sorted by topic"
             value={stats ? `${stats.taggedPercent}%` : undefined}
             subtitle={stats ? `${stats.tagged} of ${stats.total} articles` : undefined}
             loading={statsLoading}
           />
           <KpiCard
-            title="Content Readiness"
+            title="Ready to reuse"
             value={stats ? `${stats.contentReadinessScore}` : undefined}
-            subtitle="Weighted score (0-100)"
+            subtitle="Out of 100"
             loading={statsLoading}
             progress={stats?.contentReadinessScore}
           />
           <KpiCard
-            title="Ad-Ready"
+            title="Good for ads"
             value={stats?.highPotential}
-            subtitle={`Score 7+ (avg ${stats?.avgAdScore ?? "—"})`}
+            subtitle={`Rated 7 or more out of 10 (average ${stats?.avgAdScore ?? "—"})`}
             loading={statsLoading}
           />
         </div>
@@ -707,10 +707,10 @@ export default function ContentPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">
-                    Top Ad-Ready Content
+                    Best newsletters to turn into ads
                   </CardTitle>
                   <CardDescription>
-                    Articles scoring 7+ that could become great ads
+                    Articles rated 7 or more out of 10 that could become great ads
                   </CardDescription>
                 </CardHeader>
                 <CardContent>

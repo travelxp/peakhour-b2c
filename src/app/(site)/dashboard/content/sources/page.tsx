@@ -18,6 +18,7 @@ import { getCitations, listSources } from "./api";
 import { AddSourceDrawer } from "./components/add-source-drawer";
 import { InsightsPanel } from "./components/insights-panel";
 import { PageHeader, PageShell } from "@/components/dashboard/page-shell";
+import { PlanTabs } from "@/components/dashboard/plan-tabs";
 import { SourceRow } from "./components/source-row";
 import type { SourceStatus, TrustedSource } from "./types";
 import { PageIntro } from "@/components/dashboard/page-intro";
@@ -185,6 +186,7 @@ function TrustedSourcesSurface() {
 
   return (
     <PageShell>
+      <PlanTabs />
       <PageHeader
         title="Content sources"
         description="What your AI reads, watches, and cites."
@@ -254,9 +256,9 @@ function TrustedSourcesSurface() {
 }
 
 /**
- * KPI strip — four cards per the §3.4 spec. Three metrics ship live;
- * Coverage score remains `—` until the proprietary scorer lands
- * (plan §6 algo #4 — needs a `sector` field that doesn't exist yet).
+ * KPI strip — three live metrics. A coverage score is NOT shown: no scorer
+ * exists, and a card reading "—" under a description that admits it is in
+ * design is a placeholder, not a number. Add one back only when it is real.
  *
  * Citations (30d) reads from /v1/sources/insights/citations as its
  * own query rather than being derived from the rows payload, since
@@ -289,8 +291,8 @@ function KpiStrip({ rows, loading }: { rows: TrustedSource[]; loading: boolean }
 
   if (loading) {
     return (
-      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
+      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
           <Skeleton key={i} className="h-24" />
         ))}
       </div>
@@ -308,7 +310,7 @@ function KpiStrip({ rows, loading }: { rows: TrustedSource[]; loading: boolean }
     : "AI citations across all sources, last 30 days";
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
+    <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
       <KpiCard
         title="Active sources"
         value={activeCount}
@@ -326,12 +328,6 @@ function KpiStrip({ rows, loading }: { rows: TrustedSource[]; loading: boolean }
         value={citationsValue}
         description={citationsDescription}
         icon={FileSearch}
-      />
-      <KpiCard
-        title="Coverage score"
-        value="—"
-        description="Proprietary; algo in design"
-        icon={Sparkles}
       />
     </div>
   );
@@ -433,6 +429,7 @@ function EmptyState({
 function TrustedSourcesLockedFallback() {
   return (
     <PageShell>
+      <PlanTabs />
       <PageHeader
         title="Content sources"
         description="What your AI reads, watches, and cites."

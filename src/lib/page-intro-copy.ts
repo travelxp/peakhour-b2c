@@ -43,12 +43,6 @@ export const PAGE_INTRO_COPY = {
     body: "Websites and feeds you trust. Peakhour reads them to write accurate posts, and shows where each fact came from.",
     next: "Add a site you already follow.",
   },
-  "content-autopilot": {
-    href: "/dashboard/content/autopilot",
-    title: "What is Auto-publish?",
-    body: "It keeps your posting going without you. It drafts and lines up posts, and brings anything that needs your OK to this page.",
-    next: "Check what is waiting for you, and approve it.",
-  },
   "commerce-autopilot": {
     href: "/dashboard/commerce/autopilot",
     title: "What is Auto-merchandising?",

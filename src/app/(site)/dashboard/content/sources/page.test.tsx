@@ -9,6 +9,8 @@ const h = vi.hoisted(() => ({ source: "s2" as string | null, rows: [] as unknown
 vi.mock("next/navigation", () => ({
   useSearchParams: () => ({ get: (k: string) => (k === "source" ? h.source : null) }),
 }));
+// The Plan strip scrolls its tab into view, which jsdom cannot do; it is not what this test is about.
+vi.mock("@/components/dashboard/plan-tabs", () => ({ PlanTabs: () => null }));
 vi.mock("./api", () => ({
   listSources: async () => ({ rows: h.rows, total: h.rows.length }),
   getCitations: async () => ({ count: 0, windowDays: 30, since: "", asOf: "" }),

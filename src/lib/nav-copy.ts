@@ -98,23 +98,29 @@ export const PILLAR_COPY: Record<string, NavCopy> = {
   },
 };
 
+/**
+ * The "Plan" group in the Content nav. It has no page of its own: it lights
+ * for the four planning pages (see `PLAN_HREFS`), each of which keeps its own
+ * entry in SUB_COPY and is a tab in the strip those pages share.
+ */
+export const PLAN_COPY: NavCopy = {
+  label: "Plan",
+  description: "What to post about: ideas, industry news, holidays and sources.",
+  aliases: ["Strategy", "Planning"],
+};
+
 /** Sub-links inside a pillar, keyed by href. */
 export const SUB_COPY: Record<string, NavCopy> = {
   // Content
+  "/dashboard/content/create": {
+    label: "Create",
+    description: "Write a post, start a page, or open one of your channels.",
+    aliases: ["Library", "Content Library", "All content", "Compose"],
+  },
   [NEEDS_OK_HREF]: {
     label: NEEDS_OK_LABEL,
     description: "Everything waiting for your approval, in one list.",
     aliases: ["Auto-publish", "Autopilot", "Approvals"],
-  },
-  "/dashboard/content/autopilot": {
-    label: "Auto-publish",
-    description: "Content Peakhour prepares and publishes on its own.",
-    aliases: ["Autopilot"],
-  },
-  "/dashboard/content": {
-    label: "All content",
-    description: "Every post and draft, ready to review or edit.",
-    aliases: ["Library", "Content Library"],
   },
   "/dashboard/pages": {
     label: "Web pages",

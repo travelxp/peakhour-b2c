@@ -83,8 +83,8 @@ describe("prefetched queries keep their keys", () => {
 
 describe("pages read the same objects the prefetch warms", () => {
   const cases: Array<[string, string]> = [
-    [`${DASH}/content/page.tsx`, "useQuery(contentHubIntegrationsQuery)"],
-    [`${DASH}/content/page.tsx`, "useQuery(contentHubCatalogQuery)"],
+    [`${DASH}/content/create/page.tsx`, "useQuery(contentHubIntegrationsQuery)"],
+    [`${DASH}/content/create/page.tsx`, "useQuery(contentHubCatalogQuery)"],
     [`${DASH}/strategist/page.tsx`, "useQuery(pipelineIdeasQuery)"],
     [`${DASH}/inbox/page.tsx`, "useQuery(inboxReviewsQuery)"],
     // the Conversations lane: its first-render state is INBOX_FIRST_VIEW (nav-prefetch.ts)

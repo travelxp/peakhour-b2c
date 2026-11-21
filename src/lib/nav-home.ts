@@ -15,8 +15,7 @@
  * screen it was reorganised around. Either both or neither.
  *
  * ★BUILD-INLINED, SO IT IS SAFE AT MODULE SCOPE. `NEXT_PUBLIC_*` is substituted
- * at build time, which is why the existing `SHOW_AUTOPILOT` constant is
- * declared the same way — there is no request to read it from and no hydration
+ * at build time, so there is no request to read it from and no hydration
  * mismatch to have.
  *
  * @package peakhour-b2c

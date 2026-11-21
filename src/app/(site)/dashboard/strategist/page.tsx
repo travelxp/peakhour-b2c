@@ -1,6 +1,7 @@
 "use client";
 
 import { PageShell, PageHeader } from "@/components/dashboard/page-shell";
+import { PlanTabs } from "@/components/dashboard/plan-tabs";
 import { useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -193,6 +194,7 @@ export default function StrategistPage() {
 
   return (
     <PageShell width="full">
+      <PlanTabs />
       <PageHeader
         title="Content plan"
         description="From idea to published — drag cards to move through stages"

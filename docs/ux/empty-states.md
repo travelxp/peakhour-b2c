@@ -27,12 +27,12 @@ Legend for **Gap**: `none` = adequate, `fixed` = changed in this PR,
 | calendar (week/month) | Empty grid cells, by design | Inline error (read in part) | none |
 | calendar/ideas | Empty day cells and an unscheduled list | Nothing: no `isError` handling, an error drew an empty calendar | **fixed**: `QueryError` strip with Retry above the calendar |
 | calendar/recurring | Card: "No recurring schedules yet" with how-to prose, no action | Card with "Try refreshing" (no button) | **fixed**: `EmptyState` with action "Open the calendar". Error card left as is |
-| content (library) | Per-category "No channels here yet" labels | Inline notice | none |
+| content (home) | Per-block text: "You're all caught up", "Nothing is scheduled for the next 7 days" | Per-block notice with Try again | the channel list moved to Connected accounts |
+| content/create | "No channel is connected yet" with a Connect link | Same line, worded as a load failure | none |
 | content/news | Purpose-built `EmptyNewsDesk` | `ErrorBlock` | none |
 | content/ledger | `EmptyState` | `EmptyState`-style error with retry | none |
 | content/sources | `EmptyState` | handled | none |
 | content/seasonal-events | Text with "Click Add event" beside the Add event button | `error` banner | none (the action is on the page, adjacent) |
-| content/autopilot | Per-section text | Inline error + Retry | none |
 | content/beehiiv | `EmptyState` "No content synced yet" | handled | none |
 | content/beehiiv/[id] | "Article not found" + Go back | **None**: `isLoading` only, so an error read as "Article not found" | **fixed**: `QueryError` + Retry |
 | content/linkedin, content/x | `EmptyState` (not read in full) | `isError` present (not read in full) | none found |

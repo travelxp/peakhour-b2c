@@ -19,7 +19,15 @@ import {
 import { ASK_ENABLED } from "@/lib/flags";
 import { OUTCOMES_HOME, funnelNav } from "@/lib/nav-home";
 import { GROWTH_HOME, activeSubHref, growthNav, type MandateState } from "@/lib/growth-v2-nav";
-import { PILLAR_COPY, SUB_COPY, pillarLabel, subLabel } from "@/lib/nav-copy";
+import { PILLAR_COPY, PLAN_COPY, SUB_COPY, pillarLabel, subLabel } from "@/lib/nav-copy";
+import {
+  CONTENT_CALENDAR,
+  CONTENT_CREATE,
+  CONTENT_NEEDS_OK,
+  CONTENT_RESULTS,
+  CREATE_MATCHES,
+  PLAN_HREFS,
+} from "@/lib/content-nav";
 
 /**
  * The dashboard navigation as DATA. It used to live inside dashboard/layout.tsx
@@ -61,9 +69,6 @@ export interface NavGroup {
   items: NavItem[];
 }
 
-// Autopilot Home ships dark: surfaced only outside production.
-export const SHOW_AUTOPILOT = process.env.NEXT_PUBLIC_VERCEL_ENV !== "production";
-
 /** cfg_features.key that turns Studio on for an org. Orgs without it see no Studio in the sidebar or the phone bar. */
 export const STUDIO_FEATURE = "studio.nav";
 
@@ -87,6 +92,26 @@ const pillar = (
   ...extra,
 });
 
+/**
+ * Content's five items: Plan, Create, Needs your OK, Calendar, Results. Plan is
+ * a group, not a page: its link goes to the first planning page and it lights
+ * for all four (PLAN_HREFS). Create lights for web pages and every channel page.
+ */
+export function contentSubs(): NavSub[] {
+  return [
+    {
+      href: PLAN_HREFS[0],
+      label: PLAN_COPY.label,
+      description: PLAN_COPY.description,
+      matches: PLAN_HREFS.slice(1),
+    },
+    sub(CONTENT_CREATE, "Create", { matches: [...CREATE_MATCHES] }),
+    sub(CONTENT_NEEDS_OK, "Needs your OK"),
+    sub(CONTENT_CALENDAR, "Calendar"),
+    sub(CONTENT_RESULTS, "Results"),
+  ];
+}
+
 /** Growth sub-items for a mandate state, in the copy's words. */
 export function growthSubs(state: MandateState): NavSub[] {
   return growthNav(state).map((g) => sub(g.href, g.label, { matches: g.matches }));
@@ -106,17 +131,7 @@ export const PILLAR_NAV: NavGroup[] = [
       pillar("/dashboard/integrations", "Integrations", Plug),
       pillar("/dashboard/inbox", "Inbox", MessagesSquare),
       pillar("/dashboard/content", "Content", FileText, {
-        subItems: [
-          ...(SHOW_AUTOPILOT ? [sub("/dashboard/content/autopilot", "Autopilot")] : []),
-          sub("/dashboard/content", "Library"),
-          sub("/dashboard/pages", "Pages"),
-          sub("/dashboard/content/sources", "Sources"),
-          sub("/dashboard/content/news", "News Desk"),
-          sub("/dashboard/strategist", "Strategist"),
-          sub("/dashboard/calendar", "Calendar"),
-          sub("/dashboard/content/ledger", "Ledger"),
-          sub("/dashboard/content/seasonal-events", "Seasonal Events"),
-        ],
+        subItems: contentSubs(),
       }),
       pillar("/dashboard/studio", "Studio", Palette, {
         feature: STUDIO_FEATURE,

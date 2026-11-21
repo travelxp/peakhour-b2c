@@ -73,7 +73,7 @@ export const INTENT_QUERIES: Record<string, (ctx: PrefetchContext, search: URLSe
       : []),
     ...(c.orgId && c.businessId ? [insightsQuery(c.orgId, c.businessId)] : []),
   ],
-  "/dashboard/content": () => [contentHubIntegrationsQuery, contentHubCatalogQuery],
+  "/dashboard/content/create": () => [contentHubIntegrationsQuery, contentHubCatalogQuery],
   "/dashboard/strategist": () => [pipelineIdeasQuery],
   [GROWTH_HOME]: (c) => (c.businessId ? [growthV2HomeQuery(c.businessId)] : []),
   // The store list gates the whole commerce subtree behind a loading screen.

@@ -1,4 +1,5 @@
 import type { AnalyticsInsightsResponse } from "@/hooks/use-analytics-insights";
+import { CONTENT_CREATE, PLAN_HREFS } from "@/lib/content-nav";
 
 /**
  * What a customer should DO about their web analytics, derived from the numbers
@@ -109,7 +110,7 @@ export function analyticsActions(
         title: `${Math.round(share * 100)}% of your visitors come from ${topChannel.channel}`,
         detail:
           "That's one road in. If it narrows — an algorithm change, a link that stops being shared — the traffic goes with it. Worth building a second one before you need it.",
-        href: "/dashboard/content",
+        href: PLAN_HREFS[0],
         cta: "Plan content",
       });
     }
@@ -136,7 +137,7 @@ export function analyticsActions(
         severity: "opportunity",
         title: `${topPage.pagePath} is doing most of the work`,
         detail: `${Math.round(share * 100)}% of everything read on your site is this one page. Whatever it does right is the thing worth doing again.`,
-        href: "/dashboard/content",
+        href: CONTENT_CREATE,
         cta: "Make more like it",
       });
     }

@@ -53,6 +53,6 @@ describe("WorkCompletedCard empty state", () => {
     const html = renderToStaticMarkup(<WorkCompletedCard />);
     expect(html).not.toContain("Connect your first channel");
     expect(html).toContain("Plan your next post");
-    expect(html).toContain('href="/dashboard/content"');
+    expect(html).toContain('href="/dashboard/content/create"');
   });
 });

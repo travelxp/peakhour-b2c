@@ -60,7 +60,7 @@ describe("page intro strips", () => {
     for (const m of readFileSync(f, "utf8").matchAll(/<PageIntro id="([^"]+)"/g)) used.add(m[1]);
   }
 
-  it("covers the ten pages (Autopilot on both its pages), each id used by a page", () => {
+  it("covers the nine pages (Auto-merchandising has its own), each id used by a page", () => {
     expect([...used].sort()).toEqual(Object.keys(PAGE_INTRO_COPY).sort());
   });
 
