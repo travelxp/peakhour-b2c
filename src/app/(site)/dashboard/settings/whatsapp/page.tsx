@@ -127,8 +127,8 @@ function WhatsAppSettings() {
   const pathname = usePathname();
   const params = useSearchParams();
 
-  // ★THE CANONICAL DERIVATION, the same three lines the Team page and
-  //  `team-section` both use. Role lives on `OrgSummary`, not on `AuthOrg`.
+  // ★THE CANONICAL DERIVATION, the same lines the Team page uses. Role
+  //  lives on `OrgSummary`, not on `AuthOrg`.
   const currentRole = orgs.find((o) => o._id === org?._id)?.role || "viewer";
   const isAdmin = currentRole === "admin" || currentRole === "owner";
 

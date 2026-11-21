@@ -27,7 +27,6 @@ const SRC = join(__dirname, "..", "..", "..");
 
 /** Shared components that are a dashboard page's whole body. */
 const EXTRA_FILES = [
-  "components/dashboard/team-section.tsx",
   "components/commerce/knowledge-base.tsx",
 ];
 
