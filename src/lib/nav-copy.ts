@@ -25,6 +25,13 @@ export interface NavCopy {
 
 export const MAX_DESCRIPTION = 80;
 
+/**
+ * The one page that lists every piece of content waiting for the merchant's OK. W1-B places it in the navigation; this file only owns its
+ * route and its words, so the nav, the page title and the command menu read the same ones.
+ */
+export const NEEDS_OK_HREF = "/dashboard/content/needs-ok";
+export const NEEDS_OK_LABEL = "Needs your OK";
+
 /** Top-level sidebar items, keyed by href. */
 export const PILLAR_COPY: Record<string, NavCopy> = {
   "/dashboard/overview": {
@@ -94,6 +101,11 @@ export const PILLAR_COPY: Record<string, NavCopy> = {
 /** Sub-links inside a pillar, keyed by href. */
 export const SUB_COPY: Record<string, NavCopy> = {
   // Content
+  [NEEDS_OK_HREF]: {
+    label: NEEDS_OK_LABEL,
+    description: "Everything waiting for your approval, in one list.",
+    aliases: ["Auto-publish", "Autopilot", "Approvals"],
+  },
   "/dashboard/content/autopilot": {
     label: "Auto-publish",
     description: "Content Peakhour prepares and publishes on its own.",
