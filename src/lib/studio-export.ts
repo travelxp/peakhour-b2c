@@ -11,6 +11,7 @@ export function exportFailureLine(status: number): string {
   if (status === 401) return E.session;
   if (status === 403) return E.forbidden;
   if (status === 404) return E.missing;
+  if (status === 429) return E.tooMany;
   return E.failed;
 }
 

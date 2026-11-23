@@ -34,7 +34,7 @@ describe("exporting a batch's approvals (S16)", () => {
       const out = await exportBatchApprovals("b1");
       expect(out).toEqual({ ok: false, message: exportFailureLine(status) });
     }
-    expect(new Set([401, 403, 404, 500].map(exportFailureLine)).size).toBe(4);
+    expect(new Set([401, 403, 404, 429, 500].map(exportFailureLine)).size).toBe(5);
     vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("offline"); }));
     expect((await exportBatchApprovals("b1")).ok).toBe(false);
     expect(downloadBlob).not.toHaveBeenCalled();
