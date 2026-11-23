@@ -559,7 +559,7 @@ export function ScheduledPostEditor({
             type="button"
             size="sm"
             onClick={() => saveContent.mutate()}
-            disabled={!contentDirty || trimmed.length === 0 || anyPending || firstCommentOverBy(firstCommentRule, firstComment) > 0}
+            disabled={!contentDirty || trimmed.length === 0 || anyPending || (!isThread && firstCommentOverBy(firstCommentRule, firstComment) > 0)}
             aria-busy={saveContent.isPending}
             className="gap-1.5"
             title={

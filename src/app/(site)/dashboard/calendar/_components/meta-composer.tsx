@@ -112,7 +112,7 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
     return all;
   }, [channel, draft, firstCommentRule, firstComment]);
   // Nothing is said about an empty box until the merchant has typed or added something: "Write something" under a blank form is noise.
-  const touched = text !== "" || media.length > 0 || link !== "" || firstComment !== "";
+  const touched = text !== "" || media.length > 0 || link !== "" || (firstCommentRule !== undefined && firstComment !== "");
   const blocked = problems.length > 0;
   const locked = sent !== null;
   // Once the post is on the calendar the scheduler owns it: a failed attempt is retried (or left failed) there, and the api refuses a second
