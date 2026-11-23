@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,12 +14,16 @@ import {
   CalendarClock,
   Pause,
   Play,
+  Plus,
+  Sparkles,
 } from "lucide-react";
 import { scheduler } from "@/lib/scheduler/client";
 import type { RecurringRuleDto, RecurringRuleStatus } from "@/lib/scheduler/types";
 import { ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/molecules/empty-state";
+import { FRESH_COPY, NO_APPROVED_DRAFT } from "@/lib/fresh-recurring";
+import { FreshRecurringForm } from "./fresh-recurring-form";
 
 /**
  * The calendar's "Recurring" tab — manage recurring schedule rules
@@ -70,6 +76,7 @@ function formatWhen(iso?: string): string {
 
 export function RecurringPanel() {
   const queryClient = useQueryClient();
+  const [creating, setCreating] = useState(false);
 
   const rulesQuery = useQuery({
     queryKey: ["scheduler:recurring-rules"],
@@ -109,9 +116,18 @@ export function RecurringPanel() {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Schedules that post for you on a repeating cadence. Set one up from a post&apos;s schedule step.
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">
+          Schedules that post for you on a repeating cadence. Set one up from a post&apos;s schedule step, or have a new post written each time.
+        </p>
+        {!creating && (
+          <Button type="button" size="sm" onClick={() => setCreating(true)} className="gap-1.5" data-testid="fresh-new">
+            <Plus className="size-3.5" /> {FRESH_COPY.button}
+          </Button>
+        )}
+      </div>
+
+      {creating && <FreshRecurringForm onDone={() => setCreating(false)} />}
 
       {rulesQuery.isLoading ? (
         <RulesSkeleton />
@@ -158,9 +174,14 @@ function RuleCard({
 }) {
   const status = STATUS_STYLE[rule.status];
   const channels = rule.planTemplate?.channels ?? [];
+  const fresh = rule.planTemplate?.sourceType === "ai_generated";
+  const unit = fresh ? "planned" : "spawned";
   const runs = rule.maxRuns
-    ? `${rule.runsSpawned}/${rule.maxRuns} spawned`
-    : `${rule.runsSpawned} spawned`;
+    ? `${rule.runsSpawned}/${rule.maxRuns} ${unit}`
+    : `${rule.runsSpawned} ${unit}`;
+  const spawnError = rule.lastSpawnError;
+  // A post time that came with nothing approved is a note about a missed post, not a failure to run.
+  const missedPost = spawnError?.code === NO_APPROVED_DRAFT;
 
   return (
     <li>
@@ -182,6 +203,19 @@ function RuleCard({
 
           <p className="text-sm text-muted-foreground">{cadenceSummary(rule)}</p>
 
+          {fresh && (
+            <p className="flex items-start gap-1.5 text-sm" data-testid="fresh-rule-line">
+              <Sparkles className="mt-0.5 size-3.5 shrink-0 text-primary" />
+              <span>
+                A new post each time, about {rule.planTemplate?.meta?.topic ? <span className="font-medium">{rule.planTemplate.meta.topic}</span> : "your topic"}. It is written about two days ahead and waits in{" "}
+                <Link href={FRESH_COPY.needsOkHref} className="underline underline-offset-2">
+                  {FRESH_COPY.needsOkLink}
+                </Link>
+                ; nothing goes out unless you approve it.
+              </span>
+            </p>
+          )}
+
           <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">
             <span>
               Next run:{" "}
@@ -201,10 +235,16 @@ function RuleCard({
               Paused: {rule.pauseReason}
             </p>
           )}
-          {rule.lastSpawnError && (
+          {spawnError && missedPost && (
+            <p className="flex items-start gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-xs text-warning-on-tint" data-testid="fresh-missed">
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+              <span>{spawnError.message}</span>
+            </p>
+          )}
+          {spawnError && !missedPost && (
             <p className="flex items-start gap-1.5 rounded-md border border-destructive/30 bg-destructive/5 px-2.5 py-1.5 text-xs text-destructive">
               <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-              <span>Last spawn failed: {rule.lastSpawnError}</span>
+              <span>Last spawn failed: {spawnError.message}</span>
             </p>
           )}
 

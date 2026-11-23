@@ -105,12 +105,17 @@ export interface RecurringScheduleEditorProps {
   value: RecurringRuleInput;
   onChange: (next: RecurringRuleInput) => void;
   className?: string;
+  /** The cadences offered, in order. Left out: all four. (A custom cron schedule is not accepted by the api yet, so a form that creates rules leaves it out.) */
+  freqs?: readonly RecurringFreq[];
 }
+
+const FREQ_LABEL: Record<RecurringFreq, string> = { daily: "Daily", weekly: "Weekly", monthly: "Monthly", custom_cron: "Custom cron" };
 
 export function RecurringScheduleEditor({
   value,
   onChange,
   className,
+  freqs = ["daily", "weekly", "monthly", "custom_cron"],
 }: RecurringScheduleEditorProps) {
   const id = useId();
   const toggleWeekday = (idx: number) => {
@@ -139,10 +144,11 @@ export function RecurringScheduleEditor({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="daily">Daily</SelectItem>
-              <SelectItem value="weekly">Weekly</SelectItem>
-              <SelectItem value="monthly">Monthly</SelectItem>
-              <SelectItem value="custom_cron">Custom cron</SelectItem>
+              {freqs.map((f) => (
+                <SelectItem key={f} value={f}>
+                  {FREQ_LABEL[f]}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

@@ -73,10 +73,15 @@ export interface RecurringRuleDto {
   nextSpawnAt?: string;
   status: RecurringRuleStatus;
   pauseReason?: string;
-  lastSpawnError?: string;
+  /** What the api stamped on the rule: `message` is in plain words. `code` NO_APPROVED_DRAFT means a post time came and nothing approved was waiting. */
+  lastSpawnError?: { at: string; code: string; message: string };
   planTemplate?: {
+    /** "ai_generated": a new post is written ahead of every repeat (Content Wave 2). */
+    sourceType?: "draft" | "ai_generated";
     channels?: { channel: ChannelKey }[];
     titleTemplate?: string;
+    /** For an ai_generated rule, `meta.topic` is what each post is about. */
+    meta?: { topic?: string };
   };
   createdAt?: string;
   updatedAt?: string;
