@@ -5,6 +5,7 @@ import {
   mediaKind,
   mediaRefusal,
   mediaTypeOf,
+  postAnswer,
   postProblems,
   privacyDisabled,
   tiktokAccountState,
@@ -33,6 +34,14 @@ describe("tiktokAccountState", () => {
     expect(tiktokAccountState({ status: 503 })).toBe("unavailable");
     expect(tiktokAccountState({ status: 500, code: "BOOM" })).toBe("error");
   });
+});
+
+it("mediaKind: video/* is a video, image/* is photos, anything else is refused", () => {
+  expect(mediaKind(["video/mp4"])).toBe("video");
+  expect(mediaKind(["image/png"])).toBe("photos");
+  expect(mediaKind(["application/pdf"])).toBe("unsupported");
+  expect(mediaKind(["image/png", "audio/mpeg"])).toBe("unsupported");
+  expect(mediaRefusal(["application/pdf"])).toContain("video or photos only");
 });
 
 const known = (seconds: number) => ({ kind: "video" as const, length: { state: "known" as const, seconds } });
@@ -96,6 +105,20 @@ describe("media", () => {
   });
 });
 
+describe("postAnswer", () => {
+  it("says only what the api said", () => {
+    expect(postAnswer({ outcome: "published", published: true }).kind).toBe("posted");
+    expect(postAnswer({ outcome: "needs_action", code: "tiktok_coming_soon" }).text).toContain("coming soon");
+    expect(postAnswer({ outcome: "needs_action", code: "tiktok_privacy_required" }).kind).toBe("choose_privacy");
+    expect(postAnswer({ outcome: "needs_action", code: "other" }).kind).toBe("needs_attention");
+    expect(postAnswer({ outcome: "permanent_error" }).kind).toBe("failed");
+    for (const a of [null, { outcome: "transient_error" }, { outcome: "rate_limited" }, { outcome: "unknown" }]) {
+      const r = postAnswer(a);
+      expect(r.text).toBe("Your choices are saved. It will go out shortly.");
+    }
+  });
+});
+
 describe("commercialLabel", () => {
   it("names the label TikTok shows", () => {
     expect(commercialLabel(none)).toBeNull();
@@ -109,9 +132,16 @@ describe("commercialLabel", () => {
 const parked = (code: string) => ({ status: "needs_action" as const, attempts: [{ errorCode: code }] }) as never;
 
 describe("tiktokStatusView", () => {
-  it("an approved item reads Approved and offers Post", () => {
-    const v = tiktokStatusView({ status: "queued" });
-    expect([v.label, v.action]).toEqual(["Approved", "post"]);
+  it("an item with no choices reads Approved, choose how it posts, and offers Post", () => {
+    const v = tiktokStatusView({ status: "queued", payload: { channelOptions: { mediaType: "video" } } } as never);
+    expect([v.label, v.action]).toEqual(["Approved. Choose how it posts.", "post"]);
+  });
+
+  it("a queued or ready item whose privacy is saved reads Saved, sending soon, with Edit and no Post", () => {
+    for (const status of ["queued", "ready"] as const) {
+      const v = tiktokStatusView({ status, payload: { channelOptions: { privacyLevel: "SELF_ONLY" } } } as never);
+      expect([v.label, v.action]).toEqual(["Saved. Sending soon.", "edit"]);
+    }
   });
 
   it("needs_action tiktok_coming_soon reads Waiting for TikTok approval, with no button", () => {

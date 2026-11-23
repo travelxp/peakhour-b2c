@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,11 +28,27 @@ export interface TikTokStatusListProps {
   items: ScheduledItemDto[];
   /** Present on the channel page only: opens the post sheet for an item that offers Post or Open. */
   onPost?: (item: ScheduledItemDto) => void;
+  /** The item a link pointed at: scrolled into view and outlined. */
+  highlightId?: string | null;
 }
 
 /** TikTok items with their real state. The channel page and Results share it, so a post reads the same on both. */
-export function TikTokStatusList({ items, onPost }: TikTokStatusListProps) {
+export function TikTokStatusList({ items, onPost, highlightId = null }: TikTokStatusListProps) {
   const { formatDate } = useLocale();
+  const scrolledTo = useRef<string | null>(null);
+  // A link to a post brings it into view, once per link (a second link scrolls again).
+  useEffect(() => {
+    if (!highlightId) {
+      scrolledTo.current = null;
+      return;
+    }
+    if (scrolledTo.current === highlightId) return;
+    const el = document.getElementById(`tiktok-item-${highlightId}`);
+    if (el) {
+      scrolledTo.current = highlightId;
+      el.scrollIntoView?.({ block: "center", behavior: "smooth" });
+    }
+  }, [highlightId, items]);
   return (
     <ul className="space-y-3" aria-label="TikTok posts">
       {items.map((item) => {
@@ -39,8 +56,8 @@ export function TikTokStatusList({ items, onPost }: TikTokStatusListProps) {
         const video = isVideoItem(item);
         const canAct = view.action !== null && onPost;
         return (
-          <li key={item._id}>
-            <Card>
+          <li key={item._id} id={`tiktok-item-${item._id}`} data-highlighted={highlightId === item._id ? "true" : undefined}>
+            <Card className={highlightId === item._id ? "ring-2 ring-primary" : undefined}>
               <CardContent className="flex flex-wrap items-center gap-3 p-4">
                 <div className="min-w-0 flex-1 space-y-1">
                   <p className="truncate text-sm font-medium">{item.payload.text || "TikTok post with no caption"}</p>
@@ -52,7 +69,7 @@ export function TikTokStatusList({ items, onPost }: TikTokStatusListProps) {
                 <TikTokStatusChip view={view} />
                 {canAct ? (
                   <Button type="button" size="sm" onClick={() => onPost(item)}>
-                    {view.action === "open" ? "Open" : "Post to TikTok"}
+                    {view.action === "open" ? "Open" : view.action === "edit" ? "Edit" : "Post to TikTok"}
                   </Button>
                 ) : null}
               </CardContent>

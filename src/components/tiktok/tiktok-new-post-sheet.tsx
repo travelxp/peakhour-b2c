@@ -13,7 +13,7 @@ import { ApiError } from "@/lib/api";
 import { scheduler } from "@/lib/scheduler/client";
 import { detectTimezone } from "@/lib/scheduler/format";
 import { sourceTextHash } from "@/lib/scheduler/source-hash";
-import { TIKTOK_ITEMS_KEY } from "@/hooks/use-tiktok-content";
+import { needsOkKeys } from "@/hooks/use-needs-ok";
 import { TIKTOK_CHANNEL, mediaRefusal, mediaTypeOf } from "@/lib/tiktok-content-view";
 
 /** TikTok's caption limit (UTF-16 code units), the api's `TIKTOK_CAPTION_MAX`. The api refuses anything longer. */
@@ -64,8 +64,9 @@ function Composer({ onDone }: { onDone: () => void }) {
         timezone: detectTimezone(),
       }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: TIKTOK_ITEMS_KEY });
+      // ["scheduler:items"] covers the TikTok list under it and the calendar; "Needs your OK" lists the new post too
       void queryClient.invalidateQueries({ queryKey: ["scheduler:items"] });
+      void queryClient.invalidateQueries({ queryKey: needsOkKeys.all });
       toast.success("Approved. Open it on this page when you are ready to post.");
       onDone();
     },

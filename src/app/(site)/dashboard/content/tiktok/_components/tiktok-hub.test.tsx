@@ -17,9 +17,14 @@ class FakeApiError extends Error {
     super(message);
   }
 }
-const h = vi.hoisted(() => ({ integrations: [] as unknown[], creatorInfo: vi.fn(), listItems: vi.fn(), search: "" }));
+const h = vi.hoisted(() => ({ integrationsFail: false, integrations: [] as unknown[], creatorInfo: vi.fn(), listItems: vi.fn(), search: "" }));
 vi.mock("@/lib/api", () => ({
-  api: { get: vi.fn(async () => ({ integrations: h.integrations })) },
+  api: {
+    get: vi.fn(async () => {
+      if (h.integrationsFail) throw new Error("offline");
+      return { integrations: h.integrations };
+    }),
+  },
   ApiError: FakeApiError,
   API_BASE_URL: "https://api.example",
 }));
@@ -91,6 +96,7 @@ async function mount(ui: React.ReactNode) {
 beforeEach(() => {
   h.integrations = [AVAILABLE];
   h.search = "";
+  h.integrationsFail = false;
   h.creatorInfo.mockReset().mockResolvedValue(CREATOR);
   h.listItems.mockReset().mockResolvedValue({ items: [] });
   host = document.createElement("div");
@@ -135,10 +141,10 @@ describe("TikTok page", () => {
     expect(text()).toContain("Posting to TikTok opens once TikTok approves Peakhour");
   });
 
-  it("an approved item reads Approved and offers Post to TikTok, which opens the sheet", async () => {
+  it("an item with no choices reads Approved and offers Post to TikTok, which opens the sheet", async () => {
     h.listItems.mockResolvedValue({ items: [item()] });
     await mount(<TikTokHub />);
-    expect(host.querySelector('[data-testid="tiktok-status"]')?.textContent).toBe("Approved");
+    expect(host.querySelector('[data-testid="tiktok-status"]')?.textContent).toBe("Approved. Choose how it posts.");
     await act(async () => {
       buttons().find((b) => b.textContent === "Post to TikTok")!.click();
     });
@@ -172,6 +178,47 @@ describe("TikTok page", () => {
     await mount(<TikTokHub />);
     expect([...host.querySelectorAll('[data-testid="tiktok-status"]')].map((e) => e.textContent)).toEqual(["Sending…", "Retrying"]);
     expect(buttons().some((b) => b.textContent === "Post to TikTok")).toBe(false);
+  });
+
+  it("a failed integrations read shows an error with Try again, never coming soon", async () => {
+    h.integrationsFail = true;
+    await mount(<TikTokHub />);
+    expect(text()).toContain("We could not check TikTok");
+    expect(text()).not.toContain("coming soon");
+    expect(buttons().some((b) => b.textContent === "Try again")).toBe(true);
+  });
+
+  it("a saved item reads Saved, sending soon, with Edit and no Post", async () => {
+    h.listItems.mockResolvedValue({ items: [item({ payload: { text: "x", channelOptions: { mediaType: "video", privacyLevel: "SELF_ONLY" } } })] });
+    await mount(<TikTokHub />);
+    expect(host.querySelector('[data-testid="tiktok-status"]')?.textContent).toBe("Saved. Sending soon.");
+    expect(buttons().some((b) => b.textContent === "Post to TikTok")).toBe(false);
+    expect(buttons().some((b) => b.textContent === "Edit")).toBe(true);
+  });
+
+  it("follows a second ?post= while the page is open: opens the sheet for an item with an action, outlines a waiting one", async () => {
+    const waiting = item({ _id: "w1", status: "needs_action", attempts: [{ errorCode: "tiktok_coming_soon" }] });
+    h.listItems.mockResolvedValue({ items: [item({ _id: "a1" }), waiting] });
+    h.search = "post=a1";
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const ui = (
+      <QueryClientProvider client={client}>
+        <TikTokHub />
+      </QueryClientProvider>
+    );
+    await act(async () => {
+      root.render(ui);
+    });
+    for (let i = 0; i < 6; i++) await act(async () => void (await new Promise((r) => setTimeout(r, 0))));
+    expect(document.body.querySelector('[data-sheet="post"]')?.getAttribute("data-item")).toBe("a1");
+    // client-side navigation to another link (the same mounted page re-renders with a new param)
+    h.search = "post=w1";
+    await act(async () => {
+      root.render(<QueryClientProvider client={client}><TikTokHub /></QueryClientProvider>);
+    });
+    for (let i = 0; i < 3; i++) await act(async () => void (await new Promise((r) => setTimeout(r, 0))));
+    expect(host.querySelector("#tiktok-item-w1")?.getAttribute("data-highlighted")).toBe("true");
+    expect(host.querySelector("#tiktok-item-a1")?.getAttribute("data-highlighted")).toBeNull();
   });
 
   it("opens the post sheet on ?post=<id> from Needs your OK", async () => {

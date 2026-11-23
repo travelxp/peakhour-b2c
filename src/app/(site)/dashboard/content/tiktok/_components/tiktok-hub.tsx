@@ -3,7 +3,6 @@
 import dynamic from "next/dynamic";
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
 import { Clock, Plus, RefreshCw, Unplug, Video } from "lucide-react";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { Button } from "@/components/ui/button";
@@ -11,9 +10,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TikTokStatusList } from "@/components/tiktok/tiktok-status-list";
 import { ApiError } from "@/lib/api";
-import { tiktokContentApi, type TikTokCreatorInfo } from "@/lib/api/tiktok-content";
+import type { TikTokCreatorInfo } from "@/lib/api/tiktok-content";
 import { reconnectHref } from "@/lib/integrations-connect";
-import { useTikTokAvailable, useTikTokItems } from "@/hooks/use-tiktok-content";
+import { useTikTokAvailable, useTikTokCreatorInfo, useTikTokItems } from "@/hooks/use-tiktok-content";
 import { TIKTOK_PATH, TIKTOK_PROVIDER, tiktokAccountState, tiktokStatusView } from "@/lib/tiktok-content-view";
 import type { ScheduledItemDto } from "@/lib/scheduler/types";
 
@@ -23,8 +22,19 @@ const TikTokNewPostSheet = dynamic(() => import("@/components/tiktok/tiktok-new-
 
 /** The body of the TikTok page. The route's page owns the shell and the h1. Shown only for an org whose `tiktok` row is available. */
 export function TikTokHub() {
-  const { available, loading } = useTikTokAvailable();
+  const { available, loading, error, refetch } = useTikTokAvailable();
   if (loading) return <Skeleton className="h-64 w-full" />;
+  // A list that failed to load says nothing about whether TikTok is open: never answer it with "coming soon".
+  if (error) {
+    return (
+      <EmptyState
+        icon={RefreshCw}
+        title="We could not check TikTok"
+        description="Something went wrong on our side. Nothing has changed. Try again in a moment."
+        action={{ label: "Try again", onClick: refetch }}
+      />
+    );
+  }
   if (!available) {
     return (
       <EmptyState
@@ -39,12 +49,7 @@ export function TikTokHub() {
 
 function TikTokHubBody() {
   const reconnect = reconnectHref(TIKTOK_PATH, TIKTOK_PROVIDER);
-  const creator = useQuery({
-    queryKey: ["tiktok", "creator-info"],
-    queryFn: () => tiktokContentApi.creatorInfo(),
-    staleTime: 60_000,
-    retry: false,
-  });
+  const creator = useTikTokCreatorInfo();
   const state = tiktokAccountState(creator.error instanceof ApiError ? creator.error : creator.error ? {} : null);
 
   if (creator.isLoading) return <Skeleton className="h-64 w-full" />;
@@ -82,16 +87,35 @@ function TikTokHubBody() {
 }
 
 function Ready({ creator }: { creator: TikTokCreatorInfo }) {
+  const params = useSearchParams();
   const [composing, setComposing] = useState(false);
   const [posting, setPosting] = useState<ScheduledItemDto | null>(null);
+  const [highlight, setHighlight] = useState<string | null>(null);
   const items = useTikTokItems(true);
-  const wanted = useSearchParams().get("post");
-  // A link from "Needs your OK" opens the sheet on its item once, after the list has loaded.
-  const [linked, setLinked] = useState(false);
-  const linkedItem = wanted && !linked ? items.data?.items.find((i) => i._id === wanted && tiktokStatusView(i).action !== null) : undefined;
-  if (linkedItem) {
-    setLinked(true);
-    setPosting(linkedItem);
+  const wanted = params.get("post");
+  const compose = params.get("compose") === "1";
+
+  // The links into this page (?post=<id>, ?compose=1) are followed each time they CHANGE, so a second link while the page is open works too.
+  // State follows the link during render (React's pattern for state that follows props), once per distinct value.
+  const [handledPost, setHandledPost] = useState<string | null>(null);
+  const [handledCompose, setHandledCompose] = useState(false);
+  if (compose !== handledCompose) {
+    setHandledCompose(compose);
+    if (compose) setComposing(true);
+  }
+  if (wanted !== handledPost) {
+    if (wanted === null) {
+      setHandledPost(null);
+      setHighlight(null);
+    } else if (items.data) {
+      setHandledPost(wanted);
+      const target = items.data.items.find((i) => i._id === wanted);
+      if (target) {
+        // An item with something to do opens its sheet; one that is only waiting is scrolled to and outlined.
+        if (tiktokStatusView(target).action !== null) setPosting(target);
+        else setHighlight(target._id);
+      }
+    }
   }
 
   const list = items.data?.items ?? [];
@@ -141,7 +165,7 @@ function Ready({ creator }: { creator: TikTokCreatorInfo }) {
             </div>
           </EmptyState>
         ) : (
-          <TikTokStatusList items={list} onPost={setPosting} />
+          <TikTokStatusList items={list} onPost={setPosting} highlightId={highlight} />
         )}
       </section>
 

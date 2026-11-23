@@ -1,7 +1,8 @@
 "use client";
 
 import { useId, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -9,13 +10,15 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { ApiError } from "@/lib/api";
-import { tiktokContentApi, type TikTokCreatorInfo } from "@/lib/api/tiktok-content";
+import type { TikTokCreatorInfo } from "@/lib/api/tiktok-content";
 import { reconnectHref } from "@/lib/integrations-connect";
 import { scheduler } from "@/lib/scheduler/client";
-import { TIKTOK_ITEMS_KEY } from "@/hooks/use-tiktok-content";
+import { useTikTokCreatorInfo } from "@/hooks/use-tiktok-content";
+import { needsOkKeys } from "@/hooks/use-needs-ok";
 import type { ScheduledItemDto } from "@/lib/scheduler/types";
 import {
-  TIKTOK_COMING_SOON_MESSAGE,
+  type PostAnswer,
+  postAnswer,
   TIKTOK_PATH,
   TIKTOK_PROVIDER,
   commercialLabel,
@@ -42,9 +45,8 @@ export interface TikTokPostSheetProps {
  * The TikTok post sheet: the last step before a post, built to TikTok's Content Posting requirements (the account, the preview, who can see it,
  * comments, Duet and Stitch, commercial content, the declaration, the length limit).
  *
- * POST SAVES THE CHOICES AND SENDS NOTHING TO TIKTOK. TikTok has not approved Peakhour to publish, so Post stores the choices on the item and
- * schedules it for now; the api parks it as "waiting for TikTok approval" without calling TikTok. The sheet then says so. It runs publish-now
- * only so the api parks it at once (publishing is off, so TikTok is never called); nothing on screen says the post is live.
+ * POST SAVES THE CHOICES, SCHEDULES THE ITEM FOR NOW AND RUNS PUBLISH-NOW, then says what the api answered: posted, waiting for TikTok approval
+ * (only when the api parked it as tiktok_coming_soon), what is still needed, or that the choices are saved. It claims nothing the api did not say.
  */
 export function TikTokPostSheet({ item, onOpenChange }: TikTokPostSheetProps) {
   return (
@@ -61,12 +63,7 @@ export function TikTokPostSheet({ item, onOpenChange }: TikTokPostSheetProps) {
 }
 
 function SheetBody({ item }: { item: ScheduledItemDto }) {
-  const creator = useQuery({
-    queryKey: ["tiktok", "creator-info"],
-    queryFn: () => tiktokContentApi.creatorInfo(),
-    staleTime: 60_000,
-    retry: false,
-  });
+  const creator = useTikTokCreatorInfo();
 
   if (creator.isLoading) {
     return (
@@ -110,29 +107,37 @@ function SheetBody({ item }: { item: ScheduledItemDto }) {
 function PostForm({ item, creator }: { item: ScheduledItemDto; creator: TikTokCreatorInfo }) {
   const id = useId();
   const media = item.payload.mediaUrls ?? [];
-  const video = isVideoItem(item);
+  const video = isVideoItem(item) && media.length > 0;
   const queryClient = useQueryClient();
+  // Choices already saved on the item (an Edit, or a post that needs its privacy again). With none saved, nothing is chosen for the merchant:
+  // the audience of a post is theirs to decide.
+  const saved = (item.payload.channelOptions ?? {}) as Record<string, unknown>;
+  const savedPrivacy = typeof saved.privacyLevel === "string" && creator.privacyLevelOptions.includes(saved.privacyLevel) ? saved.privacyLevel : null;
+  const flag = (k: string) => saved[k] === true;
 
-  // No privacy level is chosen for the merchant: the audience of a post is theirs to decide.
-  const [privacy, setPrivacy] = useState<string | null>(null);
-  const [comments, setComments] = useState(false);
-  const [duet, setDuet] = useState(false);
-  const [stitch, setStitch] = useState(false);
-  const [commercial, setCommercial] = useState(false);
-  const [yourBrand, setYourBrand] = useState(false);
-  const [brandedContent, setBrandedContent] = useState(false);
+  const [privacy, setPrivacy] = useState<string | null>(savedPrivacy);
+  const [comments, setComments] = useState(flag("allowComment") && !creator.commentDisabled);
+  const [duet, setDuet] = useState(flag("allowDuet") && !creator.duetDisabled);
+  const [stitch, setStitch] = useState(flag("allowStitch") && !creator.stitchDisabled);
+  const [commercial, setCommercial] = useState(flag("brandOrganic") || flag("brandedContent"));
+  const [yourBrand, setYourBrand] = useState(flag("brandOrganic"));
+  const [brandedContent, setBrandedContent] = useState(flag("brandedContent"));
+  // The stored link did not load (a Private Drive link that has expired, or a file that was removed). The payload carries no asset id to fetch a
+  // fresh link by, so the merchant is sent back to choose the file again.
+  const [mediaBroken, setMediaBroken] = useState(false);
   // A video's length is read from the file itself: Post stays off until it is known, and an unreadable file says so.
   const [length, setLength] = useState<VideoLength>({ state: "checking" });
-  const [answered, setAnswered] = useState(false);
+  const [result, setResult] = useState<{ answer: PostAnswer; link: string | undefined } | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
   const choices = { privacy, commercial, yourBrand, brandedContent };
-  const problems = postProblems(choices, video ? { kind: "video", length } : { kind: "photos" }, creator.maxVideoPostDurationSec);
+  const problems = postProblems(choices, media.length === 0 ? { kind: "none" } : video ? { kind: "video", length } : { kind: "photos" }, creator.maxVideoPostDurationSec);
   const label = commercialLabel(choices);
 
-  // Post saves the choices on the item and schedules it for now. The api parks it (needs_action, tiktok_coming_soon) without calling TikTok.
+  // Post saves the choices on the item, schedules it for now, then runs publish-now and says what the api answered. Publishing is off while
+  // TikTok has not approved Peakhour, so the api parks the item itself (tiktok_coming_soon) without calling TikTok; this sheet claims nothing it was not told.
   const save = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<{ answer: PostAnswer; link: string | undefined }> => {
       await scheduler.editItemPayload(item._id, {
         channelOptions: {
           privacyLevel: privacy,
@@ -144,21 +149,30 @@ function PostForm({ item, creator }: { item: ScheduledItemDto; creator: TikTokCr
         },
       });
       await scheduler.rescheduleItem(item._id, { scheduledAtUtc: new Date(), mode: "item" });
-      // Run the worker's own publish path now, so the api parks the item as tiktok_coming_soon at once (it never calls TikTok while publishing is off).
-      // If it refuses, the post is still saved and scheduled: the next tick parks it, and the merchant is shown no error for that.
-      await scheduler.publishItemNow(item._id).catch(() => undefined);
+      // A refused or failed publish-now is not an error here: the choices are saved and the next tick sends or parks the item.
+      const raw = await scheduler.publishItemNow(item._id).catch(() => null);
+      let link: string | undefined;
+      if (raw?.published === true) {
+        const { items } = await scheduler.listItems({ channel: "tiktok", planId: item.planId, limit: 20 }).catch(() => ({ items: [] }));
+        link = items.find((i) => i._id === item._id)?.externalUrl;
+      }
+      return { answer: postAnswer(raw), link };
     },
-    onSuccess: () => {
+    onSuccess: (res) => {
       setFailure(null);
-      setAnswered(true);
-      void queryClient.invalidateQueries({ queryKey: TIKTOK_ITEMS_KEY });
+      setResult(res);
+      // the status list, the calendar, and "Needs your OK" all read this item
+      void queryClient.invalidateQueries({ queryKey: ["scheduler:items"] });
+      void queryClient.invalidateQueries({ queryKey: needsOkKeys.all });
     },
     onError: (err: unknown) => {
-      setAnswered(false);
+      setResult(null);
       const raw = err instanceof Error ? err.message : "";
       setFailure(raw && raw !== "Invalid request body" ? raw : "We could not save your choices. Try again.");
     },
   });
+  // Once the api has taken the post (sent, parked or queued) pressing Post again would do nothing new; a post that still needs something can be pressed again.
+  const done = result !== null && ["posted", "waiting", "saved", "failed"].includes(result.answer.kind);
 
   const options = creator.privacyLevelOptions;
   const nickname = creator.nickname ?? "your TikTok account";
@@ -183,7 +197,12 @@ function PostForm({ item, creator }: { item: ScheduledItemDto; creator: TikTokCr
       <section aria-label="Preview" className="space-y-2" data-testid="tiktok-preview">
         <h3 className="text-sm font-semibold">Preview</h3>
         {media.length === 0 ? (
-          <p className="text-sm text-muted-foreground">This post has no video or photos yet.</p>
+          <p className="text-sm text-muted-foreground" data-testid="tiktok-no-media">
+            This post has no video or photos yet.{" "}
+            <Link href={`${TIKTOK_PATH}?compose=1`} className="font-medium underline underline-offset-2">
+              Make a new post
+            </Link>
+          </p>
         ) : video ? (
           <video
             src={media[0]}
@@ -195,18 +214,29 @@ function PostForm({ item, creator }: { item: ScheduledItemDto; creator: TikTokCr
               const d = e.currentTarget.duration;
               setLength(Number.isFinite(d) && d > 0 ? { state: "known", seconds: d } : { state: "unreadable" });
             }}
-            onError={() => setLength({ state: "unreadable" })}
+            onError={() => {
+              setLength({ state: "unreadable" });
+              setMediaBroken(true);
+            }}
           />
         ) : (
           <ul className="flex flex-wrap gap-2" aria-label="Photos in this post">
             {media.map((src, i) => (
               <li key={`${src}-${i}`}>
                 {/* eslint-disable-next-line @next/next/no-img-element -- merchant's own media link */}
-                <img src={src} alt={`Photo ${i + 1} of ${media.length}`} className="size-24 rounded-md border object-cover" />
+                <img src={src} alt={`Photo ${i + 1} of ${media.length}`} className="size-24 rounded-md border object-cover" onError={() => setMediaBroken(true)} />
               </li>
             ))}
           </ul>
         )}
+        {mediaBroken ? (
+          <p role="alert" className="text-sm text-muted-foreground" data-testid="tiktok-media-broken">
+            This file did not load, so it may have expired. Open the post to choose the {video ? "video" : "photos"} again:{" "}
+            <Link href={`${TIKTOK_PATH}?compose=1`} className="font-medium underline underline-offset-2">
+              Open the post
+            </Link>
+          </p>
+        ) : null}
         <p className="whitespace-pre-wrap rounded-md border p-3 text-sm" data-testid="tiktok-caption">
           {item.payload.text || "No caption"}
         </p>
@@ -333,7 +363,7 @@ function PostForm({ item, creator }: { item: ScheduledItemDto; creator: TikTokCr
             </li>
           ))}
         </ul>
-        <Button type="button" onClick={() => save.mutate()} disabled={problems.length > 0 || save.isPending || answered} aria-busy={save.isPending} aria-describedby={`${id}-why`}>
+        <Button type="button" onClick={() => save.mutate()} disabled={problems.length > 0 || save.isPending || done} aria-busy={save.isPending} aria-describedby={`${id}-why`}>
           {save.isPending ? "Saving..." : "Post"}
         </Button>
         <p className="text-xs text-muted-foreground" data-testid="tiktok-declaration">
@@ -357,9 +387,22 @@ function PostForm({ item, creator }: { item: ScheduledItemDto; creator: TikTokCr
             {failure}
           </p>
         ) : null}
-        {answered ? (
-          <p role="status" className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-on-tint" data-testid="tiktok-coming-soon">
-            {TIKTOK_COMING_SOON_MESSAGE}
+        {result ? (
+          <p
+            role="status"
+            data-testid="tiktok-answer"
+            data-kind={result.answer.kind}
+            className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning-on-tint"
+          >
+            {result.answer.text}
+            {result.link ? (
+              <>
+                {" "}
+                <a href={result.link} target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-2">
+                  View on TikTok
+                </a>
+              </>
+            ) : null}
           </p>
         ) : null}
       </div>

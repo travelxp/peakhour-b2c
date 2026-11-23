@@ -19,8 +19,10 @@ export type NeedsOkSource =
   | "web_pages"
   | "linkedin_drafts"
   | "studio_shortlist"
-  /** TikTok posts saved and waiting for TikTok to approve Peakhour (its own group). */
-  | "tiktok";
+  /** TikTok posts that need the merchant to choose how they post. */
+  | "tiktok_choices"
+  /** TikTok posts saved and waiting for TikTok to approve Peakhour. */
+  | "tiktok_waiting";
 
 export interface NeedsOkItem {
   source: NeedsOkSource;

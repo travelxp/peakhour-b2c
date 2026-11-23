@@ -109,13 +109,10 @@ export const scheduler = {
    * re-authored the content, which is what the hold was waiting for. (A patch
    * of `paidPartnership` alone does not: it re-authors nothing.)
    *
-   * `channelOptions` is deliberately NOT editable, with ONE exception: X's
-   * `paidPartnership` flag, which the server merges into it. The rest of it
-   * carries the author URN + visibility the plan was committed with, and
-   * changing who publishes means
-   * cancelling and recomposing so the author policy runs again. The server
-   * REJECTS an unknown field rather than dropping it, so a client that tries
-   * gets a 400 instead of a false success.
+   * `channelOptions` is NOT editable, with TWO exceptions: X's `paidPartnership` flag (the server merges it in), and a TikTok item's post-sheet
+   * choices (privacyLevel, allowComment, allowDuet, allowStitch, brandOrganic, brandedContent). The rest of it carries the author URN +
+   * visibility the plan was committed with, and changing who publishes means cancelling and recomposing so the author policy runs again.
+   * The server REJECTS an unknown field rather than dropping it, so a client that tries gets a 400 instead of a false success.
    *
    * 400 TEXT_TOO_LONG / TEXT_REQUIRED / TOO_MANY_MEDIA on invalid content
    * (over-length text is rejected, never silently truncated). 409 when the

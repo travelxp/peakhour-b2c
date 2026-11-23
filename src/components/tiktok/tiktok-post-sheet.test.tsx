@@ -18,6 +18,7 @@ class FakeApiError extends Error {
   }
 }
 const h = vi.hoisted(() => ({ list: vi.fn(), creatorInfo: vi.fn(), post: vi.fn(), get: vi.fn(), commit: vi.fn(), edit: vi.fn(), resched: vi.fn(), publish: vi.fn() }));
+vi.mock("next/link", () => ({ default: ({ href, children }: { href: string; children: React.ReactNode }) => <a href={href}>{children}</a> }));
 vi.mock("@/lib/api", () => ({ api: { post: h.post, get: h.get }, ApiError: FakeApiError, API_BASE_URL: "https://api.example" }));
 vi.mock("@/lib/api/tiktok-content", () => ({ tiktokContentApi: { creatorInfo: h.creatorInfo } }));
 vi.mock("@/lib/scheduler/client", () => ({
@@ -260,7 +261,11 @@ describe("TikTokPostSheet", () => {
     expect(select().value).toBe("");
   });
 
-  it("Post saves the choices on the item, schedules it for now, then shows the coming-soon message; it never publishes", async () => {
+  const answerOf = () => q('[data-testid="tiktok-answer"]');
+  const COMING_SOON = "TikTok integration is coming soon. Your post is saved and will publish once TikTok approves Peakhour.";
+
+  it("Post saves the choices, schedules for now, runs publish-now, and shows the coming-soon message only when the api parked it that way", async () => {
+    h.publish.mockResolvedValue({ outcome: "needs_action", code: "tiktok_coming_soon", published: false });
     h.creatorInfo.mockResolvedValue({ ...CREATOR, duetDisabled: true });
     await mount();
     await knowLength(60);
@@ -281,37 +286,73 @@ describe("TikTokPostSheet", () => {
       },
     });
     expect(h.resched).toHaveBeenCalledTimes(1);
-    expect(h.resched.mock.calls[0][0]).toBe("item1");
     expect(h.resched.mock.calls[0][1].mode).toBe("item");
-    // saved before it is scheduled
-    expect(h.edit.mock.invocationCallOrder[0]).toBeLessThan(h.resched.mock.invocationCallOrder[0]);
-    expect(q('[data-testid="tiktok-coming-soon"]')?.textContent).toBe(
-      "TikTok integration is coming soon. Your post is saved and will publish once TikTok approves Peakhour.",
-    );
-    // then the worker's own publish path runs once, after the reschedule, so the api parks it at once
-    expect(h.publish).toHaveBeenCalledTimes(1);
     expect(h.publish).toHaveBeenCalledWith("item1");
+    expect(h.edit.mock.invocationCallOrder[0]).toBeLessThan(h.resched.mock.invocationCallOrder[0]);
     expect(h.resched.mock.invocationCallOrder[0]).toBeLessThan(h.publish.mock.invocationCallOrder[0]);
+    expect(answerOf()?.getAttribute("data-kind")).toBe("waiting");
+    expect(answerOf()?.textContent).toBe(COMING_SOON);
     expect(h.post).not.toHaveBeenCalled();
     expect(h.commit).not.toHaveBeenCalled();
-    expect(text()).not.toMatch(/published|is live|posted successfully/i);
+    expect(text()).not.toMatch(/is live|posted successfully/i);
   });
 
-  it("if publish-now refuses, the coming-soon message still shows and no error is shown", async () => {
+  it("published reads Posted to TikTok, with the link when the item has one", async () => {
+    h.publish.mockResolvedValue({ outcome: "published", published: true });
+    h.list.mockResolvedValue({ items: [{ _id: "item1", externalUrl: "https://www.tiktok.com/@a/video/1" }] });
+    await mount(PHOTOS);
+    await choose("PUBLIC_TO_EVERYONE");
+    await click(postButton());
+    expect(answerOf()?.getAttribute("data-kind")).toBe("posted");
+    expect(answerOf()?.textContent).toContain("Posted to TikTok.");
+    expect(answerOf()?.querySelector("a")?.getAttribute("href")).toBe("https://www.tiktok.com/@a/video/1");
+    expect(text()).not.toContain("coming soon");
+  });
+
+  it("tiktok_privacy_required says what to do, and Post can be pressed again", async () => {
+    h.publish.mockResolvedValue({ outcome: "needs_action", code: "tiktok_privacy_required", published: false });
+    await mount(PHOTOS);
+    await choose("PUBLIC_TO_EVERYONE");
+    await click(postButton());
+    expect(answerOf()?.getAttribute("data-kind")).toBe("choose_privacy");
+    expect(answerOf()?.textContent).toContain("Choose an audience above");
+    expect(answerOf()?.textContent).not.toContain("coming soon");
+    expect(postButton().disabled).toBe(false);
+  });
+
+  it("any other parked reason is named in plain words, never as waiting for approval", async () => {
+    h.publish.mockResolvedValue({ outcome: "needs_action", code: "something_new", published: false });
+    await mount(PHOTOS);
+    await choose("PUBLIC_TO_EVERYONE");
+    await click(postButton());
+    expect(answerOf()?.getAttribute("data-kind")).toBe("needs_attention");
+    expect(answerOf()?.textContent).not.toMatch(/coming soon|approval/);
+  });
+
+  it("a refused publish-now says the choices are saved and shows no error and no claim about approval", async () => {
     h.publish.mockRejectedValue(new Error("409 queued to retry"));
     await mount(PHOTOS);
     await choose("PUBLIC_TO_EVERYONE");
     await click(postButton());
-    expect(q('[data-testid="tiktok-coming-soon"]')).not.toBeNull();
+    expect(answerOf()?.textContent).toBe("Your choices are saved. It will go out shortly.");
     expect(q('[role="alert"]')).toBeNull();
-    expect(text()).not.toContain("409");
+    expect(text()).not.toMatch(/409|coming soon|approval/);
   });
 
-  it("right after Post, the item is refetched and its status reads Waiting for TikTok approval", async () => {
+  it("a transient answer from publish-now reads the same as a refusal", async () => {
+    h.publish.mockResolvedValue({ outcome: "transient_error", published: false });
+    await mount(PHOTOS);
+    await choose("PUBLIC_TO_EVERYONE");
+    await click(postButton());
+    expect(answerOf()?.textContent).toBe("Your choices are saved. It will go out shortly.");
+  });
+
+  it("right after Post, the list is refetched and the status reads what the api parked it as", async () => {
+    h.publish.mockResolvedValue({ outcome: "needs_action", code: "tiktok_coming_soon", published: false });
     const parked = { ...(PHOTOS as object), status: "needs_action", attempts: [{ errorCode: "tiktok_coming_soon" }] };
     h.list.mockResolvedValueOnce({ items: [PHOTOS] }).mockResolvedValue({ items: [parked] });
     await mountWithList(PHOTOS);
-    expect(q('[data-testid="tiktok-status"]')?.textContent).toBe("Approved");
+    expect(q('[data-testid="tiktok-status"]')?.textContent).toBe("Approved. Choose how it posts.");
     await choose("PUBLIC_TO_EVERYONE");
     await click(postButton());
     await act(async () => {
@@ -320,13 +361,41 @@ describe("TikTokPostSheet", () => {
     expect(q('[data-testid="tiktok-status"]')?.textContent).toBe("Waiting for TikTok approval");
   });
 
-  it("a failed save says so and does not show the coming-soon message", async () => {
+  it("with no media it says so, does not wait on a video length, and Post stays off", async () => {
+    await mount(ITEM([], "video"));
+    expect(q('[data-testid="tiktok-no-media"]')?.textContent).toContain("This post has no video or photos yet");
+    expect(q("video")).toBeNull();
+    await choose("PUBLIC_TO_EVERYONE");
+    expect(q('[data-problem="duration_unknown"]')).toBeNull();
+    expect(q('[data-problem="media"]')).not.toBeNull();
+    expect(postButton().disabled).toBe(true);
+  });
+
+  it("a stored link that does not load sends the merchant back to choose the file again", async () => {
+    await mount();
+    await act(async () => {
+      (q("video") as HTMLVideoElement).dispatchEvent(new Event("error"));
+    });
+    expect(q('[data-testid="tiktok-media-broken"]')?.textContent).toContain("Open the post to choose the video again");
+    expect(q('[data-testid="tiktok-media-broken"] a')?.getAttribute("href")).toContain("/dashboard/content/tiktok");
+  });
+
+  it("Edit reopens with the saved choices", async () => {
+    const saved = { ...(PHOTOS as { payload: object }), payload: { ...(PHOTOS as { payload: object }).payload, channelOptions: { mediaType: "photo", privacyLevel: "FOLLOWER_OF_CREATOR", allowComment: true, brandedContent: true } } };
+    await mount(saved);
+    expect(select().value).toBe("FOLLOWER_OF_CREATOR");
+    expect(sw("comments")?.getAttribute("aria-checked")).toBe("true");
+    expect(sw("commercial")?.getAttribute("aria-checked")).toBe("true");
+    expect(q('[data-testid="tiktok-label-preview"]')?.textContent).toContain("Paid partnership");
+  });
+
+  it("a failed save says so and shows no answer", async () => {
     h.edit.mockRejectedValue(new Error("Nope"));
     await mount(PHOTOS);
     await choose("PUBLIC_TO_EVERYONE");
     await click(postButton());
     expect(h.resched).not.toHaveBeenCalled();
-    expect(q('[data-testid="tiktok-coming-soon"]')).toBeNull();
+    expect(answerOf()).toBeNull();
     expect(text()).toContain("Nope");
   });
 

@@ -71,7 +71,7 @@ export function commercialLabel(c: Pick<PostChoices, "commercial" | "yourBrand" 
 
 export interface PostProblem {
   /** Stable key for tests. */
-  key: "privacy" | "commercial_kind" | "duration" | "duration_unknown";
+  key: "privacy" | "commercial_kind" | "duration" | "duration_unknown" | "media";
   message: string;
 }
 
@@ -84,7 +84,7 @@ export type VideoLength = { state: "checking" } | { state: "unreadable" } | { st
  */
 export function postProblems(
   c: PostChoices,
-  media: { kind: "video"; length: VideoLength } | { kind: "photos" },
+  media: { kind: "video"; length: VideoLength } | { kind: "photos" } | { kind: "none" },
   maxVideoPostDurationSec?: number | null,
 ): PostProblem[] {
   const out: PostProblem[] = [];
@@ -92,6 +92,7 @@ export function postProblems(
   if (c.commercial && !c.yourBrand && !c.brandedContent) {
     out.push({ key: "commercial_kind", message: "Say whether this promotes your own brand, a paid partnership, or both." });
   }
+  if (media.kind === "none") out.push({ key: "media", message: "This post has no video or photos yet." });
   if (media.kind === "video") {
     const len = media.length;
     if (len.state === "checking") out.push({ key: "duration_unknown", message: "Checking the length of your video." });
@@ -109,12 +110,16 @@ export function postProblems(
 
 // -- Media --------------------------------------------------------------------------------------------
 
-/** What the composer holds, judged by mime type (never by file name): a TikTok post is one video, or photos, never both. */
-export function mediaKind(mimes: string[]): "none" | "video" | "photos" | "mixed" | "many_videos" {
-  const videos = mimes.filter((m) => m.startsWith("video/")).length;
-  const others = mimes.length - videos;
+/**
+ * What the composer holds, judged by mime type (never by file name): video/* is a video, image/* is a photo, anything else is not something
+ * TikTok takes. A post is one video, or photos, never both.
+ */
+export function mediaKind(mimes: string[]): "none" | "video" | "photos" | "mixed" | "many_videos" | "unsupported" {
   if (mimes.length === 0) return "none";
-  if (videos > 0 && others > 0) return "mixed";
+  const videos = mimes.filter((m) => m.startsWith("video/")).length;
+  const images = mimes.filter((m) => m.startsWith("image/")).length;
+  if (videos + images < mimes.length) return "unsupported";
+  if (videos > 0 && images > 0) return "mixed";
   if (videos > 1) return "many_videos";
   return videos === 1 ? "video" : "photos";
 }
@@ -131,6 +136,8 @@ export function mediaRefusal(mimes: string[]): string | null {
       return "A TikTok post is one video or photos, not both. Remove the video or remove the photos.";
     case "many_videos":
       return "A TikTok post takes one video. Remove the extra videos.";
+    case "unsupported":
+      return "TikTok takes a video or photos only. Remove the file that is neither.";
     default:
       return null;
   }
@@ -144,7 +151,7 @@ export function isVideoItem(item: Pick<ScheduledItemDto, "payload">): boolean {
 
 // -- Status -------------------------------------------------------------------------------------------
 
-export type TikTokStatus = "approved" | "waiting" | "choose_privacy" | "sending" | "retrying" | "published" | "failed" | "cancelled" | "attention";
+export type TikTokStatus = "saved" | "approved" | "waiting" | "choose_privacy" | "sending" | "retrying" | "published" | "failed" | "cancelled" | "attention";
 
 export interface TikTokStatusView {
   status: TikTokStatus;
@@ -152,12 +159,18 @@ export interface TikTokStatusView {
   /** One plain sentence under the chip. */
   detail: string;
   tone: "neutral" | "info" | "success" | "warning" | "destructive";
-  /** The button the row offers: Post to TikTok for an approved item, Open for one that needs a choice, none otherwise. */
-  action: "post" | "open" | null;
+  /** The button the row offers: Post to TikTok for an item with no choices yet, Open for one that needs a choice, Edit for one whose choices are saved, none otherwise. */
+  action: "post" | "open" | "edit" | null;
 }
 
 export const COMING_SOON_CODE = "tiktok_coming_soon";
 export const PRIVACY_REQUIRED_CODE = "tiktok_privacy_required";
+
+/** True once the post sheet has saved this item's privacy level. */
+export function hasSavedChoices(item: Partial<Pick<ScheduledItemDto, "payload">>): boolean {
+  const opts = item.payload?.channelOptions as { privacyLevel?: unknown } | undefined;
+  return typeof opts?.privacyLevel === "string" && opts.privacyLevel !== "";
+}
 
 /** The code the scheduler parked the item with: the last attempt's error. */
 export function lastErrorCode(item: Pick<ScheduledItemDto, "attempts">): string | undefined {
@@ -168,7 +181,7 @@ export function lastErrorCode(item: Pick<ScheduledItemDto, "attempts">): string 
  * The state of a TikTok item, in words, from the api's own status and nothing else. A post is "Published" only when the scheduler holds the
  * link; published without one reads "Published, link coming".
  */
-export function tiktokStatusView(item: Pick<ScheduledItemDto, "status" | "externalUrl" | "attempts">): TikTokStatusView {
+export function tiktokStatusView(item: Pick<ScheduledItemDto, "status"> & Partial<Pick<ScheduledItemDto, "externalUrl" | "attempts" | "payload">>): TikTokStatusView {
   switch (item.status) {
     case "published":
       return item.externalUrl
@@ -200,11 +213,51 @@ export function tiktokStatusView(item: Pick<ScheduledItemDto, "status" | "extern
     case "skipped":
       return { status: "cancelled", label: "Cancelled", detail: "This post was cancelled and will not go out.", tone: "neutral", action: null };
     default:
-      return { status: "approved", label: "Approved", detail: "Approved by you. Open it to choose how it posts.", tone: "info", action: "post" };
+      // queued or ready. Choices already saved (a privacy level is the one thing a post cannot go without) means it is on its way.
+      return hasSavedChoices(item)
+        ? { status: "saved", label: "Saved. Sending soon.", detail: "Your choices are saved. You can still edit them.", tone: "info", action: "edit" }
+        : { status: "approved", label: "Approved. Choose how it posts.", detail: "Open it to choose who can see it.", tone: "info", action: "post" };
   }
 }
 
 /** Where a link to an item lands: the channel page opens the sheet on `?post=<id>`. */
 export function tiktokPostHref(itemId: string): string {
   return `${TIKTOK_PATH}?post=${encodeURIComponent(itemId)}`;
+}
+
+// -- What Post answered ---------------------------------------------------------------------------------
+
+/** publish-now's answer (peakhour-api scheduler route): the outcome, the code when parked, and whether it went out. */
+export interface PublishNowAnswer {
+  outcome?: string;
+  code?: string;
+  published?: boolean;
+}
+
+export interface PostAnswer {
+  kind: "posted" | "waiting" | "choose_privacy" | "needs_attention" | "failed" | "saved";
+  /** Plain words, and what to do. */
+  text: string;
+}
+
+export const SAVED_SHORTLY_MESSAGE = "Your choices are saved. It will go out shortly.";
+
+/**
+ * What the sheet says after Post, from publish-now's own answer and nothing else. "Waiting for TikTok approval" is said only when the api parked
+ * the item as tiktok_coming_soon; a refused or failed publish-now (answer is null) says the choices are saved and nothing more.
+ */
+export function postAnswer(answer: PublishNowAnswer | null): PostAnswer {
+  if (!answer) return { kind: "saved", text: SAVED_SHORTLY_MESSAGE };
+  if (answer.published === true || answer.outcome === "published") return { kind: "posted", text: "Posted to TikTok." };
+  if (answer.outcome === "needs_action") {
+    if (answer.code === COMING_SOON_CODE) return { kind: "waiting", text: TIKTOK_COMING_SOON_MESSAGE };
+    if (answer.code === PRIVACY_REQUIRED_CODE) {
+      return { kind: "choose_privacy", text: "TikTok needs to know who can watch this post. Choose an audience above, then press Post again." };
+    }
+    return { kind: "needs_attention", text: "TikTok needs something from you before this can go out. Your choices are saved; open the post on the calendar to see what." };
+  }
+  if (answer.outcome === "permanent_error") {
+    return { kind: "failed", text: "TikTok did not take this post, and nothing was published. Your choices are saved." };
+  }
+  return { kind: "saved", text: SAVED_SHORTLY_MESSAGE };
 }

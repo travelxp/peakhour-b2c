@@ -99,6 +99,13 @@ describe("TikTokNewPostSheet", () => {
     expect(btn("Approve and save").disabled).toBe(true);
   });
 
+  it("refuses a file that is neither a video nor a photo", async () => {
+    await type("Doc");
+    await pick([{ id: "f1", url: "https://cdn/d", mime: "application/pdf" }]);
+    expect(document.body.textContent).toContain("video or photos only");
+    expect(btn("Approve and save").disabled).toBe(true);
+  });
+
   it("does not add the same file twice (by asset id, even with a new link)", async () => {
     await type("Dup");
     await pick([{ id: "f1", url: "https://cdn/a?sig=1", mime: "image/png", name: "a" }]);
