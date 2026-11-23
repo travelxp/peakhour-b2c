@@ -36,18 +36,29 @@ export interface FileMeasure {
 }
 
 /**
- * Pages in a PDF, read from its bytes with no library: the page tree's root says how many pages it has in `/Count`, and every node below it says
- * fewer, so the LARGEST `/Count` is the document's. A PDF that keeps its page tree inside a compressed object stream (PDF 1.5 and later, often) shows
- * no `/Count` in the clear: nothing is said then, and the limit is simply not checked (the verdict is "not fully checked", never a refusal). Pure.
+ * Pages in a PDF, read from its bytes with no library: the page tree's ROOT is the `/Type /Pages` dictionary with no `/Parent`, and its `/Count` is the
+ * document's pages. A bookmark tree (`/Outlines`) also carries a `/Count`, and every inner node of the page tree carries a smaller one, so only a `/Pages`
+ * dictionary without a `/Parent` is read; a PDF saved in increments keeps older roots, and the LAST one is the live one. A PDF that keeps its page tree inside a
+ * compressed object stream (PDF 1.5 and later, often) shows no such dictionary in the clear: nothing is said then, and the limit is simply not checked (the
+ * verdict is "not fully checked", never a refusal). Pure.
  */
 export function pdfPageCountOf(text: string): number | undefined {
-  let best = 0;
-  for (const m of text.matchAll(/\/Count\s+(\d{1,6})\b/g)) best = Math.max(best, Number(m[1]));
-  return best >= 1 ? best : undefined;
+  let pages: number | undefined;
+  for (const m of text.matchAll(/\/Type\s*\/Pages\b/g)) {
+    const at = m.index ?? 0;
+    const open = text.lastIndexOf("<<", at);
+    const close = text.indexOf(">>", at);
+    if (open < 0 || close < 0) continue;
+    const dict = text.slice(open, close);
+    if (/\/Parent\b/.test(dict)) continue;
+    const count = /\/Count\s+(\d{1,6})\b/.exec(dict);
+    if (count && Number(count[1]) >= 1) pages = Number(count[1]);
+  }
+  return pages;
 }
 
-/** The biggest PDF the browser reads for its pages (a larger one is not read, and its pages are not checked). LinkedIn's own limit is 100 MB. */
-export const PDF_PROBE_MAX_BYTES = 100 * 1024 * 1024;
+/** The biggest PDF the browser reads for its pages (a larger one is not read, and its pages are not checked): the whole file is held as text while it is read. */
+export const PDF_PROBE_MAX_BYTES = 40 * 1024 * 1024;
 
 /** A PDF's page count, or nothing. */
 export async function probePdfPages(file: File): Promise<number | undefined> {

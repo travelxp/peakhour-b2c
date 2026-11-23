@@ -75,12 +75,18 @@ describe("a Facebook video is a Reel only when the merchant says so", () => {
   });
 });
 
-describe("pdfPageCountOf reads the page tree's /Count", () => {
-  it("takes the largest /Count (the root's), and says nothing when there is none in the clear", () => {
-    const pdfText = "%PDF-1.4\n1 0 obj<</Type/Pages/Kids[2 0 R 3 0 R]/Count 12>>endobj\n2 0 obj<</Type/Pages/Parent 1 0 R/Count 7/Kids[]>>endobj\n3 0 obj<</Type/Pages/Parent 1 0 R/Count 5/Kids[]>>endobj";
-    expect(pdfPageCountOf(pdfText)).toBe(12);
+describe("pdfPageCountOf reads the page tree root's /Count", () => {
+  const tree = "%PDF-1.4\n1 0 obj<</Type/Pages/Kids[2 0 R 3 0 R]/Count 12>>endobj\n2 0 obj<</Type/Pages/Parent 1 0 R/Count 7/Kids[]>>endobj\n3 0 obj<</Type/Pages/Parent 1 0 R/Count 5/Kids[]>>endobj";
+  it("takes the root (the /Pages dictionary with no /Parent), and says nothing when there is none in the clear", () => {
+    expect(pdfPageCountOf(tree)).toBe(12);
     expect(pdfPageCountOf("%PDF-1.5\nstream\n...compressed...\nendstream")).toBeUndefined();
-    expect(pdfPageCountOf("/Count 0")).toBeUndefined();
+    expect(pdfPageCountOf("<</Type/Pages/Count 0/Kids[]>>")).toBeUndefined();
+  });
+  it("a bookmark tree's /Count is not the page count", () => {
+    expect(pdfPageCountOf(tree + "\n9 0 obj<</Type/Outlines/First 10 0 R/Last 11 0 R/Count 150>>endobj")).toBe(12);
+  });
+  it("a PDF saved in increments has several roots: the last is the live one", () => {
+    expect(pdfPageCountOf(tree + "\n%%EOF\n1 0 obj<</Type/Pages/Kids[2 0 R 3 0 R 4 0 R]/Count 13>>endobj")).toBe(13);
   });
 });
 

@@ -503,6 +503,8 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
             checked={reel}
             onCheckedChange={(v) => {
               setReel(v);
+              // a video already on the post was judged by the other rule: take it off, so it is added again and checked against this one
+              setMedia((prev) => prev.filter((m) => !m.mime.startsWith("video/")));
               edited();
             }}
             disabled={locked}
@@ -510,7 +512,7 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
           <Label htmlFor="meta-reel" className="text-sm">
             Post a video as a Reel
           </Label>
-          {reel ? <span className="text-micro text-muted-foreground">Vertical (9:16), 3 to 90 seconds. Add the video after turning this on, so it is checked.</span> : null}
+          {reel ? <span className="text-micro text-muted-foreground">Vertical (9:16), 3 to 90 seconds. Turning this on or off takes off a video already added, so it is checked again.</span> : null}
         </div>
       ) : null}
 
