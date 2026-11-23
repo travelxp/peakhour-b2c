@@ -9,7 +9,8 @@ import { act } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { NeedsOk, NeedsOkGroup, NeedsOkItem } from "@/hooks/use-needs-ok";
 
-const h = vi.hoisted(() => ({ get: vi.fn() }));
+const h = vi.hoisted(() => ({ get: vi.fn(), tiktok: [] as unknown[] }));
+vi.mock("@/hooks/use-tiktok-content", () => ({ useTikTokWaiting: () => h.tiktok }));
 
 vi.mock("@/lib/api", () => ({ api: { get: h.get }, API_BASE_URL: "https://api.example" }));
 vi.mock("next/link", () => ({
@@ -47,6 +48,7 @@ let container: HTMLDivElement;
 let root: Root;
 beforeEach(() => {
   h.get.mockReset();
+  h.tiktok = [];
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -71,6 +73,16 @@ async function mount() {
 }
 
 describe("NeedsOkScreen", () => {
+  it("lists an approved TikTok post that waits for Post, opening the TikTok page on it, instead of saying nothing waits", async () => {
+    h.tiktok = [{ _id: "tt1", payload: { text: "Fresh loaves today" } }];
+    h.get.mockResolvedValue(answer([group({ source: "scheduled_posts", label: "Posts to approve" })]));
+    await mount();
+    expect(container.textContent).not.toContain("Nothing is waiting for your OK");
+    expect([...container.querySelectorAll("h2")].map((e) => e.textContent)).toEqual(["TikTok posts (1)"]);
+    expect(container.querySelector("a")?.getAttribute("href")).toBe("/dashboard/content/tiktok?post=tt1");
+    expect(container.textContent).toContain("1 thing is waiting for you");
+  });
+
   it("groups rows by source with a count, and each row links to the screen that approves it", async () => {
     h.get.mockResolvedValue(
       answer([

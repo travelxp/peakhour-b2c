@@ -2,6 +2,7 @@ import type { ContentHubIntegration } from "@/lib/nav-queries";
 import { flattenMetaIntegration } from "@/lib/integrations-meta";
 import { resolveChannelCta } from "../channel-cta";
 import type { ChannelConfig } from "../channels.config";
+import { TIKTOK_PROVIDER } from "@/lib/tiktok-content-view";
 
 /** A channel the merchant has connected, with the page that opens it. */
 export interface ChannelLink {
@@ -37,6 +38,8 @@ export function channelLinks(
   for (const channel of channels) {
     const cta = resolveChannelCta(channel, connections.get(channel.providerKey));
     if (!cta.isConnected || !cta.dashboardPath) continue;
+    // TikTok is for a preview org only: the api marks its row available for them, and nobody else is offered a link to a page that is not open.
+    if (channel.providerKey === TIKTOK_PROVIDER && connections.get(TIKTOK_PROVIDER)?.availability !== "available") continue;
     if (!cta.dashboardPath.startsWith("/dashboard/content/")) continue;
     links.push({
       slug: channel.slug,

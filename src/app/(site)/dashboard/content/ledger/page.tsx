@@ -24,6 +24,7 @@ import {
 } from "@/lib/content-ledger";
 import { PageIntro } from "@/components/dashboard/page-intro";
 import { navLabel } from "@/lib/nav-copy";
+import { TikTokResults } from "@/components/tiktok/tiktok-results";
 
 /**
  * The content ledger — what we published, and what it earned.
@@ -94,6 +95,7 @@ export default function ContentLedgerPage() {
         }
       />
       <PageIntro id="ledger" />
+      <TikTokResults />
 
       {/* ★`isPending` ALONE, never `isPending && !isError` — the two statuses
           are mutually exclusive in Query v5, so the second is a guard after a

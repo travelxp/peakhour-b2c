@@ -32,6 +32,7 @@ export const CREATE_MATCHES = [
   "/dashboard/content/linkedin",
   "/dashboard/content/x",
   "/dashboard/content/threads",
+  "/dashboard/content/tiktok",
   "/dashboard/content/whatsapp",
   "/dashboard/content/beehiiv",
 ] as const;

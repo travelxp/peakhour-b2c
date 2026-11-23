@@ -8,6 +8,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { QueryError } from "@/components/dashboard/query-error";
 import { formatRelative } from "@/lib/scheduler/format";
+import { useTikTokWaiting } from "@/hooks/use-tiktok-content";
+import { tiktokPostHref } from "@/lib/tiktok-content-view";
+import type { ScheduledItemDto } from "@/lib/scheduler/types";
 import {
   fetchNeedsOkPage,
   useNeedsOk,
@@ -28,6 +31,7 @@ export const POST_SOMETHING_HREF = "/dashboard/calendar?compose=1";
  */
 export function NeedsOkScreen() {
   const query = useNeedsOk();
+  const tiktok = useTikTokWaiting();
 
   if (query.isLoading) {
     return (
@@ -49,7 +53,7 @@ export function NeedsOkScreen() {
   const unreadable = groups.filter((g) => g.failed);
   const waiting = groups.filter((g) => g.count > 0);
 
-  if (waiting.length === 0) {
+  if (waiting.length === 0 && tiktok.length === 0) {
     // ★NEVER "NOTHING WAITING" OVER A SOURCE WE COULD NOT READ: it would be a claim the page cannot back.
     if (unreadable.length > 0) return <UnreadableNotice groups={unreadable} />;
     return (
@@ -66,7 +70,7 @@ export function NeedsOkScreen() {
 
   const work = waiting.filter((g) => g.holdsWork);
   const suggestions = waiting.filter((g) => !g.holdsWork);
-  const workTotal = query.data.workTotal;
+  const workTotal = query.data.workTotal + tiktok.length;
 
   return (
     <div className="space-y-8">
@@ -76,6 +80,7 @@ export function NeedsOkScreen() {
           : "Nothing is stuck waiting for you. There are a few suggestions below."}
       </p>
       {unreadable.length > 0 && <UnreadableNotice groups={unreadable} />}
+      <TikTokWaiting items={tiktok} />
       {work.map((group) => (
         <Group key={group.source} group={group} level={2} />
       ))}
@@ -172,5 +177,39 @@ function Row({ item }: { item: NeedsOkItem }) {
         <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
       </span>
     </Link>
+  );
+}
+
+/**
+ * Approved TikTok posts that still need the merchant to press Post. Shown only when TikTok is available for this org (the hook returns nothing otherwise).
+ * A row opens the TikTok page on that item, where the post sheet is: nothing is approved or posted here.
+ */
+function TikTokWaiting({ items }: { items: ScheduledItemDto[] }) {
+  if (items.length === 0) return null;
+  return (
+    <section aria-labelledby="needs-ok-tiktok" className="space-y-3">
+      <h2 id="needs-ok-tiktok" className="text-sm font-semibold text-muted-foreground">
+        TikTok posts ({items.length})
+      </h2>
+      <ul className="space-y-2">
+        {items.map((item) => (
+          <li key={item._id}>
+            <Link
+              href={tiktokPostHref(item._id)}
+              className="group flex items-center justify-between gap-4 rounded-lg border bg-card px-4 py-3 transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-ring"
+            >
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium">{item.payload.text || "TikTok post with no caption"}</span>
+                <span className="block text-sm text-muted-foreground">Approved. Choose how it posts to TikTok.</span>
+              </span>
+              <span className="flex shrink-0 items-center gap-1 text-sm font-medium text-brand-label">
+                Open
+                <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
