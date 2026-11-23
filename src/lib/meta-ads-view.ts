@@ -243,6 +243,8 @@ export const META_MERCHANT_FACING_CODES: ReadonlySet<string> = new Set([
   // MR-H1: the Page rules, written for the merchant.
   "PAGE_NOT_ADVERTISABLE",
   "PAGE_PERMISSION_MISSING",
+  "PAGE_TOKEN_MISSING",
+  "POST_UNREADABLE",
 ]);
 
 /** What to show for a failed Meta ads call. */
@@ -282,6 +284,7 @@ export function metaAdsNeedsReconnect(err: unknown): boolean {
       err.code === "META_NOT_CONNECTED" ||
       err.code === "CAPABILITY_SCOPE_MISSING" ||
       err.code === "PAGE_PERMISSION_MISSING" ||
+      err.code === "PAGE_TOKEN_MISSING" ||
       err.code === "CONNECTION_GONE")
   );
 }
