@@ -188,7 +188,7 @@ export function BriefScreen() {
   // Words only follows the text writer's own switch, not the picture maker's.
   const switchedOn = words ? availability.capabilities.textAds === "on" : availability.capabilities.previews === "on";
   const previewsOn = availability.loading ? "unknown" : switchedOn && !releasedOff ? "on" : "coming_soon";
-  const syncable = initialised && !hydrated && !ideaGone && previewsOn === "on" && canMake && form.productIds.length > 0 && (photoLookupDone || !!creativeId);
+  const syncable = initialised && !hydrated && !ideaGone && previewsOn === "on" && canMake && form.productIds.length > 0 && (words || photoLookupDone || !!creativeId);
   /** The form holds something the api has not seen (being saved, waiting for the timer, or a save that failed). */
   const dirty = syncable && synced !== snapshot;
 
@@ -273,6 +273,9 @@ export function BriefScreen() {
     // A save in flight would land on the plan the screen has just left: the tile waits for it (the view disables it too).
     if (kind === form.kind || saving) return;
     setForm((f) => ({ ...f, kind }));
+    // What was said about the other kind (switched off, a refusal) is not said about this one.
+    setReleasedOff(false);
+    setRefusal(undefined);
     if (creativeId) {
       setCreativeId(null);
       setSynced(null);

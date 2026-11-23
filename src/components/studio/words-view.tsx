@@ -198,7 +198,7 @@ export function WordsView(p: WordsViewProps) {
             <h2 className="text-lg font-semibold">{W.caption}</h2>
             <p className="text-sm text-muted-foreground">{W.hint}</p>
           </div>
-          {p.cards.length === 0 && p.pending === 0 && <p className="text-sm text-muted-foreground">{W.noneYet}</p>}
+          {p.cards.length === 0 && p.pending === 0 && <p className="text-sm text-muted-foreground">{p.phase === "ready" ? W.allAside : W.noneYet}</p>}
           <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {p.cards.map((c, i) => (
               <li key={c.id}>

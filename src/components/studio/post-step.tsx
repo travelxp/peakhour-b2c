@@ -357,8 +357,13 @@ export function PostStep({
   const useInAd = useMutation({
     mutationFn: async () => {
       if (!words) return studioApi.handoffAd(creativeId, ids);
-      // Words go to an ad per chosen channel (one ad row each); a channel the Ad Engine does not run says so and nothing is made for it.
-      const made = await Promise.allSettled(words.channels.map((c) => studioApi.handoffWordsAd(creativeId, words.previewId, c)));
+      // Words go to an ad per Ad Engine platform (Facebook and Instagram are one); a channel the Ad Engine does not run says so and nothing is made for it.
+      const byPlatform = new Map<string, string>();
+      for (const c of words.channels) {
+        const platform = adPlatformOf(c);
+        if (platform && !byPlatform.has(platform)) byPlatform.set(platform, c);
+      }
+      const made = await Promise.allSettled([...byPlatform.values()].map((c) => studioApi.handoffWordsAd(creativeId, words.previewId, c)));
       const ok = made.flatMap((m) => (m.status === "fulfilled" ? m.value.adCreatives : []));
       const bad = made.find((m): m is PromiseRejectedResult => m.status === "rejected");
       if (ok.length === 0) throw bad ? bad.reason : new Error("no ad was made");

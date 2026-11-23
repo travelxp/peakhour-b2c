@@ -236,7 +236,7 @@ export function CreativeWorkspace({ id }: { id: string }) {
   // Announce each preview as it lands: "Preview 2 ready."
   const landedBefore = useRef<Set<string> | null>(null);
   useEffect(() => {
-    if (!view) return;
+    if (!view || view.kind === "words") return;
     const landed = view.previews.filter((p) => p.state !== "rendering" && p.state !== "failed").map((p) => p.id);
     const before = landedBefore.current;
     landedBefore.current = new Set(landed);

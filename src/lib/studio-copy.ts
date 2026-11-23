@@ -795,6 +795,7 @@ export const STUDIO_COPY = {
     allDropped: "None of these passed our Safety check, so we haven't shown them. You weren't charged.",
     allFailed: { title: "We couldn't write options this time. You weren't charged.", tryAgain: "Try again" },
     noneYet: "No options came through. You weren't charged.",
+    allAside: "You've put all of these aside. Write more options to see new ones.",
     disclosure: "Made with AI. Some channels ask you to say so.",
     heartAdded: (n: number) => `Added to shortlist. ${n} shortlisted.`,
     heartRemoved: (n: number) => `Removed from shortlist. ${n} shortlisted.`,
