@@ -370,6 +370,25 @@ export function metaFigureText(
   return metaKpiText(state, total, render) ?? "";
 }
 
+export const META_RESULTS_UNAVAILABLE_TIP =
+  "Meta did not report a result figure for this one, so none is shown rather than a 0.";
+
+/**
+ * A Results cell: the cards' state rule, except that a completed read with no
+ * figure is an em dash (the panel adds a tooltip), never 0.
+ */
+export function metaResultsText(
+  state: MetaKpiState,
+  value: number | undefined,
+  render: (n: number) => string,
+  requested = true,
+): string {
+  if (!requested) return "Not loaded";
+  if (state === "ready" && value === undefined) return "\u2014";
+  const total = value === undefined ? undefined : { total: value, reported: 1, of: 1 };
+  return metaKpiText(state, total, render) ?? "";
+}
+
 /**
  * ⚠️★★HOW MANY CAMPAIGNS THE PANEL ASKS META FOR FIGURES ON (b2c#571 R1.2).
  *

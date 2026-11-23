@@ -55,6 +55,7 @@ vi.mock("@/lib/api/meta-ads", async (orig) => {
       listCampaigns: h.listCampaigns,
       listAdSets: h.listAdSets,
       insights: h.insights,
+      insightsByLevel: async () => [],
       setStatus: h.setStatus,
       getSelectedDataset: h.getSelectedDataset,
       listDatasets: h.listDatasets,

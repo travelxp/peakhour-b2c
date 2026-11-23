@@ -110,6 +110,11 @@ export interface MetaAdInsights {
   cpc?: number;
   cpm?: number;
   ctr?: number;
+  /** Meta's own `results` figure; absent when Meta did not send one. */
+  results?: number;
+  /** Set on ad set and ad level rows. */
+  adsetId?: string;
+  adId?: string;
   dateStart: string;
   dateStop: string;
 }
@@ -223,6 +228,17 @@ export const metaAdsApi = {
       ),
     );
     return answers.flatMap((a) => a.insights);
+  },
+
+  /** Ad set or ad figures for one campaign (one Graph walk; filter by `adsetId` / `adId`). */
+  insightsByLevel: async (campaignId: string, level: "adset" | "ad", startDate: string, endDate: string) => {
+    const a = await api.get<{ insights: MetaAdInsights[] }>(metaAdsUrl("/v1/meta/ads/analytics"), {
+      campaignIds: campaignId,
+      startDate,
+      endDate,
+      level,
+    });
+    return a.insights;
   },
 
   setStatus: (level: MetaAdsLevel, id: string, status: MetaSettableStatus) => {
