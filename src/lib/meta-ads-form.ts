@@ -173,6 +173,11 @@ export interface NewCampaignForm {
   cta: MetaCta;
   /** The Drive file the picker chose. Its type and size were judged by the picker (the Meta ad image rules); the server reads the bytes. */
   image: { mediaId: string; name: string } | null;
+  /**
+   * An existing Page post to promote, chosen from the Page's own posts (MR-H1). When set, the post IS the ad: the headline, text,
+   * link, button and image above are not asked for and not sent, and the ad is the post as it already stands on the Page.
+   */
+  promotedPost: { id: string; message?: string; pictureUrl?: string } | null;
 }
 
 export const EMPTY_NEW_CAMPAIGN: NewCampaignForm = {
@@ -187,6 +192,7 @@ export const EMPTY_NEW_CAMPAIGN: NewCampaignForm = {
   link: "",
   cta: "LEARN_MORE",
   image: null,
+  promotedPost: null,
 };
 
 export type FormErrors = Partial<Record<keyof NewCampaignForm, string>>;
@@ -223,6 +229,8 @@ export function validateNewCampaign(form: NewCampaignForm, currency: string | un
   if (min === null) errors.ageMin = `Youngest age must be ${META_MIN_AGE} to ${META_MAX_AGE}.`;
   if (max === null) errors.ageMax = `Oldest age must be ${META_MIN_AGE} to ${META_MAX_AGE}.`;
   if (min !== null && max !== null && min > max) errors.ageMax = "The oldest age can't be below the youngest.";
+  // A promoted post carries its own words, picture and link.
+  if (form.promotedPost) return errors;
   if (!form.headline.trim()) errors.headline = "Add a short headline.";
   else if (form.headline.trim().length > 80) errors.headline = "Keep the headline under 80 characters.";
   if (!form.text.trim()) errors.text = "Write the text people will read.";
@@ -236,7 +244,8 @@ export interface CreateContext {
   adAccountId: string;
   currency: string | undefined;
   pageId: string;
-  imageHash: string;
+  /** Absent when a post is promoted: there is no upload. */
+  imageHash?: string;
 }
 
 /**
@@ -245,8 +254,12 @@ export interface CreateContext {
  * check and the budget cap see it on the row it writes; the ad set carries none.
  */
 export function buildCreateBodies(form: NewCampaignForm, ctx: CreateContext) {
-  const objective = META_CREATE_OBJECTIVES.find((o) => o.value === form.objective) ?? META_CREATE_OBJECTIVES[0];
+  // A promoted post runs for reach: any post can, while "visits to my website" needs a link a plain post may not have.
+  const objective = form.promotedPost
+    ? META_CREATE_OBJECTIVES[1]
+    : (META_CREATE_OBJECTIVES.find((o) => o.value === form.objective) ?? META_CREATE_OBJECTIVES[0]);
   const name = form.name.trim();
+  // Null for a promoted post, which carries its own link and is never read below.
   const link = parseLink(form.link)!;
   return {
     campaign: {
@@ -274,19 +287,21 @@ export function buildCreateBodies(form: NewCampaignForm, ctx: CreateContext) {
       name: `${name} - ad`.slice(0, 256),
       adsetId,
       status: "PAUSED" as const,
-      creative: {
-        name: `${name} - creative`.slice(0, 256),
-        objectStorySpec: {
-          pageId: ctx.pageId,
-          linkData: {
-            link,
-            message: form.text.trim(),
-            name: form.headline.trim(),
-            imageHash: ctx.imageHash,
-            callToAction: { type: form.cta, value: { link } },
+      creative: form.promotedPost
+        ? { name: `${name} - creative`.slice(0, 256), objectStoryId: form.promotedPost.id }
+        : {
+            name: `${name} - creative`.slice(0, 256),
+            objectStorySpec: {
+              pageId: ctx.pageId,
+              linkData: {
+                link,
+                message: form.text.trim(),
+                name: form.headline.trim(),
+                imageHash: ctx.imageHash,
+                callToAction: { type: form.cta, value: { link } },
+              },
+            },
           },
-        },
-      },
     }),
   };
 }
@@ -467,4 +482,15 @@ export function buildAdSetEdit(
   if (form.start && form.end && form.end < form.start) return { error: "The end date can't be before the start date." };
 
   return Object.keys(body).length ? body : null;
+}
+
+/**
+ * ★ONE DEFAULT RULE FOR "WHICH FACEBOOK PAGE", for the Page card and the New campaign dialog: the business's saved Page when an ad can
+ * run as it, else the first Page that can. Null when no Page can (an ad cannot run as the others).
+ */
+export function defaultAdsPage<P extends { id: string; canAdvertise: boolean }>(
+  pages: readonly P[],
+  savedPageId: string | null | undefined,
+): P | null {
+  return pages.find((p) => p.id === savedPageId && p.canAdvertise) ?? pages.find((p) => p.canAdvertise) ?? null;
 }

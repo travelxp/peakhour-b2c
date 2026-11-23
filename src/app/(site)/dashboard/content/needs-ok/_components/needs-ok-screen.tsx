@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { QueryError } from "@/components/dashboard/query-error";
-import { formatRelative } from "@/lib/scheduler/format";
+import { formatDateLabel, formatRelative } from "@/lib/scheduler/format";
 import {
   fetchNeedsOkPage,
   useNeedsOk,
@@ -156,7 +156,19 @@ function Group({ group, level }: { group: NeedsOkGroup; level: 2 | 3 }) {
   );
 }
 
+/**
+ * The day an automatic draft expires, on the VIEWER's own calendar (their browser's time zone), as `Mon, 1 Jun`. An automatic draft nobody approves is closed on
+ * the api's schedule and never posted; this is the day the merchant can still act.
+ */
+export function expiresOn(iso: string): string | null {
+  const d = new Date(iso);
+  // an unreadable time is no deadline at all: the row says nothing rather than "soon"
+  if (Number.isNaN(d.getTime())) return null;
+  return formatDateLabel(d, Intl.DateTimeFormat().resolvedOptions().timeZone);
+}
+
 function Row({ item }: { item: NeedsOkItem }) {
+  const expires = item.expiresAt ? expiresOn(item.expiresAt) : null;
   return (
     <Link
       href={item.href}
@@ -166,6 +178,7 @@ function Row({ item }: { item: NeedsOkItem }) {
         <span className="block truncate text-sm font-medium">{item.title}</span>
         <span className="block text-sm text-muted-foreground">{item.why}</span>
         {item.createdAt && <span className="block text-xs text-muted-foreground">Made {formatRelative(item.createdAt)}</span>}
+        {expires && <span className="block text-xs text-muted-foreground">Expires {expires}</span>}
       </span>
       <span className="flex shrink-0 items-center gap-1 text-sm font-medium text-brand-label">
         {item.holdsWork ? "Open" : "See"}
