@@ -794,6 +794,7 @@ export const STUDIO_COPY = {
     undone: "Put back.",
     makeFinal: (n: number) => `Make final for ${n} approved`,
     makeFinalNone: "Approve a preview to make it final",
+    exportApprovals: { button: "Export approvals (CSV)", working: "Making your file", done: "Your file is ready. It has every decision in this batch, whatever the filter.", session: "Your session expired. Refresh the page and try again.", tooMany: "That was asked too often. Wait a minute and try again.", forbidden: "You can't export this batch. Ask the person who owns the account.", missing: "We can't find that batch.", failed: "We could not make that file. Try again in a moment." },
     shortcuts: "Keyboard shortcuts",
     shortcutsList: "Arrow keys move, Space selects, A approves, X skips, Z undoes the last bulk change, ? shows this list.",
     back: "Back to ideas",

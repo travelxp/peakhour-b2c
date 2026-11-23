@@ -57,6 +57,8 @@ describe("the batch grid (S16)", () => {
         onMakeFinal={noop}
         onRetryQuote={noop}
         onUndo={noop}
+        onExport={noop}
+        exporting={false}
         {...over}
       />,
     );
@@ -75,6 +77,19 @@ describe("the batch grid (S16)", () => {
     expect(html).toContain("Make final for 2 approved");
     expect(html).toContain("Why these sizes?");
     expect(html).not.toMatch(/[₹£$€]/);
+  });
+
+  it("has an Export approvals (CSV) button that is free, open to a viewer, and busy while the file is made", () => {
+    const html = grid(batch([tile("a")]), { canMake: false });
+    expect(html).toContain("Export approvals (CSV)");
+    const button = /<button[^>]*>(?:(?!<\/button>).)*Export approvals \(CSV\)<\/button>/.exec(html)?.[0] ?? "";
+    // the button is there, is not disabled for a viewer, and carries no price
+    expect(button).not.toBe("");
+    expect(button).not.toMatch(/ disabled(=|>| )/);
+    expect(button).not.toContain("Peaks");
+    const busy = grid(batch([tile("a")]), { exporting: true });
+    expect(busy).toContain("Making your file");
+    expect(busy).toContain('aria-busy="true"');
   });
 
   it("with nothing approved it says so and Make final is off", () => {
