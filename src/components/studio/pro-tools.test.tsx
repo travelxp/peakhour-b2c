@@ -57,6 +57,8 @@ describe("the batch grid (S16)", () => {
         onMakeFinal={noop}
         onRetryQuote={noop}
         onUndo={noop}
+        onExport={noop}
+        exporting={false}
         {...over}
       />,
     );
@@ -75,6 +77,13 @@ describe("the batch grid (S16)", () => {
     expect(html).toContain("Make final for 2 approved");
     expect(html).toContain("Why these sizes?");
     expect(html).not.toMatch(/[₹£$€]/);
+  });
+
+  it("has an Export approvals (CSV) button that is free, open to a viewer, and busy while the file is made", () => {
+    const html = grid(batch([tile("a")]), { canMake: false });
+    expect(html).toContain("Export approvals (CSV)");
+    expect(html).not.toMatch(/Export approvals \(CSV\)[^<]*Peaks/);
+    expect(grid(batch([tile("a")]), { exporting: true })).toContain("Making your file");
   });
 
   it("with nothing approved it says so and Make final is off", () => {
