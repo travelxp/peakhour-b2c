@@ -220,9 +220,17 @@ function ConnectedView() {
   const [justCreated, setJustCreated] = useState<ReadonlySet<string>>(new Set());
   // "Promote a post" (MR-H1): the post the New campaign dialog is open for, or null.
   const [promote, setPromote] = useState<{ pageId: string; post: MetaPagePost } | null>(null);
+  // The Page chosen on the Page card; the New campaign dialog starts on it.
+  const [adsPageId, setAdsPageId] = useState<string | null>(null);
 
   // Every id compare is bare-id (`123` is `act_123`): see `classifyMetaAccounts`.
   const { list, enabled, others, newOnLogin, defaultId, missingCount, allChosenMissing, resolveFilter } = classifyMetaAccounts(accounts.data);
+
+  // ★A PROMOTE REQUEST DIES WITH THE DIALOG THAT SHOWED IT: with no enabled account there is no New campaign, and a request left in state
+  // would reopen the dialog by itself the moment an account is enabled again.
+  const noAccountToCreateIn = enabled.length === 0;
+  // (Adjusted during render, React's pattern for state derived from other state; an effect would draw one stale frame first.)
+  if (noAccountToCreateIn && promote) setPromote(null);
 
   if (accounts.isLoading) return <SkeletonStack />;
 
@@ -350,6 +358,7 @@ function ConnectedView() {
                 defaultAccountId={defaultId}
                 initialAccountId={filter === META_ALL_ACCOUNTS || pauseOnlyAccount ? null : filter}
                 businessId={business?._id}
+                preferredPageId={adsPageId}
                 promote={promote}
                 onPromoteClose={() => setPromote(null)}
                 onCreated={(campaignId, accountId) => {
@@ -381,7 +390,7 @@ function ConnectedView() {
           showAccountLine={enabled.length > 1}
         />
       ))}
-      {noneEnabled ? null : <MetaPagesCard businessId={business?._id} onPromote={(pageId, post) => setPromote({ pageId, post })} />}
+      {noneEnabled ? null : <MetaPagesCard businessId={business?._id} pickedPageId={adsPageId} onPick={setAdsPageId} onPromote={(pageId, post) => setPromote({ pageId, post })} />}
       {noneEnabled ? null : <DatasetCard accounts={enabled} defaultAccountId={defaultId} />}
     </div>
   );

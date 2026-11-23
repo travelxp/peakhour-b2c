@@ -56,6 +56,7 @@ import {
   buildCampaignEdit,
   budgetKey,
   buildCreateBodies,
+  defaultAdsPage,
   isoToDayInZone,
   metaMinorToInput,
   readTargeting,
@@ -114,6 +115,7 @@ export function NewCampaignDialog({
   defaultAccountId,
   initialAccountId,
   businessId,
+  preferredPageId,
   promote,
   onPromoteClose,
   onCreated,
@@ -126,6 +128,8 @@ export function NewCampaignDialog({
   initialAccountId?: string | null;
   /** The business, so another business's Pages are never served for this one. */
   businessId?: string;
+  /** The Page chosen on the Page card, if any: the dialog starts on it. */
+  preferredPageId?: string | null;
   /** "Promote a post": opens the dialog with this existing post, from this Page, as the ad. Closing it calls `onPromoteClose`. */
   promote?: { pageId: string; post: MetaPagePost } | null;
   onPromoteClose?: () => void;
@@ -172,8 +176,8 @@ export function NewCampaignDialog({
   const pageRow: MetaAdsPage | null = promote
     ? (usable.find((p) => p.id === promote.pageId) ?? null)
     : (usable.find((p) => p.id === pickedPageId) ??
-      usable.find((p) => p.id === pages.data?.savedPageId) ??
-      (usable.length === 1 ? usable[0]! : null));
+      usable.find((p) => p.id === preferredPageId) ??
+      defaultAdsPage(pageList, pages.data?.savedPageId));
   const promoteBlocked = Boolean(promote) && pages.isSuccess && !pageRow;
 
   const errors = validateNewCampaign(form, account.currency);

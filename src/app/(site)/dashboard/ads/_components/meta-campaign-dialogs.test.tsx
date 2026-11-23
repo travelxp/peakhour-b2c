@@ -290,6 +290,22 @@ describe("New campaign dialog", () => {
       expect(options[2]!.getAttribute("aria-disabled") ?? options[2]!.getAttribute("data-disabled")).not.toBeNull();
     });
 
+    it("starts on the Page chosen on the Page card, over the saved one, and falls back when that one cannot advertise", async () => {
+      mocks.listPages.mockResolvedValue(TWO);
+      mount(<NewCampaignDialog accounts={[ACCOUNT]} defaultAccountId={ACCOUNT.id} onCreated={vi.fn()} preferredPageId="9002" />);
+      click(byText("button", /New campaign/));
+      await flush();
+      expect(q("#mc-page")?.textContent).toContain("Second Page");
+    });
+
+    it("ignores a preferred Page that cannot advertise and uses the same default as the card", async () => {
+      mocks.listPages.mockResolvedValue(TWO);
+      mount(<NewCampaignDialog accounts={[ACCOUNT]} defaultAccountId={ACCOUNT.id} onCreated={vi.fn()} preferredPageId="9003" />);
+      click(byText("button", /New campaign/));
+      await flush();
+      expect(q("#mc-page")?.textContent).toContain("Corner Shop");
+    });
+
     it("creates the ad as the Page that was picked", async () => {
       mocks.listPages.mockResolvedValue(TWO);
       await open();

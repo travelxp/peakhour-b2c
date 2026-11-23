@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { metaAdsApi, type MetaAdsPage, type MetaPagePost } from "@/lib/api/meta-ads";
 import { metaAdsErrorMessage } from "@/lib/meta-ads-view";
+import { defaultAdsPage } from "@/lib/meta-ads-form";
 
 /**
  * MR-H1: the Facebook Page an ad runs as, the ads that have already run from it, and "Promote a post".
@@ -30,9 +31,14 @@ function postDate(iso: string | undefined): string {
 
 export function MetaPagesCard({
   businessId,
+  pickedPageId,
+  onPick,
   onPromote,
 }: {
   businessId?: string;
+  /** The Page the merchant chose here, held by the panel so the New campaign dialog starts on the same one. */
+  pickedPageId: string | null;
+  onPick: (pageId: string) => void;
   /** Opens the New campaign dialog with this post as the ad. */
   onPromote: (pageId: string, post: MetaPagePost) => void;
 }) {
@@ -43,16 +49,12 @@ export function MetaPagesCard({
     retry: false,
     staleTime: STALE_MS,
   });
-  const [picked, setPicked] = useState<string | null>(null);
   const [showPosts, setShowPosts] = useState(false);
 
   const list = pages.data?.pages ?? [];
   // The merchant's pick, else the saved Page, else the first Page an ad can run as.
   const page: MetaAdsPage | null =
-    list.find((p) => p.id === picked) ??
-    list.find((p) => p.id === pages.data?.savedPageId && p.canAdvertise) ??
-    list.find((p) => p.canAdvertise) ??
-    null;
+    list.find((p) => p.id === pickedPageId && p.canAdvertise) ?? defaultAdsPage(list, pages.data?.savedPageId);
 
   const adsPosts = useQuery({
     queryKey: ["meta-ads-page-ads-posts", scope, page?.id ?? ""],
@@ -94,7 +96,7 @@ export function MetaPagesCard({
         ) : (
           <div className="space-y-1.5">
             <Label htmlFor="mp-page">Page</Label>
-            <Select value={page?.id ?? ""} onValueChange={setPicked}>
+            <Select value={page?.id ?? ""} onValueChange={onPick}>
               <SelectTrigger id="mp-page" aria-label="Facebook Page" className="w-80">
                 <SelectValue placeholder="Choose a Page" />
               </SelectTrigger>

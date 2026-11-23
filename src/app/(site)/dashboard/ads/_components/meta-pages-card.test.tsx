@@ -68,12 +68,30 @@ const flush = async () => {
   }
 };
 
-function mount(onPromote = vi.fn()) {
+import { useState } from "react";
+
+/** The panel holds the picked Page; this stand-in does the same, and reports each pick. */
+function Harness({ onPromote, onPick }: { onPromote: () => void; onPick: (id: string) => void }) {
+  const [picked, setPicked] = useState<string | null>(null);
+  return (
+    <MetaPagesCard
+      businessId="b1"
+      pickedPageId={picked}
+      onPick={(id) => {
+        setPicked(id);
+        onPick(id);
+      }}
+      onPromote={onPromote}
+    />
+  );
+}
+
+function mount(onPromote = vi.fn(), onPick = vi.fn()) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   act(() => {
     root.render(
       <QueryClientProvider client={client}>
-        <MetaPagesCard businessId="b1" onPromote={onPromote} />
+        <Harness onPromote={onPromote} onPick={onPick} />
       </QueryClientProvider>,
     );
   });
@@ -139,6 +157,25 @@ describe("Facebook Page card", () => {
     click([...document.body.querySelectorAll('[role="option"]')][1]);
     await flush();
     expect(mocks.listPageAdsPosts).toHaveBeenLastCalledWith("9002");
+  });
+
+  it("tells the panel which Page was picked, so New campaign can start on it", async () => {
+    const onPick = vi.fn();
+    mount(vi.fn(), onPick);
+    await flush();
+    click(q("#mp-page"));
+    await flush();
+    click([...document.body.querySelectorAll('[role="option"]')][1]);
+    await flush();
+    expect(onPick).toHaveBeenCalledWith("9002");
+  });
+
+  it("falls to the first Page that can advertise when the saved Page cannot", async () => {
+    mocks.listPages.mockResolvedValue({ pages: [{ ...SAVED, canAdvertise: false }, OTHER], savedPageId: "9001" });
+    mount();
+    await flush();
+    expect(q("#mp-page")?.textContent).toContain("Second Page");
+    expect(mocks.listPageAdsPosts).toHaveBeenCalledWith("9002");
   });
 
   it("says plainly when no ads have run from the Page", async () => {

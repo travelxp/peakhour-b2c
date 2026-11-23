@@ -8,6 +8,7 @@ import {
   buildCampaignEdit,
   buildCreateBodies,
   dayInZoneToIso,
+  defaultAdsPage,
   isoToDayInZone,
   metaMajorToMinor,
   metaMinorToInput,
@@ -397,5 +398,21 @@ describe("MR-H1: promoting an existing Page post", () => {
     const bodies = buildCreateBodies({ ...PROMOTED, objective: "OUTCOME_TRAFFIC" }, { adAccountId: "act_1", currency: "USD", pageId: "9001" });
     expect(bodies.campaign.objective).toBe("OUTCOME_AWARENESS");
     expect(bodies.adSet("c1").optimizationGoal).toBe("REACH");
+  });
+});
+
+describe("defaultAdsPage", () => {
+  const P = (id: string, canAdvertise: boolean) => ({ id, canAdvertise });
+  it("is the saved Page when an ad can run as it", () => {
+    expect(defaultAdsPage([P("1", true), P("2", true)], "2")?.id).toBe("2");
+  });
+  it("is the first Page that can when the saved one cannot, or is not listed", () => {
+    expect(defaultAdsPage([P("1", false), P("2", true), P("3", true)], "1")?.id).toBe("2");
+    expect(defaultAdsPage([P("1", false), P("2", true)], "9")?.id).toBe("2");
+    expect(defaultAdsPage([P("1", true)], null)?.id).toBe("1");
+  });
+  it("is null when no Page can", () => {
+    expect(defaultAdsPage([P("1", false)], "1")).toBeNull();
+    expect(defaultAdsPage([], null)).toBeNull();
   });
 });

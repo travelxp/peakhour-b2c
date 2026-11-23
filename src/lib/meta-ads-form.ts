@@ -483,3 +483,14 @@ export function buildAdSetEdit(
 
   return Object.keys(body).length ? body : null;
 }
+
+/**
+ * ★ONE DEFAULT RULE FOR "WHICH FACEBOOK PAGE", for the Page card and the New campaign dialog: the business's saved Page when an ad can
+ * run as it, else the first Page that can. Null when no Page can (an ad cannot run as the others).
+ */
+export function defaultAdsPage<P extends { id: string; canAdvertise: boolean }>(
+  pages: readonly P[],
+  savedPageId: string | null | undefined,
+): P | null {
+  return pages.find((p) => p.id === savedPageId && p.canAdvertise) ?? pages.find((p) => p.canAdvertise) ?? null;
+}
