@@ -19,6 +19,7 @@ export const LOCAL_BRAND_LOGOS: Record<string, string> = {
   woocommerce: "/brands/woocommerce.svg",
   woo: "/brands/woocommerce.svg",
   threads: "/brands/threads.svg",
+  tiktok: "/brands/tiktok.svg",
 };
 
 /** Resolve a channel's logo: catalog-provided URL first, local mark as floor. */

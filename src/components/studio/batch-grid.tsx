@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { LayoutGrid } from "lucide-react";
+import { Download, LayoutGrid } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,6 +43,7 @@ import {
 } from "@/lib/studio-batch";
 import { MAX_FINALS_PER_PRESS, studioRefusal } from "@/lib/studio-flow";
 import { STUDIO_ROUTES } from "@/lib/studio";
+import { exportBatchApprovals } from "@/lib/studio-export";
 import { STUDIO_COPY } from "@/lib/studio-copy";
 import { cn } from "@/lib/utils";
 
@@ -127,6 +128,9 @@ export interface BatchGridViewProps {
   onRetryQuote: () => void;
   lastBulk: { op: BatchOp; ids: string[] } | null;
   onUndo: () => void;
+  /** Export approvals (CSV): free, a viewer may use it too. */
+  onExport: () => void;
+  exporting: boolean;
 }
 
 /**
@@ -242,6 +246,10 @@ export function BatchGridView(p: BatchGridViewProps) {
           <Button type="button" variant="outline" className="h-11 sm:h-9" onClick={() => setSelected(toggleAll(visible, selected))}>
             {B.selectAll}
           </Button>
+          <Button type="button" variant="outline" className="h-11 sm:h-9" disabled={p.exporting} aria-busy={p.exporting} onClick={p.onExport}>
+            <Download className="size-4" aria-hidden="true" />
+            {p.exporting ? B.exportApprovals.working : B.exportApprovals.button}
+          </Button>
           <Button type="button" variant="ghost" className="hidden h-9 md:inline-flex" aria-expanded={help} onClick={() => setHelp((h) => !h)}>
             {B.shortcuts}
           </Button>
@@ -342,6 +350,8 @@ export function BatchScreen({ id }: { id: string }) {
   const [lastBulk, setLastBulk] = useState<{ op: BatchOp; ids: string[] } | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [offNow, setOffNow] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const exportingRef = useRef(false);
   const batch = q.data;
   const approved = batch ? approvedForFinal(gridTiles(batch)) : [];
   const final: "on" | "coming_soon" | "unknown" = availability.loading ? "unknown" : availability.capabilities.final === "on" && !offNow ? "on" : "coming_soon";
@@ -356,6 +366,21 @@ export function BatchScreen({ id }: { id: string }) {
     }
     return <QueryError what={B.error} onRetry={() => void q.refetch()} />;
   }
+
+  const exportNow = async () => {
+    // The ref, not the disabled button, is what stops a double press: two clicks can land before the next render.
+    if (exportingRef.current) return;
+    exportingRef.current = true;
+    setExporting(true);
+    try {
+      const result = await exportBatchApprovals(id);
+      if (result.ok) toast(B.exportApprovals.done);
+      else toast.error(result.message);
+    } finally {
+      exportingRef.current = false;
+      setExporting(false);
+    }
+  };
 
   const run = (op: BatchOp, ids: string[], reasons?: string[], isUndo = false) => {
     bulk.mutate(
@@ -407,6 +432,8 @@ export function BatchScreen({ id }: { id: string }) {
         lastBulk={lastBulk}
         onAction={(op, ids) => run(op, ids)}
         onSkip={(ids) => setSkipIds(ids)}
+        onExport={() => void exportNow()}
+        exporting={exporting}
         onUndo={() => {
           const back = lastBulk ? undoOf(lastBulk.op) : null;
           if (lastBulk && back) run(back, lastBulk.ids, undefined, true);

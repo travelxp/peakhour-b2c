@@ -155,6 +155,17 @@ export const CHANNELS: readonly ChannelConfig[] = [
     dashboardPath: "/dashboard/content/threads",
   },
   {
+    slug: "tiktok",
+    name: "TikTok",
+    description: "Prepare videos and photo posts for your TikTok account.",
+    category: "Social",
+    providerKey: "tiktok",
+    // coming_soon is the fallback for every org. The api's integrations list says `available` only for a preview org, and the Content
+    // engine shows the TikTok page and the Create link only then (lib/tiktok-content-view.ts `tiktokAvailable`).
+    status: "coming_soon",
+    dashboardPath: "/dashboard/content/tiktok",
+  },
+  {
     slug: "youtube",
     name: "YouTube",
     description: "Pull video metadata and engagement for repurposing.",

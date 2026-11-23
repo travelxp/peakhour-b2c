@@ -189,6 +189,8 @@ export interface ScheduledItemDto {
   cancellationReason?: string;
   nextAttemptAt?: string;
   socialPostId?: string;
+  /** TikTok only: published, but TikTok has not given the link yet. */
+  linkPending?: boolean;
   createdAt: string;
   updatedAt?: string;
 }

@@ -71,6 +71,31 @@ async function mount() {
 }
 
 describe("NeedsOkScreen", () => {
+  it("renders the api's two TikTok groups: choices as work, waiting as a suggestion, and merges nothing of its own", async () => {
+    h.get.mockResolvedValue(
+      answer([
+        group({ source: "tiktok_choices", label: "Choose how to post on TikTok", items: [item({ id: "c1", source: "tiktok_choices", title: "Fresh loaves", why: "Choose who can watch it.", href: "/dashboard/content/tiktok?post=c1" })] }),
+        group({ source: "tiktok_waiting", label: "Waiting for TikTok approval", holdsWork: false, items: [item({ id: "w1", source: "tiktok_waiting", holdsWork: false, title: "Sourdough", why: "Saved. Waiting for TikTok.", href: "/dashboard/content/tiktok?post=w1" })] }),
+      ]),
+    );
+    await mount();
+    expect([...container.querySelectorAll("h2, h3")].map((e) => e.textContent)).toEqual([
+      "Choose how to post on TikTok (1)",
+      "Suggestions",
+      "Waiting for TikTok approval (1)",
+    ]);
+    expect([...container.querySelectorAll("a")].map((a) => a.getAttribute("href"))).toEqual(["/dashboard/content/tiktok?post=c1", "/dashboard/content/tiktok?post=w1"]);
+    expect(h.get).toHaveBeenCalledTimes(1);
+  });
+
+  it("names an unread TikTok group instead of saying nothing is waiting", async () => {
+    h.get.mockResolvedValue(answer([group({ source: "tiktok_choices", label: "Choose how to post on TikTok", failed: true })]));
+    await mount();
+    expect(container.textContent).toContain("Choose how to post on TikTok");
+    expect(container.textContent).toContain("not counted here");
+    expect(container.textContent).not.toContain("Nothing is waiting for your OK");
+  });
+
   it("groups rows by source with a count, and each row links to the screen that approves it", async () => {
     h.get.mockResolvedValue(
       answer([
