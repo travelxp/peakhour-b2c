@@ -31,6 +31,7 @@ const status = (over: Partial<AutoWriteStatus> = {}, on: AutoWriteJobKey[] = [],
   usedPeaks: 0,
   remainingPeaks: null,
   month: "2026-11",
+  weeklyPlan: { weekday: 1, count: 3 },
   runs: false,
   jobs: JOBS.map(([job, label]) => ({ job, label, what: `${label} text`, enabled: on.includes(job), pricePerDraftPeaks: price, acceptedPricePeaks: on.includes(job) ? 225 : null, needsReaccept: false })),
   ...over,
@@ -64,6 +65,7 @@ async function mount(initial: AutoWriteStatus) {
       ...current,
       monthlyCapPeaks: cap,
       remainingPeaks: cap,
+      weeklyPlan: { ...current.weeklyPlan, ...(body.weeklyPlan ?? {}) },
       jobs: current.jobs.map((j) => (body.jobs?.[j.job] ? { ...j, enabled: body.jobs[j.job]!.enabled } : j)),
     };
     return current;
@@ -267,5 +269,69 @@ describe("the card", () => {
     });
     await settle();
     expect(host.querySelector('[data-testid="auto-write-load-error"]')!.textContent).toContain("Automatic writing settings could not be loaded");
+  });
+});
+
+const pick = async (id: string, value: string) => {
+  const el = host.querySelector<HTMLSelectElement>(`#${id}`)!;
+  await act(async () => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!;
+    setter.call(el, value);
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await settle();
+};
+
+describe("the weekly plan's day and number of drafts", () => {
+  it("shows the day and count (Monday and 3 by default) only while the Weekly plan is on, with the plain line and that it is free", async () => {
+    await mount(status({ monthlyCapPeaks: 1000, remainingPeaks: 1000 }, ["weekly_plan"]));
+    expect(host.querySelector('[data-testid="auto-write-plan-line"]')!.textContent).toBe("Written every Monday, 3 drafts a week.");
+    expect(host.querySelector<HTMLSelectElement>("#auto-write-plan-day")!.value).toBe("1");
+    expect(host.querySelector<HTMLSelectElement>("#auto-write-plan-count")!.value).toBe("3");
+    expect(host.querySelector('[data-testid="auto-write-plan"]')!.textContent).toContain("Changing this costs nothing");
+    expect([...host.querySelectorAll("#auto-write-plan-day option")].map((o) => o.textContent)).toEqual(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]);
+    expect([...host.querySelectorAll("#auto-write-plan-count option")].map((o) => o.textContent)).toEqual(["1", "2", "3", "4", "5", "6", "7"]);
+  });
+
+  it("is not shown while the Weekly plan is off, and not under any other job", async () => {
+    await mount(status({ monthlyCapPeaks: 1000, remainingPeaks: 1000 }, ["new_product"]));
+    expect(host.querySelector('[data-testid="auto-write-plan"]')).toBeNull();
+  });
+
+  it("choosing a day saves only the day, choosing a count saves only the count, and the line follows", async () => {
+    await mount(status({ monthlyCapPeaks: 1000, remainingPeaks: 1000 }, ["weekly_plan"]));
+    await pick("auto-write-plan-day", "4");
+    expect(h.put).toHaveBeenLastCalledWith("/v1/content/auto-write", { weeklyPlan: { weekday: 4 } });
+    await pick("auto-write-plan-count", "1");
+    expect(h.put).toHaveBeenLastCalledWith("/v1/content/auto-write", { weeklyPlan: { count: 1 } });
+    expect(host.querySelector('[data-testid="auto-write-plan-line"]')!.textContent).toBe("Written every Thursday, 1 draft a week.");
+  });
+
+  it("a Weekly plan paused for a new price does not say when it writes, but the choice can still be edited", async () => {
+    const s = status({ monthlyCapPeaks: 1000, remainingPeaks: 1000 }, ["weekly_plan"], 300);
+    s.jobs[0]!.needsReaccept = true;
+    await mount(s);
+    expect(host.querySelector('[data-testid="auto-write-plan-line"]')).toBeNull();
+    expect(host.querySelector<HTMLSelectElement>("#auto-write-plan-day")!.disabled).toBe(false);
+  });
+
+  it("an editor sees the choice but cannot change it", async () => {
+    h.role = "editor";
+    await mount(status({ monthlyCapPeaks: 1000, remainingPeaks: 1000 }, ["weekly_plan"]));
+    expect(host.querySelector<HTMLSelectElement>("#auto-write-plan-day")!.disabled).toBe(true);
+    expect(host.querySelector<HTMLSelectElement>("#auto-write-plan-count")!.disabled).toBe(true);
+  });
+
+  it("a refused save says so in the api's words", async () => {
+    await mount(status({ monthlyCapPeaks: 1000, remainingPeaks: 1000 }, ["weekly_plan"]));
+    h.put.mockRejectedValueOnce(new Error("Check your entries."));
+    await pick("auto-write-plan-count", "5");
+    expect(host.querySelector('[data-testid="auto-write-error"]')!.textContent).toBe("Check your entries.");
+    expect(host.querySelector<HTMLSelectElement>("#auto-write-plan-count")!.value).toBe("3");
+  });
+
+  it("shows no price and no currency figure of its own", async () => {
+    await mount(status({ monthlyCapPeaks: 1000, remainingPeaks: 1000 }, ["weekly_plan"]));
+    expect(host.querySelector('[data-testid="auto-write-plan"]')!.textContent).not.toMatch(/[$₹£€]|Peaks/);
   });
 });

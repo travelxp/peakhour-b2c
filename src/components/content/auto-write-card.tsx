@@ -23,18 +23,23 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   AUTO_WRITE_COPY,
+  PLAN_COUNTS,
+  WEEKDAYS,
   autoWriteErrorMessage,
   confirmSentence,
   parseCap,
   priceLine,
   suggestedCap,
   usageLine,
+  weeklyPlanLine,
   type AutoWriteInput,
   type AutoWriteJobKey,
   type AutoWriteStatus,
 } from "@/lib/auto-write";
 
 export const AUTO_WRITE_KEY = ["content-auto-write"] as const;
+
+const PLAN_SELECT = "block h-9 w-40 rounded-md border bg-background px-3 text-sm";
 
 /** Reads the setting: each job on or off, the one monthly limit, this month's use and today's price per draft. */
 export function useAutoWrite() {
@@ -61,6 +66,8 @@ interface ViewProps {
   /** A switch was flipped: ON asks first, OFF goes straight through. */
   onToggle: (job: AutoWriteJobKey, on: boolean) => void;
   onSaveLimit: () => void;
+  /** The weekly plan's weekday or number of drafts was changed (free; saved at once). */
+  onPlan: (change: Partial<AutoWriteStatus["weeklyPlan"]>) => void;
   onYes: () => void;
   onNo: () => void;
 }
@@ -111,6 +118,43 @@ export function AutoWriteCardView(p: ViewProps) {
                     <Switch id={id} checked={j.enabled} disabled={p.busy || !p.canChange || (!j.enabled && j.pricePerDraftPeaks === null)} onCheckedChange={(on) => p.onToggle(j.job, on)} />
                   </div>
                 </div>
+                {j.job === "weekly_plan" && j.enabled ? (
+                  <div className="space-y-1" data-testid="auto-write-plan">
+                    {/* a job paused for a new price writes nothing, so it does not say when it writes */}
+                    {j.needsReaccept ? null : (
+                      <p className="text-xs" data-testid="auto-write-plan-line">
+                        {weeklyPlanLine(status.weeklyPlan)}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap items-end gap-3">
+                      <div className="space-y-1">
+                        <Label htmlFor="auto-write-plan-day" className="text-xs font-medium">
+                          {AUTO_WRITE_COPY.planDay}
+                        </Label>
+                        <select id="auto-write-plan-day" className={PLAN_SELECT} value={status.weeklyPlan.weekday} disabled={p.busy || !p.canChange} onChange={(e) => p.onPlan({ weekday: Number(e.target.value) })}>
+                          {WEEKDAYS.map((d) => (
+                            <option key={d.value} value={d.value}>
+                              {d.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="auto-write-plan-count" className="text-xs font-medium">
+                          {AUTO_WRITE_COPY.planCount}
+                        </Label>
+                        <select id="auto-write-plan-count" className={PLAN_SELECT} value={status.weeklyPlan.count} disabled={p.busy || !p.canChange} onChange={(e) => p.onPlan({ count: Number(e.target.value) })}>
+                          {PLAN_COUNTS.map((n) => (
+                            <option key={n} value={n}>
+                              {n}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{AUTO_WRITE_COPY.planNote}</p>
+                  </div>
+                ) : null}
                 {j.needsReaccept ? (
                   <div className="flex flex-wrap items-center gap-2" data-testid={`auto-write-reaccept-${j.job}`}>
                     <p role="status" className="text-xs text-muted-foreground">
@@ -253,6 +297,7 @@ export function AutoWriteCard() {
         setConfirmLimitText(String(status.monthlyCapPeaks ?? suggestedCap(price)));
         setConfirming(job);
       }}
+      onPlan={(change) => void save({ weeklyPlan: change })}
       onSaveLimit={() => {
         const cap = parseCap(limitText);
         if (cap === null) return;
