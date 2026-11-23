@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { firstCommentNote, firstCommentRuleOf } from "./first-comment";
+import { firstCommentNote, firstCommentOverBy, firstCommentRuleOf } from "./first-comment";
 import { buildMetaChannel } from "./meta-compose";
 import type { MediaRule } from "./media-rules";
 
@@ -27,13 +27,22 @@ describe("firstCommentRuleOf reads the api's table, not a channel list", () => {
   });
 });
 
+describe("firstCommentOverBy counts as the comment is sent", () => {
+  it("trimmed, by character, and zero where the channel takes none", () => {
+    expect(firstCommentOverBy({ maxLength: 5 }, "  12345  ")).toBe(0);
+    expect(firstCommentOverBy({ maxLength: 5 }, "123456789")).toBe(4);
+    expect(firstCommentOverBy({ maxLength: 3 }, "😀😀😀")).toBe(0); // three characters, six UTF-16 units
+    expect(firstCommentOverBy(undefined, "a very long comment")).toBe(0);
+  });
+});
+
 describe("firstCommentNote", () => {
   it("says nothing when there was no first comment", () => {
     expect(firstCommentNote(undefined, undefined)).toBeUndefined();
   });
   it("says the post is live when the comment failed or was skipped, with the reason", () => {
     expect(firstCommentNote("posted", undefined)).toEqual({ tone: "ok", text: "The first comment was posted." });
-    expect(firstCommentNote("failed", "(#200) Permissions error")).toEqual({ tone: "warn", text: "The post is live, but the first comment was not posted: (#200) Permissions error" });
+    expect(firstCommentNote("failed", "(#200) Permissions error")).toEqual({ tone: "warn", text: "The post is live, but the first comment was not posted: (#200) Permissions error." });
     expect(firstCommentNote("skipped", undefined)?.text).toContain("The post is live.");
   });
 });

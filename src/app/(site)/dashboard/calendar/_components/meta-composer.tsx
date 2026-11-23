@@ -23,7 +23,7 @@ import {
 import { PLATFORM_LIMITS } from "@/components/composer/types";
 import { FirstCommentField } from "@/components/composer/first-comment-field";
 import { useMediaRules } from "@/lib/media-rules";
-import { firstCommentRuleOf } from "@/lib/first-comment";
+import { firstCommentOverBy, firstCommentRuleOf } from "@/lib/first-comment";
 import { SchedulerComposer } from "@/components/scheduler/scheduler-composer";
 import { MediaImage } from "@/components/shared/media-image";
 import { ApiError } from "@/lib/api";
@@ -104,9 +104,15 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
 
   // a channel whose rules row has no first comment never sends one, whatever was typed before the table loaded
   const draft = useMemo(() => ({ text, media, link, ...(firstCommentRule ? { firstComment } : {}) }), [text, media, link, firstComment, firstCommentRule]);
-  const problems = useMemo(() => metaPostProblems(channel, draft), [channel, draft]);
+  const problems = useMemo(() => {
+    const all = metaPostProblems(channel, draft);
+    // a first comment over what the channel takes stops the post here, as an over-long post does, not after it is live
+    const tooLong = firstCommentOverBy(firstCommentRule, firstComment);
+    if (tooLong > 0) all.push(`The first comment is ${tooLong} character${tooLong === 1 ? "" : "s"} over what ${META_COMPOSE_RULES[channel].label} takes.`);
+    return all;
+  }, [channel, draft, firstCommentRule, firstComment]);
   // Nothing is said about an empty box until the merchant has typed or added something: "Write something" under a blank form is noise.
-  const touched = text !== "" || media.length > 0 || link !== "";
+  const touched = text !== "" || media.length > 0 || link !== "" || firstComment !== "";
   const blocked = problems.length > 0;
   const locked = sent !== null;
   // Once the post is on the calendar the scheduler owns it: a failed attempt is retried (or left failed) there, and the api refuses a second

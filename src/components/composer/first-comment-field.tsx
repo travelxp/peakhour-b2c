@@ -25,7 +25,8 @@ export function FirstCommentField({ channel, value, onChange, readOnly }: FirstC
   const rules = useMediaRules();
   const rule = firstCommentRuleOf(rules.data, channel);
   if (!rule) return null;
-  const length = [...value].length;
+  // counted as it is sent: trimmed, by character (an emoji is one)
+  const length = [...value.trim()].length;
   const over = length > rule.maxLength;
   return (
     <div className="space-y-1" data-testid="first-comment-field">

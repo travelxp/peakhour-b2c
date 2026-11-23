@@ -59,7 +59,7 @@ import { PlatformCharCounter } from "@/components/composer/platform-char-counter
 import { scheduler } from "@/lib/scheduler/client";
 import { FirstCommentField } from "@/components/composer/first-comment-field";
 import { useMediaRules } from "@/lib/media-rules";
-import { firstCommentNote, firstCommentRuleOf } from "@/lib/first-comment";
+import { firstCommentNote, firstCommentOverBy, firstCommentRuleOf } from "@/lib/first-comment";
 import { channelDisplayName, formatScheduleLabel } from "@/lib/scheduler/format";
 import { ApiError } from "@/lib/api";
 import type { PlatformKey } from "@/components/composer/types";
@@ -423,7 +423,7 @@ export function ScheduledPostEditor({
         </div>
       )}
 
-      <FirstCommentField channel={item.channel} value={firstComment} onChange={setFirstComment} />
+      <FirstCommentField channel={item.channel} value={firstComment} onChange={setFirstComment} readOnly={isThread || anyPending} />
 
       {item.channel === "x" && (
         <div className="flex items-start gap-2">
@@ -559,7 +559,7 @@ export function ScheduledPostEditor({
             type="button"
             size="sm"
             onClick={() => saveContent.mutate()}
-            disabled={!contentDirty || trimmed.length === 0 || anyPending}
+            disabled={!contentDirty || trimmed.length === 0 || anyPending || firstCommentOverBy(firstCommentRule, firstComment) > 0}
             aria-busy={saveContent.isPending}
             className="gap-1.5"
             title={
