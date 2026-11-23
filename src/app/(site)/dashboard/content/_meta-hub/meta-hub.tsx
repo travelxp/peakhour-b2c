@@ -7,7 +7,11 @@ import { ExternalLink, FileText, MessageSquare, RefreshCw, Share2, Unplug } from
 import { EmptyState } from "@/components/molecules/empty-state";
 import { Button } from "@/components/ui/button";
 import { NewPostButton } from "@/components/compose/new-post-button";
-import { RepurposeSheet } from "@/components/repurpose/repurpose-sheet";
+import dynamic from "next/dynamic";
+
+// Its own chunk, like the compose sheet: the Repurpose sheet and its writers' price hooks are not part of the hub's first-load JS
+// (the hub's bundle budget allows 10% growth). It stays mounted (closed) so a failed posts refetch cannot unmount it mid-flow.
+const RepurposeSheet = dynamic(() => import("@/components/repurpose/repurpose-sheet").then((mod) => mod.RepurposeSheet));
 import type { RepurposeSource } from "@/lib/api/repurpose";
 import { ComposeSheetProvider } from "@/components/compose/compose-sheet-provider";
 import { Card, CardContent } from "@/components/ui/card";

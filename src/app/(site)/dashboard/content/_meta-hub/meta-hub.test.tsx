@@ -18,10 +18,12 @@ vi.mock("@/components/compose/compose-sheet-provider", () => ({
   ComposeSheetProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 // The Repurpose sheet has its own tests; here only what the hub hands it matters: whether it is open and the source it was given.
-vi.mock("@/components/repurpose/repurpose-sheet", () => ({
-  RepurposeSheet: ({ open, source }: { open: boolean; source: unknown }) => (
-    <div data-repurpose-sheet data-open={String(open)} data-source={JSON.stringify(source)} />
-  ),
+// The hub loads it with next/dynamic (first use only), so the stub stands in for the dynamic import.
+vi.mock("next/dynamic", () => ({
+  default: () =>
+    function RepurposeSheetStub({ open, source }: { open: boolean; source: unknown }) {
+      return <div data-repurpose-sheet data-open={String(open)} data-source={JSON.stringify(source)} />;
+    },
 }));
 vi.mock("@/components/compose/new-post-button", () => ({
   NewPostButton: ({ channel, label, disabled }: { channel?: string; label?: string; disabled?: boolean }) => (
