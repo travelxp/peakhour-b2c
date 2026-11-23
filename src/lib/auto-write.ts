@@ -23,12 +23,36 @@ export interface AutoWriteJobStatus {
   needsReaccept: boolean;
 }
 
+/** The weekly plan's own choices (free to change): the ISO weekday it is written on (1 Monday .. 7 Sunday) and how many drafts each week (1 to 7). The api sends the defaults when never set. */
+export interface WeeklyPlanChoice {
+  weekday: number;
+  count: number;
+}
+
+export const WEEKDAYS: ReadonlyArray<{ value: number; label: string }> = [
+  { value: 1, label: "Monday" },
+  { value: 2, label: "Tuesday" },
+  { value: 3, label: "Wednesday" },
+  { value: 4, label: "Thursday" },
+  { value: 5, label: "Friday" },
+  { value: 6, label: "Saturday" },
+  { value: 7, label: "Sunday" },
+];
+export const PLAN_COUNTS: readonly number[] = [1, 2, 3, 4, 5, 6, 7];
+
+/** The plan's line under the Weekly plan job: "Written every Monday, 3 drafts a week." */
+export function weeklyPlanLine(c: WeeklyPlanChoice): string {
+  const day = WEEKDAYS.find((d) => d.value === c.weekday)?.label ?? "Monday";
+  return `Written every ${day}, ${c.count} ${c.count === 1 ? "draft" : "drafts"} a week.`;
+}
+
 export interface AutoWriteStatus {
   /** The one monthly limit for every job; null until they set one. */
   monthlyCapPeaks: number | null;
   usedPeaks: number;
   remainingPeaks: number | null;
   month: string;
+  weeklyPlan: WeeklyPlanChoice;
   jobs: AutoWriteJobStatus[];
   /** At least one job is on AND a limit is set. */
   runs: boolean;
@@ -37,6 +61,7 @@ export interface AutoWriteStatus {
 export interface AutoWriteInput {
   monthlyCapPeaks?: number | null;
   jobs?: Partial<Record<AutoWriteJobKey, { enabled: boolean; acceptedPricePeaks?: number }>>;
+  weeklyPlan?: Partial<WeeklyPlanChoice>;
 }
 
 /** How many drafts a limit covers at a price, whole drafts only. */
@@ -67,6 +92,9 @@ export const AUTO_WRITE_COPY = {
   loadFailed: "Automatic writing settings could not be loaded.",
   limitInvalid: "Enter a whole number of Peaks, 1 or more.",
   limitBelowPrice: "The limit must cover at least one draft.",
+  planDay: "Day of the week",
+  planCount: "Drafts each week",
+  planNote: "Each draft is charged only when it is written, and the monthly limit still applies. Changing this costs nothing.",
 } as const;
 
 /** "Each draft costs 225 Peaks, and only when the draft is written." */
