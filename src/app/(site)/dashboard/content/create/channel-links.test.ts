@@ -22,11 +22,11 @@ describe("channelLinks", () => {
     expect(channelLinks([x], connectionsByProvider([broken]))).toEqual([]);
   });
 
-  it("skips any channel whose api row says it is not available for this org, and keeps one that says available or says nothing", () => {
+  it("skips a channel whose api row says coming_soon, and keeps one that says beta, available or nothing", () => {
     const tiktok = CHANNELS.find((c) => c.slug === "tiktok")!;
     const row = (availability?: string) => connectionsByProvider([{ ...connected(tiktok.providerKey), ...(availability ? { availability } : {}) }]);
     expect(channelLinks([tiktok], row("coming_soon"))).toEqual([]);
-    expect(channelLinks([tiktok], row("beta"))).toEqual([]);
+    expect(channelLinks([tiktok], row("beta")).map((l) => l.href)).toEqual(["/dashboard/content/tiktok"]);
     expect(channelLinks([tiktok], row("available")).map((l) => l.href)).toEqual(["/dashboard/content/tiktok"]);
     expect(channelLinks([tiktok], row()).map((l) => l.href)).toEqual(["/dashboard/content/tiktok"]);
     const x = CHANNELS.find((c) => c.slug === "x")!;
