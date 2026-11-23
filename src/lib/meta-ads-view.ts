@@ -240,6 +240,11 @@ export const META_MERCHANT_FACING_CODES: ReadonlySet<string> = new Set([
   "RATE_LIMITED",
   "IMAGE_TOO_LARGE",
   "IMAGE_INVALID",
+  // MR-H1: the Page rules, written for the merchant.
+  "PAGE_NOT_ADVERTISABLE",
+  "PAGE_PERMISSION_MISSING",
+  "PAGE_TOKEN_MISSING",
+  "POST_UNREADABLE",
 ]);
 
 /** What to show for a failed Meta ads call. */
@@ -278,6 +283,8 @@ export function metaAdsNeedsReconnect(err: unknown): boolean {
     (err.code === "NEEDS_REAUTH" ||
       err.code === "META_NOT_CONNECTED" ||
       err.code === "CAPABILITY_SCOPE_MISSING" ||
+      err.code === "PAGE_PERMISSION_MISSING" ||
+      err.code === "PAGE_TOKEN_MISSING" ||
       err.code === "CONNECTION_GONE")
   );
 }
@@ -366,6 +373,25 @@ export function metaFigureText(
   // ★"NOT LOADED", NOT "NO FIGURES": the second is a statement about what Meta
   //  answered, and for this campaign Meta was never asked.
   if (!requested) return "Not loaded";
+  const total = value === undefined ? undefined : { total: value, reported: 1, of: 1 };
+  return metaKpiText(state, total, render) ?? "";
+}
+
+export const META_RESULTS_UNAVAILABLE_TIP =
+  "Meta did not report a result figure for this one, so none is shown rather than a 0.";
+
+/**
+ * A Results cell: the cards' state rule, except that a completed read with no
+ * figure is an em dash (the panel adds a tooltip), never 0.
+ */
+export function metaResultsText(
+  state: MetaKpiState,
+  value: number | undefined,
+  render: (n: number) => string,
+  requested = true,
+): string {
+  if (!requested) return "Not loaded";
+  if (state === "ready" && value === undefined) return "\u2014";
   const total = value === undefined ? undefined : { total: value, reported: 1, of: 1 };
   return metaKpiText(state, total, render) ?? "";
 }

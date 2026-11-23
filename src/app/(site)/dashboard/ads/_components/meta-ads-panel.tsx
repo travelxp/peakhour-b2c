@@ -37,6 +37,7 @@ import {
   type MetaAdSet,
   type MetaAdsLevel,
   type MetaCampaign,
+  type MetaPagePost,
   type MetaSettableStatus,
 } from "@/lib/api/meta-ads";
 import {
@@ -51,6 +52,8 @@ import {
   metaKpiState,
   metaKpiText,
   metaFigureText,
+  metaResultsText,
+  META_RESULTS_UNAVAILABLE_TIP,
   metaInsightsIds,
   metaAdAccountBareId,
   classifyMetaAccounts,
@@ -62,6 +65,7 @@ import {
   type MetaKpiState,
 } from "@/lib/meta-ads-view";
 import { EditCampaignButton, LowerBudgetButton, NewCampaignDialog } from "./meta-campaign-dialogs";
+import { MetaPagesCard } from "./meta-pages-card";
 import { budgetKey } from "@/lib/meta-ads-form";
 import { getAdsChannel, panelConnection } from "../ads-channels";
 
@@ -216,9 +220,19 @@ function ConnectedView() {
   const [chosenFilter, setChosenFilter] = useState<string>("");
   // A campaign just created, so its section opens it.
   const [justCreated, setJustCreated] = useState<ReadonlySet<string>>(new Set());
+  // "Promote a post" (MR-H1): the post the New campaign dialog is open for, or null.
+  const [promote, setPromote] = useState<{ pageId: string; post: MetaPagePost } | null>(null);
+  // The Page chosen on the Page card; the New campaign dialog starts on it.
+  const [adsPageId, setAdsPageId] = useState<string | null>(null);
 
   // Every id compare is bare-id (`123` is `act_123`): see `classifyMetaAccounts`.
   const { list, enabled, others, newOnLogin, defaultId, missingCount, allChosenMissing, resolveFilter } = classifyMetaAccounts(accounts.data);
+
+  // ★A PROMOTE REQUEST DIES WITH THE DIALOG THAT SHOWED IT: with no enabled account there is no New campaign, and a request left in state
+  // would reopen the dialog by itself the moment an account is enabled again.
+  const noAccountToCreateIn = enabled.length === 0;
+  // (Adjusted during render, React's pattern for state derived from other state; an effect would draw one stale frame first.)
+  if (noAccountToCreateIn && promote) setPromote(null);
 
   if (accounts.isLoading) return <SkeletonStack />;
 
@@ -345,6 +359,10 @@ function ConnectedView() {
                 accounts={enabled}
                 defaultAccountId={defaultId}
                 initialAccountId={filter === META_ALL_ACCOUNTS || pauseOnlyAccount ? null : filter}
+                businessId={business?._id}
+                preferredPageId={adsPageId}
+                promote={promote}
+                onPromoteClose={() => setPromote(null)}
                 onCreated={(campaignId, accountId) => {
                   setJustCreated((prev) => new Set(prev).add(campaignId));
                   // Created in another account than the one filtered to: show that account, or the new campaign is nowhere to be seen.
@@ -374,6 +392,7 @@ function ConnectedView() {
           showAccountLine={enabled.length > 1}
         />
       ))}
+      {noneEnabled ? null : <MetaPagesCard businessId={business?._id} pickedPageId={adsPageId} onPick={setAdsPageId} onPromote={(pageId, post) => setPromote({ pageId, post })} />}
       {noneEnabled ? null : <DatasetCard accounts={enabled} defaultAccountId={defaultId} />}
     </div>
   );
@@ -456,6 +475,8 @@ function CampaignsSection({
   const spend = sumReported(insightIds.map((id) => byCampaign.get(id)?.spend));
   const impressions = sumReported(insightIds.map((id) => byCampaign.get(id)?.impressions));
   const clicks = sumReported(insightIds.map((id) => byCampaign.get(id)?.clicks));
+  const reach = sumReported(insightIds.map((id) => byCampaign.get(id)?.reach));
+  const results = sumReported(insightIds.map((id) => byCampaign.get(id)?.results));
 
   // Variables carry the account so a mid-flight switch cannot redirect this
   // invalidation to the newly selected account — X's panel's rule.
@@ -499,10 +520,24 @@ function CampaignsSection({
     <div className="space-y-4">
       {/* ★EVERY CAMPAIGN SAYS WHICH ACCOUNT IT IS IN: the heading, and (below) the line under each campaign's name. */}
       <h2 className="text-sm font-medium">{metaAdAccountOptionLabel(account)}</h2>
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Kpi title={`Spend (${INSIGHTS_DAYS}d)`} total={spend} state={kpiState} render={(n) => formatMetaMoney(n, account.currency)} />
+        <Kpi
+          title="Reach"
+          total={reach}
+          state={kpiState}
+          render={(n) => n.toLocaleString("en-US")}
+          note="Added up across campaigns, so a person reached by two campaigns counts twice."
+        />
         <Kpi title="Impressions" total={impressions} state={kpiState} render={(n) => n.toLocaleString("en-US")} />
         <Kpi title="Clicks" total={clicks} state={kpiState} render={(n) => n.toLocaleString("en-US")} />
+        <Kpi
+          title="Results"
+          total={results}
+          state={kpiState}
+          render={(n) => n.toLocaleString("en-US")}
+          note="Meta's own result for each campaign's objective, added together."
+        />
       </div>
       {coverageLine ? (
         <p className="text-xs text-muted-foreground" role="status">
@@ -548,13 +583,16 @@ function CampaignsSection({
                   <TableHead>Status</TableHead>
                   <TableHead className="hidden text-right md:table-cell">Budget</TableHead>
                   <TableHead className="text-right">Spend ({INSIGHTS_DAYS}d)</TableHead>
+                  <TableHead className="hidden text-right md:table-cell">Reach</TableHead>
+                  <TableHead className="hidden text-right md:table-cell">Clicks</TableHead>
+                  <TableHead className="text-right">Results</TableHead>
                   <TableHead className="w-24 text-right">Active</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(campaignList ?? []).map((c) => {
                   const open = expanded.has(c.id) !== autoOpen.has(c.id);
-                  const cSpend = byCampaign.get(c.id)?.spend;
+                  const cRow = byCampaign.get(c.id);
                   return (
                     <Fragment key={c.id}>
                       <NodeRow
@@ -564,12 +602,7 @@ function CampaignsSection({
                         budget={metaBudgetLabel(c, account.currency, "campaign").text}
                         // ⚠️R2.1: the cards' state, not a local ternary — a
                         //  failed read is "Unavailable" here too.
-                        spend={metaFigureText(
-                          kpiState,
-                          cSpend,
-                          (n) => formatMetaMoney(n, account.currency),
-                          insightSet.has(c.id),
-                        )}
+                        figures={rowFigures(kpiState, cRow, account.currency, insightSet.has(c.id))}
                         note={null}
                         accountLine={showAccountLine ? `${account.name} (${metaAdAccountShortId(account.id)})` : undefined}
                         editor={
@@ -643,6 +676,8 @@ function AdSetRows({
   pauseOnly?: boolean;
 }) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  // Mounted only while the campaign is open, so ad set figures load lazily.
+  const levelInsights = useLevelInsights(account, campaign.id, "adset");
   const adSets = useQuery({
     queryKey: ["meta-ads-adsets", account.id, campaign.id],
     queryFn: () => metaAdsApi.listAdSets(account.id, campaign.id),
@@ -675,7 +710,7 @@ function AdSetRows({
               name={s.name}
               status={s.status}
               budget={metaBudgetLabel(s, account.currency, "adSet").text}
-              spend=""
+              figures={rowFigures(levelInsights.state, levelInsights.byNode.get(s.id), account.currency, true)}
               note={metaNotServingBecause(s.status, { campaign: campaign.status })}
               open={open}
               onExpand={() =>
@@ -714,6 +749,8 @@ function AdRows({
   onToggle: (level: MetaAdsLevel, id: string, status: MetaSettableStatus) => void;
   pauseOnly?: boolean;
 }) {
+  // One campaign-wide read shared by every open ad set (same query key), filtered below by ad set.
+  const levelInsights = useLevelInsights(account, campaign.id, "ad");
   const ads = useQuery({
     queryKey: ["meta-ads-ads", account.id, adSet.id],
     queryFn: () => metaAdsApi.listAds(account.id, adSet.id),
@@ -739,7 +776,12 @@ function AdRows({
           name={a.name}
           status={a.status}
           budget=""
-          spend=""
+          figures={rowFigures(
+            levelInsights.state,
+            levelInsights.rows.find((r) => r.adId === a.id && r.adsetId === adSet.id),
+            account.currency,
+            true,
+          )}
           note={metaNotServingBecause(a.status, { campaign: campaign.status, adSet: adSet.status })}
           open={null}
           onExpand={undefined}
@@ -752,6 +794,55 @@ function AdRows({
   );
 }
 
+interface RowFigures {
+  spend: string;
+  reach: string;
+  clicks: string;
+  results: string;
+}
+
+/** One row's four figures by the cards' state rule; Results shows an em dash, with a tooltip, when Meta gave none. */
+function rowFigures(
+  state: MetaKpiState,
+  row: { spend?: number; reach?: number; clicks?: number; results?: number } | undefined,
+  currency: string | undefined,
+  requested: boolean,
+): RowFigures {
+  const num = (n: number) => n.toLocaleString("en-US");
+  return {
+    spend: metaFigureText(state, row?.spend, (n) => formatMetaMoney(n, currency), requested),
+    reach: metaFigureText(state, row?.reach, num, requested),
+    clicks: metaFigureText(state, row?.clicks, num, requested),
+    results: metaResultsText(state, row?.results, num, requested),
+  };
+}
+
+/** Ad set or ad figures for ONE campaign - a single Graph walk, loaded when the campaign is open. */
+function useLevelInsights(account: MetaAdAccount, campaignId: string, level: "adset" | "ad") {
+  const q = useQuery({
+    queryKey: ["meta-ads-insights", level, account.id, campaignId],
+    queryFn: () => {
+      const [start, end] = metaInsightsRange(INSIGHTS_DAYS);
+      return metaAdsApi.insightsByLevel(campaignId, level, start, end);
+    },
+    retry: false,
+    staleTime: INSIGHTS_STALE_MS,
+  });
+  const rows = useMemo(() => q.data ?? [], [q.data]);
+  const byNode = useMemo(
+    () => new Map(rows.map((r) => [level === "adset" ? r.adsetId : r.adId, r] as const)),
+    [rows, level],
+  );
+  const state = metaKpiState({
+    campaignsPending: false,
+    campaignsError: false,
+    campaignCount: 1,
+    insightsPending: q.isPending,
+    insightsError: q.isError && !q.data,
+  });
+  return { rows, byNode, state };
+}
+
 const INDENT = ["", "pl-8", "pl-14"] as const;
 
 function NodeRow({
@@ -759,7 +850,7 @@ function NodeRow({
   name,
   status,
   budget,
-  spend,
+  figures,
   note,
   accountLine,
   editor,
@@ -773,7 +864,7 @@ function NodeRow({
   name: string;
   status: string;
   budget: string;
-  spend: string;
+  figures: RowFigures;
   note: string | null;
   /** The ad account a campaign is in, shown under its name when the business uses more than one. */
   accountLine?: string;
@@ -819,7 +910,12 @@ function NodeRow({
         <Badge variant={status === "ACTIVE" ? "default" : "secondary"}>{status}</Badge>
       </TableCell>
       <TableCell className="hidden text-right tabular-nums text-muted-foreground md:table-cell">{budget}</TableCell>
-      <TableCell className="text-right tabular-nums">{spend}</TableCell>
+      <TableCell className="text-right tabular-nums">{figures.spend}</TableCell>
+      <TableCell className="hidden text-right tabular-nums md:table-cell">{figures.reach}</TableCell>
+      <TableCell className="hidden text-right tabular-nums md:table-cell">{figures.clicks}</TableCell>
+      <TableCell className="text-right tabular-nums" title={figures.results === "\u2014" ? META_RESULTS_UNAVAILABLE_TIP : undefined}>
+        {figures.results}
+      </TableCell>
       <TableCell className="text-right">
         {toggle && !(pauseOnly && toggle.next === "ACTIVE") ? (
           <Switch
@@ -837,7 +933,7 @@ function NodeRow({
 function MessageRow({ depth, text }: { depth: 1 | 2; text: string }) {
   return (
     <TableRow>
-      <TableCell colSpan={5} className={`${INDENT[depth]} text-xs text-muted-foreground`}>
+      <TableCell colSpan={8} className={`${INDENT[depth]} text-xs text-muted-foreground`}>
         {text}
       </TableCell>
     </TableRow>
@@ -1026,11 +1122,13 @@ function Kpi({
   total,
   state,
   render,
+  note,
 }: {
   title: string;
   total: ReturnType<typeof sumReported>;
   state: MetaKpiState;
   render: (n: number) => string;
+  note?: string;
 }) {
   const text = metaKpiText(state, total, render);
   return (
@@ -1047,6 +1145,7 @@ function Kpi({
             {/* ★ABSENT IS NOT ZERO: an absent figure is named as unreported, never as 0, and
                 a partial total says how partial rather than posing as whole. */}
             <p className="mt-1 text-2xl font-bold tabular-nums">{text}</p>
+            {state === "ready" && total && note ? <p className="mt-1 text-xs text-muted-foreground">{note}</p> : null}
             {state === "ready" && total && total.reported < total.of ? (
               <p className="mt-1 text-xs text-muted-foreground">
                 Meta returned figures for {total.reported} of {total.of} campaigns — a campaign that did not deliver in this window may return none.
@@ -1063,8 +1162,8 @@ function SkeletonStack() {
   return (
     <div className="space-y-4">
       <Skeleton className="h-10 w-80" />
-      <div className="grid gap-4 sm:grid-cols-3">
-        {Array.from({ length: 3 }).map((_, i) => (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {Array.from({ length: 5 }).map((_, i) => (
           <Skeleton key={i} className="h-24" />
         ))}
       </div>

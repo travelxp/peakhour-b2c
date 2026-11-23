@@ -16,6 +16,7 @@ import {
   metaKpiState,
   metaKpiText,
   metaFigureText,
+  metaResultsText,
   metaInsightsIds,
   metaCoverageLine,
   META_INSIGHTS_MAX_CAMPAIGNS,
@@ -525,5 +526,20 @@ describe("classifyMetaAccounts (MR-G4): one place that sorts a login's accounts,
     expect(lost.allChosenMissing).toBe(true);
     expect(lost.missingCount).toBe(1);
     expect(classifyMetaAccounts(undefined).list).toEqual([]);
+  });
+});
+
+describe("MR-H2 Results cell", () => {
+  const n = (v: number) => String(v);
+  it("a completed read with no result is an em dash, never 0", () => {
+    expect(metaResultsText("ready", undefined, n)).toBe("—");
+  });
+  it("a measured zero stays 0", () => {
+    expect(metaResultsText("ready", 0, n)).toBe("0");
+  });
+  it("follows the cards' loading, error and not-asked rules", () => {
+    expect(metaResultsText("loading", undefined, n)).toBe("");
+    expect(metaResultsText("error", undefined, n)).toBe("Unavailable");
+    expect(metaResultsText("ready", 5, n, false)).toBe("Not loaded");
   });
 });

@@ -62,7 +62,9 @@ export const META_ADS_MANAGED_ROUTES = [
   `${META_ADS_PREFIX}/ads/:adId/status`,
   `${META_ADS_PREFIX}/analytics`,
   `${META_ADS_PREFIX}/images`,
-  `${META_ADS_PREFIX}/page`,
+  `${META_ADS_PREFIX}/pages`,
+  `${META_ADS_PREFIX}/pages/:pageId/ads-posts`,
+  `${META_ADS_PREFIX}/pages/:pageId/posts`,
 ] as const;
 
 /**

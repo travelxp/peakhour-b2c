@@ -8,6 +8,7 @@ import {
   buildCampaignEdit,
   buildCreateBodies,
   dayInZoneToIso,
+  defaultAdsPage,
   isoToDayInZone,
   metaMajorToMinor,
   metaMinorToInput,
@@ -221,7 +222,8 @@ describe("buildCreateBodies", () => {
   });
 
   it("builds the creative from the Page, the uploaded image and the merchant's words", () => {
-    const spec = bodies.ad("s1").creative.objectStorySpec;
+    // New copy, not a promoted post: the other branch of the creative carries `objectStoryId` instead.
+    const spec = bodies.ad("s1").creative.objectStorySpec!;
     expect(spec.pageId).toBe("9001");
     expect(spec.linkData).toMatchObject({
       link: "https://shop.example.com/spring",
@@ -362,5 +364,55 @@ describe("budgetNotLowerMessage (the api's 409 BUDGET_NOT_LOWER)", () => {
   it("is null for any other error", () => {
     expect(budgetNotLowerMessage(new ApiError("ADS_HALTED", "x", 409), "USD")).toBeNull();
     expect(budgetNotLowerMessage(new Error("x"), "USD")).toBeNull();
+  });
+});
+
+describe("MR-H1: promoting an existing Page post", () => {
+  const PROMOTED: NewCampaignForm = {
+    ...EMPTY_NEW_CAMPAIGN,
+    name: "Boost the sale post",
+    dailyBudget: "10",
+    countries: ["IN"],
+    promotedPost: { id: "9001_77", message: "Big sale" },
+  };
+
+  it("asks for none of the words, link, button or image: the post is the ad", () => {
+    expect(validateNewCampaign(PROMOTED, "USD")).toEqual({});
+  });
+
+  it("still asks for the campaign's own fields", () => {
+    const errors = validateNewCampaign({ ...PROMOTED, name: "", dailyBudget: "", countries: [] }, "USD");
+    expect(Object.keys(errors).sort()).toEqual(["countries", "dailyBudget", "name"]);
+  });
+
+  it("sends the post as objectStoryId with no copy and no image, still PAUSED", () => {
+    const bodies = buildCreateBodies(PROMOTED, { adAccountId: "act_1", currency: "USD", pageId: "9001" });
+    const ad = bodies.ad("s1");
+    expect(ad.status).toBe("PAUSED");
+    expect(ad.creative).toEqual({ name: "Boost the sale post - creative", objectStoryId: "9001_77" });
+    expect(bodies.campaign.status).toBe("PAUSED");
+    expect(bodies.adSet("c1").status).toBe("PAUSED");
+  });
+
+  it("runs a promoted post for reach, whatever goal was left on the form", () => {
+    const bodies = buildCreateBodies({ ...PROMOTED, objective: "OUTCOME_TRAFFIC" }, { adAccountId: "act_1", currency: "USD", pageId: "9001" });
+    expect(bodies.campaign.objective).toBe("OUTCOME_AWARENESS");
+    expect(bodies.adSet("c1").optimizationGoal).toBe("REACH");
+  });
+});
+
+describe("defaultAdsPage", () => {
+  const P = (id: string, canAdvertise: boolean) => ({ id, canAdvertise });
+  it("is the saved Page when an ad can run as it", () => {
+    expect(defaultAdsPage([P("1", true), P("2", true)], "2")?.id).toBe("2");
+  });
+  it("is the first Page that can when the saved one cannot, or is not listed", () => {
+    expect(defaultAdsPage([P("1", false), P("2", true), P("3", true)], "1")?.id).toBe("2");
+    expect(defaultAdsPage([P("1", false), P("2", true)], "9")?.id).toBe("2");
+    expect(defaultAdsPage([P("1", true)], null)?.id).toBe("1");
+  });
+  it("is null when no Page can", () => {
+    expect(defaultAdsPage([P("1", false)], "1")).toBeNull();
+    expect(defaultAdsPage([], null)).toBeNull();
   });
 });
