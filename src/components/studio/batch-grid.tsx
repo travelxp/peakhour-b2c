@@ -246,7 +246,7 @@ export function BatchGridView(p: BatchGridViewProps) {
           <Button type="button" variant="outline" className="h-11 sm:h-9" onClick={() => setSelected(toggleAll(visible, selected))}>
             {B.selectAll}
           </Button>
-          <Button type="button" variant="outline" className="h-11 sm:h-9" disabled={p.exporting} onClick={p.onExport}>
+          <Button type="button" variant="outline" className="h-11 sm:h-9" disabled={p.exporting} aria-busy={p.exporting} onClick={p.onExport}>
             <Download className="size-4" aria-hidden="true" />
             {p.exporting ? B.exportApprovals.working : B.exportApprovals.button}
           </Button>
@@ -351,6 +351,7 @@ export function BatchScreen({ id }: { id: string }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [offNow, setOffNow] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const exportingRef = useRef(false);
   const batch = q.data;
   const approved = batch ? approvedForFinal(gridTiles(batch)) : [];
   const final: "on" | "coming_soon" | "unknown" = availability.loading ? "unknown" : availability.capabilities.final === "on" && !offNow ? "on" : "coming_soon";
@@ -367,11 +368,18 @@ export function BatchScreen({ id }: { id: string }) {
   }
 
   const exportNow = async () => {
+    // The ref, not the disabled button, is what stops a double press: two clicks can land before the next render.
+    if (exportingRef.current) return;
+    exportingRef.current = true;
     setExporting(true);
-    const result = await exportBatchApprovals(id);
-    setExporting(false);
-    if (result === "done") toast(B.exportApprovals.done);
-    else toast.error(B.exportApprovals[result]);
+    try {
+      const result = await exportBatchApprovals(id);
+      if (result.ok) toast(B.exportApprovals.done);
+      else toast.error(result.message);
+    } finally {
+      exportingRef.current = false;
+      setExporting(false);
+    }
   };
 
   const run = (op: BatchOp, ids: string[], reasons?: string[], isUndo = false) => {
