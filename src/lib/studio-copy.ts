@@ -72,6 +72,11 @@ export const STUDIO_COPY = {
     },
     chip: "Coming soon",
     backToIdeas: "Back to ideas",
+    /** Words only follows its own switch (the text writer), not the picture maker's. */
+    words: {
+      title: "Text ads are coming soon",
+      description: "We're getting the writer ready. Your ideas, Library and settings work now. We'll tell you the day it opens.",
+    },
   },
 
   /** Route shells: screens a later lane fills in. Each says what it will do and what works now. */
@@ -155,7 +160,7 @@ export const STUDIO_COPY = {
     briefLocked: "These previews were made from those products. Start a new plan to use different ones.",
     tooManyPreviews: "That's plenty of previews for one post. Start a new plan to try different ideas.",
     startNewPlan: "Start a new plan",
-    wordsOnly: "Words-only options aren't made here yet.",
+    wordsOnly: "That is for pictures. For words only, write more options instead.",
     photoMissing: (title: string) => `Add a photo of ${title} so the picture shows the real one.`,
     notApproved: "Tap the heart on a preview to approve its look first.",
     conflict: "This was just changed by someone else. Showing the latest.",
@@ -180,6 +185,15 @@ export const STUDIO_COPY = {
       picture: "Picture ad",
       words: "Words only",
       video: "Short video",
+    },
+    /** S20: the plan for a words-only post. No photos, no shape of picture; the options are fitted to each channel later. */
+    wordsPlan: {
+      hint: "We'll write headline and text options. You choose the channels when you use one.",
+      make: (k: number) => `Write ${k} options`,
+      starting: "Writing…",
+      quoteNote: "You'll read the options before anything is used.",
+      countLabel: "How many options",
+      countOption: (k: number) => `${k} options`,
     },
     products: {
       label: "Products",
@@ -329,7 +343,6 @@ export const STUDIO_COPY = {
       cancel: "Cancel",
     },
     skipped: "Put aside. You'll find it under Earlier previews.",
-    wordsOnly: "Words-only options aren't made here yet.",
     stopped: (k: number) => `Stopped. You're charged only for the ${k} previews you got.`,
     undone: "Last change undone.",
     startNewPlan: "Start a new plan",
@@ -691,7 +704,10 @@ export const STUDIO_COPY = {
     saveForLater: "Save for later",
     disclosure: "Made with AI. Some channels ask you to say so.",
     preparing: "Getting your pictures ready…",
+    preparingWords: "Getting your words ready…",
     prepareFailed: "We couldn't get your pictures ready. Try again.",
+    prepareFailedWords: "We couldn't get your words ready. Try again.",
+    savedWords: "Saved. Your options are in your Library.",
     posted: "Posted.",
     scheduled: (when: string) => `Scheduled for ${when}.`,
     seeCalendar: "See it in Calendar",
@@ -755,11 +771,41 @@ export const STUDIO_COPY = {
     close: "Done",
   },
 
-  /** S20: words only. The api does not write options yet, so this is the designed state, not a dead end. */
-  wordsOnly: {
-    title: "Words-only options open soon",
-    description: "We'll write headline and text options fitted to each channel's limits. Your ideas, pictures and settings work now.",
-    back: "Back to ideas",
+  /** S20: words only. Option cards (headline, main text, description, hashtags) instead of previews; the same heart, Shortlist and hand-off. */
+  words: {
+    title: "Your options",
+    loading: "Loading your options",
+    makingTitle: "Writing your options",
+    caption: "Options. Not used yet.",
+    hint: "Tap the heart on the ones you like.",
+    optionLabel: (i: number, n: number) => `Option ${i} of ${n}`,
+    heartLabel: (i: number) => `Shortlist option ${i}`,
+    headline: "Headline",
+    mainText: "Main text",
+    description: "Description",
+    hashtags: "Hashtags",
+    button: "Button",
+    use: "Use these words",
+    notForMe: "Not for me",
+    skipped: "Put aside.",
+    makeMore: "Write more options",
+    adjusted: "We adjusted the wording to follow the rules for your country.",
+    dropped: (n: number) => `We left out ${n} that didn't pass our Safety check.`,
+    allDropped: "None of these passed our Safety check, so we haven't shown them. You weren't charged.",
+    allFailed: { title: "We couldn't write options this time. You weren't charged.", tryAgain: "Try again" },
+    noneYet: "No options came through. You weren't charged.",
+    disclosure: "Made with AI. Some channels ask you to say so.",
+    heartAdded: (n: number) => `Added to shortlist. ${n} shortlisted.`,
+    heartRemoved: (n: number) => `Removed from shortlist. ${n} shortlisted.`,
+    moreStarted: "Writing more options.",
+    sheet: {
+      title: "Use these words",
+      description: "Choose where they will go. You approve every post: nothing goes out until you press Post it or Schedule it.",
+      channels: "Channels",
+      noChannels: "Connect a channel first to post these words.",
+      connect: "Connect a channel",
+      next: "Next",
+    },
   },
 
   /** S16: the grid for approving many at once (Pro tools). The price is the api quote for the approved ones, never a figure in this file. */

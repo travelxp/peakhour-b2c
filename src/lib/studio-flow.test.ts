@@ -111,7 +111,7 @@ describe("studioRefusal (spec 4.2)", () => {
     expect(studioRefusal(err("STUDIO_CAP_REACHED", 429, "x", { cap: 5000 })).text).toBe("You've reached your Studio limit for this month (5,000 Peaks).");
     expect(studioRefusal(err("BRIEF_LOCKED", 409))).toMatchObject({ action: "new_plan", text: expect.stringContaining("Start a new plan") });
     expect(studioRefusal(err("TOO_MANY_PREVIEWS", 409))).toMatchObject({ action: "new_plan", text: expect.stringContaining("plenty of previews") });
-    expect(studioRefusal(err("WORDS_ONLY", 422)).text).toBe("Words-only options aren't made here yet.");
+    expect(studioRefusal(err("WORDS_ONLY", 422)).text).toBe("That is for pictures. For words only, write more options instead.");
     expect(studioRefusal(err("PHOTO_MISSING", 422, "Add a photo of Silk saree so the picture shows the real one.", { productIds: ["a"] }))).toMatchObject({
       text: "Add a photo of Silk saree so the picture shows the real one.",
       productIds: ["a"],

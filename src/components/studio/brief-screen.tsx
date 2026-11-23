@@ -39,6 +39,8 @@ import {
 const B = STUDIO_COPY.brief;
 
 interface Form {
+  /** What is being made. Fixed once the plan is saved (the api holds it); changing it starts a new plan. */
+  kind: "image" | "words";
   productIds: string[];
   /** Titles seen for products (the idea's, the Library's), so a row can name a product before its photo has loaded. */
   titles: Record<string, string>;
@@ -52,7 +54,7 @@ interface Form {
   noAiPeople: boolean | undefined;
 }
 
-const emptyForm = (): Form => ({ productIds: [], titles: {}, photos: {}, line: "", language: "en", format: "feed", count: 4, noAiPeople: undefined });
+const emptyForm = (kind: Form["kind"] = "image"): Form => ({ kind, productIds: [], titles: {}, photos: {}, line: "", language: "en", format: "feed", count: 4, noAiPeople: undefined });
 
 /**
  * The plan screen (UX spec S3). Where the plan comes from: `?idea=` (an idea of today), `?products=a,b` (a catalog row) or nothing (from
@@ -68,6 +70,7 @@ export function BriefScreen() {
   const params = useSearchParams();
   const ideaId = params.get("idea");
   const productsParam = params.get("products");
+  const kindParam = params.get("kind");
   const savedId = params.get("c");
 
   const availability = useStudioAvailability();
@@ -120,6 +123,7 @@ export function BriefScreen() {
       const v = saved.data;
       if (!v) return;
       setForm({
+        kind: v.kind,
         productIds: v.brief.productIds,
         titles: {},
         photos: Object.fromEntries(v.brief.photoMediaIds.map((m, i) => [v.brief.productIds[i]!, { mediaId: m }])),
@@ -151,9 +155,9 @@ export function BriefScreen() {
       setInitialised(true);
       return;
     }
-    setForm({ ...emptyForm(), productIds: (productsParam ?? "").split(",").filter(Boolean).slice(0, 3) });
+    setForm({ ...emptyForm(kindParam === "words" ? "words" : "image"), productIds: (productsParam ?? "").split(",").filter(Boolean).slice(0, 3) });
     setInitialised(true);
-  }, [initialised, savedId, saved.data, ideaId, ideas.data, productsParam]);
+  }, [initialised, savedId, saved.data, ideaId, ideas.data, productsParam, kindParam]);
 
   // A saved plan that has moved on (previews were made) belongs on the creative page.
   useEffect(() => {
@@ -164,22 +168,26 @@ export function BriefScreen() {
   const titleOf = (id: string) => form.titles[id] ?? libraryPhoto.get(id)?.title ?? "";
   const photoOf = (id: string) => form.photos[id]?.mediaId ?? libraryPhoto.get(id)?.photo?.mediaId;
   const hasPhoto = (id: string) => !!photoOf(id);
-  const block = photoLookupDone || form.productIds.every(hasPhoto) ? planBlock({ productIds: form.productIds, hasPhoto, titleOf: (id) => titleOf(id) || "your product" }) : form.productIds.length === 0 ? { kind: "no_product" as const } : null;
+  const words = form.kind === "words";
+  // Words only never needs a photo: a product is all the plan asks for.
+  const block = words ? (form.productIds.length === 0 ? { kind: "no_product" as const } : null) : photoLookupDone || form.productIds.every(hasPhoto) ? planBlock({ productIds: form.productIds, hasPhoto, titleOf: (id) => titleOf(id) || "your product" }) : form.productIds.length === 0 ? { kind: "no_product" as const } : null;
 
   const body: BriefBody = {
-    kind: "image",
+    kind: form.kind,
     ...(idea ? { ideaId: idea.id, ideaKind: idea.kind } : {}),
     productIds: form.productIds,
     line: form.line.trim(),
     language: form.language,
     format: form.format,
-    ...(form.noAiPeople !== undefined ? { noAiPeople: form.noAiPeople } : {}),
-    photoMediaIds: photoMediaIdsFor(form.productIds, photoOf),
+    ...(!words && form.noAiPeople !== undefined ? { noAiPeople: form.noAiPeople } : {}),
+    photoMediaIds: words ? [] : photoMediaIdsFor(form.productIds, photoOf),
     count: form.count,
   };
   const snapshot = JSON.stringify(body);
 
-  const previewsOn = availability.loading ? "unknown" : availability.capabilities.previews === "on" && !releasedOff ? "on" : "coming_soon";
+  // Words only follows the text writer's own switch, not the picture maker's.
+  const switchedOn = words ? availability.capabilities.textAds === "on" : availability.capabilities.previews === "on";
+  const previewsOn = availability.loading ? "unknown" : switchedOn && !releasedOff ? "on" : "coming_soon";
   const syncable = initialised && !hydrated && !ideaGone && previewsOn === "on" && canMake && form.productIds.length > 0 && (photoLookupDone || !!creativeId);
   /** The form holds something the api has not seen (being saved, waiting for the timer, or a save that failed). */
   const dirty = syncable && synced !== snapshot;
@@ -237,7 +245,7 @@ export function BriefScreen() {
   }, [syncable, saving, snapshot, synced, failedSnapshot, creativeId]);
 
   const quoteOn = syncable && !!creativeId && !dirty && !saving && !block;
-  const quote = usePressQuote(creativeId ?? undefined, "previews", form.count, quoteOn);
+  const quote = usePressQuote(creativeId ?? undefined, "previews", words ? undefined : form.count, quoteOn);
   const comingSoon = previewsOn === "coming_soon" || quote.notReleased;
 
   const savePlan = async () => {
@@ -260,6 +268,21 @@ export function BriefScreen() {
     }
   };
 
+  // The kind is the plan's own (the api holds it and a patch cannot change it): choosing the other one starts a new plan from what is on the screen.
+  const onKind = (kind: Form["kind"]) => {
+    if (kind === form.kind) return;
+    setForm((f) => ({ ...f, kind }));
+    if (creativeId) {
+      setCreativeId(null);
+      setSynced(null);
+      setWarnings([]);
+      const next = new URLSearchParams(params.toString());
+      next.delete("c");
+      const qs = next.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname);
+    }
+  };
+
   const onMake = () => {
     if (!creativeId) return;
     setRefusal(undefined);
@@ -268,7 +291,7 @@ export function BriefScreen() {
       {
         onSuccess: () => router.push(STUDIO_PATHS.creative(creativeId)),
         onError: (e) => {
-          const r = studioRefusal(e, "Making previews");
+          const r = studioRefusal(e, words ? "Writing text ads" : "Making previews");
           // Switched off while the merchant was here: the same designed card, no error and no toast.
           if (r.tone === "not_released") setReleasedOff(true);
           else setRefusal(r);
@@ -278,7 +301,7 @@ export function BriefScreen() {
   };
 
   const unitPeaks = quote.quote?.main.perUnit?.peaksPerUnit;
-  const instead = refusal?.code === "CREDITS_EXHAUSTED" ? affordableUnits(refusal.left, unitPeaks, form.count, quote.quote?.cutout?.peaks ?? 0) : undefined;
+  const instead = !words && refusal?.code === "CREDITS_EXHAUSTED" ? affordableUnits(refusal.left, unitPeaks, form.count, quote.quote?.cutout?.peaks ?? 0) : undefined;
   const makeInstead =
     instead !== undefined && instead >= 3
       ? { label: STUDIO_COPY.refusal.makeInstead(instead, "previews"), onPress: () => { setForm((f) => ({ ...f, count: 3 })); setRefusal(undefined); } }
@@ -289,8 +312,8 @@ export function BriefScreen() {
     id,
     title: titleOf(id) || "Product",
     photoUrl: form.photos[id]?.url ?? libraryPhoto.get(id)?.photo?.url,
-    hasPhoto: hasPhoto(id),
-    smallPhoto: !!warnFor(id),
+    hasPhoto: words || hasPhoto(id),
+    smallPhoto: !words && !!warnFor(id),
   }));
 
   const festival = idea?.kind === "festival" && typeof idea.facts.festival === "string" ? idea.facts.festival : null;
@@ -323,6 +346,7 @@ export function BriefScreen() {
           setSaveFailed(false);
           setFailedSnapshot(null);
         }}
+        kind={form.kind}
         products={products}
         line={form.line}
         linePlaceholder={linePlaceholder({ festival, productTitle: firstTitle })}
@@ -353,6 +377,7 @@ export function BriefScreen() {
         onLanguage={(language) => setForm((f) => ({ ...f, language }))}
         onFormat={(format) => setForm((f) => ({ ...f, format }))}
         onCount={(count) => setForm((f) => ({ ...f, count }))}
+        onKind={onKind}
         onNoAiPeople={(v) => setForm((f) => ({ ...f, noAiPeople: v }))}
         onChangeProducts={() => setPickerOpen(true)}
         onRemoveProduct={(id) => setForm((f) => ({ ...f, productIds: f.productIds.filter((x) => x !== id) }))}
