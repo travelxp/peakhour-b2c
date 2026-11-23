@@ -28,6 +28,8 @@ export const contentHubIntegrationsQuery = queryOptions({
 
 export interface ContentHubIntegration {
   provider: string;
+  /** api: `available`, `coming_soon` or `beta`. TikTok shows in the Content engine only when it is `available` for this org. */
+  availability?: string;
   connected?: boolean;
   status?: string;
   lastSyncAt?: string;

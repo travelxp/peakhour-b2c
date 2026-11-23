@@ -35,8 +35,11 @@ export function channelLinks(
 ): ChannelLink[] {
   const links: ChannelLink[] = [];
   for (const channel of channels) {
-    const cta = resolveChannelCta(channel, connections.get(channel.providerKey));
+    const connection = connections.get(channel.providerKey);
+    const cta = resolveChannelCta(channel, connection);
     if (!cta.isConnected || !cta.dashboardPath) continue;
+    // A channel the api does not offer this org (availability "coming_soon"; "beta" and "available" both link, as the api treats them) is not linked: a preview-only channel such as TikTok shows only to its preview orgs.
+    if (connection?.availability === "coming_soon") continue;
     if (!cta.dashboardPath.startsWith("/dashboard/content/")) continue;
     links.push({
       slug: channel.slug,

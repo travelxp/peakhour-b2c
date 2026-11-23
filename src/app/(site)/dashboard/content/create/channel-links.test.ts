@@ -22,6 +22,17 @@ describe("channelLinks", () => {
     expect(channelLinks([x], connectionsByProvider([broken]))).toEqual([]);
   });
 
+  it("skips a channel whose api row says coming_soon, and keeps one that says beta, available or nothing", () => {
+    const tiktok = CHANNELS.find((c) => c.slug === "tiktok")!;
+    const row = (availability?: string) => connectionsByProvider([{ ...connected(tiktok.providerKey), ...(availability ? { availability } : {}) }]);
+    expect(channelLinks([tiktok], row("coming_soon"))).toEqual([]);
+    expect(channelLinks([tiktok], row("beta")).map((l) => l.href)).toEqual(["/dashboard/content/tiktok"]);
+    expect(channelLinks([tiktok], row("available")).map((l) => l.href)).toEqual(["/dashboard/content/tiktok"]);
+    expect(channelLinks([tiktok], row()).map((l) => l.href)).toEqual(["/dashboard/content/tiktok"]);
+    const x = CHANNELS.find((c) => c.slug === "x")!;
+    expect(channelLinks([x], connectionsByProvider([{ ...connected(x.providerKey), availability: "coming_soon" }]))).toEqual([]);
+  });
+
   it("links only to pages under Content: no ad channel, no channel without a page of its own", () => {
     const ads = CHANNELS.filter((c) => c.dashboardPath?.startsWith("/dashboard/ads"));
     expect(ads.length).toBeGreaterThan(0);
