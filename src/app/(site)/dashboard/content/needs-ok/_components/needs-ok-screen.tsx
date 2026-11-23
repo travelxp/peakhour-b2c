@@ -168,6 +168,7 @@ export function expiresOn(iso: string): string | null {
 }
 
 function Row({ item }: { item: NeedsOkItem }) {
+  const expires = item.expiresAt ? expiresOn(item.expiresAt) : null;
   return (
     <Link
       href={item.href}
@@ -177,7 +178,7 @@ function Row({ item }: { item: NeedsOkItem }) {
         <span className="block truncate text-sm font-medium">{item.title}</span>
         <span className="block text-sm text-muted-foreground">{item.why}</span>
         {item.createdAt && <span className="block text-xs text-muted-foreground">Made {formatRelative(item.createdAt)}</span>}
-        {item.expiresAt && expiresOn(item.expiresAt) && <span className="block text-xs text-muted-foreground">Expires {expiresOn(item.expiresAt)}</span>}
+        {expires && <span className="block text-xs text-muted-foreground">Expires {expires}</span>}
       </span>
       <span className="flex shrink-0 items-center gap-1 text-sm font-medium text-brand-label">
         {item.holdsWork ? "Open" : "See"}
