@@ -160,9 +160,10 @@ function Group({ group, level }: { group: NeedsOkGroup; level: 2 | 3 }) {
  * The day an automatic draft expires, on the VIEWER's own calendar (their browser's time zone), as `Mon, 1 Jun`. An automatic draft nobody approves is closed on
  * the api's schedule and never posted; this is the day the merchant can still act.
  */
-export function expiresOn(iso: string): string {
+export function expiresOn(iso: string): string | null {
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "soon";
+  // an unreadable time is no deadline at all: the row says nothing rather than "soon"
+  if (Number.isNaN(d.getTime())) return null;
   return formatDateLabel(d, Intl.DateTimeFormat().resolvedOptions().timeZone);
 }
 
@@ -176,7 +177,7 @@ function Row({ item }: { item: NeedsOkItem }) {
         <span className="block truncate text-sm font-medium">{item.title}</span>
         <span className="block text-sm text-muted-foreground">{item.why}</span>
         {item.createdAt && <span className="block text-xs text-muted-foreground">Made {formatRelative(item.createdAt)}</span>}
-        {item.expiresAt && <span className="block text-xs text-muted-foreground">Expires {expiresOn(item.expiresAt)}</span>}
+        {item.expiresAt && expiresOn(item.expiresAt) && <span className="block text-xs text-muted-foreground">Expires {expiresOn(item.expiresAt)}</span>}
       </span>
       <span className="flex shrink-0 items-center gap-1 text-sm font-medium text-brand-label">
         {item.holdsWork ? "Open" : "See"}

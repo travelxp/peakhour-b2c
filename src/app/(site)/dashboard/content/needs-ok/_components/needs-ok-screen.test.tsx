@@ -119,11 +119,11 @@ describe("NeedsOkScreen", () => {
     zone.mockReturnValue({ timeZone: "Pacific/Pago_Pago" } as Intl.ResolvedDateTimeFormatOptions); // UTC-11: 30 November
     const west = expiresOn(instant);
     zone.mockRestore();
-    expect(east).toContain("1");
-    expect(east).toContain("Dec");
-    expect(west).toContain("30");
-    expect(west).toContain("Nov");
-    expect(expiresOn("not a date")).toBe("soon");
+    // two different days (the month differs too), whatever the machine's language
+    expect(east).not.toBe(west);
+    expect(east).toMatch(/1/);
+    expect(west).toMatch(/30/);
+    expect(expiresOn("not a date")).toBeNull();
   });
 
   it("shows a parked post under Needs a fix, with what is needed", async () => {
