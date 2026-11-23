@@ -89,7 +89,7 @@ export function useMediaRules() {
 
 /** The row as this destination reads it: a post made as a Reel is judged by the channel's Reel rule where there is one, else by its video rule. */
 export function ruleForDestination(row: MediaRule, d: MediaDestination): MediaRule {
-  return d.kind === "post" && d.as === "reel" && row.reel ? { ...row, video: row.reel } : row;
+  return d.kind === "post" && d.as === "reel" && row.reel ? { ...row, video: { ...row.video, ...row.reel } } : row;
 }
 
 export type RuleState = { state: "loading" } | { state: "failed"; retry: () => void } | { state: "unknown" } | { state: "ready"; rule: MediaRule };

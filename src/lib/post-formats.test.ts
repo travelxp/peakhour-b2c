@@ -75,6 +75,23 @@ describe("a Facebook video is a Reel only when the merchant says so", () => {
   });
 });
 
+describe("pdfPageCountOf with nested dictionaries", () => {
+  it("an inner node with a /Resources dictionary before its /Parent is not taken for the root", () => {
+    const text = "1 0 obj<</Type/Pages/Kids[2 0 R]/Count 400>>endobj 2 0 obj<</Type/Pages/Kids[]/Count 7/Resources<</Font<</F1 5 0 R>>>>/Parent 1 0 R>>endobj";
+    expect(pdfPageCountOf(text)).toBe(400);
+  });
+  it("a root whose /Resources comes before its /Count still gives it", () => {
+    expect(pdfPageCountOf("1 0 obj<</Type/Pages/Resources<</Font<</F1 5 0 R>>>>/Kids[2 0 R]/Count 42>>endobj")).toBe(42);
+  });
+});
+
+describe("a Reel merges over the video rule, it does not replace it", () => {
+  it("keeps the video rule's own limits where the Reel rule says nothing", () => {
+    const row: MediaRule = { key: "post:x", label: "a post", video: { formats: ["video/mp4"], maxBytes: 100, mustBeAlone: true }, reel: { formats: ["video/mp4"], maxSeconds: 90 } };
+    expect(ruleForDestination(row, { kind: "post", channel: "x", as: "reel" }).video).toEqual({ formats: ["video/mp4"], maxBytes: 100, mustBeAlone: true, maxSeconds: 90 });
+  });
+});
+
 describe("pdfPageCountOf reads the page tree root's /Count", () => {
   const tree = "%PDF-1.4\n1 0 obj<</Type/Pages/Kids[2 0 R 3 0 R]/Count 12>>endobj\n2 0 obj<</Type/Pages/Parent 1 0 R/Count 7/Kids[]>>endobj\n3 0 obj<</Type/Pages/Parent 1 0 R/Count 5/Kids[]>>endobj";
   it("takes the root (the /Pages dictionary with no /Parent), and says nothing when there is none in the clear", () => {

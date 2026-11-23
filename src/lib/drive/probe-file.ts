@@ -36,22 +36,62 @@ export interface FileMeasure {
 }
 
 /**
+` * The PDF dictionary (`<< ... >>`) that holds position `at`, nesting counted, so a `/Resources << ... >>` inside it does not cut it short. Undefined when
+ * there is none within a bounded distance.
+ */
+function enclosingDict(text: string, at: number): string | undefined {
+  let depth = 0;
+  let open = -1;
+  for (let i = at - 1; i > 0 && at - i < 4000; i--) {
+    if (text[i] === ">" && text[i - 1] === ">") {
+      depth++;
+      i--;
+    } else if (text[i] === "<" && text[i - 1] === "<") {
+      if (depth === 0) {
+        open = i - 1;
+        break;
+      }
+      depth--;
+      i--;
+    }
+  }
+  if (open < 0) return undefined;
+  depth = 0;
+  for (let i = open + 2; i < text.length - 1 && i - open < 8000; i++) {
+    if (text[i] === "<" && text[i + 1] === "<") {
+      depth++;
+      i++;
+    } else if (text[i] === ">" && text[i + 1] === ">") {
+      if (depth === 0) return text.slice(open + 2, i);
+      depth--;
+      i++;
+    }
+  }
+  return undefined;
+}
+
+/**
  * Pages in a PDF, read from its bytes with no library: the page tree's ROOT is the `/Type /Pages` dictionary with no `/Parent`, and its `/Count` is the
  * document's pages. A bookmark tree (`/Outlines`) also carries a `/Count`, and every inner node of the page tree carries a smaller one, so only a `/Pages`
  * dictionary without a `/Parent` is read; a PDF saved in increments keeps older roots, and the LAST one is the live one. A PDF that keeps its page tree inside a
  * compressed object stream (PDF 1.5 and later, often) shows no such dictionary in the clear: nothing is said then, and the limit is simply not checked (the
  * verdict is "not fully checked", never a refusal). Pure.
  */
+
 export function pdfPageCountOf(text: string): number | undefined {
   let pages: number | undefined;
   for (const m of text.matchAll(/\/Type\s*\/Pages\b/g)) {
-    const at = m.index ?? 0;
-    const open = text.lastIndexOf("<<", at);
-    const close = text.indexOf(">>", at);
-    if (open < 0 || close < 0) continue;
-    const dict = text.slice(open, close);
-    if (/\/Parent\b/.test(dict)) continue;
-    const count = /\/Count\s+(\d{1,6})\b/.exec(dict);
+    const dict = enclosingDict(text, m.index ?? 0);
+    if (dict === undefined) continue;
+    // only the dictionary's own keys: what sits in a nested dictionary (a /Resources, an /Mark) is not the node's
+    let own = dict;
+    for (let i = 0; i < 20; i++) {
+      const next = own.replace(/<<[^<>]*>>/g, "");
+      if (next === own) break;
+      own = next;
+    }
+    if (/\/Parent\b/.test(own)) continue;
+    const count = /\/Count\s+(\d{1,6})\b/.exec(own);
     if (count && Number(count[1]) >= 1) pages = Number(count[1]);
   }
   return pages;

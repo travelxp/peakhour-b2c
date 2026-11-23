@@ -113,10 +113,12 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
   const problems = useMemo(() => {
     const all = metaPostProblems(channel, draft);
     // a first comment over what the channel takes stops the post here, as an over-long post does, not after it is live
+    // a Reel is ONE video on its own: the switch with pictures (or two files) on the post would send them as a photo post
+    if (asReel && media.length > 0 && !(media.length === 1 && media[0]!.mime.startsWith("video/"))) all.push("A Reel is one video on its own. Remove the other files, or turn the Reel switch off.");
     const tooLong = firstCommentOverBy(firstCommentRule, firstComment);
     if (tooLong > 0) all.push(`The first comment is ${tooLong} character${tooLong === 1 ? "" : "s"} over what ${META_COMPOSE_RULES[channel].label} takes.`);
     return all;
-  }, [channel, draft, firstCommentRule, firstComment]);
+  }, [channel, draft, firstCommentRule, firstComment, asReel, media]);
   // Nothing is said about an empty box until the merchant has typed or added something: "Write something" under a blank form is noise.
   const touched = text !== "" || media.length > 0 || link !== "" || (firstCommentRule !== undefined && firstComment !== "");
   const blocked = problems.length > 0;
