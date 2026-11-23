@@ -20,7 +20,7 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-const { NeedsOkScreen, POST_SOMETHING_HREF } = await import("./needs-ok-screen");
+const { NeedsOkScreen, POST_SOMETHING_HREF, expiresOn } = await import("./needs-ok-screen");
 
 const item = (over: Partial<NeedsOkItem> & Pick<NeedsOkItem, "id" | "title" | "href">): NeedsOkItem => ({
   source: "scheduled_posts",
@@ -86,6 +86,44 @@ describe("NeedsOkScreen", () => {
     expect(links[0][1]).toBe("/dashboard/content/linkedin");
     expect(links[1][1]).toBe("/dashboard/pages/2");
     expect(container.textContent).toContain("2 things are waiting for you");
+  });
+
+  it("★an automatic draft shows when it expires, in the viewer's own date; a row with no deadline shows none", async () => {
+    h.get.mockResolvedValue(
+      answer([
+        group({
+          source: "repurposed",
+          label: "Repurposed posts",
+          items: [
+            item({ id: "a", source: "repurposed", title: "Tip of the week", href: "/dashboard/content/repurposed/a", expiresAt: "2026-11-30T12:00:00.000Z" }),
+            item({ id: "b", source: "repurposed", title: "Manual one", href: "/dashboard/content/repurposed/b", expiresAt: null }),
+            item({ id: "c", source: "repurposed", title: "Old api answer", href: "/dashboard/content/repurposed/c" }),
+          ],
+        }),
+      ]),
+    );
+    await mount();
+    const rows = [...container.querySelectorAll("a")].map((a) => a.textContent ?? "");
+    expect(rows.filter((r) => r.includes("Expires"))).toHaveLength(1);
+    expect(rows[0]).toContain("Tip of the week");
+    expect(rows[0]).toContain(`Expires ${expiresOn("2026-11-30T12:00:00.000Z")}`);
+    expect(rows[1]).not.toContain("Expires");
+    expect(rows[2]).not.toContain("Expires");
+  });
+
+  it("★expiresOn reads the date on the VIEWER's calendar: one instant is two different days on two sides of the date line", () => {
+    const zone = vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions");
+    const instant = "2026-11-30T12:00:00.000Z";
+    zone.mockReturnValue({ timeZone: "Pacific/Kiritimati" } as Intl.ResolvedDateTimeFormatOptions); // UTC+14: 1 December
+    const east = expiresOn(instant);
+    zone.mockReturnValue({ timeZone: "Pacific/Pago_Pago" } as Intl.ResolvedDateTimeFormatOptions); // UTC-11: 30 November
+    const west = expiresOn(instant);
+    zone.mockRestore();
+    expect(east).toContain("1");
+    expect(east).toContain("Dec");
+    expect(west).toContain("30");
+    expect(west).toContain("Nov");
+    expect(expiresOn("not a date")).toBe("soon");
   });
 
   it("shows a parked post under Needs a fix, with what is needed", async () => {
