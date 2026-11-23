@@ -144,6 +144,8 @@ export interface MetaDraft {
   media: readonly MetaMedia[];
   /** Facebook only. */
   link: string;
+  /** Added as the first comment once the post is live. Absent or blank = none. The api refuses it on a channel that takes none, so a caller sets it only where the rules table says so. */
+  firstComment?: string;
 }
 
 const isVideo = (m: MetaMedia) => m.mime.startsWith("video/");
@@ -199,10 +201,12 @@ export function buildMetaChannel(channel: MetaComposeChannel, draft: MetaDraft) 
   // video is also SAID to be a Reel; without this it could go out as a picture and be refused.
   const reel = channel === "instagram" && draft.media.length === 1 && isVideo(draft.media[0]!);
   const channelOptions = { ...(link !== "" ? { link } : {}), ...(reel ? { mediaType: "REELS" } : {}) };
+  const firstComment = draft.firstComment?.trim() ?? "";
   return {
     channel,
     payload: {
       text: draft.text.trim(),
+      ...(firstComment !== "" ? { firstComment } : {}),
       ...(draft.media.length > 0 ? { mediaUrls: draft.media.map((m) => m.url) } : {}),
       ...(Object.keys(channelOptions).length > 0 ? { channelOptions } : {}),
     },

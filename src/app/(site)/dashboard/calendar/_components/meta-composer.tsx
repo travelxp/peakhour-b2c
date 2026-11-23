@@ -21,6 +21,9 @@ import {
   type HashtagCandidate,
 } from "@/components/composer";
 import { PLATFORM_LIMITS } from "@/components/composer/types";
+import { FirstCommentField } from "@/components/composer/first-comment-field";
+import { useMediaRules } from "@/lib/media-rules";
+import { firstCommentRuleOf } from "@/lib/first-comment";
 import { SchedulerComposer } from "@/components/scheduler/scheduler-composer";
 import { MediaImage } from "@/components/shared/media-image";
 import { ApiError } from "@/lib/api";
@@ -80,6 +83,8 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
   const [caret, setCaret] = useState(0);
   const [media, setMedia] = useState<(MetaMedia & { name?: string })[]>([]);
   const [link, setLink] = useState("");
+  const [firstComment, setFirstComment] = useState("");
+  const firstCommentRule = firstCommentRuleOf(useMediaRules().data, channel);
   const [mode, setMode] = useState<"compose" | "schedule">("compose");
   const [failure, setFailure] = useState<{ message: string; calendar: boolean; reconnect?: boolean } | null>(null);
   const [done, setDone] = useState<Published | null>(null);
@@ -97,7 +102,8 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const caretRef = useRef(0);
 
-  const draft = useMemo(() => ({ text, media, link }), [text, media, link]);
+  // a channel whose rules row has no first comment never sends one, whatever was typed before the table loaded
+  const draft = useMemo(() => ({ text, media, link, ...(firstCommentRule ? { firstComment } : {}) }), [text, media, link, firstComment, firstCommentRule]);
   const problems = useMemo(() => metaPostProblems(channel, draft), [channel, draft]);
   // Nothing is said about an empty box until the merchant has typed or added something: "Write something" under a blank form is noise.
   const touched = text !== "" || media.length > 0 || link !== "";
@@ -150,6 +156,7 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
     setText("");
     setMedia([]);
     setLink("");
+    setFirstComment("");
     setCaret(0);
     caretRef.current = 0;
     setMode("compose");
@@ -475,6 +482,16 @@ export function MetaComposer({ channel, postingTo }: MetaComposerProps) {
           {rules.mediaRequired ? "A picture or video is needed." : "Pictures are optional."}
         </span>
       </div>
+
+      <FirstCommentField
+        channel={channel}
+        value={firstComment}
+        onChange={(v) => {
+          setFirstComment(v);
+          edited();
+        }}
+        readOnly={locked}
+      />
 
       {rules.link ? (
         <div className="space-y-1">
