@@ -13,6 +13,7 @@ import { COMPOSE_HREF, contentNeedsOk, draftsLine } from "@/lib/content-home";
 import { CONTENT_NEEDS_OK } from "@/lib/content-nav";
 import { contentHubCatalogQuery, contentHubIntegrationsQuery } from "@/lib/nav-queries";
 import { navLabel } from "@/lib/nav-copy";
+import { AutoWriteCard } from "@/components/content/auto-write-card";
 import { ChannelLogo } from "../_components/channel-logo";
 import { CHANNELS, type ChannelConfig } from "../channels.config";
 import { mapCatalogToChannels } from "../channels-from-catalog";
@@ -21,7 +22,9 @@ import { channelLinks, connectionsByProvider } from "./channel-links";
 /**
  * Content > Create. Four ways in: write a post (the Compose sheet), review the
  * drafts Peakhour has made, start or edit a web page, or open one of your
- * channels. Connecting a channel is NOT here: Connected accounts is the one
+ * channels. Between Drafts and Web pages sits the Automatic writing card (which
+ * jobs may start themselves, and the one monthly Peaks limit): what it writes
+ * lands in Drafts. Connecting a channel is NOT here: Connected accounts is the one
  * place that lists every channel and connects it.
  */
 export default function ContentCreatePage() {
@@ -72,6 +75,10 @@ export default function ContentCreatePage() {
             </Button>
           </CardContent>
         </Card>
+      </section>
+
+      <section aria-label="Automatic writing">
+        <AutoWriteCard />
       </section>
 
       <section aria-labelledby="create-pages" className="space-y-3">
