@@ -17,11 +17,11 @@ class FakeApiError extends Error {
     super(message);
   }
 }
-const h = vi.hoisted(() => ({ creatorInfo: vi.fn(), post: vi.fn(), get: vi.fn(), commit: vi.fn(), edit: vi.fn(), resched: vi.fn(), publish: vi.fn() }));
+const h = vi.hoisted(() => ({ list: vi.fn(), creatorInfo: vi.fn(), post: vi.fn(), get: vi.fn(), commit: vi.fn(), edit: vi.fn(), resched: vi.fn(), publish: vi.fn() }));
 vi.mock("@/lib/api", () => ({ api: { post: h.post, get: h.get }, ApiError: FakeApiError, API_BASE_URL: "https://api.example" }));
 vi.mock("@/lib/api/tiktok-content", () => ({ tiktokContentApi: { creatorInfo: h.creatorInfo } }));
 vi.mock("@/lib/scheduler/client", () => ({
-  scheduler: { commitPlan: h.commit, publishItemNow: h.publish, editItemPayload: h.edit, rescheduleItem: h.resched },
+  scheduler: { listItems: h.list, commitPlan: h.commit, publishItemNow: h.publish, editItemPayload: h.edit, rescheduleItem: h.resched },
 }));
 
 const { TikTokPostSheet } = await import("./tiktok-post-sheet");
@@ -67,6 +67,34 @@ async function mount(item: unknown = VIDEO) {
     await new Promise((r) => setTimeout(r, 0));
   });
 }
+// The sheet beside the list it belongs to, as on the TikTok page.
+vi.mock("@/hooks/use-locale", () => ({ useLocale: () => ({ formatDate: (d: Date) => d.toISOString().slice(0, 10) }) }));
+async function mountWithList(item: unknown) {
+  const { useTikTokItems } = await import("@/hooks/use-tiktok-content");
+  const { TikTokStatusList } = await import("./tiktok-status-list");
+  function Harness() {
+    const items = useTikTokItems(true);
+    return (
+      <>
+        <TikTokStatusList items={items.data?.items ?? []} />
+        <TikTokPostSheet item={item as never} onOpenChange={() => {}} />
+      </>
+    );
+  }
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  await act(async () => {
+    root.render(
+      <QueryClientProvider client={client}>
+        <Harness />
+      </QueryClientProvider>,
+    );
+  });
+  for (let i = 0; i < 4; i++) {
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+  }
+}
 async function click(el: Element | null) {
   await act(async () => {
     (el as HTMLElement).click();
@@ -95,7 +123,8 @@ beforeEach(() => {
   h.commit.mockReset();
   h.edit.mockReset().mockResolvedValue({});
   h.resched.mockReset().mockResolvedValue({});
-  h.publish.mockReset();
+  h.publish.mockReset().mockResolvedValue({ published: false });
+  h.list.mockReset();
   host = document.createElement("div");
   document.body.appendChild(host);
   root = createRoot(host);
@@ -247,8 +276,8 @@ describe("TikTokPostSheet", () => {
         allowComment: true,
         allowDuet: false,
         allowStitch: true,
-        brandOrganicToggle: true,
-        brandContentToggle: false,
+        brandOrganic: true,
+        brandedContent: false,
       },
     });
     expect(h.resched).toHaveBeenCalledTimes(1);
@@ -259,10 +288,36 @@ describe("TikTokPostSheet", () => {
     expect(q('[data-testid="tiktok-coming-soon"]')?.textContent).toBe(
       "TikTok integration is coming soon. Your post is saved and will publish once TikTok approves Peakhour.",
     );
-    expect(h.publish).not.toHaveBeenCalled();
+    // then the worker's own publish path runs once, after the reschedule, so the api parks it at once
+    expect(h.publish).toHaveBeenCalledTimes(1);
+    expect(h.publish).toHaveBeenCalledWith("item1");
+    expect(h.resched.mock.invocationCallOrder[0]).toBeLessThan(h.publish.mock.invocationCallOrder[0]);
     expect(h.post).not.toHaveBeenCalled();
     expect(h.commit).not.toHaveBeenCalled();
     expect(text()).not.toMatch(/published|is live|posted successfully/i);
+  });
+
+  it("if publish-now refuses, the coming-soon message still shows and no error is shown", async () => {
+    h.publish.mockRejectedValue(new Error("409 queued to retry"));
+    await mount(PHOTOS);
+    await choose("PUBLIC_TO_EVERYONE");
+    await click(postButton());
+    expect(q('[data-testid="tiktok-coming-soon"]')).not.toBeNull();
+    expect(q('[role="alert"]')).toBeNull();
+    expect(text()).not.toContain("409");
+  });
+
+  it("right after Post, the item is refetched and its status reads Waiting for TikTok approval", async () => {
+    const parked = { ...(PHOTOS as object), status: "needs_action", attempts: [{ errorCode: "tiktok_coming_soon" }] };
+    h.list.mockResolvedValueOnce({ items: [PHOTOS] }).mockResolvedValue({ items: [parked] });
+    await mountWithList(PHOTOS);
+    expect(q('[data-testid="tiktok-status"]')?.textContent).toBe("Approved");
+    await choose("PUBLIC_TO_EVERYONE");
+    await click(postButton());
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(q('[data-testid="tiktok-status"]')?.textContent).toBe("Waiting for TikTok approval");
   });
 
   it("a failed save says so and does not show the coming-soon message", async () => {

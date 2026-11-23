@@ -43,8 +43,8 @@ export interface TikTokPostSheetProps {
  * comments, Duet and Stitch, commercial content, the declaration, the length limit).
  *
  * POST SAVES THE CHOICES AND SENDS NOTHING TO TIKTOK. TikTok has not approved Peakhour to publish, so Post stores the choices on the item and
- * schedules it for now; the api parks it as "waiting for TikTok approval" without calling TikTok. The sheet then says so. It never calls
- * publish-now and nothing on screen says the post is live.
+ * schedules it for now; the api parks it as "waiting for TikTok approval" without calling TikTok. The sheet then says so. It runs publish-now
+ * only so the api parks it at once (publishing is off, so TikTok is never called); nothing on screen says the post is live.
  */
 export function TikTokPostSheet({ item, onOpenChange }: TikTokPostSheetProps) {
   return (
@@ -139,11 +139,14 @@ function PostForm({ item, creator }: { item: ScheduledItemDto; creator: TikTokCr
           allowComment: comments && !creator.commentDisabled,
           allowDuet: video && duet && !creator.duetDisabled,
           allowStitch: video && stitch && !creator.stitchDisabled,
-          brandOrganicToggle: commercial && yourBrand,
-          brandContentToggle: commercial && brandedContent,
+          brandOrganic: commercial && yourBrand,
+          brandedContent: commercial && brandedContent,
         },
       });
       await scheduler.rescheduleItem(item._id, { scheduledAtUtc: new Date(), mode: "item" });
+      // Run the worker's own publish path now, so the api parks the item as tiktok_coming_soon at once (it never calls TikTok while publishing is off).
+      // If it refuses, the post is still saved and scheduled: the next tick parks it, and the merchant is shown no error for that.
+      await scheduler.publishItemNow(item._id).catch(() => undefined);
     },
     onSuccess: () => {
       setFailure(null);

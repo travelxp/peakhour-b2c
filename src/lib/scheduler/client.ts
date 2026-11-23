@@ -131,7 +131,7 @@ export const scheduler = {
       threadParts?: string[];
       /** X only: the paid promotion label, the one channelOptions key an edit may set. */
       paidPartnership?: boolean;
-      /** TikTok only (CO-1): the post choices (privacyLevel, allowComment, allowDuet, allowStitch, brandContentToggle, brandOrganicToggle). */
+      /** TikTok only (CO-1): the post choices (privacyLevel, allowComment, allowDuet, allowStitch, brandOrganic, brandedContent). */
       channelOptions?: Record<string, unknown>;
     },
   ) {
