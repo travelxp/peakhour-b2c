@@ -34,6 +34,8 @@ export interface BriefViewProps {
   ideaGone?: boolean;
   /** The saved plan or the ideas could not be read: "gone" (the plan is not there) or "error" (try again). Never an endless skeleton. */
   loadError?: "gone" | "error";
+  /** What is being made. Words only has no photos, no shape of picture and no people setting, and is priced as one task. */
+  kind: "image" | "words";
   products: BriefProduct[];
   line: string;
   linePlaceholder: string;
@@ -61,6 +63,7 @@ export interface BriefViewProps {
   onLanguage: (v: string) => void;
   onFormat: (v: PostFormat) => void;
   onCount: (v: 3 | 4) => void;
+  onKind: (v: "image" | "words") => void;
   onNoAiPeople: (v: boolean) => void;
   onChangeProducts: () => void;
   onRemoveProduct: (id: string) => void;
@@ -98,11 +101,11 @@ function LanguageField({ value, onChange }: { value: string; onChange: (v: strin
   );
 }
 
-function CountField({ value, onChange }: { value: 3 | 4; onChange: (v: 3 | 4) => void }) {
+function CountField({ value, onChange, words = false }: { value: 3 | 4; onChange: (v: 3 | 4) => void; words?: boolean }) {
   return (
     <div className="space-y-1.5">
       <p id="studio-count-label" className="text-sm font-medium">
-        {B.options.count}
+        {words ? B.wordsPlan.countLabel : B.options.count}
       </p>
       <div role="radiogroup" aria-labelledby="studio-count-label" className="flex gap-2">
         {([3, 4] as const).map((k) => (
@@ -117,7 +120,7 @@ function CountField({ value, onChange }: { value: 3 | 4; onChange: (v: 3 | 4) =>
               value === k ? "border-primary bg-primary/10 font-medium" : "bg-background",
             )}
           >
-            {B.options.countOption(k)}
+            {words ? B.wordsPlan.countOption(k) : B.options.countOption(k)}
           </button>
         ))}
       </div>
@@ -177,11 +180,12 @@ export function BriefView(p: BriefViewProps) {
       />
     );
   }
+  const words = p.kind === "words";
   const blockText = p.block?.kind === "no_photo" ? B.needsPhoto(p.block.title) : p.block?.kind === "no_product" ? B.needsProduct : null;
   const advanced = (
     <>
       <LanguageField value={p.language} onChange={p.onLanguage} />
-      <CountField value={p.count} onChange={p.onCount} />
+      <CountField value={p.count} onChange={p.onCount} words={words} />
     </>
   );
   const canPress = p.previews === "on" && p.canMake && !p.block && p.quote.state === "quote" && !p.saving && !p.starting;
@@ -192,19 +196,33 @@ export function BriefView(p: BriefViewProps) {
         <h2 id="studio-kind-label" className="text-sm font-medium">
           {B.kind.label}
         </h2>
-        <ul className="grid grid-cols-3 gap-2">
-          <li className="rounded-md border border-primary bg-primary/10 p-2 text-center text-sm font-medium" aria-current="true">
-            {B.kind.picture}
-          </li>
-          {[B.kind.words, B.kind.video].map((name) => (
-            <li key={name} className="rounded-md border bg-muted/40 p-2 text-center text-sm text-muted-foreground">
-              <span className="block">{name}</span>
-              <Badge variant="secondary" className="mt-1">
-                {STUDIO_COPY.comingSoon.chip}
-              </Badge>
-            </li>
-          ))}
-        </ul>
+        <div className="grid grid-cols-3 gap-2">
+          <div role="radiogroup" aria-labelledby="studio-kind-label" className="col-span-2 grid grid-cols-2 gap-2">
+            {([["image", B.kind.picture], ["words", B.kind.words]] as const).map(([k, name]) => (
+              <button
+                key={k}
+                type="button"
+                role="radio"
+                aria-checked={p.kind === k}
+                disabled={p.saving && p.kind !== k}
+                onClick={() => p.onKind(k)}
+                className={cn(
+                  "min-h-11 w-full rounded-md border p-2 text-center text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
+                  p.kind === k ? "border-primary bg-primary/10 font-medium" : "bg-background",
+                )}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+          <p className="rounded-md border bg-muted/40 p-2 text-center text-sm text-muted-foreground">
+            <span className="block">{B.kind.video}</span>
+            <Badge variant="secondary" className="mt-1">
+              {STUDIO_COPY.comingSoon.chip}
+            </Badge>
+          </p>
+        </div>
+        {words && <p className="text-xs text-muted-foreground">{B.wordsPlan.hint}</p>}
       </section>
 
       {/* 2. Products */}
@@ -269,7 +287,8 @@ export function BriefView(p: BriefViewProps) {
         </p>
       </section>
 
-      {/* 4. Where it will go: the shape of the preview */}
+      {/* 4. Where it will go: the shape of the preview (a words-only post has no picture, so no shape) */}
+      {!words && (
       <section aria-labelledby="studio-shape-label" className="space-y-1.5">
         <h2 id="studio-shape-label" className="text-sm font-medium">
           {B.shape.label}
@@ -293,6 +312,7 @@ export function BriefView(p: BriefViewProps) {
         </div>
         <p className="text-xs text-muted-foreground">{B.shape.hint}</p>
       </section>
+      )}
 
       {/* Pro tools: language and the number of previews are on the main screen; otherwise they sit under Options. */}
       {p.proTools && <section className="grid gap-4 sm:grid-cols-2">{advanced}</section>}
@@ -302,6 +322,7 @@ export function BriefView(p: BriefViewProps) {
         <summary className="cursor-pointer text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring">{B.options.label}</summary>
         <div className="mt-3 space-y-4">
           {!p.proTools && advanced}
+          {!words && (
           <div className="flex items-start justify-between gap-3">
             <div>
               <Label htmlFor="studio-no-ai-people">{B.options.noAiPeople}</Label>
@@ -309,10 +330,11 @@ export function BriefView(p: BriefViewProps) {
             </div>
             <Switch id="studio-no-ai-people" checked={p.noAiPeople} onCheckedChange={p.onNoAiPeople} />
           </div>
+          )}
         </div>
       </details>
 
-      {p.brandNudge && (
+      {p.brandNudge && !words && (
         <p className="text-sm text-muted-foreground">
           {B.brandNudge}{" "}
           <Link href={STUDIO_PATHS.brandKit} className="underline underline-offset-2">
@@ -324,8 +346,8 @@ export function BriefView(p: BriefViewProps) {
       {/* The price and the button: a sticky bar above the tab bar. Previews not available yet: the designed coming-soon card instead. */}
       {p.previews === "coming_soon" ? (
         <ComingSoon
-          title={STUDIO_COPY.comingSoon.previews.title}
-          description={STUDIO_COPY.comingSoon.previews.description}
+          title={words ? STUDIO_COPY.comingSoon.words.title : STUDIO_COPY.comingSoon.previews.title}
+          description={words ? STUDIO_COPY.comingSoon.words.description : STUDIO_COPY.comingSoon.previews.description}
           actions={
             <>
               <Button type="button" className="h-11" disabled={!!p.block || p.saving || !p.canMake} onClick={p.onSave}>
@@ -360,10 +382,10 @@ export function BriefView(p: BriefViewProps) {
                   state={p.quote.state}
                   peaks={p.quote.peaks}
                   units={p.quote.units ?? p.count}
-                  kind="previews"
+                  kind={words ? "total" : "previews"}
                   free={p.quote.free}
                   left={p.left}
-                  help
+                  help={!words}
                   onRetry={p.quote.onRetry}
                 />
               )}
@@ -376,10 +398,10 @@ export function BriefView(p: BriefViewProps) {
                   </Button>
                 </div>
               )}
-              {!p.block && p.previews === "on" && <p className="text-xs text-muted-foreground">{B.quoteNote}</p>}
+              {!p.block && p.previews === "on" && <p className="text-xs text-muted-foreground">{words ? B.wordsPlan.quoteNote : B.quoteNote}</p>}
             </div>
             <Button type="button" className="h-12 w-full sm:w-auto sm:min-w-44" disabled={!canPress} onClick={p.onMake}>
-              {p.starting ? B.starting : B.make(p.count)}
+              {p.starting ? (words ? B.wordsPlan.starting : B.starting) : words ? B.wordsPlan.make(p.count) : B.make(p.count)}
             </Button>
           </div>
           {p.refusal && (

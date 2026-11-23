@@ -18,6 +18,7 @@ import type { BriefViewProps } from "./brief-view";
 const noop = () => {};
 const base = (over: Partial<BriefViewProps> = {}): BriefViewProps => ({
   status: "ready",
+  kind: "image" as BriefViewProps["kind"],
   products: [{ id: "p1", title: "Silk saree", photoUrl: "https://x/p1.jpg", hasPhoto: true }],
   line: "",
   linePlaceholder: "Diwali offer on silk sarees",
@@ -40,6 +41,7 @@ const base = (over: Partial<BriefViewProps> = {}): BriefViewProps => ({
   onLanguage: noop,
   onFormat: noop,
   onCount: noop,
+  onKind: noop,
   onNoAiPeople: noop,
   onChangeProducts: noop,
   onRemoveProduct: noop,
@@ -65,11 +67,32 @@ describe("the plan (S3): the rows", () => {
     expect(html).toContain('data-slot="studio-brief-bar"');
   });
 
-  it("Words only and Short video are 'Coming soon' tiles with no action", () => {
+  it("Picture ad and Words only are choices; only Short video is a 'Coming soon' tile", () => {
     const html = render();
-    expect(html).toContain("Words only");
+    expect(/role="radio" aria-checked="true"[^>]*>Picture ad</.test(html)).toBe(true);
+    expect(/role="radio" aria-checked="false"[^>]*>Words only</.test(html)).toBe(true);
     expect(html).toContain("Short video");
-    expect(html.split("Coming soon").length - 1).toBe(2);
+    expect(html.split("Coming soon").length - 1).toBe(1);
+  });
+
+  it("a words-only plan: no photo rows, no shape, no people switch, options not previews, one price", () => {
+    const html = render({ kind: "words", products: [{ id: "p1", title: "Silk saree", hasPhoto: true }], quote: { state: "quote", peaks: 50, onRetry: noop } });
+    expect(/aria-checked="true"[^>]*>Words only</.test(html)).toBe(true);
+    expect(html).toContain("We&#x27;ll write headline and text options.");
+    expect(html).not.toContain("Where it will go");
+    expect(html).not.toContain("No AI people");
+    expect(html).not.toContain("Add a photo");
+    expect(html).toContain("Write 4 options");
+    expect(html).toContain("Uses 50 Peaks");
+    expect(html).not.toContain("Up to 50");
+    expect(makeButton(html, "Write 4 options")).not.toContain(`disabled=""`);
+  });
+
+  it("a words-only plan with the writer off shows the text-ad coming-soon card, never the picture maker's", () => {
+    const html = render({ kind: "words", previews: "coming_soon" });
+    expect(html).toContain("Text ads are coming soon");
+    expect(html).not.toContain("Previews are coming soon");
+    expect(html).toContain("Save this plan");
   });
 
   it("the shape is a radio group with the idea's format chosen", () => {

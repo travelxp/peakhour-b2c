@@ -17,7 +17,7 @@ import { detectTimezone } from "@/lib/scheduler/format";
 import { sourceTextHash } from "@/lib/scheduler/source-hash";
 import { STUDIO_ROUTES } from "@/lib/studio";
 import { STUDIO_COPY } from "@/lib/studio-copy";
-import { adPlatformLabel, captionLength, captionProblem, channelByKey, channelLabel, mediaFor } from "@/lib/studio-publish";
+import { adPlatformLabel, adPlatformOf, captionLength, captionProblem, channelByKey, channelLabel, mediaFor } from "@/lib/studio-publish";
 import { cn } from "@/lib/utils";
 
 const P = STUDIO_COPY.post;
@@ -55,6 +55,8 @@ export interface PostStepViewProps {
   onSaveForLater: () => void;
   done?: { text: string };
   disclosure: string;
+  /** Words only: there is no picture to wait for, so a channel with none is not held back, and the loading words say words. */
+  wordsOnly?: boolean;
 }
 
 /**
@@ -64,9 +66,9 @@ export interface PostStepViewProps {
 export function PostStepView(p: PostStepViewProps) {
   if (p.status === "loading") {
     return (
-      <div aria-busy="true" aria-label={P.preparing} className="space-y-2">
+      <div aria-busy="true" aria-label={p.wordsOnly ? P.preparingWords : P.preparing} className="space-y-2">
         <p role="status" className="text-sm text-muted-foreground">
-          {P.preparing}
+          {p.wordsOnly ? P.preparingWords : P.preparing}
         </p>
         <Skeleton className="h-32 rounded-lg" />
       </div>
@@ -75,7 +77,7 @@ export function PostStepView(p: PostStepViewProps) {
   if (p.status === "error") {
     return (
       <div role="alert" className="space-y-2 rounded-lg border p-3 text-sm">
-        <p>{P.prepareFailed}</p>
+        <p>{p.wordsOnly ? P.prepareFailedWords : P.prepareFailed}</p>
         <div className="flex gap-2">
           <Button type="button" size="sm" variant="outline" className="h-11" onClick={p.onRetry}>
             {STUDIO_COPY.refusal.tryAgain}
@@ -106,7 +108,7 @@ export function PostStepView(p: PostStepViewProps) {
   }
   const problems = p.channels.map((c) => captionProblem(p.captions[c] ?? "", c));
   // A post that was approved as a picture post never goes out as words alone: a channel with no picture holds the whole step.
-  const noPicture = p.channels.filter((c) => mediaFor(c, p.versions, p.media).length === 0);
+  const noPicture = p.wordsOnly ? [] : p.channels.filter((c) => mediaFor(c, p.versions, p.media).length === 0);
   const anyProblem = problems.some(Boolean) || noPicture.length > 0;
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto" data-slot="studio-post-step">
@@ -120,7 +122,7 @@ export function PostStepView(p: PostStepViewProps) {
         return (
           <fieldset key={c} className="space-y-2 rounded-lg border p-3">
             <legend className="px-1 text-sm font-semibold">{label}</legend>
-            <p className="text-xs text-muted-foreground">{mine.map((v) => `${v.label} ${v.width} × ${v.height}`).join(", ")}</p>
+            {mine.length > 0 && <p className="text-xs text-muted-foreground">{mine.map((v) => `${v.label} ${v.width} × ${v.height}`).join(", ")}</p>}
             <div className="flex gap-2 overflow-x-auto pb-1">
               {mine.map((v) => {
                 const url = p.media.find((m) => m.versionId === v.id)?.url;
@@ -240,21 +242,24 @@ export function PostStep({
   creativeId,
   versions,
   headlineFallback,
+  words,
   onBack,
   onClose,
 }: {
   creativeId: string;
   versions: PostVersion[];
   headlineFallback: string;
+  /** Words only: the one option card going out and the channels chosen for it. There are no sizes, so `versions` is empty. */
+  words?: { previewId: string; channels: string[] };
   onBack: () => void;
   onClose: () => void;
 }) {
   const qc = useQueryClient();
-  const ids = useMemo(() => versions.map((v) => v.id).sort(), [versions]);
-  const channels = useMemo(() => [...new Set(versions.map((v) => v.channel))], [versions]);
+  const ids = useMemo(() => (words ? [words.previewId] : versions.map((v) => v.id).sort()), [versions, words]);
+  const channels = useMemo(() => (words ? words.channels : [...new Set(versions.map((v) => v.channel))]), [versions, words]);
   const handoff = useQuery<OrganicHandoff>({
-    queryKey: ["studio-handoff", creativeId, ids.join(",")],
-    queryFn: () => studioApi.handoffOrganic(creativeId, ids),
+    queryKey: ["studio-handoff", creativeId, words ? "words" : "sizes", ids.join(",")],
+    queryFn: () => (words ? studioApi.handoffWordsOrganic(creativeId, words.previewId) : studioApi.handoffOrganic(creativeId, ids)),
     staleTime: Infinity,
     gcTime: 0,
     retry: false,
@@ -278,8 +283,8 @@ export function PostStep({
   }, [channels, edited, handoff.data, headlineFallback]);
   const media = useMemo(() => handoff.data?.media ?? [], [handoff.data]);
   const entries = useMemo(
-    () => channels.map((c) => ({ channel: c, payload: { text: (captions[c] ?? "").trim(), mediaUrls: mediaFor(c, versions, media) } })),
-    [channels, captions, versions, media],
+    () => channels.map((c) => ({ channel: c, payload: { text: (captions[c] ?? "").trim(), mediaUrls: words ? [] : mediaFor(c, versions, media) } })),
+    [channels, captions, versions, media, words],
   );
   const source = useMemo(
     () => ({ sourceType: "ad_hoc" as const, sourceTextHash: sourceTextHash(`${creativeId}|${ids.join(",")}|${entries.map((e) => `${e.channel}:${e.payload.text}`).join("|")}`) }),
@@ -288,7 +293,9 @@ export function PostStep({
   const title = (handoff.data?.caption.headline || headlineFallback || STUDIO_COPY.shortlist.untitled).slice(0, 120);
 
   const confirm = (verIds: string[], state: "scheduled" | "published") =>
-    studioApi
+    words || verIds.length === 0
+      ? Promise.resolve(undefined)
+      : studioApi
       .confirmHandoff(creativeId, verIds, state)
       .catch(() => undefined)
       .finally(() => void qc.invalidateQueries({ queryKey: [FLOW_KEYS.creative] }));
@@ -348,9 +355,24 @@ export function PostStep({
   });
 
   const useInAd = useMutation({
-    mutationFn: () => studioApi.handoffAd(creativeId, ids),
+    mutationFn: async () => {
+      if (!words) return studioApi.handoffAd(creativeId, ids);
+      // Words go to an ad per Ad Engine platform (Facebook and Instagram are one); a channel the Ad Engine does not run says so and nothing is made for it.
+      const byPlatform = new Map<string, string>();
+      for (const c of words.channels) {
+        const platform = adPlatformOf(c);
+        if (platform && !byPlatform.has(platform)) byPlatform.set(platform, c);
+      }
+      const made = await Promise.allSettled([...byPlatform.values()].map((c) => studioApi.handoffWordsAd(creativeId, words.previewId, c)));
+      const ok = made.flatMap((m) => (m.status === "fulfilled" ? m.value.adCreatives : []));
+      const bad = made.find((m): m is PromiseRejectedResult => m.status === "rejected");
+      if (ok.length === 0) throw bad ? bad.reason : new Error("no ad was made");
+      return { adCreativeId: ok[0]!.adCreativeId, adCreatives: ok, note: "" } satisfies AdHandoff;
+    },
     onSuccess: (r: AdHandoff) => {
-      setAdError(undefined);
+      // A channel the Ad Engine does not run is said, never left out silently.
+      const missing = words ? words.channels.filter((c) => !r.adCreatives.some((a) => a.platform === adPlatformOf(c))) : [];
+      setAdError(missing.length > 0 ? P.adNotFor(missing.map(channelLabel).join(", ")) : undefined);
       const names = r.adCreatives.length > 1 ? r.adCreatives.map((a) => adPlatformLabel(a.platform)).join(", ") : "";
       setAdNote({ text: r.adCreatives.length > 1 ? P.adAddedFor(names) : P.adAdded, growthHref: "/dashboard/ads" });
     },
@@ -400,11 +422,12 @@ export function PostStep({
       adNote={adNote}
       adError={adError}
       onSaveForLater={() => {
-        toast.success(P.saved);
+        toast.success(words ? P.savedWords : P.saved);
         onClose();
       }}
       done={done}
       disclosure={handoff.data?.disclosure ?? P.disclosure}
+      {...(words ? { wordsOnly: true } : {})}
     />
   );
 }

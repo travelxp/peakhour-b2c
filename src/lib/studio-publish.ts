@@ -76,6 +76,9 @@ const AD_PLATFORM_LABELS: Record<string, string> = {
   x: "X",
   tiktok: "TikTok",
 };
+/** The Ad Engine platform a Studio channel runs as (the api's own map): Facebook and Instagram are one, Threads has none. */
+const AD_PLATFORM_OF: Record<string, string> = { facebook: "meta", instagram: "meta", linkedin: "linkedin", google_ads: "google_ads", x: "x", tiktok: "tiktok" };
+export const adPlatformOf = (channel: string): string | undefined => AD_PLATFORM_OF[channel];
 export const adPlatformLabel = (platform: string): string => AD_PLATFORM_LABELS[platform] ?? platform;
 
 export type SizeState = "ready" | "needs_extend" | "extending" | "extend_failed" | "no_spec";

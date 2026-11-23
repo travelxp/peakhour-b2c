@@ -23,6 +23,7 @@ import {
   PreviewViewer,
 } from "@/components/studio/creative-sections";
 import { ComingSoon } from "@/components/studio/coming-soon";
+import { WordsWorkspace } from "@/components/studio/words-view";
 import { FinalReview } from "@/components/studio/final-review";
 import { PlatformSheet } from "@/components/studio/platform-sheet";
 import { OneMore } from "@/components/studio/one-more";
@@ -235,7 +236,7 @@ export function CreativeWorkspace({ id }: { id: string }) {
   // Announce each preview as it lands: "Preview 2 ready."
   const landedBefore = useRef<Set<string> | null>(null);
   useEffect(() => {
-    if (!view) return;
+    if (!view || view.kind === "words") return;
     const landed = view.previews.filter((p) => p.state !== "rendering" && p.state !== "failed").map((p) => p.id);
     const before = landedBefore.current;
     landedBefore.current = new Set(landed);
@@ -249,7 +250,7 @@ export function CreativeWorkspace({ id }: { id: string }) {
     if (phase === "brief") router.replace(planHref(id));
   }, [phase, id, router]);
 
-  const failedQuote = usePressQuote(id, "previews", view?.brief.count, phase === "failed" && canMake);
+  const failedQuote = usePressQuote(id, "previews", view?.brief.count, phase === "failed" && canMake && view?.kind !== "words");
   const status = ideasFeedStatus(q);
   const shown = useMemo(() => (view ? view.previews.filter(isShownTile) : []), [view]);
   const landed = shown.filter((p) => p.state !== "rendering" && p.state !== "failed");
@@ -310,19 +311,8 @@ export function CreativeWorkspace({ id }: { id: string }) {
     );
   };
 
-  if (view.kind === "words") {
-    return (
-      <ComingSoon
-        title={STUDIO_COPY.wordsOnly.title}
-        description={STUDIO_COPY.wordsOnly.description}
-        actions={
-          <Button asChild variant="outline" className="h-11">
-            <Link href={STUDIO_ROUTES.home}>{STUDIO_COPY.wordsOnly.back}</Link>
-          </Button>
-        }
-      />
-    );
-  }
+  // Words only (S20): option cards instead of previews, with the same heart, Shortlist and hand-off. Its own switch, never the picture maker's.
+  if (view.kind === "words") return <WordsWorkspace view={view} />;
 
   return (
     <div className="space-y-4" data-slot="studio-creative" data-phase={phase}>
