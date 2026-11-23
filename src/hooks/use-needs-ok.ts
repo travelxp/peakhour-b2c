@@ -30,6 +30,8 @@ export interface NeedsOkItem {
   why: string;
   /** ISO date the row was made, or null. */
   createdAt: string | null;
+  /** ISO time a waiting automatic draft stops being approvable (it is closed unapproved after this), set only on a repurposed batch that has a deadline. */
+  expiresAt?: string | null;
   /** The screen where it is approved today. */
   href: string;
   channel: string;
