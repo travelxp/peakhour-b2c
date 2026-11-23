@@ -262,6 +262,8 @@ export interface ShortlistItem {
   lapsed: boolean;
   /** Waiting longer than three days: earns the reminder line. */
   waitingLong: boolean;
+  /** Words only has no final to make: its cards are not offered to Make final. Absent from an api that predates it (a picture). */
+  kind?: "image" | "words";
 }
 
 export interface ShortlistResponse {

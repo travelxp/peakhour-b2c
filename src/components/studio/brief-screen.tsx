@@ -147,7 +147,7 @@ export function BriefScreen() {
         return;
       }
       setForm({
-        ...emptyForm(),
+        ...emptyForm(kindParam === "words" ? "words" : "image"),
         productIds: i.productIds.slice(0, 3),
         titles: Object.fromEntries(i.products.map((p) => [p.id, p.title])),
         format: i.format,
@@ -270,7 +270,8 @@ export function BriefScreen() {
 
   // The kind is the plan's own (the api holds it and a patch cannot change it): choosing the other one starts a new plan from what is on the screen.
   const onKind = (kind: Form["kind"]) => {
-    if (kind === form.kind) return;
+    // A save in flight would land on the plan the screen has just left: the tile waits for it (the view disables it too).
+    if (kind === form.kind || saving) return;
     setForm((f) => ({ ...f, kind }));
     if (creativeId) {
       setCreativeId(null);

@@ -17,7 +17,7 @@ import { detectTimezone } from "@/lib/scheduler/format";
 import { sourceTextHash } from "@/lib/scheduler/source-hash";
 import { STUDIO_ROUTES } from "@/lib/studio";
 import { STUDIO_COPY } from "@/lib/studio-copy";
-import { adPlatformLabel, captionLength, captionProblem, channelByKey, channelLabel, mediaFor } from "@/lib/studio-publish";
+import { adPlatformLabel, adPlatformOf, captionLength, captionProblem, channelByKey, channelLabel, mediaFor } from "@/lib/studio-publish";
 import { cn } from "@/lib/utils";
 
 const P = STUDIO_COPY.post;
@@ -361,11 +361,13 @@ export function PostStep({
       const made = await Promise.allSettled(words.channels.map((c) => studioApi.handoffWordsAd(creativeId, words.previewId, c)));
       const ok = made.flatMap((m) => (m.status === "fulfilled" ? m.value.adCreatives : []));
       const bad = made.find((m): m is PromiseRejectedResult => m.status === "rejected");
-      if (ok.length === 0 && bad) throw bad.reason;
+      if (ok.length === 0) throw bad ? bad.reason : new Error("no ad was made");
       return { adCreativeId: ok[0]!.adCreativeId, adCreatives: ok, note: "" } satisfies AdHandoff;
     },
     onSuccess: (r: AdHandoff) => {
-      setAdError(undefined);
+      // A channel the Ad Engine does not run is said, never left out silently.
+      const missing = words ? words.channels.filter((c) => !r.adCreatives.some((a) => a.platform === adPlatformOf(c))) : [];
+      setAdError(missing.length > 0 ? P.adNotFor(missing.map(channelLabel).join(", ")) : undefined);
       const names = r.adCreatives.length > 1 ? r.adCreatives.map((a) => adPlatformLabel(a.platform)).join(", ") : "";
       setAdNote({ text: r.adCreatives.length > 1 ? P.adAddedFor(names) : P.adAdded, growthHref: "/dashboard/ads" });
     },

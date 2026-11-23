@@ -254,15 +254,23 @@ function WordsUseBody({ step, setStep, creativeId, preview, onClose }: { step: "
   const connected = useConnectedChannels();
   const connectedKeys = useMemo(() => connected.data ?? [], [connected.data]);
   const [off, setOff] = useState<ReadonlySet<string>>(new Set());
-  const chosen = connectedKeys.filter((k) => !off.has(k));
+  const chosen = useMemo(() => connectedKeys.filter((k) => !off.has(k)), [connectedKeys, off]);
+  const words = useMemo(() => ({ previewId: preview.id, channels: chosen }), [preview.id, chosen]);
   if (step === "post") {
-    return <PostStep creativeId={creativeId} versions={[]} headlineFallback={preview.headline ?? ""} words={{ previewId: preview.id, channels: chosen }} onBack={() => setStep("channels")} onClose={onClose} />;
+    return <PostStep creativeId={creativeId} versions={[]} headlineFallback={preview.headline ?? ""} words={words} onBack={() => setStep("channels")} onClose={onClose} />;
   }
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto" data-slot="studio-words-channels">
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium">{W.sheet.channels}</legend>
-        {connected.isFetching && connectedKeys.length === 0 ? (
+        {connected.isError ? (
+          <div role="alert" className="space-y-2 text-sm">
+            <p className="text-muted-foreground">{STUDIO_COPY.sizes.loadFailed}</p>
+            <Button type="button" variant="outline" className="h-11" onClick={() => void connected.refetch()}>
+              {STUDIO_COPY.quote.retry}
+            </Button>
+          </div>
+        ) : connected.isFetching && connectedKeys.length === 0 ? (
           <Skeleton className="h-20 rounded-lg" />
         ) : connectedKeys.length === 0 ? (
           <div className="space-y-2 text-sm">

@@ -263,6 +263,7 @@ describe("the shortlist and finals", () => {
   it("only a hearted preview that is not already on its way can be made final", () => {
     expect(isEligibleForFinal(item())).toBe(true);
     expect(isEligibleForFinal(item({ state: "finalizing" }))).toBe(false);
+    expect(isEligibleForFinal(item({ kind: "words" }))).toBe(false);
     expect(isEligibleForFinal(item({ state: "final_ready" }))).toBe(false);
     expect(isEligibleForFinal(item({ state: "ready", lapsed: true }))).toBe(false);
   });

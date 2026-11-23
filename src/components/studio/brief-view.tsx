@@ -196,30 +196,32 @@ export function BriefView(p: BriefViewProps) {
         <h2 id="studio-kind-label" className="text-sm font-medium">
           {B.kind.label}
         </h2>
-        <ul role="radiogroup" aria-labelledby="studio-kind-label" className="grid grid-cols-3 gap-2">
-          {([["image", B.kind.picture], ["words", B.kind.words]] as const).map(([k, name]) => (
-            <li key={k}>
+        <div className="grid grid-cols-3 gap-2">
+          <div role="radiogroup" aria-labelledby="studio-kind-label" className="col-span-2 grid grid-cols-2 gap-2">
+            {([["image", B.kind.picture], ["words", B.kind.words]] as const).map(([k, name]) => (
               <button
+                key={k}
                 type="button"
                 role="radio"
                 aria-checked={p.kind === k}
+                disabled={p.saving && p.kind !== k}
                 onClick={() => p.onKind(k)}
                 className={cn(
-                  "h-full min-h-11 w-full rounded-md border p-2 text-center text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  "min-h-11 w-full rounded-md border p-2 text-center text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
                   p.kind === k ? "border-primary bg-primary/10 font-medium" : "bg-background",
                 )}
               >
                 {name}
               </button>
-            </li>
-          ))}
-          <li className="rounded-md border bg-muted/40 p-2 text-center text-sm text-muted-foreground">
+            ))}
+          </div>
+          <p className="rounded-md border bg-muted/40 p-2 text-center text-sm text-muted-foreground">
             <span className="block">{B.kind.video}</span>
             <Badge variant="secondary" className="mt-1">
               {STUDIO_COPY.comingSoon.chip}
             </Badge>
-          </li>
-        </ul>
+          </p>
+        </div>
         {words && <p className="text-xs text-muted-foreground">{B.wordsPlan.hint}</p>}
       </section>
 

@@ -232,7 +232,7 @@ export const isShownTile = (p: PreviewView): boolean => p.state !== "skipped" &&
 // ── Finals ───────────────────────────────────────────────────────────────────────────────────────────────────
 
 /** A shortlist row the Make final bar can make final: hearted, and not already on its way or made. */
-export const isEligibleForFinal = (i: ShortlistItem): boolean => i.state === "shortlisted" && !i.lapsed;
+export const isEligibleForFinal = (i: ShortlistItem): boolean => i.state === "shortlisted" && !i.lapsed && i.kind !== "words";
 
 /**
  * The previews the choose sheet will make final: all of them by default (up to one press), or the ones the merchant left ticked. Only what is

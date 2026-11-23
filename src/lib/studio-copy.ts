@@ -712,6 +712,7 @@ export const STUDIO_COPY = {
     scheduled: (when: string) => `Scheduled for ${when}.`,
     seeCalendar: "See it in Calendar",
     makeAnother: "Make another",
+    adNotFor: (names: string) => `Not added for ${names}. Ads aren't set up there yet.`,
     adAdded: "Added to Growth. Approve it there to use it in an ad.",
     adAddedFor: (names: string) => `Added to Growth for ${names}. Approve each there to use it in an ad.`,
     openGrowth: "Open in Growth",
