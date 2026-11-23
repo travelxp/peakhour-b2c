@@ -17,6 +17,12 @@ vi.mock("@/lib/api/meta-content", () => ({ metaContentApi: new Proxy(api, { get:
 vi.mock("@/components/compose/compose-sheet-provider", () => ({
   ComposeSheetProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
+// The Repurpose sheet has its own tests; here only what the hub hands it matters: whether it is open and the source it was given.
+vi.mock("@/components/repurpose/repurpose-sheet", () => ({
+  RepurposeSheet: ({ open, source }: { open: boolean; source: unknown }) => (
+    <div data-repurpose-sheet data-open={String(open)} data-source={JSON.stringify(source)} />
+  ),
+}));
 vi.mock("@/components/compose/new-post-button", () => ({
   NewPostButton: ({ channel, label, disabled }: { channel?: string; label?: string; disabled?: boolean }) => (
     <button type="button" data-new-post={channel ?? ""} disabled={disabled}>
@@ -150,5 +156,54 @@ describe("MetaHub New post", () => {
     expect(host.textContent).toContain("No posts yet");
     const create = newPostButtons().find((b) => b.textContent === "Create a post")!;
     expect(create.getAttribute("data-new-post")).toBe("facebook");
+  });
+});
+
+describe("MetaHub: turn a post into posts for other channels", () => {
+  const TURN = "Turn into posts for other channels";
+  const turnButtons = () => [...host.querySelectorAll("button")].filter((b) => b.textContent?.includes(TURN)) as HTMLButtonElement[];
+  const sheet = () => host.querySelector("[data-repurpose-sheet]") as HTMLElement;
+
+  it("every Facebook post row has the action, and it opens the sheet on THAT post", async () => {
+    api.pagePosts.mockResolvedValue({
+      posts: [
+        { id: "p1_100", message: "Autumn tea is back", createdTime: "2026-11-01T08:00:00+0000" },
+        { id: "p1_101", message: "Closed on Sunday", createdTime: "2026-11-02T08:00:00+0000" },
+      ],
+    });
+    await mount("facebook");
+    await openPostsTab();
+    expect(turnButtons()).toHaveLength(2);
+    expect(sheet().dataset.open).toBe("false");
+    await act(async () => turnButtons()[1]!.click());
+    expect(sheet().dataset.open).toBe("true");
+    expect(JSON.parse(sheet().dataset.source!)).toEqual({ type: "facebook_post", postId: "p1_101" });
+  });
+
+  it("an Instagram media row names the account it is on (a media id does not)", async () => {
+    api.igMedia.mockResolvedValue({
+      media: [{ id: "9001", caption: "Tea time", mediaType: "IMAGE", timestamp: "2026-11-01T08:00:00+0000" }],
+    });
+    await mount("instagram");
+    await openPostsTab();
+    await act(async () => turnButtons()[0]!.click());
+    expect(JSON.parse(sheet().dataset.source!)).toEqual({ type: "instagram_media", mediaId: "9001", igUserId: "i1" });
+  });
+
+  it("the sheet is not part of the list, so a posts refetch that fails cannot unmount it mid-flow", async () => {
+    api.pagePosts.mockRejectedValue(new Error("graph down"));
+    await mount("facebook");
+    await openPostsTab();
+    expect(host.textContent).toContain("We could not load your posts right now");
+    expect(sheet()).not.toBeNull();
+  });
+
+  it("a post with no words cannot be turned into posts (nothing to write from), and the button says why", async () => {
+    api.pagePosts.mockResolvedValue({ posts: [{ id: "p1_100", createdTime: "2026-11-01T08:00:00+0000", fullPicture: "https://cdn.test/a.jpg" }] });
+    await mount("facebook");
+    await openPostsTab();
+    const [btn] = turnButtons();
+    expect(btn!.disabled).toBe(true);
+    expect(btn!.title).toBe("This post has no text to write from.");
   });
 });

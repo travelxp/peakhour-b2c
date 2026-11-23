@@ -1,4 +1,5 @@
-import { api } from "@/lib/api";
+import { api, newActionKey } from "@/lib/api";
+import type { BindingPeaksQuote } from "@/lib/api/peaks";
 
 /**
  * Typed client for the W4 PlatformRecommender + W6 engine API
@@ -49,6 +50,10 @@ export type RepurposeSource =
   | { type: "draft"; draftId: string }
   | { type: "idea"; ideaId: string }
   | { type: "published_post"; socialPostId: string }
+  // A post the business made on Facebook, or an Instagram media, read live from Meta (the hubs list them from Graph; no row holds them).
+  // The api proves the post is the business's own; an Instagram media id does not name its account, so it travels with it.
+  | { type: "facebook_post"; postId: string }
+  | { type: "instagram_media"; mediaId: string; igUserId: string }
   | {
       type: "ad_hoc";
       title: string;
@@ -153,11 +158,58 @@ export interface RepurposeRequest {
   platformFitId?: string;
 }
 
-export async function repurpose(req: RepurposeRequest): Promise<RepurposeResponse> {
+/** The signed receipts for the prices the merchant was shown, one per kind of writing (see {@link RepurposeQuote}). */
+export interface RepurposeQuoteTokens {
+  posts?: string;
+  articles?: string;
+}
+
+export async function repurpose(req: RepurposeRequest, tokens: RepurposeQuoteTokens = {}): Promise<RepurposeResponse> {
   return api.request<RepurposeResponse>("/v1/content/repurpose", {
     method: "POST",
     body: JSON.stringify(req),
+    // A priced task: one key per click makes a retry one charge, and the quote the merchant was shown travels with it
+    // (the api charges THAT price, for the pieces that were written, never more).
+    headers: {
+      ...newActionKey(),
+      ...(tokens.posts ? { "x-peaks-quote": tokens.posts } : {}),
+      ...(tokens.articles ? { "x-peaks-quote-article": tokens.articles } : {}),
+    },
   });
+}
+
+// ── GET /v1/content/repurpose/quote ───────────────────────
+
+/** One channel's share of the price. `none` means nothing is written for it (so it costs nothing, and the row says why). */
+export interface RepurposeChannelPrice {
+  channel: string;
+  kind: "post" | "article" | "none";
+  /** Writer calls it makes: X is a post and a thread (2). */
+  pieces: number;
+  peaks: number;
+}
+
+/** A group of one kind of writing, priced as one binding quote for `units` of it. */
+export interface RepurposeQuoteGroup {
+  units: number;
+  quote: BindingPeaksQuote;
+}
+
+/**
+ * What writing for the chosen channels costs, in Peaks, before any model is asked. The numbers come off the rate card through the api's own
+ * binding quote (never typed here); `posts` and `articles` carry the receipts the press sends back.
+ */
+export interface RepurposeQuote {
+  channels: RepurposeChannelPrice[];
+  posts: RepurposeQuoteGroup | null;
+  articles: RepurposeQuoteGroup | null;
+  totalPeaks: number;
+  /** Render "Free", never "0 Peaks". */
+  free: boolean;
+}
+
+export async function repurposeQuote(platforms: string[]): Promise<RepurposeQuote> {
+  return api.request<RepurposeQuote>(`/v1/content/repurpose/quote?platforms=${encodeURIComponent(platforms.join(","))}`);
 }
 
 // ── Channel display metadata ──────────────────────────────
