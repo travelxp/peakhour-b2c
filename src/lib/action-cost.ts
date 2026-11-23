@@ -57,8 +57,6 @@ export const ACTION_USE_CASES = {
   contentBrief: ["content_editor"],
   /** The Strategist: write the content for an idea. */
   contentDraft: ["content_editor"],
-  /** Repurpose a piece for other channels. Which writers run depends on the channels chosen; the dearest is charged. */
-  repurpose: ["skill_execution", "write_blog_article", "content_editor", "linkedin_repurpose_newsletter"],
   /** WhatsApp template studio: Draft with AI, Check policy and Suggest a fix each make one call on this row. */
   waTemplateStudio: ["whatsapp.template_studio"],
   /** X: suggest a reply to a mention. */

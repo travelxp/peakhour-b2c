@@ -3,10 +3,16 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink, FileText, MessageSquare, RefreshCw, Unplug } from "lucide-react";
+import { ExternalLink, FileText, MessageSquare, RefreshCw, Share2, Unplug } from "lucide-react";
 import { EmptyState } from "@/components/molecules/empty-state";
 import { Button } from "@/components/ui/button";
 import { NewPostButton } from "@/components/compose/new-post-button";
+import dynamic from "next/dynamic";
+
+// Its own chunk, like the compose sheet: the Repurpose sheet and its writers' price hooks are not part of the hub's first-load JS
+// (the hub's bundle budget allows 10% growth). It stays mounted (closed) so a failed posts refetch cannot unmount it mid-flow.
+const RepurposeSheet = dynamic(() => import("@/components/repurpose/repurpose-sheet").then((mod) => mod.RepurposeSheet));
+import type { RepurposeSource } from "@/lib/api/repurpose";
 import { ComposeSheetProvider } from "@/components/compose/compose-sheet-provider";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -440,6 +446,38 @@ function PostTargetNote({ channel, target }: { channel: MetaHubChannel; target: 
 }
 
 function Posts({ channel, subjectId, postTarget }: { channel: MetaHubChannel; subjectId: string; postTarget: PostTarget | null }) {
+  // The post being turned into posts for other channels. Held in state so the object the sheet reads stays the same while it is open
+  // (the sheet re-asks the recommender whenever its source changes). The sheet is rendered HERE, outside the list's loading and error
+  // branches, so a refetch of the posts cannot unmount it mid-flow (while it is writing, or showing what was written).
+  const [repurposeSource, setRepurposeSource] = useState<RepurposeSource | null>(null);
+  const [repurposeOpen, setRepurposeOpen] = useState(false);
+  return (
+    <>
+      <PostsList
+        channel={channel}
+        subjectId={subjectId}
+        postTarget={postTarget}
+        onRepurpose={(source) => {
+          setRepurposeSource(source);
+          setRepurposeOpen(true);
+        }}
+      />
+      <RepurposeSheet open={repurposeOpen} onOpenChange={setRepurposeOpen} source={repurposeSource} />
+    </>
+  );
+}
+
+function PostsList({
+  channel,
+  subjectId,
+  postTarget,
+  onRepurpose,
+}: {
+  channel: MetaHubChannel;
+  subjectId: string;
+  postTarget: PostTarget | null;
+  onRepurpose: (source: RepurposeSource) => void;
+}) {
   const { formatDate } = useLocale();
   const q = usePosts(channel, subjectId);
   const [open, setOpen] = useState<string | null>(null);
@@ -464,7 +502,10 @@ function Posts({ channel, subjectId, postTarget }: { channel: MetaHubChannel; su
 
   return (
     <ul className="space-y-3">
-      {rows.map((r) => (
+      {rows.map((r) => {
+        // A picture with no words has nothing to write from; the api refuses it too, before any price is shown.
+        const hasText = !!r.text?.trim();
+        return (
         <li key={r.id}>
           <Card>
             <CardContent className="space-y-3 p-4">
@@ -485,6 +526,21 @@ function Posts({ channel, subjectId, postTarget }: { channel: MetaHubChannel; su
                 <Button size="sm" variant="outline" aria-expanded={open === r.id} onClick={() => setOpen(open === r.id ? null : r.id)}>
                   {open === r.id ? "Hide results" : "See results"}
                 </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!hasText}
+                  title={hasText ? undefined : "This post has no text to write from."}
+                  onClick={() =>
+                    onRepurpose(
+                      channel === "facebook"
+                        ? { type: "facebook_post", postId: r.id }
+                        : { type: "instagram_media", mediaId: r.id, igUserId: subjectId },
+                    )
+                  }
+                >
+                  <Share2 className="size-3.5" /> Turn into posts for other channels
+                </Button>
                 {r.permalink ? (
                   <Button asChild size="sm" variant="ghost">
                     <a href={r.permalink} target="_blank" rel="noopener noreferrer">
@@ -497,7 +553,8 @@ function Posts({ channel, subjectId, postTarget }: { channel: MetaHubChannel; su
             </CardContent>
           </Card>
         </li>
-      ))}
+        );
+      })}
     </ul>
   );
 }

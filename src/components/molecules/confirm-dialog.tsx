@@ -21,6 +21,8 @@ interface ConfirmDialogProps {
   cancelLabel?: string;
   variant?: "default" | "destructive";
   onConfirm: () => void | Promise<void>;
+  /** Disable the confirm button (for example while a decision is already in flight). */
+  confirmDisabled?: boolean;
 }
 
 export function ConfirmDialog({
@@ -31,6 +33,7 @@ export function ConfirmDialog({
   cancelLabel = "Cancel",
   variant = "default",
   onConfirm,
+  confirmDisabled = false,
 }: ConfirmDialogProps) {
   return (
     <AlertDialog>
@@ -44,6 +47,7 @@ export function ConfirmDialog({
           <AlertDialogCancel>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
+            disabled={confirmDisabled}
             variant={variant === "destructive" ? "destructive" : "default"}
           >
             {confirmLabel}
