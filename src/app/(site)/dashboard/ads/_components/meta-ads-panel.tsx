@@ -37,6 +37,7 @@ import {
   type MetaAdSet,
   type MetaAdsLevel,
   type MetaCampaign,
+  type MetaPagePost,
   type MetaSettableStatus,
 } from "@/lib/api/meta-ads";
 import {
@@ -64,6 +65,7 @@ import {
   type MetaKpiState,
 } from "@/lib/meta-ads-view";
 import { EditCampaignButton, LowerBudgetButton, NewCampaignDialog } from "./meta-campaign-dialogs";
+import { MetaPagesCard } from "./meta-pages-card";
 import { budgetKey } from "@/lib/meta-ads-form";
 import { getAdsChannel, panelConnection } from "../ads-channels";
 
@@ -218,9 +220,19 @@ function ConnectedView() {
   const [chosenFilter, setChosenFilter] = useState<string>("");
   // A campaign just created, so its section opens it.
   const [justCreated, setJustCreated] = useState<ReadonlySet<string>>(new Set());
+  // "Promote a post" (MR-H1): the post the New campaign dialog is open for, or null.
+  const [promote, setPromote] = useState<{ pageId: string; post: MetaPagePost } | null>(null);
+  // The Page chosen on the Page card; the New campaign dialog starts on it.
+  const [adsPageId, setAdsPageId] = useState<string | null>(null);
 
   // Every id compare is bare-id (`123` is `act_123`): see `classifyMetaAccounts`.
   const { list, enabled, others, newOnLogin, defaultId, missingCount, allChosenMissing, resolveFilter } = classifyMetaAccounts(accounts.data);
+
+  // ★A PROMOTE REQUEST DIES WITH THE DIALOG THAT SHOWED IT: with no enabled account there is no New campaign, and a request left in state
+  // would reopen the dialog by itself the moment an account is enabled again.
+  const noAccountToCreateIn = enabled.length === 0;
+  // (Adjusted during render, React's pattern for state derived from other state; an effect would draw one stale frame first.)
+  if (noAccountToCreateIn && promote) setPromote(null);
 
   if (accounts.isLoading) return <SkeletonStack />;
 
@@ -347,6 +359,10 @@ function ConnectedView() {
                 accounts={enabled}
                 defaultAccountId={defaultId}
                 initialAccountId={filter === META_ALL_ACCOUNTS || pauseOnlyAccount ? null : filter}
+                businessId={business?._id}
+                preferredPageId={adsPageId}
+                promote={promote}
+                onPromoteClose={() => setPromote(null)}
                 onCreated={(campaignId, accountId) => {
                   setJustCreated((prev) => new Set(prev).add(campaignId));
                   // Created in another account than the one filtered to: show that account, or the new campaign is nowhere to be seen.
@@ -376,6 +392,7 @@ function ConnectedView() {
           showAccountLine={enabled.length > 1}
         />
       ))}
+      {noneEnabled ? null : <MetaPagesCard businessId={business?._id} pickedPageId={adsPageId} onPick={setAdsPageId} onPromote={(pageId, post) => setPromote({ pageId, post })} />}
       {noneEnabled ? null : <DatasetCard accounts={enabled} defaultAccountId={defaultId} />}
     </div>
   );

@@ -149,10 +149,26 @@ export type MetaAdsLevel = "campaign" | "adSet" | "ad";
  */
 export const META_ANALYTICS_BATCH = 25;
 
-/** The Facebook Page an ad is published as. `null` when none is stored. */
-export interface MetaAdPage {
+/**
+ * A Facebook Page the Ads login reaches (`GET /pages`). `canAdvertise` is Meta's ADVERTISE task for this person on the Page: without
+ * it an ad cannot run as the Page, and the api refuses one. `isSaved` marks the Page saved for the business, the default. No Page
+ * access token is ever part of this shape.
+ */
+export interface MetaAdsPage {
   id: string;
-  name?: string;
+  name: string;
+  pictureUrl?: string;
+  canAdvertise: boolean;
+  isSaved: boolean;
+}
+
+/** One post on a Facebook Page, as it ran as an ad (`ads-posts`) or was published (`posts`). */
+export interface MetaPagePost {
+  id: string;
+  message?: string;
+  createdTime?: string;
+  pictureUrl?: string;
+  permalinkUrl?: string;
 }
 
 export interface MetaCampaignEdit {
@@ -272,7 +288,16 @@ export const metaAdsApi = {
       { adAccountId, datasetId },
     ),
 
-  getPage: () => api.get<{ page: MetaAdPage | null }>(metaAdsUrl("/v1/meta/ads/page")),
+  listPages: () =>
+    api.get<{ pages: MetaAdsPage[]; savedPageId: string | null }>(metaAdsUrl("/v1/meta/ads/pages")),
+
+  /** The ads that have run from this Page. */
+  listPageAdsPosts: (pageId: string) =>
+    api.get<{ posts: MetaPagePost[]; truncated: boolean }>(metaAdsUrl("/v1/meta/ads/pages/:pageId/ads-posts", { pageId })),
+
+  /** The Page's recent published posts, for "promote a post". */
+  listPagePosts: (pageId: string) =>
+    api.get<{ posts: MetaPagePost[]; truncated: boolean }>(metaAdsUrl("/v1/meta/ads/pages/:pageId/posts", { pageId })),
 
   /** `mediaId` is a Drive file (chosen in the picker); the server reads its bytes, so nothing is sent from the browser. Answers the hash an ad's creative takes. */
   uploadImage: (v: { adAccountId: string; mediaId: string }) =>

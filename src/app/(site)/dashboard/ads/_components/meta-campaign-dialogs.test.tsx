@@ -12,7 +12,7 @@ import { act } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const mocks = vi.hoisted(() => ({
-  getPage: vi.fn(),
+  listPages: vi.fn(),
   uploadImage: vi.fn(),
   pickerProps: vi.fn(),
   launchCampaign: vi.fn(),
@@ -29,7 +29,7 @@ vi.mock("@/lib/api/meta-ads", async (orig) => {
     ...actual,
     metaAdsApi: {
       ...actual.metaAdsApi,
-      getPage: mocks.getPage,
+      listPages: mocks.listPages,
       uploadImage: mocks.uploadImage,
       launchCampaign: mocks.launchCampaign,
       editCampaign: mocks.editCampaign,
@@ -82,6 +82,11 @@ const ACCOUNT: MetaAdAccount = {
   currency: "USD",
   timezone: "Asia/Kolkata",
   accountStatus: 1,
+};
+
+const PAGES = {
+  pages: [{ id: "9001", name: "Corner Shop", canAdvertise: true, isSaved: true }],
+  savedPageId: "9001",
 };
 
 let root: Root;
@@ -143,7 +148,7 @@ beforeEach(() => {
   document.body.appendChild(host);
   root = createRoot(host);
   Object.values(mocks).forEach((m) => m.mockReset());
-  mocks.getPage.mockResolvedValue({ page: { id: "9001", name: "Corner Shop" } });
+  mocks.listPages.mockResolvedValue(PAGES);
   mocks.uploadImage.mockResolvedValue({ imageHash: "hash1" });
   mocks.launchCampaign.mockResolvedValue({ campaignId: "c1", adSetId: "s1", adId: "a1" });
 });
@@ -166,7 +171,9 @@ describe("New campaign dialog", () => {
     await open();
     expect(document.body.textContent).toContain("starts paused");
     expect(byText("label", /Daily budget/)?.textContent).toContain("USD");
-    expect(document.body.textContent).toContain("Shown as Corner Shop");
+    // The Page is a choice, defaulting to the saved one.
+    expect(q("#mc-page")?.textContent).toContain("Corner Shop");
+    expect(document.body.textContent).toContain("People see the ad as coming from this Page");
   });
 
   it("names the ad account it creates in, beside the button that creates", async () => {
@@ -249,13 +256,124 @@ describe("New campaign dialog", () => {
   });
 
   it("will not create without a Facebook Page, and says why", async () => {
-    mocks.getPage.mockResolvedValue({ page: null });
+    mocks.listPages.mockResolvedValue({ pages: [], savedPageId: null });
     await open();
     await fillValidForm();
-    expect(document.body.textContent).toContain("No Facebook Page is saved");
+    expect(document.body.textContent).toContain("has no Facebook Page");
     click(byText("button", "Create paused campaign"));
     await flush();
     expect(mocks.launchCampaign).not.toHaveBeenCalled();
+  });
+
+  describe("Facebook Page (MR-H1)", () => {
+    const TWO = {
+      pages: [
+        { id: "9001", name: "Corner Shop", canAdvertise: true, isSaved: true },
+        { id: "9002", name: "Second Page", canAdvertise: true, isSaved: false },
+        { id: "9003", name: "Not Mine", canAdvertise: false, isSaved: false },
+      ],
+      savedPageId: "9001",
+    };
+
+    it("defaults to the saved Page, lists the others, and shows a Page without the permission disabled with why", async () => {
+      mocks.listPages.mockResolvedValue(TWO);
+      await open();
+      expect(q("#mc-page")?.textContent).toContain("Corner Shop");
+      click(q("#mc-page"));
+      await flush();
+      const options = [...document.body.querySelectorAll('[role="option"]')];
+      expect(options.map((o) => o.textContent)).toEqual([
+        "Corner Shop · saved",
+        "Second Page",
+        "Not Mine · you can't run ads as this Page",
+      ]);
+      expect(options[2]!.getAttribute("aria-disabled") ?? options[2]!.getAttribute("data-disabled")).not.toBeNull();
+    });
+
+    it("starts on the Page chosen on the Page card, over the saved one, and falls back when that one cannot advertise", async () => {
+      mocks.listPages.mockResolvedValue(TWO);
+      mount(<NewCampaignDialog accounts={[ACCOUNT]} defaultAccountId={ACCOUNT.id} onCreated={vi.fn()} preferredPageId="9002" />);
+      click(byText("button", /New campaign/));
+      await flush();
+      expect(q("#mc-page")?.textContent).toContain("Second Page");
+    });
+
+    it("ignores a preferred Page that cannot advertise and uses the same default as the card", async () => {
+      mocks.listPages.mockResolvedValue(TWO);
+      mount(<NewCampaignDialog accounts={[ACCOUNT]} defaultAccountId={ACCOUNT.id} onCreated={vi.fn()} preferredPageId="9003" />);
+      click(byText("button", /New campaign/));
+      await flush();
+      expect(q("#mc-page")?.textContent).toContain("Corner Shop");
+    });
+
+    it("creates the ad as the Page that was picked", async () => {
+      mocks.listPages.mockResolvedValue(TWO);
+      await open();
+      click(q("#mc-page"));
+      await flush();
+      click([...document.body.querySelectorAll('[role="option"]')][1]);
+      await flush();
+      await fillValidForm();
+      click(byText("button", "Create paused campaign"));
+      await flush();
+      expect(mocks.launchCampaign.mock.calls[0]![0].ad("s1").creative.objectStorySpec.pageId).toBe("9002");
+    });
+
+    it("says so, and will not create, when no Page lets the login advertise", async () => {
+      mocks.listPages.mockResolvedValue({ pages: [TWO.pages[2]], savedPageId: null });
+      await open();
+      await fillValidForm();
+      expect(document.body.textContent).toContain("None of your Facebook Pages lets you run ads");
+      click(byText("button", "Create paused campaign"));
+      await flush();
+      expect(mocks.launchCampaign).not.toHaveBeenCalled();
+    });
+
+    it("promotes an existing post: no image, words or link are asked for, and the ad is the post, from its Page", async () => {
+      mocks.listPages.mockResolvedValue(TWO);
+      const onPromoteClose = vi.fn();
+      mount(
+        <NewCampaignDialog
+          accounts={[ACCOUNT]}
+          defaultAccountId={ACCOUNT.id}
+          onCreated={vi.fn()}
+          promote={{ pageId: "9002", post: { id: "9002_77", message: "Big sale" } }}
+          onPromoteClose={onPromoteClose}
+        />,
+      );
+      await flush();
+      expect(document.body.textContent).toContain("Promote this post");
+      expect(q('[data-testid="promoted-post"]')?.textContent).toContain("Big sale");
+      expect(q("#mc-image")).toBeNull();
+      expect(q("#mc-headline")).toBeNull();
+      expect(q("#mc-goal")).toBeNull();
+      setValue(q<HTMLInputElement>("#mc-name")!, "Boost the sale");
+      setValue(q<HTMLInputElement>("#mc-budget")!, "10");
+      setValue(q<HTMLSelectElement>('select[aria-label="Add a country"]')!, "IN");
+      click(byText("button", "Create paused campaign"));
+      await flush();
+      expect(mocks.uploadImage).not.toHaveBeenCalled();
+      const bodies = mocks.launchCampaign.mock.calls[0]![0];
+      expect(bodies.ad("s1")).toMatchObject({ status: "PAUSED", creative: { objectStoryId: "9002_77" } });
+      expect(bodies.campaign.status).toBe("PAUSED");
+      expect(onPromoteClose).toHaveBeenCalled();
+    });
+
+    it("will not promote a post from a Page the login can no longer advertise for", async () => {
+      mocks.listPages.mockResolvedValue(TWO);
+      mount(
+        <NewCampaignDialog
+          accounts={[ACCOUNT]}
+          defaultAccountId={ACCOUNT.id}
+          onCreated={vi.fn()}
+          promote={{ pageId: "9003", post: { id: "9003_5" } }}
+          onPromoteClose={vi.fn()}
+        />,
+      );
+      await flush();
+      expect(document.body.textContent).toContain("can't run ads as that Page");
+      expect((byText("button", "Create paused campaign") as HTMLButtonElement).disabled).toBe(true);
+    });
   });
 
   it("takes its image from the one picker, for the Meta ad image place, and shows the chosen file", async () => {

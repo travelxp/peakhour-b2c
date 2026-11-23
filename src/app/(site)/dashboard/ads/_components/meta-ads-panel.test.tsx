@@ -63,13 +63,22 @@ vi.mock("@/lib/api/meta-ads", async (orig) => {
   };
 });
 vi.mock("./meta-campaign-dialogs", () => ({
-  NewCampaignDialog: (p: { accounts: Array<{ id: string }>; defaultAccountId: string | null; initialAccountId?: string | null; onCreated: (campaignId: string, accountId: string) => void }) => (
-    <button data-testid="new-campaign" onClick={() => p.onCreated("new-1", "act_1111")} data-accounts={p.accounts.map((x) => x.id).join(",")} data-default={p.defaultAccountId ?? ""} data-initial={p.initialAccountId ?? ""}>
+  NewCampaignDialog: (p: { accounts: Array<{ id: string }>; defaultAccountId: string | null; initialAccountId?: string | null; preferredPageId?: string | null; promote?: { pageId: string; post: { id: string } } | null; onPromoteClose?: () => void; onCreated: (campaignId: string, accountId: string) => void }) => (
+    <button data-testid="new-campaign" onClick={() => p.onCreated("new-1", "act_1111")} data-accounts={p.accounts.map((x) => x.id).join(",")} data-default={p.defaultAccountId ?? ""} data-initial={p.initialAccountId ?? ""} data-preferred={p.preferredPageId ?? ""} data-promote={p.promote ? `${p.promote.pageId}/${p.promote.post.id}` : ""} data-close={p.onPromoteClose ? "yes" : ""}>
       New campaign
     </button>
   ),
   EditCampaignButton: () => <button data-lower-only="no">Edit campaign</button>,
   LowerBudgetButton: (p: { level: string; node: { name: string } }) => <button data-lower-only="yes">Lower budget of {p.level} {p.node.name}</button>,
+}));
+
+// The Page card is its own tested module; here it is a button that asks to promote a post, so the panel's wiring is what is tested.
+vi.mock("./meta-pages-card", () => ({
+  MetaPagesCard: (p: { businessId?: string; pickedPageId: string | null; onPick: (id: string) => void; onPromote: (pageId: string, post: { id: string }) => void }) => (
+    <button data-testid="pages-card" data-business={p.businessId ?? ""} data-picked={p.pickedPageId ?? ""} onClick={() => p.onPromote("9001", { id: "9001_77" })} onDoubleClick={() => p.onPick("9002")}>
+      Pages card
+    </button>
+  ),
 }));
 
 const { MetaAdsPanel } = await import("./meta-ads-panel");
@@ -174,6 +183,56 @@ describe("Growth > Ads > Meta", () => {
     expect(h.listCampaigns).not.toHaveBeenCalledWith("act_3333");
     expect(container.textContent).not.toContain("Other Biz");
     expect(container.querySelector('[data-testid="new-campaign"]')!.getAttribute("data-accounts")).toBe("act_1111,act_2222");
+  });
+
+  it("MR-H1: Promote a post on the Page card opens New campaign with that post, and closing clears it", async () => {
+    h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
+    await mount();
+    expect(container.querySelector('[data-testid="new-campaign"]')!.getAttribute("data-promote")).toBe("");
+    expect(container.querySelector('[data-testid="pages-card"]')!.getAttribute("data-business")).toBe("b1");
+    await act(async () => {
+      (container.querySelector('[data-testid="pages-card"]') as HTMLElement).click();
+    });
+    expect(container.querySelector('[data-testid="new-campaign"]')!.getAttribute("data-promote")).toBe("9001/9001_77");
+  });
+
+  it("MR-H1: the Page picked on the card is the one New campaign starts on", async () => {
+    h.listAdAccounts.mockResolvedValue(answer([QUESTS, CMPL], "act_2222"));
+    await mount();
+    expect(container.querySelector('[data-testid="new-campaign"]')!.getAttribute("data-preferred")).toBe("");
+    await act(async () => {
+      container.querySelector('[data-testid="pages-card"]')!.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+    });
+    expect(container.querySelector('[data-testid="new-campaign"]')!.getAttribute("data-preferred")).toBe("9002");
+    expect(container.querySelector('[data-testid="pages-card"]')!.getAttribute("data-picked")).toBe("9002");
+  });
+
+  it("MR-H1: a promote request does not reopen New campaign by itself when an account is enabled again", async () => {
+    h.listAdAccounts.mockResolvedValue(answer([QUESTS], "act_1111"));
+    await mount();
+    await act(async () => {
+      (container.querySelector('[data-testid="pages-card"]') as HTMLElement).click();
+    });
+    expect(container.querySelector('[data-testid="new-campaign"]')!.getAttribute("data-promote")).toBe("9001/9001_77");
+    // The business un-ticks its only account (nothing enabled), the panel refetches, then it ticks one again.
+    h.listAdAccounts.mockResolvedValue(answer([], null));
+    await act(async () => {
+      await lastClient.invalidateQueries({ queryKey: ["meta-ads-accounts"] });
+    });
+    await settle();
+    expect(container.querySelector('[data-testid="new-campaign"]')).toBeNull();
+    h.listAdAccounts.mockResolvedValue(answer([QUESTS], "act_1111"));
+    await act(async () => {
+      await lastClient.invalidateQueries({ queryKey: ["meta-ads-accounts"] });
+    });
+    await settle();
+    expect(container.querySelector('[data-testid="new-campaign"]')!.getAttribute("data-promote")).toBe("");
+  });
+
+  it("MR-H1: no Page card, and nothing to promote, when no ad account is enabled", async () => {
+    h.listAdAccounts.mockResolvedValue(answer([], null));
+    await mount();
+    expect(container.querySelector('[data-testid="pages-card"]')).toBeNull();
   });
 
   it("New campaign gets the enabled accounts and the default, and Edit shows", async () => {
